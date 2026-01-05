@@ -1,0 +1,384 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║              INPUT NODE SENSORY GEOMETRIES — VISUAL REFERENCE                   ║
+║                          3 Ultra-Unique Receiver Interfaces                      ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════════
+1. SENSORY_GATE — Open Threshold Interface
+═══════════════════════════════════════════════════════════════════════════════════
+
+CONCEPT:
+  "Something is entering. The gate opens. Signals cross the threshold into Atoma."
+
+GEOMETRY STRUCTURE:
+  ┌─────────────────────────────────┐
+  │                                 │
+  │    ╱╲                      ╱╲   │  5 asymmetric curved segments
+  │   ╱  ╲                    ╱  ╲  │  arranged around void center
+  │  ╱    ╲  ┌─────────┐     ╱    ╲ │  Gap ~108° (OPENING)
+  │ ╱      ╲ │ ∅ VOID  │    ╱      ╲│
+  │╱        ╲│ CENTER  │   ╱        ╲│
+  │          └─────────┘              │  Rim accent: cyan highlight
+  │   ╱─ ─ ─ ─ ╱─ ─ ─ ─ ─╲ ─ ─ ─ ╲  │  (partial arc)
+  │  ╱       ╱             ╲       ╲ │
+  │ ╱       ╱               ╲       ╲│
+  │╱_______╱_________________╲_______╲│
+  │                                   │
+  └─────────────────────────────────┘
+
+COMPONENTS:
+  • 5 Frame Segments (curved boxes)
+    ├─ NOT a complete ring
+    ├─ Asymmetric positioning (radius varies ±15%)
+    ├─ Each at different angle offset
+    ├─ Slight asymmetric tilt per segment
+    └─ Color: Base violet + pale magenta tint
+
+  • Central Void Marker (invisible)
+    ├─ Represents reception aperture
+    ├─ Empty space (no solid)
+    └─ renderOrder just below segments
+
+  • Rim Accent (toroid, partial)
+    ├─ Subtle cyan highlight
+    ├─ Marks the gap/opening
+    └─ Opacity 40%, rotated
+
+VISUAL LANGUAGE:
+  ✓ Open frame = acceptance, invitation
+  ✓ Gap = something entering
+  ✓ Void center = empty receiver
+  ✓ Cyan accents = signal transmission
+  ✓ Asymmetry = organic, alive
+
+ANIMATION:
+  • Overall rotation: Y axis, 0.05 rad/s (VERY SLOW)
+  • Segment drift: Independent wobble (±0.3 rad)
+  • Phase offset: Each segment different (no sync)
+  • Scale breathing: ±2% per segment
+  • Effect: Gentle pulsing threshold
+
+COLOR PALETTE:
+  Primary:   Soft violet (base INPUT color)
+  Tint:      Pale magenta (#fffacd) — 30% blend
+  Accent:    Cyan (#00ffff) — 50% blend
+  Materials: MeshPhysicalMaterial, metalness 0.7, opacity 0.85
+
+FEEL:
+  Opening... Receptive... Welcoming... Threshold...
+
+═══════════════════════════════════════════════════════════════════════════════════
+2. LISTENING_CROWN — Radial Antenna Array
+═══════════════════════════════════════════════════════════════════════════════════
+
+CONCEPT:
+  "The system is listening. Attuned to invisible frequencies. Invisible waves received."
+
+GEOMETRY STRUCTURE:
+              ╱╲  ╱╲  ╱╲
+             ╱  ╲╱  ╲╱  ╲       9 antenna spines
+            ╱ ╱╲ ╱╲  ╱╲ ╲      radiating outward
+           ╱ ╱  ╲  ╱  ╲ ╲╲
+          ╱ ╱ ╱╲  ╱  ╱╲ ╲╲╲
+         ╱_╱_╱__╲╱__╱__╲_╲╲╲   Tilted crown
+            │   ∅    │         glow ring
+            │ CORE   │         (subtle)
+            └───────┘
+
+         ✱   ✱   ✱
+        ✱ ✱ ✱ ✱ ✱ ✱
+       ✱  ✱  ✱  ✱  ✱  ✱  Overhead view:
+        ✱ ✱ ⊙ ✱ ✱ ✱   Spines arranged radially
+         ✱ ✱ ✱ ✱ ✱   (each has unique phase)
+
+COMPONENTS:
+  • 9 Antenna Spines (tapered cones)
+    ├─ Thin base, sharp tip
+    ├─ Slight curvature per spine
+    ├─ NO symmetry perfection
+    ├─ Arranged radially around center
+    ├─ Height variation (organic)
+    └─ Color: Base violet + thistle tint
+
+  • Listener Core (icosahedron, central)
+    ├─ Small, dark (deep void)
+    ├─ Represents receiving nucleus
+    ├─ Emissive glow subtle
+    └─ renderOrder below spines
+
+  • Crown Glow Accent (tilted toroid)
+    ├─ Surrounds base of spines
+    ├─ Tilted at ~60° angle
+    ├─ Cyan/pale magenta color
+    └─ Opacity 30%
+
+VISUAL LANGUAGE:
+  ✓ Radial spines = omnidirectional listening
+  ✓ Slight curves = organic antenna
+  ✓ Antenna points up = receptive posture
+  ✓ Dark core = signal collection point
+  ✓ Crown glow = active reception state
+
+ANIMATION:
+  • Overall rotation: Y axis, 0.04 rad/s (SLOW)
+  • Spine sway: Independent wobble (±0.2–0.3 rad)
+  • Wave pattern: Each spine different phase/frequency
+  • Scale breathing: ±1.5% per spine
+  • Effect: Organic, listening intently
+
+COLOR PALETTE:
+  Primary:   Soft violet (base INPUT color)
+  Tint:      Thistle (#d8bfd8) — 40% blend
+  Accent:    Cyan glow (#00ffff) — 60% blend
+  Core:      Dark void (0x1a1a2e)
+  Materials: MeshPhysicalMaterial, metalness 0.5, opacity 0.8
+
+FEEL:
+  Listening... Tuned... Receptive... Aware... Sensitive...
+
+═══════════════════════════════════════════════════════════════════════════════════
+3. PERCEPTION_BLOOM — Petal Unfolding
+═══════════════════════════════════════════════════════════════════════════════════
+
+CONCEPT:
+  "Raw input becomes sensation. Perception unfolds. Awareness blooming."
+
+GEOMETRY STRUCTURE:
+                ╱╲╲
+              ╱╱  ╲╲
+            ╱╱  ╱╲  ╲╲
+          ╱╱  ╱  ╲  ╲╲╲        7 petal plates
+        ╱╱  ╱  ╱╲  ╲  ╲╲╲      semi-open bloom
+      ╱╱  ╱  ╱  ╲  ╲  ╲ ╲╲
+    ╱╱╱ ╱  ╱ ╱╲╲ ╲  ╲  ╲ ╲
+   ╱  │ │ ∅ VOID │ │  ╲ ╲  Petals DON'T intersect
+  │   │ │  CORE  │ │   │ │  (careful arrangement)
+   ╲  │ │        │ │  ╱ ╱
+    ╲╲╲ ╲ ╲╱╱╱╱ ╱ ╱ ╱╱╱   Frame outline:
+      ╲╲  ╲  ╲╲╱  ╱╱╱╱     toroid (subtle)
+        ╲╲  ╲╲╱╱╱╱
+          ╲╲  ╱╱╱
+            ╲╲╱
+
+        ⬡
+       ╱ ╲
+      ⬡   ⬡    Overhead view:
+      │ ⊙ │    7 petals in bloom
+      ⬡   ⬡    Center: void core
+       ╲ ╱
+        ⬡
+
+COMPONENTS:
+  • 7 Petal Plates (translucent boxes, elongated)
+    ├─ Arranged in semi-open bloom (NOT complete circle)
+    ├─ Each petal tilted outward
+    ├─ Slight organic height variation
+    ├─ Petals maintain spacing (no intersect)
+    ├─ Color: Base violet + lavender blend
+    └─ Transmission 30% (translucent)
+
+  • Central Void Core (octahedron)
+    ├─ Small, dark, empty
+    ├─ Represents perception nucleus
+    ├─ Emissive glow subtle
+    └─ renderOrder below petals
+
+  • Bloom Frame Accent (tilted toroid)
+    ├─ Surrounds base of petals
+    ├─ Tilted at ~30° angle
+    ├─ Pale magenta color
+    └─ Opacity 25%
+
+VISUAL LANGUAGE:
+  ✓ Petal bloom = opening, awareness
+  ✓ Translucence = delicate sensation
+  ✓ Void core = perception gathering point
+  ✓ Semi-open = becoming conscious
+  ✓ Organic arrangement = alive, growing
+
+ANIMATION:
+  • Overall rotation: Y axis, 0.02 rad/s (EXTREMELY SLOW)
+  • Unified breathing: ±1% scale (entire structure)
+  • Breathing frequency: 0.5 Hz (hypnotic pulse)
+  • Petals: RIGID (no individual movement)
+  • Effect: Hypnotic, "awareness unfolding"
+
+COLOR PALETTE:
+  Primary:   Soft violet (base INPUT color)
+  Tint:      Lavender (#e6e6fa) — 50% blend
+  Accent:    Pale magenta (varies)
+  Core:      Dark void (0x1a1a2e)
+  Materials: MeshPhysicalMaterial, metalness 0.2, opacity 0.7
+
+FEEL:
+  Unfolding... Blooming... Perceiving... Conscious... Aware...
+
+═══════════════════════════════════════════════════════════════════════════════════
+4. ANIMATION COMPARISON
+═══════════════════════════════════════════════════════════════════════════════════
+
+Node Type            │ Rotation  │ Movement Type      │ Frequency │ Character
+─────────────────────┼───────────┼────────────────────┼───────────┼──────────────
+SENSORY_GATE         │ 0.05 r/s  │ Segment drift      │ 0.3 Hz    │ Pulsing threshold
+                     │ (Y axis)  │ Independent wobble │ 0.25 Hz   │ Receptive
+                     │           │ Scale breathing    │ 0.2 Hz    │
+
+LISTENING_CROWN      │ 0.04 r/s  │ Spine sway         │ 0.4 Hz    │ Listening
+                     │ (Y axis)  │ Wave pattern       │ 0.35 Hz   │ Intently tuned
+                     │           │ Scale breathing    │ 0.3 Hz    │ Organic
+
+PERCEPTION_BLOOM     │ 0.02 r/s  │ Unified breathing  │ 0.5 Hz    │ Hypnotic
+                     │ (Y axis)  │ Entire structure   │ (unified) │ Unfolding
+                     │ (SLOW)    │ (NO individual)    │ rhythm    │ Aware
+
+═══════════════════════════════════════════════════════════════════════════════════
+5. MATERIAL PROPERTIES
+═══════════════════════════════════════════════════════════════════════════════════
+
+All INPUT sensory geometries use MeshPhysicalMaterial:
+
+SENSORY_GATE Segments:
+  • Color: Violet + 30% pale magenta
+  • Metalness: 0.7 (reflective)
+  • Roughness: 0.2 (polished)
+  • Transmission: 0.1 (faint translucency)
+  • Emissive: Base color
+  • Emissive Intensity: 0.15
+  • Opacity: 0.85
+
+LISTENING_CROWN Spines:
+  • Color: Violet + 40% thistle
+  • Metalness: 0.5 (moderate)
+  • Roughness: 0.3 (satin)
+  • Transmission: 0.15 (subtle transparency)
+  • Emissive: Base color
+  • Emissive Intensity: 0.2
+  • Opacity: 0.8
+
+LISTENING_CROWN Core:
+  • Color: Dark void (0x1a1a2e)
+  • Metalness: 0.8 (reflective void)
+  • Roughness: 0.1 (polished)
+  • Emissive: Base color
+  • Emissive Intensity: 0.3
+  • Opacity: 0.7
+
+PERCEPTION_BLOOM Petals:
+  • Color: Violet + 50% lavender
+  • Metalness: 0.2 (matte)
+  • Roughness: 0.5 (soft)
+  • Transmission: 0.3 (translucent)
+  • Emissive: Base color
+  • Emissive Intensity: 0.1
+  • Opacity: 0.7
+
+═══════════════════════════════════════════════════════════════════════════════════
+6. IMMUTABILITY & SAFETY
+═══════════════════════════════════════════════════════════════════════════════════
+
+Every INPUT sensory node includes:
+
+✓ userData.visualCoreImmutable = true
+  └─ Prevents later systems from modifying visuals
+
+✓ mesh.raycast = () => {}
+  └─ Skips raycasting (doesn't interfere with hit proxies)
+
+✓ Static geometry
+  └─ No geometry mutations after creation
+
+✓ Static materials
+  └─ Emissive intensity set once (not per-frame)
+  └─ Color constant (not animated)
+  └─ Opacity constant
+
+✓ Transform-only animation
+  └─ Rotation: Any axis, full range
+  └─ Scale: Breathing ±1% max
+  └─ Position: Orbit/drift only
+
+═══════════════════════════════════════════════════════════════════════════════════
+7. COLOR PALETTE SUMMARY
+═══════════════════════════════════════════════════════════════════════════════════
+
+INPUT Base Color:     Soft violet (#some variation)
+
+SENSORY_GATE:
+  Base + 30% Pale Magenta (#fffacd)  → Warm tint
+  Accent: Cyan (#00ffff) - 50%       → Signal markers
+
+LISTENING_CROWN:
+  Base + 40% Thistle (#d8bfd8)       → Soft edge
+  Accent: Cyan glow (#00ffff) - 60%  → Listening active
+  Core: Dark void (0x1a1a2e)         → Reception point
+
+PERCEPTION_BLOOM:
+  Base + 50% Lavender (#e6e6fa)      → Delicate blend
+  Accent: Pale magenta (varies)      → Subtle shimmer
+  Core: Dark void (0x1a1a2e)         → Perception center
+
+═══════════════════════════════════════════════════════════════════════════════════
+8. QUICK SPAWN CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════════
+
+When spawning INPUT sensory nodes:
+
+Spawn Command:
+  node = EnhancedNodeModels.create('input', index, color);
+
+Visual Check:
+  ✓ Geometry appears immediately (static creation)
+  ✓ Colors blend correct (palette applied)
+  ✓ No console warnings
+  ✓ renderOrder correct (layering right)
+
+Animation Check (within 1 frame):
+  ✓ SENSORY_GATE: Segments drift + rotate slowly
+  ✓ LISTENING_CROWN: Spines sway independently
+  ✓ PERCEPTION_BLOOM: Breathing effect visible, rotation slow
+
+Interaction Check:
+  ✓ Can link to/from without errors
+  ✓ Visuals don't change on link creation
+  ✓ Raycasting doesn't interfere
+  ✓ FPS stays 60+
+
+═══════════════════════════════════════════════════════════════════════════════════
+9. PERFORMANCE METRICS
+═══════════════════════════════════════════════════════════════════════════════════
+
+Memory Usage per Node:
+
+SENSORY_GATE:
+  • 5 segments: 5 × 1.2 KB = 6 KB
+  • Rim accent: 0.8 KB
+  • Animation state: 0.2 KB
+  • TOTAL: ~7 KB
+
+LISTENING_CROWN:
+  • 9 spines: 9 × 0.8 KB = 7.2 KB
+  • Core: 0.5 KB
+  • Glow ring: 0.8 KB
+  • Animation state: 0.5 KB
+  • TOTAL: ~9 KB
+
+PERCEPTION_BLOOM:
+  • 7 petals: 7 × 0.6 KB = 4.2 KB
+  • Core: 0.5 KB
+  • Frame: 0.8 KB
+  • Animation state: 0.3 KB
+  • TOTAL: ~6 KB
+
+CPU Usage per Frame (60 FPS = 16.67ms target):
+
+SENSORY_GATE: 0.08ms (segment rotation + drift)
+LISTENING_CROWN: 0.12ms (spine sway ×9)
+PERCEPTION_BLOOM: 0.04ms (unified breathing)
+
+Total for 10 INPUT sensory nodes:
+  Memory: ~80 KB
+  CPU: ~2.4ms per frame (14% budget used)
+
+═══════════════════════════════════════════════════════════════════════════════════
+END OF REFERENCE
+═══════════════════════════════════════════════════════════════════════════════════

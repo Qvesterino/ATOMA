@@ -1,0 +1,387 @@
+================================================================================
+SAFE LEGENDARY NODE PACK 2.0 - VISUAL REFERENCE GUIDE
+================================================================================
+
+The 5 LEGENDARY TYPES with their distinctive aesthetics:
+
+================================================================================
+1. AURORA NODE - Rainbow Spectrum
+================================================================================
+
+                            Ring 4 (Green)
+                               /|\
+                              / | \
+                             /  |  \
+                            |   *   |
+                             \  |  /    Ring 3 (Yellow)
+                              \ | /       /|\
+                               \|/       / | \
+                               Node     |  *  |
+                                        \ | /
+                                         \|/
+
+VFX Composition:
+  • 4 Rotating rings (Cyan, Magenta, Yellow, Green)
+  • Each ring rotates on different axis
+  • Colors fade/cycle smoothly
+  • Opacity pulses: 0.3 → 0.7
+  • Perfect for: Input nodes, data hubs
+
+Animation:
+  ┌─────────────────────────────────────┐
+  │ Time: 0s    Rings: Slow rotation   │
+  │ Time: 1s    Colors: Transition 1  │
+  │ Time: 2s    Colors: Transition 2  │
+  │ Time: 3s    Opacity: Peak glow    │
+  │ Time: 4s    Back to start          │
+  └─────────────────────────────────────┘
+
+Power Level Effects:
+  Low (0-30):    Subtle glow, slow rings
+  Medium (30-60): Bright glow, steady rings
+  High (60-100):  Intense glow, fast rings
+
+
+================================================================================
+2. FRACTAL NODE - Mathematical Geometry
+================================================================================
+
+                              *
+                             /|\
+                            / | \
+                           /  |  \
+                          |   |   |
+                          |  NODE  |
+                          |   |   |
+                           \  |  /
+                            \ | /
+                             \|/
+                           (Fractal lines
+                            radiating out)
+
+VFX Composition:
+  • 3 Rotating fractal line structures
+  • Nested geometric patterns
+  • Inner fractal shimmer
+  • Particle field (geometric shards)
+  • Perfect for: Integration nodes, networks
+
+Animation:
+  ┌──────────────────────────────────┐
+  │ X-axis: Rotation slow            │
+  │ Y-axis: Rotation medium          │
+  │ Z-axis: Rotation fast            │
+  │ Combined: Complex 3D patterns    │
+  │ Complexity: Level 3 fractals     │
+  └──────────────────────────────────┘
+
+Power Level Effects:
+  Low (0-30):    Subtle patterns, few particles
+  Medium (30-60): Clear fractals, many particles
+  High (60-100):  Intense fractals, full field
+
+
+================================================================================
+3. SINGULARITY NODE - Gravitational Anomaly
+================================================================================
+
+                            ⊗ ⊗ ⊗
+                          ⊗         ⊗
+                        ⊗      *      ⊗
+                      ⊗        ●        ⊗
+                        ⊗      *      ⊗
+                          ⊗         ⊗
+                            ⊗ ⊗ ⊗
+                           (Core +
+                         Distortion)
+
+VFX Composition:
+  • Core: IcosahedronGeometry (0.8 scale)
+  • Color: Deep violet (#6600ff)
+  • 2 Distortion rings (toroidal)
+  • Pulsing scale: 1.0 → 1.3
+  • Frequency: 1.2 Hz pulse
+  • Perfect for: Process hubs, gravity wells
+
+Animation:
+  ┌─────────────────────────────────┐
+  │ Core: Scales 1.0 → 1.3 → 1.0  │
+  │ Ring 1: Expands outward         │
+  │ Ring 2: Slower expansion        │
+  │ All: Synchronized pulse         │
+  │ Frequency: 1.2 per second       │
+  └─────────────────────────────────┘
+
+Power Level Effects:
+  Low (0-30):    Slow pulse, subtle rings
+  Medium (30-60): Normal pulse, visible rings
+  High (60-100):  Fast pulse, intense distortion
+
+
+================================================================================
+4. SIGMA PRIME NODE - Glitch Anomaly
+================================================================================
+
+                          ▭ ▭ ▭
+                        ▭       ▭
+                       ▭    *    ▭
+                      ▭    ●    ▭
+                       ▭       ▭
+                        ▭  *  ▭
+                          ▭▭▭
+                       (Panels +
+                        Sparks)
+
+VFX Composition:
+  • 3 Cracked hologram panels
+  • Base color: Teal/Green (#00ff88)
+  • Glitch color: Red (#ff0088)
+  • 8 Anomaly sparks
+  • Orbiting animation
+  • Random glitch offset
+  • Perfect for: Storage/Control nodes, anomalies
+
+Animation:
+  ┌──────────────────────────────┐
+  │ Panels: Orbit around node   │
+  │ Speed: 0.5 rotations/sec    │
+  │ Glitch: 30% random offset   │
+  │ Sparks: Rapid orbital paths │
+  │ Frequency: 2-3 sparks/sec   │
+  └──────────────────────────────┘
+
+Power Level Effects:
+  Low (0-30):    Slow orbit, few sparks
+  Medium (30-60): Steady orbit, some sparks
+  High (60-100):  Fast orbit, many sparks
+
+
+================================================================================
+5. QUANTUM CROWN NODE - Quantum Royalty
+================================================================================
+
+                              ○
+                             ╱ ╲
+                            ╱   ╲
+                           ○  *  ○
+                            ╲   ╱
+                             ╲ ╱
+                              ✱
+                         (Crown + Rings
+                          + Particles)
+
+VFX Composition:
+  • Crown mesh (floats above node)
+  • Color: Cyan (#00ddff)
+  • 5 Intersecting quantum rings
+  • Ring color: Magenta (#ff00ff)
+  • 20 Orbiting quantum particles
+  • Strange intersection angles
+  • Perfect for: Analytics, quantum systems
+
+Animation:
+  ┌─────────────────────────────────┐
+  │ Crown: Bobs Y ± 0.3 every sec  │
+  │ Crown: Rotates on 3 axes       │
+  │ Ring 1: X-rotation only        │
+  │ Ring 2: Y-rotation only        │
+  │ Ring 3: Z-rotation only        │
+  │ Ring 4-5: Mixed axes           │
+  │ Particles: 3D orbital paths    │
+  └─────────────────────────────────┘
+
+Power Level Effects:
+  Low (0-30):    Slow movements, few particles
+  Medium (30-60): Normal movements, some particles
+  High (60-100):  Fast movements, full particle field
+
+
+================================================================================
+SPAWN PROGRESSION EXAMPLE
+================================================================================
+
+Timeline of how a node becomes legendary:
+
+T=0s:
+  • Player creates link A→B
+  • Node B: 1 link, evolution stage 0
+  ► STATUS: Normal
+
+T=5s:
+  • Node B evolution: Stage 1 (glow)
+  ► STATUS: Glowing evolved node
+
+T=10s:
+  • Player creates link C→B
+  • Node B: 2 links, synergy rising
+  ► STATUS: Brighter evolved node
+
+T=15s:
+  • Player creates links D→B, E→B, F→B
+  • Node B: 5 links, evolution: Stage 2
+  • Potential: Medium (25 points)
+  ► STATUS: Evolved + rotating core
+
+T=20s:
+  • Player creates links G→B, H→B, I→B
+  • Node B: 8 links, evolution: Stage 3
+  • Potential: High (35 + 25 = 60 points)
+  ► SPAWN CHECK: Random chance triggers!
+  
+T=20.5s:
+  ✨ BURST EFFECT! ✨
+  • Node B becomes LEGENDARY!
+  • Type chosen: AURORA (random)
+  • 4 rings spawn and begin rotating
+  • Spawn burst animates outward
+  ► STATUS: LEGENDARY AURORA NODE! 🌈
+
+T=25s:
+  • More links to B created
+  • Power level increases: 35/100
+  • Aurora rings spin faster
+  • Glow intensifies
+  ► STATUS: Growing legendary power
+
+T=30s:
+  • 10+ links to B now
+  • Power level: 65/100
+  • Aurora at medium-high intensity
+  • Rings rotating quickly
+  ► STATUS: Peak legendary node
+
+T=40s:
+  • Player removes all links
+  • Power level decay begins
+  • Aurora fades over 7 seconds
+  ► STATUS: De-evolving
+
+T=47s:
+  • Power level: 0
+  • Legendary status removed
+  ► STATUS: Back to normal evolved node
+
+
+================================================================================
+VISUAL INTENSITY SCALE - Power Level 0-100
+================================================================================
+
+Power:   0   10   20   30   40   50   60   70   80   90   100
+         |____|____|____|____|____|____|____|____|____|____|
+Glow:    ░░░░ ░░░░ ▒▒▒▒ ▒▒▒▒ ▓▓▓▓ ▓▓▓▓ █████ █████ █████
+Rings:   ◄► ◄─► ◄──► ◄───► ◄────► ◄─────► ◄──────► ◄───────►
+Spin:    ⟲ ⟲ ⟲ ⟲ ⟲⟲ ⟲⟲ ⟲⟲⟲ ⟲⟲⟲⟲ ⟲⟲⟲⟲⟲
+
+Legend:
+  ░░░░ = Very subtle
+  ▒▒▒▒ = Subtle
+  ▓▓▓▓ = Medium
+  █████ = Bright
+  ◄► = Slow rotation
+  ⟲ = Rotation speed increases
+  
+
+================================================================================
+MAXIMUM 5 LEGENDS - AUTOMATIC FADE SYSTEM
+================================================================================
+
+Active: 1 Legend
+  ┌─────────────────────────┐
+  │ Legend A (50s old)      │
+  │ Status: Active ✓        │
+  └─────────────────────────┘
+
+Active: 3 Legends
+  ┌─────────────────────────┐
+  │ Legend A (100s old)     │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend B (60s old)      │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend C (20s old)      │
+  │ Status: Active ✓        │
+  └─────────────────────────┘
+
+Active: 5 Legends (MAX)
+  ┌─────────────────────────┐
+  │ Legend A (200s old)     │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend B (150s old)     │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend C (100s old)     │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend D (50s old)      │
+  │ Status: Active ✓        │
+  ├─────────────────────────┤
+  │ Legend E (10s old)      │
+  │ Status: Active ✓        │
+  └─────────────────────────┘
+
+Trying to Add 6th Legend:
+  ┌─────────────────────────┐
+  │ Legend A (200s old)     │
+  │ Status: FADING... ░░░░  │  ← Oldest fades out
+  │ (0.8s fade time)        │
+  └─────────────────────────┘
+  New Legend F Spawns!
+  All 5 slots always active (rotation)
+
+
+================================================================================
+INTEGRATION FLOW IN MAIN.JS
+================================================================================
+
+Constructor:
+  ↓
+init()
+setupPlayer()
+createWorld()
+  → createAINodes()
+setupVisualSuperpack()
+setupCinematicUpgrade()
+setupNodeEditor()
+setupHazards()
+setupEvolutionManager()  ← Creates evolution system
+setupLegendaryPack()     ← Creates legendary system
+  ↓
+animate() loop:
+
+  linkingSystem.update()
+    → Creates/updates links
+    
+  evolutionManager.update()
+    → Reads links
+    → Updates evolution VFX
+    
+  legendaryPack.update()  ← MUST BE AFTER evolution
+    → Reads links
+    → Reads evolution state
+    → Updates legendary nodes
+    
+  renderer.render()
+    → Displays all VFX
+
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+Project Root/
+├── _SafeLegendaryNodePack.js          (1000+ lines) NEW
+├── main.js                             (modified: +8 points)
+├── SAFE_LEGENDARY_NODE_PACK_2.0_README.md
+├── SAFE_LEGENDARY_NODE_PACK_2.0_QUICK_REFERENCE.md
+├── SAFE_LEGENDARY_NODE_PACK_2.0_INTEGRATION_GUIDE.md
+├── SAFE_LEGENDARY_NODE_PACK_2.0_SUMMARY.md
+├── SAFE_LEGENDARY_NODE_PACK_2.0_VISUAL_REFERENCE.txt (this file)
+└── [all other ATOMA files - UNTOUCHED]
+
+
+================================================================================
+SAFE LEGENDARY NODE PACK 2.0
+Production Ready | Zero Core Modifications | Completely Reversible
+================================================================================

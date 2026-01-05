@@ -1,0 +1,331 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║            LINKED GLYPH SYNCHRONIZATION 1.0 — VISUAL REFERENCE              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  SYNCHRONIZATION QUALITY TIERS                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+PERFECT SYNC (Synergy ≥70%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     NODE A              LINK              NODE B
+    ╭─────╮          ═══════════          ╭─────╮
+    │  ⟳  │◄─ 0ms ─►│ ║ ║ ║ ║ │◄─ 0ms ─►│  ⟳  │
+    │  ▓▓  │          ═══════════          │  ▓▓  │
+    ╰─────╯          (Strong)             ╰─────╯
+
+    • Perfect phase alignment (0ms drift)
+    • Colors shift simultaneously
+    • Rotations choreographed
+    • No temporal separation
+    • "Glyphs speak as one"
+
+
+MEDIUM SYNC (Synergy 30-69%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     NODE A              LINK              NODE B
+    ╭─────╮          ───────────          ╭─────╮
+    │  ⟳  │◄─ 25ms ─►│ ░ ░ ░ ░ │◄─ 25ms ─►│  ⟳  │
+    │  ▓▓  │          ───────────          │  ▓▓  │
+    ╰─────╯          (Moderate)           ╰─────╯
+
+    • Small 10-40ms drift
+    • Colors shift with perceptible delay
+    • Rotations feel related but distinct
+    • Subtle rhythm difference
+    • "Glyphs echo each other"
+
+
+LOOSE SYNC (Synergy <30%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     NODE A              LINK              NODE B
+    ╭─────╮          ·········           ╭─────╮
+    │  ⟳  │◄─ 90ms ─►│ · · · · │◄─ 90ms ─►│  ⟳  │
+    │  ▓▓  │          ·········           │  ▓▓  │
+    ╰─────╯          (Weak)              ╰─────╯
+
+    • Visible 60-120ms drift
+    • Colors shift independently
+    • Rotations feel unrelated
+    • Clear rhythm separation
+    • "Glyphs work alone"
+
+
+CORRUPTED/INVERTED (High Corruption ≥50%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     NODE A              LINK              NODE B
+    ╭─────╮          ✗✗✗✗✗✗✗✗           ╭─────╮
+    │  ⟳  │◄─ 180° ─►│ ✗ ✗ ✗ ✗ │◄─ 180° ─►│  ⟲  │
+    │  ▓▓  │          ✗✗✗✗✗✗✗✗           │  ▓▓  │
+    ╰─────╯          (Inverted)          ╰─────╯
+
+    • Phase inversion (180°)
+    • Opposite pulse patterns
+    • Colors shift in opposite directions
+    • Visual representation of decay
+    • "Glyphs contradict each other"
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ANIMATION PARAMETER SYNCHRONIZATION                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ROTATION PHASE SYNC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Perfect Sync:
+    ╭─────╮                         ╭─────╮
+    │  ⟳  │ ─────────────────────── │  ⟳  │
+    │     │ (Rotation synchronized) │     │
+    ╰─────╯                         ╰─────╯
+
+    Medium Sync:
+    ╭─────╮      ╭─────╮
+    │  ⟳  │ ─┬─── │  ⟳  │ (Small phase lag)
+    ╰─────╯  └─────╰─────╯
+
+    Loose Sync:
+    ╭─────╮        ╭─────╮
+    │  ⟳  │ ─┼──── │  ⟳  │ (Clear phase difference)
+    ╰─────╯        ╰─────╯
+
+
+PULSE RHYTHM SYNC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Perfect Sync:
+    Node A:  ╱╲ ╱╲ ╱╲ ╱╲ ╱╲
+    Node B:  ╱╲ ╱╲ ╱╲ ╱╲ ╱╲
+             ↑  ↑  ↑  ↑  ↑ (Same rhythm)
+
+    Medium Sync:
+    Node A:  ╱╲ ╱╲ ╱╲ ╱╲ ╱╲
+    Node B:   ╱╲ ╱╲ ╱╲ ╱╲ ╱╲
+             ↑  ↑  ↑  ↑  ↑ (Slight lag)
+
+    Loose Sync:
+    Node A:  ╱╲ ╱╲ ╱╲ ╱╲ ╱╲
+    Node B:    ╱╲ ╱╲ ╱╲ ╱╲ ╱
+             ↑  ↑  ↑  ↑  ↑ (Clear drift)
+
+
+COLOR SHIFT SYNC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Perfect Sync:
+    Node A:  ● ● ● ● ●    (Cyan)
+    Node B:  ● ● ● ● ●    (Cyan - synchronized)
+
+    Medium Sync:
+    Node A:  ● ● ● ● ●    (Cyan)
+    Node B:   ● ● ● ● ●   (Cyan - delayed)
+
+    Loose Sync:
+    Node A:  ● ● ● ● ●    (Cyan)
+    Node B:    ● ● ● ● ●  (Magenta - independent)
+
+    Inverted:
+    Node A:  ● ● ● ● ●    (Cyan)
+    Node B:  ◉ ◉ ◉ ◉ ◉    (Opposite - inverted)
+
+
+SCALE OSCILLATION SYNC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Perfect Sync:
+    Node A:  ◌ ◕ ◑ ◕ ◌ ◕ ◑ ◕ (Breathing synchronized)
+    Node B:  ◌ ◕ ◑ ◕ ◌ ◕ ◑ ◕
+
+    Medium Sync:
+    Node A:  ◌ ◕ ◑ ◕ ◌ ◕ ◑ ◕
+    Node B:    ◌ ◕ ◑ ◕ ◌ ◕ ◑ (Slight lag)
+
+    Loose Sync:
+    Node A:  ◌ ◕ ◑ ◕ ◌ ◕ ◑ ◕
+    Node B:   ◑ ◕ ◌ ◕ ◑ ◕ ◌ (Opposite phase)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  NETWORK VISUALIZATION                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+PERFECT SYNCHRONIZATION NETWORK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+              ╭─────╮
+              │  ⟳  │
+              │ ▓▓▓ │
+              ╰──┬──╯
+                 ║ (perfect)
+              ╭──┴──╮
+              │  ⟳  │
+              │ ▓▓▓ │
+              ╰─────╯
+    
+    "Hub node perfectly synced to satellite"
+
+
+MIXED SYNCHRONIZATION NETWORK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ╭─────╮    ╭─────╮
+    │  ⟳  │    │  ⟳  │
+    │ ▓▓▓ │    │ ▓▓▓ │
+    ╰──┬──╯    ╰──┬──╯
+       ║(perfect)║(weak)
+       └────┬────┘
+            │
+         ╭──┴──╮
+         │  ⟳  │
+         │ ▓▓▓ │
+         ╰─────╯
+    
+    "Strong connections sync perfectly, weak ones show drift"
+
+
+CORRUPTED CONNECTION NETWORK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ╭─────╮
+    │  ⟳  │
+    │ ▓▓▓ │
+    ╰──┬──╯
+       ✗ (inverted)
+    ╭──┴──╮
+    │  ⟲  │
+    │ ▓▓▓ │
+    ╰─────╯
+    
+    "Corrupted link causes phase inversion - glyphs contradict"
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  VISUAL FEEDBACK FOR PLAYER                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+WHAT SYNCHRONIZATION TELLS THE PLAYER:
+
+Perfect Sync (≥70% synergy):
+  "This is a strong, healthy connection"
+  → Glyphs dance together perfectly
+  → Visual: Unity, agreement, stability
+
+Medium Sync (30-69% synergy):
+  "This connection works, but with some friction"
+  → Glyphs echo each other with slight lag
+  → Visual: Cooperation, moderate stability
+
+Loose Sync (<30% synergy):
+  "This connection is fragile and deteriorating"
+  → Glyphs barely acknowledge each other
+  → Visual: Instability, disconnection, tension
+
+Inverted (high corruption):
+  "This connection is broken or hostile"
+  → Glyphs move in opposition
+  → Visual: Conflict, decay, opposition
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ANIMATION TIMELINE EXAMPLE                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+TIME PROGRESSION (showing medium sync with 25ms drift):
+
+t=0ms:   Node A pulse peaks          [█████]
+         Node B pulse normal         [▓▓▓▓▓]
+         
+t=25ms:  Node A returns to normal    [▓▓▓▓▓]
+         Node B pulse peaks          [█████]  ← Delayed!
+         
+t=50ms:  Node A pulse peaks again    [█████]
+         Node B returns to normal    [▓▓▓▓▓]
+         
+t=75ms:  Node A returns to normal    [▓▓▓▓▓]
+         Node B pulse peaks          [█████]  ← Delayed again!
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  DATA FLOW DIAGRAM                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+LINKING SYSTEM
+      │
+      ├─ Link 1: synergy=0.85
+      ├─ Link 2: synergy=0.45
+      └─ Link 3: synergy=0.15
+            │
+            ▼
+   LINKED GLYPH SYNC ENGINE
+      │
+      ├─ Calculate drift:
+      │  Link 1 → 0ms (perfect)
+      │  Link 2 → 25ms (medium)
+      │  Link 3 → 90ms (loose)
+      │
+      ├─ Calculate phase offset:
+      │  Link 1 → 0 rad
+      │  Link 2 → 0.157 rad (~9°)
+      │  Link 3 → 0.564 rad (~32°)
+      │
+      └─ Apply to nodes:
+         node.userData.glyphSyncState
+         glyph.userData.linkedGlyphSync
+            │
+            ▼
+  ADAPTIVE GLYPH RENDERING
+      │
+      ├─ Read sync parameters
+      ├─ Apply rotation boost
+      ├─ Apply pulse sync
+      ├─ Apply hue coherence
+      └─ Apply scale coherence
+            │
+            ▼
+         VISUAL OUTPUT
+      "Coordinated glyphs"
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  PERFORMANCE VISUALIZATION                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+CPU TIME BUDGET (60Hz = 16.67ms per frame):
+
+Without Sync:           With Sync (50 links):
+│ Game Logic  ││ Rendering │              │ Game Logic ││ Sync   ││ Rendering │
+│   12.0ms    ││   4.67ms  │              │  12.0ms    ││ 0.25ms ││  4.67ms  │
+└─────────────┘└──────────┘              └────────────┘└────────┘└──────────┘
+Total: 16.67ms                           Total: 16.92ms (only +0.25ms!)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  CONFIGURATION IMPACT GUIDE                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Effect of key configuration changes:
+
+MAXDRIFTMS setting:
+  60ms  → Subtle drift (hard to see)      [··· ··· ···]
+  120ms → Obvious drift (clearly visible) [·· ·· ··]
+  200ms → Extreme drift (fully separated) [· · ·]
+
+SYNCROTATIONBOOST setting:
+  0.1  → Subtle rotation boost (10%)      [↻ ↻ ↻]
+  0.4  → Strong rotation boost (40%)      [↻↻↻ ↻↻↻]
+  0.8  → Extreme rotation (80%)           [↻↻ ↻↻]
+
+SYNCUPDATEHZ setting:
+  20Hz → Updates every 50ms (smooth)      ═══════
+  30Hz → Updates every 33ms (default)     ═══════════
+  60Hz → Updates every 16ms (immediate)   ═══════════════
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF VISUAL REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+

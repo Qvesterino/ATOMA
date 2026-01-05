@@ -1,0 +1,247 @@
+================================================================================
+NETWORK FATIGUE v0 — VISUAL REFERENCE GUIDE
+================================================================================
+
+┌─ SYSTEM OVERVIEW ──────────────────────────────────────────────────────────┐
+│                                                                            │
+│  NODE METRICS (Updated every frame)                                        │
+│       ↓                                                                    │
+│       • loadRatio, instability, corruption, harmony                        │
+│       ↓                                                                    │
+│  FATIGUE SYSTEM (Checks stress conditions)                                 │
+│       ├─ If stressed → ACCUMULATE (fatigue increases)                      │
+│       ├─ If healthy → RECOVER (fatigue decreases)                          │
+│       └─ If mixed → STABLE (fatigue holds)                                 │
+│       ↓                                                                    │
+│  FATIGUE STORAGE (Per node)                                                │
+│       • node.userData.fatigue ∈ [0.0, 1.0]                                 │
+│       ↓                                                                    │
+│  SOFT MULTIPLIERS (Applied to other systems)                               │
+│       • Harmony Rate ×(1 - fatigue×0.40)                                   │
+│       • Synergy ×(1 - fatigue×0.35)                                        │
+│       • Corruption Decay ×(1 - fatigue×0.30)                               │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ FATIGUE STATE MACHINE ────────────────────────────────────────────────────┐
+│                                                                            │
+│                              ACCUMULATING                                  │
+│                              ─────────────                                  │
+│                       fatigue increases ~0.015/s                           │
+│                                                                            │
+│                      One+ stress conditions met:                           │
+│                    • Load > 0.75 OR                                        │
+│                    • Instability > 60 OR                                   │
+│                    • Corruption > 40 OR                                    │
+│                    • Harmony < 20                                          │
+│                                                                            │
+│  ┌─────────────┐          ┌──────────────┐           ┌────────────┐     │
+│  │   STABLE    │ ◄────────┤   STALEMATE  ├──────────► │ RECOVERING │     │
+│  │ (0% change) │          │ (0% change)  │           │ (-0.005/s) │     │
+│  └─────────────┘          └──────────────┘           └────────────┘     │
+│                                                                            │
+│                           All recovery conditions:                         │
+│                         • Load < 0.50 AND                                  │
+│                         • Instability < 30 AND                             │
+│                         • Corruption < 30 AND                              │
+│                         • Harmony > 40                                     │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ STRESS COMPOSITE CALCULATION ─────────────────────────────────────────────┐
+│                                                                            │
+│  Four stressor contributions (each 0→1 scale):                             │
+│                                                                            │
+│  Load Stress                                                               │
+│  ┌──────────────────────────────────┐                                     │
+│  │                        ╱╱╱╱╱╱╱╱╱╱│  = max(0, (loadRatio-0.75)/0.25)   │
+│  │       Threshold: 0.75 ╱╱ max: 1│                                      │
+│  └──────────────────────────────────┘                                     │
+│  0.0               0.75        1.0                                         │
+│  ├───────────────────┼───────────────┤                                     │
+│  no stress       threshold      saturated                                  │
+│                                                                            │
+│  Instability Stress                                                        │
+│  ┌──────────────────────────────────┐                                     │
+│  │                    ╱╱╱╱╱╱╱╱╱╱╱╱│  = max(0, (instability-60)/40)       │
+│  │      Threshold: 60 ╱╱ max: 100│                                       │
+│  └──────────────────────────────────┘                                     │
+│  0                  60           100                                       │
+│  ├───────────────────┼──────────────┤                                     │
+│  stable         threshold       chaos                                      │
+│                                                                            │
+│  Corruption Stress                                                         │
+│  ┌──────────────────────────────────┐                                     │
+│  │                   ╱╱╱╱╱╱╱╱╱╱╱╱│  = max(0, (corruption-40)/60)        │
+│  │     Threshold: 40 ╱╱ max: 100│                                        │
+│  └──────────────────────────────────┘                                     │
+│  0                  40           100                                       │
+│  ├───────────────────┼──────────────┤                                     │
+│  clean          threshold       poisoned                                   │
+│                                                                            │
+│  Harmony Deficit                                                           │
+│  ┌──────────────────────────────────┐                                     │
+│  │╱╱╱╱╱╱╱╱╱╱╱╱                     │  = max(0, (20-harmony)/20)           │
+│  │╱╱ max: 20 Threshold: 20       │                                       │
+│  └──────────────────────────────────┘                                     │
+│  0                  20           100                                       │
+│  ├───────────────────┼──────────────┤                                     │
+│  healed         threshold        starved                                   │
+│                                                                            │
+│  ─────────────────────────────────────────────────────────────────────   │
+│  Composite = Average of 4 stressors                                        │
+│  Range: [0.0, 1.0]                                                        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ MULTIPLIER EFFECTS ───────────────────────────────────────────────────────┐
+│                                                                            │
+│  As fatigue increases, multipliers decrease (softer effect):               │
+│                                                                            │
+│  Harmony Rate Multiplier                                                   │
+│  1.0 ├──┐                                                                  │
+│      │  ╲                                                                  │
+│  0.8 ├───╲────────                                                         │
+│      │    ╲╲                   = 1.0 - (fatigue × 0.40)                   │
+│  0.6 ├─────╲╲───────                                                       │
+│      │      ╲╲ Max effect: -40%                                            │
+│  0.4 ├───────╲────                                                         │
+│      └────────┴────────────────                                            │
+│      0.0    0.5    1.0 (fatigue)                                           │
+│                                                                            │
+│  Synergy Multiplier                                                        │
+│  1.0 ├──┐                                                                  │
+│      │  ╲                                                                  │
+│  0.8 ├───╲────────                                                         │
+│      │    ╲╲                   = 1.0 - (fatigue × 0.35)                   │
+│  0.6 ├─────╲╲───────                                                       │
+│      │      ╲╲ Max effect: -35%                                            │
+│  0.4 ├───────╲────                                                         │
+│      └────────┴────────────────                                            │
+│      0.0    0.5    1.0 (fatigue)                                           │
+│                                                                            │
+│  Corruption Decay Multiplier                                               │
+│  1.0 ├──┐                                                                  │
+│      │  ╲                                                                  │
+│  0.8 ├───╲────────                                                         │
+│      │    ╲╲                   = 1.0 - (fatigue × 0.30)                   │
+│  0.6 ├─────╲╲───────                                                       │
+│      │      ╲╲ Max effect: -30%                                            │
+│  0.4 ├───────╲────                                                         │
+│      └────────┴────────────────                                            │
+│      0.0    0.5    1.0 (fatigue)                                           │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ CATEGORY SENSITIVITIES ───────────────────────────────────────────────────┐
+│                                                                            │
+│  Fatigue accumulation rate multiplier (higher = burns out faster)          │
+│                                                                            │
+│  Storage     ████████████████████ 0.75  (ages best)                       │
+│  Analytics   ██████████████████████ 0.85                                   │
+│  Integration ███████████████████████ 0.90                                  │
+│  Control     ████████████████████████ 0.95                                 │
+│  Process     █████████████████████████ 1.00 (baseline)                     │
+│  Input       ██████████████████████████ 1.15 (burns out fastest)           │
+│                                                                            │
+│  Example: Under same stress conditions,                                    │
+│           input accumulates 1.15/0.75 = 1.53× faster than storage         │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ TIMELINE EXAMPLES ────────────────────────────────────────────────────────┐
+│                                                                            │
+│  FULL ACCUMULATION (0 → 1.0 at max stress):                               │
+│                                                                            │
+│  Time    0s        20s       40s       60s       67s                      │
+│         ┌──────────┬─────────┬────────┬─────────┬─│ Fatigue: 1.0         │
+│         │░░░░░░░░░│░░░░░░░░│░░░░░░░│░░░░░░░ │  │ (input node)         │
+│         └──────────┴─────────┴────────┴─────────┴─│                      │
+│         0.0       0.3      0.5       0.8      1.0│                      │
+│                                                                            │
+│  FULL RECOVERY (1.0 → 0 under health):                                    │
+│                                                                            │
+│  Time    0s       50s      100s     150s      200s                        │
+│         ┌────────┬────────┬────────┬────────┬───│ Fatigue: 0.0           │
+│         │▓▓▓▓▓▓▓│▓▓▓▓▓▓ │▓▓▓▓▓ │▓▓▓▓  │   │ (baseline)           │
+│         └────────┴────────┴────────┴────────┴───│                        │
+│         1.0      0.75     0.5      0.25     0.0 │                        │
+│                                                                            │
+│  MID-TERM ACCUMULATION (stress scenario):                                 │
+│                                                                            │
+│  Time    0s       30s      60s      90s      120s                         │
+│         ┌────────┬────────┬────────┬────────┬───│                        │
+│         │░░░░░░░│░░░░░░░│░░░░░  │░░░░░  │   │ Node gets tired         │
+│         └────────┴────────┴────────┴────────┴───│ (mid-term impact)      │
+│         0.0      0.2      0.4      0.6      0.8 │                        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ CONSOLE API QUICK REFERENCE ──────────────────────────────────────────────┐
+│                                                                            │
+│  Print all node diagnostics:                                               │
+│  > ATOMA_DEBUG.NetworkFatigue.printDiagnostics()                           │
+│                                                                            │
+│  Seed fatigue on node 0 to 50%:                                            │
+│  > ATOMA_DEBUG.NetworkFatigue.seedFatigue(0, 0.5)                          │
+│                                                                            │
+│  Query node 0 details:                                                     │
+│  > ATOMA_DEBUG.NetworkFatigue.diagnose(0)                                  │
+│                                                                            │
+│  Run 30-second accumulation test:                                          │
+│  > await ATOMA_DEBUG.NetworkFatigue.runStressTest(30)                      │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ GAMEPLAY IMPLICATIONS ────────────────────────────────────────────────────┐
+│                                                                            │
+│  TIME HORIZON      FATIGUE IMPACT      PLAYER EXPERIENCE                   │
+│  ───────────────   ────────────────    ──────────────────                  │
+│                                                                            │
+│  < 1 minute        None               Business as usual                    │
+│                    (fatigue begins)   Tier 4 dominates                     │
+│                                                                            │
+│  1-3 minutes       Noticeable          Hubs feel tired                     │
+│                    Harmony -20-40%     Healing slower                      │
+│                    Synergy -15-30%     Corruption harder to clear          │
+│                    Decay -15-25%       Load management necessary           │
+│                                                                            │
+│  5+ minutes        Significant         Always-on fails                     │
+│                    Harmony -40%        Rotating load optimal               │
+│                    Synergy -35%        Networks age & recover              │
+│                    Decay -30%          Maintenance gameplay emerges        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ SAFETY GUARANTEES (Visual) ───────────────────────────────────────────────┐
+│                                                                            │
+│  ✓ Bounded: Fatigue always in [0.0 ····· 1.0]                             │
+│            └─ Never goes outside this range                               │
+│                                                                            │
+│  ✓ Smooth: ─────╱╱╱────  (no spikes, pure curves)                          │
+│           └─ Gradual accumulation & recovery only                         │
+│                                                                            │
+│  ✓ Reversible: Can always recover from any fatigue level                   │
+│              └─ If metrics improve, fatigue decreases                      │
+│                                                                            │
+│  ✓ Non-disabling: Multipliers always ≥ 0.6                                │
+│                 └─ Harmony rate ≥ 0.6, Synergy ≥ 0.65, etc.               │
+│                                                                            │
+│  ✓ Breaking-proof: No changes to Tier 4                                    │
+│                  └─ Pure additive, fully reversible                        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+                           ╔═══════════════════════════════╗
+                           ║  NETWORK FATIGUE v0 READY     ║
+                           ║  FOR INTEGRATION & TESTING    ║
+                           ╚═══════════════════════════════╝

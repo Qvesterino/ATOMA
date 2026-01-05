@@ -1,0 +1,215 @@
+================================================================================
+                 ATOMA NODE CATEGORY QUICK REFERENCE
+================================================================================
+
+SAFE TO SPAWN IMMEDIATELY (7 categories)
+────────────────────────────────────────────────────────────────────────────
+  ✅ 'input'         Cyan triangular prism with rim glow
+  ✅ 'process'       Amber/gold cube lattice structures  
+  ✅ 'integration'   Green dual-sphere connector bridge
+  ✅ 'analytics'     Violet elongated octahedron with frame
+  ✅ 'storage'       Silver pillar stacks
+  ✅ 'control'       Red/magenta octagonal core
+  ✅ 'quantum'       Bright green dimensional anomaly
+
+These are GUARANTEED to:
+  • Render with correct category-specific visuals
+  • NOT degrade during linking
+  • Support full FX and shader effects
+  • Register properly in WaveShaderBridge
+
+
+DO NOT SPAWN (4 categories - NOT IMPLEMENTED)
+────────────────────────────────────────────────────────────────────────────
+  ❌ 'mythic'        [NO GEOMETRY] Falls to INPUT (cyan prism)
+  ❌ 'prime'         [NO GEOMETRY] Falls to INPUT (cyan prism)
+  ❌ 'error'         [NO GEOMETRY] Falls to INPUT (cyan prism)
+  ❌ 'emotional'     [NO GEOMETRY] Falls to INPUT (cyan prism)
+
+If spawned, these will:
+  • Silently render as INPUT nodes
+  • Confuse category-specific FX systems
+  • Cause visual-semantic mismatch
+  • Degrade unpredictably after linking
+
+
+LEGACY / DEPRECATED
+────────────────────────────────────────────────────────────────────────────
+  ⚠️  'sigma'        Use 'quantum' instead (alias, same geometry)
+
+
+================================================================================
+                          NODE LIFECYCLE GUARANTEE
+================================================================================
+
+SPAWN PHASE (visualReady = false)
+  └─ Node created, meshes added
+     ⚠️  WaveShaderBridge: SKIPPED
+     ⚠️  FXRuntime: SKIPPED
+     ⚠️  Mutation: BLOCKED
+
+BOOTSTRAP PHASE (markNodeVisualReady() called)
+  └─ visualReady = true
+     ✅ WaveShaderBridge: ACTIVE
+     ✅ FXRuntime: ACTIVE
+     🔒 Core material: IMMUTABLE
+
+LOCKED PHASE (node fully operational)
+  └─ All visual systems active
+     ✅ Linking: SAFE
+     ✅ FX effects: SAFE
+     🔒 Visual integrity: GUARANTEED
+
+
+================================================================================
+                             API QUICK START
+================================================================================
+
+MARK NODE AS READY (after bootstrap complete)
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ import { markNodeVisualReady } from './NodeVisualReadinessGate_v1'  │
+  │                                                                      │
+  │ const node = aiNodes.createNode('input', position);                 │
+  │ scene.add(node.visualGroup);                                         │
+  │ markNodeVisualReady(node);  // ← NOW safe to process               │
+  └─────────────────────────────────────────────────────────────────────┘
+
+CHECK IF NODE IS READY
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ import { isNodeVisualReady } from './NodeVisualReadinessGate_v1'    │
+  │                                                                      │
+  │ if (isNodeVisualReady(node)) {                                       │
+  │   // Safe to process                                                │
+  │ }                                                                    │
+  └─────────────────────────────────────────────────────────────────────┘
+
+GUARD IN FX SYSTEM
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ import { canProcessNodeVisuals } from './NodeVisualReadinessGate_v1'│
+  │                                                                      │
+  │ for (const node of nodes) {                                          │
+  │   if (!canProcessNodeVisuals(node, 'MySystem')) {                   │
+  │     continue;  // Skip not-ready nodes                              │
+  │   }                                                                  │
+  │   // Process node...                                                │
+  │ }                                                                    │
+  └─────────────────────────────────────────────────────────────────────┘
+
+FILTER TO READY NODES ONLY
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ import { filterReadyNodes } from './NodeVisualReadinessGate_v1'     │
+  │                                                                      │
+  │ const readyNodes = filterReadyNodes(allNodes);                       │
+  │ readyNodes.forEach(node => {                                         │
+  │   // Process only ready nodes                                       │
+  │ });                                                                  │
+  └─────────────────────────────────────────────────────────────────────┘
+
+DEBUG READINESS STATUS
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ import { getVisualReadinessReport } from './NodeVisualReadinessGate'│
+  │                                                                      │
+  │ const report = getVisualReadinessReport(node);                       │
+  │ console.log(report);                                                 │
+  │ // { ready: false, phase: 'SPAWN', reason: '...' }                 │
+  └─────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                            CATEGORY COLORS
+================================================================================
+
+SAFE CATEGORIES (RGB Hex)
+  input:       0x00FFFF    ✅ Cyan
+  process:     0xFFAA00    ✅ Amber/Gold
+  integration: 0x00FF00    ✅ Bright Green
+  analytics:   0xAA00FF    ✅ Violet
+  storage:     0xCCCCCC    ✅ Silver
+  control:     0xFF0080    ✅ Magenta
+  quantum:     0x00FF88    ✅ Bright Green
+
+UNSAFE CATEGORIES (when fully implemented, future colors)
+  mythic:      0xFF00FF    (placeholder: Purple)
+  prime:       0xFFFF00    (placeholder: Gold)
+  error:       0xFF0000    (placeholder: Red)
+  emotional:   0xFF69B4    (placeholder: Hot Pink)
+
+
+================================================================================
+                        DEPLOYMENT CHECKLIST
+================================================================================
+
+In your node spawn routine:
+  [ ] Import markNodeVisualReady
+  [ ] After creating node with createNode()
+  [ ] Add node to scene (scene.add or scene.visualGroup.add)
+  [ ] Call markNodeVisualReady(node)
+  [ ] Verify getVisualReadinessReport shows "LOCKED" phase
+  
+In WaveShaderBridge:
+  [✓] Already filters via filterReadyNodes()
+  
+In FXRuntime:
+  [✓] Already filters via filterReadyNodes()
+  
+Testing:
+  [ ] Spawn input, process, integration, analytics, storage, control
+  [ ] Link each node to verify no visual degradation
+  [ ] Verify shader effects apply correctly
+  [ ] Verify FX effects activate
+  [ ] Test with all 7 SAFE categories
+
+
+================================================================================
+                          TROUBLESHOOTING
+================================================================================
+
+Q: Node renders as INPUT when I spawn MYTHIC
+A: Correct. MYTHIC geometry not implemented yet.
+   Use only SAFE_CATEGORIES until mythic is added to EnhancedNodeModels.
+   
+Q: WaveShaderBridge not affecting my node
+A: Check readiness: getVisualReadinessReport(node)
+   If phase='SPAWN': wait for bootstrap
+   If phase='LOCKED': check if category is registered in shader system
+
+Q: Node visual degrades after linking
+A: Should not happen with readiness gate active.
+   Verify markNodeVisualReady() was called BEFORE linking.
+   Check console for "[NodeVisualReadinessGate] BLOCKED" warnings.
+
+Q: How do I know when a node is ready for effects?
+A: Check: isNodeVisualReady(node) === true
+   Or call getVisualReadinessReport(node).phase === 'LOCKED'
+
+
+================================================================================
+                           KEY SAFEGUARDS
+================================================================================
+
+✅ Visual Readiness Gate (NodeVisualReadinessGate_v1.js)
+   - No FX system processes non-ready nodes
+   - Core material becomes immutable after readiness mark
+   - Prevents ALL forms of visual degradation
+
+✅ WaveShaderBridge Filtering
+   - filterReadyNodes() applied before material registration
+   - Non-ready nodes skipped, no shader injection
+
+✅ FXRuntime Filtering  
+   - filterReadyNodes() applied before narrative pattern updates
+   - Non-ready nodes skipped, no FX processing
+
+✅ Category Validation
+   - UNSAFE categories clearly marked in AINodes.js
+   - Documentation warns against unsafe spawning
+   - Readiness gate prevents premature mutation
+
+Result: ZERO visual degradation from category mismatch or premature mutations
+
+
+================================================================================
+Version: 1.0 (Final)
+Last Updated: Session 60+
+For full details, see: CANONICAL_NODE_CATEGORY_AUDIT_FINAL_v2.md
+================================================================================

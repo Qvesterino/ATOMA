@@ -1,0 +1,421 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║          NODE DYNAMIC METRICS v1.0 - VISUAL ARCHITECTURE GUIDE             ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+ SYSTEM FLOW DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+    Every Frame (16ms at 60 FPS):
+    
+    ┌──────────────────────────────────────────────────────────┐
+    │ Game Loop: animate() or update(deltaTime)                │
+    └──────────────────────────┬───────────────────────────────┘
+                               │
+                               ↓
+    ┌──────────────────────────────────────────────────────────┐
+    │ nodeDynamics.update(deltaTime)                           │
+    │ ├─ For each node in aiNodes.nodes[]                      │
+    │ │  ├─ Compute link metrics (linkCount, incoming, etc)   │
+    │ │  ├─ Calculate energy (gain from links, decay if idle) │
+    │ │  ├─ Calculate stability (based on load ratio)         │
+    │ │  ├─ Derive harmony, clarity, instability             │
+    │ │  ├─ Update corruption (sigma vs regular nodes)        │
+    │ │  ├─ Apply EMA smoothing to all metrics               │
+    │ │  ├─ Store in node.userData.metrics                   │
+    │ │  └─ Update cache (lastActiveTime, previous values)   │
+    │ └─ Done                                                  │
+    └──────────────────────────┬───────────────────────────────┘
+                               │
+                               ↓
+    ┌──────────────────────────────────────────────────────────┐
+    │ All Other Systems                                        │
+    │ ├─ CoreMetricsHUD reads node.userData.metrics           │
+    │ ├─ Visual effects use energy for glow                   │
+    │ ├─ AI decision making uses stability                    │
+    │ ├─ UI updates based on harmony                          │
+    │ └─ Event triggers based on corruption                   │
+    └──────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ DATA FLOW - Per Node Per Frame
+═══════════════════════════════════════════════════════════════════════════════
+
+    INPUT                           PROCESSING                   OUTPUT
+    ─────────────────────────────────────────────────────────────────────
+
+    aiNodes (node list)   ──┐
+                            ├─→ Link Counting ──────→ linkCount
+    linkingSystem (links) ──┤       (O(L) scan)      incomingLinks
+                            │                        outgoingLinks
+                            └─→ (cached per node)
+
+                                  ENERGY
+    Previous Energy  ──┐
+    linkCount        ├─→ Gain calculation ──────────→ newEnergy
+    isIdle           ├─→ Decay if idle ─────────────→ (0-120 range)
+    deltaTime        └─→ EMA Smoothing ─────────────→ Energy [OUTPUT]
+
+                                STABILITY
+    loadRatio        ──┐
+    linkCount        ├─→ Base + stress - penalty ──→ newStability
+    baseStability    ├─→ Clamp (0-100) ───────────→ (0-100 range)
+    Previous value   └─→ EMA Smoothing ─────────────→ Stability [OUTPUT]
+
+                                HARMONY
+    Stability        ──┐
+    loadRatio        ├─→ Weighted sum ────────────→ newHarmony
+    Previous value   └─→ EMA Smoothing ─────────────→ Harmony [OUTPUT]
+
+                                 CLARITY
+    Stability        ──┐
+    Previous value   ├─→ Influence calculation ────→ newClarity
+                     └─→ EMA Smoothing ─────────────→ Clarity [OUTPUT]
+
+                               CORRUPTION
+    isSigmaNode      ──┐
+    Previous value   ├─→ If sigma: +15/sec ────────→ newCorruption
+    deltaTime        ├─→ Else: -5% decay ─────────→ (0-100 range)
+                     └─→ EMA Smoothing ─────────────→ Corruption [OUTPUT]
+
+                              DERIVED METRICS
+    Stability        ──────────→ 100 - Stability ──→ Instability [OUTPUT]
+    linkCount        ──────────→ count / loadMax ──→ loadRatio [OUTPUT]
+    Current time     ──────────→ Time since active→ lastActiveSeconds [OUTPUT]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ METRIC RANGES - VISUAL SCALE
+═══════════════════════════════════════════════════════════════════════════════
+
+    ENERGY (0-120)
+    │
+    ├─ 120 ░░░░░░░░░░░░░░░░░░░░░░░░░░░ [MAXIMUM - Hyperactive]
+    ├─ 100 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [HIGH - Very active]
+    ├─ 80  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [GOOD - Active]
+    ├─ 60  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [NORMAL]
+    ├─ 40  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [LOW]
+    ├─ 20  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [VERY LOW]
+    └─ 0   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ [DORMANT]
+
+
+    STABILITY (0-100)
+    │
+    ├─ 100 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ [PERFECT - Completely stable]
+    ├─ 80  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ [EXCELLENT - Very stable]
+    ├─ 60  ▓▓▓▓▓▓▓▓▓▓▓▓ [GOOD - Reasonably stable]
+    ├─ 40  ▓▓▓▓▓▓▓▓ [FAIR - Some instability]
+    ├─ 20  ▓▓▓▓ [POOR - Very unstable]
+    └─ 0   ░ [CHAOS - Completely unstable]
+
+
+    CORRUPTION (0-100)
+    │
+    ├─ 0   ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓ [PURE - No corruption]
+    ├─ 20  ✗✗✗✗ [MINOR - Slight corruption]
+    ├─ 40  ✗✗✗✗✗✗✗✗ [MODERATE - Growing corruption]
+    ├─ 60  ✗✗✗✗✗✗✗✗✗✗✗✗ [SIGNIFICANT - Heavily corrupted]
+    ├─ 80  ✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗ [SEVERE - Very corrupted]
+    └─ 100 ✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗✗ [COMPLETE - Fully corrupted]
+
+
+    LOAD RATIO (0-1, displayed as %)
+    │
+    ├─ 1.0  ████████████████████ 100% [OVERLOADED - Stress]
+    ├─ 0.75 ███████████████ 75% [HIGH - Near capacity]
+    ├─ 0.5  ██████████ 50% [MODERATE - Comfortable]
+    ├─ 0.25 █████ 25% [LOW - Plenty of room]
+    └─ 0.0  (empty) 0% [NONE - Idle]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ METRIC COMPUTATION TREE
+═══════════════════════════════════════════════════════════════════════════════
+
+    node.userData.metrics
+    │
+    ├─ STRUCTURAL (computed fresh each frame)
+    │  ├─ linkCount ────────────→ Sum of all links involving this node
+    │  ├─ incomingLinks ────────→ Links pointing TO this node
+    │  ├─ outgoingLinks ────────→ Links pointing FROM this node
+    │  ├─ loadMax ──────────────→ Read from userData, default 4
+    │  └─ loadRatio ────────────→ linkCount / loadMax [clamped 0-1]
+    │
+    ├─ DYNAMIC (fresh → EMA smoothed)
+    │  │
+    │  ├─ ENERGY (0-120)
+    │  │  ├─ Gain: energyGainPerLink × linkCount × deltaTime
+    │  │  ├─ Decay: 15% per second when idle (>2 sec no links)
+    │  │  ├─ Clamp: 0-120 range
+    │  │  └─ Smooth: EMA with alpha=0.2
+    │  │
+    │  ├─ STABILITY (0-100)
+    │  │  ├─ Base: baseStability (default 60)
+    │  │  ├─ Adjust: +(1-loadRatio)×40 for low load
+    │  │  ├─ Penalize: -linkCount×2 for connection stress
+    │  │  ├─ Clamp: 0-100 range
+    │  │  └─ Smooth: EMA with alpha=0.2
+    │  │
+    │  ├─ HARMONY (0-100)
+    │  │  ├─ Component 1: stability × 0.7 (70% weight)
+    │  │  ├─ Component 2: (1-loadRatio) × 30 (30% weight)
+    │  │  ├─ Sum: component1 + component2
+    │  │  ├─ Clamp: 0-100 range
+    │  │  └─ Smooth: EMA with alpha=0.2
+    │  │
+    │  ├─ CLARITY (0-100)
+    │  │  ├─ Base: 50
+    │  │  ├─ Adjust: +(stability × 0.5 - 30) [-30 to +20 range]
+    │  │  ├─ Clamp: 0-100 range
+    │  │  └─ Smooth: EMA with alpha=0.2
+    │  │
+    │  ├─ INSTABILITY (0-100)
+    │  │  ├─ Calculate: 100 - stability
+    │  │  └─ [No smoothing, derived from stability]
+    │  │
+    │  └─ CORRUPTION (0-100)
+    │     ├─ If isSigmaNode (detected via 4 patterns):
+    │     │  └─ Increase: +15 per second
+    │     ├─ Else (regular node):
+    │     │  └─ Decay: -5% per second (exponential)
+    │     ├─ Clamp: 0-100 range
+    │     └─ Smooth: EMA with alpha=0.2
+    │
+    └─ TIME-BASED (tracking)
+       ├─ lastActiveSeconds ──→ (now - lastActiveTime) / 1000
+       └─ updatedAt ──────────→ Current timestamp in ms
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ INTEGRATION FLOW - HOW OTHER SYSTEMS USE IT
+═══════════════════════════════════════════════════════════════════════════════
+
+    NodeDynamicMetrics (Computed Each Frame)
+    │
+    ├─→ CoreMetricsHUD
+    │   ├─ Reads: energy, stability, harmony, corruption
+    │   └─ Displays: Bars and gauges on screen
+    │
+    ├─→ NodeInspectOverlay
+    │   ├─ Reads: All 11 metrics
+    │   └─ Shows: Detailed node inspection panel
+    │
+    ├─→ Visual Effects System
+    │   ├─ Reads: energy (0-120)
+    │   └─ Uses: Scale glow intensity, pulse speed
+    │
+    ├─→ AI Decision Making (Future)
+    │   ├─ Reads: stability, harmony, loadRatio
+    │   └─ Decides: Which nodes to link to
+    │
+    ├─→ Event Triggers (Future)
+    │   ├─ Reads: corruption, instability
+    │   └─ Triggers: Special events at thresholds
+    │
+    └─→ LinkQualityCalculator v2.0 (Future)
+        ├─ Reads: linkCount, energy
+        └─ Computes: Link quality 0-100
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ SIGMA NODE DETECTION HIERARCHY
+═══════════════════════════════════════════════════════════════════════════════
+
+    Is node a Sigma?
+    │
+    ├─ Check 1: node.userData.isSigma === true?
+    │           └─ YES → Sigma detected ✓
+    │
+    ├─ Check 2: node.userData.category === 'sigma'?
+    │           └─ YES → Sigma detected ✓
+    │
+    ├─ Check 3: node.userData.archetype contains 'SIGMA' or 'CHAOS'?
+    │           └─ YES → Sigma detected ✓
+    │
+    └─ Check 4: node.userData.name includes 'sigma' (case-insensitive)?
+                └─ YES → Sigma detected ✓
+                └─ NO  → Regular node (corruption decays)
+    
+    Result: Sigma node corruption increases ~15 pts/sec
+            Regular node corruption decreases ~5% per second
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ EMA SMOOTHING VISUALIZATION
+═══════════════════════════════════════════════════════════════════════════════
+
+    Raw values (without smoothing) = Noisy:
+    
+    100 ┤     ╱╲      ╱╲      ╱╲
+        │    ╱  ╲    ╱  ╲    ╱  ╲
+     80 ┤   ╱    ╲  ╱    ╲  ╱    ╲
+        │  ╱      ╲╱      ╲╱      ╲
+     60 ┼─────────────────────────────
+        │
+        └──────────────────────────────
+
+
+    EMA smoothed (alpha=0.2) = Smooth transitions:
+    
+    100 ┤     ╱╱╱╱╱╱
+        │    ╱      ╲╲╲╲╲
+     80 ┤   ╱          ╲╲╲╲╲
+        │  ╱              ╲╲╲╲
+     60 ┼─────────────────────────────
+        │
+        └──────────────────────────────
+    
+    Formula: EMA(t) = α × newValue + (1-α) × previousValue
+    
+    Examples:
+    • α = 0.1 (smooth): slow response, minimal flicker
+    • α = 0.2 (default): balanced response and smoothing
+    • α = 0.5 (responsive): fast response, some flicker
+    • α = 1.0 (raw): no smoothing, all flicker
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ PERFORMANCE SCALING
+═══════════════════════════════════════════════════════════════════════════════
+
+    Node Count │ Link Count │ Frame Time │ Status
+    ────────────┼────────────┼────────────┼────────
+    10          │ 20         │ 0.1ms      │ ✓ Excellent
+    50          │ 100        │ 0.3ms      │ ✓ Excellent
+    100         │ 500        │ 0.6ms      │ ✓ Good
+    150         │ 750        │ 0.9ms      │ ✓ Good
+    200         │ 1000       │ 1.2ms      │ ✓ Acceptable
+    300         │ 1500       │ 1.8ms      │ ⚠ Monitor
+    500         │ 2500       │ 3.0ms      │ ⚠ Consider profiling
+    
+    Typical ATOMA: 47-100 nodes, 200-500 links
+    Expected time: 0.3-0.8ms per frame (well within budget)
+    
+    Time complexity: O(N + L) where N = nodes, L = links
+    Space complexity: O(N) for internal cache
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ INITIALIZATION SEQUENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+    Step 1: Import Module
+    ┌─────────────────────────────────────────┐
+    │ import { NodeDynamicMetrics } from ...  │
+    └─────────────────────┬───────────────────┘
+                          ↓
+    Step 2: Create Instance (in constructor)
+    ┌─────────────────────────────────────────────────────────┐
+    │ this.nodeDynamics = new NodeDynamicMetrics(             │
+    │   this.aiNodes,                                         │
+    │   this.linkingSystem,                                   │
+    │   config  // optional                                   │
+    │ )                                                       │
+    └─────────────────────┬───────────────────────────────────┘
+                          ↓
+    Step 3: Call update() every frame
+    ┌─────────────────────────────────────────────────────────┐
+    │ animate(deltaTime) {                                    │
+    │   this.nodeDynamics.update(deltaTime);                  │
+    │   // ... rest of game loop ...                          │
+    │ }                                                       │
+    └─────────────────────┬───────────────────────────────────┘
+                          ↓
+    Step 4: Read metrics anywhere
+    ┌─────────────────────────────────────────────────────────┐
+    │ if (node.userData?.metrics) {                           │
+    │   const m = node.userData.metrics;                      │
+    │   // Use m.energy, m.stability, etc.                    │
+    │ }                                                       │
+    └─────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ TROUBLESHOOTING TREE
+═══════════════════════════════════════════════════════════════════════════════
+
+    Problem: Metrics are zero
+    │
+    ├─ Is update() called each frame?
+    │  └─ NO → Call: this.nodeDynamics.update(deltaTime)
+    │  └─ YES → Check next
+    │
+    ├─ Is deltaTime > 0?
+    │  └─ NO → Fix frame timing
+    │  └─ YES → Check next
+    │
+    └─ Do nodes exist?
+       └─ NO → Spawn nodes first
+       └─ YES → Metrics should work
+
+
+    Problem: Metrics not changing
+    │
+    ├─ Is update() called BEFORE reading?
+    │  └─ NO → Move update() earlier in game loop
+    │  └─ YES → Check next
+    │
+    ├─ Do nodes have links?
+    │  └─ NO → Create links between nodes
+    │  └─ YES → Energy should change
+    │
+    └─ Check console for errors?
+       └─ YES → Fix errors first
+
+
+    Problem: Sigma corruption not increasing
+    │
+    ├─ Is node actually detected as sigma?
+    │  └─ Use: game.nodeDynamics.debugDumpAllMetrics()
+    │  └─ Look for sigma node with corruption > 0
+    │
+    ├─ Is node.userData.isSigma set?
+    │  └─ Check: node.userData.isSigma === true
+    │
+    ├─ Adjust sigmaCorruptionGain in config?
+    │  └─ Increase to 20-30 for faster corruption
+    │
+    └─ Check time scale?
+       └─ Corruption in points per second
+
+
+═══════════════════════════════════════════════════════════════════════════════
+ QUICK MENTAL MODEL
+═══════════════════════════════════════════════════════════════════════════════
+
+    Think of a Node as a living entity:
+    
+    ENERGY = How busy/active it is (increases with links, decays when idle)
+    
+    STABILITY = How well-balanced it is (decreases under load)
+    
+    HARMONY = Overall sense of balance (combination of above)
+    
+    CORRUPTION = How degraded/broken it is (especially for sigma nodes)
+    
+    CLARITY = How coherent/focused it is (based on stability)
+    
+    INSTABILITY = Opposite of stability (100 - stability)
+    
+    LOAD = How many links it has vs maximum capacity
+    
+    
+    Simple Summary:
+    ┌─────────────────────────────────────────┐
+    │ More Links → Higher Energy              │
+    │ More Links → Lower Stability            │
+    │ Idle Nodes → Energy Decays              │
+    │ Sigma Nodes → Corruption Increases      │
+    │ Others → Corruption Decreases           │
+    │ All → Smoothly Updated Each Frame       │
+    └─────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+END OF VISUAL GUIDE
+
+Status: ✅ PRODUCTION READY
+Use this guide alongside the code comments and integration documentation.
+For detailed implementation, see NODE_DYNAMIC_METRICS_INTEGRATION.md

@@ -1,0 +1,303 @@
+================================================================================
+COMPUTE SYNERGY SCORE 2.1 – COPY-PASTE INTEGRATION SNIPPETS
+================================================================================
+
+Ready-to-use code blocks for integrating ComputeSynergyScore2_1 into ATOMA.
+
+================================================================================
+SNIPPET 1: IMPORT STATEMENT
+================================================================================
+
+Add to your imports (top of file):
+
+import { ComputeSynergyScore2_1 } from './ComputeSynergyScore2_1.js';
+
+Or for function-based approach:
+
+import { computeSynergyScore2_1 } from './ComputeSynergyScore2_1.js';
+
+================================================================================
+SNIPPET 2: INITIALIZE IN ATOMAGAME CONSTRUCTOR
+================================================================================
+
+Add to AtomaGame constructor (after VisualMetricModel initialization):
+
+// ========== SYNERGY CALCULATOR 2.1 (Week 1 Phase 3b) ==========
+this.synergyCalculator2_1 = new ComputeSynergyScore2_1({
+  enableVisualMetrics: true,      // Use Phase 3b visualMetrics when available
+  enableDebug: false,              // Set to true for debugging
+  fallbackToLegacy: true,          // Fall back to ComputeSynergyScore2_0
+  
+  visualWeights: {
+    harmony: 0.40,                // Harmony is primary driver
+    stability: 0.30,              // Stability factor
+    corruption: 0.20,             // Corruption penalty
+    energy: 0.10                  // Energy factor
+  },
+  
+  tierThresholds: {
+    low: 0.25,
+    medium: 0.50,
+    high: 0.75,
+    critical: 1.0
+  }
+});
+
+console.log('[AtomaGame] ComputeSynergyScore2_1 initialized ✓');
+
+================================================================================
+SNIPPET 3: UPDATE SYNERGY SCORES IN GAME LOOP
+================================================================================
+
+Add to AtomaGame.update(dt) method (in the link update section):
+
+// ========== UPDATE SYNERGY SCORES WITH 2.1 ==========
+// Call this after VisualMetricModel.update(dt) and before rendering
+if (this.synergyCalculator2_1 && this.nodeLinkingSystem.links) {
+  for (const link of this.nodeLinkingSystem.links) {
+    if (!link) continue;
+    
+    try {
+      // Compute synergy using 2.1 (falls back to 2.0 if needed)
+      const synergyResult = this.synergyCalculator2_1.compute(link, {
+        linkingSystem: this.nodeLinkingSystem,
+        correlationEngine: this.linkCorrelationEngine,
+        priorityHistoryEngine: this.priorityHistoryEngine,
+        priorityDecayEngine: this.priorityDecayEngine,
+        config: {}
+      });
+      
+      // Store result for VFX systems to read
+      if (!link.userData) link.userData = {};
+      link.userData.synergy2_1 = synergyResult;
+      
+    } catch (err) {
+      console.error('[AtomaGame] Synergy2_1 compute error:', err);
+    }
+  }
+}
+
+================================================================================
+SNIPPET 4: PERFORMANCE MONITORING (OPTIONAL)
+================================================================================
+
+Add to debug HUD or console logging:
+
+// Get statistics on 2.1 usage
+const stats = this.synergyCalculator2_1.getStats();
+console.log('ComputeSynergyScore2_1 Statistics:');
+console.log(`  Total computes: ${stats.computeCount}`);
+console.log(`  Visual metrics used: ${stats.visualMetricsUsagePercent}%`);
+console.log(`  Fallback used: ${stats.fallbackUsagePercent}%`);
+console.log(`  Average time: ${stats.averageTimeMs.toFixed(3)}ms`);
+console.log(`  Total time: ${stats.totalTimeMs.toFixed(2)}ms`);
+
+// If performance is an issue, log a warning
+if (stats.averageTimeMs > 0.5) {
+  console.warn('ComputeSynergyScore2_1 is slow! Check performance.');
+}
+
+// For console monitoring in DevTools:
+// window.game.synergyCalculator2_1.getStats()
+
+================================================================================
+SNIPPET 5: DEBUG LOGGING (DEVELOPMENT ONLY)
+================================================================================
+
+Enable detailed logging:
+
+// Enable debug mode (call once for setup)
+this.synergyCalculator2_1.setDebug(true);
+
+// Then compute (will log to console)
+const result = this.synergyCalculator2_1.compute(link, systems);
+
+// Console output will look like:
+// [ComputeSynergyScore2_1] Visual integration used: {
+//   score: 0.75,
+//   synergyNorm: 0.78,
+//   tier: 'high',
+//   visualIntegration: { ... },
+//   ...
+// }
+
+// Disable when done
+this.synergyCalculator2_1.setDebug(false);
+
+================================================================================
+SNIPPET 6: VERIFY 2.1 INTEGRATION ON STARTUP
+================================================================================
+
+Add to your game initialization (after all systems created):
+
+// Verify ComputeSynergyScore2_1 is working
+function verifyComputeSynergy2_1(game) {
+  console.group('[Verify] ComputeSynergyScore2_1 Integration');
+  
+  if (!game.synergyCalculator2_1) {
+    console.error('❌ synergyCalculator2_1 not initialized');
+    console.groupEnd();
+    return false;
+  }
+  
+  if (!game.nodeLinkingSystem.links || game.nodeLinkingSystem.links.length === 0) {
+    console.warn('⚠ No links to test');
+    console.groupEnd();
+    return true;  // Not a failure, just nothing to test
+  }
+  
+  // Test with first link
+  const testLink = game.nodeLinkingSystem.links[0];
+  try {
+    const result = game.synergyCalculator2_1.compute(testLink, {
+      linkingSystem: game.nodeLinkingSystem,
+      correlationEngine: game.linkCorrelationEngine,
+    });
+    
+    console.log('✓ Compute successful');
+    console.log('  Result:', result);
+    
+    if (result.debug.method === 'visual') {
+      console.log('✓ Visual metrics being used');
+    } else if (result.debug.method === 'legacy') {
+      console.log('ℹ Falling back to legacy 2.0 (visualMetrics unavailable)');
+    }
+    
+    console.log(`✓ synergyNorm: ${result.synergyNorm.toFixed(3)}`);
+    console.groupEnd();
+    return true;
+    
+  } catch (err) {
+    console.error('❌ Compute failed:', err);
+    console.groupEnd();
+    return false;
+  }
+}
+
+// Call on game startup:
+// verifyComputeSynergy2_1(this.game);
+
+================================================================================
+SNIPPET 7: INTEGRATE WITH LINKGLOWSYNERGYENGINE (WEEK 2)
+================================================================================
+
+Preview of how LinkGlowSynergyEngine will use synergyNorm in Week 2:
+
+// In LinkGlowSynergyEngine1_0 (Week 2 upgrade):
+
+function updateLinkGlow(link, game) {
+  // Get new synergy result from 2.1
+  const synergy2_1 = link.userData?.synergy2_1;
+  
+  if (synergy2_1) {
+    // Use clean synergyNorm for glow intensity
+    const glowIntensity = synergy2_1.synergyNorm * 2.0;  // 0–2 range
+    
+    // Map to color based on tier
+    const tierToColor = {
+      'low': 0x0088ff,       // Blue
+      'medium': 0x00ff88,    // Cyan
+      'high': 0xffff00,      // Yellow
+      'critical': 0xff0000   // Red
+    };
+    
+    link.material.emissive.setHex(tierToColor[synergy2_1.tier] || 0x0088ff);
+    link.material.emissiveIntensity = glowIntensity;
+  }
+}
+
+================================================================================
+SNIPPET 8: RESET STATISTICS
+================================================================================
+
+If you need to clear performance tracking:
+
+// Reset all statistics to zero
+this.synergyCalculator2_1.resetStats();
+
+// Useful after warmup or for benchmarking specific sections
+
+================================================================================
+SNIPPET 9: BACKWARD COMPATIBILITY TEST
+================================================================================
+
+Verify that old 2.0 code still works:
+
+import { computeSynergyScore as computeSynergyScore2_0 } from './ComputeSynergyScore2_0.js';
+import { computeSynergyScore2_1 } from './ComputeSynergyScore2_1.js';
+
+// Test link
+const testLink = game.nodeLinkingSystem.links[0];
+const systems = { linkingSystem: game.nodeLinkingSystem };
+
+// Call both
+const result2_0 = computeSynergyScore2_0(testLink, systems);
+const result2_1 = computeSynergyScore2_1(testLink, systems);
+
+// Verify compatibility
+console.assert(result2_0.score === result2_1.score, 'Score mismatch!');
+console.assert(result2_0.tier === result2_1.tier, 'Tier mismatch!');
+console.log('✓ Backward compatibility verified');
+
+================================================================================
+SNIPPET 10: CONDITIONAL SYNERGY QUALITY
+================================================================================
+
+Use different synergy based on available metrics:
+
+function getHighQualitySynergy(link, calculator2_1) {
+  const result = calculator2_1.compute(link, {});
+  
+  // Prefer visual synergy if available
+  if (result.debug.method === 'visual') {
+    return result.synergyNorm;  // Clean visual value
+  }
+  
+  // Fall back to legacy score
+  return result.score;
+}
+
+================================================================================
+INTEGRATION CHECKLIST
+================================================================================
+
+□ Import ComputeSynergyScore2_1.js
+□ Initialize calculator in AtomaGame constructor
+□ Add synergy update to game loop (after visualMetrics.update)
+□ Store result in link.userData.synergy2_1
+□ Run verification (Snippet 6)
+□ Test backward compatibility (Snippet 9)
+□ Monitor performance (Snippet 4)
+□ Enable debug if issues (Snippet 5)
+
+Once working:
+□ VFX systems can read link.userData.synergy2_1.synergyNorm
+□ Week 2: LinkGlowSynergyEngine can use this value
+□ Week 2: Update visual shaders to map synergy to effects
+
+================================================================================
+COPY-PASTE QUICK START
+================================================================================
+
+Minimal integration (2 steps):
+
+1. At top of AtomaGame.js:
+   import { ComputeSynergyScore2_1 } from './ComputeSynergyScore2_1.js';
+
+2. In constructor:
+   this.synergyCalculator2_1 = new ComputeSynergyScore2_1({
+     enableVisualMetrics: true,
+     enableDebug: false,
+     fallbackToLegacy: true
+   });
+
+3. In update method (in links section):
+   for (const link of this.nodeLinkingSystem.links) {
+     link.userData.synergy2_1 = 
+       this.synergyCalculator2_1.compute(link, { ... });
+   }
+
+Done! Now VFX systems can use:
+  link.userData.synergy2_1.synergyNorm
+
+================================================================================

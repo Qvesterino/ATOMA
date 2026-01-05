@@ -1,0 +1,76 @@
+==============================================================================
+EXPECTED CONSOLE OUTPUT: First Node Link After Patch
+==============================================================================
+
+┌ [NodeVisualStateBinder] 🔍 VisualHierarchyRegistry Import Diagnostics
+│ typeof VisualHierarchyRegistry: function
+│ Object.keys(VisualHierarchyRegistry || {}): [getRenderOrder, getLayer, getOpacityBounds, compareOrder, getAllLayers, printHierarchy, isValidRenderOrder, clampOpacity, LAYER_AURA_BACKGROUND, LAYER_AURA, LAYER_CORE, LAYER_ARCHETYPE, LAYER_EVOLUTION, LAYER_FX, LAYER_DEBUG, LAYERS]
+│ typeof VisualHierarchyRegistry?.registerNode: undefined
+│ Import path: ./VisualHierarchyRegistry.js (ES6 class export)
+│ Available static methods: [getRenderOrder, getLayer, getOpacityBounds, compareOrder, getAllLayers, printHierarchy, isValidRenderOrder, clampOpacity]
+└
+
+[NodeVisualStateBinder] ✅ Applied final visual state {nodeId: "node-a", category: "output", aurasRepaired: "yes"}
+
+==============================================================================
+KEY OBSERVATIONS
+==============================================================================
+
+1. DIAGNOSTIC LOGS ONCE
+   - First call: prints full diagnostics
+   - Second+ calls: skipped (guard prevents spam)
+
+2. TYPE ANALYSIS
+   - typeof VisualHierarchyRegistry: "function" ✓
+     (It's a class, not an object)
+   
+   - typeof VisualHierarchyRegistry?.registerNode: "undefined" ✓
+     (NO registerNode method exists — this was the bug!)
+   
+   - Available methods: [getRenderOrder, getLayer, getOpacityBounds, ...]
+     (All are QUERY methods, not management)
+
+3. NO CRASH
+   - Visual state applied successfully (returns true)
+   - Function completes without exception
+   - Aura baselines invalidated correctly
+
+4. SHIM IN ACTION
+   - ensureVisualHierarchyRegistryAPI() creates stubs
+   - VHR?.registerNode?.() calls stub (no-op)
+   - Catch block prevents any exception propagation
+
+==============================================================================
+VERIFY FIX IS WORKING
+==============================================================================
+
+✅ First link succeeds without "registerNode is not a function" error
+✅ Diagnostic logs print ONCE (not spam)
+✅ Node materials are applied correctly
+✅ Aura opacity is clamped to 0.06
+✅ Visual state is marked as applied
+✅ No console errors or warnings about registry
+
+==============================================================================
+IF YOU SEE DIFFERENT OUTPUT
+==============================================================================
+
+❌ If registerNode DOES exist on VisualHierarchyRegistry:
+   → Different version of registry was imported (import path issue)
+   → Check if there are duplicate definitions
+   → Run: grep -r "export.*registerNode" *.js
+
+❌ If typeof VisualHierarchyRegistry is not "function":
+   → Registry export changed from class to object
+   → Check VisualHierarchyRegistry.js line 57
+
+❌ If diagnostic logs MULTIPLE times:
+   → diagnosticLogged guard failed
+   → Check if multiple NodeVisualStateBinder copies exist
+
+❌ If visual state application fails (returns false):
+   → Exception thrown in steps 1-7
+   → Check console.error() message for details
+   → Verify node is valid THREE.Group
+
+==============================================================================

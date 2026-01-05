@@ -1,0 +1,360 @@
+/**
+ * HIT-PROXY AUTO-REGISTRAR v1.0
+ * 
+ * Ensures every spawned node automatically gets a valid hit-proxy mesh.
+ * Solves FPS death caused by missing/invalid proxies triggering failsafe.
+ * 
+ * GUARANTEE: After setup, every node will have:
+ * - node.userData.id (generated if missing)
+ * - Corresponding hit-proxy mesh
+ * - proxy.userData.isHitProxy === true
+ * - proxy.userData.targetNodeId === node.userData.id
+ * 
+ * STARTUP FLOW:
+ * 1. setupHitProxyAutoRegistrar(game) called during init
+ * 2. Hooks into AINodes.spawnNode pipeline
+ * 3. For each spawned node:
+ *    - Generate ID if missing
+ *    - Create hit-proxy mesh
+ *    - Register immediately
+ *    - Track for cleanup
+ * 4. On world reset: cleanup old proxies
+ * 
+ * RESULT: window.HITPROXY_READY = true when proxies ready
+ */
+
+import * as THREE from 'three';
+
+class HitProxyAutoRegistrar {
+  constructor(game, aiNodes, hitProxySystem) {
+    this.game = game;
+    this.aiNodes = aiNodes;
+    this.hitProxySystem = hitProxySystem;
+    
+    // Track nodes we've registered
+    this.registeredNodes = new WeakMap(); // node → { proxy, registered }
+    this.nodeIdMap = new Map(); // nodeId → node
+    
+    // Settings
+    this.proxyRadius = 0.7;
+    this.proxyLayer = 10;
+    this.autoRegisterEnabled = true;
+    
+    // Stats
+    this.stats = {
+      nodesProcessed: 0,
+      proxiesCreated: 0,
+      idsGenerated: 0,
+      cleanupsCalled: 0
+    };
+  }
+
+  /**
+   * Setup auto-registration hook
+   */
+  setup() {
+    if (!this.aiNodes || !this.aiNodes.spawnNode) {
+      console.warn('[HitProxyAutoRegistrar] AINodes.spawnNode not available');
+      return;
+    }
+
+    const originalSpawnNode = this.aiNodes.spawnNode;
+    const self = this;
+
+    this.aiNodes.spawnNode = function(...args) {
+      // Call original spawn
+      const newNode = originalSpawnNode.apply(this, args);
+      
+      // Auto-register proxy if enabled
+      if (newNode && self.autoRegisterEnabled) {
+        self.registerNodeProxy(newNode);
+      }
+      
+      return newNode;
+    };
+
+    console.log('[HitProxyAutoRegistrar] Setup complete - auto-registration active');
+  }
+
+  /**
+   * Register hit-proxy for a node
+   * @param {THREE.Object3D} node - The node to register
+   */
+  registerNodeProxy(node) {
+    if (!node) return;
+
+    try {
+      this.stats.nodesProcessed++;
+
+      // Step 1: Ensure node has ID
+      if (!node.userData) {
+        node.userData = {};
+      }
+
+      if (!node.userData.id) {
+        node.userData.id = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        this.stats.idsGenerated++;
+      }
+
+      const nodeId = node.userData.id;
+
+      // Track node by ID for quick lookup
+      this.nodeIdMap.set(nodeId, node);
+
+      // Step 2: Create hit-proxy mesh
+      const proxy = this.createProxyMesh(node);
+      if (!proxy) {
+        console.warn('[HitProxyAutoRegistrar] Failed to create proxy for node:', nodeId);
+        return;
+      }
+
+      // Step 3: Register with hit-proxy system
+      if (this.hitProxySystem && this.hitProxySystem.registry) {
+        this.hitProxySystem.registry.registerProxy(proxy, nodeId);
+        
+        // GUARANTEE: Set all required userData fields
+        proxy.userData.isHitProxy = true;
+        proxy.userData.targetNodeId = nodeId;
+        proxy.userData.proxyType = 'node';
+      }
+
+      // Step 4: Add to scene if not already there
+      if (proxy.parent === null) {
+        this.hitProxySystem?.scene?.add(proxy);
+      }
+
+      // Step 5: Track for cleanup
+      this.registeredNodes.set(node, { proxy, registered: true });
+
+      this.stats.proxiesCreated++;
+
+      // Update HITPROXY_READY gate
+      this.updateReadyGate();
+
+    } catch (err) {
+      console.warn('[HitProxyAutoRegistrar] Proxy registration failed:', err);
+    }
+  }
+
+  /**
+   * Create a lightweight proxy mesh for a node
+   * @private
+   */
+  createProxyMesh(node) {
+    try {
+      // Create invisible sphere proxy
+      const geometry = new THREE.SphereGeometry(this.proxyRadius, 8, 8);
+      const material = new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        wireframe: false
+      });
+      const proxy = new THREE.Mesh(geometry, material);
+
+      // Position at node location
+      proxy.position.copy(node.position);
+
+      // Put on raycast layer only (layer 10)
+      proxy.layers.set(this.proxyLayer);
+      proxy.layers.disableAll();
+      proxy.layers.enable(this.proxyLayer);
+
+      // Disable rendering
+      proxy.userData = {
+        isHitProxy: true,
+        targetNodeId: node.userData?.id,
+        proxyType: 'node'
+      };
+
+      return proxy;
+    } catch (err) {
+      console.warn('[HitProxyAutoRegistrar] Proxy mesh creation failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Update HITPROXY_READY gate
+   * Gate is true only if:
+   * 1. hitProxySystem exists
+   * 2. registry exists
+   * 3. getAllProxies() returns non-empty array
+   * 4. All proxies have targetNodeId
+   * @private
+   */
+  updateReadyGate() {
+    try {
+      const proxies = this.hitProxySystem?.registry?.getAllProxies?.() || [];
+      
+      // Check all conditions
+      const hasSystem = !!this.hitProxySystem;
+      const hasRegistry = !!this.hitProxySystem?.registry;
+      const hasProxies = proxies.length > 0;
+      
+      let allValid = true;
+      for (const proxy of proxies) {
+        if (!proxy.userData?.targetNodeId) {
+          allValid = false;
+          break;
+        }
+      }
+
+      const ready = hasSystem && hasRegistry && hasProxies && allValid;
+      
+      // Update global flag
+      window.HITPROXY_READY = ready;
+
+      if (ready && !window._HITPROXY_READY_LOGGED) {
+        window._HITPROXY_READY_LOGGED = true;
+        console.log(
+          `[HitProxyAutoRegistrar] ✓ HITPROXY_READY = true\n` +
+          `  Proxies available: ${proxies.length}\n` +
+          `  Nodes processed: ${this.stats.nodesProcessed}\n` +
+          `  IDs generated: ${this.stats.idsGenerated}`
+        );
+      }
+    } catch (err) {
+      window.HITPROXY_READY = false;
+    }
+  }
+
+  /**
+   * Cleanup proxies (called on world reset)
+   */
+  cleanup() {
+    try {
+      this.stats.cleanupsCalled++;
+
+      if (!this.hitProxySystem?.scene || !this.hitProxySystem?.registry) {
+        return;
+      }
+
+      // Get all proxies and remove them
+      const proxies = this.hitProxySystem.registry.getAllProxies?.() || [];
+      for (const proxy of proxies) {
+        try {
+          this.hitProxySystem.scene.remove(proxy);
+          proxy.geometry?.dispose();
+          proxy.material?.dispose();
+        } catch (e) {
+          // Silent fail
+        }
+      }
+
+      // Clear registry
+      this.hitProxySystem.registry.clear?.();
+
+      // Clear tracking maps
+      this.registeredNodes = new WeakMap();
+      this.nodeIdMap.clear();
+
+      // Reset ready gate
+      window.HITPROXY_READY = false;
+      window._HITPROXY_READY_LOGGED = false;
+
+      console.log('[HitProxyAutoRegistrar] Cleanup complete');
+    } catch (err) {
+      console.warn('[HitProxyAutoRegistrar] Cleanup failed:', err);
+    }
+  }
+
+  /**
+   * Rebuild proxies for existing nodes (recovery)
+   */
+  rebuildProxies() {
+    try {
+      console.log('[HitProxyAutoRegistrar] Rebuilding proxies...');
+      
+      // Clear old proxies
+      this.cleanup();
+
+      // Register all current nodes
+      if (this.aiNodes?.nodes) {
+        for (const node of this.aiNodes.nodes) {
+          this.registerNodeProxy(node);
+        }
+      }
+
+      console.log(`[HitProxyAutoRegistrar] Rebuild complete: ${this.stats.proxiesCreated} proxies`);
+    } catch (err) {
+      console.error('[HitProxyAutoRegistrar] Rebuild failed:', err);
+    }
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      nodeIdMapSize: this.nodeIdMap.size,
+      hitProxyReady: window.HITPROXY_READY || false
+    };
+  }
+
+  /**
+   * Debug report
+   */
+  printReport() {
+    const stats = this.getStats();
+    console.log('[HitProxyAutoRegistrar] Report:', {
+      '📊 Nodes Processed': stats.nodesProcessed,
+      '🔗 Proxies Created': stats.proxiesCreated,
+      '🆔 IDs Generated': stats.idsGenerated,
+      '🧹 Cleanups': stats.cleanupsCalled,
+      '✓ HITPROXY_READY': stats.hitProxyReady,
+      '📁 Registry Size': stats.nodeIdMapSize
+    });
+  }
+}
+
+/**
+ * Setup auto-registrar and integrate with game
+ */
+export function setupHitProxyAutoRegistrar(game) {
+  try {
+    // Get required systems
+    const aiNodes = game?.aiNodes;
+    const hitProxySystem = window.hitProxySystem;
+
+    if (!aiNodes) {
+      console.warn('[HitProxyAutoRegistrar] AINodes not available');
+      return null;
+    }
+
+    if (!hitProxySystem) {
+      console.warn('[HitProxyAutoRegistrar] HitProxySystem not initialized');
+      return null;
+    }
+
+    // Create registrar
+    const registrar = new HitProxyAutoRegistrar(game, aiNodes, hitProxySystem);
+    registrar.setup();
+
+    // Hook into game's world reset (if available)
+    if (game.resetWorld) {
+      const originalReset = game.resetWorld;
+      game.resetWorld = function(...args) {
+        registrar.cleanup();
+        return originalReset.apply(this, args);
+      };
+    }
+
+    // Expose on window for debugging
+    window.HitProxyAutoRegistrar = registrar;
+
+    // Log debug API
+    console.log('[HitProxyAutoRegistrar] Debug API available:');
+    console.log('  - window.HitProxyAutoRegistrar.getStats()');
+    console.log('  - window.HitProxyAutoRegistrar.printReport()');
+    console.log('  - window.HitProxyAutoRegistrar.rebuildProxies()');
+    console.log('  - window.HITPROXY_READY (global gate)');
+
+    return registrar;
+  } catch (err) {
+    console.error('[HitProxyAutoRegistrar] Setup failed:', err);
+    return null;
+  }
+}
+
+export default HitProxyAutoRegistrar;

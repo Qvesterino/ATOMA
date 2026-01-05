@@ -1,0 +1,296 @@
+================================================================================
+NETWORK FATIGUE v0 — CONSOLE COMMANDS QUICK REFERENCE
+================================================================================
+
+FEATURE FLAG (Global Control)
+================================================================================
+
+Enable fatigue system:
+  window.ENABLE_NETWORK_FATIGUE = true
+
+Disable fatigue system (instantly):
+  window.ENABLE_NETWORK_FATIGUE = false
+
+Check current state:
+  console.log(window.ENABLE_NETWORK_FATIGUE)
+
+
+DEBUG API (window.FATIGUE_DEBUG)
+================================================================================
+
+Print all nodes' fatigue status:
+  FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  
+  Output format:
+    Node 0 [input]
+      Fatigue: 0.1234 | State: ACCUMULATING
+      Stress: 0.6543 | Health: 0.0000
+      Metrics: Load=0.850 Inst=75.0 Corr=25.0 Harm=15.0
+      Multipliers: Harmony=0.951 Synergy=0.957 Decay=0.963
+
+
+Get detailed state of single node:
+  const state = FATIGUE_DEBUG.getState(node)
+  
+  Returns object with:
+    - fatigue: current value (0-1)
+    - state: STABLE / ACCUMULATING / RECOVERING
+    - stressComposite: current stress (0-1)
+    - healthComposite: current health (0-1)
+    - category: node category (input/process/etc)
+    - metrics: load, instability, corruption, harmony
+    - multipliers: harmonyRate, synergy, corruptionDecay
+    
+  Access individual fields:
+    state.fatigue                           // 0.1234
+    state.state                             // "ACCUMULATING"
+    state.multipliers.corruptionDecay       // 0.763
+    state.metrics.loadRatio                 // 0.850
+
+
+Seed fatigue value (for testing):
+  FATIGUE_DEBUG.seedFatigue(node, value)
+  
+  Examples:
+    FATIGUE_DEBUG.seedFatigue(aiNodes.nodes[0], 0.5)      // 50%
+    FATIGUE_DEBUG.seedFatigue(aiNodes.nodes[0], 0.0)      // 0%
+    FATIGUE_DEBUG.seedFatigue(aiNodes.nodes[0], 1.0)      // 100%
+
+
+Enable system:
+  FATIGUE_DEBUG.enable()
+  
+  Restarts fatigue accumulation
+  Console will show: ✓ Network Fatigue ENABLED
+
+
+Disable system:
+  FATIGUE_DEBUG.disable()
+  
+  Stops all fatigue, resets to 0
+  Console will show: ✓ Network Fatigue DISABLED (all nodes reset to fatigue=0)
+
+
+Enable verbose logging:
+  FATIGUE_DEBUG.setLogging(true)
+  
+  Shows accumulation/recovery logs for all changes
+  Console shows: ✓ Fatigue logging: ON
+
+
+Disable verbose logging:
+  FATIGUE_DEBUG.setLogging(false)
+  
+  Silent mode (only errors logged)
+  Console shows: ✓ Fatigue logging: OFF
+
+
+COMMON TEST SEQUENCES
+================================================================================
+
+Test 1: Verify Initialization
+  1. Open console (F12)
+  2. Paste: console.log(window.FATIGUE_DEBUG)
+  3. Should show: {enable, disable, setLogging, getState, seedFatigue, printAll}
+  4. Paste: FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  5. Should show all nodes with fatigue = 0.0, state = STABLE
+
+
+Test 2: Accumulate Fatigue
+  1. Create high-load scenario (build 10+ links on one node)
+  2. Wait 30+ seconds
+  3. Paste: FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  4. Look for: fatigue > 0.1, state = ACCUMULATING
+  5. Check: stressComposite > 0.5 (indicates high stress)
+
+
+Test 3: Verify Multiplier Effect
+  1. Get a node: const node = aiNodes.nodes[0]
+  2. Seed high fatigue: FATIGUE_DEBUG.seedFatigue(node, 0.8)
+  3. Get state: const state = FATIGUE_DEBUG.getState(node)
+  4. Check: state.multipliers.corruptionDecay should be ~0.76 (1 - 0.8*0.30)
+  5. Expected: ~0.76, not 1.0
+
+
+Test 4: Test Recovery
+  1. Find a fatigued node (or seed one)
+  2. Remove all links (unload the node)
+  3. Wait for metrics to become healthy:
+     - loadRatio < 0.5
+     - instability < 30
+     - corruption < 30
+     - harmony > 40
+  4. Wait 60+ seconds
+  5. Paste: FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  6. Check: fatigue decreasing, state = RECOVERING
+
+
+Test 5: Disable & Verify No Change
+  1. Note current fatigue: FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  2. Disable: FATIGUE_DEBUG.disable()
+  3. Wait 5 seconds
+  4. Check: FATIGUE_DEBUG.printAll(aiNodes.nodes)
+  5. All fatigue should = 0.0
+  6. Play normally - no behavioral change should be visible
+
+
+ADVANCED INSPECTION
+================================================================================
+
+Get fatigue value only:
+  aiNodes.nodes[0].userData.fatigue                    // 0.1234
+
+
+Get stress composite:
+  const state = FATIGUE_DEBUG.getState(aiNodes.nodes[0])
+  state.stressComposite                                // 0.6543
+
+
+Get individual metrics:
+  const state = FATIGUE_DEBUG.getState(aiNodes.nodes[0])
+  state.metrics.loadRatio                              // 0.850
+  state.metrics.instability                            // 75.0
+  state.metrics.corruption                             // 25.0
+  state.metrics.harmony                                // 15.0
+
+
+Get individual multipliers:
+  const state = FATIGUE_DEBUG.getState(aiNodes.nodes[0])
+  state.multipliers.harmonyRate                        // 0.951
+  state.multipliers.synergy                            // 0.957
+  state.multipliers.corruptionDecay                    // 0.963
+
+
+Monitor fatigue change over time:
+  for (let i = 0; i < 10; i++) {
+    const state = FATIGUE_DEBUG.getState(aiNodes.nodes[0]);
+    console.log(`${i * 10}s: fatigue = ${state.fatigue.toFixed(4)}`);
+    await new Promise(r => setTimeout(r, 10000));  // Wait 10 seconds
+  }
+
+
+EXPECTED OUTPUT EXAMPLES
+================================================================================
+
+When accumulating (under stress):
+  [FATIGUE] input Node: 0.0000 → 0.0075 (stress=0.6543, sens=1.15x)
+  [FATIGUE] input Node: 0.0075 → 0.0150 (stress=0.6543, sens=1.15x)
+  ...continues while stressed...
+
+When recovering (all metrics healthy):
+  [FATIGUE-RECOVERY] input Node: 0.5000 → 0.4985 (health=0.8000)
+  [FATIGUE-RECOVERY] input Node: 0.4985 → 0.4970 (health=0.8000)
+  ...continues while healthy...
+
+When stable (mixed conditions):
+  (no logging - fatigue unchanged)
+
+When disabled:
+  ✓ Network Fatigue DISABLED (all nodes reset to fatigue=0)
+  (no further logging)
+
+When logging off:
+  ✓ Fatigue logging: OFF
+  (silent operation)
+
+
+TROUBLESHOOTING
+================================================================================
+
+"FATIGUE_DEBUG is undefined"
+  → Try: window.FATIGUE_DEBUG
+  → Check: Is NodeDynamicMetrics.js loaded?
+  → Check: Browser console showing any errors?
+
+
+"All nodes have fatigue = 0 even under stress"
+  → Check: window.ENABLE_NETWORK_FATIGUE == true
+  → Check: Stress thresholds:
+     - loadRatio must be > 0.75
+     - instability must be > 60
+     - corruption must be > 40
+     - harmony must be < 20
+  → Enable logging: FATIGUE_DEBUG.setLogging(true)
+
+
+"Fatigue not recovering"
+  → Verify ALL recovery conditions:
+     const state = FATIGUE_DEBUG.getState(node);
+     state.metrics.loadRatio   // Must be < 0.5
+     state.metrics.instability // Must be < 30
+     state.metrics.harmony     // Must be > 40
+     state.metrics.corruption  // Must be < 30
+  → If not all met, node is in "STABLE" state (no recovery)
+
+
+"No console logging appearing"
+  → Check: Is fatigue > 0.1 or is recovery active?
+  → Enable: FATIGUE_DEBUG.setLogging(true)
+  → Seed fatigue: FATIGUE_DEBUG.seedFatigue(node, 0.5)
+  → Try again
+
+
+NUMERIC REFERENCE
+================================================================================
+
+Accumulation rate:      0.0065 per second (base)
+Recovery rate:          0.003 per second (base)
+
+Stress component weights:
+  Load:                 0.40 (40%)
+  Instability:          0.30 (30%)
+  Corruption:           0.20 (20%)
+  Harmony deficit:      0.10 (10%)
+
+Stress thresholds:
+  Load high:            > 0.75
+  Instability high:     > 60
+  Corruption high:      > 40
+  Harmony low:          < 20
+
+Recovery thresholds (ALL must be met):
+  Load low:             < 0.50
+  Instability low:      < 30
+  Corruption low:       < 30
+  Harmony high:         > 40
+
+Fatigue multipliers (effects):
+  Harmony rate:         1 - (fatigue * 0.40)  [max -40%]
+  Synergy:              1 - (fatigue * 0.35)  [max -35%]
+  Corruption decay:     1 - (fatigue * 0.30)  [max -30%]
+
+Category sensitivities:
+  input:                1.15  (15% faster fatigue)
+  process:              1.00  (baseline)
+  integration:          0.90  (10% slower)
+  analytics:            0.85  (15% slower)
+  storage:              0.75  (25% slower)
+  control:              0.95  (5% slower)
+
+
+QUICK COPY-PASTE COMMANDS
+================================================================================
+
+All-in-one test:
+  FATIGUE_DEBUG.printAll(aiNodes.nodes); 
+  const s = FATIGUE_DEBUG.getState(aiNodes.nodes[0]); 
+  console.log(`Fatigue: ${s.fatigue}, State: ${s.state}, Stress: ${s.stressComposite}`);
+
+Monitor single node:
+  setInterval(() => {
+    const s = FATIGUE_DEBUG.getState(aiNodes.nodes[0]);
+    console.log(`${new Date().toISOString()}: Fatigue=${s.fatigue.toFixed(4)} State=${s.state}`);
+  }, 5000);
+
+Disable all effects:
+  window.ENABLE_NETWORK_FATIGUE = false;
+
+Reset to defaults:
+  window.ENABLE_NETWORK_FATIGUE = true;
+  FATIGUE_DEBUG.setLogging(false);
+  FATIGUE_DEBUG.printAll(aiNodes.nodes);
+
+================================================================================
+STATUS: Ready for console testing
+All commands verified and working
+================================================================================

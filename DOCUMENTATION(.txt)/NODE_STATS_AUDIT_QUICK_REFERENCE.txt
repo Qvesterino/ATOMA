@@ -1,0 +1,116 @@
+================================================================================
+NODE STATS AUDIT — QUICK REFERENCE
+================================================================================
+
+STAT LIFECYCLE:
+
+DEFINE (Init/Create)
+  ↓ AINodeModel.js → initializes 8 stats (energy, stability, harmony, corruption, synergy, fatigue, load, instability)
+  ↓ AINodes.js → spawns nodes with full stat set
+
+COMPUTE (Update/Modify)
+  ├─ LinkCorruptionTransmission_v1.js: corruption → spreads via links
+  ├─ HarmonyStabilizationSystem_v1.js: harmony → increases on healthy nodes
+  ├─ NetworkFatigueSystem_v0.js: fatigue → accumulates deltaTime
+  ├─ ComputeSynergyScore2_0.js: synergy → computed from node stats
+  ├─ NodeQualityCalculator.js: quality → f(energy, stability, harmony, corruption)
+  └─ SimulationEffectOrchestrator.js: cascades → modifies all stats
+
+CONSUME (Read/Display/Use)
+  ├─ VISUAL: ArchetypeShaderModes, AuraModulationSystem, VisualMetricModel, SynergyGlowController
+  ├─ UI: CoreMetricsOverlay, NodeInspectOverlay1_0
+  ├─ GAMEPLAY: LinkQualityCalculator, TIER4_GameplayIntegrationBridge
+  └─ VFX: T2_HarmonyVisualConsumer, T2_CorruptionVisualIntegration, LinkGlyphFlow
+
+================================================================================
+
+STAT-BY-STAT PRODUCERS → CONSUMERS:
+
+ENERGY
+  Init: AINodeModel (1.0)
+  Write: NetworkFatigue, SimulationEffects
+  Read: ShaderModes, VisualMetric, Personality, LinkQuality, Inspector
+
+STABILITY
+  Init: AINodeModel (1.0)
+  Write: Corruption, HarmonyStabilization, SimulationEffects
+  Read: LinkQuality, GameplayBridge, Personality, Inspector
+
+HARMONY
+  Init: AINodeModel (1.0)
+  Write: HarmonyStabilization, SimulationEffects
+  Read: ShaderModes, AuraModulation, VisualMetric, HarmonyVisualConsumer, 
+        Personality, CoreMetrics, Inspector
+
+CORRUPTION
+  Init: AINodeModel (0.0)
+  Write: CorruptionTransmission, SimulationEffects
+  Read: ShaderModes, CorruptionVisualConsumer, LinkQuality, GameplayBridge,
+        Personality, CoreMetrics, Inspector
+
+SYNERGY
+  Init: LinkRenderer (0.0) [link-level stat]
+  Write: ComputeSynergyScore, SynergyEngine
+  Read: LinkQuality, LinkGlyphFlow, SynergyGlowController, Personality,
+        VisualMetric
+
+FATIGUE
+  Init: AINodeModel (0.0)
+  Write: NetworkFatigue, SimulationEffects, Evolution
+  Read: GameplayBridge, Personality, VisualMetric, Inspector
+
+LOAD
+  Init: AINodeModel (0.0)
+  Write: SimulationEffects, Evolution
+  Read: ShaderModes, VisualMetric, Inspector, CoreMetrics
+
+INSTABILITY
+  Init: AINodeModel (0.0)
+  Write: SimulationEffects, CorruptionTransmission
+  Read: ShaderModes, VisualMetric, Inspector, CoreMetrics
+
+================================================================================
+
+KEY COUPLINGS:
+
+via LINKS:
+  - CorruptionTransmission spreads corruption along edges
+  - ComputeSynergyScore computes link quality from node stats
+  - LinkQualityCalculator assesses endpoints for viability
+
+via NETWORKS:
+  - NodeDynamicMetrics aggregates all node stats
+  - CoreMetricsOverlay displays network averages
+
+via CASCADES:
+  - SimulationEffectOrchestrator propagates effects through network
+  - SynergyChainReaction tracks cascade chains
+
+via EVOLUTION:
+  - EnhancedNodeModels can modify entire stat profile
+  - ArchetypeVisualTransitionEngine interpolates stats
+
+================================================================================
+
+PRODUCER HIERARCHY:
+
+Tier 1 (Definition):
+  ├─ AINodeModel.js (canonical structure)
+  └─ AINodes.js (spawning system)
+
+Tier 2 (Modification):
+  ├─ LinkCorruptionTransmission_v1.js (writes corruption)
+  ├─ HarmonyStabilizationSystem_v1.js (writes harmony)
+  ├─ NetworkFatigueSystem_v0.js (writes fatigue)
+  ├─ ComputeSynergyScore2_0.js (writes synergy)
+  └─ SimulationEffectOrchestrator.js (writes cascade effects)
+
+Tier 3 (Consumption):
+  └─ 12+ consumer systems (visual, UI, gameplay, VFX)
+
+================================================================================
+
+AUDIT SCOPE: 8 STATS, 40+ FILES TRACED
+All stat producers, modifiers, consumers identified
+Zero speculative connections (read-only analysis only)
+================================================================================

@@ -1,0 +1,167 @@
+═══════════════════════════════════════════════════════════════════════════════
+  AXIOM CRYSTAL - CANONICAL CONTROL NODE
+  Quick Reference v1.0
+═══════════════════════════════════════════════════════════════════════════════
+
+🔷 MESH NAME
+   CONTROL_AXIOM_CRYSTAL
+
+📐 GEOMETRY
+   ├─ Type: Vertical crystal monolith, fully faceted
+   ├─ Vertices: 19 (asymmetrical distribution)
+   ├─ Triangles: 22
+   ├─ Height:Width Ratio: 1.8:1
+   ├─ Base: Irregular heptagon (7-sided, asymmetrical)
+   ├─ Apex: Single point, offset from center (asymmetrical)
+   ├─ Twist: 5° around Y-axis
+   └─ Edges: Sharp, no bevels, no curves
+
+🎨 MATERIAL
+   ├─ Type: THREE.MeshPhysicalMaterial
+   ├─ Color: Gold (0xffd700) → Amber (0xffb347) blend
+   ├─ Transmission: 0.9 (highly transparent)
+   ├─ Roughness: 0.1 (polished)
+   ├─ IOR: 1.45 (crystal-like refraction)
+   ├─ Metalness: 0.0 (dielectric, not metallic)
+   ├─ Emissive: Dark honey (0x8b6914) at 0.05 intensity
+   └─ Reflectivity: 0.9 (strong Fresnel reflections)
+
+⛔ IMMUTABILITY
+   ├─ FROZEN: geometry and material objects
+   ├─ NO STATE CHANGES: immutable flag set
+   ├─ NO ANIMATION: mesh static (group can rotate)
+   ├─ NO MATERIAL MUTATION: color/transmission locked
+   ├─ NO FX TWEAKS: skipped by FXRuntime, WaveShaderBridge
+   └─ GUARDS: noMaterialMutation flag prevents all runtime changes
+
+✅ IMPLEMENTATION
+   Location: EnhancedNodeModels.js
+   Function: createAxiomCrystalNode(group, color)
+   Category: control
+   Registration: Always index 0 (canonical form, singleton)
+   Returns: group with CONTROL_AXIOM_CRYSTAL mesh
+
+🎭 VISUAL BEHAVIOR
+   ┌─ At Distance: Tall crystalline tower, commanding
+   ├─ Silhouette: Irregular spike with asymmetrical lean-left
+   ├─ Lighting (head-on): Gold-amber faces, sharp facet edges
+   ├─ Lighting (glancing): Fresnel brightens edges, honey transmission
+   ├─ Backlighting: Strong golden glow from interior
+   ├─ Animation: NONE (static, authoritative)
+   └─ Mutation: NONE (immutable form)
+
+🧬 VERTEX DISTRIBUTION
+   Base (Y=-0.9):       7 vertices (center + 6 radial, irregular)
+   Lower (Y=-0.5):      6 vertices (transition band, asymmetrical)
+   Upper (Y=0.4):       5 vertices (tightening, offset)
+   Apex (Y=0.9):        1 vertex (off-center point)
+   ────────────────────
+   Total:               19 vertices
+
+🔺 FACET LAYOUT (22 triangles = 44 visual facets)
+   Base Radiators:      8 triangles (center-to-ring)
+   Mid-Section Slant:   5 triangles (lower-to-upper band)
+   Top Pyramid:         5 triangles (upper-to-apex)
+   Side Bridges:        6 triangles (cross-connections)
+   ────────────────────
+   Total:               22 triangles
+
+📊 COMPARISON: Control Node Variants
+   ┌──────────────────┬──────────────┬──────────┬──────────────┐
+   │ Node             │ Nature       │ Animate? │ Mutate?      │
+   ├──────────────────┼──────────────┼──────────┼──────────────┤
+   │ AxiomCrystal     │ Static Law   │ NO       │ NO           │
+   │ OctagonalCore    │ Pulsing      │ YES      │ YES (emit)   │
+   │ RingLattice      │ Rotating     │ YES      │ YES (emit)   │
+   │ JudgmentSeal     │ Floating     │ YES      │ YES (emit)   │
+   │ LawCore          │ Minimal      │ NO       │ YES (emit)   │
+   └──────────────────┴──────────────┴──────────┴──────────────┘
+
+🎯 DESIGN INTENT
+   Represents:       Law itself - immutable, authoritative, clear
+   Asymmetry:        Intentional (leaning apex breaks symmetry → presence)
+   Geometry:         Fully faceted (sharp authority, no soft edges)
+   Transparency:     Crystal-like (clarity, visibility)
+   Immutability:     Cannot change state (law is unchanging)
+
+🔧 CODE EXAMPLES
+
+   // Spawn AxiomCrystal Control Node
+   const controlNode = EnhancedNodeModels.create('control', 0, 0xff0000);
+   scene.add(controlNode);
+   
+   // Check if immutable
+   if (controlNode.userData.isCanonicalControlNode) {
+     console.log("✅ AxiomCrystal: Immutable, static form");
+   }
+   
+   // Skip material updates (guards in place)
+   if (controlNode.userData.noMaterialMutation) {
+     // FXRuntime will skip this node
+   }
+
+⚙️ RENDERING PIPELINE
+   1. Create BufferGeometry (19 vertices, 22 triangles)
+   2. Apply computeVertexNormals() for facet lighting
+   3. Create MeshPhysicalMaterial with transmission params
+   4. Freeze material object (immutable)
+   5. Create mesh, apply 5° Y-axis twist
+   6. Freeze geometry object (immutable)
+   7. Add to group, mark userData flags
+   8. Return group (no further modifications)
+
+🚫 FORBIDDEN OPERATIONS
+   ├─ Changing color (gold-amber blend locked)
+   ├─ Modifying transmission value
+   ├─ Animating mesh rotation (group can rotate, mesh cannot)
+   ├─ Adjusting emissive intensity (locked at 0.05)
+   ├─ Applying state-based effects
+   ├─ Linking to node state (no responsiveness)
+   └─ Mutating geometry after creation
+
+✨ SPECIAL PROPERTIES
+   userData.isStaticAxiomCrystal:    true
+   userData.immutable:                true
+   userData.noMaterialMutation:       true
+   geometry[frozen]:                  true
+   material[frozen]:                  true
+   material.userData[sealed]:         true
+
+📋 DEPLOYMENT CHECKLIST
+   ✅ Geometry created (19 vertices, closed mesh)
+   ✅ Material PhysicalMaterial with transmission
+   ✅ Color gradient: gold → amber → honey
+   ✅ 5° twist applied
+   ✅ Immutability guards in place
+   ✅ Frozen: geometry and material
+   ✅ Registered as CONTROL canonical
+   ✅ Integration guards: FXRuntime, WaveShaderBridge
+   ✅ Documentation complete
+
+🎪 PERFORMANCE
+   Vertex Memory:       ~2KB (19 vertices)
+   Triangle Memory:     ~1KB (22 triangles)
+   Material Memory:     ~0.5KB (PhysicalMaterial)
+   GPU Load:            Minimal (single mesh, single material)
+   Animation Cost:      ZERO (static)
+
+📚 INTEGRATION POINTS
+   • EnhancedNodeModels.js → createAxiomCrystalNode()
+   • AINodes.js → createNode('control', ...) → always AxiomCrystal
+   • FXRuntime_v1.js → skips if noMaterialMutation = true
+   • WaveShaderBridge_v1.js → skips if noMaterialMutation = true
+   • NodeVisualReadinessGate_v1.js → recognizes immutable flag
+
+🌟 PHILOSOPHY
+   "Law is not a suggestion. Law is not negotiable. Law is AXIOM."
+   
+   AxiomCrystal embodies this through:
+   • Immutable form (cannot be changed)
+   • Static rendering (cannot be animated)
+   • Asymmetrical geometry (authority is not balanced)
+   • Sharp, faceted surfaces (clarity, precision)
+   • Crystalline transparency (visibility, no secrets)
+
+═══════════════════════════════════════════════════════════════════════════════
+End Reference
+═══════════════════════════════════════════════════════════════════════════════
