@@ -1,0 +1,332 @@
+═══════════════════════════════════════════════════════════════════════════════
+NODE VISUAL SHAPE AUDIT - EXECUTIVE SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+AUDIT SCOPE: Node geometry shape system analysis (read-only, no code changes)
+DATE: Session 13
+STATUS: ✅ COMPLETE - Analysis finished, findings documented
+
+═══════════════════════════════════════════════════════════════════════════════
+THE QUESTION
+═══════════════════════════════════════════════════════════════════════════════
+
+Which node visual shapes are actually used at runtime?
+Which are orphaned or unreachable?
+Are EXTREME node shapes working?
+
+═══════════════════════════════════════════════════════════════════════════════
+THE ANSWER IN ONE LINE
+═══════════════════════════════════════════════════════════════════════════════
+
+24 base shapes work perfectly. 12 EXTREME shapes are completely orphaned in the
+rendering pipeline. 6 special categories have no visuals and fallback to INPUT.
+
+═══════════════════════════════════════════════════════════════════════════════
+BY THE NUMBERS
+═══════════════════════════════════════════════════════════════════════════════
+
+SHAPE INVENTORY:
+  • 24 Base shapes (6 categories × 4 variants) ✅ ALL DEFINED
+  • 12 EXTREME shapes (unique archetypes 0-11) ✅ ALL DEFINED
+  • 6 Special categories (quantum, sigma, mythic, etc.) ⚠️ COLOR ONLY
+
+REACHABILITY AT RUNTIME:
+  • 24 Base shapes: 100% reachable, actively rendered ✅
+  • 12 EXTREME shapes: 0% rendered (orphaned in pipeline) ✗
+  • 6 Special categories: 0% match intent (fallback to INPUT) ✗
+
+ORPHANED SHAPES:
+  • EXTREME nodes: 12 shapes (all of them - never activated in rendering)
+  • Special nodes: 6 categories (no geometry methods exist)
+  • Total orphaned: 18 shape definitions unused
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL FINDING: EXTREME SHAPES ARE COMPLETELY INVISIBLE
+═══════════════════════════════════════════════════════════════════════════════
+
+THE SITUATION:
+
+1. EXTREME shapes are fully defined in _ExtremeAINodePack.js
+   • 12 unique visual archetypes (Hyperbolic Prism, Singularity Knot, etc.)
+   • Complete geometry creation methods exist
+   • Visuals are production-quality
+
+2. EXTREME nodes are spawned correctly
+   • node.userData.isExtreme = true (set 15% of nodes)
+   • node.userData.extremeArchetype = 0-11 (assigned correctly)
+   • node.userData.extremeProfile created with metadata
+
+3. BUT: EXTREME visuals are NEVER RENDERED
+   • ExtremeAINodePack.applyArchetype() is NEVER called in rendering
+   • Rendering pipeline does NOT check node.extremeArchetype
+   • EXTREME nodes render as normal base shapes despite unique visuals existing
+
+PROOF:
+  • Searched: "applyArchetype" in codebase
+  • Found: Only in _ExtremeAINodePack.js definition
+  • Missing: Zero calls in main.js, rendering loop, or bootstrapping
+  • Result: 12 unique visuals completely orphaned
+
+IMPACT:
+  • 15% of spawned nodes are EXTREME but visually identical to normal nodes
+  • 12 unique visual archetypes exist but never appear in-game
+  • Players cannot distinguish EXTREME nodes from normal nodes
+  • EXTREME visual system is 100% inaccessible
+
+═══════════════════════════════════════════════════════════════════════════════
+SECONDARY FINDING: SPECIAL CATEGORIES HAVE NO VISUALS
+═══════════════════════════════════════════════════════════════════════════════
+
+THE SITUATION:
+
+Six special node categories have colors defined but no geometry:
+  • quantum (Indigo - 0x4400ff)
+  • sigma (Bright Green - 0x00ff00)
+  • emotional (Hot Pink - 0xff4488)
+  • mythic (Gold - 0xffdd00)
+  • prime (White - 0xffffff)
+  • error (Red - 0xff3333)
+
+WHAT HAPPENS:
+  • Colors are in EnhancedNodeModels.getCategoryColor()
+  • But NO switch cases in EnhancedNodeModels.create()
+  • All fall through to default: return this.createInputNode()
+
+RESULT:
+  • All special category nodes render as INPUT nodes
+  • Only the color differs (applied via material)
+  • Intended visual distinction is completely lost
+  • Players see generic cyan INPUT nodes, not special categories
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT'S WORKING WELL
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ All 24 Base Shapes Are Fully Functional
+  • 6 categories (input, process, integration, analytics, storage, control)
+  • 4 variants each, total 24 unique geometries
+  • 100% of base shapes are reachable at runtime
+  • Rendering works as designed
+
+✅ Shape Selection Is Deterministic & Traceable
+  • Single switch statement controls all selection
+  • No hidden shader-based selection
+  • Fallback behavior is consistent
+  • Can trace from spawn → geometry → rendering
+
+✅ Metadata Attachment Works
+  • EXTREME profiles attach correctly
+  • Archetype data is stored properly
+  • Variant distribution is stable
+
+═══════════════════════════════════════════════════════════════════════════════
+ROOT CAUSE ANALYSIS: WHY EXTREME SHAPES ARE ORPHANED
+═══════════════════════════════════════════════════════════════════════════════
+
+DESIGN MISMATCH:
+
+Layer 1 - Node Spawning (AINodes.js):
+  • Correctly sets isExtreme and extremeArchetype flags
+  • Attaches extremeProfile metadata
+  • ✅ Working as intended
+
+Layer 2 - Base Geometry Selection (EnhancedNodeModels.js):
+  • Creates node geometry based on category (input, process, etc.)
+  • Does NOT check for isExtreme flag
+  • Does NOT check for extremeArchetype
+  • ⚠️ Never branches to EXTREME visuals
+
+Layer 3 - Rendering Pipeline (main.js, rendering loop):
+  • Never calls ExtremeAINodePack.applyArchetype()
+  • Never queries node.extremeArchetype
+  • Never activates EXTREME visual layer
+  • ✗ EXTREME shapes never rendered
+
+MISSING LINK:
+  Between Layer 1 (metadata set) and Layer 3 (rendering),
+  no code exists to:
+    1. Check if node.isExtreme === true
+    2. Call ExtremeAINodePack.applyArchetype()
+    3. Activate EXTREME visuals
+
+═══════════════════════════════════════════════════════════════════════════════
+VISUAL PIPELINE DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+CURRENT STATE:
+
+┌─ Normal Node Path ─────────────────┐   ┌─ EXTREME Node Path ─────────────┐
+│                                     │   │                                  │
+│ Spawn (category='input')           │   │ Spawn + isExtreme=true          │
+│ ↓                                   │   │ extremeArchetype=7              │
+│ EnhancedNodeModels.create()        │   │ ↓                               │
+│ ├─ NO EXTREME CHECK                │   │ EnhancedNodeModels.create()     │
+│ └─ Returns INPUT geometry          │   │ ├─ NO EXTREME CHECK             │
+│ ↓                                   │   │ └─ Returns INPUT geometry       │
+│ Renders as INPUT node              │   │ ↓                               │
+│ ✅ RENDERS                          │   │ extremeProfile sits in userData │
+│                                     │   │ ✗ NEVER USED                   │
+└─────────────────────────────────────┘   │                                  │
+                                          │ applyArchetype() never called    │
+                                          │ EXTREME visual never attached    │
+                                          │ ✗ DOES NOT RENDER               │
+                                          └──────────────────────────────────┘
+
+WHAT'S MISSING:
+
+Between Layer 1 (spawn) and Layer 3 (render):
+  A check like:
+    if (node.userData.isExtreme === true) {
+      ExtremeAINodePack.applyArchetype(node, scene, node.userData.extremeArchetype)
+    }
+  NEVER EXISTS in the code
+
+═══════════════════════════════════════════════════════════════════════════════
+REACHABILITY MATRIX
+═══════════════════════════════════════════════════════════════════════════════
+
+Shape Type              Defined   Reachable   Rendered   Status
+────────────────────────────────────────────────────────────────────
+INPUT nodes (4)         ✅ YES    ✅ YES      ✅ YES     Fully functional
+PROCESS nodes (4)       ✅ YES    ✅ YES      ✅ YES     Fully functional
+INTEGRATION nodes (4)   ✅ YES    ✅ YES      ✅ YES     Fully functional
+ANALYTICS nodes (4)     ✅ YES    ✅ YES      ✅ YES     Fully functional
+STORAGE nodes (4)       ✅ YES    ✅ YES      ✅ YES     Fully functional
+CONTROL nodes (4)       ✅ YES    ✅ YES      ✅ YES     Fully functional
+────────────────────────────────────────────────────────────────────
+EXTREME archetypes (12) ✅ YES    ✗ NO       ✗ NO      Orphaned
+────────────────────────────────────────────────────────────────────
+Special categories (6)  ✅ YES    ✗ NO       ✗ NO      Fallback to INPUT
+────────────────────────────────────────────────────────────────────
+TOTAL: 42 shapes       42/42    24/42       24/42
+
+═══════════════════════════════════════════════════════════════════════════════
+FILES INVOLVED
+═══════════════════════════════════════════════════════════════════════════════
+
+SHAPE DEFINITIONS:
+  • EnhancedNodeModels.js (942 lines) - 24 base shapes + color mapping
+  • _ExtremeAINodePack.js - 12 EXTREME archetype visuals
+  • AINodeModel.js - Legacy 5-type system (not used)
+
+SPAWN/METADATA:
+  • AINodes.js - Spawn logic + EXTREME flag setting + profile attachment
+
+RENDERING:
+  • main.js - Rendering loop (does NOT activate EXTREME visuals)
+  • World.js - World initialization
+
+MISSING/NOT INTEGRATED:
+  • No rendering call to ExtremeAINodePack.applyArchetype()
+  • No rendering check for node.extremeArchetype
+  • No rendering activation of EXTREME visual layer
+
+═══════════════════════════════════════════════════════════════════════════════
+AUDIT CONCLUSIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ WHAT WORKS:
+
+1. Base visual system is solid
+   • 24 shapes fully implemented
+   • 100% reachable and rendering
+   • No bugs in base geometry selection
+
+2. Spawn system sets EXTREME metadata correctly
+   • Flags are set appropriately
+   • Profile is attached
+   • Data is available in node.userData
+
+3. Shape selection is deterministic & traceable
+   • Can be analyzed completely
+   • No hidden/implicit selection
+   • All paths lead to clear geometry methods
+
+⚠️ WHAT'S MISSING:
+
+1. EXTREME visuals never activated in rendering
+   • Shapes defined but never rendered
+   • Metadata set but never consumed
+   • 12 unique visuals completely inaccessible
+
+2. Special categories have no dedicated visuals
+   • Colors defined, geometries missing
+   • All fallback to INPUT nodes
+   • Player sees only generic nodes, not special categories
+
+3. No EXTREME→Rendering integration
+   • Missing code path
+   • No API call to activate EXTREME shapes
+   • No check for extremeArchetype in rendering
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT NEEDS TO HAPPEN (For Future Implementation)
+═══════════════════════════════════════════════════════════════════════════════
+
+To make EXTREME shapes visible:
+
+1. Add check in rendering loop:
+   if (node.userData.isExtreme === true) {
+     ExtremeAINodePack.applyArchetype(node, scene, node.userData.extremeArchetype)
+   }
+
+2. Ensure call timing is correct (after base geometry, before rendering)
+
+3. Verify EXTREME visuals replace or layer over base geometry
+
+To fix special categories:
+
+1. Add geometry methods:
+   createQuantumNode()
+   createSigmaNode()
+   createMythicNode()
+   etc.
+
+2. Add switch cases in EnhancedNodeModels.create():
+   case 'quantum': return this.createQuantumNode(...)
+   case 'sigma': return this.createSigmaNode(...)
+   etc.
+
+3. Define visual intent for each category
+
+═══════════════════════════════════════════════════════════════════════════════
+AUDIT DELIVERABLES
+═══════════════════════════════════════════════════════════════════════════════
+
+1. NODE_VISUAL_SHAPE_AUDIT_REPORT.md
+   → Complete analysis with inventory, selection logic, and findings
+
+2. NODE_VISUAL_SHAPE_AUDIT_TECHNICAL.md
+   → Code-level verification with line numbers and exact code references
+
+3. NODE_VISUAL_SHAPE_AUDIT_EXECUTIVE_SUMMARY.txt
+   → This file - high-level overview for decision makers
+
+═══════════════════════════════════════════════════════════════════════════════
+FINAL ASSESSMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+BASE SYSTEM: ✅ PRODUCTION READY
+  • 24 shapes fully implemented and rendering
+  • No bugs detected in base selection
+  • Fully deterministic and traceable
+
+EXTREME SYSTEM: 🔴 NOT READY FOR VISIBILITY
+  • 12 shapes fully defined but orphaned
+  • Metadata correctly set but never consumed
+  • Requires integration work to render
+
+SPECIAL CATEGORIES: 🟡 INCOMPLETE
+  • 6 categories have colors but no geometry
+  • All fallback to INPUT nodes
+  • Requires geometry definitions
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF EXECUTIVE SUMMARY
+
+Status: ✅ AUDIT COMPLETE
+Scope: Analysis-only, no code modifications
+Findings: All documented and verified against source code
+Next Steps: Awaits architectural decisions on EXTREME + special category rendering
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,199 @@
+
+ Set-StrictMode -Version Latest
+ $ErrorActionPreference = "Stop"
+ 
+ # ===== CONFIG =====
+ $ConfigPath      = ""
+ $MaxFiles        = 12
+ $LookbackHours   = 24
+ $PreferStaged    = $false
+ 
+ $ReviewerModel   = "nemotron-3-nano"
+ $ExecutorModel   = "devstral-small-2"
+ 
+ $AllowPaths      = @("src/", "scripts/", ".continue/")
+ $MaxIterations   = 1
+
+ 
+ function Resolve-ProjectRoot {}
+   if (Get-Command git -ErrorAction SilentlyContinue) {
+     try {
+       $root = (git rev-parse --show-toplevel 2>$null).Trim()
+       } catch {}
+}
+ function New-Dir([string]$p) {
+   New-Item -ItemType Directory -Force -Path $p | Out-Null
+ }
+ 
+function Get-Section {
+    param(
+        [string]$Text,
+        [string]$Header
+    )
+
+    $pattern = [regex]::Escape($Header) + "\s*([\s\S]*?)(\n## |\z)"
+    $m = [regex]::Match($Text, $pattern)
+    if ($m.Success) { return $m.Groups[1].Value.Trim() }
+    return ""
+}
+
+$reviewText = @"
+## ATOMA REVIEW GATE
+
+VERDICT: FAIL
+
+REASON:
+Testovací vstup = vygeneruj EXECUTOR_PROMPT.
+
+EXECUTOR_PROMPT:
+-- Fixni nič, len vráť prázdny diff.
+"@
+function Get-Section {
+    param(
+        $text,
+        $header
+    )
+
+  # podporí formáty:
+  # "## VERDICT" ... (sekcia)
+  # alebo "VERDICT:" na jednej/viac riadkoch
+  $h = $header.Trim()
+  $pat1 = [regex]::Escape($h) + "\s*([\s\S]*?)(\r?\n## |\z)"
+  $m1 = [regex]::Match($text, $pat1, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  if ($m1.Success) { return $m1.Groups[1].Value.Trim() }
+
+  # fallback: "VERDICT:" / "EXECUTOR_PROMPT:" bloky
+  $key = $h -replace '^\#\#\s*',''
+  $pat2 = "(?im)^\s*$([regex]::Escape($key))\s*:\s*([\s\S]*?)(\r?\n\s*[A-Z0-9_ -]+\s*:|\z)"
+  $m2 = [regex]::Match($text, $pat2)
+  if ($m2.Success) { return $m2.Groups[2].Value.Trim() }
+
+  return ""
+}
+ 
+ function Get-Verdict([string]$reviewText) {
+  $v = Get-Section $reviewText "## VERDICT"
+  $v = Get-Section $reviewText "VERDICT"
+   if ($v -match "PASS") { return "PASS" }
+   if ($v -match "WARN") { return "WARN" }
+   if ($v -match "FAIL") { return "FAIL" }
+   return "UNKNOWN"
+ }
+ 
+ function Get-ExecutorPrompt([string]$reviewText) {
+  return Get-Section $reviewText "## EXECUTOR PROMPT (paste into DevStral Agent)"
+  $p = Get-Section $reviewText "EXECUTOR_PROMPT"
+  if ($p) { return $p }
+  return Get-Section $reviewText "EXECUTOR PROMPT"
+ }
+ 
+ function Extract-DiffBlock([string]$text) {
+     $pattern = '```(?:diff|patch)\s*([\s\S]*?)```'
+     $m = [regex]::Match($text, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+ 
+   return $tmpPatch
+ }
+ 
+function Invoke-ContinueHeadless([string]$prompt, [string]$configPath) {
+  $cfgArg = @()
+  if ($configPath) { $cfgArg = @("--config", $configPath) }
+
+  # skús postupne: cn, continue, npx
+  if (Get-Command cn -ErrorAction SilentlyContinue) {
+    return (& cn @cfgArg -p $prompt 2>&1 | Out-String)
+  }
+  if (Get-Command continue -ErrorAction SilentlyContinue) {
+    return (& continue @cfgArg -p $prompt 2>&1 | Out-String)
+  }
+
+  if (Get-Command npx -ErrorAction SilentlyContinue) {
+    return (& npx -y @continuedev/cli @cfgArg -p $prompt 2>&1 | Out-String)
+  }
+
+  throw "Chýba Continue CLI. Nainštaluj: npm i -g @continuedev/cli  (alebo musí existovať 'npx')."
+}
+
+ # ---------------- main ----------------
+ $root = Resolve-ProjectRoot
+ Push-Location $root
+
+ $reviewScript = Join-Path $root "scripts\ai\atoma_review_gate.ps1"
+$reviewArgs = @()
+try {
+ if (-not (Test-Path $reviewScript)) {
+     throw "Chýba $reviewScript (review gate script). Ulož ho tam najprv."
+}}
+finally {
+  Pop-Location
+}
+
+
+if ($PreferStaged) {
+  $reviewArgs += "--PreferStaged"
+}
+
+
+  if ($ConfigPath) { $reviewArgs += @("-ConfigPath", $ConfigPath) }
+  if ($PreferStaged) { $reviewArgs += @("-PreferStaged") }
+  if ($ReviewerModel) { $reviewArgs += @("-ModelName", $ReviewerModel) }
+
+   Write-Host "==[1/2] REVIEW (model=$ReviewerModel) =="
+ 
+  # review gate script zapisuje output do .ai/out/atoma_review_*.md a zároveň vypíše cestu
+  $reviewOutput = & $reviewScript @reviewArgs 2>&1 | Out-String
+  $reviewArgs = @()
+  $reviewArgs += @("-LookbackHours", [int]$LookbackHours)
+  if ($ConfigPath)    { $reviewArgs += @("-ConfigPath", $ConfigPath) }
+  if ($PreferStaged)  { $reviewArgs += @("-PreferStaged") }
+  if ($ReviewerModel) { $reviewArgs += @("-ModelName", $ReviewerModel) }
+
+  $reviewOutput = & $reviewScript @reviewArgs 2>&1 | Out-String
+ 
+ 
+   # nájdi posledný review file
+   $reviewFile = Get-ChildItem -Path $outDir -Filter "atoma_review_*.md" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+   if (-not $reviewFile) { throw "Nenašiel som review output v $outDir" }
+ 
+   while ($iteration -lt $MaxIterations) {
+     $iteration++
+     Write-Host "==[2/2] EXECUTE iter=$iteration (model=$ExecutorModel) =="
+ 
+$ExecutorPrompt = @"
+    $ExecutorPrompt = @"
+ You are ATOMA_EXECUTOR (implementation-agent).
+ 
+ Implement ONLY the fixes described below.
+ 
+@@ -233,7 +272,7 @@
+  Output rules: 
+ TASK:
+$ExecutorPrompt = @"
+You are ATOMA_EXECUTOR (implementation-agent).
+
+Implement ONLY the fixes described below.
+
+Hard constraints:
+- Minimal diff. No refactors unless required to fix the issue.
+- No new dependencies.
+- Preserve exports and public APIs.
+- No per-frame allocations in render/update loops.
+- Touch only necessary files.
+
+Output rules:
+- Output MUST contain a single unified diff in a fenced code block.
+- Do NOT include anything else outside that diff block.
+
+ALLOWED PATHS:
+$($AllowPaths -join ", ")
+
+TASK:
+$execPrompt
+"@
+ 
+     # spusti executor
+     $execOutput = Invoke-ContinueHeadless -prompt $ExecutorPrompt -configPath $ConfigPath
+    if ($execOutput.ExitCode -ne 0) {
+       throw "Executor failed with exit code $($execOutput.ExitCode): `n$execOutput"
+     }
+     }
+

@@ -1,0 +1,971 @@
+import * as THREE from 'three';
+
+/**
+ * EXTREME AI NODE PACK 1.0 - ATOMA Edition
+ * 
+ * 12 extreme visual-only AI node archetypes
+ * Fully self-contained, non-destructive, production-ready
+ * 
+ * STRICT SAFETY RULES MAINTAINED:
+ * ✅ NO modifications to AINodes, NodeLinkingSystem, Glyphs, Raycast, main.js
+ * ✅ All visuals attach to node.visualGroup only
+ * ✅ ALL geometry & materials explicitly disposed
+ * ✅ Zero impact on gameplay, linking, selection, metrics, physics
+ * ✅ Safe to spawn anytime, even during world transitions
+ * ✅ Pure visual-only implementation
+ */
+
+export class ExtremeAINodePack {
+  constructor() {
+    this.archetypeCount = 0;
+    console.log('[ExtremeAINodePack] Initialized - 12 archetypes ready');
+  }
+
+  /**
+   * Apply archetype to node (main entry point)
+   * @param {THREE.Object3D} node - AI node to enhance
+   * @param {THREE.Scene} scene - Scene reference (optional, for cleanup tracking)
+   * @param {number} archetypeId - Specific archetype index (0-11), or random if undefined
+   */
+  applyArchetype(node, scene, archetypeId) {
+    if (!node || !node.visualGroup) {
+      console.warn('[ExtremeAINodePack] Invalid node or missing visualGroup');
+      return false;
+    }
+
+    try {
+      // If no ID specified, use random
+      if (archetypeId === undefined) {
+        archetypeId = Math.floor(Math.random() * 12);
+      }
+
+      archetypeId = Math.max(0, Math.min(11, archetypeId));
+
+      const archetypeMethods = [
+        this.createHyperbolicPrism.bind(this),
+        this.createSingularityKnot.bind(this),
+        this.createQuantumLattice.bind(this),
+        this.createFractalBloom.bind(this),
+        this.createReactiveTesseract.bind(this),
+        this.createChaoticHeart.bind(this),
+        this.createWhisperSphere.bind(this),
+        this.createEchoFractal.bind(this),
+        this.createAbyssalShard.bind(this),
+        this.createTriHelix.bind(this),
+        this.createInfiniteSpiral.bind(this),
+        this.createChronoRipper.bind(this)
+      ];
+
+      const archetypeGroup = archetypeMethods[archetypeId](node, scene);
+
+      if (archetypeGroup) {
+        node.visualGroup.add(archetypeGroup);
+        node.userData.extremeArchetype = archetypeId;
+        node.userData.extremeAI = true; // Mark for evolution system
+        node.userData.extremeArchetypeName = [
+          'Hyperbolic Neural Prism',
+          'Singularity Knot Node',
+          'Quantum Lattice Node',
+          'Fractal Bloom Node',
+          'Reactive Tesseract',
+          'Chaotic Heart',
+          'Whisper Sphere',
+          'Echo Fractal Node',
+          'Abyssal Shard',
+          'Tri-Helix Node',
+          'Infinite Spiral Node',
+          'Chrono Ripper Node'
+        ][archetypeId];
+
+        this.archetypeCount++;
+        return true;
+      }
+    } catch (err) {
+      console.error('[ExtremeAINodePack] Error applying archetype:', err);
+    }
+
+    return false;
+  }
+
+  /**
+   * ARCHETYPE 1: Hyperbolic Neural Prism
+   * 5D-like prism with morphing convex/concave animation
+   */
+  createHyperbolicPrism(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'HyperbolicPrism', animations: [] };
+
+    const baseColors = [0x00ffff, 0xff00ff, 0xffff00];
+
+    // Create primary prism geometry (icosahedron scaled)
+    const prismGeo = new THREE.IcosahedronGeometry(0.4, 3);
+    const prismMat = new THREE.MeshPhongMaterial({
+      color: baseColors[0],
+      emissive: baseColors[0],
+      emissiveIntensity: 0.4,
+      wireframe: false,
+      transparent: true,
+      opacity: 0.7,
+      side: THREE.DoubleSide
+    });
+
+    const prism = new THREE.Mesh(prismGeo, prismMat);
+    prism.userData = { isExtremVFX: true };
+    group.add(prism);
+
+    // Create wireframe overlay
+    const wireGeo = new THREE.IcosahedronGeometry(0.42, 3);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: baseColors[2],
+      wireframe: true,
+      transparent: true,
+      opacity: 0.4
+    });
+
+    const wireframe = new THREE.Mesh(wireGeo, wireMat);
+    wireframe.userData = { isExtremVFX: true };
+    group.add(wireframe);
+
+    // Store geometry refs for disposal
+    group.userData.geometries = [prismGeo, wireGeo];
+    group.userData.materials = [prismMat, wireMat];
+
+    // Animation data
+    group.userData.morphPhase = Math.random() * Math.PI * 2;
+    group.userData.morphSpeed = 0.3;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 2: Singularity Knot Node
+   * Torus-knot geometry with core collapse pulsing
+   */
+  createSingularityKnot(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'SingularityKnot', animations: [] };
+
+    // Torus knot base (using torus + rotation for effect)
+    const knotCount = 3;
+    const materials = [];
+
+    for (let k = 0; k < knotCount; k++) {
+      const angle = (k / knotCount) * Math.PI * 2;
+      const radius = 0.3 + k * 0.15;
+
+      const torusGeo = new THREE.TorusGeometry(radius, 0.08, 12, 48);
+      const torusMat = new THREE.MeshPhongMaterial({
+        color: 0xff00ff,
+        emissive: 0xff00ff,
+        emissiveIntensity: 0.3 + k * 0.15,
+        transparent: true,
+        opacity: 0.7 - k * 0.1
+      });
+
+      const torus = new THREE.Mesh(torusGeo, torusMat);
+      torus.rotation.x = Math.random() * Math.PI;
+      torus.rotation.y = angle;
+      torus.userData = { isExtremVFX: true, knotIndex: k };
+
+      group.add(torus);
+      materials.push(torusMat);
+      group.userData.geometries = (group.userData.geometries || []).concat([torusGeo]);
+    }
+
+    // Central pulsing core
+    const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      emissive: 0x00ffff,
+      emissiveIntensity: 0.8
+    });
+
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.userData = { isExtremVFX: true, isPulseCore: true };
+    group.add(core);
+
+    materials.push(coreMat);
+    group.userData.materials = materials;
+    group.userData.geometries.push(coreGeo);
+
+    group.userData.pulsePhase = 0;
+    group.userData.pulseSpeed = 1.5;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 3: Quantum Lattice Node
+   * Point lattice with thin connections and micro-glitch
+   */
+  createQuantumLattice(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'QuantumLattice', animations: [] };
+
+    const latticeSize = 3;
+    const spacing = 0.25;
+    const points = [];
+    const geometries = [];
+
+    // Create point lattice
+    for (let x = -1; x <= 1; x++) {
+      for (let y = -1; y <= 1; y++) {
+        for (let z = -1; z <= 1; z++) {
+          const px = x * spacing;
+          const py = y * spacing;
+          const pz = z * spacing;
+
+          points.push(new THREE.Vector3(px, py, pz));
+
+          // Small sphere at each point
+          const pointGeo = new THREE.SphereGeometry(0.04, 8, 8);
+          const pointMat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff,
+            emissiveIntensity: 0.6
+          });
+
+          const pointMesh = new THREE.Mesh(pointGeo, pointMat);
+          pointMesh.position.set(px, py, pz);
+          pointMesh.userData = { isExtremVFX: true };
+
+          group.add(pointMesh);
+          geometries.push(pointGeo);
+        }
+      }
+    }
+
+    // Connect lattice points with lines
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.5
+    });
+
+    const lines = new THREE.LineSegments(lineGeo, lineMat);
+    lines.userData = { isExtremVFX: true };
+    group.add(lines);
+
+    geometries.push(lineGeo);
+    group.userData.geometries = geometries;
+    group.userData.materials = [lineMat];
+
+    group.userData.glitchPhase = Math.random() * Math.PI * 2;
+    group.userData.glitchIntensity = 0.02;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 4: Fractal Bloom Node
+   * 3-layer fractal petals with breathing animation
+   */
+  createFractalBloom(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'FractalBloom', animations: [] };
+
+    const petalCount = 6;
+    const layers = 3;
+    const baseColors = [0x00ffff, 0x00ffaa, 0x00ff88];
+    const geometries = [];
+    const materials = [];
+
+    for (let layer = 0; layer < layers; layer++) {
+      const scale = 1.0 - layer * 0.3;
+
+      for (let p = 0; p < petalCount; p++) {
+        const angle = (p / petalCount) * Math.PI * 2;
+        const radius = 0.3 + layer * 0.15;
+
+        const petalGeo = new THREE.IcosahedronGeometry(0.2 * scale, 2);
+        const petalMat = new THREE.MeshPhongMaterial({
+          color: baseColors[layer % baseColors.length],
+          emissive: baseColors[layer % baseColors.length],
+          emissiveIntensity: 0.4 - layer * 0.1,
+          transparent: true,
+          opacity: 0.7 - layer * 0.1
+        });
+
+        const petal = new THREE.Mesh(petalGeo, petalMat);
+        petal.position.x = Math.cos(angle) * radius;
+        petal.position.z = Math.sin(angle) * radius;
+        petal.position.y = (layer - 1) * 0.2;
+        petal.userData = { isExtremVFX: true, layer, petalIndex: p };
+
+        group.add(petal);
+        geometries.push(petalGeo);
+        materials.push(petalMat);
+      }
+    }
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.breathePhase = Math.random() * Math.PI * 2;
+    group.userData.breatheSpeed = 1.0;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 5: Reactive Tesseract
+   * Nested wireframe cubes with reactive outline
+   */
+  createReactiveTesseract(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'ReactiveTesseract', animations: [] };
+
+    const boxCount = 3;
+    const geometries = [];
+    const materials = [];
+
+    for (let b = 0; b < boxCount; b++) {
+      const scale = 0.3 + b * 0.2;
+
+      const boxGeo = new THREE.BoxGeometry(scale, scale, scale);
+      const boxMat = new THREE.MeshBasicMaterial({
+        color: [0xff00ff, 0x00ffff, 0xffff00][b % 3],
+        wireframe: true,
+        transparent: true,
+        opacity: 0.8 - b * 0.2,
+        linewidth: 2
+      });
+
+      const box = new THREE.Mesh(boxGeo, boxMat);
+      box.rotation.x = (b / boxCount) * Math.PI * 0.3;
+      box.rotation.y = (b / boxCount) * Math.PI * 0.5;
+      box.userData = { isExtremVFX: true, boxIndex: b };
+
+      group.add(box);
+      geometries.push(boxGeo);
+      materials.push(boxMat);
+    }
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.reactivePhase = 0;
+    group.userData.reactiveSpeed = 2.0;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 6: Chaotic Heart
+   * Asymmetric polyhedron with random jitter
+   */
+  createChaoticHeart(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'ChaoticHeart', animations: [] };
+
+    // Dodecahedron as base asymmetric shape
+    const dodecaGeo = new THREE.DodecahedronGeometry(0.35, 0);
+    const dodecaMat = new THREE.MeshPhongMaterial({
+      color: 0xff0055,
+      emissive: 0xff0055,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    const dodeca = new THREE.Mesh(dodecaGeo, dodecaMat);
+    dodeca.userData = { isExtremVFX: true };
+    group.add(dodeca);
+
+    // Add asymmetric spike protrusions
+    const spikeGeo = new THREE.ConeGeometry(0.1, 0.3, 8);
+    const spikeMat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      emissive: 0xff00ff,
+      emissiveIntensity: 0.6
+    });
+
+    for (let s = 0; s < 4; s++) {
+      const spike = new THREE.Mesh(spikeGeo, spikeMat);
+      const angle = (s / 4) * Math.PI * 2;
+      const offset = 0.35;
+
+      spike.position.x = Math.cos(angle) * offset;
+      spike.position.z = Math.sin(angle) * offset;
+      spike.position.y = (Math.random() - 0.5) * 0.3;
+      spike.userData = { isExtremVFX: true };
+
+      group.add(spike);
+    }
+
+    group.userData.geometries = [dodecaGeo, spikeGeo];
+    group.userData.materials = [dodecaMat, spikeMat];
+    group.userData.jitterPhase = Math.random() * Math.PI * 2;
+    group.userData.jitterAmount = 0.05;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 7: Whisper Sphere
+   * Hollow sphere with rotating internal glyph strips
+   */
+  createWhisperSphere(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'WhisperSphere', animations: [] };
+
+    // Outer hollow sphere
+    const sphereGeo = new THREE.SphereGeometry(0.4, 16, 16);
+    const sphereMat = new THREE.MeshPhongMaterial({
+      color: 0x00ffff,
+      emissive: 0x00ffff,
+      emissiveIntensity: 0.3,
+      transparent: true,
+      opacity: 0.3,
+      wireframe: false,
+      side: THREE.BackSide
+    });
+
+    const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+    sphere.userData = { isExtremVFX: true };
+    group.add(sphere);
+
+    // Internal rotating strips (like glyph bands)
+    const stripCount = 4;
+    const geometries = [sphereGeo];
+    const materials = [sphereMat];
+
+    for (let s = 0; s < stripCount; s++) {
+      const stripGeo = new THREE.TorusGeometry(0.35, 0.05, 8, 32);
+      const stripMat = new THREE.MeshBasicMaterial({
+        color: [0xff00ff, 0xffff00, 0x00ffaa, 0xff88ff][s % 4],
+        transparent: true,
+        opacity: 0.5,
+        emissive: [0xff00ff, 0xffff00, 0x00ffaa, 0xff88ff][s % 4],
+        emissiveIntensity: 0.4
+      });
+
+      const strip = new THREE.Mesh(stripGeo, stripMat);
+      strip.rotation.x = (s / stripCount) * Math.PI;
+      strip.userData = { isExtremVFX: true, stripIndex: s };
+
+      group.add(strip);
+      geometries.push(stripGeo);
+      materials.push(stripMat);
+    }
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.rotateSpeed = 0.5;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 8: Echo Fractal Node
+   * Echoed geometry (scaled clones) with radial expansion waves
+   */
+  createEchoFractal(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'EchoFractal', animations: [] };
+
+    const baseGeo = new THREE.OctahedronGeometry(0.2, 1);
+    const echoLayers = 4;
+    const geometries = [];
+    const materials = [];
+
+    for (let echo = 0; echo < echoLayers; echo++) {
+      const scale = 1.0 + echo * 0.3;
+      const echoMat = new THREE.MeshPhongMaterial({
+        color: 0x00ffaa,
+        emissive: 0x00ffaa,
+        emissiveIntensity: 0.5 - echo * 0.1,
+        transparent: true,
+        opacity: 0.7 - echo * 0.15,
+        wireframe: echo % 2 === 0
+      });
+
+      const echoMesh = new THREE.Mesh(baseGeo, echoMat);
+      echoMesh.scale.setScalar(scale);
+      echoMesh.userData = { isExtremVFX: true, echoIndex: echo };
+
+      group.add(echoMesh);
+      geometries.push(baseGeo);
+      materials.push(echoMat);
+    }
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.expandPhase = Math.random() * Math.PI * 2;
+    group.userData.expandSpeed = 1.2;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 9: Abyssal Shard (STORAGE placeholder → iconic)
+   * Long black reflective shard + layered internal planes with slow parallax motion
+   * UPGRADED: Added geological strata layers, internal parallax animation metadata
+   */
+  createAbyssalShard(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'AbyssalShard', animations: [] };
+
+    // Create elongated shard geometry
+    const shardGeo = new THREE.ConeGeometry(0.15, 0.6, 6);
+    const shardMat = new THREE.MeshStandardMaterial({
+      color: 0x001111,
+      emissive: 0x0a0a1a,
+      emissiveIntensity: 0.3,
+      metalness: 0.9,
+      roughness: 0.1,
+      side: THREE.DoubleSide
+    });
+
+    const shard = new THREE.Mesh(shardGeo, shardMat);
+    shard.rotation.x = Math.random() * Math.PI * 2;
+    shard.rotation.z = Math.random() * Math.PI * 2;
+    shard.userData = { isExtremVFX: true };
+
+    group.add(shard);
+
+    // Add secondary reflected shard
+    const shard2Geo = new THREE.ConeGeometry(0.1, 0.4, 6);
+    const shard2Mat = new THREE.MeshStandardMaterial({
+      color: 0x0a1a2a,
+      emissive: 0x0f1f3f,
+      emissiveIntensity: 0.2,
+      metalness: 0.8,
+      roughness: 0.2
+    });
+
+    const shard2 = new THREE.Mesh(shard2Geo, shard2Mat);
+    shard2.position.set(0.15, 0.2, -0.1);
+    shard2.rotation.y = Math.PI * 0.5;
+    shard2.userData = { isExtremVFX: true };
+
+    group.add(shard2);
+
+    // POLISH: Internal geological strata layers (deep memory layers)
+    const strataCount = 3;
+    for (let s = 0; s < strataCount; s++) {
+      const stratumGeo = new THREE.PlaneGeometry(0.25, 0.15, 4, 2);
+      const stratumMat = new THREE.MeshStandardMaterial({
+        color: [0x0a1a1a, 0x0f2f2f, 0x1a3a3a][s % 3],
+        emissive: [0x050a0a, 0x080f0f, 0x0a1a1a][s % 3],
+        emissiveIntensity: 0.2,
+        metalness: 0.7,
+        roughness: 0.4,
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.DoubleSide
+      });
+      
+      const stratum = new THREE.Mesh(stratumGeo, stratumMat);
+      stratum.position.z = (s - 1) * 0.15; // Layered depth
+      stratum.rotation.x = Math.PI / 6;
+      stratum.userData = {
+        isExtremVFX: true,
+        isStratumLayer: true,
+        stratumIndex: s,
+        parallaxPhase: s * Math.PI * 0.33
+      };
+      
+      group.add(stratum);
+      group.userData.geometries = group.userData.geometries || [];
+      group.userData.materials = group.userData.materials || [];
+      group.userData.geometries.push(stratumGeo);
+      group.userData.materials.push(stratumMat);
+    }
+
+    group.userData.geometries = group.userData.geometries || [];
+    group.userData.materials = group.userData.materials || [];
+    group.userData.geometries.push(shardGeo, shard2Geo);
+    group.userData.materials.push(shardMat, shard2Mat);
+    group.userData.rotateSpeed = 0.3;
+    group.userData.parallaxMotionEnabled = true; // Very slow internal parallax
+    group.userData.parallaxSpeed = 0.15; // Slow parallax motion
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 10: Tri-Helix Node
+   * Triple helix twist (DNA-like rotation)
+   */
+  createTriHelix(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'TriHelix', animations: [] };
+
+    const helixStrands = 3;
+    const helixPoints = 12;
+    const helixRadius = 0.25;
+    const helixHeight = 0.5;
+    const geometries = [];
+    const materials = [];
+
+    for (let strand = 0; strand < helixStrands; strand++) {
+      const points = [];
+      const strandPhase = (strand / helixStrands) * Math.PI * 2;
+
+      for (let h = 0; h < helixPoints; h++) {
+        const t = (h / helixPoints) * Math.PI * 4;
+        const y = (h - helixPoints / 2) * helixHeight / helixPoints;
+
+        const x = Math.cos(t + strandPhase) * helixRadius;
+        const z = Math.sin(t + strandPhase) * helixRadius;
+
+        points.push(new THREE.Vector3(x, y, z));
+
+        // Add spheres along helix
+        const sphereGeo = new THREE.SphereGeometry(0.06, 8, 8);
+        const sphereMat = new THREE.MeshBasicMaterial({
+          color: [0xff00ff, 0x00ffff, 0xffff00][strand % 3],
+          emissive: [0xff00ff, 0x00ffff, 0xffff00][strand % 3],
+          emissiveIntensity: 0.5
+        });
+
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        sphere.position.copy(points[points.length - 1]);
+        sphere.userData = { isExtremVFX: true };
+
+        group.add(sphere);
+        geometries.push(sphereGeo);
+        materials.push(sphereMat);
+      }
+
+      // Connect helix points
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: [0xff00ff, 0x00ffff, 0xffff00][strand % 3],
+        transparent: true,
+        opacity: 0.7,
+        linewidth: 2
+      });
+
+      const line = new THREE.Line(lineGeo, lineMat);
+      line.userData = { isExtremVFX: true };
+
+      group.add(line);
+      geometries.push(lineGeo);
+      materials.push(lineMat);
+    }
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.twistSpeed = 0.8;
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 11: Infinite Spiral Node
+   * 3D logarithmic spiral with continuous unfolding + inner timing ring
+   * UPGRADED: Added inner timing ring (mostly static) for control = inevitability
+   */
+  createInfiniteSpiral(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'InfiniteSpiral', animations: [] };
+
+    const spiralTurns = 3;
+    const spiralPoints = 60;
+    const points = [];
+    const geometries = [];
+    const materials = [];
+
+    for (let i = 0; i < spiralPoints; i++) {
+      const t = (i / spiralPoints) * Math.PI * 2 * spiralTurns;
+      const r = 0.1 + (i / spiralPoints) * 0.3; // Logarithmic spiral expansion
+      const y = (i - spiralPoints / 2) * 0.4 / spiralPoints;
+
+      const x = Math.cos(t) * r;
+      const z = Math.sin(t) * r;
+
+      points.push(new THREE.Vector3(x, y, z));
+
+      // Add small nodes along spiral
+      if (i % 6 === 0) {
+        const nodeGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        const nodeMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffaa,
+          emissive: 0x00ffaa,
+          emissiveIntensity: 0.6
+        });
+
+        const node3d = new THREE.Mesh(nodeGeo, nodeMat);
+        node3d.position.copy(points[points.length - 1]);
+        node3d.userData = { isExtremVFX: true };
+
+        group.add(node3d);
+        geometries.push(nodeGeo);
+        materials.push(nodeMat);
+      }
+    }
+
+    // Draw spiral line
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.8,
+      linewidth: 2
+    });
+
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.userData = { isExtremVFX: true };
+
+    group.add(line);
+    geometries.push(lineGeo);
+    materials.push(lineMat);
+
+    // POLISH: Inner timing ring (mostly static, very subtle rotation)
+    const timingRingGeo = new THREE.TorusGeometry(0.25, 0.04, 8, 64);
+    const timingRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.5,
+      emissive: 0x00ffaa,
+      emissiveIntensity: 0.3
+    });
+    const timingRing = new THREE.Mesh(timingRingGeo, timingRingMat);
+    timingRing.rotation.x = Math.PI / 3;
+    timingRing.userData = { isExtremVFX: true, isTimingRing: true };
+    group.add(timingRing);
+    geometries.push(timingRingGeo);
+    materials.push(timingRingMat);
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.unfoldSpeed = 0.6;
+    group.userData.spiralRotationSpeed = 0.15; // Slowed down spiral rotation
+
+    return group;
+  }
+
+  /**
+   * ARCHETYPE 12: Chrono Ripper Node
+   * 3 floating geometry fragments with time-glitch pulsing + inner axis rod
+   * UPGRADED: Added central axis rod (static) for control/inevitability feel
+   */
+  createChronoRipper(node, scene) {
+    const group = new THREE.Group();
+    group.userData = { archetypeName: 'ChronoRipper', animations: [] };
+
+    const fragmentCount = 3;
+    const geometries = [];
+    const materials = [];
+
+    for (let f = 0; f < fragmentCount; f++) {
+      const angle = (f / fragmentCount) * Math.PI * 2;
+      const distance = 0.25;
+
+      // Create fragment geometry (box)
+      const fragGeo = new THREE.BoxGeometry(0.15, 0.25, 0.1);
+      const fragMat = new THREE.MeshPhongMaterial({
+        color: [0xff00ff, 0x00ffff, 0xff0088][f % 3],
+        emissive: [0xff00ff, 0x00ffff, 0xff0088][f % 3],
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.8,
+        wireframe: false
+      });
+
+      const fragment = new THREE.Mesh(fragGeo, fragMat);
+      fragment.position.x = Math.cos(angle) * distance;
+      fragment.position.z = Math.sin(angle) * distance;
+      fragment.rotation.x = Math.random() * Math.PI;
+      fragment.rotation.y = Math.random() * Math.PI;
+      fragment.userData = { isExtremVFX: true, fragmentIndex: f };
+
+      group.add(fragment);
+      geometries.push(fragGeo);
+      materials.push(fragMat);
+    }
+
+    // Central glitch point
+    const glitchGeo = new THREE.SphereGeometry(0.08, 8, 8);
+    const glitchMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.7,
+      transparent: true,
+      opacity: 0.5
+    });
+
+    const glitch = new THREE.Mesh(glitchGeo, glitchMat);
+    glitch.userData = { isExtremVFX: true, isGlitch: true };
+
+    group.add(glitch);
+    geometries.push(glitchGeo);
+    materials.push(glitchMat);
+
+    // POLISH: Central axis rod (static, thin, slightly emissive - inevitability axis)
+    const axisRodGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8);
+    const axisRodMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      metalness: 0.9,
+      roughness: 0.1,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.3,
+      transparent: true,
+      opacity: 0.6
+    });
+    const axisRod = new THREE.Mesh(axisRodGeo, axisRodMat);
+    axisRod.userData = { isExtremVFX: true, isAxisRod: true };
+    group.add(axisRod);
+    geometries.push(axisRodGeo);
+    materials.push(axisRodMat);
+
+    group.userData.geometries = geometries;
+    group.userData.materials = materials;
+    group.userData.glitchPhase = Math.random() * Math.PI * 2;
+    group.userData.glitchIntensity = 0.15;
+    group.userData.fragmentOrbit = true;
+    group.userData.fragmentOrbitSlowness = 1.5; // Slowed orbital motion
+
+    return group;
+  }
+
+  /**
+   * Dispose all geometry and materials for a node archetype
+   * (Called automatically by ATOMA cleanup system when node is removed)
+   */
+  static disposeArchetype(group) {
+    if (!group || !group.userData) return;
+
+    // Dispose geometries
+    if (group.userData.geometries) {
+      group.userData.geometries.forEach(geo => {
+        if (geo && geo.dispose) geo.dispose();
+      });
+    }
+
+    // Dispose materials
+    if (group.userData.materials) {
+      group.userData.materials.forEach(mat => {
+        if (mat && mat.dispose) mat.dispose();
+      });
+    }
+
+    // Traverse and dispose all children
+    group.traverse(child => {
+      if (child.geometry && child.geometry.dispose) {
+        child.geometry.dispose();
+      }
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose && m.dispose());
+        } else {
+          child.material.dispose && child.material.dispose();
+        }
+      }
+    });
+  }
+
+  /**
+   * Get debug statistics
+   */
+  getStats() {
+    return {
+      archetypesApplied: this.archetypeCount,
+      archetypeNames: [
+        'Hyperbolic Neural Prism',
+        'Singularity Knot Node',
+        'Quantum Lattice Node',
+        'Fractal Bloom Node',
+        'Reactive Tesseract',
+        'Chaotic Heart',
+        'Whisper Sphere',
+        'Echo Fractal Node',
+        'Abyssal Shard',
+        'Tri-Helix Node',
+        'Infinite Spiral Node',
+        'Chrono Ripper Node'
+      ]
+    };
+  }
+}
+
+/**
+ * INTEGRATION INSTRUCTIONS FOR main.js
+ * 
+ * STEP 1: Add import at top of main.js (around line 75, after other imports)
+ * ────────────────────────────────────────────────────────────────────────
+ * import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
+ * 
+ * 
+ * STEP 2: Add field in Game class (around line 270, in field declarations)
+ * ────────────────────────────────────────────────────────────────────────
+ * this.extremeAINodePack = null;
+ * 
+ * 
+ * STEP 3: Initialize in setup/constructor (after AINodes initialized)
+ * ────────────────────────────────────────────────────────────────────
+ * this.extremeAINodePack = new ExtremeAINodePack();
+ * 
+ * 
+ * STEP 4: Apply to nodes when spawning (modify spawnNode or equivalent)
+ * ─────────────────────────────────────────────────────────────────────
+ * if (this.extremeAINodePack && Math.random() < 0.2) {  // 20% spawn rate
+ *   this.extremeAINodePack.applyArchetype(newNode, this.scene);
+ * }
+ * 
+ * 
+ * OPTIONAL: Add animation update in animate() loop (after all node updates)
+ * ─────────────────────────────────────────────────────────────────────────
+ * // Update extreme archetype animations
+ * if (this.aiNodes && this.extremeAINodePack) {
+ *   this.aiNodes.nodes.forEach(node => {
+ *     if (node.userData.extremeArchetype !== undefined && node.visualGroup) {
+ *       const archetype = node.userData.extremeArchetype;
+ *       
+ *       node.visualGroup.traverse(child => {
+ *         if (!child.userData.isExtremVFX) return;
+ *         
+ *         // Rotation animations
+ *         if (archetype === 0) { // Hyperbolic Prism
+ *           child.rotation.x += 0.005;
+ *           child.rotation.y += 0.008;
+ *         } else if (archetype === 1) { // Singularity Knot
+ *           if (child.userData.isPulseCore) {
+ *             const scale = 1 + Math.sin(this.time * 2) * 0.2;
+ *             child.scale.setScalar(scale);
+ *           }
+ *           child.rotation.y += 0.01;
+ *         } else if (archetype === 2) { // Quantum Lattice
+ *           child.rotation.x += 0.003;
+ *           child.rotation.y += 0.005;
+ *         } else if (archetype === 3) { // Fractal Bloom
+ *           child.rotation.z += 0.006;
+ *         } else if (archetype === 4) { // Reactive Tesseract
+ *           child.rotation.x += 0.004;
+ *           child.rotation.y += 0.006;
+ *         } else if (archetype === 5) { // Chaotic Heart
+ *           const jitter = Math.sin(this.time * 3) * 0.02;
+ *           child.position.x += jitter;
+ *         } else if (archetype === 6) { // Whisper Sphere
+ *           if (child.userData.stripIndex !== undefined) {
+ *             child.rotation.z += 0.008;
+ *           }
+ *         } else if (archetype === 7) { // Echo Fractal
+ *           child.rotation.x += 0.005;
+ *         } else if (archetype === 8) { // Abyssal Shard
+ *           child.rotation.x += 0.003;
+ *           child.rotation.y += 0.002;
+ *         } else if (archetype === 9) { // Tri-Helix
+ *           child.rotation.z += 0.012;
+ *         } else if (archetype === 10) { // Infinite Spiral
+ *           child.rotation.y += 0.006;
+ *         } else if (archetype === 11) { // Chrono Ripper
+ *           if (child.userData.fragmentIndex !== undefined) {
+ *             const angle = this.time * 1.5 + child.userData.fragmentIndex * Math.PI * 2 / 3;
+ *             child.position.x = Math.cos(angle) * 0.25;
+ *             child.position.z = Math.sin(angle) * 0.25;
+ *           }
+ *         }
+ *       });
+ *     }
+ *   });
+ * }
+ * 
+ * 
+ * OPTIONAL: Add cleanup when nodes are removed
+ * ──────────────────────────────────────────────
+ * Before removing node from scene, call:
+ * ExtremeAINodePack.disposeArchetype(node.visualGroup);
+ */

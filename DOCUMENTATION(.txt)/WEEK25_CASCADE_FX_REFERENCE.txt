@@ -1,0 +1,559 @@
+================================================================================
+CASCADE PROPAGATION FX v1.0 – COMPLETE API REFERENCE
+Phase 3C Week 25
+================================================================================
+
+QUICK REFERENCE
+================================================================================
+
+CLASS HIERARCHY
+───────────────────────────────────────────────────────────────────────────────
+CascadePropagationFX_v1
+  Main controller class. Manages all cascades, state tracking, and updates.
+
+  CONSTRUCTOR
+  ──────────
+  new CascadePropagationFX_v1(game, options = {})
+    - game: AtomaGame instance (required)
+    - options: Configuration object (optional)
+      * debugEnabled: boolean (default: false)
+      * defaultIntensity: float (default: 0.8)
+      * maxCascadesPerFrame: int (default: 4)
+      * decayFactor: float (default: 0.82)
+      * waveDuration: float (default: 0.5)
+      * dampingTime: float (default: 2.0)
+      * maxHops: int (default: 8)
+      * waveSpeed: float (default: 4.0)
+      * glowBoost: float (default: 1.5)
+
+
+CascadeEvent
+  Represents a single cascade propagation event.
+
+  PROPERTIES
+  ──────────
+  id: number
+    Unique identifier for cascade
+  
+  sourceNode: Node
+    Origin node where cascade starts
+  
+  state: string
+    'initializing' → 'propagating' → 'dampening' → 'complete'
+  
+  initialIntensity: float (0–1)
+    Starting intensity of cascade
+  
+  maxHops: int
+    Maximum number of hops before stopping
+  
+  decayFactor: float
+    Per-hop amplitude multiplier (typically 0.82)
+  
+  waveDuration: float (seconds)
+    Time for wave to traverse one link
+  
+  dampingTime: float (seconds)
+    Duration to fade out after propagation
+  
+  color: THREE.Color
+    Visual color of cascade wave
+  
+  harmonicMultiplier: float (1.0–2.5)
+    Resonance boost factor
+  
+  visitedNodes: Set<Node>
+    All nodes touched by cascade
+  
+  visitedLinks: Set<Link>
+    All links affected by cascade
+
+
+LinkCascadeState
+  Ripple and wave effects on a single link.
+
+  PROPERTIES
+  ──────────
+  link: Link
+    The link this state is attached to
+  
+  totalIntensity: float (0–1)
+    Combined intensity from all active cascades
+  
+  combinedPhase: float (0–2π)
+    Combined wave phase
+  
+  effectiveColor: THREE.Color
+    Blended color from all cascades
+  
+  smoothedIntensity: float (0–1)
+    EMA-smoothed intensity
+  
+  rippleAmplitude: float
+    Height/amplitude of ripple effect
+  
+  cascades: Map<cascadeID, waveState>
+    Active cascade waves on this link
+
+
+NodeCascadeState
+  Glow and resonance effects on a single node.
+
+  PROPERTIES
+  ──────────
+  node: Node
+    The node this state is attached to
+  
+  totalIntensity: float (0–1)
+    Combined intensity from all cascades
+  
+  effectiveColor: THREE.Color
+    Blended color from all cascades
+  
+  smoothedIntensity: float (0–1)
+    EMA-smoothed intensity
+  
+  glowAmplification: float (1.0–2.5)
+    Emissive multiplier for glow effect
+  
+  auraPulsation: float (-1 to 1)
+    Sinusoidal pulsation factor
+  
+  cascades: Map<cascadeID, peakState>
+    Active cascades on this node
+
+
+================================================================================
+PUBLIC API
+================================================================================
+
+INITIALIZATION & LIFECYCLE
+───────────────────────────────────────────────────────────────────────────────
+
+init()
+  Call during game setup. Pre-allocates object pool.
+  
+  Returns: void
+  
+  Example:
+    const cascadeFX = new CascadePropagationFX_v1(game);
+    cascadeFX.init();
+
+
+dispose()
+  Clean up all cascades and resources. Call before destroying module.
+  
+  Returns: void
+  
+  Example:
+    cascadeFX.dispose();
+
+
+TRIGGER CASCADE
+───────────────────────────────────────────────────────────────────────────────
+
+triggerCascade(node, intensity = 0.8, options = {})
+  Trigger a new cascade propagation starting from a node.
+  
+  PARAMETERS
+  ──────────
+  node: Node (required)
+    Source node where cascade originates
+  
+  intensity: float (optional, default: 0.8)
+    Initial intensity (0.0–1.0)
+  
+  options: object (optional)
+    maxHops: int (default: config.maxHops)
+      Maximum propagation depth
+    
+    decayFactor: float (default: config.decayFactor)
+      Amplitude decay per hop
+    
+    waveDuration: float (default: config.waveDuration)
+      Time to cross one link (seconds)
+    
+    dampingTime: float (default: config.dampingTime)
+      Fade-out duration (seconds)
+    
+    waveSpeed: float (default: config.waveSpeed)
+      Units per second
+    
+    harmonicMultiplier: float (default: 1.0)
+      Resonance boost (1.0–2.5)
+    
+    color: THREE.Color (optional)
+      Wave color (default: green 0x00ff00)
+  
+  RETURNS
+  ───────
+  number: Cascade ID (unique identifier)
+           null if node invalid
+  
+  EXAMPLE
+  ───────
+  const cascadeID = cascadeFX.triggerCascade(sourceNode, 0.85, {
+      maxHops: 6,
+      decayFactor: 0.85,
+      color: new THREE.Color(0xff00ff)  // Magenta
+  });
+
+
+UPDATE CASCADE EFFECTS
+───────────────────────────────────────────────────────────────────────────────
+
+update(deltaTime)
+  Update all active cascades. Call once per frame before rendering.
+  
+  PARAMETERS
+  ──────────
+  deltaTime: float
+    Time since last update (seconds)
+  
+  EFFECTS
+  ───────
+  - Updates link ripple states
+  - Updates node glow states
+  - Cleans up completed cascades
+  - Returns exhausted cascades to pool
+  
+  EXAMPLE
+  ───────
+  function animate() {
+      const dt = clock.getDelta();
+      cascadeFX.update(dt);
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+  }
+
+
+STATE QUERIES
+───────────────────────────────────────────────────────────────────────────────
+
+getLinkCascadeState(link)
+  Get cascade effect state for a link.
+  
+  PARAMETERS
+  ──────────
+  link: Link
+    The link to query
+  
+  RETURNS
+  ───────
+  LinkCascadeState | null
+    State object or null if no cascade on link
+  
+  EXAMPLE
+  ───────
+  const linkState = cascadeFX.getLinkCascadeState(link);
+  if (linkState) {
+      console.log(`Ripple amplitude: ${linkState.rippleAmplitude}`);
+      console.log(`Wave color: ${linkState.effectiveColor.getHex()}`);
+  }
+
+
+getNodeCascadeState(node)
+  Get cascade effect state for a node.
+  
+  PARAMETERS
+  ──────────
+  node: Node
+    The node to query
+  
+  RETURNS
+  ───────
+  NodeCascadeState | null
+    State object or null if no cascade on node
+  
+  EXAMPLE
+  ───────
+  const nodeState = cascadeFX.getNodeCascadeState(node);
+  if (nodeState) {
+      console.log(`Glow boost: ${nodeState.glowAmplification}`);
+      console.log(`Aura pulse: ${nodeState.auraPulsation.toFixed(2)}`);
+  }
+
+
+getCascadeData(cascadeID)
+  Get CascadeEvent data by ID.
+  
+  PARAMETERS
+  ──────────
+  cascadeID: number
+    Cascade identifier returned by triggerCascade()
+  
+  RETURNS
+  ───────
+  CascadeEvent | null
+    Cascade object or null if not found
+  
+  EXAMPLE
+  ───────
+  const cascade = cascadeFX.getCascadeData(cascadeID);
+  if (cascade) {
+      console.log(`Progress: ${cascade.getProgress(now)}`);
+      console.log(`Intensity: ${cascade.getIntensity(now)}`);
+  }
+
+
+getActiveCascades()
+  Get all currently active cascades.
+  
+  RETURNS
+  ───────
+  CascadeEvent[] (array)
+    All active cascade objects
+  
+  EXAMPLE
+  ───────
+  const cascades = cascadeFX.getActiveCascades();
+  console.log(`${cascades.length} cascades active`);
+  for (const cascade of cascades) {
+      console.log(`  - Source: ${cascade.sourceNode.name}`);
+  }
+
+
+MANAGEMENT
+───────────────────────────────────────────────────────────────────────────────
+
+clearCascades()
+  Stop all active cascades and return to pool.
+  
+  RETURNS: void
+  
+  EXAMPLE
+  ───────
+  cascadeFX.clearCascades();  // Stop all effects
+
+
+getMetrics()
+  Get performance and utilization metrics.
+  
+  RETURNS
+  ───────
+  Object with properties:
+    activeCascades: int
+      Number of currently active cascades
+    
+    peakCascades: int
+      Maximum cascades ever active
+    
+    poolUtilization: float (0–1)
+      Fraction of object pool in use
+    
+    updateTimeMs: float
+      Time spent in last update() call (milliseconds)
+    
+    linkStatesCount: int
+      Number of tracked link states
+    
+    nodeStatesCount: int
+      Number of tracked node states
+  
+  EXAMPLE
+  ───────
+  const metrics = cascadeFX.getMetrics();
+  console.log(`Update time: ${metrics.updateTimeMs.toFixed(2)}ms`);
+  console.log(`Pool utilization: ${(metrics.poolUtilization * 100).toFixed(1)}%`);
+
+
+================================================================================
+CASCADE EVENT METHODS
+================================================================================
+
+CascadeEvent methods (called internally):
+
+getProgress(currentTime)
+  Get cascade progress from 0–1.
+  
+  RETURNS: float (0–1)
+
+
+getIntensity(currentTime)
+  Get current intensity with decay applied.
+  
+  RETURNS: float (0–1)
+
+
+================================================================================
+LINK CASCADE STATE METHODS
+================================================================================
+
+LinkCascadeState methods (called internally):
+
+addCascade(cascadeID, startTime, intensity)
+  Add a cascade wave to this link.
+
+
+removeCascade(cascadeID)
+  Remove a cascade wave from this link.
+
+
+update(currentTime, cascadeMap)
+  Update combined state from all cascades.
+
+
+================================================================================
+NODE CASCADE STATE METHODS
+================================================================================
+
+NodeCascadeState methods (called internally):
+
+addCascade(cascadeID, startTime, intensity)
+  Add a cascade to this node.
+
+
+removeCascade(cascadeID)
+  Remove a cascade from this node.
+
+
+update(currentTime, cascadeMap)
+  Update combined state from all cascades.
+
+
+================================================================================
+DECAY & PHYSICS FORMULAS
+================================================================================
+
+Hop-based Decay
+───────────────
+I(n) = I₀ × decayFactor^n
+I(n) = I₀ × 0.82^n
+
+Examples (I₀ = 1.0):
+  Hop 0: 1.00 (source)
+  Hop 1: 0.82
+  Hop 2: 0.67
+  Hop 3: 0.55
+  Hop 4: 0.45
+  Hop 5: 0.37
+  Hop 6: 0.30
+  Hop 7: 0.25
+  Hop 8: 0.20
+
+
+Time-based Dampening
+─────────────────────
+Propagation phase:     t < (maxHops × waveDuration)
+  I(t) = I₀
+
+Dampening phase:       t >= (maxHops × waveDuration)
+  remainingTime = dampingTime - (t - propagationEnd)
+  dampingFactor = max(0, remainingTime / dampingTime)
+  I(t) = I₀ × dampingFactor
+
+
+EMA Smoothing
+─────────────
+smoothed(n+1) = smoothed(n) + (target - smoothed(n)) × alpha
+
+For links:    alpha = 0.12
+For nodes:    alpha = 0.15
+
+
+================================================================================
+COMMON PATTERNS
+================================================================================
+
+Chain Reaction Integration
+───────────────────────────
+// When SynergyChainReaction_v1 fires:
+game.synergyChainReaction.on('chainEvent', (event) => {
+    const cascadeID = cascadeFX.triggerCascade(event.node, event.intensity, {
+        harmonicMultiplier: event.resonance,
+        color: event.color
+    });
+});
+
+
+Material Uniform Update
+───────────────────────
+function updateMaterials() {
+    for (const link of game.links) {
+        const state = cascadeFX.getLinkCascadeState(link);
+        if (state) {
+            link.material.uniforms.uCascadeIntensity.value =
+                state.smoothedIntensity;
+            link.material.uniforms.uRippleAmplitude.value =
+                state.rippleAmplitude;
+            link.material.uniforms.uCascadeColor.value =
+                state.effectiveColor;
+        }
+    }
+}
+
+
+Debug Monitoring
+────────────────
+setInterval(() => {
+    const metrics = cascadeFX.getMetrics();
+    console.log(`
+        Active: ${metrics.activeCascades}
+        Peak: ${metrics.peakCascades}
+        Pool: ${(metrics.poolUtilization * 100).toFixed(1)}%
+        Update: ${metrics.updateTimeMs.toFixed(2)}ms
+    `);
+}, 1000);
+
+
+Performance Monitoring
+──────────────────────
+const perfStart = performance.now();
+cascadeFX.update(deltaTime);
+const perfEnd = performance.now();
+console.log(`Cascade FX update: ${(perfEnd - perfStart).toFixed(2)}ms`);
+
+
+================================================================================
+SHADER INTEGRATION
+================================================================================
+
+Cascade Color Blending
+──────────────────────
+// In fragment shader
+vec3 cascadeColor = mix(vColor, uCascadeColor, uCascadeIntensity);
+
+
+Ripple Height Map
+─────────────────
+// Displace vertices by ripple amplitude
+vPosition.y += sin(vPosition.x * frequency - uTime * speed) * uRippleAmplitude;
+
+
+Wave Intensity Falloff
+──────────────────────
+// Smooth falloff over distance
+float wave = sin(distance - uTime * speed) * uCascadeIntensity;
+wave *= smoothstep(uCascadeFalloff, 0.0, distance);
+
+
+================================================================================
+TROUBLESHOOTING CHECKLIST
+================================================================================
+
+Cascades Not Propagating
+  ☐ game.nodeLinkingSystem exists and has getLinksForNode()
+  ☐ Links have userData.linkedNodeA and linkedNodeB set
+  ☐ Nodes are not null when triggerCascade() called
+  ☐ Check console for propagation errors
+
+Memory Growing
+  ☐ Nodes/links properly deleted (not just hidden)
+  ☐ No references held to cascade objects externally
+  ☐ WeakMap assumptions: are nodes used as keys elsewhere?
+  ☐ Check getMetrics().poolUtilization
+
+Visual Effects Weak
+  ☐ Material uniforms receiving updated values
+  ☐ Shader actually using cascade uniforms
+  ☐ Check getLinkCascadeState() returns non-null
+  ☐ Verify smoothedIntensity is non-zero
+
+Performance Issues
+  ☐ Reduce maxHops if network > 500 nodes
+  ☐ Increase waveDuration to reduce frequency
+  ☐ Check if BFS traversal hitting 1000 node limit
+  ☐ Profile with getMetrics().updateTimeMs
+
+
+================================================================================

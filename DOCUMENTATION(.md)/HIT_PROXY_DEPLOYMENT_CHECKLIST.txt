@@ -1,0 +1,264 @@
+================================================================================
+HIT PROXY SYSTEM v1.0 — DEPLOYMENT CHECKLIST
+================================================================================
+
+OBJECTIVE:
+Replace ALL raycasting on real node visuals with STRICT hit-proxy raycasting.
+Guarantee: No geometry mutation, perfect visual immutability, deterministic selection.
+
+================================================================================
+PHASE 1: PREPARATION (5 minutes)
+================================================================================
+
+□ Read HIT_PROXY_SYSTEM_INTEGRATION_GUIDE.md thoroughly
+□ Understand core principle: invisible proxies ONLY, real visuals NEVER raycasted
+□ Backup current main.js
+□ Backup NodeLinkingSystem.js
+
+================================================================================
+PHASE 2: CORE INTEGRATION (10 minutes)
+================================================================================
+
+IN main.js (top of file, with other imports):
+
+□ Add import statement:
+  import { applyHitProxyIntegration, setupHitProxyDebugAPI } from './_HitProxyIntegrationPatch.js';
+
+IN AtomaGame.createAINodes() method:
+
+□ Locate: this.linkingSystem = new NodeLinkingSystem(...)
+□ AFTER that line, add:
+
+    // ====================================================================
+    // HIT PROXY SYSTEM v1.0 - Strict Raycast Proxy Architecture
+    // ====================================================================
+    try {
+        const hitProxyResult = applyHitProxyIntegration(
+            this.scene,
+            this.aiNodes,
+            this.linkingSystem,
+            {
+                proxyRadius: 0.7,
+                layer: 10,
+                autoSync: true,
+                autoHookSpawning: true
+            }
+        );
+
+        this.hitProxySystem = hitProxyResult.hitProxySystem;
+        this.safeProxyRaycaster = hitProxyResult.safeRaycaster;
+
+        setupHitProxyDebugAPI();
+
+        console.log('[main.js] Hit-Proxy System initialized ✓');
+    } catch (err) {
+        console.warn('[main.js] Hit-Proxy System initialization failed:', err);
+    }
+
+================================================================================
+PHASE 3: ANIMATION LOOP UPDATE (5 minutes)
+================================================================================
+
+IN AtomaGame.animate() method:
+
+□ Locate the render loop update section
+□ Add before renderer.render():
+
+    // Update hit-proxy system
+    if (this.hitProxySystem) {
+        this.hitProxySystem.update(deltaTime);
+    }
+
+================================================================================
+PHASE 4: VALIDATION (10 minutes)
+================================================================================
+
+□ Open browser console
+□ Type: HitProxyDebug.stats()
+  Expected output: 15 proxies, setup complete, auto-sync enabled
+
+□ Type: HitProxyDebug.validate()
+  Expected: "✅ All checks passed"
+
+□ Type: HitProxyDebug.testRaycast()
+  Action: Move crosshair to node center
+  Expected: "✓ Raycast hit: Node ID: [nodeId]"
+
+□ Type: HitProxyDebug.allProxies().length
+  Expected: 15 (or number of nodes in scene)
+
+================================================================================
+PHASE 5: FUNCTIONALITY TESTING (15 minutes)
+================================================================================
+
+□ Click on nodes in scene
+  Expected: Nodes select correctly
+
+□ Check console for raycast errors
+  Expected: NO "Cannot assign to read only property" errors
+  Expected: NO "geometry.computeBoundingSphere" errors
+
+□ Check crosshair targeting behavior
+  Expected: Bright when over nodes
+  Expected: Dim when not over nodes
+
+□ Create node links
+  Expected: Links work smoothly
+  Expected: No visual glitches
+
+□ Test across all game modes
+  □ Fractal Valley
+  □ Dream Desert
+  □ Memory Lane
+  □ Sigma Rift
+
+================================================================================
+PHASE 6: PERFORMANCE TESTING (10 minutes)
+================================================================================
+
+□ Open DevTools Performance panel
+□ Record 30 seconds of normal gameplay
+□ Check frame rate
+  Expected: No FPS drop vs. previous version
+
+□ Check raycast timing
+  Expected: < 0.5ms per raycast (very fast)
+
+□ Monitor memory
+  Expected: No memory leaks
+  Expected: Proxy meshes stable (no growth)
+
+================================================================================
+PHASE 7: SAFETY VERIFICATION (10 minutes)
+================================================================================
+
+□ Type in console: window.hitProxySystem.registry.getAllProxies()[0]
+  Check: userData.isHitProxy = true
+  Check: visible = false
+  Check: opacity = 0
+
+□ Inspect node core material directly:
+  game.aiNodes.nodes[0].children[0]
+  Check: Not a hit-proxy
+  Check: userData.isHitProxy = undefined or false
+
+□ Check raycast protection:
+  game.scene.traverse(obj => {
+    if (obj.userData?.isNodeCore && obj.raycast) {
+      console.log('DANGER: Core still raycasting');
+    }
+  });
+  Expected: No output (all cores protected)
+
+================================================================================
+PHASE 8: PRODUCTION DEPLOYMENT (5 minutes)
+================================================================================
+
+□ Test in production environment
+□ Monitor browser console for errors
+□ Check user interactions (selection, linking)
+□ Verify crosshair feedback still works
+□ Check all UI elements respond to clicks
+
+================================================================================
+PHASE 9: DOCUMENTATION (5 minutes)
+================================================================================
+
+□ Add to project notes:
+  - Hit-proxy system deployed
+  - All raycasting now strictly on invisible proxies
+  - Real visuals 100% immutable
+  - Debug API: window.HitProxyDebug
+
+□ Document in team chat/wiki:
+  - System location: /_HitProxySystem_v1.js
+  - Integration: /_HitProxyIntegrationPatch.js
+  - Debug commands available
+
+================================================================================
+PHASE 10: ONGOING MONITORING (ongoing)
+================================================================================
+
+□ Weekly: Run HitProxyDebug.validate()
+□ Weekly: Monitor console for raycast errors
+□ Weekly: Check performance metrics
+□ Monthly: Review audit trail (HitProxyDebug.auditTrail())
+
+================================================================================
+ROLLBACK PLAN (if needed)
+================================================================================
+
+If issues arise:
+1. Comment out import in main.js
+2. Comment out applyHitProxyIntegration() call
+3. Comment out hitProxySystem.update() call
+4. Restart application
+5. Previous raycast behavior restored
+6. Report issue with console logs + HitProxyDebug.validate() output
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+✅ All checklist items completed
+✅ HitProxyDebug.validate() reports success
+✅ No raycast errors in console
+✅ Node selection working correctly
+✅ Performance maintained or improved
+✅ No regressions in visual quality
+✅ Proxies automatically created for new nodes
+✅ System ready for production
+
+================================================================================
+ESTIMATED TOTAL TIME: ~60 minutes
+================================================================================
+
+Phase 1 (Prep):           5 min
+Phase 2 (Integration):   10 min
+Phase 3 (Animation):      5 min
+Phase 4 (Validation):    10 min
+Phase 5 (Functionality): 15 min
+Phase 6 (Performance):   10 min
+Phase 7 (Safety):        10 min
+Phase 8 (Deployment):     5 min
+
+Total: ~70 minutes (average)
+
+================================================================================
+DEBUG COMMAND REFERENCE
+================================================================================
+
+# Statistics
+HitProxyDebug.stats()
+
+# Validation
+HitProxyDebug.validate()
+
+# Test raycast at center
+HitProxyDebug.testRaycast()
+
+# Test raycast at position
+HitProxyDebug.testRaycast(100, 200)
+
+# Get specific proxy
+HitProxyDebug.getProxy('node-123')
+
+# View interaction history
+HitProxyDebug.auditTrail()
+
+# Get all proxies
+HitProxyDebug.allProxies()
+
+================================================================================
+CONTACT & SUPPORT
+================================================================================
+
+For issues or questions:
+1. Check HIT_PROXY_SYSTEM_INTEGRATION_GUIDE.md (troubleshooting section)
+2. Run HitProxyDebug.validate() for diagnostics
+3. Review console logs for error messages
+4. Check repository issues/discussions
+
+================================================================================
+END OF CHECKLIST
+================================================================================

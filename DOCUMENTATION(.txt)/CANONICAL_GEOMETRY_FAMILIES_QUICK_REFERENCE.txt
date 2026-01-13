@@ -1,0 +1,254 @@
+═══════════════════════════════════════════════════════════════════════════════
+  CANONICAL GEOMETRY FAMILIES - QUICK REFERENCE
+  4 Categories × 6 Variants = 24 Unique Geometries
+═══════════════════════════════════════════════════════════════════════════════
+
+📂 MYTHIC CATEGORY — "Ancient Fractured Relics"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Visual Language: Jagged, asymmetrical, eroded, excavated
+Material: Brown (0x8b7355), rough metalness 0.4, roughness 0.7
+Feeling: Ancient, broken, weathered
+
+  MYTHIC-0: Shard Cluster
+  └─ 5 random tetrahedra, chaotic arrangement
+  └─ Polycount: ~40 triangles
+  └─ Reads: Spiky fractured form
+
+  MYTHIC-1: Broken Monolith
+  └─ Tall structure with large missing chunk
+  └─ Polycount: ~24 triangles
+  └─ Reads: Vertical pillar, clearly damaged
+
+  MYTHIC-2: Floating Fragments
+  └─ 4 disconnected pieces suspended in space
+  └─ Polycount: ~50 triangles
+  └─ Reads: Scattered, suspended, separated
+
+  MYTHIC-3: Cracked Prism
+  └─ Prism split with visible fracture/gap
+  └─ Polycount: ~24 triangles
+  └─ Reads: Tall form with clear crack
+
+  MYTHIC-4: Ancient Core with Missing Faces
+  └─ Dodecahedron with ~30% faces eroded
+  └─ Polycount: ~36 triangles
+  └─ Reads: Polyhedron with visible erosion
+
+  MYTHIC-5: Collapsed Crown
+  └─ Crown base + 5 collapsed points (irregular)
+  └─ Polycount: ~60 triangles
+  └─ Reads: Crown-like structure, clearly broken
+
+CODE: EnhancedNodeModels.create('mythic', 0-5, color)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 PRIME CATEGORY — "Perfect Axioms"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Visual Language: Symmetrical, precise, mathematical, clean
+Material: White (0xffffff), metalness 0.9, roughness 0.05
+Feeling: Perfect, axiomatic, absolute order
+
+  PRIME-0: Nested Icosahedron
+  └─ Small icosahedron inside larger one
+  └─ Polycount: ~80 triangles
+  └─ Reads: Nested spheres, perfect concentricity
+
+  PRIME-1: Perfect Dodecahedron
+  └─ Pure 12-faced polyhedron
+  └─ Polycount: ~36 triangles
+  └─ Reads: Instantly recognizable perfect form
+
+  PRIME-2: Stella Octangula
+  └─ Two interpenetrating tetrahedra (compound)
+  └─ Polycount: ~16 triangles
+  └─ Reads: 8-pointed star, highly geometric
+
+  PRIME-3: Precision Lattice
+  └─ 3×3×3 grid of spheres (27 total)
+  └─ Polycount: ~432 triangles
+  └─ Reads: Perfect cubic lattice grid
+
+  PRIME-4: Tesseract Projection
+  └─ 4D hypercube in 3D space
+  └─ Polycount: 0 (wireframe lines)
+  └─ Reads: Complex geometric projection
+
+  PRIME-5: Symmetry-Locked Core
+  └─ Octahedron with high subdivision (faceted)
+  └─ Polycount: ~48 triangles
+  └─ Reads: Perfectly balanced symmetrical form
+
+CODE: EnhancedNodeModels.create('prime', 0-5, color)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 ERROR CATEGORY — "Frozen Corruption"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Visual Language: Impossible, broken topology, logical contradiction
+Material: Red (0xff0000), metalness 0.7, roughness 0.3, DoubleSide
+Feeling: Wrong, corrupted, violation of logic
+
+  ERROR-0: Intersecting Solids
+  └─ 2 cubes overlapping impossible
+  └─ Polycount: ~24 triangles
+  └─ Reads: Overlapping shapes, visual error
+
+  ERROR-1: Inverted Normals
+  └─ Sphere with deliberately inverted normals
+  └─ Polycount: ~512 triangles
+  └─ Reads: Sphere that feels "wrong" to look at
+
+  ERROR-2: Self-Clipping
+  └─ Two tetrahedra passing through each other
+  └─ Polycount: ~16 triangles
+  └─ Reads: Geometry intersecting impossibly
+
+  ERROR-3: Folded Impossible Object
+  └─ Penrose-inspired 3D impossible structure
+  └─ Polycount: ~20 triangles
+  └─ Reads: Impossible angles, Escher-like
+
+  ERROR-4: Topology Tear
+  └─ Cube mesh with discontinuous faces (hole)
+  └─ Polycount: ~18 triangles
+  └─ Reads: Box with obvious tear/discontinuity
+
+  ERROR-5: Corrupted Manifold
+  └─ Central icosahedron + floating pieces
+  └─ Polycount: ~100 triangles
+  └─ Reads: Non-manifold structure, fragmented
+
+CODE: EnhancedNodeModels.create('error', 0-5, color)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 EMOTIONAL CATEGORY — "Crystalline Organics"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Visual Language: Organic but faceted, soft silhouette, crystalline surface
+Material: Hot Pink (0xff69b4), metalness 0.6, roughness 0.2
+Feeling: Internal, intimate, vulnerable, organic
+
+  EMOTIONAL-0: Heart Crystal
+  └─ Heart shape rendered as faceted polyhedron
+  └─ Polycount: ~36 triangles
+  └─ Reads: Recognizable heart, clearly crystalline
+
+  EMOTIONAL-1: Neural Lobe Crystal
+  └─ Central sphere + 4 side lobes (brain-like)
+  └─ Polycount: ~220 triangles
+  └─ Reads: Brain form, feels thoughtful
+
+  EMOTIONAL-2: Blooming Gem
+  └─ Central core + 6 petals (blossom-like)
+  └─ Polycount: ~48 triangles
+  └─ Reads: Opening flower, clearly crystalline
+
+  EMOTIONAL-3: Tear-Shaped Core
+  └─ Teardrop rendered as faceted polyhedron
+  └─ Polycount: ~32 triangles
+  └─ Reads: Clearly teardrop, melancholic
+
+  EMOTIONAL-4: Folded Emotional Node
+  └─ Folded/closed introspective form
+  └─ Polycount: ~26 triangles
+  └─ Reads: Folded inward, feels internal
+
+  EMOTIONAL-5: Symmetric Organic Seed
+  └─ Seed form with bilateral symmetry
+  └─ Polycount: ~40 triangles
+  └─ Reads: Seed/pod form, feels potential
+
+CODE: EnhancedNodeModels.create('emotional', 0-5, color)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 SUMMARY TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌────────────┬──────────────┬─────────┬──────────┬─────────────┐
+│ Category   │ Language     │ Variants│ Avg Poly │ Material    │
+├────────────┼──────────────┼─────────┼──────────┼─────────────┤
+│ MYTHIC     │ Fractured    │ 6       │ ~200     │ Brown/rough  │
+│ PRIME      │ Axiom        │ 6       │ ~150     │ White/shiny  │
+│ ERROR      │ Corruption   │ 6       │ ~150     │ Red/metallic │
+│ EMOTIONAL  │ Organic      │ 6       │ ~120     │ Pink/glow    │
+├────────────┼──────────────┼─────────┼──────────┼─────────────┤
+│ TOTAL      │ -            │ 24      │ ~155 avg │ -            │
+└────────────┴──────────────┴─────────┴──────────┴─────────────┘
+
+🔧 SPAWN EXAMPLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Spawn MYTHIC
+const mythic0 = EnhancedNodeModels.create('mythic', 0, 0x8b7355);  // Shard Cluster
+const mythic3 = EnhancedNodeModels.create('mythic', 3, 0x8b7355);  // Cracked Prism
+
+// Spawn PRIME
+const prime1 = EnhancedNodeModels.create('prime', 1, 0xffffff);    // Dodecahedron
+const prime4 = EnhancedNodeModels.create('prime', 4, 0xffffff);    // Tesseract
+
+// Spawn ERROR
+const error0 = EnhancedNodeModels.create('error', 0, 0xff0000);    // Intersecting
+const error5 = EnhancedNodeModels.create('error', 5, 0xff0000);    // Corrupted
+
+// Spawn EMOTIONAL
+const emot1 = EnhancedNodeModels.create('emotional', 1, 0xff69b4); // Neural Lobe
+const emot2 = EnhancedNodeModels.create('emotional', 2, 0xff69b4); // Blooming Gem
+
+// All variants cycle (index % 6)
+const mythic_any = EnhancedNodeModels.create('mythic', 7, 0x8b7355); // Cycles to index 1
+
+🛡️ IMMUTABILITY GUARANTEES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ All geometries precomputed (boundingSphere before freeze)
+✅ All geometries frozen (Object.freeze)
+✅ All materials assigned at creation
+❌ No geometry mutation after creation
+❌ No material changes after mesh creation
+❌ No fallback spheres ever
+✅ VisualHierarchyCorrectionSystem checks Object.isFrozen()
+
+📈 POLYCOUNT EFFICIENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total 24 geometries: ~3720 triangles combined
+Average per geometry: ~155 triangles
+GPU Impact: Negligible (all static)
+Memory: < 2MB total
+
+✨ VISUAL DISTINCTION CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MYTHIC:
+  ✅ Clearly fractured/broken
+  ✅ Asymmetrical and irregular
+  ✅ Feels ancient and excavated
+  ✅ Readable in flat unlit material
+
+PRIME:
+  ✅ Perfectly symmetrical
+  ✅ Mathematical/axiom feeling
+  ✅ Clean and precise geometry
+  ✅ Readable in flat unlit material
+
+ERROR:
+  ✅ Topologically impossible
+  ✅ Feels wrong/corrupted
+  ✅ Clearly logical contradiction
+  ✅ Readable in flat unlit material
+
+EMOTIONAL:
+  ✅ Organic but faceted
+  ✅ Intimate and internal feeling
+  ✅ Crystalline surface
+  ✅ Readable in flat unlit material
+
+═══════════════════════════════════════════════════════════════════════════════
+End Reference
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,355 @@
+/**
+ * SAFE METRICS FX 1.1
+ * 
+ * Subtle, performance-friendly visual effects based on node metrics.
+ * 
+ * Uses existing node.userData.metrics values.
+ * 
+ * FX Types:
+ * 1) HARMONY GLOW - High harmony → slight emissive boost
+ * 2) INSTABILITY FLICKER - High instability → subtle random flicker
+ * 3) CORRUPTION TINT - High corruption → slight rim color shift
+ * 4) ENERGY INTENSITY - High energy → small glow boost
+ * 
+ * SAFETY:
+ * - No per-frame loops (15-20Hz tick only)
+ * - Safe guards before every material access
+ * - Graceful skip on missing fields
+ * - No new timers
+ * - No node logic modification
+ */
+
+export class SafeMetricsFX1_1 {
+  constructor() {
+    // Tick timing (15-20Hz = slower than raycast, minimal overhead)
+    this.lastTickTime = 0;
+    this.tickInterval = 1 / 15; // ~67ms per tick
+    
+    // Track state to prevent re-application
+    this.appliedFX = new Map(); // nodeId -> { harmony, instability, energy, corruption }
+    
+    // Flicker state (for instability flicker effect)
+    this.flickerStates = new Map(); // nodeId -> { phase, nextFlicker }
+  }
+
+  /**
+   * Main update - call from game loop (will throttle internally)
+   * Safe to call every frame - will only execute at ~15Hz
+   */
+  update(deltaTime, nodes) {
+    // 🔒 HARD INTERACTION AUTHORITY - Stop all visual updates when locked
+    if (window.VISUAL_AUTHORITY_LOCK) return;
+    
+    if (window.DEBUG_VISUAL_MODE) return;
+    if (!nodes || nodes.length === 0) return;
+
+    // Throttle to 15Hz (67ms)
+    this.lastTickTime += deltaTime;
+    if (this.lastTickTime < this.tickInterval) {
+      return;
+    }
+    this.lastTickTime = 0;
+
+    // Apply FX to all nodes
+    nodes.forEach(node => {
+      this.applyNodeMetricsFX(node);
+    });
+  }
+
+  /**
+   * Apply all metric FX to a single node
+   * Extremely safe - checks everything before touching materials
+   */
+  applyNodeMetricsFX(node) {
+    if (!node || !node.userData || !node.userData.metrics) {
+      return;
+    }
+
+    const metrics = node.userData.metrics;
+    const nodeId = node.uuid;
+
+    try {
+      // Get or create state for this node
+      let state = this.appliedFX.get(nodeId);
+      if (!state) {
+        state = {
+          harmony: 0,
+          instability: 0,
+          energy: 0,
+          corruption: 0,
+        };
+        this.appliedFX.set(nodeId, state);
+      }
+
+      // Apply each FX type independently
+      this.applyHarmonyGlow(node, metrics, state);
+      this.applyInstabilityFlicker(node, metrics, state);
+      this.applyCorruptionTint(node, metrics, state);
+      this.applyEnergyIntensity(node, metrics, state);
+
+    } catch (e) {
+      // Fail silently - never crash the game
+      console.warn('SafeMetricsFX: Error applying FX to node', nodeId, e);
+    }
+  }
+
+  /**
+   * FX 1: HARMONY GLOW
+   * High harmony (>70) → subtle emissive boost
+   */
+  applyHarmonyGlow(node, metrics, state) {
+    // Safety: Check material exists
+    if (!node.material || !node.material.emissive) {
+      return;
+    }
+
+    const harmonyThreshold = 70;
+    const harmonyValue = metrics.harmony || 0;
+
+    if (harmonyValue > harmonyThreshold) {
+      // Calculate boost (0-1 scale based on harmony 70-120)
+      const harmonyBoost = Math.max(0, Math.min(1, (harmonyValue - harmonyThreshold) / 50));
+      
+      // Very subtle: max 0.05 intensity boost (5%)
+      const intensityBoost = harmonyBoost * 0.005; // Extremely subtle
+      
+      try {
+        // Only apply if we have a valid emissiveIntensity
+        if (typeof node.material.emissiveIntensity === 'number') {
+          // Cap total to prevent overdoing it
+          const currentIntensity = node.material.emissiveIntensity || 0;
+          node.material.emissiveIntensity = Math.min(
+            currentIntensity + intensityBoost,
+            1.0 // Never exceed 1.0
+          );
+        }
+      } catch (e) {
+        // Skip silently if emissive not writable
+      }
+
+      state.harmony = harmonyValue;
+    } else if (state.harmony > harmonyThreshold) {
+      // Harmony dropped - fade back
+      try {
+        if (typeof node.material.emissiveIntensity === 'number') {
+          node.material.emissiveIntensity = Math.max(0, node.material.emissiveIntensity - 0.001);
+        }
+      } catch (e) {
+        // Skip silently
+      }
+      state.harmony = harmonyValue;
+    }
+  }
+
+  /**
+   * FX 2: INSTABILITY FLICKER
+   * High instability (>60) → occasional subtle random flicker
+   */
+  applyInstabilityFlicker(node, metrics, state) {
+    // Safety: Check material exists
+    if (!node.material || !node.material.emissive) {
+      return;
+    }
+
+    const instabilityThreshold = 60;
+    const instabilityValue = metrics.instability || 0;
+
+    if (instabilityValue > instabilityThreshold) {
+      const nodeId = node.uuid;
+      
+      // Get flicker state
+      let flicker = this.flickerStates.get(nodeId);
+      if (!flicker) {
+        flicker = {
+          phase: 0,
+          nextFlicker: Math.random() * 0.5,
+        };
+        this.flickerStates.set(nodeId, flicker);
+      }
+
+      // Update flicker phase
+      const flickerFrequency = (instabilityValue / 100) * 0.05; // Very low frequency
+      flicker.phase += flickerFrequency;
+
+      // Random flicker trigger (1-2% chance per tick)
+      const flickerChance = 0.015; // 1.5%
+      if (Math.random() < flickerChance) {
+        try {
+          if (typeof node.material.emissiveIntensity === 'number') {
+            // Tiny random flicker (±2%)
+            const flicker_amount = (Math.random() - 0.5) * 0.02;
+            node.material.emissiveIntensity = Math.max(
+              0,
+              Math.min(1.0, node.material.emissiveIntensity + flicker_amount)
+            );
+          }
+        } catch (e) {
+          // Skip silently
+        }
+      }
+
+      state.instability = instabilityValue;
+    } else if (state.instability > instabilityThreshold) {
+      // Instability dropped - remove flicker state
+      this.flickerStates.delete(node.uuid);
+      state.instability = instabilityValue;
+    }
+  }
+
+  /**
+   * FX 3: CORRUPTION TINT
+   * High instability or corruption (>50) → slight rim color shift (≤5%)
+   */
+  applyCorruptionTint(node, metrics, state) {
+    // Safety: Check material exists and has a rim color
+    if (!node.material || typeof node.material.color !== 'object') {
+      return;
+    }
+
+    const corruptionThreshold = 50;
+    const corruptionValue = metrics.instability || 0; // Use instability as corruption proxy
+    
+    if (corruptionValue > corruptionThreshold) {
+      // Calculate corruption amount (0-1 scale)
+      const corruptionAmount = Math.max(0, Math.min(1, (corruptionValue - corruptionThreshold) / 50));
+      
+      // Very subtle: max 5% shift
+      const tintAmount = corruptionAmount * 0.05;
+
+      try {
+        // Store original color if not already stored
+        if (!node.userData.originalColor) {
+          node.userData.originalColor = {
+            r: node.material.color.r,
+            g: node.material.color.g,
+            b: node.material.color.b,
+          };
+        }
+
+        const orig = node.userData.originalColor;
+        
+        // Apply slight purple/red tint shift (corruption effect)
+        const redShift = tintAmount * 0.1; // Slight red increase
+        const blueShift = tintAmount * 0.05; // Slight blue increase
+        const greenDecay = tintAmount * 0.05; // Slight green decrease
+
+        node.material.color.r = Math.min(1, orig.r + redShift);
+        node.material.color.g = Math.max(0, orig.g - greenDecay);
+        node.material.color.b = Math.min(1, orig.b + blueShift);
+
+      } catch (e) {
+        // Skip silently if color not writable
+      }
+
+      state.corruption = corruptionValue;
+    } else if (state.corruption > corruptionThreshold) {
+      // Corruption dropped - restore original color
+      try {
+        if (node.userData.originalColor) {
+          const orig = node.userData.originalColor;
+          node.material.color.r = orig.r;
+          node.material.color.g = orig.g;
+          node.material.color.b = orig.b;
+        }
+      } catch (e) {
+        // Skip silently
+      }
+      state.corruption = corruptionValue;
+    }
+  }
+
+  /**
+   * FX 4: ENERGY INTENSITY
+   * High energy (>80) → tiny glow boost (≤10%)
+   */
+  applyEnergyIntensity(node, metrics, state) {
+    // Safety: Check material exists
+    if (!node.material) {
+      return;
+    }
+
+    const energyThreshold = 80;
+    const energyValue = metrics.energy || 0;
+
+    if (energyValue > energyThreshold) {
+      // Calculate energy boost (0-1 scale)
+      const energyBoost = Math.max(0, Math.min(1, (energyValue - energyThreshold) / 40)); // 80-120 range
+      
+      // Tiny boost: max 10% (0.1)
+      const glowBoost = energyBoost * 0.001; // Extremely subtle
+
+      try {
+        // Apply to emissiveIntensity if exists
+        if (node.material.emissive && typeof node.material.emissiveIntensity === 'number') {
+          node.material.emissiveIntensity = Math.min(
+            1.0,
+            node.material.emissiveIntensity + glowBoost
+          );
+        }
+
+        // Also apply to intensity if it exists
+        if (typeof node.material.intensity === 'number') {
+          node.material.intensity = Math.min(
+            2.0,
+            node.material.intensity + (glowBoost * 0.5)
+          );
+        }
+      } catch (e) {
+        // Skip silently
+      }
+
+      state.energy = energyValue;
+    } else if (state.energy > energyThreshold) {
+      // Energy dropped - fade boost
+      try {
+        if (node.material.emissive && typeof node.material.emissiveIntensity === 'number') {
+          node.material.emissiveIntensity = Math.max(0, node.material.emissiveIntensity - 0.001);
+        }
+      } catch (e) {
+        // Skip silently
+      }
+      state.energy = energyValue;
+    }
+  }
+
+  /**
+   * Reset all FX for cleanup or reset
+   */
+  reset() {
+    this.appliedFX.clear();
+    this.flickerStates.clear();
+    this.lastTickTime = 0;
+  }
+
+  /**
+   * Get FX status (diagnostic)
+   */
+  getStatus() {
+    return {
+      tickRate: `${Math.round(1 / this.tickInterval)} Hz`,
+      nodesWithFX: this.appliedFX.size,
+      flickeringNodes: this.flickerStates.size,
+    };
+  }
+
+  /**
+   * Clean up a specific node's FX
+   */
+  cleanupNode(node) {
+    if (!node) return;
+    this.appliedFX.delete(node.uuid);
+    this.flickerStates.delete(node.uuid);
+    
+    // Restore original color if stored
+    if (node.userData && node.userData.originalColor && node.material) {
+      try {
+        const orig = node.userData.originalColor;
+        node.material.color.r = orig.r;
+        node.material.color.g = orig.g;
+        node.material.color.b = orig.b;
+      } catch (e) {
+        // Skip silently
+      }
+    }
+  }
+}

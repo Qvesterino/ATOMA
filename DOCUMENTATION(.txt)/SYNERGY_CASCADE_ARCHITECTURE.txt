@@ -1,0 +1,418 @@
+================================================================================
+SYNERGY CASCADE FX BRIDGE - SYSTEM ARCHITECTURE
+================================================================================
+
+COMPLETE VISUAL CASCADE PIPELINE (Weeks 19-22B)
+═══════════════════════════════════════════════════════════════════════════════
+
+Week 19: SynergyBonusVisualization_v1
+  │
+  ├─ Synergy Metrics Calculation (base data)
+  │
+  └─> Week 19: SynergyBonusFXLayer_v1 (GPU flares)
+
+Week 20: SynergyResonanceShaderPack_v1
+  │
+  └─> Multi-frequency pulses, chromatic ripples, coherence flows
+
+Week 21: ResonanceFeedback_v1
+  │
+  └─> Network-level resonance feedback (mood states)
+
+Week 22: SynergyChainReaction_v1
+  │
+  ├─ Monitors synergy thresholds
+  ├─ Propagates cascades through network
+  ├─ Generates NodeEvents & LinkEvents
+  │
+  └─> Week 22B: SynergyCascadeFXBridge_v1 ✓ NEW
+       │
+       ├─ Listens to chain reaction events
+       ├─ Converts events to shader signals
+       ├─ Manages state machines (nodes & links)
+       ├─ Applies EMA smoothing
+       │
+       └─> 6 TARGET SHADER SYSTEMS
+           │
+           ├─ SynergyResonanceShaderPack_v1 (pulse boost)
+           ├─ SynergyBonusFXLayer_v1 (bonus FX)
+           ├─ NodeAuraSystem_v1 (glow & flash)
+           ├─ LinkAuraSystem_v1 (wave shimmer)
+           ├─ NodeShaderActivation_v1 (boost)
+           └─ ArchetypeShaderModes_v1 (distortion)
+               │
+               └─> GPU VISUAL CASCADE EFFECTS
+                   ├─ Radial pulses
+                   ├─ Traveling waves
+                   ├─ Brightness flashes
+                   ├─ Aura spikes
+                   ├─ Resonance bands
+                   └─ Cascade shockwaves
+
+
+EVENT PIPELINE ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+                    ┌─────────────────────────────┐
+                    │  Node Synergy ≥ 0.75        │
+                    └────────────┬─────────────────┘
+                                 │
+                                 ↓
+                    ┌─────────────────────────────┐
+                    │ Chain Reaction Triggered    │
+                    │ SynergyChainReaction_v1     │
+                    ├─────────────────────────────┤
+                    │ - Detect threshold          │
+                    │ - Propagate to neighbors    │
+                    │ - Generate NodeEvent        │
+                    │ - Generate LinkEvent        │
+                    │ - Decay intensity per hop   │
+                    └────────────┬─────────────────┘
+                                 │
+                                 ↓
+                    ┌─────────────────────────────┐
+                    │ SynergyCascadeFXBridge_v1   │
+                    ├─────────────────────────────┤
+                    │ Step 1: Process Events      │
+                    │ - Read chain reaction state │
+                    │ - Extract node/link events  │
+                    │ - Create cascade states     │
+                    └────────────┬─────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ↓                         ↓
+        ┌──────────────────┐      ┌──────────────────┐
+        │ NodeCascadeState │      │ LinkCascadeState │
+        ├──────────────────┤      ├──────────────────┤
+        │ Step 2: Update   │      │ Step 2: Update   │
+        │ - Increment time │      │ - Increment time │
+        │ - Calculate      │      │ - Calculate wave │
+        │   signals        │      │   progression    │
+        │ - Apply EMA      │      │ - Apply EMA      │
+        │   smoothing      │      │   smoothing      │
+        └────────┬─────────┘      └────────┬─────────┘
+                 │                         │
+                 └────────────┬────────────┘
+                              │
+                    ┌─────────↓──────────┐
+                    │ Step 3: Send       │
+                    │ Shader Signals     │
+                    └─────────┬──────────┘
+                              │
+                ┌─────────────┼─────────────┐
+                │             │             │
+                ↓             ↓             ↓
+        ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+        │  Node Glow   │ │ Link Waves   │ │ Archetype    │
+        │  (Aura)      │ │ (Shimmer)    │ │ (Distortion) │
+        └──────────────┘ └──────────────┘ └──────────────┘
+                │             │             │
+                └─────────────┼─────────────┘
+                              │
+                              ↓
+                    ┌──────────────────┐
+                    │ GPU EFFECTS      │
+                    │ Rendered on      │
+                    │ Screen           │
+                    └──────────────────┘
+
+
+SIGNAL FLOW DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+NodeEvent / LinkEvent (from SynergyChainReaction_v1)
+        │
+        ├─ event.node / event.link
+        ├─ event.reactionLevel (0–1)
+        ├─ event.hopIndex (0–8)
+        └─ event.frequency / event.harmonicMode
+                │
+                ↓
+    Create NodeCascadeState / LinkCascadeState
+                │
+    ┌───────────┴───────────┐
+    │                       │
+    ↓                       ↓
+Node Signals          Link Signals
+├─ cascadeWave        ├─ waveProgress
+├─ pulseStrength      ├─ waveIntensity
+├─ resonanceMix       ├─ coherenceBoost
+├─ bonusMix           ├─ stabilityPenalty
+├─ flashBrightness    └─ chromaIntensity
+├─ auraPulse
+└─ harmonicMode
+    │
+    └─ EMA Smoothing Applied
+        │
+        ├─ smoothPulseStrength (α=0.18)
+        ├─ smoothResonanceMix (α=0.12)
+        ├─ smoothAuraPulse (α=0.15)
+        ├─ smoothWaveIntensity (α=0.20)
+        ├─ smoothCoherenceBoost (α=0.14)
+        └─ smoothChromatIntensity (α=0.16)
+            │
+            ↓
+        Smoothed Signals
+            │
+            └─> Target Shader Systems
+                ├─ resonanceShader.applyCascadeSignal()
+                ├─ bonusFXLayer.setCascadeIntensity()
+                ├─ nodeAuraSystem.setCascadeGlow()
+                ├─ linkAuraSystem.setCascadeWave()
+                ├─ nodeShaderActivation.setCascadeBoost()
+                └─ archetypeShaderModes.setCascadeBoost()
+                    │
+                    └─> GPU Uniforms Updated
+                        │
+                        ↓
+                    Fragment Shaders
+                        │
+                        └─> Visual Cascade Effects
+
+
+MAIN.JS INTEGRATION POINTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Line 189:   IMPORT
+            import { SynergyCascadeFXBridge_v1 } from './SynergyCascadeFXBridge_v1.js';
+
+Line 457:   FIELD DECLARATION (in constructor)
+            this.synergyCascadeFXBridge = null;
+
+Line 1706:  INITIALIZATION (in initSubsystems)
+            this.synergyCascadeFXBridge = new SynergyCascadeFXBridge_v1({...})
+            this.synergyCascadeFXBridge.registerEventSource(this.synergyChainReaction)
+
+Line 1909:  TARGET REGISTRATION PASS (second pass, after constructor)
+            for each target system:
+                synergyCascadeFXBridge.registerTargetSystem(name, system)
+
+Line 2776:  UPDATE LOOP (in update())
+            if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking)
+                this.synergyCascadeFXBridge.update(deltaTime, nodes, links)
+
+Line 2166:  DISPOSE (in dispose())
+            this.synergyCascadeFXBridge?.dispose?.()
+            this.synergyCascadeFXBridge = null
+
+
+STATE MACHINE STATE DIAGRAM (Nodes)
+═══════════════════════════════════════════════════════════════════════════════
+
+                        ┌──────────────┐
+                        │     IDLE     │
+                        │ (no cascade) │
+                        └───────┬──────┘
+                                │
+                    Create cascade
+                    event arrives
+                                │
+                                ↓
+                        ┌──────────────┐
+                        │   CHARGED    │
+                        │ chargeLevel  │
+                        │ increases    │
+                        └───────┬──────┘
+                                │
+                  chargeLevel > 0.6
+                    or immediate
+                    activation
+                                │
+                                ↓
+                        ┌──────────────┐
+                        │   REACTING   │
+                        │   Active     │
+                        │   cascade    │
+                        │   time < dur │
+                        └───────┬──────┘
+                                │
+                  cascadeTime ≥ cascadeDuration
+                                │
+                                ↓
+                        ┌──────────────┐
+                        │ STABILIZING  │
+                        │   Cooling    │
+                        │   down       │
+                        └───────┬──────┘
+                                │
+                     Final decay
+                     complete
+                                │
+                                ↓
+                        ┌──────────────┐
+                        │    COOLED    │
+                        │   Ready for  │
+                        │   next       │
+                        └──────────────┘
+
+
+PERFORMANCE PROFILE
+═══════════════════════════════════════════════════════════════════════════════
+
+                         Per-Frame Execution
+    
+    ┌──────────────────────────────────────────────────────────────────┐
+    │                                                                  │
+    │ SynergyCascadeFXBridge_v1.update()                               │
+    │                                                                  │
+    │ ┌──────────────────────────────────────────────────────────┐   │
+    │ │ 1. Process Chain Reaction Events      <0.05ms           │   │
+    │ │    - Read getActiveReactions()                           │   │
+    │ │    - Extract NodeEvents and LinkEvents                  │   │
+    │ │    - Create/activate cascade states                     │   │
+    │ └──────────────────────────────────────────────────────────┘   │
+    │                                                                  │
+    │ ┌──────────────────────────────────────────────────────────┐   │
+    │ │ 2. Update Node Cascade States       ~0.10ms             │   │
+    │ │    - For each of 300 nodes:                              │   │
+    │ │      - cascadeTime += deltaTime                          │   │
+    │ │      - Calculate signals (pulse, resonance, etc)         │   │
+    │ │      - Apply EMA smoothing                               │   │
+    │ │      - Send to target systems (~0.33µs per node)         │   │
+    │ └──────────────────────────────────────────────────────────┘   │
+    │                                                                  │
+    │ ┌──────────────────────────────────────────────────────────┐   │
+    │ │ 3. Update Link Cascade States       ~0.15ms             │   │
+    │ │    - For each of 1000 links:                             │   │
+    │ │      - waveProgress calculation                          │   │
+    │ │      - Wave intensity gaussian peak                      │   │
+    │ │      - Apply EMA smoothing                               │   │
+    │ │      - Send to target systems (~0.15µs per link)         │   │
+    │ └──────────────────────────────────────────────────────────┘   │
+    │                                                                  │
+    │ ┌──────────────────────────────────────────────────────────┐   │
+    │ │ 4. Cleanup Expired Cascades         <0.01ms             │   │
+    │ │    - Remove cascades older than 2s                       │   │
+    │ │    - Periodic map cleanup                                │   │
+    │ └──────────────────────────────────────────────────────────┘   │
+    │                                                                  │
+    │ TOTAL TIME:  <0.40ms                                            │
+    │ FRAME BUDGET: 16.67ms (60 FPS)                                  │
+    │ PERCENTAGE: 2.4%                                                │
+    │                                                                  │
+    └──────────────────────────────────────────────────────────────────┘
+
+
+MEMORY LAYOUT
+═══════════════════════════════════════════════════════════════════════════════
+
+SynergyCascadeFXBridge_v1 Instance
+├─ config (object)                    ~100 bytes
+├─ targetSystems (object)              ~200 bytes
+├─ chainReactionRuntime (ref)          ~8 bytes
+├─ nodeStates (WeakMap)                ~50 bytes base
+│  ├─ node1 → NodeCascadeState         ~150 bytes each
+│  ├─ node2 → NodeCascadeState         ~150 bytes each
+│  └─ node3 → NodeCascadeState         ~150 bytes each
+│     (300 nodes × 150 = 45 KB)
+├─ linkStates (WeakMap)                ~50 bytes base
+│  ├─ link1 → LinkCascadeState         ~120 bytes each
+│  ├─ link2 → LinkCascadeState         ~120 bytes each
+│  └─ link3 → LinkCascadeState         ~120 bytes each
+│     (1000 links × 120 = 120 KB)
+├─ activeCascades (Map)                ~100 bytes base
+│  └─ cascade entries (~50 bytes each)
+└─ frame tracking variables            ~50 bytes
+
+TOTAL ESTIMATED: ~215 KB (for network with 300 nodes, 1000 links)
+
+WeakMap Advantage:
+  ✓ Automatic cleanup when nodes/links deleted
+  ✓ No manual memory management required
+  ✓ Garbage collector can collect unreachable entries
+  ✓ Zero memory leaks guaranteed
+
+
+CASCADE PROPAGATION PATTERN
+═══════════════════════════════════════════════════════════════════════════════
+
+Intensity Decay Over Hops:
+
+    Hop 0: 1.00   ████████████████████░░░░░░░░░░░░░░░░
+    Hop 1: 0.82   ████████████████░░░░░░░░░░░░░░░░░░░░
+    Hop 2: 0.67   █████████████░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 3: 0.55   ███████████░░░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 4: 0.45   ███████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 5: 0.37   ███████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 6: 0.30   ██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 7: 0.25   █████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    Hop 8: 0.20   ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (stops if <0.1)
+
+Multiplier: nextIntensity = currentIntensity × 0.82
+Max Hops: 8
+Min Intensity to continue: 0.1
+
+Duration Per Node:
+    duration = 0.6 + (depth × 0.1) seconds
+    depth=0 → 0.6s
+    depth=1 → 0.7s
+    depth=8 → 1.4s
+
+
+VISUAL TIMELINE (Single Cascade)
+═══════════════════════════════════════════════════════════════════════════════
+
+Time    Visual Event                           Signal Values
+────────────────────────────────────────────────────────────────────────────
+0.0s    Origin node synergy reaches 0.75       pulse=1.0, flash=1.0
+0.0s    Flash brightens origin                 flashBrightness=1.0
+0.0s    Aura pulses at origin                  auraPulse=0.5
+        
+0.05s   Flash fades at origin                  flashBrightness=0.5
+        Wave travels to neighbor               waveProgress=0.25
+        
+0.1s    Flash gone, main pulse active          flashBrightness=0.0
+        Resonance mix peaks                    resonanceMix=0.8
+        Wave reaches neighbor                  waveProgress=1.0
+        
+0.2s    Pulse strength decreasing              pulse=0.67
+        Neighbor starts flash                  flashBrightness=1.0
+        
+0.3s    Pulse significantly decayed            pulse=0.5
+        Resonance mix declining                resonanceMix=0.5
+        
+0.4s    Pulse nearly complete                  pulse=0.33
+        Aura pulse fading                      auraPulse=0.1
+        
+0.5s    Main pulse nearly gone                 pulse=0.1
+        Signals very smooth                    (EMA decay)
+        
+0.6s    Cascade complete at origin             isActive=false
+        All signals decay to 0                 (EMA smoothing)
+        
+0.7s+   Node ready for next cascade            state→cooled
+
+
+CASCADE DETECTION REQUIREMENTS (SynergyChainReaction_v1)
+═══════════════════════════════════════════════════════════════════════════════
+
+For cascade to trigger on a node, ALL conditions must be met:
+
+1. Synergy Threshold
+   - node.userData.synergyBonus.tier ≥ 0.75 (normalized)
+   - From Week 19 synergy calculation
+
+2. Resonance Similarity Check
+   - Between current node and trigger node
+   - Similarity = 1.0 - |resonanceA - resonanceB|
+   - Must exceed: resonanceSimilarityThreshold (0.6)
+
+3. Personality Compatibility Check
+   - Between current node and trigger node
+   - Compatibility = 1.0 - |harmonyA - harmonyB|
+   - Must exceed: personalityCompatibilityThreshold (0.5)
+
+4. Intensity Threshold
+   - Cascade intensity ≥ minimumIntensity (0.1)
+   - Dies out when dropped below
+
+5. Hop Limit
+   - hopIndex < maxHops (8)
+   - Stops propagation after 8 levels deep
+
+If ANY condition fails, cascade stops propagating through that link.
+
+
+END OF ARCHITECTURE DOCUMENT
+═══════════════════════════════════════════════════════════════════════════════

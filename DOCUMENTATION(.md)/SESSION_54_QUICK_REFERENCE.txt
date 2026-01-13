@@ -1,0 +1,265 @@
+================================================================================
+SESSION 54: CANONICAL BASE VISUAL STATE — QUICK REFERENCE
+================================================================================
+
+THE PROBLEM
+───────────────────────────────────────────────────────────────────────────
+Nodes look correct BEFORE linking.
+Nodes degrade AFTER linking (flattened, proxy-like, aura-dominated).
+
+THE SOLUTION
+───────────────────────────────────────────────────────────────────────────
+Implement immutable BASE_VISUAL_STATE that's restored on every link.
+"Linking is a relationship, not a visual mutation."
+
+Result: Nodes look IDENTICAL before/after linking, only new element is arc FX.
+
+
+KEY FUNCTIONS
+───────────────────────────────────────────────────────────────────────────
+captureBaseVisualState(node)
+  └─ Call on spawn
+  └─ Captures immutable snapshot
+  └─ Stores in userData.baseVisualState (locked)
+
+restoreBaseVisualState(node)
+  └─ Call before linking
+  └─ Restores core to exact base state
+  └─ Undoes any mutations
+  └─ Returns: boolean (success/fail)
+
+applyLinkFXOnly(node, options)
+  └─ Call on linking
+  └─ Adds arc FX without touching core
+  └─ Returns: { success, fxMesh }
+
+assertBaseVisualStateCorrect(node)  [DEV ONLY]
+  └─ Verify core wasn't mutated
+  └─ Returns: { passed, violations: [] }
+
+isolateAndConstrainAura(node)
+  └─ Ensure aura doesn't dominate
+  └─ Opacity ≤ 0.06, renderOrder = -1
+
+enforceCanonicalVisualPriority(node)
+  └─ Enforce strict renderOrder hierarchy
+  └─ AURA: -1, CORE: 0, GLYPHS: 10, LINK_FX: 50, DEBUG: 200
+
+
+USAGE PATTERNS
+───────────────────────────────────────────────────────────────────────────
+
+Pattern 1: Manual (Fine-Grained Control)
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ // On spawn                                                      │
+  │ const node = createNodeGeometry(...);                           │
+  │ captureBaseVisualState(node);  // Lock base state               │
+  │                                                                  │
+  │ // On link                                                       │
+  │ restoreBaseVisualState(sourceNode);                             │
+  │ restoreBaseVisualState(targetNode);                             │
+  │ applyLinkFXOnly(sourceNode);                                    │
+  └─────────────────────────────────────────────────────────────────┘
+
+Pattern 2: Manager (Automatic)
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ const binder = new NodeVisualStateBinder({                      │
+  │   assertMode: true,  // dev assertions                          │
+  │   verbose: true      // detailed logging                        │
+  │ });                                                              │
+  │                                                                  │
+  │ // Register nodes (auto-captures base)                          │
+  │ binder.registerNode(node);                                      │
+  │                                                                  │
+  │ // Handle state changes (auto-restores + adds FX)              │
+  │ binder.onNodeStateChange(node, 'LINKED');                       │
+  └─────────────────────────────────────────────────────────────────┘
+
+Pattern 3: Backward Compatible (Existing Code)
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ // Old code still works! Just uses new logic internally         │
+  │ applyFinalNodeVisualState(node);  // ← No changes needed        │
+  │ const binder = new NodeVisualStateBinder();  // ← Works unchanged│
+  └─────────────────────────────────────────────────────────────────┘
+
+
+VISUAL PRIORITY (STRICT, NO EXCEPTIONS)
+───────────────────────────────────────────────────────────────────────────
+renderOrder -1   ← AURA         (behind everything)
+renderOrder  0   ← CORE         (primary node mesh) ← MUST NOT CHANGE
+renderOrder 10   ← GLYPHS       (symbols, icons)
+renderOrder 50   ← LINK_FX      (arcs, glows) ← NEW: link feedback
+renderOrder 200  ← DEBUG        (debug overlays only)
+
+
+LINKING FLOW
+───────────────────────────────────────────────────────────────────────────
+[User Link Event]
+        │
+        ▼
+[Restore Base Visual State]
+  ├─ Restore color
+  ├─ Restore opacity
+  ├─ Restore depthWrite
+  └─ Restore renderOrder
+        │
+        ▼
+[Ensure Core Integrity]
+  ├─ Core is opaque
+  ├─ Core renderOrder = 0
+  └─ No proxy meshes
+        │
+        ▼
+[Add Link FX Only]
+  ├─ Create arc mesh
+  ├─ renderOrder = 50 (on top)
+  └─ Pure FX, no core touching
+        │
+        ▼
+[Assertion (Dev Mode)]
+  ├─ Core unchanged? ✓
+  ├─ Opacity = 1.0? ✓
+  ├─ renderOrder = 0? ✓
+  └─ Aura ≤ 0.06? ✓
+        │
+        ▼
+[Link Complete]
+✅ Node looks identical + arc FX added
+
+
+BEFORE vs AFTER
+───────────────────────────────────────────────────────────────────────────
+
+BEFORE LINKING (Both v1.0 and v2.0):
+┌──────────────────┐
+│ CORE (RO: 0)     │
+│ Color: 0x00ff00  │
+│ Opacity: 1.0     │
+├──────────────────┤
+│ AURA (RO: -1)    │
+│ Opacity: 0.06    │
+└──────────────────┘
+✅ Correct appearance
+
+
+AFTER LINKING v1.0 (BROKEN):
+┌──────────────────┐
+│ CORE (RO: -1!)   │ ← renderOrder changed!
+│ Color: 0x007700  │ ← Color mutated!
+│ Opacity: 0.5     │ ← Opacity collapsed!
+├──────────────────┤
+│ AURA (RO: 0!)    │ ← Now in front!
+│ Opacity: 0.5     │ ← Aura dominates!
+└──────────────────┘
+❌ DEGRADED: Flattened, proxy-like, broken
+
+
+AFTER LINKING v2.0 (FIXED):
+┌──────────────────┐
+│ CORE (RO: 0)     │ ← UNCHANGED ✅
+│ Color: 0x00ff00  │ ← UNCHANGED ✅
+│ Opacity: 1.0     │ ← UNCHANGED ✅
+├──────────────────┤
+│ AURA (RO: -1)    │ ← UNCHANGED ✅
+│ Opacity: 0.06    │ ← UNCHANGED ✅
+├──────────────────┤
+│ LINK_FX (RO: 50) │ ← NEW: arc FX
+│ Color: 0x00ffff  │
+│ Opacity: 0.5     │
+└──────────────────┘
+✅ IDENTICAL + subtle arc
+
+
+ASSERTIONS (DEV MODE ONLY)
+───────────────────────────────────────────────────────────────────────────
+
+Enable:
+  const binder = new NodeVisualStateBinder({ assertMode: true });
+
+What it checks (automatically on every link):
+  ✓ Core color unchanged?
+  ✓ Core opacity = 1.0?
+  ✓ Core renderOrder = 0?
+  ✓ Core depthWrite = true?
+  ✓ Aura opacity ≤ 0.06?
+  ✓ Aura renderOrder < core?
+
+If violation found:
+  [NodeVisualStateBinder] BASE STATE VIOLATION after linking:
+    - Core color mutated: expected 0xffaa00, got 0xff00ff
+    - Core opacity mutated: expected 1.0, got 0.5
+
+What to do:
+  1. Check what code ran between capture and link
+  2. Find code that mutates core materials
+  3. Remove or fix that code
+  4. Re-run, should pass
+
+
+FILES CHANGED
+───────────────────────────────────────────────────────────────────────────
+/NodeVisualStateBinder.js              ← Complete rewrite (v2.0)
+/NodeVisualStateBinder_OLD_v1.js       ← Backup of old version
+/SESSION_54_CANONICAL_BASE_VISUAL_STATE.md        ← Full docs
+/SESSION_54_INTEGRATION_POINTS.md      ← Where to call functions
+/SESSION_54_ARCHITECTURE_DIAGRAM.txt   ← Visual architecture
+/SESSION_54_CHANGES_SUMMARY.md         ← Detailed changes
+/SESSION_54_EXECUTIVE_SUMMARY.txt      ← Overview
+/SESSION_54_QUICK_REFERENCE.txt        ← This file
+
+
+INTEGRATION CHECKLIST
+───────────────────────────────────────────────────────────────────────────
+- [ ] Review /NodeVisualStateBinder.js
+- [ ] Add captureBaseVisualState() on node spawn
+- [ ] Add restoreBaseVisualState() on link (before FX)
+- [ ] Add applyLinkFXOnly() on link
+- [ ] Update manager initialization
+- [ ] Test before/after linking visuals
+- [ ] Enable assertions in dev mode
+- [ ] Check: no color shift after link
+- [ ] Check: no opacity change after link
+- [ ] Check: glyphs unchanged
+- [ ] Check: aura constrained (≤ 0.06)
+- [ ] Deploy (non-breaking, fully backward compatible)
+
+
+TROUBLESHOOTING
+───────────────────────────────────────────────────────────────────────────
+Q: Node still degrades after linking?
+A: 1. Check captureBaseVisualState() called on spawn
+   2. Check restoreBaseVisualState() called before link FX
+   3. Run assertBaseVisualStateCorrect(node) to find violation
+
+Q: Getting "Base state violated" errors?
+A: Find what code is mutating core after link
+   Check for: material overrides, opacity changes, renderOrder changes
+   Remove or fix that code
+
+Q: FX doesn't appear after linking?
+A: 1. Check applyLinkFXOnly() returned { success: true }
+   2. Check FX mesh renderOrder = 50
+   3. Check FX mesh is child of node
+
+Q: Do I need to change existing code?
+A: No! Fully backward compatible. Just add new calls optional.
+
+Q: Should I use manual or manager pattern?
+A: Use manager (NodeVisualStateBinder) unless you need fine control.
+
+
+ACCEPTANCE CRITERIA
+───────────────────────────────────────────────────────────────────────────
+✅ Node looks identical before and after linking
+✅ Only new element is link arc / subtle FX
+✅ No color shift
+✅ No opacity collapse
+✅ No proxy-looking meshes
+✅ Glyphs unchanged
+✅ Aura constrained and subtle
+✅ All assertions pass in dev mode
+✅ Old code still works (backward compatible)
+✅ Non-breaking deployment
+
+
+================================================================================

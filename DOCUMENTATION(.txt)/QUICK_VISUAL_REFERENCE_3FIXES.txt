@@ -1,0 +1,93 @@
+═══════════════════════════════════════════════════════════════════════════════
+  ATOMA HUDs — THREE SIMPLE UI FIXES ✅ APPLIED
+═══════════════════════════════════════════════════════════════════════════════
+
+WHAT WAS FIXED?
+
+1) CATEGORY HUD
+   ✓ Removed internal "CATEGORIES" title
+   ✓ Moved from top: 20px → top: 10px
+   
+2) NODE INSPECTOR
+   ✓ No title bar (shows data only)
+   ✓ No collapse arrow
+   ✓ Moved from dynamic → top: 170px (hard-coded)
+   
+3) AI AUTOMATION HUD
+   ✓ Changed from bottom: 20px → top: 380px (hard-coded)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+VISUAL RESULT:
+
+    Screen Top (0px)
+    │
+    ├─ 10px padding
+    │
+    ├─ top: 10px  ┌──────────────────────────┐
+    │             │ CATEGORY HUD (Z: 1200)   │
+    │             │ • Input     #FF6B9D      │
+    │             │ • Process   #00D9FF      │
+    │             │ • Integration ...        │
+    │             │ ... (11 more, scrollable)│
+    │             │ [no internal title]      │
+    │             └──────────────────────────┘ ~100-150px
+    │
+    ├─ gap
+    │
+    ├─ top: 170px ┌──────────────────────────┐
+    │             │ NODE INSPECTOR (Z: 1150) │
+    │             │ [Shows on node hover]    │
+    │             │ INPUT                    │
+    │             │ [QNT-ORB-HLD]            │
+    │             │ Energy: ██████░░░░       │
+    │             │ Stability: █████░░░░░░   │
+    │             │ [no title, no arrow]     │
+    │             └──────────────────────────┘ ~150-200px
+    │
+    ├─ gap
+    │
+    ├─ top: 380px ┌──────────────────────────┐
+    │             │ ⚡ AI AUTO (Z: 1140)     │
+    │             │ [Collapsible]            │
+    │             │ Recommendations          │
+    │             │ Status & Stats           │
+    │             └──────────────────────────┘ ~40px (collapsed)
+    │
+    ├─ remaining space
+    │
+    Screen Bottom
+
+═══════════════════════════════════════════════════════════════════════════════
+
+POSITIONING (Hard-Coded, No Dynamics):
+
+    Category HUD:    left: 10px,  top: 10px   (Z: 1200)
+    Node Inspector:  left: 10px,  top: 170px  (Z: 1150)
+    AI Automation:   left: 10px,  top: 380px  (Z: 1140)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FILES CHANGED:
+
+    ✓ _UICategoryLegend3_1.js     (remove title, move up)
+    ✓ NodeInspectOverlay1_0.js    (hard-code position at 170px)
+    ✓ SynergyRecommendationDebugHUD.js  (hard-code position at 380px)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY POINTS:
+
+✓ No legacy HUDs restored
+✓ No new HUDs created
+✓ All positions are hard-coded (no dynamic calculations)
+✓ No gameplay modifications
+✓ Zero performance impact
+✓ Clean vertical stack, no overlaps
+✓ Production ready
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DEPLOYMENT STATUS: ✅ READY
+
+═══════════════════════════════════════════════════════════════════════════════

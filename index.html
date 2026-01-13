@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATOMA - AI Dream Realm</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        overflow: hidden;
+        font-family: 'Courier New', monospace;
+        background: #000;
+      }
+      
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100vh;
+      }
+      
+      #ui {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 100;
+      }
+      
+      #title {
+        position: absolute;
+        top: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 48px;
+        font-weight: bold;
+        color: #00ccdd;
+        text-shadow: 0 0 15px rgba(0, 204, 221, 0.5);
+        letter-spacing: 12px;
+        animation: glow 3s ease-in-out infinite;
+      }
+      
+      #subtitle {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: #6633cc;
+        text-shadow: 0 0 8px rgba(102, 51, 204, 0.4);
+        letter-spacing: 4px;
+        opacity: 0.7;
+      }
+      
+      #instructions {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: #00aa99;
+        font-size: 13px;
+        text-shadow: 0 0 8px rgba(0, 170, 153, 0.3);
+        opacity: 0.6;
+      }
+      
+      #instructions div {
+        margin: 6px 0;
+      }
+      
+      #undo-info {
+        position: absolute;
+        bottom: 160px;
+        left: 30px;
+        text-align: left;
+        color: #ffaa00;
+        font-size: 11px;
+        text-shadow: 0 0 8px rgba(255, 170, 0, 0.3);
+        opacity: 0.7;
+        font-family: 'Courier New', monospace;
+      }
+      
+      #undo-info div {
+        margin: 3px 0;
+      }
+      
+
+      #node-info {
+        position: absolute;
+        top: 140px;
+        right: 30px;
+        text-align: right;
+        color: #00aa99;
+        font-size: 12px;
+        text-shadow: 0 0 8px rgba(0, 170, 153, 0.3);
+        opacity: 0.7;
+        font-family: 'Courier New', monospace;
+      }
+      
+      #node-info div {
+        margin: 4px 0;
+      }
+      
+      .node-type {
+        display: inline-block;
+        padding: 2px 8px;
+        margin-left: 8px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: bold;
+      }
+      
+      .node-input { 
+        background: rgba(0, 221, 255, 0.2); 
+        color: #00ddff;
+      }
+      
+      .node-process { 
+        background: rgba(255, 170, 0, 0.2); 
+        color: #ffaa00;
+      }
+      
+      .node-integration { 
+        background: rgba(0, 255, 136, 0.2); 
+        color: #00ff88;
+      }
+      
+      .node-analytics { 
+        background: rgba(170, 0, 255, 0.2); 
+        color: #aa00ff;
+      }
+      
+      .node-storage { 
+        background: rgba(136, 204, 255, 0.2); 
+        color: #88ccff;
+      }
+      
+      .node-control { 
+        background: rgba(255, 0, 136, 0.2); 
+        color: #ff0088;
+      }
+      
+      @keyframes glow {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+      }
+      
+      #crosshair {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 24px;
+        height: 24px;
+        pointer-events: none;
+        z-index: 1000;
+      }
+      
+      .crosshair-dot {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: #00ccff;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 6px rgba(0, 204, 255, 0.6), 0 0 12px rgba(0, 204, 255, 0.3);
+        opacity: 0.7;
+        transition: all 0.3s ease-out;
+      }
+      
+      .crosshair-plus {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+      }
+      
+      .crosshair-horizontal, .crosshair-vertical {
+        position: absolute;
+        background: linear-gradient(to right, transparent, #00ccff, transparent);
+        opacity: 0.6;
+      }
+      
+      .crosshair-horizontal {
+        width: 12px;
+        height: 1px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      
+      .crosshair-vertical {
+        width: 1px;
+        height: 12px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      
+      #crosshair.targeting .crosshair-dot {
+        box-shadow: 0 0 12px rgba(0, 204, 255, 0.9), 0 0 24px rgba(0, 204, 255, 0.6), inset 0 0 8px rgba(0, 204, 255, 0.4);
+        opacity: 1;
+      }
+      
+      #crosshair.targeting .crosshair-horizontal,
+      #crosshair.targeting .crosshair-vertical {
+        opacity: 0.9;
+        background: linear-gradient(to right, transparent, #00ffff, transparent);
+      }
+      
+      @keyframes crosshair-pulse {
+        0% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+        50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+      }
+      
+      @keyframes crosshair-warning-pulse {
+        0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.8; }
+        25% { transform: translate(-50%, -50%) scale(1.15) rotate(-2deg); opacity: 1; }
+        50% { transform: translate(-50%, -50%) scale(1) rotate(2deg); opacity: 0.8; }
+        75% { transform: translate(-50%, -50%) scale(1.15) rotate(-2deg); opacity: 1; }
+        100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.8; }
+      }
+      
+      #crosshair.link-feedback {
+        animation: crosshair-pulse 0.4s ease-out;
+      }
+      
+      #crosshair.link-feedback.link-feedback-warning {
+        animation: crosshair-warning-pulse 0.4s ease-out;
+      }
+      
+      #crosshair.link-feedback-warning .crosshair-dot {
+        box-shadow: 0 0 8px rgba(255, 68, 68, 0.8), 0 0 16px rgba(255, 68, 68, 0.5) !important;
+        background: #ff4444 !important;
+      }
+      
+      #crosshair.link-feedback-warning .crosshair-horizontal,
+      #crosshair.link-feedback-warning .crosshair-vertical {
+        background: linear-gradient(to right, transparent, #ff4444, transparent) !important;
+        opacity: 0.9 !important;
+      }
+      
+      /* Hide thin cyan progress bar / loading indicator (height 1-2px) */
+      div[style*="height: 1px"],
+      div[style*="height: 2px"] {
+        display: none !important;
+      }w
+      
+      /* ============================================================================
+         SESSION 106+: HIDE OVERLAY TEXT ELEMENTS
+         ============================================================================
+         Remove ATOMA title, mode subtitle, and node counter from UI
+         Keeps all functionality and state intact - display only
+      */
+      #title {
+        display: none !important;
+      }
+      
+      #subtitle {
+        display: none !important;
+      }
+      
+      #node-status {
+        display: none !important;
+      }
+      
+      @media (max-width: 768px) {
+        #title {
+          font-size: 32px;
+          letter-spacing: 6px;
+        }
+        #subtitle {
+          font-size: 12px;
+        }
+        #instructions {
+          font-size: 11px;
+          bottom: 120px;
+        }
+        #node-info {
+          top: auto;
+          bottom: 280px;
+          right: 20px;
+          font-size: 10px;
+        }
+        #link-info {
+          top: auto;
+          bottom: 420px;
+          left: 20px;
+          font-size: 10px;
+        }
+        #link-stats {
+          bottom: 320px;
+          left: 20px;
+          font-size: 9px;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://esm.sh/three@0.160.0",
+          "three/": "https://esm.sh/three@0.160.0/",
+          "tone": "https://esm.sh/tone@14.7.77"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="ui">
+      <div id="crosshair">
+        <div class="crosshair-dot"></div>
+        <div class="crosshair-plus">
+          <div class="crosshair-horizontal"></div>
+          <div class="crosshair-vertical"></div>
+        </div>
+      </div>
+      <div id="title">ATOMA</div>
+      <div id="subtitle">DREAM DESERT MODE</div>
+      <div id="instructions">
+        <div>WASD - MOVE | MOUSE - LOOK | SPACE - JUMP | M - SWITCH MODE</div>
+        <div>CLICK node A, then node B to link • RIGHT CLICK links for menu</div>
+        <div>Crosshair brightens when targeting nodes • ESC - Deselect</div>
+        <div style="color: #ffaa00; margin-top: 12px;">CTRL+Z - Undo | CTRL+SHIFT+Z / CTRL+Y - Redo</div>
+      </div>
+      
+      <div id="undo-info">
+        <div>HISTORY:</div>
+        <div id="undo-count">Undo: 0</div>
+        <div id="redo-count">Redo: 0</div>
+      </div>
+
+      <div id="node-info">
+        <div id="node-status">AI NODES: 0/0 ACTIVE</div>
+        <div id="node-types"></div>
+      </div>
+    </div>
+    
+    <!-- [BOOT] MAIN APPLICATION MODULE (Session 105 - Stability Fix) -->
+    <script type="module">
+      console.log('[BOOT] index.html loading main.js module...');
+    </script>
+    <script type="module" src="./main.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ChatManager.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ImageGenerator.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ProgressLogger.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/OGP.js"></script>
+  </body>
+</html>
+console.log("SANITY OK");

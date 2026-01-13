@@ -1,0 +1,317 @@
+================================================================================
+SESSION 54: CANONICAL BASE VISUAL STATE ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SYSTEM ARCHITECTURE                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                            USER ACTION: LINK NODES
+                                    │
+                                    ▼
+                    ┌─────────────────────────────┐
+                    │  LinkingSystem.js (or sim)  │
+                    │  onNodeLinked(A, B)         │
+                    └────────────┬────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ▼                         ▼
+        ┌─────────────────────────┐ ┌─────────────────────────┐
+        │ restoreBaseVisualState  │ │ applyLinkFXOnly         │
+        │ (Undo mutations)        │ │ (Add arc, glow)         │
+        └────┬────────────────────┘ └────┬────────────────────┘
+             │                           │
+             │ Restores:                 │ Creates:
+             │  - Color                  │  - Arc mesh
+             │  - Opacity                │  - Glow material
+             │  - depthWrite             │  - renderOrder 50
+             │  - renderOrder            │
+             │                           │
+             └────────────┬──────────────┘
+                          │
+                          ▼
+                ┌───────────────────────┐
+                │   Node.userData       │
+                │ baseVisualState       │
+                │ (immutable snapshot)  │
+                └───────────────────────┘
+                          │
+                          ▼
+                ┌──────────────────────────────────┐
+                │ assertBaseVisualStateCorrect     │
+                │ (Dev mode: verify no mutation)   │
+                └──────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          NODE VISUAL STATE                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+BEFORE LINKING:
+┌─────────────────────────────────────────────────────┐
+│ Node Group (THREE.Group)                            │
+│                                                      │
+│  ├─ CORE Mesh (renderOrder: 0)                      │
+│  │  ├─ Geometry: Sphere/Cube/etc.                   │
+│  │  └─ Material:                                    │
+│  │     ├─ Color: 0x00ff00 (green)                  │
+│  │     ├─ Opacity: 1.0                             │
+│  │     ├─ depthWrite: true                         │
+│  │     └─ transparent: false                       │
+│  │                                                  │
+│  ├─ GLYPHS Group (renderOrder: 10)                 │
+│  │  └─ Symbol meshes (icons, emblems)              │
+│  │                                                  │
+│  └─ AURA Mesh (renderOrder: -1)                    │
+│     ├─ Geometry: Ring/Torus                        │
+│     └─ Material:                                   │
+│        ├─ Color: 0xffffff (white)                 │
+│        ├─ Opacity: 0.06 (6% max)                  │
+│        ├─ depthWrite: false                       │
+│        └─ transparent: true                       │
+│                                                    │
+│  userData:                                          │
+│  ├─ nodeId: "node-a"                              │
+│  ├─ color: 0x00ff00                               │
+│  └─ baseVisualState:                              │
+│     ├─ coreMeshId: "uuid-xxxxx"                   │
+│     ├─ coreMaterial: { color: 0x00ff00, ...}      │
+│     ├─ auraOpacity: 0.06                          │
+│     └─ capturedAt: 1234567890                     │
+└─────────────────────────────────────────────────────┘
+
+
+AFTER LINKING (v2.0 — CANONICAL):
+┌─────────────────────────────────────────────────────┐
+│ Node Group (THREE.Group)                            │
+│                                                      │
+│  ├─ CORE Mesh (renderOrder: 0) ✅ UNCHANGED        │
+│  │  ├─ Geometry: Sphere/Cube/etc.                   │
+│  │  └─ Material:                                    │
+│  │     ├─ Color: 0x00ff00 (green) ✅ SAME          │
+│  │     ├─ Opacity: 1.0 ✅ SAME                     │
+│  │     ├─ depthWrite: true ✅ SAME                 │
+│  │     └─ transparent: false ✅ SAME               │
+│  │                                                  │
+│  ├─ GLYPHS Group (renderOrder: 10) ✅ UNCHANGED   │
+│  │  └─ Symbol meshes (icons, emblems)              │
+│  │                                                  │
+│  ├─ AURA Mesh (renderOrder: -1) ✅ UNCHANGED      │
+│  │  ├─ Geometry: Ring/Torus                        │
+│  │  └─ Material:                                   │
+│  │     ├─ Color: 0xffffff (white) ✅ SAME         │
+│  │     ├─ Opacity: 0.06 ✅ SAME                   │
+│  │     ├─ depthWrite: false ✅ SAME               │
+│  │     └─ transparent: true ✅ SAME                │
+│  │                                                  │
+│  └─ LINK_FX Mesh (renderOrder: 50) ✅ NEW!        │
+│     ├─ Geometry: Bezier curve                      │
+│     └─ Material:                                   │
+│        ├─ Color: 0x00ffff (cyan)                  │
+│        ├─ Opacity: 0.5                            │
+│        ├─ Emissive: glow                          │
+│        └─ transparent: true                       │
+│                                                    │
+│  userData:                                          │
+│  ├─ nodeId: "node-a"                              │
+│  ├─ state: "LINKED" (was UNLINKED)                │
+│  ├─ linkedNodes: [node-b]                         │
+│  ├─ linkFXMesh: (reference)                       │
+│  ├─ visualStateRestoredAt: 1234567999             │
+│  └─ baseVisualState: (unchanged)                  │
+└─────────────────────────────────────────────────────┘
+
+RESULT: ✅ IDENTICAL CORE + NEW FX LAYER
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     RENDERORDER HIERARCHY                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+From Bottom (back) to Top (front):
+
+renderOrder -1  ┌──────────┐
+                │  AURA    │  ← Behind everything (subtle frame)
+                └──────────┘
+
+renderOrder 0   ┌──────────┐
+                │  CORE    │  ← PRIMARY NODE MESH (always visible)
+                └──────────┘
+
+renderOrder 10  ┌──────────┐
+                │  GLYPHS  │  ← Icons, symbols on top of core
+                └──────────┘
+
+renderOrder 50  ┌──────────┐
+                │ LINK_FX  │  ← Arcs, glows connecting nodes
+                └──────────┘
+
+renderOrder 200 ┌──────────┐
+                │  DEBUG   │  ← Debug overlays (dev only)
+                └──────────┘
+
+Priority Rule: Lower number = rendered first (behind), higher = rendered last (on top)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       VISUAL STATE FLOW                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+NODE SPAWN:
+┌─────────────────────────┐
+│ createNode()            │
+└────────┬────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ captureBaseVisualState(node)            │
+│ ✅ Immutable snapshot captured          │
+│    - Core geometry                      │
+│    - Core material (color, opacity...)  │
+│    - renderOrder                        │
+│    - Aura state                         │
+└────────┬────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│ node.userData.baseVisualState = {       │
+│   coreMeshId: "uuid-xxxxx",             │
+│   coreMaterial: { color, opacity, ... },│
+│   auraOpacity: 0.06,                    │
+│   capturedAt: timestamp                 │
+│ }                                       │
+│ ✅ LOCKED: Object.defineProperty        │
+│    writable: false                      │
+│    configurable: false                  │
+└────────────────────────────────────────┘
+
+Node is now READY and PROTECTED from mutations.
+
+
+LINK EVENT:
+┌──────────────────────────────┐
+│ onNodeLinked(node, target)   │
+└────────┬─────────────────────┘
+         │
+         ├─ Step 1: Restore
+         │  ┌────────────────────────────────┐
+         │  │ restoreBaseVisualState(node)   │
+         │  │ Restore core to EXACT base:    │
+         │  │  - Color: 0x00ff00 ← from base │
+         │  │  - Opacity: 1.0 ← from base    │
+         │  │  - depthWrite: true ← from base│
+         │  │  - renderOrder: 0 ← from base  │
+         │  └────────────┬───────────────────┘
+         │               │
+         │  Step 2: Ensure Integrity
+         │  ┌────────────▼───────────────────┐
+         │  │ ensureCoreVisualIntegrity()    │
+         │  │  - Core is opaque              │
+         │  │  - renderOrder = 0             │
+         │  │  - No proxy meshes             │
+         │  └────────────┬───────────────────┘
+         │               │
+         │  Step 3: Add FX
+         │  ┌────────────▼───────────────────┐
+         │  │ applyLinkFXOnly(node)          │
+         │  │  - Create arc mesh             │
+         │  │  - renderOrder = 50 (on top)   │
+         │  │  - Pure FX, no core touching   │
+         │  └────────────┬───────────────────┘
+         │               │
+         │  Step 4: Assert (dev)
+         │  ┌────────────▼──────────────────────┐
+         │  │ assertBaseVisualStateCorrect()    │
+         │  │  - Color unchanged? ✓             │
+         │  │  - Opacity unchanged? ✓           │
+         │  │  - renderOrder unchanged? ✓       │
+         │  │  - Aura opacity ≤ 0.06? ✓        │
+         │  └────────────┬──────────────────────┘
+         │               │
+         └───────────────┤
+                         │
+                         ▼
+            ┌────────────────────────┐
+            │ LINK COMPLETE          │
+            │ ✅ Node identical      │
+            │ ✅ Arc added           │
+            │ ✅ Mutations prevented │
+            └────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         API CALL GRAPH                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+User Code:
+┌─────────────────────────┐
+│ linking.createLink()    │
+└────────┬────────────────┘
+         │
+         ├─────► captureBaseVisualState(node)
+         │       └─ Stores immutable snapshot
+         │
+         ├─────► restoreBaseVisualState(node)
+         │       ├─ Restores core material
+         │       ├─ Restores opacity
+         │       ├─ Restores renderOrder
+         │       └─ Returns: boolean
+         │
+         ├─────► applyLinkFXOnly(node)
+         │       ├─ Calls: restoreBaseVisualState() [redundant but safe]
+         │       ├─ Calls: ensureCoreVisualIntegrity()
+         │       ├─ Calls: createLinkArcFX()
+         │       └─ Returns: { success, fxMesh }
+         │
+         └─────► assertBaseVisualStateCorrect(node) [dev only]
+                 ├─ Checks: core material unchanged
+                 ├─ Checks: core opacity = 1.0
+                 ├─ Checks: renderOrder = 0
+                 ├─ Checks: aura opacity ≤ 0.06
+                 └─ Returns: { passed, violations }
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      STATE MACHINE                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+UNLINKED STATE:
+┌─────────────────────┐
+│ Normal node         │
+│ - Core visible      │
+│ - Aura subtle       │
+│ - No FX             │
+└──────────┬──────────┘
+           │ link event
+           ▼
+         [LINKING]
+           │
+    Restore base state
+    Ensure integrity
+    Add FX
+    Assert correct
+           │
+           ▼
+LINKED STATE:
+┌─────────────────────┐
+│ Linked node         │
+│ - Core UNCHANGED    │
+│ - Aura UNCHANGED    │
+│ - Arc FX added      │
+│ - visually IDENTICAL│
+└─────────────────────┘
+           │ unlink event (future)
+           ▼
+         [UNLINKING]
+           │
+    Remove FX
+    Restore base
+           │
+           ▼
+UNLINKED STATE (same as before linking)
+
+Result: ✅ Linking doesn't mutate, FX is separate
+
+
+================================================================================

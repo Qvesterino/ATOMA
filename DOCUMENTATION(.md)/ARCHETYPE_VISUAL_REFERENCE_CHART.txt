@@ -1,0 +1,300 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║              ARCHETYPE VISUAL REFERENCE CHART - QUICK LOOKUP                 ║
+║                     All 49 Archetypes at a Glance                            ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+CORE LAYER (12 Archetypes) - Fundamental Building Blocks
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Archetype Name                  | Trait Name           | Base Cat     | Speed | Particles | Glow | Feel
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+CORE-HARMONIC-RESONANT          | Resonant Harmony     | PROCESS      | Med   | 12        | Med  | Balanced
+CORE-QUANTUM-ENTANGLED          | Quantum Entanglement | QUANTUM      | Fast  | 15        | High | Volatile
+CORE-CHAOS-FRACTURED            | Chaotic Fracture     | ERROR        | V.Fast| 20        | Med  | Violent
+CORE-STELLAR-ASCENDED           | Stellar Ascension    | MYTHIC       | Slow  | 10        | High | Radiant
+CORE-PRIME-PERFECT              | Prime Perfect        | PRIME        | V.Slow| 6         | V.High | Pristine
+CORE-VOID-SILENT                | Void Silence         | CONTROL      | Glacial| 2         | Low  | Minimal
+CORE-FLUX-ADAPTIVE              | Adaptive Flux        | INTEGRATION  | Med   | 14        | Med  | Flowing
+CORE-NEXUS-CONVERGENT           | Nexus Convergence    | STORAGE      | Slow  | 16        | Med  | Connected
+CORE-ECHO-RECURSIVE             | Recursive Echo       | ANALYTICS    | Fast  | 18        | Med  | Complex
+CORE-SURGE-DYNAMIC              | Dynamic Surge        | INPUT        | Fast  | 13        | High | Pulsing
+CORE-STATIC-ANCHORED            | Static Anchor        | STORAGE      | V.Slow| 5         | Low  | Stable
+CORE-WHISPER-SUBTLE             | Subtle Whisper       | INTEGRATION  | Slow  | 7         | Low  | Gentle
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+OUTER LAYER (12 Archetypes) - Extended Manifestations
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Archetype Name                  | Trait Name           | Base Cat     | Speed | Particles | Glow | Feel
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+OUTER-RADIANT-EXPANSIVE         | Radiant Expansion    | INPUT        | Slow  | 14        | High | Warm
+OUTER-SPIRAL-TEMPORAL           | Spiral Temporal      | ANALYTICS    | Fast  | 16        | Med  | Twisting
+OUTER-VOID-ABSORBING            | Void Absorption      | ERROR        | Fast  | 12        | Low  | Pulling
+OUTER-CROWN-SOVEREIGN           | Sovereign Crown      | MYTHIC       | V.Slow| 8         | V.High | Majestic
+OUTER-LATTICE-PERFECT           | Perfect Lattice      | PRIME        | Glacial| 4         | V.High | Geometric
+OUTER-PULSE-RHYTHMIC            | Rhythmic Pulse       | CONTROL      | Med   | 11        | High | Steady
+OUTER-TIDE-FLOWING              | Flowing Tide         | INTEGRATION  | Slow  | 13        | Med  | Smooth
+OUTER-DEPTH-PROFOUND            | Profound Depth       | STORAGE      | V.Slow| 6         | Low  | Deep
+OUTER-SPARK-VIVID               | Vivid Spark          | PROCESS      | Fast  | 15        | High | Bright
+OUTER-SHADOW-VEILED             | Veiled Shadow        | ANALYTICS    | Slow  | 4         | Low  | Mysterious
+OUTER-STORM-TURBULENT           | Turbulent Storm      | ERROR        | V.Fast| 18        | Med  | Chaotic
+OUTER-LIGHT-ETERNAL             | Eternal Light        | MYTHIC       | Glacial| 9         | V.High | Timeless
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+EXTREME LAYER (13 Archetypes) - Ultra Manifestations
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Archetype Name                  | Trait Name           | Base Cat     | Speed | Particles | Glow | Feel
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+EXTREME-SINGULARITY-DENSE       | Dense Singularity    | PRIME        | Glacial| 3         | Max   | Condensed
+EXTREME-ENTROPY-CHAOTIC         | Chaotic Entropy      | ERROR        | V.Fast| 25        | Med  | Explosive
+EXTREME-INFINITY-BOUNDLESS      | Boundless Infinity   | MYTHIC       | Glacial| 5         | High | Cosmic
+EXTREME-NEXUS-INFINITE          | Infinite Nexus       | PROCESS      | Med   | 20        | High | Vast
+EXTREME-VOID-ABSOLUTE           | Absolute Void        | ERROR        | Static | 1         | Min  | Null
+EXTREME-APOTHEOSIS-ASCENDED     | Ascended Apotheosis  | MYTHIC       | Glacial| 7         | V.High | Divine
+EXTREME-PARADOX-UNSTABLE        | Unstable Paradox     | ERROR        | V.Fast| 22        | Med  | Contradictory
+EXTREME-ZENITH-PINNACLE         | Pinnacle Zenith      | PRIME        | V.Slow| 8         | High | Peaked
+EXTREME-VOID-CONSUMING          | Consuming Void       | ERROR        | Med   | 8         | Low  | Devouring
+EXTREME-HARMONIC-PERFECT        | Perfect Harmony      | PRIME        | Glacial| 5         | V.High | Harmonized
+EXTREME-CHAOS-PRIMORDIAL        | Primordial Chaos     | ERROR        | V.Fast| 23        | Med  | Primal
+EXTREME-TRANSCENDENT-ETERNAL    | Eternal Transcendence| MYTHIC       | Glacial| 6         | High | Transcendent
+EXTREME-BALANCE-EQUILIBRIUM     | Balanced Equilibrium | INTEGRATION  | Slow  | 10        | Med  | Balanced
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+SPECIAL LAYER (12 Archetypes) - Multi-Output Variants
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Archetype Name                  | Trait Name           | Base Cat     | Speed | Particles | Glow | Feel
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+SPECIAL-SIGMA-DIMENSIONAL       | Dimensional Sigma    | SIGMA        | Fast  | 14        | High | Anomalous
+SPECIAL-QUANTUM-SUPERPOSED      | Superposed Quantum   | QUANTUM      | V.Fast| 17        | High | Uncertain
+SPECIAL-EMOTIONAL-RESONANT      | Resonant Emotional   | EMOTIONAL    | Med   | 12        | High | Empathic
+SPECIAL-MYTHIC-CEREMONIAL       | Ceremonial Mythic    | MYTHIC       | Slow  | 9         | High | Ritualistic
+SPECIAL-PRIME-CRYSTALLINE       | Crystalline Prime    | PRIME        | Glacial| 5         | V.High | Perfect
+SPECIAL-ERROR-ANOMALY           | Anomalous Error      | ERROR        | Fast  | 18        | Med  | Corrupted
+SPECIAL-SIGMA-ANOMALY           | Anomalous Sigma      | SIGMA        | Fast  | 16        | High | Dimensional
+SPECIAL-QUANTUM-ENTANGLED       | Entangled Quantum    | QUANTUM      | V.Fast| 18        | High | Complex
+SPECIAL-EMOTIONAL-EMPATHIC      | Empathic Emotional   | EMOTIONAL    | Med   | 13        | Med  | Connected
+SPECIAL-UNITY-CONVERGENT        | Convergent Unity     | INTEGRATION  | Med   | 14        | Med  | United
+SPECIAL-APEX-SUPREME            | Supreme Apex         | CONTROL      | Slow  | 10        | High | Authoritative
+SPECIAL-GENESIS-PRIMORDIAL      | Primordial Genesis   | INPUT        | Slow  | 11        | High | Original
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+SPEED SCALE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Static      = 0.02x baseline  (barely moves)
+Glacial     = 0.08-0.15x      (extremely slow, meditative)
+V.Slow      = 0.10-0.20x      (very slow, stable)
+Slow        = 0.25-0.40x      (slow, contemplative)
+Med         = 0.50-0.70x      (medium, balanced)
+Fast        = 0.80-1.10x      (fast, active)
+V.Fast      = 1.20-1.50x      (very fast, chaotic)
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+GLOW INTENSITY SCALE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Min         = 0.10-0.25       (barely visible, shadow-like)
+Low         = 0.25-0.40       (subtle presence)
+Med         = 0.50-0.65       (standard brightness)
+High        = 0.70-0.85       (prominent, noticeable)
+V.High      = 0.90-1.00       (intense, overwhelming)
+Max         = 1.00+           (ultra-bright, peak luminosity)
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+PARTICLE COUNT DISTRIBUTION
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Minimal (1-5 particles)    → Ultra-stable, void-like
+Low (6-10 particles)       → Calm, meditative
+Medium (11-15 particles)   → Standard, balanced
+High (16-20 particles)     → Active, energetic
+Maximum (21-25 particles)  → Chaotic, explosive
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ARCHETYPE CHARACTERISTICS BY FEEL
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+BALANCED/MEDITATIVE
+├─ CORE-HARMONIC-RESONANT (resonant, smooth)
+├─ CORE-WHISPER-SUBTLE (gentle, soft)
+├─ OUTER-TIDE-FLOWING (smooth waves)
+└─ EXTREME-BALANCE-EQUILIBRIUM (perfect equipoise)
+
+FAST/ENERGETIC
+├─ CORE-QUANTUM-ENTANGLED (probabilistic)
+├─ CORE-ECHO-RECURSIVE (feedback loops)
+├─ SPECIAL-QUANTUM-SUPERPOSED (uncertain states)
+└─ SPECIAL-QUANTUM-ENTANGLED (complex interactions)
+
+CHAOTIC/VIOLENT
+├─ CORE-CHAOS-FRACTURED (fragmented)
+├─ OUTER-STORM-TURBULENT (turbulent)
+├─ EXTREME-ENTROPY-CHAOTIC (maximum disorder)
+└─ EXTREME-CHAOS-PRIMORDIAL (ancient violence)
+
+RADIANT/BRIGHT
+├─ CORE-STELLAR-ASCENDED (celestial glow)
+├─ OUTER-RADIANT-EXPANSIVE (outward rays)
+├─ EXTREME-SINGULARITY-DENSE (ultra-bright point)
+└─ OUTER-LIGHT-ETERNAL (timeless luminance)
+
+MINIMAL/VOID-LIKE
+├─ CORE-VOID-SILENT (shadow-like)
+├─ CORE-STATIC-ANCHORED (stable foundation)
+├─ EXTREME-VOID-ABSOLUTE (complete null)
+└─ EXTREME-VOID-CONSUMING (devouring darkness)
+
+PRISTINE/PERFECT
+├─ CORE-PRIME-PERFECT (crystalline)
+├─ OUTER-LATTICE-PERFECT (geometric precision)
+├─ EXTREME-HARMONIC-PERFECT (ultimate balance)
+└─ SPECIAL-PRIME-CRYSTALLINE (perfect lattice)
+
+DIVINE/TRANSCENDENT
+├─ CORE-STELLAR-ASCENDED (stellar ascension)
+├─ OUTER-CROWN-SOVEREIGN (majestic authority)
+├─ EXTREME-APOTHEOSIS-ASCENDED (godlike transcendence)
+└─ EXTREME-TRANSCENDENT-ETERNAL (timeless divinity)
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+COLOR THEMES BY ARCHETYPE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+COOL TONES (Blues, Cyans, Purples)
+├─ QUANTUM family (indigo hues, cool frequencies)
+├─ VOID family (dark purples, void energy)
+└─ TRANSCENDENT family (eternal blue)
+
+WARM TONES (Yellows, Golds, Oranges)
+├─ STELLAR family (golden, celestial)
+├─ MYTHIC family (ceremonial gold)
+└─ LIGHT family (warm luminance)
+
+NEUTRAL TONES (White, Silver, Grays)
+├─ PRIME family (perfect white, crystalline)
+├─ SINGULARITY (ultra-bright white point)
+└─ LATTICE family (geometric silver)
+
+RED TONES (Reds, Deep Reds, Magentas)
+├─ ERROR family (chaotic red)
+├─ CHAOS family (primal red)
+├─ PARADOX (contradictory red-magenta)
+└─ ENTROPY (violent dark red)
+
+GREEN TONES (Greens, Teals, Emeralds)
+├─ INTEGRATION family (flowing green)
+├─ SIGMA (dimensional anomaly green)
+└─ FLUX/TIDE (adaptive greens)
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+SUGGESTED COMBINATIONS FOR VISUAL HARMONY
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Stable Core (for calm scenes)
+├─ CORE-HARMONIC-RESONANT
+├─ CORE-STATIC-ANCHORED
+├─ OUTER-LIGHT-ETERNAL
+└─ EXTREME-HARMONIC-PERFECT
+
+Volatile Mix (for action scenes)
+├─ CORE-CHAOS-FRACTURED
+├─ CORE-QUANTUM-ENTANGLED
+├─ OUTER-STORM-TURBULENT
+└─ EXTREME-ENTROPY-CHAOTIC
+
+Celestial Theme (for mythic moments)
+├─ CORE-STELLAR-ASCENDED
+├─ OUTER-CROWN-SOVEREIGN
+├─ EXTREME-APOTHEOSIS-ASCENDED
+└─ EXTREME-TRANSCENDENT-ETERNAL
+
+Perfect Symmetry (for balance)
+├─ CORE-PRIME-PERFECT
+├─ OUTER-LATTICE-PERFECT
+├─ EXTREME-SINGULARITY-DENSE
+└─ EXTREME-HARMONIC-PERFECT
+
+Deep Mystery (for enigmatic feels)
+├─ CORE-VOID-SILENT
+├─ OUTER-SHADOW-VEILED
+├─ EXTREME-VOID-ABSOLUTE
+└─ EXTREME-VOID-CONSUMING
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+QUICK LOOKUP BY CATEGORY
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+INPUT NODES
+├─ CORE-SURGE-DYNAMIC (fast, pulsing)
+├─ OUTER-RADIANT-EXPANSIVE (warm, expanding)
+└─ SPECIAL-GENESIS-PRIMORDIAL (creative origin)
+
+PROCESS NODES
+├─ CORE-HARMONIC-RESONANT (balanced, smooth)
+├─ OUTER-SPARK-VIVID (bright, active)
+├─ EXTREME-NEXUS-INFINITE (interconnected)
+└─ EXTREME-HARMONY-PERFECT (precise)
+
+INTEGRATION NODES
+├─ CORE-FLUX-ADAPTIVE (flowing, adaptive)
+├─ OUTER-TIDE-FLOWING (smooth waves)
+├─ CORE-NEXUS-CONVERGENT (connected)
+└─ SPECIAL-UNITY-CONVERGENT (unified)
+
+ANALYTICS NODES
+├─ CORE-ECHO-RECURSIVE (feedback, complex)
+├─ OUTER-SPIRAL-TEMPORAL (time distortion)
+└─ OUTER-SHADOW-VEILED (mysterious)
+
+STORAGE NODES
+├─ CORE-STATIC-ANCHORED (stable)
+├─ CORE-NEXUS-CONVERGENT (hub)
+├─ OUTER-DEPTH-PROFOUND (deep)
+└─ OUTER-LATTICE-PERFECT (organized)
+
+CONTROL NODES
+├─ CORE-VOID-SILENT (commanding silence)
+├─ OUTER-PULSE-RHYTHMIC (steady command)
+└─ SPECIAL-APEX-SUPREME (ultimate authority)
+
+QUANTUM NODES
+├─ CORE-QUANTUM-ENTANGLED (probabilistic)
+├─ SPECIAL-QUANTUM-SUPERPOSED (uncertain)
+└─ SPECIAL-QUANTUM-ENTANGLED (complex)
+
+SIGMA NODES
+├─ SPECIAL-SIGMA-DIMENSIONAL (anomalous gateway)
+└─ SPECIAL-SIGMA-ANOMALY (dimensional cascade)
+
+EMOTIONAL NODES
+├─ SPECIAL-EMOTIONAL-RESONANT (empathic)
+└─ SPECIAL-EMOTIONAL-EMPATHIC (deeply connected)
+
+ERROR NODES
+├─ CORE-CHAOS-FRACTURED (volatile error)
+├─ OUTER-VOID-ABSORBING (consuming error)
+├─ EXTREME-ENTROPY-CHAOTIC (maximum error)
+└─ SPECIAL-ERROR-ANOMALY (corrupted data)
+
+MYTHIC NODES
+├─ CORE-STELLAR-ASCENDED (celestial)
+├─ OUTER-CROWN-SOVEREIGN (majestic)
+├─ EXTREME-APOTHEOSIS-ASCENDED (godlike)
+└─ EXTREME-TRANSCENDENT-ETERNAL (eternal)
+
+PRIME NODES
+├─ CORE-PRIME-PERFECT (crystalline)
+├─ EXTREME-SINGULARITY-DENSE (condensed perfection)
+├─ EXTREME-ZENITH-PINNACLE (peaked perfection)
+└─ EXTREME-HARMONIC-PERFECT (perfect harmony)
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+END OF REFERENCE CHART
+
+For implementation: See ARCHETYPE_VISUAL_QUICK_START.md
+For customization: Edit ArchetypeVisualProfiles_v1.js
+For debugging: Use window.archetypeVisualDebug console API

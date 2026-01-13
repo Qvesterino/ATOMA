@@ -1,0 +1,969 @@
+================================================================================
+HIT PROXY SYSTEM v1.0 — VALIDATION & TEST PROCEDURES
+================================================================================
+
+OBJECTIVE:
+Comprehensive testing suite to validate hit-proxy system correctness,
+safety, and performance.
+
+================================================================================
+TEST CATEGORY 1: INITIALIZATION TESTS
+================================================================================
+
+Test 1.1: System Initialization
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  HitProxyDebug.validate()
+
+Expected:
+  ✅ All checks passed
+  - 15 proxies created
+  - Setup complete: true
+  - Auto-sync enabled: true
+  - Interaction layer: 10
+
+Failure Indicators:
+  ❌ Returns errors
+  ❌ 0 proxies created
+  ❌ Setup incomplete
+
+
+Test 1.2: Proxy Creation Count
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  HitProxyDebug.allProxies().length
+
+Expected:
+  15 (or matching number of nodes in scene)
+
+Failure Indicators:
+  0 proxies (initialization failed)
+  < 15 proxies (some nodes missed)
+
+
+Test 1.3: Proxy Mesh Properties
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const proxy = HitProxyDebug.allProxies()[0];
+  console.log({
+    isProxy: proxy.userData.isHitProxy,
+    visible: proxy.material.visible,
+    opacity: proxy.material.opacity,
+    hasNodeId: !!proxy.userData.targetNodeId
+  });
+
+Expected:
+  {
+    isProxy: true,
+    visible: false,
+    opacity: 0,
+    hasNodeId: true
+  }
+
+Failure Indicators:
+  Any property doesn't match expected value
+
+
+Test 1.4: Registry Integrity
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const proxies = HitProxyDebug.allProxies();
+  let errors = 0;
+  for (const proxy of proxies) {
+    const nodeId = proxy.userData.targetNodeId;
+    if (!nodeId) {
+      console.log('❌ Proxy missing nodeId:', proxy);
+      errors++;
+    }
+  }
+  console.log(`Checked ${proxies.length} proxies, ${errors} errors`);
+
+Expected:
+  Checked 15 proxies, 0 errors
+
+Failure Indicators:
+  Any errors > 0
+
+
+Test 1.5: Auto-Spawn Hook
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Note: This requires spawning a new node
+  // Manually create a new node if possible, then check:
+  const nodeCount = HitProxyDebug.allProxies().length;
+  // Spawn new node (external command)
+  // Wait 100ms
+  const newCount = HitProxyDebug.allProxies().length;
+  console.log(`Before: ${nodeCount}, After: ${newCount}`);
+
+Expected:
+  newCount = nodeCount + 1 (new proxy created)
+
+Failure Indicators:
+  newCount = nodeCount (auto-spawn failed)
+
+================================================================================
+TEST CATEGORY 2: RAYCAST TESTS
+================================================================================
+
+Test 2.1: Center Screen Raycast
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  HitProxyDebug.testRaycast()
+
+Expected:
+  ✓ Raycast hit:
+    Node ID: [some nodeId]
+    Distance: [small number like 5-10]
+    Point: Vector3 {...}
+
+Failure Indicators:
+  ❌ No hit (when should hit)
+  Invalid distance (negative or huge)
+
+
+Test 2.2: Raycast at Specific Position
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Test at empty area (top-left)
+  HitProxyDebug.testRaycast(100, 100)
+
+Expected:
+  ❌ No hit (empty area)
+
+Failure Indicators:
+  ✓ Hit (shouldn't hit empty area)
+
+
+Test 2.3: Multiple Raycast Hits
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const raycaster = window.safeProxyRaycaster;
+  raycaster.setFromCamera({ x: 0, y: 0 }, window.game.camera);
+  const hits = raycaster.intersectObjects(window.hitProxySystem.registry.getAllProxies());
+  console.log(`Hits: ${hits.length}, First: ${hits[0]?.object.userData.targetNodeId}`);
+
+Expected:
+  Hits: 1 or more
+  First: [valid nodeId]
+
+Failure Indicators:
+  Hits: 0
+  First: undefined
+
+
+Test 2.4: Raycast Distance Ordering
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const raycaster = window.safeProxyRaycaster;
+  raycaster.setFromCamera({ x: 0, y: 0 }, window.game.camera);
+  const hits = raycaster.intersectObjects(window.hitProxySystem.registry.getAllProxies());
+  
+  let ordered = true;
+  for (let i = 1; i < hits.length; i++) {
+    if (hits[i].distance < hits[i-1].distance) {
+      ordered = false;
+      break;
+    }
+  }
+  console.log(`Hits ordered by distance: ${ordered}`);
+
+Expected:
+  Hits ordered by distance: true
+
+Failure Indicators:
+  false (ordering incorrect)
+
+
+Test 2.5: Raycast Result Structure
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const nodeId = HitProxyDebug.testRaycast();
+  const raycaster = window.safeProxyRaycaster;
+  raycaster.setFromCamera({ x: 0, y: 0 }, window.game.camera);
+  const hits = window.hitProxySystem.raycast(raycaster, window.game.camera);
+  const result = hits[0];
+  
+  console.log({
+    hasObject: !!result.object,
+    hasDistance: !!result.distance,
+    hasPoint: !!result.point,
+    hasNodeId: !!result.nodeId,
+    isProxySafe: result.object?.userData?.isHitProxy
+  });
+
+Expected:
+  {
+    hasObject: true,
+    hasDistance: true,
+    hasPoint: true,
+    hasNodeId: true,
+    isProxySafe: true
+  }
+
+Failure Indicators:
+  Any false value
+
+================================================================================
+TEST CATEGORY 3: POSITION SYNC TESTS
+================================================================================
+
+Test 3.1: Initial Position Sync
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const node = game.aiNodes.nodes[0];
+  const proxy = window.hitProxySystem.registry.getProxy(node.userData.nodeId);
+  
+  console.log({
+    nodePos: { x: node.position.x.toFixed(2), 
+               y: node.position.y.toFixed(2), 
+               z: node.position.z.toFixed(2) },
+    proxyPos: { x: proxy.position.x.toFixed(2), 
+                y: proxy.position.y.toFixed(2), 
+                z: proxy.position.z.toFixed(2) },
+    synced: node.position.equals(proxy.position)
+  });
+
+Expected:
+  synced: true (positions match)
+
+Failure Indicators:
+  synced: false (positions don't match)
+
+
+Test 3.2: Continuous Position Sync
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Test position update over 5 frames
+  const node = game.aiNodes.nodes[0];
+  const nodeId = node.userData.nodeId;
+  const initialPos = node.position.clone();
+  
+  // Manually move node
+  node.position.x += 5;
+  
+  // Call sync
+  window.hitProxySystem.update(0.016);
+  
+  const proxy = window.hitProxySystem.registry.getProxy(nodeId);
+  console.log({
+    nodeMoved: !node.position.equals(initialPos),
+    proxyFollowed: proxy.position.equals(node.position)
+  });
+
+Expected:
+  {
+    nodeMoved: true,
+    proxyFollowed: true
+  }
+
+Failure Indicators:
+  proxyFollowed: false (sync failed)
+
+
+Test 3.3: Position Array Consistency
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Check all proxies are synced
+  window.hitProxySystem.update(0.016);
+  
+  let unsyncedCount = 0;
+  for (const node of game.aiNodes.nodes) {
+    const nodeId = node.userData.nodeId;
+    const proxy = window.hitProxySystem.registry.getProxy(nodeId);
+    if (proxy && !node.position.equals(proxy.position)) {
+      unsyncedCount++;
+      console.log(`Unsynced: ${nodeId}`);
+    }
+  }
+  console.log(`Unsynced proxies: ${unsyncedCount}`);
+
+Expected:
+  Unsynced proxies: 0
+
+Failure Indicators:
+  > 0 unsynced proxies
+
+================================================================================
+TEST CATEGORY 4: INTERACTION TESTS
+================================================================================
+
+Test 4.1: Node Selection on Click
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Point crosshair at visible node
+  2. Click mouse
+  3. Check if node is selected
+
+Expected:
+  - Node highlighted/selected
+  - UI shows selected node info
+  - Crosshair brightens
+
+Failure Indicators:
+  - Node not selected
+  - Wrong node selected
+  - No visual feedback
+
+
+Test 4.2: Multi-Node Selection Accuracy
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Click on different nodes one by one
+  2. Verify each selects correctly
+
+Expected:
+  - Each click selects the correct node
+  - Selection changes smooth
+  - No errors in console
+
+Failure Indicators:
+  - Wrong node selected
+  - Inconsistent selection
+  - Console errors
+
+
+Test 4.3: Crosshair Feedback
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Move crosshair over node → Should brighten
+  2. Move crosshair away → Should dim
+  3. Repeat across different nodes
+
+Expected:
+  - Crosshair brightens when targeting node
+  - Crosshair dims when not targeting
+  - Feedback is responsive
+
+Failure Indicators:
+  - Crosshair doesn't brighten/dim
+  - Feedback delayed
+  - Incorrect nodes trigger feedback
+
+
+Test 4.4: Node Linking
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Click first node (select)
+  2. Click second node
+  3. Check if link is created
+
+Expected:
+  - Link created between nodes
+  - Visual feedback (line/connection)
+  - No errors
+
+Failure Indicators:
+  - No link created
+  - Wrong nodes linked
+  - Visual glitches
+
+
+Test 4.5: Rapid Clicking
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Rapidly click on multiple nodes
+  2. Click 10+ times quickly
+
+Expected:
+  - All clicks registered correctly
+  - No lag/stutter
+  - No errors in console
+  - Performance remains smooth
+
+Failure Indicators:
+  - Missed clicks
+  - Frame rate drops
+  - Console errors
+  - Selection lag
+
+================================================================================
+TEST CATEGORY 5: PERFORMANCE TESTS
+================================================================================
+
+Test 5.1: Frame Rate Impact
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Open DevTools → Performance tab
+  // Record 5 seconds of normal gameplay
+  // Check average FPS
+
+Expected:
+  - Same FPS as before integration (~60 FPS target)
+  - No stutters or frame drops
+  - Smooth gameplay
+
+Failure Indicators:
+  - FPS drops > 5%
+  - Consistent stuttering
+  - Frame drops below 45 FPS
+
+
+Test 5.2: Raycast Speed
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  console.time('raycast');
+  for (let i = 0; i < 1000; i++) {
+    HitProxyDebug.testRaycast();
+  }
+  console.timeEnd('raycast');
+
+Expected:
+  raycast: ~100ms (average ~0.1ms per raycast)
+
+Failure Indicators:
+  > 500ms (0.5ms per raycast - too slow)
+
+
+Test 5.3: Memory Stability
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Open DevTools → Memory tab
+  // Record heap size before and after 30 seconds of gameplay
+  // Check for growth pattern
+
+Expected:
+  - Stable memory (no consistent growth)
+  - No memory leaks
+  - Garbage collection working
+
+Failure Indicators:
+  - Continuous memory growth
+  - Memory never released
+  - Heap size increases > 10MB
+
+
+Test 5.4: Update Performance
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  console.time('update');
+  for (let i = 0; i < 100; i++) {
+    window.hitProxySystem.update(0.016);
+  }
+  console.timeEnd('update');
+
+Expected:
+  update: ~0.5ms (average ~0.005ms per update)
+
+Failure Indicators:
+  > 10ms (too slow for animation loop)
+
+
+Test 5.5: Large Scene Performance
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // In a scene with 50+ nodes:
+  HitProxyDebug.stats()
+  // Check FPS via DevTools
+
+Expected:
+  - All 50+ proxies created
+  - FPS still smooth (~60 FPS)
+  - Update time < 1ms
+
+Failure Indicators:
+  - FPS drops below 30
+  - Raycast time > 0.5ms
+  - Update time > 5ms
+
+================================================================================
+TEST CATEGORY 6: SAFETY TESTS
+================================================================================
+
+Test 6.1: Real Visual Protection
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Check that real visuals have raycast disabled
+  let coreRaycastDisabled = 0;
+  let totalCores = 0;
+  
+  game.scene.traverse((obj) => {
+    if (obj.userData?.isNodeCore) {
+      totalCores++;
+      if (obj.raycast && obj.raycast.toString().includes('no-op')) {
+        coreRaycastDisabled++;
+      }
+    }
+  });
+  
+  console.log(`Protected cores: ${coreRaycastDisabled}/${totalCores}`);
+
+Expected:
+  Protected cores: 15/15 (or matching total)
+
+Failure Indicators:
+  Protected cores < total
+
+
+Test 6.2: No Proxy Intersection on Real Visuals
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const raycaster = window.safeProxyRaycaster;
+  raycaster.setFromCamera({ x: 0, y: 0 }, window.game.camera);
+  
+  // Get all objects in scene (not just proxies)
+  let allObjects = [];
+  game.scene.traverse(obj => {
+    if (obj instanceof THREE.Mesh) allObjects.push(obj);
+  });
+  
+  // Raycast against all objects
+  const allHits = raycaster.intersectObjects(allObjects);
+  
+  // Should only hit proxies
+  let proxyHits = allHits.filter(h => h.object.userData.isHitProxy).length;
+  let nonProxyHits = allHits.filter(h => !h.object.userData.isHitProxy).length;
+  
+  console.log({
+    proxyHits: proxyHits,
+    nonProxyHits: nonProxyHits,
+    allAreProxies: nonProxyHits === 0
+  });
+
+Expected:
+  {
+    proxyHits: 1,
+    nonProxyHits: 0,
+    allAreProxies: true
+  }
+
+Failure Indicators:
+  nonProxyHits > 0 (real visuals were hit)
+
+
+Test 6.3: No Geometry Mutation
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Check no frozen geometry accessed
+  const proxy = HitProxyDebug.allProxies()[0];
+  const geometry = proxy.geometry;
+  
+  // Try to check boundingSphere (should not crash)
+  try {
+    console.log('Geometry type:', geometry.type);
+    console.log('Has boundingSphere:', !!geometry.boundingSphere);
+    // Accessing but not computing (computing would crash if frozen)
+    console.log('✓ No crash on geometry access');
+  } catch (err) {
+    console.log('❌ Error accessing geometry:', err);
+  }
+
+Expected:
+  ✓ No crash on geometry access
+
+Failure Indicators:
+  ❌ Error accessing geometry
+
+
+Test 6.4: Proxy Layer Isolation
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const proxy = HitProxyDebug.allProxies()[0];
+  const layerActive = proxy.layers.test(new THREE.Layers());
+  
+  console.log({
+    onLayer10: proxy.layers.isEnabled(10),
+    notOnDefaultLayer: !proxy.layers.isEnabled(0)
+  });
+
+Expected:
+  {
+    onLayer10: true,
+    notOnDefaultLayer: true
+  }
+
+Failure Indicators:
+  Either property false
+
+
+Test 6.5: No Three.js Errors
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Open DevTools Console
+  2. Play game for 1 minute
+  3. Interact with nodes (click, link, move)
+
+Expected:
+  - No errors in console
+  - No warnings about raycast
+  - No "Cannot assign to read only property" errors
+  - No geometry mutation errors
+
+Failure Indicators:
+  - Any THREE.js errors
+  - "Cannot assign to read only property" messages
+  - Geometry access errors
+
+================================================================================
+TEST CATEGORY 7: EDGE CASE TESTS
+================================================================================
+
+Test 7.1: Raycast at Scene Boundaries
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Move camera to scene edge
+  2. Raycast towards nothing
+  3. Raycast towards distant node
+
+Expected:
+  - Raycast to nothing returns empty
+  - Raycast to distant node hits correctly
+  - No crashes
+
+Failure Indicators:
+  - Crashes
+  - Incorrect distance calculation
+  - False hits
+
+
+Test 7.2: Node Deletion and Proxy Cleanup
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const initialCount = HitProxyDebug.allProxies().length;
+  
+  // Delete a node (external command)
+  // await node.delete() or similar
+  
+  // Wait 100ms
+  const finalCount = HitProxyDebug.allProxies().length;
+  
+  console.log({
+    before: initialCount,
+    after: finalCount,
+    cleaned: finalCount === initialCount - 1
+  });
+
+Expected:
+  cleaned: true
+
+Failure Indicators:
+  cleaned: false (proxy not cleaned up)
+
+
+Test 7.3: Rapid Proxy Creation/Deletion
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  const start = HitProxyDebug.allProxies().length;
+  
+  // Simulate 10 node spawns/deletes
+  for (let i = 0; i < 10; i++) {
+    // Spawn node (external)
+    // Delete node (external)
+  }
+  
+  const end = HitProxyDebug.allProxies().length;
+  console.log(`Stable: ${start === end}`);
+
+Expected:
+  Stable: true
+
+Failure Indicators:
+  Stable: false (registry imbalanced)
+
+
+Test 7.4: Null/Undefined Node IDs
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Check no proxies have null nodeId
+  let nullIds = 0;
+  for (const proxy of HitProxyDebug.allProxies()) {
+    if (!proxy.userData.targetNodeId) {
+      nullIds++;
+    }
+  }
+  console.log(`Proxies with null nodeId: ${nullIds}`);
+
+Expected:
+  Proxies with null nodeId: 0
+
+Failure Indicators:
+  > 0 null IDs
+
+
+Test 7.5: Very Close Proxies
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Move two nodes very close together
+  const node1 = game.aiNodes.nodes[0];
+  const node2 = game.aiNodes.nodes[1];
+  node2.position.copy(node1.position);
+  node2.position.x += 0.1;  // Very close
+  
+  window.hitProxySystem.update(0.016);
+  
+  // Raycast
+  const result = HitProxyDebug.testRaycast();
+  console.log('Hit node (should be nearest):', result);
+
+Expected:
+  - Correct nearest node hit
+  - No ambiguity errors
+
+Failure Indicators:
+  - Wrong node selected
+  - Both considered equally
+
+================================================================================
+TEST CATEGORY 8: INTEGRATION TESTS
+================================================================================
+
+Test 8.1: Full Selection Workflow
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Click node A → Select
+  2. Click node B → Create link
+  3. Verify link created correctly
+
+Expected:
+  - Link appears between nodes
+  - Visual feedback correct
+  - No errors
+
+Failure Indicators:
+  - Link not created
+  - Wrong link created
+  - Visual glitches
+
+
+Test 8.2: Across All Game Modes
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Test in Fractal Valley
+  2. Test in Dream Desert
+  3. Test in Memory Lane
+  4. Test in Sigma Rift
+
+Expected:
+  - Hit-proxy system works in ALL modes
+  - Selection works consistently
+  - No mode-specific issues
+
+Failure Indicators:
+  - Fails in certain modes
+  - Inconsistent behavior
+  - Mode-specific crashes
+
+
+Test 8.3: With Other Visual Systems
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Enable various FX systems
+  2. Test node selection
+  3. Test linking
+
+Expected:
+  - No conflicts with other systems
+  - Performance maintained
+  - Visual quality preserved
+
+Failure Indicators:
+  - FX systems conflict
+  - Performance degradation
+  - Visual glitches
+
+
+Test 8.4: UI Integration
+────────────────────────────────────────────────────────────────────────────
+
+Action:
+  1. Click on nodes with proxy system active
+  2. Check UI updates (badges, info panels)
+  3. Check crosshair feedback
+
+Expected:
+  - UI updates correctly
+  - Crosshair shows correct state
+  - All feedback responsive
+
+Failure Indicators:
+  - UI doesn't update
+  - Stale information displayed
+  - Feedback delayed
+
+================================================================================
+TEST CATEGORY 9: STRESS TESTS
+================================================================================
+
+Test 9.1: High Raycast Frequency
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  console.time('stress');
+  for (let i = 0; i < 10000; i++) {
+    HitProxyDebug.testRaycast();
+  }
+  console.timeEnd('stress');
+
+Expected:
+  stress: ~1000ms (0.1ms per raycast sustained)
+
+Failure Indicators:
+  > 5000ms (0.5ms per raycast or worse)
+
+
+Test 9.2: Large Scene (50+ nodes)
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // In a scene with 50+ nodes:
+  HitProxyDebug.stats()
+  // Play for 1 minute
+  // Check FPS
+
+Expected:
+  - All 50+ proxies active
+  - FPS remains > 30
+  - No memory leaks
+
+Failure Indicators:
+  - FPS < 30
+  - Memory continuously grows
+  - Proxies fail to create
+
+
+Test 9.3: Continuous Position Updates
+────────────────────────────────────────────────────────────────────────────
+
+Command:
+  // Run for 30 seconds:
+  // - Move player around
+  // - Interact with nodes
+  // - Update proxies
+
+Expected:
+  - All proxies stay synced
+  - No position drift
+  - Performance stable
+
+Failure Indicators:
+  - Proxy positions diverge from nodes
+  - Position sync lag
+  - Performance degradation
+
+================================================================================
+TEST RESULTS TEMPLATE
+================================================================================
+
+Test Name: ________________
+Test Category: ________________
+Date: ________________
+Environment: [ ] Development [ ] Staging [ ] Production
+
+PASS: [ ]
+FAIL: [ ]
+
+Expected Result:
+  [description]
+
+Actual Result:
+  [description]
+
+Notes:
+  [any additional observations]
+
+Screenshots/Logs:
+  [attach if applicable]
+
+================================================================================
+VALIDATION CHECKLIST
+================================================================================
+
+□ Test 1.1: System Initialization
+□ Test 1.2: Proxy Creation Count
+□ Test 1.3: Proxy Mesh Properties
+□ Test 1.4: Registry Integrity
+□ Test 1.5: Auto-Spawn Hook
+
+□ Test 2.1: Center Screen Raycast
+□ Test 2.2: Raycast at Specific Position
+□ Test 2.3: Multiple Raycast Hits
+□ Test 2.4: Raycast Distance Ordering
+□ Test 2.5: Raycast Result Structure
+
+□ Test 3.1: Initial Position Sync
+□ Test 3.2: Continuous Position Sync
+□ Test 3.3: Position Array Consistency
+
+□ Test 4.1: Node Selection on Click
+□ Test 4.2: Multi-Node Selection Accuracy
+□ Test 4.3: Crosshair Feedback
+□ Test 4.4: Node Linking
+□ Test 4.5: Rapid Clicking
+
+□ Test 5.1: Frame Rate Impact
+□ Test 5.2: Raycast Speed
+□ Test 5.3: Memory Stability
+□ Test 5.4: Update Performance
+□ Test 5.5: Large Scene Performance
+
+□ Test 6.1: Real Visual Protection
+□ Test 6.2: No Proxy Intersection on Real Visuals
+□ Test 6.3: No Geometry Mutation
+□ Test 6.4: Proxy Layer Isolation
+□ Test 6.5: No Three.js Errors
+
+□ Test 7.1: Raycast at Scene Boundaries
+□ Test 7.2: Node Deletion and Proxy Cleanup
+□ Test 7.3: Rapid Proxy Creation/Deletion
+□ Test 7.4: Null/Undefined Node IDs
+□ Test 7.5: Very Close Proxies
+
+□ Test 8.1: Full Selection Workflow
+□ Test 8.2: Across All Game Modes
+□ Test 8.3: With Other Visual Systems
+□ Test 8.4: UI Integration
+
+□ Test 9.1: High Raycast Frequency
+□ Test 9.2: Large Scene (50+ nodes)
+□ Test 9.3: Continuous Position Updates
+
+================================================================================
+FINAL VALIDATION
+================================================================================
+
+All Tests Passed: [ ]
+Ready for Production: [ ]
+Notes: ________________
+
+Sign-Off: ________________
+Date: ________________
+
+================================================================================
+END OF VALIDATION TESTS
+================================================================================

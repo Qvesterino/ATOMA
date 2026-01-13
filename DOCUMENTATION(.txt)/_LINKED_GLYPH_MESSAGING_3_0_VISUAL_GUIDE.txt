@@ -1,0 +1,383 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║          LINKED GLYPH MESSAGING 3.0 — VISUAL COMMUNICATION GUIDE            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  GLYPH MESSAGE STRUCTURE                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+COMPLETE MESSAGE ANATOMY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        SENTENCE (Complete symbolic message)
+            ↓
+    ┌───────┴───────┐
+    │               │
+  PHRASE 1       PHRASE 2 (optional)
+    │
+    │
+    ├─ WORD 1: SUBJECT
+    │  │
+    │  ├─ Glyph: Circle-dot (identity)
+    │  └─ Meaning: "I am..."
+    │
+    ├─ WORD 2: STATE
+    │  │
+    │  ├─ Glyphs: Lotus + Shard
+    │  └─ Meaning: "I feel..."
+    │
+    └─ WORD 3: LINK
+       │
+       ├─ Glyph: Diamond
+       └─ Meaning: "Our bond is..."
+
+
+GLYPH ROLES AND VISUAL REPRESENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SUBJECT ROLE: "Who am I?"
+    ◉ ◉ ◉         Circle-dots (multiple for emphasis)
+    ╱ ╲ ╱         Shards (pointed identity)
+    ◊ ◊ ◊         Hex fragments (complex identity)
+    
+    → Encodes: Node personality, type, unique signature
+
+STATE ROLE: "How am I feeling?"
+    ⟱ ⟱ ⟱         Lotus petals (harmony, peace)
+    ╱ ╲ ╱ ╲       Shard variants (neutral, balanced)
+    ∿ ∿ ∿         Bent shapes (tendency, direction)
+    
+    → Encodes: Semantic state (focused, overloaded, calm, exploring)
+
+TENDENCY ROLE: "Where am I heading?"
+    △ △ △         Upward triangles (ascending)
+    ▽ ▽ ▽         Downward triangles (descending)
+    ⟲ ⟲ ⟲         Cyclic forms (stable)
+    
+    → Encodes: Direction of state change
+
+LINK ROLE: "What is our connection?"
+    ◇ ◇ ◇         Diamonds (strong, centered)
+    ◆ ◆ ◆         Filled diamonds (very strong)
+    ⬡ ⬡ ⬡         Distorted (corrupted)
+    
+    → Encodes: Link quality, synergy, corruption
+
+CONTEXT ROLE: "What else matters?"
+    ⊕ ⊕ ⊕         Rings (cyclical, network position)
+    ◐ ◑ ◒         Ring segments (cluster membership)
+    ❈ ❈ ❈         Fractals (hierarchical context)
+    
+    → Encodes: Environment, cluster, events
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  COLOR ENCODING                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+COLOR SEMANTICS (HSL Space)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CYAN (H: 0.5, S: 0.8, L: 0.6)
+┌─────────────────────────────┐
+│  ● ● ● ● ●                 │
+│  "I am STRONG"              │
+│  "Connection is SOLID"      │
+│  Synergy: ≥70%              │
+│  Harmony: HIGH              │
+└─────────────────────────────┘
+
+RED/ORANGE (H: 0.05, S: 0.9, L: 0.55)
+┌─────────────────────────────┐
+│  ◯ ◯ ◯ ◯ ◯                 │
+│  "I am CORRUPTED"           │
+│  "Connection is BREAKING"   │
+│  Corruption: ≥60%           │
+│  Instability: HIGH          │
+└─────────────────────────────┘
+
+MAGENTA (H: 0.8, S: 0.8, L: 0.6)
+┌─────────────────────────────┐
+│  ◆ ◆ ◆ ◆ ◆                 │
+│  "I am PEACEFUL"            │
+│  "Connection is HARMONIOUS" │
+│  Harmony: ≥70%              │
+│  Synergy: MODERATE          │
+└─────────────────────────────┘
+
+YELLOW-GREEN (H: 0.2, S: 0.6, L: 0.6)
+┌─────────────────────────────┐
+│  ◊ ◊ ◊ ◊ ◊                 │
+│  "I am NEUTRAL"             │
+│  "Connection is STABLE"     │
+│  Balance: PERFECT           │
+│  State: CALM                │
+└─────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  MESSAGE TRANSPORT VISUALIZATION                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+PERFECT SYNC LINK (High Synergy)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Time t=0:
+    Node A              Message              Node B
+    ╭────╮            ╭─────────╮           ╭────╮
+    │ ⟳  │───────────→│ ● ⟱ ◇   │───────→  │ ⟳  │
+    │ ▓▓ │            ╰─────────╯           │ ▓▓ │
+    ╰────╯            (CYAN, FAST)          ╰────╯
+
+Time t=0.5:
+    Node A              Message              Node B
+    ╭────╮                       ╭─────────╮
+    │ ⟳  │                      │ ● ⟱ ◇   │───────→  Response
+    │ ▓▓ │                      ╰─────────╯ ⟲
+    ╰────╯                       (50% progress)
+
+
+WEAK/CORRUPTED LINK (Low Synergy, High Corruption)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Time t=0:
+    Node A              Message              Node B
+    ╭────╮            ╱─────────╲           ╭────╮
+    │ ⟳  │───────────│ ◯ ∿ ⬡    │ ⟱      │ ⟳  │
+    │ ▓▓ │            ╲─────────╱ ↙        │ ▓▓ │
+    ╰────╯            (ORANGE, SLOW)       ╰────╯
+
+Time t=0.5:
+    Node A              Message (jittering)
+    ╭────╮           ╱  ┌────┐  ╲         
+    │ ⟳  │        ╱─┤ ◯ ∿ ⬡ ├─╲
+    │ ▓▓ │         ╲  └────┘  ╱
+    ╰────╯           ╲     ╱ (distorted)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  COMPLETE NETWORK MESSAGING SCENE                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+MULTIPLE SIMULTANEOUS MESSAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        ╔══════════════════════════════════╗
+        ║   NETWORK VISUALIZATION          ║
+        ║   (Multi-Link Messaging)         ║
+        ║                                  ║
+        ║      N1 ────────── N2           ║
+        ║      │╲    ↻↻↻    │╱            ║
+        ║      │ ●⟱◇ [msg] ●│             ║
+        ║      │╱    ↻↻↻    │╲            ║
+        ║      N4 ────────── N3           ║
+        ║                                  ║
+        ║   Glyphs traveling in:          ║
+        ║   • Both directions (↔)         ║
+        ║   • Multiple speeds             ║
+        ║   • Varying colors              ║
+        ║   • Jittering patterns          ║
+        ║                                  ║
+        ╚══════════════════════════════════╝
+
+Legend:
+  N1-4    = Nodes
+  [msg]   = Message (glyphs)
+  ↻↻↻     = Rotation animation
+  ↔       = Bidirectional flow
+
+
+TRAFFIC INTENSITY VISUALIZATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Quiet Network:
+    A ─────░─────── B
+      (1-2 messages per 2 sec)
+
+Active Network:
+    A ─────●───●─●─ B
+      (3-5 messages per 2 sec)
+
+Very Active Network:
+    A ─●─●─●─●─●─●─ B
+      (max 3 concurrent per link)
+
+Legend:
+  ─ = Link
+  ░ = Few messages
+  ● = Active messages
+  ●─● = Dense traffic
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ANIMATION EFFECTS                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+BREATHING ANIMATION (Scale Oscillation)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+time:     0    1    2    3    4
+scale: 1.08  1.06  1.04  1.02  1.00
+        ●    ◯    ◊    ◇    ○
+        
+Breathing = 1.0 ± sin(time × 2π) × 0.08
+           = Subtle expansion/contraction
+
+
+ROTATION ANIMATION (Continuous)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Frame 0:     Frame 1:     Frame 2:     Frame 3:
+   ⟳            ⟳           ⟳           ⟳
+  ↻  ↻        ↻  ↻        ↻  ↻        ↻  ↻
+   ⟲            ⟲           ⟲           ⟲
+
+Continuous rotation at 3.0 rad/sec
+
+
+JITTER EFFECT (From Instability)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ideal path:     Actual path (jittering):
+  ──────────      ╱─╲╱─╲╱─╲╱─╲
+               jitter = instability² × 0.08
+
+
+DISTORTION EFFECT (From Corruption)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Normal rotation:  Distorted rotation (corrupted):
+    ⟳              ⟲ ╱ ⟲ ╱ ⟲ ╱ ⟲
+                  (erratic, unpredictable)
+
+
+FADE OUT EFFECT (Final 20%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Progress: 0%──20%──40%──60%──80%──100%
+Opacity:  1.0      1.0      1.0  0.5  0.0
+
+●●●●●●●●●●●●●●●●●●●◯◯◯○○○░░░  (dots fading)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  SEMANTIC STATE EXPRESSION                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+EXAMPLE 1: Strong, Synergistic Node
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Message content:
+┌────────────────────────────────────┐
+│ SUBJECT:  ● ◆ ●  (strong identity) │
+│           ↻ ↻ ↻  (confident)       │
+│                                    │
+│ STATE:    ⟱ ⟱ ⟱  (lotus petals)   │
+│           ↻ ↻ ↻  (harmonious)      │
+│                                    │
+│ LINK:     ◇ ◇ ◇  (diamonds)        │
+│           ↻ ↻ ↻  (strong bonds)    │
+└────────────────────────────────────┘
+
+Visual: CYAN glyphs, fast (3.5 u/s), smooth, organized
+Message: "I am STRONG. I feel HARMONIOUS. Bonds are SOLID."
+
+
+EXAMPLE 2: Corrupted, Unstable Node
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Message content:
+┌────────────────────────────────────┐
+│ SUBJECT:  ◯ ◯  (fragmented)       │
+│           ∿ ∿  (uncertain)        │
+│                                    │
+│ STATE:    ╱ ╲ ╱ (shards)          │
+│           ∿ ∿ ∿ (distressed)      │
+│                                    │
+│ LINK:     ⬡ ⬡  (broken)           │
+│           ⟲ ⟲  (disconnecting)    │
+└────────────────────────────────────┘
+
+Visual: RED glyphs, slow (0.8 u/s), jittery, distorted
+Message: "I am BROKEN. I feel STRESSED. Bonds are CORRUPTING."
+
+
+EXAMPLE 3: Peaceful, Harmonious Node
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Message content:
+┌────────────────────────────────────┐
+│ SUBJECT:  ◉ ◉  (centered)         │
+│           ⟲ ⟲  (calm)             │
+│                                    │
+│ STATE:    ⟱ ⟱  (petals)           │
+│           ⟲ ⟲  (peaceful)         │
+│                                    │
+│ LINK:     ◆ ◆  (strong diamonds)  │
+│           ⟲ ⟲  (smooth)           │
+└────────────────────────────────────┘
+
+Visual: MAGENTA glyphs, medium (2.0 u/s), smooth, flowing
+Message: "I am CENTERED. I feel PEACEFUL. Bonds are HARMONIOUS."
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  BIDIRECTIONAL CONVERSATION EXAMPLE                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+TIME PROGRESSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+T=0.0s: A spawns message
+    A ───[●⟱◇]─────────────────→ B
+      (strong, harmonious)
+
+T=1.5s: Message mid-transit
+    A      ──────[●⟱◇]─────────→ B
+                (50% progress)
+
+T=2.5s: Message arrives at B
+    A ─────────────[●⟱◇]→ B
+                      └→ (B interprets)
+                         └→ (60% response)
+
+T=3.0s: B spawns response
+    A ←────────────[◉⟲◆]─ B
+              (peaceful response)
+
+T=4.5s: Response mid-transit
+    A ←─────[◉⟲◆]────────── B
+             (50% progress)
+
+T=6.0s: Response arrives at A
+    A [◉⟲◆]←───────────────── B
+       └→ (A receives response)
+
+Result: Bidirectional "conversation"
+        Network appears to be thinking
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  PERFORMANCE VISUALIZATION                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+CPU TIME BUDGET (60Hz = 16.67ms)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Without Messaging:
+│ Game │ Glyph │ Mesh │ Render │
+│12.0  │1.5    │0.5   │2.67    │ = 16.67ms
+└─────────────────────────────────┘
+
+With Messaging (50 links, ~75 messages):
+│Game │Glyph │Mesh │Messages│Render│
+│12.0 │1.5   │0.5  │0.25    │2.67  │ = 16.92ms
+└──────────────────────────────────────┘
+              Only +0.25ms overhead!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+END OF VISUAL GUIDE
+═══════════════════════════════════════════════════════════════════════════════
+

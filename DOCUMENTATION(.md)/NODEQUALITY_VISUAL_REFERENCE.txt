@@ -1,0 +1,451 @@
+================================================================================
+NODE QUALITY CALCULATOR v1.0 - VISUAL REFERENCE & DIAGRAMS
+================================================================================
+
+================================================================================
+1. QUALITY FORMULA VISUALIZATION
+================================================================================
+
+WEIGHTED COMPONENTS (Sum = 100%):
+
+    30% ┌──────────────────────┐
+        │ Internal Stability   │
+        │ (Stability, Harmony, │
+        │  Clarity combined)   │
+        └──────────────────────┘
+              ↓
+    15% ┌──────────────────────┐
+        │ Energy Factor        │
+        │ (Energy level)       │
+        └──────────────────────┘
+              ↓
+    15% ┌──────────────────────┐
+        │ Load Stress Penalty  │
+        │ (100 - load)         │
+        └──────────────────────┘
+              ↓
+    20% ┌──────────────────────┐
+        │ Corruption Penalty   │
+        │ (100 - corruption)   │
+        └──────────────────────┘
+              ↓
+    20% ┌──────────────────────┐
+        │ Link Quality         │
+        │ (Avg + Min combined) │
+        └──────────────────────┘
+              ↓
+        ╔══════════════════════╗
+        ║  FINAL QUALITY SCORE ║
+        ║      0–100           ║
+        ╚══════════════════════╝
+
+
+================================================================================
+2. QUALITY LEVEL DISTRIBUTION
+================================================================================
+
+Score Range        Level        Color   Representation
+────────────────────────────────────────────────────────
+85–100          🟢 PRIME        Green   ███████████████████░  Perfect
+                                        ▁▂▃▄▅▆▇█ Excellent
+
+65–84           🔵 STABLE       Cyan    ██████████░░░░░░░░░  Good
+                                        ▁▂▃▄▅▆▇█ Healthy
+
+40–64           🟡 WEAK         Yellow  ███████░░░░░░░░░░░░  Below Average
+                                        ▁▂▃▄▅▆▇ Degraded
+
+0–39            🔴 CRITICAL     Red     ██░░░░░░░░░░░░░░░░░  Severe
+                                        ▁▂▃▄▅ Critical
+
+Distribution Example (100-node network):
+Prime     🟢 ████████░░░░░░░░░░░░░  15 nodes
+Stable    🔵 ████████████████░░░░░░  45 nodes
+Weak      🟡 ██████░░░░░░░░░░░░░░░░  30 nodes
+Critical  🔴 ██░░░░░░░░░░░░░░░░░░░░  10 nodes
+
+
+================================================================================
+3. COMPONENT WEIGHTING BREAKDOWN
+================================================================================
+
+INTERNAL STABILITY (30% total weight):
+    stability  × 0.50 = 15% of final score
+    harmony    × 0.30 = 9% of final score
+    clarity    × 0.20 = 6% of final score
+
+ENERGY FACTOR (15% total weight):
+    energy × 1.00 = 15% of final score
+
+LOAD STRESS (15% total weight):
+    (100 - load) × 1.00 = 15% of final score
+
+CORRUPTION PENALTY (20% total weight):
+    (100 - corruption) × 1.00 = 20% of final score
+
+LINK QUALITY (20% total weight):
+    avgLinkQuality × 0.70 = 14% of final score
+    minLinkQuality × 0.30 = 6% of final score
+
+
+VISUALIZATION (100 total):
+
+30%  ╔═════════════════════════════╗
+     ║ Internal (Stab+Harm+Clar)   ║
+15%  ║ Energy Factor               ║
+15%  ║ Load Stress Penalty         ║
+20%  ║ Corruption Penalty          ║
+20%  ║ Link Quality (Avg+Min)      ║
+     ╚═════════════════════════════╝
+
+
+================================================================================
+4. DATA FLOW DIAGRAM
+================================================================================
+
+INPUT SOURCES:
+─────────────
+
+AINodes System
+    │
+    ├─→ Node 1 { data... }
+    ├─→ Node 2 { data... }
+    └─→ Node N { data... }
+
+
+PROCESSING PIPELINE:
+───────────────────
+
+┌─────────────────────────────────────────────────────┐
+│ 1. NodeDynamicMetrics (Per Node)                    │
+│    • Compute: stability, harmony, clarity, energy   │
+│    • Store: node.userData.metrics                   │
+│    • Time: < 0.3ms                                  │
+└──────────────┬──────────────────────────────────────┘
+               │
+               ├─→ stability (0–100)
+               ├─→ harmony (0–100)
+               ├─→ clarity (0–100)
+               ├─→ energyNorm (0–1)
+               ├─→ loadRatio (0–1)
+               └─→ corruption (0–100)
+               │
+┌──────────────┴──────────────────────────────────────┐
+│ 2. LinkQualityCalculator (Per Link)                 │
+│    • Compute: link quality (0–100)                  │
+│    • Store: link.userData.quality.score             │
+│    • Time: < 0.5ms                                  │
+└──────────────┬──────────────────────────────────────┘
+               │
+               ├─→ link1.quality = 85
+               ├─→ link2.quality = 65
+               └─→ linkN.quality = 42
+               │
+┌──────────────┴──────────────────────────────────────┐
+│ 3. NodeQualityCalculator (Per Node)                 │
+│    • Read: node metrics, link qualities             │
+│    • Compute: unified node quality (0–100)          │
+│    • Store: node.userData.quality                   │
+│    • Time: < 0.2ms                                  │
+└──────────────┬──────────────────────────────────────┘
+               │
+OUTPUT STRUCTURE:
+────────────────
+
+node.userData.quality = {
+    score: 75,                  // Final quality (0–100)
+    level: "Stable",            // Quality tier
+    metrics: {
+        stability: 80,
+        harmony: 70,
+        clarity: 60,
+        energy: 85,
+        loadPenalty: 20,
+        corruptionPenalty: 10,
+        linkQualityAvg: 65,
+        linkQualityMin: 40,
+    },
+    updatedAt: timestamp
+}
+
+
+================================================================================
+5. QUALITY SCORE PROGRESSION
+================================================================================
+
+HEALTHY NODE (No problems):
+    stability: 90  ┐
+    harmony: 85    ├─→ internal: 88
+    clarity: 82    ┘
+    energy: 90
+    load: 20       → penalty: 80
+    corruption: 5  → penalty: 95
+    link avg: 80   ┐
+    link min: 75   ├─→ links: 78
+               
+    Final = 88×0.30 + 90×0.15 + 80×0.15 + 95×0.20 + 78×0.20 = 85.8 → PRIME ✓
+
+
+DEGRADING NODE (Some problems):
+    stability: 70  ┐
+    harmony: 65    ├─→ internal: 68
+    clarity: 62    ┘
+    energy: 60
+    load: 50       → penalty: 50
+    corruption: 30 → penalty: 70
+    link avg: 50   ┐
+    link min: 20   ├─→ links: 41
+               
+    Final = 68×0.30 + 60×0.15 + 50×0.15 + 70×0.20 + 41×0.20 = 60.0 → WEAK ⚠
+
+
+CRITICAL NODE (Severe problems):
+    stability: 30  ┐
+    harmony: 25    ├─→ internal: 28
+    clarity: 22    ┘
+    energy: 15
+    load: 90       → penalty: 10
+    corruption: 80 → penalty: 20
+    link avg: 15   ┐
+    link min: 5    ├─→ links: 12
+               
+    Final = 28×0.30 + 15×0.15 + 10×0.15 + 20×0.20 + 12×0.20 = 18.3 → CRITICAL 🔴
+
+
+================================================================================
+6. UPDATE LOOP SEQUENCE
+================================================================================
+
+ONE FRAME (16.67ms at 60 FPS):
+├────────────────────────────────────────────────────────────┐
+│ [START OF FRAME]                                           │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ 1. NodeDynamicMetrics.update(0.0167)                │  │ < 0.3ms
+│ │    • Process all 100 nodes                          │  │
+│ │    • Compute 11 metrics per node                    │  │
+│ │    • Store in node.userData.metrics                 │  │
+│ └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ 2. LinkQualityCalculator.update(0.0167)             │  │ < 0.5ms
+│ │    • Process all 500 links                          │  │
+│ │    • Read node metrics from step 1                  │  │
+│ │    • Compute quality per link                       │  │
+│ │    • Store in link.userData.quality                 │  │
+│ └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ 3. NodeQualityCalculator.update(0.0167)             │  │ < 0.2ms
+│ │    • Process all 100 nodes                          │  │
+│ │    • Read node metrics from step 1                  │  │
+│ │    • Read link qualities from step 2                │  │
+│ │    • Compute unified quality per node               │  │
+│ │    • Store in node.userData.quality                 │  │
+│ └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ 4. Render & Game Logic                              │  │ ~ 15ms
+│ │    • Use quality in HUDs, link automation, etc.     │  │
+│ └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│ [END OF FRAME] Total: ~16.5ms (60 FPS maintained) ✓      │
+├────────────────────────────────────────────────────────────┤
+
+
+================================================================================
+7. NODE STATUS MATRIX
+================================================================================
+
+Multiple Nodes Status Summary:
+
+NodeID  Quality Level    Score  Stability Corruption Links
+───────────────────────────────────────────────────────────
+node-1  🟢 PRIME         92      88         5         8
+node-2  🔵 STABLE        72      75        15         6
+node-3  🟡 WEAK          48      55        35         3
+node-4  🔴 CRITICAL      22      18        70         1
+node-5  🟢 PRIME         88      90         8         7
+node-6  🔵 STABLE        68      70        20         5
+node-7  🔴 CRITICAL      31      25        60         2
+node-8  🟡 WEAK          52      60        28         4
+node-9  🟢 PRIME         95      92         2         9
+node-10 🔵 STABLE        66      68        22         4
+
+Summary Statistics:
+  Total: 10 nodes
+  Average Quality: 63.4
+  Prime Nodes: 3 (30%)
+  Stable Nodes: 3 (30%)
+  Weak Nodes: 2 (20%)
+  Critical Nodes: 2 (20%)
+  Network Health: ACCEPTABLE
+
+
+================================================================================
+8. CONFIGURATION TUNING CHART
+================================================================================
+
+Default Config (Balanced):
+┌─────────────────────────────────────────────────────┐
+│ Internal Stability   30%  ██████░░░░░░░░░░░░      │
+│ Energy Factor        15%  ███░░░░░░░░░░░░░░░░░  │
+│ Load Stress          15%  ███░░░░░░░░░░░░░░░░░  │
+│ Corruption          20%  ████░░░░░░░░░░░░░░░░  │
+│ Link Quality        20%  ████░░░░░░░░░░░░░░░░  │
+│                          100%                      │
+└─────────────────────────────────────────────────────┘
+
+Aggressive Config (Prioritize Links):
+┌─────────────────────────────────────────────────────┐
+│ Internal Stability   20%  ████░░░░░░░░░░░░░░░░  │
+│ Energy Factor        10%  ██░░░░░░░░░░░░░░░░░░  │
+│ Load Stress          10%  ██░░░░░░░░░░░░░░░░░░  │
+│ Corruption          10%  ██░░░░░░░░░░░░░░░░░░  │
+│ Link Quality        50%  ██████████░░░░░░░░░░  │
+│                          100%                      │
+└─────────────────────────────────────────────────────┘
+
+Conservative Config (Prioritize Stability):
+┌─────────────────────────────────────────────────────┐
+│ Internal Stability   50%  ██████████░░░░░░░░░░  │
+│ Energy Factor        15%  ███░░░░░░░░░░░░░░░░░  │
+│ Load Stress          15%  ███░░░░░░░░░░░░░░░░░  │
+│ Corruption          10%  ██░░░░░░░░░░░░░░░░░░  │
+│ Link Quality        10%  ██░░░░░░░░░░░░░░░░░░  │
+│                          100%                      │
+└─────────────────────────────────────────────────────┘
+
+
+================================================================================
+9. PERFORMANCE TIMELINE
+================================================================================
+
+Large Network Scenario (200 nodes, 2000 links):
+
+Timeline (Milliseconds):
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  Frame Start     0ms                                       │
+│  ├─ NodeDynamics     ████ 0.5ms                           │
+│  ├─ LinkQuality      ████████ 1.0ms                       │
+│  ├─ NodeQuality      ███ 0.4ms                            │
+│  │                 ─────────────                          │
+│  │  Metrics Total    ██████████████ 1.9ms                │
+│  │                                                        │
+│  ├─ Render/Game    ██████████████ 14.1ms                │
+│  │                                                        │
+│  Frame Complete   16.0ms                                 │
+│  ├─ FPS: 60 ✓                                            │
+│  └─ Available: 0.7ms buffer                              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+
+Metrics Overhead Analysis:
+  Total Metrics Time: 1.9ms (11.9% of frame)
+  Remaining for Game: 14.1ms (88.1% of frame)
+  Available Buffer: 0.7ms (4.4% of frame)
+  Conclusion: Excellent performance! ✓
+
+
+================================================================================
+10. QUALITY IMPROVEMENT SCENARIOS
+================================================================================
+
+Scenario 1: Isolated Node Gets Links
+────────────────────────────────────
+
+BEFORE:
+  Node A (isolated)
+  Quality: 50 (default, no links)
+  Level: WEAK
+
+AFTER (Node A gets 3 high-quality links):
+  linkQualityAvg: 80
+  linkQualityMin: 75
+  linkComponent: (80×0.70 + 75×0.30) = 78.5
+  
+  New Score: 50×0.30 + 50×0.15 + 50×0.15 + 50×0.20 + 78.5×0.20
+           = 15 + 7.5 + 7.5 + 10 + 15.7 = 55.7
+  New Level: STABLE (+5.7 points, +1 level) ✓
+
+
+Scenario 2: Corruption Attack
+──────────────────────────────
+
+BEFORE (Healthy):
+  corruption: 5
+  corruptionComponent: 95
+  Score: 85
+  Level: PRIME
+
+AFTER (Sigma attack):
+  corruption: 70
+  corruptionComponent: 30
+  Score: 30×0.30 + 50×0.15 + 50×0.15 + 30×0.20 + 50×0.20
+       = 9 + 7.5 + 7.5 + 6 + 10 = 40
+  Level: WEAK (-45 points, -2 levels) ⚠
+
+
+Scenario 3: Node Load Balancing
+────────────────────────────────
+
+OVERLOADED (load = 0.9):
+  loadComponent: 100 - 90 = 10
+  Score: ~35
+  Level: CRITICAL
+
+REBALANCED (load = 0.3):
+  loadComponent: 100 - 30 = 70
+  Score: ~65
+  Level: STABLE
+
+Result: Rebalancing improves quality by +30 points ✓
+
+
+================================================================================
+11. COMMON PATTERNS QUICK VIEW
+================================================================================
+
+Check Node Health:
+  if (node.userData?.quality?.level === 'Prime') {
+      // Node is in excellent condition
+  }
+
+Get Network Average:
+  stats = calculator.getNetworkStatistics();
+  if (stats.averageScore < 50) {
+      // Network needs attention
+  }
+
+Monitor Single Node:
+  summary = calculator.getNodeQualitySummary(node);
+  console.log(`${node.id}: ${summary.level} (${summary.score.toFixed(1)})`);
+
+Filter by Quality:
+  primeNodes = aiNodes.nodes.filter(
+      n => n.userData?.quality?.score >= 85
+  );
+
+Color Code Display:
+  colors = { Prime: '🟢', Stable: '🔵', Weak: '🟡', Critical: '🔴' };
+  display = `${colors[node.userData.quality.level]} ${node.id}`;
+
+
+================================================================================
+END OF VISUAL REFERENCE
+================================================================================
+
+Use this guide for:
+  • Understanding the quality formula visually
+  • Grasping how components combine
+  • Seeing data flow and processing pipeline
+  • Performance expectations
+  • Configuration tuning
+  • Improvement scenarios
+  • Common patterns
+
+For detailed documentation, see:
+  • NODE_QUALITY_CALCULATOR_INTEGRATION.md (setup & examples)
+  • NODE_QUALITY_CALCULATOR_QUICK_REFERENCE.txt (API & code)
+  • NODE_QUALITY_CALCULATOR_TESTING_CHECKLIST.md (validation)

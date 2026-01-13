@@ -1,0 +1,443 @@
+================================================================================
+VISUAL METRICS MAPPING TABLE - LEGACY TO PHASE 3 ARCHITECTURE
+================================================================================
+
+MAPPING RULE:
+  legacyMetric → newMetric
+  legacyRange  → newRange
+  usedInModules → modules that reference it
+  requiresRemap → yes/no/optional
+
+================================================================================
+SYNERGY METRICS MAPPING
+================================================================================
+
+LEGACY: synergyScore
+  TYPE: 0–1 normalized
+  NEW: link.userData.quality.score / 100
+  NEW_RANGE: 0–1 normalized (same)
+  NEW_SCALE: 0–100 internally (divide by 100 for use)
+  MODULES: LinkGlowSynergyEngine1_0, ComputeSynergyScore2_0, SynergyVFX systems
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    oldValue = link.synergyScore;  // 0–1
+    newValue = link.userData.quality?.score / 100 || 0.5;  // 0–1
+  NOTES: LinkQualityCalculator now authoritative source
+
+LEGACY: synergyStrength
+  TYPE: 0–1 normalized
+  NEW: link.userData.quality.score / 100
+  NEW_RANGE: 0–1 (same)
+  MODULES: SynergyVFX1_0, SynergyHighways, SynergyTrendHUD
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    oldValue = link.synergyStrength || 0.5;
+    newValue = link.userData.quality?.score / 100 || 0.5;
+
+LEGACY: synergyTier
+  TYPE: string {low, medium, high, critical}
+  NEW: Derived from link.userData.quality.level
+  NEW_VALUES: {Prime→high, Stable→medium, Weak→low, Critical→critical}
+  MAPPING:
+    "Prime" (85–100)    → "high"
+    "Stable" (65–84)    → "medium"
+    "Weak" (40–64)      → "low"
+    "Critical" (0–39)   → "critical"
+  MODULES: ComputeSynergyScore2_0
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    const oldTier = computeSynergyScore(link).tier;
+    const newTier = {
+      'Prime': 'high',
+      'Stable': 'medium',
+      'Weak': 'low',
+      'Critical': 'critical'
+    }[link.userData.quality?.level] || 'low';
+
+LEGACY: synergyComponents (5-part breakdown)
+  TYPE: {type: 0–1, priority: 0–1, traffic: 0–1, decay: 0–1, topology: 0–1}
+  NEW: Use LinkQualityCalculator components instead
+  NEW_BREAKDOWN:
+    structural: 30%
+    harmony: 40%
+    load: 15%
+    corruption: 15%
+  MODULES: ComputeSynergyScore2_0 debug output
+  REQUIRES_REMAP: OPTIONAL (debug only)
+  NOTES: New formula is different, can't 1:1 map
+
+================================================================================
+STABILITY & HARMONY METRICS MAPPING
+================================================================================
+
+LEGACY: networkStability (from CoreMetricsCalculator)
+  TYPE: 0–100 percent
+  NEW: avg(node.userData.metrics.stability) for all nodes
+  NEW_RANGE: 0–100 (same)
+  FORMULA:
+    avgStability = aiNodes.nodes
+      .map(n => n.userData?.metrics?.stability || 50)
+      .reduce((a, b) => a + b, 0) / aiNodes.nodes.length
+  MODULES: CoreMetricsCalculator, CoreMetricsHUD, MetricReactiveWorldEvents
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    old = coreMetrics.stability;  // 0–100
+    new = average(allNodes.map(n => n.userData.metrics?.stability || 50));
+
+LEGACY: networkHarmony
+  TYPE: 0–100 percent
+  NEW: avg(node.userData.metrics.harmony) for all nodes
+  NEW_RANGE: 0–100 (same)
+  FORMULA: Same as stability but use .harmony instead
+  MODULES: CoreMetricsCalculator, MetricReactiveWorldEvents
+  REQUIRES_REMAP: YES
+
+LEGACY: nodeStability (per node)
+  TYPE: 0–100 (internal representation)
+  NEW: node.userData.metrics.stability
+  NEW_RANGE: 0–100 (same)
+  MODULES: NodePersonality2_0, EvolutionRegistry (implicit)
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: nodeHarmony (per node)
+  TYPE: 0–100
+  NEW: node.userData.metrics.harmony
+  NEW_RANGE: 0–100 (same)
+  MODULES: NodePersonality2_0
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: personality.temperament.harmony
+  TYPE: -1 to +1 (personality modifier)
+  NEW: Modifier to be applied to stability/harmony
+  APPLICATION:
+    finalStability = base_stability + (personality.harmony * 10)
+    // Maps -1 to +1 modifier to ±10 points
+  MODULES: NodePersonality2_0
+  REQUIRES_REMAP: OPTIONAL (enhancement)
+
+================================================================================
+CLARITY & COHERENCE METRICS MAPPING
+================================================================================
+
+LEGACY: clarity (unknown source)
+  TYPE: 0–100 (assumed)
+  NEW: node.userData.metrics.clarity
+  NEW_RANGE: 0–100 (same)
+  MODULES: NodeInspectOverlay, (others?)
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    old = node.clarity || 50;
+    new = node.userData?.metrics?.clarity || 50;
+
+LEGACY: clarityPseudoValue
+  TYPE: Unknown (DEAD)
+  STATUS: UNUSED - DO NOT REMAP
+  ACTION: REMOVE IF FOUND
+  PRIORITY: HIGH CLEANUP
+
+LEGACY: purity
+  TYPE: 0–? (custom scale)
+  NEW: Use node.userData.metrics.clarity or combine clarity + corruption
+  CALCULATION:
+    purity = clarity * (1 - corruption/100)
+  MODULES: _ProceduralMeaningEngine, Glyph systems
+  REQUIRES_REMAP: OPTIONAL (semantic mapping)
+  NOTES: Purity = clarity without corruption effects
+
+LEGACY: coherence (quantum nodes)
+  TYPE: 0–1 (assumed normalized)
+  NEW: Use node.userData.metrics.clarity / 100
+  NEW_RANGE: 0–1 (divide by 100)
+  MODULES: QuantumNode, (quantum systems)
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    old = quantumNode.coherence || 0.5;
+    new = node.userData?.metrics?.clarity / 100 || 0.5;
+
+================================================================================
+INSTABILITY & CHAOS METRICS MAPPING
+================================================================================
+
+LEGACY: networkInstability
+  TYPE: 0–100 percent
+  NEW: avg(node.userData.metrics.instability) for all nodes
+  NEW_RANGE: 0–100 (same)
+  FORMULA:
+    avgInstability = aiNodes.nodes
+      .map(n => n.userData?.metrics?.instability || 50)
+      .reduce((a, b) => a + b, 0) / aiNodes.nodes.length
+  MODULES: CoreMetricsCalculator, MetricReactiveWorldEvents
+  REQUIRES_REMAP: YES
+
+LEGACY: nodeInstability (per node)
+  TYPE: 0–100
+  NEW: node.userData.metrics.instability
+  NEW_RANGE: 0–100 (same)
+  MODULES: NodeInspectOverlay, (others?)
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: instabilityFlux
+  TYPE: Unknown (DEAD)
+  STATUS: UNUSED - DO NOT REMAP
+  ACTION: REMOVE IF FOUND
+  PRIORITY: HIGH CLEANUP
+
+LEGACY: quantumChaos
+  TYPE: 0–1 (assumed)
+  NEW: node.userData.metrics.instability / 100
+  NEW_RANGE: 0–1 (divide by 100)
+  MODULES: QuantumNode, quantum systems
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    old = quantumNode.chaos || 0.5;
+    new = node.userData?.metrics?.instability / 100 || 0.5;
+
+LEGACY: personality.temperament.instability
+  TYPE: -1 to +1 (modifier)
+  NEW: Modifier to instability
+  APPLICATION:
+    finalInstability = base_instability + (personality.instability * 10)
+  MODULES: NodePersonality2_0
+  REQUIRES_REMAP: OPTIONAL (enhancement)
+
+================================================================================
+CORRUPTION & DEGRADATION METRICS MAPPING
+================================================================================
+
+LEGACY: networkCorruption
+  TYPE: 0–100 percent
+  NEW: avg(node.userData.metrics.corruption) for all nodes
+  NEW_RANGE: 0–100 (same)
+  FORMULA:
+    avgCorruption = aiNodes.nodes
+      .map(n => n.userData?.metrics?.corruption || 0)
+      .reduce((a, b) => a + b, 0) / aiNodes.nodes.length
+  MODULES: CoreMetricsCalculator, MetricReactiveWorldEvents
+  REQUIRES_REMAP: YES
+
+LEGACY: nodeCorruption (per node)
+  TYPE: 0–100
+  NEW: node.userData.metrics.corruption
+  NEW_RANGE: 0–100 (same)
+  MODULES: NodeInspectOverlay, SigmaNode monitoring
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: corruptionPulse (VFX)
+  TYPE: Unknown (DEAD VFX metric)
+  STATUS: Replaced by corruption field visualization
+  ACTION: REMOVE IF FOUND
+  PRIORITY: MEDIUM CLEANUP
+
+LEGACY: personality.temperament.corruption
+  TYPE: -1 to +1 (modifier)
+  NEW: Modifier to base corruption
+  APPLICATION:
+    finalCorruption = base_corruption + (personality.corruption * 10)
+  MODULES: NodePersonality2_0
+  REQUIRES_REMAP: OPTIONAL (enhancement)
+
+LEGACY: umbra (Sigma nodes only)
+  TYPE: Custom scale (unknown)
+  NEW: Use node.userData.metrics.corruption (+ corruption modifier for Sigma)
+  CALCULATION:
+    sigmaCorruption = base_corruption * 1.5  // Sigma nodes corrupt faster
+  MODULES: SigmaNode, Sigma-specific VFX
+  REQUIRES_REMAP: YES
+  NOTES: Sigma nodes should have higher corruption baseline
+
+================================================================================
+ENERGY & LOAD METRICS MAPPING
+================================================================================
+
+LEGACY: nodeEnergy (absolute)
+  TYPE: 0–120 (absolute units)
+  NEW: node.userData.metrics.energy
+  NEW_RANGE: 0–120 (same)
+  MODULES: EnergyOrb, energy-based systems
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: nodeEnergyNorm
+  TYPE: 0–1 (normalized)
+  NEW: node.userData.metrics.energyNorm
+  NEW_RANGE: 0–1 (same)
+  CALCULATION: energyNorm = energy / 120
+  MODULES: Visual systems, glow intensity mapping
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: linkTraffic / traffic.load (legacy)
+  TYPE: 0–? (unknown custom scale)
+  NEW: Use link.userData.quality.metrics.loadRatio or link source quality
+  NEW_RANGE: 0–1 normalized
+  MODULES: LinkAutomation, traffic-based systems
+  REQUIRES_REMAP: YES
+  REMAPPING_CODE:
+    old = link.traffic?.load || 0.5;
+    // Use link quality or node load instead
+    new = link.userData?.quality?.metrics?.linkQualityAvg / 100 || 0.5;
+
+LEGACY: nodeLoadRatio
+  TYPE: 0–1 (normalized)
+  NEW: node.userData.metrics.loadRatio
+  NEW_RANGE: 0–1 (same)
+  MODULES: NodeDynamicMetrics (output)
+  REQUIRES_REMAP: NO (already compatible)
+
+LEGACY: nodeLoad (conceptual)
+  TYPE: 0–100 (percent)
+  CALCULATION: nodeLoad = nodeLoadRatio * 100
+  MODULES: HUD display, monitoring
+  REQUIRES_REMAP: YES (calculation added)
+  REMAPPING_CODE:
+    nodeLoad = node.userData?.metrics?.loadRatio * 100 || 50;
+
+================================================================================
+NETWORK LOAD METRICS MAPPING
+================================================================================
+
+LEGACY: networkLoad
+  TYPE: 0–100 percent
+  NEW: avg(node.userData.metrics.loadRatio) * 100
+  NEW_RANGE: 0–100 (same)
+  FORMULA:
+    avgLoadRatio = aiNodes.nodes
+      .map(n => n.userData?.metrics?.loadRatio || 0.5)
+      .reduce((a, b) => a + b, 0) / aiNodes.nodes.length
+    networkLoad = avgLoadRatio * 100
+  MODULES: CoreMetricsCalculator, MetricReactiveWorldEvents, CoreMetricsHUD
+  REQUIRES_REMAP: YES
+
+LEGACY: avgLinkLoad
+  TYPE: 0–100 or 0–1 (varies)
+  NEW: avg(link.userData.quality.metrics.loadRatio) for all links
+  NEW_RANGE: 0–1 (normalized)
+  FORMULA:
+    avgLinkLoad = linkingSystem.links
+      .map(l => /* use source/target loadRatio or link quality */)
+      .reduce((a, b) => a + b, 0) / linkingSystem.links.length
+  MODULES: CoreMetricsCalculator, network analysis
+  REQUIRES_REMAP: YES
+
+================================================================================
+QUALITY METRICS MAPPING (NEW SYSTEMS)
+================================================================================
+
+NEW: node.userData.quality.score (NodeQualityCalculator)
+  TYPE: 0–100
+  RANGE: 0–100
+  REPLACES: No direct legacy equivalent (aggregate new metric)
+  USE: Primary metric for node quality decisions
+  MODULES: HUDs, automation systems, VFX
+  INTEGRATION: NodeDynamicMetrics input
+
+NEW: node.userData.quality.level
+  TYPE: string {Prime, Stable, Weak, Critical}
+  RANGE: 4 levels
+  REPLACES: No legacy equivalent
+  USE: Categorical node quality classification
+  MODULES: HUDs, visual classification
+
+NEW: link.userData.quality.score (LinkQualityCalculator)
+  TYPE: 0–100
+  RANGE: 0–100
+  REPLACES: synergyScore (0–1), multiple legacy sources
+  USE: Single authoritative link quality source
+  MODULES: LinkGlowSynergyEngine, SynergyVFX, link automation
+  INTEGRATION: NodeDynamicMetrics input
+
+NEW: link.userData.quality.level
+  TYPE: string {High, Medium, Low, Critical}
+  RANGE: 4 levels
+  REPLACES: synergyTier
+  USE: Categorical link quality classification
+
+================================================================================
+SCALE NORMALIZATION RULES
+================================================================================
+
+FOR ALL 0–100 METRICS (Legacy and New):
+  Normalized form = metric / 100
+  Example: stability (0–100) → normalized (0–1)
+    const normalized = node.userData.metrics.stability / 100;
+
+FOR ALL 0–1 METRICS (Legacy):
+  Denormalized form = metric * 100
+  Example: synergyScore (0–1) → percentage (0–100)
+    const percent = link.synergyScore * 100;
+
+FOR ALL PERSONALITY MODIFIERS (-1 to +1):
+  Apply as delta:
+    finalMetric = baseMetric + (modifier * scaleFactor)
+    Example: scaleFactor = 10 for metrics that are 0–100
+    finalStability = baseStability + (personality.harmony * 10)
+
+FOR ALL ABSOLUTE UNITS (Energy 0–120):
+  No normalization needed
+  Normalize manually if needed: energyNorm = energy / 120
+
+================================================================================
+VALIDATION CHECKLIST FOR REMAPPING
+================================================================================
+
+Before using any mapped metric:
+  [ ] Source system is producing new metric (NodeDynamics/LinkQuality/NodeQuality)
+  [ ] Value range confirmed (0–100 vs 0–1 vs absolute)
+  [ ] Null safety: using default if metric missing
+  [ ] Scale applied correctly (divide by 100 if need 0–1)
+  [ ] Color/intensity mapping updated for new ranges
+  [ ] Performance checked (no redundant lookups)
+  [ ] VFX tested with new metric values
+  [ ] Backward compatibility maintained if needed
+  [ ] Console warnings removed (debug-only)
+
+================================================================================
+QUICK REFERENCE PSEUDOCODE
+================================================================================
+
+Reading New Metrics:
+
+  // Get node metrics (Phase 3)
+  const nodeMetrics = node.userData?.metrics;
+  const nodeQuality = node.userData?.quality;
+  
+  // Safely read with defaults
+  const stability = nodeMetrics?.stability ?? 50;
+  const harmony = nodeMetrics?.harmony ?? 50;
+  const clarity = nodeMetrics?.clarity ?? 50;
+  const energy = nodeMetrics?.energy ?? 60;
+  const energyNorm = nodeMetrics?.energyNorm ?? 0.5;
+  const corruption = nodeMetrics?.corruption ?? 0;
+  const instability = nodeMetrics?.instability ?? 50;
+  
+  const qualityScore = nodeQuality?.score ?? 50;
+  const qualityLevel = nodeQuality?.level ?? 'Weak';
+  
+  // Get link quality (Phase 3)
+  const linkQuality = link.userData?.quality?.score ?? 50;
+  const linkQualityNorm = linkQuality / 100;  // 0–1 range
+  
+  // Calculate network aggregates
+  const avgNodeQuality = average(nodes.map(n => n.userData?.quality?.score || 50));
+  const avgStability = average(nodes.map(n => n.userData?.metrics?.stability || 50));
+  const networkLoad = average(nodes.map(n => n.userData?.metrics?.loadRatio || 0.5)) * 100;
+
+Apply Visual Mapping:
+
+  // Example: glow intensity from quality
+  const glowIntensity = lerp(0.1, 1.0, qualityNorm);
+  
+  // Example: link color from quality
+  const linkColor = getColorFromQuality(linkQuality);  // 0–100 → color
+  
+  // Example: animation speed from load
+  const pulseSpeed = lerp(0.5, 2.0, nodeLoadRatio);
+
+================================================================================
+END OF MAPPING TABLE
+================================================================================
+
+Legend:
+  REQUIRES_REMAP: YES = must update code | NO = compatible | OPTIONAL = enhancement
+  DEAD = unused, should remove | OBSOLETE = replaced by new system
+  Priority: HIGH = update soon | MEDIUM = update in v2.0 | LOW = nice to have
+
+For full details see: VISUAL_METRICS_AUDIT_REPORT.md

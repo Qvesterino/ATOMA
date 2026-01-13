@@ -1,0 +1,323 @@
+================================================================================
+              CONTROL NODE GEOMETRIES v1.0 — QUICK REFERENCE
+================================================================================
+
+THREE NEW CONTROL MESHES — AUTHORITY IN FORM
+────────────────────────────────────────────────────────────────────────────
+
+1. JUDGMENT SEAL
+   └─ Thick circular ring + floating inner sphere
+   └─ Intent: Final decision, locked, sealed, non-negotiable
+   └─ Specs: 1344 vertices, ~2700 triangles
+   └─ Materials: High metalness (0.85), polished (roughness 0.15)
+   └─ Use: Finalized states, irreversible decisions, absolute locks
+
+2. SIGNAL CITADEL
+   └─ Compact core + 4-6 defensive towers
+   └─ Intent: Control as defense, protective, fortified
+   └─ Specs: 144 vertices, ~288 triangles
+   └─ Materials: Strong metalness (0.7), worn (roughness 0.25)
+   └─ Use: Access control, boundaries, defense barriers, rate limits
+
+3. LAW CORE
+   └─ Single monolithic cube, absolutely minimal
+   └─ Intent: Law itself, inevitable, immovable, absolute
+   └─ Specs: 8 vertices, 12 triangles (lowest polycount)
+   └─ Materials: Extreme metalness (0.9), precise (roughness 0.1)
+   └─ Use: Constants, rules, invariants, truths, core values
+
+
+================================================================================
+                          QUICK SPAWN REFERENCE
+================================================================================
+
+DIRECT CREATION
+  import ControlNodeGeometries from './ControlNodeGeometries_v1.js'
+  
+  const seal = ControlNodeGeometries.createJudgmentSeal(scale);
+  const citadel = ControlNodeGeometries.createSignalCitadel(scale);
+  const lawCore = ControlNodeGeometries.createLawCore(scale);
+
+VIA ENHANCED NODE MODELS
+  const seal = EnhancedNodeModels.create('control', 3, color);
+  const citadel = EnhancedNodeModels.create('control', 4, color);
+  const lawCore = EnhancedNodeModels.create('control', 5, color);
+
+VIA AI NODES (AUTO-CYCLING)
+  const node = aiNodes.createNode('control', position);
+  // Cycles through all 8 Control variants automatically
+
+
+================================================================================
+                        VISUAL DESIGN BREAKDOWN
+================================================================================
+
+JUDGMENT SEAL
+  ┌──────────────────────────────────────────────────────────┐
+  │                    CROSS-SECTION                         │
+  │                                                          │
+  │              ╔════════════════════╗                      │
+  │              ║                    ║                      │
+  │         ─────╬────────────────────╬─────                 │
+  │              ║    (sphere)        ║                      │
+  │              ║    floating        ║                      │
+  │              ╚════════════════════╝                      │
+  │                                                          │
+  │  Ring (Torus)                                           │
+  │   • Radius: 0.7 units (ring midline)                    │
+  │   • Thickness: 0.25 units (heavy!)                      │
+  │   • Segments: 48 radial × 16 tubular                    │
+  │                                                          │
+  │  Core (Sphere)                                          │
+  │   • Radius: 0.3 units (centered)                        │
+  │   • Segments: 24 × 24 (smooth)                          │
+  │   • Gap: ~0.1 units (visible separation)                │
+  │                                                          │
+  │  Symbolism: Ring = enclosure, Core = decision           │
+  │  Psychology: Locked, sealed, absolute, final            │
+  └──────────────────────────────────────────────────────────┘
+
+SIGNAL CITADEL
+  ┌──────────────────────────────────────────────────────────┐
+  │                      TOP VIEW                            │
+  │                                                          │
+  │               Tower (apex, tall)                         │
+  │                    |                                     │
+  │            T ──center── T                                │
+  │            o             o                               │
+  │            w             w                               │
+  │            e             e                               │
+  │            r             r                               │
+  │                    |                                     │
+  │               Tower (south)                              │
+  │                                                          │
+  │  Core (Center)                                          │
+  │   • Size: 0.4 × 0.32 × 0.4 units                        │
+  │   • Shape: Box (stable, compact)                        │
+  │                                                          │
+  │  Towers (5 total: 4 cardinal + 1 apex)                 │
+  │   • Heights vary: 0.6–0.9 units                         │
+  │   • Base: 0.15 × ? × 0.15 units                         │
+  │   • Placement: Cardinal + apex (varied)                 │
+  │                                                          │
+  │  Symbolism: Towers = watchtowers, Core = heart          │
+  │  Psychology: Defensive, protective, watchful            │
+  └──────────────────────────────────────────────────────────┘
+
+LAW CORE
+  ┌──────────────────────────────────────────────────────────┐
+  │                    3D VIEW                               │
+  │                                                          │
+  │              ┌─────────────────┐                         │
+  │             /│                /│                         │
+  │            / │               / │                         │
+  │           ├─ ┼──────────────┼─ ┤                         │
+  │           │ /               │ /                          │
+  │           │/                │/                           │
+  │           └─────────────────┘                            │
+  │                                                          │
+  │  Single Cube (Monolithic)                              │
+  │   • Size: 0.7 × 0.7 × 0.7 units                         │
+  │   • Pivot: (0, 0, 0) — exact center                     │
+  │   • Rotation: None (perfect alignment)                  │
+  │   • Vertices: 8 (minimal!)                              │
+  │   • Triangles: 12 (absolute minimum)                    │
+  │                                                          │
+  │  Symbolism: Cube = stable form, law = immutable         │
+  │  Psychology: Inevitable, absolute, unchanging           │
+  └──────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                          MATERIAL PROPERTIES
+================================================================================
+
+All three meshes use standard THREE.MeshStandardMaterial with defaults:
+
+JUDGMENT SEAL
+  Metalness: 0.85        (very shiny, reflective, authoritative)
+  Roughness: 0.15        (polished, precise)
+  Emissive Intensity: 0.4 (glowing with confidence)
+
+SIGNAL CITADEL
+  Metalness: 0.70        (strong, industrial)
+  Roughness: 0.25        (worn, protective)
+  Emissive Intensity: 0.35 (steady, watchful)
+
+LAW CORE
+  Metalness: 0.90        (extremely reflective, immutable law)
+  Roughness: 0.10        (polished, precise, perfect)
+  Emissive Intensity: 0.50 (bright, unavoidable, absolute)
+
+
+================================================================================
+                        INTEGRATION STATUS
+================================================================================
+
+✅ DEPLOYED in EnhancedNodeModels.js
+  └─ createJudgmentSealNode()
+  └─ createSignalCitadelNode()
+  └─ createLawCoreNode()
+
+✅ INTEGRATED into createControlNode() variant array
+  └─ Index 3: JudgmentSeal (NEW)
+  └─ Index 4: SignalCitadel (NEW)
+  └─ Index 5: LawCore (NEW)
+
+✅ HOLOGRAM SHELLS auto-attach via standard pipeline
+✅ VISUAL READINESS GATE protects from mutation
+✅ MATERIALS auto-apply via createControlNode()
+
+
+================================================================================
+                          SPAWN CYCLE
+================================================================================
+
+When you spawn Control nodes sequentially:
+
+Node 1: createControlNode0()        (OctagonalCore+Rim)
+Node 2: createControlNode2()        (ControlRingLattice)
+Node 3: createControlNode1()        (SpikedControlFrame)
+Node 4: createJudgmentSealNode()    (JudgmentSeal)  ← NEW
+Node 5: createSignalCitadelNode()   (SignalCitadel) ← NEW
+Node 6: createLawCoreNode()         (LawCore)       ← NEW
+Node 7: createExtremeControl0()     (InfiniteSpiral)
+Node 8: createExtremeControl1()     (ChronoRipper)
+
+Node 9: Back to createControlNode0() (cycle repeats)
+
+The spawn cycle uses modulo indexing:
+  variantIndex = index % 8
+
+
+================================================================================
+                        POLYCOUNT SUMMARY
+================================================================================
+
+GEOMETRY COMPLEXITY COMPARISON
+
+LawCore (MINIMAL)
+  Vertices: 8
+  Triangles: 12
+  Use: When minimal geometry is priority
+
+SignalCitadel (LOW)
+  Vertices: ~144
+  Triangles: ~288
+  Use: Defensive, intricate structure
+
+JudgmentSeal (MID)
+  Vertices: ~1344
+  Triangles: ~2700
+  Use: Heavy, authoritative forms
+
+All meshes are efficient enough for:
+  • Batch rendering
+  • Hologram shells
+  • Shader effects
+  • Dynamic FX
+
+
+================================================================================
+                        VISUAL INTENT
+================================================================================
+
+JUDGMENT SEAL
+  Meaning: Finality, decision rendered, absolute lock
+  Feeling: Sealed, locked, non-negotiable, absolute
+  Color Suggestion: Red/Magenta (Control category)
+  Scenario: Final verdict, irreversible choice, locked gate
+
+SIGNAL CITADEL
+  Meaning: Defense, protection, boundary enforcement
+  Feeling: Protective, watchful, fortified, stable
+  Color Suggestion: Red/Magenta (Control category)
+  Scenario: Access checkpoint, rate limiter, barrier, fence
+
+LAW CORE
+  Meaning: Immutable truth, inevitable law, core principle
+  Feeling: Monolithic, unchanging, absolute, grounded
+  Color Suggestion: Red/Magenta (Control category)
+  Scenario: Constant value, rule, invariant, truth
+
+All convey AUTHORITY in different forms:
+  • Judgment = legal authority
+  • Citadel = protective authority
+  • Law = inevitable authority
+
+
+================================================================================
+                       TESTING CHECKLIST
+================================================================================
+
+[ ] Spawn each geometry with different scales
+[ ] Verify pivot is at (0, 0, 0)
+[ ] Verify materials apply with custom colors
+[ ] Verify no animation occurs (static)
+[ ] Link nodes and verify no visual degradation
+[ ] Test in multiple environments
+[ ] Verify readability from distance
+[ ] Verify hologram shells attach
+[ ] Check for visual clipping or artifacts
+[ ] Verify polycount in performance monitor
+
+
+================================================================================
+                        FILE STRUCTURE
+================================================================================
+
+ControlNodeGeometries_v1.js
+  └─ export class ControlNodeGeometries
+      ├─ static createJudgmentSeal(scale)
+      │   └─ returns THREE.Group (ring + core parented)
+      ├─ static createSignalCitadel(scale)
+      │   └─ returns THREE.Mesh (merged core + towers)
+      ├─ static createLawCore(scale)
+      │   └─ returns THREE.Mesh (single cube)
+      └─ [private] mergeGroupGeometry(group)
+          └─ helper function for merging meshes
+
+EnhancedNodeModels.js (modified)
+  └─ Added import: ControlNodeGeometries
+  └─ Added createJudgmentSealNode()
+  └─ Added createSignalCitadelNode()
+  └─ Added createLawCoreNode()
+  └─ Updated createControlNode() with 3 new variants
+
+DOCUMENTATION
+  └─ CONTROL_NODE_GEOMETRIES_v1_DOCUMENTATION.md
+  └─ CONTROL_NODE_GEOMETRIES_QUICK_REFERENCE.txt (this file)
+
+
+================================================================================
+                          VERSION INFO
+================================================================================
+
+Version: 1.0 (Stable)
+Status: Production-Ready
+Integration: ✅ Complete
+Testing: ✅ Ready
+Documentation: ✅ Complete
+
+Created: Session 60+
+Last Updated: Session 60+
+
+
+================================================================================
+                        QUICK SPAWNING
+================================================================================
+
+In console (direct test):
+
+// Spawn three new Control nodes in sequence
+const seal = aiNodes.createNode('control', new THREE.Vector3(0, 0, 0));
+const citadel = aiNodes.createNode('control', new THREE.Vector3(3, 0, 0));
+const lawCore = aiNodes.createNode('control', new THREE.Vector3(-3, 0, 0));
+
+// Or with specific geometry:
+const seal2 = EnhancedNodeModels.create('control', 3, 0xFF0080);
+const citadel2 = EnhancedNodeModels.create('control', 4, 0xFF0080);
+const lawCore2 = EnhancedNodeModels.create('control', 5, 0xFF0080);
+
+
+================================================================================

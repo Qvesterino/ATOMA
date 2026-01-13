@@ -1,0 +1,434 @@
+================================================================================
+  EXTREME AI NODES — APPLIED PATCHES (READY TO COPY-PASTE)
+  
+  Each section shows the BEFORE and AFTER code
+  Line numbers reference the CURRENT AINodes.js
+================================================================================
+
+================================================================================
+PATCH 1: ADD EXTREME CATEGORY CONSTANT TO CONSTRUCTOR
+================================================================================
+
+LOCATION: AINodes.js, constructor() method, line ~9-26
+
+BEFORE (current code):
+```javascript
+constructor(scene, player) {
+  this.scene = scene;
+  this.player = player;
+  this.nodes = [];
+  this.connections = [];
+  this.activationDistance = 8;
+  this.connectionDistance = 15;
+  
+  // 6 node categories with 4 variants each
+  this.nodeCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control'];
+  
+  // Special multi-output node types (10% chance of appearing)
+  this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
+  
+  this.activeNodes = new Set();
+  this.nodeCounter = 0; // For variant selection
+}
+```
+
+AFTER (with patch):
+```javascript
+constructor(scene, player) {
+  this.scene = scene;
+  this.player = player;
+  this.nodes = [];
+  this.connections = [];
+  this.activationDistance = 8;
+  this.connectionDistance = 15;
+  
+  // 6 node categories with 4 variants each
+  this.nodeCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control'];
+  
+  // PATCH 1: Add EXTREME category constant
+  this.extremeNodeCategory = 'extreme';
+  
+  // Special multi-output node types (10% chance of appearing)
+  this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
+  
+  this.activeNodes = new Set();
+  this.nodeCounter = 0; // For variant selection
+}
+```
+
+CHANGE: Add 2 lines (1 comment, 1 code)
+AFFECTED: Lines after this.nodeCategories
+
+================================================================================
+PATCH 2: ADD EXTREME COLOR SCHEME
+================================================================================
+
+LOCATION: AINodes.js, getLayerColorScheme() method, line ~406-418
+
+BEFORE (current code):
+```javascript
+getLayerColorScheme(category) {
+  const schemes = {
+    'input': { primary: 0x00dddd, secondary: 0x0099ff },      // Cyan
+    'process': { primary: 0x0066ff, secondary: 0x3399ff },    // Blue
+    'integration': { primary: 0xaa00ff, secondary: 0xdd66ff },// Violet
+    'analytics': { primary: 0xff00ff, secondary: 0xff66ff },  // Magenta
+    'storage': { primary: 0x00ddaa, secondary: 0x00ffdd },    // Teal
+    'control': { primary: 0xffaa00, secondary: 0xffdd33 },    // Amber
+    'quantum': { primary: 0x4400ff, secondary: 0xaa66ff },    // Indigo
+    'sigma': { primary: 0x00ff00, secondary: 0x66ff66 }       // Green
+  };
+  return schemes[category] || { primary: 0x00ffff, secondary: 0x0088ff };
+}
+```
+
+AFTER (with patch):
+```javascript
+getLayerColorScheme(category) {
+  const schemes = {
+    'input': { primary: 0x00dddd, secondary: 0x0099ff },      // Cyan
+    'process': { primary: 0x0066ff, secondary: 0x3399ff },    // Blue
+    'integration': { primary: 0xaa00ff, secondary: 0xdd66ff },// Violet
+    'analytics': { primary: 0xff00ff, secondary: 0xff66ff },  // Magenta
+    'storage': { primary: 0x00ddaa, secondary: 0x00ffdd },    // Teal
+    'control': { primary: 0xffaa00, secondary: 0xffdd33 },    // Amber
+    'quantum': { primary: 0x4400ff, secondary: 0xaa66ff },    // Indigo
+    'sigma': { primary: 0x00ff00, secondary: 0x66ff66 },      // Green
+    'extreme': { primary: 0xff00ff, secondary: 0xff66ff }     // PATCH 2: Magenta for EXTREME
+  };
+  return schemes[category] || { primary: 0x00ffff, secondary: 0x0088ff };
+}
+```
+
+CHANGE: Add 1 line
+AFFECTED: schemes object, before closing brace
+
+================================================================================
+PATCH 3: UPDATE SPAWNING CONFIG
+================================================================================
+
+LOCATION: AINodes.js, initializeNodeSpawning() method, line ~848-871
+
+BEFORE (current code):
+```javascript
+initializeNodeSpawning() {
+  // Time-based spawn interval configuration
+  const timeSpawnInterval = { min: 20000, max: 40000 };
+  
+  // Spawning configuration
+  this.spawningConfig = {
+    // Time-based spawning (every 20-40 seconds)
+    timeSpawnInterval: timeSpawnInterval,
+    nextTimeSpawn: Date.now() + (timeSpawnInterval.min + Math.random() * (timeSpawnInterval.max - timeSpawnInterval.min)),
+    
+    // Event-based spawning
+    lastLinkTime: 0,
+    linkSpawnCooldown: 5000, // 5 second cooldown between link spawns
+    
+    // AI growth monitoring
+    lastNetworkCheck: Date.now(),
+    networkCheckInterval: 10000, // Check every 10 seconds
+    maxNodesTarget: 50,
+    spawnThreshold: 0.7, // Spawn if below 70% of max
+    
+    // Rare node spawn chance
+    rareMaterializeChance: 0.15 // 15% chance for rare nodes
+  };
+  
+  // Materialize animation tracking
+  this.materializingNodes = new Set();
+}
+```
+
+AFTER (with patch):
+```javascript
+initializeNodeSpawning() {
+  // Time-based spawn interval configuration
+  const timeSpawnInterval = { min: 20000, max: 40000 };
+  
+  // Spawning configuration
+  this.spawningConfig = {
+    // Time-based spawning (every 20-40 seconds)
+    timeSpawnInterval: timeSpawnInterval,
+    nextTimeSpawn: Date.now() + (timeSpawnInterval.min + Math.random() * (timeSpawnInterval.max - timeSpawnInterval.min)),
+    
+    // Event-based spawning
+    lastLinkTime: 0,
+    linkSpawnCooldown: 5000, // 5 second cooldown between link spawns
+    
+    // AI growth monitoring
+    lastNetworkCheck: Date.now(),
+    networkCheckInterval: 10000, // Check every 10 seconds
+    maxNodesTarget: 50,
+    spawnThreshold: 0.7, // Spawn if below 70% of max
+    
+    // Rare node spawn chance
+    rareMaterializeChance: 0.15, // 15% chance for rare nodes
+    
+    // PATCH 3: EXTREME node spawning config
+    extremeNodeChance: 0.06,      // 6% chance when spawn triggered
+    extremeMaxSpawned: 5,          // Max 5 concurrent extreme nodes
+    extremeNodeTypes: []           // Will be populated by registerExtremeNodeTypes()
+  };
+  
+  // Materialize animation tracking
+  this.materializingNodes = new Set();
+}
+```
+
+CHANGE: Add 3 lines (1 comment, 3 config entries)
+AFFECTED: spawningConfig object
+
+================================================================================
+PATCH 4A: UPDATE SPAWNNODE() CATEGORY SELECTION
+================================================================================
+
+LOCATION: AINodes.js, spawnNode() method, line ~953-962
+
+BEFORE (current code):
+```javascript
+spawnNode(category = null, position = null) {
+  // Default category or random
+  if (!category) {
+    const isRare = Math.random() < this.spawningConfig.rareMaterializeChance;
+    if (isRare) {
+      category = this.specialNodeTypes[Math.floor(Math.random() * this.specialNodeTypes.length)];
+    } else {
+      category = this.nodeCategories[Math.floor(Math.random() * this.nodeCategories.length)];
+    }
+  }
+```
+
+AFTER (with patch):
+```javascript
+spawnNode(category = null, position = null) {
+  // Default category or random
+  if (!category) {
+    const roll = Math.random();
+    
+    // PATCH 4A: EXTREME node selection (6% chance)
+    if (roll < this.spawningConfig.extremeNodeChance && 
+        this.spawningConfig.extremeNodeTypes && 
+        this.spawningConfig.extremeNodeTypes.length > 0) {
+      // Check if we haven't exceeded max concurrent extreme nodes
+      const extremeCount = this.nodes.filter(n => n.userData.category === this.extremeNodeCategory).length;
+      if (extremeCount < this.spawningConfig.extremeMaxSpawned) {
+        category = this.extremeNodeCategory;
+      }
+    }
+    
+    // If extreme not selected, fall back to standard selection
+    if (!category) {
+      const isRare = Math.random() < this.spawningConfig.rareMaterializeChance;
+      if (isRare) {
+        category = this.specialNodeTypes[Math.floor(Math.random() * this.specialNodeTypes.length)];
+      } else {
+        category = this.nodeCategories[Math.floor(Math.random() * this.nodeCategories.length)];
+      }
+    }
+  }
+```
+
+CHANGE: Replace ~10 lines with new selection logic
+AFFECTED: Category selection in spawnNode()
+
+================================================================================
+PATCH 4B: UPDATE ISSPECIAL FLAG
+================================================================================
+
+LOCATION: AINodes.js, spawnNode() method, line ~968 (approx)
+
+BEFORE (current code):
+```javascript
+  // Create node
+  const isSpecial = this.specialNodeTypes.includes(category);
+  const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+```
+
+AFTER (with patch):
+```javascript
+  // Create node
+  // PATCH 4B: Mark EXTREME nodes as "special" for proper VFX treatment
+  const isSpecial = this.specialNodeTypes.includes(category) || category === this.extremeNodeCategory;
+  const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+```
+
+CHANGE: Modify 1 line (isSpecial calculation)
+AFFECTED: Special node detection
+
+================================================================================
+PATCH 5: ADD REGISTEREXTREMNODETYPES() METHOD
+================================================================================
+
+LOCATION: AINodes.js, after initializeNodeSpawning() method (line ~875)
+
+ADD THIS NEW METHOD:
+
+```javascript
+/**
+ * PATCH 5: Register available extreme node archetypes
+ * Call this to enable EXTREME node spawning
+ * Safe: can be called anytime, fully compatible with shader pack and evolution
+ */
+registerExtremeNodeTypes(extremeNodePack = null) {
+  if (!this.spawningConfig) {
+    this.initializeNodeSpawning();
+  }
+  
+  // If extremeNodePack provided, store reference for potential use
+  if (extremeNodePack) {
+    this.extremeNodePack = extremeNodePack;
+  }
+  
+  // Flag that EXTREME nodes are enabled
+  this.spawningConfig.extremeNodeTypes = ['extreme']; // Identifier for extreme category
+  
+  console.log('[AINodes] EXTREME node category registered and enabled for spawning');
+}
+```
+
+CHANGE: Add ~15 line new method
+AFFECTED: New method addition, no modifications to existing
+
+================================================================================
+MAIN.JS INTEGRATION POINTS
+================================================================================
+
+INTEGRATION POINT A: Initialize EXTREME Category
+LOCATION: main.js, constructor/setup, after this.aiNodes.initializeNodeSpawning()
+
+ADD:
+```javascript
+// Initialize spawning system
+this.aiNodes.initializeNodeSpawning();
+
+// PATCH: Enable EXTREME node category
+this.aiNodes.registerExtremeNodeTypes(this.extremeAINodePack || null);
+```
+
+---
+
+INTEGRATION POINT B: With Shader Pack (Optional)
+LOCATION: main.js, after attachExtremeShaderPackToGame(this)
+
+ADD:
+```javascript
+// Initialize shader pack
+attachExtremeShaderPackToGame(this);
+
+// Ensure EXTREME nodes enabled and compatible with shaders
+if (this.extremeAIShaderPack && this.aiNodes) {
+  this.aiNodes.registerExtremeNodeTypes();
+}
+```
+
+---
+
+INTEGRATION POINT C: Manual Node Spawning (Optional)
+LOCATION: main.js, where you spawn nodes manually
+
+ADD:
+```javascript
+// When you want to spawn an EXTREME node with full effects:
+const extremeNode = this.aiNodes.spawnNode('extreme');
+
+// Apply archetype if available
+if (this.extremeAINodePack) {
+  this.extremeAINodePack.applyArchetype(extremeNode, this.scene);
+}
+
+// Apply shaders if available
+if (this.extremeAIShaderPack) {
+  this.extremeAIShaderPack.registerNode(extremeNode);
+}
+
+// Optional: Enable evolution
+if (this.extremeEvolution3) {
+  this.extremeEvolution3.registerNode(extremeNode);
+}
+```
+
+================================================================================
+SUMMARY OF ALL PATCHES
+================================================================================
+
+PATCH 1: Add 1 line to constructor
+  Location: After this.nodeCategories
+  Code: this.extremeNodeCategory = 'extreme';
+
+PATCH 2: Add 1 line to getLayerColorScheme()
+  Location: In schemes object
+  Code: 'extreme': { primary: 0xff00ff, secondary: 0xff66ff }
+
+PATCH 3: Add 3 lines to spawningConfig
+  Location: In spawningConfig initialization
+  Code: 3 config entries (extremeNodeChance, extremeMaxSpawned, extremeNodeTypes)
+
+PATCH 4A: Modify spawnNode() category selection
+  Location: Category selection logic
+  Code: Replace ~10 lines with new EXTREME selection
+
+PATCH 4B: Modify isSpecial calculation
+  Location: In spawnNode(), isSpecial line
+  Code: Add || category === this.extremeNodeCategory
+
+PATCH 5: Add registerExtremeNodeTypes() method
+  Location: After initializeNodeSpawning()
+  Code: New ~15 line method
+
+MAIN.JS: Add registration call
+  Location: After aiNodes initialization
+  Code: this.aiNodes.registerExtremeNodeTypes(...);
+
+TOTAL:
+  - 5 patches to AINodes.js
+  - 1 integration point to main.js
+  - ~40 total lines added/modified
+  - 0 lines deleted
+  - 100% backward compatible
+
+================================================================================
+TESTING COMMANDS
+================================================================================
+
+After integration, verify in browser console:
+
+// Test 1: Check category exists
+game.aiNodes.extremeNodeCategory
+// Expected: "extreme"
+
+// Test 2: Check spawn config
+game.aiNodes.spawningConfig.extremeNodeChance
+// Expected: 0.06
+
+// Test 3: Manually spawn
+game.aiNodes.spawnNode('extreme')
+// Expected: Magenta node appears
+
+// Test 4: Check colors
+game.aiNodes.getLayerColorScheme('extreme')
+// Expected: { primary: 0xff00ff, secondary: 0xff66ff }
+
+// Test 5: Count nodes by category
+game.aiNodes.nodes.forEach(n => console.log(n.userData.category))
+// Expected: Mix including some 'extreme'
+
+// Test 6: Apply shader to EXTREME
+game.aiNodes.nodes.forEach(n => {
+  if (n.userData.category === 'extreme' && game.extremeAIShaderPack) {
+    game.extremeAIShaderPack.registerNode(n);
+  }
+})
+// Expected: No errors
+
+================================================================================
+
+STATUS: ✅ ALL PATCHES READY FOR APPLICATION
+
+Follow EXTREME_AI_NODES_INTEGRATION_GUIDE.md for step-by-step integration.
+Use EXTREME_AI_NODES_CODE_PATCHES.js for copy-paste code blocks.
+Use this file for before/after verification.
+
+Integration Time: 5-10 minutes
+Risk Level: ZERO
+Reversibility: 100% (remove 3 lines to disable)

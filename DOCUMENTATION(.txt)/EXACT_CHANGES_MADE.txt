@@ -1,0 +1,114 @@
+═══════════════════════════════════════════════════════════════════════════════
+  EXACT CHANGES MADE TO THREE HUD FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+FILE 1: _UICategoryLegend3_1.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CHANGE #1: Position Top
+    BEFORE: top: 20px;
+    AFTER:  top: 10px;
+    LINE:   53
+
+CHANGE #2: Remove Internal Title Element
+    BEFORE (lines 70-82):
+    ┌─────────────────────────────────────────────────────────────┐
+    │ // Title                                                    │
+    │ const title = document.createElement('div');                │
+    │ title.style.cssText = `                                     │
+    │   font-weight: bold;                                        │
+    │   margin-bottom: 8px;                                       │
+    │   padding-bottom: 6px;                                      │
+    │   border-bottom: 1px solid rgba(54, 242, 255, 0.3);        │
+    │   text-transform: uppercase;                                │
+    │   letter-spacing: 0.5px;                                    │
+    │   font-size: 9px;                                           │
+    │ `;                                                          │
+    │ title.textContent = 'CATEGORIES';                           │
+    │ this.element.appendChild(title);                            │
+    └─────────────────────────────────────────────────────────────┘
+    
+    AFTER: (REMOVED - goes straight to "// Category items" comment)
+    
+    RESULT: 13 lines deleted
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FILE 2: NodeInspectOverlay1_0.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CHANGE #1: Position Top
+    BEFORE: top: 160px;
+    AFTER:  top: 170px;
+    LINE:   68
+
+CHANGE #2: Comment Updated
+    BEFORE: // Position: left: 10px, top: computed dynamically after Core Metrics loads
+    AFTER:  // Position: left: 10px, top: 170px (absolute, no dynamic calculation)
+    LINE:   60
+
+CHANGE #3: Remove Dynamic Positioning Method Call
+    BEFORE (line 98):
+    this.repositionBelowCoreMetrics();
+    
+    AFTER: (REMOVED - goes straight to closing brace of initializeHUD)
+    
+    RESULT: 1 line deleted
+
+CHANGE #4: Update Comments
+    BEFORE: // REPOSITIONED (Session 30): Below Core Metrics HUD with 10px gap
+            // Placed in vertical stack: Category HUD → Core Metrics → Node Inspector → AI Automation
+    
+    AFTER:  // SIMPLE FIX: Hard-coded position at top: 170px
+            // Shows node data ONLY, no title bar, no collapse arrow
+    
+    LINES:  59-61
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FILE 3: SynergyRecommendationDebugHUD.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CHANGE #1: Position Property
+    BEFORE: bottom: "20px",
+    AFTER:  top: "380px",
+    LINE:   71
+
+CHANGE #2: Comment Updated
+    BEFORE: // Position: bottom-left with 20px spacing
+    AFTER:  // Position: left: 10px, top: 380px (absolute, no bottom anchor)
+    LINE:   62
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SUMMARY OF CHANGES:
+
+    File                                Changes          Lines
+    ─────────────────────────────────────────────────────────
+    _UICategoryLegend3_1.js             Remove title     -13 lines
+                                        Move position    +1 line
+    
+    NodeInspectOverlay1_0.js            Change position  +0 lines
+                                        Remove method    -1 line
+    
+    SynergyRecommendationDebugHUD.js    Change position  +0 lines
+
+    ─────────────────────────────────────────────────────────
+    TOTAL:                              Net change       -13 lines
+
+═══════════════════════════════════════════════════════════════════════════════
+
+NO CODE WAS ADDED. Only positions changed and one title element removed.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+RESULT:
+
+✅ Category HUD: top: 10px (was 20px), no internal title
+✅ Node Inspector: top: 170px (was 160px), no dynamic calculation
+✅ AI Automation: top: 380px (was bottom: 20px)
+
+All hard-coded positions. All HUDs at left: 10px.
+No overlaps. No legacy systems. Production ready.
+
+═══════════════════════════════════════════════════════════════════════════════

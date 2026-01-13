@@ -1,0 +1,35 @@
+{
+  "roles": {
+    "atoma-auditor": {
+      "allow": ["list_files", "search_files", "read_file"],
+      "deny": ["write_to_file", "replace_in_file", "execute_command"]
+    },
+    "atoma-architect": {
+      "allow": ["search_files", "read_file"],
+      "deny": ["write_to_file", "replace_in_file", "execute_command"]
+    },
+    "atoma-engineer": {
+      "allow": ["read_file", "search_files", "replace_in_file", "write_to_file"],
+      "deny": ["execute_command"]
+    },
+    "atoma-reviewer": {
+      "allow": ["read_file", "search_files"],
+      "deny": ["write_to_file", "replace_in_file", "execute_command"]
+    },
+    "atoma-visual-designer": {
+      "allow": ["read_file", "search_files", "write_to_file", "replace_in_file"],
+      "deny": ["execute_command"]
+    },
+    "atoma-release-manager": {
+      "allow": ["execute_command"],
+      "deny": ["write_to_file", "replace_in_file"]
+    }
+  },
+
+  "protectedPaths": [
+    "src/engine/core/",
+    "src/metrics/",
+    "src/runtime/",
+    "src/render/loop"
+  ]
+}
