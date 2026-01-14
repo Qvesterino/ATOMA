@@ -16,25 +16,68 @@ import {
   setupPulseIntersectionImpulseConsoleAPI,
 } from './PulseIntersectionImpulseAdapter_v1.js';
 
+function waitForNodeLinkingReady(game, onReady) {
+  if (game.nodeLinking) {
+    onReady(game.nodeLinking);
+    return () => {};
+  }
+
+  const descriptor = Object.getOwnPropertyDescriptor(game, 'nodeLinking');
+  if (descriptor && descriptor.configurable === false) {
+    return () => {};
+  }
+
+  let currentValue = game.nodeLinking;
+  let resolved = false;
+
+  const restoreProperty = () => {
+    Object.defineProperty(game, 'nodeLinking', {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: currentValue,
+    });
+  };
+
+  const cleanup = () => {
+    if (resolved) return;
+    resolved = true;
+    restoreProperty();
+  };
+
+  Object.defineProperty(game, 'nodeLinking', {
+    configurable: true,
+    enumerable: true,
+    get: () => currentValue,
+    set: value => {
+      currentValue = value;
+      if (value && !resolved) {
+        cleanup();
+        onReady(value);
+      }
+    },
+  });
+
+  return cleanup;
+}
+
 export function setupPulseIntersectionIntegration(game) {
   // =========================================================================
   // STEP 1: CREATE ADAPTER INSTANCE
   // =========================================================================
   const adapter = new PulseIntersectionImpulseAdapter(game.scene);
-  console.log('[PulseIntersectionIntegration] Adapter created ✓');
+  console.log('[PulseIntersectionIntegration] Adapter created \u0413\u0428"');
 
   // =========================================================================
   // STEP 2: DEFERRED INITIALIZATION (wait for systems ready)
   // =========================================================================
-  const setupTimeout = setTimeout(() => {
+  const finalizeSetup = nodeLinkingInstance => {
     try {
-      // Register all existing links
-      if (game.nodeLinking && game.nodeLinking.links) {
+      if (nodeLinkingInstance?.links) {
         let registeredCount = 0;
-        for (const link of game.nodeLinking.links) {
+        for (const link of nodeLinkingInstance.links) {
           if (link && link.uuid) {
             try {
-              // Estimate segment count from link geometry
               const segmentCount = link.geometry?.attributes?.position
                 ? Math.min(Math.max(6, Math.floor(link.geometry.attributes.position.count / 10)), 16)
                 : 6;
@@ -46,9 +89,7 @@ export function setupPulseIntersectionIntegration(game) {
             }
           }
         }
-        console.log(`[PulseIntersectionIntegration] Registered ${registeredCount} links ✓`);
-      } else {
-        console.warn('[PulseIntersectionIntegration] NodeLinkingSystem not ready');
+        console.log(`[PulseIntersectionIntegration] Registered ${registeredCount} links \u0413\u0428"`);
       }
 
       // Setup console API
@@ -56,11 +97,13 @@ export function setupPulseIntersectionIntegration(game) {
 
       // Store reference on game object
       game.pulseIntersectionAdapter = adapter;
-      console.log('[PulseIntersectionIntegration] Setup complete ✓');
+      console.log('[PulseIntersectionIntegration] Setup complete \u0413\u0428"');
     } catch (err) {
       console.warn('[PulseIntersectionIntegration] Setup error:', err);
     }
-  }, 600); // Defer slightly longer than micro-impulses (500ms)
+  };
+
+  const readinessCleanup = waitForNodeLinkingReady(game, finalizeSetup);
 
   // =========================================================================
   // STEP 3: HOOK INTO PULSE WAVE UPDATES (optional - if system available)
@@ -75,7 +118,7 @@ export function setupPulseIntersectionIntegration(game) {
   return {
     adapter,
     cleanup: () => {
-      clearTimeout(setupTimeout);
+      readinessCleanup();
       if (adapter) adapter.dispose();
     },
   };
