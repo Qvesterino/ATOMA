@@ -288,12 +288,12 @@ export class NodeInspectOverlay3_0 {
       
       <div style="border-top: 1px solid rgba(0, 221, 255, 0.2); padding-top: 8px;">
         <div style="color: #00ffff; font-weight: bold; margin-bottom: 8px;">METRICS</div>
-        <div style="color: #ffaa00; margin-bottom: 3px;">Energy:      <span style="color: #00ffdd;">${metrics.energy || 0}</span></div>
+        <div style="color: #ffaa00; margin-bottom: 3px;">Synergy:      <span style="color: #00ffdd;">${metrics.energy || 0}</span></div>
         <div style="color: #00ff88; margin-bottom: 3px;">Stability:   <span style="color: #00ffdd;">${metrics.stability || 0}</span></div>
-        <div style="color: #ff00ff; margin-bottom: 3px;">Clarity:     <span style="color: #00ffdd;">${metrics.clarity || 0}</span></div>
+        <div style="color: #ff00ff; margin-bottom: 3px;">Load     <span style="color: #00ffdd;">${metrics.clarity || 0}</span></div>
         <div style="color: #00ddaa; margin-bottom: 3px;">Harmony:     <span style="color: #00ffdd;">${metrics.harmony || 0}</span></div>
         <div style="color: #ff6666; margin-bottom: 3px;">Corruption:  <span style="color: #00ffdd;">${metrics.corruption || 0}</span></div>
-        <div style="color: #ff9999;">Instability: <span style="color: #00ffdd;">${metrics.instability || 0}</span></div>
+        <div style="color: #ff9999;">SKstability: <span style="color: #00ffdd;">${metrics.instability || 0}</span></div>
       </div>
       
       <div style="margin-top: 12px; font-size: 10px; color: #00aa88; opacity: 0.6;">

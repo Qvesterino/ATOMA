@@ -18,6 +18,7 @@ import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js'
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
+import { initNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 
 // ============================================================
 // ATOMA EMISSIVE SAFETY GUARD 4.0
@@ -2289,7 +2290,10 @@ export class AINodes {
     if (newNode.userData.isNodeRoot !== true) {
       newNode.userData.isNodeRoot = true;
     }
-    
+
+    // Canonical metrics: ensure present on spawn
+    initNodeMetrics(newNode);
+
     // ========== STEP 4.5: EXTREME SPAWN SYSTEM v1.0 - RUNTIME SPAWNING ==========
     // 15% chance to spawn as EXTREME node during runtime
     const EXTREME_SPAWN_CHANCE = 0.15;

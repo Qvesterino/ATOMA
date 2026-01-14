@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { withGlobalMetricAliases } from './SemanticMetricAdapter.js';
 
 /**
  * CORE METRICS CALCULATOR
@@ -263,7 +264,7 @@ export class CoreMetricsCalculator {
    * Get current metrics
    */
   getMetrics() {
-    return { ...this.metrics };
+    return withGlobalMetricAliases({ ...this.metrics });
   }
   
   /**

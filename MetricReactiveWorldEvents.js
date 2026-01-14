@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
 /**
  * METRIC-REACTIVE WORLD EVENTS 1.0 (SAFE EDITION)
@@ -90,17 +91,25 @@ export class MetricReactiveWorldEvents {
       if (!this.coreMetricsOverlay) return;
       
       const metrics = this.coreMetricsOverlay.getMetrics();
+      const displayMetrics = projectHudMetrics(metrics);
+      const normalizedMetrics = {
+        synergy: displayMetrics.networkSynergy ?? metrics.synergy,
+        harmony: displayMetrics.harmonyFlow ?? metrics.harmony,
+        instability: displayMetrics.networkStress ?? metrics.instability,
+        corruption: displayMetrics.corruptionLevel ?? metrics.corruption,
+        networkLoad: displayMetrics.loadPressure ?? metrics.networkLoad
+      };
       const currentTime = performance.now() / 1000; // Convert to seconds
       
       // Update active effects
       this.updateActiveEffects(deltaTime);
       
       // Check and trigger events based on metrics
-      this.checkSynergyEvents(metrics, currentTime);
-      this.checkHarmonyEvents(metrics, currentTime);
-      this.checkInstabilityEvents(metrics, currentTime);
-      this.checkCorruptionEvents(metrics, currentTime);
-      this.checkLoadEvents(metrics, currentTime);
+      this.checkSynergyEvents(normalizedMetrics, currentTime);
+      this.checkHarmonyEvents(normalizedMetrics, currentTime);
+      this.checkInstabilityEvents(normalizedMetrics, currentTime);
+      this.checkCorruptionEvents(normalizedMetrics, currentTime);
+      this.checkLoadEvents(normalizedMetrics, currentTime);
       
       // Monitor performance
       const elapsed = performance.now() - startTime;

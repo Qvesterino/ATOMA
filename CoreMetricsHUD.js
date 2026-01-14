@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
 /**
  * CORE METRICS HUD
@@ -22,7 +23,7 @@ export class CoreMetricsHUD {
     this.hudElements = {
       synergy: null,
       harmony: null,
-      instability: null,
+      stability: null,
       corruption: null,
       networkLoad: null,
       cycleTime: null,
@@ -47,7 +48,7 @@ export class CoreMetricsHUD {
     this.colors = {
       synergy: '#00ccdd',      // Cyan
       harmony: '#00dd99',      // Green-teal
-      instability: '#ffdd00',  // Amber
+      stability: '#ffdd00',  // Amber
       corruption: '#dd0099',   // Magenta
       networkLoad: '#aa00ff',  // Violet
       text: '#00ffff',         // Bright cyan
@@ -92,7 +93,7 @@ export class CoreMetricsHUD {
     const metrics = [
       { key: 'synergy', label: 'NETWORK SYNERGY', color: this.colors.synergy },
       { key: 'harmony', label: 'HARMONY FLOW', color: this.colors.harmony },
-      { key: 'instability', label: 'NETWORK STRESS', color: this.colors.instability },
+      { key: 'stability', label: 'NETWORK STRESS', color: this.colors.stability },
       { key: 'corruption', label: 'CORRUPTION LEVEL', color: this.colors.corruption },
       { key: 'networkLoad', label: 'LOAD PRESSURE', color: this.colors.networkLoad }
     ];
@@ -220,19 +221,27 @@ export class CoreMetricsHUD {
   
   /**
    * Update HUD with current metrics and temporal data
+   * All metrics are expected as floats in [0, 1].
    */
   update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     if (!this.enabled || !this.hudContainer) return;
+
+    const display = projectHudMetrics(metrics);
+    const synergy = this.clamp01(display.networkSynergy);      // Canonical: networkSynergy (0..1)
+    const harmony = this.clamp01(display.harmonyFlow);         // Canonical: harmonyFlow (0..1)
+    const stress = this.clamp01(display.networkStress);        // Canonical: networkStress (0..1)
+    const corruption = this.clamp01(display.corruptionLevel);  // Canonical: corruptionLevel (0..1)
+    const load = this.clamp01(display.loadPressure);           // Canonical: loadPressure (0..1)
     
     // Update metrics
-    this.updateMetricDisplay('synergy', metrics.synergy);
-    this.updateMetricDisplay('harmony', metrics.harmony);
-    this.updateMetricDisplay('instability', metrics.instability);
-    this.updateMetricDisplay('corruption', metrics.corruption);
-    this.updateMetricDisplay('networkLoad', metrics.networkLoad);
+    this.updateMetricDisplay('synergy', synergy);
+    this.updateMetricDisplay('harmony', harmony);
+    this.updateMetricDisplay('stability', stress);
+    this.updateMetricDisplay('corruption', corruption);
+    this.updateMetricDisplay('networkLoad', load);
     
     // Update Network Time Pressure mechanic
-    this.updateNetworkTime(metrics.synergy, deltaTime);
+    this.updateNetworkTime(synergy, deltaTime);
     
     // Update temporal display
     if (this.hudElements.cycleTime) {
@@ -250,7 +259,8 @@ export class CoreMetricsHUD {
       this.triggerGlow();
     }
   }
-  
+
+
   /**
    * Update a single metric display
    */
@@ -258,11 +268,29 @@ export class CoreMetricsHUD {
     const element = this.hudElements[key];
     if (!element) return;
     
-    // Update percentage text
-    element.percent.textContent = `${value.toString().padStart(2, '0')}%`;
+    const clamped = this.clamp01(value);
+    
+    // Update float text (0..1 with six decimals)
+    element.percent.textContent = this.formatFloat(clamped);
     
     // Update bar width
-    element.bar.style.width = `${value}%`;
+    const widthPercent = (clamped * 100).toFixed(2);
+    element.bar.style.width = `${widthPercent}%`;
+  }
+
+  /**
+   * Clamp value to [0, 1] for safe HUD display.
+   */
+  clamp01(value) {
+    const num = Number.isFinite(value) ? value : 0;
+    return Math.max(0, Math.min(1, num));
+  }
+
+  /**
+   * Format clamped float for display (six decimals).
+   */
+  formatFloat(value) {
+    return this.clamp01(value).toFixed(6);
   }
   
   /**
@@ -275,8 +303,9 @@ export class CoreMetricsHUD {
   updateNetworkTime(synergy, deltaTime) {
     if (!this.hudElements.networkTime) return;
     
+    const safeSynergy = this.clamp01(synergy);
     const wasFrozen = this.networkTimeFrozen;
-    this.networkTimeFrozen = synergy >= 85;
+    this.networkTimeFrozen = safeSynergy >= 0.85;
     
     // Increment counter: 5 units per second
     if (!this.networkTimeFrozen) {

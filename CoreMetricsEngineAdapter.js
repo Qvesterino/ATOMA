@@ -1,3 +1,5 @@
+import { projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
+
 /**
  * Core Metrics Engine Adapter (READ-ONLY)
  * Maps existing engine metrics directly into CoreMetricsHUD without mutation.
@@ -16,14 +18,17 @@ export class CoreMetricsEngineAdapter {
   update(link, vm, temporalDisplay = this.fallbackTemporal, newEventFlags = this.fallbackEvents, deltaTime = 0.016) {
     if (!this.hud || !link || !vm) return;
 
-    const metrics = {
-      synergy: link.synergyScore,
-      harmony: vm.harmonyNorm,
-      instability: vm.stabilityNorm,
-      corruption: vm.corruptionNorm,
-      networkLoad: vm.loadNorm
-    };
+    const globalMetrics = withGlobalMetricAliases({
+      networkSynergy: vm.networkSynergy ?? vm.synergy ?? link.synergyScore,
+      harmonyFlow: vm.harmonyFlow ?? vm.harmonyNorm ?? vm.harmony,
+      networkStress: vm.networkStress ?? vm.stabilityNorm ?? vm.instability,
+      corruptionLevel: vm.corruptionLevel ?? vm.corruptionNorm ?? vm.corruption,
+      loadPressure: vm.loadPressure ?? vm.loadNorm ?? vm.networkLoad ?? vm.energyNorm
+    });
 
-    this.hud.update(metrics, temporalDisplay, newEventFlags, deltaTime);
+    // HUD expects a metrics object; adapter resolves canonical → legacy if needed.
+    const hudMetrics = projectHudMetrics(globalMetrics);
+
+    this.hud.update(hudMetrics, temporalDisplay, newEventFlags, deltaTime);
   }
 }

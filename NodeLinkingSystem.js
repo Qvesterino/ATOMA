@@ -35,6 +35,7 @@ import {
   BulkCreateLinksCommand, 
   BulkRemoveLinksCommand 
 } from './UndoRedoSystem.js';
+import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
 
 /**
  * Node Linking System - Advanced interactive connection system with auto-predict
@@ -3025,6 +3026,9 @@ createLinkSuccessPulse(sourceNode, targetNode) {
       if (!this.nodeIdToLinks.has(tgtId)) this.nodeIdToLinks.set(tgtId, []);
       this.nodeIdToLinks.get(tgtId).push(link);
     }
+
+    // Canonical metrics: link creation hook
+    onLinkCreated(sourceNode, targetNode);
     
     // UI Callback
     this._fireLinkCreatedCallbacks(sourceNode, targetNode);
@@ -5318,6 +5322,11 @@ createLinkSuccessPulse(sourceNode, targetNode) {
    */
   removeLink(link) {
     link.active = false;
+    
+    // Canonical metrics: link removal hook
+    if (link.source && link.target) {
+      onLinkRemoved(link.source, link.target);
+    }
     
     // --- LINK REMOVAL DISSIPATION EFFECT ---
     // Mark both nodes as link-removing to trigger aura contraction animation

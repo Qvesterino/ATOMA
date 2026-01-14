@@ -10,7 +10,7 @@ import { TemporalEventEffects } from './TemporalEventEffects.js';
  * 100% visual-only, non-intrusive overlay.
  * 
  * Features:
- * - Real-time metric calculation (Synergy, Harmony, Instability, Corruption, Network Load)
+ * - Real-time metric calculation (Synergy, Harmony, stability, Corruption, Network Load)
  * - Temporal tracking (Cycle / Epoch / Aeon)
  * - Diegetic HUD display
  * - Subtle temporal event effects
@@ -38,7 +38,7 @@ export class CoreMetricsOverlay {
     this.currentMetrics = {
       synergy: 0,
       harmony: 0,
-      instability: 0,
+      stability: 0,
       corruption: 0,
       networkLoad: 0
     };

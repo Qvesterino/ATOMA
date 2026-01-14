@@ -1,3 +1,5 @@
+import { getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
+
 /**
  * ============================================================================
  * VISUAL METRIC MODEL v1.0
@@ -233,9 +235,10 @@ export class VisualMetricModel {
       isCritical: false,
     };
 
-    // ========== SOURCE 1: NodeDynamicMetrics ==========
-    // Read-only access from node.userData.metrics
+    // ========== SOURCE 1: NodeDynamicMetrics via semantic adapter ==========
     const nodeDynamicMetrics = node.userData?.metrics;
+    const canonicalMetrics = getNodeCanonicalMetrics(node);
+    const hasDynamicMetrics = !!nodeDynamicMetrics;
 
     if (nodeDynamicMetrics) {
       // All dynamic metrics are 0–100 scale, normalize to 0–1
@@ -252,6 +255,19 @@ export class VisualMetricModel {
         (nodeDynamicMetrics.harmony * 0.6 + nodeDynamicMetrics.stability * 0.4) /
           100
       );
+    } else {
+      // Fallback to canonical metrics (normalize 0–100 → 0–1 if needed)
+      const normalize = (value, fallback) => {
+        if (value === undefined) return fallback;
+        return value > 1 ? value / 100 : value;
+      };
+
+      result.synergyNorm = this._clamp01(normalize(canonicalMetrics.synergy, result.synergyNorm));
+      result.stabilityNorm = this._clamp01(normalize(canonicalMetrics.stability, result.stabilityNorm));
+      result.harmonyNorm = this._clamp01(normalize(canonicalMetrics.harmony, result.harmonyNorm));
+      result.corruptionNorm = this._clamp01(normalize(canonicalMetrics.corruption, result.corruptionNorm));
+      result.loadNorm = this._clamp01(normalize(canonicalMetrics.load, result.loadNorm));
+      result.energyNorm = this._clamp01(normalize(canonicalMetrics.load, result.energyNorm));
     }
 
     // ========== SOURCE 2: NodeQualityCalculator ==========

@@ -441,12 +441,12 @@ export class NodeInspectOverlay1_0 {
    * Gracefully skips missing metrics
    */
   renderMetricsTable(metrics) {
-    const metricsList = [
-      { name: 'Energy', key: 'energy', max: 120 },
-      { name: 'Stability', key: 'stability', max: 120 },
-      { name: 'Clarity', key: 'clarity', max: 120 },
-      { name: 'Harmony', key: 'harmony', max: 120 },
-      { name: 'Instability', key: 'instability', max: 100 },
+  const metricsList = [
+    { name: 'Synergy', key: 'synergy' },
+    { name: 'Harmony', key: 'harmony' },
+    { name: 'Stability', key: 'stability' },
+    { name: 'Corruption', key: 'corruption' },
+    { name: 'Load', key: 'loadPressure' },
     ];
 
     return metricsList.map(metric => {
@@ -456,16 +456,17 @@ export class NodeInspectOverlay1_0 {
       if (value === undefined || value === null) {
         return '';
       }
+const v = Math.max(0, Math.min(1, value));
+const barLength = Math.round(v * 10);
+const bar = '█'.repeat(barLength) + '░'.repeat(10 - barLength);
 
       // Create simple bar (5-10 segments)
-      const barLength = Math.min(10, Math.max(5, Math.floor((value / metric.max) * 10)));
-      const emptyLength = 10 - barLength;
-      const bar = '█'.repeat(barLength) + '░'.repeat(emptyLength);
+
 
       return `
         <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
           <span>${metric.name}:</span>
-          <span style="font-weight: bold; color: #00ff88;">${value}</span>
+          <span style="font-weight: bold; color: #00ff88;">${this.formatFloat(value)}</span>
         </div>
         <div style="font-size: 10px; color: #00ff88; margin-bottom: 4px;">${bar}</div>
       `;
@@ -496,6 +497,20 @@ export class NodeInspectOverlay1_0 {
     return this.currentNode;
   }
 
+  /**
+   * Clamp a metric float to [0, 1]
+   */
+  clamp01(value) {
+    const num = Number.isFinite(value) ? value : 0;
+    return Math.max(0, Math.min(1, num));
+  }
+
+  /**
+   * Format a clamped float (0..1) for display
+   */
+  formatFloat(value) {
+    return this.clamp01(value).toFixed(6);
+  }
   /**
    * Force hide overlay (for debugging/special states)
    */

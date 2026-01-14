@@ -119,7 +119,7 @@ export class UINodeInspectPanel {
    */
   _updateContent() {
     if (!this.currentNode) return;
-    
+
     const node = this.currentNode;
     const userData = node.userData;
     const metrics = userData.metrics || {};
@@ -169,12 +169,11 @@ export class UINodeInspectPanel {
       <!-- Metrics -->
       <div style="margin-bottom: 12px; border-top: 1px solid rgba(54, 242, 255, 0.2); padding-top: 8px;">
         <div style="font-weight: bold; margin-bottom: 8px; color: #36F2FF;">METRICS</div>
-        ${this._buildMetricBar('ENERGY', metrics.energy || 0, '#8AFF80')}
-        ${this._buildMetricBar('STABILITY', metrics.stability || 0, '#8AFF80')}
-        ${this._buildMetricBar('CLARITY', metrics.clarity || 0, '#7CFFDA')}
-        ${this._buildMetricBar('HARMONY', metrics.harmony || 0, '#00F59E')}
-        ${this._buildMetricBar('CORRUPTION', metrics.corruption || 0, '#FF3C3C')}
-        ${this._buildMetricBar('INSTABILITY', metrics.instability || 0, '#FF3C3C')}
+        ${this._buildMetricBar('SYNERGY', metrics.synergy, '#8AFF80')}
+        ${this._buildMetricBar('HARMONY', metrics.harmony, '#00F59E')}
+        ${this._buildMetricBar('STABILITY', metrics.stability, '#8AFF80')}
+        ${this._buildMetricBar('CORRUPTION', metrics.corruption, '#FF3C3C')}
+        ${this._buildMetricBar('LOAD', metrics.loadPressure, '#FF3C3C')}
       </div>
       
       <!-- Poetry -->
@@ -200,24 +199,40 @@ export class UINodeInspectPanel {
    * Build a metric bar
    */
   _buildMetricBar(label, value, color) {
-    const percentage = Math.min(100, Math.max(0, value));
+    const normalized = this.clamp01(value);
+    const widthPercent = (normalized * 100).toFixed(2);
     const barLength = 15;
-    const filled = Math.round((percentage / 100) * barLength);
+    const filled = Math.round(normalized * barLength);
     const empty = barLength - filled;
-    
+
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
         <div style="width: 80px; color: ${color};">${label}</div>
         <div style="flex: 1; margin: 0 8px;">
           <div style="background: rgba(54, 242, 255, 0.1); height: 4px; border-radius: 2px; overflow: hidden;">
-            <div style="background: ${color}; height: 100%; width: ${percentage}%; transition: width 0.3s ease;"></div>
+            <div style="background: ${color}; height: 100%; width: ${widthPercent}%; transition: width 0.3s ease;"></div>
           </div>
         </div>
-        <div style="width: 35px; text-align: right; color: #36F2FF;">${percentage}</div>
+        <div style="width: 35px; text-align: right; color: #36F2FF;">${this.formatFloat(normalized)}</div>
       </div>
     `;
   }
-  
+
+  /**
+   * Clamp a metric float to [0, 1]
+   */
+  clamp01(value) {
+    const num = Number.isFinite(value) ? value : 0;
+    return Math.max(0, Math.min(1, num));
+  }
+
+  /**
+   * Format a clamped float (0..1) for display
+   */
+  formatFloat(value) {
+    return this.clamp01(value).toFixed(6);
+  }
+
   /**
    * Get category tags for node
    */

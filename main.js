@@ -62,8 +62,11 @@ import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
 import { EvolvingLinkFX2_0 } from './_EvolvingLinkFX2_0.js';
 import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
+import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
+import { applyMetricCompatibility } from './MetricCompatibilityLayer.js';
+import { relaxNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
 // import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
 import { SafeWorldResetFix1_0 } from './SafeWorldResetFix1_0.js';
@@ -109,6 +112,7 @@ import { LinkCollapseSystem } from './LinkCollapseSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
+
 
 // ============================================================================
 // PHASE 1 LINK SYSTEMS REACTIVATION (Session 107+)
@@ -1250,6 +1254,9 @@ document.addEventListener('keydown', () => {
         
         // Zone Audio Reactivity (subtle per-zone audio modulation)
         this.zoneAudioReactivity = null;
+
+        // Core Metrics View Model (global read-only snapshot)
+        this.coreMetricsVM = createEmptyCoreMetricsViewModel();
 
         // DISABLED: Metric-Reactive World Events 1.0 (legacy, replaced by Phase 5-7 architecture)
         // this.metricReactiveEvents = null;
@@ -5432,6 +5439,16 @@ document.addEventListener('keydown', () => {
             this.aiNodes.updateSpawning(Date.now());
 
             this.updateNodeUI();
+
+            // Compatibility bridge: map legacy node fields into canonical metrics
+            applyMetricCompatibility(this.aiNodes.nodes);
+
+            // Lightweight relaxation every ~60 frames (~1s)
+            if (this.frameCount % 60 === 0) {
+                for (const node of this.aiNodes.nodes) {
+                    relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
+                }
+            }
         }
         
         // [Session 144+] Update Node Linked Aura System
@@ -5695,6 +5712,11 @@ document.addEventListener('keydown', () => {
         // ====================================================================
         if (this.metricsRuntime_v1) {
             this.metricsRuntime_v1.update(deltaTime);
+        }
+
+        if (this.coreMetricsVM) {
+            // Use visual nodes because normalized metrics live under node.userData.visualMetrics
+            updateCoreMetricsViewModel(this.coreMetricsVM, this.aiNodes, this.frameCount);
         }
 
         // ====================================================================
@@ -6253,6 +6275,10 @@ document.addEventListener('keydown', () => {
         if (this.worldPersonalityController && this.aiNodes) {
             this.worldPersonalityController.update(deltaTime, this.aiNodes.nodes);
         }
+        if (this.frameCount % 60 === 0) {
+          console.log(this.coreMetricsVM.metrics, this.coreMetricsVM.meta);
+        }
+
 
         // Update Mythic Ritual Controller 1.0 (rare ceremonial events)
         if (this.mythicRitualController && this.aiNodes) {

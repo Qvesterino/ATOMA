@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
 /**
  * CORE METRICS HUD - UPDATED v1.1
@@ -241,12 +242,14 @@ export class CoreMetricsHUD {
   update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     if (!this.enabled || !this.hudContainer) return;
 
-    // Update metrics with NEW CANONICAL NAMES
-    this.updateMetricDisplay('networkSynergy', metrics.synergy);
-    this.updateMetricDisplay('harmonyFlow', metrics.harmony);
-    this.updateMetricDisplay('networkStress', metrics.instability);
-    this.updateMetricDisplay('corruptionLevel', metrics.corruption);
-    this.updateMetricDisplay('loadPressure', metrics.networkLoad);
+    const display = projectHudMetrics(metrics);
+
+    // Update metrics with NEW CANONICAL NAMES (floats 0..1 → percent)
+    this.updateMetricDisplay('networkSynergy', this.toPercent(display.networkSynergy));
+    this.updateMetricDisplay('harmonyFlow', this.toPercent(display.harmonyFlow));
+    this.updateMetricDisplay('networkStress', this.toPercent(display.networkStress));
+    this.updateMetricDisplay('corruptionLevel', this.toPercent(display.corruptionLevel));
+    this.updateMetricDisplay('loadPressure', this.toPercent(display.loadPressure));
 
     // Update temporal display with NEW NAMES
     if (this.hudElements.phase) {
@@ -257,7 +260,7 @@ export class CoreMetricsHUD {
     }
 
     // UPDATE NETWORK TIME PRESSURE (NEW MECHANIC)
-    this.updateNetworkTimePressure(metrics.synergy, deltaTime, newEventFlags);
+    this.updateNetworkTimePressure(display.networkSynergy, deltaTime, newEventFlags);
 
     // Trigger glow on new cycle
     if (newEventFlags.newCycle) {
@@ -277,7 +280,7 @@ export class CoreMetricsHUD {
    * - Flashes when synergy rises (freeze)
    */
   updateNetworkTimePressure(currentSynergy, deltaTime, newEventFlags) {
-    const isSynergySafe = currentSynergy >= 85;
+    const isSynergySafe = currentSynergy >= 0.85; // canonical float threshold (85%)
     
     // Check for synergy state change
     const synergyCrossedThreshold = 
@@ -370,6 +373,14 @@ export class CoreMetricsHUD {
     // Update bar width
     element.bar.style.width = `${value}%`;
   }
+
+  /**
+   * Convert canonical float (0..1) to integer percentage for HUD display.
+   */
+  toPercent(value) {
+    const clamped = Math.max(0, Math.min(1, value ?? 0));
+    return Math.round(clamped * 100);
+  }
   
   /**
    * Trigger glow animation on new cycle (UNCHANGED)
@@ -442,3 +453,4 @@ export class CoreMetricsHUD {
     this.hudElements = {};
   }
 }
+window.ATOMA_DEBUG_FLOATS = true
