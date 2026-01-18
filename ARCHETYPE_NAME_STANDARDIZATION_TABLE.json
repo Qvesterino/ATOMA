@@ -370,7 +370,7 @@
       "category": "Extreme Archetype",
       "pack": "ExtremeAINodePack",
       "shader": "Pulsing Emissive",
-      "metric_reactive": ["instability"],
+      "metric_reactive": ["stability"],
       "evolution_eligible": true,
       "mesh_count": 12
     },
@@ -426,7 +426,7 @@
       "category": "Extreme Archetype",
       "pack": "ExtremeAINodePack",
       "shader": "Radial Gradient",
-      "metric_reactive": ["instability"],
+      "metric_reactive": ["stability"],
       "evolution_eligible": true,
       "mesh_count": 8
     },
@@ -482,7 +482,7 @@
       "category": "Extreme Archetype",
       "pack": "ExtremeAINodePack",
       "shader": "Time-Glitch",
-      "metric_reactive": ["instability"],
+      "metric_reactive": ["stability"],
       "evolution_eligible": true,
       "mesh_count": 8
     },

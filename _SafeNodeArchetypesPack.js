@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * SAFE NODE ARCHETYPES PACK
@@ -189,7 +190,7 @@ export class SafeNodeArchetypesPack {
     // Create prismatic refraction overlay
     const geometry = new THREE.IcosahedronGeometry(0.9, 4);
     
-    const material = new THREE.MeshStandardMaterial({
+    const material = materialRegistry.getStandardMaterial({
       color: 0x00ffff,
       transparent: true,
       opacity: 0.15,
@@ -236,7 +237,7 @@ export class SafeNodeArchetypesPack {
     // Create wave ring overlay
     const geometry = new THREE.TorusGeometry(0.8, 0.05, 16, 100);
     
-    const material = new THREE.MeshStandardMaterial({
+    const material = materialRegistry.getStandardMaterial({
       color: 0xff00ff,
       transparent: true,
       opacity: 0.4,
@@ -260,7 +261,7 @@ export class SafeNodeArchetypesPack {
     // Concentric wave rings (3 total)
     for (let i = 1; i < 3; i++) {
       const ringGeometry = new THREE.TorusGeometry(0.6 + i * 0.15, 0.02, 16, 100);
-      const ringMaterial = new THREE.MeshStandardMaterial({
+      const ringMaterial = materialRegistry.getStandardMaterial({
         color: 0xff00ff,
         transparent: true,
         opacity: 0.2 + i * 0.1,
@@ -299,7 +300,7 @@ export class SafeNodeArchetypesPack {
       const scale = 1.0 - (l * 0.2);
       const geometry = new THREE.OctahedronGeometry(scale, l + 1);
       
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandardMaterial({
         color: 0xffaa00,
         transparent: true,
         opacity: 0.1 + (l * 0.05),
@@ -339,7 +340,7 @@ export class SafeNodeArchetypesPack {
     // Create quantum phase layer
     const geometry = new THREE.SphereGeometry(0.85, 32, 32);
     
-    const material = new THREE.MeshStandardMaterial({
+    const material = materialRegistry.getStandardMaterial({
       color: 0x00ff00,
       transparent: true,
       opacity: 0.08,
@@ -362,7 +363,7 @@ export class SafeNodeArchetypesPack {
     
     // Randomized flicker overlay
     const flickerGeometry = new THREE.IcosahedronGeometry(0.95, 3);
-    const flickerMaterial = new THREE.MeshStandardMaterial({
+    const flickerMaterial = materialRegistry.getStandardMaterial({
       color: 0x00ff00,
       transparent: true,
       opacity: 0,  // Starts invisible
@@ -394,7 +395,7 @@ export class SafeNodeArchetypesPack {
     // Create dark semi-transparent core
     const coreGeometry = new THREE.SphereGeometry(0.6, 32, 32);
     
-    const coreMaterial = new THREE.MeshStandardMaterial({
+    const coreMaterial = materialRegistry.getStandardMaterial({
       color: 0x1a1a2e,
       transparent: true,
       opacity: 0.4,
@@ -416,7 +417,7 @@ export class SafeNodeArchetypesPack {
     // Light-warp ring
     const warpGeometry = new THREE.TorusGeometry(0.8, 0.04, 16, 100);
     
-    const warpMaterial = new THREE.MeshStandardMaterial({
+    const warpMaterial = materialRegistry.getStandardMaterial({
       color: 0x663399,
       transparent: true,
       opacity: 0.5,
@@ -447,7 +448,7 @@ export class SafeNodeArchetypesPack {
     // Create bright heat core
     const coreGeometry = new THREE.SphereGeometry(0.4, 32, 32);
     
-    const coreMaterial = new THREE.MeshStandardMaterial({
+    const coreMaterial = materialRegistry.getStandardMaterial({
       color: 0xffff00,
       transparent: true,
       opacity: 0.9,
@@ -470,7 +471,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 1; i <= 3; i++) {
       const haloGeometry = new THREE.SphereGeometry(0.4 + i * 0.25, 16, 16);
       
-      const haloMaterial = new THREE.MeshStandardMaterial({
+      const haloMaterial = materialRegistry.getStandardMaterial({
         color: 0xff6600,
         transparent: true,
         opacity: 0.2 - (i * 0.05),
@@ -507,7 +508,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 0; i < glyphCount; i++) {
       const glyphGeometry = new THREE.PlaneGeometry(0.6, 0.6, 4, 4);
       
-      const glyphMaterial = new THREE.MeshStandardMaterial({
+      const glyphMaterial = materialRegistry.getStandardMaterial({
         color: 0x00ddff,
         transparent: true,
         opacity: 0.3,
@@ -546,7 +547,7 @@ export class SafeNodeArchetypesPack {
     
     // Holographic inscription ring
     const ringGeometry = new THREE.TorusGeometry(0.8, 0.03, 16, 200);
-    const ringMaterial = new THREE.MeshStandardMaterial({
+    const ringMaterial = materialRegistry.getStandardMaterial({
       color: 0x00ddff,
       transparent: true,
       opacity: 0.5,
@@ -579,7 +580,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 0; i < satelliteCount; i++) {
       const satGeometry = new THREE.SphereGeometry(0.12, 8, 8);
       
-      const satMaterial = new THREE.MeshStandardMaterial({
+      const satMaterial = materialRegistry.getStandardMaterial({
         color: 0x00ff88,
         transparent: true,
         opacity: 0.7,
@@ -621,7 +622,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 0; i < shellCount; i++) {
       const shellGeometry = new THREE.IcosahedronGeometry(0.6 + i * 0.15, 3);
       
-      const shellMaterial = new THREE.MeshStandardMaterial({
+      const shellMaterial = materialRegistry.getStandardMaterial({
         color: 0xaa00ff,
         transparent: true,
         opacity: 0.15 + (i * 0.05),
@@ -649,7 +650,7 @@ export class SafeNodeArchetypesPack {
     // Rippling gradient field (represented by rotating ring)
     const rippleGeometry = new THREE.TorusGeometry(0.9, 0.06, 16, 100);
     
-    const rippleMaterial = new THREE.MeshStandardMaterial({
+    const rippleMaterial = materialRegistry.getStandardMaterial({
       color: 0xaa00ff,
       transparent: true,
       opacity: 0.3,
@@ -682,7 +683,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 0; i < crownLayers; i++) {
       const crownGeometry = new THREE.ConeGeometry(0.5 - i * 0.1, 0.8 + i * 0.2, 16);
       
-      const crownMaterial = new THREE.MeshStandardMaterial({
+      const crownMaterial = materialRegistry.getStandardMaterial({
         color: i % 2 === 0 ? 0xffff00 : 0xff00ff,
         transparent: true,
         opacity: 0.4 - (i * 0.1),
@@ -711,7 +712,7 @@ export class SafeNodeArchetypesPack {
     // Dual-color pulsing core
     const coreGeometry = new THREE.SphereGeometry(0.5, 32, 32);
     
-    const coreMaterial = new THREE.MeshStandardMaterial({
+    const coreMaterial = materialRegistry.getStandardMaterial({
       color: 0xffff00,
       transparent: true,
       opacity: 0.8,
@@ -739,7 +740,7 @@ export class SafeNodeArchetypesPack {
     for (let i = 0; i < sigilCount; i++) {
       const sigilGeometry = new THREE.OctahedronGeometry(0.08, 1);
       
-      const sigilMaterial = new THREE.MeshStandardMaterial({
+      const sigilMaterial = materialRegistry.getStandardMaterial({
         color: Math.random() > 0.5 ? 0xffff00 : 0xff00ff,
         transparent: true,
         opacity: 0.6,

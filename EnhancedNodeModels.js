@@ -3782,7 +3782,7 @@ export class EnhancedNodeModels {
             const phase = child.userData.phaseOffset || 0;
             const speed = child.userData.shiftSpeed || 0.5;
             
-            // Drift on X/Z plane (temporal instability)
+            // Drift on X/Z plane (temporal stability)
             // Using absolute time to ensure smooth wave
             const driftX = Math.sin(time * speed + phase) * 0.08;
             const driftZ = Math.cos(time * speed * 0.8 + phase) * 0.05;

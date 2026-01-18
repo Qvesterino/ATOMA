@@ -31,7 +31,7 @@ class LinkCompatibilityState {
         this.currentResonance = 0.5;
         this.targetResonance = 0.5;
 
-        // Entropy (0–1, chaos/instability)
+        // Entropy (0–1, chaos/stability)
         this.currentEntropy = 0.0;
         this.targetEntropy = 0.0;
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
 import { getMapConfig } from './MapConfigBase.js';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Dream Desert - AI Subconscious Environment
@@ -68,7 +69,7 @@ export class DreamDesert {
     // Main desert floor - large flat base
     const desertSize = 200;
     const desertGeometry = new THREE.PlaneGeometry(desertSize, desertSize);
-    const desertMaterial = new THREE.MeshStandardMaterial({
+    const desertMaterial = materialRegistry.getStandard('world.dreamdesert.desertFloor', {
       color: 0xe8d4f8,
       roughness: 0.9,
       metalness: 0.1,
@@ -104,7 +105,7 @@ export class DreamDesert {
       
       // Create smooth geometric dune
       const duneGeometry = this.createGeometricDune();
-      const duneMaterial = new THREE.MeshStandardMaterial({
+      const duneMaterial = materialRegistry.getStandard('world.dreamdesert.dune', {
         color: this.getDuneColor(),
         roughness: 0.8,
         metalness: 0.15,
@@ -212,7 +213,7 @@ export class DreamDesert {
       
       const curve = new THREE.CatmullRomCurve3(points);
       const tubeGeometry = new THREE.TubeGeometry(curve, 40, 0.05, 8, false);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.dreamdesert.energyVein', {
         color: 0x00ddff,
         transparent: true,
         opacity: 0.15,
@@ -245,7 +246,7 @@ export class DreamDesert {
       
       // Create crystal geometry
       const geometry = new THREE.OctahedronGeometry(1 + Math.random() * 1.5, 0);
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.dreamdesert.crystal', {
         color: this.getCrystalColor(),
         transparent: true,
         opacity: 0.4,
@@ -308,7 +309,7 @@ export class DreamDesert {
     
     for (let i = 0; i < fragmentCount; i++) {
       const geometry = geometries[Math.floor(Math.random() * geometries.length)].clone();
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.dreamdesert.fragment', {
         color: 0xccddff,
         transparent: true,
         opacity: 0.3,
@@ -422,7 +423,7 @@ export class DreamDesert {
       const tubeGeometry = new THREE.TubeGeometry(curve, 60, 0.5, 8, false);
       
       const color = i === 0 ? 0xff99dd : i === 1 ? 0x99ddff : 0xdd99ff;
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.dreamdesert.auroraRibbon', {
         color: color,
         transparent: true,
         opacity: 0.15,
@@ -450,7 +451,7 @@ export class DreamDesert {
     
     for (let i = 0; i < 4; i++) {
       const geometry = new THREE.PlaneGeometry(30, 10, 10, 5);
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.dreamdesert.horizonGlitch', {
         color: 0xffffff,
         transparent: true,
         opacity: 0,

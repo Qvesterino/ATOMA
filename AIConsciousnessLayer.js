@@ -334,14 +334,14 @@ export class AIConsciousnessLayer {
     // Speed based on link metrics
     const stability = link.stability || 0.5;
     const harmony = link.harmony || 0.5;
-    const instability = link.instability || 0;
+   
     
-    pulse.speed = this.config.pulseSpeed * (1 + instability * 0.5);
-    pulse.category = instability > 0.6 ? 'corrupted' : 'stable';
+    pulse.speed = this.config.pulseSpeed * (1 + stability * 0.5);
+    pulse.category = stability > 0.6 ? 'corrupted' : 'stable';
     
     // Color from semantic blend
     pulse.color = this._getCategoryBlendColor(link.nodeA, link.nodeB);
-    if (instability > 0.5) {
+    if (stability > 0.5) {
       pulse.color.lerp(new THREE.Color(0xff0000), 0.4);
     }
     
@@ -587,22 +587,22 @@ export class AIConsciousnessLayer {
     
     // Calculate average network activity
     const links = this.linkingSystem?.links || [];
-    let avgInstability = 0;
+    let avgStability = 0;
     let avgHarmony = 0;
     
     for (const link of links) {
-      avgInstability += link.instability || 0;
+      avgStability += link.Stability || 0;
       avgHarmony += link.harmony || 0.5;
     }
     
     if (links.length > 0) {
-      avgInstability /= links.length;
+      avgStability /= links.length;
       avgHarmony /= links.length;
     }
     
-    // Pulsate based on instability
+    // Pulsate based on stability
     const pulse = Math.sin(this.time * 1.5) * 0.5 + 0.5;
-    const targetScale = 1 + avgInstability * pulse * 0.3;
+    const targetScale = 1 + avgStability * pulse * 0.3;
     this.globalFieldMesh.scale.setScalar(targetScale);
     
     // Color from harmony
@@ -612,7 +612,7 @@ export class AIConsciousnessLayer {
     this.globalFieldMesh.material.color.copy(color);
     
     // Opacity based on intensity
-    this.globalFieldMesh.material.opacity = 0.02 + avgInstability * 0.02;
+    this.globalFieldMesh.material.opacity = 0.02 + avgStability * 0.02;
   }
   
   /**

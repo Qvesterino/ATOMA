@@ -24,6 +24,9 @@ import { NodeLinkingSystem } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
 import { NodeEditor } from './NodeEditor.js';
 import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { CinematicUpgrade } from './CinematicUpgrade.js';
@@ -796,6 +799,924 @@ import { AtomaDebugHUD_1_0 } from './AtomaDebugHUD_1_0.js';
  */
 
 /**
+ * Phase E — Semantic Scheduling
+ * Lightweight event bus for meaning-driven triggers.
+ */
+class SemanticEventBus {
+    constructor() {
+        this.handlers = new Map();
+        this.priority = {
+            CRITICAL: 0,
+            INTERACTIVE: 1,
+            NORMAL: 2,
+            BACKGROUND: 3
+        };
+        this.eventQueues = [
+            { items: [], head: 0 },
+            { items: [], head: 0 },
+            { items: [], head: 0 },
+            { items: [], head: 0 }
+        ];
+        this.taskQueues = [
+            { items: [], head: 0 },
+            { items: [], head: 0 },
+            { items: [], head: 0 },
+            { items: [], head: 0 }
+        ];
+        this.stats = {
+            eventsProcessed: [0, 0, 0, 0],
+            tasksProcessed: [0, 0, 0, 0],
+            lastDrainMsEvents: 0,
+            lastDrainMsTasks: 0,
+            cooledEvents: 0,
+            droppedEvents: 0,
+            decayedEvents: 0,
+            aggregatedEvents: 0,
+            escalatedEvents: 0,
+            suppressedEvents: 0,
+            budgetDeferredEvents: 0,
+            budgetOverflows: 0,
+            budgetUsed: 0,
+            budgetMax: 0,
+            starvedEventsRecovered: 0,
+            starvationSkips: 0,
+            fairnessBoostsApplied: 0
+        };
+        // Phase E.2: semantic decay / cooldown defaults
+        // Phase E.3: semantic aggregation defaults
+        // Phase E.4: semantic escalation / suppression defaults
+        this.eventPolicies = new Map([
+            ['metrics.spike', { decayStages: [{ afterMs: 500, priority: this.priority.INTERACTIVE }, { afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 2200, cooldownMs: 120, aggregateWithinMs: 500, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.CRITICAL, windowMs: 800, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120, dropRateThreshold: 0.25 } }],
+            ['node.selection', { decayStages: [{ afterMs: 300, priority: this.priority.INTERACTIVE }, { afterMs: 1200, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 200, aggregateWithinMs: 250, aggregationStrategy: 'latest', escalate: { threshold: 3, toPriority: this.priority.CRITICAL, windowMs: 900, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 140 } }],
+            ['hud.visibility.change', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.INTERACTIVE, windowMs: 700, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120 } }],
+            ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }]
+        ]);
+        this.cooldownMap = new Map();
+        // Phase E.3: aggregation buffers keyed by semantic tag
+        this.aggregationBuffers = new Map();
+        // Phase E.4: escalation state per semantic key
+        this.escalationState = new Map();
+        // Phase E.4: suppression tracking (counts/timestamps for observability)
+        this.suppressedTags = new Map();
+        // Phase E.5: semantic budgets (per-frame meaning quota)
+        this.semanticBudget = {
+            maxUnitsPerFrame: 100,
+            usedUnits: 0,
+            costByPriority: {
+                [this.priority.CRITICAL]: 50,
+                [this.priority.INTERACTIVE]: 20,
+                [this.priority.NORMAL]: 10,
+                [this.priority.BACKGROUND]: 5
+            }
+        };
+        // Phase E.6: starvation prevention (aging-based fairness)
+        this.starvationConfig = {
+            thresholdMs: 300,
+            maxBoostPriority: this.priority.INTERACTIVE,
+            boostStep: 1
+        };
+        this.starvationTracker = [
+            performance.now(),
+            performance.now(),
+            performance.now(),
+            performance.now()
+        ];
+        // Phase E.8: semantic tracing (bounded, passive time-travel buffer)
+        this.semanticTrace = {
+            enabled: true,
+            maxEntries: 500,
+            entries: [],
+            drainCycle: 0
+        };
+        // Phase F.1: semantic → visual contract (frame-stable derived state for visuals)
+        this.semanticVisualState = {
+            pressure: 0,
+            urgency: 0,
+            calm: 1,
+            congestion: 0,
+            volatility: 0,
+            focus: 0,
+            anomalies: 0,
+            __sources: {}
+        };
+        this.semanticVisualStateTimestamp = performance.now();
+        // Phase F.2: semantic → motion intent (camera motion signals only, no direct movement)
+        this.semanticMotionIntent = {
+            drift: 0,
+            pull: 0,
+            tremor: 0,
+            inertia: 0,
+            zoomBias: 0,
+            verticalBias: 0,
+            __sources: {}
+        };
+        this.semanticMotionIntentTimestamp = performance.now();
+        // Phase F.3: semantic → FX/atmosphere intent (read-only, no visual side effects)
+        this.semanticAtmosphereState = {
+            exposureBias: 0,
+            contrastBias: 0,
+            saturationBias: 0,
+            fogDensity: 0,
+            noiseAmount: 0,
+            chromaticShift: 0,
+            glowIntensity: 0,
+            pulse: 0,
+            __sources: {}
+        };
+        this.semanticAtmosphereTimestamp = performance.now();
+    }
+    subscribe(tag, handler, opts = {}) {
+        if (!this.handlers.has(tag)) {
+            this.handlers.set(tag, []);
+        }
+        const handlerPriority = this.normalizePriority(opts.priority);
+        this.handlers.get(tag).push({ fn: handler, priority: handlerPriority });
+    }
+    emit(tag, payload, opts = {}) {
+        const list = this.handlers.get(tag);
+        if (!list || list.length === 0) return;
+        const eventPriority = this.normalizePriority(opts.priority);
+        const now = performance.now();
+        const basePolicy = opts.policy || this.eventPolicies.get(tag);
+        const policy = basePolicy ? { ...basePolicy } : undefined;
+        if (policy) {
+            if (opts.cooldownMs !== undefined) policy.cooldownMs = opts.cooldownMs;
+            if (opts.cooldownKey !== undefined) policy.cooldownKey = opts.cooldownKey;
+        }
+        // Phase E.4: suppression pre-check before aggregation/cooldown
+        if (this.shouldSuppress(tag, policy, eventPriority)) {
+            this.stats.suppressedEvents++;
+            this.recordTraceEntry({
+                tag,
+                originalPriority: eventPriority,
+                finalPriority: eventPriority,
+                queueAtInsert: null,
+                queueAtExit: null,
+                flags: { suppressed: true },
+                policy,
+                timestamp: now
+            });
+            return;
+        }
+        // Phase E.3: semantic aggregation before enqueue
+        if (policy?.aggregateWithinMs) {
+            this.handleAggregateEmit(tag, payload, list, eventPriority, policy, now);
+            return;
+        }
+        this.enqueueEventInstances(tag, payload, list, eventPriority, policy, now);
+    }
+    // Phase E.3: aggregate similar semantic events within a short window before enqueueing
+    handleAggregateEmit(tag, payload, handlers, eventPriority, policy, now) {
+        const key = policy.aggregateKey || tag;
+        const windowMs = policy.aggregateWithinMs;
+        let buffer = this.aggregationBuffers.get(key);
+        if (buffer && now - buffer.firstTimestamp >= windowMs) {
+            this.flushAggregate(key, buffer, now);
+            buffer = null;
+        }
+        if (!buffer) {
+            buffer = {
+                tag,
+                handlers,
+                policy,
+                firstTimestamp: now,
+                lastTimestamp: now,
+                count: 1,
+                aggregatedValue: this.initAggregateValue(payload, policy?.aggregationStrategy),
+                latestPayload: payload,
+                basePriority: eventPriority
+            };
+            this.aggregationBuffers.set(key, buffer);
+            this.recordTraceEntry({
+                tag,
+                originalPriority: eventPriority,
+                finalPriority: eventPriority,
+                queueAtInsert: null,
+                queueAtExit: null,
+                flags: { aggregated: true },
+                policy,
+                timestamp: now
+            });
+            return;
+        }
+        buffer.lastTimestamp = now;
+        buffer.count += 1;
+        buffer.latestPayload = payload;
+        buffer.basePriority = Math.min(buffer.basePriority, eventPriority);
+        buffer.aggregatedValue = this.applyAggregationStrategy(buffer.aggregatedValue, payload, policy?.aggregationStrategy);
+    }
+    enqueueEventInstances(tag, payload, handlers, eventPriority, policy, now) {
+        if (this.shouldSuppress(tag, policy, eventPriority)) {
+            this.stats.suppressedEvents++;
+            return false;
+        }
+        const cooldownMs = policy?.cooldownMs;
+        const cooldownKey = policy?.cooldownKey || tag;
+        if (cooldownMs) {
+            const last = this.cooldownMap.get(cooldownKey);
+            if (last !== undefined && now - last < cooldownMs) {
+                this.stats.cooledEvents++;
+                return false;
+            }
+            this.cooldownMap.set(cooldownKey, now);
+        }
+        const escalatedBase = this.applyEscalation(tag, eventPriority, policy, now);
+        for (const handler of handlers) {
+            const basePri = handler.priority ?? escalatedBase ?? eventPriority;
+            const pri = Math.min(basePri, escalatedBase ?? basePri);
+            const queue = this.eventQueues[pri];
+            const evt = {
+                name: tag,
+                payload,
+                handler: handler.fn,
+                t: now,
+                priority: pri,
+                originalPriority: pri,
+                policy
+            };
+            queue.items.push(evt);
+            this.recordTraceEntry({
+                tag,
+                originalPriority: pri,
+                finalPriority: pri,
+                queueAtInsert: pri,
+                queueAtExit: pri,
+                flags: { aggregated: !!policy?.aggregateWithinMs },
+                policy,
+                timestamp: now
+            });
+        }
+        return true;
+    }
+    scheduleTask(fn, opts = {}) {
+        if (!fn) return;
+        const pri = this.normalizePriority(opts.priority);
+        const queue = this.taskQueues[pri];
+        queue.items.push({ fn, priority: pri, label: opts.label });
+    }
+    drain(budgetMs = 1.0, maxEvents = 64) {
+        const now = performance.now();
+        this.flushAggregationWindows(now);
+        const start = now;
+        // Phase E.5: reset per-frame semantic budget before draining
+        this.semanticBudget.usedUnits = 0;
+        this.stats.budgetUsed = 0;
+        this.stats.budgetMax = this.semanticBudget.maxUnitsPerFrame;
+        this.semanticTrace.drainCycle += 1;
+        let processed = 0;
+        for (let pri = 0; pri < this.eventQueues.length; pri++) {
+            const queue = this.eventQueues[pri];
+            while (queue.head < queue.items.length) {
+                if (processed >= maxEvents || performance.now() - start > budgetMs) {
+                    this.stats.lastDrainMsEvents = performance.now() - start;
+                    this.computeSemanticVisualState();
+                    return processed;
+                }
+                const evt = queue.items[queue.head++];
+                const now = performance.now();
+                const decayedPriority = this.applyDecay(evt, now);
+                if (decayedPriority === null) {
+                    this.stats.droppedEvents++;
+                    this.recordTraceEntry({
+                        tag: evt.name,
+                        originalPriority: evt.originalPriority,
+                        finalPriority: evt.priority,
+                        queueAtInsert: pri,
+                        queueAtExit: null,
+                        flags: { dropped: true },
+                        policy: evt.policy,
+                        timestamp: now,
+                        age: now - evt.t
+                    });
+                    continue;
+                }
+                const fairnessResult = this.maybeBoostForFairness(decayedPriority, pri, evt, now);
+                if (fairnessResult === 'requeued') {
+                    this.recordTraceEntry({
+                        tag: evt.name,
+                        originalPriority: evt.originalPriority,
+                        finalPriority: evt.priority,
+                        queueAtInsert: pri,
+                        queueAtExit: evt.priority,
+                        flags: { fairnessBoosted: true },
+                        policy: evt.policy,
+                        timestamp: now,
+                        age: now - evt.t
+                    });
+                    continue;
+                }
+                const effectivePriority = fairnessResult;
+                if (decayedPriority > pri) {
+                    evt.priority = decayedPriority;
+                    const targetQueue = this.eventQueues[decayedPriority];
+                    targetQueue.items.push(evt);
+                    this.stats.decayedEvents++;
+                    this.recordTraceEntry({
+                        tag: evt.name,
+                        originalPriority: evt.originalPriority,
+                        finalPriority: evt.priority,
+                        queueAtInsert: pri,
+                        queueAtExit: decayedPriority,
+                        flags: { decayed: true },
+                        policy: evt.policy,
+                        timestamp: now,
+                        age: now - evt.t
+                    });
+                    continue;
+                }
+                if (!this.consumeBudget(effectivePriority)) {
+                    // Defer: push back to end of its priority queue to be tried next frame
+                    queue.items.push(evt);
+                    this.stats.budgetDeferredEvents++;
+                    if (evt.fairnessBoosted) {
+                        this.stats.starvationSkips++;
+                    }
+                    this.recordTraceEntry({
+                        tag: evt.name,
+                        originalPriority: evt.originalPriority,
+                        finalPriority: evt.priority,
+                        queueAtInsert: pri,
+                        queueAtExit: pri,
+                        flags: { budgetDeferred: true },
+                        policy: evt.policy,
+                        timestamp: now,
+                        age: now - evt.t
+                    });
+                    break;
+                }
+                try {
+                    evt.handler(evt.payload);
+                    this.stats.eventsProcessed[pri]++;
+                    if (evt.fairnessBoosted) {
+                        this.stats.starvedEventsRecovered++;
+                    }
+                    this.starvationTracker[pri] = now;
+                    this.recordTraceEntry({
+                        tag: evt.name,
+                        originalPriority: evt.originalPriority,
+                        finalPriority: evt.priority,
+                        queueAtInsert: pri,
+                        queueAtExit: pri,
+                        flags: { executed: true, fairnessBoosted: !!evt.fairnessBoosted },
+                        policy: evt.policy,
+                        timestamp: now,
+                        age: now - evt.t
+                    });
+                } catch (err) {
+                    console.warn('[SemanticEventBus] handler error for', evt.name, err);
+                }
+                processed++;
+            }
+            if (queue.head > 64 && queue.head > queue.items.length / 2) {
+                queue.items = queue.items.slice(queue.head);
+                queue.head = 0;
+            }
+        }
+        this.stats.lastDrainMsEvents = performance.now() - start;
+        this.computeSemanticVisualState();
+        this.computeSemanticMotionIntent();
+        this.computeSemanticAtmosphereState();
+        return processed;
+    }
+    drainTasks(budgetMs = 0.5, maxTasks = 32) {
+        const start = performance.now();
+        let processed = 0;
+        for (let pri = 0; pri < this.taskQueues.length; pri++) {
+            const queue = this.taskQueues[pri];
+            while (queue.head < queue.items.length) {
+                if (processed >= maxTasks || performance.now() - start > budgetMs) {
+                    this.stats.lastDrainMsTasks = performance.now() - start;
+                    return processed;
+                }
+                const task = queue.items[queue.head++];
+                try {
+                    task.fn();
+                    this.stats.tasksProcessed[pri]++;
+                } catch (err) {
+                    console.warn('[SemanticEventBus] task error', err);
+                }
+                processed++;
+            }
+            if (queue.head > 64 && queue.head > queue.items.length / 2) {
+                queue.items = queue.items.slice(queue.head);
+                queue.head = 0;
+            }
+        }
+        this.stats.lastDrainMsTasks = performance.now() - start;
+        return processed;
+    }
+    // Phase E.3: flush aggregation buffers whose windows have elapsed before draining
+    flushAggregationWindows(now) {
+        if (this.aggregationBuffers.size === 0) return;
+        const toFlush = [];
+        for (const [key, buffer] of this.aggregationBuffers) {
+            const windowMs = buffer.policy?.aggregateWithinMs;
+            if (!windowMs || now - buffer.firstTimestamp >= windowMs) {
+                toFlush.push([key, buffer]);
+            }
+        }
+        for (const [key, buffer] of toFlush) {
+            this.flushAggregate(key, buffer, now);
+        }
+    }
+    flushAggregate(key, buffer, now) {
+        if (!buffer) return;
+        const aggregatedPayload = this.buildAggregatedPayload(buffer);
+        this.enqueueEventInstances(
+            buffer.tag,
+            aggregatedPayload,
+            buffer.handlers,
+            buffer.basePriority,
+            buffer.policy,
+            now
+        );
+        this.stats.aggregatedEvents++;
+        this.aggregationBuffers.delete(key);
+    }
+    buildAggregatedPayload(buffer) {
+        const duration = buffer.lastTimestamp - buffer.firstTimestamp;
+        const basePayload =
+            buffer.latestPayload && typeof buffer.latestPayload === 'object'
+                ? { ...buffer.latestPayload }
+                : { value: buffer.latestPayload };
+        basePayload.__aggregation = {
+            count: buffer.count,
+            duration,
+            aggregatedValue: buffer.aggregatedValue,
+            firstTimestamp: buffer.firstTimestamp,
+            lastTimestamp: buffer.lastTimestamp
+        };
+        return basePayload;
+    }
+    initAggregateValue(payload, strategy) {
+        switch (strategy) {
+            case 'sum':
+            case 'max':
+                return this.toNumber(payload);
+            case 'latest':
+                return payload;
+            case 'count':
+            default:
+                return 1;
+        }
+    }
+    applyAggregationStrategy(currentValue, payload, strategy) {
+        switch (strategy) {
+            case 'sum':
+                return (this.toNumber(currentValue) || 0) + this.toNumber(payload);
+            case 'max':
+                return Math.max(this.toNumber(currentValue), this.toNumber(payload));
+            case 'latest':
+                return payload;
+            case 'count':
+            default:
+                return (typeof currentValue === 'number' && Number.isFinite(currentValue) ? currentValue : 0) + 1;
+        }
+    }
+    toNumber(value) {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (value && typeof value === 'object') {
+            if (typeof value.motion === 'number' && Number.isFinite(value.motion)) return value.motion;
+            if (typeof value.value === 'number' && Number.isFinite(value.value)) return value.value;
+            if (typeof value.severity === 'number' && Number.isFinite(value.severity)) return value.severity;
+        }
+        return 0;
+    }
+    getAggregationBufferSummary() {
+        const now = performance.now();
+        const summary = [];
+        for (const [key, buffer] of this.aggregationBuffers) {
+            summary.push({
+                key,
+                count: buffer.count,
+                ageMs: now - buffer.firstTimestamp,
+                windowMs: buffer.policy?.aggregateWithinMs ?? 0
+            });
+        }
+        return summary;
+    }
+    // Phase E.8: trace entry creator (compact, ring-buffer)
+    recordTraceEntry(data) {
+        if (!this.semanticTrace.enabled) return;
+        const entry = {
+            timestamp: data.timestamp ?? performance.now(),
+            frameIndex: this.semanticTrace.drainCycle,
+            tag: data.tag,
+            originalPriority: data.originalPriority,
+            finalPriority: data.finalPriority,
+            age: data.age ?? 0,
+            queueAtInsert: data.queueAtInsert ?? null,
+            queueAtExit: data.queueAtExit ?? null,
+            flags: {
+                suppressed: !!data.flags?.suppressed,
+                cooled: !!data.flags?.cooled,
+                aggregated: !!data.flags?.aggregated,
+                escalated: !!data.flags?.escalated,
+                decayed: !!data.flags?.decayed,
+                fairnessBoosted: !!data.flags?.fairnessBoosted,
+                budgetDeferred: !!data.flags?.budgetDeferred,
+                dropped: !!data.flags?.dropped,
+                executed: !!data.flags?.executed
+            },
+            policySnapshot: this.buildPolicySnapshot(data.policy)
+        };
+        const buf = this.semanticTrace.entries;
+        if (buf.length >= this.semanticTrace.maxEntries) {
+            buf.shift();
+        }
+        buf.push(entry);
+    }
+    buildPolicySnapshot(policy) {
+        if (!policy) return null;
+        return {
+            hasDecay: !!(policy.decayStages || policy.halfLifeMs),
+            hasCooldown: !!policy.cooldownMs,
+            hasAggregation: !!policy.aggregateWithinMs,
+            hasEscalation: !!policy.escalate,
+            hasSuppression: !!policy.suppress
+        };
+    }
+    getQueueSizes() {
+        return {
+            events: this.eventQueues.map(q => q.items.length - q.head),
+            tasks: this.taskQueues.map(q => q.items.length - q.head)
+        };
+    }
+    getStats() {
+        return {
+            eventsProcessed: [...this.stats.eventsProcessed],
+            tasksProcessed: [...this.stats.tasksProcessed],
+            lastDrainMsEvents: this.stats.lastDrainMsEvents,
+            lastDrainMsTasks: this.stats.lastDrainMsTasks,
+            queueSizes: this.getQueueSizes(),
+            cooledEvents: this.stats.cooledEvents,
+            droppedEvents: this.stats.droppedEvents,
+            decayedEvents: this.stats.decayedEvents,
+            aggregatedEvents: this.stats.aggregatedEvents,
+            escalatedEvents: this.stats.escalatedEvents,
+            suppressedEvents: this.stats.suppressedEvents,
+            budgetDeferredEvents: this.stats.budgetDeferredEvents,
+            budgetOverflows: this.stats.budgetOverflows,
+            budgetUsed: this.stats.budgetUsed,
+            budgetMax: this.stats.budgetMax,
+            starvedEventsRecovered: this.stats.starvedEventsRecovered,
+            starvationSkips: this.stats.starvationSkips,
+            fairnessBoostsApplied: this.stats.fairnessBoostsApplied,
+            aggregationBuffers: this.getAggregationBufferSummary()
+        };
+    }
+    normalizePriority(p) {
+        if (p === undefined || p === null) return this.priority.NORMAL;
+        return Math.min(Math.max(p, 0), 3);
+    }
+    // Phase E.2: apply semantic decay and expiry at drain time
+    applyDecay(evt, now) {
+        const policy = evt.policy;
+        if (!policy) return evt.priority;
+        const age = now - evt.t;
+        if (policy.expiresMs !== undefined && age > policy.expiresMs) {
+            return null;
+        }
+        let newPriority = evt.priority;
+        if (policy.decayStages && policy.decayStages.length) {
+            for (let i = 0; i < policy.decayStages.length; i++) {
+                const stage = policy.decayStages[i];
+                if (age >= stage.afterMs) {
+                    newPriority = this.normalizePriority(stage.priority);
+                }
+            }
+        } else if (policy.halfLifeMs) {
+            const steps = Math.floor(age / policy.halfLifeMs);
+            newPriority = this.normalizePriority(evt.originalPriority + steps);
+        }
+        return newPriority;
+    }
+    // Phase E.4: determine if an event should escalate or be suppressed before enqueue
+    applyEscalation(tag, priorityValue, policy, now) {
+        if (!policy?.escalate) return priorityValue;
+        const esc = policy.escalate;
+        let state = this.escalationState.get(tag);
+        if (!state || now - state.windowStart > (esc.windowMs ?? 0)) {
+            state = { count: 0, windowStart: now, level: 0 };
+        }
+        state.count += 1;
+        let result = priorityValue;
+        const cappedTarget = Math.max(0, Math.min(esc.toPriority ?? priorityValue, this.priority.CRITICAL));
+        const canEscalate = state.count >= (esc.threshold ?? Infinity) && (esc.maxLevel === undefined || state.level < esc.maxLevel);
+        if (canEscalate && priorityValue > cappedTarget) {
+            result = cappedTarget;
+            state.level += 1;
+            state.count = 0; // reset within window after escalation to avoid runaway
+            state.windowStart = now;
+            this.stats.escalatedEvents++;
+        }
+        this.escalationState.set(tag, state);
+        return result;
+    }
+    // Phase E.4: suppression gates low-value events under overload conditions
+    shouldSuppress(tag, policy, priorityValue) {
+        if (!policy?.suppress) return false;
+        if (priorityValue === this.priority.CRITICAL) return false;
+        const suppress = policy.suppress;
+        if (suppress.ifOverload) {
+            const depth = this.getTotalQueueDepth();
+            if (suppress.maxQueueDepth && depth >= suppress.maxQueueDepth) {
+                return true;
+            }
+            if (suppress.dropRateThreshold !== undefined) {
+                const rate = this.getDropRate();
+                if (rate >= suppress.dropRateThreshold) {
+                    return true;
+                }
+            }
+        }
+        const now = performance.now();
+        const existing = this.suppressedTags.get(tag) || { count: 0, last: 0 };
+        this.suppressedTags.set(tag, { count: existing.count + 1, last: now });
+        return false;
+    }
+    getTotalQueueDepth() {
+        let depth = 0;
+        for (let i = 0; i < this.eventQueues.length; i++) {
+            const q = this.eventQueues[i];
+            depth += q.items.length - q.head;
+        }
+        return depth;
+    }
+    getDropRate() {
+        const totalEvents = this.stats.droppedEvents + this.stats.eventsProcessed.reduce((a, b) => a + b, 0);
+        if (totalEvents === 0) return 0;
+        return this.stats.droppedEvents / totalEvents;
+    }
+    // Phase E.6: fairness via aging boost to prevent starvation of lower priorities
+    maybeBoostForFairness(decayedPriority, currentQueuePriority, evt, now) {
+        if (decayedPriority <= this.starvationConfig.maxBoostPriority) return decayedPriority;
+        if (evt.fairnessBoosted) return decayedPriority;
+        const lastServiced = this.starvationTracker[currentQueuePriority] ?? 0;
+        if (now - lastServiced < this.starvationConfig.thresholdMs) return decayedPriority;
+        const step = this.starvationConfig.boostStep || 1;
+        const targetPriority = Math.max(this.starvationConfig.maxBoostPriority, decayedPriority - step);
+        if (targetPriority >= decayedPriority) return decayedPriority;
+        evt.priority = targetPriority;
+        evt.fairnessBoosted = true;
+        this.eventQueues[targetPriority].items.push(evt);
+        this.stats.fairnessBoostsApplied++;
+        return 'requeued';
+    }
+    // Phase E.5: semantic budgets — consume budget units per event before execution
+    consumeBudget(priorityValue) {
+        const cost = this.semanticBudget.costByPriority[priorityValue] ?? 0;
+        if (priorityValue === this.priority.CRITICAL) {
+            this.semanticBudget.usedUnits += cost;
+            this.stats.budgetUsed = this.semanticBudget.usedUnits;
+            if (this.semanticBudget.usedUnits > this.semanticBudget.maxUnitsPerFrame) {
+                this.stats.budgetOverflows++;
+            }
+            return true;
+        }
+        if (this.semanticBudget.usedUnits + cost > this.semanticBudget.maxUnitsPerFrame) {
+            return false;
+        }
+        this.semanticBudget.usedUnits += cost;
+        this.stats.budgetUsed = this.semanticBudget.usedUnits;
+        return true;
+    }
+    // Phase E.7: semantic observability & introspection
+    getSemanticSnapshot() {
+        const now = performance.now();
+        const queues = this.eventQueues.map((q) => {
+            const headEvt = q.items[q.head];
+            const headAge = headEvt ? now - headEvt.t : 0;
+            return { length: q.items.length - q.head, headAge };
+        });
+        const activePolicies = [];
+        for (const [tag, policy] of this.eventPolicies) {
+            activePolicies.push({
+                tag,
+                decay: policy.decayStages || policy.halfLifeMs || null,
+                aggregateWithinMs: policy.aggregateWithinMs || null,
+                aggregationStrategy: policy.aggregationStrategy || null,
+                cooldownMs: policy.cooldownMs || null,
+                escalate: policy.escalate || null,
+                suppress: policy.suppress || null
+            });
+        }
+        const cooldowns = [];
+        for (const [key, last] of this.cooldownMap) {
+            const policy = this.eventPolicies.get(key);
+            const cooldownMs = policy?.cooldownMs;
+            const remaining = cooldownMs ? Math.max(0, cooldownMs - (now - last)) : 0;
+            cooldowns.push({ key, remaining });
+        }
+        const suppressed = [];
+        for (const [key, info] of this.suppressedTags) {
+            suppressed.push({ key, count: info.count, last: info.last });
+        }
+        const aggregationBuffers = this.getAggregationBufferSummary();
+        const escalation = [];
+        for (const [key, state] of this.escalationState) {
+            escalation.push({ key, level: state.level, count: state.count, windowStart: state.windowStart });
+        }
+        return {
+            frameTimestamp: now,
+            queues,
+            activePolicies,
+            budget: {
+                used: this.semanticBudget.usedUnits,
+                max: this.semanticBudget.maxUnitsPerFrame,
+                deferred: this.stats.budgetDeferredEvents,
+                overflows: this.stats.budgetOverflows
+            },
+            starvation: {
+                lastServed: [...this.starvationTracker],
+                boostsApplied: this.stats.fairnessBoostsApplied,
+                recovered: this.stats.starvedEventsRecovered,
+                skips: this.stats.starvationSkips
+            },
+            aggregation: {
+                buffers: aggregationBuffers
+            },
+            suppression: {
+                active: suppressed,
+                cooldowns
+            },
+            escalation,
+            stats: this.getStats()
+        };
+    }
+    explainEvent(evt) {
+        if (!evt) return null;
+        const now = performance.now();
+        const originalPriority = evt.originalPriority ?? evt.priority;
+        const currentPriority = evt.priority;
+        const policy = evt.policy || this.eventPolicies.get(evt.name);
+        const cost = this.semanticBudget.costByPriority[currentPriority] ?? 0;
+        const cooldownMs = policy?.cooldownMs;
+        const lastCooldown = cooldownMs ? this.cooldownMap.get(policy.cooldownKey || evt.name) : undefined;
+        const remainingCooldown = cooldownMs && lastCooldown ? Math.max(0, cooldownMs - (now - lastCooldown)) : 0;
+        return {
+            tag: evt.name,
+            originalPriority,
+            currentPriority,
+            decayed: currentPriority > originalPriority,
+            escalated: currentPriority < originalPriority,
+            boosted: !!evt.fairnessBoosted,
+            suppressed: false,
+            cooled: cooldownMs ? remainingCooldown > 0 : false,
+            cooldownRemainingMs: cooldownMs ? remainingCooldown : null,
+            aggregated: !!(policy && policy.aggregateWithinMs),
+            aggregationKey: policy?.aggregateKey || evt.name,
+            budgetCost: cost,
+            ageMs: now - evt.t
+        };
+    }
+    // Phase E.8: semantic trace query / replay (observability only)
+    getSemanticTrace(options = {}) {
+        const { limit, tag, priority, sinceTimestamp } = options;
+        const entries = [];
+        for (let i = 0; i < this.semanticTrace.entries.length; i++) {
+            const entry = this.semanticTrace.entries[i];
+            if (tag && entry.tag !== tag) continue;
+            if (priority !== undefined && entry.finalPriority !== priority && entry.originalPriority !== priority) continue;
+            if (sinceTimestamp !== undefined && entry.timestamp < sinceTimestamp) continue;
+            entries.push({ ...entry });
+        }
+        if (limit && entries.length > limit) {
+            return entries.slice(entries.length - limit);
+        }
+        return entries;
+    }
+    replaySemanticTrace(callback) {
+        if (typeof callback !== 'function') return;
+        const snapshot = this.semanticTrace.entries.slice();
+        for (let i = 0; i < snapshot.length; i++) {
+            callback({ ...snapshot[i] });
+        }
+    }
+    clearSemanticTrace() {
+        this.semanticTrace.entries = [];
+    }
+    // Phase F.1: semantic → visual contract (derived, frame-stable state for visuals)
+    computeSemanticVisualState() {
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const queues = this.getQueueSizes();
+        const queueDepth = queues.events.reduce((a, b) => a + b, 0);
+        const highDepth = queues.events[0] + queues.events[1];
+        const budgetRatio = this.semanticBudget.maxUnitsPerFrame > 0 ? clamp01(this.semanticBudget.usedUnits / this.semanticBudget.maxUnitsPerFrame) : 0;
+        const backlogRatio = clamp01(queueDepth / 200);
+        const pressure = clamp01(budgetRatio * 0.6 + backlogRatio * 0.4);
+        const urgency = clamp01((highDepth / (queueDepth + 1)) * 0.7 + backlogRatio * 0.3);
+        const congestion = clamp01(backlogRatio * 0.7 + clamp01(this.aggregationBuffers.size / 20) * 0.3);
+        const totalEvents = this.stats.droppedEvents + this.stats.eventsProcessed.reduce((a, b) => a + b, 0);
+        const anomalies = clamp01((this.stats.droppedEvents + this.stats.starvedEventsRecovered + this.stats.budgetOverflows) / (totalEvents + 1));
+        const volatility = clamp01((this.aggregationBuffers.size > 0 ? Math.min(this.aggregationBuffers.size / 10, 0.6) : 0) + clamp01(this.stats.fairnessBoostsApplied / (totalEvents + 1)) * 0.4);
+        const focus = clamp01(1 - Math.min((this.aggregationBuffers.size + this.suppressedTags.size) / 10, 1));
+        const calm = clamp01(1 - Math.max(pressure, congestion));
+        this.semanticVisualState = {
+            pressure,
+            urgency,
+            calm,
+            congestion,
+            volatility,
+            focus,
+            anomalies,
+            __sources: {
+                pressure: ['budgetUsed', 'queueDepth'],
+                urgency: ['highPriorityDepth', 'queueDepth'],
+                calm: ['pressure', 'congestion'],
+                congestion: ['queueDepth', 'aggregationBuffers'],
+                volatility: ['aggregationBuffers', 'fairnessBoostsApplied'],
+                focus: ['aggregationBuffers', 'suppressedTags'],
+                anomalies: ['droppedEvents', 'starvedEventsRecovered', 'budgetOverflows']
+            }
+        };
+        this.semanticVisualStateTimestamp = performance.now();
+    }
+    getSemanticVisualState() {
+        const state = this.semanticVisualState || {};
+        return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
+    }
+    // Phase F.2: semantic → motion reducer (derived motion intent for camera; no movement applied)
+    computeSemanticMotionIntent() {
+        const svs = this.semanticVisualState || {};
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const clamp11 = (v) => Math.min(1, Math.max(-1, v));
+        const drift = clamp11((svs.volatility || 0) * 0.5 - (svs.calm || 0) * 0.2);
+        const pull = clamp01((svs.focus || 0) * 0.6 + (svs.urgency || 0) * 0.4);
+        const tremorBase = clamp01((svs.volatility || 0) * 0.6 + (svs.anomalies || 0) * 0.5);
+        const tremor = clamp01(Math.max(0, tremorBase - (svs.calm || 0) * 0.3));
+        const inertia = clamp01((svs.pressure || 0) * 0.5 + (svs.congestion || 0) * 0.5);
+        const zoomBias = clamp11((svs.pressure || 0) * 0.7 - (svs.calm || 0) * 0.3);
+        const verticalBias = clamp11(((svs.calm || 0) * 0.5) - ((svs.anomalies || 0) * 0.3));
+        this.semanticMotionIntent = {
+            drift,
+            pull,
+            tremor,
+            inertia,
+            zoomBias,
+            verticalBias,
+            __sources: {
+                drift: ['volatility', 'calm'],
+                pull: ['focus', 'urgency'],
+                tremor: ['volatility', 'anomalies', 'calm'],
+                inertia: ['pressure', 'congestion'],
+                zoomBias: ['pressure', 'calm'],
+                verticalBias: ['calm', 'anomalies']
+            }
+        };
+        this.semanticMotionIntentTimestamp = performance.now();
+    }
+    getSemanticMotionIntent() {
+        const intent = this.semanticMotionIntent || {};
+        return { ...intent, __sources: intent.__sources ? { ...intent.__sources } : {} };
+    }
+    // Phase F.3: semantic → atmosphere reducer (FX intent only; no rendering side effects)
+    computeSemanticAtmosphereState() {
+        const svs = this.semanticVisualState || {};
+        const smi = this.semanticMotionIntent || {};
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const clamp11 = (v) => Math.min(1, Math.max(-1, v));
+        const pressure = svs.pressure || 0;
+        const calm = svs.calm || 0;
+        const volatility = svs.volatility || 0;
+        const anomalies = svs.anomalies || 0;
+        const urgency = svs.urgency || 0;
+        const exposureBias = clamp01(urgency * 0.6 + pressure * 0.2);
+        const contrastBias = clamp01((1 - pressure) * 0.5 + calm * 0.3);
+        const saturationBias = clamp01(calm * 0.6 + (1 - volatility) * 0.2);
+        const fogDensity = clamp01(pressure * 0.7 + (1 - calm) * 0.2);
+        const noiseAmount = clamp01(volatility * 0.6 + anomalies * 0.5);
+        const chromaticShift = clamp01(anomalies * 0.7 + volatility * 0.2);
+        const glowIntensity = clamp01(svs.focus ? svs.focus * 0.5 + urgency * 0.3 : urgency * 0.3);
+        const pulse = clamp01(urgency * 0.5 + volatility * 0.3 + anomalies * 0.2);
+        this.semanticAtmosphereState = {
+            exposureBias,
+            contrastBias,
+            saturationBias,
+            fogDensity,
+            noiseAmount,
+            chromaticShift,
+            glowIntensity,
+            pulse,
+            __sources: {
+                exposureBias: ['urgency', 'pressure'],
+                contrastBias: ['pressure', 'calm'],
+                saturationBias: ['calm', 'volatility'],
+                fogDensity: ['pressure', 'calm'],
+                noiseAmount: ['volatility', 'anomalies'],
+                chromaticShift: ['anomalies', 'volatility'],
+                glowIntensity: ['focus', 'urgency'],
+                pulse: ['urgency', 'volatility', 'anomalies']
+            }
+        };
+        this.semanticAtmosphereTimestamp = performance.now();
+    }
+    getSemanticAtmosphereState() {
+        const state = this.semanticAtmosphereState || {};
+        return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
+    }
+}
+/**
  * RUNTIME API ADAPTER: safeTick()
  * ============================================================================
  * Universal system execution adapter for ATOMA systems.
@@ -854,6 +1775,9 @@ class AtomaGame {
         // ========================================================================
         window.DEBUG_VISUAL_MODE = true;
         console.log("⚠️ DEBUG_VISUAL_MODE ENABLED - Visuals Disabled, Interactions Hardened");
+        if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
+            installMaterialDebugGuard();
+        }
         
         // ========================================================================
         // STEP 1b — HARD INTERACTION AUTHORITY (Session 104 Critical Stabilization)
@@ -874,6 +1798,62 @@ class AtomaGame {
         this.frameClock = new FrameClock();
         window.frameClock = this.frameClock;
         window.debugFrameClock = () => this.frameClock.getStats();
+        this.updateValidator = new FrameUpdateLoopOrderValidator_v1();
+        this.materialRegistry = materialRegistry;
+        this.semanticBus = new SemanticEventBus();
+        window.semanticBus = this.semanticBus;
+        window.__ATOMA_SEMANTIC_STATS__ = () => this.semanticBus.getStats();
+        window.__ATOMA_SEMANTIC_QUEUE__ = () => this.semanticBus.getQueueSizes();
+        window.__ATOMA_SEMANTIC_DRAIN__ = (ms = 2) => this.semanticBus.drain(ms);
+        // Phase E.7: semantic observability helpers (read-only views for HUD/console/agents)
+        window.ATOMA_SEMANTIC_SNAPSHOT = () => this.semanticBus.getSemanticSnapshot();
+        window.ATOMA_SEMANTIC_STATS = () => this.semanticBus.getStats();
+        window.ATOMA_SEMANTIC_EXPLAIN = (evt) => this.semanticBus.explainEvent(evt);
+        // Phase E.8: semantic trace replay APIs (time-travel debugging, read-only)
+        window.ATOMA_SEMANTIC_TRACE = (opts) => this.semanticBus.getSemanticTrace(opts);
+        window.ATOMA_SEMANTIC_REPLAY = (fn) => this.semanticBus.replaySemanticTrace(fn);
+        window.ATOMA_SEMANTIC_TRACE_CLEAR = () => this.semanticBus.clearSemanticTrace();
+        // Phase F.1: semantic → visual contract (read-only derived visual state)
+        window.ATOMA_SEMANTIC_VISUAL_STATE = () => this.semanticBus.getSemanticVisualState();
+        // Phase F.2: semantic → motion intent (read-only derived signals for camera layer)
+        window.ATOMA_SEMANTIC_MOTION = () => this.semanticBus.getSemanticMotionIntent();
+        // Phase F.3: semantic → FX/atmosphere intent (read-only derived signals for future FX binding)
+        window.ATOMA_SEMANTIC_ATMOSPHERE = () => this.semanticBus.getSemanticAtmosphereState();
+        this.hudAccumulator = 0;
+        this.hudTargetHz = 20;
+        this.hudLastPos = new THREE.Vector3();
+        this.hudLastRot = new THREE.Euler();
+        this.hudTempDelta = new THREE.Vector3();
+        this.hudWakeUntil = 0;
+        this.hudCriticalAcc = 0;
+        this.hudAmbientAcc = 0;
+        this.hudVisibility = {
+            critical: true,
+            ambient: true,
+            panels: {
+                nodeInspector: false,
+                metricsOverlay: true,
+                systemState: true,
+                zoneOverlay: false
+            }
+        };
+        this.hudDirty = {
+            coreMetrics: true,
+            nodeInspector: false,
+            ambient: true
+        };
+        this.lastCameraMotionEvent = 0;
+        this.semanticDebugLastLog = 0;
+        this.hudAccumulator = 0;
+        this.hudTargetHz = 20;
+        this.hudLastPos = new THREE.Vector3();
+        this.hudLastRot = new THREE.Euler();
+        this.hudTempDelta = new THREE.Vector3();
+        this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
+        this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
+        this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
+        this.updateValidator.registerUpdateSystem('coreMetricsOverlay.update', 4, 3.0);
+        this.updateValidator.registerUpdateSystem('renderer.render', 5, 16.0);
         
         // ========================================================================
         // PHASE B: FRAME SCHEDULER INTEGRATION (Controlled Registration)
@@ -882,6 +1862,15 @@ class AtomaGame {
         window.frameScheduler = this.frameScheduler;
         window.debugSchedulerStats = () => this.frameScheduler.getStats();
         window.debugSchedulerList = () => this.frameScheduler.listSystems();
+        this.frameScheduler.register('visual', (dt) => this.runVisualOverlayTick(dt), 'coreMetricsOverlay.visual');
+        this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
+        this.semanticBus.subscribe('camera.motion', () => {
+            this.wakeHud('camera-motion');
+            this.setHudDirty('coreMetrics');
+        });
+        this.semanticBus.subscribe('node.selection', () => {
+            this.wakeHud('selection');
+        });
         
         // Phase B Console API
         window.scheduler = {
@@ -4516,22 +5505,38 @@ document.addEventListener('keydown', () => {
         // ====================================================================
         // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
         // ====================================================================
-        try {
-            this.metricsRuntime_v1 = new MetricsRuntime_v1({
-                nodes: this.aiNodes,
-                links: this.links,
-                metricsSystems: {
-                    nodeDynamicMetrics: this.nodeDynamicMetrics,
-                    linkQualityCalculator: this.linkQualityCalculator,
-                    nodeQualityCalculator: this.nodeQualityCalculator,
-                    visualMetricModel: this.visualMetricModel,
-                    safeMetricsFX: this.safeMetricsFX
-                }
-            });
-            console.log('[main.js] MetricsRuntime_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] MetricsRuntime_v1 failed:', err);
-        }
+try {
+this.metricsRuntime_v1 = new MetricsRuntime_v1({
+  nodes: this.aiNodes,
+  links: this.links, // fallback / legacy
+  linkSystem: this.linkingSystem, // 🔥 KANONICKÝ
+  metricsSystems: {
+    nodeDynamicMetrics: this.nodeDynamicMetrics,
+    linkQualityCalculator: this.linkQualityCalculator,
+    nodeQualityCalculator: this.nodeQualityCalculator,
+    visualMetricModel: this.visualMetricModel,
+    safeMetricsFX: this.safeMetricsFX
+  },
+  options: {
+    useNetworkMetricsAggregator: true
+  }
+});
+
+  console.log('[main.js] MetricsRuntime_v1 initialized ✓');
+  // 🔗 Inject canonical link system into NetworkMetricsAggregator
+  this.metricsRuntime_v1?.networkMetricsAggregator?.setLinkSource?.(
+    this.nodeLinkingSystem
+  );
+
+  // fallback (ak setter neexistuje)
+  if (this.metricsRuntime_v1?.networkMetricsAggregator) {
+    this.metricsRuntime_v1.networkMetricsAggregator.linkSystem =
+      this.nodeLinkingSystem;
+  }
+
+} catch (err) {
+  console.warn('[main.js] MetricsRuntime_v1 failed:', err);
+}
 
         // ====================================================================
         // EXTRACTION PACK V1.0 — PERSONALITY RUNTIME ORCHESTRATION
@@ -4803,12 +5808,10 @@ document.addEventListener('keydown', () => {
         }
 
         // Dispose ArchetypeShaderModes (safe cleanup)
-        try {
+        // try {
             this.archetypeShaderModes?.dispose?.();
-            this.archetypeShaderModes = null;
-        } catch (err) {
-            console.warn('[main.js] ArchetypeShaderModes_v1 cleanup failed:', err);
-        }
+this.archetypeShaderModes = null;
+
 
         // Dispose ArchetypeNeuralLinkVis (safe cleanup)
         try {
@@ -4967,8 +5970,31 @@ document.addEventListener('keydown', () => {
         // ====================================================================
         this.metricsRuntime_v1?.dispose?.();
         this.metricsRuntime_v1 = null;
+        
         this.personalityRuntime_v1?.dispose?.();
         this.personalityRuntime_v1 = null;
+
+        // ========================================================================
+        // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
+        // EXACTLY ONE metricsRuntime_v1 instance per world
+        // MUST be recreated after every map switch
+        // ========================================================================
+        // 1. Dispose any previous instance defensively
+        if (this.metricsRuntime_v1) {
+            this.metricsRuntime_v1.dispose();
+            this.metricsRuntime_v1 = null;
+        }
+
+        // 2. Create a NEW MetricsRuntime_v1 instance with FULL references
+        this.metricsRuntime_v1 = new MetricsRuntime_v1({
+            aiNodes: this.aiNodes,
+            linkingSystem: this.linkingSystem,
+            scene: this.scene,
+            player: this.player
+        });
+
+        // 3. Add ONE debug log
+        console.info("[MetricsRuntime] Reinitialized after map switch");
 
         // Dispose FXPerformance Controller & Scaler (safe cleanup)
         if (this.fxPerformance) {
@@ -5054,7 +6080,16 @@ document.addEventListener('keydown', () => {
 
         // Create new AI nodes
         this.createAINodes();
-        
+        if (this.coreMetricsOverlay) {
+  this.coreMetricsOverlay.cleanup?.()
+}
+
+this.coreMetricsOverlay = new CoreMetricsOverlay(
+  this.scene,
+  this.renderer
+);
+
+console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // [Audit 6.2] Signal world transition complete - nodes ready
         if (this.linkingSystem) {
             this.linkingSystem.setWorldReady(true);
@@ -5339,11 +6374,18 @@ document.addEventListener('keydown', () => {
      * Main animation loop
      */
     animate() {
+        this.updateValidator?.startFrame();
         requestAnimationFrame(() => this.animate());
 
         const now = performance.now();
         if (this.frameClock) {
             this.frameClock.tick(now);
+            
+            // Optional debug: Print FrameClock stats every ~120 frames (~2 seconds at 60fps)
+            // Uses FrameClock's internal frame counter to avoid conflict with engine frameCount
+            if (this.frameClock.frame % 120 === 0) {
+                console.log('[FrameClock]', this.frameClock.getStats());
+            }
         }
 
         // ========================================================================
@@ -5352,15 +6394,23 @@ document.addEventListener('keydown', () => {
         // Call scheduler.tick() to execute registered systems based on layer frequency
         // This runs side-by-side with existing game logic - no throttling yet
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
+        const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
         
-        if (this.frameScheduler) {
-            this.frameScheduler.tick(deltaTime);
-        }
-
         // Update player and camera
+        const cameraUpdateStart = performance.now();
         const cameraRotation = this.cameraController.update();
+        this.updateValidator?.markSystemUpdate(
+            'cameraController.update',
+            performance.now() - cameraUpdateStart
+        );
+
+        const playerUpdateStart = performance.now();
         this.playerController.update(deltaTime, cameraRotation);
+        this.updateValidator?.markSystemUpdate(
+            'playerController.update',
+            performance.now() - playerUpdateStart
+        );
 
         // CRITICAL: Safe Camera Polish Pack 2.1 - Precision rotation feel refinement
         // Must run IMMEDIATELY after camera update for proper polish application
@@ -5433,8 +6483,17 @@ document.addEventListener('keydown', () => {
 
         // Update AI nodes
         if (this.aiNodes) {
+            const aiNodesUpdateStart = performance.now();
             this.aiNodes.update(deltaTime, this.time);
-
+            this.updateValidator?.markSystemUpdate(
+                'aiNodes.update',
+                performance.now() - aiNodesUpdateStart
+            );
+// === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
+if (this.updateValidator && !window.updateValidator) {
+    window.updateValidator = this.updateValidator;
+    console.log('[Validator] updateValidator exposed to window');
+}
             // Update dynamic node spawning system
             this.aiNodes.updateSpawning(Date.now());
 
@@ -5709,15 +6768,16 @@ document.addEventListener('keydown', () => {
 
         // ====================================================================
         // EXTRACTION PACK V1.0: Update Metrics Runtime Orchestration
+        // Runs every frame (60fps) to ensure __ATOMA_LIVE_METRICS__ is always up-to-date
         // ====================================================================
         if (this.metricsRuntime_v1) {
             this.metricsRuntime_v1.update(deltaTime);
         }
 
-        if (this.coreMetricsVM) {
+  //      if (shouldRunMetrics && this.coreMetricsVM) {
             // Use visual nodes because normalized metrics live under node.userData.visualMetrics
-            updateCoreMetricsViewModel(this.coreMetricsVM, this.aiNodes, this.frameCount);
-        }
+   //         updateCoreMetricsViewModel(this.coreMetricsVM, this.aiNodes, this.frameCount);
+  //      }
 
         // ====================================================================
         // EXTRACTION PACK V1.0: Update Personality Runtime Orchestration
@@ -6275,9 +7335,9 @@ document.addEventListener('keydown', () => {
         if (this.worldPersonalityController && this.aiNodes) {
             this.worldPersonalityController.update(deltaTime, this.aiNodes.nodes);
         }
-        if (this.frameCount % 60 === 0) {
-          console.log(this.coreMetricsVM.metrics, this.coreMetricsVM.meta);
-        }
+        if (this.frameCount % (60 * 30) === 0) {
+  console.log(this.coreMetricsVM.metrics, this.coreMetricsVM.meta);
+}
 
 
         // Update Mythic Ritual Controller 1.0 (rare ceremonial events)
@@ -6673,76 +7733,7 @@ document.addEventListener('keydown', () => {
         if (this.nodePersonality) {
             this.nodePersonality.update(deltaTime, this.time);
         }
-        // Update Core Metrics Overlay 1.0 - Network metrics + temporal units
-        if (this.coreMetricsOverlay) {
-            const nodeManager = this.aiNodes || null; // namiesto this.nodes
-
-            // DISABLED: nodeArchetypesPack parameter set to null (system disconnected)
-            this.coreMetricsOverlay.update(
-                deltaTime,
-                nodeManager,
-                this.linkingSystem,
-                this.nodeEvolution,
-                null // this.nodeArchetypesPack disabled
-            );
-
-            // DISABLED: Legacy Metric-Reactive World Events
-            // if (this.metricReactiveEvents) {
-            //     this.metricReactiveEvents.update(deltaTime);
-            //
-            //     // Pass temporal events to reactive system
-            //     const temporalDisplay = this.coreMetricsOverlay.temporalSystem;
-            //     if (temporalDisplay) {
-            //         const temporalEvents = {
-            //             newCycle: temporalDisplay.isNewCycle(),
-            //             newEpoch: temporalDisplay.isNewEpoch(),
-            //             newAeon: temporalDisplay.isNewAeon()
-            //         };
-            //         this.metricReactiveEvents.updateTemporalEvents(temporalEvents);
-            //     }
-            // }
-        }
-
-        // Update ATOMA Audio Modulation (3-layer intelligent enrichment)
-        // Synergy, Harmony, and Corruption drive real-time audio parameter modulation
-       // if (this.audioModulation && this.coreMetricsOverlay) {
-       //     this.audioModulation.update(
-       //         deltaTime,
-       //         this.coreMetricsOverlay.currentMetrics
-       //     );
-       // }
-
-        // Update System State Overlay (non-intrusive visual representation of metrics)
-        // Visualizes harmony, synergy, corruption as subtle vignettes, halos, and disturbances
-        if (this.systemStateOverlay && this.coreMetricsOverlay) {
-            this.systemStateOverlay.update(
-                deltaTime,
-                this.aiNodes?.nodes || [],
-                this.coreMetricsOverlay.currentMetrics
-            );
-        }
-
-        // Update Zone Audio Reactivity (subtle per-zone audio parameter modulation)
-        // Modulates filter cutoff, Q, and LFO rate based on harmony zone proximity
-        if (this.zoneAudioReactivity && this.player) {
-            this.zoneAudioReactivity.setPlayerPosition(this.player.position);
-            
-            // Wire zone data from system state overlay (if zones are available)
-            if (this.systemStateOverlay?.regionalHarmonyZones?.zones) {
-                this.zoneAudioReactivity.setZones(this.systemStateOverlay.regionalHarmonyZones.zones);
-            }
-            
-            this.zoneAudioReactivity.update(deltaTime);
-            
-            // ====================================================================
-            // Wire zone audio influences back to Regional Harmony Zones
-            // for zone breathing visualization effect
-            // ====================================================================
-            if (this.systemStateOverlay?.regionalHarmonyZones) {
-                const zoneInfluences = this.zoneAudioReactivity.getZoneInfluences();
-                this.systemStateOverlay.regionalHarmonyZones.setZoneAudioInfluences(zoneInfluences);
-            }
-        }
+        // Core visual metrics + overlays are now driven by FrameScheduler (visual layer, 30Hz)
 
         // Update Extreme AI Shader Test Suite (diagnostics - opt-in, very cheap when disabled)
         if (this.extremeShaderTestSuite) {
@@ -6851,7 +7842,7 @@ document.addEventListener('keydown', () => {
         }
 
         // DISABLED: UINodeHoverTooltip3_1 (conflicts with NodeLinking2_3)
-        // try {
+         try {
         //   if (this.hoverTooltip) {
         //     this.hoverTooltip.update(deltaTime);
         //   }
@@ -6862,40 +7853,9 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // ATOMA UI 3.2 - Update Interaction Polishing
         // ========================================================================
-        try {
-            if (this.selectedNodeBadge) {
-                this.selectedNodeBadge.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('UISelectedNodeBadge3_2 update failed:', err);
-        }
-
-        try {
-            if (this.selectedNodeHighlight) {
-                this.selectedNodeHighlight.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('UISelectedNodeHighlight3_2 update failed:', err);
-        }
-
+        // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
+        // Moved to END of createAINodes() to ensure clean lifecycle
         // ========================================================================
-        // ATOMA UI 3.3 - Update Selected Node Identity
-        // ========================================================================
-        try {
-            if (this.selectedNodeLabel) {
-                this.selectedNodeLabel.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('UISelectedNodeLabel3_3 update failed:', err);
-        }
-
-        // ========================================================================
-        // ATOMA UI 3.4 - Update Core Selection Feedback
-        // ========================================================================
-        try {
-            if (this.selectedNodeTopBar) {
-                this.selectedNodeTopBar.update(deltaTime);
-            }
         } catch (err) {
             console.warn('UISelectedNodeTopBar3_4 update failed:', err);
         }
@@ -7121,8 +8081,12 @@ document.addEventListener('keydown', () => {
             }
         }
 
-        // Render
-        this.renderer.render(this.scene, this.camera);
+        // FrameScheduler now drives visual cadence (render + visual layer)
+        if (this.frameScheduler) {
+            this.frameScheduler.tick(deltaTime);
+        }
+
+        this.updateValidator?.endFrame(deltaTimeMs);
     }
 
     /**
@@ -7150,6 +8114,243 @@ document.addEventListener('keydown', () => {
         } else if (typesEl) {
             typesEl.innerHTML = '';
         }
+    }
+
+    /**
+     * Phase D.3: visibility-driven HUD invalidation
+     * Phase D.2: priority HUD lanes (critical vs ambient)
+     * Adaptive HUD cadence (10-30Hz) with wake-up + dual-lane scheduling on FrameScheduler.visual.
+     */
+    runVisualOverlayTick(deltaTime) {
+        // Drain semantic events and one-shots within small budgets before HUD work
+        this.semanticBus?.drain(0.8, 48);
+        this.semanticBus?.drainTasks(0.5, 32);
+        // Adaptive cadence: adjust targetHz based on camera motion and wake window for critical lane
+        const hudHz = this.getHudTargetHz();
+        const criticalInterval = 1 / hudHz;
+        const ambientInterval = 1 / 8; // AMBIENT_HZ = 8
+
+        this.hudCriticalAcc += deltaTime;
+        this.hudAmbientAcc += deltaTime;
+
+        const shouldRunCritical = this.hudCriticalAcc >= criticalInterval;
+        const shouldRunAmbient = this.hudAmbientAcc >= ambientInterval;
+
+        const wakeActive = performance.now() < this.hudWakeUntil;
+        const criticalReady = shouldRunCritical && (wakeActive || this.hasCriticalDirty());
+        const ambientReady = shouldRunAmbient && (wakeActive || this.hasAmbientDirty());
+
+        if (!criticalReady && !ambientReady) return;
+
+        if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
+            window.__ATOMA_HUD_HZ__ = hudHz;
+            window.__ATOMA_HUD_LANES__ = {
+                criticalHz: hudHz,
+                ambientHz: 8,
+                wakeUntil: this.hudWakeUntil
+            };
+        }
+
+        if (criticalReady) {
+            this.hudCriticalAcc -= criticalInterval;
+            this.updateHudCritical(deltaTime);
+        }
+
+        if (ambientReady) {
+            this.hudAmbientAcc -= ambientInterval;
+            this.updateHudAmbient(deltaTime);
+        }
+
+    }
+
+    updateHudCritical(deltaTime) {
+        if (!this.hudVisibility?.critical) return;
+        if (!this.hudVisibility.panels.metricsOverlay && !this.hudVisibility.panels.nodeInspector) return;
+        const wakeActive = performance.now() < this.hudWakeUntil;
+        if (!wakeActive && !this.hasCriticalDirty()) return;
+        // Core Metrics Overlay critical path (spikes/alerts)
+        if (this.coreMetricsOverlay && this.hudVisibility.panels.metricsOverlay) {
+            const nodeManager = this.aiNodes || null;
+            const coreMetricsUpdateStart = performance.now();
+            this.coreMetricsOverlay.update(
+                deltaTime,
+                nodeManager,
+                this.linkingSystem,
+                this.nodeEvolution,
+                null // this.nodeArchetypesPack disabled
+            );
+            this.updateValidator?.markSystemUpdate(
+                'coreMetricsOverlay.update',
+                performance.now() - coreMetricsUpdateStart
+            );
+            this.hudDirty.coreMetrics = false;
+        }
+
+        // System State Overlay critical signals (warnings/alerts)
+        if (this.systemStateOverlay && this.coreMetricsOverlay && this.hudVisibility.panels.systemState) {
+            this.systemStateOverlay.update(
+                deltaTime,
+                this.aiNodes?.nodes || [],
+                this.coreMetricsOverlay.currentMetrics
+            );
+            this.setHudDirty('ambient');
+            if (this.coreMetricsOverlay?.currentMetrics?.spikeAlert || this.coreMetricsOverlay?.currentMetrics?.spikeActive || this.coreMetricsOverlay?.currentMetrics?.hasSpike) {
+                this.semanticBus.emit('metrics.spike', this.coreMetricsOverlay.currentMetrics, { priority: this.semanticBus.priority.CRITICAL });
+            }
+        }
+        this.hudDirty.nodeInspector = false;
+    }
+
+    updateHudAmbient(deltaTime) {
+        if (!this.hudVisibility?.ambient) return;
+        if (!this.hudVisibility.panels.zoneOverlay) return;
+        const wakeActive = performance.now() < this.hudWakeUntil;
+        if (!wakeActive && !this.hasAmbientDirty()) return;
+        // Ambient HUD: zone audio reactivity + background overlays
+        if (this.zoneAudioReactivity && this.player && this.hudVisibility.panels.zoneOverlay) {
+            this.zoneAudioReactivity.setPlayerPosition(this.player.position);
+
+            if (this.systemStateOverlay?.regionalHarmonyZones?.zones) {
+                this.zoneAudioReactivity.setZones(this.systemStateOverlay.regionalHarmonyZones.zones);
+            }
+
+            this.zoneAudioReactivity.update(deltaTime);
+
+            if (this.systemStateOverlay?.regionalHarmonyZones) {
+                const zoneInfluences = this.zoneAudioReactivity.getZoneInfluences();
+                this.systemStateOverlay.regionalHarmonyZones.setZoneAudioInfluences(zoneInfluences);
+                this.wakeHud('hud-toggle');
+                this.hudDirty.ambient = false;
+            }
+        }
+    }
+
+    /**
+     * Compute adaptive HUD cadence from camera motion + wake window (safe fallback at 20Hz)
+     */
+    getHudTargetHz() {
+        const now = performance.now();
+        if (now < this.hudWakeUntil) return 30;
+        if (!this.camera) return 20;
+
+        const pos = this.camera.position;
+        const rot = this.camera.rotation;
+
+        // Compute deltas without allocations
+        const deltaPos = this.hudTempDelta.copy(pos).sub(this.hudLastPos).length();
+        const deltaRot =
+            Math.abs(rot.x - this.hudLastRot.x) +
+            Math.abs(rot.y - this.hudLastRot.y) +
+            Math.abs(rot.z - this.hudLastRot.z);
+
+        // Update stored samples
+        this.hudLastPos.copy(pos);
+        this.hudLastRot.set(rot.x, rot.y, rot.z);
+
+        // Simple motion score
+        const motion = deltaPos + deltaRot;
+        const HIGH_THRESHOLD = 0.02;
+        const LOW_THRESHOLD = 0.005;
+        const motionNow = performance.now();
+        if (motion > LOW_THRESHOLD && motionNow - this.lastCameraMotionEvent > 200) {
+            this.lastCameraMotionEvent = motionNow;
+            this.semanticBus?.emit('camera.motion', { motion }, { priority: this.semanticBus.priority.INTERACTIVE });
+        }
+
+        if (motion > HIGH_THRESHOLD) return 30;
+        if (motion > LOW_THRESHOLD) return 20;
+        return 10;
+    }
+
+    hasCriticalDirty() {
+        return !!(this.hudDirty.coreMetrics || this.hudDirty.nodeInspector);
+    }
+
+    hasAmbientDirty() {
+        return !!this.hudDirty.ambient;
+    }
+
+    /**
+     * Phase D.1: event-driven HUD wake-up (extends wake window to force 30Hz temporarily)
+     */
+    wakeHud(reason = 'generic') {
+        const now = performance.now();
+        const WAKE_WINDOW_MS = 1000;
+        this.hudWakeUntil = Math.max(this.hudWakeUntil, now + WAKE_WINDOW_MS);
+        if (reason === 'selection') {
+            this.setHudDirty('coreMetrics');
+            this.setHudDirty('nodeInspector');
+        } else if (reason === 'hud-toggle') {
+            this.setHudDirty('ambient');
+        } else if (reason === 'metric-spike') {
+            this.setHudDirty('coreMetrics');
+        }
+        if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
+            window.__ATOMA_HUD_WAKE__ = { reason, until: this.hudWakeUntil };
+            window.__ATOMA_HUD_VISIBILITY__ = this.hudVisibility;
+            window.__ATOMA_HUD_STATE__ = {
+                visibility: this.hudVisibility,
+                dirty: this.hudDirty,
+                wakeUntil: this.hudWakeUntil
+            };
+        }
+        // Reset accumulator so next visual tick runs immediately
+        this.hudAccumulator = 0;
+        this.hudCriticalAcc = 0;
+    }
+
+    setHudVisible(key, visible) {
+        if (!this.hudVisibility?.panels) return;
+        if (this.hudVisibility.panels[key] === visible) return;
+        this.hudVisibility.panels[key] = visible;
+        if (key === 'zoneOverlay') {
+            this.setHudDirty('ambient');
+        } else if (key === 'nodeInspector') {
+            this.setHudDirty('nodeInspector');
+        } else {
+            this.setHudDirty('coreMetrics');
+        }
+        this.semanticBus.emit('hud.visibility.change', { key, visible }, { priority: this.semanticBus.priority.CRITICAL });
+        this.wakeHud('visibility-change');
+    }
+
+    isHudVisible(key) {
+        if (!this.hudVisibility?.panels) return false;
+        return !!this.hudVisibility.panels[key];
+    }
+
+    setHudDirty(section) {
+        if (!this.hudDirty) return;
+        if (section === 'coreMetrics') this.hudDirty.coreMetrics = true;
+        if (section === 'nodeInspector') this.hudDirty.nodeInspector = true;
+        if (section === 'ambient') this.hudDirty.ambient = true;
+        if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
+            window.__ATOMA_HUD_STATE__ = {
+                visibility: this.hudVisibility,
+                dirty: this.hudDirty,
+                wakeUntil: this.hudWakeUntil
+            };
+        }
+    }
+
+    scheduleSemanticOnce(fn, opts = {}) {
+        this.semanticBus?.scheduleTask(fn, opts);
+    }
+
+    scheduleVisualOnce(fn) {
+        this.scheduleSemanticOnce(fn, { priority: this.semanticBus?.priority?.NORMAL });
+    }
+
+    /**
+     * FrameScheduler-driven render tick (visual layer)
+     */
+    runRenderTick(deltaTime) {
+        const renderStart = performance.now();
+        this.renderer.render(this.scene, this.camera);
+        this.updateValidator?.markSystemUpdate(
+            'renderer.render',
+            performance.now() - renderStart
+        );
     }
 
     /**
@@ -8964,12 +10165,18 @@ document.addEventListener('keydown', () => {
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playSelection();
             }
+            this.semanticBus.emit('node.selection', { type: 'select' }, { priority: this.semanticBus.priority.CRITICAL });
+            this.setHudDirty('coreMetrics');
+            this.setHudDirty('nodeInspector');
         });
         
         this.selectionCore.onDeselectCallbacks.push(() => {
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playDeselection();
             }
+            this.semanticBus.emit('node.selection', { type: 'deselect' }, { priority: this.semanticBus.priority.CRITICAL });
+            this.setHudDirty('coreMetrics');
+            this.setHudDirty('nodeInspector');
         });
 
         console.log('✓ Selection Core 3.4 initialized (single source of truth)');

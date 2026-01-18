@@ -48,23 +48,23 @@ export function updateHarmonicHub(node, deltaTime = 0.016) {
     const harmony = metrics.harmony || 0.5;
     const corruption = metrics.corruption || 0.0;
     const synergy = metrics.synergy || 0.3;
-    const instability = metrics.instability || 0.0;
+    const stability = metrics.stability || 0.0;
 
     // Update collapse state
-    node.harmonicCollapse.update(harmony, corruption, synergy, instability, deltaTime);
+    node.harmonicCollapse.update(harmony, corruption, synergy, stability, deltaTime);
 
     // Update recovery state (pass collapse factor)
     node.harmonicRecovery.update(
         harmony,
         corruption,
         synergy,
-        instability,
+        stability,
         deltaTime,
         node.harmonicCollapse.collapseFactor
     );
 
     // Update harmonic sync
-    node.harmonicSync.update(harmony, corruption, instability);
+    node.harmonicSync.update(harmony, corruption, stability);
 }
 
 // ============================================================================
@@ -156,8 +156,8 @@ export class DirectionalStreaksRecoveryIntegration {
 
     computeStreakGapSize(sourceNode) {
         const variance = sourceNode.harmonicCollapse?.phaseVariance ?? 0.0;
-        const instability = sourceNode.metrics?.instability ?? 0.0;
-        return variance * (0.3 + instability * 0.2);
+        const stability = sourceNode.metrics?.stability ?? 0.0;
+        return variance * (0.3 + stability * 0.2);
     }
 
     computeStreakSpacing(sourceNode) {
@@ -209,13 +209,13 @@ export class PulseWaveSyncRecoveryIntegration {
     calculateSyncStrength(metrics) {
         const harmony = metrics.harmony || 0.5;
         const corruption = metrics.corruption || 0.0;
-        const instability = metrics.instability || 0.0;
+        const stability = metrics.stability || 0.0;
 
         return Math.max(0, Math.min(1.0,
             this.config.baseStrength +
             harmony * this.config.harmonyBoost -
             corruption * this.config.corruptionDamping -
-            instability * 0.6
+            stability * 0.6
         ));
     }
 

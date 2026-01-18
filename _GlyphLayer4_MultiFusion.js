@@ -4,7 +4,7 @@
  * Advanced multi-layer glyph rendering system that combines multiple symbolic glyphs per node:
  * 1) Core Glyph (node category)
  * 2) Evolution Glyph (stage 1-3)
- * 3) Personality Glyph (synergy/harmony/instability/corruption/clarity)
+ * 3) Personality Glyph (synergy/harmony/stability/corruption/clarity)
  * 4) State Glyph (consciousness/ascended/mythic/ritual/cluster)
  * 
  * STRICT SAFETY:
@@ -86,7 +86,7 @@ export class GlyphLayer4_MultiFusion {
     this.personalityMetrics = {
       synergy: 0.5,
       harmony: 0.5,
-      instability: 0.5,
+      stability: 0.5,
       corruption: 0.5,
       clarity: 0.5
     };
@@ -279,7 +279,7 @@ export class GlyphLayer4_MultiFusion {
     const personalities = [
       { name: 'synergy', value: metrics.synergy || 0 },
       { name: 'harmony', value: metrics.harmony || 0 },
-      { name: 'instability', value: metrics.instability || 0 },
+      { name: 'stability', value: metrics.stability || 0 },
       { name: 'corruption', value: metrics.corruption || 0 },
       { name: 'clarity', value: metrics.clarity || 0 }
     ];
@@ -322,7 +322,7 @@ export class GlyphLayer4_MultiFusion {
         emissiveIntensity: 0.25,
         opacity: 0.4
       },
-      'instability': {
+      'stability': {
         geometry: () => new THREE.TetrahedronGeometry(0.09),
         color: this.colors.red,
         emissive: this.colors.red,
@@ -932,7 +932,7 @@ export class GlyphLayer4_MultiFusion {
           harmonyDominance: node.userData?.harmony || 0.5,
           corruptionLevel: node.userData?.corruption || 0,
           synergyCoherence: node.userData?.synergy || 0.5,
-          instabilityIndex: node.userData?.instability || 0
+          stabilityIndex: node.userData?.stability || 0
         }
       };
       this.resonanceFeedback.registerCompositeGlyph(compositeGlyph);

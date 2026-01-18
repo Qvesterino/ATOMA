@@ -506,12 +506,12 @@ export class GlyphFusionOverlay4_1 {
     const clarity = context.clarity || 50;
     const harmony = context.harmony || 50;
     const corruption = context.corruption || 0;
-    const instability = context.instability || 0;
+    const stability = context.stability || 0;
     
     // Determine dominant color from metrics
     if (clarity > 70) return this.colors.focused;
     if (corruption > 60) return this.colors.conflict;
-    if (instability > 60) return this.colors.stressed;
+    if (stability > 60) return this.colors.stressed;
     if (harmony > 70) return this.colors.calm;
     
     return this.colors.exploring;

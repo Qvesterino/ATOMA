@@ -20,6 +20,9 @@
  * - background: 2 Hz (rare events, narrative, consciousness)
  */
 class FrameScheduler {
+    // Throttle visual tick debug log to once every 20 seconds
+    VISUAL_LOG_INTERVAL_MS = 20000;
+
     constructor() {
         // Define layer configurations with target frequencies (Hz)
         this.layers = {
@@ -51,6 +54,9 @@ class FrameScheduler {
         
         this.totalRegistered = 0;
         this.tickCount = 0;
+        
+        // Track last visual tick debug log time for throttling
+        this._lastVisualLogTime = 0;
         
         // Phase B: Track registered systems with IDs for management
         this.registeredSystems = {}; // id -> { layer, fn }
@@ -147,19 +153,25 @@ class FrameScheduler {
             // Accumulate time for this layer
             layer.accumulator += deltaTime;
 
-            // Check if interval reached
-            if (layer.accumulator >= layer.interval) {
-                // Execute all functions in this layer
+            // Execute as many intervals as have accumulated (carry remainder)
+            while (layer.accumulator >= layer.interval) {
+                if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE && layerName === 'visual') {
+                    const now = performance.now();
+                    if (now - this._lastVisualLogTime >= this.VISUAL_LOG_INTERVAL_MS) {
+                        console.debug('[FrameScheduler] visual tick', now);
+                        this._lastVisualLogTime = now;
+                    }
+                }
+
                 for (const fn of layer.functions) {
                     try {
-                        fn(deltaTime);
+                        fn(layer.interval);
                     } catch (error) {
                         console.error(`[FrameScheduler] Error in ${layerName} layer function:`, error);
                         // Continue execution - do not crash
                     }
                 }
 
-                // Subtract the interval (handle potential multiple ticks)
                 layer.accumulator -= layer.interval;
             }
         }
@@ -244,4 +256,3 @@ export { FrameScheduler };
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = FrameScheduler;
 }
-

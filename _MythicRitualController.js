@@ -22,11 +22,11 @@
  * 
  * 2. RITUAL TYPES (6)
  *    - ASCENSION_RITUAL: Many ascended nodes + high harmony
- *    - CHAOS_RITUAL: High instability dominance
+ *    - CHAOS_RITUAL: High stability dominance
  *    - HARMONY_CONVERGENCE: Very high harmony across network
  *    - MYTHIC_SIGNAL: Rare perfect balance state
  *    - ECHO_RITUAL: Low energy + high clarity + specific patterns
- *    - QUANTUM_FISSURE: Extreme instability spike
+ *    - QUANTUM_FISSURE: Extreme stability spike
  * 
  * 3. RITUAL PHASES
  *    - INIT (3s): Fade in, gather energy
@@ -215,8 +215,8 @@ export class MythicRitualController {
       return;
     }
     
-    // QUANTUM_FISSURE: Extreme instability spike
-    if (mood.avgInstability > 85 && mood.intensity > 0.8) {
+    // QUANTUM_FISSURE: Extreme stability spike
+    if (mood.avgStability > 85 && mood.intensity > 0.8) {
       this.triggerRitual('QUANTUM_FISSURE', nodes);
       return;
     }
@@ -227,8 +227,8 @@ export class MythicRitualController {
       return;
     }
     
-    // CHAOS_RITUAL: High instability + high energy
-    if (mood.avgInstability > 75 && mood.avgEnergy > 70) {
+    // CHAOS_RITUAL: High stability + high energy
+    if (mood.avgStability > 75 && mood.avgEnergy > 70) {
       this.triggerRitual('CHAOS_RITUAL', nodes);
       return;
     }

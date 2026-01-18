@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Fractal Valley - Recursive mathematical structures
@@ -49,7 +50,7 @@ export class FractalValley {
     
     floorGeometry.computeVertexNormals();
     
-    const floorMaterial = new THREE.MeshStandardMaterial({
+    const floorMaterial = materialRegistry.getStandard('world.fractalvalley.floor', {
       color: 0xd4c8f0,
       roughness: 0.8,
       metalness: 0.2,
@@ -77,7 +78,7 @@ export class FractalValley {
       const distance = 20 + Math.random() * 60;
       
       const hexGeometry = new THREE.CylinderGeometry(hexRadius, hexRadius, 0.3, 6);
-      const hexMaterial = new THREE.MeshStandardMaterial({
+      const hexMaterial = materialRegistry.getStandard('world.fractalvalley.hex', {
         color: 0xe0d4ff,
         roughness: 0.7,
         metalness: 0.3
@@ -133,7 +134,7 @@ export class FractalValley {
         geometry = this.createWaveMountain(mountainWidth, mountainHeight);
       }
       
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.fractalvalley.mountain', {
         color: this.getMountainColor(),
         roughness: 0.6,
         metalness: 0.4,
@@ -311,7 +312,7 @@ export class FractalValley {
       const iterations = 1 + Math.floor(Math.random() * 2);
       
       const geometry = new THREE.IcosahedronGeometry(size, iterations);
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.fractalvalley.fragment', {
         color: 0xccbbff,
         transparent: true,
         opacity: 0.4,
@@ -374,7 +375,7 @@ export class FractalValley {
       const tubeGeometry = new THREE.TubeGeometry(curve, 80, 0.15, 8, false);
       
       const color = i % 2 === 0 ? 0x00dddd : 0x8800ff;
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.fractalvalley.dataRiver', {
         color: color,
         transparent: true,
         opacity: 0.3,
@@ -397,7 +398,7 @@ export class FractalValley {
    */
   createMist() {
     const mistGeometry = new THREE.PlaneGeometry(200, 200);
-    const mistMaterial = new THREE.MeshBasicMaterial({
+    const mistMaterial = materialRegistry.getBasic('world.fractalvalley.mist', {
       color: 0xccbbff,
       transparent: true,
       opacity: 0.06,
@@ -463,7 +464,7 @@ export class FractalValley {
   createFractalHolograms() {
     for (let i = 0; i < 4; i++) {
       const geometry = new THREE.TetrahedronGeometry(4, 2);
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.fractalvalley.hologram', {
         color: 0x00dddd,
         transparent: true,
         opacity: 0,
@@ -500,7 +501,7 @@ export class FractalValley {
     
     for (let i = 0; i < 6; i++) {
       const geometry = symbolGeometries[Math.floor(Math.random() * symbolGeometries.length)];
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.fractalvalley.symbol', {
         color: 0xaa88ff,
         transparent: true,
         opacity: 0,
@@ -595,7 +596,7 @@ export class FractalValley {
     
     for (let i = 0; i < 3; i++) {
       const geometry = new THREE.PlaneGeometry(60, 30, 15, 10);
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.fractalvalley.distortionWave', {
         color: 0xffffff,
         transparent: true,
         opacity: 0,

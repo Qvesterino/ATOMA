@@ -73,7 +73,7 @@ export class SafeNewNodeCategories1_0 {
         prefix: 'ERR-',
         displayName: 'Error Node',
         description: 'Unstable glitch entity',
-        spawnCondition: 'high_corruption_or_instability',
+        spawnCondition: 'high_corruption_or_stability',
         colors: {
           primary: 0xff0000,    // Red
           secondary: 0x00ffff,  // Cyan
@@ -94,7 +94,7 @@ export class SafeNewNodeCategories1_0 {
       ritualEventActive: false,
       globalSynergy: 0,
       globalCorruption: 0,
-      globalInstability: 0,
+      globalStability: 0,
       perfectTopologyActive: false
     };
     
@@ -538,7 +538,7 @@ export class SafeNewNodeCategories1_0 {
     // Extract metrics from world
     this.spawnRules.globalSynergy = worldMetrics.synergy || 0;
     this.spawnRules.globalCorruption = worldMetrics.corruption || 0;
-    this.spawnRules.globalInstability = worldMetrics.instability || 0;
+    this.spawnRules.globalStability = worldMetrics.stability || 0;
     this.spawnRules.ritualEventActive = worldMetrics.ritualActive || false;
     this.spawnRules.perfectTopologyActive = worldMetrics.perfectTopology || false;
   }
@@ -564,12 +564,12 @@ export class SafeNewNodeCategories1_0 {
   
   /**
    * Check if a new Error node should spawn
-   * Condition: High corruption OR high instability
+   * Condition: High corruption OR low stability
    */
   shouldSpawnError() {
     return (
       this.spawnRules.globalCorruption > 0.6 ||
-      this.spawnRules.globalInstability > 0.6
+      this.spawnRules.globalStability < 0.4
     );
   }
   

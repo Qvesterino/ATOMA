@@ -11,7 +11,7 @@
  *    - Phase Conflict -> Arcs/Crescents (Out of sync)
  *    - Polarity Conflict -> Forked/Split (Opposing intent)
  *    - Corruption Conflict -> Fractured Shards (Structural damage)
- *    - Instability Conflict -> Irregular Blobs (Unreliable)
+ *    - stability Conflict -> Irregular Blobs (Unreliable)
  * 
  * 2. Velocity Encoding (Where is influence going?):
  *    - Forward Flow -> Dominant propagation
@@ -163,7 +163,7 @@ export class CascadeParticleSystem_Session120 {
    * 0: Arcs (Phase)
    * 1: Forks (Polarity)
    * 2: Shards (Corruption)
-   * 3: Blobs (Instability)
+   * 3: Blobs (stability)
    */
   _generateTextureAtlas() {
     const canvas = document.createElement('canvas');
@@ -245,7 +245,7 @@ export class CascadeParticleSystem_Session120 {
       c.fill();
     });
     
-    // Shape 3: Irregular Blobs (Instability Conflict)
+    // Shape 3: Irregular Blobs (stability Conflict)
     // "Unreliable environment"
     drawInCell(1, 1, (c, r) => {
       c.fillStyle = 'white';
@@ -454,7 +454,7 @@ export class CascadeParticleSystem_Session120 {
       sizes[i] = this.config.baseSize * fade;
       
       // Rotate based on conflict type
-      if (p.conflictType === 'instability' || p.conflictType === 'corruption') {
+      if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
         angles[i] += deltaTime * 5.0; // Spin fast for chaos
       } else {
         // Align with path (approximation)
@@ -514,7 +514,7 @@ export class CascadeParticleSystem_Session120 {
     p.position.add(p.pathOffset);
     
     // Add semantic motion noise
-    if (p.conflictType === 'instability') {
+    if (p.conflictType === 'stability') {
       p.position.x += (Math.random() - 0.5) * 0.1;
       p.position.y += (Math.random() - 0.5) * 0.1;
       p.position.z += (Math.random() - 0.5) * 0.1;
@@ -547,7 +547,7 @@ export class CascadeParticleSystem_Session120 {
       case 'destructive': return 0; // Phase (Arcs)
       case 'specialization_drift': return 1; // Polarity (Forks)
       case 'corruption': return 2; // Corruption (Shards)
-      case 'oscillatory_balance': return 3; // Instability (Blobs)
+      case 'oscillatory_balance': return 3; // stability (Blobs)
       case 'fatigue_yield': return 0; // Default to arcs
       case 'resolved_harmony': return 0;
       default: return 0;

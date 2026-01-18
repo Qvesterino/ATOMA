@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Node-Space Chamber - Core AI simulation environment
@@ -27,7 +28,7 @@ export class World {
   createChamberFloor() {
     // Main floor circle - dark matte
     const floorGeometry = new THREE.CircleGeometry(CONFIG.chamber.radius, 64);
-    const floorMaterial = new THREE.MeshStandardMaterial({
+    const floorMaterial = materialRegistry.getStandard('world.world.floor', {
       color: CONFIG.colors.matte,
       metalness: 0.3,
       roughness: 0.8,
@@ -44,7 +45,7 @@ export class World {
       CONFIG.chamber.radius,
       64
     );
-    const ringMaterial = new THREE.MeshBasicMaterial({
+    const ringMaterial = materialRegistry.getBasic('world.world.floorRing', {
       color: CONFIG.colors.primary,
       transparent: true,
       opacity: 0.4,
@@ -57,7 +58,7 @@ export class World {
     
     // Inner circle accent
     const innerCircle = new THREE.RingGeometry(11.8, 12, 64);
-    const innerMaterial = new THREE.MeshBasicMaterial({
+    const innerMaterial = materialRegistry.getBasic('world.world.floorInner', {
       color: CONFIG.colors.accent,
       transparent: true,
       opacity: 0.3,
@@ -75,7 +76,7 @@ export class World {
   createSingularity() {
     // Core sphere - subtle glow
     const coreGeometry = new THREE.SphereGeometry(CONFIG.singularity.radius, 32, 32);
-    const coreMaterial = new THREE.MeshStandardMaterial({
+    const coreMaterial = materialRegistry.getStandard('world.world.singularityCore', {
       color: CONFIG.colors.singularity,
       emissive: CONFIG.colors.singularity,
       emissiveIntensity: CONFIG.singularity.glowIntensity,
@@ -101,7 +102,7 @@ export class World {
     // Create ripple rings (will animate outward)
     for (let i = 0; i < CONFIG.singularity.rippleCount; i++) {
       const rippleGeometry = new THREE.TorusGeometry(0.5, 0.02, 8, 32);
-      const rippleMaterial = new THREE.MeshBasicMaterial({
+      const rippleMaterial = materialRegistry.getBasic('world.world.singularityRipple', {
         color: CONFIG.colors.primary,
         transparent: true,
         opacity: 0,
@@ -136,7 +137,7 @@ export class World {
         CONFIG.platforms.depth,
         CONFIG.platforms.width * 0.6
       );
-      const platformMaterial = new THREE.MeshStandardMaterial({
+      const platformMaterial = materialRegistry.getStandard('world.world.platform', {
         color: CONFIG.colors.matte,
         metalness: 0.4,
         roughness: 0.7
@@ -177,7 +178,7 @@ export class World {
   createArchStructure() {
     // Single vertical ring arc
     const arcGeometry = new THREE.TorusGeometry(18, 0.08, 8, 64, Math.PI);
-    const arcMaterial = new THREE.MeshStandardMaterial({
+    const arcMaterial = materialRegistry.getStandard('world.world.arch', {
       color: CONFIG.colors.secondary,
       emissive: CONFIG.colors.secondary,
       emissiveIntensity: 0.2,
@@ -280,7 +281,7 @@ export class World {
                     i % 3 === 1 ? CONFIG.colors.secondary : 
                     CONFIG.colors.accent;
       
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.world.node', {
         color: color,
         emissive: color,
         emissiveIntensity: 0.3,

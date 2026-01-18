@@ -15,125 +15,125 @@ export class SafeMetricsDNAIntegration1_0 {
    */
   static METRICS_TABLE = {
     'crystal': {
-      energy: 65,
-      stability: 85,
-      clarity: 95,
+      synergy: 65,
       harmony: 80,
-      instability: 5,
+      stability: 85,
+      corruption: 95,
+      load: 5,
     },
     'harmonic': {
-      energy: 50,
-      stability: 60,
-      clarity: 70,
+      synergy: 50,
       harmony: 95,
-      instability: 10,
+      stability: 60,
+      corruption: 70,
+      load: 6,
     },
     'fractal': {
-      energy: 80,
-      stability: 40,
-      clarity: 30,
+      synergy: 80,
       harmony: 20,
-      instability: 90,
+      stability: 40,
+      corruption: 30,
+      load: 2,
     },
     'quantum': {
-      energy: 95,
-      stability: 15,
-      clarity: 20,
+      synergy: 95,
       harmony: 5,
-      instability: 100,
+      stability: 15,
+      corruption: 20,
+      load: 4,
     },
     'umbra': {
-      energy: 40,
-      stability: 80,
-      clarity: 25,
+      synergy: 40,
       harmony: 10,
-      instability: 75,
+      stability: 80,
+      corruption: 25,
+      load: 5,
     },
     'solar': {
-      energy: 100,
-      stability: 50,
-      clarity: 60,
+      synergy: 100,
       harmony: 50,
-      instability: 30,
+      stability: 50,
+      corruption: 60,
+      load: 3,
     },
     'glyph': {
-      energy: 70,
-      stability: 70,
-      clarity: 90,
+      synergy: 70,
       harmony: 65,
-      instability: 10,
+      stability: 70,
+      corruption: 90,
+      load: 3,
     },
     'echo': {
-      energy: 45,
-      stability: 30,
-      clarity: 50,
+      synergy: 45,
       harmony: 40,
-      instability: 60,
+      stability: 30,
+      corruption: 50,
+      load: 6,
     },
     'convergence': {
-      energy: 85,
-      stability: 55,
-      clarity: 40,
+      synergy: 85,
       harmony: 35,
-      instability: 50,
+      stability: 55,
+      corruption: 40,
+      load: 5,
     },
-    'ascended': {
-      energy: 120,
-      stability: 120,
-      clarity: 120,
-      harmony: 120,
-      instability: 0,
-    },
+  //  'ascended': {
+  //    synergy: 120,
+  //    stability: 120,
+  //    clarity: 120,
+  //    harmony: 120,
+  //    instability: 0,
+  //  },
     // Functional archetypes (inferred from functional role descriptions)
     'input': {
-      energy: 50,
-      stability: 70,
-      clarity: 90,
+      synergy: 50,
       harmony: 40,
-      instability: 10,
+      stability: 70,
+      corruption: 90,
+      load: 3,
     },
     'process': {
-      energy: 60,
-      stability: 65,
-      clarity: 70,
+      synergy: 60,
       harmony: 50,
-      instability: 25,
+      stability: 65,
+      corruption: 70,
+      load: 4,
     },
     'integration': {
-      energy: 70,
-      stability: 70,
-      clarity: 60,
+      synergy: 70,
       harmony: 95,
-      instability: 15,
+      stability: 70,
+      corruption: 60,
+      load: 4,
     },
     'analytics': {
-      energy: 55,
-      stability: 75,
-      clarity: 95,
+      synergy: 55,
       harmony: 50,
-      instability: 5,
+      stability: 75,
+      corruption: 95,
+      load: 4,
     },
     'storage': {
-      energy: 30,
-      stability: 95,
-      clarity: 50,
+      synergy: 30,
       harmony: 30,
-      instability: 5,
+      stability: 95,
+      corruption: 50,
+      load: 6,
     },
     'control': {
-      energy: 65,
-      stability: 90,
-      clarity: 70,
+      synergy: 65,
       harmony: 20,
-      instability: 10,
+      stability: 90,
+      corruption: 70,
+      load: 5,
     },
     // Fallback for unlabeled nodes
     'default': {
-      energy: 65,
-      stability: 65,
-      clarity: 65,
+      synergy: 65,  
       harmony: 65,
-      instability: 35,
+      stability: 65,
+      corruption: 65,
+      load: 3,
     },
   };
 
@@ -144,28 +144,48 @@ export class SafeMetricsDNAIntegration1_0 {
    * @param {THREE.Object3D} node - The node to attach metrics to
    * @param {string} archetype - The archetype name (category from AINodes)
    */
-  static attachMetrics(node, archetype) {
-    if (!node) return;
-    if (!node.userData) node.userData = {};
+static attachMetrics(node, archetype) {
+  if (!node) return;
+  if (!node.userData) node.userData = {};
 
-    // Normalize archetype name for lookup
-    const archetypeKey = (archetype || 'default').toLowerCase().trim();
-    
-    // Get metrics from table, fallback to default
-    const metrics = this.METRICS_TABLE[archetypeKey] || this.METRICS_TABLE['default'];
-    
-    // Attach as metadata (NOT frozen — Three.js needs extensibility)
-    // Immutability enforced at API level, not via Object.freeze()
-    node.userData.metrics = {
-      energy: metrics.energy,
-      stability: metrics.stability,
-      clarity: metrics.clarity,
-      harmony: metrics.harmony,
-      instability: metrics.instability,
-      archetype: archetypeKey, // Include archetype name for reference
-      _isMetricSnapshot: true // Flag for identification
-    };
-  }
+  const archetypeKey = (archetype || 'default').toLowerCase().trim();
+  const raw = this.METRICS_TABLE[archetypeKey] || this.METRICS_TABLE['default'];
+
+  // --- Normalization helpers (safe, deterministic) ---
+  const clamp01 = (n) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+  const normPct = (v) => clamp01((Number(v) || 0) / 100);
+
+  // If your table ever uses 0..120, this safely caps at 1.0.
+  const synergy = normPct(raw.synergy);
+  const harmony = normPct(raw.harmony);
+  const stability = normPct(raw.stability);
+  const corruption = normPct(raw.corruption);
+
+  // load is capacity (int). Keep it as-is, also derive loadPressure (0..1) for HUD.
+  const loadCap = Number.isFinite(raw.load) ? raw.load : 3;
+  const LOAD_MAX = 6; // keep simple; matches your table range
+  const loadPressure = clamp01(loadCap / LOAD_MAX);
+
+  node.userData.metrics = {
+    synergy,
+    harmony,
+    stability,
+    corruption,
+    loadPressure,
+
+    // Keep raw DNA snapshot for debug/tuning (optional but useful)
+    _dna: {
+      synergy: raw.synergy,
+      harmony: raw.harmony,
+      stability: raw.stability,
+      corruption: raw.corruption,
+      load: raw.load,
+    },
+
+    archetype: archetypeKey,
+    _isMetricSnapshot: true,
+  };
+}
 
   /**
    * Get metrics from a node (read-only access)
@@ -191,13 +211,13 @@ export class SafeMetricsDNAIntegration1_0 {
    * Get a single metric value from a node
    * 
    * @param {THREE.Object3D} node - The node
-   * @param {string} metricName - Name of metric (energy, stability, clarity, harmony, instability)
+   * @param {string} metricName - Name of metric (synergy, stability, clarity, harmony, instability)
    * @returns {number|null} Metric value or null if not found
    */
   static getMetricValue(node, metricName) {
     const metrics = this.getMetrics(node);
-    if (!metrics) return null;
-    return metrics[metricName] || null;
+    
+    return (metricName in metrics) ? metrics[metricName] : null;
   }
 
   /**
@@ -223,7 +243,7 @@ export class SafeMetricsDNAIntegration1_0 {
    * @returns {Object} Validation report
    */
   static validateMetricsTable() {
-    const requiredFields = ['energy', 'stability', 'clarity', 'harmony', 'instability'];
+    const requiredFields = ['synergy','stability','harmony','corruption','load', ];
     const report = {
       valid: true,
       archetypes: {},
@@ -286,11 +306,10 @@ export class SafeMetricsDNAIntegration1_0 {
       metrics1: Object.freeze({ ...metrics1 }),
       metrics2: Object.freeze({ ...metrics2 }),
       differences: {
-        energy: metrics2.energy - metrics1.energy,
-        stability: metrics2.stability - metrics1.stability,
-        clarity: metrics2.clarity - metrics1.clarity,
+        synergy: metrics2.synergy - metrics1.synergy,
         harmony: metrics2.harmony - metrics1.harmony,
-        instability: metrics2.instability - metrics1.instability,
+        stability: metrics2.stability - metrics1.stability,
+        corruption: metrics2.corruption - metrics1.corruption,
       },
     };
   }

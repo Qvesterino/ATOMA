@@ -23,7 +23,7 @@
  * - Elegant curve-paths instead of straight lines
  * - Segment spacing varies with synergy
  * - Corruption causes safe ±4% jitter
- * - Instability introduces brief branch attempts
+ * - stability introduces brief branch attempts
  * 
  * TRANSPORT:
  * - Chains travel on link spline with multiple sentences pipelined
@@ -94,18 +94,18 @@ export class RecursiveGlyphMessaging4_0 {
       // Transportation & timing
       baseChainSpeed: 1.5,          // Units per second
       synergySpeeedBoost: 0.4,      // Speed bonus per synergy
-      instabilitySpeedReduction: 0.25,
+      stabilitySpeedReduction: 0.25,  // Lower stability reduces speed
       harmonySpeedBoost: 0.15,
       
       // Spacing & rhythm
       segmentSpacingBase: 0.3,      // Space between sentence segments
       synergySegmentCompression: 0.15,  // Less space with high synergy
-      instabilitySegmentExpansion: 0.1,
+      stabilitySegmentExpansion: 0.1,   // Lower stability increases spacing
       
       // Distortion & jitter
       jitterAmplitude: 0.04,        // Max ±4% deviation from path
       distortionFromCorruption: 0.08,
-      distortionFromInstability: 0.06,
+      distortionFromStability: 0.06,  // Kept for backward compatibility
       
       // Branching
       branchingProbability: 0.3,    // Per sentence, if harmony high
@@ -293,7 +293,7 @@ export class RecursiveGlyphMessaging4_0 {
         synergy: semanticState.synergy || 0,
         harmony: semanticState.harmony || 0,
         corruption: semanticState.corruption || 0,
-        instability: semanticState.instability || 0
+        stability: semanticState.stability || 0
       }
     };
     
@@ -343,9 +343,10 @@ export class RecursiveGlyphMessaging4_0 {
     // Map semantic state to initial sentence archetype
     if (semanticState.synergy > 0.7) return 'harmonious';
     if (semanticState.corruption > 0.6) return 'fractured';
-    if (semanticState.instability > 0.6) return 'chaotic';
+    // Low stability causes chaotic behavior
+    if (semanticState.stability < 0.4) return 'chaotic';
     if (semanticState.harmony > 0.6) return 'peaceful';
-    if (semanticState.clarity > 0.7) return 'focused';
+    if (semanticState.harmony > 0.7) return 'focused';
     return 'neutral';
   }
   
@@ -386,9 +387,9 @@ export class RecursiveGlyphMessaging4_0 {
     const transforms = {
       'harmonious': semanticState.harmony > 0.5 ? 'harmonious' : 'exploring',
       'fractured': semanticState.corruption > 0.5 ? 'fractured' : 'healing',
-      'chaotic': semanticState.instability > 0.5 ? 'chaotic' : 'stabilizing',
+      'chaotic': semanticState.stability < 0.5 ? 'chaotic' : 'stabilizing',
       'peaceful': semanticState.load > 0.7 ? 'awakening' : 'peaceful',
-      'focused': semanticState.clarity > 0.6 ? 'transcendent' : 'focused',
+      'focused': semanticState.harmony > 0.6 ? 'transcendent' : 'focused',
       'neutral': semanticState.synergy > 0.5 ? 'harmonious' : 'neutral'
     };
     
@@ -405,8 +406,8 @@ export class RecursiveGlyphMessaging4_0 {
       nextEnergy *= 1.1;  // Reinforce
     } else if (semanticState.corruption > 0.5) {
       nextEnergy *= 0.85;  // Decay
-    } else if (semanticState.instability > 0.5) {
-      nextEnergy *= 0.9;  // Slight decay
+    } else if (semanticState.stability < 0.5) {
+      nextEnergy *= 0.9;  // Slight decay with low stability
     }
     
     return Math.min(nextEnergy, 1.5);
@@ -418,8 +419,8 @@ export class RecursiveGlyphMessaging4_0 {
   evolveCoherence(previousCoherence, semanticState) {
     let nextCoherence = previousCoherence;
     
-    if (semanticState.clarity > 0.7) {
-      nextCoherence *= 1.1;  // Sharper
+    if (semanticState.harmony > 0.7) {
+      nextCoherence *= 1.1;  // Sharper with high harmony
     } else if (semanticState.corruption > 0.6) {
       nextCoherence *= 0.7;  // Blur
     }
@@ -521,7 +522,7 @@ export class RecursiveGlyphMessaging4_0 {
     }
     
     // Looping based on stability and self-reflection
-    if (semanticState.clarity > 0.7 && Math.random() < this.config.loopingProbability) {
+    if (semanticState.stability > 0.7 && semanticState.harmony > 0.7 && Math.random() < this.config.loopingProbability) {
       chain.loops = 1;
     }
   }
@@ -551,7 +552,7 @@ export class RecursiveGlyphMessaging4_0 {
       // Calculate segment spacing (varies with synergy)
       const spacingVariation = chain.userData.synergy > 0.6
         ? -this.config.synergySegmentCompression
-        : this.config.instabilitySegmentExpansion;
+        : (1.0 - chain.userData.stability) * this.config.stabilitySegmentExpansion;
       
       accumulatedOffset += this.config.segmentSpacingBase + spacingVariation;
     }
@@ -594,9 +595,9 @@ export class RecursiveGlyphMessaging4_0 {
       speed += semanticState.synergy * this.config.synergySpeeedBoost;
     }
     
-    // Instability reduction
-    if (semanticState.instability) {
-      speed -= semanticState.instability * this.config.instabilitySpeedReduction;
+    // Low stability reduces speed
+    if (semanticState.stability) {
+      speed -= (1.0 - semanticState.stability) * this.config.stabilitySpeedReduction;
     }
     
     // Harmony boost
@@ -733,8 +734,8 @@ export class RecursiveGlyphMessaging4_0 {
       pos.addScaledVector(linkDirection, linkDistance * sentenceT);
       pos.add(chain.sourceNode.position);
       
-      // Add jitter (from instability/corruption)
-      const jitterAmount = chain.userData.instability * this.config.jitterAmplitude;
+      // Add jitter (from stability/corruption)
+      const jitterAmount = (1.0 - chain.userData.stability) * this.config.jitterAmplitude;
       pos.x += (Math.random() - 0.5) * jitterAmount;
       pos.y += (Math.random() - 0.5) * jitterAmount;
       pos.z += (Math.random() - 0.5) * jitterAmount;
@@ -866,10 +867,10 @@ export class RecursiveGlyphMessaging4_0 {
     console.log('  ✓ Recursive sentence chains (WORD→PHRASE→SENTENCE→CHAIN)');
     console.log('  ✓ Semantic-driven chain evolution');
     console.log('  ✓ Branching sub-chains (harmony-based)');
-    console.log('  ✓ Safe looping chains (clarity-based)');
+    console.log('  ✓ Safe looping chains (harmony/stability-based)');
     console.log('  ✓ Parametric curve transport on links');
     console.log('  ✓ Dynamic spacing (synergy-dependent)');
-    console.log('  ✓ Jitter from instability (±4%)');
+    console.log('  ✓ Jitter from stability (±4%)');
     console.log('  ✓ Distortion from corruption');
     console.log('  ✓ Bidirectional response generation');
     console.log('');

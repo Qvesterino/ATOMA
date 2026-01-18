@@ -200,7 +200,7 @@ export class AtomaUIUpdate3_0 {
         avgClarity: 0,
         avgHarmony: 0,
         avgCorruption: 0,
-        avgInstability: 0
+        avgStability: 0
       };
     }
     
@@ -213,21 +213,21 @@ export class AtomaUIUpdate3_0 {
         avgClarity: 0,
         avgHarmony: 0,
         avgCorruption: 0,
-        avgInstability: 0
+        avgStability: 0
       };
     }
     
-    let sumEnergy = 0, sumStability = 0, sumClarity = 0;
-    let sumHarmony = 0, sumCorruption = 0, sumInstability = 0;
+    let sumSynergy = 0, sumStability = 0, sumClarity = 0;
+    let sumHarmony = 0, sumCorruption = 0, sumStability = 0;
     
     for (const node of nodes) {
       const metrics = node.userData?.metrics || {};
-      sumEnergy += metrics.energy || 0;
+      sumSynergy += metrics.energy || 0;
       sumStability += metrics.stability || 0;
       sumClarity += metrics.clarity || 0;
       sumHarmony += metrics.harmony || 0;
       sumCorruption += metrics.corruption || 0;
-      sumInstability += metrics.instability || 0;
+      sumStability += metrics.stability || 0;
     }
     
     const count = nodes.length;
@@ -238,7 +238,7 @@ export class AtomaUIUpdate3_0 {
       avgClarity: Math.round(sumClarity / count),
       avgHarmony: Math.round(sumHarmony / count),
       avgCorruption: Math.round(sumCorruption / count),
-      avgInstability: Math.round(sumInstability / count)
+      avgStability: Math.round(sumStability / count)
     };
   }
   
@@ -269,7 +269,7 @@ export class AtomaUIUpdate3_0 {
         <div style="color: #ff00ff;">Clarity     ${this._formatMetricBar(metrics.avgClarity)} <span style="color: #00ffdd;">${metrics.avgClarity}</span></div>
         <div style="color: #00ddaa;">Harmony     ${this._formatMetricBar(metrics.avgHarmony)} <span style="color: #00ffdd;">${metrics.avgHarmony}</span></div>
         <div style="color: #ff6666;">Corruption  ${this._formatMetricBar(metrics.avgCorruption)} <span style="color: #00ffdd;">${metrics.avgCorruption}</span></div>
-        <div style="color: #ff9999;">Instability ${this._formatMetricBar(metrics.avgInstability)} <span style="color: #00ffdd;">${metrics.avgInstability}</span></div>
+        <div style="color: #ff9999;">Stability ${this._formatMetricBar(metrics.avgStability)} <span style="color: #00ffdd;">${metrics.avgStability}</span></div>
       </div>
     `;
     

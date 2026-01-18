@@ -148,7 +148,7 @@ export function integrateHarmonicInfluenceSystem(
  * 7. STATE MODULATION
  *    - Harmony: Increases warmth (slight yellow shift)
  *    - Corruption: Reduces opacity (dims aura)
- *    - Instability: (Future enhancement - slight phase jitter)
+ *    - Stability: (Future enhancement - slight phase jitter)
  *    - Synergy: Larger field, more coherent flow
  * 
  * 8. LOD BEHAVIOR

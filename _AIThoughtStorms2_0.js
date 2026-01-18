@@ -16,15 +16,15 @@ import * as THREE from 'three';
  * ✓ No timer blocking - timestamp-based only
  * 
  * NETWORK MOOD STATES:
- * - CALM: Low instability, good harmony
+ * - CALM: Low stability, good harmony
  * - FOCUSED: High harmony, few active clusters
- * - TENSE: Rising instability, unstable links
- * - CHAOTIC: High instability, corrupted nodes
+ * - TENSE: Rising stability, unstable links
+ * - CHAOTIC: High stability, corrupted nodes
  * - CRITICAL: Extreme conditions (rare emergency state)
  * 
  * STORM TYPES:
  * 1. SYNERGY STORM - Soft cyan/magenta arcs, accelerated thought packets
- * 2. INSTABILITY STORM - Jagged red/orange glitchy strokes, turbulent jitter
+ * 2. STABILITY STORM - Jagged red/orange glitchy strokes, turbulent jitter
  * 3. FOCUS STORM - Cold blue beams linking key clusters, precision pulses
  * 4. CRITICAL SURGE - Rare intense ring burst with spiked activity (capped 1/min)
  */
@@ -55,14 +55,14 @@ export class AIThoughtStorms2_0 {
     this.stormState = {
       currentMood: 'CALM',
       prevMood: 'CALM',
-      activeStorm: null,      // 'synergy' | 'instability' | 'focus' | 'critical' | null
+      activeStorm: null,      // 'synergy' | 'stability' | 'focus' | 'critical' | null
       stormStartTime: 0,
       lastStormTime: -1000,
       lastCriticalTime: -1000,
       networkMetrics: {
         avgSynergy: 0.5,
         avgHarmony: 0.5,
-        avgInstability: 0,
+        avgStability: 0,
         avgCorruption: 0,
         activeLinks: 0,
         totalLinks: 0
@@ -72,7 +72,7 @@ export class AIThoughtStorms2_0 {
     // Storm visuals containers
     this.stormVisuals = {
       synergyArcs: [],        // Array of arc meshes
-      instabilityStrokes: [], // Array of stroke meshes
+      stabilityStrokes: [], // Array of stroke meshes
       focusBeams: [],         // Array of beam geometries
       particleBursts: [],     // Array of burst particles
       criticalRing: null      // Single mesh for critical ring
@@ -101,23 +101,23 @@ export class AIThoughtStorms2_0 {
     
     let sumSynergy = 0;
     let sumHarmony = 0;
-    let sumInstability = 0;
+    let sumStability = 0;
     let sumCorruption = 0;
     let activeCount = 0;
     
     for (const link of links) {
       const synergy = link.synergy || 0.5;
       const harmony = link.harmony || 0.5;
-      const instability = link.instability || 0;
+      const stability = link.stability || 0;
       const corruption = link.corruption || 0;
       
       sumSynergy += synergy;
       sumHarmony += harmony;
-      sumInstability += instability;
+      sumStability += stability;
       sumCorruption += corruption;
       
-      // Active link has traffic or instability
-      if ((link.trafficIntensity || 0) > 0.3 || instability > 0.5) {
+      // Active link has traffic or stability
+      if ((link.trafficIntensity || 0) > 0.3 || stability > 0.5) {
         activeCount++;
       }
     }
@@ -125,21 +125,21 @@ export class AIThoughtStorms2_0 {
     const avg = {
       synergy: sumSynergy / links.length,
       harmony: sumHarmony / links.length,
-      instability: sumInstability / links.length,
+      stability: sumStability / links.length,
       corruption: sumCorruption / links.length
     };
     
     this.stormState.networkMetrics.avgSynergy = avg.synergy;
     this.stormState.networkMetrics.avgHarmony = avg.harmony;
-    this.stormState.networkMetrics.avgInstability = avg.instability;
+    this.stormState.networkMetrics.avgStability = avg.stability;
     this.stormState.networkMetrics.avgCorruption = avg.corruption;
     this.stormState.networkMetrics.activeLinks = activeCount;
     this.stormState.networkMetrics.totalLinks = links.length;
     
     // Determine mood based on thresholds
-    if (avg.instability > 0.75 || avg.corruption > 0.6) {
+    if (avg.stability > 0.75 || avg.corruption > 0.6) {
       return 'CHAOTIC';
-    } else if (avg.instability > 0.5) {
+    } else if (avg.stability > 0.5) {
       return 'TENSE';
     } else if (avg.harmony > 0.7 && activeCount <= links.length * 0.3) {
       return 'FOCUSED';
@@ -166,7 +166,7 @@ export class AIThoughtStorms2_0 {
     
     // Critical surge (rare, high priority)
     if (criticalCooldownReady && 
-        metrics.instability > 0.8 && 
+        metrics.stability > 0.8 && 
         metrics.avgSynergy > 0.7 &&
         Math.random() < 0.02) { // 2% chance when conditions met
       return 'critical';
@@ -180,11 +180,11 @@ export class AIThoughtStorms2_0 {
       return 'synergy';
     }
     
-    // Instability / Corruption storm (chaos conditions)
+    // stability / Corruption storm (chaos conditions)
     if ((mood === 'CHAOTIC' || mood === 'TENSE') &&
-        (metrics.instability > 0.6 || metrics.corruption > 0.4) &&
+        (metrics.stability > 0.6 || metrics.corruption > 0.4) &&
         Math.random() < 0.2) {
-      return 'instability';
+      return 'stability';
     }
     
     // Focus storm (high precision, few active links)
@@ -233,16 +233,16 @@ export class AIThoughtStorms2_0 {
   }
   
   /**
-   * Create instability / corruption storm (jagged red strokes)
+   * Create stability / corruption storm (jagged red strokes)
    */
-  _createInstabilityStorm() {
+  _createStabilityStorm() {
     const links = this.linkingSystem?.links || [];
     if (links.length < 2) return;
     
     // Select unstable links
     const unstableLinks = links
-      .filter(l => (l.instability || 0) > 0.5 || (l.corruption || 0) > 0.3)
-      .sort((a, b) => (b.instability || 0) - (a.instability || 0))
+      .filter(l => (l.stability || 0) > 0.5 || (l.corruption || 0) > 0.3)
+      .sort((a, b) => (b.stability || 0) - (a.stability || 0))
       .slice(0, Math.min(6, Math.ceil(links.length * 0.15)));
     
     for (const link of unstableLinks) {
@@ -254,10 +254,10 @@ export class AIThoughtStorms2_0 {
       // Create jagged stroke (with multiple line segments for glitch effect)
       const strokes = this._createJaggedStrokeMesh(posA, posB, 0xff4400);
       for (const stroke of strokes) {
-        stroke.userData.stormType = 'instability';
+        stroke.userData.stormType = 'stability';
         stroke.userData.life = this.config.stormDuration;
         this.stormGroup.add(stroke);
-        this.stormVisuals.instabilityStrokes.push(stroke);
+        this.stormVisuals.stabilityStrokes.push(stroke);
       }
     }
   }
@@ -481,16 +481,16 @@ export class AIThoughtStorms2_0 {
       }
     }
     
-    // Update instability strokes (flicker)
-    for (let i = this.stormVisuals.instabilityStrokes.length - 1; i >= 0; i--) {
-      const stroke = this.stormVisuals.instabilityStrokes[i];
+    // Update stability strokes (flicker)
+    for (let i = this.stormVisuals.stabilityStrokes.length - 1; i >= 0; i--) {
+      const stroke = this.stormVisuals.stabilityStrokes[i];
       stroke.userData.life -= dt;
       
       if (stroke.userData.life <= 0) {
         this.stormGroup.remove(stroke);
         stroke.geometry.dispose();
         stroke.material.dispose();
-        this.stormVisuals.instabilityStrokes.splice(i, 1);
+        this.stormVisuals.stabilityStrokes.splice(i, 1);
       } else {
         // Glitch flicker
         stroke.material.opacity = (Math.random() > 0.3 ? 0.6 : 0.1) * (stroke.userData.life / this.config.stormDuration);
@@ -605,8 +605,8 @@ export class AIThoughtStorms2_0 {
       this._createCriticalSurge();
     } else if (type === 'synergy') {
       this._createSynergyStorm();
-    } else if (type === 'instability') {
-      this._createInstabilityStorm();
+    } else if (type === 'stability') {
+      this._createStabilityStorm();
     } else if (type === 'focus') {
       this._createFocusStorm();
     }
@@ -645,7 +645,7 @@ export class AIThoughtStorms2_0 {
    * PUBLIC API - Force specific storm (debug)
    */
   forceStorm(type) {
-    if (!['synergy', 'instability', 'focus', 'critical'].includes(type)) {
+    if (!['synergy', 'stability', 'focus', 'critical'].includes(type)) {
       console.warn(`Unknown storm type: ${type}`);
       return;
     }
@@ -666,7 +666,7 @@ export class AIThoughtStorms2_0 {
     console.log(`Network Metrics:`, {
       synergy: this.stormState.networkMetrics.avgSynergy.toFixed(2),
       harmony: this.stormState.networkMetrics.avgHarmony.toFixed(2),
-      instability: this.stormState.networkMetrics.avgInstability.toFixed(2),
+      stability: this.stormState.networkMetrics.avgStability.toFixed(2),
       corruption: this.stormState.networkMetrics.avgCorruption.toFixed(2),
       activeLinks: this.stormState.networkMetrics.activeLinks,
       totalLinks: this.stormState.networkMetrics.totalLinks
@@ -700,13 +700,13 @@ export class AIThoughtStorms2_0 {
     }
     this.stormVisuals.synergyArcs = [];
     
-    // Remove all instability strokes
-    for (const stroke of this.stormVisuals.instabilityStrokes) {
+    // Remove all stability strokes
+    for (const stroke of this.stormVisuals.stabilityStrokes) {
       this.stormGroup.remove(stroke);
       stroke.geometry.dispose();
       stroke.material.dispose();
     }
-    this.stormVisuals.instabilityStrokes = [];
+    this.stormVisuals.stabilityStrokes = [];
     
     // Remove all focus beams
     for (const beam of this.stormVisuals.focusBeams) {
@@ -774,5 +774,5 @@ export function setupAIThoughtStormsConsoleAPI(storms) {
   };
   
   console.log('%c✓ consciousStorms API ready', 'color: #ff00ff; font-weight: bold;');
-  console.log('Commands: enable(), disable(), setIntensity(0-2), force("synergy"|"instability"|"focus"|"critical"), debugState(), getMood(), getMetrics(), status()');
+  console.log('Commands: enable(), disable(), setIntensity(0-2), force("synergy"|"stability"|"focus"|"critical"), debugState(), getMood(), getMetrics(), status()');
 }

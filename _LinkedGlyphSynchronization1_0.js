@@ -8,7 +8,7 @@
  * - High synergy (≥70) → perfect sync (0 ms drift)
  * - Medium synergy (30–69) → small drift (10–40 ms)
  * - Low synergy (<30) → visible de-sync (60–120 ms)
- * - Instability increases drift by +20–50 ms
+ * - Low stability increases drift by +20–50 ms
  * - Corruption adds phase inversion (180° flip)
  * - Harmony reduces drift by 30%
  * 
@@ -23,7 +23,7 @@
  * - linkStrength: (0-100) Base synchronization strength
  * - synergy: (0-1) Quality of connection
  * - corruption: (0-1) Connection decay/interference
- * - instability: (0-1) Temporal drift/jitter
+ * - stability: (0-1) Temporal drift/jitter
  * - harmony: (0-1) Connection smoothness
  * 
  * SAFETY LAYER:
@@ -67,7 +67,7 @@ export class LinkedGlyphSynchronization1_0 {
       // Synchronization base parameters
       minDriftMs: 0,        // Perfect sync minimum
       maxDriftMs: 120,      // Maximum visible de-sync
-      instabilityDriftMult: 30,  // ms per instability point
+      stabilityDriftMult: 30,  // ms per stability point
       harmonyDriftReduction: 0.3, // 30% reduction from harmony
       
       // Phase inversion
@@ -169,7 +169,7 @@ export class LinkedGlyphSynchronization1_0 {
     const linkStrength = (link.strength || link.synergy * 100) || 50;
     const synergy = link.synergy || 0.5;
     const corruption = link.corruption || 0;
-    const instability = link.instability || 0;
+    const stability = link.stability || 0;
     const harmony = link.harmony || 0;
     
     // Calculate sync strength based on synergy
@@ -197,8 +197,9 @@ export class LinkedGlyphSynchronization1_0 {
       driftMs = 60 + ((1 - normalizedSynergy) * 60);
     }
     
-    // Instability increases drift
-    driftMs += instability * this.config.instabilityDriftMult;
+    // Low stability increases drift (inverse: lower stability = more drift)
+    const stabilityFactor = 1 - stability;
+    driftMs += stabilityFactor * this.config.stabilityDriftMult;
     
     // Harmony reduces drift
     driftMs *= (1 - harmony * this.config.harmonyDriftReduction);
@@ -210,7 +211,7 @@ export class LinkedGlyphSynchronization1_0 {
       syncStrength: linkStrength,
       synergy,
       corruption,
-      instability,
+      stability,
       harmony,
       driftMs: Math.max(0, driftMs),
       phaseInversion,
@@ -227,8 +228,8 @@ export class LinkedGlyphSynchronization1_0 {
       syncStrength: 50,
       synergy: 0.5,
       corruption: 0,
-      instability: 0,
-      harmony: 0,
+      stability: 0.5,
+      harmony: 0.5,
       driftMs: 40,
       phaseInversion: false,
       syncQuality: 'medium',
@@ -300,7 +301,7 @@ export class LinkedGlyphSynchronization1_0 {
     syncData.syncStrength = newParams.syncStrength;
     syncData.synergy = newParams.synergy;
     syncData.corruption = newParams.corruption;
-    syncData.instability = newParams.instability;
+    syncData.stability = newParams.stability;
     syncData.harmony = newParams.harmony;
     syncData.driftMs = newParams.driftMs;
     syncData.phaseInversion = newParams.phaseInversion;
@@ -322,12 +323,12 @@ export class LinkedGlyphSynchronization1_0 {
     // Debug output if enabled
     if (this.debugMode && this.debugSyncId === linkId) {
       console.log(`[SYNC DEBUG] Link ${linkId}:`, {
-        quality: syncData.syncQuality,
-        driftMs: syncData.driftMs.toFixed(2),
-        synergy: syncData.synergy.toFixed(2),
-        corruption: syncData.corruption.toFixed(2),
-        instability: syncData.instability.toFixed(2),
-        phaseInversion: syncData.phaseInversion
+      quality: syncData.syncQuality,
+      driftMs: syncData.driftMs.toFixed(2),
+      synergy: syncData.synergy.toFixed(2),
+      corruption: syncData.corruption.toFixed(2),
+      stability: syncData.stability.toFixed(2),
+      phaseInversion: syncData.phaseInversion
       });
     }
   }
@@ -393,7 +394,7 @@ export class LinkedGlyphSynchronization1_0 {
     let sumDrift = 0;
     let sumSynergy = 0;
     let sumCorruption = 0;
-    let sumInstability = 0;
+    let sumStability = 0;
     let sumHarmony = 0;
     let countInversions = 0;
     
@@ -401,7 +402,7 @@ export class LinkedGlyphSynchronization1_0 {
       sumDrift += data.driftMs || 0;
       sumSynergy += data.synergy || 0;
       sumCorruption += data.corruption || 0;
-      sumInstability += data.instability || 0;
+      sumStability += data.stability || 0;
       sumHarmony += data.harmony || 0;
       if (data.phaseInversion) countInversions++;
     });
@@ -411,7 +412,7 @@ export class LinkedGlyphSynchronization1_0 {
       avgDriftMs: sumDrift / count,
       avgSynergy: sumSynergy / count,
       avgCorruption: sumCorruption / count,
-      avgInstability: sumInstability / count,
+      avgStability: sumStability / count,
       avgHarmony: sumHarmony / count,
       hasPhaseInversion: countInversions > count / 2,
       connectionCount: count
@@ -438,7 +439,7 @@ export class LinkedGlyphSynchronization1_0 {
       syncedToLinks: avgSyncParams.connectionCount,
       synergy: avgSyncParams.avgSynergy,
       corruption: avgSyncParams.avgCorruption,
-      instability: avgSyncParams.avgInstability,
+      stability: avgSyncParams.avgStability,
       harmony: avgSyncParams.avgHarmony,
       hasPhaseInversion: avgSyncParams.hasPhaseInversion,
       

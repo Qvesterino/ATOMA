@@ -67,7 +67,7 @@ export class LinkGlyphFlow {
     // Semantic state to glyph mapping
     this.semanticToGlyph = {
       consciousness: { shapes: ['diamond', 'circle'], color: 0x00CCFF },
-      instability: { shapes: ['hex', 'shard'], color: 0xFF3333 },
+      stability: { shapes: ['hex', 'shard'], color: 0xFF3333 },
       synergy: { shapes: ['triangle', 'circle'], color: 0x0099FF },
       corruption: { shapes: ['shard', 'shard'], color: 0x330033 },
       harmony: { shapes: ['lotus', 'ring'], color: 0xFFD700 },
@@ -342,7 +342,7 @@ export class LinkGlyphFlow {
     const position = new THREE.Vector3();
     position.lerpVectors(linkStartPos, linkEndPos, packet.progress);
     
-    // Add micro-jitter based on instability
+    // Add micro-jitter based on stability
     const jitterAmount = 0.02 * Math.sin(packet.jitterPhase + Date.now() * 0.001);
     position.x += jitterAmount;
     position.y += jitterAmount * 0.5;

@@ -2,7 +2,7 @@
  * SEMANTIC GLYPH AI 5.0 - INTELLIGENT VISUAL NODE COMMUNICATION (SAFE EDITION)
  * 
  * Makes glyphs visually express what each node is 'doing' or 'thinking' by reacting to:
- * - Node metrics (synergy, harmony, instability, corruption, clarity, load)
+ * - Node metrics (synergy, harmony, stability, corruption, clarity, load)
  * - Node roles/tags in userData
  * - Recent events (links created, rituals, world events, cluster membership)
  * 
@@ -15,7 +15,7 @@
  * 
  * SEMANTIC STATES (maps to visual patterns):
  * 1. FOCUSED/ANALYZING - High clarity, low corruption, analytics role
- * 2. OVERLOADED/STRESSED - High load, instability, many recent links
+ * 2. OVERLOADED/STRESSED - High load, stability, many recent links
  * 3. CALM/IDLE - Low load, stable, no recent events
  * 4. EXPLORING/CONNECTING - Recently created new links
  * 5. LEADER/HUB - High link degree vs average
@@ -302,7 +302,7 @@ export class SemanticGlyphAI {
       synergy: metrics.synergy ?? 50,
       harmony: metrics.harmony ?? 50,
       corruption: metrics.corruption ?? 0,
-      instability: metrics.instability ?? 0,
+      stability: metrics.stability ?? 0,
       clarity: metrics.clarity ?? 50,
       load: metrics.load ?? 0,
       
@@ -353,7 +353,7 @@ export class SemanticGlyphAI {
     }
     else if (this.isOverloaded(context)) {
       stateType = 'stressed';
-      parameters.stressLevel = Math.min(1, (context.load + context.instability) / 200);
+      parameters.stressLevel = Math.min(1, (context.load + context.stability) / 200);
     }
     else if (this.isFocused(context)) {
       stateType = 'focused';
@@ -384,11 +384,11 @@ export class SemanticGlyphAI {
   }
   
   isOverloaded(context) {
-    return context.load > 60 || (context.instability > 70 && context.harmony < 30);
+    return context.load > 60 || (context.stability > 70 && context.harmony < 30);
   }
   
   isCalm(context) {
-    return context.load < 30 && context.instability < 20 && context.corruption < 15;
+    return context.load < 30 && context.stability < 20 && context.corruption < 15;
   }
   
   isLeader(context) {

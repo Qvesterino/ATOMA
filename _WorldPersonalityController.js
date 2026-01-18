@@ -15,7 +15,7 @@
  * FEATURES:
  * 1. GLOBAL STATE ANALYZER
  *    - Scans nodes every 5-10s (throttled)
- *    - Computes aggregate metrics (harmony, instability, clarity, energy)
+ *    - Computes aggregate metrics (harmony, stability, clarity, energy)
  *    - Derives global mood label (7 mood types)
  * 
  * 2. WORLD EVENT TYPES
@@ -56,10 +56,9 @@ export class WorldPersonalityController {
       intensity: 0.0,
       dominantPersonality: null,
       avgHarmony: 0,
-      avgInstability: 0,
+      avgStability: 0,
       avgClarity: 0,
       avgEnergy: 0,
-      avgStability: 0,
     };
     
     // Previous mood for transition tracking
@@ -197,10 +196,9 @@ export class WorldPersonalityController {
    */
   scanNetworkMood(nodes) {
     let totalHarmony = 0;
-    let totalInstability = 0;
+    let totalStability = 0;
     let totalClarity = 0;
     let totalEnergy = 0;
-    let totalStability = 0;
     let validNodeCount = 0;
     
     // Personality distribution
@@ -212,10 +210,9 @@ export class WorldPersonalityController {
       
       if (metrics) {
         totalHarmony += metrics.harmonyAffinity || 0;
-        totalInstability += metrics.instabilityFactor || 0;
+        totalStability += metrics.stability || 0;
         totalClarity += metrics.clarity || 0;
         totalEnergy += metrics.energyOutput || 0;
-        totalStability += metrics.stability || 0;
         validNodeCount++;
       }
       
@@ -228,10 +225,9 @@ export class WorldPersonalityController {
     
     // Compute averages
     const avgHarmony = totalHarmony / validNodeCount;
-    const avgInstability = totalInstability / validNodeCount;
+    const avgStability = totalStability / validNodeCount;
     const avgClarity = totalClarity / validNodeCount;
     const avgEnergy = totalEnergy / validNodeCount;
-    const avgStability = totalStability / validNodeCount;
     
     // Find dominant personality
     let dominantPersonality = null;
@@ -246,17 +242,16 @@ export class WorldPersonalityController {
     // Determine mood label based on metrics
     const newMoodLabel = this.determineMoodLabel(
       avgHarmony,
-      avgInstability,
+      avgStability,
       avgClarity,
       avgEnergy,
-      avgStability,
       personalityCount
     );
-    
+
     // Calculate mood intensity (0-1)
     const intensity = this.calculateMoodIntensity(
       avgHarmony,
-      avgInstability,
+      avgStability,
       avgClarity,
       avgEnergy
     );
@@ -269,10 +264,9 @@ export class WorldPersonalityController {
       intensity,
       dominantPersonality,
       avgHarmony,
-      avgInstability,
+      avgStability,
       avgClarity,
       avgEnergy,
-      avgStability,
     };
     
     // Trigger transition if mood changed and min duration elapsed
@@ -285,35 +279,35 @@ export class WorldPersonalityController {
   /**
    * Determine mood label from aggregated metrics
    */
-  determineMoodLabel(harmony, instability, clarity, energy, stability, personalityCount) {
+  determineMoodLabel(harmony, stability, clarity, energy, personalityCount) {
     // Check for ASCENDED_ALIGNMENT (many ascended/mythic nodes)
     const ascendedCount = personalityCount['ASCENDED_MYTHIC'] || 0;
     if (ascendedCount >= 3) {
       return 'ASCENDED_ALIGNMENT';
     }
     
-    // HARMONIC_CALM: high harmony, low instability
-    if (harmony > 70 && instability < 40) {
+    // HARMONIC_CALM: high harmony, high stability
+    if (harmony > 70 && stability > 60) {
       return 'HARMONIC_CALM';
     }
     
-    // FOCUSED_ANALYSIS: high clarity, mid stability
-    if (clarity > 75 && stability > 60) {
+    // FOCUSED_ANALYSIS: high clarity, mid-high stability
+    if (clarity > 75 && stability > 70) {
       return 'FOCUSED_ANALYSIS';
     }
-    
-    // RADIANT_STORM: high energy, mid-high instability
-    if (energy > 75 && instability > 50 && instability < 80) {
+
+    // RADIANT_STORM: high energy, mid-low stability
+    if (energy > 75 && stability > 20 && stability < 50) {
       return 'RADIANT_STORM';
     }
-    
-    // QUANTUM_CHAOS: very high instability
-    if (instability > 75) {
+
+    // QUANTUM_CHAOS: very low stability
+    if (stability < 25) {
       return 'QUANTUM_CHAOS';
     }
-    
-    // UMBRA_PRESSURE: mid energy, high instability, low harmony
-    if (energy > 40 && energy < 70 && instability > 60 && harmony < 50) {
+
+    // UMBRA_PRESSURE: mid energy, low stability, low harmony
+    if (energy > 40 && energy < 70 && stability < 40 && harmony < 50) {
       return 'UMBRA_PRESSURE';
     }
     
@@ -329,14 +323,14 @@ export class WorldPersonalityController {
   /**
    * Calculate mood intensity based on metric extremes
    */
-  calculateMoodIntensity(harmony, instability, clarity, energy) {
-    // Intensity is based on how extreme the metrics are
+  calculateMoodIntensity(harmony, stability, clarity, energy) {
+    // Intensity is based on how extreme metrics are
     const harmonySigma = Math.abs(harmony - 60) / 60; // 60 is mid-range
-    const instabilitySigma = instability / 100;
+    const stabilitySigma = (100 - stability) / 100; // Lower stability = higher intensity
     const claritySigma = Math.abs(clarity - 60) / 60;
     const energySigma = Math.abs(energy - 60) / 60;
     
-    const avgSigma = (harmonySigma + instabilitySigma + claritySigma + energySigma) / 4;
+    const avgSigma = (harmonySigma + stabilitySigma + claritySigma + energySigma) / 4;
     
     return Math.min(1.0, avgSigma * 1.5); // Amplify slightly
   }

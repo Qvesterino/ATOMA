@@ -448,7 +448,7 @@ export class AtomaLanguageEngine2_0 {
     
     // Add metric-based adverbs if context provided
     if (contextMetrics) {
-      if (contextMetrics.instability > 0.7) {
+      if (contextMetrics.stability > 0.7) {
         adverb = 'erratically ';
       } else if (contextMetrics.synergy > 0.8) {
         adverb = 'harmoniously ';

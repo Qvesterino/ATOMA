@@ -24,7 +24,7 @@
  * - Messages spawn at source node
  * - Travel along link with t: 0→1
  * - Speed = synergy + personality modifiers
- * - Instability adds jitter
+ * - stability adds jitter
  * - Corruption adds distortion/phase flips
  * - Harmony smooths movement
  * - On arrival: feed back to SemanticGlyphAI (visual-only)
@@ -88,8 +88,8 @@ export class LinkedGlyphMessaging3_0 {
       // Transportation
       messageSpeed: 2.0,            // World units per second (base)
       messageSpeeedBoostFromSynergy: 0.5,
-      messageSpeeedReductionFromInstability: 0.3,
-      jitterFromInstability: 0.08,
+      messageSpeeedReductionFromStability: 0.3,
+      jitterFromStability: 0.08,
       distortionFromCorruption: 0.12,
       
       // Animation
@@ -241,9 +241,8 @@ export class LinkedGlyphMessaging3_0 {
     // Extract semantic state from node
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const instability = node.userData.instability || 0;
+    const stability = node.userData.stability || 0;
     const harmony = node.userData.harmony || 0;
-    const clarity = node.userData.clarity || 0.5;
     const load = node.userData.load || 0;
     
     // Determine glyph count (more glyphs for complex states)
@@ -255,7 +254,7 @@ export class LinkedGlyphMessaging3_0 {
       type: messageType,
       glyphs: [],
       role: this.determineGlyphRole(node, messageType),
-      semanticVector: { synergy, corruption, instability, harmony, clarity, load }
+      semanticVector: { synergy, corruption, stability, harmony, load }
     };
     
     // Generate individual glyphs for this word
@@ -283,21 +282,21 @@ export class LinkedGlyphMessaging3_0 {
   determineGlyphRole(node, messageType) {
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const instability = node.userData.instability || 0;
+    const stability = node.userData.stability || 0;
     const harmony = node.userData.harmony || 0;
     
     if (messageType === 'SUBJECT') {
       return 'SUBJECT'; // Identity
     } else if (messageType === 'STATE') {
       if (corruption > 0.6) return 'CORRUPTED';
-      if (instability > 0.6) return 'UNSTABLE';
+      if (stability < 0.4) return 'UNSTABLE';
       if (synergy > 0.7) return 'STRONG';
       if (harmony > 0.7) return 'PEACEFUL';
       return 'NEUTRAL';
     } else if (messageType === 'TENDENCY') {
       if (synergy > 0.7) return 'ASCENDING';
       if (corruption > 0.6) return 'DECAYING';
-      if (instability > 0.6) return 'CHAOTIC';
+      if (stability < 0.4) return 'CHAOTIC';
       return 'STABLE';
     } else if (messageType === 'LINK') {
       return 'CONNECTION';
@@ -435,7 +434,7 @@ export class LinkedGlyphMessaging3_0 {
       linkId,
       synergy: link.synergy || 0.5,
       corruption: link.corruption || 0,
-      instability: link.instability || 0,
+      stability: link.stability || 0,
       harmony: link.harmony || 0
     });
     
@@ -505,8 +504,9 @@ export class LinkedGlyphMessaging3_0 {
     // Boost from synergy
     speed += linkData.synergy * this.config.messageSpeeedBoostFromSynergy;
     
-    // Reduction from instability
-    speed *= (1 - linkData.instability * this.config.messageSpeeedReductionFromInstability);
+    // Reduction from stability
+    const stabilityFactor = 1 - linkData.stability * this.config.messageSpeeedReductionFromStability;
+    speed *= Math.max(0.5, stabilityFactor);
     
     // Acceleration from harmony
     speed *= (1 + linkData.harmony * 0.2);
@@ -527,8 +527,8 @@ export class LinkedGlyphMessaging3_0 {
     
     message.meshGroup.position.copy(currentPos);
     
-    // Add jitter from instability
-    const jitter = message.linkData.instability * this.config.jitterFromInstability;
+    // Add jitter from stability
+    const jitter = message.linkData.stability * this.config.jitterFromStability;
     message.meshGroup.position.x += (Math.random() - 0.5) * jitter;
     message.meshGroup.position.y += (Math.random() - 0.5) * jitter;
     message.meshGroup.position.z += (Math.random() - 0.5) * jitter;
@@ -614,7 +614,7 @@ export class LinkedGlyphMessaging3_0 {
       linkQuality: {
         synergy: message.linkData.synergy,
         corruption: message.linkData.corruption,
-        instability: message.linkData.instability,
+        stability: message.linkData.stability,
         harmony: message.linkData.harmony
       }
     };

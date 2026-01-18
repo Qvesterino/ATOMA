@@ -40,7 +40,7 @@
  * - Harmony: increases coherence, expands radius
  * - Corruption: introduces phase disagreement, reduces coherence
  * - Synergy: improves legibility and smoothness
- * - Instability: weakens all cues, shortens duration
+ * - stability: weakens all cues, shortens duration
  * 
  * RAMP BEHAVIOR:
  * - Fade-in: ≥1s smooth rise
@@ -73,7 +73,7 @@ const CONFIG = {
     HARMONY_RADIUS_MULTIPLIER: 1.3,        // Harmony expands radius
     CORRUPTION_RADIUS_MULTIPLIER: 0.7,     // Corruption shrinks radius
     SYNERGY_LEGIBILITY_BOOST: 1.2,         // Synergy improves effect clarity
-    INSTABILITY_WEAKENING_FACTOR: 0.6,     // Instability dampens all effects
+    STABILITY_WEAKENING_FACTOR: 0.6,     // stability dampens all effects
     
     // TEMPORAL DYNAMICS
     RESONANCE_RAMP_IN_DURATION: 1.2,       // Time to reach full influence (seconds)
@@ -206,10 +206,10 @@ class ResonanceInfluenceZone {
             this.synergyBoost = 1.0 + (glyphData.synergyCoherence * CONFIG.SYNERGY_COHERENCE_BOOST);
         }
         
-        // Instability effect: dampen all effects
+        // stability effect: dampen all effects
         this.stabilityFactor = 1.0;
-        if (glyphData.instabilityIndex !== undefined) {
-            this.stabilityFactor = 1.0 - (glyphData.instabilityIndex * CONFIG.INSTABILITY_WEAKENING_FACTOR);
+        if (glyphData.stabilityIndex !== undefined) {
+            this.stabilityFactor = 1.0 - (glyphData.stabilityIndex * CONFIG.STABILITY_WEAKENING_FACTOR);
             this.stabilityFactor = Math.max(0.3, this.stabilityFactor);
         }
         

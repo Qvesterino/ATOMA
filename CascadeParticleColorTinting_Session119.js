@@ -10,7 +10,7 @@
  * - Fatigue Yield (stress resolution): Yellow/Gold transitions
  * - Oscillatory Balance (no winner): Blue/Green shimmer
  * - Harmony States (resolved): Bright Cyan glow
- * - Corruption Cascades (instability): Red/Dark cascades
+ * - Corruption Cascades (stability): Red/Dark cascades
  * 
  * ARCHITECTURE:
  * ✅ Pure visual adapter (reads conflict state, doesn't modify)
@@ -84,7 +84,7 @@ function initializePalette() {
     high: new THREE.Color(0x00FFFF),     // Pure cyan
   },
   
-  // Corruption cascades: Instability and decay
+  // Corruption cascades: stability and decay
   // Visual: Red to dark red waves
   corruptionCascade: {
     low: new THREE.Color(0xFF9999),      // Pale red
@@ -111,7 +111,7 @@ const CONFLICT_TYPE = {
   FATIGUE_YIELD: 'fatigue_yield',       // Stress resolution
   OSCILLATORY_BALANCE: 'oscillatory_balance',    // No winner
   RESOLVED_HARMONY: 'resolved_harmony', // Equilibrium
-  CORRUPTION: 'corruption',             // Instability
+  CORRUPTION: 'corruption',             // Stability
 };
 
 /**

@@ -294,7 +294,7 @@ function example_compareHubStates(gameState) {
 // EXAMPLE 8: Simulate Hub Activation/Deactivation
 // ============================================================================
 
-function example_simulateHubActivation(gameState, nodeId, harmony, corruption, instability) {
+function example_simulateHubActivation(gameState, nodeId, harmony, corruption, stability) {
     console.log('=== EXAMPLE 8: Simulate Hub Activation ===\n');
     
     const node = gameState.nodes.find(n => n.id === nodeId);
@@ -308,10 +308,10 @@ function example_simulateHubActivation(gameState, nodeId, harmony, corruption, i
     console.log('Simulating update with state:');
     console.log(`  Harmony: ${harmony}`);
     console.log(`  Corruption: ${corruption}`);
-    console.log(`  Instability: ${instability}\n`);
+    console.log(`  stability: ${stability}\n`);
     
     // Manually call update to see if hub activates
-    controller.update(harmony, corruption, instability);
+    controller.update(harmony, corruption, stability);
     
     const time = performance.now() * 0.001;
     const debug = controller.getDebugInfo(time);
@@ -326,7 +326,7 @@ function example_simulateHubActivation(gameState, nodeId, harmony, corruption, i
     console.log(`\nActivation checks:`);
     console.log(`  Links >= 3: ${debug.linkCount >= 3 ? '✓' : '✗'}`);
     console.log(`  Harmony > corruption × 1.2: ${harmony > corruption * 1.2 ? '✓' : '✗'}`);
-    console.log(`  Instability < 0.4: ${instability < 0.4 ? '✓' : '✗'}`);
+    console.log(`  stability < 0.4: ${stability < 0.4 ? '✓' : '✗'}`);
 }
 
 // ============================================================================

@@ -124,7 +124,7 @@ export class ExtremeAIShaderPack {
     const synergy = metrics.synergy || 0;
     const harmony = metrics.harmony || 0;
     const corruption = metrics.corruption || 0;
-    const instability = metrics.instability || 0;
+    const stability = metrics.stability || 0;
 
     // Update metric uniforms if they exist
     if (material.uniforms.u_synergy) {
@@ -136,8 +136,8 @@ export class ExtremeAIShaderPack {
     if (material.uniforms.u_corruption) {
       material.uniforms.u_corruption.value = Math.min(1, corruption);
     }
-    if (material.uniforms.u_instability) {
-      material.uniforms.u_instability.value = Math.min(1, instability);
+    if (material.uniforms.u_stability) {
+      material.uniforms.u_stability.value = Math.min(1, stability);
     }
   }
 
@@ -420,7 +420,7 @@ export class ExtremeAIShaderPack {
 
     const fragmentShader = `
       uniform float u_time;
-      uniform float u_instability;
+      uniform float u_stability;
       uniform vec3 u_baseColor;
 
       varying vec3 vNormal;
@@ -434,14 +434,14 @@ export class ExtremeAIShaderPack {
       void main() {
         // Noise-based color variation
         float n = noise(vPosition + vec3(u_time) * 0.5);
-        float colorVar = n * u_instability;
+        float colorVar = n * u_stability;
         
         // Normal perturbation
-        vec3 perturbedNormal = normalize(vNormal + (vec3(noise(vPosition * 5.0 + u_time)) - 0.5) * u_instability * 0.5);
+        vec3 perturbedNormal = normalize(vNormal + (vec3(noise(vPosition * 5.0 + u_time)) - 0.5) * u_stability * 0.5);
         
         // Distortion
         vec3 viewDir = normalize(cameraPosition - (modelMatrix * vec4(vPosition, 1.0)).xyz);
-        float distortion = dot(perturbedNormal, viewDir) * (1.0 + u_instability * 0.3);
+        float distortion = dot(perturbedNormal, viewDir) * (1.0 + u_stability * 0.3);
         
         vec3 color = u_baseColor * (1.0 + colorVar);
         color *= max(0.5, distortion);
@@ -455,7 +455,7 @@ export class ExtremeAIShaderPack {
       fragmentShader,
       uniforms: {
         u_time: { value: 0 },
-        u_instability: { value: 0 },
+        u_stability: { value: 0 },
         u_baseColor: { value: new THREE.Color(baseColor) }
       },
       transparent: true,
@@ -776,7 +776,7 @@ export class ExtremeAIShaderPack {
 
   applyChaoticHeartShader(node) {
     const shader = this.createNoiseDistortionShader(0xff0055);
-    shader.uniforms.u_instability = { value: 0 };
+    shader.uniforms.u_stability = { value: 0 };
     shader.userData.isExtremeShader = true;
     this.replaceNodeMaterials(node, shader);
   }

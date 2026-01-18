@@ -50,8 +50,8 @@ export const SAFE_REPLACEMENT_CONFIG = {
   // Set to [] to only use legacy, or null for all categories
   categoriesForReplacement: null, // null = all categories
   
-  // Specific nodes that have visual instability (nodeId → true)
-  // Can be populated dynamically as instability is detected
+  // Specific nodes that have visual stability (nodeId → true)
+  // Can be populated dynamically as stability is detected
   unstableNodeIds: new Set(),
   
   // Variants per category (maps category → variant count)
@@ -255,11 +255,11 @@ export function createEnhancedNodeReplacement(category, index, color) {
 
 /**
  * Mark a node as potentially unstable for future replacement
- * Call this when visual instability is detected
+ * Call this when visual stability is detected
  * 
  * @param {string} nodeId - Node identifier
  * @param {string} category - Node category
- * @param {string} reason - Reason for instability detection
+ * @param {string} reason - Reason for stability detection
  */
 export function markNodeAsUnstable(nodeId, category, reason = '') {
   SAFE_REPLACEMENT_CONFIG.unstableNodeIds.add(nodeId);
@@ -272,7 +272,7 @@ export function markNodeAsUnstable(nodeId, category, reason = '') {
 }
 
 /**
- * Mark a node as stable (recovery from instability)
+ * Mark a node as stable (recovery from stability)
  * 
  * @param {string} nodeId - Node identifier
  */

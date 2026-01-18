@@ -110,8 +110,7 @@ export class NodeDynamicMetrics {
         energyGain: 0.9,        // Slower energy gain
         stability: 1.15,        // Very high stability
         corruption: 0.85,       // Low corruption spread
-        clarity: 1.3,           // Very high clarity
-        harmony: 1.0,           // Normal harmony
+        harmony: 1.3,           // Very high harmony (was clarity)
         loadTolerance: 1.05     // Slightly more capacity
       },
       storage: {
@@ -240,8 +239,8 @@ export class NodeDynamicMetrics {
     // Apply EMA smoothing
     metrics.stability = this._applyEMA(newStability, previousMetrics.stability ?? 60);
     
-    // ========== 4. INSTABILITY (inverse of stability) ==========
-    metrics.instability = 100 - metrics.stability;
+    // ========== 4. REMOVED: INSTABILITY (use stability directly) ==========
+    // metrics.instability = 100 - metrics.stability;
     
     // ========== 5. HARMONY (combination of stability & inverse load) ==========
     // REBALANCE v1: Harmony weights adjusted - (stability * 0.6) + ((1 - loadRatio) * 25)
@@ -253,14 +252,18 @@ export class NodeDynamicMetrics {
     
     metrics.harmony = this._applyEMA(newHarmony, previousMetrics.harmony ?? 50);
     
-    // ========== 6. CLARITY (stability-influenced) ==========
-    // Category multiplier applied to clarity
-    const clarityMultiplier = this._getMultiplier(node, 'clarity');
-    let newClarity = 50 + (metrics.stability * 0.5 - 30);
-    newClarity *= clarityMultiplier;
-    newClarity = Math.max(0, Math.min(100, newClarity));
+    // ========== 6. HARMONY_B (stability-influenced) ==========
+    // Legacy clarity metric - now folded into harmony calculation
+    let newHarmonyB = 50 + (metrics.stability * 0.5 - 30);
+    newHarmonyB *= harmonyMultiplier;
+    newHarmonyB = Math.max(0, Math.min(100, newHarmonyB));
     
-    metrics.clarity = this._applyEMA(newClarity, previousMetrics.clarity ?? 50);
+    // Merge with existing harmony (weighted average)
+    if (previousMetrics.harmony) {
+      metrics.harmony = this._applyEMA((metrics.harmony + newHarmonyB) / 2, previousMetrics.harmony ?? 50);
+    } else {
+      metrics.harmony = this._applyEMA(newHarmonyB, 50);
+    }
     
     // ========== 7. CORRUPTION (special handling for sigma nodes + category multipliers) ==========
     const corruptionMultiplier = this._getMultiplier(node, 'corruption');
@@ -393,8 +396,6 @@ export class NodeDynamicMetrics {
       energy: 50,
       stability: 60,
       harmony: 50,
-      instability: 40,
-      clarity: 50,
       corruption: 0,
       
       // Time-based

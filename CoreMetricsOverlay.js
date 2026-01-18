@@ -2,6 +2,8 @@ import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 import { TemporalUnitSystem } from './TemporalUnitSystem.js';
 import { CoreMetricsHUD } from './CoreMetricsHUD.js';
 import { TemporalEventEffects } from './TemporalEventEffects.js';
+import { CoreMetricsEngineAdapter } from './CoreMetricsEngineAdapter.js';
+import { projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
 
 /**
  * ATOMA CORE METRICS OVERLAY 1.0
@@ -32,7 +34,10 @@ export class CoreMetricsOverlay {
     this.metricsCalculator = new CoreMetricsCalculator();
     this.temporalSystem = new TemporalUnitSystem();
     this.hud = new CoreMetricsHUD(renderer);
+    this.engineAdapter = new CoreMetricsEngineAdapter(this.hud);
     this.temporalEffects = new TemporalEventEffects(scene, renderer);
+    this.hudLinkFallback = { synergyScore: 0 };
+    this.lastHudDebugLog = 0;
     
     // Cached data
     this.currentMetrics = {
@@ -80,11 +85,33 @@ export class CoreMetricsOverlay {
       this.currentMetrics = this.metricsCalculator.getMetrics();
       this.currentTemporalDisplay = this.temporalSystem.getFormattedDisplay();
       
-      // Update HUD display
-      this.hud.update(this.currentMetrics, this.currentTemporalDisplay, temporalEvents);
-      
-      // Update glow animation
+      // Update HUD display via engine adapter
+      const linkSource = linkingSystem?.activeLink ?? linkingSystem?.selectedLink ?? this.hudLinkFallback;
+      const rawHudMetrics = this.engineAdapter?.update(
+        linkSource,
+        this.currentMetrics,
+        this.currentTemporalDisplay,
+        temporalEvents,
+        deltaTime
+      );
+      const hudMetrics = rawHudMetrics ?? projectHudMetrics(withGlobalMetricAliases({
+        networkSynergy: this.currentMetrics.networkSynergy ?? this.currentMetrics.synergy ?? linkSource.synergyScore ?? 0,
+        harmonyFlow: this.currentMetrics.harmonyFlow ?? this.currentMetrics.harmonyNorm ?? this.currentMetrics.harmony,
+        networkStress: this.currentMetrics.networkStress ?? this.currentMetrics.stabilityNorm ?? this.currentMetrics.stability,
+        corruptionLevel: this.currentMetrics.corruptionLevel ?? this.currentMetrics.corruptionNorm ?? this.currentMetrics.corruption,
+        loadPressure: this.currentMetrics.loadPressure ?? this.currentMetrics.loadNorm ?? this.currentMetrics.networkLoad ?? this.currentMetrics.energyNorm
+      }));
+
+      this.hud.update(hudMetrics, this.currentTemporalDisplay, temporalEvents, deltaTime);
       this.hud.updateGlow(deltaTime);
+
+      if (typeof window !== 'undefined' && window.DEBUG) {
+        const now = performance.now();
+        if (now - this.lastHudDebugLog >= 1000) {
+          console.log('[CoreMetricsHUD] VM metrics:', this.currentMetrics, 'HUD metrics:', hudMetrics);
+          this.lastHudDebugLog = now;
+        }
+      }
       
       // Trigger temporal effects
       this.temporalEffects.update(deltaTime, temporalEvents);

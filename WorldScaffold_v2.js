@@ -45,6 +45,7 @@
  */
 
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 export class WorldScaffold_v2 {
   constructor() {
@@ -102,7 +103,7 @@ export class WorldScaffold_v2 {
     texture.magFilter = THREE.LinearFilter;
     texture.minFilter = THREE.LinearFilter;
 
-    const material = new THREE.MeshStandardMaterial({
+    const material = materialRegistry.getStandard('world.worldscaffold.ground', {
       map: texture,
       color: 0x1a1a2e,           // Deep blue-black
       metalness: 0.0,

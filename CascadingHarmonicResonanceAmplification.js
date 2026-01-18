@@ -331,9 +331,9 @@ export class CascadingHarmonicResonanceAmplification {
 
     let strength = baseStrength * amplification * damping * smoothing * stabilization;
 
-    // Higher layers suffer more from instability
-    const instabilityFactor = 1 - (layer * 0.1) * corruption; // More corruption = more layer degradation
-    strength *= Math.max(0.1, instabilityFactor);
+    // Higher layers suffer more from stability
+    const stabilityFactor = 1 - (layer * 0.1) * corruption; // More corruption = more layer degradation
+    strength *= Math.max(0.1, stabilityFactor);
 
     // Clamp to 0-1
     return Math.min(1, Math.max(0, strength));

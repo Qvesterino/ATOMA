@@ -1734,10 +1734,14 @@ createLinkSuccessPulse(sourceNode, targetNode) {
    * Wraps getNodeId but returns null safely if needed
    * @private
    */
-  _getNodeId(node) {
-    if (!node) return null;
-    return this.getNodeId(node);
-  }
+_getNodeId(node) {
+  if (!node) return null;
+
+  // If aggregator already passes an ID, accept it
+  if (typeof node === 'string') return node;
+
+  return this.getNodeId(node);
+}
 
   /**
    * [LinkIndex v3.0] Add link to persistent index
@@ -1821,28 +1825,27 @@ createLinkSuccessPulse(sourceNode, targetNode) {
    * @param {THREE.Object3D} node - The node to get links for
    * @returns {Array} Array of links connected to this node
    */
-  getLinksForNode(node) {
-    if (!node) return [];
-    
-    const id = this._getNodeId(node);
-    if (!id) {
-      console.debug('[LinkIndex] Could not get ID for node');
-      return [];
-    }
-    
-    const links = this.linksByNode.get(id);
-    const result = Array.isArray(links) ? links.slice() : [];
-    
-    // [Session 20 DEBUG] Log link discovery
-    console.debug(`[LinkIndex Query] Node ${id.substring(0, 8)}: ${result.length} links found`, {
-      nodeCategory: node.userData?.category || 'unknown',
-      linksByNodeSize: this.linksByNode.size,
-      totalLinks: this.links.length,
-      links: result.map(l => ({ src: l.sourceNodeId?.substring(0, 8), tgt: l.targetNodeId?.substring(0, 8), active: l.active }))
-    });
-    
-    return result;
+getLinksForNode(node) {
+  if (!node) return [];
+
+  const id = this._getNodeId(node);
+  if (!id) {
+    // bez ID = bez linkov, ale bez spamu
+    return [];
   }
+
+  const links = this.linksByNode.get(id);
+  const result = Array.isArray(links) ? links.slice() : [];
+
+  // DEBUG: len občas, nie každý frame
+  if (this.DEBUG && Math.random() < 0.01) {
+    console.log(
+      `[LinkIndex] Node ${id.substring(0, 8)}: ${result.length} links`
+    );
+  }
+
+  return result;
+}
 
   /**
    * [Patch 3.2 HYBRID] Get linked categories (for HUD) with instant cache

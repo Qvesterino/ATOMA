@@ -17,7 +17,7 @@
  * 2. Mythic Seed Glyph (Fractal Triangle Spiral)
  * 3. Ascended Node Glyph (Orbital Halo Ring)
  * 4. Evolution Stage Glyphs (1/2/3)
- * 5. Personality State Glyphs (Harmony/Instability/Corruption/Synergy)
+ * 5. Personality State Glyphs (Harmony/Stability/Corruption/Synergy)
  * 6. Event Glyphs (Ritual/Surge/WorldEvent)
  */
 
@@ -127,7 +127,7 @@ export class AtomaGlyphSystem3_0 {
     if (personality) {
       const personalityMap = {
         'harmony': 'personalityHarmony',
-        'instability': 'personalityInstability',
+        'stability': 'personalityStability',
         'corruption': 'personalityCorruption',
         'synergy': 'personalitySynergy'
       };
@@ -142,7 +142,7 @@ export class AtomaGlyphSystem3_0 {
       'input': 'evolutionStage1',           // Input nodes → diamonds
       'process': 'personalityHarmony',      // Process nodes → harmony flowers
       'integration': 'personalitySynergy',  // Integration → synergy glyphs
-      'analytics': 'personalityInstability',// Analytics → instability
+      'analytics': 'personalityStability',// Analytics → stability
       'storage': 'evolutionStage2',         // Storage → evolution squares
       'control': 'personalityCorruption',   // Control → corruption
       'consciousness': 'aiConsciousness',   // Consciousness (explicit)
@@ -220,7 +220,7 @@ export class AtomaGlyphSystem3_0 {
       'evolutionStage2': (n, id) => this.createEvolutionStage2Glyph(n, id),
       'evolutionStage3': (n, id) => this.createEvolutionStage3Glyph(n, id),
       'personalityHarmony': (n, id) => this.createPersonalityHarmonyGlyph(n, id),
-      'personalityInstability': (n, id) => this.createPersonalityInstabilityGlyph(n, id),
+      'personalityStability': (n, id) => this.createPersonalityStabilityGlyph(n, id),
       'personalityCorruption': (n, id) => this.createPersonalityCorruptionGlyph(n, id),
       'personalitySynergy': (n, id) => this.createPersonalitySynergyGlyph(n, id),
       'eventMythicRitual': (n, id) => this.createEventMythicRitualGlyph(n, id),
@@ -625,15 +625,15 @@ export class AtomaGlyphSystem3_0 {
     return glyphGroup;
   }
   
-  createPersonalityInstabilityGlyph(node, nodeId) {
+  createPersonalityStabilityGlyph(node, nodeId) {
     const glyphGroup = new THREE.Group();
     glyphGroup.userData = {
-      glyphType: 'personalityInstability',
+      glyphType: 'personalityStability',
       isVFX: true,
       noEvolve: true,
       noCleanup: true
     };
-    glyphGroup.name = `glyph_instability_${nodeId}`;
+    glyphGroup.name = `glyph_stability_${nodeId}`;
     
     // Chaotic shifting tetrahedrons (3 small tetra)
     for (let i = 0; i < 3; i++) {
@@ -666,8 +666,8 @@ export class AtomaGlyphSystem3_0 {
     glyphGroup.userData.chaosPhase = Math.random() * Math.PI * 2;
     glyphGroup.userData.jitterAmount = 0.15;
     
-    this.attachGlyph(node, nodeId, glyphGroup, 'personalityInstability');
-    this.recordGlyphStat('personalityInstability');
+    this.attachGlyph(node, nodeId, glyphGroup, 'personalityStability');
+    this.recordGlyphStat('personalityStability');
     
     return glyphGroup;
   }
@@ -1130,8 +1130,8 @@ export class AtomaGlyphSystem3_0 {
         case 'personalityHarmony':
           this.updatePersonalityHarmonyGlyph(glyphGroup, deltaTime);
           break;
-        case 'personalityInstability':
-          this.updatePersonalityInstabilityGlyph(glyphGroup, deltaTime);
+        case 'personalityStability':
+          this.updatePersonalityStabilityGlyph(glyphGroup, deltaTime);
           break;
         case 'personalityCorruption':
           this.updatePersonalityCorruptionGlyph(glyphGroup, deltaTime);
@@ -1243,7 +1243,7 @@ export class AtomaGlyphSystem3_0 {
     });
   }
   
-  updatePersonalityInstabilityGlyph(group, dt) {
+  updatePersonalityStabilityGlyph(group, dt) {
     group.userData.chaosPhase += dt * 3;
     const chaos = Math.sin(group.userData.chaosPhase);
     

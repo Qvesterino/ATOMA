@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Memory Lane - Endless dream datacenter corridor
@@ -29,7 +30,7 @@ export class MemoryLane {
    */
   createFloor() {
     const floorGeometry = new THREE.PlaneGeometry(30, 500);
-    const floorMaterial = new THREE.MeshStandardMaterial({
+    const floorMaterial = materialRegistry.getStandard('world.memorylane.floor', {
       color: 0x0a0a0f,
       roughness: 0.2,
       metalness: 0.9
@@ -65,7 +66,7 @@ export class MemoryLane {
     
     // Main tower body
     const towerGeometry = new THREE.BoxGeometry(4, 8, 3);
-    const towerMaterial = new THREE.MeshStandardMaterial({
+    const towerMaterial = materialRegistry.getStandard('world.memorylane.tower', {
       color: 0x1a1a22,
       roughness: 0.4,
       metalness: 0.8
@@ -95,7 +96,7 @@ export class MemoryLane {
       // Colored status light
       const lightColor = i === 0 ? 0x00dddd : i === 1 ? 0x8800ff : 0xaaaaaa;
       const lightGeometry = new THREE.BoxGeometry(0.3, 0.1, 2.5);
-      const lightMaterial = new THREE.MeshBasicMaterial({
+      const lightMaterial = materialRegistry.getBasic('world.memorylane.towerLight', {
         color: lightColor,
         transparent: true,
         opacity: 0.6
@@ -138,7 +139,7 @@ export class MemoryLane {
       
       // Hexagonal panel
       const panelGeometry = new THREE.CylinderGeometry(3, 3, 0.3, 6);
-      const panelMaterial = new THREE.MeshBasicMaterial({
+      const panelMaterial = materialRegistry.getBasic('world.memorylane.ceilingPanel', {
         color: 0x4433aa,
         transparent: true,
         opacity: 0.15,
@@ -180,7 +181,7 @@ export class MemoryLane {
     
     // Left wall
     const leftWallGeometry = new THREE.PlaneGeometry(wallLength, wallHeight);
-    const wallMaterial = new THREE.MeshStandardMaterial({
+    const wallMaterial = materialRegistry.getStandard('world.memorylane.wall', {
       color: 0x1a1a25,
       roughness: 0.6,
       metalness: 0.4,
@@ -214,7 +215,7 @@ export class MemoryLane {
       const y = 2 + Math.random() * 6;
       
       const panelGeometry = new THREE.PlaneGeometry(2, 1.5);
-      const panelMaterial = new THREE.MeshBasicMaterial({
+      const panelMaterial = materialRegistry.getBasic('world.memorylane.wallPanel', {
         color: 0x00ffff,
         transparent: true,
         opacity: 0,
@@ -244,7 +245,7 @@ export class MemoryLane {
     
     // Left strip
     const stripGeometry = new THREE.BoxGeometry(0.15, 0.05, stripLength);
-    const stripMaterial = new THREE.MeshBasicMaterial({
+    const stripMaterial = materialRegistry.getBasic('world.memorylane.floorStrip', {
       color: 0x00dddd,
       transparent: true,
       opacity: 0.6,
@@ -350,7 +351,7 @@ export class MemoryLane {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     
-    const hologramMaterial = new THREE.MeshBasicMaterial({
+    const hologramMaterial = materialRegistry.getBasic('world.memorylane.hologram', {
       map: texture,
       transparent: true,
       opacity: 0.25,
@@ -372,7 +373,7 @@ export class MemoryLane {
     
     for (let i = 0; i < shardCount; i++) {
       const shardGeometry = new THREE.BoxGeometry(1, 1.5, 0.2);
-      const shardMaterial = new THREE.MeshBasicMaterial({
+      const shardMaterial = materialRegistry.getBasic('world.memorylane.memoryShard', {
         color: 0xaa88ff,
         transparent: true,
         opacity: 0.3,
@@ -484,7 +485,7 @@ export class MemoryLane {
       
       const curve = new THREE.CatmullRomCurve3(points);
       const tubeGeometry = new THREE.TubeGeometry(curve, 40, 0.08, 8, false);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.memorylane.holographicArc', {
         color: 0x6633ff,
         transparent: true,
         opacity: 0,
@@ -510,7 +511,7 @@ export class MemoryLane {
   createVolumetricFog() {
     // Low fog planes
     const fogGeometry = new THREE.PlaneGeometry(30, 100);
-    const fogMaterial = new THREE.MeshBasicMaterial({
+    const fogMaterial = materialRegistry.getBasic('world.memorylane.fog', {
       color: 0x2a2a44,
       transparent: true,
       opacity: 0.04,

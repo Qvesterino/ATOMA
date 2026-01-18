@@ -26,8 +26,8 @@
  * - node.userData.synergy (0-1)
  * - node.userData.harmony (0-1)
  * - node.userData.corruption (0-1)
- * - node.userData.instability (0-1)
- * - node.userData.clarity (0-1)
+ * - node.userData.stability (0-1)
+
  * - node.userData.load (0-1)
  */
 
@@ -51,19 +51,19 @@ export class AdaptiveGlyphRendering1_0 {
       // Adaptive Scale
       scaleFromSynergy: 0.6,       // Max scale boost from synergy
       scaleFromCorruption: -0.2,   // Scale reduction from corruption
-      jitterFromInstability: 0.04, // Max jitter amplitude (4%)
+      jitterFromStability: 0.04, // Max jitter amplitude (4%)
       jitterSpeed: 3.0,            // Hz
       
       // Adaptive Hue
       synergyHueShift: 30,         // Degrees toward cyan (hue space)
       harmonyHueShift: -30,        // Degrees toward magenta
       corruptionHueShift: 60,      // Degrees toward red/orange
-      instabilityFlicker: 0.02,    // 2% hue flicker
+      stabilityFlicker: 0.02,    // 2% hue flicker
       flickerSpeed: 4.0,           // Hz
       
       // Adaptive Motion
       rotationFromSynergy: 0.25,   // Speed multiplier (10-40% boost)
-      wobbleFromInstability: 0.02, // Max offset (0.02 = safe micro-wobble)
+      wobbleFromStability: 0.02, // Max offset (0.02 = safe micro-wobble)
       wobbleSpeed: 2.0,            // Hz
       pulseFromCorruption: 0.15,   // Phase distortion amplitude
       pulseSpeed: 0.8,             // Hz (slow)
@@ -112,8 +112,7 @@ export class AdaptiveGlyphRendering1_0 {
         synergy: 0,
         harmony: 0,
         corruption: 0,
-        instability: 0,
-        clarity: 0,
+        Stability: 0,
         load: 0
       };
     }
@@ -122,8 +121,7 @@ export class AdaptiveGlyphRendering1_0 {
       synergy: Math.max(0, Math.min(1, node.userData.synergy || 0)),
       harmony: Math.max(0, Math.min(1, node.userData.harmony || 0)),
       corruption: Math.max(0, Math.min(1, node.userData.corruption || 0)),
-      instability: Math.max(0, Math.min(1, node.userData.instability || 0)),
-      clarity: Math.max(0, Math.min(1, node.userData.clarity || 0)),
+      Stability: Math.max(0, Math.min(1, node.userData.Stability || 0)),
       load: Math.max(0, Math.min(1, node.userData.load || 0))
     };
   }
@@ -139,9 +137,9 @@ export class AdaptiveGlyphRendering1_0 {
     
     // Reduce scale from corruption
     scale += (metrics.corruption * this.config.scaleFromCorruption);
-    
-    // Add jitter from instability
-    const jitter = Math.sin(animState.scaleJitterPhase) * metrics.instability * this.config.jitterFromInstability;
+
+    // Add jitter from stability
+    const jitter = Math.sin(animState.scaleJitterPhase) * metrics.stability * this.config.jitterFromStability;
     scale += jitter;
     
     // Clamp to reasonable range
@@ -169,9 +167,9 @@ export class AdaptiveGlyphRendering1_0 {
     hueShift += metrics.synergy * this.config.synergyHueShift;
     hueShift += metrics.harmony * this.config.harmonyHueShift;
     hueShift += metrics.corruption * this.config.corruptionHueShift;
-    
-    // Add instability flicker
-    const flicker = Math.sin(animState.huePhase) * metrics.instability * this.config.instabilityFlicker * 360;
+
+    // Add stability flicker
+    const flicker = Math.sin(animState.huePhase) * metrics.stability * this.config.stabilityFlicker * 360;
     hueShift += flicker;
     
     hsl.h = (hsl.h + hueShift) % 360;
@@ -188,10 +186,10 @@ export class AdaptiveGlyphRendering1_0 {
     
     // Synergy increases rotation speed (10-40% boost)
     speedMultiplier += metrics.synergy * this.config.rotationFromSynergy;
-    
-    // Instability causes slight speed fluctuation
-    const instabilityVariation = Math.sin(this.globalTime * 2) * metrics.instability * 0.1;
-    speedMultiplier += instabilityVariation;
+
+    // Stability causes slight speed fluctuation
+    const stabilityVariation = Math.sin(this.globalTime * 2) * metrics.stability * 0.1;
+    speedMultiplier += stabilityVariation;
     
     return baseSpeed * Math.max(0.5, Math.min(2.0, speedMultiplier));
   }
@@ -203,8 +201,8 @@ export class AdaptiveGlyphRendering1_0 {
     animState.wobblePhase += deltaTime * this.config.wobbleSpeed * Math.PI * 2;
     
     const wobbleAmount = Math.sin(animState.wobblePhase) * 
-                        metrics.instability * 
-                        this.config.wobbleFromInstability;
+                        metrics.stability * 
+                        this.config.wobbleFromStability;
     
     return {
       x: wobbleAmount * Math.cos(animState.wobblePhase),
@@ -472,10 +470,10 @@ export class AdaptiveGlyphRendering1_0 {
     console.log('Adaptive Parameters:');
     console.log(`  Scale from Synergy: ±${this.config.scaleFromSynergy}`);
     console.log(`  Scale from Corruption: ${this.config.scaleFromCorruption}`);
-    console.log(`  Instability Jitter: ±${this.config.jitterFromInstability}`);
+    console.log(`  Stability Jitter: ±${this.config.jitterFromStability}`);
     console.log(`  Hue Shift Range: ±${Math.max(this.config.synergyHueShift, this.config.harmonyHueShift, this.config.corruptionHueShift)}°`);
     console.log(`  Rotation Boost: ±${(this.config.rotationFromSynergy * 100).toFixed(0)}%`);
-    console.log(`  Wobble Amplitude: ±${this.config.wobbleFromInstability}`);
+    console.log(`  Wobble Amplitude: ±${this.config.wobbleFromStability}`);
     console.log(`  Breathing Amplitude: ±${this.config.breathingFromHarmony}`);
     console.groupEnd();
   }
@@ -492,8 +490,7 @@ export class AdaptiveGlyphRendering1_0 {
     console.log(`  Synergy: ${(metrics.synergy * 100).toFixed(1)}%`);
     console.log(`  Harmony: ${(metrics.harmony * 100).toFixed(1)}%`);
     console.log(`  Corruption: ${(metrics.corruption * 100).toFixed(1)}%`);
-    console.log(`  Instability: ${(metrics.instability * 100).toFixed(1)}%`);
-    console.log(`  Clarity: ${(metrics.clarity * 100).toFixed(1)}%`);
+    console.log(`  Stability: ${(metrics.stability * 100).toFixed(1)}%`);
     console.log(`  Load: ${(metrics.load * 100).toFixed(1)}%`);
     
     if (animState) {

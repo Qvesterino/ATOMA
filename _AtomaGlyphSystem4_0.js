@@ -18,7 +18,7 @@
  * - Mythic Seed: Incubation state (spiraling growth)
  * - Ascended Node: Transcended function (spectral halos)
  * - Evolution Stages 1-3: Growth progression (complexity increases)
- * - Personality States: Emotional health (harmony/instability/corruption/synergy)
+ * - Personality States: Emotional health (harmony/stability/corruption/synergy)
  * - Event Glyphs: Real-time phenomena (rituals/surges/world events)
  */
 
@@ -38,7 +38,7 @@ export class AtomaGlyphSystem4_0 {
     // Registry: nodeId → { node, glyphGroup, glyphType, metadata, context }
     this.glyphRegistry = new Map();
     
-    // Context cache: nodeId → { synergy, instability, harmony, corruption, load, personality }
+    // Context cache: nodeId → { synergy, stability, harmony, corruption, load, personality }
     this.contextCache = new Map();
     
     // Animation state: nodeId → { phase, rotationAngles[], colorPhase, etc }
@@ -128,7 +128,7 @@ export class AtomaGlyphSystem4_0 {
     
     const context = {
       synergy: node.userData.synergy || 0,
-      instability: node.userData.instability || 0,
+      stability: node.userData.stability || 0,
       harmony: node.userData.harmony || 0,
       corruption: node.userData.corruption || 0,
       load: node.userData.load || 0,
@@ -494,15 +494,15 @@ export class AtomaGlyphSystem4_0 {
     return glyphGroup;
   }
   
-  createPersonalityInstabilityGlyph(node, nodeId) {
+  createPersonalityStabilityGlyph(node, nodeId) {
     const glyphGroup = new THREE.Group();
     glyphGroup.userData = {
-      glyphType: 'personalityInstability',
+      glyphType: 'personalityStability',
       isVFX: true,
       noEvolve: true,
       noCleanup: true
     };
-    glyphGroup.name = `glyph4_instability_${nodeId}`;
+    glyphGroup.name = `glyph4_stability_${nodeId}`;
     
     // 3 chaotic tetrahedrons
     for (let i = 0; i < 3; i++) {
@@ -536,8 +536,8 @@ export class AtomaGlyphSystem4_0 {
     };
     this.animationState.set(nodeId, animState);
     
-    this.attachGlyph(node, nodeId, glyphGroup, 'personalityInstability');
-    this.recordGlyphStat('personalityInstability');
+    this.attachGlyph(node, nodeId, glyphGroup, 'personalityStability');
+    this.recordGlyphStat('personalityStability');
     
     return glyphGroup;
   }
@@ -818,14 +818,14 @@ export class AtomaGlyphSystem4_0 {
     if (!animState) return;
     
     // Breathing based on stability
-    animState.breathPhase += deltaTime * (1.5 + context.instability * 2);
+    animState.breathPhase += deltaTime * (1.5 + context.stability * 2);
     const breath = (Math.sin(animState.breathPhase) + 1) * 0.5;
     const breathScale = 0.96 + breath * 0.06;
     glyphGroup.scale.set(breathScale, breathScale, breathScale);
     
     // Rotation speeds: CW inner ring, CCW outer ring
     animState.rotationCW += (0.3 + context.synergy * 0.5) * deltaTime;
-    animState.rotationCCW -= (0.2 - context.instability * 0.3) * deltaTime;
+    animState.rotationCCW -= (0.2 - context.stability * 0.3) * deltaTime;
     
     glyphGroup.rotation.y = animState.rotationCW;
     
@@ -1007,7 +1007,7 @@ export class AtomaGlyphSystem4_0 {
     });
   }
   
-  updatePersonalityInstabilityGlyph(glyphGroup, context, animState, deltaTime) {
+  updatePersonalityStabilityGlyph(glyphGroup, context, animState, deltaTime) {
     if (!animState) return;
     
     // Jittering motion
@@ -1016,12 +1016,12 @@ export class AtomaGlyphSystem4_0 {
     glyphGroup.children.forEach(child => {
       if (child.userData.component === 'tetra') {
         const restPos = child.userData.restPos;
-        const jitter = Math.sin(animState.jitterPhase + child.userData.tetraIndex) * context.instability * 0.08;
+        const jitter = Math.sin(animState.jitterPhase + child.userData.tetraIndex) * context.stability * 0.08;
         child.position.x = restPos.x + jitter;
         child.position.z = restPos.z + jitter;
         
         // Rotation jitter
-        child.rotation.y += (Math.random() - 0.5) * context.instability * 0.1;
+        child.rotation.y += (Math.random() - 0.5) * context.stability * 0.1;
       }
     });
     
@@ -1637,8 +1637,8 @@ export class AtomaGlyphSystem4_0 {
         case 'personalityHarmony':
           this.updatePersonalityHarmonyGlyph(glyphGroup, context, animState, deltaTime);
           break;
-        case 'personalityInstability':
-          this.updatePersonalityInstabilityGlyph(glyphGroup, context, animState, deltaTime);
+        case 'personalityStability':
+          this.updatePersonalityStabilityGlyph(glyphGroup, context, animState, deltaTime);
           break;
         case 'personalityCorruption':
           this.updatePersonalityCorruptionGlyph(glyphGroup, context, animState, deltaTime);

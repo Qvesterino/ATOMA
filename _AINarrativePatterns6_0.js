@@ -338,13 +338,13 @@ export class AINarrativePatterns6_0 {
    * Compute aggregate metrics for a cluster
    */
   computeClusterMetrics(cluster) {
-    let synergy = 0, harmony = 0, corruption = 0, instability = 0, consciousness = 0;
+    let synergy = 0, harmony = 0, corruption = 0, stability = 0, consciousness = 0;
     
     for (const node of cluster.nodes) {
       synergy += node.synergy || 0;
       harmony += node.harmony || 0;
       corruption += node.corruption || 0;
-      instability += node.instability || 0;
+      stability += node.stability || 0;
       consciousness += node.consciousness || 0;
     }
     
@@ -353,7 +353,7 @@ export class AINarrativePatterns6_0 {
       synergy: synergy / count,
       harmony: harmony / count,
       corruption: corruption / count,
-      instability: instability / count,
+      stability: stability / count,
       consciousness: consciousness / count,
       nodeCount: cluster.nodes.length
     };
@@ -445,13 +445,16 @@ export class AINarrativePatterns6_0 {
    * Calculate tension metric from cluster metrics
    */
   calculateTension(metrics) {
-    // Tension rises with instability and corruption, falls with harmony
-    const instabilityWeight = 0.4;
+    // Tension rises with stability (low stability) and corruption, falls with harmony
+    const stabilityWeight = 0.4;
     const corruptionWeight = 0.3;
     const harmonyReduction = 0.3;
     
+    // Invert stability: lower stability = higher tension
+    const stabilityFactor = 1.0 - metrics.stability;
+    
     let tension = (
-      metrics.instability * instabilityWeight +
+      stabilityFactor * stabilityWeight +
       metrics.corruption * corruptionWeight -
       metrics.harmony * harmonyReduction
     );
@@ -491,8 +494,8 @@ export class AINarrativePatterns6_0 {
         score += 0.7;
       }
       
-      // Instability favors COLLAPSING_ORDER
-      if (metrics.instability > 0.7 && motifId === 'COLLAPSING_ORDER') {
+      // Low stability favors COLLAPSING_ORDER
+      if (metrics.stability < 0.3 && motifId === 'COLLAPSING_ORDER') {
         score += 0.7;
       }
       

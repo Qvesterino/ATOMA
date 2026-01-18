@@ -11,7 +11,7 @@
  * 
  * STORM TYPES (4 Core):
  * 1. Coherence Storm (harmony-dominant) — Smooth cyan/pink fractal spirals
- * 2. Chaotic Storm (instability-dominant) — Jittering violet bursts
+ * 2. Chaotic Storm (stability-dominant) — Jittering violet bursts
  * 3. Corruption Storm (corruption-dominant) — Red/orange inverted loops
  * 4. Ascended Storm (consciousness-dominant) — Diamond/lotus symbolic halos
  * 
@@ -243,7 +243,7 @@ export class EmergentThoughtStorms5_0 {
     let totalSynergy = 0;
     let totalHarmony = 0;
     let totalCorruption = 0;
-    let totalInstability = 0;
+    let totalStability = 0;
     let totalClarity = 0;
     
     for (const linkedNode of linkedNodes) {
@@ -251,7 +251,7 @@ export class EmergentThoughtStorms5_0 {
       totalSynergy += metrics.synergy || 0;
       totalHarmony += metrics.harmony || 0;
       totalCorruption += metrics.corruption || 0;
-      totalInstability += metrics.instability || 0;
+      totalSability += metrics.stability || 0;
       totalClarity += metrics.clarity || 0;
     }
     
@@ -264,7 +264,7 @@ export class EmergentThoughtStorms5_0 {
       synergy: totalSynergy / count,
       harmony: totalHarmony / count,
       corruption: totalCorruption / count,
-      instability: totalInstability / count,
+      stability: totalStability / count,
       clarity: totalClarity / count,
       nodeCount: linkedNodes.length
     };
@@ -344,12 +344,12 @@ export class EmergentThoughtStorms5_0 {
    */
   determineStormType(metrics) {
     // Coherence storm (harmony dominant, smooth)
-    if (metrics.harmony > 0.85 && metrics.instability < 0.3) {
+    if (metrics.harmony > 0.85 && metrics.stability < 0.3) {
       return 'coherence';
     }
     
-    // Chaotic storm (instability dominant)
-    if (metrics.instability > 0.65 && metrics.synergy < 0.5) {
+    // Chaotic storm (stability dominant)
+    if (metrics.stability > 0.65 && metrics.synergy < 0.5) {
       return 'chaotic';
     }
     
@@ -438,8 +438,8 @@ export class EmergentThoughtStorms5_0 {
       duration += 0.5;
     }
     
-    // Shorten with instability
-    if (metrics.instability > 0.6) {
+    // Shorten with stability
+    if (metrics.stability > 0.6) {
       duration -= 0.5;
     }
     
@@ -823,7 +823,7 @@ export class EmergentThoughtStorms5_0 {
       synergy: 0.8,
       harmony: 0.7,
       corruption: 0.3,
-      instability: 0.4,
+      stability: 0.4,
       clarity: 0.7,
       nodeCount: 1
     };

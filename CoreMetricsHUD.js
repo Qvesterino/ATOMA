@@ -9,7 +9,7 @@ import { projectHudMetrics } from './SemanticMetricAdapter.js';
  * Positioned in bottom-left corner.
  * 
  * Displays:
- * - Synergy, Harmony, Instability, Corruption, Network Load (with bars)
+ * - Synergy, Harmony, stability, Corruption, Network Load (with bars)
  * - Cycle time, Epoch number, Aeon number
  */
 
@@ -223,42 +223,51 @@ export class CoreMetricsHUD {
    * Update HUD with current metrics and temporal data
    * All metrics are expected as floats in [0, 1].
    */
-  update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
-    if (!this.enabled || !this.hudContainer) return;
+update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
+  if (!this.enabled || !this.hudContainer) return;
 
-    const display = projectHudMetrics(metrics);
-    const synergy = this.clamp01(display.networkSynergy);      // Canonical: networkSynergy (0..1)
-    const harmony = this.clamp01(display.harmonyFlow);         // Canonical: harmonyFlow (0..1)
-    const stress = this.clamp01(display.networkStress);        // Canonical: networkStress (0..1)
-    const corruption = this.clamp01(display.corruptionLevel);  // Canonical: corruptionLevel (0..1)
-    const load = this.clamp01(display.loadPressure);           // Canonical: loadPressure (0..1)
-    
-    // Update metrics
-    this.updateMetricDisplay('synergy', synergy);
-    this.updateMetricDisplay('harmony', harmony);
-    this.updateMetricDisplay('stability', stress);
-    this.updateMetricDisplay('corruption', corruption);
-    this.updateMetricDisplay('networkLoad', load);
-    
-    // Update Network Time Pressure mechanic
-    this.updateNetworkTime(synergy, deltaTime);
-    
-    // Update temporal display
-    if (this.hudElements.cycleTime) {
-      this.hudElements.cycleTime.textContent = temporalDisplay.cycle;
-    }
-    if (this.hudElements.epochNumber) {
-      this.hudElements.epochNumber.textContent = temporalDisplay.epoch;
-    }
-    if (this.hudElements.aeonNumber) {
-      this.hudElements.aeonNumber.textContent = temporalDisplay.aeon;
-    }
-    
-    // Trigger glow on new cycle
-    if (newEventFlags.newCycle) {
-      this.triggerGlow();
-    }
+  // === READ LIVE METRICS FROM RUNTIME ===
+  // Priority: Runtime live metrics � Fallback to parameter metrics
+  const liveMetrics = window.__ATOMA_LIVE_METRICS__;
+  const synergy    = this.clamp01(liveMetrics?.networkSynergy ?? metrics?.networkSynergy ?? metrics?.synergy ?? 0);
+  const harmony    = this.clamp01(liveMetrics?.harmonyFlow ?? metrics?.harmonyFlow ?? metrics?.harmony ?? 0);
+  const stress     = this.clamp01(liveMetrics?.networkStress ?? metrics?.networkStress ?? metrics?.stability ?? 0);
+  const corruption = this.clamp01(liveMetrics?.corruptionLevel ?? metrics?.corruptionLevel ?? metrics?.corruption ?? 0);
+  const load       = this.clamp01(liveMetrics?.loadPressure ?? metrics?.loadPressure ?? metrics?.networkLoad ?? 0);
+
+  // === RENDER HUD (expects 0..1 floats) ===
+  this.updateMetricDisplay('synergy', synergy);
+  this.updateMetricDisplay('harmony', harmony);
+  this.updateMetricDisplay('stability', stress);
+  this.updateMetricDisplay('corruption', corruption);
+  this.updateMetricDisplay('networkLoad', load);
+
+  // === NETWORK TIME PRESSURE ===
+  this.updateNetworkTime(synergy, deltaTime);
+
+  // === TEMPORAL DISPLAY ===
+  if (this.hudElements.cycleTime) {
+    this.hudElements.cycleTime.textContent = temporalDisplay.cycle;
   }
+  if (this.hudElements.epochNumber) {
+    this.hudElements.epochNumber.textContent = temporalDisplay.epoch;
+  }
+  if (this.hudElements.aeonNumber) {
+    this.hudElements.aeonNumber.textContent = temporalDisplay.aeon;
+  }
+
+  // === EVENT GLOW ===
+  if (newEventFlags?.newCycle) {
+    this.triggerGlow();
+  }
+
+  // === OPTIONAL DEBUG (NO RENDER EFFECT) ===
+  const snap = window.__ATOMA_METRICS_SNAPSHOT__;
+  if (snap) {
+    this.setValue('nodeCount', snap.nodeCount);
+  }
+}
+
 
 
   /**
@@ -267,7 +276,9 @@ export class CoreMetricsHUD {
   updateMetricDisplay(key, value) {
     const element = this.hudElements[key];
     if (!element) return;
-    
+ if (window.DEBUG_HUD) {
+  console.log('[HUD] updateMetricDisplay', key, value);
+}
     const clamped = this.clamp01(value);
     
     // Update float text (0..1 with six decimals)

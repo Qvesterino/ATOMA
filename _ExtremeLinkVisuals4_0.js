@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * - Neural Curve link geometry with organic Bézier paths
  * - Multi-layer depth rendering with parallax
  * - Category-aware color logic unified across nodes + links
- * - Metric-reactive accents (synergy, instability, throughput)
+ * - Metric-reactive accents (synergy, stability, throughput)
  * - Subtle glyph language integration
  * 
  * ULTRA-PREMIUM FEATURES:
@@ -17,7 +17,7 @@ import * as THREE from 'three';
  *    3. Signal Core — High-contrast directional flow
  * ✅ Depth & parallax treatment (brightness/width based on camera distance)
  * ✅ Unified category color logic (6 standard + 4 special categories)
- * ✅ Metric-reactive visuals (synergy, instability, corruption, load)
+ * ✅ Metric-reactive visuals (synergy, stability, corruption, load)
  * ✅ Animated packets flowing along links (throughput indicator)
  * ✅ Subtle glyph sprites riding on links
  * ✅ Performance optimized: <0.25ms/frame with 50 links
@@ -501,10 +501,10 @@ export class ExtremeLinkVisuals4_0 {
     for (const [linkId, container] of this.linkVisuals) {
       const link = container.link;
       
-      // Instability causes jitter on halo only
+      // stability causes jitter on halo only
       if (container.meshes.haloSheath?.material) {
-        const instability = (link.instability || 0);
-        const jitter = Math.sin(this.time * 5 + container.linkId.charCodeAt(0)) * instability * 0.1;
+        const stability = (link.stability || 0);
+        const jitter = Math.sin(this.time * 5 + container.linkId.charCodeAt(0)) * stability * 0.1;
         container.meshes.haloSheath.position.y = jitter;
       }
       

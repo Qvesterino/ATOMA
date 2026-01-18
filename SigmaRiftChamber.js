@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Sigma Rift Chamber - Boss-level arena
@@ -134,7 +135,7 @@ export class SigmaRiftChamber {
       wallGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
       wallGeometry.computeVertexNormals();
       
-      const wallMaterial = new THREE.MeshStandardMaterial({
+      const wallMaterial = materialRegistry.getStandard('world.sigmariftchamber.wall', {
         color: 0x0d0d1a,
         metalness: 0.3,
         roughness: 0.8,
@@ -210,7 +211,7 @@ export class SigmaRiftChamber {
   
   createFloor() {
     const floorGeometry = new THREE.CircleGeometry(this.chamberRadius, 64);
-    const floorMaterial = new THREE.MeshStandardMaterial({
+    const floorMaterial = materialRegistry.getStandard('world.sigmariftchamber.floor', {
       color: 0x0a0a14,
       metalness: 0.2,
       roughness: 0.9,
@@ -330,7 +331,7 @@ export class SigmaRiftChamber {
   createRiftEdges(radius) {
     for (let y of [0, this.riftHeight]) {
       const rimGeometry = new THREE.TorusGeometry(radius, 0.3, 16, 32);
-      const rimMaterial = new THREE.MeshStandardMaterial({
+      const rimMaterial = materialRegistry.getStandard('world.sigmariftchamber.rim', {
         color: 0x00ffaa,
         emissive: 0x00ffaa,
         emissiveIntensity: 0.8,
@@ -479,7 +480,7 @@ export class SigmaRiftChamber {
     const depth = 0.4;
     
     const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshStandardMaterial({
+    const material = materialRegistry.getStandard('world.sigmariftchamber.monolith', {
       color: 0x1a1a2e,
       emissive: 0x1a1a2e,
       emissiveIntensity: 0.1,

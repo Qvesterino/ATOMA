@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * UltraSafe Node Archetypes Pack - ATOMA Edition
@@ -85,7 +86,7 @@ export class ExtremeNodeArchetypes_SafePack {
       const petalGeo = new THREE.IcosahedronGeometry(0.3, 2);
       petalGeo.scale(1.5 * petalScale, 0.6, 0.8);
       
-      const petalMat = new THREE.MeshBasicMaterial({
+      const petalMat = materialRegistry.getBasicMaterial({
         color: petalColors[p % petalColors.length],
         transparent: true,
         opacity: 0.65 - p * 0.05,
@@ -107,7 +108,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Central golden core with subdued glow
     const centerGeo = new THREE.OctahedronGeometry(0.2, 1);
-    const centerMat = new THREE.MeshBasicMaterial({
+    const centerMat = materialRegistry.getBasicMaterial({
       color: 0xffaa00,
       transparent: true,
       opacity: 0.75,
@@ -148,7 +149,7 @@ export class ExtremeNodeArchetypes_SafePack {
       
       // Alternate between solid and wireframe
       const isWireframe = s % 2 === 0;
-      const boxMat = new THREE.MeshBasicMaterial({
+      const boxMat = materialRegistry.getBasicMaterial({
         color: baseColor,
         transparent: true,
         opacity: isWireframe ? 0.4 : (0.75 - s * 0.1),
@@ -190,7 +191,7 @@ export class ExtremeNodeArchetypes_SafePack {
       const tube = 0.08 - t * 0.02;
 
       const torusGeo = new THREE.TorusGeometry(radius, tube, 16, 100);
-      const torusMat = new THREE.MeshBasicMaterial({
+      const torusMat = materialRegistry.getBasicMaterial({
         color: torusColors[t % torusColors.length],
         transparent: true,
         opacity: 0.55 - t * 0.12,
@@ -242,7 +243,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Create octahedron at each helix node
       const nodeGeo = new THREE.OctahedronGeometry(0.12, 1);
-      const nodeMat = new THREE.MeshBasicMaterial({
+      const nodeMat = materialRegistry.getBasicMaterial({
         color: baseColor,
         transparent: true,
         opacity: 0.7,
@@ -292,7 +293,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Outer solid faceted dodecahedron
     const outerGeo = new THREE.DodecahedronGeometry(0.4, 0);
-    const outerMat = new THREE.MeshBasicMaterial({
+    const outerMat = materialRegistry.getBasicMaterial({
       color: prismColors[0],
       transparent: true,
       opacity: 0.35,
@@ -309,7 +310,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Inner wireframe for depth perception
     const innerGeo = new THREE.DodecahedronGeometry(0.38, 0);
-    const innerMat = new THREE.MeshBasicMaterial({
+    const innerMat = materialRegistry.getBasicMaterial({
       color: prismColors[2],
       transparent: true,
       opacity: 0.55,
@@ -347,7 +348,7 @@ export class ExtremeNodeArchetypes_SafePack {
       const angle = (p / planeCount) * Math.PI * 2;
 
       const planeGeo = new THREE.PlaneGeometry(0.4, 0.6);
-      const planeMat = new THREE.MeshBasicMaterial({
+      const planeMat = materialRegistry.getBasicMaterial({
         color: mirrorColors[p % 2],
         transparent: true,
         opacity: 0.5,
@@ -398,7 +399,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Tetrahedron spike
       const spikeGeo = new THREE.TetrahedronGeometry(0.2, 0);
-      const spikeMat = new THREE.MeshBasicMaterial({
+      const spikeMat = materialRegistry.getBasicMaterial({
         color: baseColor,
         transparent: true,
         opacity: 0.7,
@@ -434,7 +435,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Wireframe sphere (roundness)
     const sphereGeo = new THREE.SphereGeometry(0.35, 16, 16);
-    const sphereMat = new THREE.MeshBasicMaterial({
+    const sphereMat = materialRegistry.getBasicMaterial({
       color: 0x00ffff,
       transparent: true,
       opacity: 0.45,
@@ -450,7 +451,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Wireframe cube (angularity) - slightly rotated for contradiction
     const cubeGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const cubeMat = new THREE.MeshBasicMaterial({
+    const cubeMat = materialRegistry.getBasicMaterial({
       color: 0xff00ff,
       transparent: true,
       opacity: 0.45,
@@ -495,7 +496,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Capsule segment
       const capsuleGeo = new THREE.CapsuleGeometry(0.08, 0.15, 4, 8);
-      const capsuleMat = new THREE.MeshBasicMaterial({
+      const capsuleMat = materialRegistry.getBasicMaterial({
         color: vineColors[v % 2],
         transparent: true,
         opacity: 0.65,
@@ -518,7 +519,7 @@ export class ExtremeNodeArchetypes_SafePack {
         const branchZ = Math.sin(branchAngle) * 0.25;
 
         const branchGeo = new THREE.TetrahedronGeometry(0.1, 0);
-        const branchMat = new THREE.MeshBasicMaterial({
+        const branchMat = materialRegistry.getBasicMaterial({
           color: 0x00ffaa,
           transparent: true,
           opacity: 0.55,
@@ -560,7 +561,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Torus link (chain ring)
       const linkGeo = new THREE.TorusGeometry(0.15, 0.05, 8, 32);
-      const linkMat = new THREE.MeshBasicMaterial({
+      const linkMat = materialRegistry.getBasicMaterial({
         color: chainColors[c % 3],
         transparent: true,
         opacity: 0.65,
@@ -580,7 +581,7 @@ export class ExtremeNodeArchetypes_SafePack {
       // Connection sphere between links
       if (c < linkCount - 1) {
         const connGeo = new THREE.SphereGeometry(0.08, 8, 8);
-        const connMat = new THREE.MeshBasicMaterial({
+        const connMat = materialRegistry.getBasicMaterial({
           color: 0x00ffff,
           transparent: true,
           opacity: 0.55,
@@ -618,7 +619,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Central column (body)
     const columnGeo = new THREE.CapsuleGeometry(0.1, 0.6, 4, 8);
-    const columnMat = new THREE.MeshBasicMaterial({
+    const columnMat = materialRegistry.getBasicMaterial({
       color: baseColor,
       transparent: true,
       opacity: 0.7,
@@ -642,7 +643,7 @@ export class ExtremeNodeArchetypes_SafePack {
         const wingZ = w * 0.2;
 
         const wingGeo = new THREE.PlaneGeometry(0.2, 0.3);
-        const wingMat = new THREE.MeshBasicMaterial({
+        const wingMat = materialRegistry.getBasicMaterial({
           color: 0xff00ff,
           transparent: true,
           opacity: 0.5,
@@ -705,7 +706,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
     // Crown band (torus)
     const bandGeo = new THREE.TorusGeometry(0.4, 0.08, 12, 48);
-    const bandMat = new THREE.MeshBasicMaterial({
+    const bandMat = materialRegistry.getBasicMaterial({
       color: 0xffaa00,
       transparent: true,
       opacity: 0.65,
@@ -734,7 +735,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Octahedron spike
       const pointGeo = new THREE.OctahedronGeometry(0.15, 1);
-      const pointMat = new THREE.MeshBasicMaterial({
+      const pointMat = materialRegistry.getBasicMaterial({
         color: pointColors[p % 3],
         transparent: true,
         opacity: 0.7,
@@ -753,7 +754,7 @@ export class ExtremeNodeArchetypes_SafePack {
 
       // Floating gem below each point
       const gemGeo = new THREE.IcosahedronGeometry(0.1, 2);
-      const gemMat = new THREE.MeshBasicMaterial({
+      const gemMat = materialRegistry.getBasicMaterial({
         color: pointColors[(p + 1) % 3],
         transparent: true,
         opacity: 0.8,

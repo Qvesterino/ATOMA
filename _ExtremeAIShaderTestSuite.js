@@ -204,16 +204,16 @@ export class ExtremeAIShaderTestSuite {
     const shaders = [
       { id: 'hyperPrismShader', archetypeIds: [0], uniformsRequired: ['u_time', 'u_synergy', 'u_colorA', 'u_colorB'] },
       { id: 'singularityKnotShader', archetypeIds: [1], uniformsRequired: ['u_time', 'u_corruption'] },
-      { id: 'quantumLatticeShader', archetypeIds: [2], uniformsRequired: ['u_time', 'u_synergy', 'u_instability'] },
+      { id: 'quantumLatticeShader', archetypeIds: [2], uniformsRequired: ['u_time', 'u_synergy', 'u_stability'] },
       { id: 'fractalBloomShader', archetypeIds: [3], uniformsRequired: ['u_time', 'u_harmony'] },
       { id: 'reactiveTesseractShader', archetypeIds: [4], uniformsRequired: ['u_time', 'u_synergy'] },
-      { id: 'chaoticHeartShader', archetypeIds: [5], uniformsRequired: ['u_time', 'u_instability', 'u_corruption'] },
+      { id: 'chaoticHeartShader', archetypeIds: [5], uniformsRequired: ['u_time', 'u_stability', 'u_corruption'] },
       { id: 'whisperSphereShader', archetypeIds: [6], uniformsRequired: ['u_time', 'u_harmony'] },
       { id: 'echoFractalShader', archetypeIds: [7], uniformsRequired: ['u_time', 'u_synergy'] },
       { id: 'abyssalShardShader', archetypeIds: [8], uniformsRequired: ['u_time', 'u_corruption'] },
       { id: 'triHelixShader', archetypeIds: [9], uniformsRequired: ['u_time', 'u_synergy'] },
       { id: 'infiniteSpiralShader', archetypeIds: [10], uniformsRequired: ['u_time', 'u_harmony'] },
-      { id: 'chronoRipperShader', archetypeIds: [11], uniformsRequired: ['u_time', 'u_instability'] }
+      { id: 'chronoRipperShader', archetypeIds: [11], uniformsRequired: ['u_time', 'u_stability'] }
     ];
 
     shaders.forEach(shader => {

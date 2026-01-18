@@ -1,5 +1,44 @@
 import { aggregateNetworkCanonicalMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
 
+const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';
+const OVERRIDE_FIELDS = [
+  'networkSynergy',
+  'harmonyFlow',
+  'networkStress',
+  'corruptionLevel',
+  'loadPressure'
+];
+
+function _getGlobalScope() {
+  if (typeof globalThis !== 'undefined') return globalThis;
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  return null;
+}
+
+function readNetworkMetricsOverride() {
+  const scope = _getGlobalScope();
+  if (!scope) return null;
+  return scope[NETWORK_METRICS_OVERRIDE_KEY] ?? null;
+}
+
+function applyNetworkMetricsOverride(baseMetrics, override) {
+  if (!override) return baseMetrics;
+
+  const patched = { ...baseMetrics };
+  let mutated = false;
+
+  for (const field of OVERRIDE_FIELDS) {
+    const value = override[field];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      patched[field] = value;
+      mutated = true;
+    }
+  }
+
+  return mutated ? patched : baseMetrics;
+}
+
 /**
  * ============================================================================
  * CORE METRICS VIEW MODEL (v1)
@@ -63,7 +102,11 @@ export function updateCoreMetricsViewModel(coreMetricsVM, aiNodes, frameId) {
   const nodeCount = nodes.length;
 
   const aggregated = aggregateNetworkCanonicalMetrics(nodes);
-  const metrics = withGlobalMetricAliases(aggregated);
+  const aggregatedWithOverride = applyNetworkMetricsOverride(
+    aggregated,
+    readNetworkMetricsOverride()
+  );
+  const metrics = withGlobalMetricAliases(aggregatedWithOverride);
 
   // Canonical global fields
   coreMetricsVM.metrics.networkSynergy = metrics.networkSynergy;

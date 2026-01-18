@@ -14,7 +14,7 @@
  * 
  * FEATURES:
  * 1. Node-Based Poetry — Single line when node is selected
- * 2. Link Whispers — Hover over links for synergy/instability hints
+ * 2. Link Whispers — Hover over links for synergy/stability hints
  * 3. Storm-Responsive Verses — Tone shifts based on Thought Storms state
  * 4. Network Pulse — Global poetic emissions every 20-40s
  * 5. Console API — Enable/disable/test commands
@@ -649,15 +649,15 @@ export class AtomaLanguageEngine3_0 {
       const m2 = node2.userData?.metrics || {};
       
       const avgSynergy = ((m1.harmony || 50) + (m2.harmony || 50)) / 2;
-      const avgInstability = ((m1.instability || 0) + (m2.instability || 0)) / 2;
+      const avgStability = ((m1.stability || 0) + (m2.stability || 0)) / 2;
       
-      if (avgSynergy > 75 && avgInstability < 20) {
+      if (avgSynergy > 75 && avgStability < 20) {
         linkType = 'crystalline';
-      } else if (avgSynergy > 60 && avgInstability < 30) {
+      } else if (avgSynergy > 60 && avgStability < 30) {
         linkType = 'synergistic';
-      } else if (avgInstability > 60) {
+      } else if (avgStability > 60) {
         linkType = 'corrupted';
-      } else if (avgInstability > 40) {
+      } else if (avgStability > 40) {
         linkType = 'unstable';
       }
     }
@@ -834,7 +834,7 @@ export class AtomaLanguageEngine3_0 {
         index: 42,
         category: 'process',
         namingCode: 'CORE-HARMONIC-RESONANT',
-        metrics: { harmony: 85, instability: 10 }
+        metrics: { harmony: 85, stability: 10 }
       }
     };
     
@@ -844,8 +844,8 @@ export class AtomaLanguageEngine3_0 {
     // Generate test link whisper
     const testLink = {
       userData: {
-        node1: { userData: { metrics: { harmony: 80, instability: 5 } } },
-        node2: { userData: { metrics: { harmony: 75, instability: 8 } } }
+        node1: { userData: { metrics: { harmony: 80, stability: 5 } } },
+        node2: { userData: { metrics: { harmony: 75, stability: 8 } } }
       }
     };
     

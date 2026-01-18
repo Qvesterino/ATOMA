@@ -62,7 +62,7 @@ export class GlyphPurityMode5_1 {
       'personalityMarker',
       'harmonyLotus',
       'corruptionTorus',
-      'instabilityTetra',
+      'stabilityTetra',
       'clarityOctahedron',
       'synergyIco',
       
@@ -74,7 +74,7 @@ export class GlyphPurityMode5_1 {
       
       // Procedural glyphs
       'proceduralConsciousness',
-      'proceduralInstability',
+      'proceduralStability',
       'proceduralSynergy',
       'proceduralCorruption',
       'proceduralHarmony',

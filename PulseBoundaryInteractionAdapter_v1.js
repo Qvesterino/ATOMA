@@ -267,20 +267,20 @@ export class PulseBoundaryInteractionAdapter_v1 {
     const harmony = pulse.harmony ?? 0.5;
     const synergy = pulse.synergy ?? 0.5;
     const corruption = pulse.corruption ?? 0.0;
-    const instability = pulse.instability ?? 0.0;
+    const stability = pulse.stability ?? 0.5;
     const nodeHarmony = node.userData?.harmony ?? 0.5;
-    const nodeInstability = node.userData?.instability ?? 0.0;
+    const nodeStability = node.userData?.stability ?? 0.5;
     
     // Combined metrics
     const avgHarmony = (harmony + nodeHarmony) / 2;
     const avgCorruption = corruption;
-    const avgInstability = (instability + nodeInstability) / 2;
+    const avgStability = (stability + nodeStability) / 2;
     const hubStrength = node.userData?.hubResilience ?? 0;
     
     // Decision tree (deterministic thresholds)
     
     // Reflection only when heavily corrupted AND somewhat unstable (rare)
-    if (corruption >= 0.65 && avgInstability >= 0.4 && avgInstability <= 0.8) {
+    if (corruption >= 0.65 && avgStability <= 0.6 && avgStability >= 0.2) {
       return 'reflection';
     }
     
@@ -290,13 +290,13 @@ export class PulseBoundaryInteractionAdapter_v1 {
       return 'split';
     }
     
-    // Dissipation dominant when instability is high OR synergy is low
-    if (avgInstability > 0.6 || synergy < 0.3) {
+    // Dissipation dominant when stability is low OR synergy is low
+    if (avgStability < 0.4 || synergy < 0.3) {
       return 'dissipation';
     }
     
-    // Absorption dominant when harmony >= corruption and instability is low
-    if (avgHarmony >= avgCorruption && avgInstability < 0.5) {
+    // Absorption dominant when harmony >= corruption and stability is high
+    if (avgHarmony >= avgCorruption && avgStability >= 0.5) {
       return 'absorption';
     }
     
@@ -331,8 +331,8 @@ export class PulseBoundaryInteractionAdapter_v1 {
    * Dissipation: Pulse fades as heat/noise
    */
   executeDissipation(node, nodeId, linkId, pulse, metrics) {
-    const intensity = Math.min(1.0, (pulse.instability ?? 0) * 1.2);
-    const instability = pulse.instability ?? 0;
+    const intensity = Math.min(1.0, (1.0 - (pulse.stability ?? 0.5)) * 1.2);
+    const stability = pulse.stability ?? 0.5;
     
     this.effectPool.spawn('dissipation', {
       nodeId: nodeId,
@@ -340,9 +340,9 @@ export class PulseBoundaryInteractionAdapter_v1 {
       duration: this.dissipationDuration,
       intensity: intensity,
       data: {
-        streakFlicker: 0.15 + (instability * 0.3),  // Heat haze flicker
-        endpointFade: true,                         // Fade over last 20% of link
-        microImpulseDensity: Math.floor(2 + instability * 3)  // More impulses when unstable
+        streakFlicker: 0.15 + ((1.0 - stability) * 0.3),  // Heat haze flicker (worse with low stability)
+        endpointFade: true,                                // Fade over last 20% of link
+        microImpulseDensity: Math.floor(2 + (1.0 - stability) * 3)  // More impulses when unstable
       }
     });
   }
@@ -361,7 +361,7 @@ export class PulseBoundaryInteractionAdapter_v1 {
       harmony: pulse.harmony,
       synergy: pulse.synergy * 0.7,  // Reduced synergy
       corruption: pulse.corruption * 1.2,  // Increased corruption
-      instability: pulse.instability,
+      stability: pulse.stability ?? 0.5,
       direction: pulse.position >= 1.0 ? -1 : 1,  // Reverse direction
       reflectionCount: (pulse.reflectionCount ?? 0) + 1,
       sourceNodeId: nodeId,
@@ -419,7 +419,7 @@ export class PulseBoundaryInteractionAdapter_v1 {
         harmony: pulse.harmony,
         synergy: synergy * (0.7 + hubStrength * 0.3),
         corruption: pulse.corruption * 0.7,
-        instability: pulse.instability,
+        stability: pulse.stability ?? 0.5,
         direction: 1,  // Forward
         originNodeId: nodeId,
         sourceType: 'split'

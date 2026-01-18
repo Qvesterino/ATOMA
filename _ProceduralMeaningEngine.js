@@ -15,7 +15,7 @@
  * 
  * GLYPH TYPES (from SemanticGlyphAI.meaningType):
  * 1. CONSCIOUSNESS - Fractal loop ring + pulsating tetra core
- * 2. INSTABILITY - Jittering broken-plane shards
+ * 2. STABILITY - Jittering broken-plane shards
  * 3. SYNERGY - Twin-orbit rings + lotus petals
  * 4. CORRUPTION - Fractured semi-transparent cube
  * 5. HARMONY - Floating six-petal lotus + golden glow
@@ -56,7 +56,7 @@ export class ProceduralMeaningEngine {
     // Color palette
     this.colors = {
       consciousness: 0x00CCFF,  // cyan/white blend
-      instability: 0xFF3333,     // red/violet
+      stability: 0xFF3333,     // red/violet
       synergy: 0x0099FF,        // neon blue/magenta
       corruption: 0x330033,     // black/purple
       harmony: 0xFFD700         // golden
@@ -102,7 +102,7 @@ export class ProceduralMeaningEngine {
       this.geometryPools.rings.push(new THREE.TorusGeometry(0.06, 0.008, 8, 32));
     }
     
-    // Pre-create plane geometries (instability shards)
+    // Pre-create plane geometries (stability shards)
     for (let i = 0; i < 20; i++) {
       this.geometryPools.planes.push(new THREE.PlaneGeometry(0.05, 0.08));
     }
@@ -208,8 +208,8 @@ export class ProceduralMeaningEngine {
       case 'consciousness':
         mesh = this.createConsciousnessGlyph();
         break;
-      case 'instability':
-        mesh = this.createInstabilityGlyph();
+      case 'stability':
+        mesh = this.createStabilityGlyph();
         break;
       case 'synergy':
         mesh = this.createSynergyGlyph();
@@ -298,10 +298,10 @@ export class ProceduralMeaningEngine {
   }
   
   /**
-   * INSTABILITY - Jittering broken-plane shards
+   * STABILITY - Jittering broken-plane shards
    * red/violet gradient, chaotic motion
    */
-  createInstabilityGlyph() {
+  createStabilityGlyph() {
     const group = new THREE.Group();
     
     // Create 3-4 fractured planes in random orientations
@@ -314,7 +314,7 @@ export class ProceduralMeaningEngine {
       // Gradient: red to violet
       const lerpFactor = i / shardCount;
       const color = new THREE.Color().lerpColors(
-        new THREE.Color(this.colors.instability),
+        new THREE.Color(this.colors.stability),
         new THREE.Color(0x9933FF),
         lerpFactor
       );
@@ -351,7 +351,7 @@ export class ProceduralMeaningEngine {
     
     // Animation metadata
     group.userData = {
-      type: 'instability',
+      type: 'stability',
       wobbleAmplitude: 0.015,
       wobbleSpeed: 2.5,
       jitterPhase: 0
@@ -581,8 +581,8 @@ export class ProceduralMeaningEngine {
       case 'consciousness':
         this.animateConsciousness(glyphGroup, globalTime, intensity);
         break;
-      case 'instability':
-        this.animateInstability(glyphGroup, globalTime, intensity);
+      case 'stability':
+        this.animateStability(glyphGroup, globalTime, intensity);
         break;
       case 'synergy':
         this.animateSynergy(glyphGroup, globalTime, intensity);
@@ -610,7 +610,7 @@ export class ProceduralMeaningEngine {
     });
   }
   
-  animateInstability(group, time, intensity) {
+  animateStability(group, time, intensity) {
     const m = group.userData;
     
     group.children.forEach((child) => {

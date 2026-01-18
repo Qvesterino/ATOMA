@@ -30,14 +30,14 @@
  *    - ASCENDED_MYTHIC: dual-ring pulse + vertical flare
  * 
  * 3. METRIC-BASED ADDITIVE EVENTS
- *    - High instability: jitter burst
+ *    - High stability: jitter burst
  *    - High harmony: glowing resonance ring
  *    - High clarity: glyph spark
  *    - High energy: core overpulse
  * 
  * 4. NODE-TO-NODE INTERACTION EVENTS
  *    - Compatible personalities: harmony flash
- *    - High instability pairs: chaos spark
+ *    - High stability pairs: chaos spark
  *    - Ascended presence: calm aura
  * 
  * 5. EVENT LOG
@@ -628,8 +628,8 @@ export class NodeMicroEvents {
    * Check for metric-based additive events
    */
   checkMetricEvents(node, metrics) {
-    // High instability: jitter burst
-    if (metrics.instabilityFactor > 60) {
+    // High stability: jitter burst
+    if (metrics.stabilityFactor > 60) {
       this.createJitterBurst(node);
       this.logEvent(node, 'jitter_burst');
     }
@@ -760,8 +760,8 @@ export class NodeMicroEvents {
         this.logEvent(node, 'harmony_flash');
       }
       
-      // Both high instability: chaos spark
-      if (metrics.instabilityFactor > 80 && nearbyMetrics.instabilityFactor > 80) {
+      // Both high stability: chaos spark
+      if (metrics.stabilityFactor > 80 && nearbyMetrics.stabilityFactor > 80) {
         this.createChaosSpark(node, nearbyNode);
         this.logEvent(node, 'chaos_spark');
       }

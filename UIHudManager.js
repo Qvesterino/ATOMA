@@ -2,7 +2,7 @@
  * UI HUD MANAGER
  * 
  * Manages bottom-right HUD with two display modes:
- * - COMPACT: Essential metrics (synergy, harmony, instability, corruption, load, cycle, score, aeon)
+ * - COMPACT: Essential metrics (synergy, harmony, stability, corruption, load, cycle, score, aeon)
  * - FULL: COMPACT + Node Distribution Table
  * 
  * Toggle with TAB key.
@@ -95,7 +95,7 @@ export class UIHudManager {
     const {
       synergy = 50,
       harmony = 50,
-      instability = 20,
+      stability = 80,
       corruption = 10,
       load = 45,
       cycle = 0,
@@ -104,7 +104,7 @@ export class UIHudManager {
       worldMode = 'DREAM'
     } = data;
     
-    let html = this._buildCompactMode(synergy, harmony, instability, corruption, load, cycle, score, aeon, worldMode);
+    let html = this._buildCompactMode(synergy, harmony, stability, corruption, load, cycle, score, aeon, worldMode);
     
     if (!this.compactMode) {
       html += this._buildNodeDistributionTable();
@@ -116,12 +116,12 @@ export class UIHudManager {
   /**
    * Build compact mode display
    */
-  _buildCompactMode(synergy, harmony, instability, corruption, load, cycle, score, aeon, worldMode) {
+  _buildCompactMode(synergy, harmony, stability, corruption, load, cycle, score, aeon, worldMode) {
     return `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
         <div>${this._buildMetricRow('SYNERGY', synergy, '#00F59E')}</div>
         <div>${this._buildMetricRow('HARMONY', harmony, '#00F59E')}</div>
-        <div>${this._buildMetricRow('INSTABILITY', instability, '#FF3C3C')}</div>
+        <div>${this._buildMetricRow('STABILITY', stability, '#00F59E')}</div>
         <div>${this._buildMetricRow('CORRUPTION', corruption, '#FF3C3C')}</div>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">

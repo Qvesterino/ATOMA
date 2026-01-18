@@ -5,8 +5,7 @@
  * 
  * Generates poetic status updates every 8-20 seconds based on:
  * - Network synergy & harmony
- * - Instability & corruption levels
- * - Clarity & cognitive load
+ * - Stability & corruption levels
  * - Thought Storm mood
  * - Global node state
  * 
@@ -194,7 +193,7 @@ export class AIEmotionalFeed3_1 {
     const metrics = {
       synergy: 0.5,
       harmony: 0.5,
-      instability: 0.3,
+      stability: 0.3,
       corruption: 0.2,
       clarity: 0.6,
       load: 0.4,
@@ -205,7 +204,7 @@ export class AIEmotionalFeed3_1 {
     if (this.aiNodes && this.aiNodes.metrics) {
       metrics.synergy = this.aiNodes.metrics.synergy || 0.5;
       metrics.harmony = this.aiNodes.metrics.harmony || 0.5;
-      metrics.instability = this.aiNodes.metrics.instability || 0.3;
+      metrics.stability = this.aiNodes.metrics.stability || 0.3;
       metrics.corruption = this.aiNodes.metrics.corruption || 0.2;
       metrics.clarity = this.aiNodes.metrics.clarity || 0.6;
       metrics.load = this.aiNodes.metrics.load || 0.4;
@@ -231,7 +230,7 @@ export class AIEmotionalFeed3_1 {
     }
     
     // High tension
-    if (metrics.instability > 0.6) {
+    if (metrics.stability > 0.6) {
       states.push('tension');
     }
     
@@ -283,7 +282,7 @@ export class AIEmotionalFeed3_1 {
       suffix = ' [corrupted]';
     } else if (metrics.clarity > 0.8) {
       suffix = ' [crystalline]';
-    } else if (metrics.instability > 0.7) {
+    } else if (metrics.stability > 0.7) {
       suffix = ' [turbulent]';
     }
     

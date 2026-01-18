@@ -75,7 +75,7 @@ const CONFIG = {
     HARMONY_THRESHOLD: 0.6,
     CORRUPTION_THRESHOLD: 0.6,
     SYNERGY_THRESHOLD: 0.5,
-    INSTABILITY_THRESHOLD: 0.4,
+    STABILITY_THRESHOLD: 0.4,
     HEALING_THRESHOLD: 0.3,
     STANDING_WAVE_THRESHOLD: 0.3
 };
@@ -154,10 +154,10 @@ class PictogramInstance {
             speed *= (1.0 + oscillation);
         }
 
-        // Instability reduces count (early fade)
-        if (linkState.instability > CONFIG.INSTABILITY_THRESHOLD) {
-            const instabilityFactor = (linkState.instability - CONFIG.INSTABILITY_THRESHOLD) / (1.0 - CONFIG.INSTABILITY_THRESHOLD);
-            this.lifetime *= (1.0 - instabilityFactor * 0.5 * deltaTime);
+        // stability reduces count (early fade)
+        if (linkState.stability > CONFIG.STABILITY_THRESHOLD) {
+            const stabilityFactor = (linkState.stability - CONFIG.STABILITY_THRESHOLD) / (1.0 - CONFIG.STABILITY_THRESHOLD);
+            this.lifetime *= (1.0 - stabilityFactor * 0.5 * deltaTime);
         }
 
         // Update progress along link
@@ -360,9 +360,9 @@ export class LinkSemanticPictogramSystem {
             // Determine link state
             const linkState = this.analyzeLinkState(link);
 
-            // Instability reduces spawn chance
-            if (linkState.instability > CONFIG.INSTABILITY_THRESHOLD) {
-                const spawnChance = 1.0 - linkState.instability * 0.5;
+            // stability reduces spawn chance
+            if (linkState.stability > CONFIG.STABILITY_THRESHOLD) {
+                const spawnChance = 1.0 - linkState.stability * 0.5;
                 if (Math.random() > spawnChance) {
                     this.linkSpawnTimers.set(linkId, 0);
                     return;
@@ -426,7 +426,7 @@ export class LinkSemanticPictogramSystem {
                 harmony: 0,
                 corruption: 0,
                 synergy: 0,
-                instability: 0,
+                stability: 0,
                 isHealing: false,
                 hasStandingWave: false
             };
@@ -440,7 +440,7 @@ export class LinkSemanticPictogramSystem {
         const avgCorruption = ((nodeA?.userData?.corruption || 0) + (nodeB?.userData?.corruption || 0)) / 2;
         const avgSynergy = link.userData.synergy || 0;
         const avgStability = ((nodeA?.userData?.stability || 1) + (nodeB?.userData?.stability || 1)) / 2;
-        const instability = 1.0 - avgStability;
+        const stability = 1.0 - avgStability;
 
         // Check healing state
         const isHealing = (nodeA?.userData?.isHealing || false) || (nodeB?.userData?.isHealing || false);
@@ -452,7 +452,7 @@ export class LinkSemanticPictogramSystem {
             harmony: avgHarmony,
             corruption: avgCorruption,
             synergy: avgSynergy,
-            instability: instability,
+            stability: avgStability,
             isHealing: isHealing,
             hasStandingWave: hasStandingWave
         };
@@ -468,7 +468,7 @@ export class LinkSemanticPictogramSystem {
             harmony: linkState.harmony,
             corruption: linkState.corruption,
             synergy: linkState.synergy,
-            instability: linkState.instability,
+            stability: linkState.stability,
             healing: linkState.isHealing ? 0.8 : 0,
             standing_wave: linkState.hasStandingWave ? 0.7 : 0
         };
@@ -549,7 +549,7 @@ export class LinkSemanticPictogramSystem {
             case 'harmony': return 0xaaddff;
             case 'corruption': return 0xffaaaa;
             case 'synergy': return 0xaaffaa;
-            case 'instability': return 0xffddaa;
+            case 'stability': return 0xffddaa;
             case 'healing': return 0xaaffdd;
             case 'standing_wave': return 0xddaaff;
             default: return 0xaaaaaa;

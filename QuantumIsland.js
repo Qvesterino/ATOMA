@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
 import { getMapConfig } from './MapConfigBase.js';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Quantum Island - Floating landmass in singularity void
@@ -87,7 +88,7 @@ export class QuantumIsland {
     }
     islandGeometry.computeVertexNormals();
     
-    const islandMaterial = new THREE.MeshStandardMaterial({
+    const islandMaterial = materialRegistry.getStandard('world.quantumisland.island', {
       color: 0x0a0a0a,
       roughness: 0.3,
       metalness: 0.8
@@ -104,7 +105,7 @@ export class QuantumIsland {
       const radius = 19.5;
       
       const edgeGeometry = new THREE.BoxGeometry(0.8, 0.15, 0.15);
-      const edgeMaterial = new THREE.MeshBasicMaterial({
+      const edgeMaterial = materialRegistry.getBasic('world.quantumisland.edgeAccent', {
         color: 0x00dddd,
         transparent: true,
         opacity: 0.6
@@ -155,7 +156,7 @@ export class QuantumIsland {
       
       const curve = new THREE.CatmullRomCurve3(points);
       const tubeGeometry = new THREE.TubeGeometry(curve, 20, 0.12, 8, false);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.vortexTube', {
         color: 0x00ddcc,
         emissive: 0x00ddcc,
         emissiveIntensity: 0.8,
@@ -190,7 +191,7 @@ export class QuantumIsland {
       const colorMix = i / ringCount;
       const color = new THREE.Color(0x8800ff).lerp(new THREE.Color(0x00dddd), colorMix);
       
-      const ringMaterial = new THREE.MeshBasicMaterial({
+      const ringMaterial = materialRegistry.getBasic('world.quantumisland.vortexRing', {
         color: color,
         transparent: true,
         opacity: 0.3 - (i / ringCount) * 0.2,
@@ -236,7 +237,7 @@ export class QuantumIsland {
       const tubeGeometry = new THREE.TubeGeometry(curve, 60, 0.3, 8, false);
       
       const color = i % 2 === 0 ? 0x8800ff : 0x00dddd;
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.filament', {
         color: color,
         transparent: true,
         opacity: 0.25,
@@ -269,7 +270,7 @@ export class QuantumIsland {
     
     for (let i = 0; i < rockCount; i++) {
       const geometry = geometries[Math.floor(Math.random() * geometries.length)];
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.quantumisland.rock', {
         color: 0x1a1a1a,
         roughness: 0.4,
         metalness: 0.7,
@@ -336,7 +337,7 @@ export class QuantumIsland {
       
       const curve = new THREE.CatmullRomCurve3(points);
       const tubeGeometry = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.filamentThin', {
         color: 0x00dddd,
         transparent: true,
         opacity: 0.2,
@@ -367,7 +368,7 @@ export class QuantumIsland {
         1 + Math.random() * 2
       );
       
-      const material = new THREE.MeshStandardMaterial({
+      const material = materialRegistry.getStandard('world.quantumisland.shard', {
         color: 0x2a2a3a,
         transparent: true,
         opacity: 0.4,
@@ -466,7 +467,7 @@ export class QuantumIsland {
       const distance = 60;
       
       const geometry = new THREE.PlaneGeometry(20, 8, 10, 5);
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.quantumisland.glitchRibbon', {
         color: 0x00ffff,
         transparent: true,
         opacity: 0,
@@ -496,7 +497,7 @@ export class QuantumIsland {
   createFractalPatterns() {
     for (let i = 0; i < 3; i++) {
       const geometry = new THREE.IcosahedronGeometry(3, 1);
-      const material = new THREE.MeshBasicMaterial({
+      const material = materialRegistry.getBasic('world.quantumisland.fractalPattern', {
         color: 0x00dddd,
         transparent: true,
         opacity: 0,
@@ -522,7 +523,7 @@ export class QuantumIsland {
    */
   createMist() {
     const mistGeometry = new THREE.PlaneGeometry(50, 50);
-    const mistMaterial = new THREE.MeshBasicMaterial({
+    const mistMaterial = materialRegistry.getBasic('world.quantumisland.mist', {
       color: 0x5533aa,
       transparent: true,
       opacity: 0.08,
@@ -561,7 +562,7 @@ export class QuantumIsland {
       
       const curve = new THREE.CatmullRomCurve3(points);
       const tubeGeometry = new THREE.TubeGeometry(curve, 40, 0.05, 8, false);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
+      const tubeMaterial = materialRegistry.getBasic('world.quantumisland.circuitDome', {
         color: 0x4466ff,
         transparent: true,
         opacity: 0.1

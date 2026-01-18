@@ -2,7 +2,7 @@ import { projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdap
 
 /**
  * Core Metrics Engine Adapter (READ-ONLY)
- * Maps existing engine metrics directly into CoreMetricsHUD without mutation.
+ * Maps existing engine metrics into Canonical HUD metrics.
  */
 export class CoreMetricsEngineAdapter {
   constructor(hud) {
@@ -12,23 +12,21 @@ export class CoreMetricsEngineAdapter {
   }
 
   /**
-   * Read-only bridge: pull metrics from engine objects and forward to HUD.
-   * Safe to call every frame; returns early if sources or HUD are missing.
+   * Read-only bridge: derive HUD-ready metrics from engine objects.
+   * Safe to call every frame; returns canonical metrics for HUD consumers.
    */
   update(link, vm, temporalDisplay = this.fallbackTemporal, newEventFlags = this.fallbackEvents, deltaTime = 0.016) {
-    if (!this.hud || !link || !vm) return;
+    if (!link || !vm) return;
 
     const globalMetrics = withGlobalMetricAliases({
       networkSynergy: vm.networkSynergy ?? vm.synergy ?? link.synergyScore,
       harmonyFlow: vm.harmonyFlow ?? vm.harmonyNorm ?? vm.harmony,
-      networkStress: vm.networkStress ?? vm.stabilityNorm ?? vm.instability,
+      networkStress: vm.networkStress ?? vm.stabilityNorm ?? vm.stability,
       corruptionLevel: vm.corruptionLevel ?? vm.corruptionNorm ?? vm.corruption,
       loadPressure: vm.loadPressure ?? vm.loadNorm ?? vm.networkLoad ?? vm.energyNorm
     });
 
-    // HUD expects a metrics object; adapter resolves canonical → legacy if needed.
     const hudMetrics = projectHudMetrics(globalMetrics);
-
-    this.hud.update(hudMetrics, temporalDisplay, newEventFlags, deltaTime);
+    return hudMetrics;
   }
 }

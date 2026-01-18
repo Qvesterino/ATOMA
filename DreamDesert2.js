@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
  * Dream Desert 2.0 - Dream Realism Edition
@@ -81,7 +82,7 @@ export class DreamDesert2 {
     geometry.computeVertexNormals();
     
     // Premium synthetic dune material with realistic shading
-    const duneMaterial = new THREE.MeshStandardMaterial({
+    const duneMaterial = materialRegistry.getStandard('world.dreamdesert2.duneMain', {
       color: 0xffc5d8,           // Soft pastel pink
       roughness: 0.55,           // Polished stone-like finish
       metalness: 0.06,           // Subtle holographic shimmer
@@ -124,7 +125,7 @@ export class DreamDesert2 {
       const ridgeGeo = new THREE.BoxGeometry(length, height, 0.9);
       
       // Gradient material transitioning through pastel spectrum
-      const ridgeMaterial = new THREE.MeshStandardMaterial({
+      const ridgeMaterial = materialRegistry.getStandard('world.dreamdesert2.ridge', {
         color: 0xffb5d0,
         roughness: 0.5,           // Smooth polished surface
         metalness: 0.1,           // Subtle metallic sheen
@@ -172,7 +173,7 @@ export class DreamDesert2 {
         fragGeometry = new THREE.TetrahedronGeometry(size);
       }
       
-      const fragMaterial = new THREE.MeshStandardMaterial({
+      const fragMaterial = materialRegistry.getStandard('world.dreamdesert2.fragment', {
         color: 0xff88ff,           // Magenta holographic
         roughness: 0.2,            // Highly polished metal
         metalness: 0.88,           // Strong metallic reflection
@@ -250,7 +251,7 @@ export class DreamDesert2 {
     
     const texture = new THREE.CanvasTexture(canvas);
     
-    const rayMaterial = new THREE.MeshBasicMaterial({
+    const rayMaterial = materialRegistry.getBasic('world.dreamdesert2.ray', {
       map: texture,
       transparent: true,
       opacity: 0.09,
@@ -437,7 +438,7 @@ export class DreamDesert2 {
     
     // Layer 1: Ground-hugging mist
     const mistGeo1 = new THREE.PlaneGeometry(280, 280);
-    const mistMat1 = new THREE.MeshBasicMaterial({
+    const mistMat1 = materialRegistry.getBasic('world.dreamdesert2.mist1', {
       color: 0xe8c0d0,
       transparent: true,
       opacity: 0.12,
@@ -451,7 +452,7 @@ export class DreamDesert2 {
     
     // Layer 2: Mid-height atmospheric haze
     const mistGeo2 = new THREE.PlaneGeometry(300, 300);
-    const mistMat2 = new THREE.MeshBasicMaterial({
+    const mistMat2 = materialRegistry.getBasic('world.dreamdesert2.mist2', {
       color: 0xf0d8e8,
       transparent: true,
       opacity: 0.08,
@@ -465,7 +466,7 @@ export class DreamDesert2 {
     
     // Layer 3: High-altitude glow
     const mistGeo3 = new THREE.PlaneGeometry(350, 350);
-    const mistMat3 = new THREE.MeshBasicMaterial({
+    const mistMat3 = materialRegistry.getBasic('world.dreamdesert2.mist3', {
       color: 0xffe8f0,
       transparent: true,
       opacity: 0.05,
@@ -479,7 +480,7 @@ export class DreamDesert2 {
     
     // Light shaft effect - moving godrays
     const rayGeo = new THREE.PlaneGeometry(200, 200);
-    const rayMat = new THREE.MeshBasicMaterial({
+    const rayMat = materialRegistry.getBasic('world.dreamdesert2.godray', {
       color: 0xffeedd,
       transparent: true,
       opacity: 0.06,
@@ -502,7 +503,7 @@ export class DreamDesert2 {
    * Create invisible collision layer
    */
   createCollisionLayer() {
-    const invisibleMaterial = new THREE.MeshBasicMaterial({
+    const invisibleMaterial = materialRegistry.getBasic('world.dreamdesert2.collision', {
       transparent: true,
       opacity: 0,
       wireframe: false
@@ -686,4 +687,3 @@ export class DreamDesert2 {
     });
   }
 }
-

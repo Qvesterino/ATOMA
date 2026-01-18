@@ -14,7 +14,7 @@
  *   - Source: Tone.NoiseSynth (pink noise, continuous overlapping bursts)
  * 
  * Layer 3: CORRUPTION MODULATION (Systemic)
- *   - Subtle phase and texture instability as entropy rises
+ *   - Subtle phase and texture stability as entropy rises
  *   - Creates "losing coherence" sensation without horror tropes
  *   - Source: Tone.NoiseSynth (brown noise, irregular bursts at high corruption)
  * 
@@ -112,7 +112,7 @@ export class AtomaAudioModulation {
         this.harmonyNoise.volume.value = -40; // Very subtle background
         
         // === LAYER 3: CORRUPTION MODULATION ===
-        // Phase instability generator
+        // Phase stability generator
         this.corruptionPhaseShift = 0;
         this.corruptionPhaseRate = 0.05; // rad/s baseline
         
@@ -337,10 +337,10 @@ export class AtomaAudioModulation {
     
     /**
      * LAYER 3: Corruption Modulation
-     * Systemic entropy creates subtle phase instability and texture degradation
+     * Systemic entropy creates subtle phase stability and texture degradation
      */
     applyCorruptionModulation(deltaTime) {
-        // Phase instability: oscillating phase offset on noise
+        // Phase stability: oscillating phase offset on noise
         // Range: 0 to 0.3 radians (mathematical only, doesn't touch audio parameters)
         this.corruptionPhaseShift += this.corruptionPhaseRate * this.smoothedCorruption * deltaTime;
         if (this.corruptionPhaseShift > Math.PI * 2) {
@@ -348,7 +348,7 @@ export class AtomaAudioModulation {
         }
         
         // Corruption noise volume: increases as entropy rises
-        // Range: -48 dB (no corruption) to -42 dB (high corruption, more texture instability)
+        // Range: -48 dB (no corruption) to -42 dB (high corruption, more texture stability)
         // Tone.js volume parameter supports negative dB values safely (no RangeError)
         const corruptionVolume = this.clampToRange(-48 + this.smoothedCorruption * 6, -48, -42);
         this.safeRamp(this.corruptionNoise.volume, corruptionVolume, 1.5);

@@ -11,7 +11,7 @@
  * Problems it solves:
  * ✗ Multiple competing controllers
  * ✗ Extreme sensitivity variations
- * ✗ Camera instability and jitter
+ * ✗ Camera stability and jitter
  * ✗ Conflicting rotation updates
  * ✗ Unpredictable camera behavior
  * ✗ Input duplication

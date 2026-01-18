@@ -792,11 +792,11 @@ export class MythicNodeCreation {
       intensity: 1.0,
     };
     nodeModel.userData.metrics = {
-      energyOutput: 100,
+      SynergyOutput: 100,
       stability: 95,
-      clarity: 100,
+      harmony: 100,
       harmonyAffinity: 95,
-      instabilityFactor: 5,
+      stabilityFactor: 5,
       archetype: 'ASCENDED',
     };
     
