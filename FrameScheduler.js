@@ -22,6 +22,9 @@
 class FrameScheduler {
     // Throttle visual tick debug log to once every 20 seconds
     VISUAL_LOG_INTERVAL_MS = 20000;
+    // Phase L.2 load shaping: time gates for non-critical work
+    SOFT_INTERVAL_MS = 75;       // soft updates: ~50-100ms
+    BACKGROUND_INTERVAL_MS = 300; // background updates: ~250-500ms
 
     constructor() {
         // Define layer configurations with target frequencies (Hz)
@@ -59,7 +62,39 @@ class FrameScheduler {
         this._lastVisualLogTime = 0;
         
         // Phase B: Track registered systems with IDs for management
-        this.registeredSystems = {}; // id -> { layer, fn }
+        this.registeredSystems = {}; // id -> { layer, entry }
+    }
+
+    /**
+     * Phase L.2: Categorize systems for load shaping
+     */
+    categorizeSystem(id) {
+        if (!id) return 'hard';
+        const lowered = id.toLowerCase();
+        if (id === 'renderer.render') return 'hard'; // render must always run
+        if (id === 'cameraController.update' || id === 'playerController.update') return 'hard';
+        if (id === 'aiNodes.update') return 'soft';
+        if (lowered.includes('coremetrics') || lowered.includes('metrics')) return 'background';
+        return 'hard';
+    }
+
+    /**
+     * Phase L.2: Decide if a system should run this frame based on gating
+     */
+    shouldRun(entry, nowMs) {
+        switch (entry.category) {
+            case 'soft':
+                if (nowMs - entry.lastRun < this.SOFT_INTERVAL_MS) return false;
+                entry.lastRun = nowMs;
+                return true;
+            case 'background':
+                if (nowMs - entry.lastRun < this.BACKGROUND_INTERVAL_MS) return false;
+                entry.lastRun = nowMs;
+                return true;
+            default:
+                entry.lastRun = nowMs;
+                return true;
+        }
     }
 
     /**
@@ -87,14 +122,25 @@ class FrameScheduler {
                 console.warn(`[FrameScheduler] System with ID '${id}' already registered. Use unregister() first.`);
                 return false;
             }
-            this.registeredSystems[id] = {
-                layer: layerName,
-                fn: fn
-            };
             console.log(`[FrameScheduler] Registered '${id}' to ${layerName} layer`);
         }
 
-        this.layers[layerName].functions.push(fn);
+        const entry = {
+            fn,
+            id,
+            layer: layerName,
+            category: this.categorizeSystem(id),
+            lastRun: -Infinity
+        };
+
+        if (id) {
+            this.registeredSystems[id] = {
+                layer: layerName,
+                entry
+            };
+        }
+
+        this.layers[layerName].functions.push(entry);
         this.totalRegistered++;
 
         return true;
@@ -116,7 +162,7 @@ class FrameScheduler {
         const layerName = system.layer;
 
         // Remove from layer functions array
-        const index = this.layers[layerName].functions.indexOf(system.fn);
+        const index = this.layers[layerName].functions.indexOf(system.entry);
         if (index > -1) {
             this.layers[layerName].functions.splice(index, 1);
             this.totalRegistered--;
@@ -155,17 +201,20 @@ class FrameScheduler {
 
             // Execute as many intervals as have accumulated (carry remainder)
             while (layer.accumulator >= layer.interval) {
+                const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
                 if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE && layerName === 'visual') {
-                    const now = performance.now();
                     if (now - this._lastVisualLogTime >= this.VISUAL_LOG_INTERVAL_MS) {
                         console.debug('[FrameScheduler] visual tick', now);
                         this._lastVisualLogTime = now;
                     }
                 }
 
-                for (const fn of layer.functions) {
+                for (const entry of layer.functions) {
+                    if (!this.shouldRun(entry, now)) continue; // Load shaping gate: skip until interval reached
+
                     try {
-                        fn(layer.interval);
+                        entry.fn(layer.interval);
                     } catch (error) {
                         console.error(`[FrameScheduler] Error in ${layerName} layer function:`, error);
                         // Continue execution - do not crash

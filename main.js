@@ -24,6 +24,7 @@ import { NodeLinkingSystem } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { RenderCostProfile } from './RenderCostProfile.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
@@ -924,6 +925,232 @@ class SemanticEventBus {
             __sources: {}
         };
         this.semanticAtmosphereTimestamp = performance.now();
+        // Phase F.4: semantic → node material intent (read-only, no material mutations)
+        this.semanticNodeMaterialIntent = {
+            emissiveBoost: 0,
+            glowBias: 0,
+            wireIntensity: 0,
+            opacityBias: 0,
+            distortion: 0,
+            pulse: 0,
+            __sources: {}
+        };
+        this.semanticNodeMaterialTimestamp = performance.now();
+        // Phase F.5: semantic → link/field intent (read-only, no link system mutations)
+        this.semanticLinkFieldIntent = {
+            tension: 0,
+            flow: 0,
+            coherence: 0,
+            turbulence: 0,
+            attenuation: 0,
+            directionality: 0,
+            __sources: {}
+        };
+        this.semanticLinkFieldTimestamp = performance.now();
+        // Phase F.6: semantic → HUD/UI intent (read-only, no DOM changes)
+        this.semanticHUDIntent = {
+            alertness: 0,
+            readability: 1,
+            emphasis: 0,
+            jitter: 0,
+            density: 0,
+            calmness: 1,
+            __sources: {}
+        };
+        this.semanticHUDIntentTimestamp = performance.now();
+        // Phase G.1: semantic guardrails & invariants (passive diagnostics only)
+        this.semanticInvariants = {
+            calmUrgencyMax: 1.2,
+            maxEscalationDurationMs: 3000,
+            maxJitterGrowthFrames: 10,
+            maxSuppressionRatio: 0.6
+        };
+        this.semanticHealth = {
+            score: 1,
+            warnings: [],
+            violations: [],
+            lastCheck: performance.now(),
+            profile: {
+                active: 'default',
+                modifiers: this.semanticProfiles?.default || {}
+            },
+            transition: {},
+            recommendation: null,
+            authority: {
+                active: null,
+                source: null,
+                priority: 0,
+                locks: {},
+                constraints: {},
+                remainingMs: null,
+                resolved: this.semanticAuthorityState
+            }
+        };
+        this.lastJitter = 0;
+        this.jitterGrowthFrames = 0;
+        this.escalationActiveSince = new Map();
+        // Phase G.2: semantic time smoothing & hysteresis (passive, post-compute)
+        this.semanticSmoothing = {
+            enabled: true,
+            alpha: 0.15,
+            hysteresis: 0.05,
+            minDeltaMs: 16
+        };
+        this.semanticSmoothingState = {
+            visual: {},
+            motion: {},
+            atmosphere: {},
+            nodeMaterial: {},
+            hud: {},
+            lastUpdate: 0
+        };
+        // Phase G.3: semantic profiles/modes (lens-only modulation, no logic changes)
+        this.semanticProfiles = {
+            default: {},
+            zen: {
+                smoothingAlphaScale: 1.0,
+                volatilityScale: 0.7,
+                urgencyScale: 0.8,
+                calmBias: 0.05,
+                jitterDamping: 0.3,
+                motionInertiaScale: 1.1,
+                hudEmphasisScale: 0.9,
+                fxIntensityScale: 0.9
+            },
+            chaos: {
+                smoothingAlphaScale: 1.0,
+                volatilityScale: 1.3,
+                urgencyScale: 1.2,
+                calmBias: -0.05,
+                anomalyAmplification: 1.2,
+                jitterDamping: -0.1,
+                motionInertiaScale: 0.9,
+                hudEmphasisScale: 1.1,
+                fxIntensityScale: 1.1
+            },
+            analytical: {
+                smoothingAlphaScale: 1.0,
+                volatilityScale: 0.9,
+                urgencyScale: 1.0,
+                calmBias: 0.02,
+                anomalyAmplification: 1.1,
+                jitterDamping: 0.2,
+                motionInertiaScale: 1.2,
+                hudEmphasisScale: 1.05,
+                fxIntensityScale: 1.0
+            },
+            dream: {
+                smoothingAlphaScale: 1.0,
+                volatilityScale: 0.8,
+                urgencyScale: 0.85,
+                calmBias: 0.08,
+                anomalyAmplification: 1.3,
+                jitterDamping: 0.4,
+                motionInertiaScale: 0.95,
+                hudEmphasisScale: 0.95,
+                fxIntensityScale: 1.05
+            }
+        };
+        this.activeSemanticProfile = 'default';
+        this.semanticProfileStack = {
+            global: 'default',
+            local: new Map(),
+            context: []
+        };
+        this.semanticProfileTransition = {
+            active: false,
+            from: 'default',
+            to: 'default',
+            startTime: 0,
+            durationMs: 600,
+            easing: 'smoothstep'
+        };
+        this.semanticProfileLocalTransitions = new Map();
+        this.semanticProfileTriggers = {
+            zen: {
+                when: (ctx) => ctx.visual.pressure < 0.3 && ctx.motion.inertia < 0.3 && ctx.health.violations.length === 0,
+                confidence: (ctx) => 1 - (ctx.visual.volatility || 0),
+                minConfidence: 0.6,
+                cooldownMs: 4000,
+                reason: 'low pressure + low motion + no violations'
+            },
+            chaos: {
+                when: (ctx) => (ctx.visual.volatility || 0) > 0.7 || (ctx.visual.anomalies || 0) > 0.6,
+                confidence: (ctx) => ctx.visual.volatility || 0,
+                minConfidence: 0.65,
+                cooldownMs: 5000,
+                reason: 'high volatility or anomalies'
+            },
+            analytical: {
+                when: (ctx) => (ctx.visual.focus || 0) > 0.6 && (ctx.motion.tremor || 0) < 0.3,
+                confidence: (ctx) => ctx.visual.focus || 0,
+                minConfidence: 0.6,
+                cooldownMs: 4000,
+                reason: 'focused state with low tremor'
+            }
+        };
+        this.semanticProfileAutoAccept = false;
+        this.semanticProfileRecommendation = null;
+        this.semanticProfileTriggerCooldowns = new Map();
+        // Phase G.7 — Narrative / Authority Locks (passive lens; no behavior change)
+        this.semanticAuthorityLockState = {
+            active: null,
+            priority: 0,
+            locks: {},
+            constraints: {},
+            source: null,
+            startTime: 0,
+            durationMs: 0
+        };
+        this.semanticAuthorityPrevious = {};
+        this.semanticAuthorityPriorityDefs = {
+            narrative: { priority: 100 },
+            system: { priority: 80 },
+            player: { priority: 60 },
+            environment: { priority: 40 },
+            ambient: { priority: 20 }
+        };
+        // Phase G.8: authority blending registry and resolved snapshot (passive only)
+        this.semanticAuthorities = new Map();
+        this.semanticAuthorityState = {
+            global: { strength: 0, sources: [] },
+            scopes: {},
+            timestamp: performance.now()
+        };
+        // Phase G.9: profile gating (authority-damped profiles, lens-only)
+        this.semanticProfileGate = {
+            enabled: true,
+            globalFactor: 1,
+            perScope: {},
+            sources: [],
+            timestamp: performance.now()
+        };
+        // Phase G.10: semantic budgeting/backpressure (passive, lens-only)
+        this.semanticBudgetConfig = {
+            enabled: true,
+            caps: {
+                visual: 3,
+                motion: 2,
+                atmosphere: 3,
+                nodeMaterial: 3,
+                linkField: 3,
+                hud: 2
+            },
+            decayRate: 0.4,
+            recoveryRate: 0.25
+        };
+        this.semanticBudgetState = {
+            factors: {
+                visual: 1,
+                motion: 1,
+                atmosphere: 1,
+                nodeMaterial: 1,
+                linkField: 1,
+                hud: 1
+            },
+            loads: {},
+            timestamp: performance.now()
+        };
     }
     subscribe(tag, handler, opts = {}) {
         if (!this.handlers.has(tag)) {
@@ -1176,6 +1403,17 @@ class SemanticEventBus {
         this.computeSemanticVisualState();
         this.computeSemanticMotionIntent();
         this.computeSemanticAtmosphereState();
+        this.computeSemanticNodeMaterialIntent();
+        this.computeSemanticLinkFieldIntent();
+        this.computeSemanticHUDIntent();
+        this.applySemanticSmoothing(now);
+        this.resolveSemanticAuthorities(now);
+        this.computeSemanticProfileGate(now);
+        this.applySemanticProfile(now);
+        this.applySemanticAuthorityLens(now);
+        this.applySemanticBudgeting(now);
+        this.evaluateSemanticProfileTriggers(now);
+        this.evaluateSemanticInvariants();
         return processed;
     }
     drainTasks(budgetMs = 0.5, maxTasks = 32) {
@@ -1335,6 +1573,421 @@ class SemanticEventBus {
             hasEscalation: !!policy.escalate,
             hasSuppression: !!policy.suppress
         };
+    }
+    setSemanticProfile(name) {
+        if (!name || !this.semanticProfiles[name]) return this.activeSemanticProfile;
+        if (name === this.activeSemanticProfile) return this.activeSemanticProfile;
+        this.semanticProfileStack.global = name;
+        this.semanticProfileTransition = {
+            active: true,
+            from: this.activeSemanticProfile,
+            to: name,
+            startTime: performance.now(),
+            durationMs: this.semanticProfileTransition.durationMs || 600,
+            easing: this.semanticProfileTransition.easing || 'smoothstep'
+        };
+        // Keep current profile active during blend; no smoothing reset
+        return this.activeSemanticProfile;
+    }
+    setLocalSemanticProfile(key, name) {
+        if (!key || !name || !this.semanticProfiles[name]) return;
+        const current = this.semanticProfileStack.local.get(key);
+        if (current === name) return;
+        this.semanticProfileStack.local.set(key, name);
+        this.semanticProfileLocalTransitions.set(key, {
+            active: true,
+            from: current || 'default',
+            to: name,
+            startTime: performance.now(),
+            durationMs: this.semanticProfileTransition.durationMs || 600,
+            easing: this.semanticProfileTransition.easing || 'smoothstep'
+        });
+    }
+    clearLocalSemanticProfile(key) {
+        if (!key) return;
+        const current = this.semanticProfileStack.local.get(key);
+        if (!current) return;
+        this.semanticProfileStack.local.delete(key);
+        this.semanticProfileLocalTransitions.set(key, {
+            active: true,
+            from: current,
+            to: 'default',
+            startTime: performance.now(),
+            durationMs: this.semanticProfileTransition.durationMs || 600,
+            easing: this.semanticProfileTransition.easing || 'smoothstep'
+        });
+    }
+    pushContextSemanticProfile(name, ttlMs = 1000) {
+        if (!name || !this.semanticProfiles[name]) return;
+        const expiresAt = performance.now() + ttlMs;
+        this.semanticProfileStack.context.push({
+            name,
+            from: 'default',
+            t: 1,
+            expiresAt
+        });
+    }
+    // Phase G.7 — Narrative / Authority Locks
+    setSemanticAuthority(name, config = {}) {
+        if (!name) return this.semanticAuthorityLockState.active;
+        const priorityDef = this.semanticAuthorityPriorityDefs[name];
+        if (!priorityDef) return this.semanticAuthorityLockState.active;
+        const now = performance.now();
+        const incomingPriority = priorityDef.priority ?? 0;
+        if (incomingPriority < (this.semanticAuthorityLockState.priority || 0)) {
+            return this.semanticAuthorityLockState.active;
+        }
+        this.semanticAuthorityLockState = {
+            active: name,
+            priority: incomingPriority,
+            locks: config.locks || {},
+            constraints: config.constraints || {},
+            source: config.source || null,
+            startTime: now,
+            durationMs: config.durationMs || 0
+        };
+        // register passive authority entry (G.8) as well
+        const entryPriority = config.priority !== undefined ? config.priority : (priorityDef.priority || 0);
+        const normPriority = entryPriority > 1 ? entryPriority / 100 : entryPriority;
+        this.semanticAuthorities.set(name, {
+            id: name,
+            scope: config.scope || 'global',
+            priority: normPriority,
+            decayMs: config.decayMs ?? config.durationMs ?? null,
+            startTime: now,
+            blendMode: config.blendMode || 'max',
+            source: config.source || name
+        });
+        return this.semanticAuthorityLockState.active;
+    }
+    clearSemanticAuthority(name) {
+        if (!name || this.semanticAuthorityLockState.active !== name) return;
+        this.semanticAuthorityLockState = {
+            active: null,
+            priority: 0,
+            locks: {},
+            constraints: {},
+            source: null,
+            startTime: 0,
+            durationMs: 0
+        };
+        this.semanticAuthorities.delete(name);
+    }
+    applySemanticAuthority(state, domain) {
+        const authority = this.semanticAuthorityLockState;
+        if (!authority.active) return state;
+        const now = performance.now();
+        if (authority.durationMs && authority.startTime + authority.durationMs < now) {
+            this.clearSemanticAuthority(authority.active);
+            return state;
+        }
+        const lock = authority.locks[domain] || authority.locks['*'];
+        if (!lock) return state;
+        const constraints = authority.constraints[domain] || authority.constraints['*'] || {};
+        const prev = this.semanticAuthorityPrevious[domain];
+        const result = { ...state };
+        if (lock === 'freeze') {
+            const frozen = prev ? { ...prev } : { ...result };
+            frozen.__authorityApplied = authority.active;
+            this.semanticAuthorityPrevious[domain] = frozen;
+            return frozen;
+        }
+        const clampVal = (v) => {
+            let out = v;
+            if (lock === 'scale' && typeof constraints.scale === 'number') {
+                out = v * constraints.scale;
+            }
+            if (lock === 'clamp') {
+                if (typeof constraints.min === 'number') out = Math.max(constraints.min, out);
+                if (typeof constraints.max === 'number') out = Math.min(constraints.max, out);
+            }
+            return out;
+        };
+        for (const key of Object.keys(result)) {
+            if (typeof result[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                result[key] = clampVal(result[key]);
+            }
+        }
+        result.__authorityApplied = authority.active;
+        this.semanticAuthorityPrevious[domain] = result;
+        return result;
+    }
+    applySemanticAuthorityLens(now) {
+        if (!this.semanticAuthorityLockState.active) return;
+        this.semanticVisualState = this.applySemanticAuthority(this.semanticVisualState, 'visual');
+        this.semanticMotionIntent = this.applySemanticAuthority(this.semanticMotionIntent, 'motion');
+        this.semanticAtmosphereState = this.applySemanticAuthority(this.semanticAtmosphereState, 'atmosphere');
+        this.semanticNodeMaterialIntent = this.applySemanticAuthority(this.semanticNodeMaterialIntent, 'nodeMaterial');
+        this.semanticHUDIntent = this.applySemanticAuthority(this.semanticHUDIntent, 'hud');
+    }
+    // Phase G.8: authority blending & decay (passive resolution snapshot only)
+    resolveSemanticAuthorities(now) {
+        const epsilon = 0.0001;
+        const resolved = {
+            global: { strength: 0, sources: [] },
+            scopes: {},
+            timestamp: now
+        };
+        const scopeBuckets = new Map();
+        const toDelete = [];
+        for (const [id, entry] of this.semanticAuthorities.entries()) {
+            const elapsed = Math.max(0, now - (entry.startTime || now));
+            let strength = entry.priority || 0;
+            if (entry.decayMs) {
+                // linear decay toward 0 over decayMs
+                const factor = Math.max(0, 1 - elapsed / entry.decayMs);
+                strength = strength * factor;
+            }
+            if (strength <= epsilon) {
+                toDelete.push(id);
+                continue;
+            }
+            const scopes = entry.scope === 'global' ? ['global'] : Array.isArray(entry.scope) ? entry.scope : [entry.scope];
+            for (const scope of scopes) {
+                if (!scopeBuckets.has(scope)) scopeBuckets.set(scope, []);
+                scopeBuckets.get(scope).push({
+                    id: entry.id,
+                    strength,
+                    blendMode: entry.blendMode || 'max',
+                    source: entry.source
+                });
+            }
+        }
+        for (const id of toDelete) {
+            this.semanticAuthorities.delete(id);
+        }
+        const blendScope = (entries) => {
+            let strength = 0;
+            let weightedSum = 0;
+            let weightTotal = 0;
+            const sources = [];
+            for (const e of entries) {
+                sources.push({ id: e.id, strength: e.strength, blendMode: e.blendMode, source: e.source });
+                switch (e.blendMode) {
+                    case 'exclusive':
+                        if (e.strength > strength) strength = e.strength;
+                        break;
+                    case 'additive':
+                        strength = Math.min(1, strength + e.strength);
+                        break;
+                    case 'weighted':
+                        weightedSum += e.strength * e.strength;
+                        weightTotal += e.strength;
+                        break;
+                    case 'max':
+                    default:
+                        strength = Math.max(strength, e.strength);
+                        break;
+                }
+            }
+            if (weightTotal > 0) {
+                strength = Math.max(strength, weightedSum / weightTotal);
+            }
+            return { strength: Math.min(1, strength), sources };
+        };
+        for (const [scope, entries] of scopeBuckets.entries()) {
+            const blended = blendScope(entries);
+            if (scope === 'global') {
+                resolved.global = blended;
+            } else {
+                resolved.scopes[scope] = blended;
+            }
+        }
+        this.semanticAuthorityState = resolved;
+    }
+    applySemanticBudgeting(now) {
+        if (!this.semanticBudgetConfig.enabled) return;
+        const clamps = {};
+        const computeLoad = (state) => {
+            if (!state) return 0;
+            let sum = 0;
+            for (const [k, v] of Object.entries(state)) {
+                if (typeof v === 'number' && k !== '__smoothed' && k !== '__raw') {
+                    sum += Math.abs(v);
+                }
+            }
+            return sum;
+        };
+        const domains = {
+            visual: this.semanticVisualState,
+            motion: this.semanticMotionIntent,
+            atmosphere: this.semanticAtmosphereState,
+            nodeMaterial: this.semanticNodeMaterialIntent,
+            linkField: this.semanticLinkFieldIntent,
+            hud: this.semanticHUDIntent
+        };
+        const prevFactors = this.semanticBudgetState.factors || {};
+        const newFactors = {};
+        const loads = {};
+        const { decayRate, recoveryRate } = this.semanticBudgetConfig;
+        for (const [domain, state] of Object.entries(domains)) {
+            const load = computeLoad(state);
+            loads[domain] = load;
+            const cap = this.semanticBudgetConfig.caps?.[domain] ?? Infinity;
+            const targetFactor = load > cap && cap > 0 ? Math.max(0, cap / load) : 1;
+            const prev = prevFactors[domain] ?? 1;
+            const rate = targetFactor < prev ? decayRate : recoveryRate;
+            const factor = prev + (targetFactor - prev) * rate;
+            newFactors[domain] = Math.min(1, Math.max(0, factor));
+            clamps[domain] = newFactors[domain];
+        }
+        const applyFactor = (state, domain) => {
+            if (!state) return state;
+            const factor = clamps[domain] ?? 1;
+            if (factor >= 0.999) return state;
+            const result = { ...state };
+            for (const [k, v] of Object.entries(result)) {
+                if (typeof v === 'number' && k !== '__smoothed' && k !== '__raw') {
+                    result[k] = v * factor;
+                }
+            }
+            result.__budgeted = true;
+            result.budgetFactor = factor;
+            return result;
+        };
+        this.semanticVisualState = applyFactor(this.semanticVisualState, 'visual');
+        this.semanticMotionIntent = applyFactor(this.semanticMotionIntent, 'motion');
+        this.semanticAtmosphereState = applyFactor(this.semanticAtmosphereState, 'atmosphere');
+        this.semanticNodeMaterialIntent = applyFactor(this.semanticNodeMaterialIntent, 'nodeMaterial');
+        this.semanticLinkFieldIntent = applyFactor(this.semanticLinkFieldIntent, 'linkField');
+        this.semanticHUDIntent = applyFactor(this.semanticHUDIntent, 'hud');
+        this.semanticBudgetState = {
+            factors: newFactors,
+            loads,
+            timestamp: now
+        };
+    }
+    computeSemanticProfileGate(now) {
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const globalStrength = this.semanticAuthorityState.global?.strength || 0;
+        const globalFactor = clamp01(1 - globalStrength);
+        const perScope = {};
+        const sources = [];
+        for (const [scope, data] of Object.entries(this.semanticAuthorityState.scopes || {})) {
+            const factor = clamp01(1 - (data.strength || 0));
+            perScope[scope] = factor;
+            if (Array.isArray(data.sources)) {
+                sources.push(...data.sources);
+            }
+        }
+        this.semanticProfileGate = {
+            enabled: this.semanticProfileGate.enabled !== false,
+            globalFactor,
+            perScope,
+            sources,
+            timestamp: now
+        };
+    }
+    getProfileGateFactor(domain) {
+        if (this.semanticProfileGate.enabled === false) return 1;
+        const globalFactor = this.semanticProfileGate.globalFactor ?? 1;
+        const scopeFactor = this.semanticProfileGate.perScope?.[domain] ?? 1;
+        return Math.min(globalFactor, scopeFactor);
+    }
+    getSemanticProfileBlend(now) {
+        const trans = this.semanticProfileTransition;
+        if (!trans || !trans.active) {
+            return { from: this.activeSemanticProfile, to: this.activeSemanticProfile, t: 1 };
+        }
+        const duration = trans.durationMs || 600;
+        const elapsed = Math.max(0, now - (trans.startTime || now));
+        let t = duration > 0 ? Math.min(1, elapsed / duration) : 1;
+        // smoothstep easing
+        t = t * t * (3 - 2 * t);
+        return { from: trans.from, to: trans.to, t };
+    }
+    getLocalProfileBlend(key, now) {
+        const trans = this.semanticProfileLocalTransitions.get(key);
+        if (!trans || !trans.active) {
+            const target = this.semanticProfileStack.local.get(key) || 'default';
+            return { from: target, to: target, t: 1, name: target };
+        }
+        const duration = trans.durationMs || 600;
+        const elapsed = Math.max(0, now - (trans.startTime || now));
+        let t = duration > 0 ? Math.min(1, elapsed / duration) : 1;
+        t = t * t * (3 - 2 * t);
+        return { from: trans.from, to: trans.to, t, name: trans.to };
+    }
+    pruneContextProfiles(now) {
+        if (!Array.isArray(this.semanticProfileStack.context)) return;
+        this.semanticProfileStack.context = this.semanticProfileStack.context.filter(entry => !entry.expiresAt || entry.expiresAt > now);
+    }
+    resolveSemanticProfiles(now) {
+        const layers = [];
+        const globalBlend = this.getSemanticProfileBlend(now);
+        layers.push({ name: globalBlend.to, from: globalBlend.from, to: globalBlend.to, t: globalBlend.t, source: 'global' });
+        // local profiles sorted by specificity (longer key first)
+        const locals = Array.from(this.semanticProfileStack.local.entries()).sort((a, b) => b[0].length - a[0].length);
+        for (const [key, name] of locals) {
+            const blend = this.getLocalProfileBlend(key, now);
+            layers.push({ name, from: blend.from, to: blend.to, t: blend.t, source: 'local', key });
+            if (blend.t >= 1 && this.semanticProfileLocalTransitions.has(key) && this.semanticProfileLocalTransitions.get(key).active) {
+                const st = this.semanticProfileLocalTransitions.get(key);
+                st.active = false;
+                this.semanticProfileLocalTransitions.set(key, st);
+            }
+        }
+        // context overrides (most recent last)
+        this.pruneContextProfiles(now);
+        for (const ctx of this.semanticProfileStack.context) {
+            layers.push({ name: ctx.name, from: ctx.from || 'default', to: ctx.name, t: ctx.t || 1, source: 'context' });
+        }
+        return layers;
+    }
+    getSemanticContextSnapshot(now) {
+        return {
+            visual: this.semanticVisualState || {},
+            motion: this.semanticMotionIntent || {},
+            atmosphere: this.semanticAtmosphereState || {},
+            nodeMaterial: this.semanticNodeMaterialIntent || {},
+            hud: this.semanticHUDIntent || {},
+            health: this.semanticHealth || {},
+            activeProfile: this.semanticProfileStack.global,
+            transition: this.semanticProfileTransition,
+            authority: {
+                lock: this.semanticAuthorityLockState,
+                resolved: this.semanticAuthorityState
+            },
+            budget: this.semanticBudgetState,
+            timestamp: now
+        };
+    }
+    getSemanticProfileStack() {
+        return {
+            global: this.semanticProfileStack.global,
+            local: Array.from(this.semanticProfileStack.local.entries()),
+            context: Array.isArray(this.semanticProfileStack.context) ? [...this.semanticProfileStack.context] : []
+        };
+    }
+    evaluateSemanticProfileTriggers(now) {
+        if (!this.semanticProfileTriggers) return;
+        if (this.semanticProfileTransition?.active) return;
+        const ctx = this.getSemanticContextSnapshot(now);
+        let best = null;
+        for (const [name, trigger] of Object.entries(this.semanticProfileTriggers)) {
+            if (!trigger || typeof trigger.when !== 'function' || typeof trigger.confidence !== 'function') continue;
+            if (name === this.activeSemanticProfile) continue;
+            const last = this.semanticProfileTriggerCooldowns.get(name);
+            if (last && trigger.cooldownMs && now - last < trigger.cooldownMs) continue;
+            if (!trigger.when(ctx)) continue;
+            const conf = Math.min(1, Math.max(0, trigger.confidence(ctx)));
+            if (conf < (trigger.minConfidence ?? 0)) continue;
+            if (!best || conf > best.confidence) {
+                best = { name, confidence: conf, reason: trigger.reason || 'semantic trigger matched' };
+            }
+        }
+        if (best) {
+            this.semanticProfileRecommendation = {
+                suggested: best.name,
+                confidence: best.confidence,
+                reason: best.reason,
+                timestamp: now
+            };
+            this.semanticProfileTriggerCooldowns.set(best.name, now);
+            if (this.semanticProfileAutoAccept && best.confidence >= 0.75) {
+                this.setSemanticProfile(best.name);
+            }
+        }
     }
     getQueueSizes() {
         return {
@@ -1715,6 +2368,397 @@ class SemanticEventBus {
         const state = this.semanticAtmosphereState || {};
         return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
     }
+    // Phase F.4: semantic → node material reducer (intent only; rendering binds later)
+    computeSemanticNodeMaterialIntent() {
+        const svs = this.semanticVisualState || {};
+        const sas = this.semanticAtmosphereState || {};
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const emissiveBoost = clamp01((svs.focus || 0) * 0.6 + (svs.urgency || 0) * 0.4);
+        const glowBias = clamp01((sas.glowIntensity || 0) * 0.7 + (svs.calm || 0) * 0.3);
+        const wireIntensity = clamp01((svs.pressure || 0) * 0.6 + (svs.congestion || 0) * 0.4);
+        const opacityBias = clamp01((svs.calm || 0) * 0.7 - (svs.volatility || 0) * 0.4);
+        const distortion = clamp01((svs.anomalies || 0) * 0.6 + (sas.noiseAmount || 0) * 0.4);
+        const pulse = clamp01((sas.pulse || 0) * 0.6 + (svs.urgency || 0) * 0.4);
+        this.semanticNodeMaterialIntent = {
+            emissiveBoost,
+            glowBias,
+            wireIntensity,
+            opacityBias,
+            distortion,
+            pulse,
+            __sources: {
+                emissiveBoost: ['focus', 'urgency'],
+                glowBias: ['glowIntensity', 'calm'],
+                wireIntensity: ['pressure', 'congestion'],
+                opacityBias: ['calm', 'volatility'],
+                distortion: ['anomalies', 'noiseAmount'],
+                pulse: ['pulse', 'urgency']
+            }
+        };
+        this.semanticNodeMaterialTimestamp = performance.now();
+    }
+    getSemanticNodeMaterialIntent() {
+        const state = this.semanticNodeMaterialIntent || {};
+        return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
+    }
+    // Phase F.5: semantic → link/field reducer (intent layer only; no link/shader changes)
+    computeSemanticLinkFieldIntent() {
+        const svs = this.semanticVisualState || {};
+        const smi = this.semanticMotionIntent || {};
+        const sas = this.semanticAtmosphereState || {};
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const tension = clamp01((svs.pressure || 0) * 0.6 + (svs.congestion || 0) * 0.4);
+        const flow = clamp01((smi.drift ? Math.abs(smi.drift) : 0) * 0.5 + (svs.focus || 0) * 0.5);
+        const coherence = clamp01((svs.calm || 0) * 0.7 - (svs.volatility || 0) * 0.4);
+        const turbulence = clamp01((svs.volatility || 0) * 0.6 + (sas.noiseAmount || 0) * 0.4);
+        const attenuation = clamp01((svs.calm || 0) * 0.6 - (svs.urgency || 0));
+        const directionality = clamp01((smi.inertia || 0) * 0.6 + (svs.focus || 0) * 0.4);
+        this.semanticLinkFieldIntent = {
+            tension,
+            flow,
+            coherence,
+            turbulence,
+            attenuation,
+            directionality,
+            __sources: {
+                tension: ['pressure', 'congestion'],
+                flow: ['drift', 'focus'],
+                coherence: ['calm', 'volatility'],
+                turbulence: ['volatility', 'noiseAmount'],
+                attenuation: ['calm', 'urgency'],
+                directionality: ['inertia', 'focus']
+            }
+        };
+        this.semanticLinkFieldTimestamp = performance.now();
+    }
+    getSemanticLinkFieldIntent() {
+        const state = this.semanticLinkFieldIntent || {};
+        return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
+    }
+    // Phase F.6: semantic → HUD/UI reducer (intent only; no DOM/UI mutation)
+    computeSemanticHUDIntent() {
+        const svs = this.semanticVisualState || {};
+        const sas = this.semanticAtmosphereState || {};
+        const smi = this.semanticMotionIntent || {};
+        const slf = this.semanticLinkFieldIntent || {};
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const alertness = clamp01((svs.urgency || 0) * 0.5 + (svs.anomalies || 0) * 0.3 + (svs.volatility || 0) * 0.2);
+        const readability = clamp01((svs.calm || 0) * 0.7 - (sas.noiseAmount || 0) * 0.2 - (slf.turbulence || 0) * 0.2);
+        const emphasis = clamp01((svs.focus || 0) * 0.6 + (svs.pressure || 0) * 0.4);
+        const jitter = clamp01((svs.volatility || 0) * 0.4 + (smi.tremor || 0) * 0.4 + (sas.noiseAmount || 0) * 0.2);
+        const density = clamp01((svs.congestion || 0) * 0.5 + (slf.tension || 0) * 0.5);
+        const calmness = clamp01((svs.calm || 0) * 0.7 - (svs.urgency || 0) * 0.3);
+        this.semanticHUDIntent = {
+            alertness,
+            readability,
+            emphasis,
+            jitter,
+            density,
+            calmness,
+            __sources: {
+                alertness: ['urgency', 'anomalies', 'volatility'],
+                readability: ['calm', 'noiseAmount', 'turbulence'],
+                emphasis: ['focus', 'pressure'],
+                jitter: ['volatility', 'tremor', 'noiseAmount'],
+                density: ['congestion', 'tension'],
+                calmness: ['calm', 'urgency']
+            }
+        };
+        this.semanticHUDIntentTimestamp = performance.now();
+    }
+    getSemanticHUDIntent() {
+        const state = this.semanticHUDIntent || {};
+        return { ...state, __sources: state.__sources ? { ...state.__sources } : {} };
+    }
+    smoothValue(prev, next, alpha, hysteresis) {
+        if (prev === undefined || prev === null) return next;
+        if (Math.abs(next - prev) < hysteresis) return prev;
+        return prev + alpha * (next - prev);
+    }
+    // Phase G.2: apply smoothing/hysteresis to derived semantic intents (no behavior change)
+    applySemanticSmoothing(now) {
+        if (!this.semanticSmoothing.enabled) return;
+        if (now - this.semanticSmoothingState.lastUpdate < this.semanticSmoothing.minDeltaMs) return;
+        const { alpha, hysteresis } = this.semanticSmoothing;
+        const smoothState = (target, cacheKey) => {
+            const prev = this.semanticSmoothingState[cacheKey] || {};
+            const smoothed = { ...target };
+            for (const key of Object.keys(smoothed)) {
+                if (key === '__sources' || key === '__smoothed' || key === '__raw') continue;
+                if (typeof smoothed[key] === 'number') {
+                    const prevVal = typeof prev[key] === 'number' ? prev[key] : smoothed[key];
+                    smoothed[key] = this.smoothValue(prevVal, smoothed[key], alpha, hysteresis);
+                }
+            }
+            smoothed.__smoothed = true;
+            smoothed.__raw = target;
+            this.semanticSmoothingState[cacheKey] = smoothed;
+            return smoothed;
+        };
+        this.semanticVisualState = smoothState(this.semanticVisualState, 'visual');
+        this.semanticMotionIntent = smoothState(this.semanticMotionIntent, 'motion');
+        this.semanticAtmosphereState = smoothState(this.semanticAtmosphereState, 'atmosphere');
+        this.semanticNodeMaterialIntent = smoothState(this.semanticNodeMaterialIntent, 'nodeMaterial');
+        this.semanticHUDIntent = smoothState(this.semanticHUDIntent, 'hud');
+        this.semanticSmoothingState.lastUpdate = now;
+    }
+    // Phase G.3: apply semantic profile (lens-only modulation; post-smoothing, pre-invariants)
+    applySemanticProfile(now) {
+        const clamp01 = (v) => Math.min(1, Math.max(0, v));
+        const applyScaleBias = (value, scale, bias) => {
+            let out = value;
+            if (scale !== undefined) out = value * scale;
+            if (bias !== undefined) out = out + bias;
+            return clamp01(out);
+        };
+        const blendNumber = (a, b, tVal, biasDefault = 0, scaleDefault = 1) => {
+            const va = a === undefined ? (scaleDefault !== 1 ? scaleDefault : biasDefault) : a;
+            const vb = b === undefined ? (scaleDefault !== 1 ? scaleDefault : biasDefault) : b;
+            return va + (vb - va) * tVal;
+        };
+        const blendProfileModifiers = (fromName, toName, tVal) => {
+            const from = this.semanticProfiles[fromName] || {};
+            const to = this.semanticProfiles[toName] || {};
+            return {
+                volatilityScale: blendNumber(from.volatilityScale, to.volatilityScale, tVal, 0, 1),
+                urgencyScale: blendNumber(from.urgencyScale, to.urgencyScale, tVal, 0, 1),
+                calmBias: blendNumber(from.calmBias, to.calmBias, tVal, 0, 0),
+                anomalyAmplification: blendNumber(from.anomalyAmplification, to.anomalyAmplification, tVal, 0, 1),
+                jitterDamping: blendNumber(from.jitterDamping, to.jitterDamping, tVal, 0, 0),
+                motionInertiaScale: blendNumber(from.motionInertiaScale, to.motionInertiaScale, tVal, 0, 1),
+                hudEmphasisScale: blendNumber(from.hudEmphasisScale, to.hudEmphasisScale, tVal, 0, 1),
+                fxIntensityScale: blendNumber(from.fxIntensityScale, to.fxIntensityScale, tVal, 0, 1)
+            };
+        };
+        const resolvedProfiles = this.resolveSemanticProfiles(now);
+        const profileStackTag = { global: this.semanticProfileStack.global, local: [], context: [] };
+        // Visual
+        if (this.semanticVisualState) {
+            let svs = { ...this.semanticVisualState };
+            const gate = this.getProfileGateFactor('visual');
+            for (const layer of resolvedProfiles) {
+                const mods = blendProfileModifiers(layer.from, layer.to, layer.t);
+                if (mods.volatilityScale !== undefined && typeof svs.volatility === 'number') {
+                    svs.volatility = applyScaleBias(svs.volatility, mods.volatilityScale);
+                }
+                if (mods.urgencyScale !== undefined && typeof svs.urgency === 'number') {
+                    svs.urgency = applyScaleBias(svs.urgency, mods.urgencyScale);
+                }
+                if (mods.calmBias !== undefined && typeof svs.calm === 'number') {
+                    svs.calm = applyScaleBias(svs.calm, 1, mods.calmBias);
+                }
+                if (mods.anomalyAmplification !== undefined && typeof svs.anomalies === 'number') {
+                    svs.anomalies = applyScaleBias(svs.anomalies, mods.anomalyAmplification);
+                }
+                if (layer.source === 'local') profileStackTag.local.push(layer.name);
+                if (layer.source === 'context') profileStackTag.context.push(layer.name);
+            }
+            for (const key of Object.keys(svs)) {
+                if (typeof svs[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                    svs[key] = svs[key] * gate;
+                }
+            }
+            svs.__profileStack = profileStackTag;
+            this.semanticVisualState = svs;
+        }
+        // Motion
+        if (this.semanticMotionIntent) {
+            let smi = { ...this.semanticMotionIntent };
+            const gate = this.getProfileGateFactor('motion');
+            for (const layer of resolvedProfiles) {
+                const mods = blendProfileModifiers(layer.from, layer.to, layer.t);
+                if (mods.motionInertiaScale !== undefined && typeof smi.inertia === 'number') {
+                    smi.inertia = applyScaleBias(smi.inertia, mods.motionInertiaScale);
+                }
+            }
+            for (const key of Object.keys(smi)) {
+                if (typeof smi[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                    smi[key] = smi[key] * gate;
+                }
+            }
+            smi.__profileStack = profileStackTag;
+            this.semanticMotionIntent = smi;
+        }
+        // Atmosphere
+        if (this.semanticAtmosphereState) {
+            let sas = { ...this.semanticAtmosphereState };
+            const gate = this.getProfileGateFactor('atmosphere');
+            for (const layer of resolvedProfiles) {
+                const mods = blendProfileModifiers(layer.from, layer.to, layer.t);
+                if (mods.fxIntensityScale !== undefined) {
+                    const applyFx = (key) => {
+                        if (typeof sas[key] === 'number') {
+                            sas[key] = applyScaleBias(sas[key], mods.fxIntensityScale);
+                        }
+                    };
+                    applyFx('glowIntensity');
+                    applyFx('pulse');
+                    applyFx('noiseAmount');
+                    applyFx('chromaticShift');
+                }
+            }
+            for (const key of Object.keys(sas)) {
+                if (typeof sas[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                    sas[key] = sas[key] * gate;
+                }
+            }
+            sas.__profileStack = profileStackTag;
+            this.semanticAtmosphereState = sas;
+        }
+        // Node material
+        if (this.semanticNodeMaterialIntent) {
+            let nm = { ...this.semanticNodeMaterialIntent };
+            const gate = this.getProfileGateFactor('nodeMaterial');
+            for (const layer of resolvedProfiles) {
+                const mods = blendProfileModifiers(layer.from, layer.to, layer.t);
+                if (mods.hudEmphasisScale !== undefined && typeof nm.emissiveBoost === 'number') {
+                    nm.emissiveBoost = applyScaleBias(nm.emissiveBoost, mods.hudEmphasisScale);
+                }
+                if (mods.fxIntensityScale !== undefined && typeof nm.glowBias === 'number') {
+                    nm.glowBias = applyScaleBias(nm.glowBias, mods.fxIntensityScale);
+                }
+            }
+            for (const key of Object.keys(nm)) {
+                if (typeof nm[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                    nm[key] = nm[key] * gate;
+                }
+            }
+            nm.__profileStack = profileStackTag;
+            this.semanticNodeMaterialIntent = nm;
+        }
+        // HUD
+        if (this.semanticHUDIntent) {
+            let hud = { ...this.semanticHUDIntent };
+            const gate = this.getProfileGateFactor('hud');
+            for (const layer of resolvedProfiles) {
+                const mods = blendProfileModifiers(layer.from, layer.to, layer.t);
+                if (mods.hudEmphasisScale !== undefined && typeof hud.emphasis === 'number') {
+                    hud.emphasis = applyScaleBias(hud.emphasis, mods.hudEmphasisScale);
+                }
+                if (mods.jitterDamping !== undefined && typeof hud.jitter === 'number') {
+                    hud.jitter = applyScaleBias(hud.jitter, 1 - mods.jitterDamping);
+                }
+            }
+            for (const key of Object.keys(hud)) {
+                if (typeof hud[key] === 'number' && key !== '__smoothed' && key !== '__raw') {
+                    hud[key] = hud[key] * gate;
+                }
+            }
+            hud.__profileStack = profileStackTag;
+            this.semanticHUDIntent = hud;
+        }
+        if (this.semanticProfileTransition.active && this.getSemanticProfileBlend(now).t >= 1) {
+            this.activeSemanticProfile = this.semanticProfileTransition.to;
+            this.semanticProfileStack.global = this.semanticProfileTransition.to;
+            this.semanticProfileTransition.active = false;
+        }
+        this.pruneContextProfiles(now);
+    }
+    // Phase G.1: evaluate semantic guardrails (passive; records diagnostics only)
+    evaluateSemanticInvariants() {
+        const now = performance.now();
+        const warnings = [];
+        const violations = [];
+        const hud = this.semanticHUDIntent || {};
+        const svs = this.semanticVisualState || {};
+        const stats = this.stats || {};
+        // Calm + alertness budget check
+        if ((hud.calmness || 0) + (hud.alertness || 0) > this.semanticInvariants.calmUrgencyMax) {
+            warnings.push('Calmness + alertness exceeds configured maximum.');
+        }
+        // Jitter growth trend
+        const jitter = hud.jitter || 0;
+        if (jitter > this.lastJitter) {
+            this.jitterGrowthFrames += 1;
+        } else {
+            this.jitterGrowthFrames = 0;
+        }
+        this.lastJitter = jitter;
+        if (this.jitterGrowthFrames > this.semanticInvariants.maxJitterGrowthFrames) {
+            warnings.push('Jitter increasing over multiple frames.');
+        }
+        // Escalation duration
+        if (this.escalationState) {
+            for (const [key, state] of this.escalationState) {
+                if (state.level > 0) {
+                    const start = this.escalationActiveSince.get(key) ?? now;
+                    this.escalationActiveSince.set(key, start);
+                    if (now - start > this.semanticInvariants.maxEscalationDurationMs) {
+                        violations.push(`Escalation active too long for ${key}.`);
+                    }
+                } else {
+                    this.escalationActiveSince.delete(key);
+                }
+            }
+        }
+        // Suppression ratio
+        const processedCount = Array.isArray(stats.eventsProcessed) ? stats.eventsProcessed.reduce((a, b) => a + b, 0) : 0;
+        const totalEvents = processedCount + (stats.droppedEvents || 0) + (stats.suppressedEvents || 0);
+        if (totalEvents > 0) {
+            const suppressionRatio = (stats.suppressedEvents || 0) / totalEvents;
+            if (suppressionRatio > this.semanticInvariants.maxSuppressionRatio) {
+                warnings.push('Suppression ratio above threshold.');
+            }
+        }
+        // Health score is informational only
+        const score = Math.max(0, 1 - warnings.length * 0.1 - violations.length * 0.2);
+        this.semanticHealth = {
+            score,
+            warnings,
+            violations,
+            lastCheck: now,
+            profile: {
+                active: this.semanticProfileStack.global,
+                modifiers: this.semanticProfiles[this.semanticProfileStack.global] || {},
+                stack: this.getSemanticProfileStack()
+            },
+            transition: {
+                ...this.semanticProfileTransition
+            },
+            recommendation: this.semanticProfileRecommendation,
+            authority: {
+                active: this.semanticAuthorityLockState.active,
+                source: this.semanticAuthorityLockState.source,
+                priority: this.semanticAuthorityLockState.priority,
+                locks: this.semanticAuthorityLockState.locks,
+                constraints: this.semanticAuthorityLockState.constraints,
+                remainingMs: this.semanticAuthorityLockState.durationMs
+                    ? Math.max(0, (this.semanticAuthorityLockState.startTime + this.semanticAuthorityLockState.durationMs) - now)
+                    : null,
+                affectedDomains: Object.keys(this.semanticAuthorityLockState.locks || {}),
+                resolved: this.semanticAuthorityState
+            }
+        };
+    }
+    getSemanticHealth() {
+        return {
+            score: this.semanticHealth.score,
+            warnings: [...this.semanticHealth.warnings],
+            violations: [...this.semanticHealth.violations],
+            lastCheck: this.semanticHealth.lastCheck,
+            profile: this.semanticHealth.profile,
+            transition: this.semanticHealth.transition,
+            recommendation: this.semanticHealth.recommendation,
+            authority: this.semanticHealth.authority,
+            profileGate: {
+                active: this.semanticProfileGate.enabled !== false,
+                global: this.semanticProfileGate.globalFactor,
+                scopes: this.semanticProfileGate.perScope
+            },
+            budget: {
+                factors: this.semanticBudgetState.factors,
+                loads: this.semanticBudgetState.loads,
+                timestamp: this.semanticBudgetState.timestamp
+            }
+        };
+    }
+    getSemanticBudgetState() {
+        return {
+            factors: this.semanticBudgetState.factors,
+            loads: this.semanticBudgetState.loads,
+            timestamp: this.semanticBudgetState.timestamp
+        };
+    }
 }
 /**
  * RUNTIME API ADAPTER: safeTick()
@@ -1796,9 +2840,20 @@ class AtomaGame {
         this.clock = new THREE.Clock();
         this.time = 0;
         this.frameClock = new FrameClock();
+        this.lastRenderFrame = -1;
         window.frameClock = this.frameClock;
         window.debugFrameClock = () => this.frameClock.getStats();
         this.updateValidator = new FrameUpdateLoopOrderValidator_v1();
+        // L.3 OBSERVATION ONLY — DO NOT OPTIMIZE HERE
+        this.renderProfile = new RenderCostProfile();
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_RENDER_PROFILE__ = {
+                getSnapshot: () => this.renderProfile.getSnapshot(),
+                getAverages: () => this.renderProfile.getAverages(),
+                reset: () => this.renderProfile.reset(),
+                setEnabled: (enabled) => this.renderProfile.setEnabled(enabled)
+            };
+        }
         this.materialRegistry = materialRegistry;
         this.semanticBus = new SemanticEventBus();
         window.semanticBus = this.semanticBus;
@@ -1819,6 +2874,39 @@ class AtomaGame {
         window.ATOMA_SEMANTIC_MOTION = () => this.semanticBus.getSemanticMotionIntent();
         // Phase F.3: semantic → FX/atmosphere intent (read-only derived signals for future FX binding)
         window.ATOMA_SEMANTIC_ATMOSPHERE = () => this.semanticBus.getSemanticAtmosphereState();
+        // Phase F.4: semantic → node material intent (read-only derived signals for material binding)
+        window.ATOMA_SEMANTIC_NODE_MATERIAL = () => this.semanticBus.getSemanticNodeMaterialIntent();
+        // Phase F.5: semantic → link/field intent (read-only derived signals for link/field binding)
+        window.ATOMA_SEMANTIC_LINK_FIELD = () => this.semanticBus.getSemanticLinkFieldIntent();
+        // Phase F.6: semantic → HUD/UI intent (read-only derived signals for HUD binding)
+        window.ATOMA_SEMANTIC_HUD = () => this.semanticBus.getSemanticHUDIntent();
+        // Phase G.1: semantic guardrails diagnostics (read-only health snapshot)
+        window.ATOMA_SEMANTIC_HEALTH = () => this.semanticBus.getSemanticHealth();
+        // Phase G.2: semantic smoothing observability (read-only config/state)
+        window.ATOMA_SEMANTIC_SMOOTHING = () => ({
+            config: this.semanticBus.semanticSmoothing,
+            state: this.semanticBus.semanticSmoothingState
+        });
+        // Phase G.3: semantic profile controls (lens-only modulation)
+        window.ATOMA_SEMANTIC_PROFILE_GET = () => this.semanticBus.activeSemanticProfile;
+        window.ATOMA_SEMANTIC_PROFILE_SET = (name) => this.semanticBus.setSemanticProfile(name);
+        window.ATOMA_SEMANTIC_PROFILES = () => Object.keys(this.semanticBus.semanticProfiles || {});
+        window.ATOMA_SEMANTIC_PROFILE_TRANSITION = () => ({ ...this.semanticBus.semanticProfileTransition });
+        window.ATOMA_SEMANTIC_PROFILE_RECOMMENDATION = () => this.semanticBus.semanticProfileRecommendation;
+        window.ATOMA_SEMANTIC_PROFILE_TRIGGERS = () => Object.keys(this.semanticBus.semanticProfileTriggers || {});
+        window.ATOMA_SEMANTIC_PROFILE_STACK = () => this.semanticBus.getSemanticProfileStack();
+        window.ATOMA_SEMANTIC_AUTHORITY_GET = () => ({ ...this.semanticBus.semanticAuthorityLockState });
+        window.ATOMA_SEMANTIC_AUTHORITY_SET = (name, cfg) => this.semanticBus.setSemanticAuthority(name, cfg);
+        window.ATOMA_SEMANTIC_AUTHORITY_CLEAR = (name) => this.semanticBus.clearSemanticAuthority(name);
+        window.ATOMA_SEMANTIC_AUTHORITIES = () => ({
+            active: Array.from(this.semanticBus.semanticAuthorities.values()),
+            resolved: this.semanticBus.semanticAuthorityState
+        });
+        window.ATOMA_SEMANTIC_PROFILE_GATE = () => ({
+            gate: this.semanticBus.semanticProfileGate,
+            authority: this.semanticBus.semanticAuthorityState
+        });
+        window.ATOMA_SEMANTIC_BUDGET = () => this.semanticBus.getSemanticBudgetState();
         this.hudAccumulator = 0;
         this.hudTargetHz = 20;
         this.hudLastPos = new THREE.Vector3();
@@ -1857,6 +2945,19 @@ class AtomaGame {
         
         // ========================================================================
         // PHASE B: FRAME SCHEDULER INTEGRATION (Controlled Registration)
+        // === RENDER CONTRACT (LOCKED) ===
+// renderer.render() MUST be called:
+// 1) EXACTLY ONCE per frame
+// 2) ALWAYS as the LAST step of runRenderTick()
+// 3) ONLY from FrameScheduler
+//
+// Any direct or indirect renderer.render() call
+// outside this function is a BUG.
+//
+// Reason:
+// - deterministic frame timing
+// - no OUT_OF_ORDER_UPDATE
+// - stable performance & observability
         // ========================================================================
         this.frameScheduler = new FrameScheduler();
         window.frameScheduler = this.frameScheduler;
@@ -2733,23 +3834,23 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // Apply protective guards against "is not iterable" errors and visual layering
         // This ensures stable runtime without changing gameplay or visual identity
-        try {
-            applyAllDefensivePatches(this);
-        } catch (err) {
-            console.warn('⚠ Defensive hardening patch initialization error:', err);
-        }
+        // try {
+       //     applyAllDefensivePatches(this);
+   //     } catch (err) {
+   //         console.warn('⚠ Defensive hardening patch initialization error:', err);
+    //    }
         
         // ========================================================================
         // SESSION 99: INSTALL NODE VISUAL FREEZE BLOCKERS
         // ========================================================================
         // After ALL systems are initialized, install blockers to prevent
         // reactive systems from modifying node visuals
-        try {
-            installNodeVisualFreezeBlockers(this);
-            console.log('✅ [main.js] Node Visual Freeze Blockers installed');
-        } catch (err) {
-            console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
-        }
+        // try {
+        //    installNodeVisualFreezeBlockers(this);
+        //    console.log('✅ [main.js] Node Visual Freeze Blockers installed');
+       // } catch (err) {
+        //    console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
+      //  }
         
         // ========================================================================
         // SESSION 104: HARD INTERACTION AUTHORITY SYSTEM
@@ -3770,23 +4871,7 @@ document.addEventListener('keydown', () => {
         } catch (err) {
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
-        
-        // ====================================================================
-        // VISUAL LOCK COMPLETE INTEGRATION v1.0 (SESSIONS 34-35)
-        // Guarantees 100% node visibility under ALL conditions
-        // ====================================================================
-        try {
-            setupCompleteVisualLock(
-                this.scene,
-                this.renderer,
-                this.aiNodes,
-                null // Visual Authority is optional at this point
-            );
-            console.log('[main.js] Complete Visual Lock initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Complete Visual Lock initialization failed:', err);
-        }
-        
+        /* VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY */
         // ====================================================================
         // CORE VISUAL AUTHORITY SYSTEM v1.0 (SESSION 46)
         // Guarantees node cores are ALWAYS rendered on top of visual overlays
@@ -8345,12 +9430,72 @@ if (this.updateValidator && !window.updateValidator) {
      * FrameScheduler-driven render tick (visual layer)
      */
     runRenderTick(deltaTime) {
-        const renderStart = performance.now();
-        this.renderer.render(this.scene, this.camera);
-        this.updateValidator?.markSystemUpdate(
-            'renderer.render',
-            performance.now() - renderStart
-        );
+        const frameId = this.frameCount ?? this.frameClock?.frame ?? 0;
+        if (this.lastRenderFrame === frameId) {
+            // Guard: enforce single renderer.render per RAF tick (FrameUpdateLoopOrderValidator duplicate fix)
+            return;
+        }
+        this.lastRenderFrame = frameId;
+        const profile = this.renderProfile;
+        profile?.startFrame();
+        if (this.postProcessing && typeof this.postProcessing.apply === 'function') {
+            const { operations, outputScene, outputCamera } = this.postProcessing.apply(this.scene, this.camera);
+            const pipelineStart = profile?.enabled ? performance.now() : 0;
+
+            if (Array.isArray(operations)) {
+                for (const op of operations) {
+                    if (op.before) op.before();
+                    this.renderer.setRenderTarget(op.target || null);
+                    const opStart = performance.now();
+                    this.renderer.render(op.scene, op.camera);
+                    const opDuration = performance.now() - opStart;
+                    if (profile?.enabled) {
+                        if (op.label) {
+                            profile.record(op.label, opDuration);
+                        }
+                    }
+                    // L.3c: pipeline renders are tagged as pipeline for validator awareness
+                    this.updateValidator?.markSystemUpdate(
+                        'renderer.render',
+                        opDuration,
+                        { phase: 'pipeline' }
+                    );
+                }
+            }
+
+            if (profile?.enabled) {
+                profile.record('postProcessingPipeline', performance.now() - pipelineStart);
+            }
+
+            // Final present to screen (single screen render per frame)
+            this.renderer.setRenderTarget(null);
+            const finalStart = performance.now();
+            this.renderer.render(outputScene || this.scene, outputCamera || this.camera);
+            const finalDuration = performance.now() - finalStart;
+            if (profile?.enabled) {
+                profile.record('finalRender', finalDuration);
+            }
+            // L.3c: only the final present render participates in validator ordering
+            this.updateValidator?.markSystemUpdate(
+                'renderer.render',
+                finalDuration,
+                { phase: 'present' }
+            );
+        } else {
+            const baseStart = performance.now();
+            this.renderer.render(this.scene, this.camera);
+            const baseDuration = performance.now() - baseStart;
+            if (profile?.enabled) {
+                profile.record('baseSceneRender', baseDuration);
+                profile.record('finalRender', baseDuration);
+            }
+            this.updateValidator?.markSystemUpdate(
+                'renderer.render',
+                baseDuration,
+                { phase: 'present' }
+            );
+        }
+        profile?.endFrame();
     }
 
     /**

@@ -155,6 +155,9 @@ export class FrameUpdateLoopOrderValidator_v1 {
     this.currentFrameNumber = 0;
     this.frameStartTimeMs = 0;
     this.frameEndTimeMs = 0;
+    // L.2-aware tracking: only executed systems participate in ordering
+    this.lastExecutedOrder = 0;
+    this.rendererExecutedThisFrame = false;
     
     // Configuration
     this.performanceThresholdMs = 16.67; // 60 FPS budget
@@ -200,15 +203,18 @@ export class FrameUpdateLoopOrderValidator_v1 {
     this.currentFrameUpdates = [];
     this.currentFramePerformance.clear();
     this.currentFrameViolations = [];
+    this.lastExecutedOrder = 0;
+    this.rendererExecutedThisFrame = false;
   }
   
   /**
    * Mark a system as updated during current frame
    * @param {string} systemName - Name of the system
    * @param {number} executionTimeMs - Time taken to execute (optional)
+   * @param {Object} meta - Optional metadata (phase, etc.)
    * @returns {boolean} true if valid, false if violation
    */
-  markSystemUpdate(systemName, executionTimeMs = 0) {
+  markSystemUpdate(systemName, executionTimeMs = 0, meta = {}) {
     if (!this.registeredSystems.has(systemName)) {
       this.currentFrameViolations.push({
         type: 'UNREGISTERED_UPDATE',
@@ -218,43 +224,68 @@ export class FrameUpdateLoopOrderValidator_v1 {
       });
       return false;
     }
-    
+    // L.3b: render phases
+    // - 'present'  : final frame-present render (validated)
+    // - 'pipeline' : internal/offscreen passes (ignored for order/duplicates)
+    // Default to 'present' for backwards compatibility.
+    const phase = meta?.phase || 'present';
     const systemMeta = this.registeredSystems.get(systemName);
-    const currentOrder = this.currentFrameUpdates.length + 1;
+    const expectedOrder = systemMeta.expectedOrder;
+    const rendererNames = ['renderer.render', 'Renderer'];
+    const isRenderer = rendererNames.includes(systemName);
+
+    // L.3b: Ignore internal render phases (pipeline) for ordering/duplicates
+    if (isRenderer && phase !== 'present') {
+      // Pipeline/internal render passes: ignore for order/duplicate validation,
+      // but allow performance observation so profiling remains intact.
+      const perfLabel = `${systemName}:${phase}`;
+      this.currentFramePerformance.set(perfLabel, executionTimeMs);
+      return true;
+    }
     
     // Check for duplicate update in same frame
     if (this.currentFrameUpdates.includes(systemName)) {
       this.currentFrameViolations.push({
         type: 'DUPLICATE_UPDATE',
         system: systemName,
-        order: currentOrder,
+        order: this.currentFrameUpdates.length + 1,
         message: `System "${systemName}" updated twice in same frame`
       });
       systemMeta.violations++;
       return false;
     }
-    
-    // Check for out-of-order update
-    if (currentOrder !== systemMeta.expectedOrder) {
-      // Allow for optional/conditional systems not executing
-      // Only flag if a previous system hasn't executed yet that should have
-      const expectedSystemAtPosition = this.canonicalUpdateOrder[currentOrder - 1];
-      if (expectedSystemAtPosition && expectedSystemAtPosition.name !== systemName) {
-        this.currentFrameViolations.push({
-          type: 'OUT_OF_ORDER_UPDATE',
-          system: systemName,
-          expectedOrder: systemMeta.expectedOrder,
-          actualOrder: currentOrder,
-          message: `System "${systemName}" out of order (expected ${systemMeta.expectedOrder}, got ${currentOrder})`
-        });
-        systemMeta.violations++;
-        return false;
-      }
+    // L.2-aware ordering: only validate relative order of executed systems
+    if (this.rendererExecutedThisFrame && !isRenderer) {
+      this.currentFrameViolations.push({
+        type: 'OUT_OF_ORDER_UPDATE',
+        system: systemName,
+        expectedOrder,
+        actualOrder: this.currentFrameUpdates.length + 1,
+        message: `System "${systemName}" executed after renderer (renderer must be last executed system)`
+      });
+      systemMeta.violations++;
+      return false;
+    }
+
+    if (expectedOrder < this.lastExecutedOrder) {
+      this.currentFrameViolations.push({
+        type: 'OUT_OF_ORDER_UPDATE',
+        system: systemName,
+        expectedOrder,
+        actualOrder: this.currentFrameUpdates.length + 1,
+        message: `System "${systemName}" executed out of relative order (expected order ${expectedOrder} after ${this.lastExecutedOrder})`
+      });
+      systemMeta.violations++;
+      return false;
     }
     
     // Record update
     this.currentFrameUpdates.push(systemName);
     this.currentFramePerformance.set(systemName, executionTimeMs);
+    this.lastExecutedOrder = expectedOrder;
+    if (isRenderer) {
+      this.rendererExecutedThisFrame = true;
+    }
     
     // Update system statistics
     systemMeta.totalCalls++;
@@ -312,35 +343,6 @@ export class FrameUpdateLoopOrderValidator_v1 {
   endFrame(deltaTimeMs) {
     this.frameEndTimeMs = performance.now();
     const frameExecutionTimeMs = this.frameEndTimeMs - this.frameStartTimeMs;
-    
-    // Detect completely skipped systems
-    const registeredOrder = Array.from(this.registeredSystems.keys()).sort((a, b) => {
-      return this.registeredSystems.get(a).expectedOrder - this.registeredSystems.get(b).expectedOrder;
-    });
-    
-    const expectedOrderNames = this.canonicalUpdateOrder.map(s => s.name);
-    const executedBefore = new Set(this.currentFrameUpdates.slice(0, this.currentFrameUpdates.length));
-    
-    for (const systemName of expectedOrderNames) {
-      if (!this.currentFrameUpdates.includes(systemName) && this.registeredSystems.has(systemName)) {
-        // System was expected but didn't run
-        const expectedOrder = this.registeredSystems.get(systemName).expectedOrder;
-        
-        // Only flag if it comes before the last executed system
-        const lastExecutedIdx = Math.max(
-          ...this.currentFrameUpdates.map(name => expectedOrderNames.indexOf(name))
-        );
-        
-        if (expectedOrderNames.indexOf(systemName) <= lastExecutedIdx) {
-          this.currentFrameViolations.push({
-            type: 'SKIPPED_UPDATE',
-            system: systemName,
-            expectedOrder,
-            message: `System "${systemName}" was skipped this frame`
-          });
-        }
-      }
-    }
     
     // Aggregate violations
     const hasViolations = this.currentFrameViolations.length > 0;

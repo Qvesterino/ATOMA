@@ -10,6 +10,7 @@ export class BloomPass {
     this.renderer = renderer;
     this.scene = scene;
     this.camera = camera;
+    this.screenCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     // Configuration
     this.options = {
@@ -222,29 +223,62 @@ export class BloomPass {
   /**
    * Render bloom effect
    */
-  render(sourceRenderTarget) {
+  getPasses(sourceRenderTarget) {
     const rt = this.renderTargets;
+    const setVisibility = (active) => {
+      Object.entries(this.planes).forEach(([key, mesh]) => {
+        mesh.visible = key === active;
+      });
+    };
 
-    // Step 1: Extract luminosity
-    this.materials.luminosity.uniforms.tDiffuse.value = sourceRenderTarget.texture;
-    this.renderer.setRenderTarget(rt.luminosity);
-    this.renderer.render(this.scene_scene, this.camera);
+    // Build ordered pass list; consumers execute renderer operations
+    return [
+      {
+        target: rt.luminosity,
+        scene: this.scene_scene,
+        camera: this.camera,
+        label: 'bloom.luminosity',
+        before: () => {
+          setVisibility('luminosity');
+          this.materials.luminosity.uniforms.tDiffuse.value = sourceRenderTarget.texture;
+        }
+      },
+      {
+        target: rt.blurred[0],
+        scene: this.scene_scene,
+        camera: this.camera,
+        label: 'bloom.blurH',
+        before: () => {
+          setVisibility('blurH');
+          this.materials.blurHorizontal.uniforms.tDiffuse.value = rt.luminosity.texture;
+        }
+      },
+      {
+        target: rt.blurred[1],
+        scene: this.scene_scene,
+        camera: this.camera,
+        label: 'bloom.blurV',
+        before: () => {
+          setVisibility('blurV');
+          this.materials.blurVertical.uniforms.tDiffuse.value = rt.blurred[0].texture;
+        }
+      }
+    ];
+  }
 
-    // Step 2: Horizontal blur
-    this.materials.blurHorizontal.uniforms.tDiffuse.value = rt.luminosity.texture;
-    this.renderer.setRenderTarget(rt.blurred[0]);
-    this.renderer.render(this.scene_scene, this.camera);
-
-    // Step 3: Vertical blur
-    this.materials.blurVertical.uniforms.tDiffuse.value = rt.blurred[0].texture;
-    this.renderer.setRenderTarget(rt.blurred[1]);
-    this.renderer.render(this.scene_scene, this.camera);
-
-    // Step 4: Composite
+  /**
+   * Get final composite scene/camera for a screen render
+   */
+  getCompositeOutput(sourceRenderTarget) {
     this.materials.composite.uniforms.tScene.value = sourceRenderTarget.texture;
-    this.materials.composite.uniforms.tBloom.value = rt.blurred[1].texture;
-    this.renderer.setRenderTarget(null);
-    this.renderer.render(this.scene_scene, this.camera);
+    this.materials.composite.uniforms.tBloom.value = this.renderTargets.blurred[1].texture;
+    Object.entries(this.planes).forEach(([key, mesh]) => {
+      mesh.visible = key === 'composite';
+    });
+    return {
+      scene: this.scene_scene,
+      camera: this.screenCamera
+    };
   }
 
   /**
@@ -373,20 +407,47 @@ export class PostProcessingPipeline {
   }
 
   /**
+   * Build render operations for the current frame without issuing renderer.render
+   * Consumers must execute the returned operations in order, then render the
+   * composite output scene/camera.
+   */
+  apply(scene, camera) {
+    if (!this.enabled) {
+      return {
+        operations: [],
+        outputScene: scene,
+        outputCamera: camera
+      };
+    }
+
+    // 1) Render base scene into main render target
+    const operations = [
+      {
+        target: this.mainRenderTarget,
+        scene,
+        camera,
+        label: 'baseSceneRender'
+      }
+    ];
+
+    // 2) Bloom passes (luminosity + blurs)
+    operations.push(...this.bloomPass.getPasses(this.mainRenderTarget));
+
+    // 3) Prepare composite for screen render
+    const output = this.bloomPass.getCompositeOutput(this.mainRenderTarget);
+
+    return {
+      operations,
+      outputScene: output.scene,
+      outputCamera: output.camera
+    };
+  }
+
+  /**
    * Render with post-processing
    */
   render(renderCallback) {
-    if (!this.enabled) {
-      this.renderer.render(this.scene, this.camera);
-      return;
-    }
-
-    // Render scene to target
-    this.renderer.setRenderTarget(this.mainRenderTarget);
-    this.renderer.render(this.scene, this.camera);
-
-    // Apply bloom
-    this.bloomPass.render(this.mainRenderTarget);
+    console.warn('[PostProcessingPipeline] render() is deprecated. Use apply() and execute operations via FrameScheduler.');
   }
 
   /**
