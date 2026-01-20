@@ -1,0 +1,28 @@
+Authority Map
+
+NodeLinkingSystem.js — Authority: ⚠️ MULTI-AUTHORITY (structural + semantic + visual); Time: Frame loop + 500 ms cadence (HIGH RISK); Writes: link objects (traffic/synergy/color, priority init, flow/thickness refs), node.userData (corruptionLevel via contagion, lastLinkDirection, linkBirth/removal flags), link indexes (linksByNode/nodeIdToLinks/linkCategoryCache), visuals via conduitRenderer/flow/thickness systems; Reads: aiNodes, hitProxySystem, ComputeSynergyScore2_0, linkQualityPredictor; Downstream: drives LinkPrioritySystem decay, HUD callbacks, visual animators.
+LinkCorruptionTransmission_v1.js — Authority: Semantic; Time: Frame (updateTransmission via safeTick) (HIGH RISK); Writes: linkCorruption/integrity Maps, link.userData.corruptionLevel/visual flags, node.userData.corruption/harmony/synergy adjustments, reconstruction cooldowns; Reads: linkSystem topology, aiNodes archetypes, node/user corruption+harmony; Downstream: corruption visuals, integrity/collapse gates, harmony feedback.
+LinkQualityCalculator.js — Authority: Semantic; Time: Frame (HIGH RISK); Writes: link.userData.quality (score/levels/components) per link; Reads: linkingSystem.links, node.userData.harmony/load/corruption, structural metrics; Downstream: LinkDegradationSystem, LinkCollapseSystem, automation/feedback consumers.
+LinkDegradationSystem.js — Authority: Semantic → Visual bridge; Time: Frame (HIGH RISK); Writes: link.userData.degradation (efficiency, visualIntensity, particleEmissionRate, metricsWeight); Reads: linkQualityCalculator output, node.userData.metrics.loadRatio; Downstream: visual scalers, metrics-to-visual bridges, potential collapse weighting.
+LinkCollapseSystem.js — Authority: ⚠️ MULTI-AUTHORITY (semantic stress + structural removal); Time: Frame (HIGH RISK); Writes: per-link collapseStates, link.userData.collapseWarning/collapseCritical flags; can call linkingSystem.unlinkNodes to disconnect; Reads: linkQualityCalculator scores, linkDegradation/quality corruption values, node.userData.load; Downstream: visual warnings, actual link removal path.
+LinkPrioritySystem.js — Authority: Semantic (priority model) with visual weight output; Time: Event (createLink) + Tick ~500 ms decay (MEDIUM); Writes: link.priority (score/tier/traffic/penalties); Reads: node.userData.category, link synergy fields; Downstream: thickness/visual scaling, decay engine, HUD priority.
+LinkPriorityDecayEngine.js — Authority: Semantic (priority aging/staleness); Time: Frame driver but internal tick 500 ms (MEDIUM; watch unit mismatch deltaMs vs seconds); Writes: link.priority score/tier/staleness/decayAmount metadata; Reads: link.priority, timestamps, category pairs; Downstream: ML/automation thresholds, potential removal heuristics.
+NodeLinker2_RepairLayer1_0.js — Authority: Structural; Time: Event-driven (wraps create/remove/getLinksForNode) (MEDIUM); Writes: linksByNode rebuilds, filters runtime links, adjusts nodeLinker maps; Reads: nodeLinker.links/maps; Downstream: heals index inconsistencies, can drop invalid links.
+LinkingSystemHardening.js — Authority: Structural guard; Time: Event-driven (wraps createLink/removeLink/updateLinkCurve) (MEDIUM); Writes: none to link data but triggers linkGuard repairs and scene reattachment; Reads: aiNodes presence, scene parents; Downstream: prevents missing nodes after link ops.
+LinkCategoryTransitionSystem.js — Authority: Visual; Time: Frame when active (LOW); Writes: transition controllers/material uniforms for link visuals only; Reads: node categories/positions; Downstream: category-based VFX.
+LinkMetricsToVisualBridge_v1.js — Authority: Visual; Time: Frame (LOW); Writes: shader uniforms via neonLinkVisuals (stress/fracture/kink); Reads: link metrics from degradation/collapse/corruption/contagion; Downstream: link fracture/kink visuals.
+LinkStateVisualLanguageIntegration.js — Authority: Visual; Time: Frame/event (LOW); Writes: shader uniforms/materials registered per link; Reads: node harmony/load, link corruption/synergy inputs; Downstream: color/thickness/edge noise visual language.
+High Risk Zones
+
+NodeLinkingSystem.update: per-frame corruption contagion writes directly to node.userData.corruptionLevel and link.userData.contagionState while also running index sync + LinkPriority decay, mixing structural + semantic + visual in one loop.
+LinkCorruptionTransmission_v1: frame-level corruption/harmony feedback alters node.userData and link integrity, with cascades/reconstruction affecting multiple networks; heavy write surface plus multi-map state.
+LinkCollapseSystem: removes/unlinks links based on semantic metrics each frame, adding structural mutations atop quality/degradation semantics.
+Priority pipeline: LinkPrioritySystem (500 ms decay) + LinkPriorityDecayEngine (frame-driven tick with potential ms/sec mismatch) both mutate link.priority; dual writers can drift and affect downstream thickness/automation logic.
+Quality/degradation chain: LinkQualityCalculator → LinkDegradationSystem → LinkCollapseSystem all write link.userData in the same frame; order sensitivity could create hard-to-reproduce side effects.
+Orphan / Legacy Systems
+
+LinkCorruptionTransmissionIntegrationPatch_v1.js — integration helper; not imported in runtime.
+LinkCategoryTransitionIntegrationPatch.js — wiring guide only; no runtime references.
+LINK_EVENT_INTEGRATION_SNIPPET.js — example-only hook; not wired.
+MAIN_JS_LINK_THICKNESS_INTEGRATION_SNIPPET.js / MAIN_JS_LINK_METRICS_INTEGRATION_SNIPPET.js — setup snippets, no active imports.
+Questions/uncertainties: LinkPriorityDecayEngine.update is fed deltaTime (seconds) but internally names deltaMs; worth confirming expected units to avoid decay-rate drift.

@@ -314,6 +314,22 @@ export class AINodes {
     
     this.activeNodes = new Set();
     this.nodeCounter = 0; // For variant selection
+
+    // Activity model (iteration control) - default all ACTIVE
+    this.activityStateEnum = Object.freeze({
+      ACTIVE: 'ACTIVE',
+      SEMI_ACTIVE: 'SEMI_ACTIVE',
+      DORMANT: 'DORMANT'
+    });
+    this._activityPools = {
+      active: new Set(),
+      semiActive: new Set(),
+      dormant: new Set()
+    };
+    this._activityState = new WeakMap();
+    this._activitySemiInterval = 0.1; // ~10 Hz
+    this._activitySemiAccumulator = 0;
+    this.activityCounters = { active: 0, semiActive: 0, dormant: 0 };
   }
 
   /**
@@ -1213,11 +1229,28 @@ export class AINodes {
    * Update node system
    */
   update(deltaTime, time) {
+    const profileEnabled = typeof window !== 'undefined' && window.__ATOMA_PROFILE__ === true;
+    if (profileEnabled) this._ensureProfilingStore();
+
+    const profileStart = name => profileEnabled ? performance.now() : 0;
+    const profileEnd = (name, start) => {
+      if (!profileEnabled) return;
+      this._recordProfileSample(name, performance.now() - start);
+    };
+
     const playerPos = this.player.position;
+
+    const useActivityModel = typeof window !== 'undefined' && window.__ATOMA_ACTIVITY_MODEL__ === true;
+    if (useActivityModel) {
+      this._ensureActivityModelSeeded();
+    }
     
-    this.nodes.forEach(node => {
+    const perNodeStart = profileStart('perNodeLoop');
+    const processNode = (node) => {
       const data = node.userData;
       
+      const activationStart = profileStart('activationAndState');
+
       // SESSION 21 - PHASE 2: Check visual readiness (spawn collision safety)
       this._checkVisualReadiness(node);
       
@@ -1251,6 +1284,8 @@ export class AINodes {
           this.onNodeDeactivated(node);
         }
       }
+
+      profileEnd('activationAndState', activationStart);
       
       // ========== EXTREME SYSTEMS ACTIVATION v1.0 - STEP 2: Gameplay Modifiers ==========
       // Apply EXTREME gameplay modifiers one-time on first activation
@@ -1271,16 +1306,37 @@ export class AINodes {
       }
       
       // Update visual effects based on activation
+      const visualsStart = profileStart('updateNodeVisuals');
       this.updateNodeVisuals(node, data, time, deltaTime);
-    });
+      profileEnd('updateNodeVisuals', visualsStart);
+    };
+
+    if (!useActivityModel) {
+      this.nodes.forEach(processNode);
+    } else {
+      // ACTIVE nodes: every frame
+      this._activityPools.active.forEach(processNode);
+
+      // SEMI_ACTIVE nodes: gated cadence (~10 Hz)
+      this._activitySemiAccumulator += deltaTime;
+      if (this._activitySemiAccumulator >= this._activitySemiInterval) {
+        this._activitySemiAccumulator %= this._activitySemiInterval;
+        this._activityPools.semiActive.forEach(processNode);
+      }
+    }
+    profileEnd('perNodeLoop', perNodeStart);
     
     // AURA LOD CULLING: Update aura visibility based on distance
+    const auraStart = profileStart('auraLOD');
     if (this.auraLOD && this.camera) {
       this.auraLOD.updateCulling(this.nodes, this.camera, deltaTime);
     }
+    profileEnd('auraLOD', auraStart);
     
     // Update connections
+    const connStart = profileStart('updateConnections');
     this.updateConnections();
+    profileEnd('updateConnections', connStart);
   }
   
   /**
@@ -2680,4 +2736,92 @@ export class AINodes {
         EXTREME: ${stats.rarity.extreme} (${((stats.rarity.extreme / stats.total) * 100).toFixed(1)}%)
     `);
   }
+
+  /**
+   * Initialize profiling storage when enabled
+   * @private
+   */
+  _ensureProfilingStore() {
+    if (this._profileStore) return;
+    this._profileStore = { sections: {} };
+    if (typeof window !== 'undefined') {
+      window.__atomaProfile = window.__atomaProfile || {};
+      window.__atomaProfile.aiNodes = this._profileStore;
+    }
+  }
+
+  /**
+   * Record a profiling sample for a section
+   * @param {string} name
+   * @param {number} durationMs
+   * @private
+   */
+  _recordProfileSample(name, durationMs) {
+    if (!this._profileStore || !name) return;
+    const sections = this._profileStore.sections;
+    const entry = sections[name] || (sections[name] = { count: 0, total: 0, max: 0, avg: 0 });
+    entry.count += 1;
+    entry.total += durationMs;
+    if (durationMs > entry.max) entry.max = durationMs;
+    entry.avg = entry.total / entry.count;
+  }
+
+  /**
+   * Ensure all nodes are seeded into the activity model as ACTIVE
+   * @private
+   */
+  _ensureActivityModelSeeded() {
+    for (const node of this.nodes) {
+      if (!this._activityState.has(node)) {
+        this._setNodeActivityState(node, this.activityStateEnum.ACTIVE);
+      }
+    }
+    this._refreshActivityCounters();
+  }
+
+  /**
+   * Move node to a target activity state (exclusive membership)
+   * @private
+   */
+  _setNodeActivityState(node, targetState) {
+    if (!node || !targetState) return;
+    const pools = this._activityPools;
+    pools.active.delete(node);
+    pools.semiActive.delete(node);
+    pools.dormant.delete(node);
+
+    this._activityState.set(node, targetState);
+    if (targetState === this.activityStateEnum.ACTIVE) {
+      pools.active.add(node);
+    } else if (targetState === this.activityStateEnum.SEMI_ACTIVE) {
+      pools.semiActive.add(node);
+    } else {
+      pools.dormant.add(node);
+    }
+  }
+
+  /**
+   * Update debug counters for activity pools
+   * @private
+   */
+  _refreshActivityCounters() {
+    this.activityCounters.active = this._activityPools.active.size;
+    this.activityCounters.semiActive = this._activityPools.semiActive.size;
+    this.activityCounters.dormant = this._activityPools.dormant.size;
+  }
+}
+
+// Debug helper: dump aiNodes profiling table when profiling is enabled
+if (typeof window !== 'undefined') {
+  window.dumpAiNodesProfile = function() {
+    const sections = window.__atomaProfile?.aiNodes?.sections || {};
+    const rows = Object.entries(sections).map(([section, data]) => ({
+      section,
+      avgMs: data.avg,
+      maxMs: data.max,
+      count: data.count
+    }));
+    console.table(rows);
+    return rows;
+  };
 }

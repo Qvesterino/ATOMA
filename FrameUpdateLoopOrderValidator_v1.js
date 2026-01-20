@@ -164,6 +164,10 @@ export class FrameUpdateLoopOrderValidator_v1 {
     this.violationThresholdPercent = 5; // 5% slowdown
     this.debugMode = false;
     this.logs = [];
+    
+    // Cadence control: sample heavy analysis at ~10 Hz to reduce runtime overhead
+    this.analysisIntervalMs = 100;
+    this._lastAnalysisTime = 0;
   }
   
   /**
@@ -349,6 +353,17 @@ export class FrameUpdateLoopOrderValidator_v1 {
     if (hasViolations) {
       this.stats.violatedFrames++;
     }
+    
+    const now = this.frameEndTimeMs;
+    const shouldAnalyze = hasViolations || (now - this._lastAnalysisTime >= this.analysisIntervalMs);
+    if (!shouldAnalyze) {
+      return {
+        frameNumber: this.currentFrameNumber,
+        isValid: !hasViolations,
+        skipped: true
+      };
+    }
+    this._lastAnalysisTime = now;
     
     // Create frame record
     const frameRecord = {

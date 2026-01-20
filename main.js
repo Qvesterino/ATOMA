@@ -2939,6 +2939,14 @@ class AtomaGame {
         this.hudTempDelta = new THREE.Vector3();
         this.nodeUiAcc = 0;
         this.undoUiAcc = 0;
+        // Cadence controls: keep motion at 60 Hz; throttle interpretation/UI to lighter rates
+        this.semanticVisualAcc = 0;
+        this.semanticVisualInterval = 1 / 30; // ~30 Hz for visual/UI recompute
+        this.semanticSlowAcc = 0;
+        this.semanticSlowInterval = 0.1; // ~10 Hz for deep semantic layers
+        this.semanticCadenceLogMs = 5000;
+        this.semanticCadenceLastLog = 0;
+        this.semanticSlowCadenceLastLog = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -2966,6 +2974,8 @@ class AtomaGame {
         window.debugSchedulerStats = () => this.frameScheduler.getStats();
         window.debugSchedulerList = () => this.frameScheduler.listSystems();
         this.frameScheduler.register('visual', (dt) => this.runVisualOverlayTick(dt), 'coreMetricsOverlay.visual');
+        this.frameScheduler.register('simulation', (dt) => this.runCoreMetricsOverlayTick(dt), 'coreMetricsOverlay.sim');
+        this.frameScheduler.register('simulation', (dt) => this.runNodeInspectOverlayTick(dt), 'nodeInspectOverlay.sim');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.semanticBus.subscribe('camera.motion', () => {
             this.wakeHud('camera-motion');
@@ -7483,6 +7493,26 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
         const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
+
+        // Cadence gates: motion stays 60 Hz; semantic/UI work drops to lighter rates
+        this.semanticVisualAcc += deltaTime;
+        const runVisualSemantic = this.semanticVisualAcc >= this.semanticVisualInterval;
+        if (runVisualSemantic) {
+            this.semanticVisualAcc -= this.semanticVisualInterval;
+            if (performance.now() - this.semanticCadenceLastLog >= this.semanticCadenceLogMs) {
+                console.debug('[Cadence] semantic/UI @30Hz tick');
+                this.semanticCadenceLastLog = performance.now();
+            }
+        }
+        this.semanticSlowAcc += deltaTime;
+        const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
+        if (runSlowSemantic) {
+            this.semanticSlowAcc -= this.semanticSlowInterval;
+            if (performance.now() - this.semanticSlowCadenceLastLog >= this.semanticCadenceLogMs) {
+                console.debug('[Cadence] semantic background @10Hz tick');
+                this.semanticSlowCadenceLastLog = performance.now();
+            }
+        }
         
         // Update player and camera
         const cameraUpdateStart = performance.now();
@@ -7832,10 +7862,8 @@ if (this.updateValidator && !window.updateValidator) {
             }
         }
 
-        // Update Node Inspect Overlay 1.0 (HUD only - max 25Hz throttled for stability)
-        if (this.nodeInspectOverlay) {
-            this.nodeInspectOverlay.update(deltaTime);
-        }
+        if (runVisualSemantic) {
+        // 30 Hz visual/semantic cadence (motion-critical work stayed above at 60 Hz)
 
         // Update Safe Metrics FX 1.1 (subtle visual effects - 15Hz throttled)
         if (this.metricsVisualFX && this.aiNodes) {
@@ -8574,6 +8602,8 @@ if (this.updateValidator && !window.updateValidator) {
             this.narrativePatterns.update(deltaTime, this.aiNodes.nodes, this.linkingSystem.links, this.worldMetrics || {});
         }
 
+        } // end 30 Hz semantic/UI cadence
+
         // Update linking system with time and deltaTime for animations
         if (this.linkingSystem) {
             this.linkingSystem.update(deltaTime, this.time);
@@ -9000,6 +9030,8 @@ if (this.updateValidator && !window.updateValidator) {
             this.hardInteractionAuthority.safetyNet();
         }
 
+        if (runSlowSemantic) {
+        // 10 Hz deep semantic/world-mood cadence (interpretation, not motion)
         // ========================================================================
         // REGIONAL EQUILIBRIUM FIELD SYSTEM — Territorial Visualization
         // ========================================================================
@@ -9176,6 +9208,7 @@ if (this.updateValidator && !window.updateValidator) {
                 );
             }
         }
+        } // end 10 Hz semantic/world-mood cadence
 
         // FrameScheduler now drives visual cadence (render + visual layer)
         if (this.frameScheduler) {
@@ -9264,23 +9297,6 @@ if (this.updateValidator && !window.updateValidator) {
         if (!this.hudVisibility.panels.metricsOverlay && !this.hudVisibility.panels.nodeInspector) return;
         const wakeActive = performance.now() < this.hudWakeUntil;
         if (!wakeActive && !this.hasCriticalDirty()) return;
-        // Core Metrics Overlay critical path (spikes/alerts)
-        if (this.coreMetricsOverlay && this.hudVisibility.panels.metricsOverlay) {
-            const nodeManager = this.aiNodes || null;
-            const coreMetricsUpdateStart = performance.now();
-            this.coreMetricsOverlay.update(
-                deltaTime,
-                nodeManager,
-                this.linkingSystem,
-                this.nodeEvolution,
-                null // this.nodeArchetypesPack disabled
-            );
-            this.updateValidator?.markSystemUpdate(
-                'coreMetricsOverlay.update',
-                performance.now() - coreMetricsUpdateStart
-            );
-            this.hudDirty.coreMetrics = false;
-        }
 
         // System State Overlay critical signals (warnings/alerts)
         if (this.systemStateOverlay && this.coreMetricsOverlay && this.hudVisibility.panels.systemState) {
@@ -10155,6 +10171,35 @@ if (this.updateValidator && !window.updateValidator) {
         console.log('✓ Core Metrics Overlay 1.0 initialized');
         console.log('  - Use toggleMetricsOverlay() to toggle HUD');
         console.log('  - Use debugMetricsOverlay() to see status');
+    }
+
+    runCoreMetricsOverlayTick(deltaTime) {
+        if (!this.coreMetricsOverlay) return;
+        if (!this.hudVisibility?.panels?.metricsOverlay) return;
+        const nodeManager = this.aiNodes || null;
+        const start = performance.now();
+        this.coreMetricsOverlay.update(
+            deltaTime,
+            nodeManager,
+            this.linkingSystem,
+            this.nodeEvolution,
+            null
+        );
+        this.updateValidator?.markSystemUpdate(
+            'coreMetricsOverlay.update',
+            performance.now() - start
+        );
+        this.hudDirty.coreMetrics = false;
+    }
+
+    runNodeInspectOverlayTick(deltaTime) {
+        if (!this.nodeInspectOverlay) return;
+        const start = performance.now();
+        this.nodeInspectOverlay.update(deltaTime);
+        this.updateValidator?.markSystemUpdate(
+            'nodeInspectOverlay.update',
+            performance.now() - start
+        );
     }
 
     /**
