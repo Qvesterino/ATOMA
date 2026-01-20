@@ -37,6 +37,15 @@ export class AmbientEntityManager {
     this.spawnCooldown = 100; // ms between spawn attempts
     this.maxEntities = 30;
     
+    // Phase B pilot: throttle ambient interpretation (mood) to ~4 Hz; visuals/motion stay 60 Hz (aligned with weatherPack pilot)
+    this.interpretationInterval = 0.25;
+    this.interpretationAccumulator = this.interpretationInterval; // prime for first-frame interpretation
+    this.interpretationState = {
+      canSpawnFromWeather: false,
+      canSpawnFromLegendary: false,
+      canSpawnFromEvents: false
+    };
+    
     // Read-only references to world systems
     this.worldSystems = {
       legendaryPack: null,
@@ -59,6 +68,9 @@ export class AmbientEntityManager {
     this.worldSystems.worldEvents = events;
     this.worldSystems.weatherPack = weather;
     this.worldSystems.linkingSystem = linking;
+    
+    // Keep interpretation snapshot aligned with current inputs
+    this.refreshAmbientInterpretation();
   }
   
   /**
@@ -67,11 +79,33 @@ export class AmbientEntityManager {
   updateSynergy(synergy) {
     this.worldSystems.synergy = synergy;
   }
+
+  /**
+   * Low-frequency ambient interpretation (Phase B pilot)
+   */
+  refreshAmbientInterpretation() {
+    const activeWeather = this.worldSystems.weatherPack?.getActiveWeather?.();
+    this.interpretationState.canSpawnFromWeather = Array.isArray(activeWeather) && activeWeather.length > 0;
+    
+    this.interpretationState.canSpawnFromLegendary =
+      this.worldSystems.legendaryPack?.getLegendaryNodeCount?.() > 0;
+    
+    const activeEvents = this.worldSystems.worldEvents?.getActiveEvents?.();
+    this.interpretationState.canSpawnFromEvents = Array.isArray(activeEvents) && activeEvents.length > 0;
+  }
   
   /**
    * Main update loop
    */
   update(deltaTime) {
+    // Phase B pilot: mood/interpretation at ~4 Hz, ambient motion/visuals remain 60 Hz (mirrors weatherPack gating)
+    this.interpretationAccumulator += deltaTime;
+    const shouldRunInterpretation = this.interpretationAccumulator >= this.interpretationInterval;
+    if (shouldRunInterpretation) {
+      this.interpretationAccumulator = 0;
+      this.refreshAmbientInterpretation();
+    }
+    
     // Attempt to spawn new entities
     this.updateSpawning();
     
@@ -109,9 +143,11 @@ export class AmbientEntityManager {
     }
     
     // Determine spawn conditions
-    const canSpawnFromWeather = this.worldSystems.weatherPack?.getActiveWeather?.()?.length > 0;
-    const canSpawnFromLegendary = this.worldSystems.legendaryPack?.getLegendaryNodeCount?.() > 0;
-    const canSpawnFromEvents = this.worldSystems.worldEvents?.getActiveEvents?.()?.length > 0;
+    const {
+      canSpawnFromWeather,
+      canSpawnFromLegendary,
+      canSpawnFromEvents
+    } = this.interpretationState;
     const randomSpawn = Math.random() < 0.5;
     
     if (!canSpawnFromWeather && !canSpawnFromLegendary && !canSpawnFromEvents && !randomSpawn) {
@@ -685,5 +721,7 @@ export class AmbientEntityManager {
     this.registry.clearAll();
     this.entityMeshes = {};
     this.entityParticles = {};
+    this.interpretationAccumulator = this.interpretationInterval;
+    this.refreshAmbientInterpretation();
   }
 }

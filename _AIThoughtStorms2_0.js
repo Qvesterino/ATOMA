@@ -82,6 +82,10 @@ export class AIThoughtStorms2_0 {
     this.time = 0;
     this.instanceID = Math.random();
     
+    // Phase B pilot: low-frequency interpretation gating (semantic decisions only)
+    this.interpretationInterval = 0.25; // ~4 Hz for mood/storm decision logic
+    this.interpretationAccumulator = 0;
+    
     // Stats for debugging
     this.stats = {
       enabled: true,
@@ -561,32 +565,44 @@ export class AIThoughtStorms2_0 {
     if (!this.config.enabled) return;
     
     this.time += dt;
+    this.interpretationAccumulator += dt;
     
-    // 1. Analyze current network mood
-    this.stormState.prevMood = this.stormState.currentMood;
-    this.stormState.currentMood = this._analyzeNetworkMood();
+    // Phase B pilot: separate semantic decisions from continuous storm execution
+    // Storm endings remain frame-accurate; semantic reevaluation is gated to low frequency.
+    let forceInterpretation = false;
     
-    // 2. Check if existing storm should end
+    // 1. Check if existing storm should end (not throttled)
     if (this.stormState.activeStorm) {
       const stormAge = this.time - this.stormState.stormStartTime;
       if (stormAge > this.config.stormDuration) {
         this._endStorm();
+        forceInterpretation = true; // Ensure fresh decision immediately after storm ends
       }
     }
     
-    // 3. Evaluate new storm trigger
-    if (!this.stormState.activeStorm) {
-      const stormType = this._evaluateStormTrigger();
-      if (stormType) {
-        this._startStorm(stormType);
+    // 2. Semantic evaluation (mood + trigger) gated to low-frequency cadence
+    const shouldInterpret = forceInterpretation || this.interpretationAccumulator >= this.interpretationInterval;
+    if (shouldInterpret) {
+      this.interpretationAccumulator = 0;
+      
+      // Analyze current network mood
+      this.stormState.prevMood = this.stormState.currentMood;
+      this.stormState.currentMood = this._analyzeNetworkMood();
+      
+      // Evaluate new storm trigger
+      if (!this.stormState.activeStorm) {
+        const stormType = this._evaluateStormTrigger();
+        if (stormType) {
+          this._startStorm(stormType);
+        }
       }
     }
     
-    // 4. Update all visuals
+    // 3. Update all visuals (continuous, not throttled)
     this._updateStormVisuals(dt);
     this._updateLinkBoosts(dt);
     
-    // 5. Update stats
+    // 4. Update stats
     this.stats.lastMood = this.stormState.currentMood;
     this.stats.stormActive = this.stormState.activeStorm !== null;
     this.stats.stormType = this.stormState.activeStorm;
@@ -617,6 +633,8 @@ export class AIThoughtStorms2_0 {
    */
   _endStorm() {
     this.stormState.activeStorm = null;
+    // Phase B pilot: ensure next update performs a fresh semantic evaluation
+    this.interpretationAccumulator = this.interpretationInterval;
   }
   
   /**

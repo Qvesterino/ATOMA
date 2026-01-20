@@ -2937,6 +2937,8 @@ class AtomaGame {
         this.hudLastPos = new THREE.Vector3();
         this.hudLastRot = new THREE.Euler();
         this.hudTempDelta = new THREE.Vector3();
+        this.nodeUiAcc = 0;
+        this.undoUiAcc = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -3834,23 +3836,23 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // Apply protective guards against "is not iterable" errors and visual layering
         // This ensures stable runtime without changing gameplay or visual identity
-        // try {
-       //     applyAllDefensivePatches(this);
-   //     } catch (err) {
-   //         console.warn('⚠ Defensive hardening patch initialization error:', err);
-    //    }
+         try {
+            applyAllDefensivePatches(this);
+        } catch (err) {
+            console.warn('⚠ Defensive hardening patch initialization error:', err);
+        }
         
         // ========================================================================
         // SESSION 99: INSTALL NODE VISUAL FREEZE BLOCKERS
         // ========================================================================
         // After ALL systems are initialized, install blockers to prevent
         // reactive systems from modifying node visuals
-        // try {
-        //    installNodeVisualFreezeBlockers(this);
-        //    console.log('✅ [main.js] Node Visual Freeze Blockers installed');
-       // } catch (err) {
-        //    console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
-      //  }
+         try {
+            installNodeVisualFreezeBlockers(this);
+            console.log('✅ [main.js] Node Visual Freeze Blockers installed');
+        } catch (err) {
+            console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
+        }
         
         // ========================================================================
         // SESSION 104: HARD INTERACTION AUTHORITY SYSTEM
@@ -7582,7 +7584,12 @@ if (this.updateValidator && !window.updateValidator) {
             // Update dynamic node spawning system
             this.aiNodes.updateSpawning(Date.now());
 
-            this.updateNodeUI();
+            // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
+            this.nodeUiAcc += deltaTime;
+            if (this.nodeUiAcc >= 0.1) {
+                this.nodeUiAcc = 0;
+                this.updateNodeUI();
+            }
 
             // Compatibility bridge: map legacy node fields into canonical metrics
             applyMetricCompatibility(this.aiNodes.nodes);
@@ -7600,8 +7607,12 @@ if (this.updateValidator && !window.updateValidator) {
             this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
         }
         
-        // [Session 144+] Update undo/redo UI
-        this.updateUndoRedoUI();
+        // [Session 144+] Update undo/redo UI (throttled to ~10Hz)
+        this.undoUiAcc += deltaTime;
+        if (this.undoUiAcc >= 0.1) {
+            this.undoUiAcc = 0;
+            this.updateUndoRedoUI();
+        }
 
         // ====================================================================
         // TIER 1 INTEGRATION: Core Active Systems (Phase A)

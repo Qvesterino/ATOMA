@@ -88,6 +88,10 @@ export class SemanticGlyphAI {
     // Enable/disable flag
     this.enabled = true;
     
+    // Phase B pilot: low-frequency semantic interpretation gating (visual interpolation remains per-frame)
+    this.interpretationInterval = 0.25; // ~4 Hz for semantic decisions
+    this.interpretationAccumulator = 0;
+    
     this.initializeHelperMeshPools();
   }
   
@@ -220,6 +224,10 @@ export class SemanticGlyphAI {
     
     const startTime = performance.now();
     
+    // Phase B pilot: accumulate time for semantic interpretation (visual interpolation remains per-frame)
+    this.interpretationAccumulator += dt;
+    const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
+    
     // Decay event history
     this.decayEventHistory(dt);
     
@@ -236,16 +244,24 @@ export class SemanticGlyphAI {
       // Read semantic context from node
       const context = this.readSemanticContext(node);
       
-      // Compute semantic state
-      const state = this.computeSemanticState(context, nodeId);
+      // Phase B pilot: semantic computation gated; visuals always applied
+      let state = this.semanticState.get(nodeId);
+      if (shouldInterpret || !state) {
+        state = this.computeSemanticState(context, nodeId);
+        if (state) {
+          this.semanticState.set(nodeId, state);
+          statesApplied++;
+        }
+      }
       
       if (state) {
-        this.semanticState.set(nodeId, state);
-        statesApplied++;
-        
-        // Apply visual effects to glyph
+        // Visual interpolation remains per-frame
         this.applySemanticVisualsToNode(node, nodeId, state, dt);
       }
+    }
+    
+    if (shouldInterpret) {
+      this.interpretationAccumulator = 0;
     }
     
     this.stats.statesApplied = statesApplied;
@@ -728,6 +744,7 @@ export class SemanticGlyphAI {
       this.eventHistory.set(nodeId, {});
     }
     this.eventHistory.get(nodeId).justLinked = this.config.eventFadeDuration;
+    this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: force immediate semantic refresh
   }
   
   /**
@@ -738,6 +755,7 @@ export class SemanticGlyphAI {
       this.eventHistory.set(nodeId, {});
     }
     this.eventHistory.get(nodeId).justRitual = this.config.eventFadeDuration;
+    this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: force immediate semantic refresh
   }
   
   /**
@@ -748,6 +766,7 @@ export class SemanticGlyphAI {
       this.eventHistory.set(nodeId, {});
     }
     this.eventHistory.get(nodeId).justAscended = this.config.eventFadeDuration;
+    this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: force immediate semantic refresh
   }
   
   /**
@@ -761,6 +780,7 @@ export class SemanticGlyphAI {
       }
       this.eventHistory.get(nodeId).clusterSync = syncDuration;
     }
+    this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: force immediate semantic refresh
   }
   
   /**
@@ -828,6 +848,7 @@ export class SemanticGlyphAI {
    */
   enable() {
     this.enabled = true;
+    this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: reevaluate semantics immediately on enable
   }
   
   /**
@@ -851,5 +872,6 @@ export class SemanticGlyphAI {
     this.semanticState.clear();
     this.eventHistory.clear();
     this.lastMetricsRead.clear();
+    this.interpretationAccumulator = 0; // Phase B pilot: reset gating on dispose
   }
 }

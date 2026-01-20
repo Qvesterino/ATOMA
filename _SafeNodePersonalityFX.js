@@ -117,6 +117,10 @@ export class SafeNodePersonalityFX {
     this.lastPersonalityCheck = performance.now();
     this.playerLookingAt = null;
     this.selectedNode = null;
+    
+    // Phase B HYBRID pilot: throttle semantic interpretation, keep visuals full-rate
+    this.interpretationInterval = 0.25; // ~4 Hz for personality/mood decisions
+    this.interpretationAccumulator = 0;
   }
 
   /**
@@ -150,14 +154,24 @@ export class SafeNodePersonalityFX {
     this.animationTime += deltaTime;
     this.camera = camera;
     
+    // Phase B HYBRID pilot: separate semantic cadence (gated) from per-frame visuals
+    this.interpretationAccumulator += deltaTime;
+    const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
+    
     // Periodically check and assign personalities
-    this.checkPersonalityAssignments(nodes, linkingSystem, evolutionRegistry);
+    if (shouldInterpret) {
+      this.checkPersonalityAssignments(nodes, linkingSystem, evolutionRegistry);
+    }
     
     // Update all active personalities
-    this.updateActivePersonalities(deltaTime, nodes, linkingSystem, weatherPack, worldEvents);
+    this.updateActivePersonalities(deltaTime, nodes, linkingSystem, weatherPack, worldEvents, shouldInterpret);
     
     // Cleanup dead entries
     this.cleanupDeadEntries(nodes);
+    
+    if (shouldInterpret) {
+      this.interpretationAccumulator = 0;
+    }
   }
   
   /**
@@ -282,6 +296,9 @@ export class SafeNodePersonalityFX {
     
     // Create VFX container
     this.vfxContainers[nodeId] = this.createPersonalityVFXContainer(personality, node);
+    
+    // Phase B HYBRID pilot: ensure next tick reevaluates semantics promptly after new assignment
+    this.interpretationAccumulator = this.interpretationInterval;
   }
   
   /**
@@ -305,7 +322,7 @@ export class SafeNodePersonalityFX {
   /**
    * Update all active personalities
    */
-  updateActivePersonalities(deltaTime, nodes, linkingSystem, weatherPack, worldEvents) {
+  updateActivePersonalities(deltaTime, nodes, linkingSystem, weatherPack, worldEvents, shouldInterpret) {
     for (const nodeId in this.registry) {
       const state = this.registry[nodeId];
       const vfx = this.vfxContainers[nodeId];
@@ -318,7 +335,9 @@ export class SafeNodePersonalityFX {
       }
       
       // Update mood based on conditions
-      this.updateMood(state, node, linkingSystem, weatherPack, worldEvents);
+      if (shouldInterpret) {
+        this.updateMood(state, node, linkingSystem, weatherPack, worldEvents);
+      }
       
       // Update VFX based on personality
       this.updatePersonalityVFX(node, state, vfx, deltaTime);
@@ -785,5 +804,6 @@ export class SafeNodePersonalityFX {
     
     this.registry = {};
     this.vfxContainers = {};
+    this.interpretationAccumulator = this.interpretationInterval; // Force immediate semantic pass on re-enable
   }
 }

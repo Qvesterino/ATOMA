@@ -85,6 +85,10 @@ export class AINarrativePatterns6_0 {
     // Episode timing
     this.episodeTimings = new Map();  // clusterId → { startTime, duration, motifId, phase }
     
+    // Phase B pilot: low-frequency narrative interpretation gating (semantic decisions only)
+    this.interpretationInterval = 0.25; // ~4 Hz cadence for narrative decisions
+    this.interpretationAccumulator = 0;
+    
     // Container for debug visualization (hidden by default)
     this.debugContainer = new THREE.Group();
     this.debugContainer.name = 'NarrativePatterns_Debug';
@@ -171,30 +175,39 @@ export class AINarrativePatterns6_0 {
   }
   
   /**
-   * Main update loop — called each frame
+   * Main update loop – called each frame
    */
   update(deltaTime, nodes, links, worldMetrics) {
-    const startTime = performance.now();
-    
     if (!this.enabled) return;
     
-    // Build clusters from connected component analysis
-    const clusters = this.identifyClusters(nodes);
+    // Phase B pilot: low-frequency narrative interpretation gating
+    // Narrative decisions (clusters, phases, motifs) are throttled; presentation stays frame-rate driven by consumers.
+    this.interpretationAccumulator += deltaTime;
+    const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
+    let clusters = [];
+    const startTime = performance.now();
     
-    // Update narrative state for each cluster
-    for (const cluster of clusters) {
-      this.updateNarrativeState(cluster, worldMetrics, deltaTime);
+    if (shouldInterpret) {
+      this.interpretationAccumulator = 0;
+      
+      // Build clusters from connected component analysis
+      clusters = this.identifyClusters(nodes);
+      
+      // Update narrative state for each cluster
+      for (const cluster of clusters) {
+        this.updateNarrativeState(cluster, worldMetrics, deltaTime);
+      }
+      
+      // Cleanup: remove narratives for dead clusters
+      this.cleanupDeadNarratives(clusters);
+      
+      this.stats.frameTime = performance.now() - startTime;
+      this.stats.clustersProcessed = clusters.length;
+      this.stats.activeNarratives = this.narrativeStates.size;
     }
     
-    // Apply narrative modulation to messaging systems
+    // Apply narrative modulation to messaging systems (continuous consumers use cached state)
     this.modulateMessagingBehavior(nodes, links);
-    
-    // Cleanup: remove narratives for dead clusters
-    this.cleanupDeadNarratives(clusters);
-    
-    this.stats.frameTime = performance.now() - startTime;
-    this.stats.clustersProcessed = clusters.length;
-    this.stats.activeNarratives = this.narrativeStates.size;
   }
   
   /**
@@ -398,6 +411,8 @@ export class AINarrativePatterns6_0 {
     // Move to ECHO phase before ending
     narrative.phase = 'ECHO';
     narrative.phaseProgress = 1.0;
+    // Phase B pilot: ensure next tick re-evaluates semantics promptly
+    this.interpretationAccumulator = this.interpretationInterval;
   }
   
   /**
@@ -667,6 +682,7 @@ export class AINarrativePatterns6_0 {
     this.narrativeStates.clear();
     this.motifHistory.clear();
     this.episodeTimings.clear();
+    this.interpretationAccumulator = 0; // Phase B pilot: avoid delayed first evaluation after reset
     console.log('✓ All narratives reset');
   }
   
@@ -678,5 +694,6 @@ export class AINarrativePatterns6_0 {
     this.motifHistory.clear();
     this.episodeTimings.clear();
     this.debugContainer.clear();
+    this.interpretationAccumulator = 0; // Phase B pilot: avoid delayed evaluation after cleanup
   }
 }

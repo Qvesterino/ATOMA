@@ -78,7 +78,8 @@ export class SafeLegendaryWorldEvents {
       eventChance: 0.02,                  // 2% chance per check
       minLegendaryNodesForEvent: 2,       // Need 2+ legendary nodes
       maxConcurrentEvents: 1,             // Only 1 event at a time
-      noEventCooldown: 30.0               // 30 seconds between events
+      noEventCooldown: 30.0,              // 30 seconds between events
+      eventInterpretationInterval: 0.25   // Phase B pilot: ~4 Hz semantic evaluation (visuals stay 60 Hz)
     };
     
     // Tracking
@@ -97,6 +98,8 @@ export class SafeLegendaryWorldEvents {
     this.originalCameraFOV = this.camera.fov;
     this.originalCameraPosition = this.camera.position.clone();
     this.animationTime = 0;
+    this.interpretationAccumulator = this.config.eventInterpretationInterval; // prime first tick
+    this.pendingEvaluation = false; // explicit triggers can flip this to force evaluation before the interval
   }
   
   /**
@@ -105,8 +108,18 @@ export class SafeLegendaryWorldEvents {
   update(deltaTime, legendaryPack, linkingSystem, evolutionManager) {
     this.animationTime += deltaTime;
     
-    // Check for new event spawns periodically
-    this.checkEventTriggers(legendaryPack, linkingSystem, evolutionManager);
+    // Phase B pilot: hybrid model — visuals/FX stay 60 Hz, semantic detection runs on triggers + ~4 Hz safety net
+    this.interpretationAccumulator += deltaTime;
+    const shouldEvaluate =
+      this.pendingEvaluation ||
+      this.interpretationAccumulator >= this.config.eventInterpretationInterval;
+    
+    if (shouldEvaluate) {
+      this.interpretationAccumulator = 0;
+      this.pendingEvaluation = false;
+      // Detection/decision path (meaning-level)
+      this.checkEventTriggers(legendaryPack, linkingSystem, evolutionManager);
+    }
     
     // Update active event if one is running
     if (this.registry.activeEvent) {
@@ -732,6 +745,8 @@ export class SafeLegendaryWorldEvents {
     this.registry.timer = 0;
     this.registry.intensity = 0;
     this.registry.phase = 'idle';
+    // Ensure we reevaluate promptly after an event finishes
+    this.pendingEvaluation = true;
   }
   
   /**
@@ -827,6 +842,8 @@ export class SafeLegendaryWorldEvents {
    */
   forceEvent(eventType, legendaryCount = 2, linkingSystem = null) {
     this.startWorldEvent(eventType, legendaryCount, linkingSystem);
+    // Allow callers to immediately reevaluate after forced events if desired
+    this.pendingEvaluation = true;
   }
   
   /**
@@ -842,5 +859,7 @@ export class SafeLegendaryWorldEvents {
       phase: 'idle'
     };
     this.lastEventTime = 0;
+    this.interpretationAccumulator = this.config.eventInterpretationInterval;
+    this.pendingEvaluation = true;
   }
 }

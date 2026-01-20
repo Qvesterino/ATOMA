@@ -37,6 +37,11 @@ export class NodePersonalitySystem2_0 {
     // Animation state tracking
     this.animationStates = new Map(); // uuid -> state data
     
+    // Phase B pilot: low-frequency interpretation gating (semantic personality decisions only)
+    // Visual updates remain per-frame; interpretation cadence is throttled.
+    this.interpretationInterval = 0.25; // ~4 Hz
+    this.interpretationAccumulator = 0;
+    
     // Performance tracking
     this.lastNodeCount = 0;
     this.performanceMode = 'normal'; // 'normal', 'reduced', 'minimal'
@@ -225,6 +230,10 @@ export class NodePersonalitySystem2_0 {
   update(deltaTime, nodes) {
     if (!nodes || nodes.length === 0) return;
 
+    // Phase B pilot: accumulate time for semantic evaluation; visuals run every frame.
+    this.interpretationAccumulator += deltaTime;
+    const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
+
     // Update core motion (every frame - cheap)
     this.coreMotionTime += deltaTime;
     
@@ -236,6 +245,10 @@ export class NodePersonalitySystem2_0 {
       // Ensure node is registered
       if (!this.nodePersonalities.has(node.uuid)) {
         this.registerNode(node);
+        // Registration stays immediate (not gated)
+      } else if (shouldInterpret) {
+        // Phase B pilot: semantic refresh cadence separated from per-frame visuals
+        this.refreshPersonalityCache(node);
       }
 
       // Apply core motion (every frame)
@@ -250,6 +263,11 @@ export class NodePersonalitySystem2_0 {
       nodes.forEach(node => {
         this.applySpecialFX(node, deltaTime);
       });
+    }
+
+    // Reset interpretation accumulator after semantic pass
+    if (shouldInterpret) {
+      this.interpretationAccumulator = 0;
     }
   }
 
@@ -606,6 +624,16 @@ export class NodePersonalitySystem2_0 {
   }
 
   /**
+   * Phase B pilot: semantic refresh hook (runs at gated cadence)
+   * Maintains cached personality timestamps without altering behavior.
+   */
+  refreshPersonalityCache(node) {
+    const entry = this.nodePersonalities.get(node.uuid);
+    if (!entry) return;
+    entry.lastUpdate = performance.now();
+  }
+
+  /**
    * Reset system (on world transition)
    */
   reset() {
@@ -613,6 +641,7 @@ export class NodePersonalitySystem2_0 {
     this.animationStates.clear();
     this.coreMotionTime = 0;
     this.specialFXTime = 0;
+    this.interpretationAccumulator = this.interpretationInterval; // Force immediate evaluation on next update
   }
 
   /**

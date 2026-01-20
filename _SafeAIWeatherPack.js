@@ -86,13 +86,15 @@ export class SafeAIWeatherPack {
       minSynergyForWeather: 3.0,         // Minimum synergy to trigger
       maxConcurrentWeather: 1,           // Only 1 weather at a time
       weatherCooldown: 20.0,             // 20 seconds between weather
-      windUpdateFrequency: 0.1           // Update wind vector frequently
+      windUpdateFrequency: 0.1,          // Update wind vector frequently
+      interpretationInterval: 0.25       // Phase B pilot: ~4 Hz interpretation, motion stays 60 Hz
     };
     
     // Tracking
     this.lastWeatherCheck = performance.now();
     this.lastWeatherTime = 0;
     this.animationTime = 0;
+    this.interpretationAccumulator = 0;
     
     // VFX containers
     this.vfxLayers = {
@@ -116,8 +118,15 @@ export class SafeAIWeatherPack {
     this.animationTime += deltaTime;
     this.windPhase += deltaTime;
     
-    // Check for new weather triggers periodically
-    this.checkWeatherTriggers(legendaryPack, linkingSystem, evolutionManager, worldEvents);
+    // Phase B pilot: throttle interpretation/decisions to keep mood at ~4 Hz while visuals/motion stay 60 Hz
+    this.interpretationAccumulator += deltaTime;
+    const shouldRunInterpretation = this.interpretationAccumulator >= this.config.interpretationInterval;
+    
+    if (shouldRunInterpretation) {
+      this.interpretationAccumulator = 0;
+      // Check for new weather triggers periodically (interpretation layer)
+      this.checkWeatherTriggers(legendaryPack, linkingSystem, evolutionManager, worldEvents);
+    }
     
     // Update active weather if one is running
     if (this.registry.active) {
@@ -1067,5 +1076,6 @@ export class SafeAIWeatherPack {
       windStrength: 0
     };
     this.lastWeatherTime = 0;
+    this.interpretationAccumulator = 0;
   }
 }

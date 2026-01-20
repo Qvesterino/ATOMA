@@ -83,6 +83,10 @@ export class WorldPersonalityController {
     this.lastClusterCheck = 0;
     this.clusterCheckInterval = 10.0; // Check every 10s
     
+    // Phase B pilot: low-frequency interpretation gating (separate meaning from visuals)
+    this.interpretationInterval = 0.25; // ~4 Hz cadence for mood evaluation
+    this.interpretationAccumulator = 0;
+    
     // HUD element
     this.hudElement = null;
     this.hudVisible = false;
@@ -158,18 +162,26 @@ export class WorldPersonalityController {
   update(deltaTime, nodes) {
     if (!nodes || nodes.length === 0) return;
     
-    // Scan network for mood (throttled)
-    this.lastScanTime += deltaTime;
-    if (this.lastScanTime >= this.scanInterval) {
-      this.scanNetworkMood(nodes);
-      this.lastScanTime = 0;
-    }
-    
-    // Update cluster detection (less frequent)
-    this.lastClusterCheck += deltaTime;
-    if (this.lastClusterCheck >= this.clusterCheckInterval) {
-      this.detectPersonalityClusters(nodes);
-      this.lastClusterCheck = 0;
+    // Phase B pilot: low-frequency interpretation gating
+    // Only the semantic evaluation (mood scanning + aggregation) is throttled; visuals stay 60 Hz.
+    this.interpretationAccumulator += deltaTime;
+    if (this.interpretationAccumulator >= this.interpretationInterval) {
+      const interpretationDelta = this.interpretationAccumulator;
+      this.interpretationAccumulator = 0;
+      
+      // Scan network for mood (throttled)
+      this.lastScanTime += interpretationDelta;
+      if (this.lastScanTime >= this.scanInterval) {
+        this.scanNetworkMood(nodes);
+        this.lastScanTime = 0;
+      }
+      
+      // Update cluster detection (less frequent)
+      this.lastClusterCheck += interpretationDelta;
+      if (this.lastClusterCheck >= this.clusterCheckInterval) {
+        this.detectPersonalityClusters(nodes);
+        this.lastClusterCheck = 0;
+      }
     }
     
     // Update transition progress
