@@ -79,6 +79,43 @@ export class LinkPrioritySystem {
   };
 
   /**
+   * Internal authority funnel for all link.priority mutations.
+   * Filters allowed fields and applies updates atomically within this system.
+   *
+   * @param {Object} link - Link object
+   * @param {Object} patch - Fields to update on link.priority
+   * @param {string} [source='LinkPrioritySystem'] - Optional source tag for debugging
+   * @returns {void}
+   */
+  static applyPriorityUpdate(link, patch, source = 'LinkPrioritySystem') {
+    if (!link || !patch || typeof patch !== 'object') {
+      return;
+    }
+
+    // Ensure priority container exists (non-destructive)
+    link.priority = link.priority || {};
+
+    // Allowed fields for mutation
+    const allowedFields = new Set([
+      'score',
+      'tier',
+      'traffic',
+      'stabilityPenalty',
+      '_lastScoreUpdate',
+      '_lastTrafficUpdate',
+      'base',
+      'synergyMultiplier',
+      'decayAmount',
+      'staleness',
+    ]);
+
+    for (const [key, value] of Object.entries(patch)) {
+      if (!allowedFields.has(key)) continue;
+      link.priority[key] = value;
+    }
+  }
+
+  /**
    * Initialize priority system (internal structure)
    * Called automatically when link is created
    * 
@@ -92,16 +129,11 @@ export class LinkPrioritySystem {
     }
 
     // Create priority sub-object (non-destructive: only adds new fields)
-    link.priority = link.priority || {};
-
-    // Base traffic tracking (short-term usage frequency)
-    link.priority.traffic = 0;
-
-    // Stability penalty (0.0–0.7, for future corruption tracking)
-    link.priority.stabilityPenalty = 0;
-
-    // Last update timestamp (for throttling recomputation)
-    link.priority._lastScoreUpdate = Date.now();
+    this.applyPriorityUpdate(link, {
+      traffic: 0,
+      stabilityPenalty: 0,
+      _lastScoreUpdate: Date.now(),
+    });
 
     // Initial score computation
     this.computePriorityScore(link);
@@ -216,16 +248,20 @@ export class LinkPrioritySystem {
       }
 
       // Update link
-      link.priority.score = score;
-      link.priority.tier = tier;
-      link.priority._lastScoreUpdate = Date.now();
+      this.applyPriorityUpdate(link, {
+        score,
+        tier,
+        _lastScoreUpdate: Date.now(),
+      });
 
       console.debug(`[LinkPriority] Score: ${score.toFixed(2)} | tier=${tier} | traffic=${traffic.toFixed(2)} | synergy=${synergy}`);
     } catch (err) {
       console.warn('[LinkPriority] Error computing priority score:', err);
       // Fallback to tier 0 on error
-      link.priority.score = 0;
-      link.priority.tier = 0;
+      this.applyPriorityUpdate(link, {
+        score: 0,
+        tier: 0,
+      });
     }
   }
 
@@ -248,10 +284,12 @@ export class LinkPrioritySystem {
       return; // Too soon, skip
     }
 
-    link.priority._lastTrafficUpdate = now;
-
     // Increment traffic (0–1 range)
-    link.priority.traffic = Math.min(1.0, (link.priority.traffic ?? 0) + 0.05);
+    const newTraffic = Math.min(1.0, (link.priority.traffic ?? 0) + 0.05);
+    this.applyPriorityUpdate(link, {
+      _lastTrafficUpdate: now,
+      traffic: newTraffic,
+    });
 
     // Recompute priority (but throttle this too)
     if (now - (link.priority._lastScoreUpdate ?? 0) >= 100) {
@@ -280,10 +318,11 @@ export class LinkPrioritySystem {
         const oldTraffic = link.priority.traffic ?? 0;
 
         // Apply decay: multiply by 0.95 (5% fade per cycle)
-        link.priority.traffic = Math.max(0, oldTraffic * 0.95);
+        const decayedTraffic = Math.max(0, oldTraffic * 0.95);
+        this.applyPriorityUpdate(link, { traffic: decayedTraffic });
 
         // Recompute if traffic significantly changed
-        if (Math.abs(oldTraffic - link.priority.traffic) > 0.01) {
+        if (Math.abs(oldTraffic - decayedTraffic) > 0.01) {
           this.computePriorityScore(link);
           decayedCount++;
         }
@@ -313,7 +352,7 @@ export class LinkPrioritySystem {
     try {
       // Clamp penalty to safe range
       const safePenalty = Math.max(0, Math.min(0.7, penalty));
-      link.priority.stabilityPenalty = safePenalty;
+      this.applyPriorityUpdate(link, { stabilityPenalty: safePenalty });
 
       // Recompute score with new penalty
       this.computePriorityScore(link);
@@ -425,7 +464,8 @@ export class LinkPrioritySystem {
       return;
     }
 
-    link.priority = {
+    link.priority = {};
+    this.applyPriorityUpdate(link, {
       base: 0.3,
       synergyMultiplier: 1.0,
       traffic: 0,
@@ -434,7 +474,7 @@ export class LinkPrioritySystem {
       tier: 0,
       _lastScoreUpdate: Date.now(),
       _lastTrafficUpdate: Date.now(),
-    };
+    });
 
     console.debug('[LinkPriority] Link priority reset');
   }

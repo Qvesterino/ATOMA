@@ -38,11 +38,13 @@ import {
 import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
 
 /**
+ * // PRIORITY AUTHORITY
+// This system is the sole writer of link.priority.*
  * Node Linking System - Advanced interactive connection system with auto-predict
  * Animated Bézier curves, traffic simulation, context menus, special multi-output nodes
  * Enhanced with professional neon visuals and effect system
  * [Session 144+] Undo/Redo support for all linking operations
- */
+ */// TODO(P2.2): route all priority updates via authority API
 
 // ===== VISUAL MUTATION SAFETY UTILITIES =====
 // These utilities prevent crashes from unsafe visual mutations

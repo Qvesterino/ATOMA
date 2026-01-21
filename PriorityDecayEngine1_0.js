@@ -14,11 +14,13 @@
  * 
  * Safety Guarantees:
  * - 100% null-safe with defensive guards
- * - Non-invasive (only modifies link.priority.* fields)
+ * - Non-invasive (authority removed; does not modify link.priority.*)
  * - Works seamlessly with LinkPrioritySystem + NeonLinkVisuals
  * - Zero impact on existing APIs
  * - Try/catch on all external calls
  * - Auto-healing on errors
+ *
+ * LEGACY ENGINE – authority removed; advisory-only; single-writer enforced.
  * 
  * Integration:
  * - Create: window.game.priorityDecayEngine = new PriorityDecayEngine1_0(linkingSystem)
@@ -50,7 +52,8 @@ export class PriorityDecayEngine1_0 {
 
     // Default configuration
     this.config = {
-      enabled: true,
+      // Legacy engine: disabled by default (future advisory-only candidate; must be explicitly enabled)
+      enabled: false,
       tickIntervalMs: 500,        // How often to run decay update (ms)
       idleDelayMs: 3000,          // Time before marking link as idle (ms)
       baseDecayRate: 0.03,        // Decay rate per tick (3% per 500ms = 0.3s decay time)
@@ -306,12 +309,10 @@ export class PriorityDecayEngine1_0 {
       // Smooth the score using exponential moving average
       st.smoothedScore = this._lerp(st.smoothedScore, score, this.config.stabilizeAlpha);
 
-      // Write back to link
-      link.priority.score = st.smoothedScore;
-      link.priority.traffic = activity;
-
-      // Update tier based on new score
-      link.priority.tier = this._scoreToTier(st.smoothedScore);
+      // Legacy advisory – authority removed; single-writer enforced. Do not write to link.priority.*
+      // link.priority.score = st.smoothedScore;
+      // link.priority.traffic = activity;
+      // link.priority.tier = this._scoreToTier(st.smoothedScore);
 
     } catch (error) {
       this.state.errors++;

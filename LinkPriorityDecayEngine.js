@@ -144,6 +144,9 @@ export class LinkPriorityDecayEngine {
       criticalLinksTotal: 0,
     };
 
+    // Authority cut storage: keep computed priority outputs internally instead of mutating link.priority.*
+    this.computedPriority = new Map(); // linkId -> { score, tier, decayAmount, staleness, recordedAt }
+
     console.log('[LinkPriorityDecayEngine] Initialized (ageBased=%s, idleBased=%s, staleness=%s)',
       this.config.enableAgeBased, this.config.enableIdleBased, this.config.enableStalenessDetection);
   }
@@ -206,7 +209,7 @@ export class LinkPriorityDecayEngine {
     if (!link || !link.priority) return;
 
     // Get or create metadata for this link
-    const linkId = link.id || `${link.source?.id}-${link.target?.id}`;
+    const linkId = this._getLinkId(link);
     let metadata = this.decayMetadata.get(linkId);
 
     if (!metadata) {
@@ -248,27 +251,39 @@ export class LinkPriorityDecayEngine {
     // Clamp to valid range
     decayedScore = Math.max(0.05, Math.min(1.0, decayedScore));
 
-    // Update link priority
-    link.priority.score = decayedScore;
-    link.priority.tier = this._computeTierFromScore(decayedScore);
-    link.priority.decayAmount = originalScore - decayedScore;
+    // Authority cut: do NOT write into link.priority.*; keep computed values internally.
+    const computedTier = this._computeTierFromScore(decayedScore);
+    const computedDecayAmount = originalScore - decayedScore;
 
     // Track decay
-    this.stats.avgDecayAmount = (this.stats.avgDecayAmount + (originalScore - decayedScore)) / 2;
+    this.stats.avgDecayAmount = (this.stats.avgDecayAmount + computedDecayAmount) / 2;
     this.stats.totalUpdates++;
+
+    // Persist computed results for diagnostics and downstream queries (without mutating link.priority.*).
+    this._storeComputedPriority(linkId, {
+      score: decayedScore,
+      tier: computedTier,
+      decayAmount: computedDecayAmount,
+      recordedAt: now,
+    });
 
     // Check staleness status
     if (this.config.enableStalenessDetection) {
       const ageSeconds = (now - metadata.createdAt) / 1000;
-      link.priority.staleness = this._computeStaleness(link, ageSeconds, now, metadata);
+      const staleness = this._computeStaleness(link, ageSeconds, now, metadata);
 
-      if (link.priority.staleness === 'stale') {
+      if (staleness === 'stale') {
         this.state.staleLinksFound++;
         this.stats.staleLinksTotal++;
-      } else if (link.priority.staleness === 'decayed') {
+      } else if (staleness === 'decayed') {
         this.state.decayedLinksFound++;
         this.stats.decayedLinksTotal++;
       }
+
+      this._storeComputedPriority(linkId, {
+        staleness,
+        recordedAt: now,
+      });
     }
 
     if (this.config.enableLogging) {
@@ -381,7 +396,7 @@ export class LinkPriorityDecayEngine {
   recordLinkActivity(link) {
     if (!link) return;
 
-    const linkId = link.id || `${link.source?.id}-${link.target?.id}`;
+    const linkId = this._getLinkId(link);
     let metadata = this.decayMetadata.get(linkId);
 
     if (!metadata) {
@@ -399,13 +414,18 @@ export class LinkPriorityDecayEngine {
     metadata.lastActivityAt = Date.now();
     metadata.boostCount++;
 
-    // Optional: Boost priority on activity
-    if (link.priority && link.priority.score) {
-      const boost = Math.min(
-        this.config.trackActivityBump,
-        1.0 - link.priority.score  // Don't boost above 1.0
-      );
-      link.priority.score += boost;
+    // Optional: Boost priority on activity (stored internally; no mutation of link.priority.*)
+    const computed = this._getComputedPriority(linkId);
+    if (computed && typeof computed.score === 'number') {
+      const boost = Math.min(this.config.trackActivityBump, 1.0 - computed.score);
+      const boostedScore = this._clampScore(computed.score + boost);
+      this._storeComputedPriority(linkId, {
+        score: boostedScore,
+        tier: this._computeTierFromScore(boostedScore),
+        decayAmount: computed.decayAmount,
+        staleness: computed.staleness,
+        recordedAt: Date.now(),
+      });
       this.stats.totalActivityBoosts++;
     }
 
@@ -420,8 +440,10 @@ export class LinkPriorityDecayEngine {
    * @returns {boolean} True if link should be considered stale
    */
   isLinkStale(link) {
-    if (!link || !link.priority) return false;
-    return link.priority.staleness === 'stale' || link.priority.staleness === 'critical';
+    if (!link) return false;
+    const computed = this._getComputedPriority(this._getLinkId(link));
+    const staleness = computed?.staleness ?? link.priority?.staleness;
+    return staleness === 'stale' || staleness === 'critical';
   }
 
   /**
@@ -430,8 +452,10 @@ export class LinkPriorityDecayEngine {
    * @returns {boolean} True if link is decaying
    */
   isLinkDecaying(link) {
-    if (!link || !link.priority) return false;
-    return link.priority.staleness === 'decaying';
+    if (!link) return false;
+    const computed = this._getComputedPriority(this._getLinkId(link));
+    const staleness = computed?.staleness ?? link.priority?.staleness;
+    return staleness === 'decaying';
   }
 
   /**
@@ -442,17 +466,18 @@ export class LinkPriorityDecayEngine {
   getStalenessMetrics(link) {
     if (!link) return null;
 
-    const linkId = link.id || `${link.source?.id}-${link.target?.id}`;
+    const linkId = this._getLinkId(link);
     const metadata = this.decayMetadata.get(linkId);
     const now = Date.now();
+    const computed = this._getComputedPriority(linkId);
 
     if (!metadata) {
       return {
         ageInSeconds: 0,
         idleInSeconds: 0,
-        staleness: 'unknown',
-        priority: link.priority?.score || 0,
-        tier: link.priority?.tier || 0,
+        staleness: (computed?.staleness ?? link.priority?.staleness) || 'unknown',
+        priority: (computed?.score ?? link.priority?.score) || 0,
+        tier: (computed?.tier ?? link.priority?.tier) || 0,
       };
     }
 
@@ -462,9 +487,9 @@ export class LinkPriorityDecayEngine {
     return {
       ageInSeconds: ageSeconds,
       idleInSeconds: idleSeconds,
-      staleness: link.priority?.staleness || 'unknown',
-      priority: link.priority?.score || 0,
-      tier: link.priority?.tier || 0,
+      staleness: (computed?.staleness ?? link.priority?.staleness) || 'unknown',
+      priority: (computed?.score ?? link.priority?.score) || 0,
+      tier: (computed?.tier ?? link.priority?.tier) || 0,
       boostCount: metadata.boostCount,
       createdAt: new Date(metadata.createdAt),
       lastActivityAt: new Date(metadata.lastActivityAt),
@@ -507,12 +532,14 @@ export class LinkPriorityDecayEngine {
     const stale = [];
 
     for (const link of this.linkingSystem.links) {
-      if (!link.priority) continue;
+      const computed = this._getComputedPriority(this._getLinkId(link));
+      const staleness = computed?.staleness ?? link.priority?.staleness;
+      if (!computed && !link.priority) continue;
 
       const metrics = this.getStalenessMetrics(link);
-      if (link.priority.staleness === 'stale' || link.priority.staleness === 'critical') {
+      if (staleness === 'stale' || staleness === 'critical') {
         stale.push(metrics);
-      } else if (link.priority.staleness === 'decaying') {
+      } else if (staleness === 'decaying') {
         decaying.push(metrics);
       } else {
         fresh.push(metrics);
@@ -638,6 +665,49 @@ export class LinkPriorityDecayEngine {
     if (this.active) {
       this.tick(delta);
     }
+  }
+
+  /**
+   * Internal: store computed priority values without touching link.priority.*
+   * @param {string} linkId
+   * @param {Object} partial
+   * @private
+   */
+  _storeComputedPriority(linkId, partial) {
+    if (!linkId) return;
+    const existing = this.computedPriority.get(linkId) || {};
+    this.computedPriority.set(linkId, { ...existing, ...partial });
+  }
+
+  /**
+   * Internal: get computed priority snapshot for a link
+   * @param {string} linkId
+   * @returns {Object|null}
+   * @private
+   */
+  _getComputedPriority(linkId) {
+    if (!linkId) return null;
+    return this.computedPriority.get(linkId) || null;
+  }
+
+  /**
+   * Internal: normalize score to 0-1 range
+   * @param {number} value
+   * @returns {number}
+   * @private
+   */
+  _clampScore(value) {
+    return Math.max(0.05, Math.min(1.0, value ?? 0));
+  }
+
+  /**
+   * Internal: build a consistent linkId
+   * @param {Object} link
+   * @returns {string}
+   * @private
+   */
+  _getLinkId(link) {
+    return link?.id || `${link?.source?.id}-${link?.target?.id}`;
   }
 
   /**
