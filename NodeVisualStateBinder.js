@@ -168,6 +168,10 @@ export function restoreBaseVisualState(node) {
     return false;
   }
 
+  if (!node.userData.nodeId && !node.userData.id) {
+    return false;
+  }
+
   const baseState = node.userData.baseVisualState;
   const components = baseState.visualComponents;
 
@@ -176,30 +180,28 @@ export function restoreBaseVisualState(node) {
   node.traverse((child) => {
     const state = components[child.uuid];
     
-    if (state) {
-      // Restore renderOrder
-      child.renderOrder = state.renderOrder;
-      
-      // Restore material properties
-      if (child.material && state.material) {
-        const mat = child.material;
-        const base = state.material;
+      if (state) {
+        // Restore renderOrder
+        child.renderOrder = state.renderOrder;
         
-        // Restore color properties
-        if (mat.color) mat.color.setHex(base.color);
-        if (mat.emissive) mat.emissive.setHex(base.emissive);
-        
-        // Restore rendering properties (SAFETY GUARD: Do not redefine immutable props)
-        try {
+        // Restore material properties
+        if (child.material && state.material) {
+          const mat = child.material;
+          const base = state.material;
+          
+          // Restore color properties
+          if (mat.color) mat.color.setHex(base.color);
+          if (mat.emissive) mat.emissive.setHex(base.emissive);
+          
+          // Restore rendering properties (SAFETY GUARD: Do not redefine immutable props)
+          try {
             if (mat.opacity !== base.opacity) mat.opacity = base.opacity;
-            // Skipping transparent/depthWrite/depthTest to prevent "Cannot redefine property" error
-            // These structural properties should not change during runtime anyway.
-            // if (mat.transparent !== base.transparent) mat.transparent = base.transparent;
-            // if (mat.depthWrite !== base.depthWrite) mat.depthWrite = base.depthWrite;
-            // if (mat.depthTest !== base.depthTest) mat.depthTest = base.depthTest;
-        } catch (e) {
+            if (mat.transparent !== base.transparent) mat.transparent = base.transparent;
+            if (mat.depthWrite !== base.depthWrite) mat.depthWrite = base.depthWrite;
+            if (mat.depthTest !== base.depthTest) mat.depthTest = base.depthTest;
+          } catch (e) {
             // Ignore material mutation errors
-        }
+          }
         
         // Restore PBR properties if present
         if (base.metalness !== undefined) mat.metalness = base.metalness;
@@ -319,15 +321,14 @@ function createLinkArcFX(node, options = {}) {
  * @private
  */
 function ensureCoreVisualIntegrity(node) {
+  if (!node || !node.id) return;
+
   const coreMesh = node.children.find(c => 
     c.userData?.visualLayer === 'CORE' || 
     (c instanceof THREE.Mesh && !c.material?.transparent && c.material?.opacity > 0.9)
   );
 
-  if (!coreMesh) {
-    console.warn('[NodeVisualStateBinder] No core mesh found for node', node.userData?.nodeId);
-    return;
-  }
+  if (!coreMesh) return;
 
   // Ensure core renderOrder is HIGH (visible)
   coreMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
@@ -962,7 +963,9 @@ export function removeHarmonyStabilizedState(node) {
  * @returns {Object} { success: boolean, sourceIntensity: number, targetIntensity: number }
  */
 export function applyCoreSynergyGlowScaling(sourceNode, targetNode, synergy) {
-  if (!sourceNode || !targetNode || synergy === undefined) {
+  const sourceId = sourceNode?.userData?.nodeId || sourceNode?.userData?.id;
+  const targetId = targetNode?.userData?.nodeId || targetNode?.userData?.id;
+  if (!sourceNode || !targetNode || synergy === undefined || !sourceId || !targetId) {
     return { success: false, sourceIntensity: 0, targetIntensity: 0 };
   }
 
@@ -1060,7 +1063,8 @@ function applyNodeCoreSynergyGlow(node, intensity, synergy) {
  * @returns {boolean} true if restored
  */
 export function removeCoreSynergyGlow(node) {
-  if (!node || !node.children) return false;
+  const nodeId = node?.userData?.nodeId || node?.userData?.id;
+  if (!node || !node.children || !nodeId) return false;
   
   try {
     // Find core mesh

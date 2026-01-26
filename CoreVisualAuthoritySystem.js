@@ -209,9 +209,9 @@ export class CoreVisualAuthoritySystem {
         return;
       }
 
-      // Mark as core geometry
-      coreMesh.userData.isCoreGeometry = true;
-      coreMesh.userData.visualLayer = 'CORE';
+      // Mark as core geometry without overwriting userData
+      if (!coreMesh.userData) return; // fail-silent if immutable
+      Object.assign(coreMesh.userData, { isCoreGeometry: true, visualLayer: 'CORE' });
 
       // Enforce core render authority using the Guard
       CoreVisualAuthorityGuard.enforce(coreMesh);
@@ -252,8 +252,9 @@ export class CoreVisualAuthoritySystem {
         const isVisualOnly = CoreMeshIdentifier.isVisualOnlyMesh(obj);
 
         if (isVisualOnly) {
+          if (!obj.userData) return; // fail-silent if immutable
           // Mark as visual-only
-          obj.userData.visualLayer = obj.userData.visualLayer || 'VISUAL_ONLY';
+          Object.assign(obj.userData, { visualLayer: obj.userData.visualLayer || 'VISUAL_ONLY' });
 
           // Enforce visual-only properties
           this._enforceVisualOnlyMaterial(obj);
@@ -263,9 +264,10 @@ export class CoreVisualAuthoritySystem {
         } else if (obj.material) {
           // For rim/edge meshes (neither core nor visual-only)
           // Check if it's a rim or edge visualization
-          const isRim = obj.userData.visualLayer === 'RIM' ||
-                       obj.userData.isRimGlow === true ||
-                       obj instanceof THREE.LineSegments;
+          const isRim = (obj.userData &&
+                        (obj.userData.visualLayer === 'RIM' ||
+                         obj.userData.isRimGlow === true)) ||
+                        obj instanceof THREE.LineSegments;
 
           if (isRim) {
             // Intermediate render order for rims

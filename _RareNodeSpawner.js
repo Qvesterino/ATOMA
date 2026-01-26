@@ -185,17 +185,27 @@ export class RareNodeSpawner {
       Math.floor(Math.random() * this.rareNodeTypes.length)
     ];
     
-    // Create the rare node visual
-    const rareNode = this.createRareNodeVisual(rareType);
-    rareNode.position.copy(position);
-    rareNode.scale.multiplyScalar(this.config.rareNodeScale);
-    
-    // Add fade-in animation
-    this.animateNodeFadeIn(rareNode);
-    
-    // Add to scene and track
-    this.scene.add(rareNode);
-    this.nodesList.push(rareNode);
+    // Delegate to canonical funnel (AINodes.spawnNode) to create the Node
+    // Force archetype encodes rare identity while keeping category canonical
+    const archetypeKey = `RARE-${rareType.toUpperCase()}`;
+    const node = this.aiNodes?.spawnNode('input', position, archetypeKey);
+    if (!node) {
+      return;
+    }
+
+    // Preserve rare metadata on the canonical node
+    node.userData = node.userData || {};
+    node.userData.rareType = rareType;
+    node.userData.isRare = true;
+    node.userData.rareSpawnContext = 'legacy-spawner';
+
+    // Attach rare visuals as children (keep existing visual design downstream)
+    const rareVisual = this.createRareNodeVisual(rareType);
+    if (rareVisual) {
+      rareVisual.scale.multiplyScalar(this.config.rareNodeScale);
+      this.animateNodeFadeIn(rareVisual);
+      node.add(rareVisual);
+    }
     
     this.registry.totalSpawned++;
     

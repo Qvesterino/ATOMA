@@ -96,7 +96,12 @@ export class SafeLegendaryNodePack {
   getNodeId(node) {
     if (node.uuid) return node.uuid;
     if (!node.userData.nodeId) {
-      node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+      if (node.userData.id) {
+        console.warn('[SafeLegendaryNodePack:getNodeId] nodeId missing; mirroring existing id to prevent dual identity');
+        node.userData.nodeId = node.userData.id;
+      } else {
+        node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+      }
     }
     return node.userData.nodeId;
   }

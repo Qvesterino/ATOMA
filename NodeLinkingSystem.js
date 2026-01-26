@@ -38,6 +38,118 @@ import {
 } from './UndoRedoSystem.js';
 import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
 
+// Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
+const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
+function getRaycastCostState() {
+  if (typeof window === 'undefined') return null;
+  if (window.DEBUG_RAYCAST_COST === undefined) {
+    window.DEBUG_RAYCAST_COST = false;
+  }
+  if (!window.__raycastCost) {
+    window.__raycastCost = {
+      enabled: false,
+      startTs: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+      lastLogTs: 0,
+      categories: {},   // proxy_raycast, visual_raycast, resolve_hit, post_process
+      callsites: {},    // hover-loop, click, box-select, crosshair, link-context
+      interval: { start: (typeof performance !== 'undefined' ? performance.now() : Date.now()), categories: {}, callsites: {} }
+    };
+  }
+  window.__raycastCost.enabled = window.DEBUG_RAYCAST_COST === true;
+  return window.__raycastCost;
+}
+
+function recordRaycastCost(category, durationMs, callsite, meta = {}) {
+  const state = getRaycastCostState();
+  if (!state || !state.enabled) return;
+
+  if (!state.categories[category]) {
+    state.categories[category] = { count: 0, total: 0, max: 0, samples: [] };
+  }
+  const bucket = state.categories[category];
+  bucket.count += 1;
+  bucket.total += durationMs;
+  bucket.max = Math.max(bucket.max, durationMs);
+  bucket.samples.push(durationMs);
+  if (bucket.samples.length > 2000) bucket.samples.shift(); // sliding window
+
+  if (callsite) {
+    if (!state.callsites[callsite]) {
+      state.callsites[callsite] = { count: 0, paths: {} };
+    }
+    state.callsites[callsite].count += 1;
+    if (meta.path) {
+      state.callsites[callsite].paths[meta.path] = (state.callsites[callsite].paths[meta.path] || 0) + 1;
+    }
+  }
+
+  if (state.interval) {
+    state.interval.categories[category] = (state.interval.categories[category] || 0) + 1;
+    if (callsite) {
+      state.interval.callsites[callsite] = (state.interval.callsites[callsite] || 0) + 1;
+    }
+  }
+}
+
+function computePercentiles(samples) {
+  if (!samples || samples.length === 0) return { avg: 0, p50: 0, p95: 0, max: 0 };
+  const sorted = [...samples].sort((a, b) => a - b);
+  const len = sorted.length;
+  const idx50 = Math.floor(0.5 * (len - 1));
+  const idx95 = Math.floor(0.95 * (len - 1));
+  const sum = sorted.reduce((acc, v) => acc + v, 0);
+  return {
+    avg: sum / len,
+    p50: sorted[idx50],
+    p95: sorted[idx95],
+    max: sorted[len - 1]
+  };
+}
+
+function logRaycastCostSummary(renderer, aiNodes) {
+  const state = getRaycastCostState();
+  if (!state || !state.enabled) return;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (state.lastLogTs && now - state.lastLogTs < RAYCAST_COST_LOG_INTERVAL_MS) return;
+
+  const intervalMs = now - (state.interval?.start || now);
+  const intervalSec = intervalMs / 1000 || 1;
+  const callsPerSec = {};
+  for (const [name, count] of Object.entries(state.interval?.callsites || {})) {
+    callsPerSec[name] = count / intervalSec;
+  }
+
+  const statsPerCategory = {};
+  for (const [cat, data] of Object.entries(state.categories)) {
+    statsPerCategory[cat] = computePercentiles(data.samples);
+    statsPerCategory[cat].count = data.count;
+  }
+
+  const rendererInfo = renderer?.info ? {
+    calls: renderer.info.render?.calls ?? 0,
+    triangles: renderer.info.render?.triangles ?? 0,
+    geometries: renderer.info.memory?.geometries ?? 0,
+    textures: renderer.info.memory?.textures ?? 0
+  } : null;
+
+  const nodeCount = aiNodes?.nodes?.length || 0;
+  const proxyCount = (typeof window !== 'undefined' && window.hitProxySystem?.registry)
+    ? window.hitProxySystem.registry.getAllProxies().length
+    : 0;
+
+  console.log('[RaycastCost] window', {
+    windowSec: intervalSec.toFixed(2),
+    callsPerSec,
+    statsPerCategory,
+    nodeCount,
+    proxyCount,
+    rendererInfo
+  });
+
+  state.interval = { start: now, categories: {}, callsites: {} };
+  state.lastLogTs = now;
+}
+
 /**
  * // PRIORITY AUTHORITY
 // This system is the sole writer of link.priority.*
@@ -154,6 +266,8 @@ export class NodeLinkingSystem {
     this.selectedNodes = new Set();  // Set of selected node references
     this.multiSelectHighlights = new Map();  // node → highlight mesh
     this.selectionPulseAnimations = new Map();  // Track pulse animations by node
+    this.deferLinkVisuals = true; // Gate to defer heavy visual work
+    this.pendingLinkVisualsQueue = []; // FIFO queue for deferred link visuals
     
     // [Box Selection System] Drag-to-select area-based multi-selection
     this.boxSelectState = {
@@ -495,7 +609,7 @@ export class NodeLinkingSystem {
   handleMouseDown(event) {
     // Track RMB hold state (button 2)
     if (event.button === 2) {
-      const hoveredNode = this.getNodeAtPosition(event.clientX, event.clientY);
+      const hoveredNode = this.getNodeAtPosition(event.clientX, event.clientY, 'mousedown');
       
       this.rmbState.isHolding = true;
       this.rmbState.holdStartTime = Date.now();
@@ -506,7 +620,7 @@ export class NodeLinkingSystem {
     
     // Track LMB for potential box selection (button 0)
     if (event.button === 0) {
-      const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY);
+      const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY, 'mousedown');
       
       // Only start box selection if clicking on empty space
       if (!clickedNode && !event.ctrlKey && !event.metaKey) {
@@ -646,7 +760,7 @@ export class NodeLinkingSystem {
     const isCtrlClick = event.ctrlKey || event.metaKey;  // metaKey for Mac Cmd
     
     // Get node at click position
-    const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY);
+    const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY, 'click');
     const now = Date.now();
     const timeSinceLastClick = now - this.clickState.lastClickTime;
     
@@ -750,6 +864,7 @@ export class NodeLinkingSystem {
    * [Session 144+] Records bulk operations for undo/redo
    */
   handleSingleClick(clickedNode) {
+    const postStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     // Multi-select mode active - create links from all selected to target
     if (this.multiSelectMode) {
       // Check if clicked node is in selection
@@ -783,6 +898,10 @@ export class NodeLinkingSystem {
       // Primary Node remains unchanged
     }
     // If clicked node === Primary Node, do nothing (no deselect on single click)
+    const postElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - postStart)
+      : (Date.now() - postStart);
+    recordRaycastCost('post_process', postElapsed, 'click', { path: 'selection' });
   }
   
   /**
@@ -1387,6 +1506,7 @@ export class NodeLinkingSystem {
    * [SESSION 110] Gated by camera motion to prevent stutter
    */
   updateNodeHoverStates() {
+    const postStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     // 1. Detect camera motion (updates this.isCameraMoving)
     this._checkCameraMotion();
     
@@ -1410,7 +1530,7 @@ export class NodeLinkingSystem {
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
-    const rayHoveredNode = this.getNodeAtPosition(centerX, centerY);
+    const rayHoveredNode = this.getNodeAtPosition(centerX, centerY, 'hover-loop');
     
     // Skip hover updates if already selected this node
     if (this.selectedNode === rayHoveredNode) {
@@ -1428,6 +1548,10 @@ export class NodeLinkingSystem {
     }
     
     this.hoveredNodeForSelection = rayHoveredNode;
+    const postElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - postStart)
+      : (Date.now() - postStart);
+    recordRaycastCost('post_process', postElapsed, 'hover-loop', { path: 'hover-update' });
   }
   
   /**
@@ -2289,12 +2413,83 @@ getLinksForNode(node) {
     return coreHits.concat(otherHits);
   }
 
-  getNodeAtPosition(clientX, clientY) {
+  /**
+   * Compute and store a node's bounding sphere for raycast selection.
+   * Marks result on userData.boundingSphere for reuse.
+   */
+  computeNodeBoundingSphere(node) {
+    if (!node) return null;
+    if (!node.userData) node.userData = {};
+
+    const box = new THREE.Box3().setFromObject(node);
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    node.userData.boundingSphere = sphere;
+    return sphere;
+  }
+
+  getNodeAtPosition(clientX, clientY, callsite = 'unknown') {
     // ========================================================================
     // [INTERACTION AUTHORITY FIX] RELIABLE NODE SELECTION
     // Enforces single raycast target per node: CORE MESH ONLY
     // ========================================================================
     
+    // Fast path: use hit-proxy system when fully ready to avoid failsafe violations
+    const proxiesReady = window.HITPROXY_READY === true &&
+                         window.hitProxySystem?.registry?.getAllProxies()?.length > 0 &&
+                         window.safeProxyRaycaster;
+
+    if (proxiesReady) {
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+      window.safeProxyRaycaster.setFromCamera(this.mouse, this.camera);
+      const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+      const proxyHits = window.hitProxySystem.raycast(
+        window.safeProxyRaycaster,
+        this.camera,
+        null,
+        { callsite }
+      );
+      const proxyElapsed = (typeof performance !== 'undefined')
+        ? (performance.now() - proxyStart)
+        : (Date.now() - proxyStart);
+      recordRaycastCost('proxy_raycast', proxyElapsed, callsite, { path: 'proxy' });
+
+      if (proxyHits.length > 0) {
+        const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        const nodeId = proxyHits[0].nodeId || proxyHits[0].object?.userData?.targetNodeId;
+        const hitNode = this.aiNodes.nodes.find(n => {
+          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
+            ? window.getNodeIdentity(n)
+            : (n.userData?.id || n.userData?.nodeId || n.uuid);
+          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
+        });
+        const resolveElapsed = (typeof performance !== 'undefined')
+          ? (performance.now() - resolveStart)
+          : (Date.now() - resolveStart);
+        recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'proxy' });
+        if (hitNode) {
+          if (typeof window !== 'undefined') {
+            window.__raycastProxyHitCount = (window.__raycastProxyHitCount || 0) + 1;
+          }
+          return hitNode;
+        }
+      }
+      if (typeof window !== 'undefined') {
+        window.__raycastProxyMissCount = (window.__raycastProxyMissCount || 0) + 1;
+        window.__raycastVisualFallbackCount = (window.__raycastVisualFallbackCount || 0) + 1;
+        const dbg = window.DEBUG_RAYCAST_PROXY === true;
+        const every = window.RAYCAST_PROXY_MISS_LOG_EVERY || 120;
+        const miss = window.__raycastProxyMissCount;
+        if (dbg && miss % every === 0) {
+          const info = { miss, hit: window.__raycastProxyHitCount || 0, fallback: window.__raycastVisualFallbackCount || 0 };
+          console.debug("[Raycast] proxy miss → fallback to visual", info);
+        }
+      }
+    }
+
     // Convert to normalized device coordinates
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -2312,33 +2507,50 @@ getLinksForNode(node) {
     
     for (const node of this.aiNodes.nodes) {
       if (!node || !node.visible) continue;
+
+      if (node.userData?._boundsDirty) {
+        this.computeNodeBoundingSphere(node);
+        node.userData._boundsDirty = false;
+      }
       
       // Traverse node tree to find core mesh
       // Priority: find mesh marked as isNodeCore, or first mesh in node
-      let coreMesh = null;
-      node.traverse(child => {
-        if (!coreMesh && child.isMesh && child.visible) {
-          // Prefer explicitly marked core mesh
-          if (child.userData?.isNodeCore === true) {
-            coreMesh = child;
+      const raycastTargetAllowed = node.userData?.isRaycastTarget !== false;
+      let coreMesh = node.userData?.coreMesh || null;
+
+      if ((!coreMesh || !coreMesh.isMesh) && raycastTargetAllowed) {
+        node.traverse(child => {
+          if (!coreMesh && child.isMesh && child.visible) {
+            // Prefer explicitly marked core mesh
+            if (child.userData?.isNodeCore === true) {
+              coreMesh = child;
+            }
+            // Otherwise accept first visible mesh (likely the core)
+            // But skip obvious visual-only meshes
+            else if (!child.userData?.isAura && 
+                     !child.userData?.isShell &&
+                     !child.userData?.isHologramShell &&
+                     !child.userData?.isParticle &&
+                     !child.userData?.isFX &&
+                     !child.userData?.isGlyph &&
+                     !child.userData?.isLinkVisual &&
+                     child.userData?.isNodeCore !== false) {
+              coreMesh = child;
+            }
           }
-          // Otherwise accept first visible mesh (likely the core)
-          // But skip obvious visual-only meshes
-          else if (!child.userData?.isAura && 
-                   !child.userData?.isShell &&
-                   !child.userData?.isHologramShell &&
-                   !child.userData?.isParticle &&
-                   !child.userData?.isFX &&
-                   !child.userData?.isGlyph &&
-                   !child.userData?.isLinkVisual &&
-                   child.userData?.isNodeCore !== false) {
-            coreMesh = child;
-          }
-        }
-      });
+        });
+      }
       
       if (coreMesh) {
-        coreMeshes.push(coreMesh);
+        if (node.userData) {
+          node.userData.coreMesh = coreMesh;
+          node.userData.isRaycastTarget = node.userData.isRaycastTarget ?? true;
+        }
+        if (raycastTargetAllowed) {
+          coreMeshes.push(coreMesh);
+        }
+      } else if (raycastTargetAllowed && node?.userData?.boundingSphere === undefined) {
+        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
       }
     }
     
@@ -2350,10 +2562,19 @@ getLinksForNode(node) {
     // ========================================================================
     // PRIMARY: Raycast against core meshes ONLY
     // ========================================================================
+    const previousFallbackFlag = window.__RAYCAST_FALLBACK_ACTIVE === true;
+    window.__RAYCAST_FALLBACK_ACTIVE = true;
+    const visualStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const intersects = this.raycaster.intersectObjects(coreMeshes, false);
+    const visualElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - visualStart)
+      : (Date.now() - visualStart);
+    recordRaycastCost('visual_raycast', visualElapsed, callsite, { path: 'visual-core' });
+    window.__RAYCAST_FALLBACK_ACTIVE = previousFallbackFlag;
     
     if (intersects.length > 0) {
       // Find the parent node for this core mesh
+      const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
       const hitMesh = intersects[0].object;
       let parentNode = hitMesh;
       
@@ -2362,10 +2583,18 @@ getLinksForNode(node) {
           if (parentNode.userData?.nodeId) {
             console.log('[NodeLinkingSystem] ✓ Node core raycast hit confirmed');
           }
+          const resolveElapsed = (typeof performance !== 'undefined')
+            ? (performance.now() - resolveStart)
+            : (Date.now() - resolveStart);
+          recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'visual-core' });
           return parentNode;
         }
         parentNode = parentNode.parent;
       }
+      const resolveElapsed = (typeof performance !== 'undefined')
+        ? (performance.now() - resolveStart)
+        : (Date.now() - resolveStart);
+      recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'visual-core' });
     }
     
     // ========================================================================
@@ -2377,18 +2606,23 @@ getLinksForNode(node) {
     const bufferRadius = this.interactionConfig.selectionBufferRadius;
     let closestNode = null;
     let closestDistance = Infinity;
+    const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     
     for (const node of this.aiNodes.nodes) {
       // Skip invisible nodes
       if (!node || !node.visible) continue;
       
       // Use node's bounding sphere for selection buffer check
+      if (!node.userData.boundingSphere || node.userData._boundsDirty) {
+        this.computeNodeBoundingSphere(node);
+        if (node.userData) {
+          node.userData._boundsDirty = false;
+        }
+      }
+
       if (!node.userData.boundingSphere) {
-        // Calculate bounding box if not available
-        const box = new THREE.Box3().setFromObject(node);
-        const sphere = new THREE.Sphere();
-        box.getBoundingSphere(sphere);
-        node.userData.boundingSphere = sphere;
+        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
+        continue;
       }
       
       const nodeSphere = node.userData.boundingSphere;
@@ -2417,6 +2651,10 @@ getLinksForNode(node) {
       }
     }
     
+    const resolveElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - resolveStart)
+      : (Date.now() - resolveStart);
+    recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'sphere-buffer' });
     return closestNode;
   }
   
@@ -2572,8 +2810,19 @@ getLinksForNode(node) {
     }
     
     // 4. Raycast ONLY against hit-proxy meshes (guaranteed safe)
+    const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const intersects = this.raycaster.intersectObjects(hitProxyMeshes, false);
+    const proxyElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - proxyStart)
+      : (Date.now() - proxyStart);
+    recordRaycastCost('proxy_raycast', proxyElapsed, 'link-context', { path: 'proxy' });
+
+    const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const filtered = filterRaycastIntersections(intersects);
+    const resolveElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - resolveStart)
+      : (Date.now() - resolveStart);
+    recordRaycastCost('resolve_hit', resolveElapsed, 'link-context', { path: 'proxy' });
     
     if (filtered.length > 0) {
       // 5. Map proxy hit to node ID, then find connected links
@@ -2972,6 +3221,48 @@ getLinksForNode(node) {
    * Creates organic, twisted multi-strand cable geometry.
    */
   createLink(sourceNode, targetNode) {
+    if (this.deferLinkVisuals) {
+      const link = {
+        source: sourceNode,
+        target: targetNode,
+        sourceNodeId: this.getNodeId(sourceNode),
+        targetNodeId: this.getNodeId(targetNode),
+        group: null,
+        active: true,
+        traffic: {
+          load: this.trafficSimulation.baseTraffic + Math.random() * 0.2,
+          throughput: 0.5 + Math.random() * 0.5,
+          priority: Math.random(),
+          bottleneck: false
+        },
+        animation: { pulsePhase: Math.random() * Math.PI * 2 },
+        id: `link-${this._linkIdCounter++}`,
+        vfxEnabled: true,
+        extremeMode: false,
+        createdAt: performance.now(),
+        visualState: 'pending'
+      };
+
+      this.links.push(link);
+      LinkPrioritySystem.initializeLinkPriority(link);
+      this._addLinkToIndex(link);
+
+      const srcId = link.sourceNodeId;
+      const tgtId = link.targetNodeId;
+      if (srcId) {
+        if (!this.nodeIdToLinks.has(srcId)) this.nodeIdToLinks.set(srcId, []);
+        this.nodeIdToLinks.get(srcId).push(link);
+      }
+      if (tgtId) {
+        if (!this.nodeIdToLinks.has(tgtId)) this.nodeIdToLinks.set(tgtId, []);
+        this.nodeIdToLinks.get(tgtId).push(link);
+      }
+
+      onLinkCreated(sourceNode, targetNode);
+
+      this.pendingLinkVisualsQueue.push({ link, sourceNode, targetNode });
+      return link;
+    }
     // 1. Create visual group via new renderer
     // We create a stub because the renderer needs source/target references
     const linkStub = { source: sourceNode, target: targetNode };
@@ -3107,6 +3398,74 @@ getLinksForNode(node) {
     console.log(`✓ Braided Link Created: ${sourceNode.userData.category} -> ${targetNode.userData.category}`);
   }
   
+  // Deferred visual builder (Phase 3B)
+  _realizeLinkVisuals(pending) {
+    const { link, sourceNode, targetNode } = pending || {};
+    if (!link || !sourceNode || !targetNode) return;
+    if (link.visualState === 'ready') return;
+
+    const linkStub = { source: sourceNode, target: targetNode };
+    const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
+    this.scene.add(linkGroup);
+    NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
+    link.group = linkGroup;
+
+    this.visuals.registerLink(link.id, link.group);
+    if (this.thicknessSystem) {
+      this.thicknessSystem.registerLinkCurve(link.group, link);
+    }
+    LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
+
+    this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+    if (this.eventCoordinator) {
+      this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
+    }
+    if (this.categoryTransitionSystem) {
+      this.categoryTransitionSystem.startTransition(
+        link.id,
+        sourceNode.position,
+        targetNode.position,
+        sourceNode.userData.category || 'input',
+        targetNode.userData.category || 'input'
+      );
+    }
+
+    this.conduitRenderer.update(link, 0, 0);
+    sourceNode.justLinked = true;
+    targetNode.justLinked = true;
+    sourceNode.linkBirthTime = performance.now();
+    targetNode.linkBirthTime = performance.now();
+    if (sourceNode.userData) {
+      sourceNode.userData.lastLinkDirection = new THREE.Vector3()
+        .subVectors(targetNode.position, sourceNode.position)
+        .normalize();
+    }
+    if (targetNode.userData) {
+      targetNode.userData.lastLinkDirection = new THREE.Vector3()
+        .subVectors(sourceNode.position, targetNode.position)
+        .normalize();
+    }
+
+    if (window.ComputeSynergyScore2_0) {
+      try {
+        const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
+        link.synergyScore = res?.score || 0.5;
+      } catch (e) { link.synergyScore = 0.5; }
+    } else {
+      link.synergyScore = 0.5;
+    }
+    if (link.id) {
+      this.updateLinkMetrics(link, {
+        corruption: link.corruptionLevel ?? 0,
+        synergy: link.synergyScore ?? 0.5,
+        harmony: link.harmonyScore ?? 0
+      });
+    }
+
+    link.visualState = 'ready';
+    console.log(`âś“ Braided Link Visuals Ready: ${sourceNode.userData.category} -> ${targetNode.userData.category}`);
+  }
+
   /**
    * EXTREME LINK EDITION - Create massive, neon, high-energy holographic beams
    * Multi-core structure with extreme thickness, pulses, and safe VFX layers
@@ -3896,6 +4255,12 @@ getLinksForNode(node) {
     if (!this.worldReady) {
       return;
     }
+
+    // Phase 3B: process at most 1 pending link visual per frame
+    if (this.pendingLinkVisualsQueue.length > 0) {
+      const pending = this.pendingLinkVisualsQueue.shift();
+      this._realizeLinkVisuals(pending);
+    }
     
     // [Session 20 FIX] Initialize synergy update counter
     if (!this._synergyUpdateCounter) this._synergyUpdateCounter = 0;
@@ -3979,6 +4344,9 @@ getLinksForNode(node) {
     
     // Update node hover states for selection glow feedback
     this.updateNodeHoverStates();
+
+    // Debug-only: emit aggregated raycast cost stats on interval
+    logRaycastCostSummary(this.renderer, this.aiNodes);
     
     // [LinkGuard] Collect dead links for cleanup after iteration
     const deadLinks = [];
@@ -4125,8 +4493,19 @@ getLinksForNode(node) {
     }
     
     // Raycast ONLY against hit-proxy meshes
+    const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const intersects = this.raycaster.intersectObjects(proxyMeshes, false);
+    const proxyElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - proxyStart)
+      : (Date.now() - proxyStart);
+    recordRaycastCost('proxy_raycast', proxyElapsed, 'crosshair', { path: 'proxy' });
+
+    const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const filtered = filterRaycastIntersections(intersects);
+    const resolveElapsed = (typeof performance !== 'undefined')
+      ? (performance.now() - resolveStart)
+      : (Date.now() - resolveStart);
+    recordRaycastCost('resolve_hit', resolveElapsed, 'crosshair', { path: 'proxy' });
     
     // Check if we're targeting a node
     const isTargetingNode = filtered.length > 0;

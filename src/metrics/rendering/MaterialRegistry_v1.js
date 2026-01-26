@@ -37,8 +37,8 @@ export class MaterialRegistry_v1 {
         side: params.side ?? THREE.FrontSide,
         depthWrite: params.depthWrite ?? true,
         depthTest: params.depthTest ?? true,
-        fog: params.fog,
-        wireframe: params.wireframe,
+        fog: params.fog ?? false,
+        wireframe: params.wireframe ?? false,
       });
 
       // Optional: common flags
@@ -59,6 +59,7 @@ export class MaterialRegistry_v1 {
         depthWrite: params.depthWrite ?? true,
         depthTest: params.depthTest ?? true,
         wireframe: params.wireframe ?? false,
+        fog: params.fog ?? false,
       });
       mat.toneMapped = params.toneMapped ?? true;
       return mat;

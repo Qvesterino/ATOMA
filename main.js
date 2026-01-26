@@ -361,6 +361,7 @@ import { applyHitProxyIntegration, setupHitProxyDebugAPI } from './_HitProxyInte
 import { setupRaycastIsolationAndFailsafe, setupRaycastFailsafeDebugAPI } from './_RaycastIsolationFailsafeSystem.js';
 import { setupRaycastFailsafeExit } from './RaycastFailsafeExitController.js';
 import { setupHitProxyAutoRegistrar } from './HitProxyAutoRegistrar.js';
+import { setupGpuSanity } from './GpuSanityPass.js';
 
 // ============================================================================
 // PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION (Visual Ceremony Layer)
@@ -4038,6 +4039,7 @@ hudP05Observer.observe(document.body, {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
         document.body.appendChild(this.renderer.domElement);
+        this.gpuSanity = setupGpuSanity(this.renderer);
 
         // Initialize Node Inspect Overlay (after scene/camera/renderer ready)
         this.nodeInspectOverlay = new NodeInspectOverlay1_0(
@@ -14230,6 +14232,36 @@ if (this.updateValidator && !window.updateValidator) {
         console.log('  - toggleNodeAuraDebug() — Toggle wireframe debug view');
         console.log('  - nodeAuraStatus() — Show system status and metrics');
     }
+}
+
+// ============================================================================
+// [UTILITY] Node identity helpers (debug-only, behavior-preserving)
+// ============================================================================
+function getNodeIdentity(node) {
+    if (!node) return null;
+    const ud = node.userData || {};
+    return ud.id || ud.nodeId || node.uuid || null;
+}
+
+function debugNodeIdentity(node) {
+    if (!node) {
+        console.log('[debugNodeIdentity] node is null/undefined');
+        return null;
+    }
+    const ud = node.userData || {};
+    const chosen = getNodeIdentity(node);
+    console.log('[debugNodeIdentity]', {
+        id: ud.id,
+        nodeId: ud.nodeId,
+        uuid: node.uuid,
+        chosen
+    });
+    return chosen;
+}
+
+if (typeof window !== 'undefined') {
+    window.getNodeIdentity = getNodeIdentity;
+    window.debugNodeIdentity = debugNodeIdentity;
 }
 
 // ============================================================================

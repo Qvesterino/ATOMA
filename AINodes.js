@@ -330,6 +330,10 @@ export class AINodes {
     this._activitySemiInterval = 0.1; // ~10 Hz
     this._activitySemiAccumulator = 0;
     this.activityCounters = { active: 0, semiActive: 0, dormant: 0 };
+
+    // Runtime spawn intent rotation to avoid INPUT lock-in
+    this._runtimeSpawnIndex = 0;
+    this._spawnIntentLogged = false;
   }
 
   /**
@@ -2220,6 +2224,31 @@ export class AINodes {
     // SPECIAL multi-output nodes (~10%)
     return this.specialNodeTypes[Math.floor(Math.random() * this.specialNodeTypes.length)];
   }
+
+  /**
+   * Runtime spawn intent injector (Phase 2)
+   * Ensures scheduler/event spawns always provide an explicit canonical category
+   */
+  getRuntimeSpawnCategoryIntent() {
+    const CANONICAL_RUNTIME = ['input', 'process', 'integration', 'storage', 'control', 'analytics', 'quantum'];
+
+    // Rotate through canonical set; validate each candidate
+    for (let attempt = 0; attempt < CANONICAL_RUNTIME.length; attempt++) {
+      const cat = CANONICAL_RUNTIME[(this._runtimeSpawnIndex + attempt) % CANONICAL_RUNTIME.length];
+      const validation = this.validateCategory(cat);
+      if (validation?.valid && validation.category) {
+        this._runtimeSpawnIndex = (this._runtimeSpawnIndex + 1) % CANONICAL_RUNTIME.length;
+        if (!this._spawnIntentLogged) {
+          console.info('[SpawnIntent] runtime spawn injected category:', validation.category);
+          this._spawnIntentLogged = true;
+        }
+        return validation.category;
+      }
+    }
+
+    // Hard fallback (should never be hit): keep system alive
+    return 'input';
+  }
   
   /**
    * SPAWN REPAIR 2.0 (SAFE EDITION): Spawn a single new node with materialize animation
@@ -2229,6 +2258,40 @@ export class AINodes {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    */
   spawnNode(category = null, position = null, forceArchetype = null) {
+    // Local trackers for fallback detection (no behavioral change to visuals/logic)
+    const requestedCategoryRaw = category;
+    if (this._fallbackLogged === undefined) this._fallbackLogged = false;
+    if (this.fallbackNode === undefined) this.fallbackNode = null;
+    if (this._fallbackNode === undefined) this._fallbackNode = null; // single-instance fallback sink
+    if (this._fallbackWarned === undefined) this._fallbackWarned = false;
+    let fallbackReason = null;
+
+    // Soft canonical remap: collapse non-canonical categories into archetypes
+    const CANONICAL_SET = ['input', 'process', 'integration', 'storage', 'control', 'analytics', 'quantum'];
+    const NON_CANONICAL_REMAP = {
+      mythic: 'quantum',
+      prime: 'process',
+      emotional: 'integration',
+      error: 'control',
+      sigma: 'quantum'
+    };
+
+    let remapApplied = false;
+    let remapArchetype = null;
+
+    if (requestedCategoryRaw) {
+      const requestedLower = String(requestedCategoryRaw).toLowerCase();
+      if (!CANONICAL_SET.includes(requestedLower) && NON_CANONICAL_REMAP[requestedLower]) {
+        category = NON_CANONICAL_REMAP[requestedLower];
+        remapApplied = true;
+        remapArchetype = requestedLower;
+        if (!this._canonicalRemapLogged) {
+          console.warn('[CanonicalMap] Remapped category', `'${requestedLower}'`, '→', `'${category}'`, 'as archetype');
+          this._canonicalRemapLogged = true;
+        }
+      }
+    }
+
     // ========================================================================
     // [SESSION 110] SINGLE INSTANCE ENFORCEMENT (Registry Check)
     // Prevents duplicate spawning of unique archetypes (Mythic, Prime, Extreme)
@@ -2270,6 +2333,9 @@ export class AINodes {
     
     // Use validated category (may have been auto-fallback to 'input')
     category = validatedCategory;
+    if (requestedCategoryRaw && category !== requestedCategoryRaw && category === 'input') {
+      fallbackReason = 'invalid-category';
+    }
     
     // ========================================================================
     // [SPAWN AUTHORITY] PRE-VALIDATION: Is this category in EnhancedNodeModel?
@@ -2282,6 +2348,9 @@ export class AINodes {
     if (requestedCategory && !enhancedNodeModelsSupported.includes(requestedCategory)) {
       // Unknown or unsupported category - apply hard fallback to 'input'
       category = 'input';
+      if (!fallbackReason && requestedCategoryRaw && requestedCategoryRaw !== 'input') {
+        fallbackReason = 'invalid-category';
+      }
     }
     
     // ========== STEP 1: RESOLVE CATEGORY (SYNC) ==========
@@ -2293,8 +2362,42 @@ export class AINodes {
     // Ensure category has fallback
     if (!category) {
       category = "input";
+      if (!fallbackReason && requestedCategoryRaw && requestedCategoryRaw !== 'input') {
+        fallbackReason = 'unknown';
+      }
+    }
+
+    // Guard: only one fallback INPUT node may exist; reuse existing if present
+    const isFallbackSpawn = category === 'input' && requestedCategoryRaw && requestedCategoryRaw !== 'input';
+    if (isFallbackSpawn && this._fallbackNode && this._fallbackNode.parent) {
+      return this._fallbackNode;
+    }
+
+    if (isFallbackSpawn && !this._fallbackWarned) {
+      console.warn('[CanonicalCategory] Fallback INPUT node created for unsupported category:', requestedCategoryRaw);
+      this._fallbackWarned = true;
     }
     
+    // Canonical category enforcement (Phase 1): prevent INPUT domination when other canonical options exist.
+    // Apply only after remap/fallback resolution and only when caller did not explicitly request INPUT.
+    const CANONICAL_ENFORCE_SET = ['process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
+    const canUseCategory = (cat) => {
+      const res = this.validateCategory(cat);
+      return res?.valid === true && res.category === cat;
+    };
+    if (category === 'input' && requestedCategoryRaw && requestedCategoryRaw.toLowerCase() !== 'input' && !isFallbackSpawn) {
+      const alternatives = CANONICAL_ENFORCE_SET.filter(canUseCategory);
+      if (alternatives.length > 0) {
+        const pick = alternatives[Math.floor(Math.random() * alternatives.length)];
+        category = pick;
+        if (this._inputBypassLogged === undefined) this._inputBypassLogged = false;
+        if (!this._inputBypassLogged) {
+          console.info('[CanonicalCategory] INPUT bypassed; using canonical category:', pick);
+          this._inputBypassLogged = true;
+        }
+      }
+    }
+
     // ========== STEP 2: FIND SAFE POSITION (SYNC) ==========
     // Position already resolved above
     
@@ -2316,17 +2419,31 @@ export class AINodes {
     if (!newNode.userData) {
       newNode.userData = {};
     }
+
+    // Mark explicit fallback origin for auditability
+    if (isFallbackSpawn) {
+      newNode.userData.spawnContext = 'fallback';
+      newNode.userData.originalCategory = requestedCategoryRaw;
+      newNode.userData.isFallback = true;
+      newNode.userData.fallbackReason = fallbackReason || 'unknown';
+      this.fallbackNode = newNode;
+      this._fallbackNode = newNode;
+    }
     
     // Primary category assignment (GUARANTEED before HUD/LinkRegistry reads)
     newNode.userData.id = newNode.userData.id || `node-${Date.now()}-${Math.random()}`;
-    newNode.userData.category = category;  // ← PRIMARY SOURCE
-    newNode.userData.archetype = forceArchetype || category || 'default';
+    if (newNode.userData.nodeId && newNode.userData.nodeId !== newNode.userData.id) {
+      console.warn('[SpawnIdentity] nodeId diverged; mirroring id');
+    }
+    newNode.userData.nodeId = newNode.userData.id;
+    newNode.userData.category = category;  // <- PRIMARY SOURCE
+    newNode.userData.archetype = forceArchetype || remapArchetype || category || 'default';
     
     // ========== REGISTRATION VALIDATION (CRITICAL FOR INTERACTION) ==========
     // Ensure node has required properties for selection system
-    if (!newNode.userData.linkTarget) {
+    let coreMesh = newNode.userData.linkTarget || null;
+    if (!coreMesh) {
       // Find suitable core mesh to use as linkTarget
-      let coreMesh = null;
       newNode.traverse(child => {
         if (child.isMesh && !coreMesh && child.userData.isCoreMesh) {
           coreMesh = child;
@@ -2338,6 +2455,12 @@ export class AINodes {
         console.warn('[WARN] Node spawned without findable core mesh for linkTarget');
       }
     }
+
+    // Raycast correctness: mark fresh nodes and store explicit core mesh
+    newNode.userData.boundingSphere = null;
+    newNode.userData._boundsDirty = true;
+    newNode.userData.isRaycastTarget = true;
+    newNode.userData.coreMesh = coreMesh || null;
     
     // Validate all critical tags are set
     if (!newNode.userData.category) {
@@ -2514,7 +2637,7 @@ export class AINodes {
     
     // Time-based spawning
     if (currentTime > this.spawningConfig.nextTimeSpawn) {
-      this.spawnNode();
+      this.spawnNode(this.getRuntimeSpawnCategoryIntent());
       this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
     }
     
@@ -2533,7 +2656,7 @@ export class AINodes {
     if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
       // Occasionally spawn node on link creation (20% chance)
       if (Math.random() < 0.2) {
-        this.spawnNode();
+        this.spawnNode(this.getRuntimeSpawnCategoryIntent());
         this.spawningConfig.lastLinkTime = currentTime;
       }
     }
@@ -2557,10 +2680,10 @@ export class AINodes {
         const underutilized = clusterAreas.lowDensity[
           Math.floor(Math.random() * clusterAreas.lowDensity.length)
         ];
-        this.spawnNode(null, underutilized);
+        this.spawnNode(this.getRuntimeSpawnCategoryIntent(), underutilized);
       } else {
         // Regular spawn
-        this.spawnNode();
+        this.spawnNode(this.getRuntimeSpawnCategoryIntent());
       }
       
       // Occasionally spawn rare node

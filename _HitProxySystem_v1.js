@@ -39,6 +39,15 @@
 
 import * as THREE from 'three';
 
+// Shared node identity adapter (aligns with window.getNodeIdentity when present)
+const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
+  ? window.getNodeIdentity
+  : function(node) {
+      if (!node) return null;
+      const ud = node.userData || {};
+      return ud.id || ud.nodeId || node.uuid || null;
+    };
+
 // ============================================================================
 // HIT PROXY FACTORY — Creates Invisible Proxy Geometries
 // ============================================================================
@@ -213,9 +222,12 @@ class HitProxyController {
   /**
    * Synchronize all proxy positions with their target nodes
    */
-  syncProxies(nodes) {
+  syncProxies(nodes, opts) {
+    // Guard: options may be undefined in some builds; default to {} to avoid per-frame crash.
+    const options = opts ?? this.options ?? {};
+
     for (const node of nodes) {
-      const nodeId = node.userData?.nodeId;
+      const nodeId = getNodeIdentity(node);
       if (!nodeId) continue;
 
       const proxy = this.registry.getProxy(nodeId);
@@ -238,7 +250,7 @@ class HitProxyController {
   attachProxyToNode(node, proxyRadius = 0.7) {
     // [SESSION 62B] FIX: Check userData.id (not nodeId)
     // AINodes uses userData.id, not userData.nodeId
-    let nodeId = node.userData?.id || node.userData?.nodeId;
+    let nodeId = getNodeIdentity(node);
     
     // If still no ID, generate one
     if (!nodeId) {
@@ -421,7 +433,7 @@ class HitProxySystem {
    * @param {Array<THREE.Object3D>} objects - Objects to raycast against (optional)
    * @returns {Array} - Intersection results with nodeId added
    */
-  raycast(raycaster, camera, objects = null) {
+  raycast(raycaster, camera, objects = null, meta = null) {
     // Use proxy meshes if no objects specified
     if (!objects) {
       objects = this.registry.getAllProxies();

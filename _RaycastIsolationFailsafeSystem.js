@@ -44,6 +44,10 @@ class RaycastViolationDetector {
   checkObjectViolation(obj, callSite) {
     if (!(obj instanceof THREE.Object3D)) return;
     if (obj.userData?.isHitProxy === true) return;
+    // Intentional visual fallback from NodeLinkingSystem: skip violation tracking
+    if (window.__RAYCAST_FALLBACK_ACTIVE === true) {
+      return;
+    }
     
     // [SESSION 62B] FPS DEATH FIX: Don't record violations during startup
     // If proxies not ready yet, this is not a real violation - just wait for init

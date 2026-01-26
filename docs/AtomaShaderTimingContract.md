@@ -1,97 +1,183 @@
+# ATOMA Shader Timing Contract
 
-2 715
-ATOMA Shader Timing Contract
-Purpose
+## Purpose
 
-This document defines a binding contract for timing shaders and visual systems in the ATOMA engine. The goals are:
+This document defines a **binding architectural contract** for time usage in shaders
+and visual systems within the ATOMA engine.
 
-to preserve visual quality (smoothness, phase, continuity),
+Its goals are:
 
-to enable aggressive scheduler optimization,
+- preserve visual quality (smoothness, phase continuity, coherence),
+- enable aggressive scheduler optimization,
+- prevent regressions such as phase popping, stepped waves, flicker, and visual drift,
+- eliminate ambiguity around time ownership and responsibility.
 
-to prevent regressions such as phase popping, stepped waves, and visual ugliness.
+This contract is **architectural, not implementational**.
+Violations indicate engine design errors, not shader bugs.
 
-This contract is architectural, not implementational.
+---
 
-Basic principles
-1. Time is NOT a scheduler
+## Core Axioms
 
-The scheduler determines when the system executes. Time determines how the state changes.
+### 1. Time is NOT a scheduler
 
-These two things must be strictly separated.
+The scheduler determines **when** systems execute.  
+Time determines **how state evolves**.
 
-2. Shader time must be monotonic
+These concepts must remain strictly separated.
 
-All shader animations based on:
+Scheduler optimizations must **never** change the semantic meaning of time.
 
-sin / cos
+---
 
-phase
+### 2. Shader time MUST be monotonic
 
-pulses
+All shader-driven animation involving:
 
-jitter
+- sin / cos
+- phase
+- pulses
+- jitter
+- glow / warp / energy / distortion
 
-warp / glow / energy
+MUST use time that is:
 
-MUST use time that:
+- monotonic
+- updated every frame
+- non-quantized
+- independent of scheduler cadence
 
-is monotonic
+Any violation results in visual instability.
 
-runs every frame
+---
 
-is not quantized
+### 3. Visual systems are time consumers, never time owners
 
-is not throttled
+Visual systems:
+- receive time
+- interpret time
+- never define or mutate canonical time
 
-Time types in ATOM
+Time ownership belongs to the engine timing layer only.
 
-realTime
+---
 
-Definition: Monotonic time updated every frame (RAF cadence).
+## Canonical Time Model
+
+ATOMA defines **one canonical visual time** and **optional derived channels**.
+
+### Canonical Visual Time
+
+**Name:** `VisualTime`  
+**Role:** authoritative real-time reference for all visuals
 
 Properties:
+- monotonic
+- per-frame updated (RAF cadence)
+- smooth
+- scheduler-independent
 
-smooth
+**MANDATORY usage:**
+- shader uniforms (`time`, `phase`, `pulse`, `energy`)
+- per-frame visual deformation
+- link / aura / hologram / distortion effects
+- camera FX
+- node visual deformation
 
-no jumps
+➡️ Any realtime visual system MUST default to `VisualTime`.
 
-independent of scheduler layers
+---
 
-Usage (MANDATORY):
+## Derived Time Channels (Advanced)
 
-shader uniforms (time, phase, pulse, warp, energy)
+ATOMA MAY expose **derived visual time channels** for specialized effects.
 
-per-frame visual deformations
+Example:
+- elastic / cinematic visual modulation
+- resonance amplification
+- dream-like slow/fast warps
 
-link / aura / hologram / distortion effects
+### Rules for Derived Channels
 
-steppedTime
+Derived channels:
 
-Definition: Time quantized according to scheduler cadence (10–30 Hz).
+- MUST be derived from canonical `VisualTime`
+- MUST remain monotonic
+- MUST be updated every frame
+- MUST NOT be quantized
+- MUST NOT be scheduler-bound
 
-Features:
+Derived channels are **opt-in**, never implicit.
 
-jump
+---
 
-optimized
+### Global Exposure Rule
 
-suitable for slowly changing systems
+If a derived time channel is exposed via `window.*`:
 
-Usage (ALLOWED):
+- it MUST be clearly named as a channel (not a clock)
+- it MUST be explicitly marked `INTERNAL_ONLY`
+- it MUST have a single, documented owner
+- it MUST provide a safe fallback to canonical time
+
+Example (conceptual):
+
+```js
+visualTime = window.ATOMA_TIME_CHANNELS?.elasticVisual ?? VisualTime.now
+Global exposure does NOT imply public API.
+
+NO-MIX Rule (CRITICAL)
+Within a single consumer and a single visual effect:
+
+❌ FORBIDDEN:
+
+mixing VisualTime and any derived channel
+
+blending phases from different time sources
+
+driving the same sin/cos domain with multiple clocks
+
+Reason:
+
+phase beating
+
+ghost jitter
+
+non-deterministic flicker
+
+invisible regressions on map switch
+
+Each visual consumer MUST commit to exactly one time source.
+
+Stepped / Quantized Time
+Stepped Time
+Definition: time quantized to scheduler cadence (e.g. 10–30 Hz)
+
+Allowed usage:
 
 metrics
 
-UI texts
+UI text refresh
 
-analytical aggregations
+analytics
 
-low-frequency effects without sin/cos dependence
+debug overlays
 
-System classification
-Realtime systems (MUST NOT be throttled)
+low-frequency systems without phase continuity
 
-Use realTime.
+FORBIDDEN usage:
+
+shader uniforms
+
+phase-based animation
+
+pulses, waves, glows, warps
+
+Stepped time must never drive visual continuity.
+
+System Classification
+Realtime Systems (MUST NOT be throttled)
+Use canonical VisualTime only.
 
 Examples:
 
@@ -103,72 +189,75 @@ Glow / Pulse / Distortion shaders
 
 Camera FX
 
-Node visual deformation
+Node deformation
 
-➡️ Scheduler must not affect their time input.
+Scheduler may throttle execution, never time input.
 
-Stepped systems (MAY be throttled)
-
-Use steppedTime or internal throttle.
+Stepped Systems (MAY be throttled)
+Use stepped time or internal throttling.
 
 Examples:
 
-CoreMetrics calculations
+CoreMetrics
 
-HUD text refresh
+HUD text
 
 Analytics
 
-Debug overlay values
+Debug overlays
 
-➡️ Visual continuity is not critical here.
+Visual continuity is not critical here.
 
-Forbidden patterns (ANTI-PATTERNS)
+Forbidden Patterns (ANTI-PATTERNS)
+❌ Use scheduler deltaTime as shader time
+❌ Quantize shader-driven time
+❌ Bind time meaning to scheduler cadence
+❌ Assume identical shader code guarantees identical visuals
+❌ Implicitly override canonical time
+❌ Mix multiple time sources inside one effect
 
-❌ Use deltaTime from scheduler as shader time
+Allowed Patterns (BEST PRACTICES)
+✅ One canonical visual time (VisualTime)
+✅ Optional derived channels for explicit visual modulation
+✅ Always fallback to canonical time
+✅ Scheduler optimizations without semantic time changes
+✅ Visual systems consume time, never define it
 
-❌ Move shader-driven systems from realtime layer
+Consolidation & Review Triggers
+A timing architecture review MUST be triggered if:
 
-❌ Bind time to visual / simulation cadence
+a second consumer adopts a derived visual time channel
 
-❌ Assume that "when shader code is the same, visual will be the same"
+a visual flicker / phase pop bug references elastic or derived time
 
-Allowed patterns (BEST PRACTICES)
+VisualTime v2 consolidation is planned
 
-✅ Separate:
+Until then, derived channels remain INTERNAL and controlled.
 
-EngineTime.real
+Consequences of Contract Violation
+Violations cause:
 
-EngineTime.stepped
+phase jumps
 
-✅ Always feed shader uniforms from realTime
+broken pulses
 
-✅ Optimize scheduler WITHOUT changing the meaning of time
+cheap-looking waves
 
-✅ Visual system = time consumer, not its owner
+flicker on map switch
 
-Consequences of contract violation
+regressions without shader code changes
 
-If the contract is violated:
-
-sin/cos phases jump
-
-pulses fall apart
-
-lines look "cheap"
-
-visuals flicker on map switch
-
-regressions appear without changing shader code
-
-➡️ This is NOT a shader bug, but a time architecture bug.
+These are time architecture bugs, not shader bugs.
 
 Document Status
-
 Status: ACTIVE
 
-Mandatory for all new visual systems
+Mandatory for:
 
-Refactorers must respect this contract
+all new visual systems
 
-ATOMA – An engine with memory, not chaos.
+all refactors touching timing
+
+performance optimization passes
+
+ATOMA is an engine with memory, not chaos.

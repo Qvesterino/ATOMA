@@ -45,7 +45,12 @@ export class SafeEvolutionManager {
     
     // Fallback: store in userData (read-only reference)
     if (!node.userData.nodeId) {
-      node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+      if (node.userData.id) {
+        console.warn('[SafeEvolutionManager:getNodeId] nodeId missing; mirroring existing id to prevent dual identity');
+        node.userData.nodeId = node.userData.id;
+      } else {
+        node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+      }
     }
     return node.userData.nodeId;
   }

@@ -778,13 +778,14 @@ export class MythicNodeCreation {
     
     const spawnPos = this.seedOrb.position.clone();
     
-    // Create mythic node using EnhancedNodeModels
-    const nodeModel = EnhancedNodeModels.create('mythic', 0, 0xffd700);
-    nodeModel.position.copy(spawnPos);
-    nodeModel.scale.setScalar(0.01); // Start tiny
-    
-    // Mark as mythic
-    nodeModel.userData.category = 'mythic';
+    // Delegate mythic creation to canonical funnel (AINodes.spawnNode)
+    const nodeModel = this.aiNodes?.spawnNode('mythic', spawnPos, 'MYTHIC-CEREMONIAL');
+    if (!nodeModel) {
+      return;
+    }
+
+    // Preserve existing mythic metadata on the canonical node
+    nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.isMythic = true;
     nodeModel.userData.mythicCreatedAt = Date.now();
     nodeModel.userData.personality = {
@@ -800,14 +801,9 @@ export class MythicNodeCreation {
       stabilityFactor: 5,
       archetype: 'ASCENDED',
     };
-    
-    // Add to scene
-    this.scene.add(nodeModel);
-    
-    // Add to aiNodes list
-    if (this.aiNodes && this.aiNodes.nodes) {
-      this.aiNodes.nodes.push(nodeModel);
-    }
+
+    // Start tiny to preserve birth animation intent
+    nodeModel.scale.setScalar(0.01);
     
     this.mythicNode = nodeModel;
     
