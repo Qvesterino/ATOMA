@@ -330,6 +330,7 @@ export class EnergyOrbManager {
    * Update all orbs
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const playerPos = this.player.position;
 
     // Update each orb

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
+import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
 import { DynamicLinkThicknessSystem } from './_DynamicLinkThicknessSystem.js';
@@ -133,6 +134,15 @@ export class NodeLinkingSystem {
     this.activeLink = null;
     this.selectedNode = null;  // Node A for click-to-link (now "Primary Node")
     this.selectedNodeHighlight = null;  // Cyan glow mesh
+    // Collapse requests are meaning-only; structural unlink must be executed elsewhere
+    this.pendingCollapseRequests = [];
+    // Recovery candidates collected after controlled collapse; meaning-only until explicitly requested
+    this.recoveryCandidates = [];
+    this.lastRecoveryDecisions = new Map(); // candidateId -> decision
+    // AI advisory report storage (read-only, debug/QA only)
+    this._lastAIReport = null;
+    // Collapse arbiter decisions (meaning-only; no structural effects)
+    this.lastCollapseDecisions = new Map(); // linkId -> decision object
     this.contextMenu = null;
     this.selectedLink = null;
     
@@ -5788,4 +5798,299 @@ getLinksForNode(node) {
       });
     }
   }
+
+  /**
+   * Enqueue a collapse request (meaning-only, no structural action here).
+   * @param {Object} link - Link object
+   * @param {Object} context - Optional context { reason, severity, source }
+   */
+  enqueueCollapseRequest(link, context = {}) {
+    if (!link) return;
+    const linkId = link.id || `${link.source?.id ?? 'src'}-${link.target?.id ?? 'tgt'}`;
+    const request = {
+      linkId,
+      reason: context.reason || 'collapse-threshold',
+      severity: context.severity || 'critical',
+      source: context.source || 'LinkCollapseSystem',
+      timestamp: Date.now(),
+    };
+    this.pendingCollapseRequests.push(request);
+  }
+
+  /**
+   * Run collapse arbiter: decides allow/defer/deny for pending collapse requests.
+   * Meaning-only: no structural unlink or state mutation is performed.
+   */
+  runCollapseArbiter() {
+    if (!Array.isArray(this.pendingCollapseRequests) || this.pendingCollapseRequests.length === 0) {
+      return;
+    }
+
+    const remaining = [];
+    const now = Date.now();
+    const allowQueue = [];
+
+    for (const req of this.pendingCollapseRequests) {
+      const link = this._findLinkById(req.linkId);
+      const decision = this._decideCollapse(link, req, now);
+
+      // Record decision
+      this.lastCollapseDecisions.set(req.linkId, decision);
+
+      // Defer keeps the request for future cycles; allow/deny drop it
+      if (decision.decision === 'defer') {
+        remaining.push(req);
+      } else if (decision.decision === 'allow') {
+        allowQueue.push(decision);
+      }
+    }
+
+    this.pendingCollapseRequests = remaining;
+
+    // Single controlled structural execution per tick
+    if (allowQueue.length > 0) {
+      this._executeCollapseDecision(allowQueue[0]);
+    }
+
+    // QA-only advisory AI hook (manual/explicit): run once per arbiter pass if enabled
+    this._maybeRunAIReasoningDebug();
+  }
+
+  /**
+   * Evaluate a single collapse request conservatively (no structural effect).
+   * @private
+   */
+  _decideCollapse(link, req, now) {
+    // Default conservative stance: deny if link missing, defer otherwise
+    if (!link) {
+      return { linkId: req.linkId, decision: 'deny', reason: 'link-missing', decidedAt: now, source: req.source };
+    }
+
+    const prioritySnapshot = link.prioritySnapshot || null;
+    const integrity = link.userData?.integrity;
+    const corruption = link.userData?.corruption;
+
+    // Priority alone must never trigger allow; corruption/integrity gates apply
+    const hasCriticalCorruption = typeof corruption === 'number' && corruption >= 80;
+    const hasLowIntegrity = typeof integrity === 'number' && integrity <= 8;
+
+    if (hasCriticalCorruption || hasLowIntegrity) {
+      return { linkId: req.linkId, decision: 'allow', reason: 'corruption-or-integrity', decidedAt: now, source: req.source, prioritySnapshot };
+    }
+
+    // If insufficient evidence, defer to future cycles
+    return { linkId: req.linkId, decision: 'defer', reason: 'insufficient-signal', decidedAt: now, source: req.source, prioritySnapshot };
+  }
+
+  /**
+   * Lookup link by id helper.
+   * @private
+   */
+  _findLinkById(linkId) {
+    if (!Array.isArray(this.links)) return null;
+    return this.links.find(l => l.id === linkId || `${l.source?.id ?? 'src'}-${l.target?.id ?? 'tgt'}` === linkId) || null;
+  }
+
+  /**
+   * Controlled structural executor: unlinks exactly one allowed collapse per tick.
+   * No other system may perform unlink for collapse.
+   * @private
+   */
+  _executeCollapseDecision(decision) {
+    if (!decision || decision.decision !== 'allow') return;
+    const link = this._findLinkById(decision.linkId);
+    if (!link) return;
+
+    // Capture recovery candidate before structural removal
+    this._addRecoveryCandidate(link, decision);
+
+    console.log(`[CollapseExecutor] unlinking link=${decision.linkId} reason=${decision.reason} source=${decision.source || 'unknown'} at=${new Date(decision.decidedAt).toISOString()}`);
+    this.removeLink(link);
+    this.lastCollapseDecisions.set(decision.linkId, { ...decision, executedAt: Date.now() });
+  }
+
+  /**
+   * Record a recovery candidate after a controlled collapse (meaning-only).
+   * No automatic relink occurs; recovery must be explicitly requested and gated.
+   * @private
+   */
+  _addRecoveryCandidate(link, decision) {
+    const sourceNodeId = this.getNodeId(link.source);
+    const targetNodeId = this.getNodeId(link.target);
+    const collapsedAt = decision.decidedAt || Date.now();
+    const recoveryDelayMs = 10000; // Conservative default cooldown
+    const candidateId = `${decision.linkId}:${collapsedAt}`;
+
+    this.recoveryCandidates.push({
+      candidateId,
+      linkId: decision.linkId,
+      sourceNodeId,
+      targetNodeId,
+      collapsedAt,
+      earliestRecoveryAt: collapsedAt + recoveryDelayMs,
+      reason: decision.reason,
+      source: decision.source || 'LinkCollapseSystem',
+      conditions: {
+        maxCorruption: 20,   // Require corruption to fall below 20%
+        minIntegrity: 50,    // Require integrity to recover to 50%
+        maxLoad: 0.8,        // Avoid immediate reloading under high load
+      },
+    });
+  }
+
+  /**
+   * Run recovery arbiter: evaluates one recovery candidate per tick.
+   * Meaning-only: does not create links; external caller must request relink.
+   */
+  runRecoveryArbiter() {
+    if (!Array.isArray(this.recoveryCandidates) || this.recoveryCandidates.length === 0) {
+      return;
+    }
+
+    const candidate = this.recoveryCandidates[0]; // Evaluate at most one per tick
+    const now = Date.now();
+    const decision = this._decideRecovery(candidate, now);
+    this.lastRecoveryDecisions.set(candidate.candidateId, decision);
+
+    if (decision.decision === 'allow' || decision.decision === 'deny') {
+      // Remove candidate once a terminal decision is made
+      this.recoveryCandidates.shift();
+    } else {
+      // Defer keeps candidate for future evaluation
+      this.recoveryCandidates[0] = candidate;
+    }
+
+    // QA-only advisory AI hook (manual/explicit): run once per arbiter pass if enabled
+    this._maybeRunAIReasoningDebug();
+  }
+
+  /**
+   * Decide recovery eligibility based on integrity/corruption/load/time.
+   * No structural or semantic mutations performed.
+   * @private
+   */
+  _decideRecovery(candidate, now) {
+    if (!candidate) return null;
+
+    const sourceNode = this._findNodeById(candidate.sourceNodeId);
+    const targetNode = this._findNodeById(candidate.targetNodeId);
+
+    if (!sourceNode || !targetNode) {
+      return {
+        candidateId: candidate.candidateId,
+        decision: 'deny',
+        reason: 'missing-nodes',
+        decidedAt: now,
+      };
+    }
+
+    if (now < candidate.earliestRecoveryAt) {
+      return {
+        candidateId: candidate.candidateId,
+        decision: 'defer',
+        reason: 'cooldown',
+        decidedAt: now,
+      };
+    }
+
+    const srcIntegrity = sourceNode.userData?.integrity;
+    const tgtIntegrity = targetNode.userData?.integrity;
+    const srcCorruption = sourceNode.userData?.corruption;
+    const tgtCorruption = targetNode.userData?.corruption;
+    const srcLoad = sourceNode.userData?.load;
+    const tgtLoad = targetNode.userData?.load;
+
+    const cond = candidate.conditions || {};
+    const maxCorruption = cond.maxCorruption ?? 20;
+    const minIntegrity = cond.minIntegrity ?? 50;
+    const maxLoad = cond.maxLoad ?? 0.8;
+
+    const corruptionOk =
+      (typeof srcCorruption !== 'number' || srcCorruption <= maxCorruption) &&
+      (typeof tgtCorruption !== 'number' || tgtCorruption <= maxCorruption);
+
+    const integrityOk =
+      (typeof srcIntegrity !== 'number' || srcIntegrity >= minIntegrity) &&
+      (typeof tgtIntegrity !== 'number' || tgtIntegrity >= minIntegrity);
+
+    const loadOk =
+      (typeof srcLoad !== 'number' || srcLoad <= maxLoad) &&
+      (typeof tgtLoad !== 'number' || tgtLoad <= maxLoad);
+
+    if (corruptionOk && integrityOk && loadOk) {
+      return {
+        candidateId: candidate.candidateId,
+        decision: 'allow',
+        reason: 'conditions-met',
+        decidedAt: now,
+        sourceNodeId: candidate.sourceNodeId,
+        targetNodeId: candidate.targetNodeId,
+      };
+    }
+
+    return {
+      candidateId: candidate.candidateId,
+      decision: 'defer',
+      reason: 'conditions-not-met',
+      decidedAt: now,
+    };
+  }
+
+  /**
+   * Request a recovery relink using normal createLink flow (explicit call only).
+   * Does nothing automatically; caller must ensure an 'allow' decision exists.
+   */
+  requestRecoveryLink(sourceNodeId, targetNodeId) {
+    const sourceNode = this._findNodeById(sourceNodeId);
+    const targetNode = this._findNodeById(targetNodeId);
+    if (!sourceNode || !targetNode) {
+      console.warn('[Recovery] Cannot relink missing nodes', sourceNodeId, targetNodeId);
+      return null;
+    }
+    return this.createLink(sourceNode, targetNode);
+  }
+
+  /**
+   * Run AI advisory analysis on the current network state.
+   * READ-ONLY. DEBUG / QA ONLY. No authority, no side effects.
+   * Never called automatically unless QA flag is set.
+   * @private
+   */
+  _runAIReasoningDebug() {
+    if (!window.__ATOMA_QA__) return;
+    const snapshot = buildNetworkStateSnapshot(this);
+    const ai = new NetworkStateAIReasoner();
+    const report = ai.analyze(snapshot);
+    this._lastAIReport = Object.freeze(report);
+  }
+
+  /**
+   * QA-only hook to optionally run AI reasoning once per debug-triggered path.
+   * @private
+   */
+  _maybeRunAIReasoningDebug() {
+    if (window.__ATOMA_QA__ && this.debugFlags?.runAIOnce) {
+      this._runAIReasoningDebug();
+      this.debugFlags.runAIOnce = false;
+    }
+  }
+
+  /**
+   * Read-only accessor for last AI report (debug/QA only).
+   * @returns {Object|null}
+   */
+  getAIReport() {
+    return this._lastAIReport || null;
+  }
+
+  /**
+   * Find node by stable ID.
+   * @private
+   */
+  _findNodeById(nodeId) {
+    if (!nodeId || !this.aiNodes?.nodes) return null;
+    return this.aiNodes.nodes.find(n => this.getNodeId(n) === nodeId) || null;
+  }
 }
+
+export default NodeLinkingSystem;

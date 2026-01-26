@@ -25,6 +25,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 const COHERENCE_WAVE_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -159,6 +160,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         // Init pools
         this._initPools();
         
+        this._timeOrigin = undefined;
+        this._lastUpdateTime = undefined;
+        
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
     }
     
@@ -186,18 +190,34 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     update(deltaTime, time, networkState) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (!this.enabled) return;
+
+        if (this._timeOrigin === undefined) {
+            this._timeOrigin = VisualTime.now;
+        }
+        const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+
+        if (this._lastUpdateTime === undefined) {
+            this._lastUpdateTime = currentVisualTime;
+        }
+
+        const sinceLast = currentVisualTime - this._lastUpdateTime;
+        if (sinceLast < CONFIG.UPDATE_INTERVAL) return;
+        this._lastUpdateTime = currentVisualTime;
+
         // 1. Detect Rupture Completions
-        this._detectRuptureEvents();
+        this._detectRuptureEvents(currentVisualTime);
         
         // 2. Update Recovering Zones
-        this._updateRecoveringZones(deltaTime, time, networkState);
+        this._updateRecoveringZones(networkState, currentVisualTime);
         
         // 3. Update Visuals
-        this.waveMaterial.uniforms.uTime.value = time;
+        this.waveMaterial.uniforms.uTime.value = currentVisualTime;
         // Note: Individual uniforms are updated in _updateRecoveringZones
     }
     
-    _detectRuptureEvents() {
+    _detectRuptureEvents(currentVisualTime) {
         if (!this.ruptureSystem || !this.ruptureSystem.ruptures) return;
         
         const currentRuptures = this.ruptureSystem.ruptures;
@@ -207,7 +227,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         for (const id of this.activeRuptureIds) {
             if (!currentIds.has(id)) {
                 // Rupture finished!
-                this._triggerRecovery(id);
+                this._triggerRecovery(id, currentVisualTime);
             }
         }
         
@@ -215,7 +235,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.activeRuptureIds = currentIds;
     }
     
-    _triggerRecovery(linkId) {
+    _triggerRecovery(linkId, currentVisualTime) {
         // Find convergence point or link center
         // Since rupture is gone from array, we can't get its position directly easily
         // But we can look up the link
@@ -229,6 +249,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         const center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
         
         // Spawn Recovering Zone
+        const now = currentVisualTime ?? (VisualTime.now - this._timeOrigin);
         if (this.recoveringZones.length < this.config.maxActiveZones) {
             this.recoveringZones.push({
                 active: true,
@@ -237,24 +258,25 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 startNode: link.sourceNode || link.from,
                 endNode: link.targetNode || link.to,
                 life: 0,
+                startTime: now,
                 maxLife: this.config.minRecoveryDuration + Math.random() * 2.0,
                 waveMeshIdx: -1, // Assigned later
-                stitchingTimer: 0
+                lastStitchTime: now
             });
-            
+           
             // Trigger Node Halos immediately
-            this._spawnHalo(link.sourceNode || link.from);
-            this._spawnHalo(link.targetNode || link.to);
+            this._spawnHalo(link.sourceNode || link.from, now);
+            this._spawnHalo(link.targetNode || link.to, now);
         }
     }
     
-    _updateRecoveringZones(deltaTime, time, state) {
+    _updateRecoveringZones(state, currentVisualTime) {
         const harmony = state.harmony || 0.5;
         const synergy = state.synergy || 0;
         
         // Filter and update
         this.recoveringZones = this.recoveringZones.filter(zone => {
-            zone.life += deltaTime;
+            zone.life = currentVisualTime - zone.startTime;
             
             // 1. Coherence Wave Visual
             if (zone.waveMeshIdx === -1) {
@@ -294,9 +316,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             }
             
             // 2. Link Re-Stitching (Particles)
-            zone.stitchingTimer += deltaTime;
-            if (zone.stitchingTimer > this.config.stitchingInterval) {
-                zone.stitchingTimer = 0;
+            const sinceLastStitch = currentVisualTime - (zone.lastStitchTime ?? zone.startTime);
+            if (sinceLastStitch >= this.config.stitchingInterval) {
+                zone.lastStitchTime = currentVisualTime;
                 
                 if (this.healingParticles) {
                     // "Tightening" Visual: Dual inward scan (from both ends towards center)
@@ -328,8 +350,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                     // Emit stationary particles that fade (leaving a trail)
                     const intensity = 0.5 * harmony;
                     
-                    this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, time);
-                    this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, time);
+                    this.healingParticles.emitHealingTrail(pos1, new THREE.Vector3(0,0,0), intensity, currentVisualTime);
+                    this.healingParticles.emitHealingTrail(pos2, new THREE.Vector3(0,0,0), intensity, currentVisualTime);
                 }
             }
             
@@ -348,9 +370,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         // Update Halos (independent lifecycle managed by pool)
         this.haloMeshPool.forEach(item => {
             if (!item.active) return;
-            item.life += deltaTime;
-            
-            const progress = item.life / item.maxLife;
+            const elapsed = currentVisualTime - (item.startTime ?? currentVisualTime);
+            const progress = elapsed / item.maxLife;
             const mesh = item.mesh;
             
             // Expand slightly
@@ -363,14 +384,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             
             mesh.material.uniforms.uLife.value = progress;
             
-            if (item.life >= item.maxLife) {
+            if (elapsed >= item.maxLife) {
                 item.active = false;
                 mesh.visible = false;
             }
         });
     }
     
-    _spawnHalo(node) {
+    _spawnHalo(node, currentVisualTime) {
         if (!node) return;
         
         const slot = this.haloMeshPool.findIndex(item => !item.active);
@@ -379,6 +400,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             item.active = true;
             item.life = 0;
             item.maxLife = 2.0;
+            item.startTime = currentVisualTime;
             item.mesh.visible = true;
             item.mesh.position.copy(node.position);
         }

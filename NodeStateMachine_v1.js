@@ -103,6 +103,7 @@ class StateTransition {
   }
 
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     this.elapsed += deltaTime;
     const t = Math.min(this.elapsed / this.duration, 1);
     const progress = this.easingCurve(t);
@@ -204,7 +205,7 @@ class StateController {
 
   update(deltaTime) {
     if (!this.currentState) return;
-
+if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Update elapsed time
     this.stateElapsed += deltaTime;
     
@@ -386,6 +387,7 @@ export class NodeStateMachine {
    * UPDATE LOOP
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Batch update all active controllers
     for (const [node, controller] of this.nodeControllers.entries()) {
       const result = controller.update(deltaTime);

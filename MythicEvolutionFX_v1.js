@@ -160,6 +160,7 @@ export class MythicEvolutionFX_v1 {
    * Main update loop: call once per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const startTime = performance.now();
 
     // Update all nodes

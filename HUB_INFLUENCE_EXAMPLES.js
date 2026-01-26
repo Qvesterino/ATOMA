@@ -272,6 +272,7 @@ export class InfluencePropagationWave {
   }
   
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Simulate wave propagation from each hub
     this.influencePropagation.hubInfluences.forEach((influence, hubId) => {
       let waveState = this.waveStates.get(hubId);

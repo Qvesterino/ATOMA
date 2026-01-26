@@ -259,7 +259,7 @@ export class LinkPriorityDecayEngine {
     this.stats.avgDecayAmount = (this.stats.avgDecayAmount + computedDecayAmount) / 2;
     this.stats.totalUpdates++;
 
-    // Persist computed results for diagnostics and downstream queries (without mutating link.priority.*).
+    // Advisory only: persist decay suggestion for diagnostics/downstream readers (no link.priority writes).
     this._storeComputedPriority(linkId, {
       score: decayedScore,
       tier: computedTier,
@@ -414,7 +414,7 @@ export class LinkPriorityDecayEngine {
     metadata.lastActivityAt = Date.now();
     metadata.boostCount++;
 
-    // Optional: Boost priority on activity (stored internally; no mutation of link.priority.*)
+    // Optional advisory: activity boost suggestion stored internally (no mutation of link.priority.*)
     const computed = this._getComputedPriority(linkId);
     if (computed && typeof computed.score === 'number') {
       const boost = Math.min(this.config.trackActivityBump, 1.0 - computed.score);

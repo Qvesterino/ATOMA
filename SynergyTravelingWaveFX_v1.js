@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Private symbol to track patched materials
+const WAVE_FX_PATCHED = Symbol('waveFXPatched');
+
 /**
  * SYNERGY TRAVELING WAVE FX v1.0
  * 
@@ -85,7 +88,6 @@ class WaveMaterialState {
             polarity: options.polarity || 'positive' // positive, negative, resonance, corrupted
         };
         
-        this.patched = false;
         this.originalOnBeforeCompile = material.onBeforeCompile || null;
         
         // GPU uniforms
@@ -115,7 +117,8 @@ class WaveMaterialState {
      * Patch material shader with traveling wave effects
      */
     patch() {
-        if (this.patched) return;
+        // Check if material already patched (material-level guard)
+        if (this.material[WAVE_FX_PATCHED]) return;
         
         const state = this;
         const originalOnBeforeCompile = this.originalOnBeforeCompile;
@@ -333,7 +336,8 @@ class WaveMaterialState {
             );
         };
         
-        this.patched = true;
+        // Mark material as patched
+        this.material[WAVE_FX_PATCHED] = true;
     }
     
     /**

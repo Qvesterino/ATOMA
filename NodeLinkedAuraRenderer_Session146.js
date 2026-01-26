@@ -36,6 +36,7 @@
 
 import * as THREE from 'three';
 import { createNodeAuraMaterial, createAuraGeometry } from './shaders/NodeAuraShader.js';
+import VisualTime from './src/time/VisualTime.js';
 
 export class NodeLinkedAuraRenderer_Session146 {
   /**
@@ -69,8 +70,10 @@ export class NodeLinkedAuraRenderer_Session146 {
       meshSubdivisions: config.meshSubdivisions ?? 2,
     };
     
-    // Global time for shader
+    // Global time for shader (derived from VisualTime)
     this.globalTime = 0;
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Per-node aura data
     // nodeId → { mesh, material, linkBoostTime, lastHarmony, lastCorruption }
@@ -115,12 +118,21 @@ export class NodeLinkedAuraRenderer_Session146 {
    * @param {number} deltaTime - Delta time in seconds
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (!this.config.enabled || !this.aiNodes) {
       return;
     }
     
     const startTime = performance.now();
-    this.globalTime += deltaTime;
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now; // Phase 2A: canonical VisualTime anchor (behavior-preserving)
+    }
+    const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: VisualTime canonical clock
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentVisualTime - this._lastVisualTime); // Phase 2A: derived delta (non-negative)
+    this._lastVisualTime = currentVisualTime;
+    this.globalTime = currentVisualTime;
     
     // Get node container (works with Map or object)
     let nodeArray = [];
@@ -153,7 +165,7 @@ export class NodeLinkedAuraRenderer_Session146 {
       
       // Update aura
       if (this.nodeAuras.has(node.nodeId)) {
-        this._updateNodeAura(node, deltaTime);
+        this._updateNodeAura(node, visualDelta);
         updateCount++;
       }
     }

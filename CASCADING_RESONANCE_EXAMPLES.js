@@ -410,6 +410,8 @@ function exampleBatchNodeVisualUpdate(nodes, time) {
  */
 
 function exampleMainRenderLoopIntegration(world, cascadeSystem, time) {
+  if (!this.frameScheduler?.shouldRunVisual?.()) return;
+  
   // 1. Update cascade system (computes all cascade data)
   const deltaTime = time - (exampleMainRenderLoopIntegration.lastTime || 0);
   cascadeSystem.update(deltaTime);

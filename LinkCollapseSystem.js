@@ -119,31 +119,17 @@ export class LinkCollapseSystem {
     if (!this.linkingSystem || !this.linkingSystem.links) {
       return;
     }
-    
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     const now = Date.now();
     
-    // Track which links should be removed (don't modify while iterating)
-    const linksToRemove = [];
-    
-    // Update collapse state for all links
+    // Update collapse state for all links (meaning-only: enqueue requests, no unlink)
     for (const link of this.linkingSystem.links) {
-      const linkId = this._getLinkId(link);
-      
-      // Check if link should collapse
-      if (this._updateLinkCollapseState(link, deltaTime, now)) {
-        linksToRemove.push(link);
-      }
-    }
-    
-    // Remove collapsed links after iteration
-    for (const link of linksToRemove) {
-      this._removeLinkSafely(link);
+      this._updateLinkCollapseState(link, deltaTime, now);
     }
   }
   
   /**
-   * Update collapse state for a single link
-   * Returns true if link should be removed
+   * Update collapse state for a single link (meaning-only; enqueue collapse request)
    * @private
    */
   _updateLinkCollapseState(link, deltaTime, now) {
@@ -200,10 +186,8 @@ export class LinkCollapseSystem {
     if (state.stressAccumulation >= this.config.collapseThreshold && isEligible) {
       state.hasCollapsed = true;
       this._onCollapse(link, state);
-      return true; // Signal link for removal
+      return; // No structural action; collapse request enqueued
     }
-    
-    return false; // Link survives
   }
   
   /**
@@ -316,6 +300,9 @@ export class LinkCollapseSystem {
       link.userData.collapseActive = true; // Signal for visual collapse FX
     }
     
+    // Meaning-only: enqueue collapse request for structural systems to handle
+    this._enqueueCollapseRequest(link, state);
+
     this._emit('collapse', link, state);
   }
   
@@ -339,6 +326,21 @@ export class LinkCollapseSystem {
     } catch (e) {
       console.warn('[LinkCollapseSystem] Error removing link:', e);
     }
+  }
+
+  /**
+   * Enqueue a collapse request (meaning-only; no structural unlink here).
+   * @private
+   */
+  _enqueueCollapseRequest(link, state) {
+    if (!this.linkingSystem || !this.linkingSystem.enqueueCollapseRequest) return;
+    const linkId = this._getLinkId(link);
+    this.linkingSystem.enqueueCollapseRequest(link, {
+      reason: 'collapse-threshold',
+      severity: 'critical',
+      source: 'LinkCollapseSystem',
+      stressAccumulation: state?.stressAccumulation,
+    });
   }
   
   /**

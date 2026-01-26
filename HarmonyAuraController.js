@@ -29,6 +29,9 @@
 
 import { CONFIG } from './config.js';
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+import VisualTime from './src/time/VisualTime.js';
+
+let _harmonyTimeOrigin;
 
 /**
  * Smoothstep function (canonical opacity easing)
@@ -71,7 +74,7 @@ export class HarmonyAuraController {
    * @param {number} timeSeconds - Total elapsed time (seconds)
    * [SESSION 99] Early exit if node auras are disabled
    */
-  update(dt, timeSeconds) {
+    update(dt, timeSeconds) {
     // ✓ FEATURE FLAG: Node aura visuals disabled (Session 99 Stabilization)
     if (!CONFIG.features?.ENABLE_NODE_AURAS) {
       return;  // ← Silent return, no aura updates
@@ -120,8 +123,13 @@ export class HarmonyAuraController {
     // 🌬️ Gentle breathing: amplitude ±3%, frequency varies with harmony
     // Formula: 1.0 + sin(t * 2π * f) * depth
     // where f = pulseFrequency (Hz), depth = 0.03
+    if (_harmonyTimeOrigin === undefined) {
+      _harmonyTimeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - _harmonyTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+
     const breathingDepth = 0.03; // ±3%
-    const pulse = 1.0 + Math.sin(timeSeconds * (Math.PI * 2.0) * this._smoothedPulseFrequency) * breathingDepth;
+    const pulse = 1.0 + Math.sin(currentVisualTime * (Math.PI * 2.0) * this._smoothedPulseFrequency) * breathingDepth;
 
     // 📤 Write ONLY to shader uniforms (never to userData)
     // Session 95: Check enforcement gate before modifying opacity
@@ -133,7 +141,7 @@ export class HarmonyAuraController {
     this.material.uniforms.uAuraStrength.value = harmonyAuraStrength;
     this.material.uniforms.uAuraRadius.value = this._smoothedRadius;
     this.material.uniforms.uAuraPulse.value = pulse;
-    this.material.uniforms.uTime.value = timeSeconds;
+    this.material.uniforms.uTime.value = currentVisualTime;
   }
   
   /**

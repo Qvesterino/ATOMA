@@ -111,6 +111,8 @@ export class SynergyCascadeVisualizer {
    * Main update function - call once per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     if (!this.config.enabled || !this.linkingSystem) return;
     
     this.frameCounter++;

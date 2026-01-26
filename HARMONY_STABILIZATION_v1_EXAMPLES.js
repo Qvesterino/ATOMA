@@ -249,6 +249,8 @@ export function example8_HarmonyCounterAttack(aiNodes) {
     },
 
     update() {
+      if (!this.frameScheduler?.shouldRunVisual?.()) return;
+      
       if (!this.enabled) return;
 
       this.frameCounter++;

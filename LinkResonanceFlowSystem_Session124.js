@@ -33,6 +33,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
@@ -83,10 +84,15 @@ export class LinkResonanceFlowSystem_Session124 {
     // Rendering
     this.pulseGeometry = null;
     this.pulseMaterial = null;
+    this.pulseMeshGeometry = null;
+    this.pulseMaterialTemplate = null;
+    this.pulseMeshPool = [];
     this.pulseGroup = null;
     
     // Spawn tracking
     this.spawnAccumulators = new Map(); // linkId → accumulated spawn time
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Statistics
     this.stats = {
@@ -117,28 +123,37 @@ export class LinkResonanceFlowSystem_Session124 {
    * Initialize pooled pulse meshes
    */
   _initializePulseMeshes() {
-    // Create reusable tube geometry for pulses
-    this.pulseGeometry = new THREE.TubeGeometry(
-      new THREE.LineCurve3(
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(1, 0, 0)
-      ),
-      8,   // tubular segments
-      0.3, // tube radius
-      8    // radial segments
-    );
+    // Shared unit sphere geometry for pulse meshes (scaled per pulse)
+    this.pulseMeshGeometry = new THREE.SphereGeometry(1, 8, 8);
     
-    // Create material with glow effect
-    this.pulseMaterial = new THREE.ShaderMaterial({
+    // Base shader material template (cloned per pulse; program shared)
+    this.pulseMaterialTemplate = new THREE.ShaderMaterial({
       uniforms: {
-        uTime: { value: 0 },
-        uPulseColor: { value: new THREE.Color(0x00ffff) },
-        uIntensity: { value: 1.0 },
-        uGlowSize: { value: 1.5 },
+        uColor: { value: new THREE.Color(0x00ffff) },
+        uOpacity: { value: 1.0 },
+        uGlowSize: { value: this.config.pulseGlowIntensity },
       },
-      vertexShader: this._getVertexShader(),
-      fragmentShader: this._getFragmentShader(),
-      side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uGlowSize;
+        varying vec3 vNormal;
+        
+        void main() {
+          vec3 viewDir = normalize(cameraPosition - vec3(0.0));
+          float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.0);
+          float glow = fresnel * uGlowSize;
+          
+          gl_FragColor = vec4(uColor, (0.5 + glow) * uOpacity);
+        }
+      `,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -150,21 +165,28 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   update(deltaTime, links, camera) {
     if (!this.config.enabled || !links) return;
-    
+
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const deltaVisual = this._lastVisualTime !== undefined ? currentVisualTime - this._lastVisualTime : 0;
+    this._lastVisualTime = currentVisualTime;
+
     // Update spawn accumulators and spawn new pulses
-    this._updateSpawning(deltaTime, links);
-    
+    this._updateSpawning(currentVisualTime, links);
+
     // Update active pulses
-    this._updateActivePulses(deltaTime);
-    
+    this._updateActivePulses(deltaVisual);
+
     // Update pulse mesh positions and appearances
     this._updatePulseMeshes();
-    
+
     // Update LOD based on camera
     if (camera) {
       this._updateLOD(camera);
     }
-    
+
     // Cleanup dead pulses
     this._cleanupDeadPulses();
     
@@ -175,7 +197,7 @@ export class LinkResonanceFlowSystem_Session124 {
   /**
    * Update pulse spawning based on link synergy
    */
-  _updateSpawning(deltaTime, links) {
+  _updateSpawning(currentVisualTime, links) {
     for (const link of links) {
       if (!link || !link.userData) continue;
       
@@ -187,24 +209,23 @@ export class LinkResonanceFlowSystem_Session124 {
       
       // Get or create spawn accumulator
       if (!this.spawnAccumulators.has(linkId)) {
-        this.spawnAccumulators.set(linkId, 0);
+        this.spawnAccumulators.set(linkId, { accumulator: 0, lastTime: currentVisualTime });
       }
       
       // Calculate spawn rate
       const spawnRate = this.config.baseSpawnRate * 
                        (1.0 + synergy * this.config.synergySpawnBoost);
       
-      // Accumulate time
-      let accumulator = this.spawnAccumulators.get(linkId);
-      accumulator += deltaTime * spawnRate;
+      const accumulatorEntry = this.spawnAccumulators.get(linkId);
+      const delta = currentVisualTime - (accumulatorEntry.lastTime ?? currentVisualTime);
+      accumulatorEntry.accumulator += delta * spawnRate;
+      accumulatorEntry.lastTime = currentVisualTime;
       
       // Spawn pulses
-      while (accumulator >= 1.0) {
+      while (accumulatorEntry.accumulator >= 1.0) {
         this._spawnPulse(link);
-        accumulator -= 1.0;
+        accumulatorEntry.accumulator -= 1.0;
       }
-      
-      this.spawnAccumulators.set(linkId, accumulator);
     }
   }
   
@@ -272,17 +293,17 @@ export class LinkResonanceFlowSystem_Session124 {
   /**
    * Update all active pulses
    */
-  _updateActivePulses(deltaTime) {
+  _updateActivePulses(deltaVisual) {
     for (let i = this.globalPulses.length - 1; i >= 0; i--) {
       const pulse = this.globalPulses[i];
       if (!pulse.active) continue;
       
       // Update position along link
-      const travelDistance = pulse.speed * deltaTime;
+      const travelDistance = pulse.speed * deltaVisual;
       pulse.position += pulse.direction * (travelDistance / pulse.link.length);
       
       // Update lifetime
-      pulse.life += deltaTime;
+      pulse.life += deltaVisual;
       
       // Check if pulse reached end of link
       if (pulse.position > 1.0 || pulse.position < 0.0) {
@@ -300,26 +321,33 @@ export class LinkResonanceFlowSystem_Session124 {
    * Update pulse mesh positions and appearances
    */
   _updatePulseMeshes() {
-    // Clear previous meshes
-    while (this.pulseGroup.children.length > 0) {
-      this.pulseGroup.removeAt(0);
-    }
-    
-    // Render active pulses
+    // Update or allocate meshes for active pulses (no per-frame reallocation)
     for (const pulse of this.globalPulses) {
       if (!pulse.active) continue;
+      
+      // Lazily allocate mesh once per pulse lifetime
+      if (!pulse.mesh) {
+        pulse.mesh = this.pulseMeshPool.pop() || this._createPulseMesh();
+        this.pulseGroup.add(pulse.mesh);
+      }
       
       // Get world position along link
       const worldPos = this._getPositionAlongLink(pulse);
       
       // Calculate pulse appearance
       const color = this._getPulseColor(pulse);
-      const opacity = this._getPulseOpacity(pulse);
+      const opacity = this._getPulseOpacity(pulse) * (pulse.lodSuppression ?? 1.0);
       const size = pulse.radius * (1.0 + Math.sin(pulse.life * Math.PI * 2) * 0.3);
       
-      // Create pulse mesh
-      const mesh = this._createPulseMesh(worldPos, size, color, opacity);
-      this.pulseGroup.add(mesh);
+      // Apply transforms and uniforms
+      pulse.mesh.visible = true;
+      pulse.mesh.position.copy(worldPos);
+      pulse.mesh.scale.setScalar(size);
+      
+      const uniforms = pulse.mesh.material.uniforms;
+      if (uniforms.uColor) uniforms.uColor.value.copy(color);
+      if (uniforms.uOpacity) uniforms.uOpacity.value = opacity;
+      if (uniforms.uGlowSize) uniforms.uGlowSize.value = this.config.pulseGlowIntensity;
     }
   }
   
@@ -397,45 +425,13 @@ export class LinkResonanceFlowSystem_Session124 {
   /**
    * Create pulse mesh (reuses material, not geometry)
    */
-  _createPulseMesh(position, size, color, opacity) {
-    // Create simple glowing sphere for pulse
-    const geometry = new THREE.SphereGeometry(size, 8, 8);
+  _createPulseMesh() {
+    const material = this.pulseMaterialTemplate.clone();
+    // Clone uniforms to keep per-pulse values without recompiling programs
+    material.uniforms = THREE.UniformsUtils.clone(this.pulseMaterialTemplate.uniforms);
     
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uColor: { value: color },
-        uOpacity: { value: opacity },
-        uGlowSize: { value: this.config.pulseGlowIntensity },
-      },
-      vertexShader: `
-        varying vec3 vNormal;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 uColor;
-        uniform float uOpacity;
-        uniform float uGlowSize;
-        varying vec3 vNormal;
-        
-        void main() {
-          vec3 viewDir = normalize(cameraPosition - vec3(0.0));
-          float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.0);
-          float glow = fresnel * uGlowSize;
-          
-          gl_FragColor = vec4(uColor, (0.5 + glow) * uOpacity);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    
+    const mesh = new THREE.Mesh(this.pulseMeshGeometry, material);
+    mesh.visible = false;
     return mesh;
   }
   
@@ -473,7 +469,14 @@ export class LinkResonanceFlowSystem_Session124 {
     // Remove from link pools
     for (const [linkId, pulses] of this.linkPulses) {
       for (let i = pulses.length - 1; i >= 0; i--) {
-        if (!pulses[i].active) {
+        const pulse = pulses[i];
+        if (!pulse.active) {
+          if (pulse.mesh) {
+            pulse.mesh.visible = false;
+            this.pulseGroup.remove(pulse.mesh);
+            this.pulseMeshPool.push(pulse.mesh);
+            delete pulse.mesh;
+          }
           pulses.splice(i, 1);
         }
       }
@@ -486,7 +489,14 @@ export class LinkResonanceFlowSystem_Session124 {
     
     // Remove from global pool
     for (let i = this.globalPulses.length - 1; i >= 0; i--) {
-      if (!this.globalPulses[i].active) {
+      const pulse = this.globalPulses[i];
+      if (!pulse.active) {
+        if (pulse.mesh) {
+          pulse.mesh.visible = false;
+          this.pulseGroup.remove(pulse.mesh);
+          this.pulseMeshPool.push(pulse.mesh);
+          delete pulse.mesh;
+        }
         this.globalPulses.splice(i, 1);
       }
     }

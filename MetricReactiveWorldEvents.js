@@ -82,6 +82,7 @@ export class MetricReactiveWorldEvents {
    * Main update loop - call every frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     if (!this.enabled) return;
     
     try {

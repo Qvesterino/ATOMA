@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * SYNERGY BONUS VISUALIZATION v1.0
@@ -105,6 +106,8 @@ export class SynergyBonusVisualization_v1 {
         
         // Global time accumulator (for wave oscillations)
         this.globalTime = 0.0;
+        this._timeOrigin = undefined;
+        this._lastVisualTime = undefined;
         
         if (this.debugEnabled) {
             console.log('[SynergyBonusVisualization] initialized ✓');
@@ -164,8 +167,7 @@ export class SynergyBonusVisualization_v1 {
             // =====================================================================
             // UPDATE ACCUMULATED TIME (for oscillations)
             // =====================================================================
-            state.accumulatedTime += deltaTime;
-            this.globalTime += deltaTime;
+            state.accumulatedTime = this.globalTime;
 
             // =====================================================================
             // COMPUTE PULSE STRENGTH
@@ -213,13 +215,23 @@ export class SynergyBonusVisualization_v1 {
         const startTime = performance.now();
         this.processedLinksCount = 0;
 
+        if (this._timeOrigin === undefined) {
+            this._timeOrigin = VisualTime.now;
+        }
+        const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+        const visualDelta = this._lastVisualTime === undefined
+            ? 0
+            : Math.max(0, currentTime - this._lastVisualTime);
+        this._lastVisualTime = currentTime;
+        this.globalTime = currentTime;
+
         try {
             // Process each link
             for (const link of allLinks) {
                 if (!link) continue;
 
                 // Compute bonus state
-                this.computeBonusForLink(link, deltaTime);
+                this.computeBonusForLink(link, visualDelta);
 
                 // Get state and apply smoothing
                 const state = this.getBonusState(link);

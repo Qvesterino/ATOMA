@@ -24,6 +24,7 @@
 
 import * as THREE from 'three';
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+import VisualTime from './src/time/VisualTime.js';
 
 export class GlyphLayer4_MultiFusion {
   constructor(scene, enforcementGate = null, resonanceFeedback = null) {
@@ -65,6 +66,8 @@ export class GlyphLayer4_MultiFusion {
         state: 0
       }
     };
+    this._glyphTimeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // ATOMA color palette
     this.colors = {
@@ -975,7 +978,18 @@ export class GlyphLayer4_MultiFusion {
   
   update(deltaTime) {
     if (!this.enabled) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
+    if (this._glyphTimeOrigin === undefined) {
+      this._glyphTimeOrigin = VisualTime.now; // Phase 2A: canonical VisualTime anchor for glyph timing
+    }
+    const currentVisualTime = VisualTime.now - this._glyphTimeOrigin; // Phase 2A: VisualTime canonical clock (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentVisualTime - this._lastVisualTime); // Phase 2A: derived delta from VisualTime (behavior-preserving)
+    this._lastVisualTime = currentVisualTime;
+    deltaTime = visualDelta;
+
     for (const [nodeId, fusionData] of this.fusionRegistry) {
       const { fusionGroup, layers } = fusionData;
       

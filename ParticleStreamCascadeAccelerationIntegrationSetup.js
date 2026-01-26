@@ -197,6 +197,8 @@ export class ParticleStreamCascadeAccelerationIntegrationSetup {
    * @param {number} time - Current simulation time in seconds
    */
   update(deltaTime, time) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     if (!this.isInitialized) return;
 
     try {

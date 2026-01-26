@@ -21,6 +21,8 @@
  * 0.85-1.0: Extreme corruption + constant visual breakdown
  */
 
+import VisualTime from './src/time/VisualTime.js';
+
 // === THREE SAFE LOADER (v1.1) ===
 let THREE_SAFE = null;
 THREE_SAFE =
@@ -33,6 +35,9 @@ if (!THREE_SAFE) {
 }
 
 const THREE = THREE_SAFE;
+
+// Private symbol to track patched materials - prevents repeated shader compilation
+const CORRUPTION_PATCHED = Symbol('corruptionPatched');
 
 /**
  * Corruption color palette (HSL-friendly)
@@ -62,6 +67,9 @@ export class CorruptionVisualFX_v1 {
     // Performance settings
     this.updateInterval = 1 / 30; // 30Hz updates for performance
     this.lastUpdateTime = 0;
+    // DEV NOTE: Corruption visuals require realtime (RAF) visual time per AtomaShaderTimingContract.
+    // VisualTime is the canonical source (Phase 2A); external time/delta params are maintained for legacy signatures only.
+    this.visualTime = VisualTime;
     
     if (this.debugMode) {
       console.log('%c[CorruptionVisualFX_v1] Initialized', 'color: #ff4400; font-weight: bold;');
@@ -94,12 +102,17 @@ export class CorruptionVisualFX_v1 {
 
   /**
    * Apply all corruption effects to a node
+   * Timing: expects realtime visual time (RAF). VisualTime is available for Phase 2 enforcement.
    */
   applyCorruptionEffects(nodeModel, deltaTime, time = 0) {
     if (!nodeModel || !nodeModel.userData) return;
 
     const corruptionLevel = nodeModel.userData?.gameplay?.corruptionLevel || 0;
     if (corruptionLevel <= 0) return; // No corruption, skip
+
+    // Phase 2A: use canonical RAF visual time (VisualTime) for all internal timing (behavior-preserving).
+    const visualNow = this.visualTime.now;
+    const visualDelta = this.visualTime.delta;
 
     // Get or create visual state
     const visualState = this.getOrCreateNodeVisualState(nodeModel);
@@ -108,7 +121,7 @@ export class CorruptionVisualFX_v1 {
     this.applyCorruptionColor(nodeModel, corruptionLevel);
 
     // Apply glow flicker
-    this.applyGlowFlicker(nodeModel, corruptionLevel, time, visualState);
+    this.applyGlowFlicker(nodeModel, corruptionLevel, visualNow, visualState);
 
     // Apply shader distortion (if THREE available)
     if (THREE && corruptionLevel > 0.45) {
@@ -117,12 +130,12 @@ export class CorruptionVisualFX_v1 {
 
     // Apply mesh jitter
     if (THREE && corruptionLevel > 0.15) {
-      this.applyMeshJitter(nodeModel, corruptionLevel, time, visualState);
+      this.applyMeshJitter(nodeModel, corruptionLevel, visualNow, visualState);
     }
 
     // Spawn chaos particles
     if (corruptionLevel > 0.45) {
-      this.spawnChaosParticles(nodeModel, corruptionLevel, deltaTime, visualState);
+      this.spawnChaosParticles(nodeModel, corruptionLevel, visualDelta, visualState);
     }
   }
 
@@ -201,6 +214,9 @@ export class CorruptionVisualFX_v1 {
   applyGlowFlicker(nodeModel, corruptionLevel, time, visualState) {
     if (!THREE) return;
 
+    // VisualTime provides monotonic RAF time to preserve smooth glow oscillation.
+    const t = this.visualTime.now;
+
     // Frequency and amplitude scale with corruption
     const baseFreq = 1; // Base oscillation frequency
     const maxFreq = 8;  // Maximum frequency at full corruption
@@ -214,7 +230,7 @@ export class CorruptionVisualFX_v1 {
     const flicker = corruptionLevel > 0.7 ? Math.random() * 0.3 : 0;
 
     // Compute glow intensity
-    const oscillation = Math.sin(time * frequency) * amplitude;
+    const oscillation = Math.sin(t * frequency) * amplitude;
     const glowIntensity = visualState.glowBaseIntensity * (1 + oscillation + flicker);
 
     // Apply to materials
@@ -238,6 +254,10 @@ export class CorruptionVisualFX_v1 {
 
   /**
    * Apply UV distortion shader effect (if THREE available)
+   * 
+   * P0.1 FIX: Idempotent patching - only patches once per material to prevent
+   * repeated shader recompilation, GPU frame spikes, and hook conflicts with other systems.
+   * Preserves and chains any existing onBeforeCompile hook.
    */
   applyShaderDistortion(nodeModel, corruptionLevel, visualState) {
     if (!THREE || !nodeModel.traverse) return;
@@ -247,12 +267,22 @@ export class CorruptionVisualFX_v1 {
 
       const material = child.material;
 
-      // Skip if already has custom shader
-      if (visualState.shaderApplied) return;
+      // Guard: Only patch once per material
+      if (material[CORRUPTION_PATCHED]) {
+        return;  // Already patched
+      }
 
       // Try to apply shader modification via onBeforeCompile
       if (material.onBeforeCompile && corruptionLevel > 0.45) {
+        // Store original onBeforeCompile (if any)
+        const originalOnBeforeCompile = material.onBeforeCompile;
+
         const onBeforeCompile = (shader) => {
+          // Call original first (preserves other systems' hooks)
+          if (originalOnBeforeCompile) {
+            originalOnBeforeCompile.call(material, shader);
+          }
+
           // Add distortion uniforms
           shader.uniforms.corruptionLevel = { value: corruptionLevel };
           shader.uniforms.time = { value: performance.now() * 0.001 };
@@ -286,8 +316,9 @@ export class CorruptionVisualFX_v1 {
           );
         };
 
+        // Mark material as patched before assignment
+        material[CORRUPTION_PATCHED] = true;
         material.onBeforeCompile(onBeforeCompile);
-        visualState.shaderApplied = true;
       }
     });
   }
@@ -298,13 +329,16 @@ export class CorruptionVisualFX_v1 {
   applyMeshJitter(nodeModel, corruptionLevel, time, visualState) {
     if (!THREE || !nodeModel.position) return;
 
+    // VisualTime ensures jitter uses RAF-aligned time to avoid scheduler quantization.
+    const t = this.visualTime.now;
+
     // Amplitude scales with corruption (very subtle)
     const jitterAmplitude = corruptionLevel * 0.007;
 
     // Compute jitter offset using sine waves at different frequencies
-    const jitterX = Math.sin(time * visualState.jitterFrequency + visualState.jitterPhase) * jitterAmplitude;
-    const jitterY = Math.sin(time * (visualState.jitterFrequency * 0.7) + visualState.jitterPhase + 1) * jitterAmplitude;
-    const jitterZ = Math.sin(time * (visualState.jitterFrequency * 1.3) + visualState.jitterPhase + 2) * jitterAmplitude;
+    const jitterX = Math.sin(t * visualState.jitterFrequency + visualState.jitterPhase) * jitterAmplitude;
+    const jitterY = Math.sin(t * (visualState.jitterFrequency * 0.7) + visualState.jitterPhase + 1) * jitterAmplitude;
+    const jitterZ = Math.sin(t * (visualState.jitterFrequency * 1.3) + visualState.jitterPhase + 2) * jitterAmplitude;
 
     // Apply offset (don't modify actual position, use temporary offset for rendering)
     if (visualState.jitterOffset) {
@@ -397,15 +431,18 @@ export class CorruptionVisualFX_v1 {
    * Update all active particles
    */
   updateParticles(deltaTime) {
+    // VisualTime.delta keeps particle integration aligned with RAF cadence.
+    const dt = this.visualTime.delta;
+
     for (let i = this.activeParticles.length - 1; i >= 0; i--) {
       const particle = this.activeParticles[i];
       
       // Update particle life
-      particle.life -= deltaTime / particle.maxLife;
+      particle.life -= dt / particle.maxLife;
 
       // Update position with gravity
-      particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
-      particle.velocity.y -= 0.5 * deltaTime; // Gravity effect
+      particle.position.add(particle.velocity.clone().multiplyScalar(dt));
+      particle.velocity.y -= 0.5 * dt; // Gravity effect
 
       // Fade out
       particle.color.multiplyScalar(particle.life);

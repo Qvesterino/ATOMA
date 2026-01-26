@@ -1,4 +1,4 @@
-/**
+/**INACTIVE NEPOUŽIVAŤ WARNING ACHTUNG POZOR UWAGA
  * PHASE 3C WEEK 10: LINK AURA SYSTEM — GPU-DRIVEN CYLINDRICAL HALO SYSTEM
  * 
  * Implements a visual aura system around links (connections between nodes) using GPU-based
@@ -274,6 +274,7 @@ export class LinkAuraSystem_v1 {
    */
   update(deltaTime) {
     if (!this.linkManager) return;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
     const startTime = performance.now();
     let visibleAuras = 0;

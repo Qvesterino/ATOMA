@@ -173,6 +173,8 @@ export class LinkCategoryTransitionSystem {
    * @param {number} deltaTime - Time since last frame in seconds
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const completedTransitions = [];
 
     for (const [linkId, controller] of this.activeTransitions) {

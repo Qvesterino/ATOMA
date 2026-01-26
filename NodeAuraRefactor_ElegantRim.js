@@ -72,6 +72,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 import { CONFIG } from './config.js';
 
 /**
@@ -296,6 +297,7 @@ export class NodeAuraRefactor_ElegantRim {
     // Aura storage
     this.auras = new Map();  // node.id → AuraInstance
     this.globalTime = 0;
+    this._timeOrigin = undefined;
     
     // Configuration
     this.rimWidthScale = options.rimWidthScale ?? 1.25;  // Scale factor for aura shell
@@ -442,8 +444,11 @@ export class NodeAuraRefactor_ElegantRim {
    */
   update(deltaTime) {
     if (!this.enabled) return;
-
-    this.globalTime += deltaTime;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    this.globalTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
 
     for (const [nodeId, aura] of this.auras) {
       if (!aura.node || !aura.mesh) continue;

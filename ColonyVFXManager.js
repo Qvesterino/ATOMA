@@ -568,6 +568,7 @@ export class ColonyVFXManager {
    * Full update cycle
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     this.updateParticles(deltaTime);
     this.updateHalos(deltaTime);
     this.updateRings(deltaTime);

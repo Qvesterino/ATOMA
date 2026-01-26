@@ -157,6 +157,8 @@ export class AIEmotionalFeed3_1 {
    * Update - call from main loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     this.timeSinceUpdate += deltaTime;
     
     if (this.timeSinceUpdate >= this.updateInterval) {

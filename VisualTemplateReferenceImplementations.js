@@ -42,6 +42,8 @@ class SynergyGlowReference {
    * Call once per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     // ✅ CORRECT: Read derived signal only
     const synergySignal = this.link?.userData?.visualSynergy || 0;
     
@@ -128,6 +130,8 @@ class HarmonyAuraReference {
    * Call once per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     // ✅ CORRECT: Read derived signal (breathing already included)
     const harmonySignal = this.node?.userData?.visualHarmonyAura || 0;
     
@@ -219,6 +223,8 @@ class NetworkStressTurbulenceReference {
    * Call once per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     // ✅ CORRECT: Read global network stress signal
     const stressSignal = 
       window.__ATOMA_METRICS?.interpretation?.network?.stressVisualizationChaos || 0;

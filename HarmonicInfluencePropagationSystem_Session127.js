@@ -197,7 +197,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   update(deltaTime) {
     if (!this.config.enabled) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Emit propagation pulses from active hubs
     this._emitPropagationPulses(deltaTime);
     

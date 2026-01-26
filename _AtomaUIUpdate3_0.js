@@ -208,7 +208,7 @@ export class AtomaUIUpdate3_0 {
     if (nodes.length === 0) {
       return {
         totalNodes: 0,
-        avgEnergy: 0,
+        avgSynergy: 0,
         avgStability: 0,
         avgClarity: 0,
         avgHarmony: 0,
@@ -360,6 +360,7 @@ export class AtomaUIUpdate3_0 {
    */
   update(deltaTime) {
     if (!this.enabled) return;
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     
     const startTime = performance.now();
     

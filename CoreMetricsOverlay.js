@@ -4,6 +4,7 @@ import { CoreMetricsHUD } from './CoreMetricsHUD.js';
 import { TemporalEventEffects } from './TemporalEventEffects.js';
 import { CoreMetricsEngineAdapter } from './CoreMetricsEngineAdapter.js';
 import { projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * ATOMA CORE METRICS OVERLAY 1.0
@@ -38,6 +39,8 @@ export class CoreMetricsOverlay {
     this.temporalEffects = new TemporalEventEffects(scene, renderer);
     this.hudLinkFallback = { synergyScore: 0 };
     this.lastHudDebugLog = 0;
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Cached data
     this.currentMetrics = {
@@ -71,15 +74,25 @@ export class CoreMetricsOverlay {
    */
   update(deltaTime, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes) {
     if (!this.enabled) return;
-    
+
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now; // Phase 2A: canonical VisualTime anchor (behavior-preserving)
+    }
+    const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: VisualTime canonical clock
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentVisualTime - this._lastVisualTime); // Phase 2A: derived delta (non-negative)
+    this._lastVisualTime = currentVisualTime;
+
+
     try {
       const startTime = performance.now();
       
       // Update metrics (low frequency)
-      this.metricsCalculator.update(deltaTime, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
+      this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
       
       // Update temporal system
-      const temporalEvents = this.temporalSystem.update(deltaTime);
+      const temporalEvents = this.temporalSystem.update(visualDelta);
       
       // Get current data
       this.currentMetrics = this.metricsCalculator.getMetrics();
@@ -92,7 +105,7 @@ export class CoreMetricsOverlay {
         this.currentMetrics,
         this.currentTemporalDisplay,
         temporalEvents,
-        deltaTime
+        visualDelta // Phase 2A: feed canonical delta into HUD engine adapter
       );
       const hudMetrics = rawHudMetrics ?? projectHudMetrics(withGlobalMetricAliases({
         networkSynergy: this.currentMetrics.networkSynergy ?? this.currentMetrics.synergy ?? linkSource.synergyScore ?? 0,
@@ -102,8 +115,8 @@ export class CoreMetricsOverlay {
         loadPressure: this.currentMetrics.loadPressure ?? this.currentMetrics.loadNorm ?? this.currentMetrics.networkLoad ?? this.currentMetrics.energyNorm
       }));
 
-      this.hud.update(hudMetrics, this.currentTemporalDisplay, temporalEvents, deltaTime);
-      this.hud.updateGlow(deltaTime);
+      this.hud.update(hudMetrics, this.currentTemporalDisplay, temporalEvents, visualDelta);
+      this.hud.updateGlow(visualDelta); // Phase 2A: HUD glow uses canonical delta
 
       if (typeof window !== 'undefined' && window.DEBUG) {
         const now = performance.now();
@@ -114,7 +127,7 @@ export class CoreMetricsOverlay {
       }
       
       // Trigger temporal effects
-      this.temporalEffects.update(deltaTime, temporalEvents);
+      this.temporalEffects.update(visualDelta, temporalEvents); // Phase 2A: temporal effects follow VisualTime
       
       // Log events if debugging
       if (this.debugMode) {
@@ -129,7 +142,8 @@ export class CoreMetricsOverlay {
       
     } catch (error) {
       console.error('Error updating Core Metrics Overlay:', error);
-      this.disable();
+      // Keep HUD visible for diagnostics; do not auto-hide on update errors
+      this.hud.show();
     }
   }
   

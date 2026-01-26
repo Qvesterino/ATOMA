@@ -485,6 +485,8 @@ export class SynergyCascadeFXBridge_v1 {
      * Main update loop
      */
     update(deltaTime, allNodes = [], allLinks = []) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
         try {
             const startTime = performance.now();
             

@@ -101,7 +101,8 @@ export class ExtremeAINodeEvolution3 {
    */
   update(deltaTime) {
     if (!this.enabled || !this.evolutionMap.size) return;
-
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     const currentTime = Date.now();
 
     this.evolutionMap.forEach((evoData, node) => {

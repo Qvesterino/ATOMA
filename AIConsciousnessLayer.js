@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * AI CONSCIOUSNESS LAYER 2.0 - NEURAL THOUGHT VISUALIZATION + EMERGENT STORMS
@@ -87,6 +88,8 @@ export class AIConsciousnessLayer {
     // Temporal state
     this.time = 0;
     this.instanceID = Math.random();
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     this._initializeParticlePools();
     this._createGlobalField();
@@ -435,22 +438,30 @@ export class AIConsciousnessLayer {
    */
   update(dt) {
     if (!this.config.enabled) return;
-    
+
     const startTime = performance.now();
     
-    this.time += dt;
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+    this._lastVisualTime = currentTime;
+    this.time = currentTime;
     
     // 1. Update neural threads
     this._updateThreads();
     
     // 2. Update pulse packets
-    this._updatePulses(dt);
+    this._updatePulses(visualDelta);
     
     // 3. Update semantic patterns
-    this._updatePatterns(dt);
+    this._updatePatterns(visualDelta);
     
     // 4. Update global field
-    this._updateGlobalField(dt);
+    this._updateGlobalField(visualDelta);
     
     // 5. Spawn new thoughts on active links
     this._spawnNewThoughts();
@@ -458,7 +469,7 @@ export class AIConsciousnessLayer {
     // 6. Update thought storms (if enabled)
     if (this.config.stormsEnabled && this.storms) {
       const stormStart = performance.now();
-      this.storms.update(dt);
+      this.storms.update(visualDelta);
       this.stats.stormsFrameTime = performance.now() - stormStart;
     }
     
@@ -498,7 +509,7 @@ export class AIConsciousnessLayer {
   /**
    * Update all pulse packets
    */
-  _updatePulses(dt) {
+  _updatePulses(visualDelta) {
     for (let i = this.activeThoughts.pulsePackets.length - 1; i >= 0; i--) {
       const pulse = this.activeThoughts.pulsePackets[i];
       
@@ -509,8 +520,8 @@ export class AIConsciousnessLayer {
         continue;
       }
       
-      pulse.progress += pulse.speed * dt;
-      pulse.life -= dt * 0.5; // Fade out
+      pulse.progress += pulse.speed * visualDelta;
+      pulse.life -= visualDelta * 0.5; // Fade out
       
       if (pulse.progress >= 1 || pulse.life <= 0) {
         pulse.active = false;
@@ -540,9 +551,9 @@ export class AIConsciousnessLayer {
   /**
    * Update semantic pattern clusters
    */
-  _updatePatterns(dt) {
+  _updatePatterns(visualDelta) {
     for (const [linkId, pattern] of this.activeThoughts.patternClusters) {
-      pattern.life -= dt;
+      pattern.life -= visualDelta;
       
       if (pattern.life <= 0) {
         // Remove pattern
@@ -582,7 +593,7 @@ export class AIConsciousnessLayer {
   /**
    * Update global consciousness field
    */
-  _updateGlobalField(dt) {
+  _updateGlobalField(visualDelta) {
     if (!this.globalFieldMesh) return;
     
     // Calculate average network activity

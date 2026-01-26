@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Private symbol to track patched materials - prevents repeated shader compilation
+const SHADER_MODE_PATCHED = Symbol('shaderModePatched');
+
 /**
  * ShaderModeState: Per-node/link shader mode state tracking
  */
@@ -64,9 +67,6 @@ export class ArchetypeShaderModes_v1 {
         // Per-node/link shader mode state (WeakMap for automatic GC)
         this.nodeStates = new WeakMap();
         this.linkStates = new WeakMap();
-
-        // Track processed materials (WeakMap)
-        this.patchedMaterials = new WeakSet();
 
         // Performance monitoring
         this.lastUpdateTime = 0;
@@ -228,13 +228,18 @@ export class ArchetypeShaderModes_v1 {
 
     /**
      * Patch a material with shader mode uniforms
+     * 
+     * P0.1 FIX: Idempotent patching - only patches once per material to prevent
+     * repeated shader recompilation and GPU frame spikes.
      */
     _patchMaterial(material, archetypeId = 0) {
-        if (this.patchedMaterials.has(material)) {
+        // Guard: Only patch once per material
+        if (material[SHADER_MODE_PATCHED]) {
             return;  // Already patched
         }
 
-        this.patchedMaterials.add(material);
+        // Mark material as patched
+        material[SHADER_MODE_PATCHED] = true;
 
         // Store original onBeforeCompile (if any)
         const originalOnBeforeCompile = material.onBeforeCompile;
@@ -309,7 +314,7 @@ export class ArchetypeShaderModes_v1 {
             state.smooth(deltaTime);
 
             // Patch material if not already done
-            if (!this.patchedMaterials.has(auraInstance.material)) {
+            if (!auraInstance.material[SHADER_MODE_PATCHED]) {
                 this._patchMaterial(auraInstance.material, state.archetypeId);
             }
 
@@ -344,7 +349,7 @@ export class ArchetypeShaderModes_v1 {
             state.smooth(deltaTime);
 
             // Patch material if not already done
-            if (!this.patchedMaterials.has(auraInstance.material)) {
+            if (!auraInstance.material[SHADER_MODE_PATCHED]) {
                 this._patchMaterial(auraInstance.material, 0);  // Links default to Sage
             }
 

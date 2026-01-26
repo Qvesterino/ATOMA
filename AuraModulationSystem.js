@@ -262,7 +262,6 @@ export class AuraModulationSystem {
     }
     
     aura.material.opacity = baseline.opacity * targetOpacity;
-    aura.material.needsUpdate = true;
   }
   
   /**
@@ -287,7 +286,6 @@ export class AuraModulationSystem {
     const tintColor = new THREE.Color(1, 1, 1);
     
     aura.material.color.copy(baseline.color).lerp(tintColor, fadeOut * modulation.intensity);
-    aura.material.needsUpdate = true;
   }
   
   /**
@@ -309,7 +307,6 @@ export class AuraModulationSystem {
     
     if (aura.material.emissive) {
       aura.material.emissive.copy(baseline.emissive).multiplyScalar(targetIntensity);
-      aura.material.needsUpdate = true;
     }
   }
   
@@ -334,8 +331,6 @@ export class AuraModulationSystem {
     if (aura.material.emissive) {
       aura.material.emissive.lerp(baseline.emissive, decayRate);
     }
-    
-    aura.material.needsUpdate = true;
   }
   
   /**

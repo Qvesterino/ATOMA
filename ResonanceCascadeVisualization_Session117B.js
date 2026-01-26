@@ -281,6 +281,8 @@ export class ResonanceCascadeVisualization_Session117B {
    * Main update per frame
    */
   update(deltaTime, nodes, links, conflictRegions = []) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     if (!this.enabled || !nodes) return;
     
     const now = Date.now() * 0.001;

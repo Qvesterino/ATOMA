@@ -88,7 +88,8 @@ export class ExtremeAIShaderPack {
    */
   update(deltaTime) {
     if (!this.enabled || !this.nodeMap.size) return;
-
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     this.time += deltaTime;
 
     this.nodeMap.forEach((shaderData, node) => {

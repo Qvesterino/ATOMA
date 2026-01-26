@@ -66,6 +66,9 @@
 
 import * as THREE from 'three';
 
+// Private symbol to track patched materials and which profile is applied
+const EFFECTS_PACK_PATCHED = Symbol('effectsPackPatched');
+
 export class PersonalityShaderEffects_Pack_v1 {
   /**
    * Initialize the shader effects pack
@@ -271,9 +274,10 @@ export class PersonalityShaderEffects_Pack_v1 {
     const config = this.config.clarityBloom;
     
     return function applyProfile(material) {
-      // Ensure only applied once per material
-      if (material._clarityBloomApplied) return;
-      material._clarityBloomApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'clarity_bloom';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -320,8 +324,10 @@ export class PersonalityShaderEffects_Pack_v1 {
     const config = this.config.corruptionRift;
     
     return function applyProfile(material) {
-      if (material._corruptionRiftApplied) return;
-      material._corruptionRiftApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'corruption_rift';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -371,8 +377,10 @@ export class PersonalityShaderEffects_Pack_v1 {
     const config = this.config.resonanceWave;
     
     return function applyProfile(material) {
-      if (material._resonanceWaveApplied) return;
-      material._resonanceWaveApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'resonance_wave';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -417,8 +425,10 @@ export class PersonalityShaderEffects_Pack_v1 {
     const config = this.config.entropyGlitch;
     
     return function applyProfile(material) {
-      if (material._entropyGlitchApplied) return;
-      material._entropyGlitchApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'entropy_glitch';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -476,8 +486,10 @@ export class PersonalityShaderEffects_Pack_v1 {
     const config = this.config.focusDrift;
     
     return function applyProfile(material) {
-      if (material._focusDriftApplied) return;
-      material._focusDriftApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'focus_drift';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -527,8 +539,10 @@ export class PersonalityShaderEffects_Pack_v1 {
    */
   _buildLinkResonanceWaveProfile() {
     return function applyProfile(material) {
-      if (material._linkResonanceWaveApplied) return;
-      material._linkResonanceWaveApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'link_resonance_wave';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       
@@ -563,8 +577,10 @@ export class PersonalityShaderEffects_Pack_v1 {
    */
   _buildLinkGlowBoostProfile() {
     return function applyProfile(material) {
-      if (material._linkGlowBoostApplied) return;
-      material._linkGlowBoostApplied = true;
+      // Check if any profile already applied (return early)
+      if (material[EFFECTS_PACK_PATCHED]) return;
+      // Mark this profile as applied
+      material[EFFECTS_PACK_PATCHED] = 'link_glow_boost';
       
       const originalOnBeforeCompile = material.onBeforeCompile;
       

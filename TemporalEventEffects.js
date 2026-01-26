@@ -50,6 +50,9 @@ export class TemporalEventEffects {
    */
   update(deltaTime, temporalEvents) {
     if (!this.enabled) return;
+    if (!temporalEvents || temporalEvents.newEpoch === undefined || temporalEvents.newAeon === undefined) {
+      return; // Defensive guard: wait until epoch data is available (behavior-preserving)
+    }
     
     // Update epoch color shift
     if (temporalEvents.newEpoch) {

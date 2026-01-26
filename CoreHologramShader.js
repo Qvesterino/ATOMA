@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 // ============================================================
 // STABLE HOLOGRAM GEOMETRY CACHE
@@ -155,9 +156,15 @@ setupAuraDebugAPI();
 /**
  * Update hologram shell uniforms (for animation)
  */
+let _hologramTimeOrigin;
+
 export function updateHologramShellMaterial(material, deltaTime) {
   if (material && material.uniforms && material.uniforms.uTime) {
-    material.uniforms.uTime.value += deltaTime;
+    if (_hologramTimeOrigin === undefined) {
+      _hologramTimeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - _hologramTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    material.uniforms.uTime.value = currentVisualTime;
   }
 }
 

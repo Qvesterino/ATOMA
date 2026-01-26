@@ -98,6 +98,8 @@ export class AmbientEntityManager {
    * Main update loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunBackground?.()) return;
+    
     // Phase B pilot: mood/interpretation at ~4 Hz, ambient motion/visuals remain 60 Hz (mirrors weatherPack gating)
     this.interpretationAccumulator += deltaTime;
     const shouldRunInterpretation = this.interpretationAccumulator >= this.interpretationInterval;

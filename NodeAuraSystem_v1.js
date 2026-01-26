@@ -53,6 +53,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 import { CONFIG } from './config.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
@@ -81,6 +82,8 @@ class AuraInstance {
     this.lastEntropy = 0;
     this.lastFocus = 0;
     this.lastCorruption = 0;
+    this.birthPulseStart = null;
+    this.removalPulseStart = null;
   }
 
   update(deltaTime) {
@@ -130,6 +133,7 @@ export class NodeAuraSystem_v1 {
     this.auras = new Map();  // node.id → AuraInstance
     this.auraGeometry = null;
     this.globalTime = 0;
+    this._auraTimeOrigin = VisualTime.now;
 
     // Performance settings
     this.lowFXFade = options.lowFXFade ?? 0.2;  // Intensity multiplier in lowFX
@@ -586,6 +590,12 @@ export class NodeAuraSystem_v1 {
    * Update all auras each frame
    */
 update(deltaTime) {
+  if (this._auraTimeOrigin === undefined) {
+    this._auraTimeOrigin = VisualTime.now;
+  }
+  this.globalTime = VisualTime.now - this._auraTimeOrigin; // Phase 2B: canonical VisualTime timeline
+  if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
   if (!this.enabled) return;
 
   if (!(this.auras instanceof Map)) {
@@ -602,6 +612,7 @@ update(deltaTime) {
       // SESSION 21 - PHASE 2: Spawn Collision Safety (Visual-Only Guard)
       // Skip aura update if node visual is not ready (prevents overlapping auras)
       if (!aura.node?.userData?.visualReady) continue;
+      const node = aura.node;
       
       // Update position from node
       if (aura.node && aura.node.position) {
@@ -661,7 +672,8 @@ update(deltaTime) {
         // --- LINK BIRTH AURA ENHANCEMENT ---
         // Apply directional pulse and ripple when node is just linked
         if (node.justLinked && node.linkBirthTime !== undefined) {
-          const linkBirthAge = performance.now() - node.linkBirthTime;
+          aura.birthPulseStart = aura.birthPulseStart ?? this.globalTime;
+          const linkBirthAge = (this.globalTime - aura.birthPulseStart) * 1000;
           const BIRTH_DURATION = 600; // 600ms total duration
           
           // Calculate decay: 1.0 at birth, 0.0 after 600ms
@@ -681,18 +693,21 @@ update(deltaTime) {
           // Clear flag after duration
           if (birthIntensity <= 0) {
             node.justLinked = false;
+            aura.birthPulseStart = null;
           }
         } else {
           // Ensure birth intensity is 0 when not just linked
           if (aura.material.uniforms.uLinkBirthIntensity) {
             aura.material.uniforms.uLinkBirthIntensity.value = 0;
           }
+          aura.birthPulseStart = null;
         }
         
         // --- LINK REMOVAL DISSIPATION ENHANCEMENT ---
         // Apply inward contraction and dissipation ripple when link is removed
         if (node.linkRemoving && node.linkRemovalTime !== undefined) {
-          const linkRemovalAge = performance.now() - node.linkRemovalTime;
+          aura.removalPulseStart = aura.removalPulseStart ?? this.globalTime;
+          const linkRemovalAge = (this.globalTime - aura.removalPulseStart) * 1000;
           const REMOVAL_DURATION = 500; // 500ms total duration (slightly faster than birth)
           
           // Calculate decay: 1.0 at removal, 0.0 after 500ms
@@ -712,12 +727,14 @@ update(deltaTime) {
           // Clear flag after duration
           if (removalIntensity <= 0) {
             node.linkRemoving = false;
+            aura.removalPulseStart = null;
           }
         } else {
           // Ensure removal intensity is 0 when not removing
           if (aura.material.uniforms.uLinkRemovalIntensity) {
             aura.material.uniforms.uLinkRemovalIntensity.value = 0;
           }
+          aura.removalPulseStart = null;
         }
         
         // --- CORRUPTION AURA DEGRADATION ---

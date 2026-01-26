@@ -616,6 +616,8 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     update(deltaTime, networkState) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
         if (!this.enabled) return;
         
         // POLISHED: Graceful degradation - skip if topology system unavailable

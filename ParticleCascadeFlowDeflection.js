@@ -104,6 +104,8 @@ export class ParticleCascadeFlowDeflection {
    * Per-frame update: recompute flow directions
    */
   update(deltaTime, time) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     this.lastUpdateTime = time || Date.now() / 1000;
     this.noisePhase += deltaTime * this.config.turbulenceFrequency;
 

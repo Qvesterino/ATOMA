@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * SafeDreamDepthPack.js - AI Depth-of-Field Simulation (Pure VFX)
@@ -90,6 +91,8 @@ export class SafeDreamDepthPack {
     this.lastFrameTime = performance.now();
     this.cameraVelocity = new THREE.Vector3();
     this.lastCameraPos = camera.position.clone();
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Pulse tracking
     this.activePulses = [];
@@ -416,38 +419,47 @@ export class SafeDreamDepthPack {
    * Main update (call once per frame)
    */
   update(deltaTime, worldSystems) {
-    this.time += deltaTime;
-    
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+    this._lastVisualTime = currentTime;
+    this.time = currentTime;
+    this.lastFrameTime = visualDelta;
+
     // Update camera velocity for stability
     this.updateCameraVelocity();
-    
+
     // Apply baseline DOF
-    this.applyBaselineDOF(deltaTime);
-    
+    this.applyBaselineDOF(visualDelta);
+
     // Auto-focus on nearby targets
     if (worldSystems) {
       const targets = this.gatherFocusTargets(worldSystems);
       this.autoFocusOnTarget(targets);
     }
-    
+
     // Apply focus effect
-    this.applyFocusEffect(deltaTime);
-    
+    this.applyFocusEffect(visualDelta);
+
     // Update pulses
-    this.updateDepthPulses(deltaTime);
-    
+    this.updateDepthPulses(visualDelta);
+
     // Apply dream glaze
-    this.applyDreamGlaze(deltaTime);
-    
+    this.applyDreamGlaze(visualDelta);
+
     // Apply weather effects if available
     if (worldSystems && worldSystems.weatherRegistry) {
       const weather = worldSystems.weatherRegistry.currentWeather;
       this.applyWeatherEffects(weather);
     }
-    
+
     // Apply all effects to screen
-    this.applyEffectsToScreen(deltaTime);
-    
+    this.applyEffectsToScreen(visualDelta);
+
     // Enforce camera stability (read-only check)
     this.enforceCameraStability();
   }

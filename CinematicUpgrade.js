@@ -144,7 +144,7 @@ export class CinematicUpgrade {
    */
   update(deltaTime) {
     this.time += deltaTime;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Update volumetric lights pulsing
     this.volumetricLights.forEach(light => {
       const pulse = Math.sin(this.time * light.userData.pulseSpeed + light.userData.phase) * 0.5 + 0.5;

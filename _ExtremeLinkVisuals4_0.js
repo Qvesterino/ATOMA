@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-
+import { VisualTime } from "./src/time/VisualTime.js";
 /**
  * EXTREME LINK VISUAL UPGRADE 4.0 — NEURAL CURVATURE & DEPTH
  * 
@@ -384,15 +384,23 @@ export class ExtremeLinkVisuals4_0 {
     
     const startTime = performance.now();
     
-    this.time += dt;
-    this.deltaTime = dt;
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: VisualTime canonical clock (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+    this._lastVisualTime = currentTime;
+    this.time = currentTime;
+    this.deltaTime = visualDelta;
     
     if (camera) {
       this.camera = camera;
     }
     
     // 1. Update all link visuals
-    this._updateAllLinks(dt);
+    this._updateAllLinks(visualDelta);
     
     // 2. Update depth effects
     if (this.config.depthReactive && this.camera) {
@@ -406,12 +414,12 @@ export class ExtremeLinkVisuals4_0 {
     
     // 4. Spawn and update packets
     if (this.config.packetDensity > 0) {
-      this._updateFlowPackets(dt);
+      this._updateFlowPackets(visualDelta);
     }
     
     // 5. Update glyph integration
     if (this.config.glyphIntegration) {
-      this._updateGlyphIntegration(dt);
+      this._updateGlyphIntegration(visualDelta);
     }
     
     const frameTime = performance.now() - startTime;

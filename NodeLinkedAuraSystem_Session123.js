@@ -31,6 +31,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class NodeLinkedAuraSystem_Session123 {
   constructor(scene, world, config = {}) {
@@ -168,8 +169,14 @@ export class NodeLinkedAuraSystem_Session123 {
       if (!aura.active) continue;
       
       // Update time
-      aura.time += deltaTime;
-      aura.pulseTime += deltaTime * aura.pulseSpeed;
+      if (aura._timeOrigin === undefined) {
+        aura._timeOrigin = VisualTime.now;
+      }
+      if (aura._pulseOrigin === undefined) {
+        aura._pulseOrigin = VisualTime.now;
+      }
+      aura.time = VisualTime.now - aura._timeOrigin;
+      aura.pulseTime = (VisualTime.now - aura._pulseOrigin) * aura.pulseSpeed; // Phase 2A: canonical VisualTime source (behavior-preserving)
       
       // Update node state
       this._updateAuraState(aura);

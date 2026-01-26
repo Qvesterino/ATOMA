@@ -67,6 +67,8 @@ export class SafeColonyExpansion2 {
    * Main update loop (call once per frame)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const startTime = performance.now();
     
     this.time += deltaTime;

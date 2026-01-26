@@ -237,6 +237,7 @@ export class DreamDepthEffectManager {
    * Update all effect intensities
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     // Update vignette
     this.effects.vignette.intensity += (this.effects.vignette.target - this.effects.vignette.intensity) * this.config.transitionSpeed;
     this.vignetteLayer.material.opacity = Math.min(this.config.maxIntensity, this.effects.vignette.intensity);

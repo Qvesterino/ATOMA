@@ -207,6 +207,8 @@ export class TIER4_CorruptionFeedbackVisuals {
    * Call from main animation loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const currentTime = Date.now();
     
     // Update corruption seeds

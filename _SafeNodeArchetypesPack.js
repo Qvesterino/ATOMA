@@ -774,7 +774,7 @@ export class SafeNodeArchetypesPack {
    */
   update(deltaTime) {
     if (!this.registry.archetypeActive) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     this.registry.frameCounter++;
     
     for (const [nodeId, archetypeState] of this.registry.nodeArchetypes) {

@@ -87,6 +87,8 @@ export class PHASE5_CascadeVisualizationBridge {
    * Call from main animation loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const updateStart = Date.now();
     
     try {

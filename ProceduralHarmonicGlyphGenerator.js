@@ -417,6 +417,8 @@ export class ProceduralHarmonicGlyphGenerator {
     // ========================================================================
     
     update(deltaTime) {
+        if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
         if (!this.enabled || !this.topologySystem) return;
         
         // Update all active glyphs

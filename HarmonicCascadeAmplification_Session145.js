@@ -125,6 +125,7 @@ export class HarmonicCascadeAmplification_Session145 {
    * @param {number} deltaTime - Delta time in seconds
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Always run proximity detection (even if cascades disabled)
     if (this.harmonicHubSystem && this.harmonicHubSystem.hubs) {
       const proximityPairs = this.proximityDetector.detectProximity(

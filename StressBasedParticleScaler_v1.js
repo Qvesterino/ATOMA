@@ -147,6 +147,8 @@ export class StressBasedParticleScaler_v1 {
   }
 
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     this.updateCount++;
     if (this.updateCount % 60 === 0) {
       this.linkParticleCache.clear();

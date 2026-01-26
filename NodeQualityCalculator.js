@@ -85,6 +85,7 @@ export class NodeQualityCalculator {
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (!this.aiNodes || !this.aiNodes.nodes) {
       return;
     }

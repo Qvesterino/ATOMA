@@ -267,6 +267,8 @@ class ArchetypeAscensionCurves_v1 {
    * Main update loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     if (!this.mythicEvolutionFX || !this.aiNodes) return;
 
     this.totalTime += deltaTime;

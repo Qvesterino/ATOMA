@@ -92,6 +92,7 @@ export class PersonalityVisualAdapter {
    * @param {number} deltaTime - Time since last frame
    */
   update(deltaTime = 0.016) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const startMs = performance.now();
     
     try {

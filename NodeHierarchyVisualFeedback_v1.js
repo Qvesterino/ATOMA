@@ -260,6 +260,7 @@ export class NodeHierarchyVisualFeedback {
    * Update all active effects (called each frame)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const now = Date.now();
     if (now - this.lastUpdateTime < this.updateThrottle) {
       return;

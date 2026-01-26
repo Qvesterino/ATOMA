@@ -409,6 +409,8 @@ export class SynergyHighways1_0 {
    * @param {number} deltaTime - Frame delta time
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     this.time += deltaTime;
     
     // Culling if too many highways

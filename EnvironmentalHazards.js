@@ -219,6 +219,7 @@ export class EnvironmentalHazards {
    * Update hazards
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     this.hazards.forEach(hazard => {
       if (!hazard.active) return;
       

@@ -100,6 +100,8 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Main update loop
      */
     update(deltaTime, time, networkState) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        
         // 1. Manage Wave Lifecycle (Move, Render, Cull)
         this._updateWaves(deltaTime, time);
         

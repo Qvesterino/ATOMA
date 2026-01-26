@@ -405,6 +405,8 @@ export class NodeSynergyIntegration1_0 {
    * Handles animation updates for all synergy systems
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     try {
       if (this.synergyVFX) {
         this.synergyVFX.update(deltaTime);

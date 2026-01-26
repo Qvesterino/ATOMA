@@ -82,6 +82,7 @@ export class NetworkStressAggregator {
    * @param {number} deltaTime - Frame delta time
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     const startTime = performance.now();
     
     // Compute three stress components from underlying systems

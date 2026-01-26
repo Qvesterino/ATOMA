@@ -23,6 +23,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class AtomaGlyphSystem4_0 {
   constructor(scene, camera) {
@@ -105,11 +106,14 @@ export class AtomaGlyphSystem4_0 {
     
     // Global time for synchronized animations
     this.globalTime = 0;
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Cluster detection (for synchronized rotation)
     this.clusterGroups = new Map(); // nodeId → clusterId
     this.clusterSync = new Map(); // clusterId → { nodes, syncPhase }
     this.clusterSyncDuration = 1.5; // seconds
+    this.lastClusterCheck = 0;
     
     console.log('✓ ATOMA Glyph System 4.0 (Animated Meaning Edition) initialized');
   }
@@ -1581,11 +1585,19 @@ export class AtomaGlyphSystem4_0 {
     if (!nodes || nodes.length === 0) return;
     
     const startTime = performance.now();
-    this.globalTime += deltaTime;
-    
+
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: VisualTime canonical clock (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+    this._lastVisualTime = currentTime;
+    this.globalTime = currentTime;
+
     // Detect clusters periodically (every 0.5s)
-    if (!this.lastClusterCheck) this.lastClusterCheck = 0;
-    this.lastClusterCheck += deltaTime;
+    this.lastClusterCheck += visualDelta;
     if (this.lastClusterCheck >= 0.5) {
       this.detectClusters(nodes);
       this.lastClusterCheck = 0;
@@ -1595,70 +1607,62 @@ export class AtomaGlyphSystem4_0 {
     for (const [nodeId, glyphData] of this.glyphRegistry) {
       const { node, glyphGroup, glyphType } = glyphData;
       
-      // Safety: skip if node removed
       if (!node || !glyphGroup || !glyphGroup.parent) {
         this.disposeGlyph(nodeId);
         continue;
       }
       
-      // Analyze context
       const context = this.analyzeContext(node, nodeId);
       const animState = this.animationState.get(nodeId);
       
       if (!context || !animState) continue;
       
-      // [SYNERGY GLYPH REVEAL] Apply synergy-based reveal effect before standard animation
       this._applySynergyGlyphReveal(glyphGroup, nodeId, context);
-      
-      // [CORRUPTION GLYPH DIMMING] Apply corruption dimming AFTER synergy reveal
-      // Corruption overrides synergy visibility - visual indication of system degradation
       this._applyCorruptionGlyphDimming(glyphGroup, nodeId, context);
-      
-      // Update based on glyph type
+
       switch (glyphType) {
         case 'aiConsciousness':
-          this.updateAIConsciousnessGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateAIConsciousnessGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'mythicSeed':
-          this.updateMythicSeedGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateMythicSeedGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'ascendedNode':
-          this.updateAscendedNodeGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateAscendedNodeGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'evolutionStage1':
-          this.updateEvolutionStage1Glyph(glyphGroup, context, animState, deltaTime);
+          this.updateEvolutionStage1Glyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'evolutionStage2':
-          this.updateEvolutionStage2Glyph(glyphGroup, context, animState, deltaTime);
+          this.updateEvolutionStage2Glyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'evolutionStage3':
-          this.updateEvolutionStage3Glyph(glyphGroup, context, animState, deltaTime);
+          this.updateEvolutionStage3Glyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'personalityHarmony':
-          this.updatePersonalityHarmonyGlyph(glyphGroup, context, animState, deltaTime);
+          this.updatePersonalityHarmonyGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'personalityStability':
-          this.updatePersonalityStabilityGlyph(glyphGroup, context, animState, deltaTime);
+          this.updatePersonalityStabilityGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'personalityCorruption':
-          this.updatePersonalityCorruptionGlyph(glyphGroup, context, animState, deltaTime);
+          this.updatePersonalityCorruptionGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'personalitySynergy':
-          this.updatePersonalitySynergyGlyph(glyphGroup, context, animState, deltaTime);
+          this.updatePersonalitySynergyGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'eventMythicRitual':
-          this.updateEventMythicRitualGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateEventMythicRitualGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'eventClusterSurge':
-          this.updateEventClusterSurgeGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateEventClusterSurgeGlyph(glyphGroup, context, animState, visualDelta);
           break;
         case 'eventWorldEvent':
-          this.updateEventWorldEventGlyph(glyphGroup, context, animState, deltaTime);
+          this.updateEventWorldEventGlyph(glyphGroup, context, animState, visualDelta);
           break;
       }
     }
     
-    // Track performance
     const endTime = performance.now();
     this.stats.lastUpdateTime = endTime - startTime;
   }

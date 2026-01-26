@@ -57,6 +57,8 @@ export class SoakTestLogging {
    * Main update call — check if logging interval elapsed
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     if (!window.ENABLE_SOAK_LOGGING) {
       return;
     }

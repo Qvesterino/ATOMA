@@ -227,6 +227,7 @@ export class ExtremeAIShaderTestSuite {
    */
   update(deltaTime) {
     if (!this.diagnosticsEnabled || !this.isInitialized) return;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
     const startTime = performance.now();
 

@@ -30,6 +30,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
@@ -51,6 +52,9 @@ export class CascadeParticleSystem_Session120 {
     this.pool = [];
     this.activeCount = 0;
     
+    this._cascadeTimeOrigin = undefined;
+    this._lastCascadeTime = undefined;
+
     // Resources
     this.geometry = null;
     this.material = null;
@@ -291,6 +295,7 @@ export class CascadeParticleSystem_Session120 {
         conflictType: 'none',
         flowType: 'forward', // forward, backflow, oscillatory
         shapeIndex: 0,
+        spawnTime: 0,
       });
     }
   }
@@ -300,12 +305,21 @@ export class CascadeParticleSystem_Session120 {
    */
   update(deltaTime, links) {
     if (!this.config.enabled) return;
-    
+
+    if (this._cascadeTimeOrigin === undefined) {
+      this._cascadeTimeOrigin = VisualTime.now;
+    }
+    const currentCascadeTime = VisualTime.now - this._cascadeTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const cascadeDelta = this._lastCascadeTime === undefined
+      ? 0
+      : Math.max(0, currentCascadeTime - this._lastCascadeTime);
+    this._lastCascadeTime = currentCascadeTime;
+
     // 1. Spawn new particles from active cascades
-    this._spawnParticles(deltaTime, links);
+    this._spawnParticles(cascadeDelta, links, currentCascadeTime);
     
     // 2. Update active particles
-    this._updateParticles(deltaTime);
+    this._updateParticles(cascadeDelta, currentCascadeTime);
     
     // 3. Update geometry
     this._updateGeometry();
@@ -315,7 +329,7 @@ export class CascadeParticleSystem_Session120 {
    * Spawn particles based on cascade intensity and emission boost
    * Respects density multiplier from Session 121
    */
-  _spawnParticles(deltaTime, links) {
+  _spawnParticles(deltaTime, links, currentCascadeTime) {
     if (!links) return;
     
     for (const link of links) {
@@ -348,7 +362,7 @@ export class CascadeParticleSystem_Session120 {
       const count = Math.floor(rate * deltaTime + Math.random()); // Probabilistic emission
       
       if (count > 0) {
-        this._emit(count, link, shapeIndex, flowType, conflictType);
+        this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime);
       }
     }
   }
@@ -357,7 +371,7 @@ export class CascadeParticleSystem_Session120 {
    * Emit N particles for a link
    * Respects density clustering parameters from Session 121
    */
-  _emit(count, link, shapeIndex, flowType, conflictType) {
+  _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime) {
     const curvePoints = link.userData.curvePoints;
     if (!curvePoints || curvePoints.length < 2) return;
     
@@ -375,6 +389,7 @@ export class CascadeParticleSystem_Session120 {
       p.active = true;
       p.lifetime = 0;
       p.maxLifetime = 0.5 + Math.random() * 0.5;
+      p.spawnTime = currentCascadeTime;
       
       p.linkRef = link;
       p.shapeIndex = shapeIndex;
@@ -422,7 +437,7 @@ export class CascadeParticleSystem_Session120 {
   /**
    * Update all active particles
    */
-  _updateParticles(deltaTime) {
+  _updateParticles(deltaTime, currentCascadeTime) {
     let activeCount = 0;
     
     const positions = this.geometry.attributes.position.array;
@@ -433,15 +448,16 @@ export class CascadeParticleSystem_Session120 {
       const p = this.pool[i];
       if (!p.active) continue;
       
-      p.lifetime += deltaTime;
-      if (p.lifetime >= p.maxLifetime) {
+      const age = currentCascadeTime - p.spawnTime;
+      p.lifetime = age;
+      if (age >= p.maxLifetime) {
         p.active = false;
         // Move out of view
         positions[i * 3] = 99999;
         continue;
       }
       
-      this._updateSingleParticle(p, deltaTime);
+      this._updateSingleParticle(p, deltaTime, currentCascadeTime);
       
       // Update Attributes
       positions[i * 3] = p.position.x;
@@ -449,7 +465,7 @@ export class CascadeParticleSystem_Session120 {
       positions[i * 3 + 2] = p.position.z;
       
       // Fade out size
-      const lifeRatio = p.lifetime / p.maxLifetime;
+      const lifeRatio = age / p.maxLifetime;
       const fade = Math.sin(lifeRatio * Math.PI); // Smooth arc
       sizes[i] = this.config.baseSize * fade;
       
@@ -471,7 +487,7 @@ export class CascadeParticleSystem_Session120 {
    * Physics Update for Single Particle
    * Implements Task 2: Velocity Direction Encoding
    */
-  _updateSingleParticle(p, deltaTime) {
+  _updateSingleParticle(p, deltaTime, currentCascadeTime) {
     const link = p.linkRef;
     if (!link || !link.userData.curvePoints) {
       p.active = false;
@@ -485,7 +501,7 @@ export class CascadeParticleSystem_Session120 {
     
     if (p.flowType === 'oscillatory') {
       // Wiggle back and forth
-      const osc = Math.sin(Date.now() * 0.01) * 0.01;
+      const osc = Math.sin(currentCascadeTime * 0.01) * 0.01;
       p.pathProgress += osc;
     } else {
       // Forward or Backflow

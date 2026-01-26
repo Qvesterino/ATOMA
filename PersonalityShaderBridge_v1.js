@@ -49,6 +49,9 @@
 
 import * as THREE from 'three';
 
+// Private symbol to track patched materials - prevents repeated shader compilation
+const PERSONALITY_BRIDGE_PATCHED = Symbol('personalityBridgePatched');
+
 export class PersonalityShaderBridge_v1 {
   /**
    * Initialize the shader bridge
@@ -106,6 +109,8 @@ export class PersonalityShaderBridge_v1 {
    * @param {number} deltaTime - Frame delta time (seconds)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const startTime = performance.now();
     
     try {
@@ -213,8 +218,8 @@ export class PersonalityShaderBridge_v1 {
     
     const material = mesh.material;
     
-    // Skip if already hooked
-    if (material._personalityHookInstalled) {
+    // Skip if already patched (material-level guard)
+    if (material[PERSONALITY_BRIDGE_PATCHED]) {
       return;
     }
     
@@ -279,8 +284,8 @@ export class PersonalityShaderBridge_v1 {
       };
     }
     
-    // Mark as hooked
-    material._personalityHookInstalled = true;
+    // Mark as patched
+    material[PERSONALITY_BRIDGE_PATCHED] = true;
     this.stats.hooksInstalled++;
     
     if (this.config.enableDebug) {

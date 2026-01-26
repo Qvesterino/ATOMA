@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Private symbol to track patched materials (survives all registration cycles)
+const MATERIAL_PATCH_SYMBOL = Symbol('waveShaderMaterialPatched');
+
 /**
  * WAVE SHADER MATERIAL PATCH v1.0
  * 
@@ -269,7 +272,10 @@ export class WaveShaderMaterialPatch_v1 {
                 return false;
             }
 
-            // Check if already patched
+            // Material-level guard: prevent duplicate shader recompilation
+            if (material[MATERIAL_PATCH_SYMBOL]) return false;
+
+            // Check if already patched (in WeakSet)
             if (this.patchedMaterials.has(material)) {
                 if (this.debugEnabled) console.log('[WaveShaderMaterialPatch_v1] Material already patched');
                 return false;
@@ -303,6 +309,9 @@ export class WaveShaderMaterialPatch_v1 {
 
             // Mark as patched
             this.patchedMaterials.add(material);
+
+            // Mark material as patched (persists across all registration cycles)
+            material[MATERIAL_PATCH_SYMBOL] = true;
 
             if (this.debugEnabled) {
                 console.log(`[WaveShaderMaterialPatch_v1] Material patched (profile: ${profile})`);

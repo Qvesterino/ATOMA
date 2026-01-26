@@ -92,6 +92,8 @@ export class VisualMetricModel {
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const startMs = performance.now();
 
     try {

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * EXTREME LINK VISUAL PACK 3.0 — SAFE EDITION
@@ -49,6 +50,8 @@ export class ExtremeLinkVisualPack3 {
     this.links = new Map();  // linkId → LinkVisualData
     this.enabled = true;
     this.time = 0;
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // Configuration
     this.config = {
@@ -336,14 +339,25 @@ export class ExtremeLinkVisualPack3 {
    */
   update(deltaTime) {
     if (!this.enabled) return;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+
+    this._lastVisualTime = currentTime;
+    this.time = currentTime;
+
     try {
       const startTime = performance.now();
-      this.time += deltaTime;
       
       // Update each link's visuals
       this.links.forEach((visualData, linkId) => {
-        this.updateLinkVisuals(visualData, deltaTime);
+        this.updateLinkVisuals(visualData, visualDelta);
       });
       
       this.stats.lastUpdateTime = performance.now() - startTime;
@@ -369,7 +383,7 @@ export class ExtremeLinkVisualPack3 {
       
       // Update layer animations (pulsing, breathing)
       this.updateLayerAnimations(visualData, deltaTime);
-      
+
       // Update glyph stream
       this.updateGlyphStream(visualData, deltaTime);
       

@@ -79,6 +79,8 @@ export class PersonalityRuntime_v1 {
      * @param {number} delta - Frame delta time (seconds)
      */
     update(delta) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
         if (!delta || typeof delta !== 'number') {
             return;  // Defensive: skip invalid delta
         }

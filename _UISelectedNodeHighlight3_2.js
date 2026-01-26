@@ -164,6 +164,7 @@ export class UISelectedNodeHighlight3_2 {
    */
   update(deltaTime) {
     this.pulseTime += deltaTime;
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     if (this.pulseTime > this.pulseCycleDuration) {
       this.pulseTime -= this.pulseCycleDuration;
     }

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// Private symbol to track patched materials - prevents repeated shader compilation
+const NEURAL_LINK_PATCHED = Symbol('neuralLinkPatched');
+
 /**
  * WEEK 17: ARCHETYPE NEURAL LINK VISUALIZATION SYSTEM
  * 
@@ -77,9 +80,6 @@ export class ArchetypeNeuralLinkVis_v1 {
 
         // Per-link compatibility state (WeakMap for automatic GC)
         this.linkStates = new WeakMap();
-
-        // Track processed materials (WeakSet)
-        this.patchedMaterials = new WeakSet();
 
         // Performance monitoring
         this.frameUpdateTime = 0;
@@ -195,13 +195,18 @@ export class ArchetypeNeuralLinkVis_v1 {
 
     /**
      * Patch a material with neural link shader uniforms
+     * 
+     * P0.1 FIX: Idempotent patching - only patches once per material to prevent
+     * repeated shader recompilation and GPU frame spikes.
      */
     _patchMaterial(material, linkObject, sourceNode, targetNode) {
-        if (this.patchedMaterials.has(material)) {
+        // Guard: Only patch once per material
+        if (material[NEURAL_LINK_PATCHED]) {
             return;  // Already patched
         }
 
-        this.patchedMaterials.add(material);
+        // Mark material as patched
+        material[NEURAL_LINK_PATCHED] = true;
 
         const originalOnBeforeCompile = material.onBeforeCompile;
 
@@ -384,7 +389,7 @@ export class ArchetypeNeuralLinkVis_v1 {
                             }
 
                             // Patch material if needed
-                            if (obj.material && !this.patchedMaterials.has(obj.material)) {
+                            if (obj.material && !obj.material[NEURAL_LINK_PATCHED]) {
                                 this._patchMaterial(obj.material, linkObject, sourceNode, targetNode);
                             }
                         }

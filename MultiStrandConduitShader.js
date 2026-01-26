@@ -35,6 +35,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * Create multi-strand conduit shader material
@@ -309,10 +310,10 @@ export function updateConduitUniforms(material, metrics = {}, deltaTime = 0) {
   
   // Update time for flow animation
   if (uniforms.uTime) {
-    uniforms.uTime.value += deltaTime;
+    uniforms.uTime.value = VisualTime.now; // Phase 2A: canonical VisualTime source
   }
   if (uniforms.time) {
-    uniforms.time.value += deltaTime;
+    uniforms.time.value = VisualTime.now; // Phase 2A: canonical VisualTime source
   }
   
   // Update network state metrics
@@ -396,7 +397,7 @@ export function setupConduitShaderConsoleAPI() {
     // Update all conduit materials with new state
     updateAll: (metrics) => {
       window.__conduitShader._materials?.forEach(mat => {
-        updateConduitUniforms(mat, metrics, 0.016);
+        updateConduitUniforms(mat, metrics, VisualTime.delta);
       });
     },
     

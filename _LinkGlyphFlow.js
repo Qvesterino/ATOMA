@@ -136,6 +136,7 @@ export class LinkGlyphFlow {
    */
   update(deltaTime) {
     if (!this.enabled || !this.linkingSystem?.links) return;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     
     const startTime = performance.now();
     

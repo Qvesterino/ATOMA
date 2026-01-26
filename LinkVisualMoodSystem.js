@@ -492,7 +492,7 @@ export class LinkVisualMoodSystem {
     if (!this.moodTransition || !this.moodTransition.active) {
       return;
     }
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const transition = this.moodTransition;
     transition.elapsed += deltaTime;
     

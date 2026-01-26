@@ -138,6 +138,7 @@ export class NodeEvolution3_ExtremeSafe {
    * Main update loop (call from animation frame)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (!this.enabled) return;
 
     this.globalTime += deltaTime;

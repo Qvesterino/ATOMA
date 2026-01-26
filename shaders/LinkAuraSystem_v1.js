@@ -52,6 +52,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from '../src/time/VisualTime.js';
 
 /**
  * LinkAuraInstance: Internal structure for each link's aura
@@ -205,6 +206,7 @@ export class LinkAuraSystem_v1 {
       aurasMeshes: 0,
       frameTime: 0,
     };
+    this._timeOrigin = undefined;
 
     if (this.debugEnabled) {
       console.log('[LinkAuraSystem_v1] Initialized', {
@@ -277,6 +279,10 @@ export class LinkAuraSystem_v1 {
 
     const startTime = performance.now();
     let visibleAuras = 0;
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const shaderTime = VisualTime.now - this._timeOrigin;
 
     for (const instance of this.auras.values()) {
       if (!instance.link || !instance.mesh) continue;
@@ -320,7 +326,7 @@ export class LinkAuraSystem_v1 {
 
       // Update shader uniforms
       if (instance.material && instance.material.uniforms) {
-        instance.material.uniforms.uTime.value += deltaTime;
+        instance.material.uniforms.uTime.value = shaderTime; // Phase 2A: canonical VisualTime source (shader time rebase, behavior-preserving)
         instance.material.uniforms.uAuraIntensity.value = instance.currentIntensity;
         instance.material.uniforms.uAuraRadius.value = instance.radius;
         instance.material.uniforms.uSynergy.value = synergy;

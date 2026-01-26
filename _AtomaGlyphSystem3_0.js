@@ -22,6 +22,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class AtomaGlyphSystem3_0 {
   constructor(scene) {
@@ -51,6 +52,9 @@ export class AtomaGlyphSystem3_0 {
       activeGlyphs: 0,
       byType: {}
     };
+    this.time = 0;
+    this._timeOrigin = undefined;
+    this._lastVisualTime = undefined;
     
     // ATOMA color palette
     this.colors = {
@@ -1098,58 +1102,70 @@ export class AtomaGlyphSystem3_0 {
    * Update all glyphs (animations)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: VisualTime canonical clock (behavior-preserving)
+    const visualDelta = this._lastVisualTime === undefined
+      ? 0
+      : Math.max(0, currentTime - this._lastVisualTime);
+    this._lastVisualTime = currentTime;
+    this.time = currentTime;
+
     for (const [nodeId, glyphData] of this.glyphRegistry) {
       const { node, glyphGroup, glyphType } = glyphData;
-      
+
       // Safety: skip if node removed
       if (!node || !glyphGroup || !glyphGroup.parent) {
         this.disposeGlyph(nodeId);
         continue;
       }
-      
+
       // Update based on glyph type
       switch (glyphType) {
         case 'aiConsciousness':
-          this.updateAIConsciousnessGlyph(glyphGroup, deltaTime);
+          this.updateAIConsciousnessGlyph(glyphGroup, visualDelta);
           break;
         case 'mythicSeed':
-          this.updateMythicSeedGlyph(glyphGroup, deltaTime);
+          this.updateMythicSeedGlyph(glyphGroup, visualDelta);
           break;
         case 'ascendedNode':
-          this.updateAscendedNodeGlyph(glyphGroup, deltaTime);
+          this.updateAscendedNodeGlyph(glyphGroup, visualDelta);
           break;
         case 'evolutionStage1':
-          this.updateEvolutionStage1Glyph(glyphGroup, deltaTime);
+          this.updateEvolutionStage1Glyph(glyphGroup, visualDelta);
           break;
         case 'evolutionStage2':
-          this.updateEvolutionStage2Glyph(glyphGroup, deltaTime);
+          this.updateEvolutionStage2Glyph(glyphGroup, visualDelta);
           break;
         case 'evolutionStage3':
-          this.updateEvolutionStage3Glyph(glyphGroup, deltaTime);
+          this.updateEvolutionStage3Glyph(glyphGroup, visualDelta);
           break;
         case 'personalityHarmony':
-          this.updatePersonalityHarmonyGlyph(glyphGroup, deltaTime);
+          this.updatePersonalityHarmonyGlyph(glyphGroup, visualDelta);
           break;
         case 'personalityStability':
-          this.updatePersonalityStabilityGlyph(glyphGroup, deltaTime);
+          this.updatePersonalityStabilityGlyph(glyphGroup, visualDelta);
           break;
         case 'personalityCorruption':
-          this.updatePersonalityCorruptionGlyph(glyphGroup, deltaTime);
+          this.updatePersonalityCorruptionGlyph(glyphGroup, visualDelta);
           break;
         case 'personalitySynergy':
-          this.updatePersonalitySynergyGlyph(glyphGroup, deltaTime);
+          this.updatePersonalitySynergyGlyph(glyphGroup, visualDelta);
           break;
         case 'eventMythicRitual':
-          this.updateEventMythicRitualGlyph(glyphGroup, deltaTime);
+          this.updateEventMythicRitualGlyph(glyphGroup, visualDelta);
           break;
         case 'eventClusterSurge':
-          this.updateEventClusterSurgeGlyph(glyphGroup, deltaTime);
+          this.updateEventClusterSurgeGlyph(glyphGroup, visualDelta);
           break;
         case 'eventWorldEvent':
-          this.updateEventWorldEventGlyph(glyphGroup, deltaTime);
+          this.updateEventWorldEventGlyph(glyphGroup, visualDelta);
           break;
         case 'neutralFallback':
-          this.updateNeutralFallbackGlyph(glyphGroup, deltaTime);
+          this.updateNeutralFallbackGlyph(glyphGroup, visualDelta);
           break;
       }
     }

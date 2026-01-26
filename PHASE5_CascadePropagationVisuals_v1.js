@@ -366,6 +366,8 @@ export class PHASE5_CascadePropagationVisuals {
    * Update all active rings (called from animation loop)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const updateStart = Date.now();
     
     try {

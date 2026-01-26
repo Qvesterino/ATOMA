@@ -318,6 +318,8 @@ export class PHASE5_InterNetworkConnectionVisuals {
    * Update animation frames (called from main loop)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     const startTime = Date.now();
     
     try {

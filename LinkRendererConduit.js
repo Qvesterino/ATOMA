@@ -17,6 +17,7 @@ import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSy
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * BRAIDED SYNERGY ROPE LINK RENDERER
@@ -90,7 +91,7 @@ export class LinkRendererConduit {
      */
     _setupParticleCallbacks() {
       // Trail particles (corruption) arrive at target nodes
-      this.trailParticles.setArrivalCallback((particle, link, time) => {
+      this.trailParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.target?.userData?.nodeId !== undefined) {
           const targetNodeId = link.target.userData.nodeId;
           
@@ -104,7 +105,7 @@ export class LinkRendererConduit {
           this.impactManager.triggerImpact(
             targetNodeId,
             'corruption',
-            time,
+            VisualTime.now, // Time source: VisualTime (canonical)
             0.8,    // Intensity: 80% strength
             0.18,   // Duration: 180ms (polished timing)
             incomingDir  // ← Pass incoming direction for bias
@@ -113,7 +114,7 @@ export class LinkRendererConduit {
       });
 
       // Healing particles (harmony) arrive at source nodes
-      this.healingParticles.setArrivalCallback((particle, link, time) => {
+      this.healingParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.source?.userData?.nodeId !== undefined) {
           const sourceNodeId = link.source.userData.nodeId;
           
@@ -127,7 +128,7 @@ export class LinkRendererConduit {
           this.impactManager.triggerImpact(
             sourceNodeId,
             'harmony',
-            time,
+            VisualTime.now, // Time source: VisualTime (canonical)
             0.75,   // Intensity: 75% strength
             0.19,   // Duration: 190ms (polished timing)
             incomingDir  // ← Pass incoming direction for bias
@@ -144,7 +145,7 @@ export class LinkRendererConduit {
      * @param {Array} connectedLinks - Links connected to this node
      * @param {number} time - Current time
      */
-    emitNodePulse(sourceNode, connectedLinks, time = 0) {
+    emitNodePulse(sourceNode, connectedLinks, _time = 0) {
         if (this.directionalStreaks) {
             // Get hub controller if this node is a harmonic hub
             const hubController = this.nodeHarmonicManager?.nodeControllers.get(sourceNode);
@@ -152,7 +153,7 @@ export class LinkRendererConduit {
             this.directionalStreaks.pulseInjector.injectNodePulse(
                 sourceNode,
                 connectedLinks,
-                time,
+                VisualTime.now, // Time source: VisualTime (canonical)
                 hubController,
                 this.nodeHarmonicManager?.nodeControllers
             );
@@ -211,10 +212,12 @@ export class LinkRendererConduit {
      * @param {Array} links - All links
      */
     updateCascadePropagation(deltaTime, time, harmony = 1.0, corruption = 0.0, instability = 0.0, synergy = 0.5, links = []) {
+        const visualDelta = VisualTime.delta;
+        const visualNow = VisualTime.now;
         if (this.directionalStreaks && this.nodeHarmonicManager) {
             this.directionalStreaks.pulseInjector.updateCascadePropagation(
-                deltaTime,
-                time,
+                visualDelta,
+                visualNow,
                 harmony,
                 corruption,
                 instability,
@@ -262,8 +265,10 @@ export class LinkRendererConduit {
      * Call this from the main render loop after all individual link updates
      */
     updateTrailParticles(deltaTime, time) {
+        const visualDelta = VisualTime.delta;
+        const visualNow = VisualTime.now;
         if (this.trailParticles) {
-            this.trailParticles.update(deltaTime, time);
+            this.trailParticles.update(visualDelta, visualNow);
         }
     }
 
@@ -272,8 +277,10 @@ export class LinkRendererConduit {
      * Call this from the main render loop after all individual link updates
      */
     updateHealingParticles(deltaTime, time) {
+        const visualDelta = VisualTime.delta;
+        const visualNow = VisualTime.now;
         if (this.healingParticles) {
-            this.healingParticles.update(deltaTime, time);
+            this.healingParticles.update(visualDelta, visualNow);
         }
     }
 
@@ -493,6 +500,10 @@ export class LinkRendererConduit {
     update(link, deltaTime, time) {
         if (!link.group || !link.group.userData.conduitState) return;
         
+        // Canonical RAF time source (behavior-preserving Phase 2A)
+        const visualTime = VisualTime.now;
+        const visualDelta = VisualTime.delta;
+
         const state = link.group.userData.conduitState;
         
         // --- LINK ANCHORING FIX ---
@@ -548,8 +559,8 @@ export class LinkRendererConduit {
         const synergy = link.synergyScore ?? 0.5;
         const trafficLoad = link.traffic ? link.traffic.load : 0;
         
-        const breathing = Math.sin(time * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
-        const twistPhase = time * this.config.twistSpeed;
+        const breathing = Math.sin(visualTime * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
+        const twistPhase = visualTime * this.config.twistSpeed;
         
         const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2);
 
@@ -561,8 +572,8 @@ export class LinkRendererConduit {
         state.strands.forEach((mesh, i) => {
             // Flow texture
             if (mesh.material && mesh.material.emissiveMap) {
-                mesh.material.emissiveMap.offset.x -= flowSpeed * deltaTime * 0.5;
-                const pulse = Math.sin(time * 2.0 + i) * 0.2 + 0.8;
+                mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
+                const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
                 mesh.material.emissiveIntensity = 0.5 * pulse * (1 + trafficLoad);
             }
 
@@ -622,7 +633,7 @@ export class LinkRendererConduit {
                  const material = skin.material;
                  
                  // Time-sync with node aura
-                 material.uniforms.uTime.value = time;
+                 material.uniforms.uTime.value = visualTime;
                  
                  // Link direction for directional noise bias
                  if (linkDir) {
@@ -643,23 +654,23 @@ export class LinkRendererConduit {
                  // Birth: ramp up to 1.0, then decay over ~400ms
                  if (link.justLinked) {
                      const currentBirth = material.uniforms.uLinkBirthIntensity.value || 0.0;
-                     const targetBirth = Math.min(1.0, currentBirth + deltaTime * 4.0); // Ramp up
+                     const targetBirth = Math.min(1.0, currentBirth + visualDelta * 4.0); // Ramp up
                      material.uniforms.uLinkBirthIntensity.value = targetBirth;
                  } else {
                      // Decay when flag is cleared
                      const currentBirth = material.uniforms.uLinkBirthIntensity.value || 0.0;
-                     material.uniforms.uLinkBirthIntensity.value = Math.max(0.0, currentBirth - deltaTime * 3.0);
+                     material.uniforms.uLinkBirthIntensity.value = Math.max(0.0, currentBirth - visualDelta * 3.0);
                  }
                  
                  // Removal: similar to birth but opposite effect
                  if (link.justUnlinked) {
                      const currentRemoval = material.uniforms.uLinkRemovalIntensity.value || 0.0;
-                     const targetRemoval = Math.min(1.0, currentRemoval + deltaTime * 4.0); // Ramp up
+                     const targetRemoval = Math.min(1.0, currentRemoval + visualDelta * 4.0); // Ramp up
                      material.uniforms.uLinkRemovalIntensity.value = targetRemoval;
                  } else {
                      // Decay when flag is cleared
                      const currentRemoval = material.uniforms.uLinkRemovalIntensity.value || 0.0;
-                     material.uniforms.uLinkRemovalIntensity.value = Math.max(0.0, currentRemoval - deltaTime * 3.0);
+                     material.uniforms.uLinkRemovalIntensity.value = Math.max(0.0, currentRemoval - visualDelta * 3.0);
                  }
              }
         }
@@ -667,13 +678,13 @@ export class LinkRendererConduit {
         // --- 4.5. CORRUPTION SPREAD ANIMATION ---
         // Animate color shift from source to target as corruption spreads
         if (this.corruptionAnimator && state.strands) {
-            this.corruptionAnimator.update(link, deltaTime, state.strands);
+            this.corruptionAnimator.update(link, visualDelta, state.strands);
         }
         
         // --- 4.6. CORRUPTION PARTICLE EFFECTS ---
         // Emit particles that flow along link from source to target
         if (this.corruptionParticles) {
-            this.corruptionParticles.updateLinkParticles(link, deltaTime);
+            this.corruptionParticles.updateLinkParticles(link, visualDelta);
         }
         
         // --- 4.7. TRAIL PARTICLE EFFECTS ---
@@ -685,8 +696,8 @@ export class LinkRendererConduit {
                 const linkCorruption = link.corruptionLevel ?? 0.2;
                 
                 emitter.update(
-                    deltaTime,
-                    time,
+                    visualDelta,
+                    visualTime,
                     mainCurve,
                     linkDir,
                     linkHarmony,
@@ -704,8 +715,8 @@ export class LinkRendererConduit {
                 const linkCorruption = link.corruptionLevel ?? 0.2;
                 
                 emitter.update(
-                    deltaTime,
-                    time,
+                    visualDelta,
+                    visualTime,
                     mainCurve,
                     linkDir,
                     linkHarmony,
@@ -716,21 +727,21 @@ export class LinkRendererConduit {
 
         // --- 5. Subsystems Update ---
         if (state.beads) {
-            state.beads.update(deltaTime, (bead) => {
+            state.beads.update(visualDelta, (bead) => {
                 this.triggerNodeImpact(state, link.target, bead);
                 if (bead.size === 'large' && state.rings) {
                     const targetColor = this.getCategoryColor(link.target.userData?.category);
-                    state.rings.emitRing(link.target.position, new THREE.Color(targetColor), time);
+                    state.rings.emitRing(link.target.position, new THREE.Color(targetColor), visualTime);
                 }
             });
-            if (state.trails) state.trails.update(time, deltaTime, state.beads.beadToMesh);
+            if (state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
         }
         
-        if (state.rings) state.rings.update(time);
+        if (state.rings) state.rings.update(visualTime);
         
         if (state.sparks) {
             const currentColor = (state.strands[0]?.material?.color) || state.baseColor;
-            state.sparks.update(time, deltaTime, mainCurve, { synergy, traffic: trafficLoad }, currentColor);
+            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad }, currentColor);
             state.sparks.uniforms.uThickness.value = activeRadius * 2;
         }
         
@@ -743,7 +754,7 @@ export class LinkRendererConduit {
                 mainCurve,
                 synergy,
                 trafficLoad,
-                deltaTime,
+                visualDelta,
                 sourceColor,
                 targetColor
             );
@@ -755,7 +766,7 @@ export class LinkRendererConduit {
             const baseEmissiveIntensity = state.strands[0]?.material?.emissiveIntensity || 1.2;
             state.energyWave.update(
                 state.strands,
-                deltaTime,
+                visualDelta,
                 synergy,
                 trafficLoad,
                 baseEmissiveIntensity
@@ -776,7 +787,7 @@ export class LinkRendererConduit {
                 state.pulseRing.progress,
                 synergy,
                 trafficLoad,
-                deltaTime,
+                visualDelta,
                 ringColor,
                 ringScale
             );
@@ -796,7 +807,7 @@ export class LinkRendererConduit {
                 harmonyLevel,
                 corruptionLevel,
                 instability,
-                deltaTime,
+                visualDelta,
                 synergyLevel
             );
         }
@@ -815,7 +826,7 @@ export class LinkRendererConduit {
             this.directionalStreaks.update(
                 link.group,
                 mainCurve,
-                deltaTime,
+                visualDelta, // Phase 2A: canonical VisualTime delta
                 synergyLevel,
                 harmonyLevel,
                 corruptionLevel,
@@ -823,11 +834,11 @@ export class LinkRendererConduit {
                 sourceColor,
                 targetColor,
                 link,
-                time  // Pass time for phase sync
+                visualTime  // Time source: VisualTime (canonical)
             );
         }
         
-        this.updateImpacts(state, deltaTime);
+        this.updateImpacts(state, visualDelta);
     }
 
     getCategoryColor(category) {

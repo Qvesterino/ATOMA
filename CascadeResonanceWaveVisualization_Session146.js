@@ -116,6 +116,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
    * @param {number} deltaTime - Delta time in seconds
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     if (!this.config.enabled || !this.cascadeSystem) {
       this._decayAllWaves(deltaTime);
       return;

@@ -87,6 +87,9 @@
 
 import * as THREE from 'three';
 
+// Private symbol to track patched materials - prevents repeated shader compilation
+const COLOR_PALETTE_PATCHED = Symbol('colorPalettePatched');
+
 /**
  * ArchetypeColorPalette: Descriptor for each archetype color palette
  */
@@ -278,6 +281,8 @@ class ArchetypeColorPaletteSystem_v1 {
    * Main update loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     if (!this.archetypeCurves || !this.nodeAuraSystem) return;
 
     this.totalTime += deltaTime;
@@ -530,12 +535,24 @@ class ArchetypeColorPaletteSystem_v1 {
 
   /**
    * Register shader compilation hook for material
+   * 
+   * P0.1 FIX: Idempotent patching - only patches once per material to prevent
+   * repeated shader recompilation and GPU frame spikes.
    */
   registerMaterialHook(material) {
     if (!material || !material.onBeforeCompile) {
       return;
     }
 
+    // Guard: Only patch once per material
+    if (material[COLOR_PALETTE_PATCHED]) {
+      return;
+    }
+
+    // Mark material as patched
+    material[COLOR_PALETTE_PATCHED] = true;
+
+    // Store original hook for safe chaining
     const originalOnBeforeCompile = material.onBeforeCompile.bind(material);
 
     material.onBeforeCompile = (shader) => {

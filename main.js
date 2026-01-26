@@ -27,6 +27,7 @@ import { FrameScheduler } from './FrameScheduler.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import VisualTime from './src/time/VisualTime.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
 import { NodeEditor } from './NodeEditor.js';
 import { EnvironmentalHazards } from './EnvironmentalHazards.js';
@@ -116,6 +117,8 @@ import { LinkCollapseSystem } from './LinkCollapseSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
+import { updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 
 
 // ============================================================================
@@ -2973,10 +2976,24 @@ class AtomaGame {
         window.frameScheduler = this.frameScheduler;
         window.debugSchedulerStats = () => this.frameScheduler.getStats();
         window.debugSchedulerList = () => this.frameScheduler.listSystems();
-        this.frameScheduler.register('visual', (dt) => this.runVisualOverlayTick(dt), 'coreMetricsOverlay.visual');
-        this.frameScheduler.register('simulation', (dt) => this.runCoreMetricsOverlayTick(dt), 'coreMetricsOverlay.sim');
-        this.frameScheduler.register('simulation', (dt) => this.runNodeInspectOverlayTick(dt), 'nodeInspectOverlay.sim');
+this.frameScheduler.register(
+  'realtime',
+  (dt) => this.runCoreMetricsOverlayTick(dt),
+  'coreMetricsOverlay.realtime'
+);
+
+this.frameScheduler.register(
+  'realtime',
+  (dt) => this.runNodeInspectOverlayTick(dt),
+  'nodeInspectOverlay.realtime'
+);
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
+        // --- HUD bootstrap (required for realtime overlays) ---
+this.wakeHud('coreMetrics');
+this.wakeHud('nodeInspect');
+this.setHudDirty('coreMetrics');
+this.setHudDirty('nodeInspect');
+
         this.semanticBus.subscribe('camera.motion', () => {
             this.wakeHud('camera-motion');
             this.setHudDirty('coreMetrics');
@@ -3892,7 +3909,75 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // Remove all legacy category HUDs, secondary HUDs, and traffic HUDs from DOM
         // This ensures zero visual overlap and production-ready left column layout
-        
+        // P0 HUD SAFE CLEANUP
+// ===============================
+// P0 HUD HARD KILL (auto-recreated DOM guards)
+// ===============================
+const HUD_KILL_IDS = [
+  'ai-emotional-feed',
+  'ui-selected-hud-stats',
+ 
+];
+
+const PROTECTED_HUD_IDS = [
+  'core-metrics-hud',
+  'core-metrics-overlay',
+  'node-inspect-overlay'
+];
+
+const killHUD = () => {
+  HUD_KILL_IDS.forEach(id => {
+    // Preserve realtime HUDs (Core Metrics + Node Inspector)
+    if (PROTECTED_HUD_IDS.includes(id)) return;
+    document.getElementById(id)?.remove();
+  });
+};
+
+// initial sweep
+killHUD();
+
+// kill on re-injection
+const hudObserver = new MutationObserver(killHUD);
+hudObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+if (!window.__ATOMA_DISABLE_HUD_GUARDS__) {
+
+// ===============================
+// P0.5 HUD PERFORMANCE KILLS
+// ===============================
+const HUD_P05_KILL_SELECTORS = [
+  //tento konrketne je na box selection
+  '#tier4-gameplay-feedback-hud',
+
+
+  '#node-inspect-linguistic-overlay',
+  '#ui-primary-node-top-bar-3-7',
+
+
+];
+
+const killHUD_P05 = () => {
+  HUD_P05_KILL_SELECTORS.forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      // Skip realtime HUDs that must persist
+      if (el.id && PROTECTED_HUD_IDS.includes(el.id)) return;
+      el.remove();
+    });
+  });
+};
+
+killHUD_P05();
+
+const hudP05Observer = new MutationObserver(killHUD_P05);
+hudP05Observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+  // kill-switch block
+}
         // Remove legacy category legend versions (v1, v2)
         const legacyCategorySelectors = [
             '.ui-category-legend',
@@ -3966,6 +4051,19 @@ document.addEventListener('keydown', () => {
             this.scene,
             this.camera
         );
+// Mount Variant B – AI Status HUD
+mountVariantBAdvisorHUD(document.body);
+
+// UI DEBUG – Variant B Advisor (temporary)
+window.__ATOMA_AI_ADVISOR__ = {
+  stability: 0.72,
+  risk: 0.18,
+  recovery: 'LOW',
+  insight: 'System stable. No intervention required.'
+};
+
+// First paint
+updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Initialize World Personality Controller 2.0 (after scene/camera/renderer ready)
         this.worldPersonalityController = new WorldPersonalityController(
@@ -7494,6 +7592,11 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
 
+        // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
+        VisualTime.delta = deltaTime;
+        VisualTime.now = this.time;
+        VisualTime.frameId += 1;
+
         // Cadence gates: motion stays 60 Hz; semantic/UI work drops to lighter rates
         this.semanticVisualAcc += deltaTime;
         const runVisualSemantic = this.semanticVisualAcc >= this.semanticVisualInterval;
@@ -7512,6 +7615,11 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
                 console.debug('[Cadence] semantic background @10Hz tick');
                 this.semanticSlowCadenceLastLog = performance.now();
             }
+        }
+
+        // FrameScheduler drives layer-gated systems (visual/render integration point)
+        if (this.frameScheduler) {
+            this.frameScheduler.tick(deltaTime);
         }
         
         // Update player and camera
@@ -9209,11 +9317,6 @@ if (this.updateValidator && !window.updateValidator) {
             }
         }
         } // end 10 Hz semantic/world-mood cadence
-
-        // FrameScheduler now drives visual cadence (render + visual layer)
-        if (this.frameScheduler) {
-            this.frameScheduler.tick(deltaTime);
-        }
 
         this.updateValidator?.endFrame(deltaTimeMs);
     }
@@ -14130,8 +14233,17 @@ if (this.updateValidator && !window.updateValidator) {
 }
 
 // ============================================================================
+// [HUD SAFETY] REMOVE LEGACY AUTOMATION HUD (UI-only cleanup)
+// ============================================================================
+
+
+
+
+
+// ============================================================================
 // [BOOT] START GAME INSTANCE
 // ============================================================================
 console.log('[BOOT] Starting AtomaGame instance...');
+
 new AtomaGame();
 console.log('[BOOT] main.js execution completed');

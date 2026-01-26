@@ -71,7 +71,7 @@ export class LinkQualityCalculator {
     if (!this.linkingSystem || !this.linkingSystem.links) {
       return;
     }
-    
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     const now = Date.now();
     
     // Update all links

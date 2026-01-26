@@ -153,7 +153,7 @@ export class LinkMetricsToVisualBridge {
 
   update(deltaTime) {
     this.updateCount++;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (this.updateCount % 60 === 0) {
       this.linkMetricsCache.clear();
     }

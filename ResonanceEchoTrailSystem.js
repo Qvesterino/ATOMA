@@ -50,6 +50,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -100,6 +101,7 @@ class EchoInstance {
         this.lifetime = 1.0;
         this.age = 0.0;
         this.compositeGlyph = null;
+        this._spawnTime = 0.0;
         
         // State for visual modulation
         this.harmonyBalance = 0.5;
@@ -115,7 +117,7 @@ class EchoInstance {
         this.currentOpacity = 0.0;
     }
     
-    spawn(position, compositeGeometry, harmonyBalance, stability, synergy) {
+    spawn(position, compositeGeometry, harmonyBalance, stability, synergy, currentVisualTime) {
         this.active = true;
         this.mesh.visible = true;
         this.position.copy(position);
@@ -124,6 +126,7 @@ class EchoInstance {
         this.harmonyBalance = harmonyBalance;
         this.stability = stability;
         this.synergy = synergy;
+        this._spawnTime = currentVisualTime;
         
         // Calculate lifetime based on state
         this.lifetime = this.calculateLifetime();
@@ -160,10 +163,13 @@ class EchoInstance {
         return Math.max(CONFIG.MIN_ECHO_LIFETIME, Math.min(CONFIG.MAX_ECHO_LIFETIME, lifetime));
     }
     
-    update(deltaTime) {
+    update(currentVisualTime) {
         if (!this.active) return;
         
-        this.age += deltaTime;
+        if (this._spawnTime === undefined) {
+            this._spawnTime = currentVisualTime;
+        }
+        this.age = currentVisualTime - this._spawnTime;
         
         if (this.age >= this.lifetime) {
             this.reset();
@@ -202,7 +208,7 @@ class CompositeGlyphTracker {
         this.historyPositions = [];  // Ring buffer of past positions
     }
     
-    update(deltaTime, compositeGlyph) {
+    update(currentVisualTime, compositeGlyph) {
         if (!compositeGlyph || !compositeGlyph.mesh) {
             return false;
         }
@@ -219,16 +225,15 @@ class CompositeGlyphTracker {
             this.lastPosition.copy(currentPos);
         }
         
-        this.lastEchoSpawnTime += deltaTime;
         return true;
     }
     
-    shouldSpawnEcho() {
-        return this.lastEchoSpawnTime >= CONFIG.ECHO_SPAWN_INTERVAL;
+    shouldSpawnEcho(currentVisualTime) {
+        return (currentVisualTime - this.lastEchoSpawnTime) >= CONFIG.ECHO_SPAWN_INTERVAL;
     }
     
-    resetSpawnTimer() {
-        this.lastEchoSpawnTime = 0.0;
+    resetSpawnTimer(currentVisualTime) {
+        this.lastEchoSpawnTime = currentVisualTime;
     }
     
     reset() {
@@ -255,6 +260,8 @@ export class ResonanceEchoTrailSystem {
         
         // Update tracking
         this.updateTimer = 0.0;
+        this._timeOrigin = undefined;
+        this._lastVisualTime = undefined;
         
         // Debug
         this.debugEchoVisualization = null;
@@ -303,18 +310,27 @@ export class ResonanceEchoTrailSystem {
     // UPDATE LOOP
     // ========================================================================
     
-    update(deltaTime, compositeGlyphs) {
-        if (!this.enabled) return;
-        
-        this.updateTimer += deltaTime;
+  update(deltaTime, compositeGlyphs) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
+    if (!this.enabled) return;
+    
+    if (this._timeOrigin === undefined) {
+        this._timeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const deltaVisual = this._lastVisualTime !== undefined ? currentVisualTime - this._lastVisualTime : 0;
+    this._lastVisualTime = currentVisualTime;
+
+        this.updateTimer += deltaVisual;
         if (this.updateTimer < CONFIG.UPDATE_INTERVAL) return;
         this.updateTimer = 0.0;
         
         // Update all echo instances
-        this.updateEchoInstances(deltaTime);
+        this.updateEchoInstances(currentVisualTime);
         
         // Track composite glyphs and spawn echoes
-        this.trackCompositesAndSpawnEchoes(deltaTime, compositeGlyphs);
+        this.trackCompositesAndSpawnEchoes(currentVisualTime, compositeGlyphs);
         
         // Update debug visualization
         if (CONFIG.DEBUG_DRAW_ECHOES) {
@@ -326,10 +342,10 @@ export class ResonanceEchoTrailSystem {
     // ECHO INSTANCE UPDATES
     // ========================================================================
     
-    updateEchoInstances(deltaTime) {
+    updateEchoInstances(currentVisualTime) {
         for (let echo of this.echoInstances) {
             if (!echo.active) continue;
-            echo.update(deltaTime);
+            echo.update(currentVisualTime);
         }
     }
     
@@ -337,7 +353,7 @@ export class ResonanceEchoTrailSystem {
     // COMPOSITE TRACKING & ECHO SPAWNING
     // ========================================================================
     
-    trackCompositesAndSpawnEchoes(deltaTime, compositeGlyphs) {
+    trackCompositesAndSpawnEchoes(currentVisualTime, compositeGlyphs) {
         if (!compositeGlyphs || compositeGlyphs.length === 0) return;
         
         // Clean up trackers for dead composites
@@ -361,10 +377,10 @@ export class ResonanceEchoTrailSystem {
             }
             
             // Update tracker
-            tracker.update(deltaTime, composite);
+            tracker.update(currentVisualTime, composite);
             
             // Spawn echo if conditions met
-            if (tracker.shouldSpawnEcho() && echoSpawnCount < CONFIG.MAX_ECHOES_PER_ZONE) {
+            if (tracker.shouldSpawnEcho(currentVisualTime) && echoSpawnCount < CONFIG.MAX_ECHOES_PER_ZONE) {
                 const state = composite.state;
                 if (state) {
                     // Calculate spawn reduction based on instability
@@ -377,22 +393,23 @@ export class ResonanceEchoTrailSystem {
                             composite.mesh.geometry,
                             state.harmonBalance,
                             stabilityFactor,
-                            state.averageSynergy
+                            state.averageSynergy,
+                            currentVisualTime
                         );
                         echoSpawnCount++;
                     }
                 }
                 
-                tracker.resetSpawnTimer();
+                tracker.resetSpawnTimer(currentVisualTime);
             }
         }
     }
     
-    spawnEcho(position, geometry, harmonyBalance, stability, synergy) {
+    spawnEcho(position, geometry, harmonyBalance, stability, synergy, currentVisualTime) {
         // Find available echo instance
         for (let echo of this.echoInstances) {
             if (!echo.active) {
-                echo.spawn(position, geometry, harmonyBalance, stability, synergy);
+                echo.spawn(position, geometry, harmonyBalance, stability, synergy, currentVisualTime);
                 return;
             }
         }

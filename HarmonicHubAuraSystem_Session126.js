@@ -165,7 +165,7 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   update(deltaTime) {
     if (!this.config.enabled) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Detect and create harmonic hubs
     this._detectHarmonyHubs();
     

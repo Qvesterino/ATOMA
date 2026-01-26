@@ -83,6 +83,9 @@
 
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
 
+// Private symbol to track patched materials - prevents repeated shader compilation
+const AURA_ENHANCEMENT_PATCHED = Symbol('auraEnhancementPatched');
+
 /**
  * ArchetypeEnhancementState: Per-node enhanced aura state
  */
@@ -118,6 +121,7 @@ class ArchetypeEnhancementState {
   }
 
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Smooth intensity
     this.currentIntensity += (this.targetIntensity - this.currentIntensity) * this.emaAlpha;
 
@@ -167,6 +171,8 @@ class ArchetypeAuraEnhancement_v1 {
    * Main update loop (call AFTER archetypeCurves.update)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     if (!this.nodeAura || !this.archetypeCurves) return;
 
     this.totalTime += deltaTime;
@@ -443,12 +449,24 @@ class ArchetypeAuraEnhancement_v1 {
   /**
    * Register shader compilation hook for material
    * This ensures uniforms are injected at shader compile time
+   * 
+   * P0.1 FIX: Idempotent patching - only patches once per material to prevent
+   * repeated shader recompilation and GPU frame spikes.
    */
   registerMaterialHook(material) {
     if (!material || !material.onBeforeCompile) {
       return;
     }
 
+    // Guard: Only patch once per material
+    if (material[AURA_ENHANCEMENT_PATCHED]) {
+      return;
+    }
+
+    // Mark material as patched
+    material[AURA_ENHANCEMENT_PATCHED] = true;
+
+    // Store original hook for safe chaining
     const originalOnBeforeCompile = material.onBeforeCompile.bind(material);
 
     material.onBeforeCompile = (shader) => {

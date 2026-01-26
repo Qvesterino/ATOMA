@@ -312,7 +312,7 @@ export class NodeInspectOverlay3_0 {
    */
   update(deltaTime) {
     if (!this.enabled || !this.isVisible || !this.currentNode) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Optionally update panel if metrics changed (they shouldn't, but just in case)
     this.stats.updates++;
   }

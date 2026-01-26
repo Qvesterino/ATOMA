@@ -152,6 +152,7 @@ export class FXPerformanceSmoothTransition_v1 {
      */
     update(deltaTime) {
         // Graceful early exit if not transitioning
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         if (!this.blending || !this.perf || !this.perf.multipliers || deltaTime <= 0) {
             return;
         }

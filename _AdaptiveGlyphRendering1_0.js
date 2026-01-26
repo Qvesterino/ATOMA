@@ -32,6 +32,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 export class AdaptiveGlyphRendering1_0 {
   constructor(scene) {
@@ -45,6 +46,8 @@ export class AdaptiveGlyphRendering1_0 {
     
     // Global time for synchronized effects
     this.globalTime = 0;
+    this._glyphTimeOrigin = undefined;
+    this._lastGlyphTime = undefined;
     
     // Configuration for adaptive parameters
     this.config = {
@@ -309,9 +312,17 @@ export class AdaptiveGlyphRendering1_0 {
    */
   update(deltaTime, nodes) {
     if (!this.enabled || !nodes) return;
-    
-    const startTime = performance.now();
-    this.globalTime += deltaTime;
+
+    const startTime = VisualTime.now;
+    if (this._glyphTimeOrigin === undefined) {
+      this._glyphTimeOrigin = VisualTime.now;
+    }
+    const currentGlyphTime = VisualTime.now - this._glyphTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const glyphDelta = this._lastGlyphTime === undefined
+      ? 0
+      : Math.max(0, currentGlyphTime - this._lastGlyphTime);
+    this._lastGlyphTime = currentGlyphTime;
+    this.globalTime = currentGlyphTime;
     
     let processedCount = 0;
     
@@ -339,10 +350,10 @@ export class AdaptiveGlyphRendering1_0 {
             if (!mesh.isMesh || !mesh.visible) return;
             
             // Calculate adaptive parameters
-            const adaptiveScale = this.calculateAdaptiveScale(metrics, animState, deltaTime);
-            const wobble = this.calculateMicroWobble(metrics, animState, deltaTime);
-            const pulse = this.calculatePulsePhase(metrics, animState, deltaTime);
-            const breathScale = this.calculateBreathingScale(metrics, animState, deltaTime);
+            const adaptiveScale = this.calculateAdaptiveScale(metrics, animState, glyphDelta);
+            const wobble = this.calculateMicroWobble(metrics, animState, glyphDelta);
+            const pulse = this.calculatePulsePhase(metrics, animState, glyphDelta);
+            const breathScale = this.calculateBreathingScale(metrics, animState, glyphDelta);
             
             // Apply scale
             this.applyAdaptiveScale(mesh, adaptiveScale * breathScale, wobble);
@@ -354,7 +365,7 @@ export class AdaptiveGlyphRendering1_0 {
                 mesh.userData.baseColor = baseColor.clone();
               }
               
-              const adaptiveHue = this.calculateAdaptiveHue(metrics, animState, deltaTime, baseColor);
+              const adaptiveHue = this.calculateAdaptiveHue(metrics, animState, glyphDelta, baseColor);
               if (adaptiveHue) {
                 this.applyAdaptiveHue(mesh, adaptiveHue);
               }
@@ -362,7 +373,7 @@ export class AdaptiveGlyphRendering1_0 {
             
             // Apply rotation with pulse distortion
             const rotationSpeed = this.calculateAdaptiveRotationSpeed(metrics, 0.5);
-            this.applyAdaptiveRotation(child.parent || child, deltaTime, rotationSpeed, pulse);
+            this.applyAdaptiveRotation(child.parent || child, glyphDelta, rotationSpeed, pulse);
             
             processedCount++;
           });
@@ -372,7 +383,7 @@ export class AdaptiveGlyphRendering1_0 {
     
     this.stats.nodesProcessed = nodes.length;
     this.stats.activeAdaptations = processedCount;
-    this.stats.lastFrameTime = performance.now() - startTime;
+    this.stats.lastFrameTime = (VisualTime.now - startTime) * 1000;
   }
 
   /**

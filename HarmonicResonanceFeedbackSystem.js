@@ -214,7 +214,7 @@ class ResonanceField {
     
     update(deltaTime) {
         if (!this.active) return;
-        
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.age += deltaTime;
         this.rampAge += deltaTime;
         

@@ -17,6 +17,7 @@
  */
 
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 import {
   createFresnelRimLightAuraMaterial,
   createFresnelRimLightAuraMaterialWithDistance,
@@ -200,6 +201,8 @@ function createDefaultAura(nodeData, options = {}) {
  * @param {number} time Current time in seconds
  * @param {Object} state Node state (strength, opacity, etc.)
  */
+let _fresnelAuraTimeOrigin;
+
 export function updateFresnelAuraUniforms(auraMesh, time, state = {}) {
   if (!auraMesh || !auraMesh.material || !auraMesh.material.uniforms) {
     return;
@@ -214,7 +217,13 @@ export function updateFresnelAuraUniforms(auraMesh, time, state = {}) {
   } = state;
 
   // Update time for animations
-  if (uniforms.uTime) uniforms.uTime.value = time;
+  if (uniforms.uTime) {
+    if (_fresnelAuraTimeOrigin === undefined) {
+      _fresnelAuraTimeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - _fresnelAuraTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    uniforms.uTime.value = currentVisualTime;
+  }
 
   // Update aura state
   if (uniforms.uAuraStrength) uniforms.uAuraStrength.value = auraStrength;

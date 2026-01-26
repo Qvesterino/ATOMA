@@ -56,6 +56,8 @@ function hookNeonLinkVisualsParticles(main) {
   
   // Replace with scaler-aware version
   neonLinkVisuals.updateParticles = function(deltaTime) {
+    if (!main.frameScheduler?.shouldRunVisual?.()) return;
+    
     // Get network-wide emission multiplier
     const networkMultiplier = emissionScaler.getEmissionMultiplier();
     
@@ -93,6 +95,8 @@ function hookNodeAuraSystemParticles(main) {
   
   // Replace with scaler-aware version
   auraSystem.update = function(deltaTime) {
+    if (!main.frameScheduler?.shouldRunVisual?.()) return;
+    
     // Get network emission multiplier
     const networkMultiplier = emissionScaler.getEmissionMultiplier();
     

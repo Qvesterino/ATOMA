@@ -203,8 +203,9 @@ export class UISelectedNodeTopBar3_4 {
    * TopBar must be hidden only when SelectionCore.hasSelection() === false
    */
   update(deltaTime) {
-    if (!this.selectionCore) return;
     
+    if (!this.selectionCore) return;
+     if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     const hasSelection = this.selectionCore.hasSelection();
     const selectedNode = this.selectionCore.getSelected();
     

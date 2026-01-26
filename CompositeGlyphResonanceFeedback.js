@@ -621,7 +621,6 @@ class ResonanceInfluenceZone {
                 child.userData.baseOpacity = baseOpacity;
                 
                 child.material.opacity = baseOpacity + userData.reabsorptionOpacity;
-                child.material.needsUpdate = true;
             }
         });
     }
@@ -641,7 +640,6 @@ class ResonanceInfluenceZone {
             sourceGlyph.traverse(child => {
                 if (child.userData && child.userData.baseOpacity !== undefined && child.material) {
                     child.material.opacity = child.userData.baseOpacity;
-                    child.material.needsUpdate = true;
                     delete child.userData.baseOpacity;
                 }
             });
@@ -771,7 +769,7 @@ class CompositeGlyphResonanceFeedback {
     
     update(deltaTime) {
         if (!this.enabled) return;
-        
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.updateCounter++;
         
         // Update all active resonance zones

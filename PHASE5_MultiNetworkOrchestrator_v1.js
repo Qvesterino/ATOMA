@@ -143,6 +143,8 @@ export class PHASE5_MultiNetworkOrchestrator {
    * Update per frame
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     if (!this.isInitialized) {
       return;
     }

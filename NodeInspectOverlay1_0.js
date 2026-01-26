@@ -125,6 +125,7 @@ export class NodeInspectOverlay1_0 {
    */
   update(deltaTime) {
     // Throttle checks to 30Hz for performance
+
     this.lastCheckTime += deltaTime;
     if (this.lastCheckTime < this.checkInterval) {
       return;

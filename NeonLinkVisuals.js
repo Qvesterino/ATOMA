@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualAuthorityLock from './VisualAuthorityLock.js';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * SANDBOXING GUARD: Prevents mutations of protected node visual layers
@@ -31,7 +32,9 @@ export class NeonLinkVisuals {
     this.scene = scene;
     this.camera = camera;
     this.particles = [];
+    // Phase 2A: canonical VisualTime source
     this.time = 0;
+    this._timeOrigin = null;
     
     // [SYNERGY STATE RESOLVER] Centralized source of truth for synergy thresholds
     this.synergyResolver = new SynergyStateResolver();
@@ -467,7 +470,8 @@ export class NeonLinkVisuals {
     
     if (window.DEBUG_VISUAL_MODE) return;
     
-    this.time += deltaTime;
+    if (this._timeOrigin === null) this._timeOrigin = VisualTime.now; // Phase 2A: canonical VisualTime source
+    this.time = VisualTime.now - this._timeOrigin;
     this.updateParticles(deltaTime);
     this.updateMetricLinks(deltaTime);  // [Metrics Integration v1.0]
     this.applyDegradationEffects();  // [SESSION 88] Apply quality-based degradation
@@ -2106,4 +2110,3 @@ export function setupLinkVisualLanguageDebugAPI(linkVisuals) {
   console.log('✅ Link Visual Language v2 Debug API ready');
   console.log('   Use: reportLinkVisuals() for full status');
 }
-

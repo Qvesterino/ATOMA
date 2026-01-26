@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * ATOMA Visual Upgrade Superpack
@@ -12,6 +13,8 @@ export class VisualUpgradeSuperpack {
         this.renderer = renderer;
 
         this.time = 0;
+        this._timeOrigin = undefined;
+        this._lastVisualTime = undefined;
 
         // Pack components
         this.volumetricLights = [];
@@ -475,7 +478,16 @@ export class VisualUpgradeSuperpack {
      * Update all effects each frame
      */
     update(deltaTime) {
-        this.time += deltaTime;
+
+        if (this._timeOrigin === undefined) {
+            this._timeOrigin = VisualTime.now; // Phase 2A: VisualTime canonical clock (behavior-preserving)
+        }
+        const currentTime = VisualTime.now - this._timeOrigin;
+        const visualDelta = this._lastVisualTime === undefined
+            ? 0
+            : Math.max(0, currentTime - this._lastVisualTime);
+        this._lastVisualTime = currentTime;
+        this.time = currentTime;
 
         // GLOBAL SAFETY: Ensure all animated objects have valid rotation order
         this.edgeGlowObjects.forEach(o => this.ensureRotationOrder(o));
@@ -497,7 +509,7 @@ export class VisualUpgradeSuperpack {
             }
 
             // Gentle rotation
-            light.rotation.y += deltaTime * 0.02;
+            light.rotation.y += visualDelta * 0.02;
         });
 
         // Update atmospheric layers
@@ -515,9 +527,9 @@ export class VisualUpgradeSuperpack {
             zone.material.emissiveIntensity = pulse * zone.userData.intensity * 0.2;
 
             // Rotating distortion
-            zone.rotation.x += deltaTime * 0.1;
-            zone.rotation.y += deltaTime * 0.15;
-            zone.rotation.z += deltaTime * 0.08;
+            zone.rotation.x += visualDelta * 0.1;
+            zone.rotation.y += visualDelta * 0.15;
+            zone.rotation.z += visualDelta * 0.08;
         });
 
         // Update rifts
@@ -535,8 +547,8 @@ export class VisualUpgradeSuperpack {
             }
 
             // Fractal motion
-            rift.rotation.x += deltaTime * 0.05;
-            rift.rotation.z += deltaTime * 0.08;
+            rift.rotation.x += visualDelta * 0.05;
+            rift.rotation.z += visualDelta * 0.08;
         });
 
         // Update dream particles

@@ -88,6 +88,8 @@ export class QuantumIllusionRegistry {
    * Update all illusions (lifetime tracking)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     // Update FPS tracking for LOD
     this.updateLOD();
     

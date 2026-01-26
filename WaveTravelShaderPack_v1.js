@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
+
+// Private symbol to track patched materials (survives all registration cycles)
+const TRAVEL_PACK_PATCHED = Symbol('waveTravelPackPatched');
 
 /**
  * WAVE TRAVEL SHADER PACK v1.0
@@ -206,6 +210,7 @@ export class WaveTravelShaderPack_v1 {
 
             // Global time for shader animations
             this.globalTime = 0;
+            this._waveTravelTimeOrigin = undefined;
 
             if (this.debugEnabled) {
                 console.log('[WaveTravelShaderPack_v1] Initialized ✓');
@@ -226,6 +231,9 @@ export class WaveTravelShaderPack_v1 {
                 if (this.warningsEnabled) console.warn('[WaveTravelShaderPack_v1] register: material is null');
                 return false;
             }
+
+            // Material-level guard: prevent duplicate shader recompilation
+            if (material[TRAVEL_PACK_PATCHED]) return false;
 
             // Check if already registered
             if (this.registeredMaterials.has(material)) {
@@ -261,6 +269,9 @@ export class WaveTravelShaderPack_v1 {
 
             // Mark as registered
             this.registeredMaterials.add(material);
+
+            // Mark material as patched (persists across all registration cycles)
+            material[TRAVEL_PACK_PATCHED] = true;
 
             if (this.debugEnabled) {
                 console.log(`[WaveTravelShaderPack_v1] Material registered (profile: ${profile})`);
@@ -342,21 +353,24 @@ export class WaveTravelShaderPack_v1 {
      */
     update(deltaTime) {
         try {
-            if (!deltaTime || deltaTime <= 0) return;
+        // RUNTIME GUARD: Ensure registeredMaterials is valid and iterable
+        if (!this.registeredMaterials || 
+            (!Array.isArray(this.registeredMaterials) && !(this.registeredMaterials instanceof Set))) {
+            return;
+        }
 
-            // RUNTIME GUARD: Ensure registeredMaterials is valid and iterable
-            if (!this.registeredMaterials || 
-                (!Array.isArray(this.registeredMaterials) && !(this.registeredMaterials instanceof Set))) {
-                return;
-            }
+        if (this._waveTravelTimeOrigin === undefined) {
+            this._waveTravelTimeOrigin = VisualTime.now;
+        }
 
-            this.globalTime += deltaTime;
+        const currentWaveTime = VisualTime.now - this._waveTravelTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+        this.globalTime = currentWaveTime;
 
             // Update all registered material uniforms
             for (const material of this.registeredMaterials) {
                 const uniforms = this.materialUniforms.get(material);
                 if (uniforms?.uWaveTravelTime) {
-                    uniforms.uWaveTravelTime.value = this.globalTime;
+                    uniforms.uWaveTravelTime.value = currentWaveTime;
                 }
             }
         } catch (e) {

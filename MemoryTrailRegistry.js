@@ -206,6 +206,7 @@ export class MemoryTrailRegistry {
    * Update all trails (age and lifecycle)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     // Update node trails
     for (const [nodeId, trail] of this.nodeTrails.entries()) {
       trail.age += deltaTime;

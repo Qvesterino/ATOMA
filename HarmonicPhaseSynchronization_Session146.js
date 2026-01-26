@@ -122,7 +122,7 @@ export class HarmonicPhaseSynchronization_Session146 {
     if (!this.config.enabled || !this.cascadeSystem) {
       return;
     }
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     const startTime = performance.now();
     
     // Get proximity pairs from cascade system

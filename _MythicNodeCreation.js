@@ -143,6 +143,7 @@ export class MythicNodeCreation {
    * FIXED (Session 37+): Added cleanup timer tracking (replaces setTimeout).
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     if (!this.player) return;
     if (this.skipRitual) return;
     

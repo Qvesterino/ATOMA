@@ -272,7 +272,7 @@ class TopologyRegion {
     
     update(deltaTime) {
         if (!this.active) return;
-        
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.age += deltaTime;
         this.flowAge += deltaTime;
         

@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
+
+// Private symbol to track patched materials
+const RESONANCE_FX_PATCHED = Symbol('resonanceFXPatched');
 
 /**
  * SYNERGY RESONANCE SHADER PACK v1.0
@@ -53,7 +57,6 @@ import * as THREE from 'three';
 class ResonanceMaterialState {
     constructor(material) {
         this.material = material;
-        this.patched = false;
         this.originalOnBeforeCompile = material.onBeforeCompile || null;
         
         // GPU uniforms
@@ -72,7 +75,8 @@ class ResonanceMaterialState {
      * Patch the material's shader with resonance effects
      */
     patch() {
-        if (this.patched) return;
+        // Check if material already patched (material-level guard)
+        if (this.material[RESONANCE_FX_PATCHED]) return;
         
         const state = this;
         const originalOnBeforeCompile = this.originalOnBeforeCompile;
@@ -309,12 +313,13 @@ class ResonanceMaterialState {
                     #include <output_fragment>
                 `
             );
-            
-            this.patched = true;
         };
         
+        // Force material update
         this.material.needsUpdate = true;
-        this.patched = true;
+        
+        // Mark material as patched
+        this.material[RESONANCE_FX_PATCHED] = true;
     }
     
     /**
@@ -348,6 +353,7 @@ export class SynergyResonanceShaderPack_v1 {
         
         // Global time accumulator
         this._time = 0.0;
+        this._timeOrigin = undefined;
         
         // Performance monitoring
         this.lastUpdateTime = 0;
@@ -453,8 +459,11 @@ export class SynergyResonanceShaderPack_v1 {
         const startTime = performance.now();
         
         try {
-            // Advance global time
-            this._time += deltaTime;
+            if (this._timeOrigin === undefined) {
+                this._timeOrigin = VisualTime.now;
+            }
+            const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+            this._time = currentVisualTime;
             
             // Apply resonance to all links
             this.applyToAllLinks(allLinks);

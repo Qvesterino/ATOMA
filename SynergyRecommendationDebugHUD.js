@@ -33,6 +33,9 @@
  */
 
 export class SynergyRecommendationDebugHUD {
+    // Disabled: superseded by modular AIAutomationHUD (UI-only cleanup, keep new HUD intact)
+    static DISABLED = true;
+
     /**
      * Initialize debug HUD
      * 
@@ -40,6 +43,14 @@ export class SynergyRecommendationDebugHUD {
      * @param {LinkAutomationEngine1_0} linkAutomationEngine - Automation engine instance
      */
     constructor(linkRecommendationAI, linkAutomationEngine) {
+        if (SynergyRecommendationDebugHUD.DISABLED) {
+            this.disabled = true;
+            this.container = null;
+            this.bodyElement = null;
+            this.timer = null;
+            return;
+        }
+
         this.ai = linkRecommendationAI;
         this.auto = linkAutomationEngine;
 
@@ -141,6 +152,7 @@ export class SynergyRecommendationDebugHUD {
      * Stop rendering cycle
      */
     stop() {
+        if (!this.timer) return;
         clearInterval(this.timer);
     }
 
@@ -148,6 +160,7 @@ export class SynergyRecommendationDebugHUD {
      * Toggle HUD visibility
      */
     toggle() {
+        if (!this.container) return;
         this.visible = !this.visible;
         this.container.style.display = this.visible ? "block" : "none";
     }
@@ -156,6 +169,7 @@ export class SynergyRecommendationDebugHUD {
      * Show HUD
      */
     show() {
+        if (!this.container) return;
         this.visible = true;
         this.container.style.display = "block";
     }
@@ -164,6 +178,7 @@ export class SynergyRecommendationDebugHUD {
      * Hide HUD
      */
     hide() {
+        if (!this.container) return;
         this.visible = false;
         this.container.style.display = "none";
     }
@@ -173,7 +188,7 @@ export class SynergyRecommendationDebugHUD {
      * @private
      */
     render() {
-        if (!this.visible) return;
+        if (!this.visible || !this.container) return;
 
         try {
             // Get data from AI and automation systems

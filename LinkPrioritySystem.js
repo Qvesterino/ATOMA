@@ -67,6 +67,7 @@ export class LinkPrioritySystem {
     2: { widthMultiplier: 1.4,  glowMultiplier: 1.2,  pulseSpeedMultiplier: 1.2  },
     3: { widthMultiplier: 1.8,  glowMultiplier: 1.4,  pulseSpeedMultiplier: 1.5  },
   };
+  static PRIORITY_TICK_MS = 500;
 
   /**
    * Tier labels for HUD display
@@ -113,6 +114,20 @@ export class LinkPrioritySystem {
       if (!allowedFields.has(key)) continue;
       link.priority[key] = value;
     }
+    // Clear dirty flag after authoritative apply
+    if (link.priority._dirty === true && ('score' in patch || 'tier' in patch || 'traffic' in patch || 'stabilityPenalty' in patch)) {
+      link.priority._dirty = false;
+    }
+  }
+
+  /**
+   * Marks a link's priority as dirty for deferred recomputation.
+   * @param {Object} link - Link object
+   */
+  static markPriorityDirty(link) {
+    if (!link) return;
+    link.priority = link.priority || {};
+    link.priority._dirty = true;
   }
 
   /**
@@ -253,6 +268,12 @@ export class LinkPrioritySystem {
         tier,
         _lastScoreUpdate: Date.now(),
       });
+      if (link.priority) {
+        link.priority._dirty = false;
+        link.priority._lastPriorityTick = Date.now();
+        // Refresh read-only snapshot after authoritative recompute
+        this._updatePrioritySnapshot(link);
+      }
 
       console.debug(`[LinkPriority] Score: ${score.toFixed(2)} | tier=${tier} | traffic=${traffic.toFixed(2)} | synergy=${synergy}`);
     } catch (err) {
@@ -290,11 +311,8 @@ export class LinkPrioritySystem {
       _lastTrafficUpdate: now,
       traffic: newTraffic,
     });
-
-    // Recompute priority (but throttle this too)
-    if (now - (link.priority._lastScoreUpdate ?? 0) >= 100) {
-      this.computePriorityScore(link);
-    }
+    // Mark for deferred recompute (handled on priority tick)
+    this.markPriorityDirty(link);
   }
 
   /**
@@ -323,10 +341,13 @@ export class LinkPrioritySystem {
 
         // Recompute if traffic significantly changed
         if (Math.abs(oldTraffic - decayedTraffic) > 0.01) {
-          this.computePriorityScore(link);
+          this.markPriorityDirty(link);
           decayedCount++;
         }
       }
+
+      // Process all dirty priorities once per tick
+      this.processDirtyPriorities(links);
 
       if (decayedCount > 0) {
         console.debug(`[LinkPriority] Traffic decay: ${decayedCount} links updated`);
@@ -354,8 +375,8 @@ export class LinkPrioritySystem {
       const safePenalty = Math.max(0, Math.min(0.7, penalty));
       this.applyPriorityUpdate(link, { stabilityPenalty: safePenalty });
 
-      // Recompute score with new penalty
-      this.computePriorityScore(link);
+      // Mark for deferred recompute
+      this.markPriorityDirty(link);
 
       console.debug(`[LinkPriority] Stability penalty applied: ${safePenalty.toFixed(2)}`);
     } catch (err) {
@@ -476,7 +497,53 @@ export class LinkPrioritySystem {
       _lastTrafficUpdate: Date.now(),
     });
 
+    this._updatePrioritySnapshot(link);
+
     console.debug('[LinkPriority] Link priority reset');
+  }
+
+  /**
+   * Process all dirty priorities once per priority tick (called from decay tick).
+   * @param {Array<Object>} links - Array of links
+   */
+  static processDirtyPriorities(links) {
+    if (!Array.isArray(links)) return;
+    for (const link of links) {
+      if (!link?.priority || !link.priority._dirty) continue;
+      this.computePriorityScore(link);
+    }
+  }
+
+  /**
+   * Update read-only snapshot for a link after authoritative recompute.
+   * Snapshot is derived only; never authoritative.
+   * @param {Object} link
+   * @private
+   */
+  static _updatePrioritySnapshot(link) {
+    if (!link || !link.priority) return;
+    link.prioritySnapshot = {
+      score: link.priority.score ?? 0,
+      tier: link.priority.tier ?? 0,
+      traffic: link.priority.traffic ?? 0,
+      stabilityPenalty: link.priority.stabilityPenalty ?? 0,
+      staleness: link.priority.staleness ?? 'unknown',
+      decayAmount: link.priority.decayAmount ?? 0,
+      lastScoreUpdate: link.priority._lastScoreUpdate ?? 0,
+      lastTrafficUpdate: link.priority._lastTrafficUpdate ?? 0,
+      lastPriorityTick: link.priority._lastPriorityTick ?? 0,
+    };
+    Object.freeze(link.prioritySnapshot);
+  }
+
+  /**
+   * Read-only accessor for priority snapshot.
+   * @param {Object} link
+   * @returns {Object|null} Snapshot object (frozen) or null if unavailable
+   */
+  static getPrioritySnapshot(link) {
+    if (!link) return null;
+    return link.prioritySnapshot || null;
   }
 }
 

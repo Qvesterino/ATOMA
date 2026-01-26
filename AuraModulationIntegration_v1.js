@@ -216,6 +216,7 @@ export class AuraModulationIntegration_v1 {
    */
   update(deltaTime) {
     this.auraModulationSystem.update(deltaTime);
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
   }
 }
 

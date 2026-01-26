@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
+
+// Private symbol to track patched materials
+const SYNERGY_FX_PATCHED = Symbol('synergyFXPatched');
 
 /**
  * SYNERGY BONUS FX LAYER v1.0
@@ -92,7 +96,6 @@ class SynergyFXState {
 class SynergyMaterialState {
     constructor(material) {
         this.material = material;
-        this.patched = false;
         this.uniforms = {
             uSynergyTier: { value: 0 },
             uSynergyPulse: { value: 0 },
@@ -108,7 +111,8 @@ class SynergyMaterialState {
      * Patch the material's shader to include synergy effects
      */
     patch() {
-        if (this.patched) return;
+        // Check if material already patched (material-level guard)
+        if (this.material[SYNERGY_FX_PATCHED]) return;
         
         const state = this;
         
@@ -250,13 +254,13 @@ class SynergyMaterialState {
             if (shader.vertexShader.includes('varying')) {
                 shader.vertexShader = vertexShaderPatch + shader.vertexShader;
             }
-            
-            this.patched = true;
         };
         
         // Force material update
         this.material.needsUpdate = true;
-        this.patched = true;
+        
+        // Mark material as patched
+        this.material[SYNERGY_FX_PATCHED] = true;
     }
     
     /**
@@ -293,6 +297,7 @@ export class SynergyBonusFXLayer_v1 {
         
         // Global time accumulator for shader oscillations
         this._time = 0.0;
+        this._timeOrigin = undefined;
         
         // Performance monitoring
         this.lastUpdateTime = 0;
@@ -438,8 +443,10 @@ export class SynergyBonusFXLayer_v1 {
         const startTime = performance.now();
         
         try {
-            // Advance global time (used by shader for oscillations)
-            this._time += deltaTime;
+            if (this._timeOrigin === undefined) {
+                this._timeOrigin = VisualTime.now;
+            }
+            this._time = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
             
             // Iterate through links
             this.processedLinksCount = 0;

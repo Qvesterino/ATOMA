@@ -155,6 +155,8 @@ class Phase8RitualVisualOrchestration {
    * Modulates visual signals based on ritual progression.
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     const now = performance.now();
     this.stats.lastUpdateTime = now;
 

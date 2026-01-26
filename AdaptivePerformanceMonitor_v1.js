@@ -111,9 +111,10 @@ export class AdaptivePerformanceMonitor_v1 {
     update(deltaTime) {
         // Safety checks
         if (!this.enabled || !this.fxPerformance || deltaTime <= 0) {
+            
             return;
         }
-
+ if (!this.frameScheduler?.shouldRunSimulation?.()) return;
         // =====================================================================
         // FPS CALCULATION & SMOOTHING
         // =====================================================================

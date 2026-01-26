@@ -41,6 +41,8 @@ export class TemporalUnitSystem {
    * @returns {object} - Event flags
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     // Clear event flags
     this.newCycleThisFrame = false;
     this.newEpochThisFrame = false;

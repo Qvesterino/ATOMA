@@ -173,7 +173,7 @@ export class UIPrimaryNodeAura3_7 {
    */
   update(deltaTime) {
     if (!this.enabled || this.auraMeshes.size === 0) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     this.auralimeTime += deltaTime;
     
     this.auraMeshes.forEach((meshData, node) => {

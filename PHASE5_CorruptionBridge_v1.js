@@ -56,6 +56,8 @@ export class PHASE5_CorruptionBridge {
    * Call from main animation loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     const updateStart = Date.now();
     
     try {

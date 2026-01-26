@@ -184,6 +184,7 @@ export class MythicAuraIntegration_v1 {
    * [SESSION 99] Early exit if node auras are disabled
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // ✓ FEATURE FLAG: Node aura visuals disabled (Session 99 Stabilization)
     if (!CONFIG.features?.ENABLE_NODE_AURAS) {
       return;  // ← Silent return, no mythic aura enhancements

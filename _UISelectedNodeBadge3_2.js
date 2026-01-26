@@ -181,6 +181,7 @@ export class UISelectedNodeBadge3_2 {
   update(deltaTime) {
     // Handle fade animations
     if (this.fadeTimer > 0) {
+      if (!this.frameScheduler?.shouldRunSimulation?.()) return;
       this.fadeTimer -= deltaTime;
     }
   }

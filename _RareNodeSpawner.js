@@ -97,8 +97,9 @@ export class RareNodeSpawner {
    * Update spawner (call every frame)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     if (!this.config.enabled || !this.registry.spawnSystemActive) return;
-    
+
     this.registry.frameCounter++;
     this.registry.lastSpawnCheck += deltaTime;
     

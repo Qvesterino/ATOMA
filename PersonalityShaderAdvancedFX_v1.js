@@ -19,9 +19,16 @@
  * - uCorruption: [0, 1] corruption signal
  * - uFocus: [0, 1] focus signal
  * - uEnergy: [0, 1] energy signal
- * - uResonance: [0, 1] link resonance signal
- * - uQuality: [0, 1] FX quality scaler
+  * - uResonance: [0, 1] link resonance signal
+  * - uQuality: [0, 1] FX quality scaler
  */
+
+// Private symbol to track patched materials - prevents repeated shader compilation
+const ADVANCED_FX_PATCHED = Symbol('advancedFXPatched');
+
+import VisualTime from './src/time/VisualTime.js';
+
+let _advancedFXTimeOrigin;
 
 export class PersonalityShaderAdvancedFX_v1 {
   constructor(options = {}) {
@@ -181,8 +188,19 @@ export class PersonalityShaderAdvancedFX_v1 {
   /**
    * Create onBeforeCompile hook for a material
    * Safely injects shader code without modifying existing uniforms or structure
+   * 
+   * P0.1 FIX: Material-level guard prevents repeated shader compilation
+   * even across system re-initializations or multiple instances.
    */
   _createShaderHook(material, profile = 'default') {
+    // Guard: Only patch once per material (material-level guard)
+    if (material[ADVANCED_FX_PATCHED]) {
+      return;  // Already patched
+    }
+
+    // Mark material as patched before any assignment
+    material[ADVANCED_FX_PATCHED] = true;
+
     const originalOnBeforeCompile = material.onBeforeCompile;
     
     const self = this;
@@ -273,6 +291,10 @@ export class PersonalityShaderAdvancedFX_v1 {
   /**
    * Register a material for advanced FX
    * Optionally specify a distortion profile
+   * 
+   * Dual-guard pattern:
+   * - Instance-level guard (this.materials.has): Fast check for this system instance
+   * - Material-level guard (ADVANCED_FX_PATCHED Symbol): Authoritative, survives re-initialization
    */
   register(material, profile = 'default') {
     if (!material || !material.onBeforeCompile !== undefined) {
@@ -280,8 +302,9 @@ export class PersonalityShaderAdvancedFX_v1 {
       return false;
     }
 
+    // Instance-level guard (fast check)
     if (this.materials.has(material)) {
-      return true; // Already registered
+      return true; // Already registered in this instance
     }
 
     this._createShaderHook(material, profile);
@@ -317,7 +340,7 @@ export class PersonalityShaderAdvancedFX_v1 {
    * Update uniforms for all registered materials
    * Called once per frame with personality signals
    */
-  update(deltaTime = 0, personalitySignals = {}) {
+    update(deltaTime = 0, personalitySignals = {}) {
     if (!this.enabled || this.lowFXMode) {
       return; // Disabled in LowFX mode
     }
@@ -327,7 +350,12 @@ export class PersonalityShaderAdvancedFX_v1 {
       return; // Skip frame if not update frequency
     }
 
-    this.globalTime += deltaTime;
+    if (_advancedFXTimeOrigin === undefined) {
+      _advancedFXTimeOrigin = VisualTime.now;
+    }
+    const currentVisualTime = VisualTime.now - _advancedFXTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+
+    this.globalTime = currentVisualTime;
 
     // Extract personality signals (with graceful defaults)
     const entropy = personalitySignals.entropy ?? 0.0;
@@ -346,7 +374,7 @@ export class PersonalityShaderAdvancedFX_v1 {
         material.uniforms.uEnergy.value = energy;
         material.uniforms.uResonance.value = resonance;
         material.uniforms.uQuality.value = quality;
-        material.uniforms.uTime.value = this.globalTime;
+        material.uniforms.uTime.value = currentVisualTime;
         material.uniforms.uLowFXMode.value = this.lowFXMode ? 1.0 : 0.0;
       }
     });

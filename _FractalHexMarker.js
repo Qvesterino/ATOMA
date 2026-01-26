@@ -505,6 +505,8 @@ export class FractalHexMarker {
    * @param {number} deltaTime - Time since last frame (seconds)
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     for (const [nodeId, markerData] of this.markerRegistry) {
       const { node, markerGroup, hexMarker, sparkMaterial } = markerData;
       

@@ -229,7 +229,7 @@ export class NodeHierarchyBridge {
    */
   update(deltaTime = 0.016) {
     if (!this.running) return;
-
+if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Update animation state
     this.visuals.updateAnimations();
 

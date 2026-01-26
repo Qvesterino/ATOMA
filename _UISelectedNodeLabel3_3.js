@@ -172,7 +172,7 @@ export class UISelectedNodeLabel3_3 {
    */
   update(deltaTime) {
     if (!this.selectedNode || !this.labelSprite) return;
-    
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     // Bob animation
     this.bobTime += deltaTime;
     this.bobOffset = Math.sin(this.bobTime * 2.5) * 0.3;

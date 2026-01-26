@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import VisualTime from './src/time/VisualTime.js';
 
 /**
  * ============================================================================
@@ -27,6 +28,7 @@ export class CognitiveHorizonPlane {
     this.scene = scene;
     this.camera = camera;
     this.time = 0;
+    this._timeOrigin = undefined;
     
     // Plane configuration
     this.config = {
@@ -338,22 +340,26 @@ export class CognitiveHorizonPlane {
    * Animate the horizon plane
    */
   animate(deltaTime, time) {
-    this.time = time;
-    
+    if (this._timeOrigin === undefined) {
+      this._timeOrigin = VisualTime.now;
+    }
+    const currentTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    this.time = currentTime;
+
     // Update horizon shader uniforms
     if (this.materials.horizon.uniforms) {
-      this.materials.horizon.uniforms.time.value = time;
+      this.materials.horizon.uniforms.time.value = currentTime;
       this.materials.horizon.uniforms.waveSpeed.value = this.config.waveSpeed;
       this.materials.horizon.uniforms.waveAmplitude.value = this.config.waveAmplitude;
     }
     
     // Update grid shader uniforms
     if (this.materials.grid.uniforms) {
-      this.materials.grid.uniforms.time.value = time;
+      this.materials.grid.uniforms.time.value = currentTime;
     }
     
     // Very subtle rotation for dreamlike quality
-    const slowRotation = time * 0.005; // Extremely slow
+    const slowRotation = currentTime * 0.005; // Extremely slow
     this.planeGroup.rotation.z = slowRotation;
   }
   

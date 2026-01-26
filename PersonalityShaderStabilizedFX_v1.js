@@ -43,6 +43,9 @@
  *   this.stabilizedFX.update(deltaTime);
  */
 
+// Private symbol to track patched materials
+const STABILIZED_FX_PATCHED = Symbol('stabilizedFXPatched');
+
 export class PersonalityShaderStabilizedFX_v1 {
   constructor(options = {}) {
     this.advancedFX = options.advancedFX || null;
@@ -121,6 +124,11 @@ export class PersonalityShaderStabilizedFX_v1 {
       return;
     }
 
+    // Check if already patched (material-level guard)
+    if (material[STABILIZED_FX_PATCHED]) {
+      return;  // Already registered, skip
+    }
+
     const profile = this.profileLibrary[profileName];
     
     // Store previous hook if it exists
@@ -162,6 +170,9 @@ export class PersonalityShaderStabilizedFX_v1 {
     });
 
     this.profiles.set(material, profile);
+
+    // Mark as patched
+    material[STABILIZED_FX_PATCHED] = true;
   }
 
   /**
@@ -178,6 +189,9 @@ export class PersonalityShaderStabilizedFX_v1 {
     } else {
       delete material.onBeforeCompile;
     }
+
+    // Clear patched flag
+    delete material[STABILIZED_FX_PATCHED];
 
     this.materials.delete(material);
     this.profiles.delete(material);

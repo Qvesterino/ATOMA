@@ -120,7 +120,7 @@
         background: rgba(0, 221, 255, 0.2); 
         color: #00ddff;
       }
-      
+
       .node-process { 
         background: rgba(255, 170, 0, 0.2); 
         color: #ffaa00;
@@ -249,10 +249,10 @@
       }
       
       /* Hide thin cyan progress bar / loading indicator (height 1-2px) */
-      div[style*="height: 1px"],
-      div[style*="height: 2px"] {
-        display: none !important;
-      }w
+ /*     div[style*="height: 1px"],
+ /*     div[style*="height: 2px"] {
+   /*     display: none !important;
+  /*    }w
       
       /* ============================================================================
          SESSION 106+: HIDE OVERLAY TEXT ELEMENTS
@@ -324,11 +324,7 @@
       </div>
       <div id="title">ATOMA</div>
       <div id="subtitle">DREAM DESERT MODE</div>
-      <div id="instructions">
-        <div>WASD - MOVE | MOUSE - LOOK | SPACE - JUMP | M - SWITCH MODE</div>
-        <div>CLICK node A, then node B to link • RIGHT CLICK links for menu</div>
-        <div>Crosshair brightens when targeting nodes • ESC - Deselect</div>
-        <div style="color: #ffaa00; margin-top: 12px;">CTRL+Z - Undo | CTRL+SHIFT+Z / CTRL+Y - Redo</div>
+
       </div>
       
       <div id="undo-info">
@@ -348,6 +344,14 @@
       console.log('[BOOT] index.html loading main.js module...');
     </script>
     <script type="module" src="./main.js"></script>
+    script type="module">
+      import { mountAIAutomationHUD } from "./AIAutomationHUD.js";
+      mountAIAutomationHUD(document.body);
+    </script>
+    <script type="module">
+      import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+      mountVariantBAdvisorHUD(document.body);
+    </script>
     <script src="https://storage.googleapis.com/rosebud_staticfiles/ChatManager.js"></script>
     <script src="https://storage.googleapis.com/rosebud_staticfiles/ImageGenerator.js"></script>
     <script src="https://storage.googleapis.com/rosebud_staticfiles/ProgressLogger.js"></script>

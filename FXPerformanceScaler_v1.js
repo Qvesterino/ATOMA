@@ -88,6 +88,7 @@ export class FXPerformanceScaler_v1 {
    * @returns {number} Nodes scaled
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
     if (!this.perfController) {
       if (this.config.enableWarnings) {
         console.warn('[FXPerformanceScaler] No performance controller, skipping update');

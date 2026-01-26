@@ -87,6 +87,8 @@ export function integrateLinksTransitionSystem(linkingSystem, scene) {
   // Patch 3: Hook into frame update (animate)
   const originalAnimate = linkingSystem.animate;
   linkingSystem.animate = function(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    
     // Call original
     originalAnimate.call(this, deltaTime);
 

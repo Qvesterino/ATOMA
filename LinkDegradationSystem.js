@@ -89,7 +89,7 @@ export class LinkDegradationSystem {
     if (!this.linkingSystem || !this.linkingSystem.links) {
       return;
     }
-    
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
     const startTime = performance.now();
     
     // Update degradation for all links

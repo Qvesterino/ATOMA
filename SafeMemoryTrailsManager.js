@@ -85,6 +85,8 @@ export class SafeMemoryTrailsManager {
    * Main update loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
     if (!this.enabled) return;
     
     // Update registry (aging and cleanup)

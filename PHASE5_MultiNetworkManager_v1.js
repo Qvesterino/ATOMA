@@ -268,6 +268,8 @@ export class PHASE5_MultiNetworkManager {
    * Call once per frame from main loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     const syncStartTime = Date.now();
     
     try {

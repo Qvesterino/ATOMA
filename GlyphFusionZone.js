@@ -154,7 +154,7 @@ class CompositeGlyphInstance {
 
     update(deltaTime) {
         if (!this.active || !this.state) return;
-
+        if (!this.frameScheduler?.shouldRunSimulation?.()) return;
         // Fade in during synthesis
         if (this.progress < 1.0) {
             this.progress += deltaTime / CONFIG.SYNTHESIS_DURATION;
@@ -175,6 +175,7 @@ class CompositeGlyphInstance {
 // ============================================================================
 
 export class GlyphFusionZoneManager {
+    
     constructor(scene, compositeGlyphGenerator) {
         this.scene = scene;
         this.compositeGlyphGenerator = compositeGlyphGenerator;

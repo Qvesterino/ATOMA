@@ -131,6 +131,8 @@ export class PHASE5_InterNetworkVisualizationBridge {
    * Call from main animation loop
    */
   update(deltaTime) {
+    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+
     const syncStart = Date.now();
     
     try {
