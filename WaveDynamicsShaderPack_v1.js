@@ -34,53 +34,38 @@ const DYNAMICS_PACK_PATCHED = Symbol('waveDynamicsPackPatched');
 // PROFILE CONFIGURATIONS
 // ============================================================================
 
-const PROFILE_CONFIG = {
-    DEFAULT: {
-        name: 'Default Dynamics',
-        breathingIntensity: 0.08,       // Node expansion scale
-        rippleIntensity: 0.1,           // Micro-ripple amplitude
+    const PROFILE_CONFIG = {
+        DEFAULT: {
+            name: 'Default Dynamics',
+            breathingIntensity: 0.08,       // Node expansion scale
         diffusionIntensity: 0.6,        // Color pulse strength
         breathingFreq: 1.2,             // Breathing oscillation speed
-        rippleFreq: 3.5,                // Ripple wave frequency
-        chaosDrive: 0.3                 // Chaos influence on ripples
     },
     AURA: {
         name: 'Aura Enhanced',
         breathingIntensity: 0.12,       // Enhanced breathing
-        rippleIntensity: 0.08,
         diffusionIntensity: 0.8,        // Strong color diffusion
         breathingFreq: 0.8,             // Slower, more dramatic
-        rippleFreq: 2.5,
-        chaosDrive: 0.2
     },
     SYNERGY: {
         name: 'Synergy Resonance',
         breathingIntensity: 0.1,
-        rippleIntensity: 0.14,          // Enhanced ripples
         diffusionIntensity: 0.7,
         breathingFreq: 1.5,
-        rippleFreq: 4.0,                // Faster ripples
-        chaosDrive: 0.25
     },
     MYTHIC: {
         name: 'Mythic Extreme',
         breathingIntensity: 0.18,       // Very strong breathing
-        rippleIntensity: 0.2,           // Intense ripples
         diffusionIntensity: 1.0,        // Maximum color diffusion
         breathingFreq: 2.0,             // Fast breathing
-        rippleFreq: 6.0,                // Very fast ripples
-        chaosDrive: 0.5                 // High chaos
     },
     RIFT: {
         name: 'Rift Chaos',
         breathingIntensity: 0.25,       // Extreme breathing
-        rippleIntensity: 0.3,           // Chaotic ripples
         diffusionIntensity: 1.0,        // Full intensity
         breathingFreq: 3.0,             // Rapid breathing
-        rippleFreq: 8.0,                // Extremely fast
-        chaosDrive: 0.8                 // Extreme chaos
     }
-};
+    };
 
 // ============================================================================
 // SHADER CODE CHUNKS
@@ -94,26 +79,8 @@ float breathingScale(float standingWave, float phase, float freq, float amplitud
     // Standing wave drives base expansion
     float baseBreathing = sin(phase * 6.28318) * amplitude * standingWave;
     // Add sine oscillation
-    float oscillation = sin(phase * freq + time * 0.5) * amplitude * 0.5;
+    float oscillation = sin(phase * freq + uTime * 0.5) * amplitude * 0.5;
     return 1.0 + baseBreathing + oscillation;
-}
-`;
-
-/**
- * Quantum ripple displacement
- */
-const RIPPLE_FUNCTION = `
-float quantumRipple(vec3 worldPos, float amplitude, float frequency, float phase, float chaos) {
-    // Main ripple wave propagating outward
-    float distance = length(worldPos);
-    float ripple = sin(distance * frequency + phase + time * 2.0) * amplitude;
-    
-    // Chaos component (high-freq jitter)
-    float chaosNoise = sin(worldPos.x * 5.0 + time * 3.0) * 0.2
-                     + sin(worldPos.y * 4.3 + time * 2.7) * 0.2
-                     + sin(worldPos.z * 3.8 + time * 1.9) * 0.2;
-    
-    return ripple + chaosNoise * chaos * amplitude;
 }
 `;
 
@@ -126,58 +93,26 @@ const VERTEX_BREATHING_CHUNK = `
     float breathingScale = breathingScale(standingEnergy, uWavePhase, uWaveDynamicsBreathFreq, uWaveDynamicsBreathAmp);
     
     // Apply scale to vertex position (expansion from center)
-    transformed = (transformed - center) * breathingScale + center;
-`;
-
-/**
- * Vertex shader ripple chunk
- */
-const VERTEX_RIPPLE_CHUNK = `
-    // Quantum Ripple Displacement FX
-    vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-    float rippleDisplace = quantumRipple(worldPos, uWaveDynamicsRippleAmp, uWaveDynamicsRippleFreq, uWavePhase, uWaveDynamicsChaosDrive);
-    
-    // Destructive waves boost chaos
-    float chaosFactor = uWaveDestructive * uWaveDynamicsChaosDrive;
-    rippleDisplace += chaosFactor * 0.1;
-    
-    // Apply ripple displacement
-    transformed += normal * rippleDisplace;
+    transformed = (transformed - uWaveCenter) * breathingScale + uWaveCenter;
 `;
 
 /**
  * Fragment shader color diffusion chunk
  */
 const FRAGMENT_DIFFUSION_CHUNK = `
-    // Color Diffusion Pulse FX
+    // Color Diffusion Pulse FX (time-driven)
     float pulseEnergy = uWaveConstructive * uWaveIntensity;
-    
-    // Smooth step for pulse falloff
-    float pulseFalloff = smoothstep(1.0, 0.0, abs(sin(time * 0.5)));
+    float pulseFalloff = smoothstep(1.0, 0.0, abs(sin(uTime * 0.5)));
     float pulseStrength = pulseEnergy * pulseFalloff * uWaveDynamicsDiffusionAmp;
-    
-    // Apply color diffusion (pulse outward from center)
-    // Use normalized world position for color direction
-    vec3 diffusionDir = normalize(vWorldPosition) * 0.5 + 0.5;
-    vec3 diffusionColor = mix(diffuse.rgb, diffusionDir, pulseStrength * 0.3);
-    
-    // Blend with wave intensity for glow
-    diffuse.rgb = mix(diffuse.rgb, diffusionColor, min(1.0, pulseStrength));
-    
-    // Boost emissive based on constructive power
-    outgoingLight += diffuse.rgb * uWaveConstructive * uWaveDynamicsDiffusionAmp * 0.2;
+    vec3 diffusionColor = mix(diffuseColor.rgb, vec3(0.6, 0.8, 1.0), pulseStrength * 0.3);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffusionColor, min(1.0, pulseStrength));
+    outgoingLight += diffuseColor.rgb * uWaveConstructive * uWaveDynamicsDiffusionAmp * 0.2;
 `;
 
 /**
  * World position varying (shared)
  */
-const WORLD_POSITION_VARYING = `
-    varying vec3 vWorldPosition;
-    
-    #ifdef USE_VERTEX_SHADER
-        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-    #endif
-`;
+// vWorldPosition removed for stability (no dependency in fragment shaders).
 
 // ============================================================================
 // WAVE DYNAMICS SHADER PACK v1.0
@@ -477,15 +412,6 @@ export class WaveDynamicsShaderPack_v1 {
                 '#include <common>',
                 `#include <common>
                  ${BREATHING_FUNCTION}
-                 ${RIPPLE_FUNCTION}
-                 `
-            );
-
-            // Inject world position varying
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>
-                 ${WORLD_POSITION_VARYING}
                  `
             );
 
@@ -493,7 +419,6 @@ export class WaveDynamicsShaderPack_v1 {
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <project_vertex>',
                 `${VERTEX_BREATHING_CHUNK}
-                 ${VERTEX_RIPPLE_CHUNK}
                  #include <project_vertex>
                  `
             );

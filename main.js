@@ -20,7 +20,7 @@ import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDiffer
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
 // import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 // import { AtomaAudioModulation } from './AtomaAudioModulation.js';
-import { NodeLinkingSystem } from './NodeLinkingSystem.js';
+import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
@@ -118,6 +118,18 @@ import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from 
 import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
 import { updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+import { getSharedPostProcessingPipeline } from './PostProcessing.js';
+
+// Optional logging for program-count checkpoints
+const PROGRAM_LOG = true;
+const logPrograms = (label, renderer) => {
+    if (!PROGRAM_LOG || !renderer?.info) return;
+    const info = renderer.info;
+    const count = Array.isArray(info.programs) ? info.programs.length : (info.programs ?? 0);
+    console.log(`[prog] ${label}: programs=${count}`);
+};
+// Disable per-frame visual-only ticks to reduce uniform churn/stutters
+const VISUAL_TICKS_ENABLED = false;
 import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 
 
@@ -4034,12 +4046,86 @@ hudP05Observer.observe(document.body, {
             antialias: true,
             alpha: false
         });
+        window.__renderer = this.renderer; // debug-only: expose renderer for inspection
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
         document.body.appendChild(this.renderer.domElement);
         this.gpuSanity = setupGpuSanity(this.renderer);
+
+        // [B.3-C4] Post-processing toggle stabilization (build once)
+        if (typeof window !== 'undefined') {
+            window.__POST_PROCESSING_BUILT = window.__POST_PROCESSING_BUILT || false;
+            window.__POST_PROCESSING_TOGGLES = window.__POST_PROCESSING_TOGGLES || 0;
+            window.__POST_PROCESSING_REBUILDS = window.__POST_PROCESSING_REBUILDS || 0;
+        }
+        if (!this.postProcessing) {
+            this.postProcessing = getSharedPostProcessingPipeline(this.renderer, this.scene, this.camera);
+            this.postProcessingEnabled = true;
+            if (typeof window !== 'undefined') window.__POST_PROCESSING_BUILT = true;
+        }
+        this.setPostProcessingEnabled = (enabled = true) => {
+            const next = !!enabled;
+            if (this.postProcessingEnabled !== next) {
+                this.postProcessingEnabled = next;
+                if (typeof window !== 'undefined') window.__POST_PROCESSING_TOGGLES++;
+            }
+            return this.postProcessingEnabled;
+        };
+
+        // === Wave shader stack (init early so warm-up uses patched shaders) ===
+        try {
+            this.waveInterferenceEngine = new WaveInterferenceEngine_v1({
+                maxSources: 8,
+                enableDebug: false,
+                enableWarnings: false
+            });
+            console.log('[main.js] WaveInterferenceEngine_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
+        }
+
+        try {
+            this.waveShaderBridge = new WaveShaderBridge_v1({
+                renderer: this.renderer,
+                scene: this.scene,
+                waveEngine: this.waveInterferenceEngine,
+                maxSources: 8
+            });
+            console.log('[main.js] WaveShaderBridge_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveShaderBridge_v1 failed:', err);
+        }
+
+        try {
+            this.waveShaderMaterialPatch = new WaveShaderMaterialPatch_v1({
+                enableDebug: false,
+                enableWarnings: false
+            });
+            console.log('[main.js] WaveShaderMaterialPatch_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveShaderMaterialPatch_v1 failed:', err);
+        }
+
+        try {
+            this.waveTravelShaderPack = new WaveTravelShaderPack_v1({
+                enableDebug: false
+            });
+            console.log('[main.js] WaveTravelShaderPack_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveTravelShaderPack_v1 failed:', err);
+        }
+
+        try {
+            this.waveDynamicsShaderPack = new WaveDynamicsShaderPack_v1({
+                enableDebug: false,
+                enableWarnings: false
+            });
+            console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
+        }
 
         // Initialize Node Inspect Overlay (after scene/camera/renderer ready)
         this.nodeInspectOverlay = new NodeInspectOverlay1_0(
@@ -4132,194 +4218,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Setup initial environment (Sigma Rift)
         this.setupSigmaRiftEnvironment();
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Register Materials with Wave Shader Bridge
-        // ====================================================================
-        // Register all node and link materials for wave uniform injection
-        // This must happen after aiNodes and nodeLinking are fully initialized
-        // EMA smoothing will begin on first update
-        try {
-            if (this.waveShaderBridge && this.aiNodes?.nodes) {
-                // Register node materials (DEFAULT profile)
-                for (const node of this.aiNodes.nodes) {
-                    if (node?.material) {
-                        if (Array.isArray(node.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of node.material) {
-                                this.waveShaderBridge?.registerNodeMaterial?.(mat, 'DEFAULT');
-                            }
-                        } else {
-                            // Single material
-                            this.waveShaderBridge?.registerNodeMaterial?.(node.material, 'DEFAULT');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Shader Bridge: Node materials registered ✓');
-            }
-
-            if (this.waveShaderBridge && this.nodeLinking?.links) {
-                // Register link materials (DEFAULT profile)
-                for (const link of this.nodeLinking.links) {
-                    if (link?.material) {
-                        if (Array.isArray(link.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of link.material) {
-                                this.waveShaderBridge?.registerLinkMaterial?.(mat, 'DEFAULT');
-                            }
-                        } else {
-                            // Single material
-                            this.waveShaderBridge?.registerLinkMaterial?.(link.material, 'DEFAULT');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Shader Bridge: Link materials registered ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Shader Bridge material registration error:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Patch Materials with Wave Shader Effects
-        // ====================================================================
-        // Apply wave shader patches to all node and link materials
-        // Node materials: DEFAULT profile (balanced)
-        // Link materials: SYNERGY profile (color-driven interference)
-        // This must happen AFTER materials are registered with bridge
-        try {
-            if (this.waveShaderMaterialPatch && this.aiNodes?.nodes) {
-                // Patch node materials (DEFAULT profile)
-                for (const node of this.aiNodes.nodes) {
-                    if (node?.material) {
-                        if (Array.isArray(node.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of node.material) {
-                                this.waveShaderMaterialPatch?.patch?.(mat, 'DEFAULT');
-                            }
-                        } else {
-                            // Single material
-                            this.waveShaderMaterialPatch?.patch?.(node.material, 'DEFAULT');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Shader Material Patch: Node materials patched ✓');
-            }
-
-            if (this.waveShaderMaterialPatch && this.nodeLinking?.links) {
-                // Patch link materials (SYNERGY profile for color-driven effects)
-                for (const link of this.nodeLinking.links) {
-                    if (link?.material) {
-                        if (Array.isArray(link.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of link.material) {
-                                this.waveShaderMaterialPatch?.patch?.(mat, 'SYNERGY');
-                            }
-                        } else {
-                            // Single material
-                            this.waveShaderMaterialPatch?.patch?.(link.material, 'SYNERGY');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Shader Material Patch: Link materials patched ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Shader Material Patch patching error:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Register Materials with Wave Travel Shader Pack
-        // ====================================================================
-        // Apply traveling-wave motion effects to node and link materials
-        // Node materials: TRAVEL_LINEAR profile (smooth motion)
-        // Link materials: TRAVEL_INTERFERENCE profile (multi-freq oscillation)
-        // This must happen AFTER materials are patched with base effects
-        try {
-            if (this.waveTravelShaderPack && this.aiNodes?.nodes) {
-                // Register node materials (TRAVEL_LINEAR profile for smooth motion)
-                for (const node of this.aiNodes.nodes) {
-                    if (node?.material) {
-                        if (Array.isArray(node.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of node.material) {
-                                this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_LINEAR');
-                            }
-                        } else {
-                            // Single material
-                            this.waveTravelShaderPack?.register?.(node.material, 'TRAVEL_LINEAR');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Travel Shader Pack: Node materials registered ✓');
-            }
-
-            if (this.waveTravelShaderPack && this.nodeLinking?.links) {
-                // Register link materials (TRAVEL_INTERFERENCE profile for multi-freq motion)
-                for (const link of this.nodeLinking.links) {
-                    if (link?.material) {
-                        if (Array.isArray(link.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of link.material) {
-                                this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_INTERFERENCE');
-                            }
-                        } else {
-                            // Single material
-                            this.waveTravelShaderPack?.register?.(link.material, 'TRAVEL_INTERFERENCE');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Travel Shader Pack: Link materials registered ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Travel Shader Pack registration error:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Apply Wave Dynamics Shader Pack to Materials
-        // ====================================================================
-        // Apply 3 advanced FX layers to all node and link materials
-        // Nodes: breathing expansion + ripple displacement + color diffusion
-        // Links: same 3 FX layers with different profile intensities
-        // Use AURA profile for nodes (enhanced breathing & diffusion)
-        // Use SYNERGY profile for links (faster ripples & multi-freq)
-        try {
-            if (this.waveDynamicsShaderPack && this.aiNodes?.nodes) {
-                // Apply to node materials (AURA profile for enhanced effects)
-                for (const node of this.aiNodes.nodes) {
-                    if (node?.material) {
-                        if (Array.isArray(node.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of node.material) {
-                                this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'AURA');
-                            }
-                        } else {
-                            // Single material
-                            this.waveDynamicsShaderPack?.applyToMaterial?.(node.material, 'AURA');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Dynamics Shader Pack: Node materials applied ✓');
-            }
-
-            if (this.waveDynamicsShaderPack && this.nodeLinking?.links) {
-                // Apply to link materials (SYNERGY profile for resonance effects)
-                for (const link of this.nodeLinking.links) {
-                    if (link?.material) {
-                        if (Array.isArray(link.material)) {
-                            // Handle multi-material mesh
-                            for (const mat of link.material) {
-                                this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'SYNERGY');
-                            }
-                        } else {
-                            // Single material
-                            this.waveDynamicsShaderPack?.applyToMaterial?.(link.material, 'SYNERGY');
-                        }
-                    }
-                }
-                console.log('[main.js] Wave Dynamics Shader Pack: Link materials applied ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] Wave Dynamics Shader Pack application error:', err);
-        }
 
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
@@ -4674,10 +4572,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Archetype Visual System – Activation
         const archetypeVisualSystem = patchArchetypeVisuals(this.aiNodes, true);
         console.log('✅ Archetype Visual System enabled (debug mode ON)');
+        // Optional: first-spawn program-count log (guarded by PROGRAM_LOG)
+        let __loggedFirstSpawn = false;
+        const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
+        this.aiNodes.createNode = (...args) => {
+            const node = originalCreateNode(...args);
+            if (!__loggedFirstSpawn) {
+                logPrograms('after-first-node', this.renderer);
+                __loggedFirstSpawn = true;
+            }
+            return node;
+        };
         
-        const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
-        this.aiNodes.createNodes(this.currentMode, nodeCount);
-
         // ========================================================================
         // SESSION 20: VISUAL HIERARCHY CORRECTION SYSTEM v1.0
         // Enforces visual dominance of core node geometry over auxiliary layers
@@ -4715,7 +4621,114 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.aiNodes
         );
         console.log('[main.js] NodeLinkingSystem created ✓');
-        
+
+        // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
+        if (typeof window !== 'undefined' && window.__shaderWarmupDone !== true) {
+            logPrograms('pre-warmup', this.renderer);
+            warmUpArchetypeShaders(this.renderer, {
+                waveShaderBridge: this.waveShaderBridge,
+                waveShaderMaterialPatch: this.waveShaderMaterialPatch,
+                waveTravelShaderPack: this.waveTravelShaderPack,
+                waveDynamicsShaderPack: this.waveDynamicsShaderPack
+            });
+            logPrograms('post-warmup', this.renderer);
+        }
+        const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
+        this.aiNodes.createNodes(this.currentMode, nodeCount);
+
+        // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
+        try {
+            if (this.waveShaderBridge && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderBridge?.registerNodeMaterial?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Bridge: Node materials registered ✓');
+            }
+            if (this.waveShaderBridge && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderBridge?.registerLinkMaterial?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Bridge: Link materials registered ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Shader Bridge material registration error:', err);
+        }
+
+        try {
+            if (this.waveShaderMaterialPatch && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Material Patch: Node materials patched ✓');
+            }
+            if (this.waveShaderMaterialPatch && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'SYNERGY'));
+                }
+                console.log('[main.js] Wave Shader Material Patch: Link materials patched ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Shader Material Patch patching error:', err);
+        }
+
+        try {
+            if (this.waveTravelShaderPack && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_LINEAR'));
+                }
+                console.log('[main.js] Wave Travel Shader Pack: Node materials registered ✓');
+            }
+            if (this.waveTravelShaderPack && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_INTERFERENCE'));
+                }
+                console.log('[main.js] Wave Travel Shader Pack: Link materials registered ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Travel Shader Pack registration error:', err);
+        }
+
+        try {
+            if (this.waveDynamicsShaderPack && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'AURA'));
+                }
+                console.log('[main.js] Wave Dynamics Shader Pack: Node materials applied ✓');
+            }
+            if (this.waveDynamicsShaderPack && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'SYNERGY'));
+                }
+                console.log('[main.js] Wave Dynamics Shader Pack: Link materials applied ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Dynamics Shader Pack application error:', err);
+        }
+
         // Hook audio feedback to link events
         const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
         this.linkingSystem.createLink = (sourceNode, targetNode) => {
@@ -6453,96 +6466,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.log('[main.js] SynergyCascadeFXBridge_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] SynergyCascadeFXBridge_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): WAVE INTERFERENCE ENGINE (Multi-Origin Wave System)
-        // ====================================================================
-        // Computes interference patterns from multiple wave sources across network
-        // Features: BFS propagation, physical wave interference, synergy modulation
-        // Outputs: userData.waveField per node/link with 7 metrics
-        // Performance: <2ms per frame typical (all 9 synergy systems combined)
-        try {
-            this.waveInterferenceEngine = new WaveInterferenceEngine_v1({
-                maxSources: 8,              // Max simultaneous wave sources
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main.js] WaveInterferenceEngine_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): WAVE SHADER BRIDGE (GPU Uniform Injection)
-        // ====================================================================
-        // Injects normalized wave uniforms via onBeforeCompile
-        // Reads from: node/link userData.waveField (WaveInterferenceEngine_v1)
-        // Outputs: 8 GPU uniforms per registered material (amplitude, constructive, etc)
-        // Performance: trivial (<0.1ms per material, EMA smoothing at ~0.18 alpha)
-        try {
-            this.waveShaderBridge = new WaveShaderBridge_v1({
-                renderer: this.renderer,
-                scene: this.scene,
-                waveEngine: this.waveInterferenceEngine,
-                maxSources: 8
-            });
-            console.log('[main.js] WaveShaderBridge_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveShaderBridge_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): WAVE SHADER MATERIAL PATCH (GPU Shader Patching)
-        // ====================================================================
-        // Patches node & link materials with 7 wave effects (distortion, glow, jitter, etc)
-        // Supports profiles: DEFAULT, AURA, MYTHIC, SYNERGY, RIFT
-        // Safe onBeforeCompile injection - no source code modification
-        // Material patching happens after bridge is initialized
-        try {
-            this.waveShaderMaterialPatch = new WaveShaderMaterialPatch_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main.js] WaveShaderMaterialPatch_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveShaderMaterialPatch_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): WAVE TRAVEL SHADER PACK (GPU Motion Effects)
-        // ====================================================================
-        // Adds traveling-wave motion: vertex displacement, UV flow, color gradients
-        // 5 profiles: LINEAR, SINE, PULSE, INTERFERENCE, RIFT
-        // Multi-frequency oscillation + chaotic rift motion
-        // Material registration happens after patcher initialization
-        try {
-            this.waveTravelShaderPack = new WaveTravelShaderPack_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main.js] WaveTravelShaderPack_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveTravelShaderPack_v1 failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): WAVE DYNAMICS SHADER PACK (Advanced FX Layers)
-        // ====================================================================
-        // 3 advanced FX layers: breathing, ripple, color diffusion
-        // 5 profiles: DEFAULT, AURA, SYNERGY, MYTHIC, RIFT
-        // Breathing: standing-wave-driven node expansion/contraction
-        // Ripple: quantum micro-ripples with chaos jitter
-        // Diffusion: color pulse waves outward from center
-        // Material application happens after travel pack initialization
-        try {
-            this.waveDynamicsShaderPack = new WaveDynamicsShaderPack_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
-            console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
         }
 
         // ====================================================================
@@ -8313,7 +8236,12 @@ if (this.updateValidator && !window.updateValidator) {
         // Read waveField from nodes/links and push normalized values to shader uniforms
         // EMA smoothing: alpha ~0.18 for ~0.4-0.5s response time
         // Performance: trivial per-frame overhead (<0.1ms per material)
-        if (this.waveShaderBridge && this.aiNodes && this.nodeLinking) {
+        if (!VISUAL_TICKS_ENABLED) {
+            if (!this._visualTickNoticeShown) {
+                console.log('[perf] Visual ticks disabled (wave shaders frozen)');
+                this._visualTickNoticeShown = true;
+            }
+        } else if (this.waveShaderBridge && this.aiNodes && this.nodeLinking && this.postProcessingEnabled !== false) {
             this.waveShaderBridge.update(deltaTime, {
                 nodes: this.aiNodes.nodes || [],
                 links: this.nodeLinking.links || []
@@ -8334,7 +8262,7 @@ if (this.updateValidator && !window.updateValidator) {
         // Vertex displacement, UV flow, color gradients, pulse bursts all driven by time
         // Multi-frequency oscillation + rift chaos effects update per frame
         // Performance: trivial per-frame cost (time accumulation + uniform updates)
-        if (this.waveTravelShaderPack) {
+        if (VISUAL_TICKS_ENABLED && this.waveTravelShaderPack && this.postProcessingEnabled !== false) {
             this.waveTravelShaderPack.update(deltaTime);
         }
 
@@ -8345,7 +8273,7 @@ if (this.updateValidator && !window.updateValidator) {
         // All 3 FX layers driven by accumulated time + wave physics uniforms
         // Standing-wave breathing, quantum ripples, color diffusion pulses update per frame
         // Performance: <0.2ms per frame (time accumulation + minimal uniform writes)
-        if (this.waveDynamicsShaderPack) {
+        if (VISUAL_TICKS_ENABLED && this.waveDynamicsShaderPack && this.postProcessingEnabled !== false) {
             this.waveDynamicsShaderPack.update(deltaTime);
         }
 
@@ -9568,65 +9496,46 @@ if (this.updateValidator && !window.updateValidator) {
             return;
         }
         this.lastRenderFrame = frameId;
+        // [DIAG] HARD BYPASS post-processing
+        this.renderer.setRenderTarget(null);
+        this.renderer.render(this.scene, this.camera);
+        return;
         const profile = this.renderProfile;
         profile?.startFrame();
-        if (this.postProcessing && typeof this.postProcessing.apply === 'function') {
-            const { operations, outputScene, outputCamera } = this.postProcessing.apply(this.scene, this.camera);
-            const pipelineStart = profile?.enabled ? performance.now() : 0;
+        if (this.postProcessingEnabled && this.postProcessing && typeof this.postProcessing.apply === "function") {
+            const result = this.postProcessing.apply(this.scene, this.camera);
 
-            if (Array.isArray(operations)) {
-                for (const op of operations) {
-                    if (op.before) op.before();
-                    this.renderer.setRenderTarget(op.target || null);
-                    const opStart = performance.now();
-                    this.renderer.render(op.scene, op.camera);
-                    const opDuration = performance.now() - opStart;
-                    if (profile?.enabled) {
-                        if (op.label) {
-                            profile.record(op.label, opDuration);
-                        }
-                    }
-                    // L.3c: pipeline renders are tagged as pipeline for validator awareness
-                    this.updateValidator?.markSystemUpdate(
-                        'renderer.render',
-                        opDuration,
-                        { phase: 'pipeline' }
-                    );
+            if (result && result.outputScene && result.outputCamera) {
+                const finalStart = performance.now();
+                this.renderer.setRenderTarget(null);
+                this.renderer.render(result.outputScene, result.outputCamera);
+                const finalDuration = performance.now() - finalStart;
+                if (profile?.enabled) {
+                    profile.record('finalRender', finalDuration);
                 }
+                this.updateValidator?.markSystemUpdate(
+                    'renderer.render',
+                    finalDuration,
+                    { phase: 'present' }
+                );
+                profile?.endFrame();
+                return;
             }
-
-            if (profile?.enabled) {
-                profile.record('postProcessingPipeline', performance.now() - pipelineStart);
-            }
-
-            // Final present to screen (single screen render per frame)
-            this.renderer.setRenderTarget(null);
-            const finalStart = performance.now();
-            this.renderer.render(outputScene || this.scene, outputCamera || this.camera);
-            const finalDuration = performance.now() - finalStart;
-            if (profile?.enabled) {
-                profile.record('finalRender', finalDuration);
-            }
-            // L.3c: only the final present render participates in validator ordering
-            this.updateValidator?.markSystemUpdate(
-                'renderer.render',
-                finalDuration,
-                { phase: 'present' }
-            );
-        } else {
-            const baseStart = performance.now();
-            this.renderer.render(this.scene, this.camera);
-            const baseDuration = performance.now() - baseStart;
-            if (profile?.enabled) {
-                profile.record('baseSceneRender', baseDuration);
-                profile.record('finalRender', baseDuration);
-            }
-            this.updateValidator?.markSystemUpdate(
-                'renderer.render',
-                baseDuration,
-                { phase: 'present' }
-            );
         }
+
+        const baseStart = performance.now();
+        this.renderer.setRenderTarget(null);
+        this.renderer.render(this.scene, this.camera);
+        const baseDuration = performance.now() - baseStart;
+        if (profile?.enabled) {
+            profile.record('baseSceneRender', baseDuration);
+            profile.record('finalRender', baseDuration);
+        }
+        this.updateValidator?.markSystemUpdate(
+            'renderer.render',
+            baseDuration,
+            { phase: 'present' }
+        );
         profile?.endFrame();
     }
 

@@ -99,14 +99,6 @@ float multiFreqOscillation(float phase, vec3 freqMix, float time) {
     float highFreq = sin(phase * 18.0 + time * 6.0) * 0.2 + 0.2;     // Fast
     return lowFreq * freqMix.x + midFreq * freqMix.y + highFreq * freqMix.z;
 }
-
-// Chaotic noise for rift motion
-float chaoticNoise(vec3 pos, float time, float intensity) {
-    float chaos = sin(pos.x * 3.1 + time) * 0.5;
-    chaos += sin(pos.y * 2.7 + time * 1.3) * 0.3;
-    chaos += sin(pos.z * 4.3 + time * 0.7) * 0.2;
-    return chaos * intensity;
-}
 `;
 
 /**
@@ -117,16 +109,13 @@ const VERTEX_TRAVEL_CHUNK = `
     float travelPhase = uWavePhase * 6.28318; // Convert to radians
     
     // Multi-frequency oscillation
-    float oscillation = multiFreqOscillation(travelPhase, uWaveTravelFreqMix, time);
+    float oscillation = multiFreqOscillation(travelPhase, uWaveTravelFreqMix, uTime);
     
     // Base travel offset
     float travelOffset = oscillation * uWaveTravelScale * uWaveIntensity;
     
-    // Chaotic component
-    float chaos = chaoticNoise(position, time, uWaveTravelChaos);
-    
     // Combine offsets
-    float totalTravel = travelOffset + chaos * 0.5;
+    float totalTravel = travelOffset;
     
     // Apply to position along normal
     transformed += normal * totalTravel * 0.1;
@@ -134,7 +123,7 @@ const VERTEX_TRAVEL_CHUNK = `
     // Additional pulse burst when interference is high
     if (uWaveInterference > 0.6) {
         float pulseMagnitude = (uWaveInterference - 0.6) * uWaveTravelPulse;
-        float pulseWave = sin(time * 8.0 + length(position));
+        float pulseWave = sin(uTime * 8.0 + length(position));
         transformed += normal * pulseWave * pulseMagnitude * 0.05;
     }
 `;
@@ -143,48 +132,32 @@ const VERTEX_TRAVEL_CHUNK = `
  * Fragment shader travel chunk (UV flow + color gradient)
  */
 const FRAGMENT_TRAVEL_CHUNK = `
-    // UV flow animation
-    vec2 uvTravel = vUv;
-    uvTravel.x += time * uWaveTravelUVFlow * uWavePhase;
-    uvTravel.y += sin(time * 0.5 + uvTravel.x * 4.0) * 0.1 * uWaveTravelUVFlow;
+    #ifdef USE_UV
+        // UV flow animation
+        vec2 uvTravel = vUv;
+        uvTravel.x += uTime * uWaveTravelUVFlow * uWavePhase;
+        uvTravel.y += sin(uTime * 0.5 + uvTravel.x * 4.0) * 0.1 * uWaveTravelUVFlow;
+        
+        // Clamp for tileable patterns
+        uvTravel = fract(uvTravel);
+    #endif
     
-    // Clamp for tileable patterns
-    uvTravel = fract(uvTravel);
-    
-    // Color gradient shift along geometry (using world position)
-    float gradientPhase = dot(vWorldPosition, vec3(0.5)) * 0.5 + time * 0.3;
+    float gradientPhase = uTime * 0.3;
     float gradientPos = sin(gradientPhase) * 0.5 + 0.5;
-    
-    // Interference color cycling
     vec3 travelColor = vec3(
         0.5 + 0.5 * sin(gradientPos + 0.0),
-        0.5 + 0.5 * sin(gradientPos + 2.094),  // +120°
-        0.5 + 0.5 * sin(gradientPos + 4.189)   // +240°
+        0.5 + 0.5 * sin(gradientPos + 2.094),
+        0.5 + 0.5 * sin(gradientPos + 4.189)
     );
-    
-    // Modulate by wave intensity and constructive power
     float colorIntensity = uWaveIntensity * (0.5 + 0.5 * uWaveConstructive);
-    diffuse.rgb = mix(diffuse.rgb, travelColor, uWaveTravelColorGradient * colorIntensity);
-    
-    // Pulse brightness modulation on high interference
+    diffuseColor.rgb = mix(diffuseColor.rgb, travelColor, uWaveTravelColorGradient * colorIntensity);
     if (uWaveInterference > 0.5) {
-        float pulseBrightness = sin(time * 4.0 + length(vWorldPosition)) * 0.3 + 0.7;
-        diffuse.rgb *= mix(1.0, pulseBrightness, (uWaveInterference - 0.5) * 2.0 * uWaveTravelPulse);
+        float pulseBrightness = sin(uTime * 4.0) * 0.3 + 0.7;
+        diffuseColor.rgb *= mix(1.0, pulseBrightness, (uWaveInterference - 0.5) * 2.0 * uWaveTravelPulse);
     }
 `;
 
-/**
- * World position varying (shared with bridge)
- */
-const WORLD_POSITION_VARYING = `
-    varying vec3 vWorldPosition;
-    varying vec2 vUv;
-    
-    #ifdef USE_VERTEX_SHADER
-        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-        vUv = uv;
-    #endif
-`;
+// No world-position varying required.
 
 // ============================================================================
 // WAVE TRAVEL SHADER PACK v1.0
@@ -402,7 +375,6 @@ export class WaveTravelShaderPack_v1 {
             shader.uniforms.uWaveTravelFreqMix = shader.uniforms.uWaveTravelFreqMix || {
                 value: new THREE.Vector3(...config.frequencyMix)
             };
-            shader.uniforms.uWaveTravelChaos = shader.uniforms.uWaveTravelChaos || { value: config.chaotic };
             shader.uniforms.uWaveTravelTime = shader.uniforms.uWaveTravelTime || { value: this.globalTime };
 
             // Store uniforms for future updates
@@ -413,14 +385,6 @@ export class WaveTravelShaderPack_v1 {
                 '#include <common>',
                 `#include <common>
                  ${MULTI_FREQ_OSCILLATION}
-                 `
-            );
-
-            // Inject world position varying
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>
-                 ${WORLD_POSITION_VARYING}
                  `
             );
 

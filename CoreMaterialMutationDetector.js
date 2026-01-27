@@ -18,6 +18,61 @@
 
 import * as THREE from 'three';
 
+// [B.3-M2] Frame-level cap for shader-invalidating updates
+let __B3_MUTATION_NEEDSUPDATE_THIS_FRAME = 0;
+let __B3_MUTATION_RAF_SCHEDULED = false;
+function __b3MutationResetFrameCounter() {
+  __B3_MUTATION_NEEDSUPDATE_THIS_FRAME = 0;
+  __B3_MUTATION_RAF_SCHEDULED = false;
+}
+
+// [B.3-M2] NeedsUpdate guard with per-frame cap and debug counters
+function __b3MutationFlagNeedsUpdate(material) {
+  if (!material) return;
+  if (!__B3_MUTATION_RAF_SCHEDULED && typeof requestAnimationFrame === 'function') {
+    __B3_MUTATION_RAF_SCHEDULED = true;
+    requestAnimationFrame(__b3MutationResetFrameCounter);
+  }
+  const CAP = 8;
+  if (__B3_MUTATION_NEEDSUPDATE_THIS_FRAME >= CAP) return;
+  __B3_MUTATION_NEEDSUPDATE_THIS_FRAME++;
+  material.needsUpdate = true;
+  if (typeof window !== 'undefined') {
+    window.__B3_MUTATION_NEEDSUPDATE = (window.__B3_MUTATION_NEEDSUPDATE || 0) + 1;
+  }
+}
+
+// [B.3-M2] Apply property changes with per-material cache to avoid redundant enforcement
+function __b3MutationApply(material, changes) {
+  if (!material) return { shaderChanged: false, anyChanged: false };
+  if (!material.userData) material.userData = {};
+  const cache =
+    material.userData.__b3MutationCache || (material.userData.__b3MutationCache = {});
+
+  const shaderProps = ['transparent', 'blending', 'side', 'depthWrite', 'depthTest'];
+  let shaderChanged = false;
+  let anyChanged = false;
+
+  for (const [prop, val] of Object.entries(changes)) {
+    const current = material[prop];
+    const cached = cache[prop];
+    if (current === val && cached === val) continue;
+
+    material[prop] = val;
+    cache[prop] = val;
+    anyChanged = true;
+    if (shaderProps.includes(prop)) {
+      shaderChanged = true;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.__B3_MUTATION_ENFORCEMENTS = (window.__B3_MUTATION_ENFORCEMENTS || 0) + 1;
+    }
+  }
+
+  return { shaderChanged, anyChanged };
+}
+
 export class CoreMaterialMutationDetector {
   constructor(config = {}) {
     this.config = {
@@ -117,12 +172,12 @@ export class CoreMaterialMutationDetector {
       // Capture current state
       const currentSnapshot = this._captureSnapshot(mesh);
 
-      // Compare with baseline
-      const violations = this._detectMutations(
-        baseline,
-        currentSnapshot,
-        mesh
-      );
+    // Compare with baseline
+    const violations = this._detectMutations(
+      baseline,
+      currentSnapshot,
+      mesh
+    );
 
       // Update tracking
       coreData.lastSnapshot = currentSnapshot;
@@ -344,7 +399,10 @@ export class CoreMaterialMutationDetector {
 
     this.violations.push(record);
 
-    console.warn('[CoreMutationDetector] VIOLATION DETECTED', record);
+    // [B.3-M2] Detection counter (no logging)
+    if (typeof window !== 'undefined') {
+      window.__B3_MUTATION_DETECTIONS = (window.__B3_MUTATION_DETECTIONS || 0) + 1;
+    }
   }
 
   /**
@@ -357,16 +415,17 @@ export class CoreMaterialMutationDetector {
       const material = coreMesh.material;
       const { property, baseline } = violation;
 
-      // Restore baseline value
-      material[property] = baseline;
-      material.needsUpdate = true;
+      // [B.3-M2] Restore baseline with caching to avoid redundant invalidation
+      const { shaderChanged, anyChanged } = __b3MutationApply(material, { [property]: baseline });
+      if (anyChanged && shaderChanged) {
+        __b3MutationFlagNeedsUpdate(material);
+      }
 
       this.stats.violationsRepaired++;
 
-      console.warn(
-        `[CoreMutationDetector] VIOLATION REPAIRED: ${property} restored to baseline`,
-        { baseline, wasChanged: violation.current }
-      );
+      if (typeof window !== 'undefined') {
+        window.__B3_MUTATION_DETECTIONS = (window.__B3_MUTATION_DETECTIONS || 0) + 1;
+      }
     } catch (e) {
       console.error('[CoreMutationDetector] Failed to repair violation:', e);
     }

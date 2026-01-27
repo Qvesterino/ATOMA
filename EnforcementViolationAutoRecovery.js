@@ -50,6 +50,14 @@ class RecoveryAttempt {
   }
 }
 
+// [B.3-C2] Recovery stabilization guard: frame-scoped cap & counters
+let __B3C2_RECOVERIES_THIS_FRAME = 0;
+let __B3C2_RECOVERY_FRAME_SCHEDULED = false;
+function __b3c2ResetFrameCounter() {
+  __B3C2_RECOVERIES_THIS_FRAME = 0;
+  __B3C2_RECOVERY_FRAME_SCHEDULED = false;
+}
+
 /**
  * Main auto-recovery coordinator
  */
@@ -104,6 +112,64 @@ export class EnforcementViolationAutoRecovery {
       });
     }
   }
+
+  // [B.3-C2] Recovery stabilization guard: mark needsUpdate only when shader flags changed, with per-frame cap
+  _maybeMarkNeedsUpdate(material, allowCapBypass = false) {
+    if (!material) return;
+
+    if (!material.userData) material.userData = {};
+    const cache =
+      material.userData.__b3c2RecoveryCache ||
+      (material.userData.__b3c2RecoveryCache = {});
+
+    const shaderProps = [
+      'transparent',
+      'blending',
+      'side',
+      'depthWrite',
+      'depthTest',
+    ];
+
+    const pendingCacheUpdates = [];
+    let shaderChanged = false;
+    for (const prop of shaderProps) {
+      const val = material[prop];
+      if (cache[prop] !== val) {
+        pendingCacheUpdates.push([prop, val]);
+        shaderChanged = true;
+      }
+    }
+
+    const definesSnapshot = material.defines
+      ? JSON.stringify(material.defines)
+      : null;
+    if (cache.__defines !== definesSnapshot) {
+      pendingCacheUpdates.push(['__defines', definesSnapshot]);
+      shaderChanged = true;
+    }
+
+    if (!shaderChanged) return;
+
+    // Burst cap: limit shader-invalidating updates per frame
+    const CAP = 3;
+    if (!allowCapBypass && __B3C2_RECOVERIES_THIS_FRAME >= CAP) {
+      // Defer: do not update cache so change is detected next frame
+      return;
+    }
+
+    // Commit cache updates now that we will mark needsUpdate
+    for (const [k, v] of pendingCacheUpdates) {
+      cache[k] = v;
+    }
+
+    __B3C2_RECOVERIES_THIS_FRAME++;
+    material.needsUpdate = true;
+
+    if (typeof window !== 'undefined') {
+      window.__B3C2_NEEDSUPDATE_COUNT =
+        (window.__B3C2_NEEDSUPDATE_COUNT || 0) + 1;
+    }
+  }
   
   /**
    * Register a violation detected by enforcement gate
@@ -137,11 +203,17 @@ export class EnforcementViolationAutoRecovery {
       this._queueRecovery(nodeId, violationType, violationDetails);
     }
   }
-  
+
   /**
    * Queue a recovery attempt
    */
   _queueRecovery(nodeId, violationType, violationDetails) {
+    // [B.3-C2] Frame cap for shader-affecting recoveries
+    if (!__B3C2_RECOVERY_FRAME_SCHEDULED && typeof requestAnimationFrame === 'function') {
+      __B3C2_RECOVERY_FRAME_SCHEDULED = true;
+      requestAnimationFrame(__b3c2ResetFrameCounter);
+    }
+
     // Find best recovery strategy
     for (const strategy of this.recoveryStrategies) {
       const attempt = new RecoveryAttempt(nodeId, violationType, strategy);
@@ -155,6 +227,10 @@ export class EnforcementViolationAutoRecovery {
       );
       
       if (recovered) {
+        if (typeof window !== 'undefined') {
+          window.__B3C2_RECOVERY_COUNT =
+            (window.__B3C2_RECOVERY_COUNT || 0) + 1;
+        }
         // Success - record and stop trying
         this.stats.totalRecoveriesSuccessful++;
         this.stats.recoveriesByStrategy[strategy] = 
@@ -221,7 +297,14 @@ export class EnforcementViolationAutoRecovery {
     const snapshot = this.snapshotPool.getLatestSnapshot(nodeId);
     if (!snapshot) return false;
     
-    const restored = snapshot.applyTo(details.target);
+    const restored = snapshot.applyTo(details.target, {
+      includeUniforms: true,
+      includeMaterial: true,
+      includeTransform: true,
+    });
+    if (restored > 0 && details.target.material) {
+      this._maybeMarkNeedsUpdate(details.target.material, true); // [B.3-C2] Snapshot may touch shader flags
+    }
     attempt.propertiesRestored = restored;
     
     return restored > 0;
@@ -246,7 +329,8 @@ export class EnforcementViolationAutoRecovery {
     }
     
     material.opacity = clamped;
-    material.needsUpdate = true;
+    // [B.3-C2] Opacity change does not require shader recompile
+    this._maybeMarkNeedsUpdate(material, false);
     attempt.propertiesRestored = 1;
     
     return true;
@@ -276,7 +360,8 @@ export class EnforcementViolationAutoRecovery {
     }
     
     if (restored > 0) {
-      material.needsUpdate = true;
+      // [B.3-C2] Only flag needsUpdate if shader-affecting props changed
+      this._maybeMarkNeedsUpdate(material, false);
     }
     attempt.propertiesRestored = restored;
     

@@ -2,6 +2,52 @@ import * as THREE from "three";
 import { checkMaterialCreation } from "../MaterialDebugGuard_v1.js";
 // /src/rendering/materials/MaterialRegistry_v1.js
 
+// [B.3-M2] MaterialRegistry shader invalidation guard
+let __B3_MATERIALREG_NEEDSUPDATE_THIS_FRAME = 0;
+let __B3_MATERIALREG_RAF_SCHEDULED = false;
+function __b3MatRegResetFrameCounter() {
+  __B3_MATERIALREG_NEEDSUPDATE_THIS_FRAME = 0;
+  __B3_MATERIALREG_RAF_SCHEDULED = false;
+}
+
+function __b3MatRegFlagNeedsUpdate(material) {
+  if (!material) return;
+  if (!__B3_MATERIALREG_RAF_SCHEDULED && typeof requestAnimationFrame === "function") {
+    __B3_MATERIALREG_RAF_SCHEDULED = true;
+    requestAnimationFrame(__b3MatRegResetFrameCounter);
+  }
+  if (__B3_MATERIALREG_NEEDSUPDATE_THIS_FRAME > 0) return; // cap: once per frame
+  __B3_MATERIALREG_NEEDSUPDATE_THIS_FRAME++;
+  material.needsUpdate = true;
+}
+
+function __b3MatRegApply(material, changes) {
+  if (!material) return { shaderChanged: false, anyChanged: false };
+  if (!material.userData) material.userData = {};
+  const cache =
+    material.userData.__b3MaterialRegistryCache ||
+    (material.userData.__b3MaterialRegistryCache = {});
+
+  const shaderProps = ["transparent", "blending", "side", "depthWrite", "depthTest", "alphaTest"];
+  let shaderChanged = false;
+  let anyChanged = false;
+
+  for (const [prop, val] of Object.entries(changes)) {
+    const current = material[prop];
+    const cached = cache[prop];
+    if (current === val && cached === val) continue;
+
+    material[prop] = val;
+    cache[prop] = val;
+    anyChanged = true;
+    if (shaderProps.includes(prop) || prop === "defines") {
+      shaderChanged = true;
+    }
+  }
+
+  return { shaderChanged, anyChanged };
+}
+
 export class MaterialRegistry_v1 {
   constructor({ debug = false } = {}) {
     this.debug = debug;
@@ -258,8 +304,8 @@ export class MaterialRegistry_v1 {
     // Replace below with your real shader chunks.
     if (key === "link.neon") {
       return this._runInRegistryScope(
-        () =>
-          new THREE.ShaderMaterial({
+        () => {
+          const mat = new THREE.ShaderMaterial({
             transparent: true,
             depthWrite: false,
             uniforms: {
@@ -287,7 +333,17 @@ export class MaterialRegistry_v1 {
                 gl_FragColor = vec4(uColor, a);
               }
             `,
-          })
+          });
+          // [B.3-M2] Cache baseline shader props for guard helper
+          __b3MatRegApply(mat, {
+            transparent: mat.transparent,
+            blending: mat.blending,
+            side: mat.side,
+            depthWrite: mat.depthWrite,
+            depthTest: mat.depthTest,
+          });
+          return mat;
+        }
       );
     }
 
@@ -295,7 +351,17 @@ export class MaterialRegistry_v1 {
     this._stats.warnings++;
     checkMaterialCreation(new Error().stack, "MeshBasicMaterial");
     const fallback = this._runInRegistryScope(
-      () => new THREE.MeshBasicMaterial({ color: 0xff00ff })
+      () => {
+        const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+        __b3MatRegApply(mat, {
+          transparent: mat.transparent,
+          blending: mat.blending,
+          side: mat.side,
+          depthWrite: mat.depthWrite,
+          depthTest: mat.depthTest,
+        });
+        return mat;
+      }
     );
     fallback.name = `MISSING_SHADER_TEMPLATE:${key}:${variant}`;
     return fallback;

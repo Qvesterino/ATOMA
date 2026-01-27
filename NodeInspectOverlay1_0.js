@@ -182,40 +182,9 @@ export class NodeInspectOverlay1_0 {
    * Raycast from camera through screen center (where crosshair would be)
    */
   raycastFromCrosshair() {
-    // Set up raycaster from camera through center of screen
-    this.raycaster.setFromCamera(
-      new THREE.Vector2(0, 0), // Screen center
-      this.camera
-    );
-
-    // Get all nodes in scene (filter by userData.category to identify nodes)
-    const allObjects = this.scene.children;
-    const nodeObjects = allObjects.filter(obj => 
-      obj.userData && obj.userData.category && !obj.userData.isVFX
-    );
-
-    if (nodeObjects.length === 0) return null;
-
-    // Raycast against node objects
-    const intersects = this.raycaster.intersectObjects(nodeObjects, false);
-
-    // Return first (closest) intersected node
-    if (intersects.length > 0) {
-      const intersection = intersects[0];
-      
-      // Find the root node (traverse up to get the main node object)
-      let node = intersection.object;
-      while (node.parent && node.parent !== this.scene) {
-        if (node.userData && node.userData.category) {
-          return node;
-        }
-        node = node.parent;
-      }
-      
-      return node;
-    }
-
-    return null;
+    const crosshairState = window.__crosshairRaycastState;
+    if (!crosshairState || !crosshairState.node) return null;
+    return crosshairState.node;
   }
 
   /**

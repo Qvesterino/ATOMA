@@ -33,6 +33,64 @@
 
 import * as THREE from 'three';
 
+// [B.3-M1] Frame-level cap for shader-invalidating updates
+let __B3_SURFACE_NEEDSUPDATE_THIS_FRAME = 0;
+let __B3_SURFACE_RAF_SCHEDULED = false;
+function __b3SurfaceResetFrameCounter() {
+    __B3_SURFACE_NEEDSUPDATE_THIS_FRAME = 0;
+    __B3_SURFACE_RAF_SCHEDULED = false;
+}
+
+// [B.3-M1] Mark needsUpdate with per-frame cap and debug counters
+function __b3SurfaceFlagNeedsUpdate(material) {
+    if (!material) return;
+    if (!__B3_SURFACE_RAF_SCHEDULED && typeof requestAnimationFrame === 'function') {
+        __B3_SURFACE_RAF_SCHEDULED = true;
+        requestAnimationFrame(__b3SurfaceResetFrameCounter);
+    }
+    const CAP = 8;
+    if (__B3_SURFACE_NEEDSUPDATE_THIS_FRAME >= CAP) return;
+    __B3_SURFACE_NEEDSUPDATE_THIS_FRAME++;
+    material.needsUpdate = true;
+    if (typeof window !== 'undefined') {
+        window.__B3_SURFACE_NEEDSUPDATE_COUNT = (window.__B3_SURFACE_NEEDSUPDATE_COUNT || 0) + 1;
+    }
+}
+
+// [B.3-M1] Guarded material write to avoid redundant shader invalidation
+function __b3SurfaceApply(material, changes) {
+    if (!material) return;
+    if (!material.userData) material.userData = {};
+    const cache = material.userData.__b3SurfaceProtectCache || (material.userData.__b3SurfaceProtectCache = {});
+
+    const shaderProps = ['transparent', 'blending', 'side', 'depthWrite', 'depthTest'];
+    let shaderChanged = false;
+
+    for (const [prop, val] of Object.entries(changes)) {
+        const current = material[prop];
+        const cached = cache[prop];
+        if (current === val && cached === val) continue;
+
+        // Apply write
+        material[prop] = val;
+        cache[prop] = val;
+        if (typeof window !== 'undefined') {
+            window.__B3_SURFACE_PROP_WRITES = (window.__B3_SURFACE_PROP_WRITES || 0) + 1;
+        }
+
+        if (shaderProps.includes(prop)) {
+            shaderChanged = true;
+        }
+    }
+
+    if (shaderChanged) {
+        if (typeof window !== 'undefined') {
+            window.__B3_SURFACE_SHADER_CHANGES = (window.__B3_SURFACE_SHADER_CHANGES || 0) + 1;
+        }
+        __b3SurfaceFlagNeedsUpdate(material);
+    }
+}
+
 export class NodeSurfaceProtectionRule_v2 {
     /**
      * Constructor
@@ -201,9 +259,10 @@ export class NodeSurfaceProtectionRule_v2 {
             const cached = this.materialInterception.get(material);
             
             // Apply attenuated opacity (never exceed ceiling)
-            material.opacity = Math.min(cached.originalOpacity, targetOpacity);
-            material.transparent = material.opacity < 1.0 || cached.originalTransparent;
-            material.needsUpdate = true;
+            const nextOpacity = Math.min(cached.originalOpacity, targetOpacity);
+            const nextTransparent = nextOpacity < 1.0 || cached.originalTransparent;
+            // [B.3-M1] Apply with caching guard; opacity change alone won't set needsUpdate
+            __b3SurfaceApply(material, { opacity: nextOpacity, transparent: nextTransparent });
         } catch (e) {
             // Silent failure - material might be locked
         }
@@ -228,8 +287,8 @@ export class NodeSurfaceProtectionRule_v2 {
                         materials.forEach(mat => {
                             if (mat) {
                                 // Enforce opacity floor
-                                mat.opacity = Math.max(mat.opacity ?? 1.0, this.coreOpacityFloor);
-                                mat.needsUpdate = true;
+                                const nextOpacity = Math.max(mat.opacity ?? 1.0, this.coreOpacityFloor);
+                                __b3SurfaceApply(mat, { opacity: nextOpacity });
                             }
                         });
                     }
@@ -271,9 +330,10 @@ export class NodeSurfaceProtectionRule_v2 {
         try {
             const cached = this.materialInterception.get(material);
             if (cached) {
-                material.opacity = cached.originalOpacity;
-                material.transparent = cached.originalTransparent;
-                material.needsUpdate = true;
+                __b3SurfaceApply(material, {
+                    opacity: cached.originalOpacity,
+                    transparent: cached.originalTransparent
+                });
             }
         } catch (e) {
             // Silent failure

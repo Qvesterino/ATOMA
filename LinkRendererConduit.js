@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -26,6 +27,8 @@ import VisualTime from './src/time/VisualTime.js';
  * 1. Braided Rope Base (3-5 strands)
  * 2. Flow Carrier Effect (Pulse Ring)
  * 3. Unified Visual Consistency (No fallbacks)
+ *
+ * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 export class LinkRendererConduit {
     constructor(scene) {
@@ -358,18 +361,14 @@ export class LinkRendererConduit {
                 emissiveIntensity: 1.2,
                 roughness: 0.3,
                 metalness: 0.8,
-                transparent: true,
                 opacity: 0.95,
-                depthWrite: true,
-                depthTest: true,
-                side: THREE.DoubleSide,
-                blending: THREE.NormalBlending
+                side: THREE.DoubleSide
             });
 
             const geometry = new THREE.BufferGeometry();
             const mesh = new THREE.Mesh(geometry, material);
             mesh.userData = { strandIndex: i };
-            mesh.renderOrder = 10;
+            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: true, depthTest: true });
             
             group.add(mesh);
             strands.push(mesh);
@@ -386,7 +385,7 @@ export class LinkRendererConduit {
         });
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
-        skinMesh.renderOrder = 9;
+        TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: 9, depthWrite: false });
         group.add(skinMesh);
 
         // 4. Initialize Subsystems (Defensive)
@@ -867,9 +866,11 @@ export class LinkRendererConduit {
             default: geometry = new THREE.IcosahedronGeometry(0.6, 1);
         }
 
-        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-            color: color, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, wireframe: true
-        }));
+        const meshMaterial = new THREE.MeshBasicMaterial({
+            color: color, opacity: 0.6, wireframe: true
+        });
+        const mesh = new THREE.Mesh(geometry, meshMaterial);
+        TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: 40 });
         
         group.add(mesh);
         group.position.copy(node.position);

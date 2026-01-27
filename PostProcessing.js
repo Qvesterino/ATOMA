@@ -404,6 +404,11 @@ export class PostProcessingPipeline {
     });
 
     this.enabled = options.enabled !== false;
+
+    // [B.3-D2] Dev marker to indicate post pipeline ready at init time
+    if (typeof window !== 'undefined') {
+      window.__POST_PIPELINE_READY = true;
+    }
   }
 
   /**
@@ -479,4 +484,14 @@ export class PostProcessingPipeline {
     this.mainRenderTarget.dispose();
     this.bloomPass.dispose();
   }
+}
+
+// [B.3-D2] Shared, one-time-initialized pipeline to avoid runtime creation
+let __postProcessingSingleton = null;
+export function getSharedPostProcessingPipeline(renderer, scene, camera, options = {}) {
+  if (__postProcessingSingleton) {
+    return __postProcessingSingleton;
+  }
+  __postProcessingSingleton = new PostProcessingPipeline(renderer, scene, camera, options);
+  return __postProcessingSingleton;
 }

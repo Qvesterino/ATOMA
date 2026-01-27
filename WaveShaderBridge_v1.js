@@ -155,16 +155,7 @@ export class WaveShaderBridge_v1 {
                     // Call original if exists
                     originalOnBeforeCompile(shader);
 
-                    // Inject wave uniforms
-                    shader.uniforms = shader.uniforms || {};
-                    shader.uniforms.uWaveAmplitude = { value: 0 };
-                    shader.uniforms.uWaveConstructive = { value: 0 };
-                    shader.uniforms.uWaveDestructive = { value: 0 };
-                    shader.uniforms.uWaveInterference = { value: 0 };
-                    shader.uniforms.uWaveStanding = { value: 0 };
-                    shader.uniforms.uWavePhase = { value: 0 };
-                    shader.uniforms.uWaveSourceCount = { value: 0 };
-                    shader.uniforms.uWaveIntensity = { value: 0 };
+                    this._ensureWaveContract(shader);
 
                     // Store uniform references for this material
                     this.materialUniforms.set(material, shader.uniforms);
@@ -239,16 +230,7 @@ export class WaveShaderBridge_v1 {
                     // Call original if exists
                     originalOnBeforeCompile(shader);
 
-                    // Inject wave uniforms
-                    shader.uniforms = shader.uniforms || {};
-                    shader.uniforms.uWaveAmplitude = { value: 0 };
-                    shader.uniforms.uWaveConstructive = { value: 0 };
-                    shader.uniforms.uWaveDestructive = { value: 0 };
-                    shader.uniforms.uWaveInterference = { value: 0 };
-                    shader.uniforms.uWaveStanding = { value: 0 };
-                    shader.uniforms.uWavePhase = { value: 0 };
-                    shader.uniforms.uWaveSourceCount = { value: 0 };
-                    shader.uniforms.uWaveIntensity = { value: 0 };
+                    this._ensureWaveContract(shader);
 
                     // Store uniform references for this material
                     this.materialUniforms.set(material, shader.uniforms);
@@ -456,9 +438,98 @@ export class WaveShaderBridge_v1 {
             uniforms.uWavePhase.value = ema.phase;
             uniforms.uWaveSourceCount.value = ema.sourceCount;
             uniforms.uWaveIntensity.value = ema.intensity;
+            const nowSec = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+            if (uniforms.uTime) uniforms.uTime.value = nowSec;
+            if (uniforms.uWaveTime) uniforms.uWaveTime.value = nowSec;
         } catch (e) {
             console.warn('[WaveShaderBridge_v1] _updateMaterialUniforms error:', e);
         }
+    }
+
+    /**
+     * Ensure shader has the shared wave contract (uniforms + varyings) exactly once.
+     * @private
+     */
+    _ensureWaveContract(shader) {
+        shader.uniforms = shader.uniforms || {};
+
+        const ensureUniform = (name, init) => {
+            if (!shader.uniforms[name]) {
+                shader.uniforms[name] = init;
+            }
+        };
+
+        // Optional per-material capability flags (stored on material.userData)
+        const hasUV = shader?.material?.userData?.__waveHasUV === true;
+        shader.defines = shader.defines || {};
+        if (hasUV) {
+            shader.defines.USE_UV = '';
+        } else {
+            delete shader.defines.USE_UV;
+        }
+
+        // Core wave uniforms
+        ensureUniform('uWaveAmplitude', { value: 0 });
+        ensureUniform('uWaveConstructive', { value: 0 });
+        ensureUniform('uWaveInterference', { value: 0 });
+        ensureUniform('uWaveStanding', { value: 0 });
+        ensureUniform('uWavePhase', { value: 0 });
+        ensureUniform('uWaveSourceCount', { value: 0 });
+        ensureUniform('uWaveIntensity', { value: 0 });
+
+        // Travel / dynamics extras
+        ensureUniform('uWaveTravelFreqMix', { value: new THREE.Vector3(1, 0, 0) });
+        ensureUniform('uWaveTravelScale', { value: 0 });
+        ensureUniform('uWaveTravelPulse', { value: 0 });
+        ensureUniform('uWaveTravelUVFlow', { value: 0 });
+        ensureUniform('uWaveTravelColorGradient', { value: 0 });
+        ensureUniform('uWaveDynamicsBreathFreq', { value: 0 });
+        ensureUniform('uWaveDynamicsBreathAmp', { value: 0 });
+        ensureUniform('uWaveDynamicsDiffusionAmp', { value: 0 });
+        ensureUniform('uWaveCenter', { value: new THREE.Vector3(0, 0, 0) });
+
+        // Time
+        ensureUniform('uTime', { value: 0 });
+        ensureUniform('uWaveTime', { value: 0 });
+
+        const addDeclIfMissing = (code, decl) =>
+            code.includes(decl) ? code : `${decl}\n${code}`;
+
+        // Uniform declarations
+        const uniformDecls = [
+            'uniform float uTime;',
+            'uniform float uWaveAmplitude;',
+            'uniform float uWaveConstructive;',
+            'uniform float uWaveDestructive;',
+            'uniform float uWaveInterference;',
+            'uniform float uWaveStanding;',
+            'uniform float uWavePhase;',
+            'uniform float uWaveSourceCount;',
+            'uniform float uWaveIntensity;',
+            'uniform vec3 uWaveTravelFreqMix;',
+            'uniform float uWaveTravelScale;',
+            'uniform float uWaveTravelChaos;',
+            'uniform float uWaveTravelPulse;',
+            'uniform float uWaveTravelUVFlow;',
+            'uniform float uWaveTravelColorGradient;',
+            'uniform float uWaveDynamicsBreathFreq;',
+            'uniform float uWaveDynamicsBreathAmp;',
+            'uniform float uWaveDynamicsRippleAmp;',
+            'uniform float uWaveDynamicsRippleFreq;',
+            'uniform float uWaveDynamicsChaosDrive;',
+            'uniform float uWaveDynamicsDiffusionAmp;',
+            'uniform vec3 uWaveCenter;'
+        ];
+
+        uniformDecls.forEach(decl => {
+            if (!shader.vertexShader.includes(decl)) {
+                shader.vertexShader = addDeclIfMissing(shader.vertexShader, decl);
+            }
+            if (!shader.fragmentShader.includes(decl)) {
+                shader.fragmentShader = addDeclIfMissing(shader.fragmentShader, decl);
+            }
+        });
+
     }
 
     /**

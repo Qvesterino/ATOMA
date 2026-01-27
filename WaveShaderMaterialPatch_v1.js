@@ -42,43 +42,6 @@ const MATERIAL_PATCH_SYMBOL = Symbol('waveShaderMaterialPatched');
 // ============================================================================
 
 /**
- * Procedural noise function (Perlin-like, GPU-friendly)
- * Returns vec3 of noise values
- */
-const NOISE_FUNCTION = `
-// Procedural noise function (Perlin-inspired)
-vec3 hash3(vec3 p) {
-    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
-    p += dot(p, p.yxz + 19.19);
-    return fract((p.xxy + p.yxx) * p.zyx);
-}
-
-float noise3d(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f); // smoothstep
-    
-    float a = mix(hash3(i).x, hash3(i + vec3(1.0, 0.0, 0.0)).x, f.x);
-    float b = mix(hash3(i + vec3(0.0, 1.0, 0.0)).x, hash3(i + vec3(1.0, 1.0, 0.0)).x, f.x);
-    float c = mix(hash3(i + vec3(0.0, 0.0, 1.0)).x, hash3(i + vec3(1.0, 0.0, 1.0)).x, f.x);
-    float d = mix(hash3(i + vec3(0.0, 1.0, 1.0)).x, hash3(i + vec3(1.0, 1.0, 1.0)).x, f.x);
-    
-    float ab = mix(a, b, f.y);
-    float cd = mix(c, d, f.y);
-    return mix(ab, cd, f.z);
-}
-
-vec3 waveSampleNoise(vec3 worldPos, float time, float frequency) {
-    vec3 noisePos = worldPos * frequency + vec3(time);
-    return vec3(
-        noise3d(noisePos),
-        noise3d(noisePos + vec3(43.61, 12.34, 67.89)),
-        noise3d(noisePos + vec3(-23.45, 89.01, 34.56))
-    );
-}
-`;
-
-/**
  * Wave distortion vertex shader chunk
  * Applies amplitude distortion and destructive jitter
  */
@@ -90,16 +53,9 @@ const WAVE_VERTEX_CHUNK = `
     float amplitudeScale = uWaveAmplitude * uWaveIntensity;
     waveDistortion += normal * amplitudeScale * 0.15;
     
-    // 2. DESTRUCTIVE JITTER: High-frequency noise for corruption effect
-    if (uWaveDestructive > 0.01) {
-        vec3 jitterNoise = waveSampleNoise(position, time, 4.0);
-        float jitterAmount = (jitterNoise - 0.5) * 2.0; // Remap to -1..1
-        waveDistortion += normal * jitterAmount * uWaveDestructive * uWaveIntensity * 0.1;
-    }
-    
-    // 3. STANDING WAVE BREATHING: Sine modulation for expansion/contraction
+    // 2. STANDING WAVE BREATHING: Sine modulation for expansion/contraction
     if (uWaveStanding > 0.01) {
-        float breathingPhase = sin(time * 1.5 + length(position) * 2.0);
+        float breathingPhase = sin(uTime * 1.5 + length(position) * 2.0);
         float breathingScale = 0.5 + 0.5 * breathingPhase; // 0..1
         waveDistortion += normal * breathingScale * uWaveStanding * uWaveIntensity * 0.08;
     }
@@ -124,13 +80,13 @@ const WAVE_FRAGMENT_CHUNK = `
     // 1. CONSTRUCTIVE GLOW: Boost emissive based on constructive power
     if (uWaveConstructive > 0.01) {
         float glowIntensity = uWaveConstructive * uWaveIntensity;
-        diffuse.rgb = mix(
-            diffuse.rgb,
-            diffuse.rgb * (1.0 + glowIntensity * 2.0),
+        diffuseColor.rgb = mix(
+            diffuseColor.rgb,
+            diffuseColor.rgb * (1.0 + glowIntensity * 2.0),
             uWaveIntensity
         );
         // Add emissive component
-        outgoingLight += diffuse.rgb * glowIntensity * 0.5;
+        outgoingLight += diffuseColor.rgb * glowIntensity * 0.5;
     }
     
     // 2. INTERFERENCE PATTERN: Color shifting based on interference index
@@ -152,32 +108,21 @@ const WAVE_FRAGMENT_CHUNK = `
         else if (h < 5.0) rgb = vec3(x, 0.0, c);
         else rgb = vec3(c, 0.0, x);
         
-        diffuse.rgb = mix(diffuse.rgb, rgb, uWaveInterference * 0.5);
+        diffuseColor.rgb = mix(diffuseColor.rgb, rgb, uWaveInterference * 0.5);
     }
     
     // 3. PHASE-SHIFT TRAVEL: Animate overall brightness with phase
     if (uWavePhase > 0.01) {
         float phaseBrightness = 0.5 + 0.5 * sin(uWavePhase * 6.28318);
-        diffuse.rgb *= (1.0 + (phaseBrightness - 0.5) * uWaveIntensity * 0.3);
+        diffuseColor.rgb *= (1.0 + (phaseBrightness - 0.5) * uWaveIntensity * 0.3);
     }
     
-    // 4. DESTRUCTIVE JITTER: High-frequency color noise
-    if (uWaveDestructive > 0.01) {
-        vec3 colorNoise = waveSampleNoise(vWorldPosition, time, 3.0) - 0.5;
-        diffuse.rgb += colorNoise * uWaveDestructive * uWaveIntensity * 0.1;
-    }
 `;
 
 /**
  * World position varying (for fragment effects)
  */
-const WORLD_POSITION_VARYING = `
-    varying vec3 vWorldPosition;
-    
-    #ifdef USE_VERTEX_SHADER
-        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-    #endif
-`;
+// vWorldPosition no longer used; fragment logic is time/uv based only.
 
 // ============================================================================
 // PROFILE CONFIGURATION
@@ -363,7 +308,6 @@ export class WaveShaderMaterialPatch_v1 {
             shader.uniforms = shader.uniforms || {};
             shader.uniforms.uWaveAmplitude = shader.uniforms.uWaveAmplitude || { value: 0 };
             shader.uniforms.uWaveConstructive = shader.uniforms.uWaveConstructive || { value: 0 };
-            shader.uniforms.uWaveDestructive = shader.uniforms.uWaveDestructive || { value: 0 };
             shader.uniforms.uWaveInterference = shader.uniforms.uWaveInterference || { value: 0 };
             shader.uniforms.uWaveStanding = shader.uniforms.uWaveStanding || { value: 0 };
             shader.uniforms.uWavePhase = shader.uniforms.uWavePhase || { value: 0 };
@@ -389,23 +333,7 @@ export class WaveShaderMaterialPatch_v1 {
             };
 
             // Add time uniform
-            shader.uniforms.uWaveTime = shader.uniforms.uWaveTime || { value: 0 };
-
-            // Inject noise function and chunks into vertex shader
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>
-                 ${NOISE_FUNCTION}
-                 `
-            );
-
-            // Inject world position varying
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>
-                 ${WORLD_POSITION_VARYING}
-                 `
-            );
+            shader.uniforms.uTime = shader.uniforms.uTime || { value: 0 };
 
             // Inject wave vertex effects (before position transformation)
             shader.vertexShader = shader.vertexShader.replace(

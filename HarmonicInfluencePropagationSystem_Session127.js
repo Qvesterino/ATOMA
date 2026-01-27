@@ -51,6 +51,9 @@
 
 import * as THREE from 'three';
 
+// PHASE OFF-1: disable unbounded motion while keeping meshes active
+const MOTION_OFF_PHASE1 = true;
+
 export class HarmonicInfluencePropagationSystem_Session127 {
   constructor(scene, world, harmonicHubSystem, nodeAuraSystem, config = {}) {
     this.scene = scene;
@@ -478,11 +481,14 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   
   /**
    * Animate aura mesh (vertical drift + radial oscillation)
-   */
+  */
   _animateAuraMesh(mesh, node, harmony, synergy, fadeProgress) {
-    // Vertical drift
-    const driftAmount = this.config.driftSpeed * 0.1;  // Per-frame drift
-    mesh.position.y += driftAmount;
+    // PHASE OFF-1: disabled aura position drift (will replace with scale breathing / shader displacement)
+    if (!MOTION_OFF_PHASE1) {
+      // Vertical drift
+      const driftAmount = this.config.driftSpeed * 0.1;  // Per-frame drift
+      mesh.position.y += driftAmount;
+    }
     
     // Radial oscillation
     const time = performance.now() * 0.001;  // Convert to seconds

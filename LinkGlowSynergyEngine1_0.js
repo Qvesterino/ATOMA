@@ -236,10 +236,7 @@ const LinkGlowSynergyEngine1_0 = (() => {
         material.linewidth = Math.max(0.1, profile.lineWidth);
       }
       
-      // Mark for update
-      if (material.needsUpdate !== undefined) {
-        material.needsUpdate = true;
-      }
+      // [B.3-D1] Runtime-only adjustments; avoid forcing program recompile
     } catch (e) {
       if (debugState.enabled) {
         console.warn('[LinkGlowSynergyEngine] Material update failed:', e.message);

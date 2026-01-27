@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// PHASE OFF-1: disable accumulated camera shake while keeping effects ready to re-enable
+const MOTION_OFF_PHASE1 = true;
+
 /**
  * SAFE CAMERA FX PACK 3.0
  * 
@@ -488,14 +491,17 @@ export class SafeCameraFXPack3 {
     this.camera.fov = this.currentFOV;
     this.camera.updateProjectionMatrix();
     
-    // Apply shake as positional jitter
-    if (this.registry.shakeAmount > 0) {
+    // PHASE OFF-1: disabled accumulated camera shake (event-based impulse only in future)
+    if (!MOTION_OFF_PHASE1 && this.registry.shakeAmount > 0) {
       const shake = this.registry.shakeAmount;
       this.camera.position.x += (Math.random() - 0.5) * this.config.maxShakePosition * shake;
       this.camera.position.y += (Math.random() - 0.5) * this.config.maxShakePosition * shake;
       this.camera.position.z += (Math.random() - 0.5) * this.config.maxShakePosition * shake;
       
       // Decay shake
+      this.registry.shakeAmount *= 0.95;
+    } else if (MOTION_OFF_PHASE1 && this.registry.shakeAmount > 0) {
+      // Bleed off any queued shake without moving the camera
       this.registry.shakeAmount *= 0.95;
     }
     

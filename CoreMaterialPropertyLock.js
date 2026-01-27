@@ -157,8 +157,46 @@ export class CoreMaterialPropertyLock {
           material.side = canonical.side;
         }
 
-        // Mark material as needing update
-        material.needsUpdate = true;
+        // [B.3-D1] Guard needsUpdate to shader-impacting changes only
+        if (!material.userData) material.userData = {};
+        const cache =
+          material.userData.__b3d1LockCache ||
+          (material.userData.__b3d1LockCache = {});
+        const shaderProps = [
+          'transparent',
+          'blending',
+          'side',
+          'depthWrite',
+          'depthTest',
+          'alphaTest',
+          'fog',
+          'vertexColors',
+        ];
+        let shaderPropChanged = false;
+
+        for (const prop of shaderProps) {
+          const val = material[prop];
+          if (cache[prop] !== val) {
+            cache[prop] = val;
+            shaderPropChanged = true;
+          }
+        }
+
+        const definesSnapshot = material.defines
+          ? JSON.stringify(material.defines)
+          : null;
+        if (cache.__defines !== definesSnapshot) {
+          cache.__defines = definesSnapshot;
+          shaderPropChanged = true;
+        }
+
+        if (shaderPropChanged) {
+          material.needsUpdate = true;
+          if (typeof window !== 'undefined') {
+            window.__B3D1_NEEDSUPDATE_COUNT =
+              (window.__B3D1_NEEDSUPDATE_COUNT || 0) + 1;
+          }
+        }
       });
     }
 

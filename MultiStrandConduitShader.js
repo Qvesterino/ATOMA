@@ -37,6 +37,29 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 
+// [B.3-C1] Shared conduit material pool to prevent program churn
+const CONDUIT_MATERIAL_POOL = new Map();
+
+// [B.3-C1] Build cache key from shader-affecting static flags only
+function buildConduitKey(options = {}) {
+  const transparent = false;
+  const blending = THREE.NormalBlending;
+  const side = THREE.DoubleSide;
+  const depthWrite = true;
+  const depthTest = true;
+  const definesHash = 'nodef';
+
+  return [
+    options.profileId ?? 'default',
+    `t=${transparent ? 1 : 0}`,
+    `b=${blending}`,
+    `s=${side}`,
+    `dw=${depthWrite ? 1 : 0}`,
+    `dt=${depthTest ? 1 : 0}`,
+    `def=${definesHash}`,
+  ].join('|');
+}
+
 /**
  * Create multi-strand conduit shader material
  * Replaces the previous createLinkShaderMaterial() function
@@ -51,6 +74,20 @@ export function createConduitShaderMaterial(options = {}) {
     segmentCount = 16,                             // mechanical segments
     coreMix = 0.7                                  // blend between core and outer
   } = options;
+
+  const poolKey = buildConduitKey(options);
+  const pooled = CONDUIT_MATERIAL_POOL.get(poolKey);
+  if (pooled) {
+    // [B.3-C1] Update per-conduit uniforms without new material creation
+    pooled.uniforms.uColorA.value = colorStable;
+    pooled.uniforms.uColorB.value = colorStress;
+    pooled.uniforms.uColorC.value = colorCorruption;
+    pooled.uniforms.uStrandCount.value = strandCount;
+    pooled.uniforms.uFlowStrength.value = flowStrength;
+    pooled.uniforms.uSegmentCount.value = segmentCount;
+    pooled.uniforms.uCoreMix.value = coreMix;
+    return pooled;
+  }
 
   const uniforms = {
     // Timing & animation
@@ -88,6 +125,7 @@ export function createConduitShaderMaterial(options = {}) {
     attribute float aRadius;    // outer radius of this strand
     attribute float aSeed;      // noise seed for variation
     attribute float aFlow;      // flow direction modifier
+    attribute float aVertexIndex; // [B.3-B] WebGL1-safe parametric position 0..1
     
     // Varyings passed to fragment
     varying vec3 vPosition;
@@ -100,9 +138,8 @@ export function createConduitShaderMaterial(options = {}) {
     void main() {
       vPosition = position;
       
-      // Calculate parametric position (0-1) along the link curve
-      // Assumes positions are ordered along curve
-      vT = gl_VertexID / float(128); // Adjust divisor based on curve resolution
+      // [B.3-B] Use explicit attribute to avoid gl_VertexID dependency (WebGL1 safe)
+      vT = aVertexIndex;
       
       // Strand information (for multi-strand offset)
       vStrand = aStrand;
@@ -290,6 +327,11 @@ export function createConduitShaderMaterial(options = {}) {
     // (handled in LinkRenderer)
   });
 
+  CONDUIT_MATERIAL_POOL.set(poolKey, material);
+  if (typeof window !== 'undefined') {
+    window.__CONDUIT_MATERIAL_POOL_SIZE = CONDUIT_MATERIAL_POOL.size;
+  }
+
   return material;
 }
 
@@ -358,6 +400,8 @@ export function setupConduitGeometryAttributes(geometry, strandCount = 5) {
   const aSeed = new Float32Array(vertexCount);
   // Flow (flow direction modifier)
   const aFlow = new Float32Array(vertexCount);
+  // [B.3-B] WebGL1-safe parametric index (0..1) to replace gl_VertexID usage
+  const aVertexIndex = new Float32Array(vertexCount);
   
   for (let i = 0; i < vertexCount; i++) {
     // Distribute vertices across strands
@@ -373,6 +417,9 @@ export function setupConduitGeometryAttributes(geometry, strandCount = 5) {
     
     // Flow direction (alternate for visual interest)
     aFlow[i] = ((i / vertexCount) % 2) > 0.5 ? 1.0 : -1.0;
+    
+    // Parametric position along curve
+    aVertexIndex[i] = vertexCount > 1 ? (i / (vertexCount - 1)) : 0.0;
   }
   
   // Set attributes on geometry
@@ -380,6 +427,7 @@ export function setupConduitGeometryAttributes(geometry, strandCount = 5) {
   geometry.setAttribute('aRadius', new THREE.BufferAttribute(aRadius, 1));
   geometry.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
   geometry.setAttribute('aFlow', new THREE.BufferAttribute(aFlow, 1));
+  geometry.setAttribute('aVertexIndex', new THREE.BufferAttribute(aVertexIndex, 1));
 }
 
 /**

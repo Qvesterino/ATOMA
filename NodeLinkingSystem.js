@@ -1,3 +1,12 @@
+// === RAYCAST COST INSTRUMENTATION (AUDIT MODE) ===
+// Guarded by window.DEBUG_RAYCAST_COST
+// No behavior changes when disabled
+// IMPORTANT:
+// This instrumentation MUST NOT:
+// - change raycast targets
+// - alter call frequency
+// - mutate scene / nodes / proxies
+
 import * as THREE from 'three';
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
@@ -37,6 +46,7 @@ import {
   BulkRemoveLinksCommand 
 } from './UndoRedoSystem.js';
 import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
+import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
 const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
@@ -318,6 +328,10 @@ export class NodeLinkingSystem {
     this.lastCameraQuat = new THREE.Quaternion();
     this.isCameraMoving = false;
     this.lastRaycastTime = 0;
+    this.lastCrosshairRaycastTime = 0;
+    this.lastCrosshairCameraPos = new THREE.Vector3();
+    this.lastCrosshairCameraQuat = new THREE.Quaternion();
+    this.crosshairRaycastStats = { executed: 0, skipped: 0 };
     
     // Visual system
     this.visuals = new NeonLinkVisuals(scene, camera);
@@ -1526,11 +1540,9 @@ export class NodeLinkingSystem {
     
     this.lastRaycastTime = now;
 
-    // Get node at current crosshair position
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    
-    const rayHoveredNode = this.getNodeAtPosition(centerX, centerY, 'hover-loop');
+    // Get node from shared crosshair raycast state
+    const crosshairState = window.__crosshairRaycastState;
+    const rayHoveredNode = (crosshairState && crosshairState.node) ? crosshairState.node : null;
     
     // Skip hover updates if already selected this node
     if (this.selectedNode === rayHoveredNode) {
@@ -4454,12 +4466,28 @@ getLinksForNode(node) {
    */
   updateCrosshairTargeting() {
     const crosshairEl = document.getElementById('crosshair');
-    if (!crosshairEl) return;
+    const crosshairState = window.__crosshairRaycastState || (window.__crosshairRaycastState = {
+      node: null,
+      proxyHit: false,
+      source: null,
+      timestamp: 0
+    }); // Crosshair raycasting is owned here; other systems must only read this state.
+    if (!crosshairEl) {
+      crosshairState.node = null;
+      crosshairState.proxyHit = false;
+      crosshairState.source = null;
+      crosshairState.timestamp = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+      return;
+    }
 
     // [SESSION 62B] HITPROXY_READY GATE - Prevent FPS death during startup
     // Only raycast if proxies are ready
     if (!window.HITPROXY_READY) {
       crosshairEl.classList.remove('targeting');
+      crosshairState.node = null;
+      crosshairState.proxyHit = false;
+      crosshairState.source = null;
+      crosshairState.timestamp = (typeof performance !== 'undefined') ? performance.now() : Date.now();
       return;
     }
     
@@ -4479,6 +4507,24 @@ getLinksForNode(node) {
     // If no proxy system available, fall back safely
     if (proxyMeshes.length === 0) {
       crosshairEl.classList.remove('targeting');
+      crosshairState.node = null;
+      crosshairState.proxyHit = false;
+      crosshairState.source = null;
+      crosshairState.timestamp = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+      return;
+    }
+
+    // Frequency gate: limit crosshair raycasts based on camera motion
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const posDist = this.camera.position.distanceToSquared(this.lastCrosshairCameraPos);
+    const rotAngle = this.camera.quaternion.angleTo(this.lastCrosshairCameraQuat);
+    const MOVEMENT_EPS = 0.0001; // small epsilon for motion detection
+    const ROTATION_EPS = 0.00005;
+    const cameraMoving = (posDist > MOVEMENT_EPS || rotAngle > ROTATION_EPS);
+    const minInterval = cameraMoving ? 100 : 33; // ms
+    if (now - this.lastCrosshairRaycastTime < minInterval) {
+      this.crosshairRaycastStats.skipped++;
+      recordRaycastCost('proxy_raycast', 0, 'crosshair', { path: 'gated_skip' });
       return;
     }
     
@@ -4507,6 +4553,20 @@ getLinksForNode(node) {
       : (Date.now() - resolveStart);
     recordRaycastCost('resolve_hit', resolveElapsed, 'crosshair', { path: 'proxy' });
     
+    // Resolve node from proxy hit (if any)
+    let resolvedNode = null;
+    if (filtered.length > 0) {
+      const nodeId = filtered[0].object?.userData?.targetNodeId || filtered[0].nodeId;
+      if (nodeId && this.aiNodes?.nodes) {
+        resolvedNode = this.aiNodes.nodes.find(n => {
+          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
+            ? window.getNodeIdentity(n)
+            : (n.userData?.id || n.userData?.nodeId || n.uuid);
+          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
+        }) || null;
+      }
+    }
+
     // Check if we're targeting a node
     const isTargetingNode = filtered.length > 0;
     
@@ -4516,6 +4576,16 @@ getLinksForNode(node) {
     } else {
       crosshairEl.classList.remove('targeting');
     }
+
+    // Publish shared crosshair raycast state
+    crosshairState.node = resolvedNode;
+    crosshairState.proxyHit = true;
+    crosshairState.source = 'proxy';
+    crosshairState.timestamp = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    this.lastCrosshairRaycastTime = now;
+    this.lastCrosshairCameraPos.copy(this.camera.position);
+    this.lastCrosshairCameraQuat.copy(this.camera.quaternion);
+    this.crosshairRaycastStats.executed++;
   }
   
   /**
@@ -6469,6 +6539,66 @@ getLinksForNode(node) {
   _findNodeById(nodeId) {
     if (!nodeId || !this.aiNodes?.nodes) return null;
     return this.aiNodes.nodes.find(n => this.getNodeId(n) === nodeId) || null;
+  }
+}
+
+// One-time archetype shader warm-up to prevent GPU stalls on first spawn.
+export function warmUpArchetypeShaders(renderer, patchers = {}) {
+  if (!renderer || typeof renderer.render !== 'function') return;
+  if (typeof window !== 'undefined' && window.__shaderWarmupDone === true) return;
+
+  const categories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 10);
+  camera.position.z = 2;
+  const { waveShaderBridge, waveShaderMaterialPatch, waveTravelShaderPack, waveDynamicsShaderPack } = patchers || {};
+
+  const disposeNode = (node) => {
+    node.traverse((child) => {
+      if (child.geometry && child.geometry.dispose) child.geometry.dispose();
+      const mat = child.material;
+      if (mat && Array.isArray(mat)) {
+        mat.forEach(m => m && m.dispose && m.dispose());
+      } else if (mat && mat.dispose) {
+        mat.dispose();
+      }
+    });
+  };
+
+  for (const cat of categories) {
+    const node = EnhancedNodeModels.create(cat, 0, 0xffffff);
+    if (!node) continue;
+    node.scale.setScalar(0.001); // tiny, keeps warm-up invisible
+    node.position.set(0, 0, 0);
+
+    // Apply wave shader stacks so compiled program matches runtime variants
+    node.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      mats.forEach((mat) => {
+        try {
+          waveShaderBridge?.registerNodeMaterial?.(mat, 'DEFAULT');
+          waveShaderMaterialPatch?.patch?.(mat, 'DEFAULT');
+          waveTravelShaderPack?.register?.(mat, 'TRAVEL_LINEAR');
+          waveDynamicsShaderPack?.applyToMaterial?.(mat, 'AURA');
+        } catch (err) {
+          // best-effort only
+        }
+      });
+    });
+
+    scene.add(node);
+    try {
+      renderer.render(scene, camera); // trigger shader program compilation/link
+    } catch (err) {
+      // best-effort warm-up; ignore failures
+    }
+    scene.remove(node);
+    disposeNode(node);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__shaderWarmupDone = true;
   }
 }
 

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+// PHASE OFF-1: disable accumulated camera shake while preserving structure
+const MOTION_OFF_PHASE1 = true;
+
 /**
  * SAFE CAMERA STABILIZATION PACK 1.0
  * 
@@ -326,8 +329,8 @@ export class SafeCameraStabilizationPack1 {
       original.camera.fov = original.currentFOV;
       original.camera.updateProjectionMatrix();
       
-      // Apply shake as positional jitter - severely capped
-      if (original.registry.shakeAmount > 0.01) {
+      // PHASE OFF-1: disabled accumulated camera shake (event-based impulse only in future)
+      if (!MOTION_OFF_PHASE1 && original.registry.shakeAmount > 0.01) {
         const shake = original.registry.shakeAmount;
         // Only apply shake if it's significant enough
         original.camera.position.x += (Math.random() - 0.5) * original.config.maxShakePosition * shake;
@@ -335,6 +338,9 @@ export class SafeCameraStabilizationPack1 {
         original.camera.position.z += (Math.random() - 0.5) * original.config.maxShakePosition * shake;
         
         // Faster decay
+        original.registry.shakeAmount *= 0.9;
+      } else if (MOTION_OFF_PHASE1 && original.registry.shakeAmount > 0.01) {
+        // Bleed off any queued shake without moving the camera
         original.registry.shakeAmount *= 0.9;
       }
       

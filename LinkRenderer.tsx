@@ -18,6 +18,67 @@ import { useFrame, useThree } from '@react-three-fiber/web';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Link, Node } from './LinkEngine';
 
+// [B.3-D2] Pooled link materials keyed by static shader-affecting flags
+const LINK_MATERIAL_POOL = new Map<string, THREE.ShaderMaterial>();
+
+// [B.3-D2] Build a stable cache key from profile + shader-relevant flags
+function buildLinkMaterialKey(options: {
+  profileId: string;
+  transparent: boolean;
+  blending: number;
+  side: number;
+  depthWrite: boolean;
+  depthTest: boolean;
+  defines?: Record<string, any> | null;
+}) {
+  const definesHash = options.defines
+    ? JSON.stringify(
+        Object.keys(options.defines)
+          .sort()
+          .reduce((acc, k) => {
+            acc[k] = (options.defines as any)[k];
+            return acc;
+          }, {} as Record<string, any>)
+      )
+    : 'nodef';
+
+  return [
+    options.profileId,
+    `t=${options.transparent ? 1 : 0}`,
+    `b=${options.blending}`,
+    `s=${options.side}`,
+    `dw=${options.depthWrite ? 1 : 0}`,
+    `dt=${options.depthTest ? 1 : 0}`,
+    `def=${definesHash}`,
+  ].join('|');
+}
+
+// [B.3-D2] Return pooled ShaderMaterial; create once per static profile key
+function getPooledLinkShaderMaterial(profileId = 'default'): THREE.ShaderMaterial {
+  const key = buildLinkMaterialKey({
+    profileId,
+    transparent: false,
+    blending: THREE.NormalBlending,
+    side: THREE.FrontSide,
+    depthWrite: true,
+    depthTest: true,
+    defines: null,
+  });
+
+  const existing = LINK_MATERIAL_POOL.get(key);
+  if (existing) return existing;
+
+  const mat = createLinkShaderMaterial();
+  (mat as any).__b3d2Pooled = true; // flag to avoid disposal on per-link teardown
+  LINK_MATERIAL_POOL.set(key, mat);
+
+  if (typeof window !== 'undefined') {
+    (window as any).__LINK_MATERIAL_POOL_SIZE = LINK_MATERIAL_POOL.size;
+  }
+
+  return mat;
+}
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -189,6 +250,8 @@ export function setupConduitGeometryAttributes(
   const aRadius = new Float32Array(vertexCount);
   const aSeed = new Float32Array(vertexCount);
   const aFlow = new Float32Array(vertexCount);
+  // [B.3-B] WebGL1-safe parametric index (0..1) to replace gl_VertexID usage
+  const aVertexIndex = new Float32Array(vertexCount);
   
   for (let i = 0; i < vertexCount; i++) {
     // Distribute vertices across strands
@@ -204,6 +267,9 @@ export function setupConduitGeometryAttributes(
     
     // Flow direction (alternating)
     aFlow[i] = ((i / vertexCount) % 2) > 0.5 ? 1.0 : -1.0;
+    
+    // Parametric position along curve
+    aVertexIndex[i] = vertexCount > 1 ? (i / (vertexCount - 1)) : 0.0;
   }
   
   // Set attributes
@@ -211,6 +277,7 @@ export function setupConduitGeometryAttributes(
   geometry.setAttribute('aRadius', new THREE.BufferAttribute(aRadius, 1));
   geometry.setAttribute('aSeed', new THREE.BufferAttribute(aSeed, 1));
   geometry.setAttribute('aFlow', new THREE.BufferAttribute(aFlow, 1));
+  geometry.setAttribute('aVertexIndex', new THREE.BufferAttribute(aVertexIndex, 1));
 }
 
 // ============================================================================
@@ -242,7 +309,6 @@ export const LinkRenderer = React.forwardRef<
   const groupRef = useRef<THREE.Group>(null);
   const geometryCacheRef = useRef<Map<string, LinkGeometryCache>>(new Map());
   const linesRef = useRef<Map<string, THREE.Line>>(new Map());
-  const materialsRef = useRef<Map<string, THREE.Material>>(new Map());
 
   const { camera } = useThree();
 
@@ -256,7 +322,6 @@ export const LinkRenderer = React.forwardRef<
     const group = groupRef.current;
     const geometryCache = geometryCacheRef.current;
     const lines = linesRef.current;
-    const materials = materialsRef.current;
 
     // Remove lines for deleted links
     const linkIds = new Set(links.map(l => l.id));
@@ -265,7 +330,6 @@ export const LinkRenderer = React.forwardRef<
         group.remove(line);
         lines.delete(cachedId);
         geometryCache.delete(cachedId);
-        materials.delete(cachedId);
       }
     }
 
@@ -296,7 +360,7 @@ export const LinkRenderer = React.forwardRef<
         // UPGRADE: Setup multi-strand attributes
         setupConduitGeometryAttributes(geometry, 5);
         
-        const lineMaterial = material?.clone() ?? createLinkShaderMaterial();
+        const lineMaterial = material?.clone?.() ?? getPooledLinkShaderMaterial();
         
         // SAFETY: Ensure fully opaque material
         if (lineMaterial instanceof THREE.ShaderMaterial) {
@@ -323,7 +387,6 @@ export const LinkRenderer = React.forwardRef<
 
         group.add(line);
         lines.set(link.id, line);
-        materials.set(link.id, lineMaterial);
 
         geometryCache.set(link.id, {
           linkId: link.id,
@@ -343,34 +406,56 @@ export const LinkRenderer = React.forwardRef<
         }
       }
 
-      // Update shader uniforms if available
-      if (animateShaderUniforms && line.material instanceof THREE.ShaderMaterial) {
-        const uniforms = line.material.uniforms as LinkShaderUniforms;
-        
-        // Update colors
-        if (uniforms.color) {
-          uniforms.color.value = colorMap?.get(link.id) ?? new THREE.Color(0x00ddff);
+      // [B.3-D2] Per-link uniform storage; applied in onBeforeRender to shared material
+      const perLinkUniforms = (line.userData.__b3d2Uniforms =
+        line.userData.__b3d2Uniforms || {});
+      perLinkUniforms.color =
+        colorMap?.get(link.id) ?? new THREE.Color(0x00ddff);
+      perLinkUniforms.uColorA =
+        colorMap?.get(link.id) ?? new THREE.Color(0x00ddff);
+      perLinkUniforms.selected = selectedLinkId === link.id ? 1 : 0;
+      perLinkUniforms.uLoad = 0.3 + Math.random() * 0.2;
+      perLinkUniforms.uStress = 0.0;
+      perLinkUniforms.uCorruption = 0.0;
+
+      // [B.3-D2] Apply per-link uniforms just before render to avoid shared-material bleed
+      line.onBeforeRender = (_renderer, _scene, _camera, _geometry, mat) => {
+        const uniforms = (mat as any).uniforms as LinkShaderUniforms;
+        const src = line.userData.__b3d2Uniforms;
+        if (!uniforms || !src) return;
+
+        if (uniforms.color && src.color) uniforms.color.value = src.color;
+        if (uniforms.uColorA && src.uColorA) uniforms.uColorA.value = src.uColorA;
+        if (uniforms.uColorB && src.uColorB) uniforms.uColorB.value = src.uColorB;
+        if (uniforms.uColorC && src.uColorC) uniforms.uColorC.value = src.uColorC;
+        if (uniforms.selected !== undefined && src.selected !== undefined) {
+          uniforms.selected.value = src.selected;
         }
-        if (uniforms.uColorA) {
-          uniforms.uColorA.value = colorMap?.get(link.id) ?? new THREE.Color(0x00ddff);
+        if (uniforms.uLoad !== undefined && src.uLoad !== undefined) {
+          uniforms.uLoad.value = src.uLoad;
         }
-        
-        // Update selection state
-        if (uniforms.selected) {
-          uniforms.selected.value = selectedLinkId === link.id ? 1 : 0;
+        if (uniforms.uStress !== undefined && src.uStress !== undefined) {
+          uniforms.uStress.value = src.uStress;
         }
-        
-        // UPGRADE: Update network state for conduit animation
-        if (uniforms.uLoad) {
-          uniforms.uLoad.value = 0.3 + Math.random() * 0.2;
+        if (
+          uniforms.uCorruption !== undefined &&
+          src.uCorruption !== undefined
+        ) {
+          uniforms.uCorruption.value = src.uCorruption;
         }
-        if (uniforms.uStress) {
-          uniforms.uStress.value = 0.0;
+        if (uniforms.energy !== undefined && src.energy !== undefined) {
+          uniforms.energy.value = src.energy;
         }
-        if (uniforms.uCorruption) {
-          uniforms.uCorruption.value = 0.0;
+        if (uniforms.intensity !== undefined && src.intensity !== undefined) {
+          uniforms.intensity.value = src.intensity;
         }
-      }
+        if (uniforms.time !== undefined && src.time !== undefined) {
+          uniforms.time.value = src.time;
+        }
+        if (uniforms.uTime !== undefined && src.uTime !== undefined) {
+          uniforms.uTime.value = src.uTime;
+        }
+      };
     });
 
     return () => {
@@ -378,14 +463,16 @@ export const LinkRenderer = React.forwardRef<
       for (const line of lines.values()) {
         line.geometry.dispose();
         if (line.material instanceof THREE.Material) {
-          line.material.dispose();
+          const pooled = (line.material as any).__b3d2Pooled;
+          if (!pooled && typeof line.material.dispose === 'function') {
+            line.material.dispose();
+          }
         }
       }
       lines.clear();
-      materials.clear();
       geometryCache.clear();
     };
-  }, [links, nodes, resolution, curvature, material, colorMap, selectedLinkId]);
+  }, [links, nodes, resolution, curvature, material, colorMap, selectedLinkId, animateShaderUniforms]);
 
   // ========================================================================
   // EFFECT: Assign reference
@@ -408,30 +495,19 @@ export const LinkRenderer = React.forwardRef<
   useFrame((state, delta) => {
     if (!animateShaderUniforms) return;
 
-    const materials = materialsRef.current;
+    const lines = linesRef.current;
 
-    for (const [linkId, lineMaterial] of materials.entries()) {
-      if (lineMaterial instanceof THREE.ShaderMaterial) {
-        const uniforms = lineMaterial.uniforms as LinkShaderUniforms;
+    for (const [, line] of lines.entries()) {
+      const u = line.userData.__b3d2Uniforms || (line.userData.__b3d2Uniforms = {});
 
-        // Animate time uniforms (UPGRADE: both time and uTime)
-        if (uniforms.time) {
-          uniforms.time.value += delta;
-        }
-        if (uniforms.uTime) {
-          uniforms.uTime.value += delta;
-        }
+      u.time = (u.time ?? 0) + delta;
+      u.uTime = (u.uTime ?? 0) + delta;
 
-        // Legacy: pulse intensity (now affects strand alpha multiplier)
-        if (uniforms.intensity) {
-          uniforms.intensity.value = 0.7 + 0.3 * Math.sin(state.clock.elapsedTime * 2);
-        }
+      // Legacy: pulse intensity (now affects strand alpha multiplier)
+      u.intensity = 0.7 + 0.3 * Math.sin(state.clock.elapsedTime * 2);
 
-        // Legacy: energy based on link activity (affects load glow)
-        if (uniforms.energy) {
-          uniforms.energy.value = Math.random() * 0.5 + 0.5;
-        }
-      }
+      // Legacy: energy based on link activity (affects load glow)
+      u.energy = Math.random() * 0.5 + 0.5;
     }
   });
 
@@ -621,10 +697,11 @@ export function createLinkShaderMaterial(): THREE.ShaderMaterial {
 
   const vertexShader = `
     // Input attributes
-    attribute float aStrand;    // Strand index (0-strandCount)
-    attribute float aRadius;    // Strand outer radius
-    attribute float aSeed;      // Per-vertex noise seed
-    attribute float aFlow;      // Flow direction
+    attribute float aStrand;       // Strand index (0-strandCount)
+    attribute float aRadius;       // Strand outer radius
+    attribute float aSeed;         // Per-vertex noise seed
+    attribute float aFlow;         // Flow direction
+    attribute float aVertexIndex;  // [B.3-B] WebGL1-safe parametric position 0..1
     
     // Varyings to fragment
     varying vec3 vPosition;
@@ -637,8 +714,8 @@ export function createLinkShaderMaterial(): THREE.ShaderMaterial {
     void main() {
       vPosition = position;
       
-      // Parametric position along curve
-      vT = gl_VertexID / 128.0;  // Based on curve resolution
+      // [B.3-B] Use explicit attribute to avoid gl_VertexID dependency
+      vT = aVertexIndex;
       
       // Strand data
       vStrand = aStrand;

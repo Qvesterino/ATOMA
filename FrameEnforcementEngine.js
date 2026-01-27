@@ -20,9 +20,13 @@ export function enforceFrameHierarchy(scene) {
   scene.traverse((obj) => {
     // Only process nodes
     if (!obj.userData?.isNode) return;
+
+    // Phase B.1: removed per-frame transparency enforcement
+    if (obj.userData.__frameHierarchyLocked) return;
     
     // FORCE render hierarchy
     enforceRenderHierarchy(obj);
+    obj.userData.__frameHierarchyLocked = true;
     
     // FORCE all protected meshes stay visible
     obj.traverse((child) => {
@@ -30,50 +34,50 @@ export function enforceFrameHierarchy(scene) {
       
       // Protected meshes MUST be visible
       if (isProtectedMesh(child)) {
-        child.visible = true;
-        child.frustumCulled = false; // Never cull
+        if (child.visible !== true) child.visible = true;
+        if (child.frustumCulled !== false) child.frustumCulled = false; // Never cull
       }
       
       // Core MUST render first
       if (child.userData?.visualLayer === 'CORE' || child.userData?.isCoreMesh) {
-        child.renderOrder = 0;
-        child.visible = true;
+        if (child.renderOrder !== 0) child.renderOrder = 0;
+        if (child.visible !== true) child.visible = true;
         
         // FORCE depth settings every frame
         if (child.material) {
-          child.material.depthTest = false;
-          child.material.depthWrite = false;
-          child.material.transparent = true;
+          if (child.material.depthTest !== false) child.material.depthTest = false;
+          if (child.material.depthWrite !== false) child.material.depthWrite = false;
+          if (child.material.transparent !== true) child.material.transparent = true;
         }
       }
       
       // Shells MUST render after core and never be culled
       if (child.userData?.visualLayer === 'CORE_SHELL' || child.userData?.isHologramShell) {
-        child.renderOrder = 5;
-        child.visible = true;
-        child.frustumCulled = false; // ✅ CRITICAL EVERY FRAME
+        if (child.renderOrder !== 5) child.renderOrder = 5;
+        if (child.visible !== true) child.visible = true;
+        if (child.frustumCulled !== false) child.frustumCulled = false; // ✅ CRITICAL EVERY FRAME
         
         if (child.material) {
-          child.material.depthTest = false;
-          child.material.depthWrite = false;
-          child.material.transparent = true;
+          if (child.material.depthTest !== false) child.material.depthTest = false;
+          if (child.material.depthWrite !== false) child.material.depthWrite = false;
+          if (child.material.transparent !== true) child.material.transparent = true;
         }
       }
       
       // Auras MUST render last
       if (child.userData?.visualLayer === 'AURA' || child.userData?.isAura) {
-        child.renderOrder = 10;
-        child.visible = true;
+        if (child.renderOrder !== 10) child.renderOrder = 10;
+        if (child.visible !== true) child.visible = true;
         
         if (child.material) {
-          child.material.transparent = true;
+          if (child.material.transparent !== true) child.material.transparent = true;
         }
       }
       
       // VFX MUST never be culled
       if (child.userData?.visualLayer === 'VFX' || child.userData?.isNonLinkableVisual) {
-        child.visible = true;
-        child.frustumCulled = false; // ✅ Never cull VFX
+        if (child.visible !== true) child.visible = true;
+        if (child.frustumCulled !== false) child.frustumCulled = false; // ✅ Never cull VFX
       }
     });
   });

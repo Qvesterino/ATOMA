@@ -15,7 +15,10 @@
  * 2. Render order: Links < Auras < Core < Holographic (40 > 30 > 20 > 10)
  * 3. Node internal layers ALWAYS render last
  * 4. Transparency must not destroy downstream visual layers
+ *
+ * // Phase B.2: render state delegated to TransparentStateAuthority
  */
+import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 
 export class NodeDepthAndHoloPreservationFix {
   /**
@@ -41,15 +44,8 @@ export class NodeDepthAndHoloPreservationFix {
           if (!child.isMesh || !child.material) return;
           
           // Enforce depth authority on link materials
-          if (child.material.transparent !== undefined) {
-            child.material.transparent = true;
-            child.material.depthWrite = false;
-            child.material.depthTest = true;
-            linkCount++;
-          }
-          
-          // Set render priority
-          child.renderOrder = 10;
+          TransparentStateAuthority.apply(child, 'link', { renderOrder: 10, depthWrite: false });
+          linkCount++;
         });
       }
       
@@ -63,16 +59,12 @@ export class NodeDepthAndHoloPreservationFix {
         obj.traverse((child) => {
           if (!child.isMesh || !child.material) return;
           
-          if (child.material.transparent !== undefined) {
-            child.material.transparent = true;
-            child.material.depthWrite = false;
-            child.material.depthTest = true;
-            // Cap aura opacity to prevent overdraw
+          TransparentStateAuthority.apply(child, 'link', { renderOrder: 20, depthWrite: false });
+          // Cap aura opacity to prevent overdraw
+          if (child.material.opacity !== undefined) {
             child.material.opacity = Math.min(child.material.opacity || 1.0, 0.45);
-            auraCount++;
           }
-          
-          child.renderOrder = 20;
+          auraCount++;
         });
       }
       
@@ -88,7 +80,7 @@ export class NodeDepthAndHoloPreservationFix {
           if (!child.isMesh) return;
           
           // Holographic layers ALWAYS render last
-          child.renderOrder = 40;
+          TransparentStateAuthority.apply(child, 'additive', { renderOrder: 40 });
           
           // Ensure visibility
           child.visible = true;
@@ -126,17 +118,12 @@ export class NodeDepthAndHoloPreservationFix {
       if (!child.isMesh || !child.material) return;
       
       // MANDATORY: Transparent rendering for all link meshes
-      child.material.transparent = true;
-      child.material.depthWrite = false;
-      child.material.depthTest = true;
+      TransparentStateAuthority.apply(child, 'link', { renderOrder: 10, depthWrite: false });
       
       // HARD RULE: Opacity must never exceed 0.45 for links
       if (child.material.opacity !== undefined) {
         child.material.opacity = Math.min(child.material.opacity || 0.8, 0.45);
       }
-      
-      // Set render order (links render first)
-      child.renderOrder = 10;
     });
   }
 
@@ -151,17 +138,12 @@ export class NodeDepthAndHoloPreservationFix {
       if (!child.isMesh || !child.material) return;
       
       // MANDATORY: Transparent auras
-      child.material.transparent = true;
-      child.material.depthWrite = false;
-      child.material.depthTest = true;
+      TransparentStateAuthority.apply(child, 'link', { renderOrder: 20, depthWrite: false });
       
       // HARD RULE: Aura opacity capped at 0.45
       if (child.material.opacity !== undefined) {
         child.material.opacity = Math.min(child.material.opacity || 0.8, 0.45);
       }
-      
-      // Auras render at priority 20
-      child.renderOrder = 20;
     });
   }
 
@@ -216,6 +198,9 @@ export class NodeDepthAndHoloPreservationFix {
     
     scene.traverse((obj) => {
       if (!obj.isMesh || !obj.material) return;
+
+      // Phase B.1: removed per-frame transparency enforcement
+      if (obj.userData?.__depthAuthorityLocked) return;
       
       const userData = obj.userData || {};
       
@@ -224,23 +209,17 @@ export class NodeDepthAndHoloPreservationFix {
           userData.vfxType?.includes('extreme') ||
           userData.isAura ||
           userData.visualLayer === 'AURA') {
-        
-        if (obj.material.depthWrite === true) {
-          // VIOLATION DETECTED: Forcibly disable depth writing
-          obj.material.depthWrite = false;
-        }
+        TransparentStateAuthority.apply(obj, 'link', { renderOrder: userData.isAura ? 20 : 10, depthWrite: false });
       }
       
       // Holographic layers always render last
       if (userData.isHolographicLayer ||
           userData.isHologramShell ||
           userData.visualLayer === 'HOLOGRAM') {
-        
-        if (obj.renderOrder !== 40) {
-          // VIOLATION DETECTED: Restore render order
-          obj.renderOrder = 40;
-        }
+        TransparentStateAuthority.apply(obj, 'additive', { renderOrder: 40 });
       }
+
+      obj.userData.__depthAuthorityLocked = true;
     });
   }
 

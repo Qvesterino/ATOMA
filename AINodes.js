@@ -337,6 +337,41 @@ export class AINodes {
   }
 
   /**
+   * Queue heavy visual tasks to spread work across frames (Spawn Visual Burst Gate).
+   * Falls back to immediate execution if queue unavailable.
+   */
+  _queueSpawnVisual(node, type, fn) {
+    if (!this.spawnVisualQueue) {
+      fn();
+      return;
+    }
+    this.spawnVisualQueue.push({ node, type, fn });
+    if (this.spawnVisualStats) this.spawnVisualStats.queued++;
+  }
+
+  /**
+   * Drain queued visual tasks with a small per-frame budget.
+   */
+  _drainSpawnVisualQueue() {
+    if (!this.spawnVisualQueue || this.spawnVisualQueue.length === 0) return;
+    const BUDGET_MS = 4;
+    const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    while (this.spawnVisualQueue.length) {
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (now - start >= BUDGET_MS) break;
+      const task = this.spawnVisualQueue.shift();
+      try {
+        task.fn();
+        if (this.spawnVisualStats) this.spawnVisualStats.executed++;
+      } catch (err) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[SpawnVisualGate] task failed', err);
+        }
+      }
+    }
+  }
+
+  /**
    * VISUAL BOOTSTRAP 3.0: Register external visual systems
    * Must be called once during scene initialization
    */
@@ -1236,6 +1271,9 @@ export class AINodes {
     const profileEnabled = typeof window !== 'undefined' && window.__ATOMA_PROFILE__ === true;
     if (profileEnabled) this._ensureProfilingStore();
 
+    // Drain queued spawn visual tasks with small budget per frame
+    this._drainSpawnVisualQueue();
+
     const profileStart = name => profileEnabled ? performance.now() : 0;
     const profileEnd = (name, start) => {
       if (!profileEnabled) return;
@@ -2074,6 +2112,15 @@ export class AINodes {
     
     // Materialize animation tracking
     this.materializingNodes = new Set();
+
+    // Spawn Visual Burst Gate (queues heavy visual work to spread across frames)
+    this.spawnVisualQueue = (typeof window !== 'undefined'
+      ? (window.__spawnVisualQueue = window.__spawnVisualQueue || [])
+      : []);
+    this.spawnVisualStats = (typeof window !== 'undefined'
+      ? (window.__spawnVisualStats = window.__spawnVisualStats || { queued: 0, executed: 0 })
+      : { queued: 0, executed: 0 });
+    this._inputBypassLogged = this._inputBypassLogged || false;
     
     // [SESSION 110] Node Spawn Registry - Single-Instance Enforcement
     // Tracks active nodes to prevent duplicates of unique archetypes
@@ -2489,13 +2536,17 @@ export class AINodes {
     // Attach read-only metrics - NO gameplay side effects
     SafeMetricsDNAIntegration1_0.attachMetrics(newNode, newNode.userData.archetype);
     
-    // ========== STEP 6: VISUAL BOOTSTRAP (SYNC) ==========
-    // Call synchronously - NO async delays
+    // ========== STEP 6: VISUAL BOOTSTRAP (QUEUED) ==========
+    // Queue heavy visual work to spread across frames
     if (this.visualBootstrap) {
-      this.visualBootstrap.bootstrapNode(
+      this._queueSpawnVisual(
         newNode,
-        newNode.userData.category,
-        newNode.userData.archetype
+        'visual-bootstrap',
+        () => this.visualBootstrap.bootstrapNode(
+          newNode,
+          newNode.userData.category,
+          newNode.userData.archetype
+        )
       );
     }
     

@@ -22,9 +22,12 @@
  * - CoreVisualAuthoritySystem
  * - NodeAuraSystem_v1
  * - CoreHologramShader
+ *
+ * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 
 import * as THREE from 'three';
+import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 
 /**
  * Hologram Shell Authority System
@@ -76,27 +79,12 @@ export class HologramShellAuthoritySystem {
 
     const material = mesh.material;
 
-    // CRITICAL: Don't write to depth buffer (visual-only)
-    material.depthWrite = false;
-
-    // Don't read depth for overlay effect
-    material.depthTest = false;
-
-    // Must be transparent
-    material.transparent = true;
-
     // Reduce opacity to prevent occlusion
     if (material.opacity > this.maxShellOpacity) {
       material.opacity = this.maxShellOpacity;
     }
 
-    // Use additive blending for visual-only appearance
-    if (material.blending !== THREE.AdditiveBlending) {
-      material.blending = THREE.AdditiveBlending;
-    }
-
-    // Set low render order
-    mesh.renderOrder = this.shellRenderOrder;
+    TransparentStateAuthority.apply(mesh, 'holo', { renderOrder: this.shellRenderOrder });
     mesh.userData.visualLayer = 'SHELL';
     mesh.userData.isHologramShell = true;
   }

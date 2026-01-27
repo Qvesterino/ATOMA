@@ -194,8 +194,11 @@ export const DreamMistShader = {
       
       // Multi-layer mist with different speeds
       float mistAmount = 0.0;
-      for(float i = 0.0; i < layerCount; i++) {
-        float layer = i / layerCount;
+      // [B.3-B] WebGL1-safe loop: fixed bound with runtime break
+      const int MAX_LAYERS = 8;
+      for(int i = 0; i < MAX_LAYERS; i++) {
+        if (float(i) >= layerCount) break;
+        float layer = float(i) / layerCount;
         vec2 layerUv = uv * (1.0 + layer) + time * driftSpeed * (1.0 - layer);
         
         float n = noise(layerUv * noiseScale);

@@ -144,6 +144,17 @@ export class VisualStateSnapshot {
     
     let restored = 0;
     const opts = { ...this.captureOptions, ...options };
+    const material = target.material || target;
+    // [B.3-C3] Snapshot restore stabilization guard
+    const shaderProps = ['transparent', 'blending', 'side', 'depthWrite', 'depthTest'];
+    const materialCache =
+      material?.userData?.__b3c3SnapshotCache ||
+      (material &&
+        (material.userData = material.userData || {},
+        (material.userData.__b3c3SnapshotCache = {})));
+    let shaderChanged = false;
+    const pendingShaderUpdates = [];
+    const definesSnapshot = material?.defines ? JSON.stringify(material.defines) : null;
     
     // Restore transforms
     if (target.position && this.data.position) {
@@ -160,47 +171,92 @@ export class VisualStateSnapshot {
     }
     
     // Restore material properties
-    const material = target.material || target;
-    if (material.opacity !== undefined && this.data.opacity !== null) {
-      material.opacity = this.data.opacity;
-      material.needsUpdate = true;
-      restored++;
-    }
-    
-    if (material.color && this.data.color) {
-      material.color.copy(this.data.color);
-      material.needsUpdate = true;
-      restored++;
-    }
-    
-    if (material.emissive && this.data.emissive) {
-      material.emissive.copy(this.data.emissive);
-      if (this.data.emissiveIntensity !== null) {
-        material.emissiveIntensity = this.data.emissiveIntensity;
+    if (material) {
+      // Runtime-only properties: apply without needsUpdate
+      if (material.opacity !== undefined && this.data.opacity !== null) {
+        material.opacity = this.data.opacity;
+        restored++;
       }
-      material.needsUpdate = true;
-      restored++;
-    }
-    
-    // Restore uniforms
-    if (material.uniforms && Object.keys(this.data.uniforms).length > 0) {
-      for (const [key, savedValue] of Object.entries(this.data.uniforms)) {
-        if (material.uniforms[key]) {
-          if (savedValue && savedValue.copy) {
-            material.uniforms[key].value.copy(savedValue);
-          } else {
-            material.uniforms[key].value = savedValue;
+
+      if (material.color && this.data.color) {
+        material.color.copy(this.data.color);
+        restored++;
+      }
+
+      if (material.emissive && this.data.emissive) {
+        material.emissive.copy(this.data.emissive);
+        if (this.data.emissiveIntensity !== null) {
+          material.emissiveIntensity = this.data.emissiveIntensity;
+        }
+        restored++;
+      }
+
+      // Uniforms
+      if (material.uniforms && Object.keys(this.data.uniforms).length > 0) {
+        for (const [key, savedValue] of Object.entries(this.data.uniforms)) {
+          if (material.uniforms[key]) {
+            if (savedValue && savedValue.copy) {
+              material.uniforms[key].value.copy(savedValue);
+            } else {
+              material.uniforms[key].value = savedValue;
+            }
+            restored++;
           }
-          restored++;
         }
       }
-      material.needsUpdate = true;
+
+      // Shader-affecting props: compare with cache before applying
+      if (materialCache) {
+        for (const prop of shaderProps) {
+          if (this.data[prop] !== undefined) {
+            const incoming = this.data[prop];
+            if (material[prop] !== incoming) {
+              pendingShaderUpdates.push([prop, incoming]);
+              if (materialCache[prop] !== incoming) {
+                shaderChanged = true;
+              }
+            }
+          }
+        }
+
+        const incomingDefines = definesSnapshot;
+        if (incomingDefines !== null && materialCache.__defines !== incomingDefines) {
+          shaderChanged = true;
+        }
+
+        if (shaderChanged) {
+          // Apply pending shader-affecting changes
+          for (const [prop, val] of pendingShaderUpdates) {
+            material[prop] = val;
+          }
+          if (incomingDefines !== null) {
+            material.defines = material.defines || {};
+            materialCache.__defines = incomingDefines;
+          }
+
+          // Update cache after apply
+          for (const [prop, val] of pendingShaderUpdates) {
+            materialCache[prop] = val;
+          }
+
+          material.needsUpdate = true;
+          if (typeof window !== 'undefined') {
+            window.__B3C3_NEEDSUPDATE_COUNT =
+              (window.__B3C3_NEEDSUPDATE_COUNT || 0) + 1;
+          }
+        }
+      }
     }
     
     // Track application
     this.appliedCount++;
     this.lastAppliedTime = performance.now();
     
+    if (typeof window !== 'undefined') {
+      window.__B3C3_SNAPSHOT_RESTORE_COUNT =
+        (window.__B3C3_SNAPSHOT_RESTORE_COUNT || 0) + 1;
+    }
+
     return restored;
   }
   

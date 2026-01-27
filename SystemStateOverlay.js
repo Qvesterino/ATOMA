@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { RegionalHarmonyZones } from './RegionalHarmonyZones.js';
 
+// PHASE OFF-1: disable select unbounded motion while keeping visuals rendered
+const MOTION_OFF_PHASE1 = true;
+
 /**
  * ============================================================================
  * SYSTEM STATE OVERLAY
@@ -365,8 +368,11 @@ export class SystemStateOverlay {
       const pulse = 0.5 + 0.5 * Math.sin(this.time * pulseFreq);
       halo.material.opacity = pulse * pulseFade * 0.12 * synergy;
       
-      // Very subtle upward drift
-      halo.position.y += 0.001;
+      // PHASE OFF-1: disabled unbounded overlay drift (restore later via shader pulse)
+      if (!MOTION_OFF_PHASE1) {
+        // Very subtle upward drift
+        halo.position.y += 0.001;
+      }
     });
   }
   
@@ -385,14 +391,17 @@ export class SystemStateOverlay {
     const corruptionOpacity = this.metrics.corruption * 0.15;
     corruptionMat.opacity = corruptionOpacity;
     
-    // Slow, uncertain drift (using layered sine waves for "searching" motion)
-    const driftX = Math.sin(this.time * 0.1) * 0.002;
-    const driftY = Math.cos(this.time * 0.08) * 0.002;
-    const driftZ = Math.sin(this.time * 0.12 + 1) * 0.001;
-    
-    this.layers.corruptionDrift.position.x += driftX;
-    this.layers.corruptionDrift.position.y += driftY;
-    this.layers.corruptionDrift.position.z += driftZ;
+    // PHASE OFF-1: disabled unbounded overlay drift (restore later via shader pulse)
+    if (!MOTION_OFF_PHASE1) {
+      // Slow, uncertain drift (using layered sine waves for "searching" motion)
+      const driftX = Math.sin(this.time * 0.1) * 0.002;
+      const driftY = Math.cos(this.time * 0.08) * 0.002;
+      const driftZ = Math.sin(this.time * 0.12 + 1) * 0.001;
+      
+      this.layers.corruptionDrift.position.x += driftX;
+      this.layers.corruptionDrift.position.y += driftY;
+      this.layers.corruptionDrift.position.z += driftZ;
+    }
     
     // Texture scrolling (slow)
     if (corruptionMat.map) {

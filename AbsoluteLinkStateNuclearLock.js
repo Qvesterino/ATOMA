@@ -10,9 +10,12 @@
  * 3. Mutations are enforced at property level (Object.defineProperty)
  * 4. Every frame, render settings are FORCE-OVERRIDDEN
  * 5. Zero fallbacks, zero exceptions, zero mercy
+ *
+ * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 
 import * as THREE from 'three';
+import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 
 /**
  * ✅ SINGLE SOURCE OF TRUTH: Get absolute link target
@@ -124,39 +127,46 @@ export function enforceRenderHierarchy(node) {
   
   node.traverse((child) => {
     if (!child.isMesh) return;
+
+    // Phase B.2: render state delegated to TransparentStateAuthority
+    if (child.userData?.__renderHierarchyLocked) return;
     
     // CORE: Render first, visible, no depth occlusion
     if (child.userData?.visualLayer === 'CORE' || child.userData?.isCoreMesh) {
-      child.renderOrder = 0;
       child.visible = true;
       if (child.material) {
-        child.material.depthTest = false;
-        child.material.depthWrite = false;
-        child.material.transparent = true;
+        TransparentStateAuthority.apply(child, 'transparent', {
+          renderOrder: 0,
+          depthTest: false,
+          depthWrite: false
+        });
       }
+      child.userData.__renderHierarchyLocked = true;
       return; // Don't process further
     }
     
     // SHELLS: Render after core, protected
     if (child.userData?.visualLayer === 'CORE_SHELL' || child.userData?.isHologramShell) {
-      child.renderOrder = 5;
       child.visible = true;
       child.frustumCulled = false; // ✅ CRITICAL: Never cull
       if (child.material) {
-        child.material.depthTest = false;
-        child.material.depthWrite = false;
-        child.material.transparent = true;
+        TransparentStateAuthority.apply(child, 'holo', { renderOrder: 5 });
       }
+      child.userData.__renderHierarchyLocked = true;
       return;
     }
     
     // AURAS: Render last (background)
     if (child.userData?.visualLayer === 'AURA' || child.userData?.isAura) {
-      child.renderOrder = 10;
       child.visible = true;
       if (child.material) {
-        child.material.transparent = true;
+        TransparentStateAuthority.apply(child, 'transparent', {
+          renderOrder: 10,
+          depthTest: true,
+          depthWrite: false
+        });
       }
+      child.userData.__renderHierarchyLocked = true;
       return;
     }
     
@@ -164,6 +174,7 @@ export function enforceRenderHierarchy(node) {
     if (child.userData?.visualLayer === 'VFX' || child.userData?.isNonLinkableVisual) {
       child.visible = true;
       child.frustumCulled = false; // ✅ CRITICAL: Never cull VFX
+      child.userData.__renderHierarchyLocked = true;
       return;
     }
   });
