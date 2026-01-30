@@ -421,7 +421,7 @@ export class NodeEditor {
   }
   
   /**
-   * Handle right click (context menu / cancel linking)
+   * Handle right click (cancel linking)
    */
   handleRightClick(event) {
     event.preventDefault();

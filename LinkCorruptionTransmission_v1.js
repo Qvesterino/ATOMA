@@ -46,6 +46,10 @@ THREE_SAFE =
 
 const THREE = THREE_SAFE;
 
+// Phase C.3: corruption & harmony writes disabled
+// Link transmission is now evaluation-only.
+const PHASE_C3_METRIC_WRITE_LOCK = true;
+ 
 /**
  * Cascade threshold definitions
  */
@@ -2164,8 +2168,11 @@ export class LinkCorruptionTransmission_v1 {
       const stabilization = stabilizationApplied ?? 0;
       const baseInfectionDelta = 0.2;
       const attenuatedDelta = baseInfectionDelta * (1 - stabilization * 0.75);
+      const computedCorruption = Math.min(1.0, targetCorruptionBefore + attenuatedDelta);
       
-      targetNode.userData.corruption = Math.min(1.0, targetCorruptionBefore + attenuatedDelta);
+      if (!PHASE_C3_METRIC_WRITE_LOCK) {
+        targetNode.userData.corruption = computedCorruption;
+      }
       
       // Mark as infected
       if (!targetNode.userData.infectionSources) {
@@ -2204,8 +2211,10 @@ export class LinkCorruptionTransmission_v1 {
       const baseSurge = 1.0;
       const attenuatedSurge = baseSurge * (1 - stabilization * 0.75);
       
-      targetNode.userData.corruption = attenuatedSurge;
-      targetNode.userData.corruptionSurgeTime = Date.now();
+      if (!PHASE_C3_METRIC_WRITE_LOCK) {
+        targetNode.userData.corruption = attenuatedSurge;
+        targetNode.userData.corruptionSurgeTime = Date.now();
+      }
       
       // Trigger cascading to all outbound links
       this.triggeCascadeToOutboundLinks(targetNode);
@@ -2432,7 +2441,9 @@ export class LinkCorruptionTransmission_v1 {
     // Apply harmony gain with hard cap
     const harmonyAfter = Math.min(harmonyMax, harmonyBefore + dampenedGain);
 
-    harmonyTarget[harmonyFieldName] = harmonyAfter;
+    if (!PHASE_C3_METRIC_WRITE_LOCK) {
+      harmonyTarget[harmonyFieldName] = harmonyAfter;
+    }
 
     // Record cooldown timestamp (prevent re-entry)
     this.harmonyFeedbackLastTime.set(linkId, now);

@@ -6,6 +6,7 @@
 // - change raycast targets
 // - alter call frequency
 // - mutate scene / nodes / proxies
+// Phase B.6 – NodeTargeting rename (no behavior change)
 
 import * as THREE from 'three';
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
@@ -50,6 +51,17 @@ import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
 const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
+const _proxyCandidateScratch = [];
+const _scratchVecA = new THREE.Vector3();
+const _scratchVecB = new THREE.Vector3();
+const _scratchVecC = new THREE.Vector3();
+const _scratchFrustum = new THREE.Vector3();
+const NODE_TARGETING_MAX_DISTANCE = 8;
+const NODE_TARGETING_MAX_DISTANCE_SQ = NODE_TARGETING_MAX_DISTANCE * NODE_TARGETING_MAX_DISTANCE;
+const NODE_TARGETING_NDC_RADIUS = 0.6;
+const _nodeTargetingWorldPos = new THREE.Vector3();
+const _nodeTargetingProjected = new THREE.Vector3();
+const _nodeTargetingCandidateScratch = [];
 function getRaycastCostState() {
   if (typeof window === 'undefined') return null;
   if (window.DEBUG_RAYCAST_COST === undefined) {
@@ -61,7 +73,7 @@ function getRaycastCostState() {
       startTs: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
       lastLogTs: 0,
       categories: {},   // proxy_raycast, visual_raycast, resolve_hit, post_process
-      callsites: {},    // hover-loop, click, box-select, crosshair, link-context
+      callsites: {},    // hover-loop, click, box-select, crosshair
       interval: { start: (typeof performance !== 'undefined' ? performance.now() : Date.now()), categories: {}, callsites: {} }
     };
   }
@@ -164,7 +176,7 @@ function logRaycastCostSummary(renderer, aiNodes) {
  * // PRIORITY AUTHORITY
 // This system is the sole writer of link.priority.*
  * Node Linking System - Advanced interactive connection system with auto-predict
- * Animated Bézier curves, traffic simulation, context menus, special multi-output nodes
+ * Animated Bézier curves, traffic simulation, special multi-output nodes
  * Enhanced with professional neon visuals and effect system
  * [Session 144+] Undo/Redo support for all linking operations
  */// TODO(P2.2): route all priority updates via authority API
@@ -221,6 +233,26 @@ export class NodeLinkingSystem {
     this.renderer = renderer;
     this.aiNodes = aiNodes;
     
+    // Phase B.4 – event-gated (no visual change)
+    this.linksDirty = true;
+    this.nodesDirty = true;
+    this.cameraDirty = true;
+    this._lastDirtyCameraPos = new THREE.Vector3();
+    this._lastDirtyCameraQuat = new THREE.Quaternion();
+    if (this.camera) {
+      this._lastDirtyCameraPos.copy(this.camera.position);
+      this._lastDirtyCameraQuat.copy(this.camera.quaternion);
+    }
+    this.raycastConfig = {
+      enabled: true,                   // Phase B.5 – event-gated (no visual change)
+      maxProxyDistance: 6000,          // generous; only trims extreme outliers
+      screenMargin: 0.2                // allow slight off-screen proxies
+    };
+    this._raycastProfileState = {
+      frame: 0,
+      accum: null
+    };
+    
     // [Audit 6.2] World transition safety flag
     this.worldReady = true;  // Set to false during world resets
     
@@ -265,8 +297,6 @@ export class NodeLinkingSystem {
     this._lastAIReport = null;
     // Collapse arbiter decisions (meaning-only; no structural effects)
     this.lastCollapseDecisions = new Map(); // linkId -> decision object
-    this.contextMenu = null;
-    this.selectedLink = null;
     
     // [Primary Node System] Persistent selection state
     this.primaryNode = null;  // Persistent Primary Node reference
@@ -399,7 +429,140 @@ export class NodeLinkingSystem {
     });
     
     this.setupEventListeners();
-    this.createContextMenu();
+  }
+
+  // Phase B.5 – Raycast candidate filter (coarse frustum + distance)
+  _filterRaycastCandidates(objects) {
+    if (window.__DBG_RAYCAST_USE_FAST_PATH === false) return objects;
+    if (!this.raycastConfig?.enabled || !Array.isArray(objects)) return objects;
+    const margin = this.raycastConfig.screenMargin ?? 0.2;
+    const maxDist = this.raycastConfig.maxProxyDistance ?? Infinity;
+    const maxDistSq = maxDist * maxDist;
+    const camera = this.camera;
+    _proxyCandidateScratch.length = 0;
+
+    for (let i = 0; i < objects.length; i++) {
+      const obj = objects[i];
+      if (!obj) continue;
+      obj.getWorldPosition(_scratchVecA);
+
+      // Distance gate (camera origin)
+      if (camera) {
+        const distSq = camera.position.distanceToSquared(_scratchVecA);
+        if (distSq > maxDistSq) continue;
+      }
+
+      // Screen-space gate (cheap NDC bounds check)
+      if (camera) {
+        _scratchFrustum.copy(_scratchVecA).project(camera);
+        if (Math.abs(_scratchFrustum.x) > 1 + margin && Math.abs(_scratchFrustum.y) > 1 + margin) {
+          continue;
+        }
+      }
+
+      _proxyCandidateScratch.push(obj);
+    }
+
+    return _proxyCandidateScratch.length > 0 ? _proxyCandidateScratch : objects;
+  }
+
+  _nodeWithinTargetingBounds(node) {
+    if (!node || !this.camera) return true;
+
+    node.getWorldPosition(_nodeTargetingWorldPos);
+    const distSq = this.camera.position.distanceToSquared(_nodeTargetingWorldPos);
+    if (distSq > NODE_TARGETING_MAX_DISTANCE_SQ) {
+      return false;
+    }
+
+    _nodeTargetingProjected.copy(_nodeTargetingWorldPos).project(this.camera);
+    if (Math.abs(_nodeTargetingProjected.x) > NODE_TARGETING_NDC_RADIUS ||
+        Math.abs(_nodeTargetingProjected.y) > NODE_TARGETING_NDC_RADIUS) {
+      return false;
+    }
+    if (_nodeTargetingProjected.z < 0 || _nodeTargetingProjected.z > 1) {
+      return false;
+    }
+
+    return true;
+  }
+
+  _filterNodeTargetingProxies(proxies) {
+    if (!Array.isArray(proxies) || proxies.length === 0 || !this.camera) {
+      return proxies;
+    }
+
+    _nodeTargetingCandidateScratch.length = 0;
+    for (const proxy of proxies) {
+      if (!proxy) continue;
+      const nodeId = proxy.userData?.targetNodeId || proxy.userData?.nodeId;
+
+      if (!nodeId) {
+        _nodeTargetingCandidateScratch.push(proxy);
+        continue;
+      }
+
+      const node = this._findNodeById(nodeId);
+      if (!node) {
+        _nodeTargetingCandidateScratch.push(proxy);
+        continue;
+      }
+
+      if (this._nodeWithinTargetingBounds(node)) {
+        _nodeTargetingCandidateScratch.push(proxy);
+      }
+    }
+
+    if (_nodeTargetingCandidateScratch.length === 0) {
+      return [];
+    }
+
+    if (_nodeTargetingCandidateScratch.length === proxies.length) {
+      return proxies;
+    }
+
+    return _nodeTargetingCandidateScratch;
+  }
+
+  // Phase B.5 – optional debug profiler (opt-in)
+  _recordRaycastProfile(sample) {
+    if (window.__DBG_RAYCAST_PROFILE !== true) return;
+    const state = this._raycastProfileState;
+    state.frame = (state.frame || 0) + 1;
+    if (!state.accum) {
+      state.accum = { totalLinks: 0, candidates: 0, coarsePassed: 0, fineTests: 0, hit: 0, ms: 0, count: 0 };
+    }
+    const a = state.accum;
+    a.totalLinks += sample.totalLinks || 0;
+    a.candidates += sample.candidates || 0;
+    a.coarsePassed += sample.coarsePassed || 0;
+    a.fineTests += sample.fineTests || 0;
+    a.hit += sample.hit ? 1 : 0;
+    a.ms += sample.ms || 0;
+    a.count += 1;
+    if (state.frame % 120 === 0) {
+      const n = a.count || 1;
+      console.log('[RaycastProfile]', {
+        totalLinks: Math.round(a.totalLinks / n),
+        candidates: Math.round(a.candidates / n),
+        coarsePassed: Math.round(a.coarsePassed / n),
+        fineTests: Math.round(a.fineTests / n),
+        hitRate: (a.hit / n).toFixed(2),
+        msAvg: (a.ms / n).toFixed(3)
+      });
+      state.accum = null;
+    }
+  }
+
+  // Phase B.4 – event-gated (no visual change)
+  _markLinksDirty() {
+    this.linksDirty = true;
+  }
+  _markNodesDirty() {
+    this.nodesDirty = true;
+  }
+  _markCameraDirty() {
+    this.cameraDirty = true;
   }
   
   /**
@@ -407,17 +570,20 @@ export class NodeLinkingSystem {
    */
   setupEventListeners() {
     this.onClick = this.handleClick.bind(this);
-    this.onContextMenu = this.handleContextMenu.bind(this);
     this.onKeyDown = this.handleKeyDown.bind(this);
     this.onMouseDown = this.handleMouseDown.bind(this);
     this.onMouseMove = this.handleMouseMove.bind(this);
     this.onMouseUp = this.handleMouseUp.bind(this);
+    this.onContextMenu = (e) => {
+      e.preventDefault();
+      this.deselectNode();
+    };
     
     this.renderer.domElement.addEventListener('click', this.onClick);
-    this.renderer.domElement.addEventListener('contextmenu', this.onContextMenu);
     this.renderer.domElement.addEventListener('mousedown', this.onMouseDown);
     this.renderer.domElement.addEventListener('mousemove', this.onMouseMove);
     this.renderer.domElement.addEventListener('mouseup', this.onMouseUp);
+    this.renderer.domElement.addEventListener('contextmenu', this.onContextMenu);
     document.addEventListener('keydown', this.onKeyDown);
     
     // Touch support for click-to-link
@@ -457,125 +623,6 @@ export class NodeLinkingSystem {
     
     document.body.appendChild(boxEl);
     this.boxSelectState.visualBox = boxEl;
-  }
-  
-  /**
-   * Create context menu DOM element
-   */
-  createContextMenu() {
-    // Check if menu already exists in DOM
-    let menu = document.getElementById('link-context-menu');
-    if (menu) {
-      this.contextMenu = menu;
-      return;
-    }
-    
-    menu = document.createElement('div');
-    menu.id = 'link-context-menu';
-    menu.style.cssText = `
-      position: fixed;
-      display: none;
-      background: rgba(0, 15, 30, 0.95);
-      border: 2px solid #00ffff;
-      border-radius: 4px;
-      padding: 8px 0;
-      min-width: 180px;
-      z-index: 10000;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-    `;
-    
-    document.body.appendChild(menu);
-    this.contextMenu = menu;
-  }
-  
-  /**
-   * Show context menu for link
-   */
-  showContextMenu(link, clientX, clientY) {
-    if (!this.contextMenu) return;
-    
-    this.selectedLink = link;
-    
-    const menuItems = [
-      { label: 'Delete Link', action: 'delete', color: '#ff4444' },
-      { label: 'Priority: Low', action: 'priority-low', color: '#ffaa00' },
-      { label: 'Priority: Normal', action: 'priority-normal', color: '#00ffff' },
-      { label: 'Priority: High', action: 'priority-high', color: '#ff00ff' },
-      { label: 'Inspect Traffic', action: 'inspect', color: '#00ffaa' }
-    ];
-    
-    let html = '';
-    menuItems.forEach(item => {
-      html += `
-        <div style="
-          padding: 8px 16px;
-          cursor: pointer;
-          color: ${item.color};
-          text-shadow: 0 0 8px ${item.color}40;
-          transition: all 0.2s;
-          border-left: 3px solid transparent;
-          user-select: none;
-        " data-action="${item.action}"
-        onmouseover="this.style.borderLeftColor = '${item.color}'; this.style.background = '${item.color}20';"
-        onmouseout="this.style.borderLeftColor = 'transparent'; this.style.background = 'transparent';">
-          ${item.label}
-        </div>
-      `;
-    });
-    
-    this.contextMenu.innerHTML = html;
-    this.contextMenu.style.display = 'block';
-    this.contextMenu.style.left = (clientX + 10) + 'px';
-    this.contextMenu.style.top = (clientY + 10) + 'px';
-    
-    // Bind menu item clicks
-    this.contextMenu.querySelectorAll('div[data-action]').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const action = item.dataset.action;
-        this.handleContextMenuAction(action, link);
-        this.hideContextMenu();
-      });
-    });
-  }
-  
-  /**
-   * Hide context menu
-   */
-  hideContextMenu() {
-    if (this.contextMenu) {
-      this.contextMenu.style.display = 'none';
-    }
-    this.selectedLink = null;
-  }
-  
-  /**
-   * Handle context menu actions
-   */
-  handleContextMenuAction(action, link) {
-    switch(action) {
-      case 'delete':
-        this.createLinkBreakEffect(link);
-        this.removeLink(link);
-        break;
-      case 'priority-low':
-        link.traffic.priority = 0.2;
-        this.createPriorityFeedback(link, 'LOW');
-        break;
-      case 'priority-normal':
-        link.traffic.priority = 0.5;
-        this.createPriorityFeedback(link, 'NORMAL');
-        break;
-      case 'priority-high':
-        link.traffic.priority = 1;
-        this.createPriorityFeedback(link, 'HIGH');
-        break;
-      case 'inspect':
-        this.createInspectionOverlay(link);
-        break;
-    }
   }
   
   /**
@@ -767,9 +814,6 @@ export class NodeLinkingSystem {
       return;
     }
     
-    // Dismiss context menu on any click
-    this.hideContextMenu();
-    
     // Check if Ctrl key is held
     const isCtrlClick = event.ctrlKey || event.metaKey;  // metaKey for Mac Cmd
     
@@ -932,6 +976,7 @@ export class NodeLinkingSystem {
     // Set new Primary Node
     this.primaryNode = node;
     this.selectedNode = node;  // Sync with legacy selectedNode for compatibility
+    this._markNodesDirty();
     
     // Create Primary Node highlight
     this.createPrimaryNodeHighlight(node);
@@ -1384,6 +1429,7 @@ export class NodeLinkingSystem {
     // Clear state
     this.primaryNode = null;
     this.selectedNode = null;
+    this._markNodesDirty();
     
     // Remove highlight
     this.clearPrimaryNodeHighlight();
@@ -2519,6 +2565,7 @@ getLinksForNode(node) {
     
     for (const node of this.aiNodes.nodes) {
       if (!node || !node.visible) continue;
+      if (!this._nodeWithinTargetingBounds(node)) continue;
 
       if (node.userData?._boundsDirty) {
         this.computeNodeBoundingSphere(node);
@@ -2638,22 +2685,22 @@ getLinksForNode(node) {
       }
       
       const nodeSphere = node.userData.boundingSphere;
-      const nodeCenter = nodeSphere.center.clone();
+      _scratchVecB.copy(nodeSphere.center);
       const effectiveRadius = nodeSphere.radius + bufferRadius;
       
       // Calculate closest point on ray to sphere center
-      const toNode = nodeCenter.clone().sub(rayOrigin);
-      const projection = toNode.dot(rayDirection);
+      _scratchVecC.copy(_scratchVecB).sub(rayOrigin);
+      const projection = _scratchVecC.dot(rayDirection);
       
       // Only consider nodes in front of camera
       if (projection < 0) continue;
       
-      const closestPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projection));
-      const distanceToNode = closestPoint.distanceTo(nodeCenter);
+      _scratchVecA.copy(rayDirection).multiplyScalar(projection).add(rayOrigin);
+      const distanceToNode = _scratchVecA.distanceTo(_scratchVecB);
       
       // Check if ray passes within selection buffer of node
       if (distanceToNode <= effectiveRadius && projection <= this.interactionConfig.maxLinkingDistance) {
-        const distanceFromCamera = rayOrigin.distanceTo(nodeCenter);
+        const distanceFromCamera = rayOrigin.distanceTo(_scratchVecB);
         
         // Select closest node (prefer nodes closer to camera)
         if (distanceFromCamera < closestDistance) {
@@ -2687,12 +2734,17 @@ getLinksForNode(node) {
       
       // ONLY use hit-proxies (visual meshes excluded)
       const hitProxyMeshes = window.hitProxySystem?.registry?.getAllProxies() || [];
-      
+
       if (hitProxyMeshes.length === 0) {
         return null;  // No proxies available
       }
-      
-      const intersects = this.raycaster.intersectObjects(hitProxyMeshes, false);
+
+      const boundedProxies = this._filterNodeTargetingProxies(hitProxyMeshes);
+      if (boundedProxies.length === 0) {
+        return null;
+      }
+
+      const intersects = this.raycaster.intersectObjects(boundedProxies, false);
       const filtered = filterRaycastIntersections(intersects);
       
       if (filtered.length > 0) {
@@ -2729,8 +2781,9 @@ getLinksForNode(node) {
       // Collect all visible node meshes (direct - no proxies)
       const nodeMeshes = [];
       if (this.aiNodes?.nodes) {
-        for (const node of this.aiNodes.nodes) {
-          node.traverse(child => {
+      for (const node of this.aiNodes.nodes) {
+        if (!this._nodeWithinTargetingBounds(node)) continue;
+        node.traverse(child => {
             if (child.isMesh) {
               nodeMeshes.push(child);
             }
@@ -2761,104 +2814,6 @@ getLinksForNode(node) {
     }
   }
   
-  /**
-   * Handle right-click context menu
-   * Note: Now only shows for links, not nodes (nodes use RMB hold for link removal)
-   */
-  handleContextMenu(event) {
-    event.preventDefault();
-    
-    // Don't show context menu if RMB hold threshold was met
-    if (this.rmbState.holdThresholdMet) {
-      return;
-    }
-    
-    // Try to find a link at click position
-    const clickedLink = this.getLinkAtPosition(event.clientX, event.clientY);
-    if (clickedLink) {
-      this.showContextMenu(clickedLink, event.clientX, event.clientY);
-    }
-  }
-  
-  /**
-   * Get link at mouse position (raycast on link paths)
-   */
-  getLinkAtPosition(clientX, clientY) {
-    // Guard: Prevent crash if renderer or DOM element is unavailable
-    if (!this.renderer || !this.renderer.domElement || 
-        typeof this.renderer.domElement.getBoundingClientRect !== 'function') {
-      return null;
-    }
-    
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-    
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    
-    // ========================================================================
-    // [SESSION 62] HARD PRE-FILTER: Hit-Proxy-Only Raycasting for Links
-    // ========================================================================
-    // STRICT ENFORCEMENT: NEVER pass real link arrow meshes to raycaster
-    // STRATEGY: Use node proxies to detect link endpoints, then find connected link
-    
-    // 1. Get hit-proxies from registry (not link arrows)
-    const hitProxyMeshes = window.hitProxySystem?.registry?.getAllProxies() || [];
-    
-    // 2. Guard: No proxies available → cannot safely raycast
-    if (hitProxyMeshes.length === 0) {
-      console.warn('[NodeLinkingSystem.getLinkAtPosition] No hit-proxies available');
-      return null;
-    }
-    
-    // 3. Dev-mode assertion: Validate ALL meshes are hit-proxies
-    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      for (const mesh of hitProxyMeshes) {
-        console.assert(
-          mesh.userData?.isHitProxy === true,
-          `[RAYCAST AUDIT] Non-proxy in getLinkAtPosition: ${mesh.name}`
-        );
-      }
-    }
-    
-    // 4. Raycast ONLY against hit-proxy meshes (guaranteed safe)
-    const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    const intersects = this.raycaster.intersectObjects(hitProxyMeshes, false);
-    const proxyElapsed = (typeof performance !== 'undefined')
-      ? (performance.now() - proxyStart)
-      : (Date.now() - proxyStart);
-    recordRaycastCost('proxy_raycast', proxyElapsed, 'link-context', { path: 'proxy' });
-
-    const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    const filtered = filterRaycastIntersections(intersects);
-    const resolveElapsed = (typeof performance !== 'undefined')
-      ? (performance.now() - resolveStart)
-      : (Date.now() - resolveStart);
-    recordRaycastCost('resolve_hit', resolveElapsed, 'link-context', { path: 'proxy' });
-    
-    if (filtered.length > 0) {
-      // 5. Map proxy hit to node ID, then find connected links
-      const targetNodeId = filtered[0].object?.userData?.targetNodeId;
-      if (targetNodeId) {
-        // Find all active links connected to this node endpoint
-        const connectedLinks = this.links.filter(link => 
-          link.active && (
-            link.source?.userData?.id === targetNodeId || 
-            link.target?.userData?.id === targetNodeId
-          )
-        );
-        
-        // Return first connected link (or could filter by visual proximity)
-        if (connectedLinks.length > 0) {
-          return connectedLinks[0];
-        }
-      }
-    }
-    
-    return null;
-  }
-  
-
   /**
    * Check if source node is a special multi-output node
    */
@@ -3258,6 +3213,8 @@ getLinksForNode(node) {
       this.links.push(link);
       LinkPrioritySystem.initializeLinkPriority(link);
       this._addLinkToIndex(link);
+      this._markLinksDirty();
+      this._markNodesDirty();
 
       const srcId = link.sourceNodeId;
       const tgtId = link.targetNodeId;
@@ -3319,6 +3276,8 @@ getLinksForNode(node) {
     };
     
     this.links.push(link);
+    this._markLinksDirty();
+    this._markNodesDirty();
     
     // 4. Register with sub-systems
     this.visuals.registerLink(link.id, link.group);
@@ -4268,10 +4227,24 @@ getLinksForNode(node) {
       return;
     }
 
+    // Phase B.4 – event-gated (no visual change)
+    if (this.camera) {
+      const posDist = this.camera.position.distanceToSquared(this._lastDirtyCameraPos);
+      const rotAngle = this.camera.quaternion.angleTo(this._lastDirtyCameraQuat);
+      const POS_EPS = 1e-7;
+      const ROT_EPS = 1e-7;
+      if (posDist > POS_EPS || rotAngle > ROT_EPS) {
+        this._markCameraDirty();
+        this._lastDirtyCameraPos.copy(this.camera.position);
+        this._lastDirtyCameraQuat.copy(this.camera.quaternion);
+      }
+    }
+
     // Phase 3B: process at most 1 pending link visual per frame
     if (this.pendingLinkVisualsQueue.length > 0) {
       const pending = this.pendingLinkVisualsQueue.shift();
       this._realizeLinkVisuals(pending);
+      this._markLinksDirty();
     }
     
     // [Session 20 FIX] Initialize synergy update counter
@@ -4350,15 +4323,6 @@ getLinksForNode(node) {
     if (this.flowSystem) {
       this.flowSystem.animate(deltaTime, time);
     }
-    
-    // Update crosshair targeting state
-    this.updateCrosshairTargeting();
-    
-    // Update node hover states for selection glow feedback
-    this.updateNodeHoverStates();
-
-    // Debug-only: emit aggregated raycast cost stats on interval
-    logRaycastCostSummary(this.renderer, this.aiNodes);
     
     // [LinkGuard] Collect dead links for cleanup after iteration
     const deadLinks = [];
@@ -4460,11 +4424,33 @@ getLinksForNode(node) {
       }
     });
   }
+
+  // Phase B.5 – FrameScheduler-driven node targeting tick (visual tier)
+  processNodeTargeting() {
+    if (!this.worldReady) return;
+    const shouldRunLinkRaycasts = this.linksDirty || this.nodesDirty || this.cameraDirty;
+    if (!shouldRunLinkRaycasts) return;
+
+    this.updateCrosshairNodeTargeting();
+    this.updateNodeHoverStates();
+
+    // Debug-only: emit aggregated raycast cost stats on interval
+    logRaycastCostSummary(this.renderer, this.aiNodes);
+
+    this.linksDirty = false;
+    this.nodesDirty = false;
+    this.cameraDirty = false;
+  }
+
+  // Backward compatibility alias (no behavior change)
+  processRaycast() {
+    return this.processNodeTargeting();
+  }
   
   /**
-   * Update crosshair targeting state (raycast to detect if aiming at node)
+   * Update crosshair targeting state (node targeting via raycast implementation)
    */
-  updateCrosshairTargeting() {
+  updateCrosshairNodeTargeting() {
     const crosshairEl = document.getElementById('crosshair');
     const crosshairState = window.__crosshairRaycastState || (window.__crosshairRaycastState = {
       node: null,
@@ -4499,13 +4485,15 @@ getLinksForNode(node) {
     // Before: Collected all real meshes (cores, auras, glyphs) → raycast violations
     // After: Use registered hit-proxy meshes only → zero violations
     let proxyMeshes = [];
-    
     if (window.hitProxySystem && window.hitProxySystem.registry) {
       proxyMeshes = window.hitProxySystem.registry.getAllProxies();
     }
+    const totalProxies = proxyMeshes.length;
+    const boundedProxies = this._filterNodeTargetingProxies(proxyMeshes);
+    const candidateMeshes = this._filterRaycastCandidates(boundedProxies);
     
     // If no proxy system available, fall back safely
-    if (proxyMeshes.length === 0) {
+    if (candidateMeshes.length === 0) {
       crosshairEl.classList.remove('targeting');
       crosshairState.node = null;
       crosshairState.proxyHit = false;
@@ -4540,7 +4528,7 @@ getLinksForNode(node) {
     
     // Raycast ONLY against hit-proxy meshes
     const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    const intersects = this.raycaster.intersectObjects(proxyMeshes, false);
+    const intersects = this.raycaster.intersectObjects(candidateMeshes, false);
     const proxyElapsed = (typeof performance !== 'undefined')
       ? (performance.now() - proxyStart)
       : (Date.now() - proxyStart);
@@ -4552,6 +4540,14 @@ getLinksForNode(node) {
       ? (performance.now() - resolveStart)
       : (Date.now() - resolveStart);
     recordRaycastCost('resolve_hit', resolveElapsed, 'crosshair', { path: 'proxy' });
+    this._recordRaycastProfile({
+      totalLinks: totalProxies,
+      candidates: candidateMeshes.length,
+      coarsePassed: filtered.length,
+      fineTests: intersects.length,
+      hit: filtered.length > 0,
+      ms: proxyElapsed + resolveElapsed
+    });
     
     // Resolve node from proxy hit (if any)
     let resolvedNode = null;
@@ -4586,6 +4582,11 @@ getLinksForNode(node) {
     this.lastCrosshairCameraPos.copy(this.camera.position);
     this.lastCrosshairCameraQuat.copy(this.camera.quaternion);
     this.crosshairRaycastStats.executed++;
+  }
+
+  // Backward compatibility alias (no behavior change)
+  updateCrosshairTargeting() {
+    return this.updateCrosshairNodeTargeting();
   }
   
   /**
@@ -5786,6 +5787,8 @@ getLinksForNode(node) {
    */
   removeLink(link) {
     link.active = false;
+    this._markLinksDirty();
+    this._markNodesDirty();
     
     // Canonical metrics: link removal hook
     if (link.source && link.target) {
@@ -6122,16 +6125,6 @@ getLinksForNode(node) {
       }
     } catch (err) {
       console.warn('[NodeLinkingSystem] Error during link disposal loop:', err);
-    }
-    
-    try {
-      // Remove context menu (defensive)
-      if (this.contextMenu && typeof this.contextMenu.remove === 'function') {
-        this.contextMenu.remove();
-      }
-      this.contextMenu = null;
-    } catch (err) {
-      console.warn('[NodeLinkingSystem] Error removing context menu:', err);
     }
     
     try {

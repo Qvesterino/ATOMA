@@ -70,6 +70,7 @@ class LinkAuraInstance {
     this.fadeSpeed = 3.0;      // Intensity fade speed
     this.scaleSpeed = 2.0;     // Radius scaling speed
     this.meshLength = 1.0;     // Cylinder length (updated each frame)
+    this.time = 0.0;           // Per-instance time accumulator
 
     // Track link signal state
     this.lastSynergy = 0;
@@ -183,6 +184,9 @@ const AURA_PROFILES = {
   }
 };
 
+// Pooled materials keyed by profile.name to keep program/material count bounded
+const AURA_MATERIAL_POOL = new Map();
+
 /**
  * LinkAuraSystem_v1: Main registry and manager for all active link auras
  */
@@ -231,7 +235,7 @@ export class LinkAuraSystem_v1 {
     const profileId = this.profileResolver ? this.profileResolver(link) : 'stability_aura';
     const profile = AURA_PROFILES[profileId] || AURA_PROFILES.stability_aura;
 
-    // Create cylindrical aura mesh
+    // Create cylindrical aura mesh (material pooled per profile)
     const { mesh, material } = this._createAuraMesh(link, profile);
     if (!mesh) return;
 
@@ -240,11 +244,25 @@ export class LinkAuraSystem_v1 {
 
     // Create instance
     const instance = new LinkAuraInstance(link, mesh, material, profileId);
+    mesh.onBeforeRender = () => {
+      applyAuraUniforms(instance);
+    };
     this.auras.set(linkId, instance);
     this.stats.linksTracked = this.auras.size;
 
     if (this.debugEnabled) {
       console.log('[LinkAuraSystem_v1] Registered link aura:', { linkId, profileId });
+    }
+
+    if (typeof window !== 'undefined' && window.__ATOMA_DEBUG_LINK_MATS__ === true) {
+      const renderer = window.__ATOMA_RENDERER__;
+      const programCount = renderer?.info?.programs?.length;
+      const uniqueMaterials = new Set(Array.from(this.auras.values()).map(i => i.material)).size;
+      console.log('[LinkAuraSystem_v1] link aura registered', {
+        programs: programCount,
+        linkMeshes: this.auras.size,
+        uniqueMaterials
+      });
     }
   }
 
@@ -319,17 +337,8 @@ export class LinkAuraSystem_v1 {
       // Smooth update
       instance.update(deltaTime);
 
-      // Update shader uniforms
-      if (instance.material && instance.material.uniforms) {
-        instance.material.uniforms.uTime.value += deltaTime;
-        instance.material.uniforms.uAuraIntensity.value = instance.currentIntensity;
-        instance.material.uniforms.uAuraRadius.value = instance.radius;
-        instance.material.uniforms.uSynergy.value = synergy;
-        instance.material.uniforms.uQuality.value = quality / 100;
-        instance.material.uniforms.uEntropy.value = entropy;
-        instance.material.uniforms.uResonance.value = resonance;
-        instance.material.uniforms.uCorruption.value = corruption;
-      }
+      // Advance per-instance time (used in onBeforeRender)
+      instance.time += deltaTime;
 
       // Visibility
       instance.mesh.visible = instance.currentIntensity > 0.01;
@@ -381,7 +390,7 @@ export class LinkAuraSystem_v1 {
       const geometry = new THREE.CylinderGeometry(1, 1, 1, 16, 4, true);
       geometry.translate(0, 0.5, 0); // Center at origin for proper alignment
 
-      // Create material with custom shader
+      // Create material with custom shader (pooled per profile)
       const material = this._createAuraMaterial(profile);
       if (!material) return null;
 
@@ -404,31 +413,11 @@ export class LinkAuraSystem_v1 {
    */
   _createAuraMaterial(profile) {
     try {
-      const uniforms = {
-        uTime: { value: 0 },
-        uAuraIntensity: { value: 0.5 },
-        uAuraRadius: { value: 0.7 },
-        uAuraColor: { value: profile.baseColor },
-        uSynergy: { value: 0.5 },
-        uQuality: { value: 0.5 },
-        uEntropy: { value: 0.0 },
-        uResonance: { value: 0.0 },
-        uCorruption: { value: 0.0 },
-        uLfoSpeed: { value: profile.lfoSpeed },
-        uNoiseStrength: { value: profile.noiseStrength },
-        uCorruptionMult: { value: profile.corruptionMult },
-      };
-
-      const material = new THREE.ShaderMaterial({
-        uniforms,
-        vertexShader: this._getVertexShader(),
-        fragmentShader: this._getFragmentShader(),
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-
+      const material = getPooledAuraMaterial(
+        profile,
+        this._getVertexShader(),
+        this._getFragmentShader()
+      );
       return material;
     } catch (e) {
       console.error('[LinkAuraSystem_v1] Failed to create shader material:', e);
@@ -599,12 +588,69 @@ export class LinkAuraSystem_v1 {
     if (mesh.geometry) mesh.geometry.dispose();
     if (mesh.material) {
       if (Array.isArray(mesh.material)) {
-        mesh.material.forEach(m => m.dispose());
+        mesh.material.forEach(m => {
+          if (!m?.userData?.__pooledAura) m.dispose();
+        });
       } else {
-        mesh.material.dispose();
+        if (!mesh.material?.userData?.__pooledAura) {
+          mesh.material.dispose();
+        }
       }
     }
   }
+}
+
+// ============================================================================
+// Material pool + per-instance uniform application
+// ============================================================================
+function getPooledAuraMaterial(profile, vertexShader, fragmentShader) {
+  const key = profile?.name || 'default';
+  if (AURA_MATERIAL_POOL.has(key)) return AURA_MATERIAL_POOL.get(key);
+
+  const uniforms = {
+    uTime: { value: 0 },
+    uAuraIntensity: { value: 0.5 },
+    uAuraRadius: { value: 0.7 },
+    uAuraColor: { value: profile.baseColor },
+    uSynergy: { value: 0.5 },
+    uQuality: { value: 0.5 },
+    uEntropy: { value: 0.0 },
+    uResonance: { value: 0.0 },
+    uCorruption: { value: 0.0 },
+    uLfoSpeed: { value: profile.lfoSpeed },
+    uNoiseStrength: { value: profile.noiseStrength },
+    uCorruptionMult: { value: profile.corruptionMult },
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  material.userData.__pooledAura = true;
+  // Freeze program cache key to prevent program proliferation
+  material.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v1';
+
+  AURA_MATERIAL_POOL.set(key, material);
+  return material;
+}
+
+function applyAuraUniforms(instance) {
+  const mat = instance?.material;
+  if (!mat?.uniforms) return;
+  const u = mat.uniforms;
+  u.uTime.value = instance.time;
+  u.uAuraIntensity.value = instance.currentIntensity;
+  u.uAuraRadius.value = instance.radius;
+  u.uSynergy.value = instance.link.userData?.quality?.synergyNorm ?? 0.5;
+  u.uQuality.value = (instance.link.userData?.quality?.score ?? 50) / 100;
+  u.uEntropy.value = instance.link.userData?.metrics?.entropy ?? 0.0;
+  u.uResonance.value = instance.link.userData?.metrics?.resonance ?? 0.0;
+  u.uCorruption.value = instance.link.userData?.metrics?.corruption ?? 0.0;
 }
 
 // Global export

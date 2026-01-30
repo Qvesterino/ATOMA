@@ -109,7 +109,7 @@ export class InputSensoryGeometries {
         color: this._interpolateColor(color, 0xfffacd, 0.3), // Pale magenta tint
         metalness: 0.7,
         roughness: 0.2,
-        transmission: 0.1,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         emissive: color,
         emissiveIntensity: 0.15,
         transparent: true,
@@ -228,7 +228,7 @@ export class InputSensoryGeometries {
         color: this._interpolateColor(color, 0xd8bfd8, 0.4), // Thistle tint
         metalness: 0.5,
         roughness: 0.3,
-        transmission: 0.15,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         emissive: color,
         emissiveIntensity: 0.2,
         transparent: true,
@@ -271,7 +271,7 @@ export class InputSensoryGeometries {
       color: this._interpolateColor(color, 0x000000, 0.5), // Dark core
       metalness: 0.8,
       roughness: 0.1,
-      transmission: 0.2,
+      transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
       emissive: color,
       emissiveIntensity: 0.3,
       transparent: true,
@@ -353,7 +353,7 @@ export class InputSensoryGeometries {
         color: this._interpolateColor(color, 0xe6e6fa, 0.5), // Lavender blend
         metalness: 0.2,
         roughness: 0.5,
-        transmission: 0.3, // Slightly translucent
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         emissive: color,
         emissiveIntensity: 0.1,
         transparent: true,

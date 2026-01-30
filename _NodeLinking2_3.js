@@ -41,7 +41,6 @@ export class NodeLinking2_3 {
     // UI references
     this.uiTopBar = null;
     this.uiNodeInspectPanel = null;
-    this.uiContextMenu = null;
     this.uiSelectedNodeBadge = null;
     this.uiSelectedNodeHighlight = null;
     this.uiSelectedNodeLabel = null;
@@ -76,25 +75,8 @@ export class NodeLinking2_3 {
     this._onMouseUpCapture = (e) => {
       if (!this.enabled) return;
       if (e.button === 2) {
-        const now = performance.now();
-        const duration = now - (this._rmbDownTime || now);
-        
-        // ================================================================
-        // SHORT RMB CLICK (< 220ms) - UNLINK FIRST (before deselection)
-        // ================================================================
-        if (duration < 220) {
-          console.log('[RMB-UP] Short click detected (' + duration.toFixed(0) + 'ms)');
-          this.unlinkSelectedNode();  // Execute immediately while selection is active
-        }
-        // ================================================================
-        // LONG RMB HOLD (>= 300ms) - trigger Ghost Mode
-        // ================================================================
-        else if (duration >= 300) {
-          this._rmbLongHoldTriggered = true;
-          console.log('[RMB-UP] Long hold detected (' + duration.toFixed(0) + 'ms)');
-        }
-        // else: 220-300ms range - do nothing, let it be ignored
-        
+        this._deselectNode();
+        this._closeAllUI();
         this._rmbDownTime = 0;
       }
     };
@@ -124,17 +106,6 @@ export class NodeLinking2_3 {
     };
     document.addEventListener('keydown', this._onEscapeHandler);
 
-    // E key - open context menu
-    this._onEKeyHandler = (e) => {
-      if (e.key === 'e' || e.key === 'E') {
-        if (this.selectionCore?.hasSelection() && this.uiContextMenu) {
-          const selectedNode = this.selectionCore.getSelected();
-          const screenPos = this._getScreenPosition(selectedNode);
-          this.uiContextMenu.open(selectedNode, screenPos);
-        }
-      }
-    };
-    document.addEventListener('keydown', this._onEKeyHandler);
   }
 
   /**
@@ -204,23 +175,13 @@ export class NodeLinking2_3 {
   }
 
   /**
-   * RMB - LONG GHOST MODE (>=300ms)
-   * Note: Short RMB unlink is handled in mouseup capture
+   * RMB - Reserved for deselect
    */
   _onRightClick(e) {
     if (!this.enabled) return;
-
-    const selectedNode = this.selectionCore?.getSelected();
-
-    // ===============================================
-    // LONG RMB HOLD (>= 300ms) - Ghost Mode
-    // ===============================================
-    if (this._rmbLongHoldTriggered && selectedNode) {
-      console.log('[RMB-GHOST] Activating ghost mode');
-      this.handleGhostMode(selectedNode);
-      this._rmbLongHoldTriggered = false;
-      return;
-    }
+    this._deselectNode();
+    this._closeAllUI();
+    this._rmbLongHoldTriggered = false;
   }
 
   /**
@@ -806,13 +767,6 @@ export class NodeLinking2_3 {
    * Close all UI panels
    */
   _closeAllUI() {
-    if (this.uiContextMenu) {
-      if (typeof this.uiContextMenu.hide === 'function') {
-        this.uiContextMenu.hide();
-      } else if (typeof this.uiContextMenu.close === 'function') {
-        this.uiContextMenu.close();
-      }
-    }
   }
 
   /**
@@ -823,12 +777,9 @@ export class NodeLinking2_3 {
       'ui-world-status-bar',
       'ui-node-inspect-panel',
       'ui-hud-manager',
-      'ui-context-menu',
       'ui-category-legend',
       'ai-emotional-feed',
       'ui-node-hover-tooltip',
-      'ui-selected-node-badge-3-3',
-      'ui-selected-node-top-bar-3-4',
       'ui-primary-node-top-bar-3-7'
     ];
 
@@ -870,7 +821,6 @@ export class NodeLinking2_3 {
   setUIReferences(
     topBar = null,
     inspectPanel = null,
-    contextMenu = null,
     badge = null,
     highlight = null,
     label = null,
@@ -879,7 +829,6 @@ export class NodeLinking2_3 {
   ) {
     this.uiTopBar = topBar;
     this.uiNodeInspectPanel = inspectPanel;
-    this.uiContextMenu = contextMenu;
     this.uiSelectedNodeBadge = badge;
     this.uiSelectedNodeHighlight = highlight;
     this.uiSelectedNodeLabel = label;
@@ -931,9 +880,6 @@ export class NodeLinking2_3 {
     }
     if (this._onEscapeHandler) {
       document.removeEventListener('keydown', this._onEscapeHandler);
-    }
-    if (this._onEKeyHandler) {
-      document.removeEventListener('keydown', this._onEKeyHandler);
     }
 
     this.selectionCore = null;

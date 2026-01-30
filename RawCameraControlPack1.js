@@ -395,15 +395,7 @@ export class RawCameraControlPack1 {
       // ================================================================
       // ENFORCE #4: Roll axis ALWAYS 0 (hard-lock)
       // ================================================================
-      if (this.camera) {
-        if (Math.abs(this.camera.rotation.z) > 0.001) {
-          this.camera.rotation.z = 0;
-        }
-        // Ensure rotation order is correct for FPS
-        if (this.camera.rotation.order !== 'YXZ') {
-          this.camera.rotation.order = 'YXZ';
-        }
-      }
+      // Camera transform owned by FirstPersonCameraController; no per-frame writes here.
       
       // ================================================================
       // ENFORCE #5: All rotation influence remains ZERO
@@ -443,9 +435,7 @@ export class RawCameraControlPack1 {
       // ================================================================
       // ENFORCE #8: Verify camera has correct rotation order
       // ================================================================
-      if (this.camera && this.camera.rotation.order !== 'YXZ') {
-        this.camera.rotation.order = 'YXZ';
-      }
+      // Camera rotation order enforcement disabled; FirstPersonCameraController owns camera transform.
       
     } catch (e) {
       console.error('Raw camera control enforcement error:', e.message);

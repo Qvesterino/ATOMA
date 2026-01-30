@@ -864,6 +864,9 @@ export function createLinkShaderMaterial(): THREE.ShaderMaterial {
     linewidth: 2
   });
 
+  // Enforce single program cache key for all link shaders
+  material.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v1';
+
   return material;
 }
 

@@ -55,7 +55,7 @@ export class InputSensoryEnhanced {
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.6,
-        transmission: 0.3,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.2,
         ior: 1.4,
         transparent: true,
@@ -170,7 +170,7 @@ export class InputSensoryEnhanced {
           roughness: 0.3 + i * 0.05,
           emissive: color,
           emissiveIntensity: 0.3 - i * 0.04,
-          transmission: 0.2,
+          transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
           transparent: true,
           opacity: opacity,
           side: THREE.DoubleSide
@@ -197,7 +197,7 @@ export class InputSensoryEnhanced {
         roughness: 0.05,
         emissive: color,
         emissiveIntensity: 0.8,
-        transmission: 0.5,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.15,
         ior: 1.5,
         transparent: true,
@@ -247,7 +247,7 @@ export class InputSensoryEnhanced {
         roughness: 0.15,
         emissive: color,
         emissiveIntensity: 0.7,
-        transmission: 0.2,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.25,
         ior: 1.45
       });

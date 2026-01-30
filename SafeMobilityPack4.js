@@ -476,19 +476,7 @@ export class SafeMobilityPack4 {
   enforceCamera() {
     try {
       if (!this.camera) return;
-      
-      // Hard limit on tilt (roll)
-      if (Math.abs(this.camera.rotation.z) > 0.01) {
-        this.camera.rotation.z = 0;
-      }
-      
-      // FOV spike application
-      if (this.vfx.fovSpike > 1) {
-        const targetFOV = this.config.baseFOV * this.vfx.fovSpike;
-        this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.2);
-        this.camera.updateProjectionMatrix();
-      }
-      
+      // Camera transform authority centralized; no per-frame camera writes here.
     } catch (e) {
       console.warn('Camera enforcement error:', e.message);
     }

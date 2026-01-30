@@ -420,7 +420,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.8,
         roughness: 0.12,
-        transmission: 0.3,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.3,
         ior: 1.45,
         emissive: color,
@@ -531,7 +531,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.85,
         roughness: 0.1,
-        transmission: 0.35,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.35,
         ior: 1.48,
         emissive: color,
@@ -693,7 +693,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.85,
         roughness: 0.12,
-        transmission: 0.4,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.25,
         ior: 1.5,
         emissive: color,
@@ -1159,7 +1159,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.8,
         roughness: 0.12,
-        transmission: 0.2,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.3,
         ior: 1.45,
         emissive: color,
@@ -1699,7 +1699,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.75,
         roughness: 0.15,
-        transmission: 0.3,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.4,
         ior: 1.48,
         emissive: color,
@@ -1793,7 +1793,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.85,
         roughness: 0.1,
-        transmission: 0.4,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.35,
         ior: 1.5,
         emissive: color,
@@ -2123,7 +2123,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.6,
         roughness: 0.15,
-        transmission: 0.4,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.5,
         ior: 1.48,
         reflectivity: 0.7,
@@ -2284,7 +2284,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.8,
         roughness: 0.15,
-        transmission: 0.3,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.4,
         ior: 1.5,
         emissive: color,
@@ -2630,7 +2630,7 @@ export class EnhancedNodeModels {
     // Gold → Amber → Dark Honey internal color
     const transmissionMaterial = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(0xffd700).lerp(new THREE.Color(0xffb347), 0.5), // Gold-Amber base
-      transmission: 0.9,
+      transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
       thickness: 0.8,
       roughness: 0.1,
       metalness: 0.0,
@@ -3012,7 +3012,7 @@ export class EnhancedNodeModels {
         color: color,
         metalness: 0.9,
         roughness: 0.1,
-        transmission: 0.2,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         thickness: 0.3,
         ior: 1.45,
         emissive: color,

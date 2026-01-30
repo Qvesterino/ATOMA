@@ -12,7 +12,6 @@
  */
 
 import * as THREE from 'three';
-import { CameraSteadyFix1_0 } from './CameraSteadyFix1_0.js';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 
 export class NodeInspectOverlay1_0 {
@@ -20,9 +19,6 @@ export class NodeInspectOverlay1_0 {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
-    
-    // CAMERA STEADY FIX: Ensure camera stays stable
-    this.cameraSteadyFix = new CameraSteadyFix1_0();
     
     // ATOMA Language Engine: For archetype naming
     this.languageEngine = new AtomaLanguageEngine2_0();

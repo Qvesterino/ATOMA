@@ -19,7 +19,6 @@ class PlayerController {
     this.isOnGround = true;
     this.canJump = true;
     this.keys = {};
-    this.cameraMode = 'third-person'; // Default camera mode
 
     // Setup input handlers
     this.setupInput();
@@ -36,10 +35,6 @@ class PlayerController {
     document.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
-  }
-
-  setCameraMode(mode) {
-    this.cameraMode = mode;
   }
 
   /**
@@ -119,143 +114,11 @@ class PlayerController {
     this.player.position.y += this.velocity.y * deltaTime; // Vertical velocity already includes gravity effect
     this.player.position.z += this.velocity.z * deltaTime;
 
-
-    // --- Update Player Rotation ---
-    // Rotate player model to face movement direction (only in third-person mode)
-    // In first-person mode, the FirstPersonCameraController handles player rotation.
-    if (this.cameraMode === 'third-person' && (this.velocity.x !== 0 || this.velocity.z !== 0)) {
-      // Calculate the angle of the horizontal velocity vector (world space)
-      const angle = Math.atan2(this.velocity.x, this.velocity.z);
-
-      // Set the player's rotation to face the movement direction
-      // Works with standard 3D mesh orientation (front facing -Z)
-      this.player.rotation.y = angle;
-    }
-     // If not moving in third-person, the player keeps their last rotation.
-     // In first-person mode, the player's rotation is handled entirely by
-     // the FirstPersonCameraController synchronizing with the mouse look.
   }
 
   destroy() {
     // Clean up mobile controls
     this.mobileControls.destroy();
-  }
-}
-
-/**
- * ThirdPersonCameraController - Handles third-person camera positioning and rotation
- */
-class ThirdPersonCameraController {
-  constructor(camera, target, domElement, options = {}) {
-    this.camera = camera;
-    this.target = target;
-    this.domElement = domElement;
-
-    // Configuration
-    this.distance = options.distance || 7;
-    this.height = options.height || 3;
-    this.rotationSpeed = options.rotationSpeed || 0.003;
-
-    // State
-    this.rotation = 0;
-    this.isDragging = false;
-    this.mousePosition = { x: 0, y: 0 };
-    this.enabled = true;
-    
-    // MOUSE EVENT FIX 2.0: Track listener registration to prevent duplication
-    this.__mouseListenersRegistered = false;
-
-    // Setup mouse controls
-    this.setupMouseControls();
-  }
-
-  setupMouseControls() {
-    // MOUSE EVENT FIX 2.0: Guard to prevent duplicate listener registration
-    if (this.__mouseListenersRegistered) return;
-    this.__mouseListenersRegistered = true;
-    
-    // Mouse controls
-    this.domElement.addEventListener('mousedown', (e) => {
-      if (!this.enabled) return;
-      this.isDragging = true;
-      this.mousePosition = { x: e.clientX, y: e.clientY };
-    });
-
-    document.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!this.enabled || !this.isDragging) return;
-
-      const deltaX = e.clientX - this.mousePosition.x;
-      this.rotation -= deltaX * this.rotationSpeed;
-
-      this.mousePosition = { x: e.clientX, y: e.clientY };
-    });
-
-    // Touch controls for mobile (only if mobile)
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      let touchStart = null;
-      
-      this.domElement.addEventListener('touchstart', (e) => {
-        if (!this.enabled || e.touches.length !== 1) return;
-        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        e.preventDefault();
-      });
-
-      this.domElement.addEventListener('touchmove', (e) => {
-        if (!this.enabled || !touchStart || e.touches.length !== 1) return;
-        
-        const touch = e.touches[0];
-        const deltaX = touch.clientX - touchStart.x;
-        this.rotation -= deltaX * this.rotationSpeed * 2; // Slightly more sensitive on mobile
-        
-        touchStart = { x: touch.clientX, y: touch.clientY };
-        e.preventDefault();
-      });
-
-      this.domElement.addEventListener('touchend', (e) => {
-        touchStart = null;
-        e.preventDefault();
-      });
-    }
-  }
-
-  enable() {
-    this.enabled = true;
-  }
-
-  disable() {
-    this.enabled = false;
-    this.isDragging = false;
-  }
-
-  update() {
-    if (!this.enabled) return 0;
-
-    // Calculate camera position
-    const offset = new THREE.Vector3(
-      Math.sin(this.rotation) * this.distance,
-      this.height,
-      Math.cos(this.rotation) * this.distance
-    );
-
-    // Position camera
-    this.camera.position.copy(this.target.position).add(offset);
-
-    // Look at target
-    this.camera.lookAt(
-      this.target.position.x,
-      this.target.position.y + 1,
-      this.target.position.z
-    );
-
-    return this.rotation; // Return rotation for player movement
-  }
-
-  destroy() {
-    // Camera cleanup if needed
   }
 }
 
@@ -360,7 +223,6 @@ class FirstPersonCameraController {
   enable() {
     this.enabled = true;
 
-    // Note: rotationY will be set by setCameraMode before this is called
     this.rotationX = 0;
 
     // Hide player when in first-person mode
@@ -405,6 +267,7 @@ class FirstPersonCameraController {
   update() {
     if (!this.enabled) return 0;
 
+    // Camera transform authority centralized — no secondary per-frame writers allowed
     // Set player rotation to match camera's horizontal rotation
     this.player.rotation.y = this.rotationY;
 
@@ -422,4 +285,4 @@ class FirstPersonCameraController {
   }
 }
 
-export { PlayerController, ThirdPersonCameraController, FirstPersonCameraController };
+export { PlayerController, FirstPersonCameraController };

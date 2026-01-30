@@ -43,7 +43,7 @@ export class IntegrationEnhancedVariants {
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.5,
-        transmission: 0.2,
+        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
         transparent: true,
         opacity: 0.9,
         side: THREE.DoubleSide

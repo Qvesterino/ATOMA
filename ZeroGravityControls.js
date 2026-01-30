@@ -166,11 +166,7 @@ export class ZeroGravityControls {
     const swayZ = Math.sin(this.swayPhase * 1.1 + Math.PI / 2) * swayAmount * 0.3;
     
     // Apply sway to camera (subtle, dream-like)
-    if (this.initialCameraPosition) {
-      this.camera.position.x = this.player.position.x + this.initialCameraPosition.x + swayX;
-      this.camera.position.y = this.player.position.y + this.initialCameraPosition.y + swayY;
-      this.camera.position.z = this.player.position.z + this.initialCameraPosition.z + swayZ;
-    }
+    // Camera transform authority centralized; no per-frame camera writes here.
   }
   
   /**
@@ -333,15 +329,7 @@ export class FirstPersonCameraController {
   update() {
     if (!this.enabled) return this.yaw;
     
-    // Position camera at player eye height
-    this.camera.position.x = this.target.position.x;
-    this.camera.position.y = this.target.position.y + this.eyeHeight;
-    this.camera.position.z = this.target.position.z;
-    
-    // Apply rotation
-    this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch;
+    // Camera transform authority centralized; skip per-frame camera writes.
     
     return this.yaw;
   }

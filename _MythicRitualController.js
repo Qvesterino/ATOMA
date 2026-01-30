@@ -116,7 +116,7 @@ export class MythicRitualController {
       this.ritualPlayer = new MythicRitualPlayer(this.scene, this.camera, this.player);
     }
     
-    this.initializeHUD();
+   
     
     console.log('✓ Mythic Ritual Controller 1.0 initialized');
   }

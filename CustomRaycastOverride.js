@@ -42,7 +42,7 @@
  */
 
 import { RaycastTargetRegistry } from './RaycastTargetRegistry.js';
-import { RaycastDisabler } from './RaycastDisabler.js';
+import { RaycastSanitizationEngine } from './RaycastSanitizationEngine_v1.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HARD SAFETY OVERRIDE — Global Protection
@@ -267,7 +267,7 @@ export function initializeNodeRaycast(nodeMesh, nodeId = undefined) {
 
   // Step 3: Ensure no children are raycastable (safety measure)
   if (nodeMesh.children && nodeMesh.children.length > 0) {
-    RaycastDisabler.disableChildren(nodeMesh);
+    RaycastSanitizationEngine.disableRaycastOnGroup(nodeMesh);
   }
 
   return true;
@@ -285,8 +285,7 @@ export function disableNonInteractiveMesh(meshOrGroup) {
   if (!meshOrGroup) return false;
 
   if (meshOrGroup.isMesh) {
-    RaycastDisabler.disableMesh(meshOrGroup);
-    
+    RaycastSanitizationEngine.disableRaycastOnMesh(meshOrGroup);
     // ✅ HARD SAFETY: Explicitly block raycast
     meshOrGroup.userData = meshOrGroup.userData || {};
     meshOrGroup.userData.__ALLOW_RAYCAST__ = false;
@@ -295,8 +294,7 @@ export function disableNonInteractiveMesh(meshOrGroup) {
   }
 
   if (meshOrGroup.isGroup || meshOrGroup.children) {
-    RaycastDisabler.disableGroup(meshOrGroup);
-    
+    RaycastSanitizationEngine.disableRaycastOnGroup(meshOrGroup);
     // ✅ HARD SAFETY: Recursively block raycast on all children
     meshOrGroup.traverse(child => {
       if (child.isMesh) {
@@ -482,5 +480,5 @@ export default {
   auditRaycastSafety,
   printRaycastSafetyReport,
   RaycastTargetRegistry,
-  RaycastDisabler
+  // RaycastDisabler (removed)
 };

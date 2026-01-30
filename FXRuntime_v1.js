@@ -65,7 +65,6 @@ export class FXRuntime_v1 {
             worldFXPack: game?.worldFXPack || null,
             worldEvents: game?.worldEvents || null,
             worldPersonalityController: game?.worldPersonalityController || null,
-            worldStabilityPack: game?.worldStabilityPack || null,
             
             // Visual FX Systems
             personalityFX: game?.personalityFX || null,
@@ -84,7 +83,6 @@ export class FXRuntime_v1 {
             
             // Environmental FX
             weatherPack: game?.weatherPack || null,
-            cameraFX: game?.cameraFX || null,
             
             // Event FX
             legendaryPack: game?.legendaryPack || null,

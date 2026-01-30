@@ -156,11 +156,6 @@ export class WorldRuntime_v1 {
                 this.game.worldPersonalityController.update(delta, this.game.aiNodes.nodes);
             }
 
-            // Update world stability enforcement if available
-            if (this.game.worldStabilityPack?.update) {
-                this.game.worldStabilityPack.update?.(delta);
-            }
-
             // Update world reset fix system
             if (this.game.worldResetFix?.update) {
                 this.game.worldResetFix.update?.(delta);

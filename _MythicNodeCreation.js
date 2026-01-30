@@ -65,7 +65,6 @@ export class MythicNodeCreation {
     
     // HUD
     this.ritualHUD = null;
-    this.initializeHUD();
     
     // World state backup
     this.worldBackup = null;

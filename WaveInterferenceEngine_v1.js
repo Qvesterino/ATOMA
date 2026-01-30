@@ -398,6 +398,68 @@ export class WaveInterferenceEngine_v1 {
     }
     
     /**
+     * Request update from external trigger (Phase D.4: NODE_SPAWN only)
+     * 
+     * This is the entry point for external systems to notify the WaveInterferenceEngine
+     * of events that may require wave propagation.
+     * 
+     * Phase D.4 Scope:
+     * - Only processes NODE_SPAWN events
+     * - Only adds wave sources (no computation/propagation in this phase)
+     * - Debug-gated via CONFIG.debug.DEBUG_WAVE_ENGINE
+     * 
+     * @param {string} reason - Event type (e.g., 'NODE_SPAWN', 'LINK_CREATED')
+     * @param {Object} context - Event context (nodeId, nodePosition, etc.)
+     */
+    requestUpdate(reason, context = {}) {
+        try {
+            // Log request for verification (1× per spawn when DEBUG enabled)
+            console.log(`[WaveInterferenceEngine] requestUpdate: ${reason}`, context);
+            
+            // Phase D.4: Only handle NODE_SPAWN events
+            if (reason === 'NODE_SPAWN') {
+                // Validate required context
+                if (!context?.nodeId) {
+                    console.warn('[WaveInterferenceEngine] requestUpdate missing nodeId in context');
+                    return;
+                }
+                
+                if (!context?.nodePosition) {
+                    console.warn('[WaveInterferenceEngine] requestUpdate missing nodePosition in context');
+                    return;
+                }
+                
+                // Add wave source for spawned node
+                // Phase D.4: NO computation, NO propagation, only source registration
+                const sourceId = this.addWaveSource({
+                    type: 'NODE',
+                    nodeId: context.nodeId,
+                    originPosition: context.nodePosition,
+                    baseAmplitude: 0.8,
+                    baseFrequency: 2.0,
+                    decayRadius: 10,
+                    profile: 'SYNERGY',
+                    synergyBoost: 0.5,
+                    resonanceBoost: 0.3,
+                    corruptionBoost: 0
+                });
+                
+                if (sourceId) {
+                    console.log(`[WaveInterferenceEngine] ✓ Added wave source ${sourceId} for node ${context.nodeId}`);
+                }
+            }
+            
+            // Phase D.4: No other event types processed
+            // - LINK_CREATED: NOT YET
+            // - PHASE_CHANGED: NOT YET
+            // - Automatic fallbacks: NOT YET
+            
+        } catch (e) {
+            console.warn('[WaveInterferenceEngine] requestUpdate error:', e);
+        }
+    }
+    
+    /**
      * Main update - compute interference for all targets
      */
     update(deltaTime, entities = {}) {

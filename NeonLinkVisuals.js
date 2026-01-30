@@ -4,6 +4,56 @@ import { CONFIG } from './config.js';
 import VisualAuthorityLock from './VisualAuthorityLock.js';
 import VisualTime from './src/time/VisualTime.js';
 
+// Shared-material dedup configuration (default: enabled)
+const SHARED_MATERIAL_USAGE = {
+  neonLine: 0,
+  ghostLine: 0,
+  ghostValid: 0,
+  ghostInvalid: 0,
+  clonePathHits: 0
+};
+let SHARED_LINK_MATERIALS = null;
+let LAST_SHARED_MATERIAL_LOG = 0;
+
+const DEFAULT_LINE_COLOR = new THREE.Color(0x00ffff);
+const DEFAULT_GHOST_COLOR = new THREE.Color(0xffffff);
+const DEFAULT_VALID_COLOR = new THREE.Color(0x00ffff);
+const DEFAULT_INVALID_COLOR = new THREE.Color(0xff0000);
+const DEGRADATION_RED_TINT = new THREE.Color(1, 0.2, 0.2);
+const COLLAPSE_WARN_COLOR = new THREE.Color(1.0, 0.8, 0.2);
+const COLLAPSE_CRIT_COLOR = new THREE.Color(1.0, 0.1, 0.1);
+const COLLAPSE_ACTIVE_COLOR = new THREE.Color(1.0, 0.0, 0.0);
+
+function isMaterialDedupEnabled() {
+  return typeof window === 'undefined' ? true : window.__DEBUG_LINK_MATERIAL_DEDUP !== false;
+}
+
+function isMaterialDedupLogEnabled() {
+  return typeof window !== 'undefined' && window.__DEBUG_LINK_MATERIAL_DEDUP_LOG === true;
+}
+
+function logSharedMaterialUsage() {
+  if (!isMaterialDedupLogEnabled()) return;
+  const now = Date.now();
+  if (now - LAST_SHARED_MATERIAL_LOG < 5000) return;
+  LAST_SHARED_MATERIAL_LOG = now;
+  console.log(
+    `[NeonLinkVisuals] LinkMaterialDedup — shared neon:${SHARED_MATERIAL_USAGE.neonLine}, glow:${SHARED_MATERIAL_USAGE.ghostLine}, valid:${SHARED_MATERIAL_USAGE.ghostValid}, invalid:${SHARED_MATERIAL_USAGE.ghostInvalid}, cloneFallbacks:${SHARED_MATERIAL_USAGE.clonePathHits}`
+  );
+}
+
+function getSharedLinkMaterials(materials) {
+  if (!SHARED_LINK_MATERIALS) {
+    SHARED_LINK_MATERIALS = {
+      neonLine: materials.neonLine,
+      ghostLine: materials.ghostLine,
+      ghostValid: materials.ghostValid,
+      ghostInvalid: materials.ghostInvalid
+    };
+  }
+  return SHARED_LINK_MATERIALS;
+}
+
 /**
  * SANDBOXING GUARD: Prevents mutations of protected node visual layers
  * Protects: hologram shells, auras, core meshes, node roots
@@ -115,6 +165,158 @@ export class NeonLinkVisuals {
     
     // Create reusable materials
     this.materials = this.createMaterials();
+  }
+
+  _useSharedMaterials() {
+    return isMaterialDedupEnabled();
+  }
+
+  _getUniformDefaults(type) {
+    switch (type) {
+      case 'neonLine':
+        return { uColor: DEFAULT_LINE_COLOR, uStress: 0, uFlow: 1, uOpacity: 0.8, uWidth: 1, opacity: 1, linewidth: 1 };
+      case 'ghostLine':
+        return { uColor: DEFAULT_GHOST_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+      case 'ghostValid':
+        return { uColor: DEFAULT_VALID_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+      case 'ghostInvalid':
+        return { uColor: DEFAULT_INVALID_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+      default:
+        return {};
+    }
+  }
+
+  _ensureLinkUniformStore(mesh, type, seed = {}) {
+    if (!mesh) return null;
+    const defaults = this._getUniformDefaults(type);
+    const store = mesh.userData.__linkUniforms || {};
+    mesh.userData.__linkUniforms = store;
+
+    if (seed.uColor) {
+      store.uColor = seed.uColor;
+    } else if (!store.uColor && defaults.uColor) {
+      store.uColor = defaults.uColor.clone ? defaults.uColor.clone() : defaults.uColor;
+    }
+
+    if (seed.uStress !== undefined) store.uStress = seed.uStress;
+    else if (store.uStress === undefined && defaults.uStress !== undefined) store.uStress = defaults.uStress;
+
+    if (seed.uFlow !== undefined) store.uFlow = seed.uFlow;
+    else if (store.uFlow === undefined && defaults.uFlow !== undefined) store.uFlow = defaults.uFlow;
+
+    if (seed.uOpacity !== undefined) store.uOpacity = seed.uOpacity;
+    else if (store.uOpacity === undefined && defaults.uOpacity !== undefined) store.uOpacity = defaults.uOpacity;
+
+    if (seed.uWidth !== undefined) store.uWidth = seed.uWidth;
+    else if (store.uWidth === undefined && defaults.uWidth !== undefined) store.uWidth = defaults.uWidth;
+
+    if (seed.opacity !== undefined) store.opacity = seed.opacity;
+    else if (store.opacity === undefined && defaults.opacity !== undefined) store.opacity = defaults.opacity;
+
+    if (seed.linewidth !== undefined) store.linewidth = seed.linewidth;
+    else if (store.linewidth === undefined && defaults.linewidth !== undefined) store.linewidth = defaults.linewidth;
+
+    store.type = type;
+    return store;
+  }
+
+  _attachUniformPatcher(mesh, type) {
+    const defaults = this._getUniformDefaults(type);
+    mesh.onBeforeRender = (renderer, scene, camera, geometry, material) => {
+      const store = mesh.userData.__linkUniforms || {};
+      const uniforms = material.uniforms || {};
+
+      const colorSource = store.uColor || defaults.uColor;
+      if (uniforms.uColor && colorSource) {
+        uniforms.uColor.value.copy(colorSource);
+      }
+
+      if (uniforms.uStress) {
+        uniforms.uStress.value = store.uStress ?? defaults.uStress ?? 0;
+      }
+
+      if (uniforms.uFlow) {
+        uniforms.uFlow.value = store.uFlow ?? defaults.uFlow ?? 1;
+      }
+
+      if (uniforms.uOpacity) {
+        uniforms.uOpacity.value = store.uOpacity ?? defaults.uOpacity ?? 1;
+      }
+
+      if (uniforms.uWidth) {
+        uniforms.uWidth.value = store.uWidth ?? defaults.uWidth ?? 1;
+      }
+
+      if (store.opacity !== undefined || defaults.opacity !== undefined) {
+        material.opacity = store.opacity ?? defaults.opacity;
+      }
+
+      if (store.linewidth !== undefined || defaults.linewidth !== undefined) {
+        material.linewidth = store.linewidth ?? defaults.linewidth;
+      }
+    };
+  }
+
+  _setLinkOpacity(mesh, opacityVal) {
+    if (!mesh || !mesh.material) return;
+    if (this._useSharedMaterials()) {
+      const store = mesh.userData.__linkUniforms;
+      if (store) {
+        store.opacity = opacityVal;
+        if (store.uOpacity !== undefined) {
+          store.uOpacity = opacityVal;
+        }
+      }
+    }
+    mesh.material.opacity = opacityVal;
+    if (mesh.material.uniforms?.uOpacity) {
+      mesh.material.uniforms.uOpacity.value = opacityVal;
+    }
+  }
+
+  _setLinkColor(mesh, colorVal) {
+    if (!mesh || !colorVal) return;
+    if (this._useSharedMaterials()) {
+      const store = mesh.userData.__linkUniforms;
+      if (store?.uColor?.copy) {
+        store.uColor.copy(colorVal);
+      }
+    }
+    if (mesh.material?.uniforms?.uColor) {
+      mesh.material.uniforms.uColor.value.copy(colorVal);
+    } else if (mesh.material?.color) {
+      mesh.material.color.copy(colorVal);
+    }
+  }
+
+  _setLinkLinewidth(mesh, widthVal) {
+    if (!mesh || !mesh.material) return;
+    if (this._useSharedMaterials()) {
+      const store = mesh.userData.__linkUniforms;
+      if (store) {
+        store.linewidth = widthVal;
+        if (store.uWidth !== undefined) {
+          store.uWidth = widthVal;
+        }
+      }
+    }
+    mesh.material.linewidth = widthVal;
+  }
+
+  _tintLinkColor(mesh, targetColor, factor) {
+    if (!mesh || !targetColor) return;
+    const clampFactor = Math.max(0, Math.min(1, factor));
+    if (this._useSharedMaterials()) {
+      const store = mesh.userData.__linkUniforms;
+      if (store?.uColor?.lerp) {
+        store.uColor.lerp(targetColor, clampFactor);
+      }
+    }
+    if (mesh.material?.uniforms?.uColor?.value?.lerp) {
+      mesh.material.uniforms.uColor.value.lerp(targetColor, clampFactor);
+    } else if (mesh.material?.color?.lerp) {
+      mesh.material.color.lerp(targetColor, clampFactor);
+    }
   }
   
   /**
@@ -494,29 +696,45 @@ export class NeonLinkVisuals {
     
     // Global opacity control
     const globalOpacity = window.__linkVisual?.opacity ?? 0.8;
+    const useShared = this._useSharedMaterials();
     
     this.scene.traverse((obj) => {
       // Link Visual Language v2 shader materials
       if (obj.material && obj.material.uniforms) {
+        const uniformStore = obj.userData?.__linkUniforms;
+        const useDedupUniforms = useShared && uniformStore;
         // Animate time
         if (obj.material.uniforms.uTime) {
           obj.material.uniforms.uTime.value = this.time;
+          if (useDedupUniforms) uniformStore.uTime = this.time;
         }
         
         // Wire per-link stress or use global stress
         if (obj.material.uniforms.uStress) {
           const linkStress = obj.userData?.linkStress ?? networkStress;
-          obj.material.uniforms.uStress.value = linkStress;
+          if (useDedupUniforms) {
+            uniformStore.uStress = linkStress;
+          } else {
+            obj.material.uniforms.uStress.value = linkStress;
+          }
         }
         
         // Flow animation (moving pattern)
         if (obj.material.uniforms.uFlow) {
-          obj.material.uniforms.uFlow.value = flowRate;
+          if (useDedupUniforms) {
+            uniformStore.uFlow = flowRate;
+          } else {
+            obj.material.uniforms.uFlow.value = flowRate;
+          }
         }
         
         // Global opacity (stable, non-blocking)
         if (obj.material.uniforms.uOpacity) {
-          obj.material.uniforms.uOpacity.value = globalOpacity;
+          if (useDedupUniforms) {
+            uniformStore.uOpacity = globalOpacity;
+          } else {
+            obj.material.uniforms.uOpacity.value = globalOpacity;
+          }
         }
       }
       
@@ -563,22 +781,26 @@ export class NeonLinkVisuals {
         
         // Scale line materials opacity and emissive by visual intensity
         if (curveGroup.userData.line?.material) {
-          const lineMat = curveGroup.userData.line.material;
-          lineMat.opacity = Math.max(0.15, lineMat.opacity * visualIntensity);
+          const lineMesh = curveGroup.userData.line;
+          const lineMat = lineMesh.material;
+          const nextOpacity = Math.max(0.15, lineMat.opacity * visualIntensity);
+          this._setLinkOpacity(lineMesh, nextOpacity);
         }
         
         // Scale glow materials opacity by visual intensity
         if (curveGroup.userData.glowLine?.material) {
-          const glowMat = curveGroup.userData.glowLine.material;
-          glowMat.opacity = Math.max(0.05, glowMat.opacity * visualIntensity * 0.5);
+          const glowMesh = curveGroup.userData.glowLine;
+          const glowMat = glowMesh.material;
+          const nextGlowOpacity = Math.max(0.05, glowMat.opacity * visualIntensity * 0.5);
+          this._setLinkOpacity(glowMesh, nextGlowOpacity);
         }
         
         // Optional: Add color tint for strained/critical links
         if (degradation.state === 'strained' || degradation.state === 'critical') {
           const redTint = degradation.state === 'critical' ? 0.8 : 0.4;
           if (curveGroup.userData.line?.material) {
-            const lineMat = curveGroup.userData.line.material;
-            lineMat.color.lerp(new THREE.Color(1, 0.2, 0.2), redTint * 0.2);
+            const lineMesh = curveGroup.userData.line;
+            this._tintLinkColor(lineMesh, DEGRADATION_RED_TINT, redTint * 0.2);
           }
         }
       }
@@ -590,15 +812,15 @@ export class NeonLinkVisuals {
         const flicker = 0.5 + 0.5 * Math.sin(this.time * 4.0); // 4Hz flicker
         
         if (curveGroup.userData.line?.material) {
-          const lineMat = curveGroup.userData.line.material;
+          const lineMesh = curveGroup.userData.line;
           // Yellow/orange warning color
-          lineMat.color.set(new THREE.Color(1.0, 0.8, 0.2));
-          lineMat.opacity = 0.6 + 0.3 * flicker; // 60-90% opacity
+          this._setLinkColor(lineMesh, COLLAPSE_WARN_COLOR);
+          this._setLinkOpacity(lineMesh, 0.6 + 0.3 * flicker); // 60-90% opacity
         }
         
         if (curveGroup.userData.glowLine?.material) {
-          const glowMat = curveGroup.userData.glowLine.material;
-          glowMat.opacity = 0.3 * flicker; // Pulsing glow
+          const glowMesh = curveGroup.userData.glowLine;
+          this._setLinkOpacity(glowMesh, 0.3 * flicker); // Pulsing glow
         }
       }
       
@@ -607,15 +829,15 @@ export class NeonLinkVisuals {
         const flicker = 0.3 + 0.4 * Math.sin(this.time * 8.0); // 8Hz aggressive flicker
         
         if (curveGroup.userData.line?.material) {
-          const lineMat = curveGroup.userData.line.material;
+          const lineMesh = curveGroup.userData.line;
           // Red critical color
-          lineMat.color.set(new THREE.Color(1.0, 0.1, 0.1));
-          lineMat.opacity = 0.4 + 0.4 * flicker; // 40-80% opacity
+          this._setLinkColor(lineMesh, COLLAPSE_CRIT_COLOR);
+          this._setLinkOpacity(lineMesh, 0.4 + 0.4 * flicker); // 40-80% opacity
         }
         
         if (curveGroup.userData.glowLine?.material) {
-          const glowMat = curveGroup.userData.glowLine.material;
-          glowMat.opacity = 0.5 * flicker; // Aggressive pulsing
+          const glowMesh = curveGroup.userData.glowLine;
+          this._setLinkOpacity(glowMesh, 0.5 * flicker); // Aggressive pulsing
         }
       }
       
@@ -624,14 +846,14 @@ export class NeonLinkVisuals {
         const flicker = 0.1 + 0.3 * Math.sin(this.time * 12.0); // 12Hz chaotic
         
         if (curveGroup.userData.line?.material) {
-          const lineMat = curveGroup.userData.line.material;
-          lineMat.color.set(new THREE.Color(1.0, 0.0, 0.0)); // Pure red
-          lineMat.opacity = 0.1 + 0.2 * flicker; // 10-30% opacity
+          const lineMesh = curveGroup.userData.line;
+          this._setLinkColor(lineMesh, COLLAPSE_ACTIVE_COLOR); // Pure red
+          this._setLinkOpacity(lineMesh, 0.1 + 0.2 * flicker); // 10-30% opacity
         }
         
         if (curveGroup.userData.glowLine?.material) {
-          const glowMat = curveGroup.userData.glowLine.material;
-          glowMat.opacity = 0.1 * flicker; // Barely visible glow
+          const glowMesh = curveGroup.userData.glowLine;
+          this._setLinkOpacity(glowMesh, 0.1 * flicker); // Barely visible glow
         }
       }
     });
@@ -695,6 +917,12 @@ export class NeonLinkVisuals {
       isPreview = false,
       link = null  // [LinkPriority v1.0] Optional link object with priority data
     } = options;
+    const useSharedMaterial = this._useSharedMaterials();
+    const sharedMaterials = useSharedMaterial ? getSharedLinkMaterials(this.materials) : null;
+    if (!useSharedMaterial) {
+      SHARED_MATERIAL_USAGE.clonePathHits += 1;
+      logSharedMaterialUsage();
+    }
     
     // ========================================================================
     // SESSION 103: EMERGENCY VISUAL LOCKDOWN
@@ -720,22 +948,51 @@ export class NeonLinkVisuals {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
     // Create main line with shader-driven stress visualization
-    // Clone the neonLine shader material and set color
-    const lineMaterial = this.materials.neonLine.clone();
-    lineMaterial.uniforms.uColor.value = new THREE.Color(color);
+    const lineColor = new THREE.Color(color);
+    const lineMaterial = useSharedMaterial ? sharedMaterials.neonLine : this.materials.neonLine.clone();
+    if (!useSharedMaterial) {
+      lineMaterial.uniforms.uColor.value.copy(lineColor);
+    }
     
     const line = new THREE.Line(geometry, lineMaterial);
+    if (useSharedMaterial) {
+      this._ensureLinkUniformStore(line, 'neonLine', {
+        uColor: lineColor,
+        uStress: lineMaterial.uniforms?.uStress?.value,
+        uFlow: lineMaterial.uniforms?.uFlow?.value,
+        uOpacity: lineMaterial.uniforms?.uOpacity?.value,
+        uWidth: lineMaterial.uniforms?.uWidth?.value,
+        opacity: lineMaterial.opacity,
+        linewidth: lineMaterial.linewidth
+      });
+      this._attachUniformPatcher(line, 'neonLine');
+      SHARED_MATERIAL_USAGE.neonLine += 1;
+      logSharedMaterialUsage();
+    }
     group.add(line);
     
     // Add ghost line (remains simple for preview feedback)
     const glowGeometry = new THREE.BufferGeometry();
     glowGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
-    const glowMaterial = this.materials.ghostLine.clone();
-    glowMaterial.uniforms.uColor.value = new THREE.Color(color);
+    const glowMaterial = useSharedMaterial ? sharedMaterials.ghostLine : this.materials.ghostLine.clone();
+    if (!useSharedMaterial) {
+      glowMaterial.uniforms.uColor.value = new THREE.Color(color);
+    }
     
     const glowLine = new THREE.Line(glowGeometry, glowMaterial);
     glowLine.position.z += 0.01; // Slight offset to prevent z-fighting
+    if (useSharedMaterial) {
+      this._ensureLinkUniformStore(glowLine, 'ghostLine', {
+        uColor: new THREE.Color(color),
+        uStress: glowMaterial.uniforms?.uStress?.value,
+        opacity: glowMaterial.opacity,
+        linewidth: glowMaterial.linewidth
+      });
+      this._attachUniformPatcher(glowLine, 'ghostLine');
+      SHARED_MATERIAL_USAGE.ghostLine += 1;
+      logSharedMaterialUsage();
+    }
     group.add(glowLine);
     
     // Store metadata for animation
@@ -1223,7 +1480,7 @@ export class NeonLinkVisuals {
       
       // Safety: Check material exists before mutation
       if (child.material && typeof child.material === 'object' && 'opacity' in child.material) {
-        child.material.opacity = opacityVal * pulse;
+        this._setLinkOpacity(child, opacityVal * pulse);
       }
     });
   }
@@ -1259,7 +1516,7 @@ export class NeonLinkVisuals {
 
       // Variant 1: Weight Pulse – glow and thickness (sandboxed)
       if (child.material.linewidth !== undefined) {
-        child.material.linewidth = Math.max(1, state.lineWidth);
+        this._setLinkLinewidth(child, Math.max(1, state.lineWidth));
       }
 
       // Variant 3: Aura Field – bloom multiplier via color intensity (sandboxed)
@@ -1270,12 +1527,12 @@ export class NeonLinkVisuals {
       // Variant 3: Aura Field – opacity/alpha (sandboxed)
       // Safety: Check opacity property exists
       if ('opacity' in child.material) {
-        child.material.opacity = state.opacity;
+        this._setLinkOpacity(child, state.opacity);
       }
 
       // Variant 2: Dual Stream Flow – color from traffic waveform (sandboxed)
-      if (state.color && child.material.color) {
-        child.material.color.copy(state.color);
+      if (state.color && (child.material.color || child.material.uniforms?.uColor)) {
+        this._setLinkColor(child, state.color);
       }
 
       // Store visual state for other systems (like particle generation)
@@ -1502,13 +1759,28 @@ export class NeonLinkVisuals {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
+    const useSharedMaterial = this._useSharedMaterials();
+    const sharedMaterials = useSharedMaterial ? getSharedLinkMaterials(this.materials) : null;
+    if (!useSharedMaterial) {
+      SHARED_MATERIAL_USAGE.clonePathHits += 1;
+      logSharedMaterialUsage();
+    }
+
     const material = isValid 
-      ? this.materials.ghostValid.clone()
-      : this.materials.ghostInvalid.clone();
+      ? (useSharedMaterial ? sharedMaterials.ghostValid : this.materials.ghostValid.clone())
+      : (useSharedMaterial ? sharedMaterials.ghostInvalid : this.materials.ghostInvalid.clone());
     
     material.linewidth = 1;
     
     const line = new THREE.Line(geometry, material);
+    if (useSharedMaterial) {
+      const type = isValid ? 'ghostValid' : 'ghostInvalid';
+      const colorSeed = isValid ? DEFAULT_VALID_COLOR.clone() : DEFAULT_INVALID_COLOR.clone();
+      this._ensureLinkUniformStore(line, type, { uColor: colorSeed, uStress: material.uniforms?.uStress?.value, opacity: material.opacity, linewidth: material.linewidth });
+      this._attachUniformPatcher(line, type);
+      SHARED_MATERIAL_USAGE[type] += 1;
+      logSharedMaterialUsage();
+    }
     return line;
   }
   

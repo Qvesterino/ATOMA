@@ -1,12 +1,28 @@
 /**
  * ============================================================================
- * NODE DYNAMIC METRICS v1.0
+ * NODE DYNAMIC METRICS v1.0 - DERIVED / READ-ONLY LAYER
  * ============================================================================
- * Single source of truth for all per-node metrics
+ * //
+ * ARCHITECTURAL BOUNDARY:
+ * This is a DERIVED, READ-ONLY layer with NO authority over archetype or
+ * canonical metrics. It computes real-time, per-frame derived/perceptual values
+ * for visual and perceptual systems only.
+ * 
+ * AUTHORITY SEPARATION:
+ * - node.userData.archetypeMetrics: IMMUTABLE archetype identity (SafeMetricsDNAIntegration)
+ * - node.userData.metrics: Canonical gameplay metrics (SafeMetricsDNAIntegration + NodeMetricEngine)
+ * - This module: DERIVED dynamic metrics only (energy, structural, time-based)
+ * 
+ * STRICT RULES:
+ * - This system MUST NEVER redefine archetype identity
+ * - This system MUST NEVER write to node.userData.archetypeMetrics
+ * - This system MUST NEVER be used as source of truth for gameplay decisions
+ * - This system MUST NEVER clamp values (archetype clamp is in NodeMetricEngine)
+ * - This system MUST NOT read archetypeMetrics for logic decisions
  * 
  * RESPONSIBILITY:
  * - Compute structural, dynamic, and time-based metrics once per frame
- * - Store results in node.userData.metrics for read-only access by other systems
+ * - Store results in node.userData.metrics for read-only access by visual systems
  * - Apply EMA smoothing for stable transitions
  * - Never modify external systems or node hierarchy
  * - Apply soft fatigue multipliers (if enabled)
@@ -17,7 +33,7 @@
  * UPDATE LOOP (in main game loop, once per frame):
  * nodeDynamics.update(deltaTime);
  * 
- * READ ACCESS (from any other system):
+ * READ ACCESS (from visual/perceptual systems only):
  * const metrics = node.userData.metrics;
  * if (metrics) {
  *   energy, stability, harmony, etc. are all available
@@ -30,6 +46,12 @@ import {
   setupFatigueDebugConsole,
   getFatigueCorruptionDecayMultiplier 
 } from './NetworkFatigueSystem_v0_DEBUG.js';
+
+// Phase C.3: per-frame metric writes disabled
+// Gameplay metrics are now event-driven only.
+const PHASE_C3_METRIC_WRITE_LOCK = true;
+// Network fatigue disabled until Phase C.3 full review.
+const NETWORK_FATIGUE_CALL_ENABLED = false;
 
 export class NodeDynamicMetrics {
   /**
@@ -171,6 +193,11 @@ export class NodeDynamicMetrics {
    * @private
    */
   _updateNodeMetrics(node, deltaTime, now) {
+    if (PHASE_C3_METRIC_WRITE_LOCK) {
+      return;
+    }
+    // INVARIANT: This system NEVER writes to node.userData.archetypeMetrics
+    // archetypeMetrics is immutable and belongs exclusively to SafeMetricsDNAIntegration
     // Initialize userData if needed
     if (!node.userData) {
       node.userData = {};
@@ -178,6 +205,7 @@ export class NodeDynamicMetrics {
     
     // Initialize metrics object if needed
     if (!node.userData.metrics) {
+      // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
       node.userData.metrics = this._createBlankMetrics();
     }
     
@@ -294,7 +322,9 @@ export class NodeDynamicMetrics {
     
     // ========== 9. NETWORK FATIGUE (v0 DEBUG - FLAGGED) ==========
     // Apply fatigue accumulation/recovery based on stress/health
-    updateNetworkFatigue(node, deltaTime, metrics);
+    if (NETWORK_FATIGUE_CALL_ENABLED) {
+      updateNetworkFatigue(node, deltaTime, metrics);
+    }
     
     // ========== 10. CACHE PREVIOUS VALUES ==========
     cache.previousMetrics = { ...metrics };
@@ -385,6 +415,7 @@ export class NodeDynamicMetrics {
    * @private
    */
   _createBlankMetrics() {
+    // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
     return {
       // Structural
       linkCount: 0,
@@ -422,10 +453,21 @@ export class NodeDynamicMetrics {
    * Useful when nodes are recycled or reset in game
    * @public
    */
+  /**
+   * @deprecated Phase C.5
+   * This function forcibly rewrites derived metrics.
+   * It is NOT compatible with the event-driven metric system.
+   * Do NOT use in runtime code.
+   */
   resetNodeMetrics(node) {
+    console.warn('[NodeDynamicMetrics] resetNodeMetrics is deprecated (Phase C.5). Avoid runtime calls.');
+    if (PHASE_C3_METRIC_WRITE_LOCK) {
+      return;
+    }
     if (!node || !node.userData) {
       return;
     }
+    // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
     node.userData.metrics = this._createBlankMetrics();
     const nodeId = node.id || node.uuid;
     if (this.nodeMetricsCache.has(nodeId)) {

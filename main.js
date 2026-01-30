@@ -25,6 +25,7 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
+import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 import VisualTime from './src/time/VisualTime.js';
@@ -40,7 +41,6 @@ import { SafeLegendaryNodePack } from './_SafeLegendaryNodePack.js';
 import { SafeLegendaryLinkFX } from './_SafeLegendaryLinkFX.js';
 import { SafeLegendaryWorldEvents } from './_SafeLegendaryWorldEvents.js';
 import { SafeAIWeatherPack } from './_SafeAIWeatherPack.js';
-import { SafeCameraFXPack3 } from './_SafeCameraFXPack3.js';
 // DISABLED (Session 92): SafeNodePersonalityFX creates opaque plane overlays that obscure node identity
 // import { SafeNodePersonalityFX } from './_SafeNodePersonalityFX.js';
 import { SafeWorldFXPack } from './_SafeWorldFXPack.js';
@@ -51,11 +51,6 @@ import { SafeColonyExpansion2 } from './SafeColonyExpansion2.js';
 import { SafeDreamDepthPack } from './SafeDreamDepthPack.js';
 import { DreamDepthEffectManager } from './DreamDepthEffectManager.js';
 import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
-import { SafeWorldStabilityPack1 } from './SafeWorldStabilityPack1.js';
-import { WorldShakeObliterationPack1 } from './WorldShakeObliterationPack1.js';
-import { WorldPulseReducerPack1 } from './WorldPulseReducerPack1.js';
-import { SafeCameraPolishPack2_1 } from './_SafeCameraPolishPack2_1.js';
-import { SafeCameraPolishPack3_0 } from './_SafeCameraPolishPack3_0.js';
 import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 import { RareNodeSpawner } from './_RareNodeSpawner.js';
 import { setupRareNodeVerifier } from './_RareNodeSimulationVerifier.js';
@@ -70,13 +65,11 @@ import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
-import { applyMetricCompatibility } from './MetricCompatibilityLayer.js';
 import { relaxNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
 // import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
 import { SafeWorldResetFix1_0 } from './SafeWorldResetFix1_0.js';
 import { NodeInspectOverlay1_0 } from './NodeInspectOverlay1_0.js';
-import { CameraSteadyFix1_0 } from './CameraSteadyFix1_0.js';
 import { SafeMetricsFX1_1 } from './SafeMetricsFX1_1.js';
 import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
 import { NodeMicroEvents } from './_NodeMicroEvents.js';
@@ -120,6 +113,16 @@ import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
 import { updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 
+const ENABLE_SELECTED_NODE_BADGE = false;
+
+// Global camera authority flag: default to first-person only
+if (typeof window !== 'undefined') {
+    window.CAMERA_AUTHORITY_MODE = window.CAMERA_AUTHORITY_MODE || 'fp_only';
+    window.ATOMA_DISABLE_PARASITIC_HUDS = true;
+    window.ATOMA_HARD_KILL_PARASITIC_DOM = true;
+    window.ATOMA_HARD_OFF_LANGUAGE_ENGINE = true;
+}
+
 // Optional logging for program-count checkpoints
 const PROGRAM_LOG = true;
 const logPrograms = (label, renderer) => {
@@ -128,9 +131,77 @@ const logPrograms = (label, renderer) => {
     const count = Array.isArray(info.programs) ? info.programs.length : (info.programs ?? 0);
     console.log(`[prog] ${label}: programs=${count}`);
 };
+// Phase B.3 – program stabilization: dev-only watcher for new program creations
+const PROGRAM_WATCH_ENABLED = false;
+let __phaseB3LastProgramCount = 0;
 // Disable per-frame visual-only ticks to reduce uniform churn/stutters
 const VISUAL_TICKS_ENABLED = false;
+window.__DEBUG_FRAME_BUDGET_ENABLED = false;   // master switch
+window.__DEBUG_FRAME_BUDGET_MS = 3.0;         // max time allowed for heavy systems per frame
+window.__DEBUG_FRAME_BUDGET_LOG = true;       // log offenders
+window.__DBG_SPIKE_TRACE = false;             // set true to enable RAF spike tracing
+window.__DBG_SPIKE_TRACE_THRESHOLD_MS = 200;  // frame duration threshold in ms
 import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+
+// Lightweight parasitic HUD guard: remove unused fullscreen overlays if present
+document.addEventListener('DOMContentLoaded', () => {
+    const softGate = Boolean(window.ATOMA_DISABLE_PARASITIC_HUDS);
+    const hardGate = Boolean(window.ATOMA_HARD_KILL_PARASITIC_DOM);
+    const hardOffLanguage = Boolean(window.ATOMA_HARD_OFF_LANGUAGE_ENGINE);
+    if (!softGate && !hardGate && !hardOffLanguage) return;
+
+    const targetIds = new Set([
+        'atoma-language-engine',
+        'auto-link-tooltip-overlay'
+    ]);
+
+    if (hardGate || hardOffLanguage) {
+        targetIds.add('atoma-language-engine-3-container');
+        targetIds.add('auto-link-tooltip-overlay');
+        if (!window.ATOMA_DEBUG_HUD_ENABLED) {
+            targetIds.add('atoma-debug-hud');
+        }
+    }
+
+    const targetClassPrefixes = (hardGate || hardOffLanguage)
+        ? ['atoma-language-engine', 'atoma-node-poetry', 'atoma-pulse-poetry', 'atoma-link-whisper']
+        : [];
+
+    const selectorList = [
+        ...Array.from(targetIds).map(id => `#${id}`),
+        ...targetClassPrefixes.flatMap(prefix => [
+            `[class^=\"${prefix}\"]`,
+            `[class*=\" ${prefix}\"]`
+        ])
+    ];
+
+    const selectors = selectorList.join(',');
+
+    const removeTargets = (root) => {
+        if (!selectors) return;
+        root.querySelectorAll(selectors).forEach(node => node.parentNode?.removeChild(node));
+    };
+
+    removeTargets(document);
+
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            mutation.addedNodes.forEach(node => {
+                if (!(node instanceof Element)) return;
+                if (selectors && node.matches?.(selectors)) {
+                    node.parentNode?.removeChild(node);
+                    return;
+                }
+                node.querySelectorAll?.(selectors).forEach(child => child.parentNode?.removeChild(child));
+            });
+        }
+    });
+
+    const body = document.body || document.documentElement;
+    if (body && selectors) {
+        observer.observe(body, { childList: true, subtree: true });
+    }
+});
 
 
 // ============================================================================
@@ -370,8 +441,6 @@ import { setupLinkDebugMode } from './LinkDebugMode_v1.js';
 // HIT PROXY SYSTEM & RAYCAST ISOLATION (Session 61+)
 // ============================================================================
 import { applyHitProxyIntegration, setupHitProxyDebugAPI } from './_HitProxyIntegrationPatch.js';
-import { setupRaycastIsolationAndFailsafe, setupRaycastFailsafeDebugAPI } from './_RaycastIsolationFailsafeSystem.js';
-import { setupRaycastFailsafeExit } from './RaycastFailsafeExitController.js';
 import { setupHitProxyAutoRegistrar } from './HitProxyAutoRegistrar.js';
 import { setupGpuSanity } from './GpuSanityPass.js';
 
@@ -756,10 +825,9 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ============================================================================
 // ATOMA UI 3.2 - Interaction Polishing & Selected Node System
 // ============================================================================
-import { UISelectedNodeBadge3_2 } from './_UISelectedNodeBadge3_2.js';
 import { UISelectedNodeHighlight3_2 } from './_UISelectedNodeHighlight3_2.js';
 import { UINodeInspectPanel } from './UINodeInspectPanel.js';
-import { UINodeContextMenu } from './UINodeContextMenu.js';
+
 
 // ============================================================================
 // ATOMA UI 3.3 - Selected Node Identity + Safe Unlinking System
@@ -771,7 +839,6 @@ import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
-import { UISelectedNodeTopBar3_4 } from './_UISelectedNodeTopBar3_4.js';
 import { NodeLinking2_3 } from './_NodeLinking2_3.js';
 import { UIPrimaryNodeAura3_7 } from './_UIPrimaryNodeAura3_7.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
@@ -2838,6 +2905,17 @@ class AtomaGame {
         if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
             installMaterialDebugGuard();
         }
+        document.documentElement.classList.add('atoma-no-blur');
+        document.documentElement.classList.add('atoma-no-animated-glow');
+        if (window?.ATOMA_DISABLE_PARASITIC_HUDS) {
+            document.documentElement.classList.add('atoma-disable-parasitic-huds');
+        }
+        if (window?.ATOMA_HARD_KILL_PARASITIC_DOM) {
+            document.documentElement.classList.add('atoma-hard-kill-parasitic-dom');
+        }
+        if (window?.ATOMA_HARD_OFF_LANGUAGE_ENGINE) {
+            document.documentElement.classList.add('atoma-hard-off-language-engine');
+        }
         
         // ========================================================================
         // STEP 1b — HARD INTERACTION AUTHORITY (Session 104 Critical Stabilization)
@@ -3000,7 +3078,10 @@ this.frameScheduler.register(
   (dt) => this.runNodeInspectOverlayTick(dt),
   'nodeInspectOverlay.realtime'
 );
+        this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
+        this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
+        this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -3115,7 +3196,6 @@ document.addEventListener('keydown', () => {
         this.legendaryLinkFX = null;
         this.worldEvents = null;
         this.weatherPack = null;
-        this.cameraFX = null;
         this.personalityFX = null;
         this.worldFXPack = null;
 
@@ -3137,15 +3217,6 @@ document.addEventListener('keydown', () => {
 
         // Safe Mobility Pack 4.0 (dash + double jump)
         this.mobilityPack = null;
-
-        // Safe World Stability Pack 1.0 (lock world transforms)
-        this.worldStabilityPack = null;
-
-        // World Shake Obliteration Pack 1.0 (disable all oscillation)
-        this.shakeObliterationPack = null;
-
-        // World Pulse Reducer Pack 1.0 (reduce global pulse/breath effect)
-        this.pulseReducerPack = null;
 
         // ====================================================================
         // TIER 1 INTEGRATION: Core Active Systems (Phase A)
@@ -3180,12 +3251,6 @@ document.addEventListener('keydown', () => {
         // NODE HIERARCHY SYSTEM v1.0 — Parent-Child Node Relationships
         // ====================================================================
         this.nodeHierarchyBridge = null;
-
-        // Safe Camera Polish Pack 2.1 (precision rotation feel refinement)
-        this.cameraPolishPack = null;
-
-        // Safe Camera Polish Pack 3.0 ("Feather Smooth" - premium smoothness)
-        this.cameraPolishPack3 = null;
 
         // Node Visuals 4.0 (high-quality node visual upgrade)
         this.nodeVisuals4 = null;
@@ -3399,9 +3464,6 @@ document.addEventListener('keydown', () => {
         // Node Inspect Overlay 1.0 (initialized after scene/camera ready)
         this.nodeInspectOverlay = null;
 
-        // Camera Steady Fix 1.0 (keeps camera jitter-free)
-        this.cameraSteadyFix = new CameraSteadyFix1_0();
-
         // Safe Metrics FX 1.1 (subtle metric-based visual effects)
         this.metricsVisualFX = new SafeMetricsFX1_1();
 
@@ -3586,7 +3648,6 @@ document.addEventListener('keydown', () => {
 
         // OLD UI 3.0 - To be disabled
         this.nodeInspectPanel = null;     // Used by UI 3.2 for persistence
-        this.contextMenu = null;          // Used by UI 3.2 with E key
 
         this.init();
         this.setupPlayer();
@@ -3606,8 +3667,6 @@ document.addEventListener('keydown', () => {
         });
         console.log('✅ [main.js] Node Visual Freeze Mode initialized');
         this.createWorld();
-        this.setupShakeObliteration();    // CRITICAL: Disable all world shake
-        this.setupPulseReducer();         // CRITICAL: Reduce global world pulse effect
         this.setupVisualSuperpack();
         this.setupCinematicUpgrade();
         this.setupNodeEditor();
@@ -3617,7 +3676,6 @@ document.addEventListener('keydown', () => {
         this.setupLegendaryLinkFX();
         this.setupWorldEvents();
         this.setupWeatherPack();
-        this.setupCameraFX();
         this.setupPersonalityFX();
         this.setupWorldFXPack();
         this.setupAmbientEntities();
@@ -3626,9 +3684,6 @@ document.addEventListener('keydown', () => {
         this.setupColonyManager();
         this.setupDreamDepthPack();
         this.setupMobilityPack();
-        this.setupWorldStability();
-        this.setupCameraPolish();
-        this.setupCameraPolish3();
         this.setupNodeVisuals4();
         this.setupRareNodeSpawner();
         this.setupNodeEvolution();
@@ -3795,12 +3850,10 @@ document.addEventListener('keydown', () => {
         // UI CORE
         // --- UI CORE ---
         this.setupSelectionCore();
-        this.setupSelectedNodeTopBar();
         this.setupSelectedNodeHUD();
 
         // --- UI Visual Components ---
         this.setupNodeInspectPanel();
-        this.setupContextMenu();
         this.setupSelectedNodeBadge();
         this.setupSelectedNodeHighlight();
         this.setupSelectedNodeLabel();
@@ -3851,6 +3904,17 @@ document.addEventListener('keydown', () => {
         VisualAudit.setScene(this.scene);
         window.VisualAudit = VisualAudit;
         console.log('[main.js] ✓ VisualAudit tool initialized (window.VisualAudit.testLink(nodeA, nodeB))');
+
+        // ========================================================================
+        // PHASE B.3.A: Disable implicit RenderTransmissionPass (one-time sanitize)
+        // ========================================================================
+        if (CONFIG?.rendering?.DISABLE_TRANSMISSION_PASS) {
+            const offenders = sanitizeTransmission(this.scene, { log: true });
+            if (typeof window !== 'undefined') {
+                window.__ATOMA_TRANSMISSION_OFFENDERS__ = offenders;
+                window.findTransmissionMaterials = () => findTransmissionMaterials(this.scene);
+            }
+        }
 
         this.setupDebugCommands();
         
@@ -4500,7 +4564,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         );
 
         // Enable first-person mode
-        this.playerController.setCameraMode('first-person');
         this.cameraController.enable();
     }
 
@@ -4620,7 +4683,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.renderer,
             this.aiNodes
         );
-        console.log('[main.js] NodeLinkingSystem created ✓');
+        console.log('[main.js] NodeLinkingSystem created');
+        if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
+            this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
+        }
 
         // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
         if (typeof window !== 'undefined' && window.__shaderWarmupDone !== true) {
@@ -4930,47 +4996,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.error('[main.js] Hit Proxy System initialization failed:', err);
         }
 
-        // ====================================================================
-        // RAYCAST ISOLATION & FAILSAFE SYSTEM v1.0 (Session 61+)
-        // PHASE 2-4: Runtime detection, failsafe mode, invariant enforcement
-        // Guarantees engine stability even if isolation fails
-        // ====================================================================
-        try {
-            const raycastFailsafe = setupRaycastIsolationAndFailsafe(
-                this.scene,
-                this.linkingSystem,
-                this.aiNodes,
-                {
-                    enableViolationDetection: true,
-                    enableInvariantEnforcement: true,
-                    violationThreshold: 2,
-                    fallbackMode: 'nearest-distance',
-                    devMode: false
-                }
-            );
-            this.raycastFailsafeSystem = raycastFailsafe;
-            setupRaycastFailsafeDebugAPI(raycastFailsafe);
-            console.log('[main.js] ✅ Raycast Isolation & Failsafe System initialized (Phases 2-4)');
-        } catch (err) {
-            console.error('[main.js] Raycast Isolation & Failsafe System initialization failed:', err);
-        }
-        
-        // ====================================================================
-        // RAYCAST FAILSAFE EXIT CONTROLLER v1.0 (SESSION 62)
-        // Monitors violations and safely exits failsafe after 300 clean frames
-        // Restores hit-proxy raycast without re-enabling Three.js default path
-        // ====================================================================
-        try {
-            const exitController = setupRaycastFailsafeExit(
-                this.raycastFailsafeSystem?.detector,
-                window.hitProxySystem,
-                this
-            );
-            this.raycastFailsafeExitController = exitController;
-            console.log('[main.js] ✅ Raycast Failsafe Exit Controller initialized (Session 62)');
-        } catch (err) {
-            console.warn('[main.js] Raycast Failsafe Exit Controller initialization warning:', err);
-        }
+        // Raycast isolation/failsafe systems removed (handled by consolidated sanitization/registry)
 
         // ====================================================================
         // HIT-PROXY AUTO-REGISTRAR v1.0 (SESSION 62B - FPS Death Prevention)
@@ -5547,23 +5573,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             });
         }
         console.log('[main.js] AutoLinkFeedbackUI1_0 initialized ✓');
-        
-        // Set HUD container for feedback notifications (bottom-left)
-        if (this.autoLinkFeedbackUI) {
-            // Create or find HUD notification container
-            let hudNotifContainer = document.getElementById('auto-link-hud-notif');
-            if (!hudNotifContainer) {
-                hudNotifContainer = document.createElement('div');
-                hudNotifContainer.id = 'auto-link-hud-notif';
-                hudNotifContainer.style.position = 'fixed';
-                hudNotifContainer.style.bottom = '20px';
-                hudNotifContainer.style.left = '20px';
-                hudNotifContainer.style.maxWidth = '400px';
-                hudNotifContainer.style.zIndex = '9990';
-                document.body.appendChild(hudNotifContainer);
-            }
-            this.autoLinkFeedbackUI.setHUDContainer(hudNotifContainer);
-        }
         
         // Connect UISelectedHUD to the new linkingSystem
         if (this.selectedHUD) {
@@ -6836,9 +6845,6 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         if (this.weatherPack) {
             this.weatherPack.disableAll();
         }
-        if (this.cameraFX) {
-            this.cameraFX.disableAll();
-        }
         if (this.personalityFX) {
             this.personalityFX.disableAll();
         }
@@ -7169,7 +7175,9 @@ this.archetypeShaderModes = null;
             desert: 'DREAM DESERT MODE',
             chamber: 'NODE-SPACE CORE SIMULATION'
         };
-        subtitle.textContent = modeNames[this.currentMode];
+        if (subtitle) {
+            subtitle.textContent = modeNames[this.currentMode];
+        }
 
         // Setup new environment
         if (this.currentMode === 'sigma') {
@@ -7237,7 +7245,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.setupWeatherPack();
 
         // Reinitialize camera FX for new environment
-        this.setupCameraFX();
 
         // Reinitialize personality FX for new nodes
         this.setupPersonalityFX();
@@ -7497,6 +7504,20 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.updateValidator?.startFrame();
         requestAnimationFrame(() => this.animate());
 
+        const t0 = performance.now();
+        const tracingSpike = window.__DBG_SPIKE_TRACE === true;
+        const spikeThresholdMs = window.__DBG_SPIKE_TRACE_THRESHOLD_MS ?? 200;
+        const frameStart = tracingSpike ? performance.now() : 0;
+        const samples = tracingSpike ? [] : null;
+        const mark = tracingSpike
+            ? (name, fn) => {
+                const t0 = performance.now();
+                const result = fn();
+                samples.push({ name, ms: performance.now() - t0 });
+                return result;
+            }
+            : (_name, fn) => fn();
+
         const now = performance.now();
         if (this.frameClock) {
             this.frameClock.tick(now);
@@ -7548,49 +7569,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
         
         // Update player and camera
-        const cameraUpdateStart = performance.now();
-        const cameraRotation = this.cameraController.update();
-        this.updateValidator?.markSystemUpdate(
-            'cameraController.update',
-            performance.now() - cameraUpdateStart
-        );
-
-        const playerUpdateStart = performance.now();
-        this.playerController.update(deltaTime, cameraRotation);
-        this.updateValidator?.markSystemUpdate(
-            'playerController.update',
-            performance.now() - playerUpdateStart
-        );
-
-        // CRITICAL: Safe Camera Polish Pack 2.1 - Precision rotation feel refinement
-        // Must run IMMEDIATELY after camera update for proper polish application
-        if (this.cameraPolishPack) {
-            this.cameraPolishPack.update(deltaTime);
-        }
-
-        // CRITICAL: Safe Camera Polish Pack 3.0 - "Feather Smooth" premium smoothness layer
-        // Runs AFTER Polish 2.1 for two-layer professional camera feel
-        if (this.cameraPolishPack3) {
-            this.cameraPolishPack3.update(deltaTime);
-        }
-
-        // Enforce Safe World Stability Pack 1.0 - CRITICAL: Lock world transforms
-        // This MUST run early to ensure scene stays perfectly still
-        if (this.worldStabilityPack) {
-            this.worldStabilityPack.enforceWorldLock();
-        }
-
-        // Update World Shake Obliteration Pack 1.0 - CRITICAL: Verify no shake systems
-        // Per-frame verification that all oscillations remain disabled
-        if (this.shakeObliterationPack) {
-            this.shakeObliterationPack.update();
-        }
-
-        // Update World Pulse Reducer Pack 1.0 - CRITICAL: Keep pulse reductions active
-        // Per-frame enforcement that pulse amplitudes stay reduced
-        if (this.pulseReducerPack) {
-            this.pulseReducerPack.update(deltaTime);
-        }
+        // migrated to FrameScheduler (Phase C.1)
+        // const cameraRotation = this.cameraController.update();
+        // this.playerController.update(deltaTime, cameraRotation);
 
         // Update active world
         if (this.activeWorld) {
@@ -7633,42 +7614,41 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update AI nodes
         if (this.aiNodes) {
-            const aiNodesUpdateStart = performance.now();
-            this.aiNodes.update(deltaTime, this.time);
-            this.updateValidator?.markSystemUpdate(
-                'aiNodes.update',
-                performance.now() - aiNodesUpdateStart
-            );
-// === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
-if (this.updateValidator && !window.updateValidator) {
-    window.updateValidator = this.updateValidator;
-    console.log('[Validator] updateValidator exposed to window');
-}
-            // Update dynamic node spawning system
-            this.aiNodes.updateSpawning(Date.now());
-
-            // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
-            this.nodeUiAcc += deltaTime;
-            if (this.nodeUiAcc >= 0.1) {
-                this.nodeUiAcc = 0;
-                this.updateNodeUI();
-            }
-
-            // Compatibility bridge: map legacy node fields into canonical metrics
-            applyMetricCompatibility(this.aiNodes.nodes);
-
-            // Lightweight relaxation every ~60 frames (~1s)
-            if (this.frameCount % 60 === 0) {
-                for (const node of this.aiNodes.nodes) {
-                    relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
+            mark('aiNodes.update', () => {
+                const aiNodesUpdateStart = performance.now();
+                this.aiNodes.update(deltaTime, this.time);
+                this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
+                // === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
+                if (this.updateValidator && !window.updateValidator) {
+                    window.updateValidator = this.updateValidator;
+                    console.log('[Validator] updateValidator exposed to window');
                 }
-            }
+                // Update dynamic node spawning system
+                this.aiNodes.updateSpawning(Date.now());
+
+                // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
+                this.nodeUiAcc += deltaTime;
+                if (this.nodeUiAcc >= 0.1) {
+                    this.nodeUiAcc = 0;
+                    this.updateNodeUI();
+                }
+
+                // Lightweight relaxation every ~60 frames (~1s)
+                if (this.frameCount % 60 === 0) {
+                    for (const node of this.aiNodes.nodes) {
+                        relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
+                    }
+                }
+            });
         }
         
         // [Session 144+] Update Node Linked Aura System
-        if (this.nodeAuraSystem && this.aiNodes) {
-            this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
-        }
+        // migrated to FrameScheduler (Phase C.1)
+        // if (this.nodeAuraSystem && this.aiNodes) {
+        //     mark('nodeAuraSystem.update', () => {
+        //         this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
+        //     });
+        // }
         
         // [Session 144+] Update undo/redo UI (throttled to ~10Hz)
         this.undoUiAcc += deltaTime;
@@ -7712,7 +7692,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Updates link colors every frame based on current synergy scores
         // ====================================================================
         if (this.dynamicLinkColorSystem) {
-            this.dynamicLinkColorSystem.update(deltaTime);
+            mark('dynamicLinkColorSystem.update', () => {
+                this.dynamicLinkColorSystem.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7721,7 +7703,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run BEFORE LinkDegradationSystem which reads quality scores
         // ====================================================================
         if (this.linkQualityCalculator) {
-            this.linkQualityCalculator.update(deltaTime);
+            mark('linkQualityCalculator.update', () => {
+                this.linkQualityCalculator.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7731,7 +7715,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run AFTER LinkQualityCalculator which provides quality input
         // ====================================================================
         if (this.linkDegradationSystem) {
-            this.linkDegradationSystem.update(deltaTime);
+            mark('linkDegradationSystem.update', () => {
+                this.linkDegradationSystem.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7740,7 +7726,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run AFTER LinkQualityCalculator and LinkDegradationSystem
         // ====================================================================
         if (this.linkCollapseSystem) {
-            this.linkCollapseSystem.update(deltaTime);
+            mark('linkCollapseSystem.update', () => {
+                this.linkCollapseSystem.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7759,7 +7747,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run AFTER LinkQualityCalculator and LinkDegradationSystem
         // ====================================================================
         if (this.particleEmissionScaler) {
-            this.particleEmissionScaler.update(deltaTime);
+            mark('particleEmissionScaler.update', () => {
+                this.particleEmissionScaler.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7769,7 +7759,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run AFTER LinkQualityCalculator, LinkDegradationSystem, LinkCollapseSystem
         // ====================================================================
         if (this.linkMetricsToVisualBridge) {
-            this.linkMetricsToVisualBridge.update(deltaTime);
+            mark('linkMetricsToVisualBridge.update', () => {
+                this.linkMetricsToVisualBridge.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7779,7 +7771,9 @@ if (this.updateValidator && !window.updateValidator) {
         // Must run AFTER LinkMetricsToVisualBridge
         // ====================================================================
         if (this.stressBasedParticleScaler) {
-            this.stressBasedParticleScaler.update(deltaTime);
+            mark('stressBasedParticleScaler.update', () => {
+                this.stressBasedParticleScaler.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -7861,7 +7855,9 @@ if (this.updateValidator && !window.updateValidator) {
         if (this.echoTrailsIntegration && this.nodeDynamicMetrics) {
             const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
             const visualTime = window.VISUAL_TIME ?? this.time;
-            this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
+            mark('echoTrailsIntegration.updateAllMaterials', () => {
+                this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
+            });
         }
 
         // ====================================================================
@@ -7885,14 +7881,16 @@ if (this.updateValidator && !window.updateValidator) {
         // This is the final defensive line against runtime property degradation
         // ====================================================================
         if (this.coreMaterialPropertyLock && this.frameCount % 1 === 0) {
-            // Enforce canonical properties every frame (zero tolerance)
-            const lockViolationCount = this.coreMaterialPropertyLock.enforceFrame();
-            if (lockViolationCount > 0 && this.frameCount % 300 === 0) {
-                // Log occasionally (~5 seconds at 60fps) to detect systematic issues
-                console.warn(
-                    `[Core Material Lock] ${lockViolationCount} property violations locked & corrected this frame`
-                );
-            }
+            mark('coreMaterialPropertyLock.enforceFrame', () => {
+                // Enforce canonical properties every frame (zero tolerance)
+                const lockViolationCount = this.coreMaterialPropertyLock.enforceFrame();
+                if (lockViolationCount > 0 && this.frameCount % 300 === 0) {
+                    // Log occasionally (~5 seconds at 60fps) to detect systematic issues
+                    console.warn(
+                        `[Core Material Lock] ${lockViolationCount} property violations locked & corrected this frame`
+                    );
+                }
+            });
         }
 
         if (runVisualSemantic) {
@@ -8108,17 +8106,10 @@ if (this.updateValidator && !window.updateValidator) {
         // ====================================================================
         // WEEK 22: Update Synergy Chain Reactions (Cascade Propagation)
         // ====================================================================
-        // Process chain reactions: monitor synergy thresholds, propagate cascades
-        // Generate LinkEvents (pulse, coherence, stability) and NodeEvents (reactions)
-        // Events available via chainReaction.getActiveReactions() for shader/AI hooks
-        // Reads from: node/link userData (synergy, resonance, personality feedback)
-        if (this.synergyChainReaction && this.aiNodes && this.nodeLinking) {
-            this.synergyChainReaction.update(
-                deltaTime,
-                this.aiNodes.nodes || [],
-                this.nodeLinking.links || []
-            );
-        }
+        // Phase D.6 – synergyChainReaction detached from RAF
+        // Reason: extreme per-frame traversal & recursion
+        // Engine remains initialized but dormant until event-gated reactivation
+        // (per-frame update call removed)
 
         // ====================================================================
         // WEEK 22B: Update Synergy Cascade FX Bridge (Events → Shader Signals)
@@ -8143,17 +8134,18 @@ if (this.updateValidator && !window.updateValidator) {
         // Updates node/link userData.waveField with 7 metrics (amplitude, phase, standing wave, etc)
         // Synergy/resonance/corruption amplitude modulation enabled
         // Performance: <2ms per frame (pooled updates, no mid-frame allocations)
-        if (this.waveInterferenceEngine && this.aiNodes && this.nodeLinking) {
-            this.waveInterferenceEngine.update(
-                deltaTime,
-                {
-                    nodes: this.aiNodes.nodes || [],
-                    links: this.nodeLinking.links || [],
-                    network: this.nodeLinking  // For BFS traversal
-                }
-            );
-        }
-
+        // Phase D.1: waveInterferenceEngine detached from per-frame loop
+        // Engine is now dormant unless explicitly triggered
+        //        if (this.waveInterferenceEngine && this.aiNodes && this.nodeLinking) {
+       //     this.waveInterferenceEngine.update(
+        //        deltaTime,
+          //      {
+          //          nodes: this.aiNodes.nodes || [],
+          //          links: this.nodeLinking.links || [],
+          //          network: this.nodeLinking  // For BFS traversal
+         //       }
+         //   );
+      //  }
         // ====================================================================
         // SYNAPTIC GATING ADAPTER — Compute synaptic gate strength for all nodes
         // ====================================================================
@@ -8624,15 +8616,15 @@ if (this.updateValidator && !window.updateValidator) {
 
         // Update Recursive Glyph Messaging 4.0 (Recursive meaning chains)
         // Must run after Linked Glyph Messaging 3.0
-        if (this.recursiveGlyphMessaging && this.aiNodes && this.linkingSystem) {
-            this.recursiveGlyphMessaging.update(deltaTime, this.aiNodes, this.linkingSystem);
-        }
+        // Phase D.8 – detached from per-frame execution
+        // System remains initialized but dormant
+        // (per-frame update removed from animate())
 
         // Update Emergent Thought Storms 5.0 (chain collision phenomena)
         // Must run after Recursive Glyph Messaging 4.0
-        if (this.emergentThoughtStorms && this.aiNodes && this.linkingSystem) {
-            this.emergentThoughtStorms.update(deltaTime, this.aiNodes, this.linkingSystem);
-        }
+        // Phase D – detached from per-frame execution
+        // System remains initialized but dormant
+        // (per-frame update removed from animate())
 
         // Update AI Narrative Patterns 6.0 (narrative structure layer)
         // Must run after Emergent Thought Storms 5.0
@@ -8644,8 +8636,10 @@ if (this.updateValidator && !window.updateValidator) {
 
         // Update linking system with time and deltaTime for animations
         if (this.linkingSystem) {
-            this.linkingSystem.update(deltaTime, this.time);
-            this.updateLinkingUI();
+            mark('linkingSystem.update', () => {
+                this.linkingSystem.update(deltaTime, this.time);
+                this.updateLinkingUI();
+            });
         }
 
         // ============================================================================
@@ -8782,26 +8776,6 @@ if (this.updateValidator && !window.updateValidator) {
                 this.evolutionManager,
                 this.worldEvents
             );
-        }
-
-        // Update Safe Camera FX Pack 3.0 - Cinematic camera effects
-        if (this.cameraFX && this.player && this.weatherPack && this.worldEvents && this.legendaryPack && this.linkingSystem) {
-            this.cameraFX.update(
-                deltaTime,
-                this.player,
-                this.weatherPack,
-                this.worldEvents,
-                this.legendaryPack,
-                this.linkingSystem
-            );
-        }
-
-        // Enforce Safe Camera Anti-Tilt Pack 1.0 - Keep camera upright
-        if (this.cameraAntiTilt && this.cameraFX) {
-            // Run anti-tilt enforcement after camera FX update
-            if (this.cameraFX._antiTiltUpdate) {
-                this.cameraFX._antiTiltUpdate();
-            }
         }
 
         // Update Safe Node Personality FX - Behavioral node visuals
@@ -8999,7 +8973,9 @@ if (this.updateValidator && !window.updateValidator) {
         // ACTIVE: NodeLinking2_3 with integrated double-click + primary node
         try {
             if (this.nodeLinking) {
-                this.nodeLinking.update(deltaTime);
+                mark('nodeLinking.update', () => {
+                    this.nodeLinking.update(deltaTime);
+                });
             }
         } catch (err) {
             console.warn('NodeLinking2_3 update failed:', err);
@@ -9048,7 +9024,9 @@ if (this.updateValidator && !window.updateValidator) {
         // ========================================================================
         // Hard-enforce all frozen node properties to ensure immutability
         if (this.__nodeVisualFreezeMode__) {
-            this.__nodeVisualFreezeMode__.enforceFreeze(this.scene);
+            mark('nodeVisualFreezeMode.enforceFreeze', () => {
+                this.__nodeVisualFreezeMode__.enforceFreeze(this.scene);
+            });
         }
 
         // ========================================================================
@@ -9247,6 +9225,36 @@ if (this.updateValidator && !window.updateValidator) {
             }
         }
         } // end 10 Hz semantic/world-mood cadence
+
+    //  const dt = performance.now() - t0;
+    //  if (dt > 50) {
+    //      console.warn('[RAF_STALL]', dt.toFixed(1), 'ms');
+    //  }
+
+        if (tracingSpike) {
+            const frameMs = performance.now() - frameStart;
+            if (frameMs > spikeThresholdMs) {
+                const top = samples
+                    .sort((a, b) => b.ms - a.ms)
+                    .slice(0, 8);
+                const linksCount =
+                    this.nodeLinking?.links?.length ??
+                    this.linkingSystem?.links?.length ??
+                    null;
+                const nodesCount = this.aiNodes?.nodes?.length ?? null;
+                const programCount = Array.isArray(this.renderer?.info?.programs)
+                    ? this.renderer.info.programs.length
+                    : (this.renderer?.info?.programs ?? null);
+                console.groupCollapsed(`[SPIKE] ${frameMs.toFixed(0)}ms`);
+                console.table(top);
+                console.log('counts', {
+                    links: linksCount,
+                    nodes: nodesCount,
+                    programs: programCount
+                });
+                console.groupEnd();
+            }
+        }
 
         this.updateValidator?.endFrame(deltaTimeMs);
     }
@@ -9499,6 +9507,16 @@ if (this.updateValidator && !window.updateValidator) {
         // [DIAG] HARD BYPASS post-processing
         this.renderer.setRenderTarget(null);
         this.renderer.render(this.scene, this.camera);
+        // Phase B.3 – program stabilization: optional program creation watch (dev-only)
+        if (PROGRAM_WATCH_ENABLED && this.renderer?.info?.programs) {
+            const count = Array.isArray(this.renderer.info.programs)
+                ? this.renderer.info.programs.length
+                : (this.renderer.info.programs ?? 0);
+            if (count > __phaseB3LastProgramCount) {
+                console.log(`[prog-watch] new programs=${count} (+${count - __phaseB3LastProgramCount})`);
+                __phaseB3LastProgramCount = count;
+            }
+        }
         return;
         const profile = this.renderProfile;
         profile?.startFrame();
@@ -9537,6 +9555,32 @@ if (this.updateValidator && !window.updateValidator) {
             { phase: 'present' }
         );
         profile?.endFrame();
+    }
+
+    runNodeAuraSystemTick(deltaTime) {
+        if (this.nodeAuraSystem && this.aiNodes) {
+            this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
+        }
+    }
+
+    runCameraControllerTick(_deltaTime) {
+        if (!this.cameraController) return;
+        const start = performance.now();
+        this._lastCameraRotation = this.cameraController.update();
+        this.updateValidator?.markSystemUpdate(
+            'cameraController.update',
+            performance.now() - start
+        );
+    }
+
+    runPlayerControllerTick(deltaTime) {
+        if (!this.playerController) return;
+        const start = performance.now();
+        this.playerController.update(deltaTime, this._lastCameraRotation);
+        this.updateValidator?.markSystemUpdate(
+            'playerController.update',
+            performance.now() - start
+        );
     }
 
     /**
@@ -9599,54 +9643,6 @@ if (this.updateValidator && !window.updateValidator) {
 
         // Apply color grading
         this.cinematicUpgrade.applyColorGrading(this.renderer);
-    }
-
-    /**
-     * Setup Safe World Stability Pack 1.0
-     * SAFE: Locks world transforms, disables all shake/wobble/oscillation
-     * Preserves all visual effects (glow, particles, weather, rift VFX)
-     */
-    setupWorldStability() {
-        this.worldStabilityPack = new SafeWorldStabilityPack1(this.scene);
-
-        // Print comprehensive status report
-        this.worldStabilityPack.printStatusReport();
-
-        console.log('✓ Safe World Stability Pack 1.0 initialized');
-    }
-
-    /**
-     * Setup World Shake Obliteration Pack 1.0
-     * CRITICAL: Disable ALL world shake, vibration, tremor, oscillation systems
-     * Neutralizes all environment update methods, noise generators, weather forces
-     * Preserves all VFX, particles, visuals, gameplay systems
-     */
-    setupShakeObliteration() {
-        this.shakeObliterationPack = new WorldShakeObliterationPack1(
-            this.scene,
-            this.camera,
-            this.player
-        );
-
-        // Print comprehensive status report
-        this.shakeObliterationPack.printStatusReport();
-
-        console.log('✓ World Shake Obliteration Pack 1.0 initialized');
-    }
-
-    /**
-     * Setup World Pulse Reducer Pack 1.0
-     * CRITICAL: Reduce or disable the global world pulse/breath/wave effect
-     * Reduces light pulses, terrain displacement, skybox waves, atmospheric breathing
-     * Keeps node-level pulses and all other FX active
-     */
-    setupPulseReducer() {
-        this.pulseReducerPack = new WorldPulseReducerPack1(this.scene, this.camera);
-
-        // Print comprehensive status report
-        this.pulseReducerPack.printStatusReport();
-
-        console.log('✓ World Pulse Reducer Pack 1.0 initialized');
     }
 
     /**
@@ -9740,16 +9736,6 @@ if (this.updateValidator && !window.updateValidator) {
         this.weatherPack = new SafeAIWeatherPack(this.scene, this.camera);
 
         // Auto-generates dynamic weather, no invasive setup needed
-    }
-
-    /**
-     * Setup Safe Camera FX Pack 3.0 - Cinematic camera system
-     * SAFE: Pure screen-space effects and safe transform adjustments
-     */
-    setupCameraFX() {
-        this.cameraFX = new SafeCameraFXPack3(this.scene, this.camera, this.renderer);
-
-        // Auto-generates cinematic camera effects, no invasive setup needed
     }
 
     /**
@@ -9912,56 +9898,6 @@ if (this.updateValidator && !window.updateValidator) {
         this.mobilityPack.printStatusReport();
 
         console.log('✓ Safe Mobility Pack 4.0 initialized');
-    }
-
-    /**
-     * Setup Safe Camera Polish Pack 2.1
-     * SAFE: Precision rotation feel refinement
-     * ✓ NO smoothing system modifications
-     * ✓ NO inertia/acceleration/headbob
-     * ✓ NO time-based interpolation
-     * ✓ ONLY rotation feel refinement with hard roll lock
-     */
-    setupCameraPolish() {
-        if (!this.camera || !this.cameraController) {
-            console.warn('Camera systems not initialized, deferring Camera Polish Pack setup');
-            return;
-        }
-
-        this.cameraPolishPack = new SafeCameraPolishPack2_1(
-            this.camera,
-            this.cameraController
-        );
-
-        // Print comprehensive status report
-        this.cameraPolishPack.printStatusReport();
-
-        console.log('✓ Safe Camera Polish Pack 2.1 initialized');
-    }
-
-    /**
-     * Setup Safe Camera Polish Pack 3.0
-     * SAFE: "Feather Smooth" premium camera smoothness layer
-     * ✓ Micro-soft smoothing (0.06 lerp max)
-     * ✓ Input priority system
-     * ✓ Sub-pixel stabilization
-     * ✓ NO lag, NO drift, zero performance cost
-     */
-    setupCameraPolish3() {
-        if (!this.camera || !this.cameraController) {
-            console.warn('Camera systems not initialized, deferring Camera Polish Pack 3.0 setup');
-            return;
-        }
-
-        this.cameraPolishPack3 = new SafeCameraPolishPack3_0(
-            this.camera,
-            this.cameraController
-        );
-
-        // Print comprehensive status report
-        this.cameraPolishPack3.printStatusReport();
-
-        console.log('✓ Safe Camera Polish Pack 3.0 initialized');
     }
 
     /**
@@ -10633,28 +10569,11 @@ if (this.updateValidator && !window.updateValidator) {
     }
 
     /**
-     * Setup Context Menu
-     * Right-click menu for node actions (now triggered by E key)
-     */
-    setupContextMenu() {
-        this.contextMenu = new UINodeContextMenu(
-            this.scene,
-            this.camera,
-            this.linkingSystem,
-            this.nodeInspectPanel
-        );
-
-        console.log('✓ Context Menu initialized (E key activated)');
-    }
-
-    /**
      * Setup Selected Node Badge 3.2
      * Minimalist badge under crosshair showing QNT-ORB-SYN code + archetype
      */
     setupSelectedNodeBadge() {
-        this.selectedNodeBadge = new UISelectedNodeBadge3_2();
-
-        console.log('✓ Selected Node Badge 3.2 initialized');
+        this.selectedNodeBadge = null;
     }
 
     /**
@@ -11399,16 +11318,6 @@ if (this.updateValidator && !window.updateValidator) {
     }
 
     /**
-     * Setup Selected Node Top Bar 3.4
-     * Persistent HUD bar showing selected node info
-     */
-    setupSelectedNodeTopBar() {
-        this.selectedNodeTopBar = new UISelectedNodeTopBar3_4(this.selectionCore);
-
-        console.log('✓ Selected Node Top Bar 3.4 initialized (top center HUD)');
-    }
-
-    /**
      * Setup Selected Node HUD
      * Displays selected node name and type in top-right corner
      */
@@ -11528,16 +11437,11 @@ if (this.updateValidator && !window.updateValidator) {
      */
     setupUIWiring3_4() {
         // Set selection core reference for top bar
-        if (this.selectedNodeTopBar) {
-            this.selectedNodeTopBar.setSelectionCore(this.selectionCore);
-        }
-
         // Wire up NodeLinking 2.1 with all UI components
         if (this.nodeLinking) {
             this.nodeLinking.setUIReferences(
-                this.selectedNodeTopBar,      // New: top bar
+                null,
                 this.nodeInspectPanel,
-                this.contextMenu,
                 this.selectedNodeBadge,
                 this.selectedNodeHighlight,
                 this.selectedNodeLabel
@@ -11554,16 +11458,11 @@ if (this.updateValidator && !window.updateValidator) {
      */
     setupUIWiring3_7() {
         // Set selection core reference for top bar
-        if (this.selectedNodeTopBar) {
-            this.selectedNodeTopBar.setSelectionCore(this.selectionCore);
-        }
-
         // Wire up NodeLinking 2.3 (3.7) with all UI components
         if (this.nodeLinking) {
             this.nodeLinking.setUIReferences(
-                this.selectedNodeTopBar,
+                null,
                 this.nodeInspectPanel,
-                this.contextMenu,
                 this.selectedNodeBadge,
                 this.selectedNodeHighlight,
                 this.selectedNodeLabel,
@@ -11592,7 +11491,6 @@ if (this.updateValidator && !window.updateValidator) {
         if (this.nodeLinking) {
             this.nodeLinking.setUIReferences(
                 this.nodeInspectPanel,
-                this.contextMenu,
                 this.selectedNodeBadge,
                 this.selectedNodeHighlight,
                 this.selectedNodeLabel  // New: floating label

@@ -38,6 +38,10 @@ THREE_SAFE =
 
 const THREE = THREE_SAFE;
 
+// Phase C.3: HarmonyStabilizationSystem is visual-only
+// Gameplay harmony is event-driven elsewhere.
+const PHASE_C3_METRIC_WRITE_LOCK = true;
+
 /**
  * Harmony threshold definitions
  */
@@ -827,7 +831,9 @@ export class HarmonyStabilizationSystem_v1 {
     vis.rotationStabilization = Math.max(0, Math.min(1, vis.rotationStabilization));
     
     // Store for shader/visual integration
-    node.userData.harmonyLevel = level;
+    if (!PHASE_C3_METRIC_WRITE_LOCK) {
+      node.userData.harmonyLevel = level;
+    }
     node.userData.isHarmonized = level > 0.2;
   }
 
@@ -873,7 +879,9 @@ export class HarmonyStabilizationSystem_v1 {
 
     vis.ribbonIntensity = Math.max(0, Math.min(1, vis.ribbonIntensity));
     
-    link.userData.harmonyLevel = level;
+    if (!PHASE_C3_METRIC_WRITE_LOCK) {
+      link.userData.harmonyLevel = level;
+    }
   }
 
   /**

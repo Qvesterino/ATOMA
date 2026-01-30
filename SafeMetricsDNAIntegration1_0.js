@@ -166,6 +166,16 @@ static attachMetrics(node, archetype) {
   const LOAD_MAX = 6; // keep simple; matches your table range
   const loadPressure = clamp01(loadCap / LOAD_MAX);
 
+  // Immutable archetype snapshot - preserves original archetype identity
+  // Written once at spawn-time; must not be modified by dynamic or legacy systems
+  node.userData.archetypeMetrics = {
+    synergy,
+    harmony,
+    stability,
+    corruption,
+    loadPressure,
+  };
+
   node.userData.metrics = {
     synergy,
     harmony,

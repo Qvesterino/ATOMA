@@ -70,7 +70,14 @@ export const CONFIG = {
     depth: 0.15,
     edgeThickness: 0.05
   },
-  
+
+  // ============================================================================
+  // SESSION B.3.A: TRANSMISSION PASS KILL SWITCH
+  // ============================================================================
+  rendering: {
+    DISABLE_TRANSMISSION_PASS: true // When true, zeroes MeshPhysicalMaterial.transmission at startup
+  },
+
   // ============================================================================
   // SESSION 99: STABILIZATION FEATURE FLAGS
   // ============================================================================
@@ -100,7 +107,15 @@ export const CONFIG = {
   //  - Scene becomes stable and debuggable
   // This is a diagnostic mode - can be toggled on/off immediately
   debug: {
-    VISUAL_LOCKDOWN: true  // ← EMERGENCY: Hard disable all visual complexity
+    VISUAL_LOCKDOWN: true,  // ← EMERGENCY: Hard disable all visual complexity
+    
+    // ============================================================================
+    // PHASE D.4: WAVE INTERFERENCE ENGINE DEBUG TRIGGER
+    // ============================================================================
+    // When true: WaveInterferenceEngine receives NODE_SPAWN events
+    // When false: Engine is 100% dormant (zero impact)
+    // This is a pilot trigger for testing the wave interference system
+    DEBUG_WAVE_ENGINE: false
   },
   
   // ============================================================================

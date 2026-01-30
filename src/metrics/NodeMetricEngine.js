@@ -28,6 +28,23 @@ function clamp01(v) {
   return v;
 }
 
+// Passive safety clamp - enforces archetype identity boundaries
+// NodeMetricEngine must never redefine archetype identity
+function applyArchetypeClamp(node) {
+  if (!node?.userData?.archetypeMetrics) return;
+  
+  const arch = node.userData.archetypeMetrics;
+  const m = node.userData.metrics;
+  if (!m) return;
+  
+  // Clamp to archetype-defined bounds
+  m.synergy = clamp01(Math.min(m.synergy, arch.synergy));
+  m.harmony = clamp01(Math.min(m.harmony, arch.harmony));
+  m.stability = clamp01(Math.min(m.stability, arch.stability));
+  m.corruption = clamp01(Math.max(m.corruption, arch.corruption));
+  m.loadPressure = clamp01(Math.min(m.loadPressure, arch.loadPressure));
+}
+
 function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   const metrics = node.userData.metrics || (node.userData.metrics = {});
@@ -60,6 +77,7 @@ export function onNodeSpawn(node) {
   for (const key of Object.keys(DEFAULT_METRICS)) {
     m[key] = clamp01(m[key] * 0.9 + DEFAULT_METRICS[key] * 0.1);
   }
+  applyArchetypeClamp(node);
 }
 
 /**
@@ -83,6 +101,9 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
     if (mA) adjust(mA, 'corruption', 0.02);
     if (mB) adjust(mB, 'corruption', 0.02);
   }
+  
+  applyArchetypeClamp(nodeA);
+  applyArchetypeClamp(nodeB);
 }
 
 
@@ -100,6 +121,8 @@ export function onLinkRemoved(nodeA, nodeB) {
     adjust(m, 'harmony', -STEP.linkBoost * 0.5);
     adjust(m, 'loadPressure', -STEP.linkStress * 1.5);
   }
+  applyArchetypeClamp(nodeA);
+  applyArchetypeClamp(nodeB);
 }
 
 /**
@@ -113,6 +136,7 @@ export function onOverload(node, overloadAmount = 0) {
   adjust(m, 'loadPressure', amt * STEP.overloadLoadScale);
   adjust(m, 'corruption', amt * STEP.overloadCorruptionScale);
   adjust(m, 'stability', -amt * STEP.overloadStabilityLoss);
+  applyArchetypeClamp(node);
 }
 
 /**
@@ -126,4 +150,5 @@ export function relaxNodeMetrics(node, deltaTime = 0.016) {
     const target = DEFAULT_METRICS[key];
     m[key] = clamp01(m[key] + (target - m[key]) * rate);
   }
+  applyArchetypeClamp(node);
 }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { SafeMetricsDNAIntegration1_0 } from './SafeMetricsDNAIntegration1_0.js';
+import { applyMetricCompatibility } from './MetricCompatibilityLayer.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { isEmissiveCapable, safeSetEmissive } from './_EmissiveUtils.js';
 import { NodeSpawnLogger } from './_NodeSpawnLogger4_0.js';
@@ -2518,6 +2519,8 @@ export class AINodes {
     }
 
     // Canonical metrics: ensure present on spawn
+    // Phase C.4: legacy metric compatibility applied once at spawn/load
+    applyMetricCompatibility([newNode]);
     initNodeMetrics(newNode);
 
     // PHASE B: Call onNodeSpawn hook after metrics initialization
@@ -2575,6 +2578,14 @@ export class AINodes {
       }
     }
     
+    // Phase D.4: Notify WaveInterferenceEngine of NODE_SPAWN event (DEBUG-gated)
+    if (window.CONFIG?.debug?.DEBUG_WAVE_ENGINE && this.waveInterferenceEngine) {
+      this.waveInterferenceEngine.requestUpdate('NODE_SPAWN', {
+        nodeId: newNode.userData.nodeId,
+        nodePosition: newNode.position.clone()
+      });
+    }
+
     // ========== STEP 11: DEBUG LOG (OPTIONAL) ==========
     if (this.debugMode) {
       console.log('[AINodes] Spawned node', {

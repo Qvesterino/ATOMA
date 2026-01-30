@@ -23,12 +23,12 @@ import { PlayerController } from './rosie/controls/rosieControls.js';
 ### 🎮 rosieControls.js
 
 **Path:** `/rosie/controls/rosieControls.js`
-**Exports:** `PlayerController`, `ThirdPersonCameraController`, `FirstPersonCameraController`
+**Exports:** `PlayerController`, `FirstPersonCameraController`
 
 **What it does:**
 - WASD movement with camera-relative direction
 - Jumping, gravity, ground detection
-- Third-person orbiting camera OR first-person pointer-lock
+- First-person pointer-lock camera (third-person removed; FP-only)
 - Automatic mobile controls (virtual joystick + buttons)
 
 **Use for:** 3D platformers, exploration games, action games
@@ -42,14 +42,14 @@ const controller = new PlayerController(playerMesh, {
   groundLevel: 0
 });
 
-const camera = new ThirdPersonCameraController(
+const fpCamera = new FirstPersonCameraController(
   camera, playerMesh, renderer.domElement, {
-  distance: 7,
-  height: 3
+  mouseSensitivity: 0.002,
+  eyeHeight: 1.6
 });
 
 // In game loop:
-const rotation = camera.update();
+const rotation = fpCamera.update();
 controller.update(deltaTime, rotation);
 ```
 

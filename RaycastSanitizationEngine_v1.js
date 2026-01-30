@@ -29,6 +29,7 @@
  */
 
 import * as THREE from 'three';
+import { CanonicalGeometryFamilies } from './CanonicalGeometryFamilies_v1.js';
 
 export class RaycastSanitizationEngine {
   
@@ -115,7 +116,7 @@ export class RaycastSanitizationEngine {
           );
           this.disableRaycastOnMesh(obj);
           log.raycast_disabled++;
-          continue;
+          return
         }
       }
 
@@ -197,7 +198,7 @@ export class RaycastSanitizationEngine {
       // Minimal check: just verify geometry exists
       if (minimalCheck) {
         raycastables.push(obj);
-        continue;
+        return
       }
 
       // Full check: verify bounding volumes exist
@@ -485,5 +486,150 @@ export class RaycastSanitizationEngine {
     });
 
     return stats;
+  }
+
+  // ===== RAYCAST GUARD HELPERS (inlined from RaycastGuardSystem) =====
+
+  /**
+   * Check if geometry is safe for intersection testing
+   * Returns false only if immutable AND missing precomputed bounds
+   */
+  static _isGeometrySafeForIntersection(geometry) {
+    if (!geometry) return true;
+    const isImmutable = geometry.userData && geometry.userData.immutable === true;
+    if (isImmutable) {
+      const hasPrecomputed = geometry.userData?.precomputedAndFrozen === true;
+      const hasBounds = geometry.boundingSphere !== null && geometry.boundingSphere !== undefined;
+      if (!hasPrecomputed || !hasBounds) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Safe-only raycast: filters out unsafe geometries
+   */
+  static intersectSafeOnly(raycaster, objects) {
+    if (!raycaster || !objects) return [];
+    const safeObjects = objects.filter(obj => {
+      if (!obj.geometry) return true;
+      return this._isGeometrySafeForIntersection(obj.geometry);
+    });
+    try {
+      return raycaster.intersectObjects(safeObjects, false);
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  /**
+   * Guarded intersection: skips unsafe hits and falls back if needed
+   */
+  static intersectWithGuards(raycaster, objects, recursive = false) {
+    if (!raycaster || !objects) return [];
+    const intersects = [];
+    try {
+      const results = raycaster.intersectObjects(objects, recursive);
+      for (const hit of results) {
+        if (hit.object && hit.object.geometry) {
+          if (!this._isGeometrySafeForIntersection(hit.object.geometry)) {
+            continue;
+          }
+          intersects.push(hit);
+        }
+      }
+      return intersects;
+    } catch (_err) {
+      return this._manualIntersectFallback(raycaster, objects, recursive);
+    }
+  }
+
+  /**
+   * Manual intersection fallback using bounding spheres
+   */
+  static _manualIntersectFallback(raycaster, objects, recursive) {
+    const intersects = [];
+    const ray = raycaster.ray;
+    const traverse = (obj) => {
+      if (!obj.visible) return;
+      if (obj.isMesh && obj.geometry) {
+        const bounds = CanonicalGeometryFamilies.getBoundingSphere(obj.geometry);
+        if (!bounds) return;
+        if (ray.distanceToPoint(bounds.center) > bounds.radius) {
+          return;
+        }
+        intersects.push({
+          point: ray.origin.clone().add(ray.direction.clone().multiplyScalar(bounds.radius)),
+          object: obj,
+          distance: bounds.radius,
+          uv: null,
+          face: null,
+          faceIndex: null,
+          instanceId: null
+        });
+      }
+      if (recursive && obj.children) {
+        for (const child of obj.children) traverse(child);
+      }
+    };
+    for (const obj of objects) traverse(obj);
+    return intersects;
+  }
+
+  /**
+   * Audit scene for unsafe immutable geometries (read-only check)
+   */
+  static auditScene(scene) {
+    const report = {
+      total: 0,
+      immutableCount: 0,
+      safeCount: 0,
+      unsafeCount: 0,
+      unsafeGeometries: [],
+      timestamp: new Date().toISOString()
+    };
+    scene.traverse(obj => {
+      if (!obj.geometry) return;
+      report.total++;
+      const isImmutable = obj.geometry.userData?.immutable === true;
+      const isPrecomputed = obj.geometry.userData?.precomputedAndFrozen === true;
+      const hasBounds = obj.geometry.boundingSphere !== null;
+      if (isImmutable) {
+        report.immutableCount++;
+        if (isPrecomputed && hasBounds) {
+          report.safeCount++;
+        } else {
+          report.unsafeCount++;
+          report.unsafeGeometries.push({
+            object: obj.name || 'unnamed',
+            type: obj.type,
+            isImmutable: true,
+            isPrecomputed,
+            hasBounds,
+            issue: !isPrecomputed ? 'Missing precomputed flag' : 'Missing boundingSphere'
+          });
+        }
+      } else {
+        report.safeCount++;
+      }
+    });
+    return report;
+  }
+
+  static logAuditReport(report) {
+    console.group('[RaycastSanitizationEngine] Scene Audit Report');
+    console.log(`Total geometries: ${report.total}`);
+    console.log(`Immutable (marked): ${report.immutableCount}`);
+    console.log(`Safe: ${report.safeCount}`);
+    console.log(`Unsafe: ${report.unsafeCount}`);
+    if (report.unsafeCount > 0) {
+      console.group('⚠️ Unsafe Geometries:');
+      for (const geom of report.unsafeGeometries) {
+        console.warn(`${geom.object} (${geom.type}): ${geom.issue}`);
+      }
+      console.groupEnd();
+    }
+    console.groupEnd();
   }
 }

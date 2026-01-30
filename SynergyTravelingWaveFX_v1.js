@@ -517,6 +517,8 @@ export class SynergyTravelingWaveFX_v1 {
      * Update all active waves
      */
     update(deltaTime) {
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        
         try {
             const startTime = performance.now();
             

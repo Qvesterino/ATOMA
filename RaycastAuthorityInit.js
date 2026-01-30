@@ -8,6 +8,8 @@
  *   initializeRaycastAuthority(scene);
  */
 
+import { RaycastSanitizationEngine } from './RaycastSanitizationEngine_v1.js';
+
 export function initializeRaycastAuthority(scene) {
   if (!scene) {
     console.warn('[RaycastAuthorityInit] No scene provided');
@@ -44,8 +46,7 @@ export function initializeRaycastAuthority(scene) {
     
     // Disable raycasting on visual-only meshes
     if (isVisualOnly) {
-      // Override raycast to return no intersections
-      obj.raycast = () => null;
+      RaycastSanitizationEngine.disableRaycastOnMesh(obj);
       disabledCount++;
     }
   });
@@ -63,10 +64,7 @@ export function initializeRaycastAuthority(scene) {
  * @param {THREE.Mesh} mesh - The mesh to disable raycasting on
  */
 export function disableRaycastOnMesh(mesh) {
-  if (!mesh || !mesh.isMesh) return false;
-  
-  mesh.raycast = () => null;
-  return true;
+  return RaycastSanitizationEngine.disableRaycastOnMesh(mesh);
 }
 
 /**

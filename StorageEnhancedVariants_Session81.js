@@ -206,7 +206,7 @@ export class StorageEnhancedVariants {
           emissiveIntensity: 0.2,
           transparent: true,
           opacity: layerOpacity,
-          transmission: 0.2,
+          transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
           thickness: 0.1
         });
 

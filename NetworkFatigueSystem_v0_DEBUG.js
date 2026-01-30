@@ -29,7 +29,7 @@ const FATIGUE_RATES = {
 // Weighted stress components
 const STRESS_WEIGHTS = {
   load: 0.40,
-  instability: 0.30,
+  stability: 0.30,
   corruption: 0.20,
   harmonyDeficit: 0.10
 };
@@ -47,7 +47,7 @@ const CATEGORY_SENSITIVITY = {
 // Health component weights (during recovery)
 const HEALTH_WEIGHTS = {
   load: 0.40,
-  instability: 0.30,
+  stability: 0.30,
   harmony: 0.20,
   corruption: 0.10
 };
@@ -63,7 +63,8 @@ const FATIGUE_EFFECTS = {
 // FATIGUE SYSTEM STATE
 // ============================================================================
 
-let ENABLE_NETWORK_FATIGUE = true;
+// Phase C.3: Network Fatigue disabled (debug system)
+let ENABLE_NETWORK_FATIGUE = false;
 let FATIGUE_DEBUG_LOG = true; // Verbose logging for development
 
 // ============================================================================
@@ -166,8 +167,8 @@ function computeStressComposite(metrics) {
   // Load factor: high if loadRatio > 0.75
   const loadFactor = clamp((metrics.loadRatio - 0.75) / 0.25, 0, 1);
   
-  // Instability factor: high if instability > 60
-  const instabilityFactor = clamp((metrics.instability - 60) / 40, 0, 1);
+  // stability factor: high if stability > 60
+  const stabilityFactor = clamp((metrics.stability - 60) / 40, 0, 1);
   
   // Corruption factor: high if corruption > 40
   const corruptionFactor = clamp((metrics.corruption - 40) / 60, 0, 1);
@@ -178,7 +179,7 @@ function computeStressComposite(metrics) {
   // Weighted composite
   return (
     STRESS_WEIGHTS.load * loadFactor +
-    STRESS_WEIGHTS.instability * instabilityFactor +
+    STRESS_WEIGHTS.stability * stabilityFactor +
     STRESS_WEIGHTS.corruption * corruptionFactor +
     STRESS_WEIGHTS.harmonyDeficit * harmonyDeficitFactor
   );
@@ -192,7 +193,7 @@ function checkRecoveryConditions(metrics) {
   // All conditions must be true
   return (
     metrics.loadRatio < 0.50 &&
-    metrics.instability < 30 &&
+    metrics.stability < 30 &&
     metrics.harmony > 40 &&
     metrics.corruption < 30
   );
@@ -206,8 +207,8 @@ function computeHealthComposite(metrics) {
   // Load health: good if loadRatio < 0.50
   const loadHealth = clamp((0.50 - metrics.loadRatio) / 0.50, 0, 1);
   
-  // Instability health: good if instability < 30
-  const instabilityHealth = clamp((30 - metrics.instability) / 30, 0, 1);
+  // stability health: good if stability < 30
+  const stabilityHealth = clamp((30 - metrics.stability) / 30, 0, 1);
   
   // Harmony health: good if harmony > 40
   const harmonyHealth = clamp((metrics.harmony - 40) / 60, 0, 1);
@@ -218,7 +219,7 @@ function computeHealthComposite(metrics) {
   // Weighted composite
   return (
     HEALTH_WEIGHTS.load * loadHealth +
-    HEALTH_WEIGHTS.instability * instabilityHealth +
+    HEALTH_WEIGHTS.stability * stabilityHealth +
     HEALTH_WEIGHTS.harmony * harmonyHealth +
     HEALTH_WEIGHTS.corruption * corruptionHealth
   );
@@ -265,7 +266,7 @@ export function setupFatigueDebugConsole() {
           category: node.userData.category || 'process',
           metrics: {
             loadRatio: Number(metrics.loadRatio.toFixed(3)),
-            instability: Number(metrics.instability.toFixed(1)),
+            stability: Number(metrics.stability.toFixed(1)),
             corruption: Number(metrics.corruption.toFixed(1)),
             harmony: Number(metrics.harmony.toFixed(1))
           },
@@ -301,7 +302,7 @@ export function setupFatigueDebugConsole() {
             console.log(`\nNode ${i} [${state.category}]`);
             console.log(`  Fatigue: ${state.fatigue} | State: ${state.state}`);
             console.log(`  Stress: ${state.stressComposite} | Health: ${state.healthComposite}`);
-            console.log(`  Metrics: Load=${state.metrics.loadRatio} Inst=${state.metrics.instability} Corr=${state.metrics.corruption} Harm=${state.metrics.harmony}`);
+            console.log(`  Metrics: Load=${state.metrics.loadRatio} Inst=${state.metrics.stability} Corr=${state.metrics.corruption} Harm=${state.metrics.harmony}`);
             console.log(`  Multipliers: Harmony=${state.multipliers.harmonyRate} Synergy=${state.multipliers.synergy} Decay=${state.multipliers.corruptionDecay}`);
           }
         }

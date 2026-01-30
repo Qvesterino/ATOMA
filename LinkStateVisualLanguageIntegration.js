@@ -23,8 +23,8 @@ export class LinkStateVisualLanguageIntegration {
     this.linkingSystem = linkingSystem;
     this.debugMode = config.debugMode || false;
 
-    // Link material references
-    this.linkMaterials = new Map();  // link → ShaderMaterial
+    // Link material references (all links share a canonical material)
+    this.linkMaterials = new Map();  // link → ShaderMaterial (shared instance)
 
     // State tracking (for efficient updates)
     this.currentNetworkStress = 0;
@@ -42,13 +42,8 @@ export class LinkStateVisualLanguageIntegration {
    */
   updateNetworkStress(networkStress) {
     this.currentNetworkStress = Math.max(0, Math.min(1, networkStress ?? 0));
-
-    // Update all link materials
-    for (const [link, material] of this.linkMaterials.entries()) {
-      if (material && material.uniforms) {
-        material.uniforms.uNetworkStress.value = this.currentNetworkStress;
-      }
-    }
+    __currentNetworkStress = this.currentNetworkStress;
+    // uniforms applied per-link at draw time via onBeforeRender
   }
 
   /**
@@ -61,8 +56,6 @@ export class LinkStateVisualLanguageIntegration {
   updateLinkMetrics(link, corruption, synergy) {
     if (!link) return;
 
-    const linkId = link.id || `link_${Math.random()}`;
-    
     // Extract harmony from endpoint nodes
     const sourceNode = link.source || link.sourceNode;
     const targetNode = link.target || link.targetNode;
@@ -77,20 +70,22 @@ export class LinkStateVisualLanguageIntegration {
     const loadMax = Math.max(loadA, loadB);
 
     // Store metrics
-    this.linkMetrics.set(linkId, {
+    this.linkMetrics.set(link, {
       corruption: Math.max(0, Math.min(1, corruption ?? 0)),
       synergy: Math.max(0, Math.min(100, synergy ?? 0)),
       harmonyAvg: harmonyAvg,
       loadMax: loadMax
     });
+    // Uniforms are set lazily per draw in onBeforeRender
 
-    // Update material uniforms
-    const material = this.linkMaterials.get(link);
-    if (material && material.uniforms) {
-      material.uniforms.uCorruption.value = this.linkMetrics.get(linkId).corruption;
-      material.uniforms.uSynergy.value = this.linkMetrics.get(linkId).synergy;
-      material.uniforms.uHarmony.value = this.linkMetrics.get(linkId).harmonyAvg;
-      material.uniforms.uLocalLoad.value = this.linkMetrics.get(linkId).loadMax;
+    // Update per-link override snapshot if registered
+    const override = __linkStateOverrides.get(link);
+    if (override) {
+      const metrics = this.linkMetrics.get(link);
+      override.corruption = metrics.corruption;
+      override.synergy = metrics.synergy;
+      override.harmonyAvg = metrics.harmonyAvg;
+      override.loadMax = metrics.loadMax;
     }
   }
 
@@ -106,33 +101,8 @@ export class LinkStateVisualLanguageIntegration {
   registerLink(link, optionalMaterial = null) {
     if (!link) return null;
 
-    const linkId = link.id || `link_${Math.random()}`;
-
-    // Reuse existing material or create new
-    let material = optionalMaterial;
-    if (!material) {
-      // Import shaders dynamically
-      const { linkStateVertexShader, linkStateFragmentShader } = 
-        require('./shaders/LinkStateVisualLanguage.js');
-
-      material = new THREE.ShaderMaterial({
-        uniforms: {
-          uNetworkStress: { value: 0 },
-          uLocalLoad: { value: 0 },
-          uCorruption: { value: 0 },
-          uSynergy: { value: 50 },
-          uHarmony: { value: 0 },
-          uTime: { value: 0 }
-        },
-        vertexShader: linkStateVertexShader,
-        fragmentShader: linkStateFragmentShader,
-        transparent: true,
-        side: THREE.DoubleSide,
-        depthWrite: true,
-        depthTest: true,
-        blending: THREE.NormalBlending
-      });
-    }
+    // Reuse canonical material (bounded program & material count)
+    const material = optionalMaterial || getCanonicalLinkStateMaterial();
 
     // Store reference
     this.linkMaterials.set(link, material);
@@ -151,9 +121,9 @@ export class LinkStateVisualLanguageIntegration {
   unregisterLink(link) {
     if (!link) return;
 
-    const linkId = link.id || `link_${Math.random()}`;
     this.linkMaterials.delete(link);
-    this.linkMetrics.delete(linkId);
+    this.linkMetrics.delete(link);
+    __linkStateOverrides.delete(link);
   }
 
   /**
@@ -162,10 +132,11 @@ export class LinkStateVisualLanguageIntegration {
    * @param {number} currentTime - Current elapsed time
    */
   updateAnimationTime(currentTime) {
-    for (const [link, material] of this.linkMaterials.entries()) {
-      if (material && material.uniforms) {
-        material.uniforms.uTime.value = currentTime;
-      }
+    // Store time; applied per-draw in onBeforeRender
+    for (const [link, state] of this.linkMetrics.entries()) {
+      state.time = currentTime;
+      const override = __linkStateOverrides.get(link);
+      if (override) override.time = currentTime;
     }
   }
 
@@ -178,8 +149,7 @@ export class LinkStateVisualLanguageIntegration {
   getLinkVisualState(link) {
     if (!link) return null;
 
-    const linkId = link.id || `link_${Math.random()}`;
-    const metrics = this.linkMetrics.get(linkId);
+    const metrics = this.linkMetrics.get(link);
     const material = this.linkMaterials.get(link);
 
     if (!metrics || !material) return null;
@@ -227,5 +197,86 @@ export class LinkStateVisualLanguageIntegration {
     }
   }
 }
+
+// =============================================================================
+// CANONICAL MATERIAL (POOL OF ONE) WITH PER-LINK OVERRIDES
+// =============================================================================
+let __linkStateMaterial = null;
+let __currentNetworkStress = 0;
+const __linkStateOverrides = new WeakMap(); // link(object) -> state
+
+function getCanonicalLinkStateMaterial() {
+  if (__linkStateMaterial) return __linkStateMaterial;
+
+  const { linkStateVertexShader, linkStateFragmentShader } =
+    require('./shaders/LinkStateVisualLanguage.js');
+
+  __linkStateMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uNetworkStress: { value: 0 },
+      uLocalLoad: { value: 0 },
+      uCorruption: { value: 0 },
+      uSynergy: { value: 50 },
+      uHarmony: { value: 0 },
+      uTime: { value: 0 }
+    },
+    vertexShader: linkStateVertexShader,
+    fragmentShader: linkStateFragmentShader,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: true,
+    depthTest: true,
+    blending: THREE.NormalBlending
+  });
+
+  // Freeze program cache to a single entry for all links
+  __linkStateMaterial.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v1';
+
+  // Per-draw uniform application to avoid shared-uniform crosstalk
+  __linkStateMaterial.onBeforeRender = (renderer, scene, camera, geometry, object) => {
+    const state = __linkStateOverrides.get(object);
+    if (!state) return;
+    const u = __linkStateMaterial.uniforms;
+    u.uNetworkStress.value = __currentNetworkStress;
+    u.uLocalLoad.value = state.loadMax ?? 0;
+    u.uCorruption.value = state.corruption ?? 0;
+    u.uSynergy.value = state.synergy ?? 50;
+    u.uHarmony.value = state.harmonyAvg ?? 0;
+    u.uTime.value = state.time ?? 0;
+  };
+
+  return __linkStateMaterial;
+}
+
+// Hook into registerLink to bind per-link overrides
+const _originalRegisterLink = LinkStateVisualLanguageIntegration.prototype.registerLink;
+LinkStateVisualLanguageIntegration.prototype.registerLink = function(link, optionalMaterial = null) {
+  const material = _originalRegisterLink.call(this, link, optionalMaterial);
+
+  // Capture current metrics for this link to apply at draw time
+  const metrics = this.linkMetrics.get(link) || {
+    corruption: 0, synergy: 50, harmonyAvg: 0, loadMax: 0, time: 0
+  };
+
+  __linkStateOverrides.set(link, {
+    corruption: metrics.corruption,
+    synergy: metrics.synergy,
+    harmonyAvg: metrics.harmonyAvg,
+    loadMax: metrics.loadMax,
+    networkStress: this.currentNetworkStress,
+    time: metrics.time ?? 0
+  });
+
+  // Optional debug log
+  if (typeof window !== 'undefined' && window.__ATOMA_DEBUG_LINK_MATS__ === true) {
+    const renderer = window.__ATOMA_RENDERER__;
+    const programCount = renderer?.info?.programs?.length;
+    const uniqueMaterials = new Set(Array.from(this.linkMaterials.values())).size;
+    console.log('[LinkStateVisualLanguageIntegration] link registered',
+      { programs: programCount, linkCount: this.linkMaterials.size, uniqueMaterials });
+  }
+
+  return material;
+};
 
 export default LinkStateVisualLanguageIntegration;

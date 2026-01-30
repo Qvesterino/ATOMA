@@ -359,6 +359,9 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
    * Trigger glow animation on new cycle
    */
   triggerGlow() {
+    if (document?.documentElement?.classList.contains('atoma-no-animated-glow')) {
+      return;
+    }
     this.glowActive = true;
     this.glowElapsedTime = 0;
   }
@@ -367,6 +370,9 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
    * Update glow animation
    */
   updateGlow(deltaTime) {
+    if (document?.documentElement?.classList.contains('atoma-no-animated-glow')) {
+      return;
+    }
     if (!this.glowActive) return;
     
     this.glowElapsedTime += deltaTime;
