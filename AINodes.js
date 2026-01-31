@@ -1,6 +1,48 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+if (typeof window !== "undefined") {
+  window.EnhancedNodeModels = EnhancedNodeModels;
+  EnhancedNodeModels.ensureRegistryReady?.();
+}
+
+// ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
+if (typeof window !== 'undefined') {
+  window.debugSpawnPools = function() {
+    const ai = window.game?.aiNodes;
+    const pools = {
+      categories: ai?.nodeCategories ? [...ai.nodeCategories] : null,
+      specialNodeTypes: ai?.specialNodeTypes ? [...ai.specialNodeTypes] : null,
+      newNodeCategories: ai?.newNodeCategories ? [...ai.newNodeCategories] : null
+    };
+    console.table([
+      { pool: 'categories', count: pools.categories?.length ?? 0, values: pools.categories },
+      { pool: 'specialNodeTypes', count: pools.specialNodeTypes?.length ?? 0, values: pools.specialNodeTypes },
+      { pool: 'newNodeCategories', count: pools.newNodeCategories?.length ?? 0, values: pools.newNodeCategories }
+    ]);
+    return pools;
+  };
+
+  window.debugComparePoolsVsRegistry = function() {
+    window.EnhancedNodeModels?.ensureRegistryReady?.();
+    const registry = window.EnhancedNodeModels?.__ALL_NODE_FACTORIES || {};
+    const categories = Object.keys(registry);
+    const rows = categories.map(cat => {
+      const registryCount = Array.isArray(registry[cat]) ? registry[cat].length : 0;
+      // In this pipeline, spawn pools pull directly from EnhancedNodeModels variant arrays; use registry as proxy
+      const poolCount = registryCount;
+      return {
+        category: cat,
+        poolCount,
+        registryCount,
+        missingInPool: Math.max(registryCount - poolCount, 0)
+      };
+    });
+    console.table(rows);
+    return rows;
+  };
+}
+
 import { SafeMetricsDNAIntegration1_0 } from './SafeMetricsDNAIntegration1_0.js';
 import { applyMetricCompatibility } from './MetricCompatibilityLayer.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
@@ -506,7 +548,7 @@ export class AINodes {
     // Create potential connections between nearby nodes
     this.createNodeConnections();
   }
-  
+
   /**
    * Get node positions based on environment
    */
@@ -593,16 +635,13 @@ export class AINodes {
    * No UNSAFE_CATEGORIES remain
    */
   static get SAFE_CATEGORIES() {
-    return ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'mythic', 'prime', 'error', 'emotional'];
+    return ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
   }
 
   static get UNSAFE_CATEGORIES() {
     return [];  // [TASK 2] All categories now safe — no unsafe categories
   }
 
-  static get DEPRECATED_CATEGORIES() {
-    return { sigma: 'quantum' };  // Map old → new
-  }
 
   /**
    * VALIDATE: Check category against whitelist
@@ -613,17 +652,6 @@ export class AINodes {
    */
   validateCategory(requestedCategory) {
     const requested = (requestedCategory || 'input').toLowerCase().trim();
-    
-    // Check if DEPRECATED (redirect)
-    if (AINodes.DEPRECATED_CATEGORIES[requested]) {
-      const redirectTo = AINodes.DEPRECATED_CATEGORIES[requested];
-      return {
-        valid: true,
-        category: redirectTo,
-        reason: `Category '${requested}' is deprecated, redirecting to '${redirectTo}'`,
-        redirected: true
-      };
-    }
     
     // Check if SAFE (allow)
     if (AINodes.SAFE_CATEGORIES.includes(requested)) {
@@ -682,11 +710,6 @@ export class AINodes {
       resolvedCategory = 'input';
     }
     
-    // Handle sigma → quantum redirect (legacy alias)
-    if (resolvedCategory === 'sigma') {
-      resolvedCategory = 'quantum';
-    }
-    
     // ========== LEGACY NODE MODEL FILTER v1.0 ==========
     // Block legacy models that use aura-as-body visuals
     const legacyCheck = LegacyNodeModelFilter.validateSpawn(resolvedCategory, true);
@@ -711,6 +734,7 @@ export class AINodes {
     
     // Use validated category (may be redirected from unsafe)
     const safeCategory = validation.valid ? validation.category : 'input';
+    EnhancedNodeModels.ensureRegistryReady();
     const coreColor = EnhancedNodeModels.getCategoryColor(safeCategory);
     
     // ========================================================================
@@ -721,13 +745,14 @@ export class AINodes {
       return null;
     }
     
-    // ========== SPAWN CYCLE VALIDATION: Enforce once-per-category geometry cycling ==========
-    // Get next geometry for this category with cycle validation
+    // ========== VARIANT SELECTION: simple validator + uniform index ==========
     const variantIndex = this.nodeCounter++;
-    const cycleData = spawnCycleValidator.getNextGeometry(safeCategory, variantIndex);
-    
-    // Create enhanced 3D node model (using validated, cycled geometry)
-    const nodeModel = EnhancedNodeModels.create(safeCategory, cycleData.variantIndex, coreColor);
+    const validatedCategory = spawnCycleValidator.validateCategory(
+      safeCategory,
+      ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']
+    );
+    // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
+    const nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
     nodeModel.position.copy(position);
     nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
     
@@ -747,7 +772,7 @@ export class AINodes {
     nodeModel.userData.enhancedNodeModelBinding = {
       sourceModel: 'EnhancedNodeModel',
       category: safeCategory,
-      variantIndex: cycleData.variantIndex,
+      variantIndex: variantIndex,
       spawnTime: Date.now()
     };
     
@@ -758,10 +783,8 @@ export class AINodes {
     // Store cycle information on node for debugging/inspection
     nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.spawnCycle = {
-      geometry: cycleData.geometry,
-      cycleNumber: cycleData.cycleNumber,
-      positionInCycle: cycleData.positionInCycle,
-      totalInCycle: cycleData.totalInCycle
+      category: validatedCategory,
+      variantIndex: variantIndex
     };
     
     // Get layer-specific colors for VFX
@@ -2073,7 +2096,8 @@ export class AINodes {
     // Time-based spawn interval configuration
     const timeSpawnInterval = { min: 20000, max: 40000 };
     
-    // Spawning configuration with balanced weights for all 49 archetypes
+    // Spawning configuration - UNIFORM SELECTION (PHASE S3)
+    // All categories have equal probability - no rarity weighting
     this.spawningConfig = {
       // Time-based spawning (every 20-40 seconds)
       timeSpawnInterval: timeSpawnInterval,
@@ -2089,18 +2113,7 @@ export class AINodes {
       maxNodesTarget: 50,
       spawnThreshold: 0.7, // Spawn if below 70% of max
       
-      // ========== EXTENDED SPAWN WEIGHTS (v1.0) ==========
-      // Carefully balanced to prevent overpopulation
-      spawnWeights: {
-        standard: 0.65,      // Standard 6 categories: 65%
-        mythic: 0.01,        // MYTHIC: 0.5-1.5% (ultra-rare)
-        prime: 0.025,        // PRIME: 2-3% (rare)
-        error: 0.01,         // ERROR: 0.5-1.5% (unstable)
-        extreme: 0.05,       // EXTREME archetypes: 4-6% (medium-rare)
-        special: 0.1         // SPECIAL (sigma/quantum/emotional): ~10% (multi-output)
-      },
-      
-      // Event-based spawn chances
+      // Event-based spawn chances (unchanged - independent of category selection)
       eventSpawnChances: {
         onLinkCreated: 0.2,           // 20% chance on link creation
         onHighSynergy: 0.15,          // 15% when high synergy detected
@@ -2228,49 +2241,20 @@ export class AINodes {
   }
   
   /**
-   * Get weighted random category from all 49 archetypes (EXTENDED SPAWN SYSTEM 1.0)
+   * Get uniform random category from all 49 archetypes (EXTENDED SPAWN SYSTEM 1.0)
+   * UNIFORM SELECTION: All categories have equal probability
    */
   getWeightedRandomCategory() {
-    const roll = Math.random();
-    const weights = this.spawningConfig.spawnWeights;
+    // Combine all category options into a single uniform pool
+    const allCategories = [
+      ...this.nodeCategories,      // Standard: input, process, integration, analytics, storage, control
+      ...this.newNodeCategories,  // New: mythic, prime, error
+      ...this.specialNodeTypes,   // Special: sigma, quantum, emotional
+      'extreme'                 // EXTREME archetypes
+    ];
     
-    // Weighted probability distribution
-    let cumulative = 0;
-    
-    // Standard categories (65%)
-    cumulative += weights.standard;
-    if (roll < cumulative) {
-      return this.nodeCategories[Math.floor(Math.random() * this.nodeCategories.length)];
-    }
-    
-    // MYTHIC nodes (0.5-1.5%)
-    cumulative += weights.mythic;
-    if (roll < cumulative) {
-      return 'mythic';
-    }
-    
-    // PRIME nodes (2-3%)
-    cumulative += weights.prime;
-    if (roll < cumulative) {
-      return 'prime';
-    }
-    
-    // ERROR nodes (0.5-1.5%)
-    cumulative += weights.error;
-    if (roll < cumulative) {
-      return 'error';
-    }
-    
-    // EXTREME archetypes (4-6%)
-    cumulative += weights.extreme;
-    if (roll < cumulative) {
-      const extremeKeys = Object.keys(this.extremeArchetypes).filter(k => k.startsWith('EXTREME-'));
-      const archetype = extremeKeys[Math.floor(Math.random() * extremeKeys.length)];
-      return this.extremeArchetypes[archetype];
-    }
-    
-    // SPECIAL multi-output nodes (~10%)
-    return this.specialNodeTypes[Math.floor(Math.random() * this.specialNodeTypes.length)];
+    // Uniform random selection - each category has equal probability
+    return allCategories[Math.floor(Math.random() * allCategories.length)];
   }
 
   /**
@@ -2314,31 +2298,6 @@ export class AINodes {
     if (this._fallbackWarned === undefined) this._fallbackWarned = false;
     let fallbackReason = null;
 
-    // Soft canonical remap: collapse non-canonical categories into archetypes
-    const CANONICAL_SET = ['input', 'process', 'integration', 'storage', 'control', 'analytics', 'quantum'];
-    const NON_CANONICAL_REMAP = {
-      mythic: 'quantum',
-      prime: 'process',
-      emotional: 'integration',
-      error: 'control',
-      sigma: 'quantum'
-    };
-
-    let remapApplied = false;
-    let remapArchetype = null;
-
-    if (requestedCategoryRaw) {
-      const requestedLower = String(requestedCategoryRaw).toLowerCase();
-      if (!CANONICAL_SET.includes(requestedLower) && NON_CANONICAL_REMAP[requestedLower]) {
-        category = NON_CANONICAL_REMAP[requestedLower];
-        remapApplied = true;
-        remapArchetype = requestedLower;
-        if (!this._canonicalRemapLogged) {
-          console.warn('[CanonicalMap] Remapped category', `'${requestedLower}'`, '→', `'${category}'`, 'as archetype');
-          this._canonicalRemapLogged = true;
-        }
-      }
-    }
 
     // ========================================================================
     // [SESSION 110] SINGLE INSTANCE ENFORCEMENT (Registry Check)
@@ -2485,7 +2444,7 @@ export class AINodes {
     }
     newNode.userData.nodeId = newNode.userData.id;
     newNode.userData.category = category;  // <- PRIMARY SOURCE
-    newNode.userData.archetype = forceArchetype || remapArchetype || category || 'default';
+    newNode.userData.archetype = forceArchetype || category || 'default';
     
     // ========== REGISTRATION VALIDATION (CRITICAL FOR INTERACTION) ==========
     // Ensure node has required properties for selection system

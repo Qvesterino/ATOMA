@@ -563,11 +563,13 @@ export class PHASE5_InterNetworkConnectionVisuals {
     
     // Connection geometries
     for (const conn of this.connectionLines.values()) {
-      if (conn.line && conn.line.geometry) {
-        const attr = conn.line.geometry.attributes;
-        for (const key in attr) {
-          bytes += attr[key].array.byteLength;
-        }
+      const geom = conn?.line?.geometry;
+      if (!geom || !geom.attributes) continue;
+      const attr = geom.attributes;
+      for (const key in attr) {
+        const array = attr[key]?.array;
+        if (!array || array.byteLength === undefined) continue;
+        bytes += array.byteLength;
       }
     }
     

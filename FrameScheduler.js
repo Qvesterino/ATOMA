@@ -211,12 +211,23 @@ class FrameScheduler {
                 }
 
                 for (const entry of layer.functions) {
+                    if (entry._disabled === true) continue;
                     if (!this.shouldRun(entry, now)) continue; // Load shaping gate: skip until interval reached
 
                     try {
                         entry.fn(layer.interval);
                     } catch (error) {
-                        console.error(`[FrameScheduler] Error in ${layerName} layer function:`, error);
+                        // ATOMA: Visual safety guard — protects FrameScheduler from legacy / incomplete node geometry
+                        entry._errorCount = (entry._errorCount || 0) + 1;
+                        entry._lastErrorMsg = error?.message || String(error);
+                        // Disable after first failure to prevent render spam
+                        if (entry._errorCount >= 1) {
+                            entry._disabled = true;
+                        }
+                        if (!entry._warned) {
+                            console.warn(`[FrameScheduler] Disabled ${entry.id || 'visual-task'} after error: ${entry._lastErrorMsg}`);
+                            entry._warned = true;
+                        }
                         // Continue execution - do not crash
                     }
                 }
@@ -271,6 +282,34 @@ class FrameScheduler {
         });
 
         return result;
+    }
+
+    /**
+     * ATOMA: Remove entries from a layer based on predicate
+     */
+    pruneLayer(layerName, predicate = () => false) {
+        const layer = this.layers?.[layerName];
+        if (!layer || !Array.isArray(layer.functions)) return 0;
+        const before = layer.functions.length;
+        layer.functions = layer.functions.filter(fn => !predicate(fn));
+        const removed = before - layer.functions.length;
+        return removed;
+    }
+
+    /**
+     * ATOMA: Reset a layer by pruning disabled entries and clearing error flags
+     */
+    resetLayer(layerName) {
+        const layer = this.layers?.[layerName];
+        if (!layer || !Array.isArray(layer.functions)) return 0;
+        const removed = this.pruneLayer(layerName, fn => fn?._disabled === true);
+        for (const fn of layer.functions) {
+            fn._disabled = false;
+            fn._errorCount = 0;
+            fn._warned = false;
+            fn._lastErrorMsg = undefined;
+        }
+        return removed;
     }
 
     /**

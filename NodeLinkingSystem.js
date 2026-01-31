@@ -6558,6 +6558,7 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
     });
   };
 
+  EnhancedNodeModels.ensureRegistryReady?.();
   for (const cat of categories) {
     const node = EnhancedNodeModels.create(cat, 0, 0xffffff);
     if (!node) continue;

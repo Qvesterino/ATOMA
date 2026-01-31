@@ -37,19 +37,20 @@ export class SafeNodeArchetypesPack {
       frameCounter: 0
     };
     
-    // Archetype definitions
+    // Archetype definitions (UNIFORM SELECTION - PHASE S3)
+    // All archetypes have equal probability - no rarity weighting
     this.archetypes = {
-      normal: { name: 'Normal', tier: 'base', spawnChance: 0.40 },
-      crystal: { name: 'Crystal', tier: 'mid', spawnChance: 0.075 },
-      harmonic: { name: 'Harmonic', tier: 'mid', spawnChance: 0.075 },
-      solar: { name: 'Solar', tier: 'mid', spawnChance: 0.075 },
-      echo: { name: 'Echo', tier: 'mid', spawnChance: 0.075 },
-      fractal: { name: 'Fractal', tier: 'advanced', spawnChance: 0.05 },
-      quantum: { name: 'Quantum', tier: 'advanced', spawnChance: 0.05 },
-      umbra: { name: 'Umbra', tier: 'advanced', spawnChance: 0.05 },
-      glyph: { name: 'Glyph', tier: 'advanced', spawnChance: 0.05 },
-      convergence: { name: 'Convergence', tier: 'advanced', spawnChance: 0.05 },
-      ascended: { name: 'Ascended', tier: 'legendary', spawnChance: 0.015 }
+      normal: { name: 'Normal', tier: 'base' },
+      crystal: { name: 'Crystal', tier: 'mid' },
+      harmonic: { name: 'Harmonic', tier: 'mid' },
+      solar: { name: 'Solar', tier: 'mid' },
+      echo: { name: 'Echo', tier: 'mid' },
+      fractal: { name: 'Fractal', tier: 'advanced' },
+      quantum: { name: 'Quantum', tier: 'advanced' },
+      umbra: { name: 'Umbra', tier: 'advanced' },
+      glyph: { name: 'Glyph', tier: 'advanced' },
+      convergence: { name: 'Convergence', tier: 'advanced' },
+      ascended: { name: 'Ascended', tier: 'legendary' }
     };
     
     // Configuration
@@ -122,20 +123,12 @@ export class SafeNodeArchetypesPack {
   }
   
   /**
-   * Roll for archetype based on spawn chances
+   * Roll for archetype - UNIFORM SELECTION (PHASE S3)
+   * All archetypes have equal probability - no rarity weighting
    */
   rollArchetype() {
-    const roll = Math.random();
-    let accumulated = 0;
-    
-    for (const [key, def] of Object.entries(this.archetypes)) {
-      accumulated += def.spawnChance;
-      if (roll < accumulated) {
-        return key;
-      }
-    }
-    
-    return 'normal';  // fallback
+    const keys = Object.keys(this.archetypes);
+    return keys[Math.floor(Math.random() * keys.length)];
   }
   
   /**

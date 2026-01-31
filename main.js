@@ -15,6 +15,7 @@ import { QuantumIsland } from './QuantumIsland.js';
 import { FractalValley } from './FractalValley.js';
 import { MemoryLane } from './MemoryLane.js';
 import { AINodes } from './AINodes.js';
+import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
@@ -3067,6 +3068,7 @@ class AtomaGame {
         window.frameScheduler = this.frameScheduler;
         window.debugSchedulerStats = () => this.frameScheduler.getStats();
         window.debugSchedulerList = () => this.frameScheduler.listSystems();
+        this.frameScheduler.register('background', () => EnhancedNodeModels.ensureRegistryReady?.(), 'registry-warmup');
 this.frameScheduler.register(
   'realtime',
   (dt) => this.runCoreMetricsOverlayTick(dt),
@@ -4571,6 +4573,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      * Create the ATOMA world
      */
     createWorld() {
+        // ATOMA: visual layer prune/reset on world switch
+        this.frameScheduler?.resetLayer?.('visual');
+
         if (this.currentMode === 'sigma') {
             this.sigmaRift = new SigmaRiftChamber(this.scene);
             this.activeWorld = this.sigmaRift;

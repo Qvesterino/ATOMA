@@ -245,6 +245,7 @@ export function createEnhancedNodeReplacement(category, index, color) {
     case 'error':
     case 'emotional':
       // Use EnhancedNodeModels which has production variants
+      EnhancedNodeModels.ensureRegistryReady?.();
       return EnhancedNodeModels.create(category, index, color);
     
     default:

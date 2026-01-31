@@ -14,6 +14,7 @@ import { InputEnhancedVariants } from './InputEnhancedVariants_Session84.js';
 import { InputSensoryEnhanced } from './InputSensoryEnhanced_Session111.js';
 import { ControlNodeSpecialGovernors } from './ControlNodeSpecialGoverners_Session114.js';
 import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
+import { AINodeModel } from './AINodeModel.js';
 
 /**
  * Enhanced Node Models - 42 unique geometric designs + 12 EXTREME geometries
@@ -44,6 +45,235 @@ import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 export class EnhancedNodeModels {
   // Shared EXTREME generator instance
   static extremeNodePack = new ExtremeAINodePack();
+  // Master registry for discovery/debug (not used for weighting)
+  static _ALL_NODE_FACTORIES = {
+    input: [],
+    process: [],
+    integration: [],
+    storage: [],
+    analytics: [],
+    control: [],
+    quantum: [],
+    sigma: [],
+    mythic: [],
+    prime: [],
+    error: [],
+    emotional: []
+  };
+  static __EXTRA_FACTORIES = {
+    // Legacy AINodeModel visuals made reachable via pools
+    input: [AINodeModel.createCoreNode.bind(AINodeModel)],
+    process: [AINodeModel.createLogicNode.bind(AINodeModel)],
+    integration: [AINodeModel.createNeuralNode.bind(AINodeModel)],
+    storage: [AINodeModel.createMemoryNode.bind(AINodeModel)],
+    analytics: [AINodeModel.createDataNode.bind(AINodeModel)],
+    control: [],
+    quantum: [],
+    sigma: [],
+    mythic: [],
+    prime: [],
+    error: [],
+    emotional: []
+  };
+  static _ensureRegistry(category, variantList) {
+    const reg = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
+    if (!reg || !Array.isArray(variantList)) return;
+    for (const fn of variantList) {
+      if (typeof fn !== 'function') continue;
+      if (!reg.includes(fn)) reg.push(fn);
+    }
+  }
+
+  static _isRegistryValid() {
+    const reg = this._ALL_NODE_FACTORIES;
+    if (!reg || typeof reg !== 'object') return false;
+
+    // at least one category must have factories
+    return Object.values(reg).some(arr => Array.isArray(arr) && arr.length > 0);
+  }
+
+  static ensureRegistryReady() {
+    if (this._isRegistryValid()) return false; // already OK
+
+    console.warn("[EnhancedNodeModels] Registry invalid → rebuilding");
+
+    try {
+      this._registerAllFactories();
+    } catch (e) {
+      console.error("[EnhancedNodeModels] Registry rebuild failed", e);
+    }
+
+    return true;
+  }
+
+  static _registerAllFactories() {
+
+    // Always recreate registry container (safe + deterministic)
+    this._ALL_NODE_FACTORIES = {
+      input: [],
+      process: [],
+      integration: [],
+      storage: [],
+      analytics: [],
+      control: [],
+      quantum: [],
+      sigma: [],
+      mythic: [],
+      prime: [],
+      error: [],
+      emotional: []
+    };
+    // INPUT
+    EnhancedNodeModels._ensureRegistry('input', [
+      this.createInputNode0.bind(this),
+      this.createInputNode2.bind(this),
+      this.createInputNode1.bind(this),
+      this.createNewIcosahedron.bind(this),
+      this.createInputSignalReceptor.bind(this),
+      this.createInputDataGateway.bind(this),
+      this.createInputIncomingFunnel.bind(this),
+      this.createExtremeInput0.bind(this),
+      InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
+      InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
+      InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced),
+      ...(this.__EXTRA_FACTORIES?.input || [])
+    ]);
+
+    // PROCESS
+    EnhancedNodeModels._ensureRegistry('process', [
+      this.createProcessNode0.bind(this),
+      this.createProcessNode3.bind(this),
+      this.createProcessNode2.bind(this),
+      this.createProcessNode1.bind(this),
+      this.createNewHexagonalPrism.bind(this),
+      this.createProcessFluxChamber.bind(this),
+      this.createProcessTransformationSpine.bind(this),
+      this.createProcessConversionOrbit.bind(this),
+      ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
+      ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
+      ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants),
+      ...(this.__EXTRA_FACTORIES?.process || [])
+    ]);
+
+    // INTEGRATION
+    EnhancedNodeModels._ensureRegistry('integration', [
+      this.createKnotTrefoil.bind(this),
+      this.createKnotFigureEight.bind(this),
+      this.createKnotInfiniteSelfIntersecting.bind(this),
+      this.createKnotChaotic.bind(this),
+      this.createKnotBorromean.bind(this),
+      this.createKnotTorusKnot.bind(this),
+      this.createKnotTripleHelix.bind(this),
+      this.createExtremeInput1.bind(this),
+      IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),
+      IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
+      IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants),
+      ...(this.__EXTRA_FACTORIES?.integration || [])
+    ]);
+
+    // ANALYTICS
+    EnhancedNodeModels._ensureRegistry('analytics', [
+      this.createAnalyticsNode0.bind(this),
+      this.createAnalyticsNode1.bind(this),
+      this.createAnalyticsNode2.bind(this),
+      this.createAnalyticsNode3.bind(this),
+      this.createAnalyticsObserverLens.bind(this),
+      this.createAnalyticsFractalEcho.bind(this),
+      this.createAnalyticsParallaxOracle.bind(this),
+      this.createNewElongatedOctahedron.bind(this),
+      AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
+      AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
+      AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants),
+      ...(this.__EXTRA_FACTORIES?.analytics || [])
+    ]);
+
+    // STORAGE
+    EnhancedNodeModels._ensureRegistry('storage', [
+      this.createStorageNode0.bind(this),
+      this.createStorageNode1.bind(this),
+      this.createStorageNode2.bind(this),
+      this.createStorageNode3.bind(this),
+      this.createNewRhombicSolid.bind(this),
+      this.createStorageMnemonicVault.bind(this),
+      this.createStorageArchiveSpindle.bind(this),
+      this.createStorageMemoryReef.bind(this),
+      StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
+      StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
+      StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
+      StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
+      StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
+      StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual),
+      ...(this.__EXTRA_FACTORIES?.storage || [])
+    ]);
+
+    // CONTROL
+    EnhancedNodeModels._ensureRegistry('control', [
+      this.createAxiomCrystalNode.bind(this),
+      this.createControlNode0.bind(this),
+      this.createControlNode2.bind(this),
+      this.createControlNode1.bind(this),
+      this.createControlCommandPyramid.bind(this),
+      this.createControlHierarchyTower.bind(this),
+      this.createControlSymmetryCore.bind(this),
+      this.createExtremeControl0.bind(this),
+      ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),
+      ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),
+      ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),
+      ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
+      ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
+      ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors),
+      ...(this.__EXTRA_FACTORIES?.control || [])
+    ]);
+
+    // QUANTUM (sigma alias shares same pool)
+    EnhancedNodeModels._ensureRegistry('quantum', [
+      this.createSigmaNode0.bind(this),
+      this.createSigmaNode1.bind(this),
+      this.createSigmaNode2.bind(this),
+      this.createSigmaNode3.bind(this),
+      this.createNewEllipsoid.bind(this),
+      this.createExtremeIntegration1.bind(this),
+      ...(this.__EXTRA_FACTORIES?.quantum || [])
+    ]);
+    EnhancedNodeModels._ensureRegistry('sigma', EnhancedNodeModels._ALL_NODE_FACTORIES.quantum);
+
+    // MYTHIC
+    EnhancedNodeModels._ensureRegistry('mythic', [
+      this.createMythicNode.bind(this),
+      ...(this.__EXTRA_FACTORIES?.mythic || [])
+    ]);
+
+    // PRIME
+    EnhancedNodeModels._ensureRegistry('prime', [
+      this.createPrimeNode.bind(this),
+      ...(this.__EXTRA_FACTORIES?.prime || [])
+    ]);
+
+    // ERROR
+    EnhancedNodeModels._ensureRegistry('error', [
+      this.createErrorNode.bind(this),
+      ...(this.__EXTRA_FACTORIES?.error || [])
+    ]);
+
+    // EMOTIONAL
+    EnhancedNodeModels._ensureRegistry('emotional', [
+      this.createEmotionalNode.bind(this),
+      ...(this.__EXTRA_FACTORIES?.emotional || [])
+    ]);
+
+  }
+
+  static get __ALL_NODE_FACTORIES() {
+    return this._ALL_NODE_FACTORIES;
+  }
+
+  static set __ALL_NODE_FACTORIES(value) {
+    this._ALL_NODE_FACTORIES = value;
+  }
+
+  static __registerAllFactories() {
+    return this._registerAllFactories();
+  }
 
   // ============================================================================
   // LEGACY SCALE PULSE AUDIT & DISABLE (Session 107)
@@ -97,6 +327,7 @@ export class EnhancedNodeModels {
    * Create node by category and index
    */
   static create(category = 'input', index = 0, color = 0x00ffff) {
+    this.ensureRegistryReady();
     const nodeGroup = new THREE.Group();
     
     switch(category.toLowerCase()) {
@@ -398,6 +629,10 @@ export class EnhancedNodeModels {
       InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),        // EchoDetector (Session 111)
       InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)       // NeuralReceptor (Session 111)
     ];
+    EnhancedNodeModels._ensureRegistry('input', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.input) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.input);
+    }
     return variants[nodeId % 11](group, color);
   }
 
@@ -898,7 +1133,11 @@ export class EnhancedNodeModels {
       ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),    // TemporalShifter (NEW)
       ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)        // IterativeEngine (NEW)
     ];
-    return variants[nodeId % 11](group, color);
+    EnhancedNodeModels._ensureRegistry('process', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.process) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.process);
+    }
+    return variants[nodeId % variants.length](group, color);
   }
 
   /**
@@ -1401,7 +1640,11 @@ export class EnhancedNodeModels {
       IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),  // Protocol Tangle (Session 110)
       IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants)   // Continuity Binder (Session 110)
     ];
-    return variants[nodeId % 11](group, color);
+    EnhancedNodeModels._ensureRegistry('integration', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.integration) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.integration);
+    }
+    return variants[nodeId % variants.length](group, color);
   }
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
@@ -1589,7 +1832,11 @@ export class EnhancedNodeModels {
       AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),    // TrendExcavator (NEW)
       AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)      // AnomalyLedger (NEW)
     ];
-    return variants[nodeId % 11](group, color);
+    EnhancedNodeModels._ensureRegistry('analytics', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.analytics) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.analytics);
+    }
+    return variants[nodeId % variants.length](group, color);
   }
 
   /**
@@ -2053,8 +2300,12 @@ export class EnhancedNodeModels {
       StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),                        // FractalReservoir (NEW - Session 116)
       StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)                              // ArchiveDrum (NEW - Session 116)
     ];
+    EnhancedNodeModels._ensureRegistry('storage', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.storage) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.storage);
+    }
     
-    return variants[nodeId % 14](group, color);
+    return variants[nodeId % variants.length](group, color);
   }
 
   /**
@@ -2716,7 +2967,11 @@ export class EnhancedNodeModels {
       ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors), // CRUCIS (NEW - Session 114)
       ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors)       // VERTEX (NEW - Session 114)
     ];
-    return variants[nodeId % 14](group, color);
+    EnhancedNodeModels._ensureRegistry('control', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.control) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.control);
+    }
+    return variants[nodeId % variants.length](group, color);
   }
 
   /**
@@ -3114,7 +3369,7 @@ export class EnhancedNodeModels {
    * - TwistedOctahedron+ResonanceField
    * - HyperbolicNeuralPrism
    * - ChaoticHeart
-   */
+  */
   static createQuantumNode(group, index, color) {
     const variants = [
       this.createSigmaNode0.bind(this),           // FracturedAnomaly
@@ -3124,10 +3379,14 @@ export class EnhancedNodeModels {
       this.createNewEllipsoid.bind(this),         // HyperbolicNeuralPrism
       this.createExtremeIntegration1.bind(this)   // ChaoticHeart (moved from INTEGRATION)
     ];
-    return variants[index % 6](group, color);
+    EnhancedNodeModels._ensureRegistry('quantum', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.quantum) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.quantum);
+    }
+    return variants[index % variants.length](group, color);
   }
 
-  // ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
+// ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
   static createSigmaNode(group, index, color) {
     return this.createQuantumNode(group, index, color);
   }
@@ -3272,8 +3531,12 @@ export class EnhancedNodeModels {
       () => CanonicalGeometryFamilies.createMythicAncientCoreWithMissing(1.0),
       () => CanonicalGeometryFamilies.createMythicCollapsedCrown(1.0)
     ];
+    EnhancedNodeModels._ensureRegistry('mythic', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.mythic) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.mythic);
+    }
     
-    const mesh = variants[index % 6]();
+    const mesh = variants[index % variants.length]();
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'mythic';
     mesh.userData.visualReady = true;
@@ -3298,8 +3561,12 @@ export class EnhancedNodeModels {
       () => CanonicalGeometryFamilies.createPrimeTesseractProjection(1.0),
       () => CanonicalGeometryFamilies.createPrimeSymmetryLockedCore(1.0)
     ];
+    EnhancedNodeModels._ensureRegistry('prime', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.prime) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.prime);
+    }
     
-    const mesh = variants[index % 6]();
+    const mesh = variants[index % variants.length]();
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'prime';
     mesh.userData.visualReady = true;
@@ -3324,8 +3591,12 @@ export class EnhancedNodeModels {
       () => CanonicalGeometryFamilies.createErrorTopologyTear(1.0),
       () => CanonicalGeometryFamilies.createErrorCorruptedManifold(1.0)
     ];
+    EnhancedNodeModels._ensureRegistry('error', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.error) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.error);
+    }
     
-    const mesh = variants[index % 6]();
+    const mesh = variants[index % variants.length]();
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'error';
     mesh.userData.isError = true;
@@ -3352,7 +3623,12 @@ export class EnhancedNodeModels {
       () => CanonicalGeometryFamilies.createEmotionalSymmetricSeed(1.0)
     ];
     
-    const mesh = variants[index % 6]();
+    EnhancedNodeModels._ensureRegistry('emotional', variants);
+    if (EnhancedNodeModels.__EXTRA_FACTORIES?.emotional) {
+      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.emotional);
+    }
+    
+    const mesh = variants[index % variants.length]();
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'emotional';
     mesh.userData.visualReady = true;
@@ -5089,4 +5365,73 @@ export class EnhancedNodeModels {
       return this.createControlNode1(group, color);
     }
   }
+}
+
+if (typeof window !== "undefined") {
+
+  window.EnhancedNodeModels = EnhancedNodeModels;
+
+  // Self-heal on attach
+  EnhancedNodeModels.ensureRegistryReady();
+
+  // Dev helper
+  window.ensureNodeRegistry = () => {
+    EnhancedNodeModels.ensureRegistryReady();
+    return EnhancedNodeModels._ALL_NODE_FACTORIES;
+  };
+
+  // ===== DEV ONLY: spawn-all factory smoke test =====
+  window.debugSpawnAllNodes = function() {
+    EnhancedNodeModels.ensureRegistryReady();
+    const results = [];
+    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
+    for (const [category, factories] of Object.entries(categories)) {
+      const list = factories || [];
+      list.forEach((factory, i) => {
+        try {
+          const group = new THREE.Group();
+          const node = factory(group, i, 0x00ffff);
+          if (!node) {
+            results.push({ category, index: i, status: 'NULL_NODE' });
+            return;
+          }
+          results.push({ category, index: i, status: 'OK' });
+        } catch (e) {
+          results.push({ category, index: i, status: 'ERROR', error: e.message });
+        }
+      });
+    }
+    console.table(results);
+    return results;
+  };
+
+  // DEV: Factory registry diagnostics
+  window.debugFactoryCounts = function() {
+    EnhancedNodeModels.ensureRegistryReady();
+    const out = {};
+    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
+    for (const [cat, arr] of Object.entries(categories)) {
+      out[cat] = Array.isArray(arr) ? arr.length : 0;
+    }
+    return out;
+  };
+
+  window.debugFactoryList = function(category) {
+    EnhancedNodeModels.ensureRegistryReady();
+    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
+    const list = categories[category] || [];
+    // Try to surface function names when available
+    return list.map((fn, idx) => fn?.name || `factory_${idx}`);
+  };
+
+  window.debugRegistrySummary = function() {
+    EnhancedNodeModels.ensureRegistryReady();
+    const rows = [];
+    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
+    for (const [cat, arr] of Object.entries(categories)) {
+      rows.push({ category: cat, count: Array.isArray(arr) ? arr.length : 0 });
+    }
+    console.table(rows);
+    return rows;
+  };
 }

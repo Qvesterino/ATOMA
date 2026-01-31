@@ -6,19 +6,19 @@
  * core dominance rules.
  * 
  * PROBLEM MODELS (Historical):
- * - 'sigma' (old naming): Full-disk aura, no distinct core
  * - Any model using old aura-body fusion approach
  * 
  * SOLUTION:
- * - Redirect 'sigma' to 'quantum' (enhanced version with proper core)
  * - Block any attempt to spawn unstable models
  * - Log redirects for debugging
+ * 
+ * NOTE: 'sigma' is now a valid category with proper EnhancedNodeModel implementation
  */
 
 export class LegacyNodeModelFilter {
   // Maps of problematic models and their safe replacements
   static LEGACY_MODEL_MAPPING = {
-    'sigma': 'quantum',           // Old sigma → quantum (enhanced)
+    // Empty - sigma is now a valid category
   };
 
   // Models marked as unstable (complete core/aura collapse)
@@ -141,7 +141,8 @@ export class LegacyNodeModelFilter {
       'analytics',
       'storage',
       'control',
-      'quantum',   // Quantum (replaces old sigma)
+      'quantum',
+      'sigma',     // Sigma is now a valid category with proper EnhancedNodeModel
       'mythic',
       'prime',
       'error',
@@ -221,9 +222,7 @@ legacyModelDebug.listSafe()            - Show safe models
 legacyModelDebug.listUnstable()        - Show unstable models
 legacyModelDebug.help()                - Show this help
 
-MAPPINGS:
----------
-'sigma' → 'quantum' (modern enhanced model with proper core)
+NOTE: 'sigma' is now a valid category with proper EnhancedNodeModel implementation
           `);
         }
       };
