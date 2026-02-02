@@ -19,6 +19,9 @@ export class PHASE5_InterNetworkVisualizationBridge {
     connectionVisuals,
     config = {}
   ) {
+    if (!connectionVisuals) {
+      return;
+    }
     this.multiNetworkManager = multiNetworkManager;
     this.corruptionBridge = corruptionBridge;
     this.connectionVisuals = connectionVisuals;

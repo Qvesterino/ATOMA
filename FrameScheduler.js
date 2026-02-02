@@ -217,17 +217,13 @@ class FrameScheduler {
                     try {
                         entry.fn(layer.interval);
                     } catch (error) {
-                        // ATOMA: Visual safety guard — protects FrameScheduler from legacy / incomplete node geometry
-                        entry._errorCount = (entry._errorCount || 0) + 1;
-                        entry._lastErrorMsg = error?.message || String(error);
-                        // Disable after first failure to prevent render spam
-                        if (entry._errorCount >= 1) {
-                            entry._disabled = true;
-                        }
+                        const jobId = entry.id || entry.fn?.name || 'visual-task';
                         if (!entry._warned) {
-                            console.warn(`[FrameScheduler] Disabled ${entry.id || 'visual-task'} after error: ${entry._lastErrorMsg}`);
+                            console.error(`[FrameScheduler] Job crashed: ${jobId}`, error);
+                            if (error?.stack) console.error(error.stack);
                             entry._warned = true;
                         }
+                        entry._disabled = true;
                         // Continue execution - do not crash
                     }
                 }

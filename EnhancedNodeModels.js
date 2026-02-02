@@ -144,8 +144,6 @@ export class EnhancedNodeModels {
       this.createProcessNode0.bind(this),
       this.createProcessNode3.bind(this),
       this.createProcessNode2.bind(this),
-      this.createProcessNode1.bind(this),
-      this.createNewHexagonalPrism.bind(this),
       this.createProcessFluxChamber.bind(this),
       this.createProcessTransformationSpine.bind(this),
       this.createProcessConversionOrbit.bind(this),
@@ -173,7 +171,6 @@ export class EnhancedNodeModels {
 
     // ANALYTICS
     EnhancedNodeModels._ensureRegistry('analytics', [
-      this.createAnalyticsNode0.bind(this),
       this.createAnalyticsNode1.bind(this),
       this.createAnalyticsNode2.bind(this),
       this.createAnalyticsNode3.bind(this),
@@ -191,7 +188,6 @@ export class EnhancedNodeModels {
     EnhancedNodeModels._ensureRegistry('storage', [
       this.createStorageNode0.bind(this),
       this.createStorageNode1.bind(this),
-      this.createStorageNode2.bind(this),
       this.createStorageNode3.bind(this),
       this.createNewRhombicSolid.bind(this),
       this.createStorageMnemonicVault.bind(this),
@@ -229,9 +225,7 @@ export class EnhancedNodeModels {
     EnhancedNodeModels._ensureRegistry('quantum', [
       this.createSigmaNode0.bind(this),
       this.createSigmaNode1.bind(this),
-      this.createSigmaNode2.bind(this),
       this.createSigmaNode3.bind(this),
-      this.createNewEllipsoid.bind(this),
       this.createExtremeIntegration1.bind(this),
       ...(this.__EXTRA_FACTORIES?.quantum || [])
     ]);
@@ -390,73 +384,9 @@ export class EnhancedNodeModels {
    * VISUAL HIERARCHY: Inner geometry opacity reduced to 0.50–0.55 (was 0.6)
    */
   static createInputNode0(group, color) {
-    // STABLE NODE ROOT - Single source of truth for all visual systems
-    if (!group.userData.nodeRoot) {
-      const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
-      group.add(nodeRoot);
-      group.userData.nodeRoot = nodeRoot;
-    }
-    const nodeRoot = group.userData.nodeRoot;
-    
-    // Get canonical renderOrder from registry
-    const coreRenderOrder = this._getCoreRenderOrder();
-    const archetypeRenderOrder = this._getArchetypeRenderOrder();
-
-    // Triangular prism core - IDENTITY LAYER (purely solid)
-    const prismGeometry = new THREE.ConeGeometry(0.8, 1.2, 3);
-    const prismMaterial = createCoreIdentityMaterial(color);
-    const prism = new THREE.Mesh(prismGeometry, prismMaterial);
-    prism.rotation.z = Math.PI / 2;
-    prism.renderOrder = coreRenderOrder;
-    prism.frustumCulled = false;
-    prism.userData.visualLayer = 'CORE';
-    nodeRoot.add(prism);
-    
-    // HOLOGRAM SHELL - UNIFIED CREATION (STABLE ICOSPHERE, not derived from core)
-    const prismShell = createNodeHologramShell(prism, color);
-    if (prismShell) {
-      nodeRoot.add(prismShell);
-    }
-
-    // Subtle cyan rim glow
-    const rimGeometry = new THREE.TorusGeometry(0.95, 0.08, 8, 32);
-    const rimMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.4
-    });
-    const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-    rim.rotation.x = Math.PI / 2;
-    rim.scale.z = 0.3;
-    rim.renderOrder = coreRenderOrder;  // ← Uses registry
-    rim.userData.visualLayer = 'CORE';
-    group.add(rim);
-
-    // POLISH: Inner rotating tetrahedron (signal forming effect)
-    // VISUAL HIERARCHY: Reduced opacity from 0.6 to 0.52 (10–15% reduction)
-    const innerTetraGeometry = new THREE.TetrahedronGeometry(0.3, 1);
-    const innerTetraMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: color,
-      emissiveIntensity: 0.5,
-      transparent: true,
-      opacity: 0.52  // Reduced from 0.6
-    });
-    const innerTetra = new THREE.Mesh(innerTetraGeometry, innerTetraMaterial);
-    innerTetra.rotation.set(Math.PI / 6, 0, Math.PI / 4);
-    innerTetra.renderOrder = archetypeRenderOrder;  // ← Uses registry
-    innerTetra.userData.visualLayer = 'ARCHETYPE';
-    group.add(innerTetra);
-
-    // Store animation metadata
-    group.userData.innerSignalRotationAxis = new THREE.Vector3(0.5, -1, 0.7).normalize();
-    group.userData.innerSignalRotationSpeed = 0.2;
-
     return group;
   }
+
 
   /**
    * Input Node 1: Sphere with holographic rings + internal directional vector
@@ -464,136 +394,25 @@ export class EnhancedNodeModels {
    * VISUAL HIERARCHY: Inner geometry opacity reduced to 0.55–0.60 (was 0.7)
    */
   static createInputNode1(group, color) {
-    // STABLE NODE ROOT - Single source of truth for all visual systems
-    if (!group.userData.nodeRoot) {
-      const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
-      group.add(nodeRoot);
-      group.userData.nodeRoot = nodeRoot;
-    }
-    const nodeRoot = group.userData.nodeRoot;
-    
-    // Smooth sphere core - IDENTITY LAYER (purely solid)
-    const sphereGeometry = new THREE.SphereGeometry(0.7, 32, 32);
-    const sphereMaterial = createCoreIdentityMaterial(color);
-    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    sphere.renderOrder = 0;
-    sphere.frustumCulled = false;
-    sphere.userData.visualLayer = 'CORE';
-    nodeRoot.add(sphere);
-    
-    // HOLOGRAM SHELL - UNIFIED CREATION (STABLE ICOSPHERE, not derived from core)
-    const sphereShell = createNodeHologramShell(sphere, color);
-    if (sphereShell) {
-      nodeRoot.add(sphereShell);
-    }
-
-    // Holographic rings
-    for (let i = 0; i < 3; i++) {
-      const ringGeometry = new THREE.TorusGeometry(1.1 + i * 0.3, 0.04, 16, 100);
-      const ringMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.25 - i * 0.06
-      });
-      const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-      ring.rotation.x = Math.random() * Math.PI;
-      ring.rotation.z = Math.random() * Math.PI;
-      ring.renderOrder = 2;  // RINGS layer
-      ring.userData.visualLayer = 'RINGS';
-      group.add(ring);
-    }
-
-    // POLISH: Internal directional vector (stretched octahedron as arrow)
-    // VISUAL HIERARCHY: Reduced opacity from 0.7 to 0.58 (17% reduction)
-    const vectorGeometry = new THREE.OctahedronGeometry(0.25, 1);
-    const vectorMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.95,
-      roughness: 0.05,
-      emissive: color,
-      emissiveIntensity: 0.6,
-      transparent: true,
-      opacity: 0.58  // Reduced from 0.7
-    });
-    const vector = new THREE.Mesh(vectorGeometry, vectorMaterial);
-    vector.scale.set(1.5, 0.6, 0.6); // Stretched to look like directional arrow
-    vector.rotation.set(Math.PI / 6, Math.PI / 4, 0);
-    vector.renderOrder = 1;  // INTERNAL layer
-    vector.userData.visualLayer = 'INTERNAL';
-    group.add(vector);
-
-    // Store animation metadata
-    group.userData.vectorRotationAxis = new THREE.Vector3(-0.3, 1, 0.2).normalize();
-    group.userData.vectorRotationSpeed = 0.25;
-
     return group;
   }
+
 
   /**
    * Input Node 2: Inverted cone (incoming data)
    */
   static createInputNode2(group, color) {
-    // Inverted cone
-    const coneGeometry = new THREE.ConeGeometry(1, 1.4, 32);
-    const coneMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-    cone.rotation.z = Math.PI;
-    cone.userData.visualLayer = 'CORE';
-    group.add(cone);
-
-    // Edge highlight
-    const edgeGeometry = new THREE.EdgesGeometry(coneGeometry);
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.6
-    });
-    const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-    edges.rotation.z = Math.PI;
-    edges.userData.visualLayer = 'INTERNAL';
-    group.add(edges);
-
     return group;
   }
+
 
   /**
    * Input Node 3: Rectangular gateway frame with cyan edge light
    */
   static createInputNode3(group, color) {
-    // Gateway frame (rectangular)
-    const frameGeometry = new THREE.BoxGeometry(1.2, 1.4, 0.2);
-    const frameMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.2
-    });
-    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-    frame.userData.visualLayer = 'CORE';
-    group.add(frame);
-
-    // Cyan edge light (wireframe highlight)
-    const wireGeometry = new THREE.BoxGeometry(1.3, 1.5, 0.25);
-    const wireMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.5
-    });
-    const wire = new THREE.Mesh(wireGeometry, wireMaterial);
-    wire.userData.visualLayer = 'INTERNAL';
-    group.add(wire);
-
     return group;
   }
+
 
   /**
    * Main input node creator
@@ -983,120 +802,33 @@ export class EnhancedNodeModels {
    * Process Node 0: Cube within cube, rotating effect
    */
   static createProcessNode0(group, color) {
-    // Outer cube
-    const outerGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const cubeMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const outerCube = new THREE.Mesh(outerGeometry, cubeMaterial);
-    outerCube.userData.visualLayer = 'CORE';
-    group.add(outerCube);
-
-    // Inner cube (rotated)
-    const innerGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-    const innerCube = new THREE.Mesh(innerGeometry, cubeMaterial);
-    innerCube.rotation.set(Math.PI / 6, Math.PI / 4, Math.PI / 6);
-    innerCube.userData.visualLayer = 'INTERNAL';
-    group.add(innerCube);
-
-    // Add rotation animation state
-    group.userData.rotationAxis = new THREE.Vector3(1, 1, 1).normalize();
-
     return group;
   }
+
 
   /**
    * Process Node 1: Circular core with radial cutouts
    */
   static createProcessNode1(group, color) {
-    const cylinderGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.6, 32);
-    const cylinderMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
-    cylinder.userData.visualLayer = 'CORE';
-    group.add(cylinder);
-
-    // Radial cutout indicators (spikes)
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const spikeGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.3);
-      const spike = new THREE.Mesh(spikeGeometry, cylinderMaterial);
-      spike.position.x = Math.cos(angle) * 1.0;
-      spike.position.z = Math.sin(angle) * 1.0;
-      spike.userData.visualLayer = 'RINGS';
-      group.add(spike);
-    }
-
-    group.userData.rotationAxis = new THREE.Vector3(0, 1, 0);
-
     return group;
   }
+
 
   /**
    * Process Node 2: Layered rectangular plates
    */
   static createProcessNode2(group, color) {
-    const plateCount = 4;
-    const plateMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.25,
-      emissive: color,
-      emissiveIntensity: 0.25
-    });
-
-    for (let i = 0; i < plateCount; i++) {
-      const plateGeometry = new THREE.BoxGeometry(1.2, 0.25, 1.2);
-      const plate = new THREE.Mesh(plateGeometry, plateMaterial);
-      plate.position.y = (i - plateCount / 2) * 0.4;
-      plate.userData.visualLayer = 'CORE'; // Each plate is part of the core structure
-      group.add(plate);
-    }
-
     return group;
   }
+
 
   /**
    * Process Node 3: Torus with inner segmentation
    */
   static createProcessNode3(group, color) {
-    const torusGeometry = new THREE.TorusGeometry(0.8, 0.3, 8, 100);
-    const torusMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const torus = new THREE.Mesh(torusGeometry, torusMaterial);
-    torus.userData.visualLayer = 'CORE';
-    group.add(torus);
-
-    // Inner segmentation (rings)
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const segGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.6);
-      const seg = new THREE.Mesh(segGeometry, torusMaterial);
-      seg.position.x = Math.cos(angle) * 0.5;
-      seg.position.z = Math.sin(angle) * 0.5;
-      seg.rotation.y = angle;
-      seg.userData.visualLayer = 'INTERNAL';
-      group.add(seg);
-    }
-
-    group.userData.rotationAxis = new THREE.Vector3(0, 1, 0);
-
     return group;
   }
+
 
   /**
    * Main process node creator
@@ -1124,8 +856,6 @@ export class EnhancedNodeModels {
       this.createProcessNode0.bind(this),                        // DiamondLattice
       this.createProcessNode3.bind(this),                        // Helix
       this.createProcessNode2.bind(this),                        // DoubleHelix
-      this.createProcessNode1.bind(this),                        // MeshColumn
-      this.createNewHexagonalPrism.bind(this),                   // HexagonalPrism
       this.createProcessFluxChamber.bind(this),                  // FluxChamber
       this.createProcessTransformationSpine.bind(this),          // TransformationSpine
       this.createProcessConversionOrbit.bind(this),              // ConversionOrbit
@@ -1451,7 +1181,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] ConversionOrbit creation failed, fallback:', err);
-      return this.createProcessNode1(group, color);
+      return this.createProcessNode0(group, color);
     }
   }
 
@@ -1498,50 +1228,9 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * Integration Node 1: Two overlapping spheres
+   * Integration Node 1: (purged)
    */
   static createIntegrationNode1(group, color) {
-    const sphereGeometry = new THREE.SphereGeometry(0.6, 24, 24);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.6,
-      roughness: 0.35,
-      emissive: color,
-      emissiveIntensity: 0.25
-    });
-
-    // Left sphere
-    const leftSphere = new THREE.Mesh(sphereGeometry, material);
-    leftSphere.position.x = -0.35;
-    leftSphere.userData.visualLayer = 'CORE';
-    group.add(leftSphere);
-
-    // Right sphere
-    const rightSphere = new THREE.Mesh(sphereGeometry, material);
-    rightSphere.position.x = 0.35;
-    rightSphere.userData.visualLayer = 'CORE';
-    group.add(rightSphere);
-
-    // Soft green seam (glowing line)
-    const seamGeometry = new THREE.BufferGeometry();
-    const seamPoints = [];
-    for (let i = 0; i <= 32; i++) {
-      const angle = (i / 32) * Math.PI * 2;
-      seamPoints.push(
-        new THREE.Vector3(0, Math.cos(angle) * 0.6, Math.sin(angle) * 0.6)
-      );
-    }
-    seamGeometry.setFromPoints(seamPoints);
-    const seamMaterial = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.8,
-      linewidth: 2
-    });
-    const seam = new THREE.Line(seamGeometry, seamMaterial);
-    seam.userData.visualLayer = 'INTERNAL';
-    group.add(seam);
-
     return group;
   }
 
@@ -1653,31 +1342,6 @@ export class EnhancedNodeModels {
    * Analytics Node 0: Disc with central lens
    */
   static createAnalyticsNode0(group, color) {
-    // Disc base
-    const discGeometry = new THREE.CylinderGeometry(0.9, 0.9, 0.2, 32);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const disc = new THREE.Mesh(discGeometry, material);
-    group.add(disc);
-
-    // Central circular lens
-    const lensGeometry = new THREE.SphereGeometry(0.4, 24, 24);
-    const lensMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: color,
-      emissiveIntensity: 0.4
-    });
-    const lens = new THREE.Mesh(lensGeometry, lensMaterial);
-    lens.position.y = 0.15;
-    group.add(lens);
-
     return group;
   }
 
@@ -1686,59 +1350,9 @@ export class EnhancedNodeModels {
    * UPGRADED: Added internal rotating octahedron/helix slice instead of static plate
    */
   static createAnalyticsNode1(group, color) {
-    const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const wireGeometry = new THREE.EdgesGeometry(cubeGeometry);
-    
-    // Cube frame
-    const frameMaterial = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.6
-    });
-    const frame = new THREE.LineSegments(wireGeometry, frameMaterial);
-    frame.userData.visualLayer = 'CORE';
-    group.add(frame);
-
-    // Cube surface
-    const surfaceMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.15,
-      transparent: true,
-      opacity: 0.2
-    });
-    const surface = new THREE.Mesh(cubeGeometry, surfaceMaterial);
-    surface.renderOrder = 0;  // Core layer
-    surface.userData.visualLayer = 'CORE';
-    group.add(surface);
-
-    // POLISH: Internal rotating octahedron (analysis geometry, not cube-in-cube)
-    // VISUAL HIERARCHY: Reduced opacity from 0.7 to 0.58 (17% reduction)
-    const internalGeoGeo = new THREE.OctahedronGeometry(0.35, 1);
-    const internalGeoMat = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: color,
-      emissiveIntensity: 0.6,
-      transparent: true,
-      opacity: 0.58  // Reduced from 0.7
-    });
-    const internalGeo = new THREE.Mesh(internalGeoGeo, internalGeoMat);
-    internalGeo.rotation.set(Math.PI / 8, Math.PI / 6, Math.PI / 4);
-    internalGeo.renderOrder = 1;  // Inner geometry layer
-    internalGeo.userData.visualLayer = 'INTERNAL';
-    internalGeo.userData = { ...internalGeo.userData, isInternalAnalysisGeometry: true };
-    group.add(internalGeo);
-
-    // Store animation metadata for slow rotation
-    group.userData.internalGeometryRotationAxis = new THREE.Vector3(0.5, 1, 0.3).normalize();
-    group.userData.internalGeometryRotationSpeed = 0.22;
-
     return group;
   }
+
 
   /**
    * Analytics Node 2: Hexagonal disc with fractal patterns
@@ -1820,7 +1434,6 @@ export class EnhancedNodeModels {
     }
     
     const variants = [
-      this.createAnalyticsNode0.bind(this),                           // DataPyramid
       this.createAnalyticsNode1.bind(this),                           // SpinningDataSphere
       this.createAnalyticsNode2.bind(this),                           // HexAnalysisMatrix
       this.createAnalyticsNode3.bind(this),                           // PrismSpectrumAnalyzer
@@ -1920,7 +1533,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] ObserverLens creation failed, fallback:', err);
-      return this.createAnalyticsNode0(group, color);
+      return this.createAnalyticsNode1(group, color);
     }
   }
 
@@ -2209,22 +1822,6 @@ export class EnhancedNodeModels {
    * Storage Node 2: Thick cube with horizontal segmentation
    */
   static createStorageNode2(group, color) {
-    const segmentCount = 5;
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.2
-    });
-
-    for (let i = 0; i < segmentCount; i++) {
-      const segGeometry = new THREE.BoxGeometry(0.9, 0.3, 0.9);
-      const seg = new THREE.Mesh(segGeometry, material);
-      seg.position.y = (i - segmentCount / 2) * 0.4;
-      group.add(seg);
-    }
-
     return group;
   }
 
@@ -2287,7 +1884,6 @@ export class EnhancedNodeModels {
     const variants = [
       this.createStorageNode0.bind(this),                       // MemoryPillar
       this.createStorageNode1.bind(this),                       // CapsuleBands
-      this.createStorageNode2.bind(this),                       // SegmentedStack
       this.createStorageNode3.bind(this),                       // CrystalShardCluster
       this.createNewRhombicSolid.bind(this),                    // RhombicSolid
       this.createStorageMnemonicVault.bind(this),               // MnemonicVault
@@ -2664,31 +2260,9 @@ export class EnhancedNodeModels {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    const pyramidGeometry = new THREE.TetrahedronGeometry(0.8);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.7,
-      roughness: 0.25,
-      emissive: color,
-      emissiveIntensity: 0.35
-    });
-    const pyramid = new THREE.Mesh(pyramidGeometry, material);
-    pyramid.scale.z = 1.4; // Make it pointy
-    group.add(pyramid);
-
-    // Sharp edges
-    const edgeGeometry = new THREE.EdgesGeometry(pyramidGeometry);
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.8
-    });
-    const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-    edges.scale.z = 1.4;
-    group.add(edges);
-
     return group;
   }
+
 
   /**
    * Control Node 2: Ring-within-ring hierarchy structure
@@ -3374,9 +2948,7 @@ export class EnhancedNodeModels {
     const variants = [
       this.createSigmaNode0.bind(this),           // FracturedAnomaly
       this.createSigmaNode1.bind(this),           // DistortedPolyCluster
-      this.createSigmaNode2.bind(this),           // ChaoticLayeredForm
       this.createSigmaNode3.bind(this),           // TwistedOctahedron+ResonanceField
-      this.createNewEllipsoid.bind(this),         // HyperbolicNeuralPrism
       this.createExtremeIntegration1.bind(this)   // ChaoticHeart (moved from INTEGRATION)
     ];
     EnhancedNodeModels._ensureRegistry('quantum', variants);
@@ -3458,30 +3030,9 @@ export class EnhancedNodeModels {
    * Sigma Node 2: Multi-faceted anomaly
    */
   static createSigmaNode2(group, color) {
-    const facetGeo = new THREE.DodecahedronGeometry(0.7, 0);
-    const facetMat = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.8,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3,
-      wireframe: false
-    });
-    const facet = new THREE.Mesh(facetGeo, facetMat);
-    group.add(facet);
-
-    // Edge highlight
-    const edgeGeo = new THREE.EdgesGeometry(facetGeo);
-    const edgeMat = new THREE.LineBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.5
-    });
-    const edges = new THREE.LineSegments(edgeGeo, edgeMat);
-    group.add(edges);
-
     return group;
   }
+
 
   /**
    * Sigma Node 3: Twisted anomaly
@@ -4463,57 +4014,16 @@ export class EnhancedNodeModels {
    * Pentagon-faced polyhedron with geometric presence
    */
   static createNewDodecahedron(group, color) {
-    try {
-      const geoDodecahedron = new THREE.DodecahedronGeometry(0.65, 0);
-      const matDodecahedron = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.75,
-        roughness: 0.25,
-        emissive: color,
-        emissiveIntensity: 0.35
-      });
-      const dodecahedron = new THREE.Mesh(geoDodecahedron, matDodecahedron);
-      group.add(dodecahedron);
-
-      // Edge outline for definition
-      const edgeGeo = new THREE.EdgesGeometry(geoDodecahedron);
-      const edgeMat = new THREE.LineBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.4
-      });
-      const edges = new THREE.LineSegments(edgeGeo, edgeMat);
-      group.add(edges);
-
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Dodecahedron creation failed, fallback to sphere:', err);
-      return this.createControlNode0(group, color);
-    }
+    return group;
   }
+
 
   /**
    * NEW: Ellipsoid - SIGMA category
    * Stretched sphere for smooth dimensional feel
    */
   static createNewEllipsoid(group, color) {
-    try {
-      const geoEllipsoid = new THREE.SphereGeometry(0.85, 32, 32);
-      geoEllipsoid.scale(1.1, 0.75, 0.95); // Elliptical stretch
-      const matEllipsoid = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.65,
-        roughness: 0.35,
-        emissive: color,
-        emissiveIntensity: 0.3
-      });
-      const ellipsoid = new THREE.Mesh(geoEllipsoid, matEllipsoid);
-      group.add(ellipsoid);
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Ellipsoid creation failed, fallback to sphere:', err);
-      return this.createInputNode1(group, color);
-    }
+    return group;
   }
 
   /**
@@ -4580,107 +4090,18 @@ export class EnhancedNodeModels {
    * Diamond-like shape for precious storage feel
    */
   static createNewRhombicSolid(group, color) {
-    try {
-      // Rhombic 12-faced polyhedron using scaled octahedron
-      const geoRhombic = new THREE.OctahedronGeometry(0.7, 2);
-      geoRhombic.scale(1.0, 1.3, 1.0); // Elongate vertically
-      
-      const matRhombic = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.8,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.35
-      });
-      const rhombic = new THREE.Mesh(geoRhombic, matRhombic);
-      group.add(rhombic);
-
-      // Facet highlights
-      const facetEdges = new THREE.EdgesGeometry(geoRhombic);
-      const facetMat = new THREE.LineBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.3
-      });
-      const facetLines = new THREE.LineSegments(facetEdges, facetMat);
-      group.add(facetLines);
-
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Rhombic Solid creation failed, fallback to sphere:', err);
-      return this.createStorageNode0(group, color);
-    }
+    return group;
   }
+
 
   /**
    * NEW: Hexagonal Prism - PROCESS category
    * Six-sided vertical form for systematic processing
    */
   static createNewHexagonalPrism(group, color) {
-    try {
-      // Create hexagonal prism
-      const vertices = new Float32Array([
-        // Top hexagon
-        0.6, 0.5, 0,
-        0.3, 0.5, 0.52,
-        -0.3, 0.5, 0.52,
-        -0.6, 0.5, 0,
-        -0.3, 0.5, -0.52,
-        0.3, 0.5, -0.52,
-        // Bottom hexagon
-        0.6, -0.5, 0,
-        0.3, -0.5, 0.52,
-        -0.3, -0.5, 0.52,
-        -0.6, -0.5, 0,
-        -0.3, -0.5, -0.52,
-        0.3, -0.5, -0.52
-      ]);
-
-      const indices = new Uint16Array([
-        // Top and bottom faces
-        0, 1, 2,
-        0, 2, 3,
-        0, 3, 4,
-        0, 4, 5,
-        6, 8, 7,
-        6, 9, 8,
-        6, 10, 9,
-        6, 11, 10,
-        // Sides
-        0, 6, 7,
-        0, 7, 1,
-        1, 7, 8,
-        1, 8, 2,
-        2, 8, 9,
-        2, 9, 3,
-        3, 9, 10,
-        3, 10, 4,
-        4, 10, 11,
-        4, 11, 5,
-        5, 11, 6,
-        5, 6, 0
-      ]);
-
-      const geoPrism = new THREE.BufferGeometry();
-      geoPrism.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-      geoPrism.setIndex(new THREE.BufferAttribute(indices, 1));
-      geoPrism.computeVertexNormals();
-
-      const matPrism = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.7,
-        roughness: 0.3,
-        emissive: color,
-        emissiveIntensity: 0.3
-      });
-      const prism = new THREE.Mesh(geoPrism, matPrism);
-      group.add(prism);
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Hexagonal Prism creation failed, fallback to sphere:', err);
-      return this.createProcessNode0(group, color);
-    }
+    return group;
   }
+
 
   /**
    * NEW: Elongated Octahedron - ANALYTICS category (UPGRADED)
@@ -4688,58 +4109,9 @@ export class EnhancedNodeModels {
    * UPGRADED: Added internal planar analytical frame, slow precise rotation
    */
   static createNewElongatedOctahedron(group, color) {
-    try {
-      const geoOctahedron = new THREE.OctahedronGeometry(0.7, 3);
-      geoOctahedron.scale(0.9, 1.4, 0.9); // Elongate vertically
-      
-      const matOctahedron = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.7,
-        roughness: 0.3,
-        emissive: color,
-        emissiveIntensity: 0.3
-      });
-      const octahedron = new THREE.Mesh(geoOctahedron, matOctahedron);
-      group.add(octahedron);
-
-      // Vertex highlights
-      const vertexEdges = new THREE.EdgesGeometry(geoOctahedron);
-      const vertexMat = new THREE.LineBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.35
-      });
-      const vertexLines = new THREE.LineSegments(vertexEdges, vertexMat);
-      group.add(vertexLines);
-
-      // POLISH: Internal rotating analytical frame (angled planar slice)
-      const framePlaneGeo = new THREE.PlaneGeometry(0.7, 0.4, 3, 2);
-      const frameplaneMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.95,
-        roughness: 0.05,
-        emissive: color,
-        emissiveIntensity: 0.5,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide
-      });
-      const frameplane = new THREE.Mesh(framePlaneGeo, frameplaneMat);
-      frameplane.rotation.x = Math.PI / 6;
-      frameplane.rotation.z = Math.PI / 4;
-      frameplane.userData = { isAnalyticalFrame: true };
-      group.add(frameplane);
-
-      // Store animation metadata
-      group.userData.analyticalFrameRotationAxis = new THREE.Vector3(0.3, 1, -0.2).normalize();
-      group.userData.analyticalFrameRotationSpeed = 0.18; // Slow, precise motion
-
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Elongated Octahedron creation failed, fallback to sphere:', err);
-      return this.createAnalyticsNode0(group, color);
-    }
+    return group;
   }
+
 
   // ===== KNOT NODE GEOMETRIES (8 topological shapes) =====
   // Pure geometry extension for sophisticated knot-based nodes
@@ -4825,7 +4197,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] Triple Helix Knot failed, fallback:', err);
-      return this.createAnalyticsNode0(group, color);
+      return this.createAnalyticsNode1(group, color);
     }
   }
 
@@ -4964,7 +4336,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] Chaotic Knot failed, fallback:', err);
-      return this.createProcessNode1(group, color);
+      return this.createProcessNode0(group, color);
     }
   }
 
@@ -4990,7 +4362,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] Infinite Self-Intersecting Knot failed, fallback:', err);
-      return this.createIntegrationNode1(group, color);
+      return this.createIntegrationNode0(group, color);
     }
   }
 
@@ -5186,7 +4558,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] EXTREME Process1 failed, fallback:', err);
-      return this.createProcessNode1(group, color);
+      return this.createProcessNode0(group, color);
     }
   }
 
@@ -5230,7 +4602,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] EXTREME Integration1 failed, fallback:', err);
-      return this.createIntegrationNode1(group, color);
+      return this.createIntegrationNode0(group, color);
     }
   }
 
@@ -5296,7 +4668,7 @@ export class EnhancedNodeModels {
       return group;
     } catch (err) {
       console.warn('[EnhancedNodeModels] EXTREME Analytics0 failed, fallback:', err);
-      return this.createAnalyticsNode0(group, color);
+      return this.createAnalyticsNode1(group, color);
     }
   }
 

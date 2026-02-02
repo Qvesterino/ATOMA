@@ -34,8 +34,6 @@ import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidato
 import { NodeEditor } from './NodeEditor.js';
 import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { CinematicUpgrade } from './CinematicUpgrade.js';
-import { SigmaNode } from './SigmaNode.js';
-import { QuantumNode } from './QuantumNode.js';
 import { VisualUpgradeSuperpack } from './VisualUpgradeSuperpack.js';
 import { SafeEvolutionManager } from './_SafeEvolutionManager.js';
 import { SafeLegendaryNodePack } from './_SafeLegendaryNodePack.js';
@@ -503,8 +501,10 @@ import { TIER4_GameplayIntegrationBridge } from './TIER4_GameplayIntegrationBrid
 // ✅ P5-005: Cascade Propagation Visuals (expanding rings on cascades)
 // ============================================================================
 import { PHASE5_MultiNetworkOrchestrator } from './PHASE5_MultiNetworkOrchestrator_v1.js';
-import { PHASE5_InterNetworkConnectionVisuals } from './PHASE5_InterNetworkConnectionVisuals_v1.js';
+//import { PHASE5_InterNetworkConnectionVisuals } from './PHASE5_InterNetworkConnectionVisuals_v1.js';
 import { PHASE5_InterNetworkVisualizationBridge } from './PHASE5_InterNetworkVisualizationBridge_v1.js';
+
+const VISUAL_SYSTEMS_ENABLED = false;
 import { PHASE5_CascadePropagationVisuals } from './PHASE5_CascadePropagationVisuals_v1.js';
 import { PHASE5_CascadeVisualizationBridge } from './PHASE5_CascadeVisualizationBridge_v1.js';
 
@@ -3191,8 +3191,6 @@ document.addEventListener('keydown', () => {
         this.hazards = null;
         this.cinematicUpgrade = null;
         this.visualSuperpack = null;
-        this.sigmaNodes = [];
-        this.quantumNodes = [];
         this.evolutionManager = null;
         this.legendaryPack = null;
         this.legendaryLinkFX = null;
@@ -3244,7 +3242,7 @@ document.addEventListener('keydown', () => {
         // PHASE 5: MULTI-NETWORK SYNCHRONIZATION
         // ====================================================================
         this.phase5MultiNetworkOrchestrator = null;
-        this.phase5InterNetworkConnectionVisuals = null;
+      //  this.phase5InterNetworkConnectionVisuals = null;
         this.phase5InterNetworkVisualizationBridge = null;
         this.phase5CascadePropagationVisuals = null;
         this.phase5CascadeVisualizationBridge = null;
@@ -3704,7 +3702,6 @@ document.addEventListener('keydown', () => {
         this.setupRecursiveGlyphMessaging();
         this.setupEmergentThoughtStorms();
         this.setupAINarrativePatterns();
-        this.setupSpecialNodes();
         this.setupModeSwitch();
         this.setupPerformanceMode();
         this.setupNodeEditorInput();
@@ -6042,89 +6039,64 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         
         // ====================================================================
-        // PHASE 5: INTER-NETWORK CONNECTION VISUALS (Visual Display Layer)
+        // PHASE 5: INTER-NETWORK CONNECTION VISUALS (Disabled)
         // ====================================================================
-        // Initialize connection visualization system
-        try {
-            this.phase5InterNetworkConnectionVisuals = new PHASE5_InterNetworkConnectionVisuals(
-                this.scene,
-                this.phase5MultiNetworkOrchestrator.multiNetworkManager,
-                {
-                    enableDebug: false,
-                    enableLogging: false,
-                    anchorRadius: 2.0,
-                    anchorGlowRadius: 3.5,
-                    cableRadius: 0.4,
-                    flowSpeed: 2.0,
-                    maxConnections: 20
-                }
-            );
-            console.log('[main.js] PHASE5_InterNetworkConnectionVisuals initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] PHASE5_InterNetworkConnectionVisuals initialization failed:', err);
-        }
-        
-        // Initialize visualization bridge
-        try {
-            this.phase5InterNetworkVisualizationBridge = new PHASE5_InterNetworkVisualizationBridge(
-                this.phase5MultiNetworkOrchestrator.multiNetworkManager,
-                this.phase5MultiNetworkOrchestrator.corruptionBridge,
-                this.phase5InterNetworkConnectionVisuals,
-                {
-                    enableDebug: false,
-                    enableLogging: false,
-                    syncInterval: 32  // 30 FPS visual updates
-                }
-            );
-            console.log('[main.js] PHASE5_InterNetworkVisualizationBridge initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] PHASE5_InterNetworkVisualizationBridge initialization failed:', err);
-        }
+        // Hard off: skip initialization of visuals and bridge
+        // this.phase5InterNetworkConnectionVisuals = null;
+        // this.phase5InterNetworkVisualizationBridge = null;
         
         // ====================================================================
         // PHASE 5: CASCADE PROPAGATION VISUAL EFFECTS
         // ====================================================================
         // Initialize cascade propagation visual effects (expanding rings)
-        try {
-            this.phase5CascadePropagationVisuals = new PHASE5_CascadePropagationVisuals(
-                this.scene,
-                {
-                    enableDebug: false,
-                    enableLogging: false,
-                    ringRadius: 1.5,
-                    expandSpeed: 8.0,
-                    fadeDuration: 0.8,
-                    maxRingSize: 15.0,
-                    corruptionCascadeColor: 0xff3333,  // Red
-                    harmonyCascadeColor: 0x00ffff,     // Cyan
-                    threatCascadeColor: 0xff6600,      // Orange
-                    maxActiveRings: 50,
-                    depthDecayFactor: 0.7
-                }
-            );
-            console.log('[main.js] PHASE5_CascadePropagationVisuals initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] PHASE5_CascadePropagationVisuals initialization failed:', err);
+        if (VISUAL_SYSTEMS_ENABLED) {
+            try {
+                this.phase5CascadePropagationVisuals = new PHASE5_CascadePropagationVisuals(
+                    this.scene,
+                    {
+                        enableDebug: false,
+                        enableLogging: false,
+                        ringRadius: 1.5,
+                        expandSpeed: 8.0,
+                        fadeDuration: 0.8,
+                        maxRingSize: 15.0,
+                        corruptionCascadeColor: 0xff3333,  // Red
+                        harmonyCascadeColor: 0x00ffff,     // Cyan
+                        threatCascadeColor: 0xff6600,      // Orange
+                        maxActiveRings: 50,
+                        depthDecayFactor: 0.7
+                    }
+                );
+                console.log('[main.js] PHASE5_CascadePropagationVisuals initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] PHASE5_CascadePropagationVisuals initialization failed:', err);
+            }
+        } else {
+            this.phase5CascadePropagationVisuals = null;
         }
         
         // Initialize cascade visualization bridge
-        try {
-            this.phase5CascadeVisualizationBridge = new PHASE5_CascadeVisualizationBridge(
-                this.aiNodes,
-                this.linkCorruptionTransmission,
-                this.phase5CascadePropagationVisuals,
-                {
-                    enableDebug: false,
-                    enableLogging: false,
-                    corruptionCascadeThreshold: 0.7,
-                    threatCascadeThreshold: 0.5,
-                    harmonyCascadeThreshold: 0.8,
-                    maxEventHistory: 100
-                }
-            );
-            console.log('[main.js] PHASE5_CascadeVisualizationBridge initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] PHASE5_CascadeVisualizationBridge initialization failed:', err);
+        if (VISUAL_SYSTEMS_ENABLED) {
+            try {
+                this.phase5CascadeVisualizationBridge = new PHASE5_CascadeVisualizationBridge(
+                    this.aiNodes,
+                    this.linkCorruptionTransmission,
+                    this.phase5CascadePropagationVisuals,
+                    {
+                        enableDebug: false,
+                        enableLogging: false,
+                        corruptionCascadeThreshold: 0.7,
+                        threatCascadeThreshold: 0.5,
+                        harmonyCascadeThreshold: 0.8,
+                        maxEventHistory: 100
+                    }
+                );
+                console.log('[main.js] PHASE5_CascadeVisualizationBridge initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] PHASE5_CascadeVisualizationBridge initialization failed:', err);
+            }
+        } else {
+            this.phase5CascadeVisualizationBridge = null;
         }
 
         // ====================================================================
@@ -7593,16 +7565,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.cinematicUpgrade.update(deltaTime);
         }
 
-        // Update Sigma nodes
-        this.sigmaNodes.forEach(node => {
-            node.update(deltaTime, this.time);
-        });
-
-        // Update Quantum nodes
-        this.quantumNodes.forEach(node => {
-            node.update(deltaTime, this.time);
-        });
-
         // Update node editor
         if (this.nodeEditor) {
             this.nodeEditor.update(deltaTime);
@@ -8712,9 +8674,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // PHASE 5: INTER-NETWORK CONNECTION VISUALS UPDATE
         // ====================================================================
         // Update inter-network connection visualization (animated flows + anchors)
-        if (this.phase5InterNetworkVisualizationBridge) {
-            this.phase5InterNetworkVisualizationBridge.update(deltaTime);
-        }
+        // Inter-network visuals disabled: skip update
         
         // ====================================================================
         // PHASE 5: CASCADE PROPAGATION VISUALS UPDATE
@@ -9511,7 +9471,18 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.lastRenderFrame = frameId;
         // [DIAG] HARD BYPASS post-processing
         this.renderer.setRenderTarget(null);
-        this.renderer.render(this.scene, this.camera);
+        if (!this.__renderWarningLogged) {
+            this.__renderWarningLogged = false;
+        }
+        try {
+            this.renderer.render(this.scene, this.camera);
+        } catch (err) {
+            if (!this.__renderWarningLogged) {
+                console.warn('[FrameScheduler] renderer.render skipped due to runtime error:', err);
+                this.__renderWarningLogged = true;
+            }
+            return;
+        }
         // Phase B.3 – program stabilization: optional program creation watch (dev-only)
         if (PROGRAM_WATCH_ENABLED && this.renderer?.info?.programs) {
             const count = Array.isArray(this.renderer.info.programs)
@@ -9563,6 +9534,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
     }
 
     runNodeAuraSystemTick(deltaTime) {
+        if (!VISUAL_SYSTEMS_ENABLED) return;
         if (this.nodeAuraSystem && this.aiNodes) {
             this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
         }
@@ -9592,6 +9564,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
      * Update linking system - LEGACY TRAFFIC UI REMOVED (Session 35)
      */
     updateLinkingUI() {
+        if (!VISUAL_SYSTEMS_ENABLED) return;
         if (!this.linkingSystem || !this.linkingSystem.links) return;
         // Legacy NODE CATEGORIES and LINK TRAFFIC overlays removed
         // These were deprecated HTML overlays in index.html
@@ -9648,24 +9621,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Apply color grading
         this.cinematicUpgrade.applyColorGrading(this.renderer);
-    }
-
-    /**
-     * Setup Sigma and Quantum nodes
-     */
-    setupSpecialNodes() {
-        // Create Sigma nodes (orange, critical)
-        this.sigmaNodes = [
-            new SigmaNode(this.scene, new THREE.Vector3(-20, 5, -20)),
-            new SigmaNode(this.scene, new THREE.Vector3(20, 5, 20)),
-            new SigmaNode(this.scene, new THREE.Vector3(0, 8, -30))
-        ];
-
-        // Create Quantum nodes (green/cyan, probabilistic)
-        this.quantumNodes = [
-            new QuantumNode(this.scene, new THREE.Vector3(30, 3, -10)),
-            new QuantumNode(this.scene, new THREE.Vector3(-30, 3, 10))
-        ];
     }
 
     /**

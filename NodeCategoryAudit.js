@@ -595,7 +595,17 @@ export class NodeCategoryAudit {
       );
 
       if (coreMesh && !coreMesh.geometry.boundingSphere) {
-        coreMesh.geometry.computeBoundingSphere();
+        const arr = coreMesh.geometry?.attributes?.position?.array;
+        let valid = true;
+        if (!arr) valid = false;
+        else {
+          for (let i = 0; i < arr.length; i++) {
+            if (!Number.isFinite(arr[i])) { valid = false; break; }
+          }
+        }
+        if (valid && !(coreMesh.geometry.type === 'EdgesGeometry' && !arr)) {
+          coreMesh.geometry.computeBoundingSphere();
+        }
       }
     }
 

@@ -9,6 +9,14 @@
 // Phase B.6 – NodeTargeting rename (no behavior change)
 
 import * as THREE from 'three';
+import { safeComputeBounds, getSafeBoundingSphere } from './src/three/GeometryBoundsSafe.js';
+
+// SAFE SOFT REVERT: Use legacy bounds path to restore original visual behavior
+// When true: Use simple THREE.js Box3.setFromObject (no sanitization, no unions, no fallbacks)
+// When false: Use new safe bounds logic with NaN/Infinity protection
+// Legacy bounds path preserved to prevent visual hierarchy corruption.
+const USE_LEGACY_NODE_BOUNDS = true;
+
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
@@ -225,6 +233,15 @@ const visualMutationGuards = {
     return false;
   }
 };
+function hasFinitePositions(geometry) {
+  const arr = geometry?.attributes?.position?.array;
+  if (!arr) return false;
+  for (let i = 0; i < arr.length; i++) {
+    if (!Number.isFinite(arr[i])) return false;
+  }
+  return true;
+}
+
 
 export class NodeLinkingSystem {
   constructor(scene, camera, renderer, aiNodes) {
@@ -2474,16 +2491,76 @@ getLinksForNode(node) {
   /**
    * Compute and store a node's bounding sphere for raycast selection.
    * Marks result on userData.boundingSphere for reuse.
+   * 
+   * [SOFT REVERT] Two code paths based on USE_LEGACY_NODE_BOUNDS flag:
+   * - Legacy path: Simple THREE.js Box3.setFromObject (original behavior)
+   * - New path: Safe bounds with NaN/Infinity protection
+   * Legacy bounds path preserved to prevent visual hierarchy corruption.
    */
   computeNodeBoundingSphere(node) {
     if (!node) return null;
     if (!node.userData) node.userData = {};
 
-    const box = new THREE.Box3().setFromObject(node);
-    const sphere = new THREE.Sphere();
-    box.getBoundingSphere(sphere);
-    node.userData.boundingSphere = sphere;
-    return sphere;
+    // Return cached result if available
+    if (node.userData.boundingSphere && !node.userData._boundsDirty) {
+      return node.userData.boundingSphere;
+    }
+
+    // Legacy bounds path: Simple THREE.js Box3.setFromObject
+    // No sanitization, no unions, no fallbacks - original behavior
+    if (USE_LEGACY_NODE_BOUNDS) {
+      const box = new THREE.Box3().setFromObject(node);
+      const sphere = new THREE.Sphere();
+      box.getBoundingSphere(sphere);
+      node.userData.boundingSphere = sphere;
+      return sphere;
+    }
+
+    // New bounds path: Safe bounds with NaN/Infinity protection
+    // Try to compute bounding sphere from node's geometries
+    // Traverse node to find mesh geometries and compute bounds using safe helper
+    let hasValidGeometry = false;
+    let tempBox = new THREE.Box3();
+    
+    node.traverse(child => {
+      if (child.isMesh && child.visible && child.geometry) {
+        const result = safeComputeBounds(child.geometry);
+        if (result.ok && result.boundingBox) {
+          tempBox.union(result.boundingBox);
+          hasValidGeometry = true;
+        }
+      }
+    });
+
+    if (hasValidGeometry) {
+      // Successfully computed bounds from valid geometries
+      const sphere = new THREE.Sphere();
+      tempBox.getBoundingSphere(sphere);
+      
+      // Validate sphere radius is finite
+      if (Number.isFinite(sphere.radius) && sphere.radius > 0) {
+        node.userData.boundingSphere = sphere;
+        return sphere;
+      }
+    }
+
+    // Fallback: create minimal sphere based on node world position
+    // This ensures raycast selection works even with malformed geometry
+    const worldPos = new THREE.Vector3();
+    node.getWorldPosition(worldPos);
+    
+    if (!Number.isFinite(worldPos.x) || !Number.isFinite(worldPos.y) || !Number.isFinite(worldPos.z)) {
+      // Node position is also invalid - return null to prevent crashes
+      console.warn('[computeNodeBoundingSphere] Node has invalid position', node.id || node.uuid);
+      return null;
+    }
+    
+    // Create minimal fallback sphere (radius 0.001 = just enough for raycast hit)
+    const fallbackSphere = new THREE.Sphere(worldPos.clone(), 0.001);
+    node.userData.boundingSphere = fallbackSphere;
+    node.userData._fallbackBounds = true; // Mark as fallback for debugging
+    
+    return fallbackSphere;
   }
 
   getNodeAtPosition(clientX, clientY, callsite = 'unknown') {

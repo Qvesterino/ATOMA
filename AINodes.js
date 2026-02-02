@@ -63,6 +63,21 @@ import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
 
+function hasRenderableVisual(object3D) {
+  if (!object3D) return false;
+  const stack = [object3D];
+  while (stack.length) {
+    const obj = stack.pop();
+    if ((obj.isMesh || obj.isLine || obj.isPoints) && obj.visible === true) {
+      return true;
+    }
+    if (obj.children && obj.children.length) {
+      stack.push(...obj.children);
+    }
+  }
+  return false;
+}
+
 // ============================================================
 // ATOMA EMISSIVE SAFETY GUARD 4.0
 // Globally prevents MeshBasicMaterial emissive warnings
@@ -753,6 +768,9 @@ export class AINodes {
     );
     // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
     const nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
+    if (!hasRenderableVisual(nodeModel)) {
+      return null;
+    }
     nodeModel.position.copy(position);
     nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
     
@@ -790,86 +808,19 @@ export class AINodes {
     // Get layer-specific colors for VFX
     const layerColors = this.getLayerColorScheme(safeCategory);
     
-    // ========== ULTRA EDITION: MULTI-CORE AI STRUCTURE ==========
-    // ========== LINK TARGET CONTRACT: Designate explicit visual target ==========
-    // This is the ONLY object link-state systems are allowed to mutate.
-    // Assigned here at spawn time, never derived or inferred.
-    
-    // CORE A: Bright Neon Point (Node Heart) — PRIMARY LINK TARGET
-    const coreAGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-    const coreAMaterial = new THREE.MeshBasicMaterial({
-      color: layerColors.primary,
-      transparent: true,
-      opacity: 0.95,
-      // FIX: MeshBasicMaterial does NOT support emissive properties
-      fog: false
-    });
-    const coreA = new THREE.Mesh(coreAGeometry, coreAMaterial);
-    coreA.userData = { vfxType: 'ultraCoreA', isVFX: true, isNodeCore: true };
-    nodeModel.add(coreA);
-    
-    // ========== MARK CORE A AS LINK TARGET (before nodeModel.userData is finalized) ==========
-    // This will be explicitly assigned after nodeModel is ready
-    // coreA is the ONLY object link-state systems are allowed to mutate
-    coreA.userData.isCoreMesh = true;
-    coreA.userData.visualLayer = 'CORE';
-    coreA.renderOrder = 0;  // ✅ EXTREME RELIABILITY: Core renders first
-    coreA.material.depthTest = false;  // ✅ Prevent depth occlusion by aura
-    coreA.material.depthWrite = false;
-    let linkTargetMesh = coreA;  // Default to coreA
-    
-    // CORE B: Rotating Holographic Wireframe Sphere
-    const coreBGeometry = new THREE.IcosahedronGeometry(0.4, 3);
-    const coreBMaterial = new THREE.MeshBasicMaterial({
-      color: layerColors.secondary,
-      transparent: true,
-      opacity: 0.25,
-      wireframe: false,
-      fog: false
-    });
-    const coreB = new THREE.Mesh(coreBGeometry, coreBMaterial);
-    coreB.userData = {
-      vfxType: 'ultraCoreB',
-      isVFX: true,
-      isHologramShell: true,  // ✅ PROTECTED: Hologram shell — immutable to link-state
-      visualLayer: 'CORE_SHELL',
-      rotationSpeed: 0.5 + Math.random() * 0.5,
-      rotationAxis: new THREE.Vector3(
-        Math.random(),
-        Math.random(),
-        Math.random()
-      ).normalize()
+    // ========== ULTRA EDITION: INTERACTION-ONLY PROXY ==========
+    // Minimal object reserved for selection/raycast/link targeting
+    const linkTarget = new THREE.Object3D();
+    linkTarget.name = 'interaction-proxy';
+    linkTarget.userData = {
+      isInteractionProxy: true,
+      isCoreMesh: true,
+      visualLayer: 'CORE',
+      neutralized: true,
+      neutralizedRole: 'interaction-proxy'
     };
-    // ✅ EXTREME RELIABILITY: Force frustumCulled=false on hologram shells
-    coreB.frustumCulled = false;
-    coreB.renderOrder = 5;  // ✅ Shell renders after core
-    coreB.material.depthTest = false;  // ✅ Prevent depth occlusion
-    coreB.material.depthWrite = false;
-    nodeModel.add(coreB);
-    
-    // CORE C: Slow Pulsating Energy Shell
-    const coreCGeometry = new THREE.SphereGeometry(0.6, 16, 16);
-    const coreCMaterial = new THREE.MeshBasicMaterial({
-      color: layerColors.primary,
-      transparent: true,
-      opacity: 0.08,
-      // FIX: MeshBasicMaterial does NOT support emissive properties
-      fog: false
-    });
-    const coreC = new THREE.Mesh(coreCGeometry, coreCMaterial);
-    coreC.userData = {
-      vfxType: 'ultraCoreC',
-      isVFX: true,
-      isHologramShell: true,  // ✅ PROTECTED: Hologram shell — immutable to link-state
-      visualLayer: 'CORE_SHELL',
-      pulsePhase: Math.random() * Math.PI * 2
-    };
-    // ✅ EXTREME RELIABILITY: Force frustumCulled=false on hologram shells
-    coreC.frustumCulled = false;
-    coreC.renderOrder = 5;  // ✅ Shell renders after core
-    coreC.material.depthTest = false;  // ✅ Prevent depth occlusion
-    coreC.material.depthWrite = false;
-    nodeModel.add(coreC);
+    nodeModel.add(linkTarget);
+    let linkTargetMesh = linkTarget;
     
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS (1-3 thin rings) ==========
     const ringCount = isSpecial ? 3 : (Math.random() < 0.5 ? 2 : 1);
@@ -907,6 +858,8 @@ export class AINodes {
         baseOpacity: 0.5 - r * 0.1
       };
       
+      ring.visible = false; // Neutralize decorative orbit rings
+      ring.userData.neutralized = true;
       nodeModel.add(ring);
       orbitRings.push(ring);
     }
@@ -930,6 +883,8 @@ export class AINodes {
       pulsePhase: Math.random() * Math.PI * 2
     };
     outerGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+    outerGlow.visible = false; // Neutralize decorative glow
+    outerGlow.userData.neutralized = true;
     nodeModel.add(outerGlow);
     
     // Secondary halo (even larger, very soft)
@@ -949,13 +904,34 @@ export class AINodes {
       visualLayer: 'AURA'
     };
     haloGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+    haloGlow.visible = false; // Neutralize decorative halo
+    haloGlow.userData.neutralized = true;
     nodeModel.add(haloGlow);
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
     // Add edge glow by traversing geometry
+    
+    // Local guard for safe EdgesGeometry creation
+    function hasFinitePositions(geometry) {
+        const arr = geometry?.attributes?.position?.array;
+        if (!arr) return false;
+        for (let i = 0; i < arr.length; i++) {
+            if (!Number.isFinite(arr[i])) return false;
+        }
+        return true;
+    }
+
+    function safeEdgesGeometry(sourceGeo) {
+        if (!hasFinitePositions(sourceGeo)) {
+            return null;
+        }
+        return new THREE.EdgesGeometry(sourceGeo);
+    }
+    
     nodeModel.traverse((child) => {
       if (child.isMesh && !child.userData.isVFX) {
-        const edgeGeometry = new THREE.EdgesGeometry(child.geometry);
+        const edgeGeometry = safeEdgesGeometry(child.geometry);
+        if (!edgeGeometry) return;
         const edgeMaterial = new THREE.LineBasicMaterial({
           color: layerColors.secondary,
           transparent: true,
@@ -997,6 +973,8 @@ export class AINodes {
         vfxType: 'sparkParticle'
       };
       
+      particle.visible = false; // Neutralize decorative sparks
+      particle.userData.neutralized = true;
       nodeModel.add(particle);
       sparkParticles.push(particle);
     }
@@ -1021,6 +999,8 @@ export class AINodes {
     };
     // ✅ EXTREME RELIABILITY: Force frustumCulled=false on hologram shells
     fractalHolo.frustumCulled = false;
+    fractalHolo.visible = false; // Neutralize decorative hologram
+    fractalHolo.userData.neutralized = true;
     nodeModel.add(fractalHolo);
     
     // ============ SAFE VFX LAYER 3 & 4: LEVITATION & PULSE (Enhanced) ============
@@ -1054,19 +1034,15 @@ export class AINodes {
       // VFX Data
       vfxGlow: outerGlow,
       vfxHalo: haloGlow,
-      vfxHolo: coreA,
+      vfxHolo: null,
       vfxRings: orbitRings,
       layerColors: layerColors,
       
       // ULTRA EDITION: Multi-Core System
       ultraMode: true,
-      coreA: coreA,
-      coreB: coreB,
-      coreC: coreC,
-      coreBData: {
-        rotationSpeed: coreB.userData.rotationSpeed,
-        rotationAxis: coreB.userData.rotationAxis
-      },
+      coreA: null,
+      coreB: null,
+      coreBData: null,
       
       // ULTRA EDITION: Animation State
       levitationPhase: levitationPhase,
@@ -1483,7 +1459,7 @@ export class AINodes {
     // ========== [AURA VISUAL AUDIT] ATMOSPHERIC GLOW - Core Visibility Priority ==========
     // Reduced from 0.8 to 0.15 max to ensure core geometry remains clearly readable
     // Aura now provides subtle atmospheric feedback without visual dominance
-    if (data.vfxGlow) {
+    if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
       const glowBreathing = 1 + Math.sin(time * 1.2) * 0.3;
       const glowPulse = (0.4 + Math.sin(time * 2) * 0.15) * glowBreathing + activation * 0.2;
       // [AURA VISUAL AUDIT] Opacity clamped to 0.15 max (was 0.8) - ensures core readable
@@ -1498,7 +1474,7 @@ export class AINodes {
     
     // Secondary halo (breathing with glow)
     // [AURA VISUAL AUDIT] Halo already in acceptable 0.08-0.12 range - no change needed
-    if (data.vfxHalo) {
+    if (data.vfxHalo && !data.vfxHalo.userData?.neutralized) {
       const haloBreathing = 1 + Math.sin(time * 0.9) * 0.3;
       data.vfxHalo.material.opacity = (0.08 + Math.sin(time * 1.8) * 0.04) * haloBreathing;
     }
@@ -1507,41 +1483,12 @@ export class AINodes {
     // CORE A: Bright Neon Point (pulsing heart)
     // NOTE: Core material properties are IMMUTABLE (Session 30)
     // Rotation and position changes are allowed, but NOT material properties
-    if (data.coreA) {
-      // Rotation provides animation feedback WITHOUT mutating core material
-      data.coreA.rotation.x += (0.5 + activation * 0.3) * deltaTime;
-      data.coreA.rotation.y += (0.3 + activation * 0.2) * deltaTime;
-      data.coreA.rotation.z += (0.2 + activation * 0.1) * deltaTime;
-    }
-    
-    // CORE B: Rotating Holographic Sphere
-    // NOTE: Core material properties are IMMUTABLE (Session 30)
-    if (data.coreB) {
-      const coreData = data.coreBData;
-      // Rotation speed varies with activation (animation feedback)
-      const rotSpeedModifier = 0.8 + activation * 0.5;
-      data.coreB.rotation.x += coreData.rotationSpeed * deltaTime * rotSpeedModifier;
-      data.coreB.rotation.y += coreData.rotationSpeed * deltaTime * 0.6 * rotSpeedModifier;
-      data.coreB.rotation.z += coreData.rotationSpeed * deltaTime * 0.4 * rotSpeedModifier;
-      // Material properties NOT modified (immutable)
-    }
-    
-    // CORE C: Slow Pulsating Energy Shell
-    // NOTE: Core material properties are IMMUTABLE (Session 30)
-    // Geometric transforms provide animation feedback without material degradation
-    if (data.coreC) {
-      const coreCPhase = data.coreC.userData.pulsePhase || 0;
-      const pulseCycle = Math.sin(time * 0.8 + coreCPhase) * 0.5 + 0.5;  // Normalized 0-1
-      // Scale pulse provides visual feedback without opacity modulation
-      const pulseScale = 0.9 + pulseCycle * 0.2 + activation * 0.1;
-      data.coreC.scale.setScalar(pulseScale);
-      // Material properties NOT modified (immutable)
-    }
-    
+    // Core meshes removed (interaction-only proxy). Skip core-specific animation.
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS ==========
     // Rings rotation speed depends on synergy/traffic (via activation)
     if (data.vfxRings && data.vfxRings.length > 0) {
       data.vfxRings.forEach((ring, ringIdx) => {
+        if (ring.userData?.neutralized) return;
         const ringData = ring.userData;
         
         // Rotation speed influenced by activation (slower when hovering)
@@ -1566,6 +1513,7 @@ export class AINodes {
     // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased activity) ==========
     if (data.particles && data.particles.length > 0) {
       data.particles.forEach((particle, idx) => {
+        if (particle.userData?.neutralized) return;
         const pData = particle.userData;
         
         // Faster orbit speed based on activity
@@ -1593,7 +1541,7 @@ export class AINodes {
     }
     
     // ========== ULTRA EDITION: FRACTAL HOLOGRAM LAYER ==========
-    if (data.fractalHolo) {
+    if (data.fractalHolo && !data.fractalHolo.userData?.neutralized) {
       // Slow rotation for fractal patterns
       const fractalSpeed = data.fractalHolo.userData.rotationSpeed;
       data.fractalHolo.rotation.x += fractalSpeed * deltaTime * 0.3;
@@ -1613,18 +1561,13 @@ export class AINodes {
         data.hoverBoost = Math.max(data.hoverBoost - deltaTime * 3, 0);
       }
       
-      // NOTE: Core material properties are IMMUTABLE (Session 30)
-      // Hover feedback is routed to aura/overlay meshes, NOT core materials
-      // Apply hover effect only to aura, not core
-      if (data.coreA) {
-        // Scale modulation instead of opacity (geometric feedback only)
-        data.coreA.scale.multiplyScalar(1.0 + data.hoverBoost * 0.1);
-      }
-      if (data.vfxGlow) {
+      // NOTE: Core meshes removed; hover feedback limited to aura/overlay meshes
+      if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
         data.vfxGlow.material.opacity = Math.min(0.9, data.vfxGlow.material.opacity + data.hoverBoost * 0.5);
       }
       if (data.vfxRings && data.vfxRings.length > 0) {
         data.vfxRings.forEach(ring => {
+          if (ring.userData?.neutralized) return;
           ring.material.opacity = Math.min(1, ring.material.opacity + data.hoverBoost * 0.3);
         });
       }
@@ -1659,6 +1602,14 @@ export class AINodes {
    */
   updateConnections() {
     this.connections.forEach(connection => {
+      // LIFECYCLE GUARD: Skip if connection or geometry is disposed
+      if (!connection || !connection.geometry || 
+          !connection.geometry.attributes || 
+          !connection.geometry.attributes.position || 
+          !connection.geometry.attributes.position.array) {
+        return;
+      }
+      
       const node1 = connection.userData.node1;
       const node2 = connection.userData.node2;
       
@@ -2411,6 +2362,7 @@ export class AINodes {
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
     const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+    if (!newNode) return null;
     
     // ========================================================================
     // [SPAWN AUTHORITY] POST-SPAWN VALIDATION: Node must be compliant

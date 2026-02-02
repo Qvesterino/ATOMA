@@ -362,14 +362,25 @@ class InteractionIsolationEngine {
 
   /**
    * Estimate core radius for proxy generation
-   */
+  */
   _estimateCoreRadius(nodeGroup) {
     // Try to find a geometry to estimate size
     let maxRadius = 0.7;  // Default
 
+    const hasFinitePositions = (geometry) => {
+      const arr = geometry?.attributes?.position?.array;
+      if (!arr) return false;
+      for (let i = 0; i < arr.length; i++) {
+        if (!Number.isFinite(arr[i])) return false;
+      }
+      return true;
+    };
+
     const traverse = (obj) => {
       if (obj instanceof THREE.Mesh && obj.geometry) {
-        obj.geometry.computeBoundingSphere();
+        if (hasFinitePositions(obj.geometry)) {
+          obj.geometry.computeBoundingSphere();
+        }
         if (obj.geometry.boundingSphere) {
           maxRadius = Math.max(maxRadius, obj.geometry.boundingSphere.radius * 1.5);
         }

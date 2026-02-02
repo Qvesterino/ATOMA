@@ -1,11 +1,36 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 
+// Typed array safety helpers (local-only)
+function isValidTypedArray(arr) {
+  return !!(arr && arr.buffer && typeof arr.byteLength === 'number' && arr.byteLength > 0);
+}
+
+function isValidBufferAttrArray(attr) {
+  const arr = attr && attr.array;
+  return isValidTypedArray(arr);
+}
+
+function hasFinitePositions(geometry) {
+  const arr = geometry?.attributes?.position?.array;
+  if (!arr) return false;
+  for (let i = 0; i < arr.length; i++) {
+    if (!Number.isFinite(arr[i])) return false;
+  }
+  return true;
+}
+
 /**
  * ATOMA Visual Upgrade Superpack
  * 8 Complete Enhancement Packs - 100% Safe, Non-Destructive
  * All layers added ON TOP of existing environment
  */
+
+function safeEdgesGeometry(geometry) {
+  if (!hasFinitePositions(geometry)) return null;
+  return new THREE.EdgesGeometry(geometry);
+}
+
 export class VisualUpgradeSuperpack {
     constructor(scene, camera, renderer) {
         this.scene = scene;
@@ -226,7 +251,8 @@ export class VisualUpgradeSuperpack {
                 if (child.name.includes('Particle') || child.name.includes('particle')) return;
 
                 try {
-                    const edges = new THREE.EdgesGeometry(child.geometry);
+                    const edges = safeEdgesGeometry(child.geometry);
+                    if (!edges) return;
                     const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
                     wireframe.position.copy(child.position);
                     // FIX: Safe rotation from quaternion — never copy Euler order
@@ -365,7 +391,8 @@ export class VisualUpgradeSuperpack {
             });
 
             // Convert to wireframe
-            const edges = new THREE.EdgesGeometry(geometry);
+            const edges = safeEdgesGeometry(geometry);
+            if (!edges) return;
             const rift = new THREE.LineSegments(edges, material);
             rift.position.copy(config.pos);
             rift.userData = {
@@ -553,9 +580,15 @@ export class VisualUpgradeSuperpack {
 
         // Update dream particles
         this.particles.forEach(system => {
-            const positions = system.geometry.attributes.position.array;
-            const velocities = system.userData.velocities;
-            const bounds = system.userData.bounds;
+            const geom = system?.geometry;
+            const posAttr = geom?.attributes?.position;
+            const positions = posAttr?.array;
+            const velocities = system?.userData?.velocities;
+            const bounds = system?.userData?.bounds;
+
+            if (!isValidBufferAttrArray(posAttr)) return;
+            if (!isValidTypedArray(velocities)) return;
+            if (!Number.isFinite(bounds)) return;
 
             for (let i = 0; i < positions.length; i += 3) {
                 positions[i] += velocities[i];
@@ -573,7 +606,7 @@ export class VisualUpgradeSuperpack {
                 }
             }
 
-            system.geometry.attributes.position.needsUpdate = true;
+            posAttr.needsUpdate = true;
         });
 
         // Update edge glows to follow linked meshes

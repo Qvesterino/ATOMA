@@ -345,9 +345,20 @@ class InteractionIsolationEngine_v2 {
   _estimateCoreRadius(nodeGroup) {
     let maxRadius = 0.7;
 
+    const hasFinitePositions = (geometry) => {
+      const arr = geometry?.attributes?.position?.array;
+      if (!arr) return false;
+      for (let i = 0; i < arr.length; i++) {
+        if (!Number.isFinite(arr[i])) return false;
+      }
+      return true;
+    };
+
     const traverse = (obj) => {
       if (obj instanceof THREE.Mesh && obj.geometry) {
-        obj.geometry.computeBoundingSphere();
+        if (hasFinitePositions(obj.geometry)) {
+          obj.geometry.computeBoundingSphere();
+        }
         if (obj.geometry.boundingSphere) {
           maxRadius = Math.max(maxRadius, obj.geometry.boundingSphere.radius * 1.5);
         }

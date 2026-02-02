@@ -529,14 +529,20 @@ export class WaveInterferenceEngine_v1 {
                     const linkId = link?.id || link?.uuid || link?.name;
                     if (!linkId) continue;
                     
+                    // LIFECYCLE GUARD: Skip if link or geometry is disposed
+                    if (!link || !link.geometry || 
+                        !link.geometry.attributes || 
+                        !link.geometry.attributes.position || 
+                        !link.geometry.attributes.position.array) {
+                        continue;
+                    }
+                    
                     // Get link midpoint
                     let position = new THREE.Vector3(0, 0, 0);
-                    if (link?.geometry?.attributes?.position) {
-                        const pos = link.geometry.attributes.position;
-                        position.x = (pos.array[0] + pos.array[3]) * 0.5;
-                        position.y = (pos.array[1] + pos.array[4]) * 0.5;
-                        position.z = (pos.array[2] + pos.array[5]) * 0.5;
-                    }
+                    const pos = link.geometry.attributes.position;
+                    position.x = (pos.array[0] + pos.array[3]) * 0.5;
+                    position.y = (pos.array[1] + pos.array[4]) * 0.5;
+                    position.z = (pos.array[2] + pos.array[5]) * 0.5;
                     
                     const waveField = this._computeWaveFieldAtTarget(
                         linkId,

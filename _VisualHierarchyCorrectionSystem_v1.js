@@ -66,6 +66,14 @@ class NodeConstraintData {
     if (!this.node || !this.node.children) return 0.8;
     
     let maxRadius = 0.3;
+    const hasFinitePositions = (geometry) => {
+      const arr = geometry?.attributes?.position?.array;
+      if (!arr) return false;
+      for (let i = 0; i < arr.length; i++) {
+        if (!Number.isFinite(arr[i])) return false;
+      }
+      return true;
+    };
     
     // Scan immediate children for core geometries
     for (const child of this.node.children) {
@@ -78,21 +86,13 @@ class NodeConstraintData {
       if (child.geometry.boundingSphere) {
         const sphereRadius = child.geometry.boundingSphere.radius * child.scale.length();
         maxRadius = Math.max(maxRadius, sphereRadius);
-      } else if (!isFrozen) {
+      } else if (!isFrozen && hasFinitePositions(child.geometry)) {
         // ONLY compute if not frozen (frozen geometries must pre-compute)
-        try {
-          child.geometry.computeBoundingSphere();
+        child.geometry.computeBoundingSphere();
+        if (child.geometry.boundingSphere) {
           const sphereRadius = child.geometry.boundingSphere.radius * child.scale.length();
           maxRadius = Math.max(maxRadius, sphereRadius);
-        } catch (err) {
-          console.warn('[VisualHierarchyCorrectionSystem] Could not compute bounding sphere:', err);
-          // Fallback to default radius
-          maxRadius = Math.max(maxRadius, 0.5);
         }
-      } else {
-        // Frozen geometry without pre-computed sphere—use safe fallback
-        console.warn('[VisualHierarchyCorrectionSystem] Frozen geometry missing pre-computed boundingSphere. Using fallback radius.');
-        maxRadius = Math.max(maxRadius, 0.5);
       }
       
       // Skip if marked as auxiliary layer
@@ -403,8 +403,21 @@ export class VisualHierarchyCorrectionSystem_v1 {
    * INTERNAL: Constrain auxiliary mesh scale (default mode)
    */
   _constrainAuxiliaryScale(mesh, constraints) {
+    const hasFinitePositions = (geometry) => {
+      const arr = geometry?.attributes?.position?.array;
+      if (!arr) return false;
+      for (let i = 0; i < arr.length; i++) {
+        if (!Number.isFinite(arr[i])) return false;
+      }
+      return true;
+    };
+
     if (!mesh.geometry || !mesh.geometry.boundingSphere) {
-      mesh.geometry?.computeBoundingSphere();
+      if (hasFinitePositions(mesh.geometry)) {
+        mesh.geometry?.computeBoundingSphere();
+      } else {
+        return;
+      }
     }
     
     if (!mesh.geometry?.boundingSphere) return;

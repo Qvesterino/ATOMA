@@ -198,7 +198,17 @@ export class VisualOverlayAuditSystem {
    */
   estimateMeshSize(mesh) {
     if (!mesh.geometry) return 0;
-    
+
+    const positionArray = mesh.geometry?.attributes?.position?.array;
+    if (!positionArray) return 0;
+    for (let i = 0; i < positionArray.length; i++) {
+      if (!Number.isFinite(positionArray[i])) return 0;
+    }
+
+    if (mesh.geometry.isEdgesGeometry && (!mesh.geometry.attributes || !mesh.geometry.attributes.position)) {
+      return 0;
+    }
+
     mesh.geometry.computeBoundingBox();
     const box = mesh.geometry.boundingBox;
     if (!box) return 0;
