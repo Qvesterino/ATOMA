@@ -245,21 +245,34 @@ export function getSafeBoundingBox(geometry, fallbackPosition = new THREE.Vector
  */
 export function safeCreateEdgesGeometry(sourceGeometry, thresholdAngle = 1) {
   if (!sourceGeometry) return null;
-  
-  // Ensure source has valid bounds
-  const result = safeComputeBounds(sourceGeometry);
-  if (!result.ok) {
-    console.warn('[GeometryBoundsSafe] Cannot create EdgesGeometry from invalid geometry');
+
+  // 1. Ensure source is sane
+  const sourceResult = safeComputeBounds(sourceGeometry);
+  if (!sourceResult.ok) {
+    console.warn('[GeometryBoundsSafe] Cannot create EdgesGeometry from invalid source geometry');
     return null;
   }
-  
+
   try {
-    return new THREE.EdgesGeometry(sourceGeometry, thresholdAngle);
+    const edges = new THREE.EdgesGeometry(sourceGeometry, thresholdAngle);
+
+    // 2. 🔴 CRITICAL: normalize drawRange on EDGES geometry
+    normalizeDrawRange(edges);
+
+    // 3. Optional but recommended: validate edges bounds
+    const edgesResult = safeComputeBounds(edges);
+    if (!edgesResult.ok) {
+      console.warn('[GeometryBoundsSafe] EdgesGeometry has invalid bounds after creation');
+      return null;
+    }
+
+    return edges;
   } catch (e) {
     console.error('[GeometryBoundsSafe] EdgesGeometry creation failed:', e);
     return null;
   }
 }
+
 
 /**
  * Clear the logged warnings set (useful for testing or reset)

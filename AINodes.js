@@ -768,7 +768,20 @@ export class AINodes {
     );
     // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
     const nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
+    if (!nodeModel) {
+      console.error('[NodeVisualError]', {
+        nodeId: null,
+        category: safeCategory,
+        reason: 'No canonical visual available'
+      });
+      return null; // skip visual, continue spawning pipeline
+    }
     if (!hasRenderableVisual(nodeModel)) {
+      console.error('[NodeVisualError]', {
+        nodeId: nodeModel.uuid || null,
+        category: safeCategory,
+        reason: 'Visual has no renderable content'
+      });
       return null;
     }
     nodeModel.position.copy(position);

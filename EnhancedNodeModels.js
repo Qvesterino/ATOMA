@@ -3989,24 +3989,16 @@ export class EnhancedNodeModels {
   /**
    * NEW: Icosahedron - INPUT category
    * Clean 20-faced polyhedron with smooth appearance
+   * 
+   * [NoFallbackPolicy] Legacy INPUT core visual removed.
+   * INPUT nodes must NOT render a simplified core.
    */
   static createNewIcosahedron(group, color) {
-    try {
-      const geoIcosahedron = new THREE.IcosahedronGeometry(0.75, 3);
-      const matIcosahedron = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.7,
-        roughness: 0.3,
-        emissive: color,
-        emissiveIntensity: 0.3
-      });
-      const icosahedron = new THREE.Mesh(geoIcosahedron, matIcosahedron);
-      group.add(icosahedron);
-      return group;
-    } catch (err) {
-      console.warn('[EnhancedNodeModels] Icosahedron creation failed, fallback to sphere:', err);
-      return this.createInputNode0(group, color);
-    }
+    console.error('[NodeVisualError]', {
+      nodeType: 'INPUT',
+      reason: 'Legacy INPUT core visual removed by NoFallbackPolicy'
+    });
+    return null;
   }
 
   /**
@@ -4080,8 +4072,11 @@ export class EnhancedNodeModels {
       group.add(pyramid);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Truncated Pyramid creation failed, fallback to sphere:', err);
-      return this.createIntegrationNode0(group, color);
+      console.error('[NodeVisualError]', {
+        model: 'createNewTruncatedPyramid',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4168,8 +4163,11 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Figure-Eight Knot failed, fallback:', err);
-      return this.createIntegrationNode0(group, color);
+      console.error('[NodeVisualError]', {
+        model: 'createKnotFigureEight',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4361,8 +4359,11 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Infinite Self-Intersecting Knot failed, fallback:', err);
-      return this.createIntegrationNode0(group, color);
+      console.error('[NodeVisualError]', {
+        model: 'createKnotInfiniteSelfIntersecting',
+        error: err
+      });
+      return null;
     }
   }
 
