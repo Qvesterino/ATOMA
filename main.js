@@ -7603,6 +7603,16 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
     }
 
+    runVisualSemanticTick(deltaTime, mark) {
+        // Semantic/visual 30 Hz logic currently executed inline in animate() when scheduler is unavailable
+        // This method exists to satisfy FrameScheduler callbacks.
+    }
+
+    runSlowSemanticTick(deltaTime) {
+        // Slow semantic 10 Hz logic currently executed inline in animate() when scheduler is unavailable
+        // This method exists to satisfy FrameScheduler callbacks.
+    }
+
     /**
      * Main animation loop
      */

@@ -29,6 +29,8 @@ export class PulseWaveSystemBridge_v1 {
     
     // Active tracking
     this.activeLinkWaves = new Map();  // linkId → { phase, amplitude, ... }
+    this._linkCursor = 0;
+    this._timeBudgetMs = config.timeBudgetMs ?? 3.5;
     
     // Console API
     this.setupConsoleAPI();
@@ -55,8 +57,16 @@ export class PulseWaveSystemBridge_v1 {
     }
     
     try {
+      const startTime = performance.now();
+      const totalLinks = links.length;
+      if (totalLinks === 0) return;
+      this._linkCursor = this._linkCursor % totalLinks;
+      let processed = 0;
+      
       // Process each link for wave-driven pulse updates
-      for (const link of links) {
+      while (processed < totalLinks) {
+        const idx = (this._linkCursor + processed) % totalLinks;
+        const link = links[idx];
         if (!link || !link.userData) continue;
         
         const linkId = link.id || link.uuid || link.name;
@@ -116,7 +126,15 @@ export class PulseWaveSystemBridge_v1 {
             instability: instability
           }
         );
+        
+        processed += 1;
+        if (performance.now() - startTime > this._timeBudgetMs) {
+          this._linkCursor = (idx + 1) % totalLinks;
+          return;
+        }
       }
+      
+      this._linkCursor = (this._linkCursor + processed) % totalLinks;
       
       // Clean up stale entries
       const now = Date.now();

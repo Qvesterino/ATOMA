@@ -273,6 +273,8 @@ export class HarmonicResonanceFeedbackSystem {
         }
         
         this.enabled = true;
+        this.timeBudgetMs = 3.5;         // soft per-frame budget to avoid stalls
+        this._influenceCursor = 0;       // round-robin field processing pointer
         
         console.log('[HarmonicResonanceFeedbackSystem] Initialized');
     }
@@ -311,12 +313,13 @@ export class HarmonicResonanceFeedbackSystem {
         this.updateTimer += deltaTime;
         if (this.updateTimer < CONFIG.UPDATE_INTERVAL) return;
         this.updateTimer = 0.0;
+        const frameStartMs = performance.now();
         
         // Update all resonance fields
         this.updateResonanceFields(deltaTime, fusionZoneManager);
         
         // Apply influences to links and glyphs
-        this.applyResonanceInfluences(deltaTime, pictogramsArray, linkingSystem);
+        this.applyResonanceInfluences(deltaTime, pictogramsArray, linkingSystem, frameStartMs, this.timeBudgetMs);
         
         // Update debug visualization
         if (CONFIG.DEBUG_DRAW_FIELDS) {
@@ -394,11 +397,18 @@ export class HarmonicResonanceFeedbackSystem {
     // RESONANCE INFLUENCE APPLICATION
     // ========================================================================
     
-    applyResonanceInfluences(deltaTime, pictogramsArray, linkingSystem) {
+    applyResonanceInfluences(deltaTime, pictogramsArray, linkingSystem, frameStartMs, budgetMs) {
         if (!pictogramsArray || !linkingSystem) return;
-        
-        // For each active resonance field
-        for (let field of this.resonanceFields) {
+        const totalFields = this.resonanceFields.length;
+        if (totalFields === 0) return;
+
+        let processed = 0;
+
+        // Round-robin through fields to avoid starving later entries when budget hits
+        while (processed < totalFields) {
+            const idx = (this._influenceCursor + processed) % totalFields;
+            const field = this.resonanceFields[idx];
+            processed += 1;
             if (!field.active || field.strength < 0.01) continue;
             
             // Find influenced links and glyphs
@@ -407,7 +417,16 @@ export class HarmonicResonanceFeedbackSystem {
             // Apply influences
             this.applyLinkInfluence(field, deltaTime);
             this.applyPictogramInfluence(field, deltaTime);
+
+            // Time budget guard: exit early and resume next frame
+            if (performance.now() - frameStartMs > budgetMs) {
+                this._influenceCursor = (idx + 1) % totalFields;
+                return;
+            }
         }
+
+        // Completed full pass; reset cursor
+        this._influenceCursor = 0;
     }
     
     findInfluencedElements(field, pictogramsArray, linkingSystem) {

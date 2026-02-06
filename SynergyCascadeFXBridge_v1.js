@@ -284,6 +284,9 @@ export class SynergyCascadeFXBridge_v1 {
         this.frameUpdateTime = 0;
         this.processedNodesCount = 0;
         this.processedLinksCount = 0;
+        this._nodeCursor = 0;                 // round-robin cursor for nodes
+        this._linkCursor = 0;                 // round-robin cursor for links
+        this.timeBudgetMs = 3.5;              // soft per-frame budget to avoid spikes
         
         // Active cascades tracking
         this.activeCascades = new Map();        // cascadeID → { startTime, originNode, depth }
@@ -489,34 +492,71 @@ export class SynergyCascadeFXBridge_v1 {
 
         try {
             const startTime = performance.now();
+            const budgetMs = this.timeBudgetMs;
+            this.processedNodesCount = 0;
+            this.processedLinksCount = 0;
             
             // Step 1: Process incoming chain reaction events
             this._processChainReactionEvents();
-            
-            // Step 2: Update all active node cascade states
-            for (const node of allNodes) {
-                try {
-                    const nodeState = this._getNodeState(node);
-                    nodeState.update(deltaTime);
-                    
-                    // Send signals to target systems
-                    this._sendShaderSignals(node, nodeState);
-                } catch (err) {
-                    // Continue on individual node errors
-                }
+            if (performance.now() - startTime > budgetMs) {
+                this.frameUpdateTime = performance.now() - startTime;
+                return;
             }
             
-            // Step 3: Update all active link cascade states
-            for (const link of allLinks) {
-                try {
-                    const linkState = this._getLinkState(link);
-                    linkState.update(deltaTime);
-                    
-                    // Send signals to target systems
-                    this._sendLinkShaderSignals(link, linkState);
-                } catch (err) {
-                    // Continue on individual link errors
+            // Step 2: Update node cascade states (round-robin slice)
+            const totalNodes = allNodes.length;
+            if (totalNodes > 0) {
+                this._nodeCursor %= totalNodes;
+                let processed = 0;
+                while (processed < totalNodes) {
+                    const idx = (this._nodeCursor + processed) % totalNodes;
+                    const node = allNodes[idx];
+                    try {
+                        const nodeState = this._getNodeState(node);
+                        nodeState.update(deltaTime);
+                        this._sendShaderSignals(node, nodeState);
+                        this.processedNodesCount += 1;
+                    } catch (err) {
+                        // Continue on individual node errors
+                    }
+                    processed += 1;
+                    if (performance.now() - startTime > budgetMs) {
+                        this._nodeCursor = (idx + 1) % totalNodes;
+                        this.frameUpdateTime = performance.now() - startTime;
+                        return;
+                    }
                 }
+                this._nodeCursor = (this._nodeCursor + processed) % totalNodes;
+            } else {
+                this._nodeCursor = 0;
+            }
+            
+            // Step 3: Update link cascade states (round-robin slice)
+            const totalLinks = allLinks.length;
+            if (totalLinks > 0) {
+                this._linkCursor %= totalLinks;
+                let processed = 0;
+                while (processed < totalLinks) {
+                    const idx = (this._linkCursor + processed) % totalLinks;
+                    const link = allLinks[idx];
+                    try {
+                        const linkState = this._getLinkState(link);
+                        linkState.update(deltaTime);
+                        this._sendLinkShaderSignals(link, linkState);
+                        this.processedLinksCount += 1;
+                    } catch (err) {
+                        // Continue on individual link errors
+                    }
+                    processed += 1;
+                    if (performance.now() - startTime > budgetMs) {
+                        this._linkCursor = (idx + 1) % totalLinks;
+                        this.frameUpdateTime = performance.now() - startTime;
+                        return;
+                    }
+                }
+                this._linkCursor = (this._linkCursor + processed) % totalLinks;
+            } else {
+                this._linkCursor = 0;
             }
             
             // Step 4: Cleanup expired cascades

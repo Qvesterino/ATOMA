@@ -28,6 +28,8 @@ export class SynapticGatingAdapter_v1 {
   constructor(config = {}) {
     this.enabled = config.enabled ?? true;
     this.debugMode = config.debugMode ?? false;
+    this.maxNodesPerTick = config.maxNodesPerTick ?? 120; // cap per 30Hz tick
+    this._nodeCursor = 0;
     
     // Gating computation weights
     this.harmonyWeight = config.harmonyWeight ?? 0.6;        // How much harmony helps
@@ -69,43 +71,53 @@ export class SynapticGatingAdapter_v1 {
     
     const gateMap = new Map();
     const now = Date.now();
-    
-    // Store gateMap for external access (e.g., fatigue adapter)
-    this.nodeGateMap = gateMap;
-    
-    try {
-      for (const node of nodes) {
-        if (!node || !node.userData) continue;
-        
-        const nodeId = node.id || node.uuid || node.name;
-        if (!nodeId) continue;
-        
-        // Check cache
-        const cached = this.nodeGateCache.get(nodeId);
-        if (cached && (now - cached.lastUpdate < this.cacheExpiry)) {
-          gateMap.set(nodeId, cached.gateStrength);
-          continue;
-        }
-        
-        // Compute fresh gate strength
-        const gateStrength = this.computeGateStrength(node);
-        
-        // Cache it
-        this.nodeGateCache.set(nodeId, {
-          gateStrength: gateStrength,
-          lastUpdate: now
-        });
-        
-        gateMap.set(nodeId, gateStrength);
-        
-        // Store on node for debugging/visualization
-        node.userData.synapticGateStrength = gateStrength;
+    const total = nodes.length;
+    if (total === 0) {
+      this.nodeGateMap = gateMap;
+      return gateMap;
+    }
+
+    const maxPerTick = Math.max(1, Math.min(this.maxNodesPerTick, total));
+    this._nodeCursor = this._nodeCursor % total;
+
+    // Pass 1: seed map with cached values (including stale) to preserve outputs
+    for (let i = 0; i < total; i++) {
+      const node = nodes[i];
+      if (!node || !node.userData) continue;
+      const nodeId = node.id || node.uuid || node.name;
+      if (!nodeId) continue;
+      const cached = this.nodeGateCache.get(nodeId);
+      if (cached) {
+        gateMap.set(nodeId, cached.gateStrength);
       }
-      
+    }
+
+    // Pass 2: recompute a capped slice starting from cursor
+    let processed = 0;
+    try {
+      while (processed < maxPerTick) {
+        const idx = (this._nodeCursor + processed) % total;
+        const node = nodes[idx];
+        if (node && node.userData) {
+          const nodeId = node.id || node.uuid || node.name;
+          if (nodeId) {
+            const gateStrength = this.computeGateStrength(node);
+            this.nodeGateCache.set(nodeId, {
+              gateStrength,
+              lastUpdate: now
+            });
+            gateMap.set(nodeId, gateStrength);
+            node.userData.synapticGateStrength = gateStrength;
+          }
+        }
+        processed += 1;
+      }
     } catch (err) {
       console.warn('[SynapticGatingAdapter] updateNodeGates error:', err);
     }
-    
+
+    this._nodeCursor = (this._nodeCursor + processed) % total;
+    this.nodeGateMap = gateMap;
     return gateMap;
   }
 
