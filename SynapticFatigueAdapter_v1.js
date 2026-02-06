@@ -44,6 +44,10 @@ export class SynapticFatigueAdapter_v1 {
     this.reliefPulseChance = config.reliefPulseChance ?? 0.15;             // Chance of "relief pulse"
     this.reliefPulseDuration = config.reliefPulseDuration ?? 200;          // ms
 
+    // Workload capping: process nodes in batches across ticks
+    this.maxNodesPerTick = config.maxNodesPerTick ?? 120;                   // Max nodes processed per tick
+    this._nodeCursor = 0;                                                   // Cyclic processing cursor
+
     // Visual fatigue thresholds
     this.fatigueVisualThresholds = {
       low: 0.3,      // 0.0-0.3: barely noticeable
@@ -93,6 +97,10 @@ export class SynapticFatigueAdapter_v1 {
    * Update per-frame
    * Call ONCE per frame, after synaptic gating is computed
    * 
+   * Workload Capping: Processes nodes in cyclic batches to smooth performance.
+   * At most maxNodesPerTick nodes are updated per tick. Over multiple ticks,
+   * all nodes are processed without changing fatigue behavior.
+   * 
    * @param {Array} nodes - All nodes in network
    * @param {Map} nodeGateMap - From SynapticGatingAdapter (nodeId → gateStrength)
    * @param {number} deltaTime - Frame delta in seconds
@@ -111,15 +119,49 @@ export class SynapticFatigueAdapter_v1 {
         this.nodeOutgoingPulseCount.set(nodeId, 0);
       }
 
-      // Update each node's fatigue
-      for (const node of nodes) {
-        if (!node || !node.userData) continue;
+      const nodeCount = nodes.length;
+      if (nodeCount === 0) return;
+
+      // Process cyclic batch: from cursor up to maxNodesPerTick
+      const maxToProcess = Math.min(this.maxNodesPerTick, nodeCount);
+      let processedCount = 0;
+
+      // Process from cursor to end of array (or up to maxNodesPerTick)
+      const firstSegmentEnd = Math.min(this._nodeCursor + maxToProcess, nodeCount);
+      for (let i = this._nodeCursor; i < firstSegmentEnd; i++) {
+        const node = nodes[i];
+        if (!node || !node.userData) {
+          processedCount++;
+          continue;
+        }
 
         const nodeId = node.id || node.uuid || node.name;
-        if (!nodeId) continue;
-
-        this.updateNodeFatigue(node, nodeId, deltaTime, currentTime);
+        if (nodeId) {
+          this.updateNodeFatigue(node, nodeId, deltaTime, currentTime);
+        }
+        processedCount++;
       }
+
+      // If we wrapped around, process remaining nodes from start
+      if (processedCount < maxToProcess) {
+        const remainingToProcess = maxToProcess - processedCount;
+        for (let i = 0; i < remainingToProcess; i++) {
+          const node = nodes[i];
+          if (!node || !node.userData) {
+            processedCount++;
+            continue;
+          }
+
+          const nodeId = node.id || node.uuid || node.name;
+          if (nodeId) {
+            this.updateNodeFatigue(node, nodeId, deltaTime, currentTime);
+          }
+          processedCount++;
+        }
+      }
+
+      // Advance cursor with modulo wrap
+      this._nodeCursor = (this._nodeCursor + processedCount) % nodeCount;
 
       if (this.debugMode && Math.random() < 0.01) {
         this.logFatigueStatus();

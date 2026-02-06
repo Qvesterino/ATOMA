@@ -36,8 +36,9 @@ if (!THREE_SAFE) {
 
 const THREE = THREE_SAFE;
 
-// Private symbol to track patched materials - prevents repeated shader compilation
-const CORRUPTION_PATCHED = Symbol('corruptionPatched');
+// Private symbols for one-time corruption shader binding metadata
+const CORRUPTION_BINDING = Symbol('corruptionBinding');
+const CORRUPTION_ORIGINAL_ON_BEFORE_RENDER = Symbol('corruptionOriginalOnBeforeRender');
 
 /**
  * Corruption color palette (HSL-friendly)
@@ -70,6 +71,7 @@ export class CorruptionVisualFX_v1 {
     // DEV NOTE: Corruption visuals require realtime (RAF) visual time per AtomaShaderTimingContract.
     // VisualTime is the canonical source (Phase 2A); external time/delta params are maintained for legacy signatures only.
     this.visualTime = VisualTime;
+    this.corruptionShaderVariant = THREE ? this._createCorruptionShaderVariant() : null;
     
     if (this.debugMode) {
       console.log('%c[CorruptionVisualFX_v1] Initialized', 'color: #ff4400; font-weight: bold;');
@@ -108,11 +110,15 @@ export class CorruptionVisualFX_v1 {
     if (!nodeModel || !nodeModel.userData) return;
 
     const corruptionLevel = nodeModel.userData?.gameplay?.corruptionLevel || 0;
-    if (corruptionLevel <= 0) return; // No corruption, skip
 
     // Phase 2A: use canonical RAF visual time (VisualTime) for all internal timing (behavior-preserving).
     const visualNow = this.visualTime.now;
     const visualDelta = this.visualTime.delta;
+
+    // Uniform-only corruption shader updates (no runtime shader mutation).
+    this.applyShaderDistortion(nodeModel, corruptionLevel, visualDelta);
+
+    if (corruptionLevel <= 0) return; // No corruption, skip
 
     // Get or create visual state
     const visualState = this.getOrCreateNodeVisualState(nodeModel);
@@ -122,11 +128,6 @@ export class CorruptionVisualFX_v1 {
 
     // Apply glow flicker
     this.applyGlowFlicker(nodeModel, corruptionLevel, visualNow, visualState);
-
-    // Apply shader distortion (if THREE available)
-    if (THREE && corruptionLevel > 0.45) {
-      this.applyShaderDistortion(nodeModel, corruptionLevel, visualState);
-    }
 
     // Apply mesh jitter
     if (THREE && corruptionLevel > 0.15) {
@@ -253,74 +254,161 @@ export class CorruptionVisualFX_v1 {
   }
 
   /**
-   * Apply UV distortion shader effect (if THREE available)
-   * 
-   * P0.1 FIX: Idempotent patching - only patches once per material to prevent
-   * repeated shader recompilation, GPU frame spikes, and hook conflicts with other systems.
-   * Preserves and chains any existing onBeforeCompile hook.
+   * Apply corruption shader distortion using precompiled uniforms only.
    */
-  applyShaderDistortion(nodeModel, corruptionLevel, visualState) {
-    if (!THREE || !nodeModel.traverse) return;
+  applyShaderDistortion(nodeModel, corruptionLevel, deltaTime) {
+    if (!THREE || !nodeModel?.traverse || !this.corruptionShaderVariant) return;
 
     nodeModel.traverse((child) => {
       if (!child.isMesh || !child.material) return;
 
-      const material = child.material;
+      // Bind once, then drive effect strength/time strictly by uniform values.
+      const binding = child.userData?.[CORRUPTION_BINDING] || this._bindCorruptionVariantToMesh(child);
+      if (!binding?.uniformState) return;
 
-      // Guard: Only patch once per material
-      if (material[CORRUPTION_PATCHED]) {
-        return;  // Already patched
+      binding.uniformState.uCorruptionLevel = Math.max(0, Math.min(1, corruptionLevel || 0));
+      binding.uniformState.uCorruptionTime += Math.max(0, deltaTime || 0);
+
+      if (child.material?.uniforms?.uCorruptionLevel) {
+        child.material.uniforms.uCorruptionLevel.value = binding.uniformState.uCorruptionLevel;
       }
-
-      // Try to apply shader modification via onBeforeCompile
-      if (material.onBeforeCompile && corruptionLevel > 0.45) {
-        // Store original onBeforeCompile (if any)
-        const originalOnBeforeCompile = material.onBeforeCompile;
-
-        const onBeforeCompile = (shader) => {
-          // Call original first (preserves other systems' hooks)
-          if (originalOnBeforeCompile) {
-            originalOnBeforeCompile.call(material, shader);
-          }
-
-          // Add distortion uniforms
-          shader.uniforms.corruptionLevel = { value: corruptionLevel };
-          shader.uniforms.time = { value: performance.now() * 0.001 };
-
-          // Modify vertex shader for UV distortion
-          shader.vertexShader = `
-            uniform float corruptionLevel;
-            uniform float time;
-            ${shader.vertexShader}
-          `.replace(
-            '#include <begin_vertex>',
-            `
-            #include <begin_vertex>
-            vec3 distorted = position;
-            float glitch = sin(time * 10.0 + position.y * 20.0) * 0.5 + 0.5;
-            distorted.x += glitch * corruptionLevel * 0.1;
-            distorted.y += sin(time * 7.5 + position.x * 15.0) * corruptionLevel * 0.08;
-            position = distorted;
-            `
-          );
-
-          // Modify fragment shader for color distortion
-          shader.fragmentShader = shader.fragmentShader.replace(
-            'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
-            `
-            vec4 fragColor = vec4( outgoingLight, diffuseColor.a );
-            float distortion = sin(gl_FragCoord.x * 0.01 + time) * sin(gl_FragCoord.y * 0.01 + time) * corruptionLevel;
-            fragColor.rgb += distortion * vec3(1.0, 0.2, 0.5) * corruptionLevel;
-            gl_FragColor = fragColor;
-            `
-          );
-        };
-
-        // Mark material as patched before assignment
-        material[CORRUPTION_PATCHED] = true;
-        material.onBeforeCompile(onBeforeCompile);
+      if (child.material?.uniforms?.uCorruptionTime) {
+        child.material.uniforms.uCorruptionTime.value = binding.uniformState.uCorruptionTime;
       }
     });
+  }
+
+  _createCorruptionShaderVariant() {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: null },
+        uUseMap: { value: 0.0 },
+        uBaseColor: { value: new THREE.Color(1.0, 1.0, 1.0) },
+        uEmissive: { value: new THREE.Color(0.0, 0.0, 0.0) },
+        uOpacity: { value: 1.0 },
+        uCorruptionLevel: { value: 0.0 },
+        uCorruptionTime: { value: 0.0 }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormalW;
+        varying vec3 vPosW;
+
+        void main() {
+          vUv = uv;
+          vNormalW = normalize(mat3(modelMatrix) * normal);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vPosW = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uMap;
+        uniform float uUseMap;
+        uniform vec3 uBaseColor;
+        uniform vec3 uEmissive;
+        uniform float uOpacity;
+        uniform float uCorruptionLevel;
+        uniform float uCorruptionTime;
+
+        varying vec2 vUv;
+        varying vec3 vNormalW;
+        varying vec3 vPosW;
+
+        vec3 applyCorruption(vec3 color, vec2 uv) {
+          float level = clamp(uCorruptionLevel, 0.0, 1.0);
+          float t = uCorruptionTime;
+          float warp = sin((uv.x + vPosW.y) * 20.0 + t * 10.0) * 0.5 + 0.5;
+          float stripe = sin((uv.y + vPosW.x) * 28.0 - t * 7.5);
+          float distortion = warp * stripe * level;
+          vec3 tint = vec3(1.0, 0.2, 0.5) * distortion * level;
+          return color + tint;
+        }
+
+        void main() {
+          vec4 texel = vec4(1.0);
+          if (uUseMap > 0.5) {
+            texel = texture2D(uMap, vUv);
+          }
+
+          vec3 baseColor = uBaseColor * texel.rgb;
+          vec3 normal = normalize(vNormalW);
+          vec3 lightDir = normalize(vec3(0.25, 0.75, 0.6));
+          float ndl = max(dot(normal, lightDir), 0.0);
+          vec3 lit = baseColor * (0.35 + 0.65 * ndl) + uEmissive;
+          vec3 finalColor = applyCorruption(lit, vUv);
+          gl_FragColor = vec4(finalColor, texel.a * uOpacity);
+        }
+      `,
+      transparent: true
+    });
+  }
+
+  _bindCorruptionVariantToMesh(mesh) {
+    if (!mesh || !mesh.material || !this.corruptionShaderVariant) return null;
+    if (mesh.userData?.[CORRUPTION_BINDING]) return mesh.userData[CORRUPTION_BINDING];
+    if (Array.isArray(mesh.material)) return null;
+
+    const sourceMaterial = mesh.material;
+    const binding = {
+      sourceMaterial,
+      uniformState: {
+        uCorruptionLevel: 0,
+        uCorruptionTime: 0
+      },
+      renderState: {
+        transparent: sourceMaterial.transparent === true,
+        depthWrite: sourceMaterial.depthWrite !== false,
+        depthTest: sourceMaterial.depthTest !== false,
+        side: sourceMaterial.side ?? THREE.FrontSide,
+        blending: sourceMaterial.blending ?? THREE.NormalBlending
+      },
+      baseState: {
+        color: sourceMaterial.color ? sourceMaterial.color.clone() : new THREE.Color(1, 1, 1),
+        emissive: sourceMaterial.emissive ? sourceMaterial.emissive.clone() : new THREE.Color(0, 0, 0),
+        opacity: sourceMaterial.opacity !== undefined ? sourceMaterial.opacity : 1,
+        map: sourceMaterial.map || null
+      }
+    };
+
+    mesh.userData[CORRUPTION_BINDING] = binding;
+
+    // Preserve existing onBeforeRender behavior and inject per-mesh uniforms.
+    mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER] = mesh.onBeforeRender;
+    mesh.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
+      const b = mesh.userData?.[CORRUPTION_BINDING];
+      const variant = this.corruptionShaderVariant;
+      if (b && variant?.uniforms) {
+        const source = b.sourceMaterial;
+        const uniforms = variant.uniforms;
+        const baseColor = source?.color ? source.color : b.baseState.color;
+        const emissive = source?.emissive ? source.emissive : b.baseState.emissive;
+        const map = source?.map || b.baseState.map;
+        const opacity = source?.opacity !== undefined ? source.opacity : b.baseState.opacity;
+
+        uniforms.uBaseColor.value.copy(baseColor);
+        uniforms.uEmissive.value.copy(emissive);
+        uniforms.uOpacity.value = opacity;
+        uniforms.uMap.value = map;
+        uniforms.uUseMap.value = map ? 1.0 : 0.0;
+        uniforms.uCorruptionLevel.value = b.uniformState.uCorruptionLevel;
+        uniforms.uCorruptionTime.value = b.uniformState.uCorruptionTime;
+
+        variant.transparent = b.renderState.transparent;
+        variant.depthWrite = b.renderState.depthWrite;
+        variant.depthTest = b.renderState.depthTest;
+        variant.side = b.renderState.side;
+        variant.blending = b.renderState.blending;
+      }
+
+      const original = mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER];
+      if (typeof original === 'function') {
+        original.call(mesh, renderer, scene, camera, geometry, material, group);
+      }
+    };
+
+    mesh.material = this.corruptionShaderVariant;
+    return binding;
   }
 
   /**

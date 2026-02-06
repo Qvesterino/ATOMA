@@ -122,6 +122,9 @@ export class PulseBoundaryInteractionAdapter_v1 {
     
     // Effect pool (cached, no allocations)
     this.effectPool = new BoundaryEffectPool(config.maxBoundaryEffects ?? 50);
+    this._linkCursor = 0;
+    this._pulseCursor = new Map();
+    this._timeBudgetMs = config.timeBudgetMs ?? 3.5;
     
     // Configuration
     this.minAmplitudeToInteract = config.minAmplitudeToInteract ?? 0.15;
@@ -157,11 +160,19 @@ export class PulseBoundaryInteractionAdapter_v1 {
     } = context;
     
     try {
+      const startTime = performance.now();
+      const totalLinks = links.length;
+      if (totalLinks === 0) return;
+      this._linkCursor = this._linkCursor % totalLinks;
+      let processedLinks = 0;
+      
       // Update effect pool (decay active effects)
       this.effectPool.update();
       
       // Process each link for boundary interactions
-      for (const link of links) {
+      while (processedLinks < totalLinks) {
+        const idx = (this._linkCursor + processedLinks) % totalLinks;
+        const link = links[idx];
         if (!link || !link.userData) continue;
         
         const linkId = link.id || link.uuid || link.name;
@@ -171,8 +182,13 @@ export class PulseBoundaryInteractionAdapter_v1 {
         const pulseData = link.userData.pulseTravelData;
         if (!pulseData || pulseData.length === 0) continue;
         
+        const pulseStart = this._pulseCursor.get(linkId) ?? 0;
+        const pulseLen = pulseData.length;
+        let processedPulses = 0;
+
         // Process each active pulse on this link
-        for (const pulse of pulseData) {
+        while (processedPulses < pulseLen) {
+          const pulse = pulseData[(pulseStart + processedPulses) % pulseLen];
           this.processPulseBoundary(
             pulse,
             link,
@@ -181,8 +197,23 @@ export class PulseBoundaryInteractionAdapter_v1 {
             nodeDynamicMetrics,
             aiNodes
           );
+          processedPulses += 1;
+          if (performance.now() - startTime > this._timeBudgetMs) {
+            this._pulseCursor.set(linkId, (pulseStart + processedPulses) % pulseLen);
+            this._linkCursor = idx;
+            return;
+          }
+        }
+
+        this._pulseCursor.set(linkId, 0);
+        processedLinks += 1;
+        if (performance.now() - startTime > this._timeBudgetMs) {
+          this._linkCursor = (idx + 1) % totalLinks;
+          return;
         }
       }
+      
+      this._linkCursor = (this._linkCursor + processedLinks) % totalLinks;
       
       // Apply boundary effect modulations to nodes and links
       this.applyBoundaryEffectModulations(links, nodes);
