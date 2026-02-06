@@ -3042,6 +3042,11 @@ class AtomaGame {
         this.semanticCadenceLogMs = 5000;
         this.semanticCadenceLastLog = 0;
         this.semanticSlowCadenceLastLog = 0;
+        this._runVisualSemanticPending = false;
+        this._pendingVisualSemanticDt = 0;
+        this._pendingMark = null;
+        this._runSlowSemanticPending = false;
+        this._pendingSlowSemanticDt = 0;
         this._runElasticityPending = false;
         this._pendingElasticityDt = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
@@ -3092,6 +3097,18 @@ this.frameScheduler.register(
                 this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
             }
         }, 'visualNetworkTimeElasticity.realtime');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runVisualSemanticPending) {
+                this._runVisualSemanticPending = false;
+                this.runVisualSemanticTick(this._pendingVisualSemanticDt, this._pendingMark);
+            }
+        }, 'semantic.visual30Hz');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runSlowSemanticPending) {
+                this._runSlowSemanticPending = false;
+                this.runSlowSemanticTick(this._pendingSlowSemanticDt);
+            }
+        }, 'semantic.slow10Hz');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -7544,21 +7561,26 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Cadence gates: motion stays 60 Hz; semantic/UI work drops to lighter rates
         this.semanticVisualAcc += deltaTime;
         const runVisualSemantic = this.semanticVisualAcc >= this.semanticVisualInterval;
-        if (runVisualSemantic) {
+        if (runVisualSemantic && !this._runVisualSemanticPending) {
             this.semanticVisualAcc -= this.semanticVisualInterval;
             if (performance.now() - this.semanticCadenceLastLog >= this.semanticCadenceLogMs) {
                 console.debug('[Cadence] semantic/UI @30Hz tick');
                 this.semanticCadenceLastLog = performance.now();
             }
+            this._pendingVisualSemanticDt = deltaTime;
+            this._pendingMark = mark;
+            this._runVisualSemanticPending = true;
         }
         this.semanticSlowAcc += deltaTime;
         const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
-        if (runSlowSemantic) {
+        if (runSlowSemantic && !this._runSlowSemanticPending) {
             this.semanticSlowAcc -= this.semanticSlowInterval;
             if (performance.now() - this.semanticSlowCadenceLastLog >= this.semanticCadenceLogMs) {
                 console.debug('[Cadence] semantic background @10Hz tick');
                 this.semanticSlowCadenceLastLog = performance.now();
             }
+            this._pendingSlowSemanticDt = deltaTime;
+            this._runSlowSemanticPending = true;
         }
 
         // FrameScheduler drives layer-gated systems (visual/render integration point)
@@ -7873,7 +7895,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             });
         }
 
-        if (runVisualSemantic) {
+        if (runVisualSemantic && !this._runVisualSemanticPending) {
         // 30 Hz visual/semantic cadence (motion-critical work stayed above at 60 Hz)
 
         // Update Safe Metrics FX 1.1 (subtle visual effects - 15Hz throttled)
@@ -9024,7 +9046,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.hardInteractionAuthority.safetyNet();
         }
 
-        if (runSlowSemantic) {
+        if (runSlowSemantic && !this._runSlowSemanticPending) {
         // 10 Hz deep semantic/world-mood cadence (interpretation, not motion)
         // ========================================================================
         // REGIONAL EQUILIBRIUM FIELD SYSTEM — Territorial Visualization
