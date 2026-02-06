@@ -3042,6 +3042,8 @@ class AtomaGame {
         this.semanticCadenceLogMs = 5000;
         this.semanticCadenceLastLog = 0;
         this.semanticSlowCadenceLastLog = 0;
+        this._runElasticityPending = false;
+        this._pendingElasticityDt = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -3084,6 +3086,12 @@ this.frameScheduler.register(
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runElasticityPending) {
+                this._runElasticityPending = false;
+                this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
+            }
+        }, 'visualNetworkTimeElasticity.realtime');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -7777,7 +7785,8 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.synergyPulseVisuals.update(deltaTime, this.time);
         }
 
-        this.visualNetworkTimeElasticityTick(deltaTime);
+        this._pendingElasticityDt = deltaTime;
+        this._runElasticityPending = true;
         
         // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
         if (this.harmonicResonanceCoupling && this.nodeDynamicMetrics) {
