@@ -3049,6 +3049,18 @@ class AtomaGame {
         this._pendingSlowSemanticDt = 0;
         this._runElasticityPending = false;
         this._pendingElasticityDt = 0;
+        this._runSynergyPulsePending = false;
+        this._pendingSynergyPulseDt = 0;
+        this._runHarmonicResonancePending = false;
+        this._pendingHarmonicResonanceDt = 0;
+        this._runHarmonicHubAuraPending = false;
+        this._pendingHarmonicHubAuraDt = 0;
+        this._runHarmonicInfluencePending = false;
+        this._pendingHarmonicInfluenceDt = 0;
+        this._runHarmonicCascadePending = false;
+        this._pendingHarmonicCascadeDt = 0;
+        this._runCascadeVisualizerPending = false;
+        this._pendingCascadeVisualizerDt = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -3098,11 +3110,48 @@ this.frameScheduler.register(
             }
         }, 'visualNetworkTimeElasticity.realtime');
         this.frameScheduler.register('realtime', () => {
+            if (!VISUAL_SYSTEMS_ENABLED) return;
+            if (this._runSynergyPulsePending) {
+                this._runSynergyPulsePending = false;
+                this.synergyPulseVisualsTick(this._pendingSynergyPulseDt);
+            }
+        }, 'synergyPulseVisuals.realtime');
+        this.frameScheduler.register('realtime', () => {
             if (this._runVisualSemanticPending) {
                 this._runVisualSemanticPending = false;
                 this.runVisualSemanticTick(this._pendingVisualSemanticDt, this._pendingMark);
             }
         }, 'semantic.visual30Hz');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runHarmonicResonancePending) {
+                this._runHarmonicResonancePending = false;
+                this.harmonicResonanceCouplingTick(this._pendingHarmonicResonanceDt);
+            }
+        }, 'harmonicResonanceCoupling.realtime');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runHarmonicHubAuraPending) {
+                this._runHarmonicHubAuraPending = false;
+                this.harmonicHubAuraSystemTick(this._pendingHarmonicHubAuraDt);
+            }
+        }, 'harmonicHubAuraSystem.realtime');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runHarmonicInfluencePending) {
+                this._runHarmonicInfluencePending = false;
+                this.harmonicInfluencePropagationTick(this._pendingHarmonicInfluenceDt);
+            }
+        }, 'harmonicInfluencePropagation.realtime');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runHarmonicCascadePending) {
+                this._runHarmonicCascadePending = false;
+                this.harmonicCascadeAmplificationTick(this._pendingHarmonicCascadeDt);
+            }
+        }, 'harmonicCascadeAmplification.realtime');
+        this.frameScheduler.register('realtime', () => {
+            if (this._runCascadeVisualizerPending) {
+                this._runCascadeVisualizerPending = false;
+                this.cascadeVisualizerTick(this._pendingCascadeVisualizerDt);
+            }
+        }, 'cascadeVisualizer.realtime');
         this.frameScheduler.register('realtime', () => {
             if (this._runSlowSemanticPending) {
                 this._runSlowSemanticPending = false;
@@ -7512,6 +7561,48 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
     }
 
+    synergyPulseVisualsTick(deltaTime) {
+        // Update synergy pulse visuals (soft breathing pulse when synergy > 0.6)
+        if (this.synergyPulseVisuals && this.nodeDynamicMetrics) {
+            // Get average synergy from network metrics
+            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+            this.synergyPulseVisuals.setAverageSynergy(avgSynergy);
+            this.synergyPulseVisuals.update(deltaTime, this.time);
+        }
+    }
+
+    harmonicResonanceCouplingTick(deltaTime) {
+        // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
+        if (this.harmonicResonanceCoupling && this.nodeDynamicMetrics) {
+            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+            this.harmonicResonanceCoupling.update(deltaTime, avgSynergy);
+        }
+    }
+
+    harmonicHubAuraSystemTick(deltaTime) {
+        if (this.harmonicHubAuraSystem && this.aiNodes) {
+            this.harmonicHubAuraSystem.update(deltaTime, this.aiNodes.nodes);
+        }
+    }
+
+    harmonicInfluencePropagationTick(deltaTime) {
+        if (this.harmonicInfluencePropagation) {
+            this.harmonicInfluencePropagation.update(deltaTime);
+        }
+    }
+
+    harmonicCascadeAmplificationTick(deltaTime) {
+        if (this.harmonicCascadeAmplification && this.harmonicCascadeAmplification.config.enabled) {
+            this.harmonicCascadeAmplification.update(deltaTime);
+        }
+    }
+
+    cascadeVisualizerTick(deltaTime) {
+        if (this.cascadeVisualizer) {
+            this.cascadeVisualizer.update(deltaTime);
+        }
+    }
+
     /**
      * Main animation loop
      */
@@ -7570,6 +7661,18 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this._pendingVisualSemanticDt = deltaTime;
             this._pendingMark = mark;
             this._runVisualSemanticPending = true;
+            this._pendingSynergyPulseDt = deltaTime;
+            this._runSynergyPulsePending = true;
+            this._pendingHarmonicResonanceDt = deltaTime;
+            this._runHarmonicResonancePending = true;
+            this._pendingHarmonicHubAuraDt = deltaTime;
+            this._runHarmonicHubAuraPending = true;
+            this._pendingHarmonicInfluenceDt = deltaTime;
+            this._runHarmonicInfluencePending = true;
+            this._pendingHarmonicCascadeDt = deltaTime;
+            this._runHarmonicCascadePending = true;
+            this._pendingCascadeVisualizerDt = deltaTime;
+            this._runCascadeVisualizerPending = true;
         }
         this.semanticSlowAcc += deltaTime;
         const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
@@ -7790,46 +7893,26 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // SYNERGY CASCADE PROPAGATION VISUALIZER v1.0 — Network energy flow
         // Visualizes synergy energy cascading through linked networks
         // ====================================================================
-        if (this.cascadeVisualizer) {
-            this.cascadeVisualizer.update(deltaTime);
-        }
+        if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick(deltaTime);
 
         // ====================================================================
         // SYNERGY VISUAL EFFECTS v1.0 — Pure world-space visual feedback
         // Soft breathing pulse on nodes + visual time elasticity tracking
         // ====================================================================
         
-        // Update synergy pulse visuals (soft breathing pulse when synergy > 0.6)
-        if (this.synergyPulseVisuals && this.nodeDynamicMetrics) {
-            // Get average synergy from network metrics
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-            this.synergyPulseVisuals.setAverageSynergy(avgSynergy);
-            this.synergyPulseVisuals.update(deltaTime, this.time);
-        }
+        this._pendingSynergyPulseDt = deltaTime;
+        this._runSynergyPulsePending = true;
 
         this._pendingElasticityDt = deltaTime;
         this._runElasticityPending = true;
         
-        // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
-        if (this.harmonicResonanceCoupling && this.nodeDynamicMetrics) {
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-            this.harmonicResonanceCoupling.update(deltaTime, avgSynergy);
-        }
+        if (!this._runHarmonicResonancePending) this.harmonicResonanceCouplingTick(deltaTime);
         
-        // Update harmonic hub aura system (Session 126)
-        if (this.harmonicHubAuraSystem && this.aiNodes) {
-            this.harmonicHubAuraSystem.update(deltaTime, this.aiNodes.nodes);
-        }
+        if (!this._runHarmonicHubAuraPending) this.harmonicHubAuraSystemTick(deltaTime);
         
-        // Update harmonic influence propagation (Session 127)
-        if (this.harmonicInfluencePropagation) {
-            this.harmonicInfluencePropagation.update(deltaTime);
-        }
+        if (!this._runHarmonicInfluencePending) this.harmonicInfluencePropagationTick(deltaTime);
         
-        // Update harmonic cascade amplification (Session 145)
-        if (this.harmonicCascadeAmplification && this.harmonicCascadeAmplification.config.enabled) {
-            this.harmonicCascadeAmplification.update(deltaTime);
-        }
+        if (!this._runHarmonicCascadePending) this.harmonicCascadeAmplificationTick(deltaTime);
         
         // ====================================================================
         // ATOMA AUDIO SYSTEM — Synergy State Monitoring
