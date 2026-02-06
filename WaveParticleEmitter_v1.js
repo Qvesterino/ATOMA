@@ -310,14 +310,14 @@ export class WaveParticleEmitter_v1 {
   /**
    * Main update loop — evaluates wave conditions and updates particles
    */
-  update(deltaTime, nodes = [], links = []) {
+  update(deltaTime, nodes = [], links = [], waveEngine = null) {
     try {
       this.time += deltaTime;
 
       // Process all nodes for wave-based emission triggers
       if (nodes && Array.isArray(nodes)) {
         for (const node of nodes) {
-          this._processNodeWaveEvents(node);
+          this._processNodeWaveEvents(node, waveEngine);
         }
       }
 
@@ -333,15 +333,20 @@ export class WaveParticleEmitter_v1 {
   /**
    * Evaluate wave conditions for a single node and trigger emission
    */
-  _processNodeWaveEvents(node) {
+  _processNodeWaveEvents(node, waveEngine = null) {
     try {
       const nodeId = node?.id ?? node?.uuid;
       if (!nodeId) return;
 
-      const waveField = node?.userData?.waveField;
+      const waveField =
+        waveEngine?.getNodeWaveField?.(nodeId, node) ??
+        node?.userData?.waveField;
       if (!waveField) return;
 
-      const { constructive, destructive, standing, amplitude } = waveField;
+      const constructive = waveField.constructive ?? waveField.constructivePower ?? 0;
+      const destructive = waveField.destructive ?? waveField.destructivePower ?? 0;
+      const standing = waveField.standing ?? waveField.standingWaveFactor ?? 0;
+      const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
 
       // **Event 1: Constructive Burst** (high constructive interference)
       if (constructive > this.config.constructiveThreshold) {

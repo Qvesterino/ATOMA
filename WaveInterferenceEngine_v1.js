@@ -1,767 +1,543 @@
 import * as THREE from 'three';
 
-/**
- * WAVE INTERFERENCE ENGINE v1.0
- * 
- * Multi-origin wave interference system for ATOMA.
- * Computes interference patterns from multiple wave sources across the network.
- * 
- * FEATURES:
- * ✓ Multiple simultaneous wave sources (nodes, links, events, world)
- * ✓ BFS-based propagation with configurable hop limits
- * ✓ Physical wave interference calculations
- * ✓ Synergy/resonance/corruption amplitude modulation
- * ✓ Standing wave factor detection
- * ✓ Zero allocations per update (pooled sources)
- * ✓ WeakMap state tracking (automatic GC)
- * ✓ 100% optional chaining, defensive programming
- * ✓ Standalone, additive module (no file modifications)
- * 
- * ARCHITECTURE:
- * - WaveSourceManager: Manages wave origins & lifecycle
- * - WavePropagationGraph: Network traversal & caching
- * - WaveMath: Physical wave calculations & interference
- * - WaveInterferenceEngine_v1: Main controller
- */
+const BURST_TYPES = Object.freeze({
+    HARMONIC: 'harmonic',
+    SYNERGY: 'synergy',
+    CORRUPTION: 'corruption'
+});
 
-/**
- * Wave source manager - tracks all active wave origins
- */
-class WaveSourceManager {
-    constructor(maxSources = 8) {
-        this.maxSources = maxSources;
-        this.sources = new Map();              // id → WaveSource
-        this.sourcePool = [];                  // Pre-allocated pool
-        this.nextId = 0;
-        this.creationOrder = [];               // Track FIFO for pruning
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value ?? 0));
+}
+
+function asVector3(input, fallback = new THREE.Vector3()) {
+    if (input instanceof THREE.Vector3) return input.clone();
+    if (Array.isArray(input) && input.length >= 3) {
+        return new THREE.Vector3(input[0], input[1], input[2]);
     }
-    
-    /**
-     * Add a new wave source
-     */
-    addSource(config) {
-        try {
-            const id = `wave_${++this.nextId}`;
-            
-            const source = {
-                id,
-                type: config?.type || 'NODE',
-                nodeId: config?.nodeId,
-                linkId: config?.linkId,
-                originPosition: config?.originPosition ? 
-                    new THREE.Vector3().copy(config.originPosition) : 
-                    new THREE.Vector3(0, 0, 0),
-                startTime: config?.startTime || 0,
-                baseAmplitude: Math.max(0, Math.min(1, config?.baseAmplitude ?? 0.8)),
-                baseFrequency: Math.max(0.1, config?.baseFrequency ?? 2.0),
-                basePhase: config?.basePhase ?? 0,
-                decayRadius: Math.max(1, config?.decayRadius ?? 10),
-                profile: config?.profile || 'SYNERGY',
-                synergyBoost: Math.max(0, Math.min(1, config?.synergyBoost ?? 0.5)),
-                resonanceBoost: Math.max(0, Math.min(1, config?.resonanceBoost ?? 0.3)),
-                corruptionBoost: Math.max(0, Math.min(1, config?.corruptionBoost ?? 0)),
-                currentAmplitude: config?.baseAmplitude ?? 0.8,
-                age: 0,
-                ttl: config?.ttl ?? 10.0,      // Time to live (seconds)
-                _targets: null                  // Cached propagation targets
-            };
-            
-            this.sources.set(id, source);
-            this.creationOrder.push(id);
-            
-            // Prune if exceeding max sources
-            if (this.sources.size > this.maxSources) {
-                this._pruneOldest();
-            }
-            
-            return id;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] addSource error:', e);
-            return null;
-        }
+    if (input && typeof input === 'object' &&
+        Number.isFinite(input.x) &&
+        Number.isFinite(input.y) &&
+        Number.isFinite(input.z)) {
+        return new THREE.Vector3(input.x, input.y, input.z);
     }
-    
-    /**
-     * Update all sources (age, decay amplitude)
-     */
-    update(deltaTime) {
-        try {
-            for (const [id, source] of this.sources) {
-                source.age += deltaTime;
-                
-                // Natural amplitude decay over lifetime
-                const ageRatio = Math.max(0, 1 - (source.age / source.ttl));
-                source.currentAmplitude = source.baseAmplitude * ageRatio;
-            }
-            
-            this.pruneExpiredSources();
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] WaveSourceManager.update error:', e);
-        }
+    return fallback.clone();
+}
+
+function deepFreeze(value) {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+    Object.freeze(value);
+    for (const key of Object.keys(value)) {
+        deepFreeze(value[key]);
     }
-    
-    /**
-     * Remove expired sources (age >= ttl)
-     */
-    pruneExpiredSources() {
-        try {
-            const expired = [];
-            
-            for (const [id, source] of this.sources) {
-                if (source?.age >= source?.ttl) {
-                    expired.push(id);
-                }
-            }
-            
-            for (const id of expired) {
-                this.sources.delete(id);
-                const idx = this.creationOrder.indexOf(id);
-                if (idx >= 0) this.creationOrder.splice(idx, 1);
-            }
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] pruneExpiredSources error:', e);
-        }
+    return value;
+}
+
+function getLinkMidpoint(link) {
+    if (!link) return null;
+    if (link.geometry?.attributes?.position?.array?.length >= 6) {
+        const arr = link.geometry.attributes.position.array;
+        return new THREE.Vector3(
+            (arr[0] + arr[3]) * 0.5,
+            (arr[1] + arr[4]) * 0.5,
+            (arr[2] + arr[5]) * 0.5
+        );
     }
-    
-    /**
-     * Prune oldest source if over limit
-     */
-    _pruneOldest() {
-        try {
-            if (this.creationOrder.length > 0) {
-                const oldestId = this.creationOrder.shift();
-                this.sources.delete(oldestId);
-            }
-        } catch (e) {
-            // Silent fail
-        }
+    if (link.sourceNode?.position && link.targetNode?.position) {
+        return new THREE.Vector3()
+            .copy(link.sourceNode.position)
+            .add(link.targetNode.position)
+            .multiplyScalar(0.5);
     }
-    
-    /**
-     * Get source by ID
-     */
-    getSource(id) {
-        return this.sources?.get?.(id) || null;
-    }
-    
-    /**
-     * Get all active sources
-     */
-    getAllActiveSources() {
-        return Array.from(this.sources?.values?.() || []);
-    }
-    
-    /**
-     * Clear all sources
-     */
-    clear() {
-        this.sources.clear();
-        this.creationOrder.length = 0;
-    }
+    return null;
 }
 
 /**
- * Wave propagation graph - BFS network traversal with caching
- */
-class WavePropagationGraph {
-    constructor() {
-        this.cache = new Map();  // sourceId → cachedTargets[]
-        this.maxHops = 6;
-    }
-    
-    /**
-     * Compute propagation targets for a wave source
-     */
-    computeTargets(sourceId, graph, sourceConfig) {
-        try {
-            // Check cache first
-            if (this.cache.has(sourceId)) {
-                return this.cache.get(sourceId);
-            }
-            
-            const targets = [];
-            const visited = new Set();
-            const queue = [];
-            
-            // Determine starting point
-            let startNodeId = sourceConfig?.nodeId;
-            
-            if (!startNodeId && graph?.getNodeIdAtPosition) {
-                // Try to find nearest node to source origin
-                startNodeId = graph.getNodeIdAtPosition?.(sourceConfig?.originPosition);
-            }
-            
-            if (!startNodeId) {
-                return targets;
-            }
-            
-            // BFS traversal
-            queue.push({ nodeId: startNodeId, distance: 0 });
-            visited.add(startNodeId);
-            
-            while (queue.length > 0) {
-                const { nodeId, distance } = queue.shift();
-                
-                if (distance > this.maxHops) break;
-                
-                // Add node as target
-                targets.push({
-                    type: 'NODE',
-                    nodeId,
-                    distance,
-                    depth: distance
-                });
-                
-                // Get connected links
-                const links = graph?.getLinksForNode?.(nodeId) || [];
-                
-                for (const link of links) {
-                    const linkId = link?.id || link;
-                    
-                    // Add link as target
-                    targets.push({
-                        type: 'LINK',
-                        linkId,
-                        distance,
-                        depth: distance
-                    });
-                    
-                    // Get opposite node
-                    const oppositeNodeId = this._getOppositeNode(
-                        link,
-                        nodeId,
-                        graph
-                    );
-                    
-                    if (oppositeNodeId && !visited.has(oppositeNodeId)) {
-                        visited.add(oppositeNodeId);
-                        queue.push({
-                            nodeId: oppositeNodeId,
-                            distance: distance + 1
-                        });
-                    }
-                }
-            }
-            
-            // Cache results
-            this.cache.set(sourceId, targets);
-            
-            return targets;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] computeTargets error:', e);
-            return [];
-        }
-    }
-    
-    /**
-     * Get opposite node of a link
-     */
-    _getOppositeNode(link, currentNodeId, graph) {
-        try {
-            if (!link) return null;
-            
-            // Try userData first
-            if (link?.userData?.linkedNodeA === currentNodeId) {
-                return link.userData?.linkedNodeB?.id || link.userData?.linkedNodeB;
-            }
-            if (link?.userData?.linkedNodeB === currentNodeId) {
-                return link.userData?.linkedNodeA?.id || link.userData?.linkedNodeA;
-            }
-            
-            // Try method on graph
-            return graph?.getOppositeNode?.(link, currentNodeId);
-        } catch (e) {
-            return null;
-        }
-    }
-    
-    /**
-     * Invalidate cache (call after network changes)
-     */
-    invalidateCache() {
-        this.cache.clear();
-    }
-    
-    /**
-     * Clear all caches
-     */
-    clear() {
-        this.cache.clear();
-    }
-}
-
-/**
- * Wave math - physical wave calculations
- */
-class WaveMath {
-    /**
-     * Compute wave at a target point
-     */
-    static computeWave(source, targetDistance, currentTime, decayRadius) {
-        try {
-            const t = currentTime - (source?.startTime ?? 0);
-            
-            if (t < 0) return 0;
-            
-            // Attenuation: 1 / (1 + d / R)
-            const attenuation = 1.0 / (1.0 + targetDistance / decayRadius);
-            
-            // Angular frequency: ω = 2πf
-            const omega = 2 * Math.PI * (source?.baseFrequency ?? 1);
-            
-            // Wave number: k = 1 / R
-            const k = 1.0 / decayRadius;
-            
-            // Wave equation: A * att * sin(ωt - kd + φ)
-            const wave = source?.currentAmplitude * attenuation * 
-                Math.sin(omega * t - k * targetDistance + (source?.basePhase ?? 0));
-            
-            return wave;
-        } catch (e) {
-            return 0;
-        }
-    }
-    
-    /**
-     * Apply synergy/resonance/corruption modifiers to amplitude
-     */
-    static applyModifiers(baseAmplitude, synergyBoost, resonanceBoost, corruptionBoost) {
-        try {
-            let A = baseAmplitude;
-            
-            // Synergy boost: 0.8 to 1.3
-            A *= this._lerp(0.8, 1.3, Math.max(0, Math.min(1, synergyBoost ?? 0)));
-            
-            // Resonance boost: 0.8 to 1.3
-            A *= this._lerp(0.8, 1.3, Math.max(0, Math.min(1, resonanceBoost ?? 0)));
-            
-            // Corruption reduces amplitude: 1.0 to 0.5
-            A *= this._lerp(1.0, 0.5, Math.max(0, Math.min(1, corruptionBoost ?? 0)));
-            
-            return Math.max(0, Math.min(1, A));
-        } catch (e) {
-            return Math.max(0, Math.min(1, baseAmplitude));
-        }
-    }
-    
-    /**
-     * Linear interpolation
-     */
-    static _lerp(a, b, t) {
-        return a + (b - a) * Math.max(0, Math.min(1, t));
-    }
-    
-    /**
-     * Clamp value to 0–1
-     */
-    static clamp01(v) {
-        return Math.max(0, Math.min(1, v ?? 0));
-    }
-}
-
-/**
- * Main Wave Interference Engine
+ * WaveInterferenceEngine_v1
+ * Burst-only, event-driven snapshot publisher.
+ *
+ * Contract:
+ * - No per-frame update loop
+ * - No global graph traversal
+ * - No node.userData/link.userData writes
+ * - Immutable snapshot output for rendering systems
  */
 export class WaveInterferenceEngine_v1 {
     constructor(options = {}) {
-        try {
-            this.game = options?.game;
-            this.graph = options?.graph;
-            this.timeSource = options?.timeSource || { now: () => performance.now() / 1000 };
-            this.maxSources = options?.maxSources ?? 8;
-            
-            // Initialize managers
-            this.sourceManager = new WaveSourceManager(this.maxSources);
-            this.propagationGraph = new WavePropagationGraph();
-            this.waveMath = WaveMath;
-            
-            // State tracking
-            this.targetFields = new Map();           // targetId → waveField
-            this.lastUpdate = 0;
-            this.updateCount = 0;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] Constructor error:', e);
-        }
+        this.enabled = options.enabled ?? true;
+        this.timeSource = options.timeSource || { now: () => performance.now() * 0.001 };
+        this.debugEnabled = options.enableDebug ?? false;
+        this.warningsEnabled = options.enableWarnings ?? false;
+
+        this.arbitrationPolicy = {
+            allowCoexistence: options.allowCoexistence ?? false,
+            supersedeOnHigherPriority: options.supersedeOnHigherPriority ?? true,
+            priorityOrder: options.priorityOrder || [
+                BURST_TYPES.CORRUPTION,
+                BURST_TYPES.SYNERGY,
+                BURST_TYPES.HARMONIC
+            ]
+        };
+
+        this.profileDefaults = {
+            harmonic: {
+                radius: options.harmonicRadius ?? 18,
+                riseSec: options.harmonicRiseSec ?? 0.12,
+                decaySec: options.harmonicDecaySec ?? 1.4
+            },
+            synergy: {
+                radius: options.synergyRadius ?? 22,
+                riseSec: options.synergyRiseSec ?? 0.08,
+                decaySec: options.synergyDecaySec ?? 1.2
+            },
+            corruption: {
+                radius: options.corruptionRadius ?? 26,
+                riseSec: options.corruptionRiseSec ?? 0.05,
+                decaySec: options.corruptionDecaySec ?? 1.6
+            }
+        };
+
+        this.triggerPolicies = {
+            harmonic: {
+                criticalRegimes: new Set(options.harmonicCriticalRegimes || ['coherent', 'aligned', 'resolved']),
+                resetRegimes: new Set(options.harmonicResetRegimes || ['baseline', 'diffuse', 'unstable'])
+            },
+            synergy: {
+                criticalRegimes: new Set(options.synergyCriticalRegimes || ['collaborative', 'convergent', 'reinforced']),
+                resetRegimes: new Set(options.synergyResetRegimes || ['baseline', 'fragmented', 'decoherent'])
+            },
+            corruption: {
+                criticalRegimes: new Set(options.corruptionCriticalRegimes || ['critical_divergence', 'rupture', 'contaminated']),
+                resetRegimes: new Set(options.corruptionResetRegimes || ['baseline', 'contained', 'recovered'])
+            }
+        };
+
+        this._activeBurst = null;
+        this._snapshotCounter = 0;
+        this._regimeState = new Map(); // `${type}:${sourceId}` -> { lastRegime, armed }
+        this._lifecycleHistory = [];
+        this._maxLifecycleEntries = options.maxLifecycleEntries ?? 80;
+        this._fieldSuppressed = false;
+        this._fieldSuppressionHandler = options.onFieldSuppressionChange || null;
+        this._lifecycleHandler = options.onLifecycleEvent || null;
     }
-    
-    /**
-     * Add a new wave source
-     */
-    addWaveSource(config) {
-        try {
-            if (!config) return null;
-            return this.sourceManager?.addSource?.(config);
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] addWaveSource error:', e);
-            return null;
-        }
-    }
-    
-    /**
-     * Request update from external trigger (Phase D.4: NODE_SPAWN only)
-     * 
-     * This is the entry point for external systems to notify the WaveInterferenceEngine
-     * of events that may require wave propagation.
-     * 
-     * Phase D.4 Scope:
-     * - Only processes NODE_SPAWN events
-     * - Only adds wave sources (no computation/propagation in this phase)
-     * - Debug-gated via CONFIG.debug.DEBUG_WAVE_ENGINE
-     * 
-     * @param {string} reason - Event type (e.g., 'NODE_SPAWN', 'LINK_CREATED')
-     * @param {Object} context - Event context (nodeId, nodePosition, etc.)
-     */
+
     requestUpdate(reason, context = {}) {
-        try {
-            // Log request for verification (1× per spawn when DEBUG enabled)
-            console.log(`[WaveInterferenceEngine] requestUpdate: ${reason}`, context);
-            
-            // Phase D.4: Only handle NODE_SPAWN events
-            if (reason === 'NODE_SPAWN') {
-                // Validate required context
-                if (!context?.nodeId) {
-                    console.warn('[WaveInterferenceEngine] requestUpdate missing nodeId in context');
-                    return;
-                }
-                
-                if (!context?.nodePosition) {
-                    console.warn('[WaveInterferenceEngine] requestUpdate missing nodePosition in context');
-                    return;
-                }
-                
-                // Add wave source for spawned node
-                // Phase D.4: NO computation, NO propagation, only source registration
-                const sourceId = this.addWaveSource({
-                    type: 'NODE',
-                    nodeId: context.nodeId,
-                    originPosition: context.nodePosition,
-                    baseAmplitude: 0.8,
-                    baseFrequency: 2.0,
-                    decayRadius: 10,
-                    profile: 'SYNERGY',
-                    synergyBoost: 0.5,
-                    resonanceBoost: 0.3,
-                    corruptionBoost: 0
-                });
-                
-                if (sourceId) {
-                    console.log(`[WaveInterferenceEngine] ✓ Added wave source ${sourceId} for node ${context.nodeId}`);
-                }
-            }
-            
-            // Phase D.4: No other event types processed
-            // - LINK_CREATED: NOT YET
-            // - PHASE_CHANGED: NOT YET
-            // - Automatic fallbacks: NOT YET
-            
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] requestUpdate error:', e);
+        if (!this.enabled) return null;
+        if (context?.burstIntent) return this.requestBurstIntent(context.burstIntent);
+
+        if (context?.type || context?.burstType) {
+            return this.requestBurstIntent({
+                ...context,
+                type: context.type || context.burstType
+            });
         }
-    }
-    
-    /**
-     * Main update - compute interference for all targets
-     */
-    update(deltaTime, entities = {}) {
-        try {
-            const currentTime = this.timeSource?.now?.() ?? (this.lastUpdate + deltaTime);
-            
-            // Update sources
-            this.sourceManager?.update?.(deltaTime);
-            
-            // Get all active sources
-            const activeSources = this.sourceManager?.getAllActiveSources?.() || [];
-            
-            if (activeSources.length === 0) {
-                this.targetFields.clear();
-                this.lastUpdate = currentTime;
-                return;
-            }
-            
-            // Compute interference for all targets
-            this._computeInterferenceFields(activeSources, currentTime, entities);
-            
-            this.lastUpdate = currentTime;
-            this.updateCount++;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] update error:', e);
+
+        if (reason === 'MANUAL_DEBUG' && context?.type) {
+            return this.requestBurstIntent(context);
         }
-    }
-    
-    /**
-     * Compute interference fields for all targets
-     */
-    _computeInterferenceFields(activeSources, currentTime, entities) {
-        try {
-            const nodes = entities?.nodes || [];
-            const links = entities?.links || [];
-            
-            // Clear previous fields
-            this.targetFields.clear();
-            
-            // Process each node
-            for (const node of nodes) {
-                try {
-                    const nodeId = node?.id || node?.uuid || node?.name;
-                    if (!nodeId) continue;
-                    
-                    const waveField = this._computeWaveFieldAtTarget(
-                        nodeId,
-                        'NODE',
-                        node?.position,
-                        activeSources,
-                        currentTime
-                    );
-                    
-                    if (waveField) {
-                        this.targetFields.set(nodeId, waveField);
-                        node.userData = node.userData || {};
-                        node.userData.waveField = waveField;
-                    }
-                } catch (e) {
-                    // Continue on node error
-                }
-            }
-            
-            // Process each link
-            for (const link of links) {
-                try {
-                    const linkId = link?.id || link?.uuid || link?.name;
-                    if (!linkId) continue;
-                    
-                    // LIFECYCLE GUARD: Skip if link or geometry is disposed
-                    if (!link || !link.geometry || 
-                        !link.geometry.attributes || 
-                        !link.geometry.attributes.position || 
-                        !link.geometry.attributes.position.array) {
-                        continue;
-                    }
-                    
-                    // Get link midpoint
-                    let position = new THREE.Vector3(0, 0, 0);
-                    const pos = link.geometry.attributes.position;
-                    position.x = (pos.array[0] + pos.array[3]) * 0.5;
-                    position.y = (pos.array[1] + pos.array[4]) * 0.5;
-                    position.z = (pos.array[2] + pos.array[5]) * 0.5;
-                    
-                    const waveField = this._computeWaveFieldAtTarget(
-                        linkId,
-                        'LINK',
-                        position,
-                        activeSources,
-                        currentTime
-                    );
-                    
-                    if (waveField) {
-                        this.targetFields.set(linkId, waveField);
-                        link.userData = link.userData || {};
-                        link.userData.waveField = waveField;
-                    }
-                } catch (e) {
-                    // Continue on link error
-                }
-            }
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] _computeInterferenceFields error:', e);
+
+        if (reason === 'PHASE_CHANGED' && context?.toRegime && context?.type) {
+            return this.requestBurstIntent(context);
         }
+
+        if (this.warningsEnabled) {
+            console.warn('[WaveInterferenceEngine] Unsupported requestUpdate reason for burst mode:', reason);
+        }
+        return null;
     }
-    
-    /**
-     * Compute wave field at a single target
-     */
-    _computeWaveFieldAtTarget(targetId, targetType, targetPosition, activeSources, currentTime) {
-        try {
-            const waves = [];
-            let totalAmplitude = 0;
-            let constructivePower = 0;
-            let destructivePower = 0;
-            let phaseAccum = 0;
-            
-            const maxSources = activeSources?.length ?? 0;
-            
-            // Compute contribution from each source
-            for (const source of activeSources) {
-                try {
-                    // Get propagation targets for this source
-                    let targets = this.propagationGraph?.cache?.get?.(source?.id);
-                    
-                    if (!targets) {
-                        // Compute if not cached
-                        targets = this.propagationGraph?.computeTargets?.(
-                            source.id,
-                            this.graph,
-                            source
-                        ) || [];
-                    }
-                    
-                    // Find this target in the propagation
-                    let distance = null;
-                    
-                    for (const target of targets) {
-                        if (targetType === 'NODE' && target?.type === 'NODE' && 
-                            target?.nodeId === targetId) {
-                            distance = target?.distance;
-                            break;
-                        }
-                        if (targetType === 'LINK' && target?.type === 'LINK' && 
-                            target?.linkId === targetId) {
-                            distance = target?.distance;
-                            break;
-                        }
-                    }
-                    
-                    // If target not reached by this source, skip
-                    if (distance === null) continue;
-                    
-                    // Apply modifiers
-                    const modifiedAmplitude = this.waveMath.applyModifiers(
-                        source?.currentAmplitude,
-                        source?.synergyBoost,
-                        source?.resonanceBoost,
-                        source?.corruptionBoost
-                    );
-                    
-                    // Compute wave at this point
-                    const wave = this.waveMath.computeWave(
-                        { ...source, currentAmplitude: modifiedAmplitude },
-                        distance,
-                        currentTime,
-                        source?.decayRadius
-                    );
-                    
-                    waves.push(wave);
-                    totalAmplitude += Math.abs(wave);
-                    
-                    if (wave > 0) {
-                        constructivePower += wave;
-                    } else {
-                        destructivePower += Math.abs(wave);
-                    }
-                    
-                    // Accumulate phase
-                    phaseAccum += Math.atan2(Math.sin(wave), Math.cos(wave));
-                } catch (e) {
-                    // Continue on per-source error
-                }
-            }
-            
-            // Normalize phase to 0–1
-            let travelPhase = (phaseAccum / Math.PI + 1) * 0.5; // Map -π,π to 0,1
-            travelPhase = Math.max(0, Math.min(1, travelPhase));
-            
-            // Compute standing wave factor
-            let standingWaveFactor = 0;
-            if (waves.length >= 2) {
-                let maxWave = Math.max(...waves.map(w => Math.abs(w)));
-                let minWave = Math.min(...waves.map(w => Math.abs(w)));
-                const dA = Math.abs(maxWave - minWave);
-                standingWaveFactor = this.waveMath.clamp01(1.0 - (dA * 4.0));
-            }
-            
-            // Build wave field
-            const waveField = {
-                totalAmplitude: this.waveMath.clamp01(totalAmplitude),
-                constructivePower: this.waveMath.clamp01(constructivePower),
-                destructivePower: this.waveMath.clamp01(destructivePower),
-                interferenceIndex: maxSources > 0 ? 
-                    Math.min(1, activeSources.length / this.maxSources) : 0,
-                travelPhase,
-                standingWaveFactor: this.waveMath.clamp01(standingWaveFactor),
-                sourceCount: activeSources.filter(s => {
-                    // Check if this source reaches this target
-                    const targets = this.propagationGraph?.cache?.get?.(s?.id) || [];
-                    return targets.some(t => 
-                        (targetType === 'NODE' && t?.type === 'NODE' && t?.nodeId === targetId) ||
-                        (targetType === 'LINK' && t?.type === 'LINK' && t?.linkId === targetId)
-                    );
-                }).length,
-                timestamp: currentTime
-            };
-            
-            return waveField;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] _computeWaveFieldAtTarget error:', e);
+
+    requestBurstIntent(intent = {}) {
+        if (!this.enabled) return null;
+
+        const normalized = this._normalizeIntent(intent);
+        if (!normalized) return null;
+
+        this._emitLifecycle('requested', { intent: normalized });
+
+        const crossing = this._evaluateCrossing(normalized);
+        if (!crossing.accepted) {
+            this._emitLifecycle('rejected', {
+                reason: crossing.reason,
+                intent: normalized
+            });
             return null;
         }
-    }
-    
-    /**
-     * Get wave field for a node
-     */
-    getNodeWaveField(nodeId) {
-        try {
-            return this.targetFields?.get?.(nodeId) || null;
-        } catch (e) {
+
+        const arbitration = this._evaluateArbitration(normalized);
+        if (!arbitration.accepted) {
+            this._emitLifecycle('rejected', {
+                reason: arbitration.reason,
+                intent: normalized
+            });
             return null;
         }
-    }
-    
-    /**
-     * Get wave field for a link
-     */
-    getLinkWaveField(linkId) {
-        try {
-            return this.targetFields?.get?.(linkId) || null;
-        } catch (e) {
-            return null;
+
+        if (arbitration.superseded) {
+            this._completeActiveBurst('superseded');
         }
+
+        const snapshot = this._buildSnapshot(normalized);
+        this._activeBurst = {
+            snapshot,
+            center: asVector3(snapshot.spatial.center),
+            direction: snapshot.spatial.directionalBias
+                ? asVector3(snapshot.spatial.directionalBias, new THREE.Vector3(0, 0, 0)).normalize()
+                : null
+        };
+
+        this._setFieldSuppressed(true, snapshot);
+        this._emitLifecycle('accepted', { snapshot, intent: normalized });
+        this._emitLifecycle('started', { snapshot, intent: normalized });
+
+        return snapshot;
     }
-    
-    /**
-     * Get all active sources (debugging)
-     */
-    getActiveSources() {
-        try {
-            return this.sourceManager?.getAllActiveSources?.() || [];
-        } catch (e) {
-            return [];
-        }
+
+    requestBurst(intent = {}) {
+        return this.requestBurstIntent(intent);
     }
-    
-    /**
-     * Get performance metrics
-     */
+
+    getActiveSnapshot() {
+        this._syncBurstLifecycle();
+        return this._activeBurst?.snapshot || null;
+    }
+
+    getNodeWaveField(nodeId, nodeRef = null) {
+        this._syncBurstLifecycle();
+        if (!this._activeBurst) return null;
+        const position = nodeRef?.position ? asVector3(nodeRef.position) : null;
+        if (!position) return null;
+        return this._sampleBurstAtPosition(position, this.timeSource.now());
+    }
+
+    getLinkWaveField(linkId, linkRef = null) {
+        this._syncBurstLifecycle();
+        if (!this._activeBurst) return null;
+        const midpoint = getLinkMidpoint(linkRef);
+        if (!midpoint) return null;
+        return this._sampleBurstAtPosition(midpoint, this.timeSource.now());
+    }
+
+    getWaveFieldForEntity(entity, isLink = false) {
+        if (!entity) return null;
+        if (isLink) return this.getLinkWaveField(entity.id || entity.uuid || entity.name, entity);
+        return this.getNodeWaveField(entity.id || entity.uuid || entity.name, entity);
+    }
+
+    isBurstActive() {
+        this._syncBurstLifecycle();
+        return !!this._activeBurst;
+    }
+
+    getBurstLifecycleEvents(limit = 20) {
+        if (limit <= 0) return [];
+        return this._lifecycleHistory.slice(-limit).map(entry => ({ ...entry }));
+    }
+
     getMetrics() {
-        try {
-            return {
-                activeSources: this.sourceManager?.sources?.size ?? 0,
-                maxSources: this.maxSources,
-                targetFieldsCount: this.targetFields?.size ?? 0,
-                updateCount: this.updateCount,
-                cacheSize: this.propagationGraph?.cache?.size ?? 0
-            };
-        } catch (e) {
+        this._syncBurstLifecycle();
+        return {
+            enabled: this.enabled,
+            activeBurstType: this._activeBurst?.snapshot?.type || null,
+            activeBurstId: this._activeBurst?.snapshot?.id || null,
+            fieldSuppressed: this._fieldSuppressed,
+            lifecycleEventsTracked: this._lifecycleHistory.length,
+            regimeKeysTracked: this._regimeState.size
+        };
+    }
+
+    getActiveSources() {
+        this._syncBurstLifecycle();
+        if (!this._activeBurst) return [];
+        const snapshot = this._activeBurst.snapshot;
+        return [{
+            id: snapshot.id,
+            type: snapshot.type,
+            sourceId: snapshot.sourceId,
+            center: snapshot.spatial.center,
+            timeline: snapshot.timeline
+        }];
+    }
+
+    update() {
+        // Burst mode intentionally has no per-frame solver path.
+        return false;
+    }
+
+    clear() {
+        this._completeActiveBurst('cleared');
+        this._regimeState.clear();
+    }
+
+    dispose() {
+        this.clear();
+        this._lifecycleHistory = [];
+    }
+
+    _normalizeIntent(intent) {
+        const type = `${intent?.type || ''}`.toLowerCase();
+        if (!Object.values(BURST_TYPES).includes(type)) {
+            if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Invalid burst type in intent:', intent?.type);
             return null;
         }
+
+        const sourceId = `${intent?.sourceId || intent?.originId || 'global'}`;
+        const prevKey = `${type}:${sourceId}`;
+        const prevState = this._regimeState.get(prevKey);
+        const fromRegime = `${intent?.fromRegime || prevState?.lastRegime || 'unknown'}`;
+        const toRegime = `${intent?.toRegime || intent?.regime || 'unknown'}`;
+
+        return {
+            type,
+            sourceId,
+            reasonClass: intent?.reasonClass || 'regime_transition',
+            fromRegime,
+            toRegime,
+            center: asVector3(intent?.center || intent?.originPosition || intent?.position),
+            direction: intent?.direction ? asVector3(intent.direction, new THREE.Vector3(0, 0, 0)) : null,
+            scope: intent?.scope || {},
+            intensityEnvelope: intent?.intensityEnvelope || {},
+            decayProfile: intent?.decayProfile || {},
+            renderPayload: intent?.renderPayload || {},
+            metadata: intent?.metadata || {},
+            timestamp: intent?.timestamp
+        };
     }
-    
-    /**
-     * Clear all state
-     */
-    clear() {
-        try {
-            this.sourceManager?.clear?.();
-            this.propagationGraph?.clear?.();
-            this.targetFields.clear();
-            this.updateCount = 0;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] clear error:', e);
+
+    _evaluateCrossing(intent) {
+        const key = `${intent.type}:${intent.sourceId}`;
+        const policy = this.triggerPolicies[intent.type];
+        const state = this._regimeState.get(key) || { lastRegime: intent.fromRegime, armed: true };
+
+        if (intent.fromRegime === intent.toRegime) {
+            this._regimeState.set(key, { ...state, lastRegime: intent.toRegime });
+            return { accepted: false, reason: 'no_boundary_crossing' };
+        }
+
+        const isCriticalEntry = policy.criticalRegimes.has(intent.toRegime);
+        const isReset = policy.resetRegimes.has(intent.toRegime);
+
+        if (isReset) {
+            this._regimeState.set(key, { lastRegime: intent.toRegime, armed: true });
+            return { accepted: false, reason: 'rearmed' };
+        }
+
+        if (!isCriticalEntry) {
+            this._regimeState.set(key, { ...state, lastRegime: intent.toRegime });
+            return { accepted: false, reason: 'not_critical_entry' };
+        }
+
+        if (!state.armed) {
+            this._regimeState.set(key, { ...state, lastRegime: intent.toRegime });
+            return { accepted: false, reason: 'critical_entry_locked_until_reset' };
+        }
+
+        this._regimeState.set(key, { lastRegime: intent.toRegime, armed: false });
+        return { accepted: true };
+    }
+
+    _evaluateArbitration(intent) {
+        if (!this._activeBurst) return { accepted: true, superseded: false };
+        if (this.arbitrationPolicy.allowCoexistence) return { accepted: true, superseded: false };
+
+        const currentType = this._activeBurst.snapshot.type;
+        if (currentType === intent.type) {
+            return { accepted: false, reason: 'active_burst_same_type' };
+        }
+
+        const incomingPriority = this.arbitrationPolicy.priorityOrder.indexOf(intent.type);
+        const activePriority = this.arbitrationPolicy.priorityOrder.indexOf(currentType);
+        const incomingIsHigher = incomingPriority >= 0 && activePriority >= 0 && incomingPriority < activePriority;
+
+        if (incomingIsHigher && this.arbitrationPolicy.supersedeOnHigherPriority) {
+            return { accepted: true, superseded: true };
+        }
+
+        return { accepted: false, reason: 'active_burst_conflict' };
+    }
+
+    _buildSnapshot(intent) {
+        const typeDefaults = this.profileDefaults[intent.type];
+        const startAt = intent.timestamp ?? this.timeSource.now();
+        const riseSec = intent.intensityEnvelope?.riseSec ?? typeDefaults.riseSec;
+        const decaySec = intent.decayProfile?.decaySec ?? typeDefaults.decaySec;
+        const peakAt = startAt + riseSec;
+        const endAt = peakAt + decaySec;
+        const radius = intent.scope?.radius ?? typeDefaults.radius;
+
+        const snapshot = {
+            id: `wave_burst_${++this._snapshotCounter}`,
+            type: intent.type,
+            sourceId: intent.sourceId,
+            reasonClass: intent.reasonClass,
+            regime: {
+                from: intent.fromRegime,
+                to: intent.toRegime
+            },
+            spatial: {
+                center: { x: intent.center.x, y: intent.center.y, z: intent.center.z },
+                scope: {
+                    mode: intent.scope?.mode || 'local',
+                    radius,
+                    radiusHint: intent.scope?.radiusHint || 'cluster'
+                },
+                directionalBias: intent.direction
+                    ? { x: intent.direction.x, y: intent.direction.y, z: intent.direction.z }
+                    : null
+            },
+            intensityEnvelope: {
+                profile: intent.intensityEnvelope?.profile || 'impulse_peak_fade',
+                riseSec
+            },
+            decayProfile: {
+                profile: intent.decayProfile?.profile || 'natural_release',
+                decaySec
+            },
+            renderPayload: {
+                palette: intent.renderPayload?.palette || intent.type,
+                style: intent.renderPayload?.style || 'burst'
+            },
+            manifest: {
+                layer: 'BURST',
+                silencesFields: true,
+                coexistenceAllowed: this.arbitrationPolicy.allowCoexistence
+            },
+            metadata: intent.metadata,
+            createdAt: startAt,
+            timeline: { startAt, peakAt, endAt }
+        };
+
+        return deepFreeze(snapshot);
+    }
+
+    _syncBurstLifecycle() {
+        if (!this._activeBurst) return;
+        const now = this.timeSource.now();
+        if (now >= this._activeBurst.snapshot.timeline.endAt) {
+            this._completeActiveBurst('completed');
         }
     }
-    
-    /**
-     * Dispose (cleanup)
-     */
-    dispose() {
-        try {
-            this.clear();
-            this.sourceManager = null;
-            this.propagationGraph = null;
-            this.targetFields = null;
-        } catch (e) {
-            console.warn('[WaveInterferenceEngine] dispose error:', e);
+
+    _sampleBurstAtPosition(position, nowSec) {
+        this._syncBurstLifecycle();
+        if (!this._activeBurst) return null;
+
+        const snapshot = this._activeBurst.snapshot;
+        const timeline = snapshot.timeline;
+        if (nowSec < timeline.startAt || nowSec > timeline.endAt) return null;
+
+        const riseDuration = Math.max(0.0001, timeline.peakAt - timeline.startAt);
+        const decayDuration = Math.max(0.0001, timeline.endAt - timeline.peakAt);
+
+        let envelope = 0;
+        if (nowSec <= timeline.peakAt) {
+            envelope = clamp01((nowSec - timeline.startAt) / riseDuration);
+        } else {
+            envelope = clamp01(1 - ((nowSec - timeline.peakAt) / decayDuration));
+        }
+
+        const center = this._activeBurst.center;
+        const radius = Math.max(0.001, snapshot.spatial.scope.radius || 1);
+        const distance = center.distanceTo(position);
+        const radialAttenuation = clamp01(1 - (distance / radius));
+
+        let directionalBias = 1;
+        if (this._activeBurst.direction && this._activeBurst.direction.lengthSq() > 0) {
+            const toPoint = new THREE.Vector3().copy(position).sub(center);
+            if (toPoint.lengthSq() > 0) {
+                directionalBias = clamp01((toPoint.normalize().dot(this._activeBurst.direction) + 1) * 0.5);
+            }
+        }
+
+        const amplitude = clamp01(envelope * radialAttenuation * directionalBias);
+        if (amplitude <= 0) return null;
+
+        const totalDuration = Math.max(0.0001, timeline.endAt - timeline.startAt);
+        const phase01 = clamp01((nowSec - timeline.startAt) / totalDuration);
+        const phaseRadians = phase01 * Math.PI * 2;
+
+        let constructive = amplitude;
+        let destructive = amplitude * 0.1;
+        let standing = amplitude * 0.5;
+
+        if (snapshot.type === BURST_TYPES.HARMONIC) {
+            constructive = amplitude;
+            destructive = amplitude * 0.05;
+            standing = amplitude * 0.7;
+        } else if (snapshot.type === BURST_TYPES.SYNERGY) {
+            constructive = amplitude * 0.85;
+            destructive = amplitude * 0.12;
+            standing = amplitude * 0.55;
+        } else if (snapshot.type === BURST_TYPES.CORRUPTION) {
+            constructive = amplitude * 0.2;
+            destructive = amplitude * 0.95;
+            standing = amplitude * 0.35;
+        }
+
+        return {
+            totalAmplitude: amplitude,
+            constructivePower: clamp01(constructive),
+            destructivePower: clamp01(destructive),
+            interferenceIndex: clamp01((constructive + destructive) * 0.5),
+            standingWaveFactor: clamp01(standing),
+            travelPhase: phase01,
+            sourceCount: 1,
+            timestamp: nowSec,
+            amplitude,
+            constructive: clamp01(constructive),
+            destructive: clamp01(destructive),
+            standing: clamp01(standing),
+            phase: phaseRadians,
+            harmonicLevel: snapshot.type === BURST_TYPES.CORRUPTION ? 0 : clamp01(amplitude),
+            destructiveInterference: clamp01(destructive)
+        };
+    }
+
+    _completeActiveBurst(reason) {
+        if (!this._activeBurst) return;
+        const snapshot = this._activeBurst.snapshot;
+        this._emitLifecycle('ended', {
+            reason,
+            snapshot
+        });
+        this._activeBurst = null;
+        this._setFieldSuppressed(false, snapshot);
+    }
+
+    _setFieldSuppressed(active, snapshot = null) {
+        if (this._fieldSuppressed === active) return;
+        this._fieldSuppressed = active;
+        if (typeof this._fieldSuppressionHandler === 'function') {
+            try {
+                this._fieldSuppressionHandler(active, snapshot);
+            } catch (err) {
+                console.warn('[WaveInterferenceEngine] field suppression callback error:', err);
+            }
+        }
+    }
+
+    _emitLifecycle(state, payload) {
+        const entry = {
+            state,
+            timestamp: this.timeSource.now(),
+            payload: payload || {}
+        };
+        this._lifecycleHistory.push(entry);
+        if (this._lifecycleHistory.length > this._maxLifecycleEntries) {
+            this._lifecycleHistory.shift();
+        }
+        if (typeof this._lifecycleHandler === 'function') {
+            try {
+                this._lifecycleHandler(entry);
+            } catch (err) {
+                console.warn('[WaveInterferenceEngine] lifecycle callback error:', err);
+            }
+        }
+        if (this.debugEnabled) {
+            console.log('[WaveInterferenceEngine]', state, payload || '');
         }
     }
 }
 
+export class WaveInterferenceBurstSystem_v1 extends WaveInterferenceEngine_v1 {}
 export default WaveInterferenceEngine_v1;

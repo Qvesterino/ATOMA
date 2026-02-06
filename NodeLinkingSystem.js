@@ -361,6 +361,8 @@ export class NodeLinkingSystem {
     // Selection callbacks (for UISelectedHUD and other listeners)
     this.onSelectCallbacks = [];
     this.onDeselectCallbacks = [];
+    this.onHoverStartCallbacks = [];
+    this.onHoverEndCallbacks = [];
     
     // Link creation/removal callbacks (for UISelectedHUD link event notification)
     this.onLinkCreatedCallbacks = [];
@@ -1469,6 +1471,32 @@ export class NodeLinkingSystem {
   }
 
   /**
+   * Fire hover-start callbacks.
+   */
+  _fireHoverStartCallbacks(node) {
+    for (const callback of this.onHoverStartCallbacks) {
+      try {
+        callback(node);
+      } catch (err) {
+        console.warn('Error in hover-start callback:', err);
+      }
+    }
+  }
+
+  /**
+   * Fire hover-end callbacks.
+   */
+  _fireHoverEndCallbacks(node) {
+    for (const callback of this.onHoverEndCallbacks) {
+      try {
+        callback(node);
+      } catch (err) {
+        console.warn('Error in hover-end callback:', err);
+      }
+    }
+  }
+
+  /**
    * Fire link creation callbacks (for UISelectedHUD link event notification)
    */
   _fireLinkCreatedCallbacks(source, target) {
@@ -1609,17 +1637,24 @@ export class NodeLinkingSystem {
     
     // Skip hover updates if already selected this node
     if (this.selectedNode === rayHoveredNode) {
+      if (this.hoveredNodeForSelection) {
+        this.removeNodeSelectionGlow(this.hoveredNodeForSelection);
+        this._fireHoverEndCallbacks(this.hoveredNodeForSelection);
+        this.hoveredNodeForSelection = null;
+      }
       return;
     }
     
     // Remove glow from previously hovered node if changed
     if (this.hoveredNodeForSelection && this.hoveredNodeForSelection !== rayHoveredNode) {
       this.removeNodeSelectionGlow(this.hoveredNodeForSelection);
+      this._fireHoverEndCallbacks(this.hoveredNodeForSelection);
     }
     
     // Add glow to newly hovered node
     if (rayHoveredNode && this.hoveredNodeForSelection !== rayHoveredNode) {
       this.addNodeSelectionGlow(rayHoveredNode);
+      this._fireHoverStartCallbacks(rayHoveredNode);
     }
     
     this.hoveredNodeForSelection = rayHoveredNode;
@@ -1633,6 +1668,9 @@ export class NodeLinkingSystem {
    * Clear all selection glows (used on cleanup)
    */
   clearAllNodeSelectionGlows() {
+    if (this.hoveredNodeForSelection) {
+      this._fireHoverEndCallbacks(this.hoveredNodeForSelection);
+    }
     for (const [node, glowMesh] of this.nodeSelectionGlows.entries()) {
       this.scene.remove(glowMesh);
       glowMesh.geometry.dispose();
@@ -6232,6 +6270,12 @@ getLinksForNode(node) {
       if (Array.isArray(this.onDeselectCallbacks)) {
         this.onDeselectCallbacks.length = 0;
       }
+      if (Array.isArray(this.onHoverStartCallbacks)) {
+        this.onHoverStartCallbacks.length = 0;
+      }
+      if (Array.isArray(this.onHoverEndCallbacks)) {
+        this.onHoverEndCallbacks.length = 0;
+      }
       if (Array.isArray(this.onLinkCreatedCallbacks)) {
         this.onLinkCreatedCallbacks.length = 0;
       }
@@ -6273,6 +6317,9 @@ getLinksForNode(node) {
     }
     
     // Final state cleanup
+    if (this.hoveredNodeForSelection) {
+      this._fireHoverEndCallbacks(this.hoveredNodeForSelection);
+    }
     this.selectedNode = null;
     this.activeLink = null;
     this.selectedLink = null;
@@ -6300,6 +6347,28 @@ getLinksForNode(node) {
   onNodeDeselected(callback) {
     if (typeof callback === 'function') {
       this.onDeselectCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * Register callback for hover-enter events.
+   *
+   * @param {Function} callback - Called with (node) when hover begins
+   */
+  onNodeHoverStart(callback) {
+    if (typeof callback === 'function') {
+      this.onHoverStartCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * Register callback for hover-exit events.
+   *
+   * @param {Function} callback - Called with (node) when hover ends
+   */
+  onNodeHoverEnd(callback) {
+    if (typeof callback === 'function') {
+      this.onHoverEndCallbacks.push(callback);
     }
   }
 

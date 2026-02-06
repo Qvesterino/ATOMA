@@ -5,7 +5,8 @@ import { canProcessNodeVisuals, filterReadyNodes } from './NodeVisualReadinessGa
  * WAVE SHADER BRIDGE v1.0
  * 
  * GPU shader uniform bridge for wave interference visualization.
- * Reads per-node and per-link wave data from userData.waveField (WaveInterferenceEngine_v1)
+ * Reads per-node and per-link wave data from WaveInterferenceEngine snapshots
+ * (legacy userData.waveField fallback supported for compatibility)
  * and injects normalized shader uniforms via onBeforeCompile.
  * 
  * FEATURES:
@@ -281,8 +282,8 @@ export class WaveShaderBridge_v1 {
      * Update shader uniforms for all registered materials
      * @param {number} deltaTime - Frame delta time
      * @param {Object} options - Update options
-     * @param {Array<Object>} options.nodes - Array of nodes with userData.waveField
-     * @param {Array<Object>} options.links - Array of links with userData.waveField
+     * @param {Array<Object>} options.nodes - Array of nodes to sample via waveEngine
+     * @param {Array<Object>} options.links - Array of links to sample via waveEngine
      */
     update(deltaTime, { nodes = [], links = [] } = {}) {
         try {
@@ -403,8 +404,7 @@ export class WaveShaderBridge_v1 {
                 }
             }
 
-            // If entity not found, treat wave data as zero
-            const waveField = entity?.userData?.waveField ?? {};
+            const waveField = this._resolveWaveField(entity, isLink);
 
             // Compute target values (normalized 0..1)
             const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? 0));
@@ -444,6 +444,26 @@ export class WaveShaderBridge_v1 {
         } catch (e) {
             console.warn('[WaveShaderBridge_v1] _updateMaterialUniforms error:', e);
         }
+    }
+
+    _resolveWaveField(entity, isLink) {
+        if (entity && this.waveEngine) {
+            try {
+                if (typeof this.waveEngine.getWaveFieldForEntity === 'function') {
+                    return this.waveEngine.getWaveFieldForEntity(entity, isLink) ?? {};
+                }
+                if (isLink && typeof this.waveEngine.getLinkWaveField === 'function') {
+                    return this.waveEngine.getLinkWaveField(entity.id || entity.uuid || entity.name, entity) ?? {};
+                }
+                if (!isLink && typeof this.waveEngine.getNodeWaveField === 'function') {
+                    return this.waveEngine.getNodeWaveField(entity.id || entity.uuid || entity.name, entity) ?? {};
+                }
+            } catch (e) {
+                console.warn('[WaveShaderBridge_v1] waveEngine read error:', e);
+            }
+        }
+        // Compatibility path for older systems still writing userData.waveField.
+        return entity?.userData?.waveField ?? {};
     }
 
     /**

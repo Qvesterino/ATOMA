@@ -92,6 +92,7 @@ import { AdaptiveGlyphRendering1_0 } from './_AdaptiveGlyphRendering1_0.js';
 import { LinkedGlyphSynchronization1_0 } from './_LinkedGlyphSynchronization1_0.js';
 import { LinkedGlyphMessaging3_0 } from './_LinkedGlyphMessaging3_0.js';
 import { RecursiveGlyphMessaging4_0 } from './_RecursiveGlyphMessaging4_0.js';
+import { RecursiveGlyphSignalSystem } from './_RecursiveGlyphSignalSystem.js';
 import { EmergentThoughtStorms5_0 } from './_EmergentThoughtStorms5_0.js';
 import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
 import { ExtremeAIShaderTestSuite } from './_ExtremeAIShaderTestSuite.js';
@@ -3103,6 +3104,7 @@ this.frameScheduler.register(
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
+        this.frameScheduler.register('visual', this.synergyChainReactionTick.bind(this), 'visual.synergyChainReaction');
         this.frameScheduler.register('realtime', () => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
@@ -3621,6 +3623,9 @@ document.addEventListener('keydown', () => {
         // Recursive Glyph Messaging 4.0 (recursive meaning chains)
         this.recursiveGlyphMessaging = null; // Initialized after semantic AI ready
 
+        // Recursive Glyph Signal System (attention-driven, transient SIGNAL language)
+        this.recursiveGlyphSignalSystem = null; // Initialized after semantic AI + linking + selection ready
+
         // Emergent Thought Storms 5.0 (chain collision phenomena)
         this.emergentThoughtStorms = null; // Initialized after recursive messaging ready
 
@@ -3774,6 +3779,7 @@ document.addEventListener('keydown', () => {
         this.setupLinkGlyphFlow();
         this.setupLinkedGlyphMessaging();
         this.setupRecursiveGlyphMessaging();
+        this.setupRecursiveGlyphSignalSystem();
         this.setupEmergentThoughtStorms();
         this.setupAINarrativePatterns();
         this.setupModeSwitch();
@@ -4214,11 +4220,77 @@ hudP05Observer.observe(document.body, {
         // === Wave shader stack (init early so warm-up uses patched shaders) ===
         try {
             this.waveInterferenceEngine = new WaveInterferenceEngine_v1({
-                maxSources: 8,
+                enabled: true,
                 enableDebug: false,
-                enableWarnings: false
+                enableWarnings: false,
+                onFieldSuppressionChange: (active) => {
+                    // Burst playback suppresses ambient fields to preserve contrast.
+                    if (!this.semanticBus) return;
+                    if (active) {
+                        this.semanticBus.setSemanticAuthority('environment', {
+                            source: 'wave-burst',
+                            locks: {
+                                linkField: 'scale',
+                                atmosphere: 'scale',
+                                hud: 'scale'
+                            },
+                            constraints: {
+                                linkField: { scale: 0.35 },
+                                atmosphere: { scale: 0.55 },
+                                hud: { scale: 0.75 }
+                            }
+                        });
+                    } else if (
+                        this.semanticBus.semanticAuthorityLockState?.active === 'environment' &&
+                        this.semanticBus.semanticAuthorityLockState?.source === 'wave-burst'
+                    ) {
+                        this.semanticBus.clearSemanticAuthority('environment');
+                    }
+                },
+                onLifecycleEvent: (entry) => {
+                    this.semanticBus?.emit?.(
+                        'wave.burst.lifecycle',
+                        entry,
+                        { priority: this.semanticBus.priority.NORMAL }
+                    );
+                }
             });
-            console.log('[main.js] WaveInterferenceEngine_v1 initialized ✓');
+            this.semanticBus?.subscribe?.(
+                'wave.regime.transition',
+                (payload) => this.waveInterferenceEngine?.requestBurstIntent?.(payload),
+                { priority: this.semanticBus.priority.INTERACTIVE }
+            );
+            this.semanticBus?.subscribe?.(
+                'wave.interference.burst.intent',
+                (payload) => this.waveInterferenceEngine?.requestBurstIntent?.(payload),
+                { priority: this.semanticBus.priority.INTERACTIVE }
+            );
+            this.semanticBus?.eventPolicies?.set?.('wave.regime.transition', {
+                aggregateWithinMs: 120,
+                aggregationStrategy: 'latest',
+                cooldownMs: 90,
+                suppress: { ifOverload: true, maxQueueDepth: 180 }
+            });
+            this.semanticBus?.eventPolicies?.set?.('wave.interference.burst.intent', {
+                aggregateWithinMs: 120,
+                aggregationStrategy: 'latest',
+                cooldownMs: 90,
+                suppress: { ifOverload: true, maxQueueDepth: 180 }
+            });
+            window.emitWaveInterferenceBurstIntent = (intent = {}) =>
+                this.waveInterferenceEngine?.requestBurstIntent?.(intent) || null;
+            window.emitWaveRegimeTransition = (payload = {}) => {
+                this.semanticBus?.emit?.(
+                    'wave.regime.transition',
+                    payload,
+                    { priority: this.semanticBus.priority.INTERACTIVE }
+                );
+            };
+            window.getWaveInterferenceBurstState = () => ({
+                activeSnapshot: this.waveInterferenceEngine?.getActiveSnapshot?.() || null,
+                metrics: this.waveInterferenceEngine?.getMetrics?.() || null
+            });
+            console.log('[main.js] WaveInterferenceEngine_v1 initialized (burst snapshot pipeline)');
         } catch (err) {
             console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
         }
@@ -4693,6 +4765,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         this.aiNodes = new AINodes(this.scene, this.player);
+        this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         
         // ====================================================================
         // TASK 2: SIMULATION INVARIANT ENFORCEMENT
@@ -4762,6 +4835,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         console.log('[main.js] NodeLinkingSystem created');
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
+        }
+        if (this.recursiveGlyphSignalSystem) {
+            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
 
         // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
@@ -6483,16 +6559,35 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Outputs: chainReaction.getActiveReactions() for shader/AI integration
         try {
             this.synergyChainReaction = new SynergyChainReaction_v1({
+                enabled: false,              // default OFF (SRP-1)
+                emitEvents: false,           // only emit when explicitly enabled
                 debugEnabled: false,
-                synergyThreshold: 0.75,     // Node synergy to trigger cascade
+                primaryThreshold: 0.75,     // Node synergy to trigger cascade
+                synergyThreshold: 0.75,     // legacy naming (ignored by v1 but kept for parity)
                 resonanceSimilarityThreshold: 0.6,  // Resonance compatibility
                 personalityCompatibilityThreshold: 0.5,  // Personality filter
                 synergyMinimum: 0.3,        // Min synergy for propagation
                 minimumIntensity: 0.1,      // Stop cascade below this
                 maxHops: 8,                 // Max chain depth
-                maxReactionsPerFrame: null  // No frame limit
+                maxReactionsPerFrame: null, // No frame limit
+                maxNodesPerFrame: 30,
+                maxLinksPerFrame: 50,
+                intensityDecayPerHop: 0.82
             });
             console.log('[main.js] SynergyChainReaction_v1 initialized ✓');
+            window.enableSynergyChainReaction = (flag = false) => {
+                if (!this.synergyChainReaction) {
+                    console.warn('[SynergyChainReaction_v1] instance not ready');
+                    return false;
+                }
+                const enable = Boolean(flag);
+                this.synergyChainReaction.enabled = enable;
+                this.synergyChainReaction.emitEvents = enable;
+                if (enable) {
+                    console.log('[SynergyChainReaction_v1] ENABLED (<=30Hz, caps: 30 nodes / 50 links)');
+                }
+                return enable;
+            };
         } catch (err) {
             console.warn('[main.js] SynergyChainReaction_v1 failed:', err);
         }
@@ -6535,7 +6630,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // - Constructive Burst Particles (cyan-white synergy sparks)
         // - Destructive Chaos Sparks (orange-red chaotic explosions)
         // - Standing Wave Ripple Rings (circular harmonic expansion)
-        // Reads from: node/link userData.waveField (WaveInterferenceEngine_v1)
+        // Reads from: WaveInterferenceEngine burst snapshot sampler
         // Performance: <2ms per frame for 200-400 nodes with ~2000 active particles
         try {
             this.particleEmitter = new WaveParticleEmitter_v1({
@@ -7068,6 +7163,11 @@ this.archetypeShaderModes = null;
         try {
             this.waveInterferenceEngine?.dispose?.();
             this.waveInterferenceEngine = null;
+            if (typeof window !== 'undefined') {
+                delete window.emitWaveInterferenceBurstIntent;
+                delete window.emitWaveRegimeTransition;
+                delete window.getWaveInterferenceBurstState;
+            }
         } catch (err) {
             console.warn('[main.js] WaveInterferenceEngine_v1 cleanup failed:', err);
         }
@@ -7259,6 +7359,7 @@ this.archetypeShaderModes = null;
 
         // Create new AI nodes
         this.createAINodes();
+        this.setupRecursiveGlyphSignalSystem();
         if (this.coreMetricsOverlay) {
   this.coreMetricsOverlay.cleanup?.()
 }
@@ -7402,6 +7503,12 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Reset Recursive Glyph Messaging 4.0 for new links
         if (this.recursiveGlyphMessaging) {
             this.recursiveGlyphMessaging.cleanup();
+        }
+
+        // Reset Recursive Glyph Signal System (attention-driven transient signals)
+        if (this.recursiveGlyphSignalSystem) {
+            this.recursiveGlyphSignalSystem.clearAllSignals();
+            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
 
         // Reset Emergent Thought Storms 5.0 for new network
@@ -7601,6 +7708,13 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (this.cascadeVisualizer) {
             this.cascadeVisualizer.update(deltaTime);
         }
+    }
+
+    synergyChainReactionTick(deltaTime) {
+        if (!this.synergyChainReaction || !this.aiNodes) return;
+        // emitEvents mirrors enabled unless overridden externally
+        this.synergyChainReaction.emitEvents = this.synergyChainReaction.emitEvents && this.synergyChainReaction.enabled;
+        this.synergyChainReaction.update(deltaTime, this.aiNodes.nodes || []);
     }
 
     runVisualSemanticTick(deltaTime, mark) {
@@ -8201,10 +8315,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // ====================================================================
         // WEEK 22: Update Synergy Chain Reactions (Cascade Propagation)
         // ====================================================================
-        // Phase D.6 – synergyChainReaction detached from RAF
-        // Reason: extreme per-frame traversal & recursion
-        // Engine remains initialized but dormant until event-gated reactivation
-        // (per-frame update call removed)
+        // SRP-1: gated via FrameScheduler visual layer (<=30Hz), default OFF
+        // Workload caps enforced inside system (30 nodes / 50 links per frame)
+        // Enable via console: enableSynergyChainReaction(true)
 
         // ====================================================================
         // WEEK 22B: Update Synergy Cascade FX Bridge (Events → Shader Signals)
@@ -8224,13 +8337,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // ====================================================================
         // WEEK 25 (BONUS): Update Wave Interference Engine (Multi-Origin Waves)
         // ====================================================================
-        // Compute interference patterns from multiple wave sources
-        // Propagates waves via BFS with exponential decay
-        // Updates node/link userData.waveField with 7 metrics (amplitude, phase, standing wave, etc)
-        // Synergy/resonance/corruption amplitude modulation enabled
-        // Performance: <2ms per frame (pooled updates, no mid-frame allocations)
-        // Phase D.1: waveInterferenceEngine detached from per-frame loop
-        // Engine is now dormant unless explicitly triggered
+        // Burst-only snapshot engine (event-driven, no per-frame solver)
+        // Produces immutable burst snapshots and never mutates node/link userData
+        // Trigger sources: semantic events + explicit burst-intent API
         //        if (this.waveInterferenceEngine && this.aiNodes && this.nodeLinking) {
        //     this.waveInterferenceEngine.update(
         //        deltaTime,
@@ -8254,9 +8363,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // ====================================================================
         // PULSE WAVE SYSTEM BRIDGE — Connect wave propagation to neural firing
         // ====================================================================
-        // Convert wave fields into pulse positions on links
+        // Convert burst field samples into pulse positions on links
         // Triggers intersection impulses as waves travel (neural action potentials)
-        // Must run AFTER WaveInterferenceEngine to read fresh wave data
+        // Reads snapshot samples from waveInterferenceEngine (no graph traversal)
         if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
             this.pulseWaveSystemBridge.update(deltaTime, {
                 waveEngine: this.waveInterferenceEngine,
@@ -8320,7 +8429,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // ====================================================================
         // WEEK 25 (BONUS): Update Wave Shader Bridge (GPU Uniform Injection)
         // ====================================================================
-        // Read waveField from nodes/links and push normalized values to shader uniforms
+        // Read burst field samples and push normalized values to shader uniforms
         // EMA smoothing: alpha ~0.18 for ~0.4-0.5s response time
         // Performance: trivial per-frame overhead (<0.1ms per material)
         if (!VISUAL_TICKS_ENABLED) {
@@ -8371,13 +8480,14 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // - Constructive Burst Particles when constructive > 0.7
         // - Destructive Chaos Sparks when destructive > 0.7
         // - Standing Wave Ripple Rings when standing > 0.65
-        // Reads from: node/link userData.waveField (WaveInterferenceEngine_v1)
+        // Reads from: waveInterferenceEngine snapshot sampler (legacy fallback supported)
         // Performance: <2ms per frame for 200-400 nodes with ~2000 active particles
         try {
             this.particleEmitter?.update?.(
                 deltaTime,
                 this.aiNodes?.nodes ?? [],
-                this.nodeLinking?.links ?? []
+                this.nodeLinking?.links ?? [],
+                this.waveInterferenceEngine
             );
         } catch (err) {
             console.warn('[main.js] WaveParticleEmitter_v1 update failed:', err);
@@ -10458,6 +10568,41 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
     }
 
     /**
+     * Setup Recursive Glyph Signal System
+     * Attention-driven SIGNAL layer: local, transient, meaning-first recursive glyph utterances
+     */
+    setupRecursiveGlyphSignalSystem() {
+        if (!this.semanticGlyphAI || !this.selectionCore || !this.linkingSystem || !this.frameScheduler) {
+            console.warn('Recursive Glyph Signal System dependencies not ready, deferring setup');
+            return;
+        }
+
+        if (!this.recursiveGlyphSignalSystem) {
+            this.recursiveGlyphSignalSystem = new RecursiveGlyphSignalSystem(this.scene, {
+                camera: this.camera,
+                semanticGlyphAI: this.semanticGlyphAI,
+                frameScheduler: this.frameScheduler
+            });
+        }
+
+        this.recursiveGlyphSignalSystem.setSemanticGlyphAI(this.semanticGlyphAI);
+        this.recursiveGlyphSignalSystem.setFrameScheduler(this.frameScheduler);
+        this.recursiveGlyphSignalSystem.setSelectionCore(this.selectionCore);
+        this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
+        this.recursiveGlyphSignalSystem.setDynamicsContext({
+            isBurstActive: () => Boolean(this.emergentThoughtStorms?.activeStorms?.size),
+            isFieldActive: () => Boolean(this.regionalEquilibrium?.regions?.size)
+        });
+        this.recursiveGlyphSignalSystem.setEnabled(true);
+
+        console.log('✓ Recursive Glyph Signal System active');
+        console.log('  - SIGNAL-layer recursive glyph language');
+        console.log('  - Triggered by attention and local meaning events');
+        console.log('  - Silent by default, auto-clears after communication');
+        console.log('  - Uses dynamic tick registration (no idle global glyph loop)');
+    }
+
+    /**
      * Setup Emergent Thought Storms 5.0 (SAFE EDITION)
      * Chain collision phenomena with spectacular visual effects
      */
@@ -11842,6 +11987,37 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             console.log('✓ All recursive chains cleared');
         };
 
+        // Recursive Glyph Signal System commands
+        window.toggleRecursiveGlyphSignals = () => {
+            if (!window.atoma.recursiveGlyphSignalSystem) {
+                console.warn('Recursive Glyph Signal System not initialized');
+                return;
+            }
+            const status = window.atoma.recursiveGlyphSignalSystem.getStatus();
+            window.atoma.recursiveGlyphSignalSystem.setEnabled(!status.enabled);
+            console.log(`Recursive glyph signals ${status.enabled ? 'DISABLED' : 'ENABLED'}`);
+        };
+
+        window.debugRecursiveGlyphSignals = () => {
+            if (!window.atoma.recursiveGlyphSignalSystem) {
+                console.warn('Recursive Glyph Signal System not initialized');
+                return;
+            }
+            const stats = window.atoma.recursiveGlyphSignalSystem.getStatus();
+            console.group('Recursive Glyph Signal Stats');
+            console.table(stats);
+            console.groupEnd();
+        };
+
+        window.clearRecursiveGlyphSignals = () => {
+            if (!window.atoma.recursiveGlyphSignalSystem) {
+                console.warn('Recursive Glyph Signal System not initialized');
+                return;
+            }
+            window.atoma.recursiveGlyphSignalSystem.clearAllSignals();
+            console.log('All recursive glyph signals cleared');
+        };
+
         // Emergent Thought Storms 5.0 commands
         window.toggleThoughtStorms = () => {
             if (!window.atoma.emergentThoughtStorms) {
@@ -11915,6 +12091,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         console.log('  - toggleRecursiveChains()');
         console.log('  - debugRecursiveMessages()');
         console.log('  - clearRecursiveGlyphs()');
+        console.log('  - toggleRecursiveGlyphSignals()');
+        console.log('  - debugRecursiveGlyphSignals()');
+        console.log('  - clearRecursiveGlyphSignals()');
         console.log('  - toggleThoughtStorms()');
         console.log('  - debugThoughtStorms()');
         console.log('  - clearThoughtStorms()');

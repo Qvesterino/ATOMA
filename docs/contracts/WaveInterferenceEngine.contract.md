@@ -1,105 +1,66 @@
-📜 WaveInterferenceEngine – Event-Gate Contract (Phase D)
-🎯 System Role
+WaveInterferenceEngine - Burst Snapshot Contract (Phase BSR)
 
-WaveInterferenceEngine is an offline orchestrator:
+System role
+- WaveInterferenceEngine is a burst-intent interpreter.
+- It creates immutable burst snapshots on regime boundary crossings.
+- It does not run a per-frame simulation loop.
 
-computes network interference fields
+Single entry points
+- `waveInterferenceEngine.requestBurstIntent(intent)`
+- `waveInterferenceEngine.requestUpdate(reason, context)` (compatibility adapter)
 
-never runs per-frame
+Allowed burst types
+- `harmonic`
+- `synergy`
+- `corruption`
 
-never directly modifies visuals or gameplay metrics
+Critical crossing model
+- Bursts trigger only on regime boundary entry.
+- Remaining inside a critical regime does not retrigger.
+- Rearm requires leaving to a reset regime before re-entry.
+- Crossing logic is symbolic (regime labels), not numeric thresholds.
 
-1️⃣ Single entry point (ENTRYPOINT)
+Arbitration model
+- Default mode: non-coexistence.
+- Active burst blocks new burst unless policy allows coexistence.
+- Higher-priority burst may supersede active burst when enabled.
 
-waveInterferenceEngine.requestUpdate(reason, context?)
+Output contract
+- The engine publishes an immutable active snapshot via `getActiveSnapshot()`.
+- Snapshot includes:
+  - `type`
+  - `spatial.center`
+  - `spatial.scope`
+  - `spatial.directionalBias`
+  - `intensityEnvelope`
+  - `decayProfile`
+  - `regime` metadata
+  - timeline (`startAt`, `peakAt`, `endAt`)
 
-Allowed reason (ENUM)
+Read paths for visual systems
+- `getWaveFieldForEntity(entity, isLink)`
+- `getNodeWaveField(nodeId, nodeRef)`
+- `getLinkWaveField(linkId, linkRef)`
 
-NODE_SPAWN
+Hard rules
+- MUST NOT be called from RAF as a solver update loop.
+- MUST NOT write `node.userData.*`.
+- MUST NOT write `link.userData.*`.
+- MUST NOT mutate shader values directly.
+- MUST NOT perform global graph traversal during playback sampling.
 
-LINK_CREATED
+Field suppression handshake
+- During active burst, field suppression callback may apply authority lock.
+- On burst end, suppression callback must release the lock.
 
-LINK_REMOVED
+Lifecycle observability
+- Lifecycle states are emitted as:
+  - `requested`
+  - `accepted`
+  - `started`
+  - `rejected`
+  - `ended`
+- Main runtime can mirror lifecycle to semantic event bus.
 
-PHASE_CHANGED
-
-MANUAL_DEBUG
-
-👉 Other calls are illegal.
-
-2️⃣ Execution rules (HARD RULES)
-
-❌ MUST NOT be called from animate() / RAF
-
-❌ MUST NOT be called per-frame
-
-✅ MAY run:
-
-once per event
-
-or in burst
-
-3️⃣ Throttle & Burst policy
-
-Basic behavior
-
-Multiple requestUpdate() in a short time → merge
-
-The calculation is performed max 1× per T ms (e.g. 250–500 ms)
-
-Burst rule
-
-during the burst, the following is remembered:
-
-lastReason
-
-dirtyFlags (nodes / links / topology)
-
-4️⃣ Output contract (READ-ONLY SNAPSHOT)
-
-WaveInterferenceEngine DOES NOT WRITE:
-
-node.userData.*
-
-link.userData.*
-
-shader values
-
-Instead, it publishes:
-waveInterferenceSnapshot = {
-timestamp,
-networkVersion,
-fields: {
-nodeId → waveFieldData,
-linkId → waveFieldData
-}
-}
-
-👉 snapshot is immutable
-👉 visual systems only read it
-
-5️⃣ Separation of Responsibilities
-Layer Does
-WaveInterferenceEngine computes
-Visual systems render
-Gameplay systems ignore
-RAF / animate MUST NOT call
-6️⃣ Allowed event-hooks
-Event Calls requestUpdate
-NodeFactory NODE_SPAWN
-LinkManager LINK_CREATED, LINK_REMOVED
-PhaseController PHASE_CHANGED
-DevConsole MANUAL_DEBUG
-7️⃣ Forbidden Behavior (ANTI-PATTERNS)
-
-❌ direct .update() call
-
-❌ writes to userData in the engine
-
-❌ dependency on deltaTime
-
-❌ implicit per-frame side-effects
-
-8️⃣ Mental Model (1 sentence)
-
-WaveInterferenceEngine is a network solver triggered by events, not animation.
+Mental model
+- WaveInterferenceEngine is a burst memory publisher, not a continuous simulator.

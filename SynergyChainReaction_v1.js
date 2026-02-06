@@ -174,6 +174,12 @@ class ObjectPool {
  */
 export class SynergyChainReaction_v1 {
     constructor(config = {}) {
+        // Enable/disable flag (default OFF for safe reanimation)
+        this.enabled = config.enabled ?? false;
+        
+        // Event emission toggle (can be disabled to prevent downstream effects)
+        this.emitEvents = config.emitEvents ?? false;
+        
         this.config = {
             debugEnabled: config.debugEnabled ?? false,
             primaryThreshold: config.primaryThreshold ?? 0.75,    // Trigger threshold
@@ -181,11 +187,11 @@ export class SynergyChainReaction_v1 {
             synergyMinimum: config.synergyMinimum ?? 0.3,
             personalityCompatibilityThreshold: config.personalityCompatibilityThreshold ?? 0.5,
             maxChainDepth: config.maxChainDepth ?? 8,
-            intensityDecayPerHop: config.intensityDecayPerHop ?? 0.82,
+            intensityDecayPerHop: Math.max(config.intensityDecayPerHop ?? 0.82, 0.8),
             durationDecayPerHop: config.durationDecayPerHop ?? 0.85,
             minimumIntensity: config.minimumIntensity ?? 0.1,
-            maxNodesPerFrame: config.maxNodesPerFrame ?? 300,
-            maxLinksPerFrame: config.maxLinksPerFrame ?? 1000
+            maxNodesPerFrame: config.maxNodesPerFrame ?? 30,
+            maxLinksPerFrame: config.maxLinksPerFrame ?? 50
         };
         
         // Per-node reaction state (WeakMap for auto-cleanup)
@@ -210,6 +216,7 @@ export class SynergyChainReaction_v1 {
         this.lastUpdateTime = 0;
         this.frameUpdateTime = 0;
         this.processedNodesCount = 0;
+        this.processedLinksCount = 0;
         this.chainReactionCount = 0;
         
         // Global time for harmonic modes
@@ -217,6 +224,11 @@ export class SynergyChainReaction_v1 {
         
         // Chain ID counter
         this._chainIdCounter = 0;
+
+        // Cadence gating (<=30 Hz)
+        this._cadenceInterval = 1 / 30;
+        this._cadenceAccumulator = 0;
+        this._linkBudgetExceeded = false;
         
         if (this.config.debugEnabled) {
             console.log('[SynergyChainReaction_v1] initialized ✓');
@@ -311,6 +323,7 @@ export class SynergyChainReaction_v1 {
      */
     propagateChain(fromNode, intensity, chainID, hopIndex) {
         try {
+            if (this._linkBudgetExceeded) return;
             if (hopIndex >= this.config.maxChainDepth) return;
             if (intensity < this.config.minimumIntensity) return;
             
@@ -322,7 +335,15 @@ export class SynergyChainReaction_v1 {
             
             for (const link of connections) {
                 try {
+                    if (this._linkBudgetExceeded) return;
                     if (!link?.userData) continue;
+                    
+                    // Enforce link budget (early return to preserve frame time)
+                    this.processedLinksCount++;
+                    if (this.processedLinksCount > this.config.maxLinksPerFrame) {
+                        this._linkBudgetExceeded = true;
+                        return;
+                    }
                     
                     // Determine other end of link
                     const toNode = link.sourceNode === fromNode ? link.targetNode : link.sourceNode;
@@ -341,7 +362,12 @@ export class SynergyChainReaction_v1 {
                     linkEvent.frequency = 1.0 + (hopIndex * 0.3);  // Frequency increases per hop
                     linkEvent.direction = direction;
                     linkEvent.hopIndex = nextHopIndex;
-                    this.frameEvents.linkEvents.push(linkEvent);
+                    // Only emit events if enabled
+                    if (this.emitEvents) {
+                        this.frameEvents.linkEvents.push(linkEvent);
+                    } else {
+                        this.linkEventPool.release(linkEvent);
+                    }
                     
                     // Trigger reaction on target node
                     const targetState = this.getNodeState(toNode);
@@ -356,7 +382,12 @@ export class SynergyChainReaction_v1 {
                         nodeEvent.reactionLevel = nextIntensity;
                         nodeEvent.resonanceShift = nextIntensity * 0.2;
                         nodeEvent.harmonicMode = nextHopIndex % 4;
-                        this.frameEvents.nodeEvents.push(nodeEvent);
+                        // Only emit events if enabled
+                        if (this.emitEvents) {
+                            this.frameEvents.nodeEvents.push(nodeEvent);
+                        } else {
+                            this.nodeEventPool.release(nodeEvent);
+                        }
                         
                         // Continue propagation if charge level is high enough
                         if (targetState.chargeLevel > 0.6) {
@@ -413,7 +444,12 @@ export class SynergyChainReaction_v1 {
             nodeEvent.reactionLevel = 1.0;
             nodeEvent.resonanceShift = 0.3;
             nodeEvent.harmonicMode = state.harmonicMode;
-            this.frameEvents.nodeEvents.push(nodeEvent);
+            // Only emit events if enabled
+            if (this.emitEvents) {
+                this.frameEvents.nodeEvents.push(nodeEvent);
+            } else {
+                this.nodeEventPool.release(nodeEvent);
+            }
             
             // Start chain propagation
             this.propagateChain(node, 1.0, chainID, 0);
@@ -513,8 +549,18 @@ export class SynergyChainReaction_v1 {
         const startTime = performance.now();
         
         try {
+            // Early return if disabled (safe reanimation)
+            if (!this.enabled) return;
+            if (!Array.isArray(allNodes) || allNodes.length === 0) return;
+
+            // Cadence gate: cap to <=30 Hz regardless of caller rate
+            this._cadenceAccumulator += deltaTime;
+            if (this._cadenceAccumulator < this._cadenceInterval) return;
+            const gatedDeltaTime = this._cadenceAccumulator;
+            this._cadenceAccumulator = 0;
+            
             // Advance global time
-            this._time += deltaTime;
+            this._time += gatedDeltaTime;
             
             // Clear frame events
             this.linkEventPool.releaseAll();
@@ -526,13 +572,18 @@ export class SynergyChainReaction_v1 {
             
             // Update node states
             this.processedNodesCount = 0;
+            this.processedLinksCount = 0;
+            this._linkBudgetExceeded = false;
             const nodesToProcess = Math.min(this.config.maxNodesPerFrame, allNodes.length);
+            
+            // Early return if no nodes to process (workload cap safety)
+            if (nodesToProcess === 0) return;
             
             for (let i = 0; i < nodesToProcess; i++) {
                 const node = allNodes[i];
                 if (!node?.userData) continue;
                 
-                this.updateNodeState(node, deltaTime);
+                this.updateNodeState(node, gatedDeltaTime);
                 
                 // Check if should trigger chain
                 const state = this.getNodeState(node);
@@ -541,6 +592,9 @@ export class SynergyChainReaction_v1 {
                 }
                 
                 this.processedNodesCount++;
+
+                // Early exit if link budget exceeded during propagation
+                if (this._linkBudgetExceeded) break;
             }
             
             // Calculate frame statistics

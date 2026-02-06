@@ -7,8 +7,8 @@
  * on links, triggering neural firing in PulseIntersectionImpulseAdapter.
  * 
  * ARCHITECTURE:
- * - WaveInterferenceEngine tracks waves propagating through network
- * - Wave fields stored in link.userData.waveField with 7 metrics
+ * - WaveInterferenceEngine publishes burst snapshots
+ * - Bridge samples link wave field from engine (legacy userData fallback)
  * - Bridge extracts wave amplitude + phase → pulse position (0-1)
  * - Calls pulseIntersectionAdapter.updatePulsePosition() per link per frame
  * - Result: Neural firing appears to follow energy wave propagation
@@ -67,24 +67,36 @@ export class PulseWaveSystemBridge_v1 {
       while (processed < totalLinks) {
         const idx = (this._linkCursor + processed) % totalLinks;
         const link = links[idx];
-        if (!link || !link.userData) continue;
+        if (!link) {
+          processed += 1;
+          continue;
+        }
         
         const linkId = link.id || link.uuid || link.name;
-        if (!linkId) continue;
+        if (!linkId) {
+          processed += 1;
+          continue;
+        }
         
-        // Get wave field data from link
-        const waveField = link.userData.waveField;
-        if (!waveField) continue;
+        // Read burst field from engine first; fallback to legacy userData.
+        const waveField =
+          waveEngine?.getLinkWaveField?.(linkId, link) ??
+          link?.userData?.waveField;
+        if (!waveField) {
+          processed += 1;
+          continue;
+        }
         
         // Extract wave metrics
-        const amplitude = waveField.amplitude ?? 0;
-        const phase = waveField.phase ?? 0;
-        const harmonicLevel = waveField.harmonicLevel ?? 0;
-        const destructiveInterference = waveField.destructiveInterference ?? 0;
+        const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
+        const phase = waveField.phase ?? ((waveField.travelPhase ?? 0) * Math.PI * 2 - Math.PI);
+        const harmonicLevel = waveField.harmonicLevel ?? waveField.constructivePower ?? waveField.constructive ?? 0;
+        const destructiveInterference = waveField.destructiveInterference ?? waveField.destructivePower ?? waveField.destructive ?? 0;
         
         // Skip low-amplitude waves
         if (amplitude < this.minAmplitudeToFire) {
           this.activeLinkWaves.delete(linkId);
+          processed += 1;
           continue;
         }
         
