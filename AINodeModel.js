@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { createCoreIdentityMaterial, createNodeHologramShell, updateHologramShellMaterial } from './CoreHologramShader.js';
 import { CONFIG } from './config.js';
 
+function vfxFlag(name, def = true) {
+  const v = (typeof window !== 'undefined') ? window[name] : undefined;
+  return (v === undefined) ? def : !!v;
+}
+
 /**
  * AI Node Model - Clean low-poly 3D neural node
  * Elegant, computational, futuristic design
@@ -543,18 +548,14 @@ export class AINodeModel {
     // Gentle rotation
     nodeGroup.rotation.y += deltaTime * 0.3;
     
-    // Pulse main body
+    // Main body remains at static scale/emissive (breathing disabled)
     if (data.mainBody) {
-      const pulse = Math.sin(time * 2) * 0.05 + 1;
-      data.mainBody.scale.setScalar(pulse);
-      
-      // Pulse emissive
-      data.mainBody.material.emissiveIntensity = 0.2 + Math.sin(time * 2) * 0.1;
+      // preserve current scale/emissiveIntensity as initialized
     }
     
-    // Pulse edges
+    // Edges remain at configured opacity (breathing disabled)
     if (data.edges) {
-      data.edges.material.opacity = 0.6 + Math.sin(time * 3) * 0.2;
+      // no per-frame opacity modulation
     }
     
     // Special animations per type
@@ -569,20 +570,11 @@ export class AINodeModel {
         break;
         
       case 'memory':
-        // Pulse wireframe
-        if (data.frame) {
-          const framePulse = Math.sin(time * 1.5);
-          data.frame.material.opacity = Math.max(0, framePulse * 0.3);
-        }
+        // Wireframe remains at configured opacity (no pulsing)
         break;
         
       case 'neural':
-        // Pulse core
-        if (data.core) {
-          const corePulse = Math.sin(time * 3) * 0.3 + 1;
-          data.core.scale.setScalar(corePulse);
-          data.core.material.opacity = 0.4 + Math.sin(time * 3) * 0.2;
-        }
+        // Core visuals remain static (no pulsing)
         break;
     }
   }

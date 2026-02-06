@@ -57,6 +57,11 @@ import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
 import { AuraLODCulling } from './AuraLODCulling.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
+
+function vfxFlag(name, def = true) {
+  const v = (typeof window !== 'undefined') ? window[name] : undefined;
+  return (v === undefined) ? def : !!v;
+}
 import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js';
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
@@ -879,85 +884,92 @@ export class AINodes {
     
     // ========== ULTRA EDITION: INTENSE OUTER GLOW (200% boost) ==========
     // Primary glow (2× larger and brighter)
-    const outerGlowGeometry = new THREE.IcosahedronGeometry(1.2, 4);
-    const outerGlowMaterial = new THREE.MeshBasicMaterial({
-      color: layerColors.primary,
-      transparent: true,
-      opacity: 0.5,  // 200% boost from 0.25
-      // FIX: MeshBasicMaterial does NOT support emissive properties
-      fog: false
-    });
-    const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-    outerGlow.userData = {
-      vfxType: 'ultraOuterGlow',
-      isVFX: true,
-      isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
-      visualLayer: 'AURA',
-      pulsePhase: Math.random() * Math.PI * 2
-    };
-    outerGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
-    outerGlow.visible = false; // Neutralize decorative glow
-    outerGlow.userData.neutralized = true;
-    nodeModel.add(outerGlow);
+    let outerGlow = null;
+    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
+      const outerGlowGeometry = new THREE.IcosahedronGeometry(1.2, 4);
+      const outerGlowMaterial = new THREE.MeshBasicMaterial({
+        color: layerColors.primary,
+        transparent: true,
+        opacity: 0.5,  // 200% boost from 0.25
+        // FIX: MeshBasicMaterial does NOT support emissive properties
+        fog: false
+      });
+      outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+      outerGlow.userData = {
+        vfxType: 'ultraOuterGlow',
+        isVFX: true,
+        isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
+        visualLayer: 'AURA',
+        pulsePhase: Math.random() * Math.PI * 2
+      };
+      outerGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+      outerGlow.visible = false; // Neutralize decorative glow
+      outerGlow.userData.neutralized = true;
+      nodeModel.add(outerGlow);
+    }
     
     // Secondary halo (even larger, very soft)
     // [Halo Cleanup v1.0] Reduced scale from 1.5→1.15 and opacity from 0.15→0.22 for better readability
-    const haloGeometry = new THREE.IcosahedronGeometry(1.15, 3);
-    const haloMaterial = new THREE.MeshBasicMaterial({
-      color: layerColors.secondary,
-      transparent: true,
-      opacity: 0.22,
-      fog: false
-    });
-    const haloGlow = new THREE.Mesh(haloGeometry, haloMaterial);
-    haloGlow.userData = {
-      vfxType: 'ultraHalo',
-      isVFX: true,
-      isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
-      visualLayer: 'AURA'
-    };
-    haloGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
-    haloGlow.visible = false; // Neutralize decorative halo
-    haloGlow.userData.neutralized = true;
-    nodeModel.add(haloGlow);
+    let haloGlow = null;
+    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
+      const haloGeometry = new THREE.IcosahedronGeometry(1.15, 3);
+      const haloMaterial = new THREE.MeshBasicMaterial({
+        color: layerColors.secondary,
+        transparent: true,
+        opacity: 0.22,
+        fog: false
+      });
+      haloGlow = new THREE.Mesh(haloGeometry, haloMaterial);
+      haloGlow.userData = {
+        vfxType: 'ultraHalo',
+        isVFX: true,
+        isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
+        visualLayer: 'AURA'
+      };
+      haloGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+      haloGlow.visible = false; // Neutralize decorative halo
+      haloGlow.userData.neutralized = true;
+      nodeModel.add(haloGlow);
+    }
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
     // Add edge glow by traversing geometry
-    
-    // Local guard for safe EdgesGeometry creation
-    function hasFinitePositions(geometry) {
-        const arr = geometry?.attributes?.position?.array;
-        if (!arr) return false;
-        for (let i = 0; i < arr.length; i++) {
-            if (!Number.isFinite(arr[i])) return false;
-        }
-        return true;
-    }
-
-    function safeEdgesGeometry(sourceGeo) {
-        if (!hasFinitePositions(sourceGeo)) {
-            return null;
-        }
-        return new THREE.EdgesGeometry(sourceGeo);
-    }
-    
-    nodeModel.traverse((child) => {
-      if (child.isMesh && !child.userData.isVFX) {
-        const edgeGeometry = safeEdgesGeometry(child.geometry);
-        if (!edgeGeometry) return;
-        const edgeMaterial = new THREE.LineBasicMaterial({
-          color: layerColors.secondary,
-          transparent: true,
-          opacity: 0.4,
-          fog: false,
-          linewidth: 1
-        });
-        const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        edgeLines.userData.isVFX = true;
-        edgeLines.userData.edgeGlow = true;
-        child.add(edgeLines);
+    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', true)) {
+      // Local guard for safe EdgesGeometry creation
+      function hasFinitePositions(geometry) {
+          const arr = geometry?.attributes?.position?.array;
+          if (!arr) return false;
+          for (let i = 0; i < arr.length; i++) {
+              if (!Number.isFinite(arr[i])) return false;
+          }
+          return true;
       }
-    });
+      
+      function safeEdgesGeometry(sourceGeo) {
+          if (!hasFinitePositions(sourceGeo)) {
+              return null;
+          }
+          return new THREE.EdgesGeometry(sourceGeo);
+      }
+      
+      nodeModel.traverse((child) => {
+        if (child.isMesh && !child.userData.isVFX) {
+          const edgeGeometry = safeEdgesGeometry(child.geometry);
+          if (!edgeGeometry) return;
+          const edgeMaterial = new THREE.LineBasicMaterial({
+            color: layerColors.secondary,
+            transparent: true,
+            opacity: 0.4,
+            fog: false,
+            linewidth: 1
+          });
+          const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+          edgeLines.userData.isVFX = true;
+          edgeLines.userData.edgeGlow = true;
+          child.add(edgeLines);
+        }
+      });
+    }
     
     // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased count) ==========
     const particleCount = isSpecial ? 12 : 8;  // Increased from 6
@@ -1399,28 +1411,22 @@ export class AINodes {
    * Features: 3-core rotation, orbit rings, intense glow breathing, smart hover feedback
    */
   updateNodeVisuals(node, data, time, deltaTime) {
-    // MICRO-STUTTER FIX: Initialize animation phases without Vector3 cloning
-    // Store reference to node.position instead of cloning to reduce GC pressure
-    if (!data.basePosition) {
-      data.basePosition = node.position; // Reference, not clone
-      data._basePositionX = node.position.x;
-      data._basePositionY = node.position.y;
-      data._basePositionZ = node.position.z;
-    }
-    if (!data.levitationPhase) {
-      data.levitationPhase = Math.random() * Math.PI * 2;
-    }
-    if (!data.driftPhase) {
-      data.driftPhase = Math.random() * Math.PI * 2;
-    }
-    if (!data.microJitterPhase) {
-      data.microJitterPhase = Math.random() * Math.PI * 2;
-    }
     if (!data.activationLevel) {
       data.activationLevel = 0;
     }
     
     const activation = data.activationLevel;
+    const interactionActive = (
+      data.hoveredState === true ||
+      data.isSelected === true ||
+      node.userData?.isSelected === true ||
+      activation > 0
+    );
+
+    // Phase B.3.B: idle path must not mutate visual baseline.
+    if (!interactionActive) {
+      return;
+    }
     
     // Use EnhancedNodeModels animation system
     EnhancedNodeModels.animate(node, deltaTime, time);
@@ -1451,45 +1457,13 @@ export class AINodes {
       }
     });
     
-    // ========== ULTRA EDITION: IMPROVED LEVITATION 2.0 ==========
-    // Enhanced vertical oscillation
-    const levitateY = Math.sin(time * 1.5 + data.levitationPhase) * 0.12;  // Slightly larger
-    
-    // Horizontal micro-drift (more pronounced)
-    const driftX = Math.cos(time * 0.7 + data.driftPhase) * 0.1;
-    const driftZ = Math.sin(time * 0.7 + data.driftPhase) * 0.1;
-    
-    // Occasional micro-jitter on high energy (new)
-    const jitterIntensity = activation * 0.02;
-    const jitterX = Math.sin(time * 12 + data.microJitterPhase) * jitterIntensity;
-    const jitterZ = Math.cos(time * 11 + data.microJitterPhase) * jitterIntensity;
-    
-    node.position.copy(data.basePosition);
-    node.position.y += levitateY;
-    node.position.x += driftX + jitterX;
-    node.position.z += driftZ + jitterZ;
-    
-    // ========== [AURA VISUAL AUDIT] ATMOSPHERIC GLOW - Core Visibility Priority ==========
-    // Reduced from 0.8 to 0.15 max to ensure core geometry remains clearly readable
-    // Aura now provides subtle atmospheric feedback without visual dominance
+    // Atmosphere: keep glow/halo at their configured static opacity (breathing disabled)
     if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
-      const glowBreathing = 1 + Math.sin(time * 1.2) * 0.3;
-      const glowPulse = (0.4 + Math.sin(time * 2) * 0.15) * glowBreathing + activation * 0.2;
-      // [AURA VISUAL AUDIT] Opacity clamped to 0.15 max (was 0.8) - ensures core readable
-      data.vfxGlow.material.opacity = Math.min(0.15, glowPulse);
-      
-      // [AURA VISUAL AUDIT] Render glow behind core geometry (renderOrder -1 = behind)
-      if (!data.vfxGlow.userData.renderOrderSet) {
-        data.vfxGlow.renderOrder = -1;
-        data.vfxGlow.userData.renderOrderSet = true;
-      }
+      // Runtime renderOrder mutation disabled by Phase B.3.B
     }
     
-    // Secondary halo (breathing with glow)
-    // [AURA VISUAL AUDIT] Halo already in acceptable 0.08-0.12 range - no change needed
     if (data.vfxHalo && !data.vfxHalo.userData?.neutralized) {
-      const haloBreathing = 1 + Math.sin(time * 0.9) * 0.3;
-      data.vfxHalo.material.opacity = (0.08 + Math.sin(time * 1.8) * 0.04) * haloBreathing;
+      // Halo opacity remains as initialized
     }
     
     // ========== ULTRA EDITION: MULTI-CORE AI STRUCTURE ==========
@@ -1517,8 +1491,8 @@ export class AINodes {
         quaternion.setFromAxisAngle(axis, rotAmount);
         ring.quaternion.multiplyQuaternions(quaternion, ring.quaternion);
         
-        // Opacity modulation: deeper rings are dimmer
-        const ringOpacityBase = ringData.baseOpacity * (0.7 + Math.sin(time * (2 - ringIdx)) * 0.3);
+        // Interaction-only opacity modulation (no time component)
+        const ringOpacityBase = ringData.baseOpacity;
         ring.material.opacity = ringOpacityBase + activation * 0.1;
       });
     }
@@ -1541,14 +1515,14 @@ export class AINodes {
         particle.position.z = Math.sin(pData.orbitAngle) * radius;
         particle.position.y = Math.sin(pData.orbitAngle * 0.7) * 0.35;
         
-        // Spark intensity increases with energy
-        const sparkBrightness = 0.6 + activation * 0.25 + Math.sin(time * 3) * 0.1;
+        // Spark intensity tracks activation only (no time component)
+        const sparkBrightness = 0.6 + activation * 0.25;
         particle.material.opacity = sparkBrightness;
         // FIX: Only update emissive on materials that support it
-        if (this.ensureEmissiveSafe(particle.material)) particle.material.emissiveIntensity = 0.3 + activation * 0.2 + Math.sin(time * 4) * 0.1;
+        if (this.ensureEmissiveSafe(particle.material)) particle.material.emissiveIntensity = 0.3 + activation * 0.2;
         
-        // Particle size pulses with energy
-        const particleScale = 0.08 * (0.8 + Math.sin(time * 4) * 0.3 + activation * 0.3);
+        // Particle size tracks activation only (no time component)
+        const particleScale = 0.08 * (0.8 + activation * 0.3);
         particle.scale.setScalar(particleScale);
       });
     }
@@ -1561,8 +1535,8 @@ export class AINodes {
       data.fractalHolo.rotation.y += fractalSpeed * deltaTime * 0.5;
       data.fractalHolo.rotation.z += fractalSpeed * deltaTime * 0.2;
       
-      // Extremely subtle opacity (0.05-0.1)
-      data.fractalHolo.material.opacity = (0.03 + Math.sin(time * 1.5) * 0.02) + activation * 0.03;
+      // Opacity tracks activation only (no time component)
+      data.fractalHolo.material.opacity = 0.03 + activation * 0.03;
     }
     
     // ========== ULTRA EDITION: NODE HIGHLIGHT ON HOVER ==========
@@ -1576,32 +1550,19 @@ export class AINodes {
       
       // NOTE: Core meshes removed; hover feedback limited to aura/overlay meshes
       if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
-        data.vfxGlow.material.opacity = Math.min(0.9, data.vfxGlow.material.opacity + data.hoverBoost * 0.5);
+        if (data.originalGlowOpacity === undefined) {
+          data.originalGlowOpacity = data.vfxGlow.material.opacity;
+        }
+        data.vfxGlow.material.opacity = Math.min(0.9, data.originalGlowOpacity + data.hoverBoost * 0.5);
       }
       if (data.vfxRings && data.vfxRings.length > 0) {
         data.vfxRings.forEach(ring => {
           if (ring.userData?.neutralized) return;
-          ring.material.opacity = Math.min(1, ring.material.opacity + data.hoverBoost * 0.3);
+          const baseOpacity = ring.userData?.baseOpacity ?? ring.material.opacity;
+          ring.material.opacity = Math.min(1, baseOpacity + data.hoverBoost * 0.3);
         });
       }
     }
-    
-    // ============ ANIMATION 4: SAFE ENERGY PULSE (Scale Wave) ============
-    // Subtle pulse that expands and contracts based on activity
-    const pulseStrength = 1 + Math.sin(time * 3 + data.pulseOffset) * 0.05 * activation;
-    const pulseScale = Math.max(0.8, Math.min(1.2, pulseStrength));
-    
-    // Apply to node (gentle, not aggressive)
-    node.scale.setScalar(0.9 * (0.95 + activation * 0.1));
-    
-    // ============ ANIMATION 5: HOLOGRAPHIC EDGE HIGHLIGHTS (Shimmer) ============
-    // Edge glow shimmer (handled per-child in traverse)
-    node.traverse((child) => {
-      if (child.userData && child.userData.edgeGlow && child.material) {
-        const edgeShimmer = 0.3 + Math.sin(time * 3.5) * 0.15 + activation * 0.2;
-        child.material.opacity = edgeShimmer;
-      }
-    });
     
     // Point light intensity based on activation
     if (data.light) {
@@ -2367,6 +2328,20 @@ export class AINodes {
           this._inputBypassLogged = true;
         }
       }
+    }
+
+    // ========================================================================
+    // [VISUAL HARD GATE] Abort if no canonical visual is registered
+    // ========================================================================
+    EnhancedNodeModels.ensureRegistryReady?.();
+    const registryEntry = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
+    const hasCanonicalVisual = Array.isArray(registryEntry) && registryEntry.length > 0;
+    if (!hasCanonicalVisual) {
+      console.error('[NodeSpawnBlocked]', {
+        category,
+        reason: 'No canonical visual registered'
+      });
+      return null;
     }
 
     // ========== STEP 2: FIND SAFE POSITION (SYNC) ==========

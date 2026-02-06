@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
+import { getMapConfig } from './MapConfigBase.js';
 
 /**
  * Dream Desert 2.0 - Dream Realism Edition
@@ -18,6 +20,10 @@ export class DreamDesert2 {
     this.particleSystems = [];
     this.renderer = null;
     
+    // Session 112+: Initialize map configuration and reference plane
+    this.initializeMapConfig();
+    this.initializeReferencePlane();
+    
     // Build environment with dream realism
     this.createSkyAndAtmosphere();
     this.createMainDunes();
@@ -31,14 +37,43 @@ export class DreamDesert2 {
   }
   
   /**
+   * Initialize map configuration
+   */
+  initializeMapConfig() {
+    this.mapConfig = getMapConfig('DreamDesert2');
+    console.log(
+      `[MAP INIT] ${this.mapConfig.mapId} | theme: ${this.mapConfig.theme} | referencePlane: ${this.mapConfig.referencePlane}`
+    );
+  }
+  
+  /**
+   * Initialize reference plane from map config
+   */
+  initializeReferencePlane() {
+    try {
+      this.referencePlane = initMapReferencePlane(
+        this.scene,
+        this.camera,
+        this.mapConfig.referencePlane
+      );
+      
+      console.log(
+        `[REFERENCE PLANE] ${this.mapConfig.referencePlane} initialized for ${this.mapConfig.mapId}`
+      );
+    } catch (err) {
+      console.warn(
+        `[REFERENCE PLANE] Failed to initialize ${this.mapConfig.referencePlane}:`,
+        err
+      );
+      this.referencePlane = null;
+    }
+  }
+  
+  /**
    * Setup sky, background, and atmospheric conditions
    */
   createSkyAndAtmosphere() {
-    // Pastel gradient background - warm to cool
-    this.scene.background = new THREE.Color(0xf5d5e8);
-    
-    // Soft volumetric fog that hugs terrain
-    this.scene.fog = new THREE.FogExp2(0xf0c8d8, 0.0045);
+    // World authority handled by pipeline; retain placeholders without overriding scene
   }
   
   /**
@@ -595,6 +630,11 @@ export class DreamDesert2 {
    * Update animations and effects
    */
   update(deltaTime, time) {
+    // Update reference plane (canonical contract)
+    if (this.referencePlane && this.referencePlane.animate) {
+      this.referencePlane.animate(deltaTime, time);
+    }
+    
     this.animatedObjects.forEach(obj => {
       // Float fragments with rotation
       if (obj.type === 'floatFragment') {

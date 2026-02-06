@@ -167,17 +167,17 @@ export class IntegrationEnhancedVariants {
         const thickness = 0.03 + Math.random() * 0.05;
         const geometry = new THREE.TubeGeometry(curve, 40, thickness, 6, closed);
         
-        // Varied material properties
-        const roughness = 0.1 + Math.random() * 0.6;
-        const metalness = 0.3 + Math.random() * 0.5;
-        const opacity = 0.6 + Math.random() * 0.4;
+        // Deterministic baseline material properties
+        const roughness = 0.4;
+        const metalness = 0.55;
+        const opacity = 0.8;
         
         const material = new THREE.MeshStandardMaterial({
           color: color,
           metalness: metalness,
           roughness: roughness,
           emissive: color,
-          emissiveIntensity: 0.2 + Math.random() * 0.3,
+          emissiveIntensity: 0.35,
           transparent: true,
           opacity: opacity
         });
@@ -266,7 +266,7 @@ export class IntegrationEnhancedVariants {
       }
       const curve1 = new THREE.CatmullRomCurve3(points1, true);
       const geo1 = new THREE.TubeGeometry(curve1, 40, loopThickness, 12, true);
-      const loop1 = new THREE.Mesh(geo1, material);
+      const loop1 = new THREE.Mesh(geo1, material.clone());
       loop1.userData.isBinderLoop = true;
       loop1.userData.loopIndex = 0;
       loop1.userData.visualCoreImmutable = true;
@@ -284,7 +284,7 @@ export class IntegrationEnhancedVariants {
       }
       const curve2 = new THREE.CatmullRomCurve3(points2, true);
       const geo2 = new THREE.TubeGeometry(curve2, 40, loopThickness, 12, true);
-      const loop2 = new THREE.Mesh(geo2, material);
+      const loop2 = new THREE.Mesh(geo2, material.clone());
       
       // Rotate Loop 2 slightly to lock visual
       loop2.rotation.y = Math.PI / 2; 

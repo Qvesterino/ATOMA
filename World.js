@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
+const WORLD_DECOR_NODE_IMPERSONATORS = false;
+
 /**
  * Node-Space Chamber - Core AI simulation environment
  * Minimal, precise, cinematic holographic space
@@ -9,7 +11,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
 export class World {
   constructor(scene) {
     this.scene = scene;
-    this.nodes = [];
+    this.worldDecorations = [];
     this.ripples = [];
     
     this.createChamberFloor();
@@ -18,7 +20,7 @@ export class World {
     this.createArchStructure();
     this.createHolographicGrid();
     this.createDataWires();
-    this.createNodes();
+    this.createDecorativeWorldProps();
     this.createParticleDrift();
   }
   
@@ -268,7 +270,11 @@ export class World {
   /**
    * Create AI nodes - clean geometric shapes
    */
-  createNodes() {
+  createDecorativeWorldProps() {
+    if (!WORLD_DECOR_NODE_IMPERSONATORS) {
+      console.warn('[Policy] World node-like decor disabled:', { system: 'World' });
+      return;
+    }
     const geometries = [
       new THREE.OctahedronGeometry(0.8),
       new THREE.TetrahedronGeometry(0.9),
@@ -318,11 +324,11 @@ export class World {
       };
       
       this.scene.add(node);
-      this.nodes.push(node);
+      this.worldDecorations.push(node);
       
       // Add subtle connection lines to nearby nodes
-      if (this.nodes.length > 1 && Math.random() > 0.6) {
-        const prevNode = this.nodes[this.nodes.length - 2];
+      if (this.worldDecorations.length > 1 && Math.random() > 0.6) {
+        const prevNode = this.worldDecorations[this.worldDecorations.length - 2];
         const distance = node.position.distanceTo(prevNode.position);
         
         if (distance < 15) {
@@ -415,8 +421,8 @@ export class World {
       this.arc.rotation.z += deltaTime * 0.1;
     }
     
-    // Nodes gentle float and rotate
-    this.nodes.forEach(node => {
+    // Decorative props gentle float and rotate
+    this.worldDecorations.forEach(node => {
       const data = node.userData;
       
       node.rotation.x += data.rotationSpeed * deltaTime;

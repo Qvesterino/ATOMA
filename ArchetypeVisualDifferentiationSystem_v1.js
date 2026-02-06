@@ -41,6 +41,13 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
     this.debugMode = debugMode;
     this.appliedArchetypes = new Map();
     this.modifiedNodes = new Set();
+    this.overlayGroups = new Map();          // node -> overlay group
+    this.overlayParams = new Map();          // node -> param state for animation/transitions
+    this.metrics = {
+      activeOverlayCount: 0,
+      duplicateOverlayPreventedCount: 0,
+      disposeCount: 0
+    };
     this.transitionEngine = new ArchetypeVisualTransitionEngine_v2(debugMode);
     
     if (this.debugMode) {
@@ -56,34 +63,28 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
 
     const profile = ArchetypeVisualProfiles.getProfileForArchetype(archetypeName);
     
-    // Store original values for reference
-    if (!nodeModel.userData.originalArchetype) {
-      nodeModel.userData.originalArchetype = archetypeName;
-      nodeModel.userData.archetypeProfile = profile;
-      nodeModel.userData.archetypeVisualsApplied = true;
-    }
+    // Track overlay parameters (deterministic, overlay-only)
+    this.overlayParams.set(nodeModel, {
+      archetypeName,
+      profile,
+      colorShift: profile.colorShift,
+      animation: { ...profile.animation },
+      glow: { ...profile.glow },
+      particles: { ...profile.particles }
+    });
 
-    // Apply color shifts
-    this.applyColorShifts(nodeModel, profile.colorShift);
+    // Ensure single overlay group
+    const overlayGroup = this.ensureOverlayGroup(nodeModel);
 
-    // Apply animation parameters
-    this.applyAnimationParameters(nodeModel, profile.animation);
-
-    // Apply particle modifications
-    this.applyParticleModifications(nodeModel, profile.particles);
-
-    // Apply glow characteristics
-    this.applyGlowModifications(nodeModel, profile.glow);
-
-    // Apply shader parameters
-    this.applyShaderParameters(nodeModel, profile.shader);
+    // Build / rebuild overlay visuals based on profile
+    this.buildOverlayForProfile(nodeModel, overlayGroup, profile);
 
     this.appliedArchetypes.set(nodeModel, archetypeName);
     this.modifiedNodes.add(nodeModel);
 
     if (this.debugMode) {
-      console.log(`%c[Archetype] Applied ${archetypeName} to node`, 'color: #00ff88;', {
-        colorShift: profile.colorShift,
+      console.log(`%c[Archetype] Applied ${archetypeName} (overlay-only)`, 'color: #00ff88;', {
+        overlayId: overlayGroup?.name,
         animationSpeed: profile.animation.rotationSpeed,
         particleCount: profile.particles.count,
         glowIntensity: profile.glow.intensity
@@ -94,143 +95,26 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
   /**
    * Apply HSL color shifts to node materials
    */
-  applyColorShifts(nodeModel, colorShift) {
-    if (!colorShift || !THREE) return;  // Guard: skip if THREE missing
-
-    nodeModel.traverse((child) => {
-      if (!child.isMesh || !child.material) return;
-
-      // Skip edge lines and VFX elements
-      if (child.userData.isVFX || child.userData.edgeGlow) return;
-
-      const material = child.material;
-      if (!material || !material.color) return;  // Guard: skip if material not ready
-
-      // Only modify standard materials (not basic)
-      if (material.isMeshStandardMaterial || 
-          material.isMeshPhongMaterial || 
-          material.isMeshLambertMaterial) {
-        
-        // Store original color if not already stored
-        if (!child.userData.originalColor) {
-          child.userData.originalColor = material.color.getHex();
-        }
-
-        // Apply HSL shift
-        const originalColor = new THREE.Color(child.userData.originalColor);
-        const shifted = this.shiftHSL(originalColor, colorShift);
-        
-        material.color.copy(shifted);
-
-        // Adjust emissive with same shift
-        if (material.emissive && this.isMaterialEmissiveCapable(material)) {
-          if (!child.userData.originalEmissive) {
-            child.userData.originalEmissive = material.emissive.getHex();
-          }
-          const emissiveShifted = this.shiftHSL(
-            new THREE.Color(child.userData.originalEmissive),
-            colorShift
-          );
-          material.emissive.copy(emissiveShifted);
-        }
-      }
-    });
-  }
+  // Overlay-only color application: handled in buildOverlayForProfile
 
   /**
    * Apply animation speed modifiers
    */
-  applyAnimationParameters(nodeModel, animation) {
-    if (!animation) return;
-
-    if (!nodeModel.userData) nodeModel.userData = {};
-
-    // Store original values
-    if (!nodeModel.userData.originalAnimation) {
-      nodeModel.userData.originalAnimation = {
-        rotationSpeed: nodeModel.userData.rotationSpeed || 0.3,
-        pulseSpeed: nodeModel.userData.pulseSpeed || 1.0,
-        floatAmplitude: nodeModel.userData.floatAmplitude || 0.1
-      };
-    }
-
-    // Apply modifiers
-    nodeModel.userData.rotationSpeedMult = animation.rotationSpeed / 0.3;
-    nodeModel.userData.pulseSpeedMult = animation.pulseSpeed / 1.0;
-    nodeModel.userData.floatAmplitudeMult = animation.floatAmplitude / 0.1;
-
-    if (this.debugMode) {
-      console.log(`%c[Animation] Mults:`, 'color: #ffaa00;', {
-        rotation: nodeModel.userData.rotationSpeedMult.toFixed(2),
-        pulse: nodeModel.userData.pulseSpeedMult.toFixed(2),
-        float: nodeModel.userData.floatAmplitudeMult.toFixed(2)
-      });
-    }
-  }
+  // Animation parameters now live in overlayParams; no direct base writes
 
   /**
    * Modify particle system characteristics
    */
-  applyParticleModifications(nodeModel, particleConfig) {
-    if (!particleConfig || !nodeModel.userData.particles) return;
-
-    const { count, velocity, lifetime, spread } = particleConfig;
-
-    // Adjust existing particles
-    nodeModel.userData.particles.forEach((particle, index) => {
-      if (!particle.userData) particle.userData = {};
-
-      // Store original if needed
-      if (!particle.userData.originalVelocity) {
-        particle.userData.originalVelocity = 1.0;
-        particle.userData.originalLifetime = 2.0;
-      }
-
-      // Apply modifiers
-      particle.userData.velocityMult = velocity || 1.0;
-      particle.userData.lifetimeMult = lifetime || 1.0;
-      particle.userData.spreadMult = spread || 1.0;
-    });
-
-    // Store particle target count (may add/remove particles dynamically)
-    nodeModel.userData.particleCountTarget = count || nodeModel.userData.particles.length;
-  }
+  // Particle modifications handled by overlay particles only
 
   /**
    * Modify glow/aura characteristics
    */
   applyGlowModifications(nodeModel, glowConfig) {
-    if (!glowConfig) return;
-    if (!THREE) return;  // Guard: skip if THREE missing
-
-    if (!nodeModel.userData) nodeModel.userData = {};
-
-    nodeModel.userData.glowIntensityMult = glowConfig.intensity / 0.3 || 1.0;
-    nodeModel.userData.glowRadiusMult = glowConfig.radius || 1.0;
-    nodeModel.userData.breathingAmountMult = glowConfig.breathingAmount / 0.2 || 1.0;
-
-    // Apply to glow mesh if exists
-    if (nodeModel.userData.vfxGlow) {
-      const glowMat = nodeModel.userData.vfxGlow.material;
-      if (glowMat && glowMat.isMeshBasicMaterial) {
-        // Store original opacity
-        if (!nodeModel.userData.originalGlowOpacity) {
-          nodeModel.userData.originalGlowOpacity = glowMat.opacity;
-        }
-        // Apply intensity modifier
-        glowMat.opacity = nodeModel.userData.originalGlowOpacity * nodeModel.userData.glowIntensityMult;
-      }
-    }
-
-    // Apply to halo if exists
-    if (nodeModel.userData.vfxHalo) {
-      const haloBat = nodeModel.userData.vfxHalo.material;
-      if (haloBat && haloBat.isMeshBasicMaterial) {
-        if (!nodeModel.userData.originalHaloOpacity) {
-          nodeModel.userData.originalHaloOpacity = haloBat.opacity;
-        }
-        haloBat.opacity = nodeModel.userData.originalHaloOpacity * nodeModel.userData.glowIntensityMult * 0.5;
-      }
+    // Overlay-only: store params; application happens in build/update overlay
+    const params = this.overlayParams.get(nodeModel);
+    if (params) {
+      params.glow = { ...params.glow, ...glowConfig };
     }
   }
 
@@ -358,37 +242,37 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
    * Update archetype visual effects per frame
    */
   updateArchetypeEffects(nodeModel, deltaTime, time) {
-    if (!nodeModel.userData || !nodeModel.userData.archetypeVisualsApplied) return;
+    const overlayGroup = this.overlayGroups.get(nodeModel);
+    const params = this.overlayParams.get(nodeModel);
+    if (!overlayGroup || !params) return;
 
-    const userData = nodeModel.userData;
-    const profile = userData.archetypeProfile;
+    const profile = params.profile;
+    const overlayData = overlayGroup.userData;
 
-    // Update rotation multiplier
-    if (userData.rotationSpeedMult) {
-      const baseMult = 0.3;
-      nodeModel.rotation.y += deltaTime * baseMult * userData.rotationSpeedMult;
+    // Rotation of overlay shell (simulate prior node rotation mult)
+    const rotationSpeedMult = profile?.animation?.rotationSpeed ? (profile.animation.rotationSpeed / 0.3) : 1;
+    overlayGroup.rotation.y += deltaTime * 0.3 * rotationSpeedMult;
+
+    // Breathing glow scale/opacity on overlay glow
+    if (overlayData.glowMesh) {
+      const pulseSpeed = profile?.animation?.pulseSpeed || 1.0;
+      const breathe = Math.sin(time * pulseSpeed) * (profile?.glow?.breathingAmount || 0.2);
+      const radiusMult = (profile?.glow?.radius || 1.0);
+      const scaleVal = 1 + breathe * radiusMult * 0.1;
+      overlayData.glowMesh.scale.set(scaleVal, scaleVal, scaleVal);
+      const baseOpacity = profile?.glow?.intensity ?? 0.3;
+      overlayData.glowMesh.material.opacity = Math.max(0, Math.min(1, baseOpacity));
     }
 
-    // Update breathing glow
-    if (userData.glowIntensityMult && userData.vfxGlow) {
-      const breathe = Math.sin(time * (userData.pulseSpeedMult || 1.0)) * 
-                      (profile.glow.breathingAmount || 0.2);
-      userData.vfxGlow.scale.set(
-        1 + breathe * (userData.glowRadiusMult || 1.0) * 0.1,
-        1 + breathe * (userData.glowRadiusMult || 1.0) * 0.1,
-        1 + breathe * (userData.glowRadiusMult || 1.0) * 0.1
-      );
-    }
-
-    // Update particle orbital dynamics if custom velocity set
-    if (userData.particles && userData.particles.length > 0) {
-      userData.particles.forEach((particle) => {
-        if (particle.userData && particle.userData.velocityMult) {
-          const angle = (time * 0.5 * particle.userData.velocityMult) || 0;
-          const radius = particle.userData.orbitRadius || 1.4;
-          particle.position.x = Math.cos(angle) * radius * particle.userData.spreadMult;
-          particle.position.z = Math.sin(angle) * radius * particle.userData.spreadMult;
-        }
+    // Overlay particles orbit update
+    if (overlayData.particles && overlayData.particles.length > 0) {
+      overlayData.particles.forEach((particle, idx) => {
+        const vel = particle.userData.velocityMult || 1.0;
+        const spread = particle.userData.spreadMult || 1.0;
+        const angle = (time * 0.5 * vel) + particle.userData.phase;
+        const radius = (particle.userData.orbitRadius || 1.4) * spread;
+        particle.position.x = Math.cos(angle) * radius;
+        particle.position.z = Math.sin(angle) * radius;
       });
     }
   }
@@ -424,8 +308,161 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
   }
 
   /**
-   * Get statistics
+   * Remove archetype overlay from a node
    */
+  removeArchetypeFromNode(nodeModel) {
+    const overlayGroup = this.overlayGroups.get(nodeModel);
+    if (overlayGroup) {
+      this.disposeGroup(overlayGroup);
+      if (overlayGroup.parent) overlayGroup.parent.remove(overlayGroup);
+      this.overlayGroups.delete(nodeModel);
+      this.metrics.disposeCount++;
+      this.metrics.activeOverlayCount = Math.max(0, this.metrics.activeOverlayCount - 1);
+    }
+    this.overlayParams.delete(nodeModel);
+    this.appliedArchetypes.delete(nodeModel);
+    this.modifiedNodes.delete(nodeModel);
+  }
+
+  /**
+   * Ensure overlay group exists (one per node)
+   */
+  ensureOverlayGroup(nodeModel) {
+    // Guard: return null if THREE is not available (SAFE MODE)
+    if (!THREE) return null;
+
+    let group = this.overlayGroups.get(nodeModel);
+    const nodeId = nodeModel.uuid || nodeModel.id || 'node';
+    if (group && group.parent !== nodeModel) {
+      if (group.parent) group.parent.remove(group);
+      group = null;
+    }
+    if (!group) {
+      group = new THREE.Group();
+      group.name = `ArchetypeOverlay::${nodeId}`;
+      nodeModel.add(group);
+      this.overlayGroups.set(nodeModel, group);
+      this.metrics.activeOverlayCount++;
+    } else {
+      // clear existing children to avoid duplication
+      this.disposeGroup(group);
+      this.metrics.duplicateOverlayPreventedCount++;
+    }
+    group.userData = group.userData || {};
+    group.userData.glowMesh = null;
+    group.userData.particles = [];
+    return group;
+  }
+
+  /**
+   * Build overlay meshes to represent the archetype profile
+   */
+  buildOverlayForProfile(nodeModel, overlayGroup, profile) {
+    if (!THREE || !overlayGroup || !profile) return;
+    this.disposeGroup(overlayGroup);
+
+    // derive tint from color shift applied to a base color sample (read-only)
+    const baseColor = this.readBaseColor(nodeModel);
+    const targetColor = this.shiftHSL(new THREE.Color(baseColor), profile.colorShift || { hueRotation:0, saturation:1, luminance:1 });
+
+    // Glow sphere
+    const glowGeom = new THREE.SphereGeometry(1.0, 24, 24);
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: targetColor,
+      transparent: true,
+      opacity: profile.glow?.intensity ?? 0.25,
+      side: THREE.BackSide
+    });
+    const glowMesh = new THREE.Mesh(glowGeom, glowMat);
+    glowMesh.userData.type = 'archetypeGlow';
+    overlayGroup.add(glowMesh);
+    overlayGroup.userData.glowMesh = glowMesh;
+
+    // Rim/halo torus
+    const rimGeom = new THREE.TorusGeometry(1.2, 0.05, 12, 64);
+    const rimMat = new THREE.MeshBasicMaterial({
+      color: targetColor,
+      transparent: true,
+      opacity: (profile.glow?.opacity ?? 0.25),
+      emissive: targetColor,
+      emissiveIntensity: profile.glow?.intensity ?? 0.25
+    });
+    const rim = new THREE.Mesh(rimGeom, rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.userData.type = 'archetypeRim';
+    overlayGroup.add(rim);
+
+    // Particles (lightweight)
+    const particles = [];
+    const count = profile.particles?.count ?? 0;
+    if (count > 0) {
+      const pGeom = new THREE.SphereGeometry(0.05, 6, 6);
+      for (let i = 0; i < count; i++) {
+        const phase = this.seededRandom(nodeModel.uuid || nodeModel.id || 'node', `p-phase-${i}`) * Math.PI * 2;
+        const pMat = new THREE.MeshBasicMaterial({
+          color: targetColor,
+          transparent: true,
+          opacity: 0.25
+        });
+        const p = new THREE.Mesh(pGeom, pMat);
+        p.userData = {
+          velocityMult: profile.particles?.velocity || 1.0,
+          spreadMult: profile.particles?.spread || 1.0,
+          orbitRadius: 1.4,
+          phase
+        };
+        p.position.set(Math.cos(phase) * 1.4, 0, Math.sin(phase) * 1.4);
+        overlayGroup.add(p);
+        particles.push(p);
+      }
+    }
+    overlayGroup.userData.particles = particles;
+  }
+
+  /**
+   * Read a representative base color without mutating it
+   */
+  readBaseColor(nodeModel) {
+    if (nodeModel.userData?.layerColors?.primary) return nodeModel.userData.layerColors.primary;
+    if (nodeModel.userData?.baseColor) return nodeModel.userData.baseColor;
+    let sampled = 0x00ffff;
+    nodeModel.traverse((child) => {
+      if (child.isMesh && child.material?.color) {
+        sampled = child.material.color.getHex();
+      }
+    });
+    return sampled;
+  }
+
+  disposeGroup(group) {
+    if (!group) return;
+    const children = [...group.children];
+    children.forEach(c => {
+      group.remove(c);
+      this.disposeObject(c);
+    });
+  }
+
+  disposeObject(obj) {
+    if (!obj) return;
+    obj.traverse((child) => {
+      if (child.geometry) child.geometry.dispose?.();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose?.());
+        else child.material.dispose?.();
+      }
+    });
+  }
+
+  seededRandom(id, salt = '') {
+    const str = `${id || 'node'}:${salt}`;
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+    const x = Math.sin(h) * 10000;
+    return x - Math.floor(x);
+  }
+ //  * Get statistics
+ //  */
   getStatistics() {
     const stats = {
       totalModifiedNodes: this.modifiedNodes.size,

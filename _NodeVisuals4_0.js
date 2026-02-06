@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+function vfxFlag(name, def = true) {
+  const v = (typeof window !== 'undefined') ? window[name] : undefined;
+  return (v === undefined) ? def : !!v;
+}
+
 /**
  * NODE VISUALS 4.0 - SAFE UPGRADE SYSTEM
  * 
@@ -77,7 +82,7 @@ export class NodeVisuals4_0 {
     
     const nodeId = node.uuid || Math.random().toString();
     
-    // Store original for reference
+    // Store original for reference and attach overlay container
     if (!this.nodeVisualRegistry.has(nodeId)) {
       this.nodeVisualRegistry.set(nodeId, {
         node: node,
@@ -87,6 +92,9 @@ export class NodeVisuals4_0 {
     }
     
     const visualData = this.nodeVisualRegistry.get(nodeId);
+    
+    // Create or reset overlay group (single attachment per node)
+    this.ensureOverlayGroup(node, visualData, nodeId);
     
     // T2-001: Check if this is an extreme node (visual override)
     const isExtreme = node.userData?.extremeAI === true;
@@ -101,23 +109,23 @@ export class NodeVisuals4_0 {
     }
     
     // Step 1: Enhance core with hologram glow
-    this.addHologramCore(node, visualData, baseColor);
+    this.addHologramCore(visualData, baseColor);
     
     // Step 2: Add spectral energy ring
-    this.addSpectralEnergyRing(node, visualData, baseColor);
+    this.addSpectralEnergyRing(visualData, baseColor);
     
     // Step 3: Add levitation field (local oscillation)
-    this.addLevitationField(node, visualData, baseColor);
+    this.addLevitationField(visualData, baseColor);
     
     // Step 4: Add neon rim-light
-    this.addNeonRimLight(node, visualData, baseColor);
+    this.addNeonRimLight(visualData, baseColor);
     
     // Step 5: Add soft shadow/occlusion halo
-    this.addOcclusionHalo(node, visualData, baseColor);
+    this.addOcclusionHalo(visualData, baseColor);
     
     // T2-001: Add secondary glow layer for extreme nodes (ring/chromatic halo)
     if (isExtreme) {
-      this.addExtremeSecondaryGlowLayer(node, visualData, baseColor);
+      this.addExtremeSecondaryGlowLayer(visualData, baseColor);
     }
     
     // Step 6: Mark for internal pulse
@@ -153,15 +161,15 @@ export class NodeVisuals4_0 {
    * T2-001: Add secondary glow layer for extreme nodes
    * Creates enhanced ring and chromatic halo effect
    */
-  addExtremeSecondaryGlowLayer(node, visualData, color) {
-    let extremeContainer = node.getObjectByName('extreme-secondary-glow');
-    if (extremeContainer) {
-      node.remove(extremeContainer);
-    }
+  addExtremeSecondaryGlowLayer(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
     
-    extremeContainer = new THREE.Group();
+    this.removeChildByName(overlayGroup, 'extreme-secondary-glow');
+    
+    const extremeContainer = new THREE.Group();
     extremeContainer.name = 'extreme-secondary-glow';
-    node.add(extremeContainer);
+    overlayGroup.add(extremeContainer);
     
     // Secondary ring with 2-3× glow radius
     const ringGeometry = new THREE.TorusGeometry(2.5, 0.15, 16, 100);
@@ -197,55 +205,127 @@ export class NodeVisuals4_0 {
     visualData.components.extremeRing = secondaryRing;
     visualData.components.extremeHalo = extremeHalo;
   }
+
+  /**
+   * Ensure overlay group exists once per node and reset component cache
+   */
+  ensureOverlayGroup(node, visualData, nodeId) {
+    let overlayGroup = visualData.components.overlayGroup;
+    
+    if (overlayGroup && overlayGroup.parent !== node) {
+      overlayGroup = null;
+    }
+    
+    if (!overlayGroup) {
+      overlayGroup = new THREE.Group();
+      overlayGroup.name = `VFX::NodeVisuals4::${nodeId}`;
+      node.add(overlayGroup);
+    } else {
+      // Clear previous children to prevent duplication
+      this.clearOverlayGroupChildren(overlayGroup);
+      overlayGroup.position.set(0, 0, 0);
+      overlayGroup.rotation.set(0, 0, 0);
+      overlayGroup.scale.set(1, 1, 1);
+    }
+    
+    // Reset components while keeping overlay reference
+    visualData.components = { overlayGroup };
+  }
+
+  /**
+   * Remove named child from overlay group (with disposal)
+   */
+  removeChildByName(group, name) {
+    if (!group) return;
+    const child = group.getObjectByName(name);
+    if (child) {
+      group.remove(child);
+      this.disposeObjectRecursive(child);
+    }
+  }
+
+  /**
+   * Dispose geometries/materials recursively
+   */
+  disposeObjectRecursive(obj) {
+    if (!obj) return;
+    obj.traverse((child) => {
+      if (child.geometry) {
+        child.geometry.dispose?.();
+      }
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose?.());
+        } else {
+          child.material.dispose?.();
+        }
+      }
+    });
+  }
+
+  /**
+   * Clear all children from overlay group safely
+   */
+  clearOverlayGroupChildren(group) {
+    if (!group) return;
+    const children = [...group.children];
+    children.forEach(child => {
+      group.remove(child);
+      this.disposeObjectRecursive(child);
+    });
+  }
   
   /**
    * Step 1: Add hologram core with soft inner glow
    */
-  addHologramCore(node, visualData, color) {
-    // Find or create core container
-    let coreContainer = node.getObjectByName('hologram-core');
-    if (coreContainer) {
-      node.remove(coreContainer);
-    }
+  addHologramCore(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
     
-    coreContainer = new THREE.Group();
+    this.removeChildByName(overlayGroup, 'hologram-core');
+    
+    const coreContainer = new THREE.Group();
     coreContainer.name = 'hologram-core';
-    node.add(coreContainer);
+    overlayGroup.add(coreContainer);
     
     // Inner glow sphere
-    const glowGeometry = new THREE.SphereGeometry(
-      this.config.coreGlowScale,
-      32,
-      32
-    );
-    
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: this.config.coreGlowIntensity,
-      side: THREE.BackSide
-    });
-    
-    const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
-    coreContainer.add(glowSphere);
-    
-    visualData.components.glowSphere = glowSphere;
-    visualData.components.glowMaterial = glowMaterial;
+    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_INNER_GLOW', true)) {
+      const glowGeometry = new THREE.SphereGeometry(
+        this.config.coreGlowScale,
+        32,
+        32
+      );
+      
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: this.config.coreGlowIntensity,
+        side: THREE.BackSide
+      });
+      
+      const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+      coreContainer.add(glowSphere);
+      
+      visualData.components.glowSphere = glowSphere;
+      visualData.components.glowMaterial = glowMaterial;
+    } else {
+      visualData.components.glowSphere = null;
+      visualData.components.glowMaterial = null;
+    }
   }
   
   /**
    * Step 2: Add spectral energy ring (rotating)
    */
-  addSpectralEnergyRing(node, visualData, color) {
-    // Remove old rings if present
-    let ringContainer = node.getObjectByName('spectral-rings');
-    if (ringContainer) {
-      node.remove(ringContainer);
-    }
+  addSpectralEnergyRing(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
     
-    ringContainer = new THREE.Group();
+    this.removeChildByName(overlayGroup, 'spectral-rings');
+    
+    const ringContainer = new THREE.Group();
     ringContainer.name = 'spectral-rings';
-    node.add(ringContainer);
+    overlayGroup.add(ringContainer);
     
     // Create multiple energy rings
     const rings = [];
@@ -272,22 +352,22 @@ export class NodeVisuals4_0 {
   /**
    * Step 3: Add levitation field (local oscillation only, no world movement)
    */
-  addLevitationField(node, visualData, color) {
+  addLevitationField(visualData, color) {
     if (!this.config.levitationEnabled) return;
     
-    // Store initial position
-    visualData.components.initialPosition = node.position.clone();
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
+    
+    // Store base overlay position (always zeroed when created)
+    visualData.components.levitationBaseY = 0;
     visualData.components.levitationTime = 0;
     
     // Create visual indicator (subtle floating particles effect)
-    let levitationContainer = node.getObjectByName('levitation-field');
-    if (levitationContainer) {
-      node.remove(levitationContainer);
-    }
+    this.removeChildByName(overlayGroup, 'levitation-field');
     
-    levitationContainer = new THREE.Group();
+    const levitationContainer = new THREE.Group();
     levitationContainer.name = 'levitation-field';
-    node.add(levitationContainer);
+    overlayGroup.add(levitationContainer);
     
     // Create subtle levitation particles
     const particleGeometry = new THREE.SphereGeometry(0.02, 4, 4);
@@ -314,15 +394,15 @@ export class NodeVisuals4_0 {
   /**
    * Step 4: Add neon rim-light (stable, not pulsing)
    */
-  addNeonRimLight(node, visualData, color) {
-    let rimContainer = node.getObjectByName('neon-rim');
-    if (rimContainer) {
-      node.remove(rimContainer);
-    }
+  addNeonRimLight(visualData, color) {
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
     
-    rimContainer = new THREE.Group();
+    this.removeChildByName(overlayGroup, 'neon-rim');
+    
+    const rimContainer = new THREE.Group();
     rimContainer.name = 'neon-rim';
-    node.add(rimContainer);
+    overlayGroup.add(rimContainer);
     
     // Create rim-light torus
     const rimGeometry = new THREE.TorusGeometry(1.3, 0.08, 16, 100);
@@ -344,15 +424,15 @@ export class NodeVisuals4_0 {
   /**
    * Step 5: Add soft shadow/occlusion halo (static, no movement)
    */
-  addOcclusionHalo(node, visualData, color) {
+  addOcclusionHalo(visualData, color) {
     if (!this.config.haloEnabled) return;
     
-    let haloContainer = node.getObjectByName('occlusion-halo');
-    if (haloContainer) {
-      node.remove(haloContainer);
-    }
+    const overlayGroup = visualData.components.overlayGroup;
+    if (!overlayGroup) return;
     
-    haloContainer = new THREE.Group();
+    this.removeChildByName(overlayGroup, 'occlusion-halo');
+    
+    const haloContainer = new THREE.Group();
     haloContainer.name = 'occlusion-halo';
     
     // Create halo as soft shadow effect
@@ -367,7 +447,6 @@ export class NodeVisuals4_0 {
     const halo = new THREE.Mesh(haloGeometry, haloMaterial);
     haloContainer.add(halo);
     
-    node.add(haloContainer);
     visualData.components.halo = halo;
   }
   
@@ -385,6 +464,9 @@ export class NodeVisuals4_0 {
       const node = visualData.node;
       if (!node || !this.scene.getObjectByProperty('uuid', nodeId)) return;
       
+      const overlayGroup = visualData.components.overlayGroup;
+      if (!overlayGroup || overlayGroup.parent !== node) return;
+      
       // Update spectral rings rotation
       if (visualData.components.spectralRings) {
         visualData.components.spectralRings.forEach((ring, i) => {
@@ -394,14 +476,14 @@ export class NodeVisuals4_0 {
       }
       
       // Update levitation field (local position oscillation only)
-      if (visualData.components.levitationContainer && visualData.components.initialPosition) {
+      if (visualData.components.levitationContainer) {
         visualData.components.levitationTime += deltaTime;
         
         const oscillation = Math.sin(visualData.components.levitationTime * this.config.levitationFrequency) 
           * this.config.levitationAmplitude;
         
-        // Only oscillate Y position (up/down), no world movement
-        node.position.y = visualData.components.initialPosition.y + oscillation;
+        // Only oscillate overlay group Y position (baseline untouched)
+        overlayGroup.position.y = visualData.components.levitationBaseY + oscillation;
       }
       
       // Update internal pulse
@@ -432,6 +514,29 @@ export class NodeVisuals4_0 {
   
   disable() {
     this.config.enabled = false;
+  }
+  
+  /**
+   * Downgrade/cleanup visuals for a single node
+   */
+  downgradeNode(node) {
+    if (!node) return;
+    const nodeId = node.uuid || null;
+    if (!nodeId) return;
+    
+    const visualData = this.nodeVisualRegistry.get(nodeId);
+    if (!visualData) return;
+    
+    const overlayGroup = visualData.components?.overlayGroup;
+    if (overlayGroup) {
+      this.clearOverlayGroupChildren(overlayGroup);
+      if (overlayGroup.parent) {
+        overlayGroup.parent.remove(overlayGroup);
+      }
+    }
+    
+    visualData.components = {};
+    this.nodeVisualRegistry.delete(nodeId);
   }
   
   /**

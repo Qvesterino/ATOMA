@@ -109,31 +109,23 @@ export class ArchetypeVisualTransitionEngine_v2 {
    * Apply interpolated visual state for current frame
    */
   applyTransitionFrame(node, state, progress, differentiationSystem) {
-    if (!node || !node.userData) return;
+    if (!node) return;
 
-    // Blend color shifts
-    if (THREE && state.from.colorShift && state.to.colorShift) {
-      this.blendColorShift(node, state.from.colorShift, state.to.colorShift, progress);
+    const params = differentiationSystem.overlayParams?.get(node);
+    if (!params) return;
+
+    // Blend and store into overlay params (no base writes)
+    if (state.from.colorShift && state.to.colorShift) {
+      params.colorShift = this.blendColorShift(state.from.colorShift, state.to.colorShift, progress);
     }
-
-    // Blend animation parameters
     if (state.from.animation && state.to.animation) {
-      this.blendAnimationParameters(node, state.from.animation, state.to.animation, progress);
+      params.animation = this.blendAnimationParameters(state.from.animation, state.to.animation, progress);
     }
-
-    // Blend glow characteristics
-    if (THREE && state.from.glow && state.to.glow) {
-      this.blendGlowCharacteristics(node, state.from.glow, state.to.glow, progress);
+    if (state.from.glow && state.to.glow) {
+      params.glow = this.blendGlowCharacteristics(state.from.glow, state.to.glow, progress);
     }
-
-    // Blend particle configuration
     if (state.from.particles && state.to.particles) {
-      this.blendParticleConfig(node, state.from.particles, state.to.particles, progress);
-    }
-
-    // Blend shader parameters
-    if (state.from.shader && state.to.shader) {
-      this.blendShaderParameters(node, state.from.shader, state.to.shader, progress);
+      params.particles = this.blendParticleConfig(state.from.particles, state.to.particles, progress);
     }
   }
 

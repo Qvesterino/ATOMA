@@ -544,8 +544,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] SignalReceptor creation failed, fallback:', err);
-      return this.createInputNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createInputSignalReceptor',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -636,8 +641,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] DataGateway creation failed, fallback:', err);
-      return this.createInputNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createInputDataGateway',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -791,8 +801,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] IncomingFunnel creation failed, fallback:', err);
-      return this.createInputNode2(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createInputIncomingFunnel',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1018,8 +1033,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] FluxChamber creation failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createProcessFluxChamber',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1104,8 +1124,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] TransformationSpine creation failed, fallback:', err);
-      return this.createProcessNode2(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createProcessTransformationSpine',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1180,8 +1205,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] ConversionOrbit creation failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createProcessConversionOrbit',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1201,13 +1231,13 @@ export class EnhancedNodeModels {
     });
 
     // Left half
-    const leftHalf = new THREE.Mesh(halfGeometry, material);
+    const leftHalf = new THREE.Mesh(halfGeometry, material.clone());
     leftHalf.position.x = -0.3;
     leftHalf.userData.visualLayer = 'CORE';
     group.add(leftHalf);
 
     // Right half
-    const rightHalf = new THREE.Mesh(halfGeometry, material);
+    const rightHalf = new THREE.Mesh(halfGeometry, material.clone());
     rightHalf.position.x = 0.3;
     rightHalf.rotation.y = Math.PI;
     rightHalf.userData.visualLayer = 'CORE';
@@ -1246,7 +1276,7 @@ export class EnhancedNodeModels {
       emissive: color,
       emissiveIntensity: 0.2
     });
-    const frame = new THREE.Mesh(frameGeometry, material);
+    const frame = new THREE.Mesh(frameGeometry, material.clone());
     frame.userData.visualLayer = 'CORE';
     group.add(frame);
 
@@ -1254,12 +1284,12 @@ export class EnhancedNodeModels {
     const beamGeometry = new THREE.BoxGeometry(1.2, 0.1, 0.1);
     
     // Horizontal beam
-    const hBeam = new THREE.Mesh(beamGeometry, material);
+    const hBeam = new THREE.Mesh(beamGeometry, material.clone());
     hBeam.userData.visualLayer = 'INTERNAL';
     group.add(hBeam);
 
     // Vertical beam
-    const vBeam = new THREE.Mesh(beamGeometry, material);
+    const vBeam = new THREE.Mesh(beamGeometry, material.clone());
     vBeam.rotation.z = Math.PI / 2;
     vBeam.userData.visualLayer = 'INTERNAL';
     group.add(vBeam);
@@ -1281,12 +1311,12 @@ export class EnhancedNodeModels {
 
     // Create interlocking tetrahedra
     const geometry1 = new THREE.TetrahedronGeometry(0.5);
-    const mesh1 = new THREE.Mesh(geometry1, material);
+    const mesh1 = new THREE.Mesh(geometry1, material.clone());
     mesh1.rotation.set(0, 0, 0);
     mesh1.userData.visualLayer = 'CORE';
     group.add(mesh1);
 
-    const mesh2 = new THREE.Mesh(geometry1, material);
+    const mesh2 = new THREE.Mesh(geometry1, material.clone());
     mesh2.rotation.set(Math.PI / 2, Math.PI / 2, 0);
     mesh2.userData.visualLayer = 'CORE';
     group.add(mesh2);
@@ -1532,8 +1562,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] ObserverLens creation failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createAnalyticsObserverLens',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1628,8 +1663,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] FractalEcho creation failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createAnalyticsFractalEcho',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -1717,8 +1757,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] ParallaxOracle creation failed, fallback:', err);
-      return this.createAnalyticsNode2(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createAnalyticsParallaxOracle',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2013,8 +2058,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] MnemonicVault creation failed, fallback:', err);
-      return this.createStorageNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createStorageMnemonicVault',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2106,8 +2156,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] ArchiveSpindle creation failed, fallback:', err);
-      return this.createStorageNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createStorageArchiveSpindle',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2196,8 +2251,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] MemoryReef creation failed, fallback:', err);
-      return this.createStorageNode3(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createStorageMemoryReef',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2720,8 +2780,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] CommandPyramid creation failed, fallback:', err);
-      return this.createAxiomCrystalNode(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createControlCommandPyramid',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2817,8 +2882,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] HierarchyTower creation failed, fallback:', err);
-      return this.createControlNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createControlHierarchyTower',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -2927,8 +2997,13 @@ export class EnhancedNodeModels {
 
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] SymmetryCore creation failed, fallback:', err);
-      return this.createControlNode2(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createControlSymmetryCore',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -3192,6 +3267,17 @@ export class EnhancedNodeModels {
    * UPGRADED: Supports internal rotating elements and animations
    */
   static animate(nodeGroup, deltaTime, time) {
+    const interactionActive = (
+      nodeGroup.userData?.hoveredState === true ||
+      nodeGroup.userData?.isSelected === true ||
+      (nodeGroup.userData?.activationLevel || 0) > 0
+    );
+
+    // Phase B.3.B: idle nodes must not mutate visual state per-frame.
+    if (!interactionActive) {
+      return;
+    }
+
     // Gentle primary rotation
     nodeGroup.rotation.y += deltaTime * 0.3;
 
@@ -3222,28 +3308,7 @@ export class EnhancedNodeModels {
       }
     }
 
-    // POLISH: Animate mesh pulsing (CONTROL nodes)
-    if (nodeGroup.userData.meshPulsePhase !== undefined) {
-      nodeGroup.userData.meshPulsePhase += deltaTime * nodeGroup.userData.meshPulseSpeed;
-      const pulse = Math.sin(nodeGroup.userData.meshPulsePhase) * nodeGroup.userData.meshPulseAmplitude;
-      nodeGroup.children.forEach(child => {
-        if (child.isMesh && child.userData && child.userData.vfxType) {
-          if (child.material && child.material.opacity !== undefined) {
-            // GUARD: Skip if material is frozen or immutable
-            const isFrozen = Object.isFrozen(child.material);
-            const isImmutable = child.material.userData && child.material.userData.immutable === true;
-            
-            if (!isFrozen && !isImmutable) {
-              try {
-                child.material.opacity = 0.4 + pulse;
-              } catch (err) {
-                // Silently skip if read-only
-              }
-            }
-          }
-        }
-      });
-    }
+    // Mesh pulsing disabled for deterministic visuals
 
     // POLISH: Animate internal analytical frame (ANALYTICS nodes)
     if (nodeGroup.userData.analyticalFrameRotationAxis) {
@@ -3348,24 +3413,11 @@ export class EnhancedNodeModels {
       }
     }
 
-    // POLISH: Animate TRANSFORMATION_SPINE (axial rotation + breathing scale)
-    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Breathing disabled (was ±2% unintentional oscillation)
+    // POLISH: Animate TRANSFORMATION_SPINE (axial rotation only; breathing disabled)
+    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Breathing permanently removed
     if (nodeGroup.userData.spineRotationSpeed) {
       // Axial rotation
       nodeGroup.rotation.y += deltaTime * nodeGroup.userData.spineRotationSpeed;
-      
-      // GUARD: Disable legacy breathing scale (unintentional mutation without feedback)
-      if (!EnhancedNodeModels.config.DISABLE_LEGACY_SCALE_PULSE && !EnhancedNodeModels.config.DISABLE_SPINE_BREATHING) {
-        if (!nodeGroup.userData.baseScale) {
-          nodeGroup.userData.baseScale = 1.0;
-        }
-        const breathing = Math.sin(time * nodeGroup.userData.spineBreathingSpeed) * nodeGroup.userData.spineBreathingAmplitude;
-        const targetScale = nodeGroup.userData.baseScale + breathing;
-        nodeGroup.scale.set(targetScale, targetScale, targetScale);
-      } else {
-        // Keep scale locked at 1.0 (stable node authority)
-        nodeGroup.scale.set(1.0, 1.0, 1.0);
-      }
     }
 
     // POLISH: Animate CONVERSION_ORBIT (orbiting rings around stable core)
@@ -3395,8 +3447,7 @@ export class EnhancedNodeModels {
       nodeGroup.rotation.x = wobble;
     }
 
-    // POLISH: Animate FRACTAL_ECHO (seed + echoes counter-rotation + breathing)
-    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Breathing disabled (was ±1.5% unintentional oscillation)
+    // POLISH: Animate FRACTAL_ECHO (seed + echoes counter-rotation; breathing disabled)
     if (nodeGroup.userData.fractalSeedRotationSpeed) {
       // Seed core rotates one direction
       const seed = nodeGroup.children.find(c => c.userData && c.userData.isSeedCore);
@@ -3405,7 +3456,7 @@ export class EnhancedNodeModels {
         seed.rotation.y += deltaTime * nodeGroup.userData.fractalSeedRotationSpeed * 0.5;
         seed.rotation.z += deltaTime * nodeGroup.userData.fractalSeedRotationSpeed * 0.2;
       }
-      
+
       // Echoes counter-rotate (different axis)
       nodeGroup.children.forEach(child => {
         if (child.userData && child.userData.isEcho) {
@@ -3414,19 +3465,8 @@ export class EnhancedNodeModels {
           child.rotation.z -= deltaTime * nodeGroup.userData.fractalEchoRotationSpeed * 0.3;
         }
       });
-      
-      // GUARD: Disable legacy breathing scale (unintentional mutation without feedback)
-      if (!EnhancedNodeModels.config.DISABLE_LEGACY_SCALE_PULSE && !EnhancedNodeModels.config.DISABLE_FRACTAL_BREATHING) {
-        if (!nodeGroup.userData.baseScale) {
-          nodeGroup.userData.baseScale = 1.0;
-        }
-        const breathing = Math.sin(time * 0.6) * nodeGroup.userData.fractalBreathingAmplitude;
-        const targetScale = nodeGroup.userData.baseScale + breathing;
-        nodeGroup.scale.set(targetScale, targetScale, targetScale);
-      } else {
-        // Keep scale locked at 1.0 (stable node authority)
-        nodeGroup.scale.set(1.0, 1.0, 1.0);
-      }
+
+      // Breathing removed; scale remains unchanged
     }
 
     // POLISH: Animate PARALLAX_ORACLE (planes rotate independently, core stable)
@@ -3443,31 +3483,11 @@ export class EnhancedNodeModels {
       // Core observer remains completely stable (NO rotation)
     }
 
-    // POLISH: Animate SIGNAL_RECEPTOR (core rotation + antenna pulse)
-    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Antenna pulse disabled (was ±8% elongation)
+    // POLISH: Animate SIGNAL_RECEPTOR (core rotation; antenna pulse disabled)
+    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Antenna pulse removed
     if (nodeGroup.userData.receptorRotationSpeed) {
       // Core rotation
       nodeGroup.rotation.y += deltaTime * nodeGroup.userData.receptorRotationSpeed;
-      
-      // GUARD: Disable legacy antenna pulse (unintentional mutation without feedback)
-      if (!EnhancedNodeModels.config.DISABLE_LEGACY_SCALE_PULSE && !EnhancedNodeModels.config.DISABLE_ANTENNA_PULSE) {
-        nodeGroup.children.forEach(child => {
-          if (child.userData && child.userData.isAntenna) {
-            if (!child.userData.baseScale) {
-              child.userData.baseScale = 1.0;
-            }
-            const pulse = Math.sin(time * nodeGroup.userData.antennaPulseSpeed + child.userData.antennaIndex * 0.5) * nodeGroup.userData.antennaaPulseAmplitude;
-            child.scale.set(1.0, 1.0 + pulse, 1.0); // Elongate/compress antenna
-          }
-        });
-      } else {
-        // Keep antenna scale locked at 1.0 (stable node authority)
-        nodeGroup.children.forEach(child => {
-          if (child.userData && child.userData.isAntenna) {
-            child.scale.set(1.0, 1.0, 1.0);
-          }
-        });
-      }
     }
 
     // POLISH: Animate DATA_GATEWAY (ring rotation + portal oscillation + stream flow)
@@ -3495,49 +3515,18 @@ export class EnhancedNodeModels {
       });
     }
 
-    // POLISH: Animate INCOMING_FUNNEL (funnel rotation + width breathing)
-    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Breathing disabled (was ±3% width oscillation)
+    // POLISH: Animate INCOMING_FUNNEL (funnel rotation; width breathing disabled)
+    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Breathing removed
     if (nodeGroup.userData.funnelRotationSpeed) {
       // Funnel rotation
       nodeGroup.rotation.y += deltaTime * nodeGroup.userData.funnelRotationSpeed;
-      
-      // GUARD: Disable legacy width breathing (unintentional mutation without feedback)
-      if (!EnhancedNodeModels.config.DISABLE_LEGACY_SCALE_PULSE && !EnhancedNodeModels.config.DISABLE_FUNNEL_BREATHING) {
-        if (!nodeGroup.userData.baseScale) {
-          nodeGroup.userData.baseScale = 1.0;
-        }
-        const breathing = Math.sin(time * nodeGroup.userData.funnelBreathingSpeed) * nodeGroup.userData.funnelBreathingAmplitude;
-        const targetScale = nodeGroup.userData.baseScale + breathing;
-        nodeGroup.scale.x = targetScale;
-        nodeGroup.scale.z = targetScale;
-        // Keep Y scale constant
-      } else {
-        // Keep scale locked at 1.0 (stable node authority)
-        nodeGroup.scale.x = 1.0;
-        nodeGroup.scale.z = 1.0;
-      }
     }
 
-    // POLISH: Animate COMMAND_PYRAMID (core rotation + glow pulsing)
-    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Glow pulsing disabled (unintentional mutation)
+    // POLISH: Animate COMMAND_PYRAMID (core rotation; glow pulsing disabled)
+    // [SESSION 107] LEGACY SCALE PULSE AUDIT - Glow pulsing removed
     if (nodeGroup.userData.commandRotationSpeed) {
       // Pyramid rotation
       nodeGroup.rotation.y += deltaTime * nodeGroup.userData.commandRotationSpeed;
-      
-      // GUARD: Disable legacy glow pulsing (unintentional mutation without feedback)
-      if (!EnhancedNodeModels.config.DISABLE_LEGACY_SCALE_PULSE && !EnhancedNodeModels.config.DISABLE_GLOW_PULSING) {
-        const glow = nodeGroup.children.find(c => c.userData && c.userData.isAuthorityGlow);
-        if (glow) {
-          const pulse = Math.sin(time * nodeGroup.userData.commandPulseSpeed) * nodeGroup.userData.commandPulseAmplitude;
-          glow.scale.set(1.0 + pulse, 1.0 + pulse, 1.0 + pulse);
-        }
-      } else {
-        // Keep glow scale locked at 1.0 (stable node authority)
-        const glow = nodeGroup.children.find(c => c.userData && c.userData.isAuthorityGlow);
-        if (glow) {
-          glow.scale.set(1.0, 1.0, 1.0);
-        }
-      }
     }
 
     // POLISH: Animate HIERARCHY_TOWER (tower rotation + level oscillation)
@@ -3596,8 +3585,6 @@ export class EnhancedNodeModels {
         }
         if (child.userData.isFlowCore) {
            child.rotation.y -= deltaTime * 0.2;
-           const pulse = 1.0 + Math.sin(time * 2) * 0.1;
-           child.scale.setScalar(pulse);
         }
       });
     }
@@ -3703,16 +3690,10 @@ export class EnhancedNodeModels {
           if (axis) {
             child.rotateOnWorldAxis(axis, deltaTime * speed);
           }
-          
-          // Breathing expansion (containment field fluctuation)
-          // Skip if legacy breathing disabled? No, this is a core visual for this variant.
-          // We keep it subtle.
-          const breathe = 1.0 + Math.sin(time * 0.6 + child.userData.layerIndex) * 0.02;
-          child.scale.setScalar(breathe);
         }
         
         if (child.userData.isDepthCore) {
-           child.scale.setScalar(0.8 + Math.sin(time * 2) * 0.1); // Pulsing singularity
+          // Depth core static scale retained; no breathing
         }
       });
     }
@@ -3754,28 +3735,15 @@ export class EnhancedNodeModels {
     if (nodeGroup.userData.nodeGeometryName === 'INPUT_ECHO_DETECTOR') {
       nodeGroup.children.forEach(child => {
         if (child.userData.isEchoShell) {
-          // Pulsing scale (expanding/contracting shells)
           const shellLayer = child.userData.shellLayer;
-          const pulsePhase = child.userData.pulsePhase;
-          const pulseSpeed = child.userData.pulseSpeed;
-          const pulseAmp = child.userData.pulseAmplitude;
           
-          const pulse = Math.sin(time * pulseSpeed + pulsePhase) * pulseAmp;
-          const scale = 1.0 + pulse;
-          
-          child.scale.setScalar(scale);
-          
-          // Subtle rotation
+          // Subtle rotation only (breathing disabled)
           child.rotation.x += deltaTime * 0.1 * (1 - shellLayer * 0.15);
           child.rotation.y += deltaTime * 0.08 * (shellLayer * 0.2 + 0.5);
         }
         
         if (child.userData.isEchoChamber) {
-          // Central chamber pulses at different frequency
-          const pulse = Math.sin(time * child.userData.pulseSpeed) * 0.1;
-          child.scale.setScalar(1.0 + pulse);
-          
-          // Rotation of chamber
+          // Rotation of chamber (breathing disabled)
           child.rotation.x += deltaTime * 0.3;
           child.rotation.y += deltaTime * 0.2;
         }
@@ -3796,12 +3764,6 @@ export class EnhancedNodeModels {
           // Get position on curve
           const point = curve.getPoint(child.userData.pathOffset);
           child.position.copy(point);
-          
-          // Glow pulse
-          const glow = 0.7 + Math.sin(time * 6) * 0.3;
-          if (child.material) {
-            child.material.opacity = glow;
-          }
         }
       });
     }
@@ -3824,10 +3786,6 @@ export class EnhancedNodeModels {
           // Get point on curve
           const point = curve.getPoint(child.userData.pathOffset);
           child.position.copy(point);
-          
-          // Pulse scale
-          const pulse = 1.0 + Math.sin(time * 5 + child.userData.packetIndex) * 0.2;
-          child.scale.setScalar(pulse);
         }
       });
     }
@@ -3845,12 +3803,6 @@ export class EnhancedNodeModels {
           const jitterZ = Math.sin(time * speed * 1.3 + child.userData.strandIndex) * amp;
           
           child.position.set(jitterX, jitterY, jitterZ);
-          
-          // Pulse opacity for negotiation effect
-          if (child.material) {
-             const pulse = 0.6 + Math.sin(time * 2 + child.userData.strandIndex) * 0.2;
-             child.material.opacity = pulse;
-          }
         }
         
         if (child.userData.isFrictionNode) {
@@ -3864,17 +3816,9 @@ export class EnhancedNodeModels {
 
     // 3. INTEGRATION_CONTINUITY_BINDER (Continuity Binder)
     if (nodeGroup.userData.nodeGeometryName === 'INTEGRATION_CONTINUITY_BINDER') {
-      // Slow breathing tension
-      const tension = Math.sin(time * 0.5) * 0.05;
-      
+      // Anchor rotations retained; breathing tension removed
       nodeGroup.children.forEach(child => {
-        if (child.userData.isBinderLoop) {
-           // Pull loops slightly apart and together (scale tension)
-           const scale = 1.0 + tension * 0.5;
-           child.scale.setScalar(scale);
-        }
-        if (child.userData.isStabilityAnchor) {
-           // Anchor rotates slowly
+        if (child.userData && child.userData.isStabilityAnchor) {
            child.rotation.z += deltaTime * 0.2;
         }
       });
@@ -3899,15 +3843,7 @@ export class EnhancedNodeModels {
            child.position.y = Math.sin(angle * 2) * 0.2 + 0.5; // Undulating orbit
         }
         
-        // Pulsing branches (decision energy)
-        if (child.userData.isDecisionBranch) {
-           const idx = child.userData.branchIndex || 0;
-           // Pulse emissive intensity
-           const pulse = 0.2 + Math.sin(time * 3 + idx) * 0.15;
-           if (child.material && !child.material.userData.immutable) {
-              child.material.emissiveIntensity = pulse;
-           }
-        }
+        // Decision branch emissive pulsing disabled
       });
     }
 
@@ -3939,42 +3875,15 @@ export class EnhancedNodeModels {
            }
         }
         if (child.userData.isFlowLine) {
-           // Pulse flow lines opacity
-           const pulse = 0.4 + Math.sin(time * 4) * 0.2;
-           if (child.material) {
-              child.material.opacity = pulse;
-           }
+           // Flow lines remain at their configured opacity (no pulsing)
         }
         if (child.userData.isMatrixCore) {
-           // Core throbs
-           const scale = 1.0 + Math.sin(time * 3) * 0.1;
-           child.scale.setScalar(scale);
+           // Core scale remains static (no throbbing)
         }
       });
     }
 
-    // Pulse main materials (SKIP frozen or immutable materials)
-    nodeGroup.traverse(child => {
-      if (child.isMesh && child.material && child.material.emissive) {
-        // GUARD: Never animate frozen or immutable materials
-        const isFrozen = Object.isFrozen(child.material);
-        const isImmutable = child.material.userData && child.material.userData.immutable === true;
-        
-        if (isFrozen || isImmutable) {
-          // Skip emissive animation for canonical/immutable materials
-          return;
-        }
-        
-        // Only animate mutable materials
-        try {
-          const pulse = Math.sin(time * 2) * 0.1 + 0.25;
-          child.material.emissiveIntensity = Math.max(0.15, pulse);
-        } catch (err) {
-          // Silently skip if material is read-only
-          // (May occur with strict mode or sealed objects)
-        }
-      }
-    });
+    // Global emissive pulsing disabled for deterministic visuals
 
     // Floating animation
     const float = Math.sin(time * 0.5) * 0.1;
@@ -4134,8 +4043,13 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Trefoil Knot failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotTrefoil',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4194,8 +4108,13 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Triple Helix Knot failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotTripleHelix',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4224,8 +4143,13 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Torus Knot failed, fallback:', err);
-      return this.createStorageNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotTorusKnot',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4277,8 +4201,13 @@ export class EnhancedNodeModels {
       }
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Borromean Rings failed, fallback:', err);
-      return this.createControlNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotBorromean',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4304,8 +4233,13 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Möbius Knot failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotMobius',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4333,8 +4267,13 @@ export class EnhancedNodeModels {
       group.add(tube);
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] Chaotic Knot failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createKnotChaotic',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4492,8 +4431,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Input0 failed, fallback:', err);
-      return this.createInputNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeInput0',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4514,8 +4458,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Input1 failed, fallback:', err);
-      return this.createInputNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeInput1',
+        category: 'input',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4536,8 +4485,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Process0 failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeProcess0',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4558,8 +4512,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Process1 failed, fallback:', err);
-      return this.createProcessNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeProcess1',
+        category: 'process',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4580,8 +4539,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Integration0 failed, fallback:', err);
-      return this.createIntegrationNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeIntegration0',
+        category: 'integration',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4602,8 +4566,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Integration1 failed, fallback:', err);
-      return this.createIntegrationNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeIntegration1',
+        category: 'integration',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4624,8 +4593,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Storage0 failed, fallback:', err);
-      return this.createStorageNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeStorage0',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4646,8 +4620,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Storage1 failed, fallback:', err);
-      return this.createStorageNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeStorage1',
+        category: 'storage',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4668,8 +4647,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Analytics0 failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeAnalytics0',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4690,8 +4674,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Analytics1 failed, fallback:', err);
-      return this.createAnalyticsNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeAnalytics1',
+        category: 'analytics',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4712,8 +4701,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Control0 failed, fallback:', err);
-      return this.createControlNode0(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeControl0',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 
@@ -4734,8 +4728,13 @@ export class EnhancedNodeModels {
       
       return group;
     } catch (err) {
-      console.warn('[EnhancedNodeModels] EXTREME Control1 failed, fallback:', err);
-      return this.createControlNode1(group, color);
+      console.error('[NodeVisualAbort]', {
+        model: 'createExtremeControl1',
+        category: 'control',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
     }
   }
 }

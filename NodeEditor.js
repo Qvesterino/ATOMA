@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 
+// Policy: NodeEditor must not create real nodes (bypass guard)
+const NODE_EDITOR_DEBUG_MARKERS_ENABLED = false;
+
 /**
  * ATOMA Node Editor - Interactive 3D Node Graph System
  * Zero-gravity 3D environment for node selection, dragging, and linking
@@ -11,8 +14,9 @@ export class NodeEditor {
     this.camera = camera;
     this.collisionManager = collisionManager;
     
-    // Node management
-    this.nodes = [];
+    // Decorative debug marker management (policy: no real nodes here)
+    this.debugMarkers = [];
+    this.nodes = this.debugMarkers; // backward compatibility for internal calls
     this.links = [];
     this.nodeGeometry = new THREE.OctahedronGeometry(0.5, 2);
     
@@ -40,50 +44,46 @@ export class NodeEditor {
   }
   
   /**
-   * Create a new node at position with optional data
+   * Create a decorative debug marker (not a Node).
+   * When policy flag is false, creation is skipped.
    */
-  createNode(position = new THREE.Vector3(0, 0, 0), data = {}) {
-    const nodeData = {
-      id: Math.random().toString(36).substr(2, 9),
+  createDebugMarker(position = new THREE.Vector3(0, 0, 0), data = {}) {
+    if (!NODE_EDITOR_DEBUG_MARKERS_ENABLED) {
+      console.warn('[Policy] Bypass node creation disabled:', { system: 'NodeEditor' });
+      return null;
+    }
+    
+    const markerData = {
+      id: `marker-${Math.random().toString(36).substr(2, 9)}`,
       position: position.clone(),
-      type: data.type || 'default',
-      synergy: data.synergy || 'linear',
-      inputs: data.inputs || [],
-      outputs: data.outputs || [],
+      label: data.label || 'debug-marker',
       ...data
     };
     
-    // Create node mesh
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x00ddff,
-      emissive: 0x0088ff,
-      emissiveIntensity: 0.2,
-      metalness: 0.6,
-      roughness: 0.3
+    const geometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const material = new THREE.LineBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.5
     });
+    const edges = new THREE.EdgesGeometry(geometry);
+    const marker = new THREE.LineSegments(edges, material);
+    marker.position.copy(position);
+    marker.userData = {
+      ...markerData,
+      isDebugMarker: true,
+      nonInteractive: true
+    };
     
-    const mesh = new THREE.Mesh(this.nodeGeometry, material.clone());
-    mesh.position.copy(position);
-    mesh.userData = nodeData;
+    this.scene.add(marker);
+    this.debugMarkers.push({ mesh: marker, data: markerData });
     
-    // Node outline for selection
-    const edges = new THREE.EdgesGeometry(this.nodeGeometry);
-    const outline = new THREE.LineSegments(
-      edges,
-      new THREE.LineBasicMaterial({
-        color: 0x00ffff,
-        transparent: true,
-        opacity: 0,
-        linewidth: 2
-      })
-    );
-    mesh.add(outline);
-    outline.userData.isOutline = true;
-    
-    this.scene.add(mesh);
-    this.nodes.push({ mesh, data: nodeData });
-    
-    return nodeData;
+    return markerData;
+  }
+  
+  // Backward compatibility: legacy callers route to debug marker creator
+  createNode(position = new THREE.Vector3(0, 0, 0), data = {}) {
+    return this.createDebugMarker(position, data);
   }
   
   /**

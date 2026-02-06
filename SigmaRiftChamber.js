@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
+import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
+import { getMapConfig } from './MapConfigBase.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 
 /**
@@ -7,12 +9,17 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * An ancient, sacred AI chamber built around a gigantic glowing Rift
  */
 export class SigmaRiftChamber {
-  constructor(scene) {
+  constructor(scene, camera = null) {
     this.scene = scene;
+    this.camera = camera;
     this.animatedObjects = [];
     this.chamberRadius = 60;
     this.chamberHeight = 50;
     this.riftHeight = 18;
+    
+    // Session 112+: Initialize map configuration and reference plane
+    this.initializeMapConfig();
+    this.initializeReferencePlane();
     
     this.createCeiling();
     this.createWalls();
@@ -22,6 +29,39 @@ export class SigmaRiftChamber {
     this.createHolographicRings();
     this.createNeonPaths();
     this.createParticleDrift();
+  }
+  
+  /**
+   * Initialize map configuration
+   */
+  initializeMapConfig() {
+    this.mapConfig = getMapConfig('SigmaRiftChamber');
+    console.log(
+      `[MAP INIT] ${this.mapConfig.mapId} | theme: ${this.mapConfig.theme} | referencePlane: ${this.mapConfig.referencePlane}`
+    );
+  }
+  
+  /**
+   * Initialize reference plane from map config
+   */
+  initializeReferencePlane() {
+    try {
+      this.referencePlane = initMapReferencePlane(
+        this.scene,
+        this.camera,
+        this.mapConfig.referencePlane
+      );
+      
+      console.log(
+        `[REFERENCE PLANE] ${this.mapConfig.referencePlane} initialized for ${this.mapConfig.mapId}`
+      );
+    } catch (err) {
+      console.warn(
+        `[REFERENCE PLANE] Failed to initialize ${this.mapConfig.referencePlane}:`,
+        err
+      );
+      this.referencePlane = null;
+    }
   }
   
   createCeiling() {
@@ -657,6 +697,11 @@ export class SigmaRiftChamber {
   }
   
   update(deltaTime, time) {
+    // Update reference plane (if created via canonical contract)
+    if (this.referencePlane && this.referencePlane.animate) {
+      this.referencePlane.animate(deltaTime, time);
+    }
+    
     this.animatedObjects.forEach(obj => {
       if (obj.type === 'riftCore' && obj.object.material.uniforms) {
         obj.object.material.uniforms.time.value = time;

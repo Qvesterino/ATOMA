@@ -219,47 +219,23 @@ export class VisualHierarchyCorrectionSystem_v1 {
     
     constraints.registerAuxiliaryLayer(mesh, type);
     
-    // Set renderOrder
-    mesh.renderOrder = this.config.auxiliaryRenderOrderBase;
-    if (mesh.children) {
-      mesh.children.forEach(child => {
-        child.renderOrder = this.config.auxiliaryRenderOrderBase;
-      });
-    }
-    
-    // Enforce immediately
-    if (this.config.enableAutoEnforcement) {
-      this._enforceAuxiliaryMesh(mesh, constraints);
-    }
+    // Phase B.3.B: runtime renderOrder mutation and auto-enforcement disabled.
   }
   
   /**
    * Update loop: enforce constraints on all registered nodes
    */
   update(deltaTime = 0.016) {
-    const startTime = performance.now();
-    
-    // Batch enforce constraints
-    for (const node of this.nodeRegistry) {
-      const constraints = this.nodeConstraints.get(node);
-      if (constraints && !constraints.enforced) {
-        this._enforceNodeConstraints(node, constraints);
-        this.stats.constraintsEnforced++;
-      }
-    }
-    
-    this.stats.updateTime = performance.now() - startTime;
+    // Phase B.3.B: disable per-frame hierarchy correction mutations.
+    return;
   }
   
   /**
    * Manually enforce constraints for a single node
    */
   enforceNode(node) {
-    const constraints = this.nodeConstraints.get(node);
-    if (!constraints) return false;
-    
-    this._enforceNodeConstraints(node, constraints);
-    return true;
+    // Phase B.3.B: explicit runtime visual enforcement disabled.
+    return false;
   }
   
   /**
@@ -325,6 +301,9 @@ export class VisualHierarchyCorrectionSystem_v1 {
    * INTERNAL: Enforce constraints on a single node
    */
   _enforceNodeConstraints(node, constraints) {
+    // Phase B.3.B: disable runtime visual hierarchy mutations.
+    return;
+
     // Step 1: Verify core radius is current
     constraints.calculateEffectiveCoreRadius();
     
@@ -374,6 +353,8 @@ export class VisualHierarchyCorrectionSystem_v1 {
    * INTERNAL: Enforce constraints on a single auxiliary mesh
    */
   _enforceAuxiliaryMesh(mesh, constraints) {
+    // Phase B.3.B: disable runtime visual hierarchy mutations.
+    return;
     if (!mesh) return;
     
     const layerType = mesh.userData?.auxiliaryType || 'unknown';

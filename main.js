@@ -7474,6 +7474,19 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    visualNetworkTimeElasticityTick(deltaTime) {
+        // Update visual network time elasticity (visual time reversal when avgSynergy > 0.85 for 5s)
+        if (this.visualNetworkTimeElasticity && this.nodeDynamicMetrics) {
+            // Get average synergy from network metrics
+            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+            this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);
+            this.visualNetworkTimeElasticity.update(deltaTime, this.time);
+            
+            // Store visual time for use in animation systems
+            window.VISUAL_TIME = this.visualNetworkTimeElasticity.getVisualTime();
+        }
+    }
+
     /**
      * Main animation loop
      */
@@ -7763,17 +7776,8 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.synergyPulseVisuals.setAverageSynergy(avgSynergy);
             this.synergyPulseVisuals.update(deltaTime, this.time);
         }
-        
-        // Update visual network time elasticity (visual time reversal when avgSynergy > 0.85 for 5s)
-        if (this.visualNetworkTimeElasticity && this.nodeDynamicMetrics) {
-            // Get average synergy from network metrics
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-            this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);
-            this.visualNetworkTimeElasticity.update(deltaTime, this.time);
-            
-            // Store visual time for use in animation systems
-            window.VISUAL_TIME = this.visualNetworkTimeElasticity.getVisualTime();
-        }
+
+        this.visualNetworkTimeElasticityTick(deltaTime);
         
         // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
         if (this.harmonicResonanceCoupling && this.nodeDynamicMetrics) {

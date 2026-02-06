@@ -27,8 +27,9 @@ export class EvolutionRegistry {
     
     // VFX overlays per node (completely separate from node meshes)
     this.vfxOverlays = {};
+    this.overlayGroups = {};
     
-    // Active burst effects
+    // Active burst effects (FX layer)
     this.activeBursts = [];
     this.burstPool = [];
     this.maxBurstPoolSize = 20;
@@ -69,6 +70,8 @@ export class EvolutionRegistry {
   registerNode(node) {
     const nodeId = this.getNodeId(node);
     
+    this.ensureOverlay(nodeId, node);
+    
     this.registry[nodeId] = {
       node: node,                    // Reference (read-only)
       stage: 0,                      // Current evolution stage (0-4)
@@ -86,10 +89,12 @@ export class EvolutionRegistry {
     };
     
     this.vfxOverlays[nodeId] = {
+      overlayGroup: this.overlayGroups[nodeId],
       glowMesh: null,
       coreMesh: null,
       ringMeshes: [],
-      particleMeshes: []
+      particleMeshes: [],
+      bursts: []
     };
   }
   
@@ -101,6 +106,7 @@ export class EvolutionRegistry {
     this.removeNodeVFX(nodeId);
     delete this.registry[nodeId];
     delete this.vfxOverlays[nodeId];
+    this.removeOverlayGroup(nodeId);
   }
   
   /**
@@ -118,6 +124,44 @@ export class EvolutionRegistry {
   }
   
   /**
+   * Ensure overlay container exists for node (one per node)
+   */
+  ensureOverlay(nodeId, node) {
+    let group = this.overlayGroups[nodeId];
+    if (group && group.parent !== node) {
+      if (group.parent) {
+        group.parent.remove(group);
+      }
+      group = null;
+    }
+    if (!group) {
+      group = new THREE.Group();
+      group.name = `EvolutionOverlay::${nodeId}`;
+      node.add(group);
+      this.overlayGroups[nodeId] = group;
+    }
+    return group;
+  }
+  
+  /**
+   * Remove and dispose overlay container
+   */
+  removeOverlayGroup(nodeId) {
+    const group = this.overlayGroups[nodeId];
+    if (!group) return;
+    // dispose children
+    const children = [...group.children];
+    children.forEach(child => {
+      group.remove(child);
+      this.disposeObject(child);
+    });
+    if (group.parent) {
+      group.parent.remove(group);
+    }
+    delete this.overlayGroups[nodeId];
+  }
+  
+  /**
    * Update evolution for all registered nodes
    * Called once per frame after main systems update
    */
@@ -131,6 +175,12 @@ export class EvolutionRegistry {
       if (!node.parent) {
         this.unregisterNode(node);
         continue;
+      }
+      
+      // Ensure overlay container exists and is parented correctly
+      state.overlayGroup = this.ensureOverlay(nodeId, node);
+      if (this.vfxOverlays[nodeId]) {
+        this.vfxOverlays[nodeId].overlayGroup = state.overlayGroup;
       }
       
       // Calculate current energy from links
@@ -263,36 +313,38 @@ export class EvolutionRegistry {
     const nodeId = this.getNodeId(state.node);
     const node = state.node;
     const overlays = this.vfxOverlays[nodeId];
+    const overlayGroup = overlays?.overlayGroup;
     const intensity = Math.min(1, state.stage / 4);  // 0-1 based on stage
+    if (!overlayGroup) return;
     
     // Apply glow mutation
     if (state.activeMutations.includes('glow')) {
-      this.updateGlowVFX(node, overlays, state, intensity);
+      this.updateGlowVFX(overlayGroup, overlays, state, intensity);
     }
     
     // Apply core mutation
     if (state.activeMutations.includes('core')) {
-      this.updateCoreVFX(node, overlays, state, intensity, deltaTime);
+      this.updateCoreVFX(overlayGroup, overlays, state, intensity, deltaTime);
     }
     
     // Apply ring mutation
     if (state.activeMutations.includes('ring')) {
-      this.updateRingVFX(node, overlays, state, intensity, deltaTime);
+      this.updateRingVFX(overlayGroup, overlays, state, intensity, deltaTime);
     }
     
     // Apply particle mutation
     if (state.activeMutations.includes('particles')) {
-      this.updateParticleVFX(node, overlays, state, intensity, deltaTime);
+      this.updateParticleVFX(overlayGroup, overlays, state, intensity, deltaTime);
     }
     
     // Apply pulse mutation
     if (state.activeMutations.includes('pulse')) {
-      this.updatePulseVFX(node, state, intensity, deltaTime);
+      this.updatePulseVFX(overlays, intensity, deltaTime);
     }
     
     // Apply color mutation
     if (state.activeMutations.includes('color')) {
-      this.updateColorVFX(node, state, intensity);
+      this.updateColorVFX(overlays, node, intensity);
     }
   }
   
@@ -301,7 +353,8 @@ export class EvolutionRegistry {
    * Creates additive glow sphere around node
    * VISUAL HIERARCHY: Capped to 0.35 max opacity (background layer)
    */
-  updateGlowVFX(node, overlays, state, intensity) {
+  updateGlowVFX(overlayGroup, overlays, state, intensity) {
+    const node = state.node;
     const nodeId = this.getNodeId(node);
     const glowColor = this.getNodePrimaryColor(node);
     
@@ -326,11 +379,11 @@ export class EvolutionRegistry {
       // VISUAL HIERARCHY: Render as background layer
       overlays.glowMesh.renderOrder = -1;
       
-      this.scene.add(overlays.glowMesh);
+      overlayGroup.add(overlays.glowMesh);
     }
     
-    // Position and animate glow
-    overlays.glowMesh.position.copy(node.position);
+    // Position and animate glow (local to overlay)
+    overlays.glowMesh.position.set(0, 0, 0);
     // VISUAL HIERARCHY: Cap opacity to 0.35 (was 0.3–0.7)
     overlays.glowMesh.material.opacity = Math.min(
       this.opacityCaps.glowMesh,
@@ -343,7 +396,8 @@ export class EvolutionRegistry {
    * CORE MUTATION - Add rotating inner hologram
    * VISUAL HIERARCHY: Capped to 0.25 max opacity (background layer, subtle)
    */
-  updateCoreVFX(node, overlays, state, intensity, deltaTime) {
+  updateCoreVFX(overlayGroup, overlays, state, intensity, deltaTime) {
+    const node = state.node;
     const nodeId = this.getNodeId(node);
     const secondaryColor = this.getNodeSecondaryColor(node);
     
@@ -374,11 +428,11 @@ export class EvolutionRegistry {
       // VISUAL HIERARCHY: Render as background layer
       overlays.coreMesh.renderOrder = -1;
       
-      this.scene.add(overlays.coreMesh);
+      overlayGroup.add(overlays.coreMesh);
     }
     
-    // Position and animate core
-    overlays.coreMesh.position.copy(node.position);
+    // Position and animate core (local to overlay)
+    overlays.coreMesh.position.set(0, 0, 0);
     // VISUAL HIERARCHY: Cap opacity to 0.25 (was 0.0–0.6)
     overlays.coreMesh.material.opacity = Math.min(
       this.opacityCaps.coreMesh,
@@ -397,7 +451,8 @@ export class EvolutionRegistry {
    * RING MUTATION - Add orbit ring
    * VISUAL HIERARCHY: Capped to 0.20 max opacity (background layer, very subtle)
    */
-  updateRingVFX(node, overlays, state, intensity, deltaTime) {
+  updateRingVFX(overlayGroup, overlays, state, intensity, deltaTime) {
+    const node = state.node;
     const nodeId = this.getNodeId(node);
     
     // Create additional ring if we don't have one for this stage
@@ -413,30 +468,32 @@ export class EvolutionRegistry {
       });
       
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-      ring.rotation.x = Math.random() * Math.PI;
-      ring.rotation.y = Math.random() * Math.PI;
+      const seedX = this.seededRandom(nodeId, `ring-x-${overlays.ringMeshes.length}`);
+      const seedY = this.seededRandom(nodeId, `ring-y-${overlays.ringMeshes.length}`);
+      ring.rotation.x = seedX * Math.PI;
+      ring.rotation.y = seedY * Math.PI;
       ring.userData = {
         isEvolutionVFX: true,
         nodeId: nodeId,
         vfxType: 'ring',
         rotationAxis: new THREE.Vector3(
-          Math.random() - 0.5,
-          Math.random() - 0.5,
-          Math.random() - 0.5
+          this.seededRandom(nodeId, 'ring-axis-x') - 0.5,
+          this.seededRandom(nodeId, 'ring-axis-y') - 0.5,
+          this.seededRandom(nodeId, 'ring-axis-z') - 0.5
         ).normalize(),
-        rotationSpeed: 0.5 + Math.random() * 0.5
+        rotationSpeed: 0.5 + this.seededRandom(nodeId, 'ring-speed') * 0.5
       };
       
       // VISUAL HIERARCHY: Render as background layer
       ring.renderOrder = -1;
       
-      this.scene.add(ring);
+      overlayGroup.add(ring);
       overlays.ringMeshes.push(ring);
     }
     
     // Update existing rings
     overlays.ringMeshes.forEach((ring, index) => {
-      ring.position.copy(node.position);
+      ring.position.set(0, 0, 0);
       // VISUAL HIERARCHY: Cap opacity to 0.20 (was 0.0–0.5)
       ring.material.opacity = Math.min(
         this.opacityCaps.ringMeshes,
@@ -456,7 +513,8 @@ export class EvolutionRegistry {
    * PARTICLE MUTATION - Orbiting energy particles
    * VISUAL HIERARCHY: Capped to 0.45 max opacity (background layer, less chaotic)
    */
-  updateParticleVFX(node, overlays, state, intensity, deltaTime) {
+  updateParticleVFX(overlayGroup, overlays, state, intensity, deltaTime) {
+    const node = state.node;
     const nodeId = this.getNodeId(node);
     const particleCount = 6 + Math.floor(intensity * 6);
     
@@ -478,14 +536,14 @@ export class EvolutionRegistry {
         nodeId: nodeId,
         vfxType: 'particle',
         orbitAngle: (overlays.particleMeshes.length / particleCount) * Math.PI * 2,
-        orbitRadius: 1.4 + Math.random() * 0.4,
-        orbitSpeed: 0.5 + Math.random() * 0.5
+        orbitRadius: 1.4 + this.seededRandom(nodeId, `particle-radius-${overlays.particleMeshes.length}`) * 0.4,
+        orbitSpeed: 0.5 + this.seededRandom(nodeId, `particle-speed-${overlays.particleMeshes.length}`) * 0.5
       };
       
       // VISUAL HIERARCHY: Render as background layer
       particle.renderOrder = -1;
       
-      this.scene.add(particle);
+      overlayGroup.add(particle);
       overlays.particleMeshes.push(particle);
     }
     
@@ -498,10 +556,7 @@ export class EvolutionRegistry {
       const z = Math.sin(userData.orbitAngle) * userData.orbitRadius;
       const y = Math.sin(userData.orbitAngle * 0.5) * 0.3;
       
-      particle.position.copy(node.position);
-      particle.position.x += x;
-      particle.position.y += y;
-      particle.position.z += z;
+      particle.position.set(x, y, z);
       
       // VISUAL HIERARCHY: Cap opacity to 0.45 (was 0.7)
       particle.material.opacity = Math.min(
@@ -514,34 +569,45 @@ export class EvolutionRegistry {
   /**
    * PULSE MUTATION - Pulsing intensity animation
    */
-  updatePulseVFX(node, state, intensity, deltaTime) {
-    // Find and modulate child materials
-    node.traverse((child) => {
-      if (child.isMesh && child.material && !child.userData.isEvolutionVFX) {
-        const pulse = 0.5 + Math.sin(performance.now() / 1000 * (2 + intensity * 2)) * 0.3;
-        const pulseIntensity = 0.4 + pulse * 0.4 * intensity;
-        
-        if (child.material.emissiveIntensity !== undefined) {
-          child.material.emissiveIntensity = Math.min(1, pulseIntensity);
-        }
-      }
-    });
+  updatePulseVFX(overlays, intensity, deltaTime) {
+    const pulse = 0.5 + Math.sin(performance.now() / 1000 * (2 + intensity * 2)) * 0.3;
+    const pulseIntensity = 0.4 + pulse * 0.4 * intensity;
+    
+    if (overlays.glowMesh?.material?.emissiveIntensity !== undefined) {
+      overlays.glowMesh.material.emissiveIntensity = Math.min(1, pulseIntensity);
+    }
+    if (overlays.coreMesh?.material?.emissiveIntensity !== undefined) {
+      overlays.coreMesh.material.emissiveIntensity = Math.min(1, pulseIntensity);
+    }
   }
   
   /**
    * COLOR MUTATION - Shift towards secondary palette color
    */
-  updateColorVFX(node, state, intensity) {
+  updateColorVFX(overlays, node, intensity) {
     const primaryColor = new THREE.Color(this.getNodePrimaryColor(node));
     const secondaryColor = new THREE.Color(this.getNodeSecondaryColor(node));
     const blended = new THREE.Color();
     blended.lerpColors(primaryColor, secondaryColor, intensity * 0.3);
     
-    // Apply color shift to main node meshes (children that aren't VFX)
-    node.traverse((child) => {
-      if (child.isMesh && child.material && !child.userData.isEvolutionVFX) {
-        if (child.material.color && child.material.userData.isNodeMesh) {
-          child.material.color.copy(blended);
+    // Apply color shift to overlay materials only
+    if (overlays.glowMesh?.material?.color) {
+      overlays.glowMesh.material.color.copy(blended);
+      if (overlays.glowMesh.material.emissive) {
+        overlays.glowMesh.material.emissive.copy(blended);
+      }
+    }
+    if (overlays.coreMesh?.material?.color) {
+      overlays.coreMesh.material.color.copy(blended);
+      if (overlays.coreMesh.material.emissive) {
+        overlays.coreMesh.material.emissive.copy(blended);
+      }
+    }
+    overlays.ringMeshes.forEach(ring => {
+      if (ring.material?.color) {
+        ring.material.color.copy(blended);
+        if (ring.material.emissive) {
+          ring.material.emissive.copy(blended);
         }
       }
     });
@@ -574,6 +640,10 @@ export class EvolutionRegistry {
    * Create burst effect when stage changes
    */
   createBurstEffect(node, stage) {
+    const nodeId = this.getNodeId(node);
+    const overlayGroup = this.overlayGroups[nodeId];
+    if (!overlayGroup) return;
+    
     let burst = this.burstPool.pop();
     
     if (!burst) {
@@ -587,7 +657,7 @@ export class EvolutionRegistry {
     }
     
     // Configure burst
-    burst.position.copy(node.position);
+    burst.position.set(0, 0, 0);
     burst.scale.setScalar(1);
     
     const burstColors = [0xffaa00, 0x00ffff, 0xff00ff, 0x00ff00];
@@ -600,8 +670,9 @@ export class EvolutionRegistry {
     burst.userData.duration = 0.4;
     burst.userData.maxRadius = 1 + stage * 0.3;
     burst.userData.startTime = performance.now();
+    burst.userData.overlayGroup = overlayGroup;
     
-    this.scene.add(burst);
+    overlayGroup.add(burst);
     this.activeBursts.push(burst);
   }
   
@@ -611,6 +682,10 @@ export class EvolutionRegistry {
   updateBursts(deltaTime) {
     for (let i = this.activeBursts.length - 1; i >= 0; i--) {
       const burst = this.activeBursts[i];
+      if (!burst || !burst.parent) {
+        this.activeBursts.splice(i, 1);
+        continue;
+      }
       const elapsed = performance.now() - burst.userData.startTime;
       const progress = Math.min(1, elapsed / (burst.userData.duration * 1000));
       
@@ -627,7 +702,7 @@ export class EvolutionRegistry {
       burst.material.opacity = opacity;
       
       if (progress >= 1) {
-        this.scene.remove(burst);
+        if (burst.parent) burst.parent.remove(burst);
         this.activeBursts.splice(i, 1);
         
         // Return to pool
@@ -645,37 +720,38 @@ export class EvolutionRegistry {
     const overlays = this.vfxOverlays[nodeId];
     if (!overlays) return;
     
-    // Remove glow
-    if (overlays.glowMesh) {
-      this.scene.remove(overlays.glowMesh);
-      overlays.glowMesh.geometry.dispose();
-      overlays.glowMesh.material.dispose();
-      overlays.glowMesh = null;
+    const overlayGroup = overlays.overlayGroup;
+    
+    // Dispose all overlay children safely
+    if (overlayGroup) {
+      const children = [...overlayGroup.children];
+      children.forEach(child => {
+        overlayGroup.remove(child);
+        this.disposeObject(child);
+      });
     }
     
-    // Remove core
-    if (overlays.coreMesh) {
-      this.scene.remove(overlays.coreMesh);
-      overlays.coreMesh.geometry.dispose();
-      overlays.coreMesh.material.dispose();
-      overlays.coreMesh = null;
-    }
-    
-    // Remove rings
-    overlays.ringMeshes.forEach(ring => {
-      this.scene.remove(ring);
-      ring.geometry.dispose();
-      ring.material.dispose();
-    });
+    overlays.glowMesh = null;
+    overlays.coreMesh = null;
     overlays.ringMeshes = [];
-    
-    // Remove particles
-    overlays.particleMeshes.forEach(particle => {
-      this.scene.remove(particle);
-      particle.geometry.dispose();
-      particle.material.dispose();
-    });
     overlays.particleMeshes = [];
+    overlays.bursts = [];
+    overlays.overlayGroup = null;
+    
+    // Remove overlay group from parent
+    this.removeOverlayGroup(nodeId);
+    
+    // Clear active bursts belonging to this overlay
+    this.activeBursts = this.activeBursts.filter(b => {
+      const keep = b.userData.overlayGroup && b.userData.overlayGroup !== overlayGroup;
+      if (!keep) {
+        if (b.parent) {
+          b.parent.remove(b);
+        }
+        this.disposeObject(b);
+      }
+      return keep;
+    });
   }
   
   /**
@@ -689,15 +765,54 @@ export class EvolutionRegistry {
     
     // Remove all bursts
     this.activeBursts.forEach(burst => {
-      this.scene.remove(burst);
-      burst.geometry.dispose();
-      burst.material.dispose();
+      if (burst?.parent) {
+        burst.parent.remove(burst);
+      }
+      burst.geometry?.dispose?.();
+      if (Array.isArray(burst.material)) {
+        burst.material.forEach(m => m.dispose?.());
+      } else {
+        burst.material?.dispose?.();
+      }
     });
     
     // Clear registry
     this.registry = {};
     this.vfxOverlays = {};
+    this.overlayGroups = {};
     this.activeBursts = [];
     this.burstPool = [];
+  }
+
+  /**
+   * Dispose geometry/material on object recursively
+   */
+  disposeObject(obj) {
+    if (!obj) return;
+    obj.traverse((child) => {
+      if (child.geometry) {
+        child.geometry.dispose?.();
+      }
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose?.());
+        } else {
+          child.material.dispose?.();
+        }
+      }
+    });
+  }
+
+  /**
+   * Deterministic pseudo-random [0,1) based on nodeId + salt
+   */
+  seededRandom(id, salt = '') {
+    const str = `${id}:${salt}`;
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+    }
+    const x = Math.sin(h) * 10000;
+    return x - Math.floor(x);
   }
 }

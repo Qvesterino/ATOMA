@@ -1,29 +1,79 @@
 import * as THREE from 'three';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
+import { getMapConfig } from './MapConfigBase.js';
 
 /**
  * Fractal Valley - Recursive mathematical structures
  * Represents AI visualization of pattern formation and logic
  */
 export class FractalValley {
-  constructor(scene) {
+  constructor(scene, camera = null) {
     this.scene = scene;
+    this.camera = camera;
     this.mountains = [];
     this.fractalFragments = [];
     this.dataRivers = [];
     this.holograms = [];
     this.symbols = [];
     
+    // Session 112+: Initialize map configuration and reference plane
+    this.initializeMapConfig();
+    this.initializeReferencePlane();
+    
+    // World FX Policy: gate decorative world FX
+    this.enableDecorativeWorldFX = this.mapConfig.enableDecorativeWorldFX !== false;
+    
+    // World Time Modulation Policy: gate time-driven world visual animation
+    this.allowWorldTimeModulation = this.mapConfig.allowWorldTimeModulation !== false;
+    
     this.createValleyFloor();
     this.createFractalMountains();
     this.createFloatingFragments();
     this.createDataRivers();
     this.createMist();
-    this.createParticleDrift();
-    this.createFractalHolograms();
-    this.createFloatingSymbols();
-    this.createGeometricConstellations();
-    this.createDistortionWaves();
+    
+    // World FX Policy: gate decorative world FX creation
+    if (this.enableDecorativeWorldFX) {
+      this.createParticleDrift();
+      this.createFractalHolograms();
+      this.createFloatingSymbols();
+      this.createGeometricConstellations();
+      this.createDistortionWaves();
+    }
+  }
+  
+  /**
+   * Initialize map configuration
+   */
+  initializeMapConfig() {
+    this.mapConfig = getMapConfig('FractalValley');
+    console.log(
+      `[MAP INIT] ${this.mapConfig.mapId} | theme: ${this.mapConfig.theme} | referencePlane: ${this.mapConfig.referencePlane}`
+    );
+  }
+  
+  /**
+   * Initialize reference plane from map config
+   */
+  initializeReferencePlane() {
+    try {
+      this.referencePlane = initMapReferencePlane(
+        this.scene,
+        this.camera,
+        this.mapConfig.referencePlane
+      );
+      
+      console.log(
+        `[REFERENCE PLANE] ${this.mapConfig.referencePlane} initialized for ${this.mapConfig.mapId}`
+      );
+    } catch (err) {
+      console.warn(
+        `[REFERENCE PLANE] Failed to initialize ${this.mapConfig.referencePlane}:`,
+        err
+      );
+      this.referencePlane = null;
+    }
   }
   
   /**
@@ -622,46 +672,62 @@ export class FractalValley {
    * Update fractal valley animations
    */
   update(deltaTime, time) {
+    // Update reference plane (canonical contract)
+    if (this.referencePlane && this.referencePlane.animate) {
+      this.referencePlane.animate(deltaTime, time);
+    }
+    
     // Mountains gentle breathing
-    this.mountains.forEach(mountain => {
-      const data = mountain.userData;
-      const breath = Math.sin(time * data.breathSpeed + data.breathOffset) * 0.15;
-      mountain.scale.y = 1 + breath;
-      
-      // Pulse neon outlines
-      mountain.children.forEach(child => {
-        if (child.isLineSegments && child.userData.pulseOffset !== undefined) {
-          const pulse = Math.sin(time * 2 + child.userData.pulseOffset);
-          child.material.opacity = 0.4 + pulse * 0.2;
-        }
+    if (this.allowWorldTimeModulation) {
+      this.mountains.forEach(mountain => {
+        const data = mountain.userData;
+        const breath = Math.sin(time * data.breathSpeed + data.breathOffset) * 0.15;
+        mountain.scale.y = 1 + breath;
       });
-    });
+    }
+    
+    // Pulse neon outlines
+    if (this.allowWorldTimeModulation) {
+      this.mountains.forEach(mountain => {
+        mountain.children.forEach(child => {
+          if (child.isLineSegments && child.userData.pulseOffset !== undefined) {
+            const pulse = Math.sin(time * 2 + child.userData.pulseOffset);
+            child.material.opacity = 0.4 + pulse * 0.2;
+          }
+        });
+      });
+    }
     
     // Floating fragments
-    this.fractalFragments.forEach(fragment => {
-      const data = fragment.userData;
-      
-      fragment.position.y = data.originalY + 
-        Math.sin(time * data.floatSpeed + data.floatOffset) * 3;
-      
-      fragment.rotation.x += data.rotationSpeed * deltaTime;
-      fragment.rotation.y += data.rotationSpeed * deltaTime * 1.5;
-    });
+    if (this.allowWorldTimeModulation) {
+      this.fractalFragments.forEach(fragment => {
+        const data = fragment.userData;
+        
+        fragment.position.y = data.originalY + 
+          Math.sin(time * data.floatSpeed + data.floatOffset) * 3;
+        
+        fragment.rotation.x += data.rotationSpeed * deltaTime;
+        fragment.rotation.y += data.rotationSpeed * deltaTime * 1.5;
+      });
+    }
     
     // Data rivers flow
-    this.dataRivers.forEach(river => {
-      const pulse = Math.sin(time * 1.2 + river.userData.flowOffset);
-      river.material.opacity = 0.25 + pulse * 0.1;
-      river.material.emissiveIntensity = 0.3 + pulse * 0.2;
-    });
+    if (this.allowWorldTimeModulation) {
+      this.dataRivers.forEach(river => {
+        const pulse = Math.sin(time * 1.2 + river.userData.flowOffset);
+        river.material.opacity = 0.25 + pulse * 0.1;
+        river.material.emissiveIntensity = 0.3 + pulse * 0.2;
+      });
+    }
     
     // Mist wave
-    if (this.mist) {
+    if (this.allowWorldTimeModulation && this.mist) {
       this.mist.material.opacity = 0.06 + Math.sin(time * 0.3) * 0.02;
     }
     
+    // World FX Policy: gate decorative FX updates
     // Particles drift
-    if (this.particles) {
+    if (this.enableDecorativeWorldFX && this.particles) {
       const positions = this.particles.geometry.attributes.position.array;
       const velocities = this.particles.userData.velocities;
       
@@ -683,59 +749,63 @@ export class FractalValley {
     }
     
     // Fractal holograms
-    this.holograms.forEach(hologram => {
-      hologram.userData.timer -= deltaTime;
-      
-      if (hologram.userData.timer <= 0 && hologram.userData.duration <= 0) {
-        hologram.userData.duration = 4 + Math.random() * 3;
-        hologram.userData.timer = 8 + Math.random() * 12;
-        hologram.userData.pulsePhase = 0;
-      }
-      
-      if (hologram.userData.duration > 0) {
-        hologram.userData.duration -= deltaTime;
-        hologram.userData.pulsePhase += deltaTime * 1.5;
+    if (this.enableDecorativeWorldFX) {
+      this.holograms.forEach(hologram => {
+        hologram.userData.timer -= deltaTime;
         
-        const fadeIn = Math.min(hologram.userData.pulsePhase, 1);
-        const fadeOut = Math.max(0, hologram.userData.duration / 2);
-        const opacity = Math.min(fadeIn, fadeOut) * 0.35;
+        if (hologram.userData.timer <= 0 && hologram.userData.duration <= 0) {
+          hologram.userData.duration = 4 + Math.random() * 3;
+          hologram.userData.timer = 8 + Math.random() * 12;
+          hologram.userData.pulsePhase = 0;
+        }
         
-        hologram.material.opacity = opacity;
-        hologram.rotation.x += deltaTime * 0.4;
-        hologram.rotation.y += deltaTime * 0.6;
-      } else {
-        hologram.material.opacity = 0;
-      }
-    });
+        if (hologram.userData.duration > 0) {
+          hologram.userData.duration -= deltaTime;
+          hologram.userData.pulsePhase += deltaTime * 1.5;
+          
+          const fadeIn = Math.min(hologram.userData.pulsePhase, 1);
+          const fadeOut = Math.max(0, hologram.userData.duration / 2);
+          const opacity = Math.min(fadeIn, fadeOut) * 0.35;
+          
+          hologram.material.opacity = opacity;
+          hologram.rotation.x += deltaTime * 0.4;
+          hologram.rotation.y += deltaTime * 0.6;
+        } else {
+          hologram.material.opacity = 0;
+        }
+      });
+    }
     
     // Floating symbols
-    this.symbols.forEach(symbol => {
-      symbol.userData.timer -= deltaTime;
-      
-      if (symbol.userData.timer <= 0 && symbol.userData.duration <= 0) {
-        symbol.userData.duration = 3 + Math.random() * 2;
-        symbol.userData.timer = 10 + Math.random() * 15;
-        symbol.userData.fadePhase = 0;
-      }
-      
-      if (symbol.userData.duration > 0) {
-        symbol.userData.duration -= deltaTime;
-        symbol.userData.fadePhase += deltaTime;
+    if (this.enableDecorativeWorldFX) {
+      this.symbols.forEach(symbol => {
+        symbol.userData.timer -= deltaTime;
         
-        const fadeIn = Math.min(symbol.userData.fadePhase, 1);
-        const fadeOut = Math.max(0, symbol.userData.duration);
-        const opacity = Math.min(fadeIn, fadeOut) * 0.25;
+        if (symbol.userData.timer <= 0 && symbol.userData.duration <= 0) {
+          symbol.userData.duration = 3 + Math.random() * 2;
+          symbol.userData.timer = 10 + Math.random() * 15;
+          symbol.userData.fadePhase = 0;
+        }
         
-        symbol.material.opacity = opacity;
-        symbol.rotation.x += deltaTime * 0.3;
-        symbol.rotation.y += deltaTime * 0.2;
-      } else {
-        symbol.material.opacity = 0;
-      }
-    });
+        if (symbol.userData.duration > 0) {
+          symbol.userData.duration -= deltaTime;
+          symbol.userData.fadePhase += deltaTime;
+          
+          const fadeIn = Math.min(symbol.userData.fadePhase, 1);
+          const fadeOut = Math.max(0, symbol.userData.duration);
+          const opacity = Math.min(fadeIn, fadeOut) * 0.25;
+          
+          symbol.material.opacity = opacity;
+          symbol.rotation.x += deltaTime * 0.3;
+          symbol.rotation.y += deltaTime * 0.2;
+        } else {
+          symbol.material.opacity = 0;
+        }
+      });
+    }
     
     // Constellations twinkle
-    if (this.constellations) {
+    if (this.enableDecorativeWorldFX && this.constellations) {
       this.constellations.forEach(constellation => {
         const pulse = Math.sin(time * 0.8 + constellation.userData.pulseOffset);
         constellation.material.opacity = 0.35 + pulse * 0.15;
@@ -743,32 +813,34 @@ export class FractalValley {
     }
     
     // Distortion waves
-    this.distortionWaves.forEach(wave => {
-      wave.userData.timer -= deltaTime;
-      
-      if (wave.userData.timer <= 0 && wave.userData.duration <= 0) {
-        wave.userData.duration = 2 + Math.random() * 1.5;
-        wave.userData.timer = 15 + Math.random() * 15;
-        wave.userData.wavePhase = 0;
-      }
-      
-      if (wave.userData.duration > 0) {
-        wave.userData.duration -= deltaTime;
-        wave.userData.wavePhase += deltaTime * 3;
+    if (this.enableDecorativeWorldFX) {
+      this.distortionWaves.forEach(wave => {
+        wave.userData.timer -= deltaTime;
         
-        wave.material.opacity = Math.sin(wave.userData.wavePhase) * 0.08;
-        
-        // Wave distortion
-        const positions = wave.geometry.attributes.position;
-        for (let i = 0; i < positions.count; i++) {
-          const x = positions.getX(i);
-          const offset = Math.sin(x * 0.1 + wave.userData.wavePhase) * 2;
-          positions.setZ(i, offset);
+        if (wave.userData.timer <= 0 && wave.userData.duration <= 0) {
+          wave.userData.duration = 2 + Math.random() * 1.5;
+          wave.userData.timer = 15 + Math.random() * 15;
+          wave.userData.wavePhase = 0;
         }
-        positions.needsUpdate = true;
-      } else {
-        wave.material.opacity = 0;
-      }
-    });
+        
+        if (wave.userData.duration > 0) {
+          wave.userData.duration -= deltaTime;
+          wave.userData.wavePhase += deltaTime * 3;
+          
+          wave.material.opacity = Math.sin(wave.userData.wavePhase) * 0.08;
+          
+          // Wave distortion
+          const positions = wave.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const offset = Math.sin(x * 0.1 + wave.userData.wavePhase) * 2;
+            positions.setZ(i, offset);
+          }
+          positions.needsUpdate = true;
+        } else {
+          wave.material.opacity = 0;
+        }
+      });
+    }
   }
 }

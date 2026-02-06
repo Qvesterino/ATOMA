@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 
+function vfxFlag(name, def = true) {
+  const v = (typeof window !== 'undefined') ? window[name] : undefined;
+  return (v === undefined) ? def : !!v;
+}
+
 // ============================================================
 // STABLE HOLOGRAM GEOMETRY CACHE
 // Global cache for stable icosphere geometries (not derived from core mesh)
@@ -194,6 +199,8 @@ export function updateHologramShellMaterial(material, deltaTime) {
  * @returns {THREE.Mesh} Hologram shell mesh with locked properties
  */
 export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 1.02, hologramDetail = 2) {
+  if (!vfxFlag('ATOMA_VFX_ENABLE_HOLOGRAM_SHELL', true)) return null;
+
   // Extract radius from core mesh (if available)
   // Use bounding sphere for consistent sizing
   let radius = 1;
@@ -253,6 +260,8 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
  * @returns {boolean} true if shell is valid, false if reasserted
  */
 export function reassertNodeHologramShell(nodeGroup, coreMesh, baseColor = 0x00ffff) {
+  if (!vfxFlag('ATOMA_VFX_ENABLE_HOLOGRAM_SHELL', true)) return null;
+
   if (!nodeGroup || !coreMesh) {
     return false;
   }
