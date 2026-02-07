@@ -25,6 +25,7 @@ import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.j
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
@@ -104,6 +105,9 @@ import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsci
 import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
 import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js';
 import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
+import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
+import { LinkMetricsSanityGuard_v1 } from './LinkMetricsSanityGuard_v1.js';
+import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
 import { LinkCollapseSystem } from './LinkCollapseSystem.js';
@@ -4052,6 +4056,10 @@ document.addEventListener('keydown', () => {
             console.warn('⚠ Hard Interaction Authority System initialization error:', err);
         }
         
+        if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true)) {
+            installShaderFreezeGuard(this.renderer);
+        }
+
         this.animate();
 
     }
@@ -4196,6 +4204,10 @@ hudP05Observer.observe(document.body, {
         this.renderer.toneMappingExposure = 1.0;
         document.body.appendChild(this.renderer.domElement);
         this.gpuSanity = setupGpuSanity(this.renderer);
+
+        if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true) && window.__ATOMA_WARMUP_COMPLETE !== true) {
+            warmupAllVisualVariants(this.renderer, this.scene, this.camera);
+        }
 
         // [B.3-C4] Post-processing toggle stabilization (build once)
         if (typeof window !== 'undefined') {
@@ -4833,6 +4845,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.aiNodes
         );
         console.log('[main.js] NodeLinkingSystem created');
+        if (this.frameScheduler) {
+            this.frameScheduler.register(
+                'visual',
+                (dt) => {
+                    if (this.linkingSystem) {
+                        this.linkingSystem.update(dt, this.time);
+                    }
+                },
+                'visual.linkingSystem'
+            );
+        }
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
         }
@@ -5884,6 +5907,39 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         );
         console.log('[main.js] ParticleEmissionScaler initialized ✓');
+
+        // Canonical semantic link metrics bridge (0-1 normalized)
+        this.linkSemanticMetricsBridge = null;
+        try {
+            if (this.linkingSystem) {
+                this.linkSemanticMetricsBridge = new LinkSemanticMetricsBridge_v1(this.linkingSystem);
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkSemanticMetricsBridge_v1 init failed:', err?.message || err);
+            this.linkSemanticMetricsBridge = null;
+        }
+        this.linkMetricsSanityGuard = null;
+        try {
+            if (this.linkingSystem) {
+                this.linkMetricsSanityGuard = new LinkMetricsSanityGuard_v1(this.linkingSystem);
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkMetricsSanityGuard_v1 init failed:', err?.message || err);
+            this.linkMetricsSanityGuard = null;
+        }
+        this.semanticActivityFilter = null;
+        try {
+            if (this.linkingSystem) {
+                this.semanticActivityFilter = new SemanticActivityFilter_v1(this.linkingSystem);
+                this.semanticActivityFilter.update();
+            }
+        } catch (err) {
+            console.warn('[main.js] SemanticActivityFilter_v1 init failed:', err?.message || err);
+            this.semanticActivityFilter = null;
+        }
+        if (typeof window !== 'undefined') {
+            window.semanticActivityFilter = this.semanticActivityFilter;
+        }
         
         // ===================================================================
         // [SESSION 105] LINK METRICS TO VISUAL BRIDGE - Real-time metrics-to-visuals
@@ -7725,6 +7781,15 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
     runSlowSemanticTick(deltaTime) {
         // Slow semantic 10 Hz logic currently executed inline in animate() when scheduler is unavailable
         // This method exists to satisfy FrameScheduler callbacks.
+        if (this.linkSemanticMetricsBridge) {
+            this.linkSemanticMetricsBridge.update(deltaTime);
+        }
+        if (this.linkMetricsSanityGuard) {
+            this.linkMetricsSanityGuard.update();
+        }
+        if (this.semanticActivityFilter) {
+            this.semanticActivityFilter.update();
+        }
     }
 
     /**
@@ -7747,6 +7812,20 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
                 return result;
             }
             : (_name, fn) => fn();
+
+        if (!window.__atomaPerf) {
+            window.__atomaPerf = {
+                frameCount: 0,
+                systems: {}
+            };
+        }
+        const measure = (name, fn) => {
+            const t0Measure = performance.now();
+            const result = fn();
+            const dt = performance.now() - t0Measure;
+            window.__atomaPerf.systems[name] = (window.__atomaPerf.systems[name] || 0) + dt;
+            return result;
+        };
 
         const now = performance.now();
         if (this.frameClock) {
@@ -7822,12 +7901,16 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update active world
         if (this.activeWorld) {
-            this.activeWorld.update(deltaTime, this.time);
+            measure('activeWorld', () => {
+                this.activeWorld.update(deltaTime, this.time);
+            });
         }
 
         // Update Visual Upgrade Superpack
         if (this.visualSuperpack) {
-            this.visualSuperpack.update(deltaTime);
+            measure('visualSuperpack', () => {
+                this.visualSuperpack.update(deltaTime);
+            });
         }
 
         // Update cinematic effects
@@ -7851,31 +7934,33 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update AI nodes
         if (this.aiNodes) {
-            mark('aiNodes.update', () => {
-                const aiNodesUpdateStart = performance.now();
-                this.aiNodes.update(deltaTime, this.time);
-                this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
-                // === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
-                if (this.updateValidator && !window.updateValidator) {
-                    window.updateValidator = this.updateValidator;
-                    console.log('[Validator] updateValidator exposed to window');
-                }
-                // Update dynamic node spawning system
-                this.aiNodes.updateSpawning(Date.now());
-
-                // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
-                this.nodeUiAcc += deltaTime;
-                if (this.nodeUiAcc >= 0.1) {
-                    this.nodeUiAcc = 0;
-                    this.updateNodeUI();
-                }
-
-                // Lightweight relaxation every ~60 frames (~1s)
-                if (this.frameCount % 60 === 0) {
-                    for (const node of this.aiNodes.nodes) {
-                        relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
+            measure('aiNodes', () => {
+                mark('aiNodes.update', () => {
+                    const aiNodesUpdateStart = performance.now();
+                    this.aiNodes.update(deltaTime, this.time);
+                    this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
+                    // === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
+                    if (this.updateValidator && !window.updateValidator) {
+                        window.updateValidator = this.updateValidator;
+                        console.log('[Validator] updateValidator exposed to window');
                     }
-                }
+                    // Update dynamic node spawning system
+                    this.aiNodes.updateSpawning(Date.now());
+
+                    // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
+                    this.nodeUiAcc += deltaTime;
+                    if (this.nodeUiAcc >= 0.1) {
+                        this.nodeUiAcc = 0;
+                        this.updateNodeUI();
+                    }
+
+                    // Lightweight relaxation every ~60 frames (~1s)
+                    if (this.frameCount % 60 === 0) {
+                        for (const node of this.aiNodes.nodes) {
+                            relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
+                        }
+                    }
+                });
             });
         }
         
@@ -8083,6 +8168,14 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             }
         }
         this.frameCount = (this.frameCount || 0) + 1;
+        window.__atomaPerf.frameCount += 1;
+        if (window.__atomaPerf.frameCount % 300 === 0) {
+            console.log('ATOMA PERF (avg ms per frame):');
+            const fc = window.__atomaPerf.frameCount;
+            for (const k in window.__atomaPerf.systems) {
+                console.log(k, (window.__atomaPerf.systems[k] / fc).toFixed(3));
+            }
+        }
         
         // ====================================================================
         // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
@@ -8135,7 +8228,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Runs every frame (60fps) to ensure __ATOMA_LIVE_METRICS__ is always up-to-date
         // ====================================================================
         if (this.metricsRuntime_v1) {
-            this.metricsRuntime_v1.update(deltaTime);
+            measure('metricsRuntime_v1', () => {
+                this.metricsRuntime_v1.update(deltaTime);
+            });
         }
 
   //      if (shouldRunMetrics && this.coreMetricsVM) {
@@ -8147,7 +8242,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // EXTRACTION PACK V1.0: Update Personality Runtime Orchestration
         // ====================================================================
         if (this.personalityRuntime_v1) {
-            this.personalityRuntime_v1.update(deltaTime);
+            measure('personalityRuntime_v1', () => {
+                this.personalityRuntime_v1.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -8177,7 +8274,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Uses hysteresis + time windows to avoid rapid oscillation
         // Respects manual F7 overrides (locks to MANUAL_LOCKED mode)
         if (this.adaptivePerformanceMonitor?.update) {
-            this.adaptivePerformanceMonitor.update(deltaTime);
+            measure('adaptivePerformanceMonitor', () => {
+                this.adaptivePerformanceMonitor.update(deltaTime);
+            });
         }
 
         // ====================================================================
@@ -8687,12 +8786,16 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update Node Micro-Events 1.0 (personality-driven spontaneous events)
         if (this.nodeMicroEvents && this.aiNodes) {
-            this.nodeMicroEvents.update(deltaTime, this.aiNodes.nodes);
+            measure('nodeMicroEvents', () => {
+                this.nodeMicroEvents.update(deltaTime, this.aiNodes.nodes);
+            });
         }
 
         // Update World Personality Controller 2.0 (global mood-driven world events)
         if (this.worldPersonalityController && this.aiNodes) {
-            this.worldPersonalityController.update(deltaTime, this.aiNodes.nodes);
+            measure('worldPersonalityController', () => {
+                this.worldPersonalityController.update(deltaTime, this.aiNodes.nodes);
+            });
         }
         if (this.frameCount % (60 * 30) === 0) {
   console.log(this.coreMetricsVM.metrics, this.coreMetricsVM.meta);
@@ -8783,7 +8886,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update Semantic Glyph AI 5.0 (After Glyph Layer 4.0)
         if (this.semanticGlyphAI && this.aiNodes) {
-            this.semanticGlyphAI.update(deltaTime, this.aiNodes.nodes);
+            measure('semanticGlyphAI', () => {
+                this.semanticGlyphAI.update(deltaTime, this.aiNodes.nodes);
+            });
         }
 
         // Update Glyph Fusion Overlay 4.1 (After Semantic Glyph AI)
@@ -8841,10 +8946,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update linking system with time and deltaTime for animations
         if (this.linkingSystem) {
-            mark('linkingSystem.update', () => {
-                this.linkingSystem.update(deltaTime, this.time);
-                this.updateLinkingUI();
-            });
+            this.updateLinkingUI();
         }
 
         // ============================================================================
@@ -8937,7 +9039,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update Safe Evolution Manager - External node evolution system
         if (this.evolutionManager && this.linkingSystem && this.aiNodes) {
-            this.evolutionManager.update(deltaTime, this.aiNodes.nodes, this.linkingSystem);
         }
 
         // Update Safe Legendary Node Pack - External legendary system
@@ -9057,7 +9158,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Update Node Evolution 2.0 - Visual node evolution system
         if (this.nodeEvolution && this.aiNodes) {
-            this.nodeEvolution.update(deltaTime, {}, this.linkingSystem);
+            measure('nodeEvolution', () => {
+                this.nodeEvolution.update(deltaTime, {}, this.linkingSystem);
+            });
         }
 
         // DISABLED: Update Safe Node Archetypes Pack - Visual archetype animations
@@ -9894,6 +9997,17 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.evolutionManager = new SafeEvolutionManager(this.scene);
 
         // Auto-registers nodes on first update, no invasive setup needed
+        if (this.frameScheduler) {
+            this.frameScheduler.register(
+                'background',
+                (dt) => {
+                    if (this.evolutionManager && this.linkingSystem && this.aiNodes) {
+                        this.evolutionManager.update(dt, this.aiNodes.nodes, this.linkingSystem);
+                    }
+                },
+                'background.evolutionManager'
+            );
+        }
     }
 
     /**

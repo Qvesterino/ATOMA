@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { safeSetEmissive } from './_EmissiveUtils.js';
+import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
 /**
  * SAFE LEGENDARY LINK FX
@@ -73,6 +74,19 @@ export class SafeLegendaryLinkFX {
     // Tracking
     this.lastUpdateFrame = 0;
     this.activeBursts = [];
+
+    // Material template cache (clone per use to keep per-mesh edits isolated)
+    this.materialPool = new Map();
+  }
+
+  getMaterial(key, factory) {
+    if (!this.materialPool.has(key)) {
+      const created = factory();
+      freezeMaterialConfig(created);
+      this.materialPool.set(key, created);
+    }
+    const base = this.materialPool.get(key);
+    return base.clone ? base.clone() : base;
   }
   
   /**
@@ -345,13 +359,16 @@ export class SafeLegendaryLinkFX {
     // Create small spheres along the curve
     curvePoints.forEach((point, idx) => {
       const geo = new THREE.SphereGeometry(0.08, 6, 6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: color,
-        transparent: true,
-        emissive: color,
-        emissiveIntensity: 0.6,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `aurora-band-${color}`,
+        () => new THREE.MeshStandardMaterial({
+          color: color,
+          transparent: true,
+          emissive: color,
+          emissiveIntensity: 0.6,
+          fog: false
+        })
+      );
       
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.copy(point);
@@ -430,13 +447,16 @@ export class SafeLegendaryLinkFX {
    */
   createFractalPanel(curvePoints, index, params) {
     const geo = new THREE.BoxGeometry(0.3, 0.3, 0.02);
-    const mat = new THREE.MeshStandardMaterial({
-      color: params.panelColor,
-      transparent: true,
-      emissive: params.panelColor,
-      emissiveIntensity: 0.5,
-      fog: false
-    });
+    const mat = this.getMaterial(
+      `fractal-panel-${params.panelColor}`,
+      () => new THREE.MeshStandardMaterial({
+        color: params.panelColor,
+        transparent: true,
+        emissive: params.panelColor,
+        emissiveIntensity: 0.5,
+        fog: false
+      })
+    );
     
     const panel = new THREE.Mesh(geo, mat);
     panel.userData = { isLegendaryLinkVFX: true, type: 'fractal_panel' };
@@ -449,13 +469,16 @@ export class SafeLegendaryLinkFX {
    */
   createFractalShard(params) {
     const geo = new THREE.TetrahedronGeometry(0.06, 1);
-    const mat = new THREE.MeshStandardMaterial({
-      color: params.primaryColor,
-      transparent: true,
-      emissive: params.primaryColor,
-      emissiveIntensity: 0.7,
-      fog: false
-    });
+    const mat = this.getMaterial(
+      `fractal-shard-${params.primaryColor}`,
+      () => new THREE.MeshStandardMaterial({
+        color: params.primaryColor,
+        transparent: true,
+        emissive: params.primaryColor,
+        emissiveIntensity: 0.7,
+        fog: false
+      })
+    );
     
     const shard = new THREE.Mesh(geo, mat);
     shard.userData = { isLegendaryLinkVFX: true, type: 'fractal_shard' };
@@ -505,13 +528,16 @@ export class SafeLegendaryLinkFX {
         // Create shockwave mesh points
         curvePoints.forEach(point => {
           const geo = new THREE.SphereGeometry(0.06, 6, 6);
-          const mat = new THREE.MeshStandardMaterial({
-            color: params.shockwaveColor,
-            transparent: true,
-            emissive: params.shockwaveColor,
-            emissiveIntensity: 0.8,
-            fog: false
-          });
+          const mat = this.getMaterial(
+            `shockwave-${params.shockwaveColor}`,
+            () => new THREE.MeshStandardMaterial({
+              color: params.shockwaveColor,
+              transparent: true,
+              emissive: params.shockwaveColor,
+              emissiveIntensity: 0.8,
+              fog: false
+            })
+          );
           
           const mesh = new THREE.Mesh(geo, mat);
           mesh.position.copy(point);
@@ -547,13 +573,16 @@ export class SafeLegendaryLinkFX {
     
     curvePoints.forEach(point => {
       const geo = new THREE.SphereGeometry(0.05, 6, 6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.trailColor,
-        transparent: true,
-        emissive: params.trailColor,
-        emissiveIntensity: 0.5,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `singularity-trail-${params.trailColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.trailColor,
+          transparent: true,
+          emissive: params.trailColor,
+          emissiveIntensity: 0.5,
+          fog: false
+        })
+      );
       
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.copy(point);
@@ -629,13 +658,16 @@ export class SafeLegendaryLinkFX {
    */
   createSigmaFrame(curvePoints, params) {
     const geo = new THREE.BoxGeometry(0.2, 0.2, 0.01);
-    const mat = new THREE.MeshStandardMaterial({
-      color: params.frameColor,
-      transparent: true,
-      emissive: params.frameColor,
-      emissiveIntensity: 0.6,
-      fog: false
-    });
+    const mat = this.getMaterial(
+      `sigma-frame-${params.frameColor}`,
+      () => new THREE.MeshStandardMaterial({
+        color: params.frameColor,
+        transparent: true,
+        emissive: params.frameColor,
+        emissiveIntensity: 0.6,
+        fog: false
+      })
+    );
     
     const frame = new THREE.Mesh(geo, mat);
     frame.userData = { isLegendaryLinkVFX: true, type: 'sigma_frame' };
@@ -648,13 +680,16 @@ export class SafeLegendaryLinkFX {
    */
   createSigmaSpark(params) {
     const geo = new THREE.SphereGeometry(0.04, 6, 6);
-    const mat = new THREE.MeshStandardMaterial({
-      color: params.glitchColor,
-      transparent: true,
-      emissive: params.glitchColor,
-      emissiveIntensity: 1.0,
-      fog: false
-    });
+    const mat = this.getMaterial(
+      `sigma-spark-${params.glitchColor}`,
+      () => new THREE.MeshStandardMaterial({
+        color: params.glitchColor,
+        transparent: true,
+        emissive: params.glitchColor,
+        emissiveIntensity: 1.0,
+        fog: false
+      })
+    );
     
     const spark = new THREE.Mesh(geo, mat);
     spark.userData = { isLegendaryLinkVFX: true, type: 'sigma_spark' };
@@ -761,13 +796,16 @@ export class SafeLegendaryLinkFX {
     
     curvePoints.forEach(point => {
       const geo = new THREE.SphereGeometry(0.06, 6, 6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: color,
-        transparent: true,
-        emissive: color,
-        emissiveIntensity: 0.5,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `quantum-band-${color}`,
+        () => new THREE.MeshStandardMaterial({
+          color: color,
+          transparent: true,
+          emissive: color,
+          emissiveIntensity: 0.5,
+          fog: false
+        })
+      );
       
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.copy(point);
@@ -786,13 +824,16 @@ export class SafeLegendaryLinkFX {
     
     curvePoints.forEach(point => {
       const geo = new THREE.SphereGeometry(0.04, 6, 6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x00ddff,
-        transparent: true,
-        emissive: 0x00ddff,
-        emissiveIntensity: 0.3,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        'quantum-echo',
+        () => new THREE.MeshStandardMaterial({
+          color: 0x00ddff,
+          transparent: true,
+          emissive: 0x00ddff,
+          emissiveIntensity: 0.3,
+          fog: false
+        })
+      );
       
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.copy(point);
@@ -807,13 +848,16 @@ export class SafeLegendaryLinkFX {
    */
   createQuantumParticle(params) {
     const geo = new THREE.SphereGeometry(0.03, 6, 6);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xff00ff,
-      transparent: true,
-      emissive: 0xff00ff,
-      emissiveIntensity: 0.8,
-      fog: false
-    });
+    const mat = this.getMaterial(
+      'quantum-particle',
+      () => new THREE.MeshStandardMaterial({
+        color: 0xff00ff,
+        transparent: true,
+        emissive: 0xff00ff,
+        emissiveIntensity: 0.8,
+        fog: false
+      })
+    );
     
     const particle = new THREE.Mesh(geo, mat);
     particle.userData = { isLegendaryLinkVFX: true, type: 'quantum_particle' };

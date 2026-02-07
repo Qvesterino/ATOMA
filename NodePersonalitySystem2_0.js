@@ -48,6 +48,18 @@ export class NodePersonalitySystem2_0 {
   }
 
   /**
+   * Ensure personality baseline for emissive intensity is captured
+   * Prevents drift by capturing baseline once per node
+   */
+  ensurePersonalityBaseline(node) {
+    if (!node || !node.material) return;
+
+    if (node._personalityBaselineEmissive === undefined) {
+      node._personalityBaselineEmissive = node.material.emissiveIntensity ?? 0.3;
+    }
+  }
+
+  /**
    * Register a node and assign its personality
    * Call this when nodes are created
    */
@@ -547,7 +559,8 @@ export class NodePersonalitySystem2_0 {
     if (!node.material || !node.material.emissive) return;
 
     try {
-      const baseIntensity = node.material.emissiveIntensity || 0.3;
+      ensurePersonalityBaseline(node);
+      const baseIntensity = node._personalityBaselineEmissive;
 
       switch (personality.type) {
         case 'RADIANT_OPTIMIZER':

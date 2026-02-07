@@ -246,8 +246,10 @@ export class ExtremeAINodeEvolution3 {
         child.rotation.y += 0.025;
         child.rotation.z += 0.008 * Math.sin(Date.now() * 0.002);
 
-        const scaleVar = 1 + Math.sin(Date.now() * 0.003) * 0.05;
-        child.scale.multiplyScalar(scaleVar);
+        const phase = this.advanceChildPhase(child, deltaTime, 3);
+        const scaleVar = 1 + Math.sin(phase) * 0.05;
+        const baseScale = this.ensureChildBaseScale(child);
+        child.scale.copy(baseScale).multiplyScalar(scaleVar);
 
         if (child.material?.emissive) {
           const intensity = 0.6 + Math.sin(Date.now() * 0.004) * 0.2;
@@ -267,20 +269,23 @@ export class ExtremeAINodeEvolution3 {
       if (child.userData.isPulseCore) {
         if (stage === 0) {
           // BASE: gentle pulse
-          const scale = 1 + Math.sin(Date.now() * 0.001) * 0.05;
-          child.scale.setScalar(scale);
+          const basePhase = this.advanceChildPhase(child, deltaTime, 1);
+          const baseScaleValue = 1 + Math.sin(basePhase) * 0.05;
+          child.scale.setScalar(baseScaleValue);
         } else if (stage === 1) {
           // EVOLVING: stronger pulse
-          const scale = 1 + Math.sin(Date.now() * 0.003) * 0.12;
-          child.scale.setScalar(scale);
+          const evolvingPhase = this.advanceChildPhase(child, deltaTime, 3);
+          const evolvingScale = 1 + Math.sin(evolvingPhase) * 0.12;
+          child.scale.setScalar(evolvingScale);
 
           if (child.material?.emissive) {
             child.material.emissiveIntensity = 0.8 + progress * 0.2;
           }
         } else if (stage === 2) {
           // ASCENDED: intense pulsing with color shifts
-          const scale = 1 + Math.sin(Date.now() * 0.005) * 0.2;
-          child.scale.setScalar(scale);
+          const ascendedPhase = this.advanceChildPhase(child, deltaTime, 5);
+          const ascendedScale = 1 + Math.sin(ascendedPhase) * 0.2;
+          child.scale.setScalar(ascendedScale);
 
           if (child.material?.emissive) {
             child.material.emissiveIntensity = Math.min(1, 1.0 + Math.cos(Date.now() * 0.004) * 0.3);
@@ -351,9 +356,9 @@ export class ExtremeAINodeEvolution3 {
         // EVOLVING: petal opening/closing
         child.rotation.z += 0.006;
         
-        const breathe = Math.sin(Date.now() * 0.002) * 0.03;
-        const baseScale = 1.0;
-        child.scale.setScalar(baseScale + breathe);
+        const fractalPhase = this.advanceChildPhase(child, deltaTime, 2);
+        const breathe = Math.sin(fractalPhase) * 0.03;
+        child.scale.setScalar(1.0 + breathe);
 
         if (child.material?.emissive) {
           child.material.emissiveIntensity = 0.4 - (child.userData.layer || 0) * 0.1 + progress * 0.15;
@@ -362,9 +367,9 @@ export class ExtremeAINodeEvolution3 {
         // ASCENDED: deeper breathing, glow pulsing
         child.rotation.z += 0.015;
 
-        const breathe = Math.sin(Date.now() * 0.004) * 0.08;
-        const baseScale = 1.0;
-        child.scale.setScalar(baseScale + breathe);
+        const ascendedFractalPhase = this.advanceChildPhase(child, deltaTime, 4);
+        const breatheAscended = Math.sin(ascendedFractalPhase) * 0.08;
+        child.scale.setScalar(1.0 + breatheAscended);
 
         if (child.material?.emissive) {
           const intensity = 0.5 - (child.userData.layer || 0) * 0.1;
@@ -490,7 +495,8 @@ export class ExtremeAINodeEvolution3 {
         return;
       } else if (stage === 1) {
         // EVOLVING: gentle radial expansion
-        const expand = Math.sin(Date.now() * 0.002) * 0.1;
+        const expandPhase = this.advanceChildPhase(child, deltaTime, 2);
+        const expand = Math.sin(expandPhase) * 0.1;
         const scale = 1.0 + (child.userData.echoIndex || 0) * 0.3 + expand;
         child.scale.setScalar(scale);
 
@@ -501,7 +507,8 @@ export class ExtremeAINodeEvolution3 {
         }
       } else if (stage === 2) {
         // ASCENDED: strong pulsing expansion + rotation
-        const expand = Math.sin(Date.now() * 0.005) * 0.2;
+        const expandPhase = this.advanceChildPhase(child, deltaTime, 5);
+        const expand = Math.sin(expandPhase) * 0.2;
         const scale = 1.0 + (child.userData.echoIndex || 0) * 0.3 + expand;
         child.scale.setScalar(scale);
 
@@ -663,11 +670,13 @@ export class ExtremeAINodeEvolution3 {
       } else if (child.userData.isGlitch) {
         if (stage === 0) {
           // BASE: gentle pulse
-          const scale = 1 + Math.sin(Date.now() * 0.002) * 0.1;
+          const phase = this.advanceChildPhase(child, deltaTime, 2);
+          const scale = 1 + Math.sin(phase) * 0.1;
           child.scale.setScalar(scale);
         } else if (stage === 1) {
           // EVOLVING: moderate glitch pulsing
-          const scale = 1 + Math.sin(Date.now() * 0.004) * 0.15;
+          const phase = this.advanceChildPhase(child, deltaTime, 4);
+          const scale = 1 + Math.sin(phase) * 0.15;
           child.scale.setScalar(scale);
 
           if (child.material?.emissive) {
@@ -675,7 +684,8 @@ export class ExtremeAINodeEvolution3 {
           }
         } else if (stage === 2) {
           // ASCENDED: intense glitch flashing
-          const scale = 1 + Math.sin(Date.now() * 0.008) * 0.3;
+          const phase = this.advanceChildPhase(child, deltaTime, 8);
+          const scale = 1 + Math.sin(phase) * 0.3;
           child.scale.setScalar(scale);
 
           if (child.material?.emissive) {
@@ -689,6 +699,32 @@ export class ExtremeAINodeEvolution3 {
   // ═══════════════════════════════════════════════════════════════════════════
   // UTILITY METHODS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  advanceChildPhase(child, deltaTime, speed) {
+    if (!child.userData) {
+      child.userData = {};
+    }
+
+    if (typeof child.userData._evoPhase !== 'number') {
+      child.userData._evoPhase = Math.random() * Math.PI * 2;
+    }
+
+    const nextPhase = child.userData._evoPhase + deltaTime * speed;
+    child.userData._evoPhase = nextPhase;
+    return nextPhase;
+  }
+
+  ensureChildBaseScale(child) {
+    if (!child.userData) {
+      child.userData = {};
+    }
+
+    if (!child.userData._evoBaseScale) {
+      child.userData._evoBaseScale = child.scale.clone();
+    }
+
+    return child.userData._evoBaseScale;
+  }
 
   /**
    * Force a specific evolution stage for testing

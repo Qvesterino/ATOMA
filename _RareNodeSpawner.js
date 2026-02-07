@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
 /**
  * RARE NODE SPAWNER (SAFE)
@@ -91,6 +92,19 @@ export class RareNodeSpawner {
       spawnAttempts: 0,
       frameCounter: 0
     };
+
+    // Material templates cache (clone per use to keep per-node tweaks local)
+    this.materialPool = new Map();
+  }
+
+  getMaterial(key, factory) {
+    if (!this.materialPool.has(key)) {
+      const created = factory();
+      freezeMaterialConfig(created);
+      this.materialPool.set(key, created);
+    }
+    const base = this.materialPool.get(key);
+    return base.clone ? base.clone() : base;
   }
   
   /**
@@ -286,13 +300,16 @@ export class RareNodeSpawner {
   createPrismNode(group, color) {
     // Main crystal core
     const geometry = new THREE.IcosahedronGeometry(0.8, 3);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: color,
-      emissiveIntensity: 0.6
-    });
+    const material = this.getMaterial(
+      `prism-core-${color}`,
+      () => new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.9,
+        roughness: 0.1,
+        emissive: color,
+        emissiveIntensity: 0.6
+      })
+    );
     
     const core = new THREE.Mesh(geometry, material);
     group.add(core);
@@ -389,13 +406,16 @@ export class RareNodeSpawner {
   createEmberNode(group, color) {
     // Pulsing core
     const coreGeometry = new THREE.SphereGeometry(0.6, 16, 16);
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.7
-    });
+    const coreMaterial = this.getMaterial(
+      `ember-core-${color}`,
+      () => new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.6,
+        roughness: 0.4,
+        emissive: color,
+        emissiveIntensity: 0.7
+      })
+    );
     
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
     group.add(core);
@@ -428,11 +448,14 @@ export class RareNodeSpawner {
   createSeraphinNode(group, color) {
     // Central core
     const coreGeometry = new THREE.SphereGeometry(0.4, 16, 16);
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: 0.5
-    });
+    const coreMaterial = this.getMaterial(
+      `seraph-core-${color}`,
+      () => new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: 0.5
+      })
+    );
     
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
     group.add(core);
@@ -571,13 +594,16 @@ export class RareNodeSpawner {
   createResonanceNode(group, color) {
     // Oscillating octahedron
     const geometry = new THREE.OctahedronGeometry(0.7, 2);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.5
-    });
+    const material = this.getMaterial(
+      `resonance-core-${color}`,
+      () => new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.8,
+        roughness: 0.2,
+        emissive: color,
+        emissiveIntensity: 0.5
+      })
+    );
     
     const mesh = new THREE.Mesh(geometry, material);
     group.add(mesh);

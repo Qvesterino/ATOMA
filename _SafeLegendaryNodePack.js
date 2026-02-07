@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { safeSetEmissive } from './_EmissiveUtils.js';
+import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
 /**
  * SAFE LEGENDARY NODE PACK 2.0
@@ -75,6 +76,19 @@ export class SafeLegendaryNodePack {
     this.lastSpawnCheck = performance.now();
     this.activeBursts = [];
     this.spawnParticles = [];
+
+    // Material template cache (clone per use to keep per-instance opacity/emissive changes local)
+    this.materialPool = new Map();
+  }
+
+  getMaterial(key, factory) {
+    if (!this.materialPool.has(key)) {
+      const created = factory();
+      freezeMaterialConfig(created);
+      this.materialPool.set(key, created);
+    }
+    const base = this.materialPool.get(key);
+    return base.clone ? base.clone() : base;
   }
   
   /**
@@ -354,13 +368,16 @@ export class SafeLegendaryNodePack {
       const color = params.colors[ringIndex % params.colors.length];
       
       const geo = new THREE.TorusGeometry(1.2 + ringIndex * 0.3, 0.04, 16, 64);
-      const mat = new THREE.MeshStandardMaterial({
-        color: color,
-        transparent: true,
-        emissive: color,
-        emissiveIntensity: 0.5,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `aurora-ring-${color}`,
+        () => new THREE.MeshStandardMaterial({
+          color: color,
+          transparent: true,
+          emissive: color,
+          emissiveIntensity: 0.5,
+          fog: false
+        })
+      );
       
       const ring = new THREE.Mesh(geo, mat);
       ring.userData = {
@@ -487,13 +504,16 @@ export class SafeLegendaryNodePack {
     // Create core sphere if needed
     if (!vfx.aura) {
       const geo = new THREE.IcosahedronGeometry(0.8, 4);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.coreColor,
-        transparent: true,
-        emissive: params.coreColor,
-        emissiveIntensity: 0.8,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `singularity-core-${params.coreColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.coreColor,
+          transparent: true,
+          emissive: params.coreColor,
+          emissiveIntensity: 0.8,
+          fog: false
+        })
+      );
       
       vfx.aura = new THREE.Mesh(geo, mat);
       vfx.aura.userData = { isLegendaryVFX: true, type: 'singularity_core' };
@@ -514,13 +534,16 @@ export class SafeLegendaryNodePack {
     // Create distortion rings if needed
     while (vfx.rings.length < 2) {
       const geo = new THREE.TorusGeometry(1.5 + vfx.rings.length * 0.4, 0.05, 12, 64);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.auraColor,
-        transparent: true,
-        emissive: params.auraColor,
-        emissiveIntensity: 0.4,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `singularity-ring-${params.auraColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.auraColor,
+          transparent: true,
+          emissive: params.auraColor,
+          emissiveIntensity: 0.4,
+          fog: false
+        })
+      );
       
       const ring = new THREE.Mesh(geo, mat);
       ring.userData = { isLegendaryVFX: true, type: 'singularity_ring' };
@@ -550,13 +573,16 @@ export class SafeLegendaryNodePack {
       const panelIndex = vfx.panels.length;
       
       const geo = new THREE.BoxGeometry(0.6, 0.8, 0.05);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.baseColor,
-        transparent: true,
-        emissive: params.baseColor,
-        emissiveIntensity: 0.6,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `sigma-panel-${params.baseColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.baseColor,
+          transparent: true,
+          emissive: params.baseColor,
+          emissiveIntensity: 0.6,
+          fog: false
+        })
+      );
       
       const panel = new THREE.Mesh(geo, mat);
       panel.userData = {
@@ -594,13 +620,16 @@ export class SafeLegendaryNodePack {
     // Create glitch sparks if needed
     while (vfx.particles.length < params.sparkCount) {
       const geo = new THREE.SphereGeometry(0.06, 6, 6);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.glitchColor,
-        transparent: true,
-        emissive: params.glitchColor,
-        emissiveIntensity: 1.0,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `sigma-spark-${params.glitchColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.glitchColor,
+          transparent: true,
+          emissive: params.glitchColor,
+          emissiveIntensity: 1.0,
+          fog: false
+        })
+      );
       
       const spark = new THREE.Mesh(geo, mat);
       spark.userData = {
@@ -640,13 +669,16 @@ export class SafeLegendaryNodePack {
     // Create crown if needed
     if (!vfx.crown) {
       const geo = new THREE.IcosahedronGeometry(0.5, 3);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.crownColor,
-        transparent: true,
-        emissive: params.crownColor,
-        emissiveIntensity: 0.7,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `quantum-crown-${params.crownColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.crownColor,
+          transparent: true,
+          emissive: params.crownColor,
+          emissiveIntensity: 0.7,
+          fog: false
+        })
+      );
       
       vfx.crown = new THREE.Mesh(geo, mat);
       vfx.crown.userData = { isLegendaryVFX: true, type: 'quantum_crown' };
@@ -667,13 +699,16 @@ export class SafeLegendaryNodePack {
       const ringIndex = vfx.rings.length;
       
       const geo = new THREE.TorusGeometry(0.8 + ringIndex * 0.15, 0.03, 12, 64);
-      const mat = new THREE.MeshStandardMaterial({
-        color: params.ringColor,
-        transparent: true,
-        emissive: params.ringColor,
-        emissiveIntensity: 0.5,
-        fog: false
-      });
+      const mat = this.getMaterial(
+        `quantum-ring-${params.ringColor}`,
+        () => new THREE.MeshStandardMaterial({
+          color: params.ringColor,
+          transparent: true,
+          emissive: params.ringColor,
+          emissiveIntensity: 0.5,
+          fog: false
+        })
+      );
       
       const ring = new THREE.Mesh(geo, mat);
       ring.userData = {

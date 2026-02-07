@@ -52,6 +52,7 @@
  */
 
 import * as THREE from 'three';
+import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
 /**
  * LinkAuraInstance: Internal structure for each link's aura
@@ -631,6 +632,7 @@ function getPooledAuraMaterial(profile, vertexShader, fragmentShader) {
     depthWrite: false,
     side: THREE.DoubleSide,
   });
+  freezeMaterialConfig(material);
   material.userData.__pooledAura = true;
   // Freeze program cache key to prevent program proliferation
   material.customProgramCacheKey = () => 'ATOMA_LINK_CANONICAL_v1';

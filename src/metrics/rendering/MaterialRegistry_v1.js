@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { checkMaterialCreation } from "../MaterialDebugGuard_v1.js";
+import { freezeMaterialConfig } from "../../../Engine/Debug/MaterialFreezeGuard.js";
 // /src/rendering/materials/MaterialRegistry_v1.js
 
 // [B.3-M2] MaterialRegistry shader invalidation guard
@@ -89,6 +90,7 @@ export class MaterialRegistry_v1 {
 
       // Optional: common flags
       mat.toneMapped = params.toneMapped ?? true;
+      freezeMaterialConfig(mat);
 
       return mat;
     });
@@ -342,6 +344,7 @@ export class MaterialRegistry_v1 {
             depthWrite: mat.depthWrite,
             depthTest: mat.depthTest,
           });
+          freezeMaterialConfig(mat);
           return mat;
         }
       );

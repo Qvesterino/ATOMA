@@ -21,6 +21,7 @@
  */
 
 import * as THREE from 'three';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ============================================================================
 // COMPOSITE GEOMETRY BUILDER
@@ -74,6 +75,11 @@ export class CompositeGlyphGenerator {
     // ========================================================================
 
     generateDualFusion(sources, context) {
+        if (!BufferGeometryUtils) {
+            console.warn("Pictogram disabled: BufferGeometryUtils missing");
+            return null;
+        }
+        
         const group = new THREE.Group();
 
         // Central core: blended from both sources
@@ -101,7 +107,7 @@ export class CompositeGlyphGenerator {
 
         if (geometries.length === 0) return null;
 
-        const merged = THREE.BufferGeometryUtils.mergeGeometries(geometries);
+        const merged = BufferGeometryUtils.mergeGeometries(geometries);
         merged.rotateX(-Math.PI / 2); // Face up
 
         return merged;
@@ -112,6 +118,11 @@ export class CompositeGlyphGenerator {
     // ========================================================================
 
     generateTripleFusion(sources, context) {
+        if (!BufferGeometryUtils) {
+            console.warn("Pictogram disabled: BufferGeometryUtils missing");
+            return null;
+        }
+        
         const group = new THREE.Group();
 
         // Central core
@@ -139,7 +150,7 @@ export class CompositeGlyphGenerator {
 
         if (geometries.length === 0) return null;
 
-        return THREE.BufferGeometryUtils.mergeGeometries(geometries);
+        return BufferGeometryUtils.mergeGeometries(geometries);
     }
 
     // ========================================================================
@@ -147,6 +158,11 @@ export class CompositeGlyphGenerator {
     // ========================================================================
 
     generateMultipleFusion(sources, context) {
+        if (!BufferGeometryUtils) {
+            console.warn("Pictogram disabled: BufferGeometryUtils missing");
+            return null;
+        }
+        
         const group = new THREE.Group();
 
         // Central core from first two
@@ -175,7 +191,7 @@ export class CompositeGlyphGenerator {
 
         if (geometries.length === 0) return null;
 
-        return THREE.BufferGeometryUtils.mergeGeometries(geometries);
+        return BufferGeometryUtils.mergeGeometries(geometries);
     }
 
     // ========================================================================

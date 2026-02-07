@@ -281,6 +281,7 @@ export class HarmonicNodeResonanceHalos {
       nodeId,
       node: nodeObject,
       haloMesh,
+      originalScale: haloMesh.scale.clone(),
       
       // Activation
       isActive: false,
@@ -430,8 +431,10 @@ export class HarmonicNodeResonanceHalos {
     const easeAmount = Math.min(1, 3 * deltaTime); // Smooth easing
     
     // Update activation
-    const wasActive = haloData.isActive;
     haloData.isActive = shouldBeActive;
+    if (!shouldBeActive) {
+      this.restoreHaloScale(haloData);
+    }
     
     // Compute target intensity based on hub state
     let targetIntensity = 0;
@@ -523,6 +526,7 @@ export class HarmonicNodeResonanceHalos {
     // Stop updates if intensity is very low
     if (haloData.currentIntensity < HALO_ACTIVATION.MIN_VISIBILITY_THRESHOLD) {
       material.emissiveIntensity = 0;
+      this.restoreHaloScale(haloData);
       return;
     }
     
@@ -537,10 +541,21 @@ export class HarmonicNodeResonanceHalos {
     
     // Add resilience-based stability (reduces breathing at high resilience)
     const stabilityDamping = 1.0 - haloData.recoveryProgress * 0.3;
-    haloData.currentScale = finalScale * stabilityDamping;
-    
-    // Apply scale to halo mesh
-    haloData.haloMesh.scale.set(haloData.currentScale, haloData.currentScale, haloData.currentScale);
+    const finalScaleFactor = finalScale * stabilityDamping;
+    haloData.currentScale = finalScaleFactor;
+
+    const baseScale = this.ensureOriginalScale(haloData);
+    if (baseScale && haloData.haloMesh) {
+      if (haloData.isActive) {
+        haloData.haloMesh.scale.set(
+          baseScale.x * finalScaleFactor,
+          baseScale.y * finalScaleFactor,
+          baseScale.z * finalScaleFactor
+        );
+      } else {
+        haloData.haloMesh.scale.copy(baseScale);
+      }
+    }
     
     // Apply color
     if (material.emissive) {
@@ -582,6 +597,27 @@ export class HarmonicNodeResonanceHalos {
     haloData.isRecovering = true;
     
     // Will be handled by update() and reflected in visuals
+  }
+
+  /**
+   * Ensure the haloData records the baseline scale for reversible adjustments
+   */
+  ensureOriginalScale(haloData) {
+    if (!haloData || !haloData.haloMesh) return null;
+    if (!haloData.originalScale) {
+      haloData.originalScale = haloData.haloMesh.scale.clone();
+    }
+    return haloData.originalScale;
+  }
+
+  /**
+   * Restore halo mesh to its baseline scale
+   */
+  restoreHaloScale(haloData) {
+    const baseScale = this.ensureOriginalScale(haloData);
+    if (baseScale && haloData.haloMesh) {
+      haloData.haloMesh.scale.copy(baseScale);
+    }
   }
 
   /**
@@ -645,6 +681,7 @@ export class HarmonicNodeResonanceHalos {
   dispose() {
     this.nodeHalos.forEach((haloData) => {
       if (haloData.haloMesh) {
+        this.restoreHaloScale(haloData);
         haloData.haloMesh.geometry.dispose();
         haloData.haloMesh.material.dispose();
         haloData.node.remove(haloData.haloMesh);

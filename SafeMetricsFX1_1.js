@@ -33,6 +33,18 @@ export class SafeMetricsFX1_1 {
   }
 
   /**
+   * Ensure metrics baseline for emissive intensity is captured
+   * Prevents drift by capturing baseline once per node
+   */
+  ensureMetricsBaseline(node) {
+    if (!node || !node.material) return;
+
+    if (node._metricsBaselineEmissive === undefined) {
+      node._metricsBaselineEmissive = node.material.emissiveIntensity ?? 0.3;
+    }
+  }
+
+  /**
    * Main update - call from game loop (will throttle internally)
    * Safe to call every frame - will only execute at ~15Hz
    */
@@ -106,39 +118,35 @@ export class SafeMetricsFX1_1 {
     const harmonyThreshold = 70;
     const harmonyValue = metrics.harmony || 0;
 
+    // Ensure baseline is captured
+    ensureMetricsBaseline(node);
+    const baseline = node._metricsBaselineEmissive;
+
+    // Compute target offset based on harmony
+    let targetOffset = 0;
+
     if (harmonyValue > harmonyThreshold) {
       // Calculate boost (0-1 scale based on harmony 70-120)
       const harmonyBoost = Math.max(0, Math.min(1, (harmonyValue - harmonyThreshold) / 50));
       
       // Very subtle: max 0.05 intensity boost (5%)
-      const intensityBoost = harmonyBoost * 0.005; // Extremely subtle
-      
-      try {
-        // Only apply if we have a valid emissiveIntensity
-        if (typeof node.material.emissiveIntensity === 'number') {
-          // Cap total to prevent overdoing it
-          const currentIntensity = node.material.emissiveIntensity || 0;
-          node.material.emissiveIntensity = Math.min(
-            currentIntensity + intensityBoost,
-            1.0 // Never exceed 1.0
-          );
-        }
-      } catch (e) {
-        // Skip silently if emissive not writable
-      }
-
-      state.harmony = harmonyValue;
-    } else if (state.harmony > harmonyThreshold) {
-      // Harmony dropped - fade back
-      try {
-        if (typeof node.material.emissiveIntensity === 'number') {
-          node.material.emissiveIntensity = Math.max(0, node.material.emissiveIntensity - 0.001);
-        }
-      } catch (e) {
-        // Skip silently
-      }
-      state.harmony = harmonyValue;
+      targetOffset = harmonyBoost * 0.005; // Extremely subtle
     }
+
+    // Compute target intensity
+    const targetIntensity = Math.min(baseline + targetOffset, 1.0);
+
+    try {
+      if (typeof node.material.emissiveIntensity === 'number') {
+        const current = node.material.emissiveIntensity;
+        const lerpFactor = 0.1; // Smooth transition
+        node.material.emissiveIntensity = current + (targetIntensity - current) * lerpFactor;
+      }
+    } catch (e) {
+      // Skip silently if emissive not writable
+    }
+
+    state.harmony = harmonyValue;
   }
 
   /**
@@ -153,6 +161,13 @@ export class SafeMetricsFX1_1 {
 
     const instabilityThreshold = 60;
     const instabilityValue = metrics.instability || 0;
+
+    // Ensure baseline is captured
+    ensureMetricsBaseline(node);
+    const baseline = node._metricsBaselineEmissive;
+
+    // Compute target offset (returns to baseline when instability drops)
+    let targetOffset = 0;
 
     if (instabilityValue > instabilityThreshold) {
       const nodeId = node.uuid;
@@ -174,26 +189,28 @@ export class SafeMetricsFX1_1 {
       // Random flicker trigger (1-2% chance per tick)
       const flickerChance = 0.015; // 1.5%
       if (Math.random() < flickerChance) {
-        try {
-          if (typeof node.material.emissiveIntensity === 'number') {
-            // Tiny random flicker (±2%)
-            const flicker_amount = (Math.random() - 0.5) * 0.02;
-            node.material.emissiveIntensity = Math.max(
-              0,
-              Math.min(1.0, node.material.emissiveIntensity + flicker_amount)
-            );
-          }
-        } catch (e) {
-          // Skip silently
-        }
+        // Tiny random flicker offset (±2%)
+        targetOffset = (Math.random() - 0.5) * 0.02;
       }
-
-      state.instability = instabilityValue;
     } else if (state.instability > instabilityThreshold) {
       // Instability dropped - remove flicker state
       this.flickerStates.delete(node.uuid);
-      state.instability = instabilityValue;
     }
+
+    // Compute target intensity (baseline + flicker offset)
+    const targetIntensity = Math.max(0, Math.min(1.0, baseline + targetOffset));
+
+    try {
+      if (typeof node.material.emissiveIntensity === 'number') {
+        const current = node.material.emissiveIntensity;
+        const lerpFactor = 0.15; // Slightly faster for flicker
+        node.material.emissiveIntensity = current + (targetIntensity - current) * lerpFactor;
+      }
+    } catch (e) {
+      // Skip silently
+    }
+
+    state.instability = instabilityValue;
   }
 
   /**
@@ -271,45 +288,47 @@ export class SafeMetricsFX1_1 {
     const energyThreshold = 80;
     const energyValue = metrics.energy || 0;
 
+    // Ensure baseline is captured
+    ensureMetricsBaseline(node);
+    const baseline = node._metricsBaselineEmissive;
+
+    // Compute target offset based on energy
+    let emissiveTargetOffset = 0;
+    let intensityTargetOffset = 0;
+
     if (energyValue > energyThreshold) {
       // Calculate energy boost (0-1 scale)
       const energyBoost = Math.max(0, Math.min(1, (energyValue - energyThreshold) / 40)); // 80-120 range
       
       // Tiny boost: max 10% (0.1)
-      const glowBoost = energyBoost * 0.001; // Extremely subtle
-
-      try {
-        // Apply to emissiveIntensity if exists
-        if (node.material.emissive && typeof node.material.emissiveIntensity === 'number') {
-          node.material.emissiveIntensity = Math.min(
-            1.0,
-            node.material.emissiveIntensity + glowBoost
-          );
-        }
-
-        // Also apply to intensity if it exists
-        if (typeof node.material.intensity === 'number') {
-          node.material.intensity = Math.min(
-            2.0,
-            node.material.intensity + (glowBoost * 0.5)
-          );
-        }
-      } catch (e) {
-        // Skip silently
-      }
-
-      state.energy = energyValue;
-    } else if (state.energy > energyThreshold) {
-      // Energy dropped - fade boost
-      try {
-        if (node.material.emissive && typeof node.material.emissiveIntensity === 'number') {
-          node.material.emissiveIntensity = Math.max(0, node.material.emissiveIntensity - 0.001);
-        }
-      } catch (e) {
-        // Skip silently
-      }
-      state.energy = energyValue;
+      emissiveTargetOffset = energyBoost * 0.001; // Extremely subtle
+      intensityTargetOffset = emissiveTargetOffset * 0.5;
     }
+
+    // Compute target intensities
+    const emissiveTarget = Math.min(1.0, baseline + emissiveTargetOffset);
+
+    try {
+      // Apply to emissiveIntensity if exists
+      if (node.material.emissive && typeof node.material.emissiveIntensity === 'number') {
+        const current = node.material.emissiveIntensity;
+        const lerpFactor = 0.1; // Smooth transition
+        node.material.emissiveIntensity = current + (emissiveTarget - current) * lerpFactor;
+      }
+
+      // Also apply to intensity if it exists
+      if (typeof node.material.intensity === 'number') {
+        // For intensity, use a baseline of 1.0 if not stored
+        const intensityBaseline = node._metricsBaselineIntensity ?? 1.0;
+        const intensityTarget = Math.min(2.0, intensityBaseline + intensityTargetOffset);
+        const current = node.material.intensity;
+        node.material.intensity = current + (intensityTarget - current) * lerpFactor;
+      }
+    } catch (e) {
+      // Skip silently
+    }
+
+    state.energy = energyValue;
   }
 
   /**
