@@ -201,6 +201,8 @@ export class NodeEvolution2_0 {
    * Update evolution for all registered nodes
    */
   update(deltaTime, nodeStates = {}, linkingSystem = null) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     if (!this.registry.evolutionActive) return;
     
     this.registry.frameCounter++;
@@ -491,6 +493,14 @@ export class NodeEvolution2_0 {
   addSpectralHighlights(evolutionState) {
     const node = evolutionState.node;
     
+    // FIX: Guard to prevent duplicate additions using userData.effects map
+    if (!node.userData.effects) {
+      node.userData.effects = new Map();
+    }
+    if (node.userData.effects.has('spectralHighlight')) {
+      return; // Already exists
+    }
+    
     // Get node color from existing material
     let baseColor = new THREE.Color(0x00ff88);  // Default green
     
@@ -521,6 +531,7 @@ export class NodeEvolution2_0 {
     
     node.add(highlight);
     evolutionState.addedElements.push(highlight);
+    node.userData.effects.set('spectralHighlight', highlight);
   }
   
   /**
@@ -528,6 +539,14 @@ export class NodeEvolution2_0 {
    */
   addEnergyArcs(evolutionState) {
     const node = evolutionState.node;
+    
+    // FIX: Guard to prevent duplicate additions using userData.effects map
+    if (!node.userData.effects) {
+      node.userData.effects = new Map();
+    }
+    if (node.userData.effects.has('energyArc')) {
+      return; // Already exists
+    }
     
     // Create energy arc geometry
     const arcGeometry = new THREE.BufferGeometry();
@@ -560,6 +579,7 @@ export class NodeEvolution2_0 {
     
     node.add(arc);
     evolutionState.addedElements.push(arc);
+    node.userData.effects.set('energyArc', arc);
   }
   
   /**
@@ -568,7 +588,22 @@ export class NodeEvolution2_0 {
   addExtraRings(evolutionState, count) {
     const node = evolutionState.node;
     
+    // FIX: Guard to prevent duplicate additions using userData.effects map
+    if (!node.userData.effects) {
+      node.userData.effects = new Map();
+    }
+    
+    const currentRingCount = Array.from(node.userData.effects.keys())
+      .filter(key => key.startsWith('evolutionRing')).length;
+    
     for (let i = 0; i < count; i++) {
+      const ringIndex = currentRingCount + i;
+      const effectKey = `evolutionRing_${ringIndex}`;
+      
+      if (node.userData.effects.has(effectKey)) {
+        continue; // Skip if already exists
+      }
+      
       const ringRadius = 1.0 + i * 0.25;
       const ringGeometry = new THREE.TorusGeometry(ringRadius, 0.03, 8, 64);
       
@@ -598,6 +633,7 @@ export class NodeEvolution2_0 {
       
       node.add(ring);
       evolutionState.addedElements.push(ring);
+      node.userData.effects.set(effectKey, ring);
     }
   }
   

@@ -201,6 +201,8 @@ export class NodeShellSizeAuthority {
    * @param {NodeAuraSystem_v1} auraSystem - Aura system (optional, for direct enforcement)
    */
   enforceShellSizes(scene, auraSystem = null) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     if (!this.config.enabled) return;
     
     // Direct enforcement via aura system if available

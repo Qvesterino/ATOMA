@@ -28,7 +28,13 @@ export class NodeCoreOpaqueEnforcer {
     this.trackedNodes = new Map();
     this.violations = [];
     
-    console.log('[NODE CORE OPAQUE ENFORCER] Initialized');
+    // SHADER STORM PROTECTION: Check for disable flag
+    if (typeof window !== 'undefined' && window.ATOMA_DISABLE_OPAQUE_ENFORCER) {
+      this.enabled = false;
+      console.log('[ATOMA] NodeCoreOpaqueEnforcer disabled (shader storm protection)');
+    } else {
+      console.log('[NODE CORE OPAQUE ENFORCER] Initialized');
+    }
   }
 
   /**
@@ -119,8 +125,16 @@ export class NodeCoreOpaqueEnforcer {
 
   /**
    * Per-frame validation - detect and block violations
+   * 
+   * SHADER STORM PROTECTION: Disabled if window.ATOMA_DISABLE_OPAQUE_ENFORCER is true
+   * to prevent runtime material mutations that cause shader recompilation.
    */
   validateFrame(deltaTime, time) {
+    // SHADER STORM PROTECTION: Early return if disabled
+    if (typeof window !== 'undefined' && window.ATOMA_DISABLE_OPAQUE_ENFORCER) {
+      return 0;
+    }
+    
     if (!this.enabled) return 0;
 
     let violations = 0;

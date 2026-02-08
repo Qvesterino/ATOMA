@@ -12,6 +12,69 @@ import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 import { getLinkTarget, hasValidLinkTarget } from './LinkStateVisualLock.js';
 
+const VARIANT_PROPS = ['transparent', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
+const VARIANT_DEBUG_FLAG = '__ATOMA_DEBUG_VARIANTS';
+
+function applyGhostDim(targetMesh, ghostOpacity = 0.35) {
+  if (!targetMesh) return;
+  if (!targetMesh.userData) targetMesh.userData = {};
+  if (!targetMesh.userData.__ghostDimState) {
+    targetMesh.userData.__ghostDimState = {
+      visible: targetMesh.visible,
+      scale: targetMesh.scale.clone(),
+      uniformOpacity: targetMesh.material?.uniforms?.uOpacity?.value
+    };
+  }
+
+  const mat = targetMesh.material;
+  if (mat?.uniforms?.uOpacity) {
+    mat.uniforms.uOpacity.value = ghostOpacity;
+  } else {
+    // Fallback: lightweight visual cue without touching material flags
+    targetMesh.visible = true;
+    targetMesh.scale.multiplyScalar(0.9);
+  }
+}
+
+function restoreGhostDim(targetMesh) {
+  const state = targetMesh?.userData?.__ghostDimState;
+  if (!state) return;
+
+  if (targetMesh.material?.uniforms?.uOpacity) {
+    targetMesh.material.uniforms.uOpacity.value = state.uniformOpacity ?? 1.0;
+  }
+
+  targetMesh.visible = state.visible;
+  targetMesh.scale.copy(state.scale);
+  delete targetMesh.userData.__ghostDimState;
+}
+
+function withSelectionContext(fn) {
+  const prev = globalThis.__ATOMA_CTX;
+  globalThis.__ATOMA_CTX = 'selection';
+  try { return fn(); }
+  finally { globalThis.__ATOMA_CTX = prev; }
+}
+
+function snapshotVariantProps(material) {
+  return VARIANT_PROPS.reduce((acc, p) => { acc[p] = material[p]; return acc; }, {});
+}
+
+function guardSelectionVariants(materials, fn) {
+  if (!globalThis[VARIANT_DEBUG_FLAG]) return fn();
+  const mats = (Array.isArray(materials) ? materials : [materials]).filter(Boolean);
+  const before = mats.map(mat => ({ mat, snap: snapshotVariantProps(mat) }));
+  const result = fn();
+  before.forEach(({ mat, snap }) => {
+    const changed = VARIANT_PROPS.filter(p => mat[p] !== snap[p]);
+    if (changed.length) {
+      console.warn('[SelectionVariantGuard] Variant prop changed during selection', { uuid: mat.uuid, changed, before: snap, after: snapshotVariantProps(mat) });
+      console.trace();
+    }
+  });
+  return result;
+}
+
 /**
  * SANDBOXING GUARD: Prevents mutations of protected node visual layers
  * Protects: hologram shells, auras, core meshes, node roots
@@ -127,56 +190,56 @@ export class NodeLinking2_3 {
     // Ignore clicks on UI
     if (this._isClickOnUI(e.target)) return;
 
-    const node = this._getRaycastNode();
+    withSelectionContext(() => {
+      const node = this._getRaycastNode();
 
-    if (node) {
-      // ------- DOUBLE-CLICK DETEKCIA (lokálna, bez selectionCore) -------
-      const now = performance.now();
-      const clickedId = node.uuid;
-      const isDoubleClick =
-        this.lastClickedNodeId === clickedId &&
-        now - this.lastClickTime <= this.doubleClickThresholdMs;
+      if (node) {
+        guardSelectionVariants(node.material, () => {
+          // ------- DOUBLE-CLICK DETEKCIA (lok?lna, bez selectionCore) -------
+          const now = performance.now();
+          const clickedId = node.uuid;
+          const isDoubleClick =
+            this.lastClickedNodeId === clickedId &&
+            now - this.lastClickTime <= this.doubleClickThresholdMs;
 
-      this.lastClickTime = now;
-      this.lastClickedNodeId = clickedId;
+          this.lastClickTime = now;
+          this.lastClickedNodeId = clickedId;
 
-      if (isDoubleClick) {
-        // DOUBLE-CLICK → Set as primary + select
-        this._setPrimaryNode(node);
-        this._selectNode(node);
-        return;
-      }
+          if (isDoubleClick) {
+            // DOUBLE-CLICK ? Set as primary + select
+            this._setPrimaryNode(node);
+            this._selectNode(node);
+            return;
+          }
 
-      // ------- SINGLE CLICK LOGIKA -------
-      const selectedNode = this.selectionCore?.getSelected();
-      const primaryNode = this.selectionCore?.getPrimaryNode
-        ? this.selectionCore.getPrimaryNode()
-        : null;
+          // ------- SINGLE CLICK LOGIKA -------
+          const selectedNode = this.selectionCore?.getSelected();
+          const primaryNode = this.selectionCore?.getPrimaryNode
+            ? this.selectionCore.getPrimaryNode()
+            : null;
 
-      if (!selectedNode) {
-        // No current selection → select this node
-        this._selectNode(node);
-      } else if (selectedNode === node) {
-        // LMB na už vybraný node → nič
-        return;
-      } else if (primaryNode && primaryNode !== node) {
-        // Primary existuje a kliknem na iný node → link + select
-        this._attemptLink(primaryNode, node);
-        this._selectNode(node);
+          if (!selectedNode) {
+            // No current selection ? select this node
+            this._selectNode(node);
+          } else if (selectedNode === node) {
+            // LMB na u? vybran? node ? ni?
+            return;
+          } else if (primaryNode && primaryNode !== node) {
+            // Primary existuje a kliknem na in? node ? link + select
+            this._attemptLink(primaryNode, node);
+            this._selectNode(node);
+          } else {
+            // Bez primary alebo primary == node ? iba select
+            this._selectNode(node);
+          }
+        });
       } else {
-        // Bez primary alebo primary == node → iba select
-        this._selectNode(node);
+        // LMB na pr?zdno ? deselect + zavrie? UI (primary ost?va)
+        this._deselectNode();
+        this._closeAllUI();
       }
-    } else {
-      // LMB na prázdno → deselect + zavrieť UI (primary ostáva)
-      this._deselectNode();
-      this._closeAllUI();
-    }
+    });
   }
-
-  /**
-   * RMB - Reserved for deselect
-   */
   _onRightClick(e) {
     if (!this.enabled) return;
     this._deselectNode();
@@ -248,7 +311,14 @@ export class NodeLinking2_3 {
       // Mark link as muted (blocks packet flow)
       link.__ghostMuted = true;
       link.skipUpdate = true;
-
+      // Visual dim via uniform if available; otherwise hide softly
+      if (link.material?.uniforms?.uOpacity) {
+        link.__originalOpacityUniform = link.material.uniforms.uOpacity.value;
+        link.material.uniforms.uOpacity.value = 0.15;
+      } else {
+        link.__ghostVisible = link.visible;
+        link.visible = false;
+      }
       // Dim link visual via contract (linkTarget only)
       // Old traversal-based approach REMOVED ✓
       // const linkId = link.id || link.uuid || 'unknown';
@@ -262,9 +332,7 @@ export class NodeLinking2_3 {
     const linkTarget = getLinkTarget(node);
     
     if (linkTarget && linkTarget.material) {
-      linkTarget.__originalOpacity = linkTarget.material.opacity;
-      linkTarget.material.transparent = true;
-      linkTarget.material.opacity = 0.35;
+      applyGhostDim(linkTarget, 0.35);
     }
     
  
@@ -287,8 +355,7 @@ export class NodeLinking2_3 {
 
       // Restore node visual via linkTarget (CRITICAL: not via undefined nodeMaterial)
       if (linkTarget && linkTarget.material) {
-        linkTarget.material.opacity = linkTarget.__originalOpacity || 1.0;
-        delete linkTarget.__originalOpacity;
+        restoreGhostDim(linkTarget);
       }
 
       // Restore all links
@@ -296,10 +363,23 @@ export class NodeLinking2_3 {
         if (!link) continue;
 
         // Restore link visual
-        if (link.material) {
-          link.material.opacity = link.__originalOpacity || 1.0;
-          delete link.__originalOpacity;
+
+        if (link.material?.uniforms?.uOpacity) {
+
+          link.material.uniforms.uOpacity.value = link.__originalOpacityUniform ?? 1.0;
+
         }
+
+        if (link.__ghostVisible !== undefined) {
+
+          link.visible = link.__ghostVisible;
+
+        }
+
+        delete link.__originalOpacityUniform;
+
+        delete link.__ghostVisible;
+
 
         // Re-enable packet flow
         delete link.__ghostMuted;
@@ -657,19 +737,14 @@ export class NodeLinking2_3 {
 
     node.userData._ghostActive = true;
 
-    const originalOpacity = node.material.opacity ?? 1;
-    const originalTransparent = node.material.transparent;
-
-    // Ghost mode (disable)
-    node.material.transparent = true;
-    node.material.opacity = 0.3;
+    // Ghost mode (disable) without mutating material flags
+    applyGhostDim(node, 0.3);
     node.userData._disableLinks = true;
 
     // Restore after 3s
     setTimeout(() => {
       if (node.material) {
-        node.material.opacity = originalOpacity;
-        node.material.transparent = originalTransparent;
+        restoreGhostDim(node);
       }
       node.userData._ghostActive = false;
       node.userData._disableLinks = false;

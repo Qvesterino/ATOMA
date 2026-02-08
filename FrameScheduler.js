@@ -19,6 +19,18 @@
  * - simulation: 10 Hz (AI, glyphs, metrics, slow simulation)
  * - background: 2 Hz (rare events, narrative, consciousness)
  */
+import { debugLog, debugWarn } from './Engine/Debug/DebugLog.js';
+
+const getFrameDebugFlag = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_FRAME === true);
+
+function frameLog(...args) {
+    debugLog(getFrameDebugFlag(), ...args);
+}
+
+function frameWarn(...args) {
+    debugWarn(getFrameDebugFlag(), ...args);
+}
+
 class FrameScheduler {
     // Throttle visual tick debug log to once every 20 seconds
     VISUAL_LOG_INTERVAL_MS = 20000;
@@ -107,22 +119,22 @@ class FrameScheduler {
      */
     register(layerName, fn, id = undefined) {
         if (!this.layers[layerName]) {
-            console.error(`[FrameScheduler] Unknown layer: ${layerName}. Available layers: realtime, visual, simulation, background`);
+            frameWarn(`[FrameScheduler] Unknown layer: ${layerName}. Available layers: realtime, visual, simulation, background`);
             return false;
         }
 
         if (typeof fn !== 'function') {
-            console.error(`[FrameScheduler] Registered item is not a function`);
+            frameWarn(`[FrameScheduler] Registered item is not a function`);
             return false;
         }
 
         // Phase B: Track system by ID if provided
         if (id) {
             if (this.registeredSystems[id]) {
-                console.warn(`[FrameScheduler] System with ID '${id}' already registered. Use unregister() first.`);
+                frameWarn(`[FrameScheduler] System with ID '${id}' already registered. Use unregister() first.`);
                 return false;
             }
-            console.log(`[FrameScheduler] Registered '${id}' to ${layerName} layer`);
+            frameLog(`[FrameScheduler] Registered '${id}' to ${layerName} layer`);
         }
 
         const entry = {
@@ -154,7 +166,7 @@ class FrameScheduler {
      */
     unregister(id) {
         if (!this.registeredSystems[id]) {
-            console.warn(`[FrameScheduler] System '${id}' not found`);
+            frameWarn(`[FrameScheduler] System '${id}' not found`);
             return false;
         }
 
@@ -170,7 +182,7 @@ class FrameScheduler {
 
         // Clean up tracking
         delete this.registeredSystems[id];
-        console.log(`[FrameScheduler] Unregistered '${id}' from ${layerName} layer`);
+        frameLog(`[FrameScheduler] Unregistered '${id}' from ${layerName} layer`);
 
         return true;
     }
@@ -205,7 +217,7 @@ class FrameScheduler {
 
                 if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE && layerName === 'visual') {
                     if (now - this._lastVisualLogTime >= this.VISUAL_LOG_INTERVAL_MS) {
-                        console.debug('[FrameScheduler] visual tick', now);
+                        frameLog('[FrameScheduler] visual tick', now);
                         this._lastVisualLogTime = now;
                     }
                 }
@@ -219,8 +231,8 @@ class FrameScheduler {
                     } catch (error) {
                         const jobId = entry.id || entry.fn?.name || 'visual-task';
                         if (!entry._warned) {
-                            console.error(`[FrameScheduler] Job crashed: ${jobId}`, error);
-                            if (error?.stack) console.error(error.stack);
+                            frameWarn(`[FrameScheduler] Job crashed: ${jobId}`, error);
+                            if (error?.stack) frameWarn(error.stack);
                             entry._warned = true;
                         }
                         entry._disabled = true;
@@ -313,11 +325,11 @@ class FrameScheduler {
      */
     logSummary() {
         const stats = this.getStats();
-        console.log('%c[FrameScheduler] Initialization Complete', 'color: #00ff00; font-weight: bold');
-        console.log(`[FrameScheduler] Total registered functions: ${stats.total}`);
-        console.log('[FrameScheduler] Layer breakdown:');
+        frameLog('%c[FrameScheduler] Initialization Complete', 'color: #00ff00; font-weight: bold');
+        frameLog(`[FrameScheduler] Total registered functions: ${stats.total}`);
+        frameLog('[FrameScheduler] Layer breakdown:');
         for (const [layerName, layerStats] of Object.entries(stats.layers)) {
-            console.log(`  - ${layerName}: ${layerStats.registered} functions @ ${layerStats.targetHz} Hz`);
+            frameLog(`  - ${layerName}: ${layerStats.registered} functions @ ${layerStats.targetHz} Hz`);
         }
     }
 
@@ -332,7 +344,7 @@ class FrameScheduler {
         this.registeredSystems = {};
         this.totalRegistered = 0;
         this.tickCount = 0;
-        console.log('[FrameScheduler] Cleared all registrations');
+        frameLog('[FrameScheduler] Cleared all registrations');
     }
 }
 export { FrameScheduler };

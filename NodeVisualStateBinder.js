@@ -57,6 +57,17 @@ import { createCoreIdentityMaterial } from './CoreHologramShader.js';
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 
 // ============================================================================
+// LINK VISUALS POLICY - Phase LVA-1
+// ============================================================================
+// Global flag controls whether linking triggers core visual mutations
+// If undefined → treated as true (backward compatible)
+function areLinkVisualsEnabled() {
+  if (typeof window === 'undefined') return true;
+  if (window.ATOMA_LINK_VISUALS_ENABLED === undefined) return true;
+  return window.ATOMA_LINK_VISUALS_ENABLED === true;
+}
+
+// ============================================================================
 // VISUAL HARMONIZATION CONFIGURATION (Task 1)
 // ============================================================================
 const VISUAL_HARMONIZATION_ENABLED = true;
@@ -359,6 +370,46 @@ export function isolateAndConstrainAura(node) {
   
   if (!auraMesh || !auraMesh.material) return;
 
+  // [PHASE: SHADER-BURST-VERIFY] Debug instrumentation
+  const debugLogCount = window.__auraDebugLogCount__ || 0;
+  const maxDebugLogs = 10;
+  const shouldDebug = debugLogCount < maxDebugLogs;
+
+  if (shouldDebug) {
+    const nodeId = node.userData?.nodeId || node.uuid;
+    
+    // Log only when values actually change
+    if (auraMesh.material.transparent !== true) {
+      console.log('[ShaderBurstVerify] Aura transparent changed', {
+        nodeId,
+        auraMeshUuid: auraMesh.uuid,
+        property: 'transparent',
+        oldValue: auraMesh.material.transparent,
+        newValue: true
+      });
+    }
+    if (auraMesh.material.depthWrite !== false) {
+      console.log('[ShaderBurstVerify] Aura depthWrite changed', {
+        nodeId,
+        auraMeshUuid: auraMesh.uuid,
+        property: 'depthWrite',
+        oldValue: auraMesh.material.depthWrite,
+        newValue: false
+      });
+    }
+    if (auraMesh.material.depthTest !== true) {
+      console.log('[ShaderBurstVerify] Aura depthTest changed', {
+        nodeId,
+        auraMeshUuid: auraMesh.uuid,
+        property: 'depthTest',
+        oldValue: auraMesh.material.depthTest,
+        newValue: true
+      });
+    }
+    
+    window.__auraDebugLogCount__ = debugLogCount + 1;
+  }
+
   // Clamp opacity HARD: max 6%
   auraMesh.material.opacity = Math.min(auraMesh.material.opacity, 0.06);
 
@@ -489,6 +540,9 @@ export function enforceCanonicalVisualPriority(node) {
 function applyCoreSpacialOffset(node) {
   if (!node) return;
   
+  // [LVA-1] Guard: Check if link visuals are enabled
+  if (!areLinkVisualsEnabled()) return;
+  
   // Find core mesh (primary visual target)
   const coreMesh = node.children.find(c => 
     c.isMesh && (
@@ -534,6 +588,9 @@ function applyCoreSpacialOffset(node) {
  */
 function boostNodeReadabilityAfterLinking(node) {
   if (!node) return;
+  
+  // [LVA-1] Guard: Check if link visuals are enabled
+  if (!areLinkVisualsEnabled()) return;
   
   // Find core mesh (primary visual target)
   const coreMesh = node.children.find(c => 
@@ -963,6 +1020,15 @@ export function removeHarmonyStabilizedState(node) {
  * @returns {Object} { success: boolean, sourceIntensity: number, targetIntensity: number }
  */
 export function applyCoreSynergyGlowScaling(sourceNode, targetNode, synergy) {
+  // [LVA-1] Guard: Check if link visuals are enabled
+  if (!areLinkVisualsEnabled()) {
+    return {
+      success: false,
+      sourceIntensity: 0,
+      targetIntensity: 0
+    };
+  }
+  
   const sourceId = sourceNode?.userData?.nodeId || sourceNode?.userData?.id;
   const targetId = targetNode?.userData?.nodeId || targetNode?.userData?.id;
   if (!sourceNode || !targetNode || synergy === undefined || !sourceId || !targetId) {

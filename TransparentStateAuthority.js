@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+const DEBUG_TRANSPARENT_AUTHORITY = false;
+
 // Centralized render-state profiles
 const PROFILES = {
   opaque: {
@@ -46,6 +48,10 @@ const PROFILES = {
   }
 };
 
+const VARIANT_PROPS = ['transparent', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
+const warnedFrozen = new WeakSet();
+const warnedDomain = new WeakSet();
+
 function ensureStateContainer(mesh) {
   if (!mesh.userData) mesh.userData = {};
   if (!mesh.userData.__transparentState) {
@@ -64,14 +70,45 @@ export const TransparentStateAuthority = {
     if (!mesh || !mesh.material) return;
     const profile = PROFILES[stateKey];
     if (!profile) {
-      console.warn('[TransparentStateAuthority] Unknown state key:', stateKey);
+      if (DEBUG_TRANSPARENT_AUTHORITY) {
+        console.warn('[TransparentStateAuthority] Unknown state key:', stateKey);
+      }
+      return;
+    }
+
+    // Domain guard: only overlay/link domains may be mutated
+    const domain = mesh.material.userData?.__domain;
+    if (domain !== 'overlay' && domain !== 'link') {
+      if (!warnedDomain.has(mesh.material)) {
+        if (DEBUG_TRANSPARENT_AUTHORITY) {
+          console.warn('[TransparentStateAuthority] Blocked apply on non-overlay/link material', {
+            stateKey,
+            material: mesh.material.uuid,
+            domain: domain ?? 'unset'
+          });
+        }
+        warnedDomain.add(mesh.material);
+      }
+      return;
+    }
+
+    const isFrozen = mesh.material.userData?.__flagsFrozen;
+    const target = { ...profile, ...overrides };
+    const touchesVariantProp = Object.keys(target).some(k => VARIANT_PROPS.includes(k));
+
+    // Respect frozen materials: never mutate shader-variant flags after freeze
+    if (isFrozen && touchesVariantProp) {
+      if (!warnedFrozen.has(mesh.material)) {
+        if (DEBUG_TRANSPARENT_AUTHORITY) {
+          console.warn('[MaterialAuthority] Blocked runtime flag change on frozen material', { stateKey, material: mesh.material.uuid });
+        }
+        warnedFrozen.add(mesh.material);
+      }
       return;
     }
 
     const state = ensureStateContainer(mesh);
     if (state.applied && state.key === stateKey) return;
-
-    const target = { ...profile, ...overrides };
 
     if (mesh.material.transparent !== target.transparent) mesh.material.transparent = target.transparent;
     if (mesh.material.depthWrite !== target.depthWrite) mesh.material.depthWrite = target.depthWrite;

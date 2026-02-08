@@ -27,6 +27,15 @@ function vfxFlag(name, def = true) {
 
 export class NodeVisuals4_0 {
   constructor(scene) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) {
+      // Soft disable: keep instance but mark disabled
+      this.scene = scene;
+      this.nodeVisualRegistry = new Map();
+      this.config = { enabled: false };
+      this.registry = { upgradeCount: 0, time: 0, frameCounter: 0 };
+      return;
+    }
+
     this.scene = scene;
     this.nodeVisualRegistry = new Map();
     
@@ -78,6 +87,8 @@ export class NodeVisuals4_0 {
    * Upgrade a node to 4.0 visual standard
    */
   upgradeNode(node, nodeData = {}) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     if (!node || !node.children) return;
     
     const nodeId = node.uuid || Math.random().toString();
@@ -454,6 +465,8 @@ export class NodeVisuals4_0 {
    * Update all nodes with 4.0 effects
    */
   update(deltaTime) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     if (!this.config.enabled) return;
     
     this.registry.time += deltaTime;
@@ -499,6 +512,8 @@ export class NodeVisuals4_0 {
    * Upgrade all nodes in scene
    */
   upgradeAllNodes(nodes) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     nodes.forEach(node => {
       this.upgradeNode(node);
     });

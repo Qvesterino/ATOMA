@@ -6,6 +6,21 @@ import {
     integrateWithAllSystems,
     setupDebugAPI
 } from './ShaderVariantDetector.js';
+import { debugLog } from './DebugLog.js';
+
+const shaderDebugFlag = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_SHADER === true);
+
+const shaderDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG === true && window.ATOMA_DEBUG_SHADER === true);
+
+function shaderLog(...args) {
+    debugLog(shaderDebugFlag(), ...args);
+}
+
+function shaderError(...args) {
+    if (shaderDebugEnabled()) {
+        console.error(...args);
+    }
+}
 
 /**
  * Dev-only shader variant mutation tracer.
@@ -38,7 +53,7 @@ function patchMaterialVariantSetters() {
                 if (typeof window !== 'undefined' &&
                     window.__ATOMA_SHADER_TRACE &&
                     this.__variantLocked === true) {
-                    console.error(
+                    shaderError(
                         '[ShaderVariantLeak]',
                         prop,
                         'changed to',
@@ -138,21 +153,35 @@ export function installShaderFreezeGuard(renderer, systems = {}) {
     window.__shaderFreezeMonitorStarted = false;
     const startMonitoring = () => {
         if (window.__shaderFreezeMonitorStarted) return;
-        window.__shaderFreezeMonitorStarted = true;
-        const baseline = getProgramCount(renderer);
-        console.log("[ShaderFreeze] baseline programs:", baseline);
+        if (!renderer) return;
 
-        setInterval(() => {
-            const current = getProgramCount(renderer);
-            if (current > baseline) {
-                console.error(
-                    "[ShaderFreeze] NEW SHADER PROGRAM DETECTED",
-                    "baseline:", baseline,
-                    "current:", current
-                );
-                debugger;
+        window.__shaderFreezeMonitorStarted = true;
+        let baseline = 0;
+
+        const beginMonitoring = () => {
+            setInterval(() => {
+                const current = getProgramCount(renderer);
+                if (current > baseline) {
+                    shaderError(
+                        "[ShaderFreeze] NEW SHADER PROGRAM DETECTED",
+                        { baseline, current }
+                    );
+                }
+            }, 1000);
+        };
+
+        const waitForPrograms = () => {
+            const count = getProgramCount(renderer);
+                if (count > 0) {
+                    baseline = count;
+                    shaderLog("[ShaderFreeze] baseline programs:", baseline);
+                    beginMonitoring();
+                } else {
+                requestAnimationFrame(waitForPrograms);
             }
-        }, 1000);
+        };
+
+        waitForPrograms();
     };
     window.__startShaderFreezeMonitor = startMonitoring;
 

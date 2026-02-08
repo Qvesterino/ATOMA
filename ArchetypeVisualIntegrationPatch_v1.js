@@ -51,11 +51,22 @@ export function patchArchetypeVisuals(aiNodesInstance, debugMode = false) {
 
     // Apply archetype visual differentiation
     if (nodeModel && nodeModel.userData) {
+      if (nodeModel.userData._integrationApplied === true && nodeModel.userData._integrationDirty !== true) {
+        if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+          console.log('[Integration] apply skipped (already applied)', nodeModel.id || nodeModel.uuid);
+        }
+        return nodeModel;
+      }
       // Determine archetype name
       const archetypeName = determineArchetype(this, category, index);
       
       if (archetypeName && archetypeName !== 'UNDEFINED') {
         archetypeVisualSystem.applyArchetypeToNode(nodeModel, archetypeName);
+        nodeModel.userData._integrationApplied = true;
+        nodeModel.userData._integrationDirty = false;
+        if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+          console.log('[Integration] apply executed', nodeModel.id || nodeModel.uuid, archetypeName);
+        }
 
         if (debugMode) {
           console.log(`%c[Integration] Applied ${archetypeName} to new node`, 'color: #00ff88;');
@@ -96,9 +107,20 @@ export function patchArchetypeVisuals(aiNodesInstance, debugMode = false) {
   // Add method to apply archetype to existing node
   aiNodesInstance.applyArchetype = function(nodeModel, archetypeName) {
     if (nodeModel && nodeModel.userData) {
+      if (nodeModel.userData._integrationApplied === true && nodeModel.userData._integrationDirty !== true) {
+        if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+          console.log('[Integration] reapply skipped (already applied)', nodeModel.id || nodeModel.uuid);
+        }
+        return;
+      }
       archetypeVisualSystem.applyArchetypeToNode(nodeModel, archetypeName);
       if (debugMode) {
         console.log(`%c[Integration] Applied ${archetypeName} to node`, 'color: #00ff88;');
+      }
+      nodeModel.userData._integrationApplied = true;
+      nodeModel.userData._integrationDirty = false;
+      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+        console.log('[Integration] apply executed (manual)', nodeModel.id || nodeModel.uuid, archetypeName);
       }
     }
   };

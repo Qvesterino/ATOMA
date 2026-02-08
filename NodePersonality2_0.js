@@ -224,6 +224,7 @@ export class NodePersonality2_0 {
    * Initialize personality system
    */
   initialize() {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
     this.registry.personalityActive = true;
     console.log('✓ Node Personality 2.0 initialized');
   }
@@ -237,6 +238,7 @@ export class NodePersonality2_0 {
    * @param {number} evolutionStage - Current evolution stage (1-4)
    */
   assignPersonality(node, nodeId, nodeCategory, archetypeType = null, evolutionStage = 1) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return false;
     if (!node || !nodeId) return false;
     
     try {
@@ -388,6 +390,7 @@ export class NodePersonality2_0 {
    * Apply initial personality visuals (safe, non-destructive)
    */
   applyPersonalityVisuals(personalityState) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
     if (!personalityState.isActive) return;
     
     const { node, personalityType, intensityLevel } = personalityState;
@@ -521,6 +524,7 @@ export class NodePersonality2_0 {
    * @param {number} worldTime - Total elapsed time
    */
   update(deltaTime, worldTime) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
     if (!this.registry.personalityActive) return;
     
     // Frame-skipping optimization: skip every other frame for base performance

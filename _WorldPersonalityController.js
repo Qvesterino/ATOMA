@@ -108,6 +108,22 @@ export class WorldPersonalityController {
     
     console.log('✓ World Personality Controller 2.0 initialized');
   }
+
+  tagFXMaterial(material) {
+    if (!material) return;
+    material.userData = material.userData || {};
+    material.userData.__owner = material.userData.__owner || 'WorldPersonalityController';
+    material.userData.__domain = material.userData.__domain || 'overlay';
+  }
+
+  blockBaseMaterialMutation(material, context) {
+    if (!material) return false;
+    if (material.userData?.__domain === 'base') {
+      console.warn('[WPC] Attempted base material mutation blocked', context, material.uuid);
+      return true;
+    }
+    return false;
+  }
   
   /**
    * Capture base world state for restoration
@@ -438,7 +454,7 @@ export class WorldPersonalityController {
             const pulseFactor = Math.sin(visual.pulsePhase) * 0.3 + 0.7;
             
             visual.object.children.forEach(arc => {
-              if (arc.material) {
+              if (arc.material && !this.blockBaseMaterialMutation(arc.material, 'energy_arcs.opacity')) {
                 arc.material.opacity = 0.4 * this.worldMood.intensity * pulseFactor;
               }
             });
@@ -479,7 +495,7 @@ export class WorldPersonalityController {
           if (visual.object) {
             const pulseFactor = Math.sin(Date.now() / 1000) * 0.2 + 0.8;
             visual.object.children.forEach(pillar => {
-              if (pillar.material) {
+              if (pillar.material && !this.blockBaseMaterialMutation(pillar.material, 'light_pillars.opacity')) {
                 pillar.material.opacity = 0.3 * this.worldMood.intensity * pulseFactor;
               }
             });
@@ -494,7 +510,7 @@ export class WorldPersonalityController {
             visual.object.scale.setScalar(scale);
             
             const opacity = 0.1 + Math.sin(visual.pulsePhase) * 0.05;
-            if (visual.object.material) {
+            if (visual.object.material && !this.blockBaseMaterialMutation(visual.object.material, 'cluster_harmony.opacity')) {
               visual.object.material.opacity = opacity;
             }
           }
@@ -557,6 +573,7 @@ export class WorldPersonalityController {
       opacity: 0.3 * intensity,
       blending: THREE.AdditiveBlending,
     });
+    this.tagFXMaterial(material);
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
@@ -613,6 +630,7 @@ export class WorldPersonalityController {
       opacity: 0.4 * intensity,
       blending: THREE.AdditiveBlending,
     });
+    this.tagFXMaterial(material);
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
@@ -652,7 +670,7 @@ export class WorldPersonalityController {
     const arcCount = Math.floor(6 * intensity);
     const group = new THREE.Group();
     
-    for (let i = 0; i < arcCount; i++) {
+      for (let i = 0; i < arcCount; i++) {
       const angle = (i / arcCount) * Math.PI * 2;
       const radius = 90;
       const x = Math.cos(angle) * radius;
@@ -665,6 +683,7 @@ export class WorldPersonalityController {
         opacity: 0.4 * intensity,
         blending: THREE.AdditiveBlending,
       });
+      this.tagFXMaterial(material);
       
       const arc = new THREE.Mesh(geometry, material);
       arc.position.set(x, 25, z);
@@ -735,13 +754,14 @@ export class WorldPersonalityController {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     
-    const material = new THREE.PointsMaterial({
-      size: 1.5,
-      transparent: true,
-      opacity: 0.5 * intensity,
-      blending: THREE.AdditiveBlending,
-      vertexColors: true,
-    });
+      const material = new THREE.PointsMaterial({
+        size: 1.5,
+        transparent: true,
+        opacity: 0.5 * intensity,
+        blending: THREE.AdditiveBlending,
+        vertexColors: true,
+      });
+      this.tagFXMaterial(material);
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
@@ -780,7 +800,7 @@ export class WorldPersonalityController {
     const bandCount = Math.floor(4 * intensity);
     const group = new THREE.Group();
     
-    for (let i = 0; i < bandCount; i++) {
+      for (let i = 0; i < bandCount; i++) {
       const geometry = new THREE.PlaneGeometry(150, 5);
       const material = new THREE.MeshBasicMaterial({
         color: 0x000000,
@@ -788,6 +808,7 @@ export class WorldPersonalityController {
         opacity: 0.3 * intensity,
         side: THREE.DoubleSide,
       });
+      this.tagFXMaterial(material);
       
       const band = new THREE.Mesh(geometry, material);
       band.rotation.x = Math.PI / 2;
@@ -851,6 +872,7 @@ export class WorldPersonalityController {
       opacity: 0.3 * intensity,
       blending: THREE.AdditiveBlending,
     });
+    this.tagFXMaterial(material);
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
@@ -890,7 +912,7 @@ export class WorldPersonalityController {
     const pillarCount = Math.floor(5 * intensity);
     const group = new THREE.Group();
     
-    for (let i = 0; i < pillarCount; i++) {
+      for (let i = 0; i < pillarCount; i++) {
       const angle = (i / pillarCount) * Math.PI * 2;
       const radius = 100;
       const x = Math.cos(angle) * radius;
@@ -903,6 +925,7 @@ export class WorldPersonalityController {
         opacity: 0.3 * intensity,
         blending: THREE.AdditiveBlending,
       });
+      this.tagFXMaterial(material);
       
       const pillar = new THREE.Mesh(geometry, material);
       pillar.position.set(x, 25, z);
@@ -1035,6 +1058,7 @@ export class WorldPersonalityController {
         opacity: 0.1,
         blending: THREE.AdditiveBlending,
       });
+      this.tagFXMaterial(material);
       
       const bloom = new THREE.Mesh(geometry, material);
       bloom.position.copy(cluster.center);
@@ -1077,6 +1101,7 @@ export class WorldPersonalityController {
         opacity: 0.4,
         blending: THREE.AdditiveBlending,
       });
+      this.tagFXMaterial(material);
       
       const shimmer = new THREE.Points(geometry, material);
       shimmer.userData.isWorldFX = true;

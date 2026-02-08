@@ -209,12 +209,14 @@ export class HarmonicResonanceCoupling_v1 {
     const shimmer = 1 + Math.sin(resonance.phase + phaseOffset) * 
       this.config.shimmerIntensity * resonance.intensity;
     
-    // Apply gentle scale modulation to node mesh (not physics)
+    // FIX: Apply gentle scale modulation using absolute scaling from base scale
     const coreNode = node.userData?.coreMesh || node;
     if (coreNode && coreNode.scale) {
-      coreNode.scale.multiplyScalar(shimmer / (coreNode.userData?.lastShimmerScale || 1));
-      coreNode.userData = coreNode.userData || {};
-      coreNode.userData.lastShimmerScale = shimmer;
+      if (!coreNode.userData.baseScale) {
+        coreNode.userData.baseScale = coreNode.scale.x || 1.0;
+      }
+      const absoluteScale = coreNode.userData.baseScale * shimmer;
+      coreNode.scale.setScalar(absoluteScale);
     }
   }
   

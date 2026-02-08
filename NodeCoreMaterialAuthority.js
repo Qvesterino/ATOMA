@@ -1,254 +1,246 @@
-/**
- * NODE CORE MATERIAL AUTHORITY SYSTEM v2.0 (Strict Chemical Locking)
- * 
- * The single source of truth for Node Core material properties.
- * Implements "Chemical Locking" via Object.defineProperty to prevent
- * any external system from modifying critical visual properties.
- * 
- * CORE RULES:
- * 1. Opacity is ALWAYS 1.0 (Solid)
- * 2. Transparency is ALWAYS false (Opaque)
- * 3. DepthWrite is ALWAYS true (Z-buffer authority)
- * 4. DepthTest is ALWAYS true (Occlusion)
- * 5. Blending is ALWAYS Normal or NoBlending
- * 
- * ARCHITECTURE NOTE:
- * This class provides both static material locking utilities AND
- * instance-based authority methods for compatibility.
- * - Static methods (lockCoreMaterial, isCompliant, createLockedCoreMaterial)
- *   perform actual chemical locking via Object.defineProperty
- * - Instance methods (registerNodeCore, assertCoreOnLink) provide
- *   no-op fallback for legacy/external system compatibility
- */
-
 import * as THREE from 'three';
 
-export class NodeCoreMaterialAuthority {
-  
-  /**
-   * Initialize authority instance (fallback compatibility layer).
-   * 
-   * NOTE: This constructor exists for backward compatibility with systems
-   * that expect an instance-based authority. The actual material locking
-   * is performed by static methods (lockCoreMaterial, etc.).
-   * 
-   * Instance methods (registerNodeCore, assertCoreOnLink) run in
-   * fallback mode - they log once and return safely without error.
-   * 
-   * @param {Object} options - Configuration options (debugEnabled, enableLogging)
-   */
-  constructor(options = {}) {
-    this.debugEnabled = options.debugEnabled || false;
-    this.enableLogging = options.enableLogging || false;
-    
-    // Internal registry for tracking (fallback mode)
-    this.registeredNodes = new Set();
-    
-    // Fallback mode flag - log once when methods are called
-    this._fallbackModeLogged = false;
-    
-    if (this.enableLogging) {
-      console.log('[NodeCoreMaterialAuthority] Initialized in fallback mode (static locking methods still available)');
-    }
-  }
-  
-  /**
-   * Register a node core with the authority (fallback mode).
-   * 
-   * NOTE: This is a no-op fallback for compatibility. Actual material
-   * locking is handled by static lockCoreMaterial() method.
-   * 
-   * @param {THREE.Object3D} node - Node to register
-   */
-  registerNodeCore(node) {
-    if (!this._fallbackModeLogged) {
-      console.warn('[NodeCoreMaterialAuthority] registerNodeCore called - running in fallback mode (static locking still active)');
-      this._fallbackModeLogged = true;
-    }
-    
-    if (node) {
-      this.registeredNodes.add(node.uuid || node.id);
-    }
-  }
-  
-  /**
-   * Re-assert core material properties after link creation (fallback mode).
-   * 
-   * NOTE: This is a no-op fallback. Static material locks are
-   * permanent and cannot be overridden by link creation.
-   * 
-   * @param {THREE.Object3D} node - Node to re-assert
-   */
-  assertCoreOnLink(node) {
-    // No-op - static locks are permanent and cannot be overridden
-  }
-  
-  /**
-   * LOCK a material's properties chemically.
-   * Once locked, setting 'opacity' or 'transparent' will fail silently or throw.
-   * 
-   * @param {THREE.Material} material - The material to lock
-   * @param {boolean} strict - If true, logs warnings on violation attempts
-   */
-  static lockCoreMaterial(material, strict = false) {
-    if (!material) return;
-    
-    // Prevent double locking
-    if (material.userData && material.userData.isChemicallyLocked) return;
-
-    // 1. Enforce initial state
-    material.transparent = false;
-    material.opacity = 1.0;
-    material.depthWrite = true;
-    material.depthTest = true;
-    
-    // Ensure we use NormalBlending for solid cores to prevent wash-out
-    if (material.blending !== THREE.NoBlending) {
-        material.blending = THREE.NormalBlending;
-    }
-
-    // 2. Define chemical locks
-    // We replace the properties with getters/setters that ignore or reject changes
-
-    // --- TRANSPARENT ---
-    let _transparent = false;
-    Object.defineProperty(material, 'transparent', {
-      get: () => _transparent,
-      set: (val) => {
-        if (val !== false) {
-          if (strict) console.warn('[NodeCoreMaterialAuthority] Blocked attempt to set core transparent=true');
-          // Ignore the change
-        }
-      },
-      configurable: false // Cannot be deleted or redefined
-    });
-
-    // --- OPACITY ---
-    let _opacity = 1.0;
-    Object.defineProperty(material, 'opacity', {
-      get: () => _opacity,
-      set: (val) => {
-        if (val !== 1.0) {
-          if (strict) console.warn(`[NodeCoreMaterialAuthority] Blocked attempt to change core opacity to ${val}`);
-          // Ignore the change
-        }
-      },
-      configurable: false
-    });
-
-    // --- DEPTH WRITE ---
-    let _depthWrite = true;
-    Object.defineProperty(material, 'depthWrite', {
-      get: () => _depthWrite,
-      set: (val) => {
-        if (val !== true) {
-          if (strict) console.warn('[NodeCoreMaterialAuthority] Blocked attempt to set core depthWrite=false');
-        }
-      },
-      configurable: false
-    });
-
-    // --- DEPTH TEST ---
-    let _depthTest = true;
-    Object.defineProperty(material, 'depthTest', {
-      get: () => _depthTest,
-      set: (val) => {
-        if (val !== true) {
-          if (strict) console.warn('[NodeCoreMaterialAuthority] Blocked attempt to set core depthTest=false');
-        }
-      },
-      configurable: false
-    });
-
-    // Mark as chemically locked
-    material.userData = material.userData || {};
-    material.userData.isChemicallyLocked = true;
-  }
-
-  /**
-   * Verify if a material is compliant
-   */
-  static isCompliant(material) {
-    if (!material) return false;
-    return (
-      material.transparent === false &&
-      material.opacity === 1.0 &&
-      material.depthWrite === true &&
-      material.depthTest === true
-    );
-  }
-
-  /**
-   * Create a standard, locked Core Material
-   * @param {number|string} color 
-   */
-  static createLockedCoreMaterial(color) {
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      roughness: 0.4,
-      metalness: 0.8,
-      emissive: 0x000000,
-      flatShading: false
-    });
-    
-    this.lockCoreMaterial(material);
-    return material;
-  }
+// Runtime gate (default ON)
+function authorityEnabled() {
+    if (typeof window === 'undefined') return true;
+    if (window.ATOMA_NODE_CORE_FREEZE_ENABLED === undefined) return true;
+    return window.ATOMA_NODE_CORE_FREEZE_ENABLED === true;
 }
 
-/**
- * Console API for Node Core Material Authority
- * Allows debugging and inspection of material locking status
- */
-export function setupNodeCoreAuthorityConsoleAPI() {
-  window.nodeCoreMaterialAuthority = {
-    // Check if a material is compliant
-    checkCompliance: (material) => {
-      const isCompliant = NodeCoreMaterialAuthority.isCompliant(material);
-      console.log(`Material Compliance: ${isCompliant ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}`);
-      if (!isCompliant) {
-        console.table({
-          transparent: material.transparent,
-          opacity: material.opacity,
-          depthWrite: material.depthWrite,
-          depthTest: material.depthTest
-        });
-      }
-      return isCompliant;
-    },
+const materialSnapshots = new WeakMap();
+const frozenMaterials = new WeakSet();
 
-    // Check all nodes in the scene for compliance
-    auditScene: () => {
-      if (!window.game || !window.game.scene) {
-        console.warn('Game scene not available');
-        return;
-      }
+const SNAPSHOT_PROPS = [
+    'emissiveIntensity',
+    'opacity',
+    'transparent',
+    'blending',
+    'depthWrite',
+    'depthTest',
+    'side',
+    'roughness',
+    'metalness',
+    'wireframe'
+];
 
-      let compliantCount = 0;
-      let nonCompliantCount = 0;
-      let totalNodes = 0;
+const USERDATA_KEYS = [
+    '__depthAuthorityLocked',
+    '__owner',
+    '__domain',
+    '__flagsFrozen',
+    'isNodeCore',
+    'nodeId'
+];
 
-      window.game.scene.traverse((obj) => {
-        if (obj.userData?.isInteractionCore && obj.material) {
-          totalNodes++;
-          if (NodeCoreMaterialAuthority.isCompliant(obj.material)) {
-            compliantCount++;
-          } else {
-            nonCompliantCount++;
-            console.warn(`Non-compliant core found: ${obj.name || obj.uuid}`, obj);
-          }
+function isCoreMesh(mesh) {
+    if (!mesh || !mesh.isMesh) return false;
+    if (mesh.userData?.isLinkVisual) return false;
+    if (mesh.userData?.stateKey === 'link') return false;
+
+    const name = (mesh.name || '').toLowerCase();
+    const isCoreTagged = mesh.userData?.isCore === true || mesh.userData?.nodeCore === true;
+    const nameSuggestsCore =
+        name.includes('core') ||
+        name.includes('body') ||
+        name.includes('shell');
+    const nameSuggestsOverlay =
+        name.includes('aura') ||
+        name.includes('halo') ||
+        name.includes('glow') ||
+        name.includes('ring') ||
+        name.includes('outline') ||
+        name.includes('glyph') ||
+        name.includes('bead') ||
+        name.includes('link');
+
+    return (isCoreTagged || nameSuggestsCore) && !nameSuggestsOverlay;
+}
+
+function getCoreMeshes(nodeModel) {
+    if (!nodeModel) return [];
+    const meshes = [];
+    const root = nodeModel.visualGroup || nodeModel;
+    root.traverse?.((child) => {
+        if (isCoreMesh(child)) {
+            meshes.push(child);
         }
-      });
+    });
+    return meshes;
+}
 
-      console.log(`
-        🛡️ Node Core Material Authority Audit:
-        ✅ Compliant Cores: ${compliantCount}
-        ❌ Non-Compliant Cores: ${nonCompliantCount}
-        📊 Total Cores: ${totalNodes}
-        Status: ${nonCompliantCount === 0 ? '✅ SECURE' : '⚠️ VULNERABLE'}
-      `);
+function snapshotMaterial(material) {
+    if (!material || !authorityEnabled()) return null;
+
+    const snapshot = {
+        color: material.color ? material.color.clone() : null,
+        emissive: material.emissive ? material.emissive.clone() : null,
+        props: {},
+        userData: {}
+    };
+
+    SNAPSHOT_PROPS.forEach((prop) => {
+        if (prop in material) snapshot.props[prop] = material[prop];
+    });
+
+    USERDATA_KEYS.forEach((key) => {
+        if (material.userData && key in material.userData) {
+            snapshot.userData[key] = material.userData[key];
+        }
+    });
+
+    materialSnapshots.set(material, snapshot);
+    return snapshot;
+}
+
+function restoreMaterial(material) {
+    if (!material || !authorityEnabled()) return;
+    const snapshot = materialSnapshots.get(material);
+    if (!snapshot) return;
+
+    if (material.color && snapshot.color) material.color.copy(snapshot.color);
+    if (material.emissive && snapshot.emissive) material.emissive.copy(snapshot.emissive);
+
+    Object.entries(snapshot.props || {}).forEach(([key, value]) => {
+        if (key in material) material[key] = value;
+    });
+
+    if (material.userData && snapshot.userData) {
+        Object.entries(snapshot.userData).forEach(([key, value]) => {
+            material.userData[key] = value;
+        });
     }
-  };
+}
 
-  console.log('✅ NodeCoreMaterialAuthority Console API installed (window.nodeCoreMaterialAuthority)');
+function handleMaterial(mat, fn) {
+    if (Array.isArray(mat)) {
+        mat.forEach((m) => fn(m));
+    } else {
+        fn(mat);
+    }
+}
+
+export function captureNodeCoreState(nodeModel) {
+    if (!authorityEnabled()) return;
+    const cores = getCoreMeshes(nodeModel);
+    cores.forEach((mesh) => {
+        handleMaterial(mesh.material, snapshotMaterial);
+    });
+}
+
+export function restoreNodeCoreState(nodeModel) {
+    if (!authorityEnabled()) return;
+    const cores = getCoreMeshes(nodeModel);
+    cores.forEach((mesh) => {
+        handleMaterial(mesh.material, restoreMaterial);
+    });
+}
+
+export function freezeNodeCoreState(nodeModel) {
+    if (!authorityEnabled()) return;
+    const cores = getCoreMeshes(nodeModel);
+    cores.forEach((mesh) => {
+        handleMaterial(mesh.material, (mat) => {
+            if (frozenMaterials.has(mat)) return;
+            const snap = snapshotMaterial(mat);
+            if (snap) frozenMaterials.add(mat);
+        });
+    });
+}
+
+function lockCoreMaterial(material, freeze = true) {
+    if (!material) return;
+
+    const handle = (mat) => {
+        if (!mat) return;
+
+        // Ensure userData exists
+        mat.userData = mat.userData || {};
+
+        // Mark as core material
+        mat.userData.isNodeCore = true;
+        mat.userData.__depthAuthorityLocked = true;
+
+        // Core must always participate in depth
+        if ('depthWrite' in mat) mat.depthWrite = true;
+        if ('depthTest' in mat) mat.depthTest = true;
+
+        // Core should not be transparent
+        if ('transparent' in mat) mat.transparent = false;
+
+        // Optional freeze: reuse existing snapshot system if available
+        if (freeze) {
+            if (typeof snapshotMaterial === 'function') {
+                snapshotMaterial(mat);
+            }
+        }
+    };
+
+    if (Array.isArray(material)) {
+        material.forEach(handle);
+    } else {
+        handle(material);
+    }
+}
+
+export class NodeCoreMaterialAuthority {
+    constructor() {
+        this.registeredNodes = new WeakSet();
+    }
+
+    /**
+     * Register a node's core materials and lock them against mutation.
+     * Idempotent per node instance.
+     */
+    registerNodeCore(nodeModel) {
+        if (!nodeModel || this.registeredNodes.has(nodeModel)) return;
+        const cores = getCoreMeshes(nodeModel);
+        cores.forEach((mesh) => {
+            handleMaterial(mesh.material, (mat) => lockCoreMaterial(mat, true));
+        });
+        this.registeredNodes.add(nodeModel);
+    }
+
+    /**
+     * Re-assert core material authority after link events.
+     */
+    assertCoreOnLink(nodeModel) {
+        if (!nodeModel) return;
+        const cores = getCoreMeshes(nodeModel);
+        cores.forEach((mesh) => {
+            handleMaterial(mesh.material, (mat) => lockCoreMaterial(mat, true));
+        });
+    }
+
+    captureNodeCoreState(nodeModel) {
+        return captureNodeCoreState(nodeModel);
+    }
+
+    restoreNodeCoreState(nodeModel) {
+        return restoreNodeCoreState(nodeModel);
+    }
+
+    freezeNodeCoreState(nodeModel) {
+        return freezeNodeCoreState(nodeModel);
+    }
+
+    lockCoreMaterial(material, freeze = true) {
+        return lockCoreMaterial(material, freeze);
+    }
+
+    // Static conveniences for existing call sites
+    static captureNodeCoreState(nodeModel) {
+        return captureNodeCoreState(nodeModel);
+    }
+
+    static restoreNodeCoreState(nodeModel) {
+        return restoreNodeCoreState(nodeModel);
+    }
+
+    static freezeNodeCoreState(nodeModel) {
+        return freezeNodeCoreState(nodeModel);
+    }
+
+    static lockCoreMaterial(material, freeze = true) {
+        return lockCoreMaterial(material, freeze);
+    }
 }

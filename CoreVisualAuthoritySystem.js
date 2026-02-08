@@ -35,6 +35,22 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
 
 /**
+ * Helper to check if userData is writable (not frozen or read-only)
+ * Returns false for frozen objects or read-only userData properties
+ */
+function isUserDataWritable(obj) {
+  if (!obj || !obj.userData) return false;
+  try {
+    const desc = Object.getOwnPropertyDescriptor(obj, 'userData');
+    if (desc && desc.writable === false) return false;
+    if (Object.isFrozen(obj.userData)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Core mesh identifier: finds the primary solid mesh that defines node presence
  */
 class CoreMeshIdentifier {
@@ -210,8 +226,10 @@ export class CoreVisualAuthoritySystem {
       }
 
       // Mark as core geometry without overwriting userData
-      if (!coreMesh.userData) return; // fail-silent if immutable
-      Object.assign(coreMesh.userData, { isCoreGeometry: true, visualLayer: 'CORE' });
+      if (isUserDataWritable(coreMesh)) {
+        coreMesh.userData.isCoreGeometry = true;
+        coreMesh.userData.visualLayer = 'CORE';
+      }
 
       // Enforce core render authority using the Guard
       CoreVisualAuthorityGuard.enforce(coreMesh);
@@ -252,9 +270,9 @@ export class CoreVisualAuthoritySystem {
         const isVisualOnly = CoreMeshIdentifier.isVisualOnlyMesh(obj);
 
         if (isVisualOnly) {
-          if (!obj.userData) return; // fail-silent if immutable
-          // Mark as visual-only
-          Object.assign(obj.userData, { visualLayer: obj.userData.visualLayer || 'VISUAL_ONLY' });
+          if (isUserDataWritable(obj)) {
+            obj.userData.visualLayer = obj.userData.visualLayer || 'VISUAL_ONLY';
+          }
 
           // Enforce visual-only properties
           this._enforceVisualOnlyMaterial(obj);

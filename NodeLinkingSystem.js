@@ -56,6 +56,7 @@ import {
 } from './UndoRedoSystem.js';
 import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
 
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
 const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
@@ -1722,9 +1723,14 @@ export class NodeLinkingSystem {
       
       this.createLinkSuccessPulse(sourceNode, targetNode);
       
-      // [SESSION 51] Apply final visual state to both nodes after linking
-      applyFinalNodeVisualState(sourceNode, { verbose: false });
-      applyFinalNodeVisualState(targetNode, { verbose: false });
+      // [ARCH CHANGE] Core visual mutations are disabled by default during linking
+      // Enable explicitly via window.ATOMA_LINK_CORE_MUTATION_ENABLED === true
+      const __linkCoreMutationEnabled =
+        typeof window !== 'undefined' && window.ATOMA_LINK_CORE_MUTATION_ENABLED === true;
+      if (__linkCoreMutationEnabled) {
+        applyFinalNodeVisualState(sourceNode, { verbose: false });
+        applyFinalNodeVisualState(targetNode, { verbose: false });
+      }
       
       // Update visual state in binder
       if (this.visualStateBinder) {
@@ -1743,9 +1749,11 @@ export class NodeLinkingSystem {
         target: targetNode 
       });
       
-      // [SESSION 76] Apply core glow intensity scaling based on synergy magnitude
-      // High synergy → intense core glow, Low synergy → subtle core glow
-      const glowResult = applyCoreSynergyGlowScaling(sourceNode, targetNode, synergy);
+      // [SESSION 76] Apply core glow scaling only when flag is explicitly enabled
+      if (__linkCoreMutationEnabled) {
+        const glowResult = applyCoreSynergyGlowScaling(sourceNode, targetNode, synergy);
+        // glowResult retained for backward compatibility (unused when disabled)
+      }
       
       const synergyLabel = synergy > 0.7 ? '★★ HIGH' : '★ NORMAL';
       console.log(`✓ Link created: ${sourceNode.userData.category} → ${targetNode.userData.category} [${synergyLabel} synergy]`);
@@ -3303,6 +3311,9 @@ getLinksForNode(node) {
    * Creates organic, twisted multi-strand cable geometry.
    */
   createLink(sourceNode, targetNode) {
+    captureNodeCoreState(sourceNode);
+    captureNodeCoreState(targetNode);
+    try {
     if (this.deferLinkVisuals) {
       const link = {
         source: sourceNode,
@@ -3482,6 +3493,11 @@ getLinksForNode(node) {
     }
     
     console.log(`✓ Braided Link Created: ${sourceNode.userData.category} -> ${targetNode.userData.category}`);
+    return link;
+    } finally {
+      restoreNodeCoreState(sourceNode);
+      restoreNodeCoreState(targetNode);
+    }
   }
   
   // Deferred visual builder (Phase 3B)
@@ -3490,78 +3506,79 @@ getLinksForNode(node) {
     if (!link || !sourceNode || !targetNode) return;
     if (link.visualState === 'ready') return;
 
-    const linkStub = { source: sourceNode, target: targetNode };
-    const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
-    this.scene.add(linkGroup);
-    NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
-    link.group = linkGroup;
+    captureNodeCoreState(sourceNode);
+    captureNodeCoreState(targetNode);
+    try {
+      const linkStub = { source: sourceNode, target: targetNode };
+      const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
+      this.scene.add(linkGroup);
+      NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
+      link.group = linkGroup;
 
-    this.visuals.registerLink(link.id, link.group);
-    if (this.thicknessSystem) {
-      this.thicknessSystem.registerLinkCurve(link.group, link);
-    }
-    LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
+      this.visuals.registerLink(link.id, link.group);
+      if (this.thicknessSystem) {
+        this.thicknessSystem.registerLinkCurve(link.group, link);
+      }
+      LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
 
-    this._fireLinkCreatedCallbacks(sourceNode, targetNode);
-    if (this.eventCoordinator) {
-      this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
-    }
-    if (this.categoryTransitionSystem) {
-      this.categoryTransitionSystem.startTransition(
-        link.id,
-        sourceNode.position,
-        targetNode.position,
-        sourceNode.userData.category || 'input',
-        targetNode.userData.category || 'input'
-      );
-    }
+      this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+      if (this.eventCoordinator) {
+        this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
+      }
+      if (this.categoryTransitionSystem) {
+        this.categoryTransitionSystem.startTransition(
+          link.id,
+          sourceNode.position,
+          targetNode.position,
+          sourceNode.userData.category || 'input',
+          targetNode.userData.category || 'input'
+        );
+      }
 
-    this.conduitRenderer.update(link, 0, 0);
-    sourceNode.justLinked = true;
-    targetNode.justLinked = true;
-    sourceNode.linkBirthTime = performance.now();
-    targetNode.linkBirthTime = performance.now();
-    if (sourceNode.userData) {
-      sourceNode.userData.lastLinkDirection = new THREE.Vector3()
-        .subVectors(targetNode.position, sourceNode.position)
-        .normalize();
-    }
-    if (targetNode.userData) {
-      targetNode.userData.lastLinkDirection = new THREE.Vector3()
-        .subVectors(sourceNode.position, targetNode.position)
-        .normalize();
-    }
+      this.conduitRenderer.update(link, 0, 0);
+      sourceNode.justLinked = true;
+      targetNode.justLinked = true;
+      sourceNode.linkBirthTime = performance.now();
+      targetNode.linkBirthTime = performance.now();
+      if (sourceNode.userData) {
+        sourceNode.userData.lastLinkDirection = new THREE.Vector3()
+          .subVectors(targetNode.position, sourceNode.position)
+          .normalize();
+      }
+      if (targetNode.userData) {
+        targetNode.userData.lastLinkDirection = new THREE.Vector3()
+          .subVectors(sourceNode.position, targetNode.position)
+          .normalize();
+      }
 
-    if (window.ComputeSynergyScore2_0) {
-      try {
-        const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
-        link.synergyScore = res?.score || 0.5;
-      } catch (e) { link.synergyScore = 0.5; }
-    } else {
-      link.synergyScore = 0.5;
-    }
-    if (link.id) {
-      this.updateLinkMetrics(link, {
-        corruption: link.corruptionLevel ?? 0,
-        synergy: link.synergyScore ?? 0.5,
-        harmony: link.harmonyScore ?? 0
-      });
-    }
+      if (window.ComputeSynergyScore2_0) {
+        try {
+          const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
+          link.synergyScore = res?.score || 0.5;
+        } catch (e) { link.synergyScore = 0.5; }
+      } else {
+        link.synergyScore = 0.5;
+      }
+      if (link.id) {
+        this.updateLinkMetrics(link, {
+          corruption: link.corruptionLevel ?? 0,
+          synergy: link.synergyScore ?? 0.5,
+          harmony: link.harmonyScore ?? 0
+        });
+      }
 
-    link.visualState = 'ready';
-    console.log(`âś“ Braided Link Visuals Ready: ${sourceNode.userData.category} -> ${targetNode.userData.category}`);
+      link.visualState = 'ready';
+      console.log('✓ Braided Link Visuals Ready:  -> ');
+    } finally {
+      restoreNodeCoreState(sourceNode);
+      restoreNodeCoreState(targetNode);
+    }
   }
 
-  /**
-   * EXTREME LINK EDITION - Create massive, neon, high-energy holographic beams
-   * Multi-core structure with extreme thickness, pulses, and safe VFX layers
-   * 
-   * CRITICAL NODE PROTECTION:
-   * - Links NEVER modify node core materials
-   * - Links NEVER affect node opacity, color, or geometry
-   * - Nodes remain visually dominant and unchanged
-   */
   createLinkLegacy(sourceNode, targetNode) {
+    captureNodeCoreState(sourceNode);
+    captureNodeCoreState(targetNode);
+    try {
     const linkGroup = new THREE.Group();
     
     // ===== HARD GUARD: PROTECT NODE CORE MATERIALS =====
@@ -4032,6 +4049,12 @@ getLinksForNode(node) {
    * FIXED (Session 37+ Part 2): Converted requestAnimationFrame loop to orchestrator effects.
    * Now driven by deltaTime instead of hard-coded 0.016 delta and performance.now().
    */
+     finally {
+      restoreNodeCoreState(sourceNode);
+      restoreNodeCoreState(targetNode);
+    }
+  }
+
   createLinkBreakEffect(link) {
     const startPos = link.source.position;
     const endPos = link.target.position;

@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const hardAuthDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_HARD_INTERACTION_AUTHORITY === true);
+const hardLog = (...args) => { if (hardAuthDebugEnabled()) hardLog(...args); };
+const hardWarn = (...args) => { if (hardAuthDebugEnabled()) hardWarn(...args); };
+const hardDebug = (...args) => { if (hardAuthDebugEnabled()) hardDebug(...args); };
+
 /**
  * ============================================================================
  * HARD INTERACTION AUTHORITY SYSTEM v1.0
@@ -27,7 +32,7 @@ import * as THREE from 'three';
 export function setupHardInteractionAuthority() {
   // Global flag - ALL visual systems check this
   window.VISUAL_AUTHORITY_LOCK = true;
-  console.log('🔒 [HARD_AUTHORITY] Global flag: VISUAL_AUTHORITY_LOCK = true');
+  hardLog('🔒 [HARD_AUTHORITY] Global flag: VISUAL_AUTHORITY_LOCK = true');
   
   return {
     isLocked: () => window.VISUAL_AUTHORITY_LOCK === true,
@@ -83,7 +88,7 @@ export function enforceNodeInteractionCore(node) {
       nodeId: nodeId
     };
     node.add(activeCore);
-    // console.log(`[HARD_AUTHORITY] Auto-created InteractionCore for node ${nodeId}`);
+    // hardLog(`[HARD_AUTHORITY] Auto-created InteractionCore for node ${nodeId}`);
   } else {
     // Keep first, disable others
     activeCore = existingCores[0];
@@ -143,7 +148,7 @@ export function enforceAllNodeInteractionCores(scene) {
     }
   });
   
-  console.log(`✅ [HARD_AUTHORITY] Interaction cores enforced on ${enforced} nodes`);
+  hardLog(`✅ [HARD_AUTHORITY] Interaction cores enforced on ${enforced} nodes`);
   return enforced;
 }
 
@@ -162,7 +167,7 @@ export function enforceHardLinkVisualAuthority(linkingSystem) {
   const authoritativeRenderer = linkingSystem.visuals;
   
   if (!authoritativeRenderer) {
-    console.warn('⚠️ [HARD_AUTHORITY] No authoritative renderer found');
+    hardWarn('⚠️ [HARD_AUTHORITY] No authoritative renderer found');
     return;
   }
   
@@ -183,9 +188,9 @@ export function enforceHardLinkVisualAuthority(linkingSystem) {
           linkingSystem[pattern].dispose();
         }
         linkingSystem[pattern] = null;
-        console.log(`🔒 [HARD_AUTHORITY] Disposed competing renderer: ${pattern}`);
+        hardLog(`🔒 [HARD_AUTHORITY] Disposed competing renderer: ${pattern}`);
       } catch (err) {
-        console.warn(`⚠️ [HARD_AUTHORITY] Error disposing ${pattern}:`, err);
+        hardWarn(`⚠️ [HARD_AUTHORITY] Error disposing ${pattern}:`, err);
       }
     }
   });
@@ -193,7 +198,7 @@ export function enforceHardLinkVisualAuthority(linkingSystem) {
   // Set authoritative renderer as the only active one
   linkingSystem.renderer = authoritativeRenderer;
   
-  console.log('🔒 [HARD_AUTHORITY] Link visual authority enforced - NeonLinkVisuals is ONLY renderer');
+  hardLog('🔒 [HARD_AUTHORITY] Link visual authority enforced - NeonLinkVisuals is ONLY renderer');
   
   return authoritativeRenderer;
 }
@@ -215,11 +220,11 @@ export function rebuildAllLinksWithAuthority(linkingSystem) {
     try {
       linkingSystem.visuals?.renderLink?.(link);
     } catch (err) {
-      console.warn('⚠️ [HARD_AUTHORITY] Error rebuilding link:', err);
+      hardWarn('⚠️ [HARD_AUTHORITY] Error rebuilding link:', err);
     }
   });
   
-  console.log(`✅ [HARD_AUTHORITY] Rebuilt ${linkCount} links with authoritative renderer`);
+  hardLog(`✅ [HARD_AUTHORITY] Rebuilt ${linkCount} links with authoritative renderer`);
   return linkCount;
 }
 
@@ -252,6 +257,54 @@ export function shouldSkipVisualUpdate() {
  * Frame-end enforcement: Guarantee node cores remain visible and interactive
  * Run this at end of each frame/tick
  */
+const FLAG_PROPS = ['transparent', 'depthWrite', 'depthTest', 'blending', 'side', 'alphaTest'];
+
+function freezeInteractionFlags(material, props = FLAG_PROPS) {
+  if (!material) return;
+  if (!material.userData) material.userData = {};
+  material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
+  material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
+
+  props.forEach((prop) => {
+    if (material.userData.__frozenVariantProps.has(prop)) return;
+
+    const desc = Object.getOwnPropertyDescriptor(material, prop);
+    if (desc && desc.configurable === false) {
+      if (!material.userData.__warnedVariantProp.has(prop)) {
+        hardWarn('[HardInteractionAuthority] Prop already locked, skipping redefine', prop, material.uuid);
+        material.userData.__warnedVariantProp.add(prop);
+      }
+      material.userData.__frozenVariantProps.add(prop);
+      return;
+    }
+
+    const cachedValue = material[prop];
+    try {
+      Object.defineProperty(material, prop, {
+        configurable: true,
+        enumerable: true,
+        get() { return cachedValue; },
+        set(val) {
+          if (val === cachedValue) return;
+          if (!material.userData.__warnedVariantProp.has(prop)) {
+            hardWarn('[HardInteractionAuthority] Blocked flag change after freeze:', prop, '->', val);
+            material.userData.__warnedVariantProp.add(prop);
+          }
+        }
+      });
+      material.userData.__frozenVariantProps.add(prop);
+    } catch (err) {
+      if (!material.userData.__warnedVariantProp.has(prop)) {
+        hardWarn('[HardInteractionAuthority] Failed to lock prop', prop, 'on', material.uuid, err?.message);
+        material.userData.__warnedVariantProp.add(prop);
+      }
+    }
+  });
+
+  material.userData.__flagsFrozen = true;
+  material.userData.__owner = material.userData.__owner || 'HardInteractionAuthority';
+}
+
 export function enforceNodeVisualSafetyNet(scene) {
   let enforced = 0;
   
@@ -264,34 +317,40 @@ export function enforceNodeVisualSafetyNet(scene) {
           return;
       }
 
-      // HARD enforcement: visual cores ALWAYS visible and fully opaque
-      obj.visible = true;
-      
-      // Enforce material properties if object has material
-      if (obj.material) {
-        if (!Array.isArray(obj.material)) {
-          obj.material.opacity = 1.0;
-          obj.material.transparent = false;
-          obj.material.depthTest = true;
-          obj.material.depthWrite = true;
-          obj.material.renderOrder = 10; // High priority
-        } else {
-          obj.material.forEach(mat => {
-            mat.opacity = 1.0;
-            mat.transparent = false;
-            mat.depthTest = true;
-            mat.depthWrite = true;
-            mat.renderOrder = 10;
-          });
+      // Apply once per core; skip if already frozen
+      const materials = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+
+      let materialLocked = false;
+      materials.forEach(mat => {
+        if (!mat) return;
+
+        if (!mat.userData?.__flagsFrozen) {
+          // Set authoritative defaults once before freezing
+          mat.opacity = 1.0;
+          mat.transparent = false;
+          mat.depthTest = true;
+          mat.depthWrite = true;
+          mat.renderOrder = 10; // High priority
         }
+
+        freezeInteractionFlags(mat);
+        materialLocked = materialLocked || mat.userData?.__flagsFrozen;
+      });
+
+      // Visibility enforcement is cheap; run once
+      if (!obj.userData.__interactionVisibilityLocked) {
+        obj.visible = true;
+        obj.userData.__interactionVisibilityLocked = true;
       }
       
-      enforced++;
+      if (materialLocked) enforced++;
     }
   });
   
   if (enforced > 0 && false) { // Silent unless debug enabled
-    console.debug(`[HARD_AUTHORITY] Safety net enforced ${enforced} node cores`);
+    hardDebug(`[HARD_AUTHORITY] Safety net enforced ${enforced} node cores`);
   }
   
   return enforced;
@@ -337,7 +396,7 @@ export function createHardenedRaycaster(scene) {
 // ============================================================================
 
 export function initializeHardInteractionAuthority(game) {
-  console.log('🔒 [HARD_AUTHORITY] Initializing Hard Interaction Authority System v1.0');
+  hardLog('🔒 [HARD_AUTHORITY] Initializing Hard Interaction Authority System v1.0');
   
   // 1. Enable global flag
   setupHardInteractionAuthority();
@@ -356,7 +415,7 @@ export function initializeHardInteractionAuthority(game) {
     game.linkingSystem.raycaster = createHardenedRaycaster(game.scene);
   }
   
-  console.log('✅ [HARD_AUTHORITY] System initialized - Interaction & link authority established');
+  hardLog('✅ [HARD_AUTHORITY] System initialized - Interaction & link authority established');
   
   return {
     enforceNodeCores: () => enforceAllNodeInteractionCores(game.scene),

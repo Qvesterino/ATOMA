@@ -96,6 +96,11 @@ export class NodeSurfaceDominanceRule_v1 {
    */
   _applyDominance(node) {
     if (!node || !node.material) return;
+    if (node.material.userData?.__flagsFrozen) {
+      // Respect frozen flags; fall back to renderOrder-only priority
+      node.renderOrder = this.rules.nodeRenderOrder;
+      return;
+    }
     
     // Rule 1: RenderOrder - Ensure node is rendered after aura
     node.renderOrder = this.rules.nodeRenderOrder;

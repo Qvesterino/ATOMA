@@ -16,6 +16,11 @@ import { ControlNodeSpecialGovernors } from './ControlNodeSpecialGoverners_Sessi
 import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 import { AINodeModel } from './AINodeModel.js';
 
+// Enforce opaque, front-facing core materials for core meshes
+function enforceOpaqueCoreMaterial(mat) {
+  return mat;
+}
+
 /**
  * Enhanced Node Models - 42 unique geometric designs + 12 EXTREME geometries
  * Organized by layer: Input, Process, Integration, Analytics, Storage, Control
@@ -323,7 +328,7 @@ export class EnhancedNodeModels {
   static create(category = 'input', index = 0, color = 0x00ffff) {
     this.ensureRegistryReady();
     const nodeGroup = new THREE.Group();
-    
+
     switch(category.toLowerCase()) {
       // INPUT NODES (Cyan)
       case 'input':
@@ -375,7 +380,6 @@ export class EnhancedNodeModels {
         return this.createInputNode(nodeGroup, index, color);
     }
   }
-
   // ===== INPUT NODES (Cyan - 4 variants) =====
 
   /**
@@ -490,11 +494,17 @@ export class EnhancedNodeModels {
       const antennaCount = 6;
       const antennaLength = 0.65;
       const antennaMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.75,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.25
+
       });
 
       const antennaDirections = [
@@ -570,11 +580,17 @@ export class EnhancedNodeModels {
       // Create outer octagonal gateway ring frame
       const ringGeometry = new THREE.TorusGeometry(0.65, 0.1, 8, 64);
       const ringMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.7,
         roughness: 0.25,
         emissive: color,
         emissiveIntensity: 0.25
+
       });
 
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -979,11 +995,17 @@ export class EnhancedNodeModels {
       innerCoreGeometry.scale(0.9, 1.2, 0.75); // Asymmetric elongation
       
       const innerCoreMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.85,
         roughness: 0.15,
         emissive: color,
         emissiveIntensity: 0.35
+
       });
 
       const innerCore = new THREE.Mesh(innerCoreGeometry, innerCoreMaterial);
@@ -1058,11 +1080,17 @@ export class EnhancedNodeModels {
       const segmentCount = 7;
       const segmentHeight = 0.22;
       const spineMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.75,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.25
+
       });
 
       // Create segment-by-segment spine with progressive rotation
@@ -1087,11 +1115,17 @@ export class EnhancedNodeModels {
       // Create central connecting axis
       const axisGeometry = new THREE.CylinderGeometry(0.08, 0.08, segmentCount * (segmentHeight + 0.06), 6);
       const axisMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.9,
         roughness: 0.1,
         emissive: color,
         emissiveIntensity: 0.4
+
       });
       const axis = new THREE.Mesh(axisGeometry, axisMaterial);
       axis.userData.isSpinalAxis = true;
@@ -1169,11 +1203,17 @@ export class EnhancedNodeModels {
       // Create first orbiting processing ring (outer)
       const ring1Geometry = new THREE.TorusGeometry(0.75, 0.08, 8, 64);
       const ringMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.7,
         roughness: 0.25,
         emissive: color,
         emissiveIntensity: 0.2
+
       });
 
       const ring1 = new THREE.Mesh(ring1Geometry, ringMaterial);
@@ -1223,11 +1263,17 @@ export class EnhancedNodeModels {
   static createIntegrationNode0(group, color) {
     const halfGeometry = new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.6,
       roughness: 0.4,
       emissive: color,
       emissiveIntensity: 0.25
+
     });
 
     // Left half
@@ -1270,11 +1316,17 @@ export class EnhancedNodeModels {
   static createIntegrationNode2(group, color) {
     const frameGeometry = new THREE.BoxGeometry(1, 1, 0.1);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.6,
       roughness: 0.4,
       emissive: color,
       emissiveIntensity: 0.2
+
     });
     const frame = new THREE.Mesh(frameGeometry, material.clone());
     frame.userData.visualLayer = 'CORE';
@@ -1302,11 +1354,17 @@ export class EnhancedNodeModels {
    */
   static createIntegrationNode3(group, color) {
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.6,
       roughness: 0.4,
       emissive: color,
       emissiveIntensity: 0.25
+
     });
 
     // Create interlocking tetrahedra
@@ -1391,11 +1449,17 @@ export class EnhancedNodeModels {
     // Hexagonal disc
     const hexGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.2, 6);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.7,
       roughness: 0.3,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
     const hex = new THREE.Mesh(hexGeometry, material);
     group.add(hex);
@@ -1418,11 +1482,17 @@ export class EnhancedNodeModels {
     // Tall spike prism
     const spikeGeometry = new THREE.ConeGeometry(0.3, 1.4, 8);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.6,
       roughness: 0.35,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
     const spike = new THREE.Mesh(spikeGeometry, material);
     group.add(spike);
@@ -1798,11 +1868,17 @@ export class EnhancedNodeModels {
     for (let i = 0; i < sliceCount; i++) {
       const sliceGeometry = new THREE.BoxGeometry(0.50, sliceHeight, 0.50);
       const sliceMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.8,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.25
+
       });
       const slice = new THREE.Mesh(sliceGeometry, sliceMaterial);
       
@@ -1843,11 +1919,17 @@ export class EnhancedNodeModels {
     // Capsule base
     const capsuleGeometry = new THREE.CapsuleGeometry(0.35, 1, 8, 16);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.8,
       roughness: 0.2,
       emissive: color,
       emissiveIntensity: 0.2
+
     });
     const capsule = new THREE.Mesh(capsuleGeometry, material);
     group.add(capsule);
@@ -1875,11 +1957,17 @@ export class EnhancedNodeModels {
    */
   static createStorageNode3(group, color) {
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.8,
       roughness: 0.25,
       emissive: color,
       emissiveIntensity: 0.2
+
     });
 
     // 4 crystal shards
@@ -2087,11 +2175,17 @@ export class EnhancedNodeModels {
       // Create central axis (visual focus)
       const axisGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.4, 12);
       const axisMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.85,
         roughness: 0.1,
         emissive: color,
         emissiveIntensity: 0.3
+
       });
       const axis = new THREE.Mesh(axisGeometry, axisMaterial);
       axis.userData.isCentralAxis = true;
@@ -2100,11 +2194,17 @@ export class EnhancedNodeModels {
 
       // Create layered segments (strata)
       const strataMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.75,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.2
+
       });
 
       for (let i = 0; i < segmentCount; i++) {
@@ -2204,11 +2304,17 @@ export class EnhancedNodeModels {
       const orbitRadius = 0.65;
       
       const shardMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.7,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.2
+
       });
 
       for (let i = 0; i < shardCount; i++) {
@@ -2272,11 +2378,17 @@ export class EnhancedNodeModels {
     // Octagonal core
     const octGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.8, 8);
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.8,
       roughness: 0.2,
       emissive: color,
       emissiveIntensity: 0.35
+
     });
     const oct = new THREE.Mesh(octGeometry, material);
     oct.renderOrder = 0;  // Core layer
@@ -2298,11 +2410,17 @@ export class EnhancedNodeModels {
     // Note: This core is intentionally opaque—it's a design feature (authority symbol)
     const coreGeometry = new THREE.DodecahedronGeometry(0.25, 0);
     const coreMaterial = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.95,
       roughness: 0.05,
       emissive: color,
       emissiveIntensity: 0.7
+
     });
     const centralCore = new THREE.Mesh(coreGeometry, coreMaterial);
     centralCore.renderOrder = 1;  // Inner layer (visible, intentional)
@@ -2329,11 +2447,17 @@ export class EnhancedNodeModels {
    */
   static createControlNode2(group, color) {
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.8,
       roughness: 0.2,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
 
     // Three concentric rings
@@ -2353,11 +2477,17 @@ export class EnhancedNodeModels {
    */
   static createControlNode3(group, color) {
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.7,
       roughness: 0.3,
       emissive: color,
       emissiveIntensity: 0.35
+
     });
 
     // Four beveled boxes forming X
@@ -2387,11 +2517,17 @@ export class EnhancedNodeModels {
     seal.traverse(child => {
       if (child.isMesh) {
         child.material = new THREE.MeshStandardMaterial({
+          transparent: false,
+          opacity: 1,
+          depthWrite: true,
+          depthTest: true,
+          side: THREE.FrontSide,
           color: color,
           metalness: 0.85,
           roughness: 0.15,
           emissive: color,
           emissiveIntensity: 0.4
+
         });
       }
     });
@@ -2405,11 +2541,17 @@ export class EnhancedNodeModels {
   static createSignalCitadelNode(group, color) {
     const citadel = ControlNodeGeometries.createSignalCitadel(0.9);
     citadel.material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.7,
       roughness: 0.25,
       emissive: color,
       emissiveIntensity: 0.35
+
     });
     group.add(citadel);
     return group;
@@ -2421,11 +2563,17 @@ export class EnhancedNodeModels {
   static createLawCoreNode(group, color) {
     const lawCore = ControlNodeGeometries.createLawCore(0.9);
     lawCore.material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.9,
       roughness: 0.1,
       emissive: color,
       emissiveIntensity: 0.5
+
     });
     group.add(lawCore);
     return group;
@@ -2700,11 +2848,17 @@ export class EnhancedNodeModels {
       pyramidGeometry.computeVertexNormals();
 
       const pyramidMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.85,
         roughness: 0.15,
         emissive: color,
         emissiveIntensity: 0.3
+
       });
 
       const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
@@ -2716,11 +2870,17 @@ export class EnhancedNodeModels {
       const beamCount = 4;
       const beamLength = 0.55;
       const beamMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.9,
         roughness: 0.1,
         emissive: color,
         emissiveIntensity: 0.4
+
       });
 
       const beamDirections = [
@@ -2805,11 +2965,17 @@ export class EnhancedNodeModels {
     try {
       const levelCount = 6;
       const towerMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.8,
         roughness: 0.2,
         emissive: color,
         emissiveIntensity: 0.3
+
       });
 
       // Create hierarchy levels (progressively narrower)
@@ -2843,11 +3009,17 @@ export class EnhancedNodeModels {
       // Create central command axis (chain of command)
       const axisGeometry = new THREE.CylinderGeometry(0.1, 0.1, levelCount * 0.33, 6);
       const axisMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.95,
         roughness: 0.05,
         emissive: color,
         emissiveIntensity: 0.5
+
       });
       const axis = new THREE.Mesh(axisGeometry, axisMaterial);
       axis.userData.isCommandAxis = true;
@@ -2927,11 +3099,17 @@ export class EnhancedNodeModels {
       const armCount = 4;
       const armLength = 0.6;
       const armMaterial = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.8,
         roughness: 0.15,
         emissive: color,
         emissiveIntensity: 0.3
+
       });
 
       const armDirections = [
@@ -3045,11 +3223,17 @@ export class EnhancedNodeModels {
     const ellipsoidGeo = new THREE.IcosahedronGeometry(0.8, 4);
     ellipsoidGeo.scale(1.2, 0.8, 0.9); // Slightly elongated
     const ellipsoidMat = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.6,
       roughness: 0.3,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
     const ellipsoid = new THREE.Mesh(ellipsoidGeo, ellipsoidMat);
     group.add(ellipsoid);
@@ -3074,11 +3258,17 @@ export class EnhancedNodeModels {
   static createSigmaNode1(group, color) {
     const coreGeo = new THREE.OctahedronGeometry(0.6, 2);
     const coreMat = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.7,
       roughness: 0.2,
       emissive: color,
       emissiveIntensity: 0.35
+
     });
     const core = new THREE.Mesh(coreGeo, coreMat);
     group.add(core);
@@ -3116,11 +3306,17 @@ export class EnhancedNodeModels {
     // Create twisted form using scaled octahedra
     const twistedGeo = new THREE.OctahedronGeometry(0.8, 3);
     const twistedMat = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.65,
       roughness: 0.35,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
     const twisted = new THREE.Mesh(twistedGeo, twistedMat);
     twisted.rotation.z = Math.PI / 4;
@@ -3971,11 +4167,17 @@ export class EnhancedNodeModels {
       geoPyramid.computeVertexNormals();
 
       const matPyramid = new THREE.MeshStandardMaterial({
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
+        depthTest: true,
+        side: THREE.FrontSide,
         color: color,
         metalness: 0.6,
         roughness: 0.35,
         emissive: color,
         emissiveIntensity: 0.3
+
       });
       const pyramid = new THREE.Mesh(geoPyramid, matPyramid);
       group.add(pyramid);
@@ -4182,11 +4384,17 @@ export class EnhancedNodeModels {
         const curve = new THREE.CatmullRomCurve3(points);
         const geometry = new THREE.TubeGeometry(curve, sections, tubeRadius, 6, false);
         const material = new THREE.MeshStandardMaterial({
+          transparent: false,
+          opacity: 1,
+          depthWrite: true,
+          depthTest: true,
+          side: THREE.FrontSide,
           color: color,
           metalness: 0.7,
           roughness: 0.3,
           emissive: color,
           emissiveIntensity: 0.3
+
         });
         const mesh = new THREE.Mesh(geometry, material);
         
@@ -4329,11 +4537,17 @@ export class EnhancedNodeModels {
     
     // Create material
     const material = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
       color: color,
       metalness: 0.7,
       roughness: 0.3,
       emissive: color,
       emissiveIntensity: 0.3
+
     });
     
     // Create mesh

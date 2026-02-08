@@ -120,6 +120,9 @@ export class SafeQuantumIllusionsPack1 {
    * Main update loop
    */
   update(deltaTime) {
+    // TEMPORARY PATCH: Disable runtime updates to test shader variant churn
+    if (true) return;
+    
     if (!this.scene) return;
     
     // Update registry lifetime tracking

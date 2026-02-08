@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
+
+function isLinkSpawnEnabled() {
+  if (typeof window === 'undefined') return false;
+  return window.ATOMA_LINK_SPAWN_ENABLED === true; // OPT-IN only
+}
+
 if (typeof window !== "undefined") {
   window.EnhancedNodeModels = EnhancedNodeModels;
   EnhancedNodeModels.ensureRegistryReady?.();
@@ -189,6 +196,7 @@ export class AINodes {
     this.nodes = [];
     this.connections = [];
     this.activationDistance = 8;
+    this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
     this.debugMode = false;  // Set to true for spawn debug logging
     
@@ -714,6 +722,20 @@ export class AINodes {
    * - DEPRECATED_CATEGORIES: Redirected to safe equivalent
    */
   createNode(category, position, index, isSpecial = false, options = {}) {
+    // ============================================================
+    // [LINK-SPAWN-TRACE] Debug instrumentation
+    // ============================================================
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      console.warn('[LINK-SPAWN] createNode called', {
+        category,
+        position,
+        index,
+        isSpecial,
+        options,
+        stack: new Error().stack
+      });
+    }
+
     // ========================================================================
     // [SPAWN AUTHORITY] VALIDATE AGAINST EnhancedNodeModel
     // Enforce that ONLY EnhancedNodeModel-supported categories can spawn
@@ -816,6 +838,12 @@ export class AINodes {
     nodeModel.userData.isNodeRoot = true;
     nodeModel.userData.visualLayer = 'NODE_ROOT';
     
+    // ========== OVERLAY DUPLICATION GUARD (PHASE VD-2) ==========
+    // Initialize overlay tracking to prevent duplicate visual layers
+    if (!nodeModel.userData.overlays) {
+      nodeModel.userData.overlays = {};
+    }
+    
     // Store cycle information on node for debugging/inspection
     nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.spawnCycle = {
@@ -837,7 +865,11 @@ export class AINodes {
       neutralized: true,
       neutralizedRole: 'interaction-proxy'
     };
-    nodeModel.add(linkTarget);
+    // Guard: Only add interaction proxy if not already present
+    if (!nodeModel.userData.overlays['interaction-proxy']) {
+      nodeModel.add(linkTarget);
+      nodeModel.userData.overlays['interaction-proxy'] = linkTarget;
+    }
     let linkTargetMesh = linkTarget;
     
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS (1-3 thin rings) ==========
@@ -878,8 +910,13 @@ export class AINodes {
       
       ring.visible = false; // Neutralize decorative orbit rings
       ring.userData.neutralized = true;
-      nodeModel.add(ring);
-      orbitRings.push(ring);
+      // Guard: Only add ring if not already present (track by ring index)
+      const ringKey = `orbit-ring-${r}`;
+      if (!nodeModel.userData.overlays[ringKey]) {
+        nodeModel.add(ring);
+        nodeModel.userData.overlays[ringKey] = ring;
+        orbitRings.push(ring);
+      }
     }
     
     // ========== ULTRA EDITION: INTENSE OUTER GLOW (200% boost) ==========
@@ -905,7 +942,11 @@ export class AINodes {
       outerGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
       outerGlow.visible = false; // Neutralize decorative glow
       outerGlow.userData.neutralized = true;
-      nodeModel.add(outerGlow);
+      // Guard: Only add outer glow if not already present
+      if (!nodeModel.userData.overlays['outer-glow']) {
+        nodeModel.add(outerGlow);
+        nodeModel.userData.overlays['outer-glow'] = outerGlow;
+      }
     }
     
     // Secondary halo (even larger, very soft)
@@ -929,7 +970,11 @@ export class AINodes {
       haloGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
       haloGlow.visible = false; // Neutralize decorative halo
       haloGlow.userData.neutralized = true;
-      nodeModel.add(haloGlow);
+      // Guard: Only add halo glow if not already present
+      if (!nodeModel.userData.overlays['halo-glow']) {
+        nodeModel.add(haloGlow);
+        nodeModel.userData.overlays['halo-glow'] = haloGlow;
+      }
     }
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
@@ -966,7 +1011,12 @@ export class AINodes {
           const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
           edgeLines.userData.isVFX = true;
           edgeLines.userData.edgeGlow = true;
-          child.add(edgeLines);
+          // Guard: Only add edge glow if not already present for this child
+          const edgeKey = `edge-glow-${child.uuid}`;
+          if (!nodeModel.userData.overlays[edgeKey]) {
+            child.add(edgeLines);
+            nodeModel.userData.overlays[edgeKey] = edgeLines;
+          }
         }
       });
     }
@@ -1000,8 +1050,13 @@ export class AINodes {
       
       particle.visible = false; // Neutralize decorative sparks
       particle.userData.neutralized = true;
-      nodeModel.add(particle);
-      sparkParticles.push(particle);
+      // Guard: Only add particle if not already present (track by index)
+      const particleKey = `spark-particle-${i}`;
+      if (!nodeModel.userData.overlays[particleKey]) {
+        nodeModel.add(particle);
+        nodeModel.userData.overlays[particleKey] = particle;
+        sparkParticles.push(particle);
+      }
     }
     
     // ========== ULTRA EDITION: FRACTAL HOLOGRAM LAYER (subtle overlay) ==========
@@ -1026,7 +1081,11 @@ export class AINodes {
     fractalHolo.frustumCulled = false;
     fractalHolo.visible = false; // Neutralize decorative hologram
     fractalHolo.userData.neutralized = true;
-    nodeModel.add(fractalHolo);
+    // Guard: Only add fractal hologram if not already present
+    if (!nodeModel.userData.overlays['fractal-hologram']) {
+      nodeModel.add(fractalHolo);
+      nodeModel.userData.overlays['fractal-hologram'] = fractalHolo;
+    }
     
     // ============ SAFE VFX LAYER 3 & 4: LEVITATION & PULSE (Enhanced) ============
     const levitationPhase = Math.random() * Math.PI * 2;
@@ -1036,7 +1095,11 @@ export class AINodes {
     // Point light for activated state
     const light = new THREE.PointLight(coreColor, 0, 10);
     light.position.set(0, 0, 0);
-    nodeModel.add(light);
+    // Guard: Only add point light if not already present
+    if (!nodeModel.userData.overlays['point-light']) {
+      nodeModel.add(light);
+      nodeModel.userData.overlays['point-light'] = light;
+    }
     
     // ========== ULTRA NODE EDITION: Node data with all systems ==========
     nodeModel.userData = {
@@ -1186,6 +1249,15 @@ export class AINodes {
       }
     });
     
+    freezeNodeCoreState(nodeModel);
+    
+    // Archetype / Integration visual state flags (prevent unintended reapply)
+    nodeModel.userData = nodeModel.userData || {};
+    nodeModel.userData._archetypeApplied = false;
+    nodeModel.userData._integrationApplied = false;
+    nodeModel.userData._archetypeDirty = true;
+    nodeModel.userData._integrationDirty = true;
+    
     return nodeModel;
   }
   
@@ -1326,16 +1398,33 @@ export class AINodes {
       
       // Check distance to player
       const distance = node.position.distanceTo(playerPos);
-      const isNearPlayer = distance < this.activationDistance;
       
-      // Update activation state
+      // PHASE VD-3 FIX: Apply hysteresis to prevent visual flickering
+      // Only change state when clearly inside or clearly outside threshold
+      const showThreshold = this.activationDistance - this.activationHysteresis;
+      const hideThreshold = this.activationDistance + this.activationHysteresis;
+      
+      // Initialize activation hysteresis state if needed
+      if (data._activationIsNear === undefined) {
+        data._activationIsNear = distance < this.activationDistance;
+      }
+      
+      // Apply hysteresis logic
+      const isNearPlayer = data._activationIsNear ? (distance < hideThreshold) : (distance < showThreshold);
+      
+      // Update activation state only when hysteresis threshold crossed
       if (isNearPlayer && !data.isActive) {
         data.isActive = true;
         data.targetActivation = 1;
+        data._activationIsNear = true;
         this.activeNodes.add(node);
         this.onNodeActivated(node);
       } else if (!isNearPlayer && data.isActive) {
         data.targetActivation = 0;
+        // Only mark as "not near" after fully deactivated
+        if (data.activationLevel === 0) {
+          data._activationIsNear = false;
+        }
       }
       
       // Smooth activation transition
@@ -2215,6 +2304,18 @@ export class AINodes {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    */
   spawnNode(category = null, position = null, forceArchetype = null) {
+    // ============================================================
+    // [LINK-SPAWN-TRACE] Debug instrumentation
+    // ============================================================
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      console.warn('[LINK-SPAWN] spawnNode called', {
+        category,
+        position,
+        forceArchetype,
+        stack: new Error().stack
+      });
+    }
+
     // Local trackers for fallback detection (no behavioral change to visuals/logic)
     const requestedCategoryRaw = category;
     if (this._fallbackLogged === undefined) this._fallbackLogged = false;
@@ -2591,6 +2692,16 @@ export class AINodes {
    * Update spawning system (called every frame)
    */
   updateSpawning(currentTime) {
+    // ============================================================
+    // [LINK-SPAWN-TRACE] Debug instrumentation
+    // ============================================================
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      console.warn('[LINK-SPAWN] updateSpawning called', {
+        currentTime,
+        stack: new Error().stack
+      });
+    }
+
     // Safety guard: Initialize spawnConfig if not yet initialized
     if (!this.spawningConfig) {
       this.initializeNodeSpawning();
@@ -2613,6 +2724,25 @@ export class AINodes {
    * Register link event (triggers potential spawn)
    */
   onLinkCreated() {
+    if (!isLinkSpawnEnabled()) {
+      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_LINK_SPAWN === true) {
+        console.warn('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
+      }
+      return;
+    }
+    // ============================================================
+    // [LINK-SPAWN-TRACE] Debug instrumentation
+    // ============================================================
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      console.warn('[LINK-SPAWN] onLinkCreated called (link -> spawn trigger)', {
+        currentTime: Date.now(),
+        lastLinkTime: this.spawningConfig.lastLinkTime,
+        linkSpawnCooldown: this.spawningConfig.linkSpawnCooldown,
+        canSpawn: Date.now() - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown,
+        stack: new Error().stack
+      });
+    }
+
     const currentTime = Date.now();
     if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
       // Occasionally spawn node on link creation (20% chance)
@@ -2627,6 +2757,16 @@ export class AINodes {
    * Monitor network density and spawn nodes in growth areas
    */
   checkNetworkDensityAndSpawn() {
+    // ============================================================
+    // [LINK-SPAWN-TRACE] Debug instrumentation
+    // ============================================================
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      console.warn('[LINK-SPAWN] checkNetworkDensityAndSpawn called', {
+        currentNodeCount: this.nodes.length,
+        stack: new Error().stack
+      });
+    }
+
     const currentNodeCount = this.nodes.length;
     const maxTarget = this.spawningConfig.maxNodesTarget;
     const threshold = maxTarget * this.spawningConfig.spawnThreshold;

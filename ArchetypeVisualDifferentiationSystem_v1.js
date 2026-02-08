@@ -60,6 +60,12 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
    */
   applyArchetypeToNode(nodeModel, archetypeName) {
     if (!nodeModel || !nodeModel.userData) return;
+    if (nodeModel.userData._archetypeApplied === true && !nodeModel.userData._archetypeDirty) {
+      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+        console.log('[ARCHETYPE] apply skipped (already applied)', nodeModel.id || nodeModel.uuid);
+      }
+      return;
+    }
 
     const profile = ArchetypeVisualProfiles.getProfileForArchetype(archetypeName);
     
@@ -81,6 +87,11 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
 
     this.appliedArchetypes.set(nodeModel, archetypeName);
     this.modifiedNodes.add(nodeModel);
+    nodeModel.userData._archetypeApplied = true;
+    nodeModel.userData._archetypeDirty = false;
+    if (typeof window !== 'undefined' && window.ATOMA_DEBUG_ARCHETYPE_REAPPLY) {
+      console.log('[ARCHETYPE] apply executed', nodeModel.id || nodeModel.uuid, archetypeName);
+    }
 
     if (this.debugMode) {
       console.log(`%c[Archetype] Applied ${archetypeName} (overlay-only)`, 'color: #00ff88;', {

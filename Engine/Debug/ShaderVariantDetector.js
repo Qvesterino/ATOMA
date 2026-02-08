@@ -1,4 +1,17 @@
 import * as THREE from 'three';
+import { debugLog, debugWarn } from './DebugLog.js';
+
+const shaderDebugFlag = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_SHADER === true);
+
+const shaderDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG === true && window.ATOMA_DEBUG_SHADER === true);
+
+function shaderLog(...args) {
+    debugLog(shaderDebugFlag(), ...args);
+}
+
+function shaderWarn(...args) {
+    debugWarn(shaderDebugFlag(), ...args);
+}
 
 /**
  * SHADER VARIANT DETECTOR
@@ -69,7 +82,7 @@ function patchMaterialSetValues() {
         for (const key of FORBIDDEN_PROPERTIES) {
             if (key in values && shouldLogMaterial(this)) {
                 const origin = materialOrigins.get(this) || 'unknown';
-                console.warn(
+                shaderWarn(
                     '[ShaderVariantChange]',
                     {
                         type: this.type || 'unknown',
@@ -79,7 +92,9 @@ function patchMaterialSetValues() {
                         origin
                     }
                 );
-                console.trace();
+                if (shaderDebugEnabled()) {
+                    console.trace();
+                }
             }
         }
         
@@ -113,17 +128,20 @@ function wrapMaterialWithProxy(material, origin = 'unknown') {
             
             // Check for forbidden properties
             if (FORBIDDEN_PROPERTIES.includes(property) && shouldLogMaterial(target)) {
-                console.warn(
+                shaderWarn(
                     '[ShaderVariantChange]',
                     {
                         type: target.type || 'unknown',
                         property,
                         value,
                         uuid: target.uuid,
-                        origin
+                        origin,
+                        ctx: (typeof globalThis !== 'undefined' && globalThis.__ATOMA_CTX) ? globalThis.__ATOMA_CTX : 'none'
                     }
                 );
-                console.trace();
+                if (shaderDebugEnabled()) {
+                    console.trace();
+                }
             }
             
             target[property] = value;
@@ -164,8 +182,8 @@ export function initShaderVariantDetector() {
     
     patchMaterialSetValues();
     
-    console.log('[ShaderVariantDetector] Initialized (dev mode)');
-    console.log('[ShaderVariantDetector] Monitoring properties:', FORBIDDEN_PROPERTIES.join(', '));
+    shaderLog('[ShaderVariantDetector] Initialized (dev mode)');
+    shaderLog('[ShaderVariantDetector] Monitoring properties:', FORBIDDEN_PROPERTIES.join(', '));
 }
 
 /**

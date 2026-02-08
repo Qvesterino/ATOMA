@@ -3,6 +3,34 @@ import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 
 // Policy: NodeEditor must not create real nodes (bypass guard)
 const NODE_EDITOR_DEBUG_MARKERS_ENABLED = false;
+const VARIANT_PROPS = ['transparent', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
+const VARIANT_DEBUG_FLAG = '__ATOMA_DEBUG_VARIANTS';
+
+function withSelectionContext(fn) {
+  const prev = globalThis.__ATOMA_CTX;
+  globalThis.__ATOMA_CTX = 'selection';
+  try { return fn(); }
+  finally { globalThis.__ATOMA_CTX = prev; }
+}
+
+function snapshotVariantProps(material) {
+  return VARIANT_PROPS.reduce((acc, p) => { acc[p] = material[p]; return acc; }, {});
+}
+
+function guardSelectionVariants(materials, fn) {
+  if (!globalThis[VARIANT_DEBUG_FLAG]) return fn();
+  const mats = (Array.isArray(materials) ? materials : [materials]).filter(Boolean);
+  const before = mats.map(mat => ({ mat, snap: snapshotVariantProps(mat) }));
+  const result = fn();
+  before.forEach(({ mat, snap }) => {
+    const changed = VARIANT_PROPS.filter(p => mat[p] !== snap[p]);
+    if (changed.length) {
+      console.warn('[SelectionVariantGuard] Variant prop changed during selection', { uuid: mat.uuid, changed, before: snap, after: snapshotVariantProps(mat) });
+      console.trace();
+    }
+  });
+  return result;
+}
 
 /**
  * ATOMA Node Editor - Interactive 3D Node Graph System
@@ -350,44 +378,46 @@ export class NodeEditor {
    * Handle mouse click
    */
   handleMouseClick(event) {
-    const intersects = this.raycaster.intersectObjects(
-      this.nodes.map(n => n.mesh)
-    );
-    const filtered = filterRaycastIntersections(intersects);
-    
-    // Link mode - click to confirm link
-    if (this.isLinking) {
-      if (filtered.length > 0) {
-        const target = filtered[0].object;
-        if (target !== this.linkSource.mesh) {
-          this.createLink(this.linkSource.data.id, target.userData.id);
+    withSelectionContext(() => {
+      const intersects = this.raycaster.intersectObjects(
+        this.nodes.map(n => n.mesh)
+      );
+      const filtered = filterRaycastIntersections(intersects);
+      
+      // Link mode - click to confirm link
+      if (this.isLinking) {
+        if (filtered.length > 0) {
+          const target = filtered[0].object;
+          if (target !== this.linkSource.mesh) {
+            this.createLink(this.linkSource.data.id, target.userData.id);
+          }
         }
+        this.cancelLinking();
+        return;
       }
-      this.cancelLinking();
-      return;
-    }
-    
-    // Normal selection
-    if (intersects.length > 0) {
-      const clickedNode = intersects[0].object;
-      const foundNode = this.nodes.find(n => n.mesh === clickedNode);
       
-      // Only proceed if node was found
-      if (!foundNode) {
+      // Normal selection
+      if (intersects.length > 0) {
+        const clickedNode = intersects[0].object;
+        const foundNode = this.nodes.find(n => n.mesh === clickedNode);
+        
+        // Only proceed if node was found
+        if (!foundNode) {
+          this.deselectAll();
+          return;
+        }
+        
+        // Shift - start linking
+        if (event.shiftKey) {
+          this.startLinking(foundNode);
+          return;
+        }
+        
+        guardSelectionVariants(foundNode.mesh.material, () => this.selectNode(foundNode));
+      } else {
         this.deselectAll();
-        return;
       }
-      
-      // Shift - start linking
-      if (event.shiftKey) {
-        this.startLinking(foundNode);
-        return;
-      }
-      
-      this.selectNode(foundNode);
-    } else {
-      this.deselectAll();
-    }
+    });
   }
   
   /**
@@ -478,17 +508,11 @@ export class NodeEditor {
     // Deselect previous
     if (this.selectedNode && this.selectedNode.mesh) {
       this.setNodeOutlineOpacity(this.selectedNode.mesh, 0);
-      if (this.selectedNode.mesh.material) {
-        this.selectedNode.mesh.material.emissiveIntensity = 0.2;
-      }
     }
     
     // Select new
     this.selectedNode = node;
     this.setNodeOutlineOpacity(node.mesh, 1);
-    if (node.mesh.material) {
-      node.mesh.material.emissiveIntensity = 0.5;
-    }
   }
   
   /**
@@ -497,9 +521,7 @@ export class NodeEditor {
   deselectAll() {
     if (this.selectedNode && this.selectedNode.mesh) {
       this.setNodeOutlineOpacity(this.selectedNode.mesh, 0);
-      if (this.selectedNode.mesh.material) {
-        this.selectedNode.mesh.material.emissiveIntensity = 0.2;
-      }
+        // material untouched (base immutability)
       this.selectedNode = null;
     }
   }

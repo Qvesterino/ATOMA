@@ -119,48 +119,15 @@ export class NodeVisualFreezeMode_v1 {
    * Called in render loop - ensures no mutation
    */
   enforceFreeze(scene) {
-    if (!this.enabled) return;
-    
-    let enforcedCount = 0;
-    
-    // Enforce all frozen nodes
-    this.frozenNodes.forEach(entry => {
-      const { nodeGroup, material } = entry;
-      
-      if (!nodeGroup.parent) {
-        // Node was removed, untrack it
-        this.frozenNodes.delete(nodeGroup.uuid);
-        return;
-      }
-      
-      // Re-enforce material on all body meshes
-      nodeGroup.traverse(child => {
-        if (child.isMesh && this._isNodeBodyMesh(child)) {
-          // Force material back if it was changed
-          if (child.material !== material) {
-            child.material = material;
-            this.stats.violationsBlocked++;
-          }
-          
-          // Lock material properties HARD
-          material.transparent = false;
-          material.opacity = 1.0;
-          material.alphaTest = 0;
-          material.depthWrite = true;
-          material.depthTest = true;
-          material.emissiveIntensity = 0.0;
-          material.needsUpdate = false;
-          
-          enforcedCount++;
-        }
-      });
-    });
-    
-    this.stats.enforcementCalls++;
-    
-    if (this.debugMode && enforcedCount > 0) {
-      console.log(`[Freeze] Enforced ${enforcedCount} node meshes this frame`);
-    }
+    // PHASE MATERIAL-MUTATION-KILL:
+    // Per-frame freeze enforcement disabled. Freeze state is applied on activation only.
+    return;
+  }
+
+  update(deltaTime) {
+    // PHASE MATERIAL-MUTATION-KILL:
+    // Disable per-frame freeze enforcement.
+    return;
   }
 
   /**

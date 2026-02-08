@@ -301,9 +301,12 @@ export class AdaptiveGlyphRendering1_0 {
   applyBreathingMotion(glyphGroup, breathScale) {
     if (!glyphGroup || breathScale === 1.0) return;
     
-    // Modulate scale with breathing
-    const currentScale = glyphGroup.scale.x || 1.0;
-    glyphGroup.scale.multiplyScalar(breathScale);
+    // FIX: Use absolute scaling from base scale to prevent drift
+    if (!glyphGroup.userData.baseScale) {
+      glyphGroup.userData.baseScale = glyphGroup.scale.x || 1.0;
+    }
+    const absoluteScale = glyphGroup.userData.baseScale * breathScale;
+    glyphGroup.scale.setScalar(absoluteScale);
   }
 
   /**

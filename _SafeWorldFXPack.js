@@ -13,6 +13,15 @@ import { safeSetEmissive } from './_EmissiveUtils.js';
  * - All effects are additive and completely reversible
  */
 
+/**
+ * Global guard function for world FX runtime kill switch
+ */
+function areWorldFXEnabled() {
+  if (typeof window === 'undefined') return true;
+  if (window.ATOMA_WORLD_FX_ENABLED === undefined) return true;
+  return window.ATOMA_WORLD_FX_ENABLED === true;
+}
+
 export class SafeWorldFXPack {
   constructor(scene, camera) {
     this.scene = scene;
@@ -77,14 +86,172 @@ export class SafeWorldFXPack {
       breathingSpeed: 0.5,               // Oscillations per second
       breathingIntensity: 0.1            // 10% variation
     };
-    
+
     // Lighting state tracking
     this.originalLights = [];
     this.lights = [];
     this.maxLights = 5;
+
+    // Rift wave materials (pre-warmed pool)
+    this._riftWaveMaterialPool = {
+      linear: { available: [], inUse: new Set() },
+      radial: { available: [], inUse: new Set() }
+    };
+    this._initializeRiftWaveMaterials();
     
     // Initialize world FX
     this.initializeWorldFX();
+  }
+
+  freezeMaterialFlags(mat, context) {
+    if (!mat) return;
+    if (!mat.userData) mat.userData = {};
+    mat.userData.__frozenVariantProps = mat.userData.__frozenVariantProps || new Set();
+    mat.userData.__warnedVariantProp = mat.userData.__warnedVariantProp || new Set();
+
+    const props = ['transparent', 'opacity', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
+    props.forEach((prop) => {
+      if (mat.userData.__frozenVariantProps.has(prop)) return;
+      const desc = Object.getOwnPropertyDescriptor(mat, prop);
+      if (desc && desc.configurable === false) {
+        if (!mat.userData.__warnedVariantProp.has(prop)) {
+          console.warn('[FX_FLAG_LOCK] Prop already locked, skip redefine', prop, mat.uuid, context);
+          mat.userData.__warnedVariantProp.add(prop);
+        }
+        mat.userData.__frozenVariantProps.add(prop);
+        return;
+      }
+      const cachedValue = mat[prop];
+      try {
+        Object.defineProperty(mat, prop, {
+          configurable: true,
+          enumerable: true,
+          get() { return cachedValue; },
+          set(v) {
+            if (v === cachedValue) return;
+            if (!mat.userData.__warnedVariantProp.has(prop)) {
+              console.warn('[FX_FLAG_MUTATION_BLOCKED]', context, prop);
+              mat.userData.__warnedVariantProp.add(prop);
+            }
+          }
+        });
+        mat.userData.__frozenVariantProps.add(prop);
+      } catch (err) {
+        if (!mat.userData.__warnedVariantProp.has(prop)) {
+          console.warn('[FX_FLAG_LOCK_FAIL]', context, prop, err?.message);
+          mat.userData.__warnedVariantProp.add(prop);
+        }
+      }
+    });
+
+    mat.userData.__owner = mat.userData.__owner || 'SafeWorldFX';
+    mat.userData.__domain = mat.userData.__domain || 'overlay';
+    mat.userData.__flagsFrozen = true;
+    this.installFlagGuard(mat, context);
+  }
+
+  /**
+   * MATERIAL MUTATION KILL HELPERS
+   */
+  logForbiddenMutation(context, prop) {
+    console.warn('[FX_FLAG_MUTATION_BLOCKED]', context, prop);
+  }
+
+  installFlagGuard(material, context) {
+    if (!material || material.userData?.flagGuardInstalled) return;
+    const baseline = {};
+    const props = ['transparent', 'opacity', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
+    props.forEach(p => baseline[p] = material[p]);
+    const previous = material.onBeforeRender;
+    material.onBeforeRender = (...args) => {
+      if (typeof previous === 'function') previous.apply(material, args);
+      props.forEach(p => {
+        if (material[p] !== baseline[p]) {
+          this.logForbiddenMutation(context, p);
+        }
+      });
+    };
+    material.userData.flagGuardInstalled = true;
+  }
+
+  installOpacityUniform(material, initialOpacity, type, context) {
+    if (!material) return;
+    material.userData.opacityUniform = { value: initialOpacity };
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uOpacity = material.userData.opacityUniform;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        '#include <common>\nuniform float uOpacity;'
+      );
+      if (type === 'line') {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          /gl_FragColor\s*=\s*vec4\(\s*diffuse\s*,\s*opacity\s*\);/g,
+          'gl_FragColor = vec4( diffuse, opacity * uOpacity );'
+        );
+      } else {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          /gl_FragColor\s*=\s*vec4\(\s*outgoingLight\s*,\s*diffuseColor\.a\s*\);/g,
+          'gl_FragColor = vec4( outgoingLight, diffuseColor.a * uOpacity );'
+        );
+      }
+      material.userData.shader = shader;
+    };
+    // Keep flags fixed; actual opacity driven by uniform
+    material.opacity = 1;
+    this.freezeMaterialFlags(material, context);
+  }
+
+  setOpacity(material, value, context) {
+    if (material?.userData?.opacityUniform) {
+      material.userData.opacityUniform.value = value;
+    } else if (material) {
+      this.logForbiddenMutation(context, 'opacity');
+    }
+  }
+
+  auditSceneObjects(scene = this.scene) {
+    if (!scene || typeof scene.traverse !== 'function') return;
+
+    const stats = {
+      meshes: 0,
+      lines: 0,
+      points: 0,
+      sprites: 0,
+      byMaterial: {},
+      byGeometry: {},
+      byUserTag: {}
+    };
+
+    scene.traverse(obj => {
+      if (obj.isMesh) stats.meshes++;
+      if (obj.isLine) stats.lines++;
+      if (obj.isPoints) stats.points++;
+      if (obj.isSprite) stats.sprites++;
+
+      if (obj.material) {
+        const type = obj.material.type;
+        stats.byMaterial[type] = (stats.byMaterial[type] || 0) + 1;
+      }
+
+      if (obj.geometry) {
+        const type = obj.geometry.type;
+        stats.byGeometry[type] = (stats.byGeometry[type] || 0) + 1;
+      }
+
+      if (obj.userData && obj.userData.system) {
+        const sys = obj.userData.system;
+        stats.byUserTag[sys] = (stats.byUserTag[sys] || 0) + 1;
+      }
+    });
+
+    console.log('=== SCENE AUDIT ===');
+    console.log('Meshes:', stats.meshes);
+    console.log('Lines:', stats.lines);
+    console.log('Points:', stats.points);
+    console.log('Sprites:', stats.sprites);
+    console.log('By material:', stats.byMaterial);
+    console.log('By geometry:', stats.byGeometry);
+    console.log('By system tag:', stats.byUserTag);
   }
   
   /**
@@ -143,6 +310,13 @@ export class SafeWorldFXPack {
    * Main update loop
    */
   update(deltaTime, nodes, linkingSystem, evolutionManager, legendaryPack) {
+    if (!areWorldFXEnabled()) {
+      if (window.ATOMA_DEBUG_WORLD_FX) {
+        console.log('[WFX] update skipped - disabled');
+      }
+      return;
+    }
+    
     this.worldState.time += deltaTime;
     
     // Update world metrics from systems
@@ -214,7 +388,7 @@ export class SafeWorldFXPack {
       
       // Fade grid distortion
       if (shift.gridMesh) {
-        shift.gridMesh.material.opacity = (1 - progress) * 0.2;
+        this.setOpacity(shift.gridMesh.material, (1 - progress) * 0.2, 'dimensional_shift.grid');
       }
       
       // Remove when done
@@ -259,6 +433,8 @@ export class SafeWorldFXPack {
       opacity: 0.2,
       fog: false
     });
+    this.installOpacityUniform(gridMat, 0.2, 'line', 'dimensional_shift.grid');
+    this.freezeMaterialFlags(gridMat, 'dimensional_shift.grid');
     
     const gridMesh = new THREE.LineSegments(gridGeo, gridMat);
     gridMesh.position.y = 0.5;
@@ -323,21 +499,81 @@ export class SafeWorldFXPack {
         
         // Fade opacity
         const maxDistance = 200;
-        wave.mesh.material.opacity = Math.max(0, 0.6 - (wave.distance / maxDistance) * 0.6);
+        this.setOpacity(wave.mesh.material, Math.max(0, 0.6 - (wave.distance / maxDistance) * 0.6), 'rift_wave.update');
       }
       
       // Remove when off-screen
       if (wave.distance > 300) {
         if (wave.mesh) {
+          const materialType = wave.materialType || wave.type;
+          this._releaseRiftWaveMaterial(materialType, wave.mesh.material);
           this.scene.remove(wave.mesh);
           wave.mesh.geometry.dispose();
-          wave.mesh.material.dispose();
         }
         return false;
       }
       
       return true;
     });
+  }
+
+  _initializeRiftWaveMaterials() {
+    const linearCount = 4;
+    for (let i = 0; i < linearCount; i++) {
+      this._riftWaveMaterialPool.linear.available.push(this._createRiftWaveLinearMaterial());
+    }
+
+    const radialCount = 3;
+    for (let i = 0; i < radialCount; i++) {
+      this._riftWaveMaterialPool.radial.available.push(this._createRiftWaveRadialMaterial());
+    }
+  }
+
+  _createRiftWaveLinearMaterial() {
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.6,
+      emissive: 0x00ffff,
+      emissiveIntensity: 0.3,
+      fog: false
+    });
+    this.installOpacityUniform(mat, 0.6, 'standard', 'rift_wave.linear');
+    this.freezeMaterialFlags(mat, 'rift_wave.linear');
+    return mat;
+  }
+
+  _createRiftWaveRadialMaterial() {
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.6,
+      fog: false
+    });
+    this.installOpacityUniform(mat, 0.6, 'line', 'rift_wave.radial');
+    this.freezeMaterialFlags(mat, 'rift_wave.radial');
+    return mat;
+  }
+
+  _allocateRiftWaveMaterial(type) {
+    const bucket = this._riftWaveMaterialPool[type];
+    if (!bucket) return null;
+    if (bucket.available.length === 0) {
+      console.warn('[SafeWorldFXPack] Rift wave material pool empty', type);
+      return null;
+    }
+    const mat = bucket.available.pop();
+    bucket.inUse.add(mat);
+    return mat;
+  }
+
+  _releaseRiftWaveMaterial(type, material) {
+    if (!material || !this._riftWaveMaterialPool[type]) return;
+    const bucket = this._riftWaveMaterialPool[type];
+    if (!bucket.inUse.has(material)) return;
+    bucket.inUse.delete(material);
+    bucket.available.push(material);
+    this.setOpacity(material, 0.6, `rift_wave.reset.${type}`);
   }
   
   /**
@@ -349,15 +585,9 @@ export class SafeWorldFXPack {
     if (waveType === 'linear') {
       // Create linear wave
       const waveGeo = new THREE.PlaneGeometry(100, this.config.riftWaveWidth);
-      const waveMat = new THREE.MeshStandardMaterial({
-        color: 0x00ffff,
-        transparent: true,
-        opacity: 0.6,
-        emissive: 0x00ffff,
-        emissiveIntensity: 0.3,
-        fog: false
-      });
-      
+      const waveMat = this._allocateRiftWaveMaterial('linear');
+      if (!waveMat) return;
+
       const waveMesh = new THREE.Mesh(waveGeo, waveMat);
       waveMesh.position.z = -50;
       waveMesh.position.y = 0.1;
@@ -371,6 +601,7 @@ export class SafeWorldFXPack {
         distance: 0,
         startZ: waveMesh.position.z,
         type: 'linear',
+        materialType: 'linear',
         mesh: waveMesh
       });
     } else {
@@ -391,14 +622,10 @@ export class SafeWorldFXPack {
       }
       
       waveGeo.setFromPoints(circlePoints);
-      
-      const waveMat = new THREE.LineBasicMaterial({
-        color: 0x00ff88,
-        transparent: true,
-        opacity: 0.6,
-        fog: false
-      });
-      
+
+      const waveMat = this._allocateRiftWaveMaterial('radial');
+      if (!waveMat) return;
+
       const waveMesh = new THREE.Line(waveGeo, waveMat);
       waveMesh.position.copy(this.scene.position);
       waveMesh.userData = { isWorldFX: true, type: 'rift_wave_radial' };
@@ -409,6 +636,7 @@ export class SafeWorldFXPack {
         age: 0,
         distance: 0,
         type: 'radial',
+        materialType: 'radial',
         mesh: waveMesh
       });
     }
@@ -515,6 +743,8 @@ export class SafeWorldFXPack {
       opacity: 0.15,
       fog: false
     });
+    this.installOpacityUniform(fractalMat, 0.15, 'line', 'fractal_sky');
+    this.freezeMaterialFlags(fractalMat, 'fractal_sky');
     
     const fractalMesh = new THREE.LineSegments(fractalGeo, fractalMat);
     fractalMesh.userData = { isWorldFX: true, type: 'fractal_sky' };
@@ -546,6 +776,13 @@ export class SafeWorldFXPack {
    * QUANTUM RIFT EVENTS - Rare visual phenomena
    */
   updateQuantumRifts(deltaTime) {
+    if (!areWorldFXEnabled()) {
+      if (window.ATOMA_DEBUG_WORLD_FX) {
+        console.log('[WFX] updateQuantumRifts skipped - disabled');
+      }
+      return;
+    }
+    
     this.worldState.quantumTimer += deltaTime;
     
     // Chance to spawn quantum rift
@@ -566,13 +803,13 @@ export class SafeWorldFXPack {
       // Update rift mesh
       if (rift.mesh) {
         rift.mesh.scale.setScalar(1 + Math.sin(ripplePhase) * 0.2);
-        rift.mesh.material.opacity = Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.8);
+        this.setOpacity(rift.mesh.material, Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.8), 'quantum_rift.update');
       }
       
       // Update ripple rings
       rift.ripples.forEach((ripple, idx) => {
         ripple.mesh.scale.setScalar(1 + (ripplePhase + idx * 0.5) * 0.3);
-        ripple.mesh.material.opacity = Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.4);
+        this.setOpacity(ripple.mesh.material, Math.max(0, (1 - rift.age / this.config.quantumRiftDuration) * 0.4), 'quantum_rift.ripple.update');
       });
       
       // Remove when done
@@ -612,6 +849,8 @@ export class SafeWorldFXPack {
       emissiveIntensity: 0.5,
       fog: false
     });
+    this.installOpacityUniform(riftMat, 0.6, 'standard', 'quantum_rift.core');
+    this.freezeMaterialFlags(riftMat, 'quantum_rift.core');
     
     const riftMesh = new THREE.Mesh(riftGeo, riftMat);
     riftMesh.position.set(x, 30, z);
@@ -630,6 +869,9 @@ export class SafeWorldFXPack {
         emissiveIntensity: 0.3,
         fog: false
       });
+      
+      this.installOpacityUniform(rippleMat, 0.4, 'standard', `quantum_rift.ripple_${i}`);
+      this.freezeMaterialFlags(rippleMat, `quantum_rift.ripple_${i}`);
       
       const rippleMesh = new THREE.Mesh(rippleGeo, rippleMat);
       rippleMesh.position.set(x, 30, z);
@@ -666,7 +908,7 @@ export class SafeWorldFXPack {
       glitch.alpha = Math.max(0, 1 - glitch.age / this.config.sigmaGlitchDuration);
       
       if (glitch.mesh) {
-        glitch.mesh.material.opacity = glitch.alpha * 0.4;
+        this.setOpacity(glitch.mesh.material, glitch.alpha * 0.4, 'sigma_glitch.update');
       }
       
       // Remove when done
@@ -710,6 +952,8 @@ export class SafeWorldFXPack {
       opacity: 0.4,
       fog: false
     });
+    this.installOpacityUniform(glitchMat, 0.4, 'line', 'sigma_glitch');
+    this.freezeMaterialFlags(glitchMat, 'sigma_glitch');
     
     const glitchMesh = new THREE.LineSegments(glitchGeo, glitchMat);
     glitchMesh.userData = { isWorldFX: true, type: 'sigma_glitch' };
@@ -781,6 +1025,8 @@ export class SafeWorldFXPack {
         fog: false,
         linewidth: 3
       });
+      this.installOpacityUniform(streamMat, 0.3, 'line', `energy_stream_${i}`);
+      this.freezeMaterialFlags(streamMat, `energy_stream_${i}`);
       
       const streamMesh = new THREE.Line(streamGeo, streamMat);
       streamMesh.position.z = i * 30 - 45;
@@ -812,7 +1058,7 @@ export class SafeWorldFXPack {
       }
       
       // Color shift based on activity
-      stream.material.opacity = 0.2 + activityLevel * 0.4;
+      this.setOpacity(stream.material, 0.2 + activityLevel * 0.4, `energy_stream.update_${idx}`);
     });
   }
   
@@ -845,6 +1091,8 @@ export class SafeWorldFXPack {
       opacity: 0.3,
       fog: false
     });
+    this.installOpacityUniform(auroraMat, 0.3, 'line', 'aurora_horizon');
+    this.freezeMaterialFlags(auroraMat, 'aurora_horizon');
     
     const auroraMesh = new THREE.LineSegments(auroraGeo, auroraMat);
     auroraMesh.userData = { isWorldFX: true, type: 'aurora_horizon' };

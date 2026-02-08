@@ -26,6 +26,70 @@
 
 import * as THREE from 'three';
 
+// PHASE S-5: Variant property freezing for shader variant immunity
+const VARIANT_CRITICAL_PROPS = [
+    'transparent',
+    'side',
+    'blending',
+    'depthWrite',
+    'depthTest',
+    'alphaTest'
+];
+
+function isCoreNodeMesh(mesh) {
+  return mesh?.userData?.isNodeCore === true ||
+         mesh?.userData?.nodeId !== undefined;
+}
+
+function freezeMaterialFlags(material, owner = 'LinkBeadSystem') {
+    if (!material) return;
+    if (!material.userData) material.userData = {};
+    material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
+    material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
+
+    VARIANT_CRITICAL_PROPS.forEach((prop) => {
+        if (material.userData.__frozenVariantProps.has(prop)) return;
+
+        const desc = Object.getOwnPropertyDescriptor(material, prop);
+        if (desc && desc.configurable === false) {
+            if (!material.userData.__warnedVariantProp.has(prop)) {
+                console.warn('[VariantLock] Prop already locked, skip redefine', prop, material.uuid);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+            material.userData.__frozenVariantProps.add(prop);
+            return;
+        }
+
+        const cachedValue = material[prop];
+        try {
+            Object.defineProperty(material, prop, {
+                configurable: true,
+                enumerable: true,
+                get() {
+                    return cachedValue;
+                },
+                set(value) {
+                    if (cachedValue === value) return;
+                    if (!material.userData.__warnedVariantProp.has(prop)) {
+                        console.error('[VariantLock]', prop, 'modified after lock');
+                        material.userData.__warnedVariantProp.add(prop);
+                    }
+                }
+            });
+            material.userData.__frozenVariantProps.add(prop);
+        } catch (err) {
+            if (!material.userData.__warnedVariantProp.has(prop)) {
+                console.warn('[VariantLock] Failed to lock prop', prop, material.uuid, err?.message);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+        }
+    });
+
+    material.userData.__owner = material.userData.__owner || owner;
+    material.userData.__flagsFrozen = true;
+    material.__variantLocked = true;
+}
+
 /**
  * Bead configuration
  */
@@ -363,24 +427,36 @@ export class BeadRenderer {
       large: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.large, 4)
     };
     
-    // Shared material
-    // We will clone this for each bead, but the geometry is shared
+    // PHASE S-5: Variant properties set at creation time, then frozen
+    // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
+    // Shared material template - cloned for each bead
     this.material = new THREE.MeshStandardMaterial({
-      transparent: true,
       opacity: BEAD_CONFIG.opacity,
       emissiveIntensity: BEAD_CONFIG.emissiveIntensity,
       roughness: BEAD_CONFIG.roughness,
       metalness: BEAD_CONFIG.metalness,
+      wireframe: false,
+      // Variant properties (frozen after creation):
+      transparent: true,
+      side: THREE.DoubleSide,
       depthWrite: false,
       depthTest: true,
-      wireframe: false
+      blending: THREE.NormalBlending
     });
+    // Freeze variant properties on the template material
+    this.material.userData = this.material.userData || {};
+    this.material.userData.__owner = 'LinkBeadSystem';
+    this.material.userData.__domain = 'bead';
+    freezeMaterialFlags(this.material, 'LinkBeadSystem');
   }
   
   /**
    * Create a bead mesh for a given bead object
    */
   createBeadMesh(bead, color) {
+    if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
+      return null;
+    }
     const geometry = this.geometries[bead.size];
     const material = this.material.clone();
     
@@ -400,6 +476,11 @@ export class BeadRenderer {
    */
   updateBeadPosition(mesh, curve, synergy, sourceColor, targetColor) {
     const bead = mesh.userData.bead;
+    if (isCoreNodeMesh(mesh)) {
+      // Phase LRC-SAFE-CORE
+      // Do NOT modify core node material
+      return;
+    }
     
     if (!bead || !bead.isActive) {
       mesh.visible = false;
@@ -529,6 +610,9 @@ export class LinkBeadVisualizer {
    * Update all beads
    */
   update(deltaTime, onArrival) {
+    if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
+      return;
+    }
     // Update pool (spawning and bead logic)
     this.pool.update(deltaTime, onArrival);
     this.pool.invalidateCache(); // Reset cache each frame
@@ -565,8 +649,10 @@ export class LinkBeadVisualizer {
       if (!this.beadToMesh.has(bead)) {
         // Create mesh with initial source color
         const mesh = this.renderer.createBeadMesh(bead, this.sourceColor);
-        this.group.add(mesh);
-        this.beadToMesh.set(bead, mesh);
+        if (mesh) {
+          this.group.add(mesh);
+          this.beadToMesh.set(bead, mesh);
+        }
       }
     }
   }

@@ -426,16 +426,21 @@ export class NodeMicroEvents {
   }
   
   createSynchronizedPulse(node) {
-    // Find nearby nodes and pulse together
+    // FIX: Ensure base scale is stored for absolute scaling
     const nearby = this.interactionCache.get(node.uuid) || [];
     
     nearby.forEach(nearbyNode => {
+      // Initialize base scale if not already set
+      if (!nearbyNode.userData.baseScale) {
+        nearbyNode.userData.baseScale = nearbyNode.scale.x || 1.0;
+      }
+      
       const visual = {
         type: 'synchronized_pulse',
         node: nearbyNode,
         startTime: Date.now(),
         duration: 0.6,
-        originalScale: nearbyNode.scale.x,
+        originalScale: nearbyNode.userData.baseScale,
       };
       
       this.activeVisuals.set(`${nearbyNode.uuid}_sync_pulse`, visual);
@@ -911,7 +916,9 @@ export class NodeMicroEvents {
         break;
       
       case 'synchronized_pulse':
-        const syncScale = visual.originalScale + Math.sin(progress * Math.PI) * 0.04;
+        // FIX: Ensure scale is computed from base scale to prevent drift
+        const baseScale = visual.node.userData.baseScale || visual.originalScale;
+        const syncScale = baseScale + Math.sin(progress * Math.PI) * 0.04;
         visual.node.scale.setScalar(syncScale);
         break;
       
@@ -967,7 +974,9 @@ export class NodeMicroEvents {
         break;
       
       case 'balanced_oscillation':
-        const oscScale = visual.originalScale + Math.sin(progress * Math.PI * 3) * visual.oscillationDepth;
+        // FIX: Ensure scale is computed from base scale to prevent drift
+        const baseOscScale = visual.node.userData.baseScale || visual.originalScale;
+        const oscScale = baseOscScale + Math.sin(progress * Math.PI * 3) * visual.oscillationDepth;
         visual.node.scale.setScalar(oscScale);
         break;
       

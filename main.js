@@ -1,12 +1,13 @@
 // ============================================================================
 // [BOOT] SAFETY LOGGING - Module Load Verification
 // ============================================================================
-console.log('[BOOT] main.js loaded');
 
 // ============================================================================
-// PHASE B: FRAME SCHEDULER INTEGRATION
+// VISUAL BASELINE MODE (Soft Disable — Reversible)
 // ============================================================================
+import { debugLog } from './Engine/Debug/DebugLog.js';
 import * as THREE from 'three';
+import { installMaterialMutationDetector } from './MaterialMutationDetector.js';
 import { PlayerController, FirstPersonCameraController } from './rosie/controls/rosieControls.js';
 import { World } from './World.js';
 import { SigmaRiftChamber } from './SigmaRiftChamber.js';
@@ -29,6 +30,20 @@ import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debu
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
+
+if (typeof window !== 'undefined') {
+    window.ATOMA_DEBUG = window.ATOMA_DEBUG ?? false;
+    window.ATOMA_DEBUG_FRAME = window.ATOMA_DEBUG_FRAME ?? false;
+    window.ATOMA_DEBUG_SHADER = window.ATOMA_DEBUG_SHADER ?? false;
+    window.ATOMA_DEBUG_LINK = window.ATOMA_DEBUG_LINK ?? false;
+    window.ATOMA_DEBUG_WORLD = window.ATOMA_DEBUG_WORLD ?? false;
+    window.ATOMA_DEBUG_CADENCE = window.ATOMA_DEBUG_CADENCE ?? false;
+    window.ATOMA_DEBUG_MATERIAL_MUTATIONS = window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false;
+    window.ATOMA_VISUAL_BASELINE = true;
+    debugLog(window.ATOMA_DEBUG, '[ATOMA] Visual Baseline Mode:', window.ATOMA_VISUAL_BASELINE);
+}
+
+debugLog(window.ATOMA_DEBUG, '[BOOT] main.js loaded');
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
 import VisualTime from './src/time/VisualTime.js';
 import { FrameUpdateLoopOrderValidator_v1 } from './FrameUpdateLoopOrderValidator_v1.js';
@@ -526,7 +541,7 @@ import { applyAllDefensivePatches } from './DefensiveHardeningPatch_v1.js';
 // Ensures node core holographic materials can NEVER be overridden by auras
 // Material-driven solution (NOT depth-buffer hacks)
 // ============================================================================
-import { NodeCoreMaterialAuthority, setupNodeCoreAuthorityConsoleAPI } from './NodeCoreMaterialAuthority.js';
+import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 
 // ============================================================================
@@ -554,8 +569,8 @@ import { AuraModulationIntegration_v1, setupAuraModulationRedirection, setupAura
 // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
 // Clamps all aura opacity to ≤ 0.10 after linking
 // ============================================================================
-import { GlobalAuraOpacityClamp, setupGlobalAuraOpacityClampConsoleAPI } from './GlobalAuraOpacityClamp.js';
-import { integrateGlobalAuraOpacityClamp, setupGlobalAuraOpacityClampIntegrationConsoleAPI } from './GlobalAuraOpacityClamp_Integration.js';
+//import { GlobalAuraOpacityClamp, setupGlobalAuraOpacityClampConsoleAPI } from './GlobalAuraOpacityClamp.js';
+//import { integrateGlobalAuraOpacityClamp, setupGlobalAuraOpacityClampIntegrationConsoleAPI } from './GlobalAuraOpacityClamp_Integration.js';
 
 // ============================================================================
 // DYNAMIC LINK COLOR SYSTEM v1.0 (NEW)
@@ -845,7 +860,7 @@ import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
-import { NodeLinking2_3 } from './_NodeLinking2_3.js';
+ import { NodeLinking2_3 } from './_NodeLinking2_3.js';
 import { UIPrimaryNodeAura3_7 } from './_UIPrimaryNodeAura3_7.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
@@ -2939,6 +2954,14 @@ class AtomaGame {
         
         this.clock = new THREE.Clock();
         this.time = 0;
+        
+        // ========================================================================
+        // PHASE MMD-1: MATERIAL MUTATION DETECTOR
+        // Diagnostic-only system for detecting runtime material mutations
+        // ========================================================================
+        installMaterialMutationDetector(THREE);
+        console.log('[MMD] Material Mutation Detector installed (use window.ATOMA_DEBUG_MATERIAL_MUTATIONS = true to enable)');
+        
         this.frameClock = new FrameClock();
         this.lastRenderFrame = -1;
         window.frameClock = this.frameClock;
@@ -3746,7 +3769,7 @@ document.addEventListener('keydown', () => {
         this.__nodeVisualFreezeMode__ = setupNodeVisualFreezeMode({
           enabled: true,
           debugMode: false,
-          enforceEveryFrame: true
+          enforceEveryFrame: false
         });
         console.log('✅ [main.js] Node Visual Freeze Mode initialized');
         this.createWorld();
@@ -4208,6 +4231,13 @@ hudP05Observer.observe(document.body, {
         if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true) && window.__ATOMA_WARMUP_COMPLETE !== true) {
             warmupAllVisualVariants(this.renderer, this.scene, this.camera);
         }
+
+        // Scene census (every 3 seconds) to identify draw-call owners
+        this._sceneAuditTimer = setInterval(() => {
+            if (typeof this.auditSceneObjects === 'function') {
+                this.auditSceneObjects(this.scene);
+            }
+        }, 3000);
 
         // [B.3-C4] Post-processing toggle stabilization (build once)
         if (typeof window !== 'undefined') {
@@ -5122,8 +5152,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         try {
             if (this.linkingSystem && this.linkingSystem.flowSystem) {
-                setupAnimatedLinkFlowConsoleAPI(this.linkingSystem.flowSystem);
-                console.log('[main.js] Animated Link Flow System console API initialized ✓');
+                if (typeof setupAnimatedLinkFlowConsoleAPI === 'function') {
+                    setupAnimatedLinkFlowConsoleAPI(this.linkingSystem.flowSystem);
+                    console.log('[main.js] Animated Link Flow System console API initialized ✓');
+                } else {
+                    console.log('[main.js] AnimatedLinkFlow console API not installed (optional)');
+                }
             }
         } catch (err) {
             console.warn('[main.js] Animated Link Flow System setup failed:', err);
@@ -5437,58 +5471,63 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Material-driven solution: ensures cores are NEVER overridden by auras
         // ====================================================================
         try {
-            this.nodeCoreAuthority = new NodeCoreMaterialAuthority({
-                debugEnabled: false,
-                enableLogging: false
-            });
-            
-            // Register all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.nodeCoreAuthority.registerNodeCore(node);
+            if (typeof NodeCoreMaterialAuthority !== 'function') {
+                console.error('[main.js] NodeCoreMaterialAuthority invalid export:', NodeCoreMaterialAuthority);
+            } else {
+                this.nodeCoreAuthority = new NodeCoreMaterialAuthority();
+                
+                // Register all existing nodes
+                if (this.aiNodes?.nodes) {
+                    for (const node of this.aiNodes.nodes) {
+                        this.nodeCoreAuthority.registerNodeCore(node);
+                    }
                 }
-            }
-            
-            // Hook node spawn for automatic core registration
-            const originalSpawnNode = this.aiNodes?.spawnNode;
-            if (originalSpawnNode) {
-                this.aiNodes.spawnNode = function(...args) {
-                    const newNode = originalSpawnNode.apply(this, args);
-                    // Register core immediately after spawn
-                    if (newNode && this.game?.nodeCoreAuthority) {
-                        this.game.nodeCoreAuthority.registerNodeCore(newNode);
-                    }
-                    return newNode;
-                }.bind(this.aiNodes);
-                this.aiNodes.game = this; // Reference for authority hook
-            }
-            
-            // [SESSION 56 FORENSIC FIX] Register observer for link events
-            // DISABLED: correctPostLinkLayering was calling undefined function (import was disabled)
-            // This was mutating renderOrder and aura opacity POST-LINK
-            // Visual authority lock: Base state is immutable, only FX layers are added
-            if (this.linkingSystem && this.linkingSystem.registerObserver) {
-                this.linkingSystem.registerObserver({
-                    onLinkCreated: (link) => {
-                        try {
-                            // Re-assert core materials after link creation
-                            if (link?.nodes?.[0]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[0]);
-                            if (link?.nodes?.[1]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[1]);
-                            
-                            // DISABLED (Session 56): Defensive layering correction was calling undefined function
-                            // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
-                            // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
-                        } catch (e) {
-                            // Silent failure
+                
+                // Hook node spawn for automatic core registration
+                const originalSpawnNode = this.aiNodes?.spawnNode;
+                if (originalSpawnNode) {
+                    this.aiNodes.spawnNode = function(...args) {
+                        const newNode = originalSpawnNode.apply(this, args);
+                        // Register core immediately after spawn
+                        if (newNode && this.game?.nodeCoreAuthority) {
+                            this.game.nodeCoreAuthority.registerNodeCore(newNode);
                         }
-                    }
-                });
+                        return newNode;
+                    }.bind(this.aiNodes);
+                    this.aiNodes.game = this; // Reference for authority hook
+                }
+                
+                // [SESSION 56 FORENSIC FIX] Register observer for link events
+                // DISABLED: correctPostLinkLayering was calling undefined function (import was disabled)
+                // This was mutating renderOrder and aura opacity POST-LINK
+                // Visual authority lock: Base state is immutable, only FX layers are added
+                if (this.linkingSystem && this.linkingSystem.registerObserver) {
+                    this.linkingSystem.registerObserver({
+                        onLinkCreated: (link) => {
+                            try {
+                                // Re-assert core materials after link creation
+                                if (link?.nodes?.[0]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[0]);
+                                if (link?.nodes?.[1]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[1]);
+                                
+                                // DISABLED (Session 56): Defensive layering correction was calling undefined function
+                                // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
+                                // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
+                            } catch (e) {
+                                // Silent failure
+                            }
+                        }
+                    });
+                }
+                
+                // Setup console API for debugging (optional)
+                if (typeof setupNodeCoreAuthorityConsoleAPI === 'function') {
+                    window.debugCoreAuthority = setupNodeCoreAuthorityConsoleAPI(this.nodeCoreAuthority);
+                } else {
+                    console.log('[main.js] CoreAuthority console API not installed (optional)');
+                }
+                
+                console.log('[main.js] NodeCoreMaterialAuthority initialized ✓');
             }
-            
-            // Setup console API for debugging
-            window.debugCoreAuthority = setupNodeCoreAuthorityConsoleAPI(this.nodeCoreAuthority);
-            
-            console.log('[main.js] NodeCoreMaterialAuthority initialized ✓');
         } catch (err) {
             console.warn('[main.js] NodeCoreMaterialAuthority initialization failed:', err);
         }
@@ -5580,23 +5619,23 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
         // Clamps all aura opacity to ≤ 0.10 after linking
         // ====================================================================
-        try {
-            this.globalAuraOpacityClamp = new GlobalAuraOpacityClamp();
-            setupGlobalAuraOpacityClampConsoleAPI(this.globalAuraOpacityClamp);
-            
-            // [TASK 1 FIX] Integrate with NodeLinkingSystem for automatic aura clamping on link creation
-            if (this.linkingSystem) {
-                integrateGlobalAuraOpacityClamp(this.linkingSystem, this.globalAuraOpacityClamp);
-                setupGlobalAuraOpacityClampIntegrationConsoleAPI(this.linkingSystem, this.globalAuraOpacityClamp);
-                console.log('[main.js] ✅ GlobalAuraOpacityClamp integrated with NodeLinkingSystem');
-            } else {
-                console.warn('[main.js] ⚠️ linkingSystem not available for GlobalAuraOpacityClamp integration');
-            }
-            
-            console.log('[main.js] GlobalAuraOpacityClamp initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] GlobalAuraOpacityClamp initialization failed:', err);
-        }
+//        try {
+//            this.globalAuraOpacityClamp = new GlobalAuraOpacityClamp();
+//            setupGlobalAuraOpacityClampConsoleAPI(this.globalAuraOpacityClamp);
+//            
+//            // [TASK 1 FIX] Integrate with NodeLinkingSystem for automatic aura clamping on link creation
+//           if (this.linkingSystem) {
+//                integrateGlobalAuraOpacityClamp(this.linkingSystem, this.globalAuraOpacityClamp);
+//                setupGlobalAuraOpacityClampIntegrationConsoleAPI(this.linkingSystem, this.globalAuraOpacityClamp);
+//                console.log('[main.js] ✅ GlobalAuraOpacityClamp integrated with NodeLinkingSystem');
+//            } else {
+//                console.warn('[main.js] ⚠️ linkingSystem not available for GlobalAuraOpacityClamp integration');
+//            }
+//            
+//            console.log('[main.js] GlobalAuraOpacityClamp initialized ✓');
+//        } catch (err) {
+//            console.warn('[main.js] GlobalAuraOpacityClamp initialization failed:', err);
+//        }
         
         // ====================================================================
         // CORE MATERIAL MUTATION DETECTOR v1.0 (Session 28)
@@ -7834,7 +7873,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             // Optional debug: Print FrameClock stats every ~120 frames (~2 seconds at 60fps)
             // Uses FrameClock's internal frame counter to avoid conflict with engine frameCount
             if (this.frameClock.frame % 120 === 0) {
-                console.log('[FrameClock]', this.frameClock.getStats());
+                debugLog(window.ATOMA_DEBUG_FRAME, '[FrameClock]', this.frameClock.getStats());
             }
         }
 
@@ -7858,7 +7897,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (runVisualSemantic && !this._runVisualSemanticPending) {
             this.semanticVisualAcc -= this.semanticVisualInterval;
             if (performance.now() - this.semanticCadenceLastLog >= this.semanticCadenceLogMs) {
-                console.debug('[Cadence] semantic/UI @30Hz tick');
+                debugLog(window.ATOMA_DEBUG_CADENCE, '[Cadence] semantic/UI @30Hz tick');
                 this.semanticCadenceLastLog = performance.now();
             }
             this._pendingVisualSemanticDt = deltaTime;
@@ -7882,7 +7921,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (runSlowSemantic && !this._runSlowSemanticPending) {
             this.semanticSlowAcc -= this.semanticSlowInterval;
             if (performance.now() - this.semanticSlowCadenceLastLog >= this.semanticCadenceLogMs) {
-                console.debug('[Cadence] semantic background @10Hz tick');
+                debugLog(window.ATOMA_DEBUG_CADENCE, '[Cadence] semantic background @10Hz tick');
                 this.semanticSlowCadenceLastLog = performance.now();
             }
             this._pendingSlowSemanticDt = deltaTime;
@@ -9326,13 +9365,11 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
 
         // ========================================================================
-        // SESSION 99: ENFORCE NODE VISUAL FREEZE (Every Frame)
+        // SESSION 99: ENFORCE NODE VISUAL FREEZE (Per-frame enforcement disabled)
         // ========================================================================
-        // Hard-enforce all frozen node properties to ensure immutability
+        // PHASE MATERIAL-MUTATION-KILL: Freeze state applied on activation only.
         if (this.__nodeVisualFreezeMode__) {
-            mark('nodeVisualFreezeMode.enforceFreeze', () => {
-                this.__nodeVisualFreezeMode__.enforceFreeze(this.scene);
-            });
+            // Intentional no-op: per-frame freeze enforcement removed.
         }
 
         // ========================================================================
@@ -9875,7 +9912,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
     }
 
     runNodeAuraSystemTick(deltaTime) {
-        if (!VISUAL_SYSTEMS_ENABLED) return;
         if (this.nodeAuraSystem && this.aiNodes) {
             this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
         }

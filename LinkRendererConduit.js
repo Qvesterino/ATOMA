@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
@@ -19,6 +20,71 @@ import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingPart
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import VisualTime from './src/time/VisualTime.js';
+
+const VARIANT_CRITICAL_PROPS = [
+    'transparent',
+    'side',
+    'blending',
+    'depthWrite',
+    'depthTest',
+    'alphaTest'
+];
+
+const variantDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_VARIANT_LOCK === true);
+
+function isCoreNodeMesh(mesh) {
+    return mesh?.userData?.isNodeCore === true ||
+           mesh?.userData?.nodeId !== undefined;
+}
+
+function freezeMaterialFlags(material, owner = 'LinkRenderer') {
+    if (!material) return;
+    if (!material.userData) material.userData = {};
+    material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
+    material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
+
+    VARIANT_CRITICAL_PROPS.forEach((prop) => {
+        if (material.userData.__frozenVariantProps.has(prop)) return;
+
+        const desc = Object.getOwnPropertyDescriptor(material, prop);
+        if (desc && desc.configurable === false) {
+            if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+                debugWarn(true, '[VariantLock] Prop already locked, skip redefine', prop, material.uuid);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+            material.userData.__frozenVariantProps.add(prop);
+            return;
+        }
+
+        const cachedValue = material[prop];
+        try {
+            Object.defineProperty(material, prop, {
+                configurable: true,
+                enumerable: true,
+                get() {
+                    return cachedValue;
+                },
+                set(value) {
+                    if (cachedValue === value) return;
+                    if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+                        console.error('[VariantLock]', prop, 'modified after lock');
+                        material.userData.__warnedVariantProp.add(prop);
+                    }
+                }
+            });
+            material.userData.__frozenVariantProps.add(prop);
+        } catch (err) {
+            if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+                debugWarn(true, '[VariantLock] Failed to lock prop', prop, material.uuid, err?.message);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+        }
+    });
+
+    material.userData.__owner = material.userData.__owner || owner;
+    material.userData.__flagsFrozen = true;
+    material.__variantLocked = true; // backwards compatibility with existing checks
+}
 
 /**
  * BRAIDED SYNERGY ROPE LINK RENDERER
@@ -323,6 +389,9 @@ export class LinkRendererConduit {
      * Create the unified link visual group
      */
     createLinkVisuals(link) {
+        if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
+            return;
+        }
         const group = new THREE.Group();
         group.userData = { isLinkVisual: true };
 
@@ -362,19 +431,33 @@ export class LinkRendererConduit {
                 roughness: 0.3,
                 metalness: 0.8,
                 opacity: 0.95,
-                side: THREE.DoubleSide
+                side: THREE.DoubleSide,
+                transparent: false,
+                depthWrite: true,
+                depthTest: true,
+                blending: THREE.NormalBlending
             });
+            material.userData = material.userData || {};
+            material.userData.__owner = 'LinkRenderer';
+            material.userData.__domain = 'link';
+            material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
 
             const geometry = new THREE.BufferGeometry();
             const mesh = new THREE.Mesh(geometry, material);
             mesh.userData = { strandIndex: i };
-            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: true, depthTest: true });
+            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: false, depthTest: true });
+            freezeMaterialFlags(material, 'LinkRenderer');
+            material.userData.__flagsFrozen = true;
+            mesh.userData = mesh.userData || {};
+            mesh.userData.__depthAuthorityLocked = true;
             
             group.add(mesh);
             strands.push(mesh);
         }
 
         // 3. Create Aura Skin (Unified with Node Aura - Shader-based)
+        // PHASE S-5: Variant properties set at creation time, then frozen
+        // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
         const skinMaterial = createLinkAuraMaterial({
             baseDisplacement: 0.15,     // 60% of node aura
             noiseScale: 2.0,            // Same scale as node
@@ -382,10 +465,23 @@ export class LinkRendererConduit {
             baseOpacity: 0.12,          // Lower than node (node ≈ 0.25)
             harmonyInfluence: 0.8,      // Identical harmony response
             corruptionInfluence: 0.9,   // Slightly less than node (1.2)
+            // Variant properties (frozen after creation):
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
         });
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
+        skinMaterial.userData = skinMaterial.userData || {};
+        skinMaterial.userData.__owner = 'LinkRenderer';
+        skinMaterial.userData.__domain = 'link';
+        // Freeze variant properties immediately after material creation
+        freezeMaterialFlags(skinMaterial, 'LinkRenderer');
         TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: 9, depthWrite: false });
+        skinMesh.userData = skinMesh.userData || {};
+        skinMesh.userData.__depthAuthorityLocked = true;
         group.add(skinMesh);
 
         // 4. Initialize Subsystems (Defensive)
@@ -411,7 +507,7 @@ export class LinkRendererConduit {
                 pulseRing = new LinkPulseRing(this.scene);
                 group.add(pulseRing.getMesh());
             }
-        } catch (e) { console.warn('LinkRenderer: Failed to init pulse ring', e); }
+        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init pulse ring', e); }
 
         // 6. Energy Wave System (Mandatory)
         let energyWave = null;
@@ -419,7 +515,7 @@ export class LinkRendererConduit {
             if (LinkEnergyWave) {
                 energyWave = new LinkEnergyWave();
             }
-        } catch (e) { console.warn('LinkRenderer: Failed to init energy wave', e); }
+        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init energy wave', e); }
 
         // 7. Arc Discharge System (Ring Enhancement)
         let arcDischarges = null;
@@ -428,7 +524,7 @@ export class LinkRendererConduit {
                 arcDischarges = new LinkRingArcDischarges(this.scene);
                 group.add(arcDischarges.getGroup());
             }
-        } catch (e) { console.warn('LinkRenderer: Failed to init arc discharges', e); }
+        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init arc discharges', e); }
 
         // 8. Visual State Adapter (Harmony/Corruption Bridge)
         let visualStateAdapter = null;
@@ -436,7 +532,7 @@ export class LinkRendererConduit {
             if (LinkVisualStateAdapter) {
                 visualStateAdapter = new LinkVisualStateAdapter();
             }
-        } catch (e) { console.warn('LinkRenderer: Failed to init visual state adapter', e); }
+        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init visual state adapter', e); }
 
         // 9. Directional Energy Streaks (Adapter-only flow visualization)
         let directionalStreaks = null;
@@ -452,7 +548,7 @@ export class LinkRendererConduit {
                 
                 directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
             }
-        } catch (e) { console.warn('LinkRenderer: Failed to init directional streaks', e); }
+        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init directional streaks', e); }
 
         // Store unified state
         group.userData.conduitState = {
@@ -497,6 +593,9 @@ export class LinkRendererConduit {
      * Update the geometry and materials of the link
      */
     update(link, deltaTime, time) {
+        if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
+            return;
+        }
         if (!link.group || !link.group.userData.conduitState) return;
         
         // Canonical RAF time source (behavior-preserving Phase 2A)
@@ -569,6 +668,11 @@ export class LinkRendererConduit {
         const noiseBase = 0.005 * (1.0 - synergy);
         
         state.strands.forEach((mesh, i) => {
+            if (isCoreNodeMesh(mesh)) {
+                // Phase LRC-SAFE-CORE
+                // Do NOT modify core node material
+                return;
+            }
             // Flow texture
             if (mesh.material && mesh.material.emissiveMap) {
                 mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
@@ -617,6 +721,11 @@ export class LinkRendererConduit {
 
         // --- 4. Aura Skin Update (Unified Shader Material) ---
         if (state.skinMesh) {
+             if (isCoreNodeMesh(state.skinMesh)) {
+                 // Phase LRC-SAFE-CORE
+                 // Do NOT modify core node material
+                 return;
+             }
              const skin = state.skinMesh;
              if (skin.geometry) skin.geometry.dispose();
              skin.geometry = new THREE.TubeGeometry(
@@ -866,11 +975,27 @@ export class LinkRendererConduit {
             default: geometry = new THREE.IcosahedronGeometry(0.6, 1);
         }
 
+        // PHASE S-5: Variant properties set at creation time, then frozen
+        // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
         const meshMaterial = new THREE.MeshBasicMaterial({
-            color: color, opacity: 0.6, wireframe: true
+            color: color,
+            opacity: 0.6,
+            wireframe: true,
+            // Variant properties (frozen after creation):
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide
         });
+        meshMaterial.userData = meshMaterial.userData || {};
+        meshMaterial.userData.__owner = 'LinkRenderer';
+        meshMaterial.userData.__domain = 'link';
+        // Freeze variant properties immediately after material creation
+        freezeMaterialFlags(meshMaterial, 'LinkRenderer');
         const mesh = new THREE.Mesh(geometry, meshMaterial);
         TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: 40 });
+        mesh.userData = mesh.userData || {};
+        mesh.userData.__depthAuthorityLocked = true;
         
         group.add(mesh);
         group.position.copy(node.position);

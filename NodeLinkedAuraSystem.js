@@ -1,5 +1,64 @@
 import * as THREE from 'three';
 
+// PHASE S-5: Variant property freezing for shader variant immunity
+const VARIANT_CRITICAL_PROPS = [
+    'transparent',
+    'side',
+    'blending',
+    'depthWrite',
+    'depthTest',
+    'alphaTest'
+];
+
+function freezeMaterialFlags(material, owner = 'NodeLinkedAuraSystem') {
+    if (!material) return;
+    if (!material.userData) material.userData = {};
+    material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
+    material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
+
+    VARIANT_CRITICAL_PROPS.forEach((prop) => {
+        if (material.userData.__frozenVariantProps.has(prop)) return;
+
+        const desc = Object.getOwnPropertyDescriptor(material, prop);
+        if (desc && desc.configurable === false) {
+            if (!material.userData.__warnedVariantProp.has(prop)) {
+                console.warn('[VariantLock] Prop already locked, skip redefine', prop, material.uuid);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+            material.userData.__frozenVariantProps.add(prop);
+            return;
+        }
+
+        const cachedValue = material[prop];
+        try {
+            Object.defineProperty(material, prop, {
+                configurable: true,
+                enumerable: true,
+                get() {
+                    return cachedValue;
+                },
+                set(value) {
+                    if (cachedValue === value) return;
+                    if (!material.userData.__warnedVariantProp.has(prop)) {
+                        console.error('[VariantLock]', prop, 'modified after lock');
+                        material.userData.__warnedVariantProp.add(prop);
+                    }
+                }
+            });
+            material.userData.__frozenVariantProps.add(prop);
+        } catch (err) {
+            if (!material.userData.__warnedVariantProp.has(prop)) {
+                console.warn('[VariantLock] Failed to lock prop', prop, material.uuid, err?.message);
+                material.userData.__warnedVariantProp.add(prop);
+            }
+        }
+    });
+
+    material.userData.__owner = material.userData.__owner || owner;
+    material.userData.__flagsFrozen = true;
+    material.__variantLocked = true;
+}
+
 /**
  * Node Linked Aura System - Dynamic breathing aura for connected nodes
  * 
@@ -103,6 +162,7 @@ export class NodeLinkedAuraSystem {
    * Update all node auras - called every frame
    */
   update(deltaTime, nodes) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
     if (!this.enabled) return;
     
     const startTime = performance.now();
@@ -156,17 +216,26 @@ export class NodeLinkedAuraSystem {
     // Create torn, irregular mesh geometry
     const geometry = this.createTornAuraGeometry();
     
-    // Create material with subtle appearance
+    // PHASE S-5: Variant properties set at creation time, then frozen
+    // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
     const material = new THREE.MeshStandardMaterial({
       color: this.visualParams.color,
-      transparent: true,
       opacity: this.visualParams.baseOpacity,
-      side: THREE.DoubleSide,
       roughness: this.visualParams.roughness,
       metalness: this.visualParams.metalness,
+      // Variant properties (frozen after creation):
+      transparent: true,
+      side: THREE.DoubleSide,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.NormalBlending
     });
+    
+    // Freeze variant properties immediately after material creation
+    material.userData = material.userData || {};
+    material.userData.__owner = 'NodeLinkedAuraSystem';
+    material.userData.__domain = 'aura';
+    freezeMaterialFlags(material, 'NodeLinkedAuraSystem');
     
     // Create mesh
     const mesh = new THREE.Mesh(geometry, material);

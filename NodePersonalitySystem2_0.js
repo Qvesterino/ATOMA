@@ -240,6 +240,8 @@ export class NodePersonalitySystem2_0 {
    * Handles both per-frame and throttled updates
    */
   update(deltaTime, nodes) {
+    if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
+
     if (!nodes || nodes.length === 0) return;
 
     // Phase B pilot: accumulate time for semantic evaluation; visuals run every frame.
