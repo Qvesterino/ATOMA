@@ -273,32 +273,33 @@ function applyConduitPulsing(link, pulseWave, emissionIntensity) {
 function applyThicknessPulsing(link, pulseWave) {
   const pulsing = link.emissionPulsing;
   
-  // Interpolate between min and max thickness
-  const thicknessMultiplier = 
-    EMISSION_PULSING_CONFIG.thicknessMin + 
-    (EMISSION_PULSING_CONFIG.thicknessMax - EMISSION_PULSING_CONFIG.thicknessMin) * pulseWave;
+  const setStaticLinewidth = (mat, value) => {
+    if (!mat || typeof mat.linewidth === 'undefined') return;
+    if (mat._baseLinewidth === undefined) mat._baseLinewidth = value;
+    mat.linewidth = mat._baseLinewidth;
+  };
   
-  const pulsedThickness = pulsing.baseThickness * thicknessMultiplier;
+  const pulsedThickness = pulsing.baseThickness;
   
   // Apply to all link line meshes
   if (link.coreLine && link.coreLine.material) {
-    link.coreLine.material.linewidth = pulsedThickness;
+    setStaticLinewidth(link.coreLine.material, pulsedThickness);
   }
   
   if (link.midGlowLine && link.midGlowLine.material) {
-    link.midGlowLine.material.linewidth = pulsedThickness * 0.8;
+    setStaticLinewidth(link.midGlowLine.material, pulsedThickness * 0.8);
   }
   
   if (link.haloLine && link.haloLine.material) {
-    link.haloLine.material.linewidth = pulsedThickness * 0.6;
+    setStaticLinewidth(link.haloLine.material, pulsedThickness * 0.6);
   }
   
   if (link.bloomAuraLine && link.bloomAuraLine.material) {
-    link.bloomAuraLine.material.linewidth = pulsedThickness * 0.5;
+    setStaticLinewidth(link.bloomAuraLine.material, pulsedThickness * 0.5);
   }
   
   if (link.edgeLine && link.edgeLine.material) {
-    link.edgeLine.material.linewidth = pulsedThickness * 0.3;
+    setStaticLinewidth(link.edgeLine.material, pulsedThickness * 0.3);
   }
 }
 

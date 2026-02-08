@@ -182,13 +182,19 @@ export class LinkThicknessScaler {
         material.uniforms.uThicknessMultiplier.value = entry.smoothedMultiplier;
       }
       
-      // Also update linewidth if available
+      // Also update linewidth if available (static to avoid shader churn)
       if ('linewidth' in material) {
-        material.linewidth = this.baseLinewidth * entry.smoothedMultiplier;
+        if (material._baseLinewidth === undefined) {
+          material._baseLinewidth = this.baseLinewidth * entry.smoothedMultiplier;
+        }
+        material.linewidth = material._baseLinewidth;
       }
     } else if (material instanceof THREE.LineBasicMaterial) {
       // For basic materials, adjust linewidth directly
-      material.linewidth = this.baseLinewidth * entry.smoothedMultiplier;
+      if (material._baseLinewidth === undefined) {
+        material._baseLinewidth = this.baseLinewidth * entry.smoothedMultiplier;
+      }
+      material.linewidth = material._baseLinewidth;
     }
     
     return true;

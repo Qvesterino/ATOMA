@@ -355,9 +355,12 @@ export class AnimatedLinkFlow {
     
     const beam = flowState.beam;
     
-    // Pulse beam width and opacity based on traffic
+    // Pulse beam width removed to avoid shader variant churn; keep static linewidth
     const pulsePhase = Math.sin(time * this.config.pulseFrequency * 2) * 0.5 + 0.5;
-    beam.material.linewidth = 2 + pulsePhase * flowState.traffic * 4;
+    if (beam.material._baseLinewidth === undefined) {
+      beam.material._baseLinewidth = 2;
+    }
+    beam.material.linewidth = beam.material._baseLinewidth;
     
     // Create directional flow effect with transparency
     const opacity = this.config.beamOpacity * (0.5 + pulsePhase * 0.5);

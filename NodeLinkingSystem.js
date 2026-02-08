@@ -4943,15 +4943,12 @@ getLinksForNode(node) {
       });
     }
     
-    // Effect #8: Intensity-based thickness (via scale animation)
-    // Defensive guard: verify line materials before mutation (authority locks)
-    link.thicknessPhase += deltaTime * traffic.throughput * 2;
-    const thicknessScale = 1 + Math.sin(link.thicknessPhase) * 0.3 * traffic.load;
+    // Effect #8: Intensity-based thickness (static linewidth to avoid shader churn)
     if (link.coreLine?.material && 'linewidth' in link.coreLine.material) {
-      link.coreLine.material.linewidth = link.baseThickness * thicknessScale;
+      setStaticLinewidth(link.coreLine.material, link.baseThickness);
     }
     if (link.haloLine?.material && 'linewidth' in link.haloLine.material) {
-      link.haloLine.material.linewidth = (link.baseThickness + 3) * thicknessScale;
+      setStaticLinewidth(link.haloLine.material, (link.baseThickness + 3));
     }
     
     // Effect #9: Hover interaction (checked externally via raycasting)
@@ -4977,6 +4974,11 @@ getLinksForNode(node) {
    * Update link visual animations
    */
   updateLinkAnimations(link, time, deltaTime) {
+    const setStaticLinewidth = (mat, value) => {
+      if (!mat || typeof mat.linewidth === 'undefined') return;
+      if (mat._baseLinewidth === undefined) mat._baseLinewidth = value;
+      mat.linewidth = mat._baseLinewidth;
+    };
     // [Phase 2] Update Emission Pulsing (Logic Calculation)
     // This calculates the pulse wave (0-1) and stores it in link.userData.emissionPulse
     // We do this BEFORE the renderer update so the renderer has fresh data
@@ -5098,26 +5100,26 @@ getLinksForNode(node) {
       // Core 1: Inner Neon Core
       if (link.coreLine && link.coreLine.material) {
         link.coreLine.material.opacity = (link.isSpecial ? 0.95 : 0.85) * coreIntensity * glowMultiplier;
-        link.coreLine.material.linewidth = (link.isSpecial ? 12 : 10) * (1 + Math.sin(time * 3) * 0.1);
+        setStaticLinewidth(link.coreLine.material, (link.isSpecial ? 12 : 10));
       }
       
       // Core 2: Mid Glow Layer
       if (link.midGlowLine && link.midGlowLine.material) {
         link.midGlowLine.material.opacity = (link.isSpecial ? 0.45 : 0.35) * coreIntensity * glowMultiplier;
-        link.midGlowLine.material.linewidth = (link.isSpecial ? 20 : 16) * (1 + Math.sin(time * 2.5) * 0.12);
+        setStaticLinewidth(link.midGlowLine.material, (link.isSpecial ? 20 : 16));
       }
       
       // Core 3: Outer Halo
       if (link.haloLine && link.haloLine.material) {
         link.haloLine.material.opacity = (link.isSpecial ? 0.25 : 0.15) * glowMultiplier;
-        link.haloLine.material.linewidth = (link.isSpecial ? 32 : 28) * (1 + Math.sin(time * 2) * 0.08);
+        setStaticLinewidth(link.haloLine.material, (link.isSpecial ? 32 : 28));
       }
       
       // Core 4: Extreme Bloom Aura (20-30% bloom boost)
       if (link.bloomAuraLine && link.bloomAuraLine.material) {
         const bloomBoost = 1.25; // 25% bloom intensity increase
         link.bloomAuraLine.material.opacity = ((link.isSpecial ? 0.12 : 0.08) * bloomBoost) * glowMultiplier;
-        link.bloomAuraLine.material.linewidth = (link.isSpecial ? 48 : 40) * (1 + Math.sin(time * 1.5) * 0.1);
+        setStaticLinewidth(link.bloomAuraLine.material, (link.isSpecial ? 48 : 40));
       }
     }
     
@@ -5133,26 +5135,26 @@ getLinksForNode(node) {
           // Oscillate vein opacity based on traffic and phase
           const veinOpacity = 0.3 + Math.sin(veinProgress) * 0.2 + traffic.load * 0.1;
           vein.material.opacity = veinOpacity;
-          vein.material.linewidth = 1 + Math.sin(veinProgress) * 0.5;
+          setStaticLinewidth(vein.material, 1);
         }
       });
     }
     
     // EXTREME: Neon Edge Blade animation
-    if (link.edgeLine && link.edgeLine.material && link.edgeBladeActive) {
-      anim.edgePulse += deltaTime * 2;
-      const edgeIntensity = 0.5 + Math.sin(anim.edgePulse) * 0.15 + traffic.load * 0.1;
-      link.edgeLine.material.opacity = edgeIntensity;
+      if (link.edgeLine && link.edgeLine.material && link.edgeBladeActive) {
+        anim.edgePulse += deltaTime * 2;
+        const edgeIntensity = 0.5 + Math.sin(anim.edgePulse) * 0.15 + traffic.load * 0.1;
+        link.edgeLine.material.opacity = edgeIntensity;
       
       // Add hover boost to edge blade
-      if (link.hoveredState) {
-        anim.hoverBoost = Math.min(anim.hoverBoost + deltaTime * 2, 0.3);
-      } else {
-        anim.hoverBoost = Math.max(anim.hoverBoost - deltaTime * 2, 0);
+        if (link.hoveredState) {
+          anim.hoverBoost = Math.min(anim.hoverBoost + deltaTime * 2, 0.3);
+        } else {
+          anim.hoverBoost = Math.max(anim.hoverBoost - deltaTime * 2, 0);
+        }
+        link.edgeLine.material.opacity += anim.hoverBoost;
+        setStaticLinewidth(link.edgeLine.material, (link.isSpecial ? 3 : 2));
       }
-      link.edgeLine.material.opacity += anim.hoverBoost;
-      link.edgeLine.material.linewidth = (link.isSpecial ? 3 : 2) * (1 + anim.hoverBoost * 2);
-    }
     
     // EXTREME: Bloom Phase animation
     anim.bloomPhase += deltaTime * traffic.throughput * 1.5;
