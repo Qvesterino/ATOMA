@@ -427,6 +427,12 @@ export class BeadRenderer {
       large: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.large, 4)
     };
     
+    // Compute bounding volumes for culling stability
+    Object.values(this.geometries).forEach(geo => {
+      geo.computeBoundingSphere();
+      geo.computeBoundingBox();
+    });
+    
     // PHASE S-5: Variant properties set at creation time, then frozen
     // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
     // Shared material template - cloned for each bead
@@ -466,6 +472,7 @@ export class BeadRenderer {
     }
     
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.frustumCulled = false;
     mesh.userData = { bead: bead, isBead: true };
     
     return mesh;

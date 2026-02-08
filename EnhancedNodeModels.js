@@ -200,7 +200,6 @@ export class EnhancedNodeModels {
       this.createStorageNode0.bind(this),
       this.createStorageNode1.bind(this),
       this.createStorageNode3.bind(this),
-      this.createNewRhombicSolid.bind(this),
       this.createStorageMnemonicVault.bind(this),
       this.createStorageArchiveSpindle.bind(this),
       this.createStorageMemoryReef.bind(this),
@@ -1924,33 +1923,29 @@ export class EnhancedNodeModels {
    * - ArchiveDrum (NEW - Session 116)
    */
   static createStorageNode(group, index, color) {
-    // Deterministic selection per node ID
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
-    
-    const variants = [
-      this.createStorageNode0.bind(this),                       // MemoryPillar
-      this.createStorageNode1.bind(this),                       // CapsuleBands
-      this.createStorageNode3.bind(this),                       // CrystalShardCluster
-      this.createNewRhombicSolid.bind(this),                    // RhombicSolid
-      this.createStorageMnemonicVault.bind(this),               // MnemonicVault
-      this.createStorageArchiveSpindle.bind(this),              // ArchiveSpindle
-      this.createStorageMemoryReef.bind(this),                  // MemoryReef
-      StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),  // ArchiveNexus (NEW)
-      StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),  // MemoryCrypts (NEW)
-      StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),   // DepthLayers (NEW)
-      StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),                            // ObeliskCache (NEW - Session 116)
-      StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),                        // FractalReservoir (NEW - Session 116)
-      StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)                              // ArchiveDrum (NEW - Session 116)
-    ];
-    EnhancedNodeModels._ensureRegistry('storage', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.storage) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.storage);
-    }
-    
-    return variants[nodeId % variants.length](group, color);
+
+    const pool = CANONICAL_VARIANTS.storage;
+    const poolFns = {
+      0: this.createStorageNode0.bind(this),
+      1: this.createStorageNode1.bind(this),
+      2: this.createStorageNode3.bind(this),
+      4: this.createStorageMnemonicVault.bind(this),
+      5: this.createStorageArchiveSpindle.bind(this),
+      6: this.createStorageMemoryReef.bind(this),
+      7: StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
+      8: StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
+      9: StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
+      10: StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
+      11: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
+      12: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)
+    };
+    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    EnhancedNodeModels._ensureRegistry('storage', Object.values(poolFns));
+    return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
   /**
@@ -3926,85 +3921,6 @@ export class EnhancedNodeModels {
     }
     nodeGroup.position.y = nodeGroup.userData.baseY + float;
   }
-
-  // ===== NEW BASE GEOMETRIES (7 canonical shapes) =====
-
-  /**
-   * NEW: Truncated Pyramid - INTEGRATION category
-   * Flat-topped pyramid for layered aesthetic
-   */
-  static createNewTruncatedPyramid(group, color) {
-    try {
-      // Create truncated pyramid using custom geometry
-      const vertices = new Float32Array([
-        // Bottom face (larger)
-        -0.6, -0.5, -0.6,
-        0.6, -0.5, -0.6,
-        0.6, -0.5, 0.6,
-        -0.6, -0.5, 0.6,
-        // Top face (smaller)
-        -0.3, 0.5, -0.3,
-        0.3, 0.5, -0.3,
-        0.3, 0.5, 0.3,
-        -0.3, 0.5, 0.3
-      ]);
-
-      const indices = new Uint16Array([
-        // Bottom
-        0, 2, 1,
-        0, 3, 2,
-        // Top
-        4, 5, 6,
-        4, 6, 7,
-        // Sides
-        0, 1, 5,
-        0, 5, 4,
-        1, 2, 6,
-        1, 6, 5,
-        2, 3, 7,
-        2, 7, 6,
-        3, 0, 4,
-        3, 4, 7
-      ]);
-
-      const geoPyramid = new THREE.BufferGeometry();
-      geoPyramid.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-      geoPyramid.setIndex(new THREE.BufferAttribute(indices, 1));
-      geoPyramid.computeVertexNormals();
-
-      const matPyramid = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.6,
-        roughness: 0.35,
-        emissive: color,
-        emissiveIntensity: 0.3
-
-      });
-      const pyramid = new THREE.Mesh(geoPyramid, matPyramid);
-      group.add(pyramid);
-      return group;
-    } catch (err) {
-      console.error('[NodeVisualError]', {
-        model: 'createNewTruncatedPyramid',
-        error: err
-      });
-      return null;
-    }
-  }
-
-  /**
-   * NEW: Rhombic Solid - STORAGE category
-   * Diamond-like shape for precious storage feel
-   */
-  static createNewRhombicSolid(group, color) {
-    return group;
-  }
-
 
   /**
    * NEW: Elongated Octahedron - ANALYTICS category (UPGRADED)

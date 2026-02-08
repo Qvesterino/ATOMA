@@ -4,6 +4,8 @@ import * as THREE from 'three';
 // Radius 1.0, Tube 0.08 (8% thickness)
 // RadialSegments 6 (Low poly), TubularSegments 24 (Smooth enough ring)
 const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.08, 6, 24);
+SHARED_RING_GEOMETRY.computeBoundingSphere();
+SHARED_RING_GEOMETRY.computeBoundingBox();
 
 /**
  * LinkPulseRing
@@ -27,6 +29,7 @@ export class LinkPulseRing {
         });
 
         this.mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, this.material);
+        this.mesh.frustumCulled = false;
         this.mesh.userData = { isPulseRing: true };
         this.mesh.renderOrder = 11; // Render on top of strands (10)
 

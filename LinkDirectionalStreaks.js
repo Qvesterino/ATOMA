@@ -106,6 +106,9 @@ export class LinkDirectionalStreaks {
         // Create geometry once (buffered, reused)
         const geometry = new THREE.BufferGeometry();
         const mesh = new THREE.Mesh(geometry, material);
+        mesh.frustumCulled = false;
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
         mesh.renderOrder = 11; // Slightly above strands
         linkGroup.add(mesh);
         

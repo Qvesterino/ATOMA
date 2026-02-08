@@ -445,6 +445,9 @@ export class LinkRendererConduit {
             const geometry = new THREE.BufferGeometry();
             const mesh = new THREE.Mesh(geometry, material);
             mesh.userData = { strandIndex: i };
+            mesh.frustumCulled = false;
+            geometry.computeBoundingSphere();
+            geometry.computeBoundingBox();
             TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: false, depthTest: true });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
@@ -474,6 +477,9 @@ export class LinkRendererConduit {
         });
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
+        skinMesh.frustumCulled = false;
+        skinGeometry.computeBoundingSphere();
+        skinGeometry.computeBoundingBox();
         skinMaterial.userData = skinMaterial.userData || {};
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';
@@ -993,6 +999,9 @@ export class LinkRendererConduit {
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(meshMaterial, 'LinkRenderer');
         const mesh = new THREE.Mesh(geometry, meshMaterial);
+        mesh.frustumCulled = false;
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
         TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: 40 });
         mesh.userData = mesh.userData || {};
         mesh.userData.__depthAuthorityLocked = true;

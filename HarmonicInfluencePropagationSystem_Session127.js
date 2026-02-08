@@ -470,6 +470,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     material.emissive.copy(color);
     
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.frustumCulled = false;
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
     mesh.position.copy(node.position);
     mesh.scale.setScalar(baseRadius);
     
@@ -539,6 +542,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     });
     
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.frustumCulled = false;
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
     mesh.position.copy(flowPos);
     
     // Orient toward flow direction

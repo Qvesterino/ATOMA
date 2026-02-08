@@ -191,6 +191,9 @@ export class LinkRingArcDischarges {
 
         // Create line mesh
         const line = new THREE.Line(geometry, material);
+        line.frustumCulled = false;
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
         line.renderOrder = 12; // Above ring (11)
         this.group.add(line);
 

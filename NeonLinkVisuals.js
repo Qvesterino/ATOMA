@@ -955,6 +955,9 @@ export class NeonLinkVisuals {
     }
     
     const line = new THREE.Line(geometry, lineMaterial);
+    line.frustumCulled = false;
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
     if (useSharedMaterial) {
       this._ensureLinkUniformStore(line, 'neonLine', {
         uColor: lineColor,
@@ -981,6 +984,9 @@ export class NeonLinkVisuals {
     }
     
     const glowLine = new THREE.Line(glowGeometry, glowMaterial);
+    glowLine.frustumCulled = false;
+    glowGeometry.computeBoundingSphere();
+    glowGeometry.computeBoundingBox();
     glowLine.position.z += 0.01; // Slight offset to prevent z-fighting
     if (useSharedMaterial) {
       this._ensureLinkUniformStore(glowLine, 'ghostLine', {
@@ -1773,6 +1779,9 @@ export class NeonLinkVisuals {
     material.linewidth = 1;
     
     const line = new THREE.Line(geometry, material);
+    line.frustumCulled = false;
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
     if (useSharedMaterial) {
       const type = isValid ? 'ghostValid' : 'ghostInvalid';
       const colorSeed = isValid ? DEFAULT_VALID_COLOR.clone() : DEFAULT_INVALID_COLOR.clone();
