@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial, createNodeHologramShell } from './CoreHologramShader.js';
-import ControlNodeGeometries from './ControlNodeGeometries_v1.js';
 import { CanonicalGeometryFamilies } from './CanonicalGeometryFamilies_v1.js';
 import { AnalyticsEnhancedVariants } from './AnalyticsEnhancedVariants_Session81.js';
 import { StorageEnhancedVariants } from './StorageEnhancedVariants_Session81.js';
@@ -10,11 +9,26 @@ import { ProcessEnhancedVariants } from './ProcessEnhancedVariants_Session81.js'
 import { IntegrationEnhancedVariants } from './IntegrationEnhancedVariants_Session110.js';
 import { ControlEnhancedVariants } from './ControlEnhancedVariants_Session83.js';
 import { ControlSpineVariants } from './ControlSpineVariants_Session100.js';
-import { InputEnhancedVariants } from './InputEnhancedVariants_Session84.js';
 import { InputSensoryEnhanced } from './InputSensoryEnhanced_Session111.js';
 import { ControlNodeSpecialGovernors } from './ControlNodeSpecialGoverners_Session114.js';
 import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 import { AINodeModel } from './AINodeModel.js';
+
+// Canonical-only variant pools (curated from audit)
+const CANONICAL_VARIANTS = {
+  input:    [4, 5, 6, 7, 8, 9, 10],
+  process:  [3, 4, 5, 6, 7, 8],
+  integration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  analytics: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  storage:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  control:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+  quantum:  [0, 1, 2, 3],
+  sigma:    [0, 1, 2, 3],
+  mythic:   [0, 1, 2, 3, 4, 5],
+  prime:    [0, 1, 2, 3, 4, 5],
+  error:    [0, 1, 2, 3, 4, 5],
+  emotional:[0, 1, 2, 3, 4, 5]
+};
 
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
@@ -130,10 +144,6 @@ export class EnhancedNodeModels {
     };
     // INPUT
     EnhancedNodeModels._ensureRegistry('input', [
-      this.createInputNode0.bind(this),
-      this.createInputNode2.bind(this),
-      this.createInputNode1.bind(this),
-      this.createNewIcosahedron.bind(this),
       this.createInputSignalReceptor.bind(this),
       this.createInputDataGateway.bind(this),
       this.createInputIncomingFunnel.bind(this),
@@ -146,9 +156,6 @@ export class EnhancedNodeModels {
 
     // PROCESS
     EnhancedNodeModels._ensureRegistry('process', [
-      this.createProcessNode0.bind(this),
-      this.createProcessNode3.bind(this),
-      this.createProcessNode2.bind(this),
       this.createProcessFluxChamber.bind(this),
       this.createProcessTransformationSpine.bind(this),
       this.createProcessConversionOrbit.bind(this),
@@ -176,7 +183,6 @@ export class EnhancedNodeModels {
 
     // ANALYTICS
     EnhancedNodeModels._ensureRegistry('analytics', [
-      this.createAnalyticsNode1.bind(this),
       this.createAnalyticsNode2.bind(this),
       this.createAnalyticsNode3.bind(this),
       this.createAnalyticsObserverLens.bind(this),
@@ -328,87 +334,66 @@ export class EnhancedNodeModels {
   static create(category = 'input', index = 0, color = 0x00ffff) {
     this.ensureRegistryReady();
     const nodeGroup = new THREE.Group();
+    const cat = (category || 'input').toLowerCase();
+    const pool = CANONICAL_VARIANTS[cat] || [0];
+    let variantIndex = index;
+    if (!pool.includes(variantIndex)) {
+      const pick = Math.floor(Math.random() * pool.length);
+      variantIndex = pool[pick];
+    }
 
-    switch(category.toLowerCase()) {
+    switch(cat) {
       // INPUT NODES (Cyan)
       case 'input':
-        return this.createInputNode(nodeGroup, index, color);
+        return this.createInputNode(nodeGroup, variantIndex, color);
       
       // PROCESS NODES (Amber/Gold)
       case 'process':
-        return this.createProcessNode(nodeGroup, index, color);
+        return this.createProcessNode(nodeGroup, variantIndex, color);
       
       // INTEGRATION NODES (Green)
       case 'integration':
-        return this.createIntegrationNode(nodeGroup, index, color);
+        return this.createIntegrationNode(nodeGroup, variantIndex, color);
       
       // ANALYTICS NODES (Violet)
       case 'analytics':
-        return this.createAnalyticsNode(nodeGroup, index, color);
+        return this.createAnalyticsNode(nodeGroup, variantIndex, color);
       
       // STORAGE NODES (Silver/Pale Blue)
       case 'storage':
-        return this.createStorageNode(nodeGroup, index, color);
+        return this.createStorageNode(nodeGroup, variantIndex, color);
       
       // CONTROL NODES (Red/Magenta)
       case 'control':
-        return this.createControlNode(nodeGroup, index, color);
+        return this.createControlNode(nodeGroup, variantIndex, color);
       
       // QUANTUM NODES (Bright Green - Dimensional Anomaly)
       case 'quantum':
       case 'sigma': // Legacy alias for compatibility
-        return this.createQuantumNode(nodeGroup, index, color);
+        return this.createQuantumNode(nodeGroup, variantIndex, color);
       
       // MYTHIC NODES (Ancient Fractured Relics)
       case 'mythic':
-        return this.createMythicNode(nodeGroup, index, color);
+        return this.createMythicNode(nodeGroup, variantIndex, color);
       
       // PRIME NODES (Perfect Axioms)
       case 'prime':
-        return this.createPrimeNode(nodeGroup, index, color);
+        return this.createPrimeNode(nodeGroup, variantIndex, color);
       
       // ERROR NODES (Frozen Corruption)
       case 'error':
-        return this.createErrorNode(nodeGroup, index, color);
+        return this.createErrorNode(nodeGroup, variantIndex, color);
       
       // EMOTIONAL NODES (Crystalline Organics)
       case 'emotional':
-        return this.createEmotionalNode(nodeGroup, index, color);
+        return this.createEmotionalNode(nodeGroup, variantIndex, color);
       
       default:
         console.warn(`[EnhancedNodeModels] Unknown category: '${category}'. Falling back to INPUT.`);
-        return this.createInputNode(nodeGroup, index, color);
+        return this.createInputNode(nodeGroup, variantIndex, color);
     }
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====
-
-  /**
-   * Input Node 0: Triangular prism with cyan rim glow + inner rotating tetrahedron
-   * UPGRADED: Added inner signal-like tetrahedron rotating on different axis
-   * VISUAL HIERARCHY: Inner geometry opacity reduced to 0.50–0.55 (was 0.6)
-   */
-  static createInputNode0(group, color) {
-    return group;
-  }
-
-
-  /**
-   * Input Node 1: Sphere with holographic rings + internal directional vector
-   * UPGRADED: Added inner rotating arrow-like octahedron for directionality
-   * VISUAL HIERARCHY: Inner geometry opacity reduced to 0.55–0.60 (was 0.7)
-   */
-  static createInputNode1(group, color) {
-    return group;
-  }
-
-
-  /**
-   * Input Node 2: Inverted cone (incoming data)
-   */
-  static createInputNode2(group, color) {
-    return group;
-  }
-
 
   /**
    * Input Node 3: Rectangular gateway frame with cyan edge light
@@ -433,30 +418,24 @@ export class EnhancedNodeModels {
    * - ResonanceChamber (NEW - Session 84)
    */
   static createInputNode(group, index, color) {
-    // Deterministic selection per node ID
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
-    
-    const variants = [
-      this.createInputNode0.bind(this),              // TriangularPrism+Rim
-      this.createInputNode2.bind(this),              // PyramidSpike
-      this.createInputNode1.bind(this),              // WireframeSphere (evolved sphere)
-      this.createNewIcosahedron.bind(this),          // Icosahedron
-      this.createInputSignalReceptor.bind(this),     // SignalReceptor (NEW)
-      this.createInputDataGateway.bind(this),        // DataGateway (NEW)
-      this.createInputIncomingFunnel.bind(this),     // IncomingFunnel (NEW)
-      this.createExtremeInput0.bind(this),           // HyperbolicPrism
-      InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),      // TactileSensor (Session 111)
-      InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),        // EchoDetector (Session 111)
-      InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)       // NeuralReceptor (Session 111)
-    ];
-    EnhancedNodeModels._ensureRegistry('input', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.input) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.input);
-    }
-    return variants[nodeId % 11](group, color);
+
+    const pool = CANONICAL_VARIANTS.input;
+    const poolFns = {
+      4: this.createInputSignalReceptor.bind(this),
+      5: this.createInputDataGateway.bind(this),
+      6: this.createInputIncomingFunnel.bind(this),
+      7: this.createExtremeInput0.bind(this),
+      8: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
+      9: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
+      10: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
+    };
+    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
+    return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
   /**
@@ -830,38 +809,6 @@ export class EnhancedNodeModels {
   // ===== PROCESS NODES (Amber/Gold - 4 variants) =====
 
   /**
-   * Process Node 0: Cube within cube, rotating effect
-   */
-  static createProcessNode0(group, color) {
-    return group;
-  }
-
-
-  /**
-   * Process Node 1: Circular core with radial cutouts
-   */
-  static createProcessNode1(group, color) {
-    return group;
-  }
-
-
-  /**
-   * Process Node 2: Layered rectangular plates
-   */
-  static createProcessNode2(group, color) {
-    return group;
-  }
-
-
-  /**
-   * Process Node 3: Torus with inner segmentation
-   */
-  static createProcessNode3(group, color) {
-    return group;
-  }
-
-
-  /**
    * Main process node creator
    * CANONICAL CATEGORY: PROCESS
    * - DiamondLattice
@@ -877,28 +824,23 @@ export class EnhancedNodeModels {
    * - PipelineFlow (NEW - Session 81)
    */
   static createProcessNode(group, index, color) {
-    // Deterministic selection per node ID
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
-    
-    const variants = [
-      this.createProcessNode0.bind(this),                        // DiamondLattice
-      this.createProcessNode3.bind(this),                        // Helix
-      this.createProcessNode2.bind(this),                        // DoubleHelix
-      this.createProcessFluxChamber.bind(this),                  // FluxChamber
-      this.createProcessTransformationSpine.bind(this),          // TransformationSpine
-      this.createProcessConversionOrbit.bind(this),              // ConversionOrbit
-      ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),  // FlowRecomposer (NEW)
-      ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),    // TemporalShifter (NEW)
-      ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)        // IterativeEngine (NEW)
-    ];
-    EnhancedNodeModels._ensureRegistry('process', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.process) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.process);
-    }
-    return variants[nodeId % variants.length](group, color);
+
+    const pool = CANONICAL_VARIANTS.process;
+    const poolFns = {
+      3: this.createProcessFluxChamber.bind(this),
+      4: this.createProcessTransformationSpine.bind(this),
+      5: this.createProcessConversionOrbit.bind(this),
+      6: ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
+      7: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
+      8: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)
+    };
+    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    EnhancedNodeModels._ensureRegistry('process', Object.values(poolFns));
+    return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
   /**
@@ -1427,22 +1369,6 @@ export class EnhancedNodeModels {
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
 
   /**
-   * Analytics Node 0: Disc with central lens
-   */
-  static createAnalyticsNode0(group, color) {
-    return group;
-  }
-
-  /**
-   * Analytics Node 1: Hollow cube with internal rotating geometry (UPGRADED)
-   * UPGRADED: Added internal rotating octahedron/helix slice instead of static plate
-   */
-  static createAnalyticsNode1(group, color) {
-    return group;
-  }
-
-
-  /**
    * Analytics Node 2: Hexagonal disc with fractal patterns
    */
   static createAnalyticsNode2(group, color) {
@@ -1527,29 +1453,26 @@ export class EnhancedNodeModels {
    * - SignalDrift (NEW - Session 81)
    */
   static createAnalyticsNode(group, index, color) {
-    // Deterministic selection per node ID
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
-    
-    const variants = [
-      this.createAnalyticsNode1.bind(this),                           // SpinningDataSphere
-      this.createAnalyticsNode2.bind(this),                           // HexAnalysisMatrix
-      this.createAnalyticsNode3.bind(this),                           // PrismSpectrumAnalyzer
-      this.createAnalyticsObserverLens.bind(this),                    // ObserverLens
-      this.createAnalyticsFractalEcho.bind(this),                     // FractalEcho
-      this.createAnalyticsParallaxOracle.bind(this),                  // ParallaxOracle
-      this.createNewElongatedOctahedron.bind(this),                   // ElongatedOctahedron
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),  // SignalStratifier (NEW)
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),    // TrendExcavator (NEW)
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)      // AnomalyLedger (NEW)
-    ];
-    EnhancedNodeModels._ensureRegistry('analytics', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.analytics) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.analytics);
-    }
-    return variants[nodeId % variants.length](group, color);
+
+    const pool = CANONICAL_VARIANTS.analytics;
+    const poolFns = {
+      1: this.createAnalyticsNode2.bind(this),
+      2: this.createAnalyticsNode3.bind(this),
+      3: this.createAnalyticsObserverLens.bind(this),
+      4: this.createAnalyticsFractalEcho.bind(this),
+      5: this.createAnalyticsParallaxOracle.bind(this),
+      6: this.createNewElongatedOctahedron.bind(this),
+      7: AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
+      8: AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
+      9: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
+    };
+    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    EnhancedNodeModels._ensureRegistry('analytics', Object.values(poolFns));
+    return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
   /**
@@ -1942,13 +1865,6 @@ export class EnhancedNodeModels {
       group.add(band);
     }
 
-    return group;
-  }
-
-  /**
-   * Storage Node 2: Thick cube with horizontal segmentation
-   */
-  static createStorageNode2(group, color) {
     return group;
   }
 
@@ -2506,76 +2422,6 @@ export class EnhancedNodeModels {
       group.add(box);
     });
 
-    return group;
-  }
-
-  /**
-   * JudgmentSeal: Heavy ring + floating core (static geometry)
-   */
-  static createJudgmentSealNode(group, color) {
-    const seal = ControlNodeGeometries.createJudgmentSeal(0.9);
-    seal.traverse(child => {
-      if (child.isMesh) {
-        child.material = new THREE.MeshStandardMaterial({
-          transparent: false,
-          opacity: 1,
-          depthWrite: true,
-          depthTest: true,
-          side: THREE.FrontSide,
-          color: color,
-          metalness: 0.85,
-          roughness: 0.15,
-          emissive: color,
-          emissiveIntensity: 0.4
-
-        });
-      }
-    });
-    group.add(seal);
-    return group;
-  }
-
-  /**
-   * SignalCitadel: Fortified core with 4-6 towers (static geometry)
-   */
-  static createSignalCitadelNode(group, color) {
-    const citadel = ControlNodeGeometries.createSignalCitadel(0.9);
-    citadel.material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.7,
-      roughness: 0.25,
-      emissive: color,
-      emissiveIntensity: 0.35
-
-    });
-    group.add(citadel);
-    return group;
-  }
-
-  /**
-   * LawCore: Monolithic cube (static geometry)
-   */
-  static createLawCoreNode(group, color) {
-    const lawCore = ControlNodeGeometries.createLawCore(0.9);
-    lawCore.material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: color,
-      emissiveIntensity: 0.5
-
-    });
-    group.add(lawCore);
     return group;
   }
 
@@ -3290,14 +3136,6 @@ export class EnhancedNodeModels {
     group.userData.rotationAxis = new THREE.Vector3(0.5, 1, 0.5).normalize();
     return group;
   }
-
-  /**
-   * Sigma Node 2: Multi-faceted anomaly
-   */
-  static createSigmaNode2(group, color) {
-    return group;
-  }
-
 
   /**
    * Sigma Node 3: Twisted anomaly
@@ -4092,38 +3930,6 @@ export class EnhancedNodeModels {
   // ===== NEW BASE GEOMETRIES (7 canonical shapes) =====
 
   /**
-   * NEW: Icosahedron - INPUT category
-   * Clean 20-faced polyhedron with smooth appearance
-   * 
-   * [NoFallbackPolicy] Legacy INPUT core visual removed.
-   * INPUT nodes must NOT render a simplified core.
-   */
-  static createNewIcosahedron(group, color) {
-    console.error('[NodeVisualError]', {
-      nodeType: 'INPUT',
-      reason: 'Legacy INPUT core visual removed by NoFallbackPolicy'
-    });
-    return null;
-  }
-
-  /**
-   * NEW: Dodecahedron - CONTROL category
-   * Pentagon-faced polyhedron with geometric presence
-   */
-  static createNewDodecahedron(group, color) {
-    return group;
-  }
-
-
-  /**
-   * NEW: Ellipsoid - SIGMA category
-   * Stretched sphere for smooth dimensional feel
-   */
-  static createNewEllipsoid(group, color) {
-    return group;
-  }
-
-  /**
    * NEW: Truncated Pyramid - INTEGRATION category
    * Flat-topped pyramid for layered aesthetic
    */
@@ -4196,15 +4002,6 @@ export class EnhancedNodeModels {
    * Diamond-like shape for precious storage feel
    */
   static createNewRhombicSolid(group, color) {
-    return group;
-  }
-
-
-  /**
-   * NEW: Hexagonal Prism - PROCESS category
-   * Six-sided vertical form for systematic processing
-   */
-  static createNewHexagonalPrism(group, color) {
     return group;
   }
 
