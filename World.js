@@ -155,6 +155,15 @@ export class World {
       
       // Add thin neon edge
       const edgeGeometry = new THREE.EdgesGeometry(platformGeometry);
+      const pos = edgeGeometry.attributes?.position?.array;
+      if (pos) {
+        for (let i = 0; i < pos.length; i++) {
+          if (!Number.isFinite(pos[i])) {
+            console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+            break;
+          }
+        }
+      }
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: CONFIG.colors.primary,
         transparent: true,

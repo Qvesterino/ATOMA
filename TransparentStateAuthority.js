@@ -62,66 +62,82 @@ function ensureStateContainer(mesh) {
 
 export const TransparentStateAuthority = {
   /**
-   * Apply a named render profile to a mesh material.
-   * Idempotent: if the same key is already applied, no writes occur.
-   * Optional overrides allow stable tweaks per mesh while keeping authority centralized.
+   * Validate that a mesh material matches a named render profile.
+   * ARCHITECTURAL CHANGE: This is now a VALIDATOR ONLY.
+   * NO runtime mutations occur - materials must be created with correct flags.
+   * 
+   * If material flags differ from target, this function:
+   * - Logs a single warning in debug mode
+   * - Returns validation result
+   * - Does NOT mutate the material
+   * 
+   * @param {THREE.Mesh} mesh - The mesh to validate
+   * @param {string} stateKey - The expected profile key
+   * @param {Object} overrides - Optional property overrides for validation
+   * @returns {boolean} true if material matches target, false otherwise
    */
   apply(mesh, stateKey, overrides = {}) {
-    if (!mesh || !mesh.material) return;
+    if (!mesh || !mesh.material) return false;
+    
     const profile = PROFILES[stateKey];
     if (!profile) {
       if (DEBUG_TRANSPARENT_AUTHORITY) {
         console.warn('[TransparentStateAuthority] Unknown state key:', stateKey);
       }
-      return;
+      return false;
     }
 
-    // Domain guard: only overlay/link domains may be mutated
-    const domain = mesh.material.userData?.__domain;
-    if (domain !== 'overlay' && domain !== 'link') {
-      if (!warnedDomain.has(mesh.material)) {
+    const target = { ...profile, ...overrides };
+    const material = mesh.material;
+    
+    // Check if all variant properties match
+    const mismatches = [];
+    if (material.transparent !== target.transparent) {
+      mismatches.push(`transparent (actual: ${material.transparent}, expected: ${target.transparent})`);
+    }
+    if (material.depthWrite !== target.depthWrite) {
+      mismatches.push(`depthWrite (actual: ${material.depthWrite}, expected: ${target.depthWrite})`);
+    }
+    if (material.depthTest !== target.depthTest) {
+      mismatches.push(`depthTest (actual: ${material.depthTest}, expected: ${target.depthTest})`);
+    }
+    if (material.blending !== target.blending) {
+      const blendName = material.blending === THREE.AdditiveBlending ? 'AdditiveBlending' : 
+                        material.blending === THREE.NormalBlending ? 'NormalBlending' : 
+                        material.blending;
+      const targetBlendName = target.blending === THREE.AdditiveBlending ? 'AdditiveBlending' :
+                             target.blending === THREE.NormalBlending ? 'NormalBlending' :
+                             target.blending;
+      mismatches.push(`blending (actual: ${blendName}, expected: ${targetBlendName})`);
+    }
+    
+    // If mismatches found, log once and return false
+    if (mismatches.length > 0) {
+      if (!warnedDomain.has(material)) {
         if (DEBUG_TRANSPARENT_AUTHORITY) {
-          console.warn('[TransparentStateAuthority] Blocked apply on non-overlay/link material', {
+          console.warn('[TransparentStateAuthority] Material does not match expected profile:', {
+            mesh: mesh.name || mesh.uuid,
+            material: material.uuid,
             stateKey,
-            material: mesh.material.uuid,
-            domain: domain ?? 'unset'
+            mismatches: mismatches.join(', '),
+            note: 'Materials must be created with correct variant flags at creation time'
           });
         }
-        warnedDomain.add(mesh.material);
+        warnedDomain.add(material);
       }
-      return;
+      return false;
     }
-
-    const isFrozen = mesh.material.userData?.__flagsFrozen;
-    const target = { ...profile, ...overrides };
-    const touchesVariantProp = Object.keys(target).some(k => VARIANT_PROPS.includes(k));
-
-    // Respect frozen materials: never mutate shader-variant flags after freeze
-    if (isFrozen && touchesVariantProp) {
-      if (!warnedFrozen.has(mesh.material)) {
-        if (DEBUG_TRANSPARENT_AUTHORITY) {
-          console.warn('[MaterialAuthority] Blocked runtime flag change on frozen material', { stateKey, material: mesh.material.uuid });
-        }
-        warnedFrozen.add(mesh.material);
-      }
-      return;
-    }
-
+    
+    // Mark as validated (no mutation)
     const state = ensureStateContainer(mesh);
-    if (state.applied && state.key === stateKey) return;
-
-    if (mesh.material.transparent !== target.transparent) mesh.material.transparent = target.transparent;
-    if (mesh.material.depthWrite !== target.depthWrite) mesh.material.depthWrite = target.depthWrite;
-    if (mesh.material.depthTest !== target.depthTest) mesh.material.depthTest = target.depthTest;
-    if (mesh.material.blending !== target.blending) mesh.material.blending = target.blending;
-    if (mesh.renderOrder !== target.renderOrder) mesh.renderOrder = target.renderOrder;
-
     state.key = stateKey;
     state.applied = true;
+    
+    return true;
   },
 
   /**
-   * Release authority tracking for a mesh.
+   * Release validation tracking for a mesh.
    * Does not mutate material; simply clears the state marker.
    */
   release(mesh) {
@@ -130,9 +146,17 @@ export const TransparentStateAuthority = {
   },
 
   /**
-   * Get the currently applied state for a mesh.
+   * Get the currently validated state for a mesh.
    */
   getState(mesh) {
     return mesh?.userData?.__transparentState || null;
+  },
+  
+  /**
+   * Validate a material matches expected profile without tracking state.
+   * Useful for one-time checks.
+   */
+  validate(mesh, stateKey, overrides = {}) {
+    return this.apply(mesh, stateKey, overrides);
   }
 };

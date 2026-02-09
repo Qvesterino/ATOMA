@@ -78,6 +78,15 @@ export class MemoryLane {
     
     // Neon outline edges
     const edgeGeometry = new THREE.EdgesGeometry(towerGeometry);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: 0x00dddd,
       transparent: true,
@@ -160,6 +169,15 @@ export class MemoryLane {
       
       // Panel outline
       const outlineGeometry = new THREE.EdgesGeometry(panelGeometry);
+      const pos = outlineGeometry.attributes?.position?.array;
+      if (pos) {
+        for (let i = 0; i < pos.length; i++) {
+          if (!Number.isFinite(pos[i])) {
+            console.error('[GeometrySource] NaN created in EdgesGeometry', outlineGeometry);
+            break;
+          }
+        }
+      }
       const outlineMaterial = new THREE.LineBasicMaterial({
         color: 0x8866ff,
         transparent: true,
@@ -404,6 +422,15 @@ export class MemoryLane {
       
       // Add edges
       const edgeGeometry = new THREE.EdgesGeometry(shardGeometry);
+      const pos = edgeGeometry.attributes?.position?.array;
+      if (pos) {
+        for (let i = 0; i < pos.length; i++) {
+          if (!Number.isFinite(pos[i])) {
+            console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+            break;
+          }
+        }
+      }
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: 0xaa88ff,
         transparent: true,

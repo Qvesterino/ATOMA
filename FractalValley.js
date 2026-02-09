@@ -144,6 +144,15 @@ export class FractalValley {
       
       // Neon outline
       const edgeGeometry = new THREE.EdgesGeometry(hexGeometry);
+      const pos = edgeGeometry.attributes?.position?.array;
+      if (pos) {
+        for (let i = 0; i < pos.length; i++) {
+          if (!Number.isFinite(pos[i])) {
+            console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+            break;
+          }
+        }
+      }
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: 0x00dddd,
         transparent: true,
@@ -337,6 +346,15 @@ export class FractalValley {
    */
   addNeonOutline(mesh, geometry) {
     const edgeGeometry = new THREE.EdgesGeometry(geometry, 30);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const colors = [0x8800ff, 0x00dddd, 0x00ccaa];
     const color = colors[Math.floor(Math.random() * colors.length)];
     

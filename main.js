@@ -4210,7 +4210,7 @@ hudP05Observer.observe(document.body, {
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
-            0.1,
+            0.5,
             1000
         );
         this.camera.position.set(0, 2, 5);
@@ -4874,12 +4874,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.renderer,
             this.aiNodes
         );
+        this.linkingSystem.isReady = true;
         console.log('[main.js] NodeLinkingSystem created');
         if (this.frameScheduler) {
             this.frameScheduler.register(
                 'visual',
                 (dt) => {
-                    if (this.linkingSystem) {
+                    if (this.linkingSystem && this.linkingSystem.isReady === true) {
                         this.linkingSystem.update(dt, this.time);
                     }
                 },

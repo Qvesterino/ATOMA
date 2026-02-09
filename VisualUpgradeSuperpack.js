@@ -28,7 +28,17 @@ function hasFinitePositions(geometry) {
 
 function safeEdgesGeometry(geometry) {
   if (!hasFinitePositions(geometry)) return null;
-  return new THREE.EdgesGeometry(geometry);
+  const edges = new THREE.EdgesGeometry(geometry);
+  const pos = edges.attributes?.position?.array;
+  if (pos) {
+    for (let i = 0; i < pos.length; i++) {
+      if (!Number.isFinite(pos[i])) {
+        console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+        break;
+      }
+    }
+  }
+  return edges;
 }
 
 export class VisualUpgradeSuperpack {

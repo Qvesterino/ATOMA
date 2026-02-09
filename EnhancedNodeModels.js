@@ -407,6 +407,7 @@ export class EnhancedNodeModels {
 
     // ===== HARD VISIBILITY FALLBACK (DEBUG) =====
     const forceDebugMaterial = (root) => {
+      if (root?.userData?.__nonRenderable === true) return root;
       let meshFound = false;
       if (!root) return root;
 
@@ -1515,7 +1516,10 @@ export class EnhancedNodeModels {
     };
     const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
     EnhancedNodeModels._ensureRegistry('analytics', Object.values(poolFns));
-    return (poolFns[selected] || poolFns[pool[0]])(group, color);
+    const result = (poolFns[selected] || poolFns[pool[0]])(group, color);
+    group.userData.renderable = false;
+    group.userData.__nonRenderable = true;
+    return result;
   }
 
   /**

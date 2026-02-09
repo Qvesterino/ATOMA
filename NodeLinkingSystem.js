@@ -58,6 +58,10 @@ import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js'
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
 
+function _validateBinderNode(node) {
+  return !!(node && node.isObject3D === true && node.userData);
+}
+
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
 const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
 const _proxyCandidateScratch = [];
@@ -1728,8 +1732,16 @@ export class NodeLinkingSystem {
       const __linkCoreMutationEnabled =
         typeof window !== 'undefined' && window.ATOMA_LINK_CORE_MUTATION_ENABLED === true;
       if (__linkCoreMutationEnabled) {
-        applyFinalNodeVisualState(sourceNode, { verbose: false });
-        applyFinalNodeVisualState(targetNode, { verbose: false });
+        if (_validateBinderNode(sourceNode)) {
+          applyFinalNodeVisualState(sourceNode, { verbose: false });
+        } else {
+          console.warn('[NodeLinkingSystem] Invalid node passed to visual binder', sourceNode);
+        }
+        if (_validateBinderNode(targetNode)) {
+          applyFinalNodeVisualState(targetNode, { verbose: false });
+        } else {
+          console.warn('[NodeLinkingSystem] Invalid node passed to visual binder', targetNode);
+        }
       }
       
       // Update visual state in binder

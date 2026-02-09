@@ -994,7 +994,17 @@ export class AINodes {
           if (!hasFinitePositions(sourceGeo)) {
               return null;
           }
-          return new THREE.EdgesGeometry(sourceGeo);
+          const edgeGeometry = new THREE.EdgesGeometry(sourceGeo);
+          const pos = edgeGeometry.attributes?.position?.array;
+          if (pos) {
+            for (let i = 0; i < pos.length; i++) {
+              if (!Number.isFinite(pos[i])) {
+                console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+                break;
+              }
+            }
+          }
+          return edgeGeometry;
       }
       
       nodeModel.traverse((child) => {

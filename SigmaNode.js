@@ -58,6 +58,15 @@ export class SigmaNode {
     
     // Edge lines for neon effect
     const edges = new THREE.EdgesGeometry(coreGeo);
+    const pos = edges.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+          break;
+        }
+      }
+    }
     const lineMat = new THREE.LineBasicMaterial({
       color: 0xffaa00,
       transparent: true,

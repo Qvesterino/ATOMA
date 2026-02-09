@@ -96,6 +96,15 @@ export class AINodeModel {
     
     // Edge glow - EFFECTS LAYER (allowed to be transparent)
     const edgeGeometry = new THREE.EdgesGeometry(mainGeometry, 15);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
@@ -214,6 +223,15 @@ export class AINodeModel {
     
     // Edge highlights - EFFECTS LAYER
     const edgeGeometry = new THREE.EdgesGeometry(mainGeometry, 1);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
@@ -298,6 +316,15 @@ export class AINodeModel {
     
     // Sharp edge outlines - EFFECTS LAYER
     const edgeGeometry = new THREE.EdgesGeometry(mainGeometry);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
@@ -387,6 +414,15 @@ export class AINodeModel {
     
     // Clean edge lines
     const edgeGeometry = new THREE.EdgesGeometry(mainGeometry);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
@@ -416,6 +452,15 @@ export class AINodeModel {
       
       // Plate outline
       const plateEdge = new THREE.EdgesGeometry(plateGeometry);
+      const pos = plateEdge.attributes?.position?.array;
+      if (pos) {
+        for (let i = 0; i < pos.length; i++) {
+          if (!Number.isFinite(pos[i])) {
+            console.error('[GeometrySource] NaN created in EdgesGeometry', plateEdge);
+            break;
+          }
+        }
+      }
       const plateEdgeMaterial = new THREE.LineBasicMaterial({
         color: color,
         transparent: true,
@@ -465,6 +510,15 @@ export class AINodeModel {
     
     // Subtle edge glow
     const edgeGeometry = new THREE.EdgesGeometry(mainGeometry, 20);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,

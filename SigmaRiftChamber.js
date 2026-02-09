@@ -534,6 +534,15 @@ export class SigmaRiftChamber {
     this.scene.add(monolith);
     
     const edgeGeometry = new THREE.EdgesGeometry(geometry);
+    const pos = edgeGeometry.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
+          break;
+        }
+      }
+    }
     const edgeMaterial = new THREE.LineBasicMaterial({
       color: 0x00ffaa,
       transparent: true,

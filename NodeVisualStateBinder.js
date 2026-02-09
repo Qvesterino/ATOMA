@@ -56,6 +56,18 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial } from './CoreHologramShader.js';
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 
+function _validateNodeForBinder(node, label) {
+  if (!node || node.isObject3D !== true || !node.userData) {
+    console.warn('[NodeVisualStateBinder] Skipped invalid node', label, node);
+    return false;
+  }
+  if (!node.userData.nodeId && !node.userData.id) {
+    console.warn('[NodeVisualStateBinder] Skipped node without id', label, node);
+    return false;
+  }
+  return true;
+}
+
 // ============================================================================
 // LINK VISUALS POLICY - Phase LVA-1
 // ============================================================================
@@ -94,8 +106,11 @@ const HARMONIZATION_CONFIG = {
  * @returns {Object} Base visual state (immutable clone)
  */
 export function captureBaseVisualState(node) {
-  if (!node || node.userData.baseVisualState) {
-    return node?.userData.baseVisualState || null;
+  if (!_validateNodeForBinder(node, 'captureBaseVisualState')) {
+    return null;
+  }
+  if (node.userData.baseVisualState) {
+    return node.userData.baseVisualState;
   }
 
   const visualComponents = {};
@@ -175,7 +190,10 @@ export function captureBaseVisualState(node) {
  * @returns {boolean} true if restored, false if no base state
  */
 export function restoreBaseVisualState(node) {
-  if (!node || !node.userData.baseVisualState) {
+  if (!_validateNodeForBinder(node, 'restoreBaseVisualState')) {
+    return false;
+  }
+  if (!node.userData.baseVisualState) {
     return false;
   }
 
@@ -282,7 +300,9 @@ export function assertBaseVisualStateCorrect(node) {
  * @returns {Object} { success: boolean, fxMesh: THREE.Mesh | null }
  */
 export function applyLinkFXOnly(node, options = {}) {
-  if (!node) return { success: false, fxMesh: null };
+  if (!_validateNodeForBinder(node, 'applyLinkFXOnly')) {
+    return { success: false, fxMesh: null };
+  }
 
   try {
     // First: restore base visuals (undo any previous mutations)
@@ -792,8 +812,7 @@ export function disableNodeSynergyPulse(node) {
  * @deprecated Use captureBaseVisualState + restoreBaseVisualState instead
  */
 export function applyFinalNodeVisualState(node, options = {}) {
-  if (!node) {
-    console.warn('[NodeVisualStateBinder] Cannot apply state: node is null');
+  if (!_validateNodeForBinder(node, 'applyFinalNodeVisualState')) {
     return false;
   }
 

@@ -255,6 +255,15 @@ export function safeCreateEdgesGeometry(sourceGeometry, thresholdAngle = 1) {
 
   try {
     const edges = new THREE.EdgesGeometry(sourceGeometry, thresholdAngle);
+    const pos = edges.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+          break;
+        }
+      }
+    }
 
     // 2. 🔴 CRITICAL: normalize drawRange on EDGES geometry
     normalizeDrawRange(edges);

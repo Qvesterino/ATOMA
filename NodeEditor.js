@@ -95,6 +95,15 @@ export class NodeEditor {
       opacity: 0.5
     });
     const edges = new THREE.EdgesGeometry(geometry);
+    const pos = edges.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+          break;
+        }
+      }
+    }
     const marker = new THREE.LineSegments(edges, material);
     marker.position.copy(position);
     marker.userData = {

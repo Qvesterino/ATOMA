@@ -224,6 +224,15 @@ export class NodeHierarchyVisuals {
     });
 
     const edges = new THREE.EdgesGeometry(geometry);
+    const pos = edges.attributes?.position?.array;
+    if (pos) {
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+          break;
+        }
+      }
+    }
     const wireframe = new THREE.LineSegments(edges, material);
 
     const centerX = (boundingBox.min.x + boundingBox.max.x) / 2;
