@@ -256,7 +256,27 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
                 }
                 return false;
             }
-            if (attr.array.byteLength === undefined || typeof attr.array.byteLength !== 'number') {
+            // Some attribute types expose data.array; guard both paths safely.
+            let arrayRef = null;
+            try {
+                arrayRef = attr.array ?? attr.data?.array ?? null;
+            } catch (e) {
+                arrayRef = null;
+            }
+            if (!arrayRef) {
+                if (!loggedMissingAttribute) {
+                    console.warn('[ShaderFreezeGuard] Missing attribute array buffer:', key);
+                    loggedMissingAttribute = true;
+                }
+                return false;
+            }
+            let arrayByteLength = null;
+            try {
+                arrayByteLength = arrayRef.byteLength;
+            } catch (e) {
+                arrayByteLength = null;
+            }
+            if (arrayByteLength === undefined || arrayByteLength === null || typeof arrayByteLength !== 'number') {
                 if (!loggedMissingAttribute) {
                     console.warn('[ShaderFreezeGuard] Missing/invalid byteLength:', key);
                     loggedMissingAttribute = true;

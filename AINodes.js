@@ -80,7 +80,7 @@ function hasRenderableVisual(object3D) {
   const stack = [object3D];
   while (stack.length) {
     const obj = stack.pop();
-    if ((obj.isMesh || obj.isLine || obj.isPoints) && obj.visible === true) {
+    if (obj.isMesh || obj.isLine || obj.isPoints) {
       return true;
     }
     if (obj.children && obj.children.length) {
@@ -550,8 +550,9 @@ export class AINodes {
       };
 
       const node = this.createNode(category, pos, index, isSpecial, options);
+      const finalized = node ? this._finalizeSpawnedNode(node, category, pos) : null;
       
-      if (node) {
+      if (finalized && finalized.node) {
           // Register the unique spawn
           spawnAuthorityComplianceGate.registerSpawn(
               isExtreme ? 'extreme' : category,
@@ -565,12 +566,10 @@ export class AINodes {
               CoreVisualAuthorityGuard.installDefensiveGuards(coreMesh);
               // Log ONCE
               if (!node.userData.loggedAuthority) {
-                  // console.log("[NodeVisualAuthority] Core locked ✓"); // Reduced spam
+                  // console.log("[NodeVisualAuthority] Core locked (ok)"); // Reduced spam
                   node.userData.loggedAuthority = true;
               }
           }
-
-          this.registerNodeRoot(node);
       }
     });
     
@@ -1236,8 +1235,7 @@ export class AINodes {
       }
     }
     
-    this.scene.add(nodeModel);
-    
+    // Scene attachment handled centrally in _finalizeSpawnedNode()
     if (nodeModel.userData?.__nonRenderable !== true) {
       // ========================================================================
       // [INTERACTION AUTHORITY] ENFORCE RAYCAST DISCIPLINE
@@ -2357,6 +2355,123 @@ export class AINodes {
   }
 
   /**
+   * Canonical spawn finalizer: ensures visibility, scene attachment, and registration.
+   * All spawn entrypoints must route through this to guarantee on-screen results.
+   */
+  _finalizeSpawnedNode(node, category, position, options = {}) {
+    if (!node || !(node instanceof THREE.Object3D)) {
+      if (!this._warnedInvalidNode) {
+        console.warn('[SpawnFinalize] Invalid node object supplied; spawn aborted');
+        this._warnedInvalidNode = true;
+      }
+      return null;
+    }
+
+    const ensureUserDataObject = (obj) => {
+      if (!obj || obj.isObject3D !== true) return null;
+      if (obj.userData && typeof obj.userData === 'object') {
+        return obj.userData;
+      }
+      try {
+        obj.userData = {};
+        return obj.userData;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    // Keep child state untouched; only enforce root visibility and sane scale.
+    node.visible = true;
+    const scaleNonFinite =
+      !Number.isFinite(node.scale?.x) ||
+      !Number.isFinite(node.scale?.y) ||
+      !Number.isFinite(node.scale?.z);
+    if (!Number.isFinite(node.scale.x) || node.scale.x <= 0) node.scale.x = 1;
+    if (!Number.isFinite(node.scale.y) || node.scale.y <= 0) node.scale.y = 1;
+    if (!Number.isFinite(node.scale.z) || node.scale.z <= 0) node.scale.z = 1;
+    if (node.layers && node.layers.mask === 0) {
+      try {
+        node.layers.mask = 1; // layer 0 only
+      } catch (e) {
+        // keep original if layers are immutable
+      }
+    }
+
+    let renderableCount = 0;
+    let badBoundsCount = 0;
+    node.traverse((obj) => {
+      if (!obj || obj.isObject3D !== true) return;
+      if (obj.isMesh === true || obj.isLine === true || obj.isPoints === true) {
+        renderableCount++;
+        const geometry = obj.geometry;
+        if (geometry) {
+          const radius = geometry.boundingSphere?.radius;
+          const needsSphere =
+            !geometry.boundingSphere ||
+            !Number.isFinite(radius) ||
+            radius <= 0;
+          if (needsSphere && typeof geometry.computeBoundingSphere === 'function') {
+            try {
+              geometry.computeBoundingSphere();
+            } catch (e) {
+              // Keep default behavior; mark bad bounds below if still invalid.
+            }
+          }
+          const finalRadius = geometry.boundingSphere?.radius;
+          if (!Number.isFinite(finalRadius) || finalRadius <= 0) {
+            const ud = ensureUserDataObject(obj);
+            if (ud) ud.__badBounds = true;
+            badBoundsCount++;
+          }
+        }
+      }
+    });
+
+    const issues = [];
+    if (!node.parent && !this.scene) issues.push('no-scene-parent');
+    if (renderableCount === 0) issues.push('no-renderables');
+    if (badBoundsCount > 0) issues.push(`bad-bounds:${badBoundsCount}`);
+    if (node.layers && node.layers.mask === 0) issues.push('layer-mask-0');
+    if (scaleNonFinite) issues.push('scale-non-finite');
+
+    if (issues.length > 0) {
+      console.warn(`[SpawnFinalize] visibility-risk id=${node.uuid || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
+    }
+
+    if (renderableCount === 0) return null;
+
+    let sceneAdded = false;
+    if (!node.parent && this.scene) {
+      this.scene.add(node);
+      sceneAdded = true;
+    }
+
+    // Minimal identity + category guarantees
+    const rootUserData = ensureUserDataObject(node);
+    if (rootUserData && !rootUserData.id) {
+      rootUserData.id = rootUserData.nodeId || `node-${Date.now()}-${Math.random()}`;
+    }
+    if (rootUserData && !rootUserData.nodeId) {
+      rootUserData.nodeId = rootUserData.id;
+    }
+    if (rootUserData && !rootUserData.category && category) {
+      rootUserData.category = category;
+    }
+
+    // Register only after visibility is confirmed
+    this.registerNodeRoot(node);
+
+    if (options.registryKey) {
+      this.nodeRegistry.set(options.registryKey, node);
+      if (typeof window !== 'undefined' && window.DEBUG_SINGLE_INSTANCE_NODES) {
+        console.log(`[SpawnRegistry] Registered unique node: ${options.registryKey}`);
+      }
+    }
+
+    return { node, sceneAdded, renderableCount, badBoundsCount };
+  }
+
+  /**
    * SPAWN REPAIR 2.0 (SAFE EDITION): Spawn a single new node with materialize animation
    * 100% SYNCHRONOUS - No queueMicrotask, no setTimeout, no async delays
    * userData.category is guaranteed set BEFORE any HUD or LinkRegistry reads it
@@ -2613,17 +2728,19 @@ export class AINodes {
       );
     }
     
-    // ========== STEP 7: ADD TO INTERNAL STRUCTURES (SYNC) ==========
-    this.registerNodeRoot(newNode);
+    // ========== STEP 7: FINALIZE (SCENE ATTACH + REGISTRATION) ==========
+    if (!this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey })) {
+      return null;
+    }
+    
+    // NODE SPAWN LOGGER v4.0: Log spawn with full validation
+    NodeSpawnLogger.logSpawn(newNode, category, spawnPos);
     
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
     const archetypeToUse = newNode.userData.archetype || category;
     newNode.userData.namingCode = atomaNamingEngine.getNamingCodeForNode(archetypeToUse);
     newNode.userData.namingMeaning = atomaNamingEngine.getReadableMeaning(newNode.userData.namingCode);
-    
-    // NODE SPAWN LOGGER v4.0: Log spawn with full validation
-    NodeSpawnLogger.logSpawn(newNode, category, spawnPos);
     
     // ========== STEP 9: MATERIALIZE ANIMATION ==========
     if (newNode.userData?.__nonRenderable !== true) {
@@ -2666,17 +2783,6 @@ export class AINodes {
     if (newNode.userData?.__nonRenderable !== true) {
       NodeDepthAndHoloPreservationFix.enforceHolographicPreservation(newNode);
     }
-    
-    // [SESSION 110] REGISTER NODE IDENTITY
-    if (registryKey) {
-      this.nodeRegistry.set(registryKey, newNode);
-      if (window.DEBUG_SINGLE_INSTANCE_NODES) {
-        console.log(`[SpawnRegistry] Registered unique node: ${registryKey}`);
-      }
-    }
-    
-    const archetypeLabel = forceArchetype ? ` [${forceArchetype}]` : '';
-    console.log(`✓ Node spawned: ${category}${archetypeLabel} at (${spawnPos.x.toFixed(1)}, ${spawnPos.y.toFixed(1)}, ${spawnPos.z.toFixed(1)})`);
     
     return newNode;
   }

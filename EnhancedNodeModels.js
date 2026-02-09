@@ -1522,8 +1522,6 @@ export class EnhancedNodeModels {
       });
     }
 
-    group.userData.renderable = false;
-    group.userData.__nonRenderable = true;
     group.userData.__skipRaycast = true;
     return result;
   }

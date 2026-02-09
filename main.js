@@ -4787,6 +4787,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         // Create AI nodes for this environment
+        this._allowRegistryReset = true;
         this.createAINodes();
 
         // ====================================================================
@@ -4805,10 +4806,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      */
     createAINodes() {
         // RESET REGISTRY: Clear unique node tracking for new world generation
-        if (nodeSpawnRegistry) {
+        const allowRegistryReset = this._allowRegistryReset === true;
+        if (nodeSpawnRegistry && allowRegistryReset) {
             nodeSpawnRegistry.reset();
             console.log('✓ NodeSpawnRegistry reset for new world generation');
+        } else if (nodeSpawnRegistry && !allowRegistryReset && !this._registryResetSuppressedLogged) {
+            console.warn('[SpawnRegistry] Reset skipped (not during world init)');
+            this._registryResetSuppressedLogged = true;
         }
+        this._allowRegistryReset = false;
 
         this.aiNodes = new AINodes(this.scene, this.player);
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
@@ -7458,6 +7464,7 @@ this.archetypeShaderModes = null;
         }
 
         // Create new AI nodes
+        this._allowRegistryReset = true;
         this.createAINodes();
         this.setupRecursiveGlyphSignalSystem();
         if (this.coreMetricsOverlay) {
