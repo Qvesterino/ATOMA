@@ -202,6 +202,10 @@ export class RareNodeSpawner {
     // Delegate to canonical funnel (AINodes.spawnNode) to create the Node
     // Force archetype encodes rare identity while keeping category canonical
     const archetypeKey = `RARE-${rareType.toUpperCase()}`;
+    if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+      console.warn('[SpawnAuthority] External spawn blocked');
+      return;
+    }
     const node = this.aiNodes?.spawnNode('input', position, archetypeKey);
     if (!node) {
       return;

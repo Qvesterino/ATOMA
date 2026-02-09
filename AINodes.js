@@ -194,6 +194,7 @@ export class AINodes {
     this.scene = scene;
     this.player = player;
     this.nodes = [];
+    this.nodesMap = new Map();
     this.connections = [];
     this.activationDistance = 8;
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
@@ -569,7 +570,7 @@ export class AINodes {
               }
           }
 
-          this.nodes.push(node);
+          this.registerNodeRoot(node);
       }
     });
     
@@ -1215,13 +1216,35 @@ export class AINodes {
       nodeModel.userData.visualReady = true;
     }
     
+    // --- Analytics spawn sanity check ---
+    if (safeCategory === 'analytics') {
+      let hasMesh = false;
+
+      nodeModel.traverse(obj => {
+        if (obj.isMesh === true) hasMesh = true;
+      });
+
+      if (!hasMesh) {
+        console.error('[AnalyticsSpawn] Killed empty analytics node', nodeModel.userData?.nodeId);
+
+        // Dispose if already partially added
+        if (nodeModel.parent) {
+          nodeModel.parent.remove(nodeModel);
+        }
+
+        return null; // IMPORTANT: abort spawn completely
+      }
+    }
+    
     this.scene.add(nodeModel);
     
-    // ========================================================================
-    // [INTERACTION AUTHORITY] ENFORCE RAYCAST DISCIPLINE
-    // Disable raycasting on visual meshes to ensure reliable node selection
-    // ========================================================================
-    this._enforceNodeRaycastAuthority(nodeModel);
+    if (nodeModel.userData?.__nonRenderable !== true) {
+      // ========================================================================
+      // [INTERACTION AUTHORITY] ENFORCE RAYCAST DISCIPLINE
+      // Disable raycasting on visual meshes to ensure reliable node selection
+      // ========================================================================
+      this._enforceNodeRaycastAuthority(nodeModel);
+    }
     
     // ========================================================================
     // SESSION 99: FREEZE NODE VISUALS (Emergency Immutability)
@@ -2145,7 +2168,11 @@ export class AINodes {
       },
       
       // Rare node spawn chance (legacy, now replaced by weights)
-      rareMaterializeChance: 0.15 // 15% chance for rare nodes (kept for compatibility)
+      rareMaterializeChance: 0.15, // 15% chance for rare nodes (kept for compatibility)
+      
+      // Per-category cooldown (minimal state for analytics burst prevention)
+      categoryLastSpawnAt: {},  // category -> timestamp
+      analyticsCooldown: 15000  // 15 seconds cooldown for analytics
     };
     
     // Materialize animation tracking
@@ -2306,6 +2333,29 @@ export class AINodes {
     return 'input';
   }
   
+  /**
+   * Register node root with duplicate guard
+   */
+  registerNodeRoot(root) {
+    if (!root) return root;
+    const id = root.userData?.nodeId;
+    if (!this.nodes) this.nodes = [];
+    if (!this.nodesMap) this.nodesMap = new Map();
+
+    if (!id) {
+      this.nodes.push(root);
+      return root;
+    }
+
+    if (this.nodesMap.has(id)) {
+      return this.nodesMap.get(id);
+    }
+
+    this.nodesMap.set(id, root);
+    this.nodes.push(root);
+    return root;
+  }
+
   /**
    * SPAWN REPAIR 2.0 (SAFE EDITION): Spawn a single new node with materialize animation
    * 100% SYNCHRONOUS - No queueMicrotask, no setTimeout, no async delays
@@ -2517,7 +2567,7 @@ export class AINodes {
     // Raycast correctness: mark fresh nodes and store explicit core mesh
     newNode.userData.boundingSphere = null;
     newNode.userData._boundsDirty = true;
-    newNode.userData.isRaycastTarget = true;
+    newNode.userData.isRaycastTarget = newNode.userData.__nonRenderable === true ? false : true;
     newNode.userData.coreMesh = coreMesh || null;
     
     // Validate all critical tags are set
@@ -2551,7 +2601,7 @@ export class AINodes {
     
     // ========== STEP 6: VISUAL BOOTSTRAP (QUEUED) ==========
     // Queue heavy visual work to spread across frames
-    if (this.visualBootstrap) {
+    if (this.visualBootstrap && newNode.userData?.__nonRenderable !== true) {
       this._queueSpawnVisual(
         newNode,
         'visual-bootstrap',
@@ -2564,7 +2614,7 @@ export class AINodes {
     }
     
     // ========== STEP 7: ADD TO INTERNAL STRUCTURES (SYNC) ==========
-    this.nodes.push(newNode);
+    this.registerNodeRoot(newNode);
     
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
@@ -2576,10 +2626,12 @@ export class AINodes {
     NodeSpawnLogger.logSpawn(newNode, category, spawnPos);
     
     // ========== STEP 9: MATERIALIZE ANIMATION ==========
-    this.materializeNode(newNode);
+    if (newNode.userData?.__nonRenderable !== true) {
+      this.materializeNode(newNode);
+    }
     
     // ========== STEP 10: CREATE CONNECTIONS (SYNC) ==========
-    if (this.nodeLinkingSystem) {
+    if (this.nodeLinkingSystem && newNode.userData?.__nonRenderable !== true) {
       for (const existingNode of this.nodes.slice(0, -1)) {
         const distance = newNode.position.distanceTo(existingNode.position);
         if (distance < this.connectionDistance && Math.random() < 0.3) {
@@ -2611,7 +2663,9 @@ export class AINodes {
     // [NODE DEPTH PRESERVATION] ENFORCE HOLOGRAPHIC LAYER PRESERVATION
     // All holographic layers must render after auras and links
     // ========================================================================
-    NodeDepthAndHoloPreservationFix.enforceHolographicPreservation(newNode);
+    if (newNode.userData?.__nonRenderable !== true) {
+      NodeDepthAndHoloPreservationFix.enforceHolographicPreservation(newNode);
+    }
     
     // [SESSION 110] REGISTER NODE IDENTITY
     if (registryKey) {
@@ -2719,7 +2773,25 @@ export class AINodes {
     
     // Time-based spawning
     if (currentTime > this.spawningConfig.nextTimeSpawn) {
-      this.spawnNode(this.getRuntimeSpawnCategoryIntent());
+      const category = this.getRuntimeSpawnCategoryIntent();
+      
+      // Analytics cooldown: skip if analytics spawned too recently
+      if (category === 'analytics') {
+        const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
+        if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
+          // Skip this spawn, reset timer and continue
+          this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
+          return;
+        }
+      }
+      
+      this.spawnNode(category);
+      
+      // Update last spawn time for analytics
+      if (category === 'analytics') {
+        this.spawningConfig.categoryLastSpawnAt['analytics'] = currentTime;
+      }
+      
       this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
     }
     
@@ -2757,8 +2829,23 @@ export class AINodes {
     if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
       // Occasionally spawn node on link creation (20% chance)
       if (Math.random() < 0.2) {
-        this.spawnNode(this.getRuntimeSpawnCategoryIntent());
+        const category = this.getRuntimeSpawnCategoryIntent();
+        
+        // Analytics cooldown: skip if analytics spawned too recently
+        if (category === 'analytics') {
+          const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
+          if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
+            return; // Skip spawn
+          }
+        }
+        
+        this.spawnNode(category);
         this.spawningConfig.lastLinkTime = currentTime;
+        
+        // Update last spawn time for analytics
+        if (category === 'analytics') {
+          this.spawningConfig.categoryLastSpawnAt['analytics'] = currentTime;
+        }
       }
     }
   }
@@ -2786,15 +2873,31 @@ export class AINodes {
       // Analyze network distribution
       const clusterAreas = this.identifyClusterAreas();
       
+      const category = this.getRuntimeSpawnCategoryIntent();
+      
+      // Analytics cooldown: skip if analytics spawned too recently
+      if (category === 'analytics') {
+        const currentTime = Date.now();
+        const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
+        if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
+          return; // Skip spawn
+        }
+      }
+      
       if (clusterAreas.highDensity.length > 0 && Math.random() < 0.5) {
         // Spawn in underutilized area
         const underutilized = clusterAreas.lowDensity[
           Math.floor(Math.random() * clusterAreas.lowDensity.length)
         ];
-        this.spawnNode(this.getRuntimeSpawnCategoryIntent(), underutilized);
+        this.spawnNode(category, underutilized);
       } else {
         // Regular spawn
-        this.spawnNode(this.getRuntimeSpawnCategoryIntent());
+        this.spawnNode(category);
+      }
+      
+      // Update last spawn time for analytics
+      if (category === 'analytics') {
+        this.spawningConfig.categoryLastSpawnAt['analytics'] = Date.now();
       }
       
       // Occasionally spawn rare node

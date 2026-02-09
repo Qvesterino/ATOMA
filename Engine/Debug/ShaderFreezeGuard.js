@@ -235,6 +235,49 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
     linkMesh.position.set(9999, 9999, 9999);
     addDisposable(linkMesh);
 
+    let loggedMissingAttribute = false;
+
+    const hasValidAttributes = (obj) => {
+        const geom = obj?.geometry;
+        if (!geom || !geom.attributes) return true;
+        for (const key of Object.keys(geom.attributes)) {
+            const attr = geom.attributes[key];
+            if (!attr) {
+                if (!loggedMissingAttribute) {
+                    console.warn('[ShaderFreezeGuard] Missing attribute:', key);
+                    loggedMissingAttribute = true;
+                }
+                return false;
+            }
+            if (!attr.array) {
+                if (!loggedMissingAttribute) {
+                    console.warn('[ShaderFreezeGuard] Missing attribute.array:', key);
+                    loggedMissingAttribute = true;
+                }
+                return false;
+            }
+            if (attr.array.byteLength === undefined || typeof attr.array.byteLength !== 'number') {
+                if (!loggedMissingAttribute) {
+                    console.warn('[ShaderFreezeGuard] Missing/invalid byteLength:', key);
+                    loggedMissingAttribute = true;
+                }
+                return false;
+            }
+            if (attr.count === undefined || attr.itemSize === undefined) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    tempScene.traverse((o) => {
+        if (o.isMesh || o.isLine || o.isPoints) {
+            if (!hasValidAttributes(o)) {
+                o.visible = false; // skip invalid geometry safely
+            }
+        }
+    });
+
     try {
         renderer.render(tempScene, tempCamera);
         renderer.render(tempScene, tempCamera);

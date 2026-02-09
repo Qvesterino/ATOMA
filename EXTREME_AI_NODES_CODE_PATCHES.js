@@ -13,28 +13,28 @@
 LOCATION: AINodes.js, constructor(), after line: this.nodeCategories = [...]
 
 ADD THIS:
-*/
 
-constructor(scene, player) {
-  this.scene = scene;
-  this.player = player;
-  this.nodes = [];
-  this.connections = [];
-  this.activationDistance = 8;
-  this.connectionDistance = 15;
-  
-  // 6 node categories with 4 variants each
-  this.nodeCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control'];
-  
-  // PATCH 1: Add EXTREME category constant
-  this.extremeNodeCategory = 'extreme';
-  
-  // Special multi-output node types (10% chance of appearing)
-  this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
-  
-  this.activeNodes = new Set();
-  this.nodeCounter = 0; // For variant selection
-}
+  constructor(scene, player) {
+    this.scene = scene;
+    this.player = player;
+    this.nodes = [];
+    this.connections = [];
+    this.activationDistance = 8;
+    this.connectionDistance = 15;
+    
+    // 6 node categories with 4 variants each
+    this.nodeCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control'];
+    
+    // PATCH 1: Add EXTREME category constant
+    this.extremeNodeCategory = 'extreme';
+    
+    // Special multi-output node types (10% chance of appearing)
+    this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
+    
+    this.activeNodes = new Set();
+    this.nodeCounter = 0; // For variant selection
+  }
+*/
 
 // ════════════════════════════════════════════════════════════════════════════
 // PATCH 2: Color Scheme Addition (line ~406, in getLayerColorScheme())
@@ -132,6 +132,7 @@ FIND THIS:
 CHANGE THE CATEGORY SELECTION LOGIC TO:
 */
 
+/*
 spawnNode(category = null, position = null) {
   // Default category or random
   if (!category) {
@@ -178,28 +179,28 @@ spawnNode(category = null, position = null) {
 LOCATION: AINodes.js, after initializeNodeSpawning() method (around line ~875)
 
 ADD THIS NEW METHOD:
-*/
 
 /**
  * PATCH 5: Register available extreme node archetypes
  * Call this to enable EXTREME node spawning
  * Safe: can be called anytime, fully compatible with shader pack
  */
-registerExtremeNodeTypes(extremeNodePack = null) {
-  if (!this.spawningConfig) {
-    this.initializeNodeSpawning();
-  }
-  
-  // If extremeNodePack provided, store reference for potential shader application
-  if (extremeNodePack) {
-    this.extremeNodePack = extremeNodePack;
-  }
-  
-  // Flag that EXTREME nodes are enabled
-  this.spawningConfig.extremeNodeTypes = ['extreme']; // Identifier for extreme category
-  
-  console.log('[AINodes] EXTREME node category registered and enabled for spawning');
-}
+// registerExtremeNodeTypes(extremeNodePack = null) {
+//   if (!this.spawningConfig) {
+//     this.initializeNodeSpawning();
+//   }
+//   
+//   // If extremeNodePack provided, store reference for potential shader application
+//   if (extremeNodePack) {
+//     this.extremeNodePack = extremeNodePack;
+//   }
+//   
+//   // Flag that EXTREME nodes are enabled
+//   this.spawningConfig.extremeNodeTypes = ['extreme']; // Identifier for extreme category
+//   
+//   console.log('[AINodes] EXTREME node category registered and enabled for spawning');
+// }
+//*/
 
 // ════════════════════════════════════════════════════════════════════════════
 // INTEGRATION POINTS IN main.js
@@ -284,7 +285,11 @@ After integration, test with these browser console commands:
 game.aiNodes.spawningConfig.extremeNodeTypes
 
 // Manual spawn EXTREME node
-game.aiNodes.spawnNode('extreme')
+if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+  console.warn('[SpawnAuthority] External spawn blocked');
+} else {
+  game.aiNodes.spawnNode('extreme')
+}
 
 // Check node count by category
 const stats = game.aiNodes.getActiveNodeInfo();

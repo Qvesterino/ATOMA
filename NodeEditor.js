@@ -120,6 +120,10 @@ export class NodeEditor {
   
   // Backward compatibility: legacy callers route to debug marker creator
   createNode(position = new THREE.Vector3(0, 0, 0), data = {}) {
+    if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+      console.warn('[SpawnAuthority] External spawn blocked');
+      return null;
+    }
     return this.createDebugMarker(position, data);
   }
   

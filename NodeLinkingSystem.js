@@ -58,8 +58,35 @@ import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js'
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
 
+const _binderWarned = { invalid: false, noId: false, nonRenderable: false };
 function _validateBinderNode(node) {
-  return !!(node && node.isObject3D === true && node.userData);
+  // Validate: must be THREE.Object3D with userData and nodeId
+  if (!node || node.isObject3D !== true || !node.userData) {
+    if (!_binderWarned.invalid) {
+      console.warn('[NodeLinkingSystem] Invalid node passed to visual binder', {
+        typeof: typeof node,
+        hasObject3D: node && typeof node.isObject3D === 'boolean',
+        constructor: node?.constructor?.name || 'unknown'
+      });
+      _binderWarned.invalid = true;
+    }
+    return false;
+  }
+  if (node.userData.__nonRenderable === true) {
+    if (!_binderWarned.nonRenderable) {
+      console.warn('[NodeLinkingSystem] Non-renderable node skipped for visual binder');
+      _binderWarned.nonRenderable = true;
+    }
+    return false;
+  }
+  if (!node.userData.nodeId && !node.userData.id) {
+    if (!_binderWarned.noId) {
+      console.warn('[NodeLinkingSystem] Node without id skipped for visual binder');
+      _binderWarned.noId = true;
+    }
+    return false;
+  }
+  return true;
 }
 
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
@@ -1746,8 +1773,12 @@ export class NodeLinkingSystem {
       
       // Update visual state in binder
       if (this.visualStateBinder) {
-        this.visualStateBinder.onNodeStateChange(sourceNode, 'LINKED');
-        this.visualStateBinder.onNodeStateChange(targetNode, 'LINKED');
+        if (_validateBinderNode(sourceNode)) {
+          this.visualStateBinder.onNodeStateChange(sourceNode, 'LINKED');
+        }
+        if (_validateBinderNode(targetNode)) {
+          this.visualStateBinder.onNodeStateChange(targetNode, 'LINKED');
+        }
       }
       
       // Trigger event-based node spawning
@@ -3418,32 +3449,36 @@ getLinksForNode(node) {
     this._markNodesDirty();
     
     // 4. Register with sub-systems
-    this.visuals.registerLink(link.id, link.group);
-    
-    if (this.thicknessSystem) {
-      this.thicknessSystem.registerLinkCurve(link.group, link);
-    }
-    
-    LinkPrioritySystem.initializeLinkPriority(link);
-    this._addLinkToIndex(link);
-    
-    // [Phase 2] Initialize Emission Pulsing System (supports both Legacy and Conduit links)
-    LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
-    
-    // Update internal map (Legacy support)
-    const srcId = link.sourceNodeId;
-    const tgtId = link.targetNodeId;
-    if (srcId) {
-      if (!this.nodeIdToLinks.has(srcId)) this.nodeIdToLinks.set(srcId, []);
-      this.nodeIdToLinks.get(srcId).push(link);
-    }
-    if (tgtId) {
-      if (!this.nodeIdToLinks.has(tgtId)) this.nodeIdToLinks.set(tgtId, []);
-      this.nodeIdToLinks.get(tgtId).push(link);
-    }
+      this.visuals.registerLink(link.id, link.group);
+      
+      if (this.thicknessSystem) {
+        this.thicknessSystem.registerLinkCurve(link.group, link);
+      }
+      
+      LinkPrioritySystem.initializeLinkPriority(link);
+      this._addLinkToIndex(link);
+      
+      // [Phase 2] Initialize Emission Pulsing System (supports both Legacy and Conduit links)
+      LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
+      
+      // Update internal map (Legacy support)
+      const srcId = link.sourceNodeId;
+      const tgtId = link.targetNodeId;
+      if (srcId) {
+        if (!this.nodeIdToLinks.has(srcId)) this.nodeIdToLinks.set(srcId, []);
+        this.nodeIdToLinks.get(srcId).push(link);
+      }
+      if (tgtId) {
+        if (!this.nodeIdToLinks.has(tgtId)) this.nodeIdToLinks.set(tgtId, []);
+        this.nodeIdToLinks.get(tgtId).push(link);
+      }
 
-    // Canonical metrics: link creation hook
-    onLinkCreated(sourceNode, targetNode);
+      // Canonical metrics: link creation hook
+      if (_validateBinderNode(sourceNode) && _validateBinderNode(targetNode)) {
+        onLinkCreated(sourceNode, targetNode);
+      } else {
+        console.warn('[NodeLinkingSystem] onLinkCreated skipped - invalid nodes detected');
+      }
     
     // UI Callback
     this._fireLinkCreatedCallbacks(sourceNode, targetNode);

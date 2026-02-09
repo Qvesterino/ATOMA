@@ -38,20 +38,36 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
 
 /**
- * Helper to check if userData is writable (not frozen or read-only)
- * Returns false for frozen objects or read-only userData properties
+ * Fast type gate: ensure object is a valid THREE.Object3D before userData writes
+ * Prevents errors when receiving DOM/WebComponents or non-THREE objects
+ */
+function isValidObject3D(obj) {
+  return obj && obj.isObject3D === true;
+}
+
+/**
+ * Check if userData is writable (exists or can be created)
  */
 function isUserDataWritable(obj) {
-  if (!obj || !obj.userData) return false;
+  if (!obj || !isValidObject3D(obj)) return false;
   try {
-    const desc = Object.getOwnPropertyDescriptor(obj, 'userData');
-    if (desc && desc.writable === false) return false;
-    if (Object.isFrozen(obj.userData)) return false;
+    // Try to create userData if it doesn't exist
+    if (!obj.userData) {
+      Object.defineProperty(obj, 'userData', {
+        value: {},
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+    }
     return true;
-  } catch {
+  } catch (e) {
     return false;
   }
 }
+
+// Track if we've logged the non-Object3D warning to avoid spam
+let _nonObject3DWarningLogged = false;
 
 /**
  * Core mesh identifier: finds the primary solid mesh that defines node presence
@@ -85,7 +101,7 @@ class CoreMeshIdentifier {
 
     // Priority 1: Explicit core geometry marker
     for (const mesh of candidates) {
-      if (mesh.userData.isCoreGeometry === true) {
+      if (mesh.userData && mesh.userData.isCoreGeometry === true) {
         return mesh;
       }
     }
@@ -128,10 +144,11 @@ class CoreMeshIdentifier {
     if (!mesh || !mesh.material) return false;
 
     // Check userData markers
-    if (mesh.userData.visualLayer === 'AURA' ||
-        mesh.userData.visualLayer === 'SHELL' ||
-        mesh.userData.isAura === true ||
-        mesh.userData.isHologramShell === true) {
+    if (mesh.userData &&
+        (mesh.userData.visualLayer === 'AURA' ||
+         mesh.userData.visualLayer === 'SHELL' ||
+         mesh.userData.isAura === true ||
+         mesh.userData.isHologramShell === true)) {
       return true;
     }
 
@@ -178,8 +195,8 @@ export class CoreVisualAuthorityGuard {
    * This hard-locks properties so they CANNOT be changed
    */
   static installDefensiveGuards(coreMesh) {
-      if (!coreMesh || !coreMesh.material) return;
-      NodeCoreMaterialAuthority.lockCoreMaterial(coreMesh.material, true);
+    if (!coreMesh || !coreMesh.material) return;
+    NodeCoreMaterialAuthority.lockCoreMaterial(coreMesh.material, true);
   }
 }
 
@@ -212,6 +229,15 @@ export class CoreVisualAuthoritySystem {
   processNode(nodeGroup) {
     if (!this.enabled || !nodeGroup) return;
 
+    // Type gate: ensure input is a valid THREE.Object3D
+    if (!isValidObject3D(nodeGroup)) {
+      if (!_nonObject3DWarningLogged) {
+        console.warn('[CoreVisualAuthoritySystem] Skipped non-Object3D target:', nodeGroup);
+        _nonObject3DWarningLogged = true;
+      }
+      return;
+    }
+
     const nodeId = nodeGroup.id || nodeGroup.uuid;
     // Always re-process to ensure continued enforcement
     // if (this.processedNodes.has(nodeId)) {
@@ -228,8 +254,8 @@ export class CoreVisualAuthoritySystem {
         return;
       }
 
-      // Mark as core geometry without overwriting userData
-      if (isUserDataWritable(coreMesh)) {
+      // Mark as core geometry without overwriting userData (with type gate)
+      if (isValidObject3D(coreMesh) && isUserDataWritable(coreMesh)) {
         coreMesh.userData.isCoreGeometry = true;
         coreMesh.userData.visualLayer = 'CORE';
       }
@@ -267,6 +293,9 @@ export class CoreVisualAuthoritySystem {
    */
   _processVisualOnlyMeshes(nodeGroup, coreMesh) {
     const traverse = (obj) => {
+      // Type gate: ensure we only process valid THREE.Object3D
+      if (!isValidObject3D(obj)) return;
+
       if (obj === coreMesh) return;  // Skip core mesh itself
 
       if (obj instanceof THREE.Mesh) {
@@ -381,7 +410,7 @@ export class CoreVisualAuthoritySystem {
       if (obj instanceof THREE.Mesh) {
         report.totalNodes++;
 
-        const isCoreGeometry = obj.userData.isCoreGeometry === true;
+        const isCoreGeometry = obj.userData && obj.userData.isCoreGeometry === true;
         const isVisualOnly = CoreMeshIdentifier.isVisualOnlyMesh(obj);
 
         if (isCoreGeometry) {

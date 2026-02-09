@@ -78,6 +78,10 @@ export class SpawnAuthorityConsoleAPI {
         z: Math.random() * 20 - 10
       };
       
+      if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+        console.warn('[SpawnAuthority] External spawn blocked');
+        return;
+      }
       const node = this.aiNodes.spawnNode(cat, pos);
       const actualCategory = node?.userData?.category || 'null';
       const passed = actualCategory === 'input';
@@ -116,6 +120,10 @@ export class SpawnAuthorityConsoleAPI {
         z: Math.random() * 20 - 10
       };
       
+      if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+        console.warn('[SpawnAuthority] External spawn blocked');
+        return;
+      }
       const node = this.aiNodes.spawnNode(cat, pos);
       const spawned = node !== null && node !== undefined;
       const hasBinding = node?.userData?.enhancedNodeModelBinding !== undefined;

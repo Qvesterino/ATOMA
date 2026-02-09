@@ -83,6 +83,10 @@ import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
 import { relaxNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
 // import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
+
+if (typeof window !== 'undefined') {
+  window.__ALLOW_EXTERNAL_SPAWN__ = false;
+}
 import { SafeWorldResetFix1_0 } from './SafeWorldResetFix1_0.js';
 import { NodeInspectOverlay1_0 } from './NodeInspectOverlay1_0.js';
 import { SafeMetricsFX1_1 } from './SafeMetricsFX1_1.js';
@@ -10008,9 +10012,13 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.nodeEditor = new NodeEditor(this.scene, this.camera, this.collisionManager);
 
         // Create demo nodes
-        this.nodeEditor.createNode(new THREE.Vector3(-5, 2, -5), { type: 'input', synergy: 'linear' });
-        this.nodeEditor.createNode(new THREE.Vector3(0, 2, 0), { type: 'processor', synergy: 'fusion' });
-        this.nodeEditor.createNode(new THREE.Vector3(5, 2, 5), { type: 'output', synergy: 'quantum' });
+        if (window.__ALLOW_EXTERNAL_SPAWN__ === true) {
+            this.nodeEditor.createNode(new THREE.Vector3(-5, 2, -5), { type: 'input', synergy: 'linear' });
+            this.nodeEditor.createNode(new THREE.Vector3(0, 2, 0), { type: 'processor', synergy: 'fusion' });
+            this.nodeEditor.createNode(new THREE.Vector3(5, 2, 5), { type: 'output', synergy: 'quantum' });
+        } else {
+            console.warn('[SpawnAuthority] External spawn blocked');
+        }
     }
 
     /**

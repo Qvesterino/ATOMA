@@ -778,6 +778,10 @@ export class MythicNodeCreation {
     const spawnPos = this.seedOrb.position.clone();
     
     // Delegate mythic creation to canonical funnel (AINodes.spawnNode)
+    if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
+      console.warn('[SpawnAuthority] External spawn blocked');
+      return;
+    }
     const nodeModel = this.aiNodes?.spawnNode('mythic', spawnPos, 'MYTHIC-CEREMONIAL');
     if (!nodeModel) {
       return;

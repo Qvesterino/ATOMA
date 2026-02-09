@@ -19,7 +19,7 @@ const CANONICAL_VARIANTS = {
   input:    [4, 5, 6, 7, 8, 9, 10],
   process:  [3, 4, 5, 6, 7, 8],
   integration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-  analytics: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  analytics: [1, 2, 3, 4, 5, 7, 8, 9],
   storage:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   control:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
   quantum:  [0, 1, 2, 3],
@@ -188,7 +188,6 @@ export class EnhancedNodeModels {
       this.createAnalyticsObserverLens.bind(this),
       this.createAnalyticsFractalEcho.bind(this),
       this.createAnalyticsParallaxOracle.bind(this),
-      this.createNewElongatedOctahedron.bind(this),
       AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
       AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
       AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants),
@@ -1336,39 +1335,6 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * Integration Node 3: Interlocking geometric shapes (knot)
-   */
-  static createIntegrationNode3(group, color) {
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.6,
-      roughness: 0.4,
-      emissive: color,
-      emissiveIntensity: 0.25
-
-    });
-
-    // Create interlocking tetrahedra
-    const geometry1 = new THREE.TetrahedronGeometry(0.5);
-    const mesh1 = new THREE.Mesh(geometry1, material.clone());
-    mesh1.rotation.set(0, 0, 0);
-    mesh1.userData.visualLayer = 'CORE';
-    group.add(mesh1);
-
-    const mesh2 = new THREE.Mesh(geometry1, material.clone());
-    mesh2.rotation.set(Math.PI / 2, Math.PI / 2, 0);
-    mesh2.userData.visualLayer = 'CORE';
-    group.add(mesh2);
-
-    return group;
-  }
-
-  /**
    * Main integration node creator
    * CANONICAL CATEGORY: INTEGRATION (KNOT-PRIMARY)
    * - TrefoilKnot
@@ -1442,6 +1408,17 @@ export class EnhancedNodeModels {
       group.add(innerHex);
     }
 
+    // --- Analytics Factory Trace ---
+    let meshCount = 0;
+    group.traverse(o => { if (o.isMesh) meshCount++; });
+    if (meshCount === 0) {
+      console.error('[AnalyticsFactoryEmpty]', {
+        factory: 'createAnalyticsNode2',
+        variantIndex: '2',
+        group
+      });
+    }
+
     return group;
   }
 
@@ -1479,6 +1456,17 @@ export class EnhancedNodeModels {
     rim.rotation.x = Math.PI / 2;
     group.add(rim);
 
+    // --- Analytics Factory Trace ---
+    let meshCount = 0;
+    group.traverse(o => { if (o.isMesh) meshCount++; });
+    if (meshCount === 0) {
+      console.error('[AnalyticsFactoryEmpty]', {
+        factory: 'createAnalyticsNode3',
+        variantIndex: '3',
+        group
+      });
+    }
+
     return group;
   }
 
@@ -1509,16 +1497,34 @@ export class EnhancedNodeModels {
       3: this.createAnalyticsObserverLens.bind(this),
       4: this.createAnalyticsFractalEcho.bind(this),
       5: this.createAnalyticsParallaxOracle.bind(this),
-      6: this.createNewElongatedOctahedron.bind(this),
       7: AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
       8: AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
       9: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    
+    let selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    
+    // Safety: ensure variantIndex is valid
+    if (!poolFns[selected]) {
+      console.warn('[AnalyticsFactoryFallback] Invalid variant index:', selected, 'falling back to pool[0]');
+      selected = pool[0];
+    }
+    
     EnhancedNodeModels._ensureRegistry('analytics', Object.values(poolFns));
     const result = (poolFns[selected] || poolFns[pool[0]])(group, color);
+
+    // --- Analytics Factory Null Check ---
+    if (result === null) {
+      console.error('[AnalyticsFactoryNull]', {
+        factory: 'createAnalyticsNode',
+        variantIndex: selected,
+        poolIndex: pool[nodeId % pool.length]
+      });
+    }
+
     group.userData.renderable = false;
     group.userData.__nonRenderable = true;
+    group.userData.__skipRaycast = true;
     return result;
   }
 
@@ -1600,6 +1606,17 @@ export class EnhancedNodeModels {
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'ANALYTICS_OBSERVER_LENS';
 
+      // --- Analytics Factory Trace ---
+      let meshCount = 0;
+      group.traverse(o => { if (o.isMesh) meshCount++; });
+      if (meshCount === 0) {
+        console.error('[AnalyticsFactoryEmpty]', {
+          factory: 'createAnalyticsObserverLens',
+          variantIndex: '3',
+          group
+        });
+      }
+
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
@@ -1608,6 +1625,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
+      console.error('[AnalyticsFactoryNull]', { variantIndex: '3', error: err.message });
       return null;
     }
   }
@@ -1701,6 +1719,17 @@ export class EnhancedNodeModels {
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'ANALYTICS_FRACTAL_ECHO';
 
+      // --- Analytics Factory Trace ---
+      let meshCount = 0;
+      group.traverse(o => { if (o.isMesh) meshCount++; });
+      if (meshCount === 0) {
+        console.error('[AnalyticsFactoryEmpty]', {
+          factory: 'createAnalyticsFractalEcho',
+          variantIndex: '4',
+          group
+        });
+      }
+
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
@@ -1709,6 +1738,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
+      console.error('[AnalyticsFactoryNull]', { variantIndex: '4', error: err.message });
       return null;
     }
   }
@@ -1795,6 +1825,17 @@ export class EnhancedNodeModels {
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'ANALYTICS_PARALLAX_ORACLE';
 
+      // --- Analytics Factory Trace ---
+      let meshCount = 0;
+      group.traverse(o => { if (o.isMesh) meshCount++; });
+      if (meshCount === 0) {
+        console.error('[AnalyticsFactoryEmpty]', {
+          factory: 'createAnalyticsParallaxOracle',
+          variantIndex: '5',
+          group
+        });
+      }
+
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {
@@ -1803,6 +1844,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
+      console.error('[AnalyticsFactoryNull]', { variantIndex: '5', error: err.message });
       return null;
     }
   }
@@ -3969,16 +4011,6 @@ export class EnhancedNodeModels {
     }
     nodeGroup.position.y = nodeGroup.userData.baseY + float;
   }
-
-  /**
-   * NEW: Elongated Octahedron - ANALYTICS category (UPGRADED)
-   * Stretched octahedral form + internal rotating analytical frame
-   * UPGRADED: Added internal planar analytical frame, slow precise rotation
-   */
-  static createNewElongatedOctahedron(group, color) {
-    return group;
-  }
-
 
   // ===== KNOT NODE GEOMETRIES (8 topological shapes) =====
   // Pure geometry extension for sophisticated knot-based nodes

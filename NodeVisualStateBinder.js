@@ -56,13 +56,20 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial } from './CoreHologramShader.js';
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 
+const _binderWarnOnce = { invalid: false, noId: false };
 function _validateNodeForBinder(node, label) {
   if (!node || node.isObject3D !== true || !node.userData) {
-    console.warn('[NodeVisualStateBinder] Skipped invalid node', label, node);
+    if (!_binderWarnOnce.invalid) {
+      console.warn('[NodeVisualStateBinder] Skipped invalid node');
+      _binderWarnOnce.invalid = true;
+    }
     return false;
   }
   if (!node.userData.nodeId && !node.userData.id) {
-    console.warn('[NodeVisualStateBinder] Skipped node without id', label, node);
+    if (!_binderWarnOnce.noId) {
+      console.warn('[NodeVisualStateBinder] Skipped node without id');
+      _binderWarnOnce.noId = true;
+    }
     return false;
   }
   return true;
