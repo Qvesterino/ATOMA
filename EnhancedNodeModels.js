@@ -341,56 +341,100 @@ export class EnhancedNodeModels {
       variantIndex = pool[pick];
     }
 
+    let rootGroup;
     switch(cat) {
       // INPUT NODES (Cyan)
       case 'input':
-        return this.createInputNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createInputNode(nodeGroup, variantIndex, color);
+        break;
       
       // PROCESS NODES (Amber/Gold)
       case 'process':
-        return this.createProcessNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createProcessNode(nodeGroup, variantIndex, color);
+        break;
       
       // INTEGRATION NODES (Green)
       case 'integration':
-        return this.createIntegrationNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createIntegrationNode(nodeGroup, variantIndex, color);
+        break;
       
       // ANALYTICS NODES (Violet)
       case 'analytics':
-        return this.createAnalyticsNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createAnalyticsNode(nodeGroup, variantIndex, color);
+        break;
       
       // STORAGE NODES (Silver/Pale Blue)
       case 'storage':
-        return this.createStorageNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createStorageNode(nodeGroup, variantIndex, color);
+        break;
       
       // CONTROL NODES (Red/Magenta)
       case 'control':
-        return this.createControlNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createControlNode(nodeGroup, variantIndex, color);
+        break;
       
       // QUANTUM NODES (Bright Green - Dimensional Anomaly)
       case 'quantum':
       case 'sigma': // Legacy alias for compatibility
-        return this.createQuantumNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createQuantumNode(nodeGroup, variantIndex, color);
+        break;
       
       // MYTHIC NODES (Ancient Fractured Relics)
       case 'mythic':
-        return this.createMythicNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createMythicNode(nodeGroup, variantIndex, color);
+        break;
       
       // PRIME NODES (Perfect Axioms)
       case 'prime':
-        return this.createPrimeNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createPrimeNode(nodeGroup, variantIndex, color);
+        break;
       
       // ERROR NODES (Frozen Corruption)
       case 'error':
-        return this.createErrorNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createErrorNode(nodeGroup, variantIndex, color);
+        break;
       
       // EMOTIONAL NODES (Crystalline Organics)
       case 'emotional':
-        return this.createEmotionalNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createEmotionalNode(nodeGroup, variantIndex, color);
+        break;
       
       default:
         console.warn(`[EnhancedNodeModels] Unknown category: '${category}'. Falling back to INPUT.`);
-        return this.createInputNode(nodeGroup, variantIndex, color);
+        rootGroup = this.createInputNode(nodeGroup, variantIndex, color);
+        break;
     }
+
+    // ===== HARD VISIBILITY FALLBACK (DEBUG) =====
+    const forceDebugMaterial = (root) => {
+      let meshFound = false;
+      if (!root) return root;
+
+      root.traverse(obj => {
+        if (obj.isMesh) {
+          meshFound = true;
+
+          if (!obj.material) {
+            obj.material = new (__THREE_FALLBACK__?.MeshBasicMaterial ?? THREE.MeshBasicMaterial)({
+              color: 0xff00ff,
+              wireframe: true
+            });
+          }
+
+          obj.visible = true;
+          obj.layers.enableAll?.();
+        }
+      });
+
+      if (!meshFound) {
+        console.error('[RENDER-CRITICAL] No mesh found in node root', category);
+      }
+
+      return root;
+    };
+
+    rootGroup = forceDebugMaterial(rootGroup);
+    return rootGroup;
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====
 

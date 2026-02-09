@@ -91,16 +91,11 @@ export class NodeSurfaceDominanceRule_v1 {
   }
   
   /**
-   * Apply dominance rules to node material
+   * Validate dominance rules on node material (validation-only, no mutations)
    * @private
    */
   _applyDominance(node) {
     if (!node || !node.material) return;
-    if (node.material.userData?.__flagsFrozen) {
-      // Respect frozen flags; fall back to renderOrder-only priority
-      node.renderOrder = this.rules.nodeRenderOrder;
-      return;
-    }
     
     // Rule 1: RenderOrder - Ensure node is rendered after aura
     node.renderOrder = this.rules.nodeRenderOrder;
@@ -113,19 +108,49 @@ export class NodeSurfaceDominanceRule_v1 {
       );
     }
     
-    // Rule 3: Depth control - Prioritize node surface for depth testing
-    if (node.material.depthWrite !== undefined) {
-      node.material.depthWrite = this.rules.enableNodeDepthWrite;
-    }
-    
-    if (node.material.depthTest !== undefined) {
-      node.material.depthTest = this.rules.forceNodeDepthTest;
-    }
+    // Rule 3: Depth control - Validate only, do NOT mutate variant properties
+    this._validateNodeMaterialProperties(node);
     
     // Rule 4: For transparent materials, ensure proper blending
     if (node.material.transparent && node.material.blending === THREE.NormalBlending) {
       // Keep normal blending for opaque appearance
       // This prevents aura light from fully overpowering node
+    }
+  }
+  
+  /**
+   * Validate node material properties for dominance
+   * Logs warning if properties don't match expected values
+   * Does NOT mutate material properties
+   * @private
+   */
+  _validateNodeMaterialProperties(node) {
+    if (!node || !node.material) return;
+    
+    const mat = node.material;
+    const warnings = [];
+    
+    // Expected properties for dominance enforcement
+    const expected = {
+      depthWrite: this.rules.enableNodeDepthWrite,
+      depthTest: this.rules.forceNodeDepthTest
+    };
+    
+    // Check each property
+    if (mat.depthWrite !== undefined && mat.depthWrite !== expected.depthWrite) {
+      warnings.push(`depthWrite=${mat.depthWrite} (expected ${expected.depthWrite})`);
+    }
+    if (mat.depthTest !== undefined && mat.depthTest !== expected.depthTest) {
+      warnings.push(`depthTest=${mat.depthTest} (expected ${expected.depthTest})`);
+    }
+    
+    // Log compact warning once per object
+    if (warnings.length > 0) {
+      if (!node.userData.__dominanceValidationWarned) {
+        console.warn(`[NodeSurfaceDominanceRule] Material validation failed for node ${node.uuid}: ${warnings.join(', ')}`);
+        console.warn('  Node core material should be created with: depthWrite=true, depthTest=true');
+        node.userData.__dominanceValidationWarned = true;
+      }
     }
   }
   
@@ -145,20 +170,14 @@ export class NodeSurfaceDominanceRule_v1 {
       // Restore renderOrder
       node.renderOrder = originalState.renderOrder;
       
-      // Restore opacity
+      // Restore opacity (safe at runtime)
       if (node.material && originalState.opacity !== undefined) {
         node.material.opacity = originalState.opacity;
       }
       
-      // Restore depth properties
-      if (node.material) {
-        if (originalState.depthWrite !== undefined) {
-          node.material.depthWrite = originalState.depthWrite;
-        }
-        if (originalState.depthTest !== undefined) {
-          node.material.depthTest = originalState.depthTest;
-        }
-      }
+      // NOTE: depthWrite and depthTest are NOT restored
+      // Variant properties should be set at creation time and never mutated
+      // No restoration needed for these properties
     } catch (err) {
       console.warn('Error restoring node dominance state:', err);
     }
@@ -196,10 +215,40 @@ export class NodeSurfaceDominanceRule_v1 {
     // RenderOrder: aura stays below node
     auraMesh.renderOrder = this.rules.auraRenderOrder;
     
-    // Optional: disable depth write for aura
-    // This allows node core to appear "on top"
-    if (auraMesh.material.depthWrite !== undefined) {
-      auraMesh.material.depthWrite = false;
+    // Validate aura material properties (NO MUTATIONS)
+    // Aura materials should be created with depthWrite=false at creation time
+    this._validateAuraMaterialProperties(auraMesh);
+  }
+  
+  /**
+   * Validate aura material properties
+   * Logs warning if properties don't match expected values
+   * Does NOT mutate material properties
+   * @private
+   */
+  _validateAuraMaterialProperties(auraMesh) {
+    if (!auraMesh || !auraMesh.material) return;
+    
+    const mat = auraMesh.material;
+    const warnings = [];
+    
+    // Expected properties for aura (should be set at material creation)
+    const expected = {
+      depthWrite: false
+    };
+    
+    // Check depthWrite property
+    if (mat.depthWrite !== undefined && mat.depthWrite !== expected.depthWrite) {
+      warnings.push(`depthWrite=${mat.depthWrite} (expected ${expected.depthWrite})`);
+    }
+    
+    // Log compact warning once per object
+    if (warnings.length > 0) {
+      if (!auraMesh.userData.__auraValidationWarned) {
+        console.warn(`[NodeSurfaceDominanceRule] Aura material validation failed for ${auraMesh.uuid}: ${warnings.join(', ')}`);
+        console.warn('  Aura material should be created with: depthWrite=false');
+        auraMesh.userData.__auraValidationWarned = true;
+      }
     }
   }
   

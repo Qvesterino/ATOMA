@@ -143,8 +143,8 @@ export class SpawnAuthorityConsoleAPI {
   testSelectability(camera, renderer) {
     console.group('%c[SPAWN AUTHORITY TEST: Selectability]', 'color: #ffaa00; font-weight: bold');
     
-    const raycaster = new (window.THREE || {}).Raycaster?.();
-    const mouse = new (window.THREE || {}).Vector2?.();
+    const raycaster = window.THREE?.Raycaster ? new window.THREE.Raycaster() : null;
+    const mouse = window.THREE?.Vector2 ? new window.THREE.Vector2() : null;
     
     if (!raycaster || !mouse) {
       console.error('THREE.js not available for raycaster test');

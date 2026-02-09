@@ -1,5 +1,7 @@
 /**
- * CORE VISUAL AUTHORITY SYSTEM v1.0
+ * CORE VISUAL AUTHORITY SYSTEM v1.1 — VALIDATION ONLY (SHADER VARIANT CLEAN)
+ * 
+ * PHASE SHADER-VARIANT-CLEAN: Disabled runtime mutations
  * 
  * Guarantees that node cores are ALWAYS visually rendered on top of all
  * visual-only elements (auras, shells, influence spheres).
@@ -9,15 +11,15 @@
  * - Visual-only layers: auras, shells, influence volumes with depthWrite=false
  * - Render hierarchy: Aura/Shell < Core
  * 
- * IMPLEMENTATION:
+ * IMPLEMENTATION (VALIDATION ONLY):
  * 1. Mark each node with a single CORE mesh (canonical)
- * 2. Enforce high renderOrder (1000+) on core
- * 3. Enforce low renderOrder (-1000) on visual-only meshes
- * 4. Set depthTest/depthWrite appropriately per layer
- * 5. Validate on startup and per-node spawn
+ * 2. Validate renderOrder is correct (do not mutate variant props)
+ * 3. Validate depthTest/depthWrite are correct (do not mutate)
+ * 4. Materials MUST be created with correct flags at creation time
+ * 5. This system validates, never mutates variant properties
  * 
  * SAFETY:
- * ✅ Non-breaking: only modifies renderOrder and depth properties
+ * ✅ Non-breaking: only validates renderOrder and depth properties
  * ✅ No mesh removal or addition
  * ✅ No interaction logic changes
  * ✅ No metric or link changes
@@ -28,6 +30,7 @@
  * ✅ Auras can overlap but not obscure cores
  * ✅ No node visually disappears
  * ✅ Stable across all node types
+ * ✅ ZERO runtime shader variant mutations
  */
 
 import * as THREE from 'three';
@@ -290,9 +293,15 @@ export class CoreVisualAuthoritySystem {
           if (isRim) {
             // Intermediate render order for rims
             obj.renderOrder = this.RIM_RENDER_ORDER;
-            obj.material.depthWrite = false;
-            if (!obj.material.depthTest) {
-              obj.material.depthTest = true;  // Still read depth, just don't write
+            // Validate only - materials must be created with correct flags
+            if (obj.material.depthWrite !== false || !obj.material.depthTest) {
+              if (this.debugMode) {
+                console.warn('[CoreVisualAuthoritySystem] Rim mesh material flags incorrect (validation only, not mutating):', {
+                  meshId: obj.uuid,
+                  depthWrite: obj.material.depthWrite,
+                  depthTest: obj.material.depthTest
+                });
+              }
             }
           }
         }
@@ -307,31 +316,49 @@ export class CoreVisualAuthoritySystem {
   }
 
   /**
-   * Enforce visual-only material properties
+   * Validate visual-only material properties (VALIDATION ONLY - NO MUTATION)
    */
   _enforceVisualOnlyMaterial(mesh) {
     if (!mesh || !mesh.material) return;
 
     const material = mesh.material;
 
-    // Visual-only meshes must NOT write to depth buffer
-    material.depthWrite = false;
-
-    // Typically can skip depth test for additive blending
-    if (material.blending === THREE.AdditiveBlending) {
-      // material.depthTest = false; // Kept as-is or true? Prompt said depthTest=true.
-      // Prompt: "use depthTest = true"
-      // Existing code set it to false for additive. I should fix this to true.
-      material.depthTest = true;
+    // Validate depthWrite is false (no mutation - just log in debug mode)
+    if (material.depthWrite !== false && this.debugMode) {
+      console.warn('[CoreVisualAuthoritySystem] Visual-only mesh has incorrect depthWrite (validation only, not mutating):', {
+        meshId: mesh.uuid,
+        depthWrite: material.depthWrite,
+        expected: false
+      });
     }
 
-    // Ensure transparency is enabled
-    material.transparent = true;
+    // Validate depthTest for additive blending (no mutation)
+    if (material.blending === THREE.AdditiveBlending) {
+      if (material.depthTest !== true && this.debugMode) {
+        console.warn('[CoreVisualAuthoritySystem] Additive blended mesh has incorrect depthTest (validation only, not mutating):', {
+          meshId: mesh.uuid,
+          depthTest: material.depthTest,
+          expected: true
+        });
+      }
+    }
 
-    // Reduce opacity strictly (Max 0.35)
-    // Prompt: "Aura opacity is clamped to max 0.35"
-    if (material.opacity > 0.35) {
-      material.opacity = 0.35;
+    // Validate transparency is enabled (no mutation)
+    if (material.transparent !== true && this.debugMode) {
+      console.warn('[CoreVisualAuthoritySystem] Visual-only mesh not transparent (validation only, not mutating):', {
+        meshId: mesh.uuid,
+        transparent: material.transparent,
+        expected: true
+      });
+    }
+
+    // Validate opacity (no mutation)
+    if (material.opacity > 0.35 && this.debugMode) {
+      console.warn('[CoreVisualAuthoritySystem] Visual-only mesh opacity exceeds max (validation only, not mutating):', {
+        meshId: mesh.uuid,
+        opacity: material.opacity,
+        expectedMax: 0.35
+      });
     }
   }
 

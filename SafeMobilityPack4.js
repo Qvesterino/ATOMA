@@ -1,6 +1,49 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 
+const logOnce = (key, fn) => {
+  if (typeof window === 'undefined') {
+    fn();
+    return;
+  }
+  window.__safeMobilityLogOnce = window.__safeMobilityLogOnce || new Set();
+  if (window.__safeMobilityLogOnce.has(key)) return;
+  window.__safeMobilityLogOnce.add(key);
+  fn();
+};
+
+const scanPositionArray = (array) => {
+  if (!array || !array.length) return -1;
+  const sampleLimit = Math.min(array.length, 256);
+  for (let i = 0; i < sampleLimit; i++) {
+    if (!Number.isFinite(array[i])) return i;
+  }
+  for (let i = sampleLimit; i < array.length; i++) {
+    if (!Number.isFinite(array[i])) return i;
+  }
+  return -1;
+};
+
+const markInvalidGeometry = (obj, geometry, attributeLength, firstBadIndex) => {
+  logOnce(`SafeMobilityGeom:${geometry.uuid}`, () => {
+    console.warn('[SafeMobility] Invalid geometry (NaN/Inf) detected, skipping bounding-sphere', {
+      object: {
+        name: obj?.name || null,
+        uuid: obj?.uuid || null,
+        type: obj?.type || null
+      },
+      geometry: {
+        uuid: geometry.uuid,
+        type: geometry.type,
+        attributeCount: attributeLength
+      },
+      firstBadIndex
+    });
+  });
+  obj.frustumCulled = false;
+  geometry.boundingSphere = geometry.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1e6);
+};
+
 /**
  * SAFE MOBILITY PACK 4.0
  * 
@@ -96,6 +139,30 @@ export class SafeMobilityPack4 {
     
     this.initializeInputHandlers();
     console.log('✓ Safe Mobility Pack 4.0 initialized');
+  }
+
+  _hasInvalidGeometry(obj) {
+    if (!obj || !obj.geometry) return false;
+    const geometry = obj.geometry;
+    const positionAttr = geometry.attributes?.position;
+    const array = positionAttr?.array;
+    if (!array) return false;
+    const badIndex = scanPositionArray(array);
+    if (badIndex === -1) return false;
+    markInvalidGeometry(obj, geometry, array.length, badIndex);
+    return true;
+  }
+
+  _collectValidRaycastTargets() {
+    if (!this.scene || !this.scene.children) return [];
+    const targets = [];
+    this.scene.children.forEach(child => {
+      if (!child) return;
+      if (!this._hasInvalidGeometry(child)) {
+        targets.push(child);
+      }
+    });
+    return targets;
   }
   
   /**
@@ -361,7 +428,8 @@ export class SafeMobilityPack4 {
       origin.y += 0.5;  // Offset from center
       
       const raycaster = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, groundCheckDistance);
-      const intersects = raycaster.intersectObjects(this.scene.children, true);
+      const targets = this._collectValidRaycastTargets();
+      const intersects = raycaster.intersectObjects(targets, true);
       const filtered = filterRaycastIntersections(intersects);
       
       this.state.onGround = filtered.length > 0;

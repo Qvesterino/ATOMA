@@ -243,8 +243,8 @@ export class VisualRootAutoRegister {
   }
   
   /**
-   * Enforce visual contract on discovered root
-   * Ensures properties match authority expectations
+   * Validate visual contract on discovered root
+   * Ensures properties match authority expectations (validation-only, no mutations)
    */
   enforceVisualContract(visualRoot) {
     if (!visualRoot) return;
@@ -259,16 +259,59 @@ export class VisualRootAutoRegister {
     // Enforce frustum culling
     visualRoot.frustumCulled = false;
     
-    // Enforce material properties
+    // Validate material properties (NO MUTATIONS)
     if (visualRoot.material) {
-      visualRoot.material.opacity = 1.0;
-      visualRoot.material.transparent = true;
-      visualRoot.material.depthTest = false;
-      visualRoot.material.depthWrite = false;
+      this.validateVisualRootMaterial(visualRoot);
     }
     
     // Enforce render order for core
     visualRoot.renderOrder = 0;
+  }
+  
+  /**
+   * Validate visual root material properties
+   * Logs warning if properties don't match expected core behavior
+   * Does NOT mutate material properties
+   */
+  validateVisualRootMaterial(visualRoot) {
+    if (!visualRoot || !visualRoot.material) return;
+    
+    const mat = visualRoot.material;
+    const warnings = [];
+    
+    // Expected properties for core visual root
+    const expected = {
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      opacity: 1.0
+    };
+    
+    // Check each property
+    if (mat.transparent !== expected.transparent) {
+      warnings.push(`transparent=${mat.transparent} (expected ${expected.transparent})`);
+    }
+    if (mat.depthTest !== expected.depthTest) {
+      warnings.push(`depthTest=${mat.depthTest} (expected ${expected.depthTest})`);
+    }
+    if (mat.depthWrite !== expected.depthWrite) {
+      warnings.push(`depthWrite=${mat.depthWrite} (expected ${expected.depthWrite})`);
+    }
+    if (mat.opacity !== undefined && Math.abs(mat.opacity - expected.opacity) > 0.01) {
+      warnings.push(`opacity=${mat.opacity} (expected ${expected.opacity})`);
+    }
+    
+    // Log compact warning once per object
+    if (warnings.length > 0) {
+      if (!visualRoot.userData.__materialValidationWarned) {
+        console.warn(`[VisualRootAutoRegister] Material validation failed for ${visualRoot.uuid}: ${warnings.join(', ')}`);
+        console.warn('  Material should be created with: transparent=true, depthTest=false, depthWrite=false');
+        visualRoot.userData.__materialValidationWarned = true;
+      }
+      return false;
+    }
+    
+    return true;
   }
   
   /**

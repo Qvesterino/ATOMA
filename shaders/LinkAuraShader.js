@@ -30,6 +30,31 @@
 import * as THREE from 'three';
 import { EnergyVisualProfile } from '../EnergyVisualProfile.js';
 
+// Module-level cache for link aura materials
+const LINK_AURA_MATERIAL_CACHE = new Map();
+
+/**
+ * Generate cache key for link aura material based on shader-varying properties
+ * Only includes properties that affect the compiled shader, not per-instance uniforms
+ * @param {Object} config - Configuration parameters
+ * @returns {string} Cache key
+ */
+function getAuraKey(config) {
+  // Properties that affect shader compilation and rendering behavior
+  return [
+    config.baseDisplacement ?? 'default',
+    config.noiseScale ?? 'default', 
+    config.timeScale ?? 'default',
+    config.baseOpacity ?? 'default',
+    config.blendZoneRadius ?? 'default',
+    config.transparent ?? 'default',
+    config.depthWrite ?? 'default',
+    config.depthTest ?? 'default',
+    config.side ?? 'default',
+    config.blending ?? 'default'
+  ].join('_');
+}
+
 /**
  * Create link aura shader material
  * Unified visual contract with node aura via EnergyVisualProfile
@@ -47,6 +72,21 @@ export function createLinkAuraMaterial(config = {}) {
     baseOpacity: config.baseOpacity ?? (profile.baseOpacity * profile.linkOpacityMultiplier),
     blendZoneRadius: config.blendZoneRadius ?? 0.2,  // 20% of link length for blend zone
   };
+
+  // Generate cache key based on shader-varying properties
+  const key = getAuraKey({
+    ...defaultConfig,
+    transparent: config.transparent,
+    depthWrite: config.depthWrite,
+    depthTest: config.depthTest,
+    side: config.side,
+    blending: config.blending
+  });
+
+  // Return cached material if available
+  if (LINK_AURA_MATERIAL_CACHE.has(key)) {
+    return LINK_AURA_MATERIAL_CACHE.get(key);
+  }
 
   const vertexShader = `
     uniform float uTime;

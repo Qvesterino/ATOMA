@@ -17,6 +17,11 @@ if (!THREE_SAFE) {
 // Expose as THREE
 const THREE = THREE_SAFE;
 
+if (typeof window !== 'undefined') {
+  window.ATOMA_DISABLE_ARCHETYPE_PATCH = true;
+  console.log('[VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED');
+}
+
 /**
  * ARCHETYPE VISUAL INTEGRATION PATCH v1.0
  * 
@@ -32,6 +37,10 @@ import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDiffer
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 
 export function patchArchetypeVisuals(aiNodesInstance, debugMode = false) {
+  if (typeof window !== 'undefined' && window.ATOMA_DISABLE_ARCHETYPE_PATCH === true) {
+    return null;
+  }
+
   if (!aiNodesInstance) {
     console.error('[ArchetypeVisualIntegrationPatch] AINodes instance required');
     return null;
