@@ -805,8 +805,12 @@ export class MythicNodeCreation {
       archetype: 'ASCENDED',
     };
 
-    // Start tiny to preserve birth animation intent
-    nodeModel.scale.setScalar(0.01);
+    // Root scale is owned by canonical spawn baseline authority.
+    // Keep ritual progression metadata-only to avoid post-spawn root conflicts.
+    nodeModel.userData.mythicRitualBirth = {
+      targetScale: 1.2,
+      startedAt: Date.now()
+    };
     
     this.mythicNode = nodeModel;
     
@@ -817,13 +821,7 @@ export class MythicNodeCreation {
    * Update resolution phase
    */
   updateResolution(deltaTime) {
-    // Grow mythic node
-    if (this.mythicNode) {
-      const targetScale = 1.2;
-      this.mythicNode.scale.setScalar(
-        THREE.MathUtils.lerp(this.mythicNode.scale.x, targetScale, 0.1)
-      );
-    }
+    // Root scale stays untouched after spawn finalization.
     
     // Fade circles
     this.updateRitualCircles(deltaTime);

@@ -64,13 +64,14 @@ import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
 import { AuraLODCulling } from './AuraLODCulling.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
+import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
+import { uniqueSpawnRegistry } from './UniqueSpawnRegistry.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
 }
 import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js';
-import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
@@ -406,6 +407,29 @@ export class AINodes {
     // Runtime spawn intent rotation to avoid INPUT lock-in
     this._runtimeSpawnIndex = 0;
     this._spawnIntentLogged = false;
+
+    // Spawn-cycle state (deterministic cyclic runtime category intent)
+    this.spawnCycleState = {
+      order: ['input', 'process', 'storage', 'analytics', 'integration', 'control'],
+      cursor: 0,
+      lastAdvancedAt: 0,
+      skippedSinceSuccess: 0,
+    };
+
+    // Unique-spawn registry (archetype-level single instance)
+    this.uniqueSpawnRegistry = uniqueSpawnRegistry;
+
+    // Single post-spawn observer pipeline (ordered)
+    this.postSpawnObservers = new Map();
+    this.visualAuthorityRuntime = new NodeVisualAuthorityRuntime({
+      debugMode: false,
+      allowRootFrustumDisable: false,
+    });
+    this.registerPostSpawnObserver(
+      'visual-authority-runtime',
+      (node, context) => this.visualAuthorityRuntime.applyBaseline(node, context),
+      10
+    );
   }
 
   /**
@@ -441,6 +465,92 @@ export class AINodes {
         }
       }
     }
+  }
+
+  registerPostSpawnObserver(name, fn, order = 100) {
+    if (!name || typeof fn !== 'function') return false;
+    this.postSpawnObservers.set(name, { fn, order: Number(order) || 100 });
+    return true;
+  }
+
+  unregisterPostSpawnObserver(name) {
+    if (!name) return false;
+    return this.postSpawnObservers.delete(name);
+  }
+
+  _runPostSpawnObservers(node, context = {}) {
+    if (!node || !this.postSpawnObservers || this.postSpawnObservers.size === 0) return;
+    const ordered = Array.from(this.postSpawnObservers.entries())
+      .sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+
+    for (const [name, observer] of ordered) {
+      try {
+        observer.fn(node, context);
+      } catch (err) {
+        console.warn(`[AINodes] post-spawn observer '${name}' failed:`, err?.message || err);
+      }
+    }
+  }
+
+  _getUniqueArchetypeKey(category, archetype) {
+    const archetypeKey = String(archetype || category || '').trim().toLowerCase();
+    return archetypeKey || null;
+  }
+
+  getSpawnCycleState() {
+    return {
+      order: [...this.spawnCycleState.order],
+      cursor: this.spawnCycleState.cursor,
+      lastAdvancedAt: this.spawnCycleState.lastAdvancedAt,
+      skippedSinceSuccess: this.spawnCycleState.skippedSinceSuccess,
+    };
+  }
+
+  getNextCyclicSpawnCategory() {
+    const state = this.spawnCycleState;
+    const order = state.order || [];
+    if (order.length === 0) return null;
+
+    for (let i = 0; i < order.length; i++) {
+      const idx = state.cursor % order.length;
+      const candidate = order[idx];
+      state.cursor = (state.cursor + 1) % order.length;
+      state.lastAdvancedAt = Date.now();
+
+      const validation = this.validateCategory(candidate);
+      if (validation?.valid === true && validation.category) {
+        state.skippedSinceSuccess = 0;
+        return validation.category;
+      }
+
+      state.skippedSinceSuccess += 1;
+    }
+
+    return null;
+  }
+
+  releaseUniqueSpawn(node) {
+    if (!node) return false;
+    const nodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
+    if (!nodeId) return false;
+    return this.uniqueSpawnRegistry.releaseUniqueSpawnByNodeId(nodeId);
+  }
+
+  isUniqueSpawnAllowed(archetypeKey) {
+    return this.uniqueSpawnRegistry.isUniqueSpawnAllowed(archetypeKey);
+  }
+
+  registerUniqueSpawn(nodeId, archetypeKey, metadata = {}) {
+    return this.uniqueSpawnRegistry.registerUniqueSpawn(nodeId, archetypeKey, metadata);
+  }
+
+  requestVisualRepair(nodeId, reason = 'manual') {
+    if (!this.visualAuthorityRuntime) return false;
+    const node =
+      this.nodesMap?.get?.(nodeId) ||
+      this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === nodeId);
+    if (!node) return false;
+    return this.visualAuthorityRuntime.requestRepair(node, reason);
   }
 
   /**
@@ -553,22 +663,27 @@ export class AINodes {
       const finalized = node ? this._finalizeSpawnedNode(node, category, pos) : null;
       
       if (finalized && finalized.node) {
+          const finalizedNode = finalized.node;
+          this._runPostSpawnObservers(finalizedNode, {
+            source: 'createNodes',
+            category,
+            position: pos,
+            archetype: archetypeKey,
+          });
+
           // Register the unique spawn
           spawnAuthorityComplianceGate.registerSpawn(
               isExtreme ? 'extreme' : category,
               archetypeKey,
-              node.userData.nodeId || node.uuid
+              finalizedNode.userData.nodeId || finalizedNode.uuid
           );
-
-          // Install Defensive Guards (Visual Authority)
-          const coreMesh = node.children.find(c => c.userData.visualLayer === 'CORE');
-          if (coreMesh) {
-              CoreVisualAuthorityGuard.installDefensiveGuards(coreMesh);
-              // Log ONCE
-              if (!node.userData.loggedAuthority) {
-                  // console.log("[NodeVisualAuthority] Core locked (ok)"); // Reduced spam
-                  node.userData.loggedAuthority = true;
-              }
+          const uniqueKey = this._getUniqueArchetypeKey(category, archetypeKey);
+          if (uniqueKey) {
+            this.uniqueSpawnRegistry.registerUniqueSpawn(
+              finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid,
+              uniqueKey,
+              { category, source: 'createNodes' }
+            );
           }
       }
     });
@@ -1088,7 +1203,7 @@ export class AINodes {
       rotationSpeed: 0.1 + Math.random() * 0.2
     };
     // ✅ EXTREME RELIABILITY: Force frustumCulled=false on hologram shells
-    fractalHolo.frustumCulled = false;
+    fractalHolo.frustumCulled = true;
     fractalHolo.visible = false; // Neutralize decorative hologram
     fractalHolo.userData.neutralized = true;
     // Guard: Only add fractal hologram if not already present
@@ -2020,7 +2135,7 @@ export class AINodes {
             child.isMesh && child.userData.isHologramShell === true
           );
           if (holoShell) {
-            holoShell.frustumCulled = false;
+            holoShell.frustumCulled = true;
             fixed = true;
           }
         }
@@ -2031,7 +2146,7 @@ export class AINodes {
             child.isMesh && child.userData.visualLayer === 'CORE'
           );
           if (coreMesh) {
-            coreMesh.frustumCulled = false;
+            coreMesh.frustumCulled = true;
             fixed = true;
           }
         }
@@ -2311,23 +2426,16 @@ export class AINodes {
    * Ensures scheduler/event spawns always provide an explicit canonical category
    */
   getRuntimeSpawnCategoryIntent() {
-    const CANONICAL_RUNTIME = ['input', 'process', 'integration', 'storage', 'control', 'analytics', 'quantum'];
-
-    // Rotate through canonical set; validate each candidate
-    for (let attempt = 0; attempt < CANONICAL_RUNTIME.length; attempt++) {
-      const cat = CANONICAL_RUNTIME[(this._runtimeSpawnIndex + attempt) % CANONICAL_RUNTIME.length];
-      const validation = this.validateCategory(cat);
-      if (validation?.valid && validation.category) {
-        this._runtimeSpawnIndex = (this._runtimeSpawnIndex + 1) % CANONICAL_RUNTIME.length;
-        if (!this._spawnIntentLogged) {
-          console.info('[SpawnIntent] runtime spawn injected category:', validation.category);
-          this._spawnIntentLogged = true;
-        }
-        return validation.category;
+    const category = this.getNextCyclicSpawnCategory();
+    if (category) {
+      if (!this._spawnIntentLogged) {
+        console.info('[SpawnIntent] runtime spawn injected category:', category);
+        this._spawnIntentLogged = true;
       }
+      return category;
     }
 
-    // Hard fallback (should never be hit): keep system alive
+    // Hard fallback: keep scheduler alive but continue cycle next tick.
     return 'input';
   }
   
@@ -2525,6 +2633,7 @@ export class AINodes {
       } else {
         // Stale entry, clear it
         this.nodeRegistry.delete(registryKey);
+        this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(registryKey);
       }
     }
 
@@ -2622,6 +2731,21 @@ export class AINodes {
 
     // ========== STEP 2: FIND SAFE POSITION (SYNC) ==========
     // Position already resolved above
+
+    // ========== STEP 2.5: UNIQUE ARCHETYPE ENFORCEMENT (SYNC) ==========
+    const uniqueArchetypeKey = this._getUniqueArchetypeKey(category, forceArchetype || category);
+    if (uniqueArchetypeKey) {
+      const existingUniqueNodeId = this.uniqueSpawnRegistry.getNodeId(uniqueArchetypeKey);
+      if (existingUniqueNodeId) {
+        const existingUniqueNode =
+          this.nodesMap?.get(existingUniqueNodeId) ||
+          this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === existingUniqueNodeId);
+        if (existingUniqueNode && existingUniqueNode.parent) {
+          return existingUniqueNode;
+        }
+        this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(uniqueArchetypeKey);
+      }
+    }
     
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
@@ -2661,6 +2785,10 @@ export class AINodes {
     newNode.userData.nodeId = newNode.userData.id;
     newNode.userData.category = category;  // <- PRIMARY SOURCE
     newNode.userData.archetype = forceArchetype || category || 'default';
+    newNode.userData.uniqueArchetypeKey = this._getUniqueArchetypeKey(
+      newNode.userData.category,
+      newNode.userData.archetype
+    );
     
     // ========== REGISTRATION VALIDATION (CRITICAL FOR INTERACTION) ==========
     // Ensure node has required properties for selection system
@@ -2729,8 +2857,27 @@ export class AINodes {
     }
     
     // ========== STEP 7: FINALIZE (SCENE ATTACH + REGISTRATION) ==========
-    if (!this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey })) {
+    const finalized = this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey });
+    if (!finalized) {
       return null;
+    }
+    this._runPostSpawnObservers(finalized.node, {
+      source: 'spawnNode',
+      category,
+      position: spawnPos,
+      archetype: newNode.userData.archetype,
+      registryKey,
+      uniqueArchetypeKey: newNode.userData.uniqueArchetypeKey,
+    });
+    if (newNode.userData.uniqueArchetypeKey) {
+      this.uniqueSpawnRegistry.registerUniqueSpawn(
+        newNode.userData.nodeId || newNode.userData.id || newNode.uuid,
+        newNode.userData.uniqueArchetypeKey,
+        {
+          category: newNode.userData.category,
+          source: 'spawnNode',
+        }
+      );
     }
     
     // NODE SPAWN LOGGER v4.0: Log spawn with full validation
@@ -2795,8 +2942,8 @@ export class AINodes {
    * Caller must ensure effectOrchestrator exists on scene or AINodes instance.
    */
   materializeNode(node) {
-    // Start from scale 0 and fade in
-    node.scale.setScalar(0);
+    // Root scale is owned by spawn baseline authority; materialization is visual-only.
+    const stableRootScale = node.scale.clone();
     node.userData.materializeProgress = 0;
     node.userData.isMaterializing = true;
     
@@ -2815,9 +2962,9 @@ export class AINodes {
         update: (dt, time) => {
           const progress = Math.min(this.elapsed / this.duration, 1);
           
-          // Scale up (ease-out cubic)
+          // Ease for child-only visual fade.
           const easeProgress = 1 - Math.pow(1 - progress, 3);
-          node.scale.setScalar(0.9 * easeProgress);
+          node.scale.copy(stableRootScale);
           
           // Fade in glow layers
           if (node.userData.vfxGlow) {
@@ -2852,7 +2999,7 @@ export class AINodes {
     } else {
       // Fallback: if orchestrator not available, complete immediately
       console.warn('[AINodes] effectOrchestrator not available, skipping materialization animation');
-      node.scale.setScalar(0.9);
+      node.scale.copy(stableRootScale);
       node.userData.isMaterializing = false;
       this.materializingNodes.delete(node);
     }
@@ -3058,6 +3205,7 @@ export class AINodes {
   
   dispose() {
     this.nodes.forEach(node => {
+      this.releaseUniqueSpawn(node);
       this.scene.remove(node);
       node.children.forEach(child => {
         if (child.geometry) child.geometry.dispose();
@@ -3078,6 +3226,8 @@ export class AINodes {
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();
+    this.uniqueSpawnRegistry.clear();
+    this.postSpawnObservers.clear();
   }
   
   // ========== SPECIALIZED SPAWN METHODS (EXTENDED SPAWN SYSTEM 1.0) ==========

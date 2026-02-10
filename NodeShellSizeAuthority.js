@@ -88,10 +88,15 @@ export class NodeShellSizeAuthority {
       
       // Debug mode
       debugMode: config.debugMode ?? false,
+
+      // Minimum interval between enforcement passes (milliseconds)
+      minEnforceIntervalMs: config.minEnforceIntervalMs ?? 250,
     };
     
     // Computed shell sizes per node (cached)
     this.computedSizes = new Map();   // nodeId → computedShellSize
+    this.registeredNodes = new Map(); // nodeId -> node reference
+    this._lastEnforceAt = 0;
     
     if (this.config.enabled) {
       console.log('[NodeShellSizeAuthority] Initialized');
@@ -109,7 +114,8 @@ export class NodeShellSizeAuthority {
    * @returns {number} Static shell size (1.0 baseline)
    */
   computeNodeShellSize(node, category, tier = 2) {
-    const nodeId = node.id || node.uuid || node;
+    const nodeId = this._resolveNodeId(node);
+    if (!nodeId) return this.config.baseShellSize;
     
     // Check for node-specific override
     if (this.nodeOverrides.has(nodeId)) {
@@ -159,12 +165,17 @@ export class NodeShellSizeAuthority {
    */
   registerNode(node, category, tier = 2) {
     const shellSize = this.computeNodeShellSize(node, category, tier);
+    const nodeId = this._resolveNodeId(node);
     
     // Store in node userData for later reference
     if (node.userData) {
       node.userData.staticShellSize = shellSize;
       node.userData.shellCategory = category;
       node.userData.shellTier = tier;
+    }
+
+    if (nodeId) {
+      this.registeredNodes.set(nodeId, node);
     }
     
     return shellSize;
@@ -177,7 +188,8 @@ export class NodeShellSizeAuthority {
    * @param {number} size - Custom shell size
    */
   setNodeOverride(node, size) {
-    const nodeId = node.id || node.uuid || node;
+    const nodeId = this._resolveNodeId(node);
+    if (!nodeId) return;
     const clampedSize = Math.max(this.config.minShellSize,
                                 Math.min(this.config.maxShellSize, size));
     this.nodeOverrides.set(nodeId, clampedSize);
@@ -190,7 +202,8 @@ export class NodeShellSizeAuthority {
    * @returns {number} Static shell size
    */
   getNodeShellSize(node) {
-    const nodeId = node.id || node.uuid || node;
+    const nodeId = this._resolveNodeId(node);
+    if (!nodeId) return this.config.baseShellSize;
     return this.computedSizes.get(nodeId) ?? this.config.baseShellSize;
   }
   
@@ -204,6 +217,9 @@ export class NodeShellSizeAuthority {
     if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
 
     if (!this.config.enabled) return;
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    if (now - this._lastEnforceAt < this.config.minEnforceIntervalMs) return;
+    this._lastEnforceAt = now;
     
     // Direct enforcement via aura system if available
     if (auraSystem && auraSystem.auras) {
@@ -221,32 +237,42 @@ export class NodeShellSizeAuthority {
         }
       }
     }
-    
-    // Also traverse scene for any other shell meshes
-    // (backup enforcement for edge cases)
-    if (scene) {
-      scene.traverse((obj) => {
-        if (!obj.userData) return;
-        
-        const isShell = obj.userData.isHologramShell || 
-                       obj.userData.visualLayer === 'SHELL' ||
-                       obj.userData.visualLayer === 'AURA';
-        
-        if (!isShell || !obj.isMesh) return;
-        
-        // Find associated node
-        let nodeId = obj.userData.nodeId;
-        if (!nodeId && obj.parent) {
-          // Try to find node from parent chain
-          nodeId = obj.parent.userData?.nodeId || obj.parent.userData?.id;
-        }
-        
-        if (nodeId && this.computedSizes.has(nodeId)) {
-          const staticSize = this.computedSizes.get(nodeId);
-          obj.scale.setScalar(staticSize);
-        }
-      });
+
+    // Enforce child shell/aura meshes only for registered nodes.
+    for (const [nodeId, node] of this.registeredNodes.entries()) {
+      if (!node || node.parent == null) continue;
+      const staticSize = this.computedSizes.get(nodeId);
+      if (!staticSize) continue;
+      this._enforceNodeShells(node, staticSize);
     }
+  }
+
+  _enforceNodeShells(node, staticSize) {
+    if (!node || !node.traverse) return;
+    node.traverse((obj) => {
+      if (!obj || obj === node || !obj.isMesh || !obj.userData) return;
+
+      // Never mutate root scale from this system.
+      if (obj.userData.isNodeRoot === true) return;
+
+      const isShell =
+        obj.userData.isHologramShell ||
+        obj.userData.visualLayer === 'SHELL' ||
+        obj.userData.visualLayer === 'AURA';
+
+      if (!isShell) return;
+      if (Math.abs(obj.scale.x - staticSize) > 0.0001 ||
+          Math.abs(obj.scale.y - staticSize) > 0.0001 ||
+          Math.abs(obj.scale.z - staticSize) > 0.0001) {
+        obj.scale.setScalar(staticSize);
+      }
+    });
+  }
+
+  _resolveNodeId(node) {
+    if (node == null) return null;
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    return String(node.userData?.nodeId || node.userData?.id || node.id || node.uuid || '');
   }
   
   /**
@@ -282,6 +308,8 @@ export class NodeShellSizeAuthority {
   reset() {
     this.computedSizes.clear();
     this.nodeOverrides.clear();
+    this.registeredNodes.clear();
+    this._lastEnforceAt = 0;
   }
   
   /**

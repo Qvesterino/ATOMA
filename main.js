@@ -4905,7 +4905,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
-        if (typeof window !== 'undefined' && window.__shaderWarmupDone !== true) {
+        if (
+            typeof window !== 'undefined' &&
+            window.__shaderWarmupDone !== true &&
+            window.__ATOMA_WARMUP_COMPLETE !== true
+        ) {
             logPrograms('pre-warmup', this.renderer);
             warmUpArchetypeShaders(this.renderer, {
                 waveShaderBridge: this.waveShaderBridge,
@@ -5272,18 +5276,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 }
             }
             
-            // Hook node spawn for automatic authority enforcement
-            const originalSpawnNode = this.aiNodes?.spawnNode;
-            if (originalSpawnNode) {
-                const coreVisualAuthority = this.coreVisualAuthority;
-                this.aiNodes.spawnNode = function(...args) {
-                    const newNode = originalSpawnNode.apply(this, args);
-                    // Enforce visual authority on newly spawned node
-                    if (newNode && coreVisualAuthority) {
-                        coreVisualAuthority.processNode(newNode);
-                    }
-                    return newNode;
-                }.bind(this.aiNodes);
+            // Register post-spawn observer (single ordered pipeline)
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-visual-authority',
+                    (newNode) => {
+                        if (newNode && this.coreVisualAuthority) {
+                            this.coreVisualAuthority.processNode(newNode);
+                        }
+                    },
+                    20
+                );
             }
             
             // Setup debug API
@@ -5327,6 +5330,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     this.hologramShellAuthority.processShellGroup(node);
                 }
             }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'hologram-shell-authority',
+                    (newNode) => {
+                        if (newNode && this.hologramShellAuthority) {
+                            this.hologramShellAuthority.processShellGroup(newNode);
+                        }
+                    },
+                    35
+                );
+            }
             
             // Setup debug API
             if (window.HologramShellAuthorityDebug) {
@@ -5350,6 +5365,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 maxShellSize: 1.5,
                 enabled: true,
                 debugMode: false,
+                minEnforceIntervalMs: 250,
                 tierMultipliers: {
                     1: 0.9,
                     2: 1.0,
@@ -5368,19 +5384,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 }
             }
             
-            // Hook node spawn for automatic registration
-            const originalSpawnNode = this.aiNodes?.spawnNode;
-            if (originalSpawnNode) {
-                const shellAuthority = this.nodeShellSizeAuthority;
-                this.aiNodes.spawnNode = function(...args) {
-                    const newNode = originalSpawnNode.apply(this, args);
-                    if (newNode && shellAuthority) {
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'node-shell-size-registration',
+                    (newNode) => {
+                        if (!newNode || !this.nodeShellSizeAuthority) return;
                         const category = newNode.userData?.category || 'crystal';
                         const tier = newNode.userData?.evolutionTier || 2;
-                        shellAuthority.registerNode(newNode, category, tier);
-                    }
-                    return newNode;
-                }.bind(this.aiNodes);
+                        this.nodeShellSizeAuthority.registerNode(newNode, category, tier);
+                    },
+                    40
+                );
             }
             
             console.log('[main.js] Node Shell Size Authority initialized ✓');
@@ -5494,18 +5508,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     }
                 }
                 
-                // Hook node spawn for automatic core registration
-                const originalSpawnNode = this.aiNodes?.spawnNode;
-                if (originalSpawnNode) {
-                    this.aiNodes.spawnNode = function(...args) {
-                        const newNode = originalSpawnNode.apply(this, args);
-                        // Register core immediately after spawn
-                        if (newNode && this.game?.nodeCoreAuthority) {
-                            this.game.nodeCoreAuthority.registerNodeCore(newNode);
-                        }
-                        return newNode;
-                    }.bind(this.aiNodes);
-                    this.aiNodes.game = this; // Reference for authority hook
+                // Register post-spawn observer (single ordered pipeline)
+                if (this.aiNodes?.registerPostSpawnObserver) {
+                    this.aiNodes.registerPostSpawnObserver(
+                        'node-core-material-authority',
+                        (newNode) => {
+                            if (newNode && this.nodeCoreAuthority) {
+                                this.nodeCoreAuthority.registerNodeCore(newNode);
+                            }
+                        },
+                        30
+                    );
                 }
                 
                 // [SESSION 56 FORENSIC FIX] Register observer for link events
@@ -5552,10 +5565,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 debugEnabled: false,
                 enableLogging: false,
                 suppressionStrength: 0.8,    // Aggressive suppression
-                suppressCoreEmissive: true,
-                suppressCoreOpacity: true,
+                suppressCoreEmissive: false,
+                suppressCoreOpacity: false,
                 suppressCoreOverlays: true,
-                suppressCoreMaterial: true,
+                suppressCoreMaterial: false,
                 redirectToAura: true
             });
             
@@ -5567,17 +5580,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.eventVisualSuppression.suppressVFXEventEffects(this.aiNodes.nodes);
             }
             
-            // Hook on new node spawn to suppress their VFX effects
-            const originalSpawnNode = this.aiNodes?.spawnNode;
-            if (originalSpawnNode) {
-                this.aiNodes.spawnNode = function(...args) {
-                    const newNode = originalSpawnNode.apply(this, args);
-                    if (newNode && this.game?.eventVisualSuppression) {
-                        this.game.eventVisualSuppression.suppressVFXEventEffects([newNode]);
-                    }
-                    return newNode;
-                }.bind(this.aiNodes);
-                this.aiNodes.game = this; // Ensure reference exists
+            // Register post-spawn observer (single ordered pipeline)
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'event-visual-suppression',
+                    (newNode) => {
+                        if (newNode && this.eventVisualSuppression) {
+                            this.eventVisualSuppression.suppressVFXEventEffects([newNode]);
+                        }
+                    },
+                    45
+                );
             }
             
             // Setup console API for debugging
@@ -5656,7 +5669,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.coreMaterialMutationDetector = new CoreMaterialMutationDetector({
                 debugEnabled: false,
                 reportViolations: true,
-                autoRepair: true,
+                autoRepair: false,
                 maxViolationsToReport: 100,
             });
             setupCoreMutationDetectorConsoleAPI(this.coreMaterialMutationDetector);
@@ -5683,6 +5696,20 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     }
                 }
             }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-mutation-detector',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialMutationDetector) return;
+                        const core = newNode.mesh || newNode;
+                        if (core && core.material) {
+                            this.coreMaterialMutationDetector.registerCore(newNode, core);
+                        }
+                    },
+                    50
+                );
+            }
             
             console.log('[main.js] CoreMaterialMutationDetector initialized ✓');
         } catch (err) {
@@ -5696,7 +5723,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         try {
             this.coreMaterialPropertyLock = new CoreMaterialPropertyLock({
                 debugEnabled: false,
-                enforceOnFrame: true,
+                enforceOnFrame: false,
                 violationDetectionEnabled: true,
             });
             setupCoreMaterialPropertyLockConsoleAPI(this.coreMaterialPropertyLock);
@@ -5727,6 +5754,30 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                         }
                     });
                 }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-material-property-lock',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialPropertyLock) return;
+                        newNode.traverse((child) => {
+                            if (!child.isMesh || !child.material) return;
+                            if (
+                                child.userData?.isNodeCore ||
+                                child.name?.toLowerCase().includes('core') ||
+                                child.userData?.vfxType?.includes('core')
+                            ) {
+                                this.coreMaterialPropertyLock.registerCoreMaterial(
+                                    child.material,
+                                    newNode.userData?.id || 'unknown'
+                                );
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        });
+                    },
+                    55
+                );
             }
             
             console.log('[main.js] CoreMaterialPropertyLock initialized ✓');
@@ -8111,7 +8162,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Must run AFTER aura updates to override any dynamic scaling
         // ====================================================================
         if (this.nodeShellSizeAuthority) {
-            this.nodeShellSizeAuthority.enforceShellSizes(this.scene);
+            this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
         }
 
         // ====================================================================
@@ -8207,14 +8258,14 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // ====================================================================
         // CORE MATERIAL MUTATION DETECTION (Periodic Check)
-        // Check every 60 frames (~1 second at 60fps) for core mutations
+        // Check every 300 frames (~5 seconds at 60fps) for core mutations
         // ====================================================================
-        if (this.coreMaterialMutationDetector && this.frameCount % 60 === 0) {
+        if (this.coreMaterialMutationDetector && this.frameCount % 300 === 0) {
             const violationCount = this.coreMaterialMutationDetector.checkAllCores();
             if (violationCount > 0 && Math.random() < 0.01) {
                 // Log occasionally (1% of checks that have violations) to avoid spam
                 console.warn(
-                    `[Mutation Check] ${violationCount} core material violations detected and auto-repaired`
+                    `[Mutation Check] ${violationCount} core material violations detected`
                 );
             }
         }
@@ -8229,18 +8280,16 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
         
         // ====================================================================
-        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
-        // Enforce immutability of core material properties EVERY FRAME
-        // This is the final defensive line against runtime property degradation
+        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Diagnostic cadence)
+        // Run at low frequency in report-only mode (no per-frame mutation loop)
         // ====================================================================
-        if (this.coreMaterialPropertyLock && this.frameCount % 1 === 0) {
+        if (this.coreMaterialPropertyLock && this.frameCount % 300 === 0) {
             mark('coreMaterialPropertyLock.enforceFrame', () => {
-                // Enforce canonical properties every frame (zero tolerance)
+                // enforceFrame is report-only in stabilized runtime mode.
                 const lockViolationCount = this.coreMaterialPropertyLock.enforceFrame();
-                if (lockViolationCount > 0 && this.frameCount % 300 === 0) {
-                    // Log occasionally (~5 seconds at 60fps) to detect systematic issues
+                if (lockViolationCount > 0) {
                     console.warn(
-                        `[Core Material Lock] ${lockViolationCount} property violations locked & corrected this frame`
+                        `[Core Material Lock] ${lockViolationCount} property lock violations detected`
                     );
                 }
             });
@@ -9397,7 +9446,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // ========================================================================
         // Last line of defense: Guarantee node cores remain visible and interactive
         // This runs at end of frame to ensure NO system can win over interaction cores
-        if (this.hardInteractionAuthority && this.scene) {
+        if (this.hardInteractionAuthority && this.scene && this.frameCount % 180 === 0) {
             this.hardInteractionAuthority.safetyNet();
         }
 

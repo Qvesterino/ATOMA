@@ -321,6 +321,7 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
 
     if (typeof window !== "undefined") {
         window.__ATOMA_WARMUP_COMPLETE = true;
+        window.__shaderWarmupDone = true;
         window.__ATOMA_WARMUP_RUNNING = false;
         if (typeof window.markAtomaWarmupComplete === "function") {
             window.markAtomaWarmupComplete();

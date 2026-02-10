@@ -6811,6 +6811,10 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
 
   if (typeof window !== 'undefined') {
     window.__shaderWarmupDone = true;
+    window.__ATOMA_WARMUP_COMPLETE = true;
+    if (typeof window.markAtomaWarmupComplete === 'function') {
+      window.markAtomaWarmupComplete();
+    }
   }
 }
 
