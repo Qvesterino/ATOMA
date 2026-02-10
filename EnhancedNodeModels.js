@@ -22,8 +22,8 @@ const CANONICAL_VARIANTS = {
   analytics: [1, 2, 3, 4, 5, 7, 8, 9],
   storage:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   control:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-  quantum:  [0, 1, 2, 3],
-  sigma:    [0, 1, 2, 3],
+  quantum:  [3],           // Retained only non-primitive ChaoticHeart (moved from INTEGRATION)
+  sigma:    [],           // REMOVED: All variants 0,1,2,3 are primitive orbs (IcosahedronGeometry x2, OctahedronGeometry)
   mythic:   [0, 1, 2, 3, 4, 5],
   prime:    [0, 1, 2, 3, 4, 5],
   error:    [0, 1, 2, 3, 4, 5],
@@ -427,6 +427,14 @@ export class EnhancedNodeModels {
         break;
     }
 
+    const clearPartialVisuals = (group) => {
+      if (!group || !group.children) return;
+      while (group.children.length > 0) {
+        const child = group.children[group.children.length - 1];
+        group.remove(child);
+      }
+    };
+
     // FIX 3: Full visual validation - reject simple/fallback visuals
     // Hard stop: do not auto-inject fallback materials; log for diagnostics.
     if (rootGroup) {
@@ -474,6 +482,7 @@ export class EnhancedNodeModels {
             meshCount: meshCount,
             geometryTypes: Array.from(geometryTypes)
           });
+          clearPartialVisuals(rootGroup);
           return null;
         }
         
@@ -485,6 +494,7 @@ export class EnhancedNodeModels {
             meshCount: meshCount,
             geometryTypes: Array.from(geometryTypes)
           });
+          clearPartialVisuals(rootGroup);
           return null;
         }
       }

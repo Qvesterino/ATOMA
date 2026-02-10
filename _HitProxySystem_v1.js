@@ -38,7 +38,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
 // Shared node identity adapter (aligns with window.getNodeIdentity when present)
 const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
@@ -69,7 +69,7 @@ class HitProxyFactory {
     });
     
     const sphere = new THREE.Mesh(geometry, material);
-    tagSphere(sphere, { role: 'interactionProxy', source: 'HitProxyFactory.createProxySphere' });
+    tagAllowedSphere(sphere, { role: 'interactionProxy', source: 'HitProxyFactory.createProxySphere' });
     sphere.userData = sphere.userData || {};
     sphere.userData.isHitProxy = true;  // Mark as proxy
     sphere.castShadow = false;
@@ -551,3 +551,4 @@ export {
   HitProxyInteractionLayer,
   HitProxySystem
 };
+

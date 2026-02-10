@@ -24,7 +24,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
 class HitProxyAutoRegistrar {
   constructor(game, aiNodes, hitProxySystem) {
@@ -151,7 +151,7 @@ class HitProxyAutoRegistrar {
         wireframe: false
       });
       const proxy = new THREE.Mesh(geometry, material);
-      tagSphere(proxy, {
+      tagAllowedSphere(proxy, {
         role: 'interactionProxy',
         source: 'HitProxyAutoRegistrar.createProxyMesh',
         owner: node.userData?.id || node.userData?.nodeId || node.uuid
@@ -364,3 +364,4 @@ export function setupHitProxyAutoRegistrar(game) {
 }
 
 export default HitProxyAutoRegistrar;
+

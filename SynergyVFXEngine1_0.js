@@ -31,7 +31,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class SynergyVFXEngine1_0 {
   /**
@@ -796,7 +796,7 @@ export class SynergyVFXEngine1_0 {
       });
 
       const mesh = new THREE.Mesh(geometry, material);
-      tagSphere(mesh, { role: 'vfx', source: 'SynergyVFXEngine1_0._drawNodeFlare' });
+      tagAllowedSphere(mesh, { role: 'vfx', source: 'SynergyVFXEngine1_0._drawNodeFlare' });
       clampSphere(mesh);
       mesh.position.copy(position);
       this.scene.add(mesh);
@@ -853,7 +853,7 @@ export class SynergyVFXEngine1_0 {
       });
 
       const mesh = new THREE.Mesh(geometry, material);
-      tagSphere(mesh, { role: 'vfx', source: 'SynergyVFXEngine1_0._drawClusterField' });
+      tagAllowedSphere(mesh, { role: 'vfx', source: 'SynergyVFXEngine1_0._drawClusterField' });
       clampSphere(mesh);
       mesh.position.copy(center);
       this.scene.add(mesh);
@@ -1025,3 +1025,4 @@ export class SynergyVFXEngine1_0 {
     }
   }
 }
+

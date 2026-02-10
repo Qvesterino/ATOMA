@@ -57,7 +57,7 @@ import {
 import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 const _binderWarned = { invalid: false, noId: false, nonRenderable: false };
 function _validateBinderNode(node) {
@@ -1054,7 +1054,7 @@ export class NodeLinkingSystem {
     });
     
     this.selectedNodeHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    tagSphere(this.selectedNodeHighlight, { role: 'highlight', source: 'NodeLinkingSystem.createPrimaryNodeHighlight', owner: this.getNodeId(node) });
+    tagAllowedSphere(this.selectedNodeHighlight, { role: 'highlight', source: 'NodeLinkingSystem.createPrimaryNodeHighlight', owner: this.getNodeId(node) });
     clampSphere(this.selectedNodeHighlight);
     this.selectedNodeHighlight.userData = { isSelectionHighlight: true, isActive: true, isPrimaryNode: true };
     this.selectedNodeHighlight.scale.copy(node.scale);
@@ -1164,7 +1164,7 @@ export class NodeLinkingSystem {
     });
     
     const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    tagSphere(highlight, { role: 'highlight', source: 'NodeLinkingSystem.addToMultiSelect', owner: this.getNodeId(node) });
+    tagAllowedSphere(highlight, { role: 'highlight', source: 'NodeLinkingSystem.addToMultiSelect', owner: this.getNodeId(node) });
     clampSphere(highlight);
     highlight.userData = { isMultiSelectHighlight: true };
     highlight.scale.copy(node.scale);
@@ -1595,7 +1595,7 @@ export class NodeLinkingSystem {
     });
     
     const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-    tagSphere(glowMesh, { role: 'highlight', source: 'NodeLinkingSystem.addNodeSelectionGlow', owner: this.getNodeId(node) });
+    tagAllowedSphere(glowMesh, { role: 'highlight', source: 'NodeLinkingSystem.addNodeSelectionGlow', owner: this.getNodeId(node) });
     clampSphere(glowMesh);
     glowMesh.userData = { isSelectionGlow: true, isHover: true };
     glowMesh.scale.copy(node.scale);
@@ -1832,7 +1832,7 @@ createLinkSuccessPulse(sourceNode, targetNode) {
   });
 
   const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
-  tagSphere(pulse, { role: 'vfx', source: 'NodeLinkingSystem.createLinkSuccessPulse' });
+  tagAllowedSphere(pulse, { role: 'vfx', source: 'NodeLinkingSystem.createLinkSuccessPulse' });
   clampSphere(pulse);
   pulse.position.copy(startPos);
   this.scene.add(pulse);
@@ -1905,7 +1905,7 @@ createLinkSuccessPulse(sourceNode, targetNode) {
   });
 
   const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
-  tagSphere(pulse, { role: 'vfx', source: 'NodeLinkingSystem.createLinkRemovalPulse' });
+  tagAllowedSphere(pulse, { role: 'vfx', source: 'NodeLinkingSystem.createLinkRemovalPulse' });
   clampSphere(pulse);
   pulse.position.copy(sourcePos);
   this.scene.add(pulse);
@@ -3246,7 +3246,7 @@ getLinksForNode(node) {
       });
       
       const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-      tagSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createSoftParticleStream' });
+      tagAllowedSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createSoftParticleStream' });
       clampSphere(particle);
       particle.userData = {
         progress: i / particleCount,
@@ -3293,7 +3293,7 @@ getLinksForNode(node) {
       });
       
       const shimmer = new THREE.Mesh(shimmerGeometry, shimmerMaterial);
-      tagSphere(shimmer, { role: 'vfx', source: 'NodeLinkingSystem.createQuantumLinkEffects' });
+      tagAllowedSphere(shimmer, { role: 'vfx', source: 'NodeLinkingSystem.createQuantumLinkEffects' });
       clampSphere(shimmer);
       shimmer.userData = {
         index: i,
@@ -3787,7 +3787,7 @@ getLinksForNode(node) {
       });
       
       const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-      tagSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createEnhancedLinkVisuals' });
+      tagAllowedSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createEnhancedLinkVisuals' });
       clampSphere(particle);
       particle.userData = {
         progress: i / particleCount,
@@ -4135,7 +4135,7 @@ getLinksForNode(node) {
       });
       
       const particle = new THREE.Mesh(geometry, material);
-      tagSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createLinkBreakEffect' });
+      tagAllowedSphere(particle, { role: 'vfx', source: 'NodeLinkingSystem.createLinkBreakEffect' });
       clampSphere(particle);
       particle.position.copy(midPos);
       
@@ -6838,3 +6838,4 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
 }
 
 export default NodeLinkingSystem;
+

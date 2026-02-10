@@ -7,6 +7,8 @@
 // ============================================================================
 import { debugLog } from './Engine/Debug/DebugLog.js';
 import * as THREE from 'three';
+window.THREE = THREE;
+import { installSphereCreatorTrace } from './SphereCreatorTrace.js';
 import { installMaterialMutationDetector } from './MaterialMutationDetector.js';
 import { PlayerController, FirstPersonCameraController } from './rosie/controls/rosieControls.js';
 import { World } from './World.js';
@@ -27,7 +29,7 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
-import { installSpherePolicy } from './VisualSpherePolicy.js';
+import { ensureSpherePolicyInstalled, installSpherePolicy } from './VisualSpherePolicy.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
@@ -4210,7 +4212,12 @@ hudP05Observer.observe(document.body, {
         
         // Scene
         this.scene = new THREE.Scene();
+        ensureSpherePolicyInstalled({ sweepIntervalMs: 100 });
         this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
+        this.spherePolicy?.registerRoot?.(this.scene, 'main-scene');
+        
+        // Install sphere creator trace for diagnostics
+        installSphereCreatorTrace({ enabled: true, verbose: false });
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(
@@ -7950,8 +7957,8 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
         const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
-        if (this.spherePolicy?.sweep) {
-            this.spherePolicy.sweep(false, { phase: 'animate' });
+        if (this.spherePolicy?.sweepAllRoots) {
+            this.spherePolicy.sweepAllRoots(false, { phase: 'animate' });
         }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
@@ -12792,6 +12799,170 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
 
 
+        // [Sphere Creator Trace] Console API
+        window.sphereTrace = {
+            enabled: true,
+            captureStacks: true,
+            maxEntries: 100,
+            
+            // Get trace statistics
+            getStats: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    return window.__sphereCreatorTrace.getStats();
+                }
+                return null;
+            },
+            
+            // Get all traces
+            getTraces: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    return window.__sphereCreatorTrace.getTraces();
+                }
+                return null;
+            },
+            
+            // Clear traces
+            clear: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.clear();
+                    console.log('✓ Sphere creator trace cleared');
+                }
+            },
+            
+            // Print traces as table
+            print: () => {
+                const traces = window.sphereTrace.getTraces();
+                if (traces && traces.length > 0) {
+                    console.group('🔍 Sphere Creator Trace');
+                    console.table(traces);
+                    console.groupEnd();
+                } else {
+                    console.log('No sphere creator traces recorded');
+                }
+            },
+            
+            // Export traces as JSON
+            export: () => {
+                const traces = window.sphereTrace.getTraces();
+                if (traces && traces.length > 0) {
+                    const json = JSON.stringify(traces, null, 2);
+                    console.log('Sphere Creator Trace JSON:');
+                    console.log(json);
+                    return json;
+                }
+                console.log('No traces to export');
+                return null;
+            },
+            
+            // Set capture options
+            setOptions: (opts) => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.setOptions(opts);
+                    console.log('✓ Sphere creator trace options updated:', opts);
+                }
+            },
+            
+            // Enable/disable tracing
+            setEnabled: (enabled) => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.setEnabled(enabled);
+                    window.sphereTrace.enabled = enabled;
+                    console.log(`✓ Sphere creator trace ${enabled ? 'enabled' : 'disabled'}`);
+                }
+            }
+        };
+        
+        console.log('✓ [SphereCreatorTrace] Console API available');
+        console.log('  API: sphereTrace.getStats()');
+        console.log('  API: sphereTrace.getTraces()');
+        console.log('  API: sphereTrace.clear()');
+        console.log('  API: sphereTrace.print()');
+        console.log('  API: sphereTrace.export()');
+        console.log('  API: sphereTrace.setOptions(opts)');
+        console.log('  API: sphereTrace.setEnabled(bool)');
+        
+        // [Sphere Creator Trace] Console API
+        window.sphereTrace = {
+            enabled: true,
+            captureStacks: true,
+            maxEntries: 100,
+            
+            // Get trace statistics
+            getStats: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    return window.__sphereCreatorTrace.getStats();
+                }
+                return null;
+            },
+            
+            // Get all traces
+            getTraces: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    return window.__sphereCreatorTrace.getTraces();
+                }
+                return null;
+            },
+            
+            // Clear traces
+            clear: () => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.clear();
+                    console.log('✓ Sphere creator trace cleared');
+                }
+            },
+            
+            // Print traces as table
+            print: () => {
+                const traces = window.sphereTrace.getTraces();
+                if (traces && traces.length > 0) {
+                    console.group('🔍 Sphere Creator Trace');
+                    console.table(traces);
+                    console.groupEnd();
+                } else {
+                    console.log('No sphere creator traces recorded');
+                }
+            },
+            
+            // Export traces as JSON
+            export: () => {
+                const traces = window.sphereTrace.getTraces();
+                if (traces && traces.length > 0) {
+                    const json = JSON.stringify(traces, null, 2);
+                    console.log('Sphere Creator Trace JSON:');
+                    console.log(json);
+                    return json;
+                }
+                console.log('No traces to export');
+                return null;
+            },
+            
+            // Set capture options
+            setOptions: (opts) => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.setOptions(opts);
+                    console.log('✓ Sphere creator trace options updated:', opts);
+                }
+            },
+            
+            // Enable/disable tracing
+            setEnabled: (enabled) => {
+                if (typeof window !== 'undefined' && window.__sphereCreatorTrace) {
+                    window.__sphereCreatorTrace.setEnabled(enabled);
+                    window.sphereTrace.enabled = enabled;
+                    console.log(`✓ Sphere creator trace ${enabled ? 'enabled' : 'disabled'}`);
+                }
+            }
+        };
+        
+        console.log('✓ [SphereCreatorTrace] Console API available');
+        console.log('  API: sphereTrace.getStats()');
+        console.log('  API: sphereTrace.getTraces()');
+        console.log('  API: sphereTrace.clear()');
+        console.log('  API: sphereTrace.print()');
+        console.log('  API: sphereTrace.export()');
+        console.log('  API: sphereTrace.setOptions(opts)');
+        console.log('  API: sphereTrace.setEnabled(bool)');
+        
         // Global toggle function for world events
         window.toggleWorldEvents = function () {
             if (window.game && window.game.metricReactiveEvents) {
@@ -14480,6 +14651,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
                 console.warn('⚠ Node Aura System not initialized');
             }
         };
+        
         
         window.disableNodeAuras = () => {
             if (this.nodeAuraSystem) {

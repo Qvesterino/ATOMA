@@ -18,7 +18,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class LinkCorruptionParticleSystem {
   constructor(scene) {
@@ -213,7 +213,7 @@ export class LinkCorruptionParticleSystem {
    */
   _createNewParticle() {
     const mesh = new THREE.Mesh(this.particleGeometry, this.particleMaterial.clone());
-    tagSphere(mesh, { role: 'vfx', source: 'LinkCorruptionParticleSystem._createNewParticle' });
+    tagAllowedSphere(mesh, { role: 'vfx', source: 'LinkCorruptionParticleSystem._createNewParticle' });
     clampSphere(mesh);
     mesh.castShadow = true;
     mesh.renderOrder = 20;
@@ -432,3 +432,4 @@ export class LinkCorruptionParticleSystem {
     }
   }
 }
+

@@ -36,7 +36,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
 // ============================================================================
 // INTERACTION CORE IDENTIFIER
@@ -143,7 +143,7 @@ class InteractionCoreIdentifier {
     });
 
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
-    tagSphere(proxyMesh, {
+    tagAllowedSphere(proxyMesh, {
       role: 'interactionProxy',
       source: 'VisualInteractionIsolationPatch.findOrCreateCore',
       owner: nodeGroup.userData?.nodeId || nodeGroup.userData?.id || nodeGroup.uuid
@@ -611,3 +611,4 @@ export function setupVisualInteractionIsolation(scene, aiNodes, options = {}) {
 // ============================================================================
 
 export { InteractionIsolationEngine, InteractionCoreIdentifier };
+

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 /**
  * SAFE EVOLUTION MANAGER 2.0
@@ -452,7 +452,7 @@ export class SafeEvolutionManager {
         fog: false
       });
       const particle = new THREE.Mesh(geo, mat);
-      tagSphere(particle, { role: 'vfx', source: 'SafeEvolutionManager.updateParticles' });
+      tagAllowedSphere(particle, { role: 'vfx', source: 'SafeEvolutionManager.updateParticles' });
       clampSphere(particle);
       particle.userData = {
         isEvolutionVFX: true,
@@ -640,3 +640,4 @@ export class SafeEvolutionManager {
     this.activeBursts = [];
   }
 }
+

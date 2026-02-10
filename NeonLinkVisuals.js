@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualAuthorityLock from './VisualAuthorityLock.js';
@@ -1143,7 +1143,7 @@ export class NeonLinkVisuals {
       });
 
       const mesh = new THREE.Mesh(geometry, material);
-      tagSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createSynergyFlowParticles' });
+      tagAllowedSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createSynergyFlowParticles' });
       clampSphere(mesh);
       
       // Stagger starting positions along curve
@@ -1227,7 +1227,7 @@ export class NeonLinkVisuals {
         });
         
         const mesh = new THREE.Mesh(geometry, material);
-        tagSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createDataFlowParticles' });
+        tagAllowedSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createDataFlowParticles' });
         clampSphere(mesh);
         
         // Random starting position on curve
@@ -1577,7 +1577,7 @@ export class NeonLinkVisuals {
     });
     
     const pulse = new THREE.Mesh(geometry, material);
-    tagSphere(pulse, { role: 'vfx', source: 'NeonLinkVisuals.createErrorPulse' });
+    tagAllowedSphere(pulse, { role: 'vfx', source: 'NeonLinkVisuals.createErrorPulse' });
     clampSphere(pulse);
     pulse.position.copy(sourcePos);
     pulseGroup.add(pulse);
@@ -2398,3 +2398,4 @@ export function setupLinkVisualLanguageDebugAPI(linkVisuals) {
   console.log('✅ Link Visual Language v2 Debug API ready');
   console.log('   Use: reportLinkVisuals() for full status');
 }
+

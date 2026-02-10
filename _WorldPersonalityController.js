@@ -43,7 +43,7 @@
  */
 
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class WorldPersonalityController {
   constructor(scene, camera, renderer) {
@@ -1062,7 +1062,7 @@ export class WorldPersonalityController {
       this.tagFXMaterial(material);
       
       const bloom = new THREE.Mesh(geometry, material);
-      tagSphere(bloom, { role: 'vfx', source: '_WorldPersonalityController.js' });
+      tagAllowedSphere(bloom, { role: 'vfx', source: '_WorldPersonalityController.js' });
       clampSphere(bloom);
       bloom.position.copy(cluster.center);
       bloom.userData.isWorldFX = true;
@@ -1253,4 +1253,5 @@ export class WorldPersonalityController {
     };
   }
 }
+
 

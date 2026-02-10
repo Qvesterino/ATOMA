@@ -54,6 +54,9 @@ export class SafeQuantumIllusionsPack1 {
     this.screenSpaceContainer = new THREE.Group();
     this.screenSpaceContainer.name = 'QuantumIllusions_ScreenSpace';
     this.scene.add(this.screenSpaceContainer);
+    if (typeof window !== 'undefined') {
+      window.__ATOMA_SPHERE_POLICY__?.registerRoot?.(this.screenSpaceContainer, 'quantum-illusions-screenspace');
+    }
     
     // Illusion config
     this.config = {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
   validateObject3D,
-  tagSphere,
+  tagAllowedSphere,
   clampSphere,
   isIllegalVisibleSphere,
 } from '../VisualSpherePolicy.js';
@@ -30,7 +30,7 @@ function makeSphere(radius = 1, opacity = 1) {
   const root = new THREE.Group();
   const mesh = makeSphere(1, 0);
   mesh.visible = false;
-  tagSphere(mesh, { role: 'collider', source: 'test' });
+  tagAllowedSphere(mesh, { role: 'collider', source: 'test' });
   root.add(mesh);
   const result = validateObject3D(root, { test: 'invisible-collider' });
   assert.equal(result.removed, 0);
@@ -40,7 +40,7 @@ function makeSphere(radius = 1, opacity = 1) {
 {
   const mesh = makeSphere(1, 0.4);
   mesh.scale.setScalar(10);
-  tagSphere(mesh, { role: 'highlight', source: 'test' });
+  tagAllowedSphere(mesh, { role: 'highlight', source: 'test' });
   const changed = clampSphere(mesh);
   assert.equal(changed, true);
 }
@@ -49,7 +49,7 @@ function makeSphere(radius = 1, opacity = 1) {
 {
   const root = new THREE.Group();
   const mesh = makeSphere(1, 1);
-  tagSphere(mesh, { role: 'canonicalSphere', source: 'test' });
+  tagAllowedSphere(mesh, { role: 'canonicalSphere', source: 'test' });
   root.add(mesh);
   const result = validateObject3D(root, { test: 'canonical' });
   assert.equal(result.removed, 0);
@@ -60,11 +60,12 @@ function makeSphere(radius = 1, opacity = 1) {
 {
   const root = new THREE.Group();
   const mesh = makeSphere(1, 0);
-  tagSphere(mesh, { role: 'interactionProxy', source: 'test' });
+  tagAllowedSphere(mesh, { role: 'interactionProxy', source: 'test' });
   root.add(mesh);
   const result = validateObject3D(root, { test: 'proxy' });
   assert.equal(result.removed, 0);
 }
 
 console.log('VisualSpherePolicy tests passed');
+
 

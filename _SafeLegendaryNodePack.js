@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
+import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
@@ -633,7 +633,7 @@ export class SafeLegendaryNodePack {
       );
       
       const spark = new THREE.Mesh(geo, mat);
-      tagSphere(spark, { role: 'vfx', source: '_SafeLegendaryNodePack.js' });
+      tagAllowedSphere(spark, { role: 'vfx', source: '_SafeLegendaryNodePack.js' });
       clampSphere(spark);
       spark.userData = {
         isLegendaryVFX: true,
@@ -750,7 +750,7 @@ export class SafeLegendaryNodePack {
       });
       
       const particle = new THREE.Mesh(geo, mat);
-      tagSphere(particle, { role: 'vfx', source: '_SafeLegendaryNodePack.js' });
+      tagAllowedSphere(particle, { role: 'vfx', source: '_SafeLegendaryNodePack.js' });
       clampSphere(particle);
       particle.userData = {
         isLegendaryVFX: true,
@@ -1060,4 +1060,5 @@ export class SafeLegendaryNodePack {
     this.spawnParticles = [];
   }
 }
+
 
