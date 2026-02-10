@@ -8,7 +8,8 @@
 import { debugLog } from './Engine/Debug/DebugLog.js';
 import * as THREE from 'three';
 window.THREE = THREE;
-import { installSphereCreatorTrace } from './SphereCreatorTrace.js';
+// TEMP DISABLED: SphereCreatorTrace blocking spawn pipeline
+// import { installSphereCreatorTrace } from './SphereCreatorTrace.js';
 import { installMaterialMutationDetector } from './MaterialMutationDetector.js';
 import { PlayerController, FirstPersonCameraController } from './rosie/controls/rosieControls.js';
 import { World } from './World.js';
@@ -29,7 +30,8 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
-import { ensureSpherePolicyInstalled, installSpherePolicy } from './VisualSpherePolicy.js';
+// TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
+// import { ensureSpherePolicyInstalled, installSpherePolicy } from './VisualSpherePolicy.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
@@ -4214,12 +4216,14 @@ hudP05Observer.observe(document.body, {
         
         // Scene
         this.scene = new THREE.Scene();
-        ensureSpherePolicyInstalled({ sweepIntervalMs: 100 });
-        this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
-        this.spherePolicy?.registerRoot?.(this.scene, 'main-scene');
+        // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
+        // ensureSpherePolicyInstalled({ sweepIntervalMs: 100 });
+        // this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
+        // this.spherePolicy?.registerRoot?.(this.scene, 'main-scene');
         
+        // TEMP DISABLED: SphereCreatorTrace blocking spawn pipeline
         // Install sphere creator trace for diagnostics
-        installSphereCreatorTrace({ enabled: true, verbose: false });
+        // installSphereCreatorTrace({ enabled: true, verbose: false });
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(

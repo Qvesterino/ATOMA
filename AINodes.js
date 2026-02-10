@@ -92,7 +92,7 @@ import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js'
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
-import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
+// import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
 
 function hasRenderableVisual(object3D) {
   if (!object3D) return false;
@@ -379,7 +379,10 @@ export class AINodes {
     
     // ========== EXTENDED SPAWN SYSTEM 1.0 ==========
     // 6 standard node categories with 4 variants each
-    this.nodeCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control'];
+    this.nodeCategories = [
+  'input','process','integration','analytics','storage','control',
+  'mythic','prime','error','emotional'
+];
     
     // Special multi-output node types (10% chance of appearing)
     this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
@@ -473,7 +476,9 @@ export class AINodes {
 
     // Spawn-cycle state (deterministic cyclic runtime category intent)
     this.spawnCycleState = {
-      order: ['input', 'process', 'storage', 'analytics', 'integration', 'control'],
+       order: [
+    'input','process','storage','analytics','integration','control',
+    'quantum','sigma','mythic','prime','error','emotional'],
       cursor: 0,
       lastAdvancedAt: 0,
       skippedSinceSuccess: 0,
@@ -2717,15 +2722,15 @@ export class AINodes {
     }
 
     // Global sphere policy gate before any scene attachment.
-    const spherePolicyResult = validateSpherePolicyObject3D(node, {
-      phase: 'spawn-finalize',
-      category,
-      nodeId: node.userData?.nodeId || node.uuid,
-    });
-    if (!node.parent && (!node.children || node.children.length === 0 || spherePolicyResult.removed > 0 && !hasRenderableVisual(node))) {
-      console.warn('[NodeSpawnSkipped] Sphere policy removed renderables, skipping node', node.userData?.nodeId || node.uuid || null);
-      return null;
-    }
+ //   const spherePolicyResult = validateSpherePolicyObject3D(node, {
+ //     phase: 'spawn-finalize',
+ //     category,
+ //     nodeId: node.userData?.nodeId || node.uuid,
+ //   });
+ //   if (!node.parent && (!node.children || node.children.length === 0 || spherePolicyResult.removed > 0 && !hasRenderableVisual(node))) {
+ //     console.warn('[NodeSpawnSkipped] Sphere policy removed renderables, skipping node', node.userData?.nodeId || node.uuid || null);
+  //    return null;
+ //   }
 
     let sceneAdded = false;
     if (!node.parent && this.scene) {
