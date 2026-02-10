@@ -91,6 +91,27 @@ function hasRenderableVisual(object3D) {
   return false;
 }
 
+function validateNodeVisualIntegrity(root) {
+  const result = {
+    meshCount: 0,
+    materiallessMeshes: [],
+    geometrylessMeshes: [],
+    hasLinesPoints: false,
+  };
+  if (!root) return result;
+  root.traverse((obj) => {
+    if (!obj || obj.isObject3D !== true) return;
+    if (obj.isMesh === true) {
+      result.meshCount++;
+      if (!obj.material) result.materiallessMeshes.push(obj.uuid || obj.id || 'unknown');
+      if (!obj.geometry) result.geometrylessMeshes.push(obj.uuid || obj.id || 'unknown');
+    } else if (obj.isLine === true || obj.isPoints === true) {
+      result.hasLinesPoints = true;
+    }
+  });
+  return result;
+}
+
 // ============================================================
 // ATOMA EMISSIVE SAFETY GUARD 4.0
 // Globally prevents MeshBasicMaterial emissive warnings
@@ -415,6 +436,7 @@ export class AINodes {
       lastAdvancedAt: 0,
       skippedSinceSuccess: 0,
     };
+    this._pendingCyclicCandidate = null;
 
     // Unique-spawn registry (archetype-level single instance)
     this.uniqueSpawnRegistry = uniqueSpawnRegistry;
@@ -507,26 +529,48 @@ export class AINodes {
   }
 
   getNextCyclicSpawnCategory() {
+    if (this._pendingCyclicCandidate) {
+      return this._pendingCyclicCandidate.category;
+    }
+
     const state = this.spawnCycleState;
     const order = state.order || [];
     if (order.length === 0) return null;
 
+    let cursor = state.cursor % order.length;
     for (let i = 0; i < order.length; i++) {
-      const idx = state.cursor % order.length;
-      const candidate = order[idx];
-      state.cursor = (state.cursor + 1) % order.length;
-      state.lastAdvancedAt = Date.now();
-
+      const candidate = order[cursor];
       const validation = this.validateCategory(candidate);
+
       if (validation?.valid === true && validation.category) {
+        this._pendingCyclicCandidate = {
+          category: validation.category,
+          cursor,
+          nextCursor: (cursor + 1) % order.length,
+        };
+        state.cursor = cursor;
+        state.lastAdvancedAt = Date.now();
         state.skippedSinceSuccess = 0;
         return validation.category;
       }
 
+      cursor = (cursor + 1) % order.length;
+      state.cursor = cursor;
       state.skippedSinceSuccess += 1;
     }
 
     return null;
+  }
+
+  _commitSpawnCycleSuccess(category) {
+    const pending = this._pendingCyclicCandidate;
+    if (!pending || pending.category !== category) return false;
+    const state = this.spawnCycleState;
+    state.cursor = pending.nextCursor;
+    state.lastAdvancedAt = Date.now();
+    state.skippedSinceSuccess = 0;
+    this._pendingCyclicCandidate = null;
+    return true;
   }
 
   releaseUniqueSpawn(node) {
@@ -2505,6 +2549,30 @@ export class AINodes {
       }
     }
 
+    // Hard visual integrity gate: fail fast on missing meshes/materials.
+    const integrity = validateNodeVisualIntegrity(node);
+    if (
+      integrity.meshCount === 0 ||
+      integrity.materiallessMeshes.length > 0 ||
+      integrity.geometrylessMeshes.length > 0
+    ) {
+      console.error('[VisualBuildFail]', {
+        archetype: node.userData?.archetype,
+        category,
+        reason:
+          integrity.meshCount === 0
+            ? 'NoMesh'
+            : integrity.materiallessMeshes.length > 0
+            ? 'NoMaterial'
+            : 'NoGeometry',
+        meshCount: integrity.meshCount,
+        materiallessMeshes: integrity.materiallessMeshes,
+        geometrylessMeshes: integrity.geometrylessMeshes,
+        nodeId: node.userData?.nodeId || node.uuid,
+      });
+      return null;
+    }
+
     let renderableCount = 0;
     let badBoundsCount = 0;
     node.traverse((obj) => {
@@ -2733,9 +2801,12 @@ export class AINodes {
     // Position already resolved above
 
     // ========== STEP 2.5: UNIQUE ARCHETYPE ENFORCEMENT (SYNC) ==========
-    const uniqueArchetypeKey = this._getUniqueArchetypeKey(category, forceArchetype || category);
-    if (uniqueArchetypeKey) {
-      const existingUniqueNodeId = this.uniqueSpawnRegistry.getNodeId(uniqueArchetypeKey);
+    const forcedUniqueKey = forceArchetype
+      ? this._getUniqueArchetypeKey(category, forceArchetype)
+      : null;
+
+    if (forcedUniqueKey) {
+      const existingUniqueNodeId = this.uniqueSpawnRegistry.getNodeId(forcedUniqueKey);
       if (existingUniqueNodeId) {
         const existingUniqueNode =
           this.nodesMap?.get(existingUniqueNodeId) ||
@@ -2743,7 +2814,7 @@ export class AINodes {
         if (existingUniqueNode && existingUniqueNode.parent) {
           return existingUniqueNode;
         }
-        this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(uniqueArchetypeKey);
+        this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(forcedUniqueKey);
       }
     }
     
@@ -2785,10 +2856,6 @@ export class AINodes {
     newNode.userData.nodeId = newNode.userData.id;
     newNode.userData.category = category;  // <- PRIMARY SOURCE
     newNode.userData.archetype = forceArchetype || category || 'default';
-    newNode.userData.uniqueArchetypeKey = this._getUniqueArchetypeKey(
-      newNode.userData.category,
-      newNode.userData.archetype
-    );
     
     // ========== REGISTRATION VALIDATION (CRITICAL FOR INTERACTION) ==========
     // Ensure node has required properties for selection system
@@ -2861,24 +2928,38 @@ export class AINodes {
     if (!finalized) {
       return null;
     }
-    this._runPostSpawnObservers(finalized.node, {
+    const finalizedNode = finalized.node;
+
+    const fallbackToken = `instance-${finalizedNode.userData?.nodeId || finalizedNode.userData?.id || Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const variantToken = forceArchetype ??
+      finalizedNode.userData?.archetypeKey ??
+      finalizedNode.userData?.variantId ??
+      finalizedNode.userData?.spawnCycle?.variantIndex ??
+      finalizedNode.userData?.enhancedNodeModelBinding?.variantIndex ??
+      finalizedNode.userData?.archetype ??
+      fallbackToken;
+    const normalizedUniqueKey = this._getUniqueArchetypeKey(category, `${category}:${variantToken}`);
+    finalizedNode.userData.uniqueArchetypeKey = normalizedUniqueKey;
+
+    this._runPostSpawnObservers(finalizedNode, {
       source: 'spawnNode',
       category,
       position: spawnPos,
       archetype: newNode.userData.archetype,
       registryKey,
-      uniqueArchetypeKey: newNode.userData.uniqueArchetypeKey,
+      uniqueArchetypeKey: finalizedNode.userData.uniqueArchetypeKey,
     });
-    if (newNode.userData.uniqueArchetypeKey) {
+    if (finalizedNode.userData.uniqueArchetypeKey) {
       this.uniqueSpawnRegistry.registerUniqueSpawn(
-        newNode.userData.nodeId || newNode.userData.id || newNode.uuid,
-        newNode.userData.uniqueArchetypeKey,
+        finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid,
+        finalizedNode.userData.uniqueArchetypeKey,
         {
-          category: newNode.userData.category,
+          category: finalizedNode.userData.category,
           source: 'spawnNode',
         }
       );
     }
+    this._commitSpawnCycleSuccess(category);
     
     // NODE SPAWN LOGGER v4.0: Log spawn with full validation
     NodeSpawnLogger.logSpawn(newNode, category, spawnPos);

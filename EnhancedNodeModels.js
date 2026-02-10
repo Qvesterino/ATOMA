@@ -112,6 +112,10 @@ export class EnhancedNodeModels {
   }
 
   static ensureRegistryReady() {
+    if (!THREE || !THREE.Group) {
+      console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'SafeModeNoTHREE' });
+      return false;
+    }
     if (this._isRegistryValid()) return false; // already OK
 
     console.warn("[EnhancedNodeModels] Registry invalid → rebuilding");
@@ -124,6 +128,7 @@ export class EnhancedNodeModels {
 
     return true;
   }
+  
 
   static _registerAllFactories() {
 
@@ -404,36 +409,24 @@ export class EnhancedNodeModels {
         break;
     }
 
-    // ===== HARD VISIBILITY FALLBACK (DEBUG) =====
-    const forceDebugMaterial = (root) => {
-      if (root?.userData?.__nonRenderable === true) return root;
+    // Hard stop: do not auto-inject fallback materials; log for diagnostics.
+    if (rootGroup) {
       let meshFound = false;
-      if (!root) return root;
-
-      root.traverse(obj => {
+      let materialMissing = false;
+      rootGroup.traverse(obj => {
         if (obj.isMesh) {
           meshFound = true;
-
-          if (!obj.material) {
-            obj.material = new (__THREE_FALLBACK__?.MeshBasicMaterial ?? THREE.MeshBasicMaterial)({
-              color: 0xff00ff,
-              wireframe: true
-            });
-          }
-
-          obj.visible = true;
-          obj.layers.enableAll?.();
+          if (!obj.material) materialMissing = true;
         }
       });
-
-      if (!meshFound) {
-        console.error('[RENDER-CRITICAL] No mesh found in node root', category);
+      if (!meshFound || materialMissing) {
+        console.error('[VisualBuildFail]', {
+          archetype: rootGroup.userData?.archetype || category,
+          category: category,
+          reason: meshFound ? 'NoMaterial' : 'NoMesh',
+        });
       }
-
-      return root;
-    };
-
-    rootGroup = forceDebugMaterial(rootGroup);
+    }
     return rootGroup;
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====
@@ -442,6 +435,7 @@ export class EnhancedNodeModels {
    * Input Node 3: Rectangular gateway frame with cyan edge light
    */
   static createInputNode3(group, color) {
+    console.error('[VisualBuildFail]', { archetype: 'input-3', category: 'input', reason: 'NoMesh' });
     return group;
   }
 
@@ -1292,6 +1286,7 @@ export class EnhancedNodeModels {
    * Integration Node 1: (purged)
    */
   static createIntegrationNode1(group, color) {
+    console.error('[VisualBuildFail]', { archetype: 'integration-1', category: 'integration', reason: 'NoMesh' });
     return group;
   }
 
@@ -2437,6 +2432,7 @@ export class EnhancedNodeModels {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
+    console.error('[VisualBuildFail]', { archetype: 'control-1', category: 'control', reason: 'NoMesh' });
     return group;
   }
 
@@ -4428,7 +4424,10 @@ export class EnhancedNodeModels {
       
       // Create the EXTREME geometry
       const extremeGroup = this.extremeNodePack.createHyperbolicPrism(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-input-0', category: 'input', reason: 'NoMesh' });
+        return group;
+      }
       
       // Add to our group
       group.add(extremeGroup);
@@ -4456,7 +4455,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createSingularityKnot(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-input-1', category: 'input', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 1;
@@ -4483,7 +4485,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createQuantumLattice(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-process-0', category: 'process', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 2;
@@ -4510,7 +4515,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createFractalBloom(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-process-1', category: 'process', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 3;
@@ -4537,7 +4545,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createReactiveTesseract(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-integration-0', category: 'integration', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 4;
@@ -4564,7 +4575,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createChaoticHeart(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-integration-1', category: 'integration', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 5;
@@ -4591,7 +4605,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createWhisperSphere(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-storage-0', category: 'storage', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 6;
@@ -4618,7 +4635,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createEchoFractal(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-storage-1', category: 'storage', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 7;
@@ -4645,7 +4665,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createAbyssalShard(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-analytics-0', category: 'analytics', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 8;
@@ -4672,7 +4695,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createTriHelix(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-analytics-1', category: 'analytics', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 9;
@@ -4699,7 +4725,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createInfiniteSpiral(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-control-0', category: 'control', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 10;
@@ -4726,7 +4755,10 @@ export class EnhancedNodeModels {
       tempNode.visualGroup = new THREE.Group();
       
       const extremeGroup = this.extremeNodePack.createChronoRipper(tempNode, null);
-      if (!extremeGroup) return group;
+      if (!extremeGroup) {
+        console.error('[VisualBuildFail]', { archetype: 'extreme-control-1', category: 'control', reason: 'NoMesh' });
+        return group;
+      }
       
       group.add(extremeGroup);
       tempNode.userData.extremeArchetype = 11;
