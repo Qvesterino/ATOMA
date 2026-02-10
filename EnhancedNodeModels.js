@@ -116,17 +116,24 @@ export class EnhancedNodeModels {
       console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'SafeModeNoTHREE' });
       return false;
     }
-    if (this._isRegistryValid()) return false; // already OK
+    if (this._isRegistryValid()) return true; // already OK
+
+    if (this._registryInitialized === true) {
+      console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'RegistryInvalidLate' });
+      return false;
+    }
 
     console.warn("[EnhancedNodeModels] Registry invalid → rebuilding");
 
     try {
       this._registerAllFactories();
+      this._registryInitialized = true;
     } catch (e) {
       console.error("[EnhancedNodeModels] Registry rebuild failed", e);
+      return false;
     }
 
-    return true;
+    return this._isRegistryValid();
   }
   
 
@@ -333,9 +340,20 @@ export class EnhancedNodeModels {
 
   /**
    * Create node by category and index
+   * FIX 1: Lazy THREE guard - prevent visual creation when THREE is unavailable
    */
   static create(category = 'input', index = 0, color = 0x00ffff) {
-    this.ensureRegistryReady();
+    // FIX 1: Direct THREE guard before any visual creation
+    if (!THREE || !THREE.Group) {
+      console.error('[VisualBuildFail]', { archetype: category, category, reason: 'THREE_UNAVAILABLE' });
+      return null;
+    }
+    
+    const registryReady = this.ensureRegistryReady();
+    if (!registryReady || !this._isRegistryValid()) {
+      console.error('[VisualBuildFail]', { archetype: category, category, reason: 'RegistryInvalid' });
+      return null;
+    }
     const nodeGroup = new THREE.Group();
     const cat = (category || 'input').toLowerCase();
     const pool = CANONICAL_VARIANTS[cat] || [0];

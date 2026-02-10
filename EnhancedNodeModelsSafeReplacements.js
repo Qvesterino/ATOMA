@@ -215,8 +215,12 @@ export function selectOptimalNodeModel(group, category, index, nodeId, color) {
     console.warn(`[EnhancedNodeModelsSafeReplacements] Failed to create enhanced model for ${category}:`, err);
   }
   
-  // Fallback to legacy if enhanced creation fails
-  return group;
+  console.error('[VisualBuildFail]', {
+    archetype: `legacy-${category}`,
+    category,
+    reason: 'FactoryError'
+  });
+  return null;
 }
 
 /**

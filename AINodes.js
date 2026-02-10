@@ -10,7 +10,8 @@ function isLinkSpawnEnabled() {
 
 if (typeof window !== "undefined") {
   window.EnhancedNodeModels = EnhancedNodeModels;
-  EnhancedNodeModels.ensureRegistryReady?.();
+  // FIX 1: Remove top-level registry initialization to prevent THREE race condition
+  // Registry now initializes lazily inside runtime paths (create(), factory calls)
 }
 
 // ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
@@ -1137,7 +1138,7 @@ export class AINodes {
     }
     
     // ============ SAFE VFX LAYER 5: HOLOGRAPHIC EDGE HIGHLIGHTS ============
-    // Add edge glow by traversing geometry
+    // FIX 2: EdgesGeometry NaN discard - prevent invalid geometries from entering scene
     if (vfxFlag('ATOMA_VFX_ENABLE_NODE_EDGE_GLOW', true)) {
       // Local guard for safe EdgesGeometry creation
       function hasFinitePositions(geometry) {
@@ -1154,15 +1155,36 @@ export class AINodes {
               return null;
           }
           const edgeGeometry = new THREE.EdgesGeometry(sourceGeo);
-          const pos = edgeGeometry.attributes?.position?.array;
-          if (pos) {
-            for (let i = 0; i < pos.length; i++) {
-              if (!Number.isFinite(pos[i])) {
-                console.error('[GeometrySource] NaN created in EdgesGeometry', edgeGeometry);
-                break;
-              }
-            }
+          
+          // FIX 2: Validate position attribute after EdgesGeometry creation
+          const pos = edgeGeometry.attributes?.position;
+          if (!pos || pos.array.length === 0) {
+              console.error('[VisualReject]', {
+                  archetype: nodeModel.userData?.archetype,
+                  category: nodeModel.userData?.category,
+                  reason: 'EDGES_NAN_EMPTY',
+                  geometryType: edgeGeometry.type
+              });
+              edgeGeometry.dispose();
+              return null;
           }
+          
+          // FIX 2: Check for NaN values in EdgesGeometry output
+          for (let i = 0; i < pos.array.length; i++) {
+              if (!Number.isFinite(pos.array[i])) {
+                  console.error('[VisualReject]', {
+                      archetype: nodeModel.userData?.archetype,
+                      category: nodeModel.userData?.category,
+                      reason: 'EDGES_NAN',
+                      geometryType: edgeGeometry.type,
+                      NaNAtIndex: i,
+                      NaNValue: pos.array[i]
+                  });
+                  edgeGeometry.dispose();
+                  return null;
+              }
+          }
+          
           return edgeGeometry;
       }
       
@@ -2549,20 +2571,20 @@ export class AINodes {
       }
     }
 
-    // Hard visual integrity gate: fail fast on missing meshes/materials.
+    // Hard visual integrity gate: fail fast on missing meshes/materials/geometry.
     const integrity = validateNodeVisualIntegrity(node);
     if (
       integrity.meshCount === 0 ||
       integrity.materiallessMeshes.length > 0 ||
       integrity.geometrylessMeshes.length > 0
     ) {
-      console.error('[VisualBuildFail]', {
+      console.error('[VisualReject]', {
         archetype: node.userData?.archetype,
         category,
         reason:
           integrity.meshCount === 0
             ? 'NoMesh'
-            : integrity.materiallessMeshes.length > 0
+          : integrity.materiallessMeshes.length > 0
             ? 'NoMaterial'
             : 'NoGeometry',
         meshCount: integrity.meshCount,

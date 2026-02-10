@@ -52,11 +52,11 @@ export class CanonicalGeometryFamilies {
       return geometry.boundingSphere;
     }
     
-    // If marked immutable, cannot compute - return fallback sphere
+    // If marked immutable and missing bounds, abort
     const isImmutable = geometry.userData && geometry.userData.immutable === true;
     if (isImmutable) {
-      console.warn('[CanonicalGeometryFamilies] Immutable geometry missing boundingSphere. Using fallback.');
-      return new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1.0);
+      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', immutable: true });
+      return null;
     }
     
     // Safe to compute on mutable geometry
@@ -64,8 +64,8 @@ export class CanonicalGeometryFamilies {
       geometry.computeBoundingSphere();
       return geometry.boundingSphere;
     } catch (err) {
-      console.error('[CanonicalGeometryFamilies] Failed to compute bounding sphere:', err);
-      return new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1.0);
+      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', error: err?.message });
+      return null;
     }
   }
   
@@ -82,14 +82,11 @@ export class CanonicalGeometryFamilies {
       return geometry.boundingBox;
     }
     
-    // If marked immutable, cannot compute - return fallback box
+    // If marked immutable and missing bounds, abort
     const isImmutable = geometry.userData && geometry.userData.immutable === true;
     if (isImmutable) {
-      console.warn('[CanonicalGeometryFamilies] Immutable geometry missing boundingBox. Using fallback.');
-      return new THREE.Box3(
-        new THREE.Vector3(-1, -1, -1),
-        new THREE.Vector3(1, 1, 1)
-      );
+      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', immutable: true });
+      return null;
     }
     
     // Safe to compute on mutable geometry
@@ -99,11 +96,8 @@ export class CanonicalGeometryFamilies {
       }
       return geometry.boundingBox;
     } catch (err) {
-      console.error('[CanonicalGeometryFamilies] Failed to compute bounding box:', err);
-      return new THREE.Box3(
-        new THREE.Vector3(-1, -1, -1),
-        new THREE.Vector3(1, 1, 1)
-      );
+      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', error: err?.message });
+      return null;
     }
   }
   
