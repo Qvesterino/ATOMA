@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualAuthorityLock from './VisualAuthorityLock.js';
@@ -1142,6 +1143,8 @@ export class NeonLinkVisuals {
       });
 
       const mesh = new THREE.Mesh(geometry, material);
+      tagSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createSynergyFlowParticles' });
+      clampSphere(mesh);
       
       // Stagger starting positions along curve
       const startIndex = (i / flowConfig.count) * curvePoints.length;
@@ -1224,6 +1227,8 @@ export class NeonLinkVisuals {
         });
         
         const mesh = new THREE.Mesh(geometry, material);
+        tagSphere(mesh, { role: 'vfx', source: 'NeonLinkVisuals.createDataFlowParticles' });
+        clampSphere(mesh);
         
         // Random starting position on curve
         const startIndex = Math.floor(Math.random() * curvePoints.length);
@@ -1572,6 +1577,8 @@ export class NeonLinkVisuals {
     });
     
     const pulse = new THREE.Mesh(geometry, material);
+    tagSphere(pulse, { role: 'vfx', source: 'NeonLinkVisuals.createErrorPulse' });
+    clampSphere(pulse);
     pulse.position.copy(sourcePos);
     pulseGroup.add(pulse);
     

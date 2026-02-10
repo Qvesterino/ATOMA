@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tagSphere } from './VisualSpherePolicy.js';
 
 const hardAuthDebugEnabled = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_HARD_INTERACTION_AUTHORITY === true);
 const hardLog = (...args) => { if (hardAuthDebugEnabled()) hardLog(...args); };
@@ -80,6 +81,11 @@ export function enforceNodeInteractionCore(node) {
         side: THREE.DoubleSide
     });
     activeCore = new THREE.Mesh(geometry, material);
+    tagSphere(activeCore, {
+      role: 'interactionProxy',
+      source: 'HARD_INTERACTION_AUTHORITY_SYSTEM.enforceNodeInteractionCore',
+      owner: nodeId
+    });
     activeCore.name = 'InteractionProxy';
     activeCore.userData = {
       interactionCore: true,

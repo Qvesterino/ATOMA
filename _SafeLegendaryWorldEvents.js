@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
 
 /**
  * SAFE LEGENDARY WORLD EVENTS PACK
@@ -378,6 +379,8 @@ export class SafeLegendaryWorldEvents {
       });
       
       const particle = new THREE.Mesh(geo, mat);
+      tagSphere(particle, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(particle);
       particle.position.set(
         (Math.random() - 0.5) * 100,
         Math.random() * 50 + 30,
@@ -567,6 +570,8 @@ export class SafeLegendaryWorldEvents {
     });
     
     const singularity = new THREE.Mesh(singGeo, singMat);
+      tagSphere(singularity, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(singularity);
     singularity.position.set(0, 60, -80);
     singularity.userData = { isLegendaryWorldVFX: true, type: 'quantum_singularity' };
     this.scene.add(singularity);
@@ -684,6 +689,8 @@ export class SafeLegendaryWorldEvents {
       });
       
       const trail = new THREE.Mesh(trailGeo, trailMat);
+      tagSphere(trail, { role: 'vfx', source: '_SafeLegendaryWorldEvents.js' });
+      clampSphere(trail);
       trail.position.set(
         (Math.random() - 0.5) * 100,
         Math.random() * 40 + 20,
@@ -863,3 +870,4 @@ export class SafeLegendaryWorldEvents {
     this.pendingEvaluation = true;
   }
 }
+

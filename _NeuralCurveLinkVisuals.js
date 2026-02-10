@@ -463,8 +463,8 @@ export class NeuralCurveLinkVisuals {
       for (let i = 0; i < curveData.controlPoints.length; i++) {
         const point = curveData.controlPoints[i];
         
-        // Create small sphere to show control point
-        const geometry = new THREE.SphereGeometry(0.3, 8, 8);
+        // Use octahedron markers for debug control points (no SphereGeometry).
+        const geometry = new THREE.OctahedronGeometry(0.3, 0);
         const material = new THREE.MeshBasicMaterial({
           color: i === 0 ? 0x00ff00 : i === curveData.controlPoints.length - 1 ? 0xff0000 : 0xffff00,
           emissive: i === 1 ? 0x00ffff : 0x000000

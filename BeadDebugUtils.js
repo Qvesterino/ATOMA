@@ -232,8 +232,9 @@ export class BeadDebugController {
         if (pool) {
           for (const bead of pool.beads) {
             if (bead.isActive) {
-              // Sphere at bead position
-              const geom = new THREE.SphereGeometry(bead.radius, 8, 8);
+              // Box marker at bead position (no SphereGeometry in debug path).
+              const edge = Math.max(bead.radius * 2, 0.01);
+              const geom = new THREE.BoxGeometry(edge, edge, edge);
               const mat = new THREE.MeshBasicMaterial({
                 color: 0x00ff00,
                 wireframe: true,

@@ -27,6 +27,7 @@ import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
 import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
+import { installSpherePolicy } from './VisualSpherePolicy.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
@@ -4209,6 +4210,7 @@ hudP05Observer.observe(document.body, {
         
         // Scene
         this.scene = new THREE.Scene();
+        this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(
@@ -7948,6 +7950,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
         const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
+        if (this.spherePolicy?.sweep) {
+            this.spherePolicy.sweep(false, { phase: 'animate' });
+        }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
         VisualTime.delta = deltaTime;

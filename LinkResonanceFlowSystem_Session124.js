@@ -34,6 +34,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
@@ -431,6 +432,8 @@ export class LinkResonanceFlowSystem_Session124 {
     material.uniforms = THREE.UniformsUtils.clone(this.pulseMaterialTemplate.uniforms);
     
     const mesh = new THREE.Mesh(this.pulseMeshGeometry, material);
+    tagSphere(mesh, { role: 'vfx', source: 'LinkResonanceFlowSystem_Session124._createPulseMesh' });
+    clampSphere(mesh);
     mesh.visible = false;
     return mesh;
   }

@@ -216,8 +216,10 @@ export class SafeQuantumIllusionsPack1 {
     
     const ghostPos = targetNode.mesh.position.clone().add(offset);
     
-    // Clone geometry
-    const geometry = targetNode.mesh.geometry.clone() || new THREE.SphereGeometry(0.3, 8, 8);
+    // Clone geometry fail-closed: skip effect if source geometry is unavailable.
+    const sourceGeometry = targetNode.mesh.geometry;
+    if (!sourceGeometry || typeof sourceGeometry.clone !== 'function') return;
+    const geometry = sourceGeometry.clone();
     
     // Create chromatic material (blue/pink split)
     const material = new THREE.MeshStandardMaterial({

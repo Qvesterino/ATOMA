@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
@@ -371,6 +372,8 @@ export class SafeLegendaryLinkFX {
       );
       
       const mesh = new THREE.Mesh(geo, mat);
+      tagSphere(mesh, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+      clampSphere(mesh);
       mesh.position.copy(point);
       const scaleAmount = 0.5 + bandIndex * 0.2;
       mesh.scale.multiplyScalar(scaleAmount);
@@ -540,6 +543,8 @@ export class SafeLegendaryLinkFX {
           );
           
           const mesh = new THREE.Mesh(geo, mat);
+      tagSphere(mesh, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+      clampSphere(mesh);
           mesh.position.copy(point);
           this.scene.add(mesh);
           shockwave.meshes.push(mesh);
@@ -585,6 +590,8 @@ export class SafeLegendaryLinkFX {
       );
       
       const mesh = new THREE.Mesh(geo, mat);
+      tagSphere(mesh, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+      clampSphere(mesh);
       mesh.position.copy(point);
       group.add(mesh);
     });
@@ -692,6 +699,8 @@ export class SafeLegendaryLinkFX {
     );
     
     const spark = new THREE.Mesh(geo, mat);
+    tagSphere(spark, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+    clampSphere(spark);
     spark.userData = { isLegendaryLinkVFX: true, type: 'sigma_spark' };
     
     return spark;
@@ -808,6 +817,8 @@ export class SafeLegendaryLinkFX {
       );
       
       const mesh = new THREE.Mesh(geo, mat);
+      tagSphere(mesh, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+      clampSphere(mesh);
       mesh.position.copy(point);
       group.add(mesh);
     });
@@ -836,6 +847,8 @@ export class SafeLegendaryLinkFX {
       );
       
       const mesh = new THREE.Mesh(geo, mat);
+      tagSphere(mesh, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+      clampSphere(mesh);
       mesh.position.copy(point);
       group.add(mesh);
     });
@@ -860,6 +873,8 @@ export class SafeLegendaryLinkFX {
     );
     
     const particle = new THREE.Mesh(geo, mat);
+    tagSphere(particle, { role: 'vfx', source: 'SafeLegendaryLinkFX' });
+    clampSphere(particle);
     particle.userData = { isLegendaryLinkVFX: true, type: 'quantum_particle' };
     
     return particle;
@@ -1092,3 +1107,4 @@ export class SafeLegendaryLinkFX {
     this.activeBursts = [];
   }
 }
+

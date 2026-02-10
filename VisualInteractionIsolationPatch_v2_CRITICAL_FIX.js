@@ -31,6 +31,7 @@
  */
 
 import * as THREE from 'three';
+import { tagSphere } from './VisualSpherePolicy.js';
 
 // ============================================================================
 // INTERACTION CORE IDENTIFIER (UNCHANGED)
@@ -126,6 +127,11 @@ class InteractionCoreIdentifier {
     });
 
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
+    tagSphere(proxyMesh, {
+      role: 'interactionProxy',
+      source: 'VisualInteractionIsolationPatch_v2.findOrCreateCore',
+      owner: nodeGroup.userData?.nodeId || nodeGroup.userData?.id || nodeGroup.uuid
+    });
     proxyMesh.name = '__interaction_proxy__';
     proxyMesh.userData.isInteractionProxy = true;
     proxyMesh.userData.isInteractionCore = true;

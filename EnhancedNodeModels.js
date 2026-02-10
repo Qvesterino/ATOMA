@@ -427,22 +427,66 @@ export class EnhancedNodeModels {
         break;
     }
 
+    // FIX 3: Full visual validation - reject simple/fallback visuals
     // Hard stop: do not auto-inject fallback materials; log for diagnostics.
     if (rootGroup) {
       let meshFound = false;
       let materialMissing = false;
+      let meshCount = 0;
+      let hasOnlySpheres = true;
+      let geometryTypes = new Set();
+      
       rootGroup.traverse(obj => {
         if (obj.isMesh) {
           meshFound = true;
+          meshCount++;
+          
           if (!obj.material) materialMissing = true;
+          
+          // Track geometry types for primitive detection
+          if (obj.geometry) {
+            const geoType = obj.geometry.type || obj.geometry.constructor?.name || 'unknown';
+            geometryTypes.add(geoType);
+            if (geoType !== 'SphereGeometry' && 
+                geoType !== 'IcosahedronGeometry' &&
+                geoType !== 'OctahedronGeometry') {
+              hasOnlySpheres = false;
+            }
+          }
         }
       });
+      
       if (!meshFound || materialMissing) {
         console.error('[VisualBuildFail]', {
           archetype: rootGroup.userData?.archetype || category,
           category: category,
           reason: meshFound ? 'NoMaterial' : 'NoMesh',
         });
+      }
+      
+      // FIX 3: Reject simple visuals (mesh count < 2 or only primitive spheres)
+      if (meshFound && !materialMissing) {
+        if (meshCount < 2) {
+          console.warn('[VisualBuildReject][SimpleVisual]', { 
+            archetype: rootGroup.userData?.archetype || category,
+            category: category,
+            reason: 'MeshCountLessThan2',
+            meshCount: meshCount,
+            geometryTypes: Array.from(geometryTypes)
+          });
+          return null;
+        }
+        
+        if (hasOnlySpheres && meshCount <= 2) {
+          console.warn('[VisualBuildReject][SimpleVisual]', { 
+            archetype: rootGroup.userData?.archetype || category,
+            category: category,
+            reason: 'PrimitiveSphereOnly',
+            meshCount: meshCount,
+            geometryTypes: Array.from(geometryTypes)
+          });
+          return null;
+        }
       }
     }
     return rootGroup;

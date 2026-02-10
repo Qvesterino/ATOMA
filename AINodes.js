@@ -13,6 +13,10 @@ if (typeof window !== "undefined") {
   // FIX 1: Remove top-level registry initialization to prevent THREE race condition
   // Registry now initializes lazily inside runtime paths (create(), factory calls)
 }
+// Debug/guard flag: disable all visual fallbacks (legacy simple spheres, etc.)
+if (typeof window !== 'undefined' && window.ATOMA_NO_FALLBACK_SPHERES === undefined) {
+  window.ATOMA_NO_FALLBACK_SPHERES = true;
+}
 
 // ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
 if (typeof window !== 'undefined') {
@@ -76,6 +80,7 @@ import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js'
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
+import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
 
 function hasRenderableVisual(object3D) {
   if (!object3D) return false;
@@ -705,7 +710,11 @@ export class AINodes {
       };
 
       const node = this.createNode(category, pos, index, isSpecial, options);
-      const finalized = node ? this._finalizeSpawnedNode(node, category, pos) : null;
+      if (!node || node.userData?.visualFailed === true) {
+        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', node?.userData?.nodeId || node?.uuid || null);
+        return;
+      }
+      const finalized = this._finalizeSpawnedNode(node, category, pos);
       
       if (finalized && finalized.node) {
           const finalizedNode = finalized.node;
@@ -947,6 +956,21 @@ export class AINodes {
       return null;
     }
     
+    // Fail-closed helper: mark visual failure and abort without fallback visuals
+    const failClosedVisual = (node, reason) => {
+      const target = node || { userData: {} };
+      if (typeof target === 'object') {
+        target.userData = target.userData || {};
+        target.userData.visualFailed = true;
+      }
+      const nodeId = target.userData?.nodeId || target.uuid || null;
+      console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', nodeId);
+      if (reason && window?.ATOMA_DEBUG_LINK_SPAWN === true) {
+        console.warn('[NodeSpawnSkipped][reason]', reason);
+      }
+      return null;
+    };
+
     // ========== VARIANT SELECTION: simple validator + uniform index ==========
     const variantIndex = this.nodeCounter++;
     const validatedCategory = spawnCycleValidator.validateCategory(
@@ -954,22 +978,17 @@ export class AINodes {
       ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']
     );
     // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
-    const nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
+    let nodeModel = null;
+    try {
+      nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
+    } catch (err) {
+      return failClosedVisual(null, err?.message || 'EnhancedNodeModels.create threw');
+    }
     if (!nodeModel) {
-      console.error('[NodeVisualError]', {
-        nodeId: null,
-        category: safeCategory,
-        reason: 'No canonical visual available'
-      });
-      return null; // skip visual, continue spawning pipeline
+      return failClosedVisual(null, 'No canonical visual available');
     }
     if (!hasRenderableVisual(nodeModel)) {
-      console.error('[NodeVisualError]', {
-        nodeId: nodeModel.uuid || null,
-        category: safeCategory,
-        reason: 'Visual has no renderable content'
-      });
-      return null;
+      return failClosedVisual(nodeModel, 'Visual has no renderable content');
     }
     nodeModel.position.copy(position);
     nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
@@ -2638,6 +2657,24 @@ export class AINodes {
 
     if (renderableCount === 0) return null;
 
+    // Protection: invisible roots must not enter the scene
+    if (!node.children || node.children.length === 0) {
+      const nodeId = node.userData?.nodeId || node.uuid || 'unknown';
+      console.warn('[NodeInvisibleAbort]', nodeId);
+      return null;
+    }
+
+    // Global sphere policy gate before any scene attachment.
+    const spherePolicyResult = validateSpherePolicyObject3D(node, {
+      phase: 'spawn-finalize',
+      category,
+      nodeId: node.userData?.nodeId || node.uuid,
+    });
+    if (!node.parent && (!node.children || node.children.length === 0 || spherePolicyResult.removed > 0 && !hasRenderableVisual(node))) {
+      console.warn('[NodeSpawnSkipped] Sphere policy removed renderables, skipping node', node.userData?.nodeId || node.uuid || null);
+      return null;
+    }
+
     let sceneAdded = false;
     if (!node.parent && this.scene) {
       this.scene.add(node);
@@ -2840,10 +2877,91 @@ export class AINodes {
       }
     }
     
+    // ========== FIX 3: SIMPLE VISUAL REJECTION ==========
+    // Reject nodes with simple/fallback visuals (primitive spheres only)
+    function isSimpleVisual(node) {
+      if (!node) return false;
+      let meshCount = 0;
+      let hasOnlyPrimitiveSpheres = true;
+      let geometryTypes = new Set();
+      
+      node.traverse(obj => {
+        if (obj.isMesh) {
+          meshCount++;
+          if (obj.geometry) {
+            const geoType = obj.geometry.type || obj.geometry.constructor?.name || 'unknown';
+            geometryTypes.add(geoType);
+            const isPrimitiveSphere = 
+              geoType === 'SphereGeometry' ||
+              geoType === 'IcosahedronGeometry' ||
+              geoType === 'OctahedronGeometry';
+            if (!isPrimitiveSphere) {
+              hasOnlyPrimitiveSpheres = false;
+            }
+          }
+        }
+      });
+      
+      return meshCount > 0 && (meshCount < 2 || (hasOnlyPrimitiveSpheres && meshCount <= 2));
+    }
+    
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
     const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
-    if (!newNode) return null;
+    if (!newNode || newNode.userData?.visualFailed === true) {
+      console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode?.userData?.nodeId || newNode?.uuid || null);
+      return null;
+    }
+    
+    // FIX 3: Reject simple visuals at spawn time
+    if (isSimpleVisual(newNode)) {
+      let meshCount = 0;
+      let hasOnlyPrimitiveSpheres = true;
+      let geometryTypes = new Set();
+      
+      newNode.traverse(obj => {
+        if (obj.isMesh) {
+          meshCount++;
+          if (obj.geometry) {
+            const geoType = obj.geometry.type || obj.geometry.constructor?.name || 'unknown';
+            geometryTypes.add(geoType);
+            const isPrimitiveSphere = 
+              geoType === 'SphereGeometry' ||
+              geoType === 'IcosahedronGeometry' ||
+              geoType === 'OctahedronGeometry';
+            if (!isPrimitiveSphere) {
+              hasOnlyPrimitiveSpheres = false;
+            }
+          }
+        }
+      });
+      
+      if (meshCount < 2) {
+        console.warn('[VisualReject][PrimitiveOnly]', { 
+          archetype: newNode.userData?.archetype || category,
+          category: category,
+          reason: 'MeshCountLessThan2',
+          meshCount: meshCount,
+          geometryTypes: Array.from(geometryTypes)
+        });
+        newNode.userData.visualFailed = true;
+        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId || newNode.uuid || null);
+        return null;
+      }
+      
+      if (hasOnlyPrimitiveSpheres && meshCount <= 2) {
+        console.warn('[VisualReject][PrimitiveOnly]', { 
+          archetype: newNode.userData?.archetype || category,
+          category: category,
+          reason: 'PrimitiveSphereOnly',
+          meshCount: meshCount,
+          geometryTypes: Array.from(geometryTypes)
+        });
+        newNode.userData.visualFailed = true;
+        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId || newNode.uuid || null);
+        return null;
+      }
+    }
     
     // ========================================================================
     // [SPAWN AUTHORITY] POST-SPAWN VALIDATION: Node must be compliant

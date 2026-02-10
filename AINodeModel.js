@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createCoreIdentityMaterial, createNodeHologramShell, updateHologramShellMaterial } from './CoreHologramShader.js';
 import { CONFIG } from './config.js';
+import { tagSphere } from './VisualSpherePolicy.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
@@ -162,6 +163,7 @@ export class AINodeModel {
       depthTest: false
     });
     const collider = new THREE.Mesh(colliderGeometry, colliderMaterial);
+    tagSphere(collider, { role: 'collider', source: 'AINodeModel.createCoreNode', owner: group.userData?.id || group.uuid });
     collider.userData.interactionAuthority = true;
     collider.userData.isInteractionCollider = true;
     collider.name = 'InteractionCollider';
@@ -366,6 +368,7 @@ export class AINodeModel {
         opacity: 0.6
       });
       const corner = new THREE.Mesh(cornerGeometry, cornerMaterial);
+      tagSphere(corner, { role: 'canonicalSphere', source: 'AINodeModel.createMemoryNode', owner: group.userData?.id || group.uuid });
       corner.position.set(pos[0], pos[1], pos[2]);
       corner.userData.visualLayer = 'EFFECT';
       corner.userData.isEffect = true;
@@ -555,6 +558,7 @@ export class AINodeModel {
       opacity: 0.6
     });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    tagSphere(core, { role: 'canonicalSphere', source: 'AINodeModel.createNeuralNode', owner: group.userData?.id || group.uuid });
     group.add(core);
     
     group.userData = {
@@ -681,6 +685,7 @@ export class AINodeModel {
       depthTest: false
     });
     const collider = new THREE.Mesh(colliderGeometry, colliderMaterial);
+    tagSphere(collider, { role: 'collider', source: 'AINodeModel.ensureInteractionCollider', owner: nodeGroup.userData?.id || nodeGroup.uuid });
     collider.userData.interactionAuthority = true;
     collider.userData.isInteractionCollider = true;
     collider.name = 'InteractionCollider';

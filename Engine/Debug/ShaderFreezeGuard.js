@@ -220,8 +220,10 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
     EnhancedNodeModels.ensureRegistryReady?.();
 
     for (const cat of categories) {
-        const node = EnhancedNodeModels.create?.(cat, 0, 0xffffff) ||
-            new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        const node = EnhancedNodeModels.create?.(cat, 0, 0xffffff);
+        if (!node) {
+            continue;
+        }
         node.position.set(9999, 9999, 9999);
         node.visible = true;
         addDisposable(node);

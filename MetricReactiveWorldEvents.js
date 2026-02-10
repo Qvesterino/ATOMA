@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tagSphere, clampSphere } from './VisualSpherePolicy.js';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
 /**
@@ -517,6 +518,8 @@ export class MetricReactiveWorldEvents {
       });
       
       const particle = new THREE.Mesh(geometry, material);
+      tagSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createOrbitalParticles' });
+      clampSphere(particle);
       const angle = (i / count) * Math.PI * 2;
       const radius = 3 + Math.random() * 2;
       
@@ -556,6 +559,8 @@ export class MetricReactiveWorldEvents {
       });
       
       const particle = new THREE.Mesh(geometry, material);
+      tagSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createFloatingParticles' });
+      clampSphere(particle);
       particle.position.set(
         (Math.random() - 0.5) * 10,
         Math.random() * 5,
@@ -652,6 +657,8 @@ export class MetricReactiveWorldEvents {
       });
       
       const particle = new THREE.Mesh(geometry, material);
+      tagSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createRotatingParticles' });
+      clampSphere(particle);
       const angle = (i / count) * Math.PI * 2;
       
       particle.position.set(
@@ -720,6 +727,8 @@ export class MetricReactiveWorldEvents {
       });
       
       const particle = new THREE.Mesh(geometry, material);
+      tagSphere(particle, { role: 'vfx', source: 'MetricReactiveWorldEvents.createVoidFragments' });
+      clampSphere(particle);
       particle.position.set(
         (Math.random() - 0.5) * 10,
         0,
@@ -945,6 +954,8 @@ export class MetricReactiveWorldEvents {
     });
     
     const halo = new THREE.Mesh(geometry, material);
+    tagSphere(halo, { role: 'vfx', source: 'MetricReactiveWorldEvents.applyHaloEffect' });
+    clampSphere(halo);
     halo.scale.multiplyScalar(3);
     halo.userData.haloData = { duration, elapsedTime: 0 };
     

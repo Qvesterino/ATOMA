@@ -24,6 +24,7 @@
  */
 
 import * as THREE from 'three';
+import { tagSphere } from './VisualSpherePolicy.js';
 
 class HitProxyAutoRegistrar {
   constructor(game, aiNodes, hitProxySystem) {
@@ -150,6 +151,11 @@ class HitProxyAutoRegistrar {
         wireframe: false
       });
       const proxy = new THREE.Mesh(geometry, material);
+      tagSphere(proxy, {
+        role: 'interactionProxy',
+        source: 'HitProxyAutoRegistrar.createProxyMesh',
+        owner: node.userData?.id || node.userData?.nodeId || node.uuid
+      });
 
       // Position at node location
       proxy.position.copy(node.position);

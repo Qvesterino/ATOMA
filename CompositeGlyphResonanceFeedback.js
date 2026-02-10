@@ -666,11 +666,10 @@ class ResonanceInfluenceZone {
             scene.remove(this.debugSphere);
         }
         
-        // Draw influence radius as wireframe sphere
-        const geometry = new THREE.SphereGeometry(this.influenceRadius, 16, 16);
+        // Draw influence radius with a non-sphere marker to avoid debug SphereGeometry.
+        const geometry = new THREE.TorusGeometry(this.influenceRadius, 0.02, 8, 48);
         const material = new THREE.MeshBasicMaterial({
             color: 0x00ff00,
-            wireframe: true,
             opacity: 0.2,
             transparent: true
         });
