@@ -507,7 +507,9 @@ import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNN
 // ✅ T2-003: Harmony Visual Feedback Consumer
 // ============================================================================
 import { T2_CorruptionVisualIntegration_v1 } from './T2_CorruptionVisualIntegration_v1.js';
-import { T2_HarmonyVisualConsumer_v1 } from './T2_HarmonyVisualConsumer_v1.js';
+// DISABLED: T2_HarmonyVisualConsumer_v1 creates primitive sphere auras (SphereGeometry)
+// Violates ATOMA visual policy - only EnhancedNodeModels allowed for node visuals
+// import { T2_HarmonyVisualConsumer_v1 } from './T2_HarmonyVisualConsumer_v1.js';
 
 // ============================================================================
 // TIER 4 GAMEPLAY INTEGRATION — Gameplay Layer
@@ -3340,8 +3342,8 @@ document.addEventListener('keydown', () => {
         // T2-002: Corruption Visual Integration
         this.t2CorruptionVisualIntegration = null;
         
-        // T2-003: Harmony Visual Consumer
-        this.t2HarmonyVisualConsumer = null;
+        // T2-003: DISABLED - Harmony Visual Consumer creates primitive sphere auras
+        // this.t2HarmonyVisualConsumer = null;
         
         // ====================================================================
         // TIER 4 GAMEPLAY INTEGRATION: Gameplay Layer
@@ -6270,16 +6272,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] T2_CorruptionVisualIntegration_v1 initialization failed:', err);
         }
         
-        // T2-003: Initialize Harmony Visual Consumer
-        try {
-            this.t2HarmonyVisualConsumer = new T2_HarmonyVisualConsumer_v1(
-                this.scene,
-                this.harmonyStabilizationSystem
-            );
-            console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
-        }
+        // T2-003: DISABLED - Harmony Visual Consumer creates primitive sphere auras
+        // Violates ATOMA visual policy (no SphereGeometry allowed)
+        console.log('[ATOMA] HarmonyVisualConsumer DISABLED (primitive sphere source removed)');
+        // try {
+        //     this.t2HarmonyVisualConsumer = new T2_HarmonyVisualConsumer_v1(
+        //         this.scene,
+        //         this.harmonyStabilizationSystem
+        //     );
+        //     console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
+        // } catch (err) {
+        //     console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
+        // }
         
         // ====================================================================
         // TIER 4 GAMEPLAY INTEGRATION: Gameplay Layer
@@ -7909,6 +7913,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
     animate() {
         this.updateValidator?.startFrame();
         requestAnimationFrame(() => this.animate());
+        window.__enforceProxyVisualLock?.();
 
         const t0 = performance.now();
         const tracingSpike = window.__DBG_SPIKE_TRACE === true;
@@ -9099,10 +9104,10 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
         
         // T2-003: Update Harmony Visual Consumer
-        // Wires node.harmonyLevel → cyan auras + healing pulses
-        if (this.t2HarmonyVisualConsumer && this.aiNodes) {
-            this.t2HarmonyVisualConsumer.update(deltaTime, this.aiNodes, this.harmonyStabilizationSystem);
-        }
+        // DISABLED: HarmonyVisualConsumer update (primitive spheres removed)
+        // if (this.t2HarmonyVisualConsumer && this.aiNodes) {
+        //     this.t2HarmonyVisualConsumer.update(deltaTime, this.aiNodes, this.harmonyStabilizationSystem);
+        // }
         
         // ====================================================================
         // TIER 4 GAMEPLAY INTEGRATION: Update Visual + UI Feedback

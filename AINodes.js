@@ -18,6 +18,18 @@ if (typeof window !== 'undefined' && window.ATOMA_NO_FALLBACK_SPHERES === undefi
   window.ATOMA_NO_FALLBACK_SPHERES = true;
 }
 
+const ALLOWED_GEOMETRIES = new Set([
+  'BufferGeometry'
+]);
+
+const FORBIDDEN_NODE_GEOMETRIES = new Set([
+  'SphereGeometry',
+  'IcosahedronGeometry',
+  'RingGeometry',
+  'CircleGeometry',
+  'TorusGeometry'
+]);
+
 // ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
 if (typeof window !== 'undefined') {
   window.debugSpawnPools = function() {
@@ -116,6 +128,30 @@ function validateNodeVisualIntegrity(root) {
     }
   });
   return result;
+}
+
+function purgeForbiddenNodePrimitives(visualRoot) {
+  if (!visualRoot) return { removed: 0 };
+  let removed = 0;
+  const strictMode = typeof window !== 'undefined' && window.ATOMA_STRICT_NODE_GEOMETRY_MODE === true;
+  const toRemove = [];
+
+  visualRoot.traverse(obj => {
+    if (!obj?.isMesh) return;
+    const g = obj.geometry?.type;
+    const geometryForbidden = FORBIDDEN_NODE_GEOMETRIES.has(g);
+    const strictBlocked = strictMode && !ALLOWED_GEOMETRIES.has(g);
+    if (!geometryForbidden && !strictBlocked) return;
+    console.warn('[NODE_VISUAL_KILL] Primitive removed:', g || 'unknown');
+    toRemove.push(obj);
+  });
+
+  for (const obj of toRemove) {
+    obj.visible = false;
+    obj.parent?.remove(obj);
+    removed++;
+  }
+  return { removed };
 }
 
 // ============================================================
@@ -962,9 +998,10 @@ export class AINodes {
       if (typeof target === 'object') {
         target.userData = target.userData || {};
         target.userData.visualFailed = true;
+        target.userData.__visualFailed = true;
+        target.visible = false;
       }
-      const nodeId = target.userData?.nodeId || target.uuid || null;
-      console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', nodeId);
+      console.warn('[NODE_REJECT] Canonical visual missing - node not spawned');
       if (reason && window?.ATOMA_DEBUG_LINK_SPAWN === true) {
         console.warn('[NodeSpawnSkipped][reason]', reason);
       }
@@ -989,6 +1026,14 @@ export class AINodes {
     }
     if (!hasRenderableVisual(nodeModel)) {
       return failClosedVisual(nodeModel, 'Visual has no renderable content');
+    }
+    const purgeResult = purgeForbiddenNodePrimitives(nodeModel);
+    if (!hasRenderableVisual(nodeModel) || nodeModel.userData?.__visualFailed === true) {
+      return failClosedVisual(nodeModel, `Visual invalid after primitive purge (removed=${purgeResult.removed})`);
+    }
+    if ((nodeModel.children?.length || 0) === 0) {
+      console.warn('[NODE_REJECT] Empty visual root');
+      return failClosedVisual(nodeModel, 'Empty visual root');
     }
     nodeModel.position.copy(position);
     nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
@@ -1052,7 +1097,7 @@ export class AINodes {
     let linkTargetMesh = linkTarget;
     
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS (1-3 thin rings) ==========
-    const ringCount = isSpecial ? 3 : (Math.random() < 0.5 ? 2 : 1);
+    const ringCount = 0;
     const orbitRings = [];
     
     for (let r = 0; r < ringCount; r++) {
@@ -1101,7 +1146,7 @@ export class AINodes {
     // ========== ULTRA EDITION: INTENSE OUTER GLOW (200% boost) ==========
     // Primary glow (2× larger and brighter)
     let outerGlow = null;
-    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
+    if (false && vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
       const outerGlowGeometry = new THREE.IcosahedronGeometry(1.2, 4);
       const outerGlowMaterial = new THREE.MeshBasicMaterial({
         color: layerColors.primary,
@@ -1131,7 +1176,7 @@ export class AINodes {
     // Secondary halo (even larger, very soft)
     // [Halo Cleanup v1.0] Reduced scale from 1.5→1.15 and opacity from 0.15→0.22 for better readability
     let haloGlow = null;
-    if (vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
+    if (false && vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
       const haloGeometry = new THREE.IcosahedronGeometry(1.15, 3);
       const haloMaterial = new THREE.MeshBasicMaterial({
         color: layerColors.secondary,
@@ -1232,7 +1277,7 @@ export class AINodes {
     }
     
     // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased count) ==========
-    const particleCount = isSpecial ? 12 : 8;  // Increased from 6
+    const particleCount = 0;
     const sparkParticles = [];
     
     for (let i = 0; i < particleCount; i++) {
@@ -1292,7 +1337,7 @@ export class AINodes {
     fractalHolo.visible = false; // Neutralize decorative hologram
     fractalHolo.userData.neutralized = true;
     // Guard: Only add fractal hologram if not already present
-    if (!nodeModel.userData.overlays['fractal-hologram']) {
+    if (false && !nodeModel.userData.overlays['fractal-hologram']) {
       nodeModel.add(fractalHolo);
       nodeModel.userData.overlays['fractal-hologram'] = fractalHolo;
     }
@@ -1488,6 +1533,12 @@ export class AINodes {
     nodeModel.userData._integrationApplied = false;
     nodeModel.userData._archetypeDirty = true;
     nodeModel.userData._integrationDirty = true;
+
+    purgeForbiddenNodePrimitives(nodeModel);
+    if ((nodeModel.children?.length || 0) === 0) {
+      console.warn('[NODE_REJECT] Empty visual root');
+      return null;
+    }
     
     return nodeModel;
   }
@@ -2005,6 +2056,7 @@ export class AINodes {
    * Now driven by deltaTime instead of wall-clock performance.now().
    */
   createActivationPulse(node) {
+    return null;
     const pulseGeometry = new THREE.RingGeometry(0.5, 0.6, 32);
     const pulseMaterial = new THREE.MeshBasicMaterial({
       color: node.userData.baseColor,
@@ -2908,8 +2960,8 @@ export class AINodes {
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
     const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
-    if (!newNode || newNode.userData?.visualFailed === true) {
-      console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode?.userData?.nodeId || newNode?.uuid || null);
+    if (!newNode || newNode.userData?.visualFailed === true || newNode.userData?.__visualFailed === true) {
+      console.warn('[NODE_REJECT] Canonical visual missing - node not spawned');
       return null;
     }
     

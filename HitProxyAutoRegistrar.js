@@ -146,9 +146,12 @@ class HitProxyAutoRegistrar {
       // Create invisible sphere proxy
       const geometry = new THREE.SphereGeometry(this.proxyRadius, 8, 8);
       const material = new THREE.MeshBasicMaterial({
+        visible: false,
         transparent: true,
         opacity: 0,
-        wireframe: false
+        wireframe: false,
+        depthWrite: false,
+        depthTest: false
       });
       const proxy = new THREE.Mesh(geometry, material);
       tagAllowedSphere(proxy, {
@@ -165,9 +168,17 @@ class HitProxyAutoRegistrar {
       proxy.layers.disableAll();
       proxy.layers.enable(this.proxyLayer);
 
-      // Disable rendering
+      // Strict invisible proxy: raycast-only, no render cost
+      proxy.visible = false;
+      proxy.renderOrder = -Infinity;
+      proxy.frustumCulled = false;
+      proxy.castShadow = false;
+      proxy.receiveShadow = false;
+      proxy.raycast = THREE.Mesh.prototype.raycast;
+
       proxy.userData = {
         isHitProxy: true,
+        __hitProxy: true,
         targetNodeId: node.userData?.id,
         proxyType: 'node'
       };

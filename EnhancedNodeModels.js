@@ -30,6 +30,14 @@ const CANONICAL_VARIANTS = {
   emotional:[0, 1, 2, 3, 4, 5]
 };
 
+const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
+  'SphereGeometry',
+  'IcosahedronGeometry',
+  'RingGeometry',
+  'CircleGeometry',
+  'TorusGeometry'
+]);
+
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
   return mat;
@@ -422,9 +430,8 @@ export class EnhancedNodeModels {
         break;
       
       default:
-        console.warn(`[EnhancedNodeModels] Unknown category: '${category}'. Falling back to INPUT.`);
-        rootGroup = this.createInputNode(nodeGroup, variantIndex, color);
-        break;
+        console.warn(`[NODE_REJECT] Canonical visual missing — node not spawned (${category})`);
+        return null;
     }
 
     const clearPartialVisuals = (group) => {
@@ -497,6 +504,32 @@ export class EnhancedNodeModels {
           clearPartialVisuals(rootGroup);
           return null;
         }
+      }
+
+      const forbiddenMeshes = [];
+      rootGroup.traverse(obj => {
+        if (!obj?.isMesh) return;
+        const g = obj.geometry?.type;
+        if (FORBIDDEN_CANONICAL_GEOMETRIES.has(g)) {
+          forbiddenMeshes.push({ obj, g });
+        }
+      });
+
+      if (forbiddenMeshes.length > 0) {
+        for (const hit of forbiddenMeshes) {
+          console.warn('[NODE_VISUAL_KILL] Primitive removed:', hit.g);
+          hit.obj.visible = false;
+          hit.obj.parent?.remove(hit.obj);
+        }
+        console.warn('[NODE_REJECT] Canonical visual missing — node not spawned');
+        clearPartialVisuals(rootGroup);
+        return null;
+      }
+
+      if ((rootGroup.children?.length || 0) === 0) {
+        console.warn('[NODE_REJECT] Empty visual root');
+        clearPartialVisuals(rootGroup);
+        return null;
       }
     }
     return rootGroup;

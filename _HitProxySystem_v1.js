@@ -54,6 +54,31 @@ const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
 // ============================================================================
 
 class HitProxyFactory {
+  static configureProxyMesh(mesh) {
+    if (!(mesh instanceof THREE.Mesh)) return mesh;
+
+    mesh.visible = false;
+    mesh.renderOrder = -Infinity;
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.raycast = THREE.Mesh.prototype.raycast;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.isHitProxy = true;
+    mesh.userData.__hitProxy = true;
+
+    if (mesh.material && mesh.material.isMaterial) {
+      mesh.material.visible = false;
+      mesh.material.transparent = true;
+      mesh.material.opacity = 0;
+      mesh.material.depthWrite = false;
+      mesh.material.depthTest = false;
+    }
+    mesh.userData.__hardInvisibleProxy = true;
+
+    return mesh;
+  }
+
   /**
    * Create an invisible sphere hit-proxy mesh
    * @param {number} radius - Proxy sphere radius
@@ -65,15 +90,14 @@ class HitProxyFactory {
       visible: false,         // Invisible (no render)
       transparent: true,
       opacity: 0,
+      depthWrite: false,
+      depthTest: false,
       side: THREE.DoubleSide
     });
     
     const sphere = new THREE.Mesh(geometry, material);
     tagAllowedSphere(sphere, { role: 'interactionProxy', source: 'HitProxyFactory.createProxySphere' });
-    sphere.userData = sphere.userData || {};
-    sphere.userData.isHitProxy = true;  // Mark as proxy
-    sphere.castShadow = false;
-    sphere.receiveShadow = false;
+    HitProxyFactory.configureProxyMesh(sphere);
     
     return sphere;
   }
@@ -89,14 +113,13 @@ class HitProxyFactory {
       visible: false,
       transparent: true,
       opacity: 0,
+      depthWrite: false,
+      depthTest: false,
       side: THREE.DoubleSide
     });
     
     const cube = new THREE.Mesh(geometry, material);
-    cube.userData = cube.userData || {};
-    cube.userData.isHitProxy = true;
-    cube.castShadow = false;
-    cube.receiveShadow = false;
+    HitProxyFactory.configureProxyMesh(cube);
     
     return cube;
   }
@@ -117,12 +140,13 @@ class HitProxyFactory {
     const material = new THREE.MeshBasicMaterial({
       visible: false,
       transparent: true,
-      opacity: 0
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false
     });
     
     const cylinder = new THREE.Mesh(cylGeometry, material);
-    cylinder.userData = cylinder.userData || {};
-    cylinder.userData.isHitProxy = true;
+    HitProxyFactory.configureProxyMesh(cylinder);
     group.add(cylinder);
     
     // Top sphere
@@ -531,6 +555,9 @@ export function setupHitProxySystem(scene, aiNodes, options = {}) {
 
   // Initialize immediately
   system.initialize();
+  if (typeof window !== 'undefined') {
+    window.__enforceProxyVisualLock = () => enforceProxyVisualLock(scene);
+  }
 
   // Hook node spawning if requested
   if (options.autoHookSpawning !== false) {
@@ -538,6 +565,18 @@ export function setupHitProxySystem(scene, aiNodes, options = {}) {
   }
 
   return system;
+}
+
+export function enforceProxyVisualLock(scene) {
+  scene.traverse(obj => {
+    if (obj.userData?.__hardInvisibleProxy === true) {
+      obj.visible = false;
+      if (obj.material) {
+        obj.material.visible = false;
+        obj.material.opacity = 0;
+      }
+    }
+  });
 }
 
 // ============================================================================
