@@ -1,6 +1,36 @@
 // ============================================================================
 // [BOOT] SAFETY LOGGING - Module Load Verification
 // ============================================================================
+// === GLOBAL CONSOLE GATE ===
+window.ATOMA_LOG_LEVEL = window.ATOMA_LOG_LEVEL ?? 'error'; 
+// levels: 'error' | 'warn' | 'info' | 'log'
+
+(function () {
+    const original = {
+        log: console.log.bind(console),
+        info: console.info.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console)
+    };
+
+    console.log = (...args) => {
+        if (window.ATOMA_LOG_LEVEL === 'log') original.log(...args);
+    };
+
+    console.info = (...args) => {
+        if (window.ATOMA_LOG_LEVEL === 'log' || window.ATOMA_LOG_LEVEL === 'info')
+            original.info(...args);
+    };
+
+    console.warn = (...args) => {
+        if (window.ATOMA_LOG_LEVEL !== 'error')
+            original.warn(...args);
+    };
+
+    console.error = (...args) => {
+        original.error(...args);
+    };
+})();
 
 // ============================================================================
 // VISUAL BASELINE MODE (Soft Disable — Reversible)
@@ -45,6 +75,14 @@ if (typeof window !== 'undefined') {
     window.ATOMA_DEBUG_CADENCE = window.ATOMA_DEBUG_CADENCE ?? false;
     window.ATOMA_DEBUG_MATERIAL_MUTATIONS = window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false;
     window.ATOMA_VISUAL_BASELINE = true;
+    
+    // PHASE: LOG-STORM-CUT - Default debug flags to OFF
+    window.ATOMA_DEBUG_SPAWN = window.ATOMA_DEBUG_SPAWN ?? false;
+    window.ATOMA_DEBUG_VISUAL = window.ATOMA_DEBUG_VISUAL ?? false;
+    window.ATOMA_DEBUG_POLICY = window.ATOMA_DEBUG_POLICY ?? false;
+    window.ATOMA_DEBUG_VISUAL_BUILD = window.ATOMA_DEBUG_VISUAL_BUILD ?? false;
+    window.ATOMA_DEBUG_VISUAL_BUILD = window.ATOMA_DEBUG_VISUAL_BUILD ?? false;
+    
     debugLog(window.ATOMA_DEBUG, '[ATOMA] Visual Baseline Mode:', window.ATOMA_VISUAL_BASELINE);
 }
 
@@ -4233,7 +4271,8 @@ hudP05Observer.observe(document.body, {
             1000
         );
         this.camera.position.set(0, 2, 5);
-
+window.__ATOMA_CAMERA__ = this.camera;
+window.__ATOMA_SCENE__ = this.scene;
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -4832,6 +4871,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this._allowRegistryReset = false;
 
         this.aiNodes = new AINodes(this.scene, this.player);
+        window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         
         // ====================================================================

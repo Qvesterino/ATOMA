@@ -59,22 +59,6 @@ class HitProxyAutoRegistrar {
       return;
     }
 
-    const originalSpawnNode = this.aiNodes.spawnNode;
-    const self = this;
-
-    this.aiNodes.spawnNode = function(...args) {
-      // Call original spawn
-      const newNode = originalSpawnNode.apply(this, args);
-      
-      // Auto-register proxy if enabled
-      if (newNode && self.autoRegisterEnabled) {
-        self.registerNodeProxy(newNode);
-      }
-      
-      return newNode;
-    };
-
-    console.log('[HitProxyAutoRegistrar] Setup complete - auto-registration active');
   }
 
   /**

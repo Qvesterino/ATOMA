@@ -331,18 +331,6 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
     }
 
     // If aiNodes exists, listen for spawning
-    if (this.aiNodes) {
-      const originalSpawn = this.aiNodes.spawnNode?.bind(this.aiNodes);
-      if (originalSpawn) {
-        this.aiNodes.spawnNode = (...args) => {
-          const node = originalSpawn(...args);
-          if (node) {
-            this._registerNode(node);
-          }
-          return node;
-        };
-      }
-    }
   }
 
   /**

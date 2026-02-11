@@ -433,23 +433,6 @@ class HitProxySystem {
   hookNodeSpawning() {
     if (!this.aiNodes?.spawnNode) return;
 
-    const originalSpawn = this.aiNodes.spawnNode;
-    const self = this;
-    const proxyRadius = this.options.proxyRadius ?? 0.7;
-
-    this.aiNodes.spawnNode = function(...args) {
-      const newNode = originalSpawn.apply(this, args);
-      
-      // Auto-create proxy for new node
-      if (newNode) {
-        const proxy = self.controller.attachProxyToNode(newNode, proxyRadius);
-        if (proxy) {
-          self.layer.enableForRaycast(proxy);
-        }
-      }
-
-      return newNode;
-    };
   }
 
   /**

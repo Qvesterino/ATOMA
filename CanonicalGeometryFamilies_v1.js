@@ -55,7 +55,9 @@ export class CanonicalGeometryFamilies {
     // If marked immutable and missing bounds, abort
     const isImmutable = geometry.userData && geometry.userData.immutable === true;
     if (isImmutable) {
-      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', immutable: true });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', immutable: true });
+      }
       return null;
     }
     
@@ -64,7 +66,9 @@ export class CanonicalGeometryFamilies {
       geometry.computeBoundingSphere();
       return geometry.boundingSphere;
     } catch (err) {
-      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', error: err?.message });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingSphere', error: err?.message });
+      }
       return null;
     }
   }
@@ -85,7 +89,9 @@ export class CanonicalGeometryFamilies {
     // If marked immutable and missing bounds, abort
     const isImmutable = geometry.userData && geometry.userData.immutable === true;
     if (isImmutable) {
-      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', immutable: true });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', immutable: true });
+      }
       return null;
     }
     
@@ -96,7 +102,9 @@ export class CanonicalGeometryFamilies {
       }
       return geometry.boundingBox;
     } catch (err) {
-      console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', error: err?.message });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { reason: 'BoundsInvalid', scope: 'boundingBox', error: err?.message });
+      }
       return null;
     }
   }

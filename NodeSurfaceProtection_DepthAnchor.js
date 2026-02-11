@@ -282,18 +282,6 @@ export function setupNodeSurfaceProtection(game, config = {}) {
     // Protect all nodes with transparent cores
     protection.protectNodes(game.aiNodes.nodes);
     
-    // Hook node spawn for automatic protection
-    const originalSpawnNode = game.aiNodes?.spawnNode;
-    if (originalSpawnNode && typeof originalSpawnNode === 'function') {
-      game.aiNodes.spawnNode = function(...args) {
-        const newNode = originalSpawnNode.apply(this, args);
-        if (newNode) {
-          protection.protectNode(newNode);
-        }
-        return newNode;
-      };
-    }
-    
     // Hook link events for post-link correction
     if (game.linkingSystem && game.linkingSystem.registerObserver) {
       game.linkingSystem.registerObserver({

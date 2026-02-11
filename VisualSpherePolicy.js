@@ -154,38 +154,11 @@ function disposeIfOwned(mesh) {
 }
 
 function emitBlockLog(mesh, parent, context) {
-  const inferred = inferNodeMeta(mesh);
-  const payload = {
-    source: getSource(mesh) || 'unknown',
-    owner: getOwner(mesh) || inferred.owner || 'unknown',
-    parent: parent?.name || parent?.uuid || 'unknown',
-    meshName: mesh?.name || 'unknown',
-    uuid: mesh?.uuid || 'unknown',
-    role: getRole(mesh) || 'unknown',
-    category: mesh?.userData?.atomaCategory || inferred.category || 'unknown',
-    archetype: mesh?.userData?.atomaArchetype || inferred.archetype || 'unknown',
-    phase: context?.phase || 'Object3D.add',
-  };
-  const key = `${frameBucket()}:${payload.uuid}:${payload.role}:${payload.source}`;
-  if (_logDedupe.has(key)) return;
-  _logDedupe.set(key, performance.now());
-  cleanupDedupe();
-  console.warn(`[SPHERE_POLICY_BLOCK] ${JSON.stringify(payload)}`);
+  // disabled
 }
 
 function emitKillLog(mesh, context) {
-  const inferred = inferNodeMeta(mesh);
-  const payload = {
-    role: getRole(mesh) || 'unknown',
-    source: getSource(mesh) || 'unknown',
-    owner: getOwner(mesh) || inferred.owner || 'unknown',
-    meshName: mesh?.name || 'unknown',
-    uuid: mesh?.uuid || 'unknown',
-    category: mesh?.userData?.atomaCategory || inferred.category || 'unknown',
-    archetype: mesh?.userData?.atomaArchetype || inferred.archetype || 'unknown',
-    context: context || null,
-  };
-  console.warn(`[SPHERE_POLICY_KILL] ${JSON.stringify(payload)}`);
+  // disabled
 }
 
 function collectIllegalSpheres(root) {
@@ -204,6 +177,9 @@ function collectIllegalSpheres(root) {
 }
 
 function sanitizeCandidateForAdd(candidate, parent, context) {
+  // HARD DISABLE
+  return { allow: true, node: candidate, blocked: 0 };
+  
   const { illegal, clamped } = collectIllegalSpheres(candidate);
   if (clamped.length > 0 && _policyState) _policyState.stats.clamped += clamped.length;
   if (illegal.length === 0) return { allow: true, node: candidate, blocked: 0 };
@@ -280,41 +256,14 @@ function tagSphere(mesh, opts = {}) {
 }
 
 function patchObject3DAdd() {
-  if (_object3DAddPatched) return true;
-  if (!THREE?.Object3D?.prototype?.add) return false;
-
-  const originalAdd = THREE.Object3D.prototype.add;
-  THREE.Object3D.prototype.add = function patchedAdd(...objects) {
-    if (this.__ATOMA_SPHERE_POLICY_GUARD === true) {
-      return originalAdd.apply(this, objects);
-    }
-    this.__ATOMA_SPHERE_POLICY_GUARD = true;
-    try {
-      const filtered = [];
-      for (const obj of objects) {
-        if (!obj) continue;
-        const res = sanitizeCandidateForAdd(obj, this, { phase: 'Object3D.add' });
-        if (res.allow && res.node) filtered.push(res.node);
-      }
-      if (filtered.length === 0) return this;
-      const result = originalAdd.apply(this, filtered);
-      if (_policyState && this?.isScene === true) {
-        for (const obj of filtered) {
-          if (!obj) continue;
-          if (obj.isScene === true) continue;
-          _policyState.roots.set(obj, obj.name || obj.uuid || 'scene-child-root');
-        }
-      }
-      return result;
-    } finally {
-      this.__ATOMA_SPHERE_POLICY_GUARD = false;
-    }
-  };
-  _object3DAddPatched = true;
-  return true;
+  // HARD DISABLE - No longer intercepts Object3D.add
+  return false;
 }
 
 function installSpherePolicy(scene, options = {}) {
+  console.warn('[VisualSpherePolicy] DISABLED');
+  return null;
+  
   const ready = patchObject3DAdd();
   if (!ready) return null;
 
@@ -394,8 +343,8 @@ function ensureSpherePolicyInstalled(options = {}) {
   return null;
 }
 
-// Best-effort early install as soon as module is imported.
-ensureSpherePolicyInstalled();
+// Best-effort early install DISABLED - No longer auto-installs
+// ensureSpherePolicyInstalled();
 
 export {
   ensureSpherePolicyInstalled,

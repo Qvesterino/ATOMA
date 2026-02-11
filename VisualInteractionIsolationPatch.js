@@ -553,18 +553,6 @@ export function setupVisualInteractionIsolation(scene, aiNodes, options = {}) {
   }
 
   // Hook node spawn for automatic processing
-  const originalSpawnNode = aiNodes.spawnNode;
-  if (originalSpawnNode && typeof originalSpawnNode === 'function') {
-    aiNodes.spawnNode = function(...args) {
-      const newNode = originalSpawnNode.apply(this, args);
-      // Process newly spawned node
-      if (newNode && engine) {
-        engine.processNode(newNode);
-      }
-      return newNode;
-    };
-  }
-
   // Log completion
   console.log('[InteractionIsolation] Visual layers detached from raycast ✓');
   console.log(`[InteractionIsolation] Processed ${engine.processedNodes.size} nodes`);

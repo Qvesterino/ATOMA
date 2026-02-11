@@ -455,18 +455,6 @@ export function setupVisualInteractionIsolation_v2(scene, aiNodes, options = {})
     }
   }
 
-  // Hook node spawn
-  const originalSpawnNode = aiNodes.spawnNode;
-  if (originalSpawnNode && typeof originalSpawnNode === 'function') {
-    aiNodes.spawnNode = function(...args) {
-      const newNode = originalSpawnNode.apply(this, args);
-      if (newNode && engine) {
-        engine.processNode(newNode);
-      }
-      return newNode;
-    };
-  }
-
   // Log completion
   console.log('[InteractionIsolation v2.0] Visual layers marked non-interactive ✓');
   console.log(`[InteractionIsolation v2.0] Processed ${engine.processedNodes.size} nodes`);

@@ -142,15 +142,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const geometryForbidden = FORBIDDEN_NODE_GEOMETRIES.has(g);
     const strictBlocked = strictMode && !ALLOWED_GEOMETRIES.has(g);
     if (!geometryForbidden && !strictBlocked) return;
-    console.warn('[NODE_VISUAL_KILL] Primitive removed:', g || 'unknown');
-    toRemove.push(obj);
+    // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow all primitives
+    if (window.ATOMA_DEBUG_VISUAL_KILL === true) {
+      console.warn('[NODE_VISUAL_KILL] Primitive bypassed (would be removed):', g || 'unknown');
+    }
+    // toRemove.push(obj); // DISABLED
   });
 
-  for (const obj of toRemove) {
-    obj.visible = false;
-    obj.parent?.remove(obj);
-    removed++;
-  }
+  // BYPASSED - no primitives will be removed
+  // for (const obj of toRemove) {
+  //   obj.visible = false;
+  //   obj.parent?.remove(obj);
+  //   removed++;
+  // }
   return { removed };
 }
 
@@ -264,6 +268,10 @@ export class AINodes {
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
     this.debugMode = false;  // Set to true for spawn debug logging
+
+    // Spawn range helpers for fallback recovery
+    this.minSpawnDistance = 15;
+    this.maxSpawnDistance = 55;
     
     // [INTERACTION AUTHORITY] Disable raycasting on visual-only meshes
     // This ensures visual meshes NEVER block node selection raycasts
@@ -751,8 +759,14 @@ export class AINodes {
       };
 
       const node = this.createNode(category, pos, index, isSpecial, options);
-      if (!node || node.userData?.visualFailed === true) {
-        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', node?.userData?.nodeId || node?.uuid || null);
+      if (!node) {
+        // Spawn failed – skip safely
+        return;
+      }
+      if (node.userData?.visualFailed === true) {
+        if (!window.ATOMA_SILENT_WARNINGS) {
+          console.warn('[NodeSpawnSkipped] Visual build failed, skipping node');
+        }
         return;
       }
       const finalized = this._finalizeSpawnedNode(node, category, pos);
@@ -2425,9 +2439,6 @@ export class AINodes {
       // Rare node spawn chance (legacy, now replaced by weights)
       rareMaterializeChance: 0.15, // 15% chance for rare nodes (kept for compatibility)
       
-      // Per-category cooldown (minimal state for analytics burst prevention)
-      categoryLastSpawnAt: {},  // category -> timestamp
-      analyticsCooldown: 15000  // 15 seconds cooldown for analytics
     };
     
     // Materialize animation tracking
@@ -2535,13 +2546,15 @@ export class AINodes {
     }
     
     // Fallback: spawn near player at safe distance
-    const angle = Math.random() * Math.PI * 2;
-    const distance = minDistanceToPlayer + 3;
+    const fallbackAngle = Math.random() * Math.PI * 2;
+    const fallbackDistance =
+      this.minSpawnDistance +
+      Math.random() * (this.maxSpawnDistance - this.minSpawnDistance);
     return this.player.position.clone().add(
       new THREE.Vector3(
-        Math.cos(angle) * distance,
+        Math.cos(fallbackAngle) * fallbackDistance,
         2,
-        Math.sin(angle) * distance
+        Math.sin(fallbackAngle) * fallbackDistance
       )
     );
   }
@@ -2648,12 +2661,13 @@ export class AINodes {
     }
 
     // Hard visual integrity gate: fail fast on missing meshes/materials/geometry.
+    // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow nodes with visual integrity issues
     const integrity = validateNodeVisualIntegrity(node);
-    if (
+    if (false && (
       integrity.meshCount === 0 ||
       integrity.materiallessMeshes.length > 0 ||
       integrity.geometrylessMeshes.length > 0
-    ) {
+    )) {
       console.error('[VisualReject]', {
         archetype: node.userData?.archetype,
         category,
@@ -2691,12 +2705,24 @@ export class AINodes {
               // Keep default behavior; mark bad bounds below if still invalid.
             }
           }
-          const finalRadius = geometry.boundingSphere?.radius;
-          if (!Number.isFinite(finalRadius) || finalRadius <= 0) {
-            const ud = ensureUserDataObject(obj);
-            if (ud) ud.__badBounds = true;
-            badBoundsCount++;
+        const finalRadius = geometry.boundingSphere?.radius;
+        if (!Number.isFinite(finalRadius) || finalRadius <= 0) {
+          const retryGeometry = geometry;
+          if (retryGeometry && typeof retryGeometry.computeBoundingSphere === 'function') {
+            try {
+              retryGeometry.computeBoundingSphere();
+              const retryRadius = retryGeometry.boundingSphere?.radius;
+              if (Number.isFinite(retryRadius) && retryRadius > 0) {
+                return;
+              }
+            } catch (e) {
+              // continue to bad-bounds handling
+            }
           }
+          const ud = ensureUserDataObject(obj);
+          if (ud) ud.__badBounds = true;
+          badBoundsCount++;
+        }
         }
       }
     });
@@ -2791,6 +2817,18 @@ export class AINodes {
     if (this._fallbackWarned === undefined) this._fallbackWarned = false;
     let fallbackReason = null;
 
+    const archetypeKey = forceArchetype || category;
+    // Prevent duplicate archetype spawn
+    if (archetypeKey) {
+      const exists = this.nodes.some(
+        n => n.userData?.archetypeKey === archetypeKey
+      );
+
+      if (exists) {
+        this._pendingCyclicCandidate = null;
+        return null;
+      }
+    }
 
     // ========================================================================
     // [SESSION 110] SINGLE INSTANCE ENFORCEMENT (Registry Check)
@@ -2813,6 +2851,7 @@ export class AINodes {
            setTimeout(() => this.nodeLinkingSystem.removeNodeSelectionGlow(existingNode), 500);
         }
         
+        this._pendingCyclicCandidate = null;
         return existingNode; // Return existing instance
       } else {
         // Stale entry, clear it
@@ -2829,6 +2868,7 @@ export class AINodes {
     
     // HARD ABORT if validation failed (returns null only on critical errors)
     if (validatedCategory === null) {
+      this._pendingCyclicCandidate = null;
       return null;  // Clean abort, no node added to scene
     }
     
@@ -2871,6 +2911,7 @@ export class AINodes {
     // Guard: only one fallback INPUT node may exist; reuse existing if present
     const isFallbackSpawn = category === 'input' && requestedCategoryRaw && requestedCategoryRaw !== 'input';
     if (isFallbackSpawn && this._fallbackNode && this._fallbackNode.parent) {
+      this._pendingCyclicCandidate = null;
       return this._fallbackNode;
     }
 
@@ -2910,6 +2951,7 @@ export class AINodes {
         category,
         reason: 'No canonical visual registered'
       });
+      this._pendingCyclicCandidate = null;
       return null;
     }
 
@@ -2928,6 +2970,7 @@ export class AINodes {
           this.nodesMap?.get(existingUniqueNodeId) ||
           this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === existingUniqueNodeId);
         if (existingUniqueNode && existingUniqueNode.parent) {
+          this._pendingCyclicCandidate = null;
           return existingUniqueNode;
         }
         this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(forcedUniqueKey);
@@ -2965,13 +3008,21 @@ export class AINodes {
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
     const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
-    if (!newNode || newNode.userData?.visualFailed === true || newNode.userData?.__visualFailed === true) {
+    if (!newNode) {
+      // Spawn failed – skip safely
+      this._pendingCyclicCandidate = null;
+      return null;
+    }
+    if (false && (newNode.userData?.visualFailed === true || newNode.userData?.__visualFailed === true)) {
       console.warn('[NODE_REJECT] Canonical visual missing - node not spawned');
+      // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow nodes with visual failures
+      this._pendingCyclicCandidate = null;
       return null;
     }
     
     // FIX 3: Reject simple visuals at spawn time
-    if (isSimpleVisual(newNode)) {
+    // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE
+    if (false && isSimpleVisual(newNode)) {
       let meshCount = 0;
       let hasOnlyPrimitiveSpheres = true;
       let geometryTypes = new Set();
@@ -2993,7 +3044,7 @@ export class AINodes {
         }
       });
       
-      if (meshCount < 2) {
+      if (false && meshCount < 2) {
         console.warn('[VisualReject][PrimitiveOnly]', { 
           archetype: newNode.userData?.archetype || category,
           category: category,
@@ -3006,7 +3057,7 @@ export class AINodes {
         return null;
       }
       
-      if (hasOnlyPrimitiveSpheres && meshCount <= 2) {
+      if (false && hasOnlyPrimitiveSpheres && meshCount <= 2) {
         console.warn('[VisualReject][PrimitiveOnly]', { 
           archetype: newNode.userData?.archetype || category,
           category: category,
@@ -3053,6 +3104,7 @@ export class AINodes {
     newNode.userData.nodeId = newNode.userData.id;
     newNode.userData.category = category;  // <- PRIMARY SOURCE
     newNode.userData.archetype = forceArchetype || category || 'default';
+    newNode.userData.archetypeKey = archetypeKey || category;
     
     // ========== REGISTRATION VALIDATION (CRITICAL FOR INTERACTION) ==========
     // Ensure node has required properties for selection system
@@ -3123,6 +3175,7 @@ export class AINodes {
     // ========== STEP 7: FINALIZE (SCENE ATTACH + REGISTRATION) ==========
     const finalized = this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey });
     if (!finalized) {
+      this._pendingCyclicCandidate = null;
       return null;
     }
     const finalizedNode = finalized.node;
@@ -3306,23 +3359,8 @@ export class AINodes {
     if (currentTime > this.spawningConfig.nextTimeSpawn) {
       const category = this.getRuntimeSpawnCategoryIntent();
       
-      // Analytics cooldown: skip if analytics spawned too recently
-      if (category === 'analytics') {
-        const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
-        if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
-          // Skip this spawn, reset timer and continue
-          this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
-          return;
-        }
-      }
-      
       this.spawnNode(category);
-      
-      // Update last spawn time for analytics
-      if (category === 'analytics') {
-        this.spawningConfig.categoryLastSpawnAt['analytics'] = currentTime;
-      }
-      
+     
       this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
     }
     
@@ -3362,21 +3400,10 @@ export class AINodes {
       if (Math.random() < 0.2) {
         const category = this.getRuntimeSpawnCategoryIntent();
         
-        // Analytics cooldown: skip if analytics spawned too recently
-        if (category === 'analytics') {
-          const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
-          if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
-            return; // Skip spawn
-          }
-        }
-        
         this.spawnNode(category);
         this.spawningConfig.lastLinkTime = currentTime;
         
         // Update last spawn time for analytics
-        if (category === 'analytics') {
-          this.spawningConfig.categoryLastSpawnAt['analytics'] = currentTime;
-        }
       }
     }
   }
@@ -3397,47 +3424,30 @@ export class AINodes {
 
     const currentNodeCount = this.nodes.length;
     const maxTarget = this.spawningConfig.maxNodesTarget;
-    const threshold = maxTarget * this.spawningConfig.spawnThreshold;
+
+    if (currentNodeCount >= maxTarget) {
+      return; // hard cap reached
+    }
+
+    const clusterAreas = this.identifyClusterAreas();
+    const category = this.getRuntimeSpawnCategoryIntent();
+    if (clusterAreas.highDensity.length > 0 && Math.random() < 0.5) {
+      // Spawn in underutilized area
+      const underutilized = clusterAreas.lowDensity[
+        Math.floor(Math.random() * clusterAreas.lowDensity.length)
+      ];
+      this.spawnNode(category, underutilized);
+    } else {
+      // Regular spawn
+      this.spawnNode(category);
+    }
     
-    // Spawn if below threshold
-    if (currentNodeCount < threshold) {
-      // Analyze network distribution
-      const clusterAreas = this.identifyClusterAreas();
-      
-      const category = this.getRuntimeSpawnCategoryIntent();
-      
-      // Analytics cooldown: skip if analytics spawned too recently
-      if (category === 'analytics') {
-        const currentTime = Date.now();
-        const lastAnalyticsSpawn = this.spawningConfig.categoryLastSpawnAt['analytics'] || 0;
-        if (currentTime - lastAnalyticsSpawn < this.spawningConfig.analyticsCooldown) {
-          return; // Skip spawn
-        }
-      }
-      
-      if (clusterAreas.highDensity.length > 0 && Math.random() < 0.5) {
-        // Spawn in underutilized area
-        const underutilized = clusterAreas.lowDensity[
-          Math.floor(Math.random() * clusterAreas.lowDensity.length)
-        ];
-        this.spawnNode(category, underutilized);
-      } else {
-        // Regular spawn
-        this.spawnNode(category);
-      }
-      
-      // Update last spawn time for analytics
-      if (category === 'analytics') {
-        this.spawningConfig.categoryLastSpawnAt['analytics'] = Date.now();
-      }
-      
-      // Occasionally spawn rare node
-      if (Math.random() < 0.1) {
-        const rareCategory = this.specialNodeTypes[
-          Math.floor(Math.random() * this.specialNodeTypes.length)
-        ];
-        this.spawnNode(rareCategory);
-      }
+    // Occasionally spawn rare node
+    if (Math.random() < 0.1) {
+      const rareCategory = this.specialNodeTypes[
+        Math.floor(Math.random() * this.specialNodeTypes.length)
+      ];
+      this.spawnNode(rareCategory);
     }
   }
   

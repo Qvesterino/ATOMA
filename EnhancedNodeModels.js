@@ -121,13 +121,17 @@ export class EnhancedNodeModels {
 
   static ensureRegistryReady() {
     if (!THREE || !THREE.Group) {
-      console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'SafeModeNoTHREE' });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'SafeModeNoTHREE' });
+      }
       return false;
     }
     if (this._isRegistryValid()) return true; // already OK
 
     if (this._registryInitialized === true) {
-      console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'RegistryInvalidLate' });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'RegistryInvalidLate' });
+      }
       return false;
     }
 
@@ -353,13 +357,17 @@ export class EnhancedNodeModels {
   static create(category = 'input', index = 0, color = 0x00ffff) {
     // FIX 1: Direct THREE guard before any visual creation
     if (!THREE || !THREE.Group) {
-      console.error('[VisualBuildFail]', { archetype: category, category, reason: 'THREE_UNAVAILABLE' });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { archetype: category, category, reason: 'THREE_UNAVAILABLE' });
+      }
       return null;
     }
     
     const registryReady = this.ensureRegistryReady();
     if (!registryReady || !this._isRegistryValid()) {
-      console.error('[VisualBuildFail]', { archetype: category, category, reason: 'RegistryInvalid' });
+      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+        console.error('[VisualBuildFail]', { archetype: category, category, reason: 'RegistryInvalid' });
+      }
       return null;
     }
     const nodeGroup = new THREE.Group();
@@ -431,7 +439,8 @@ export class EnhancedNodeModels {
       
       default:
         console.warn(`[NODE_REJECT] Canonical visual missing — node not spawned (${category})`);
-        return null;
+        // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow nodes without canonical visuals
+        // return null;
     }
 
     const clearPartialVisuals = (group) => {
@@ -472,16 +481,19 @@ export class EnhancedNodeModels {
       });
       
       if (!meshFound || materialMissing) {
-        console.error('[VisualBuildFail]', {
-          archetype: rootGroup.userData?.archetype || category,
-          category: category,
-          reason: meshFound ? 'NoMaterial' : 'NoMesh',
-        });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', {
+            archetype: rootGroup.userData?.archetype || category,
+            category: category,
+            reason: meshFound ? 'NoMaterial' : 'NoMesh',
+          });
+        }
       }
       
       // FIX 3: Reject simple visuals (mesh count < 2 or only primitive spheres)
-      if (meshFound && !materialMissing) {
-        if (meshCount < 2) {
+      // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE
+      if (false && meshFound && !materialMissing) {
+        if (false && meshCount < 2) {
           console.warn('[VisualBuildReject][SimpleVisual]', { 
             archetype: rootGroup.userData?.archetype || category,
             category: category,
@@ -493,7 +505,7 @@ export class EnhancedNodeModels {
           return null;
         }
         
-        if (hasOnlySpheres && meshCount <= 2) {
+        if (false && hasOnlySpheres && meshCount <= 2) {
           console.warn('[VisualBuildReject][SimpleVisual]', { 
             archetype: rootGroup.userData?.archetype || category,
             category: category,
@@ -515,7 +527,7 @@ export class EnhancedNodeModels {
         }
       });
 
-      if (forbiddenMeshes.length > 0) {
+      if (false && forbiddenMeshes.length > 0) {
         for (const hit of forbiddenMeshes) {
           console.warn('[NODE_VISUAL_KILL] Primitive removed:', hit.g);
           hit.obj.visible = false;
@@ -526,7 +538,7 @@ export class EnhancedNodeModels {
         return null;
       }
 
-      if ((rootGroup.children?.length || 0) === 0) {
+      if (false && (rootGroup.children?.length || 0) === 0) {
         console.warn('[NODE_REJECT] Empty visual root');
         clearPartialVisuals(rootGroup);
         return null;
@@ -540,7 +552,9 @@ export class EnhancedNodeModels {
    * Input Node 3: Rectangular gateway frame with cyan edge light
    */
   static createInputNode3(group, color) {
-    console.error('[VisualBuildFail]', { archetype: 'input-3', category: 'input', reason: 'NoMesh' });
+    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+      console.error('[VisualBuildFail]', { archetype: 'input-3', category: 'input', reason: 'NoMesh' });
+    }
     return group;
   }
 
@@ -1391,7 +1405,9 @@ export class EnhancedNodeModels {
    * Integration Node 1: (purged)
    */
   static createIntegrationNode1(group, color) {
-    console.error('[VisualBuildFail]', { archetype: 'integration-1', category: 'integration', reason: 'NoMesh' });
+    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+      console.error('[VisualBuildFail]', { archetype: 'integration-1', category: 'integration', reason: 'NoMesh' });
+    }
     return group;
   }
 
@@ -1473,7 +1489,24 @@ export class EnhancedNodeModels {
     if (EnhancedNodeModels.__EXTRA_FACTORIES?.integration) {
       variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.integration);
     }
-    return variants[nodeId % variants.length](group, color);
+
+    if (variants.length === 0) {
+      return null;
+    }
+
+    const startIndex = nodeId % variants.length;
+    for (let i = 0; i < variants.length; i++) {
+      const idx = (startIndex + i) % variants.length;
+      const factory = variants[idx];
+      try {
+        const result = factory(group, color);
+        if (result) return result;
+      } catch (err) {
+        // Silent failover: continue to next variant
+      }
+    }
+
+    return null;
   }
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
@@ -2537,7 +2570,9 @@ export class EnhancedNodeModels {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    console.error('[VisualBuildFail]', { archetype: 'control-1', category: 'control', reason: 'NoMesh' });
+    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+      console.error('[VisualBuildFail]', { archetype: 'control-1', category: 'control', reason: 'NoMesh' });
+    }
     return group;
   }
 
@@ -4530,7 +4565,9 @@ export class EnhancedNodeModels {
       // Create the EXTREME geometry
       const extremeGroup = this.extremeNodePack.createHyperbolicPrism(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-input-0', category: 'input', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-input-0', category: 'input', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4561,7 +4598,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createSingularityKnot(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-input-1', category: 'input', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-input-1', category: 'input', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4591,7 +4630,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createQuantumLattice(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-process-0', category: 'process', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-process-0', category: 'process', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4621,7 +4662,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createFractalBloom(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-process-1', category: 'process', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-process-1', category: 'process', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4651,7 +4694,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createReactiveTesseract(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-integration-0', category: 'integration', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-integration-0', category: 'integration', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4681,7 +4726,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createChaoticHeart(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-integration-1', category: 'integration', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-integration-1', category: 'integration', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4711,7 +4758,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createWhisperSphere(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-storage-0', category: 'storage', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-storage-0', category: 'storage', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4741,7 +4790,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createEchoFractal(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-storage-1', category: 'storage', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-storage-1', category: 'storage', reason: 'NoMesh' });
+        }
         return group;
       }
       
@@ -4771,7 +4822,9 @@ export class EnhancedNodeModels {
       
       const extremeGroup = this.extremeNodePack.createAbyssalShard(tempNode, null);
       if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-analytics-0', category: 'analytics', reason: 'NoMesh' });
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'extreme-analytics-0', category: 'analytics', reason: 'NoMesh' });
+        }
         return group;
       }
       
