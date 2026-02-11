@@ -127,6 +127,7 @@ import { relaxNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 
 if (typeof window !== 'undefined') {
   window.__ALLOW_EXTERNAL_SPAWN__ = false;
+  window.__ATOMA_WORLD_TRANSITIONING = false;
 }
 import { SafeWorldResetFix1_0 } from './SafeWorldResetFix1_0.js';
 import { NodeInspectOverlay1_0 } from './NodeInspectOverlay1_0.js';
@@ -4823,6 +4824,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] ControlledUnfreezeSystem initialization failed:', err);
         }
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_WORLD_TRANSITIONING = false;
+        }
     }
 
     /**
@@ -7013,6 +7017,9 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      */
     async switchMode() {
         // PHASE 1: Begin transition and pause visual systems
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_WORLD_TRANSITIONING = true;
+        }
         this.worldResetFix.beginMapTransition({
             coreMetricsOverlay: this.coreMetricsOverlay,
             metricReactiveEvents: null, // DISABLED: Legacy system
@@ -7403,6 +7410,10 @@ this.archetypeShaderModes = null;
             this.setupChamberEnvironment();
             this.chamber = new World(this.scene);
             this.activeWorld = this.chamber;
+        }
+
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_WORLD_TRANSITIONING = false;
         }
 
         // Create new AI nodes

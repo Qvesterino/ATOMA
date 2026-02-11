@@ -1042,6 +1042,13 @@ export class MythicRitualController {
    * Update HUD
    */
   updateHUD(deltaTime) {
+    if (!this.ritualHUD) {
+      this.ritualHUD = document.getElementById('mythic-ritual-hud');
+      if (!this.ritualHUD) {
+        return;
+      }
+    }
+
     if (this.activeRitual && this.ritualPhase !== 'NONE') {
       // Show HUD
       const targetOpacity = this.ritualPhase === 'INIT' ? 1.0 : 

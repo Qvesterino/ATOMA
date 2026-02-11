@@ -315,6 +315,10 @@ export class VisualUpgradeSuperpack {
     // PACK 3: HOLOGRAPHIC EDGE GLOW PACK
     // ============================================================
     applyHolographicEdgeGlowPack() {
+        // WORLD LIFECYCLE GATE
+        if (window.__ATOMA_WORLD_TRANSITIONING === true) {
+            return;
+        }
         // Create edge glow overlays for scene geometry
         const edgeGlowMaterial = new THREE.LineBasicMaterial({
             color: 0x00ffff,
@@ -327,38 +331,42 @@ export class VisualUpgradeSuperpack {
 
         // Scan scene for geometric objects and add edge glows
         this.scene.traverse(child => {
-            if (child.isMesh && child.geometry && !child.userData.isVolumetric) {
-                // Skip certain objects
-                if (child.name.includes('Particle') || child.name.includes('particle')) return;
+            if (!child.isMesh) return;
 
-                try {
-                    const ctx = {
-                        meshName: child.name,
-                        meshUUID: child.uuid,
-                        geoUUID: child.geometry?.uuid,
-                        sourceTag: 'VSU.applyHolographicEdgeGlowPack'
-                    };
-                    const edges = safeEdgesGeometry(child.geometry, ctx);
-                    if (!edges) return;
-                    const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
-                    wireframe.position.copy(child.position);
-                    // FIX: Safe rotation from quaternion — never copy Euler order
-                    if (child.quaternion) {
-                        wireframe.rotation.setFromQuaternion(child.quaternion, "XYZ");
-                    }
-                    wireframe.scale.copy(child.scale);
-                    wireframe.userData = {
-                        linkedMesh: child,
-                        baseOpacity: 0.3,
-                        fresnel: true
-                    };
+            const ud = child.userData;
+            const isRealNode =
+                ud &&
+                (
+                    ud.nodeId ||
+                    ud.isNode ||
+                    ud.category
+                );
 
-                    this.scene.add(wireframe);
-                    this.edgeGlowObjects.push(wireframe);
-                } catch (e) {
-                    // Skip geometries that can't be converted to edges
-                }
+            if (!isRealNode) return;
+
+            const ctx = {
+                meshName: child.name,
+                meshUUID: child.uuid,
+                geoUUID: child.geometry?.uuid,
+                sourceTag: 'VSU.applyHolographicEdgeGlowPack'
+            };
+            const edges = safeEdgesGeometry(child.geometry, ctx);
+            if (!edges) return;
+
+            const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
+            wireframe.position.copy(child.position);
+            if (child.quaternion) {
+                wireframe.rotation.setFromQuaternion(child.quaternion, "XYZ");
             }
+            wireframe.scale.copy(child.scale);
+            wireframe.userData = {
+                linkedMesh: child,
+                baseOpacity: 0.3,
+                fresnel: true
+            };
+
+            this.scene.add(wireframe);
+            this.edgeGlowObjects.push(wireframe);
         });
     }
 
