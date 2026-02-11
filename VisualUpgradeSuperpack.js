@@ -11,13 +11,25 @@ function isValidBufferAttrArray(attr) {
   return isValidTypedArray(arr);
 }
 
-function hasFinitePositions(geometry) {
-  const arr = geometry?.attributes?.position?.array;
-  if (!arr) return false;
-  for (let i = 0; i < arr.length; i++) {
-    if (!Number.isFinite(arr[i])) return false;
+const __edgesOffenders = new Set();
+
+function logEdgeOffender(ctx = {}, reason, details = {}) {
+  const meshUUID = ctx.meshUUID || 'noMesh';
+  const geoUUID = ctx.geoUUID || ctx.geometry?.uuid || 'noGeo';
+  const key = `${meshUUID}|${geoUUID}|${reason}`;
+  if (__edgesOffenders.has(key)) return;
+  __edgesOffenders.add(key);
+
+  // Toggle window.__ATOMA_DEBUG_EDGES = true to reveal offender details (rate-limited per mesh)
+  if (window?.__ATOMA_DEBUG_EDGES === true) {
+    console.warn('[EdgeVFX][Offender]', reason, {
+      meshName: ctx.meshName || 'unnamed',
+      meshUUID,
+      geoUUID,
+      sourceTag: ctx.sourceTag,
+      ...details
+    });
   }
-  return true;
 }
 
 /**
@@ -26,18 +38,77 @@ function hasFinitePositions(geometry) {
  * All layers added ON TOP of existing environment
  */
 
-function safeEdgesGeometry(geometry) {
-  if (!hasFinitePositions(geometry)) return null;
-  const edges = new THREE.EdgesGeometry(geometry);
-  const pos = edges.attributes?.position?.array;
-  if (pos) {
-    for (let i = 0; i < pos.length; i++) {
-      if (!Number.isFinite(pos[i])) {
-        console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
-        break;
-      }
+function safeEdgesGeometry(geometry, ctx = {}) {
+  if (!geometry || !(geometry.isBufferGeometry || geometry instanceof THREE.BufferGeometry)) {
+    logEdgeOffender(ctx, 'missingGeometry', {
+      drawRange: geometry?.drawRange
+    });
+    return null;
+  }
+
+  const posAttr = geometry.attributes?.position;
+  if (!isValidBufferAttrArray(posAttr) || posAttr.array.length < 6) {
+    logEdgeOffender(ctx, 'missingPositions', {
+      posLength: posAttr?.array?.length || 0
+    });
+    return null;
+  }
+
+  for (let i = 0; i < posAttr.array.length; i++) {
+    if (!Number.isFinite(posAttr.array[i])) {
+      logEdgeOffender(ctx, 'invalidPosition', {
+        value: posAttr.array[i],
+        idx: i,
+        posLength: posAttr.array.length
+      });
+      return null;
     }
   }
+
+  const indexAttr = geometry.index;
+  if (indexAttr && !isValidTypedArray(indexAttr.array)) {
+    logEdgeOffender(ctx, 'invalidIndex', {
+      indexLength: indexAttr?.array?.length || 0
+    });
+    return null;
+  }
+  if (indexAttr && indexAttr.array?.length === 0) {
+    logEdgeOffender(ctx, 'emptyIndex', {});
+    return null;
+  }
+
+  const src = geometry.clone();
+  const drawRange = geometry.drawRange;
+  if (drawRange && (!Number.isFinite(drawRange.count) || drawRange.count <= 0)) {
+    const count = src.attributes?.position?.count || (posAttr.array.length / 3);
+    src.setDrawRange(0, count);
+  }
+
+  const edges = new THREE.EdgesGeometry(src);
+  src.dispose();
+
+  const edgePos = edges.attributes?.position;
+  if (!isValidBufferAttrArray(edgePos) || edgePos.array.length === 0) {
+    logEdgeOffender(ctx, 'edgesEmpty', {
+      drawRange: edges.drawRange,
+      posLength: edgePos?.array?.length || 0
+    });
+    edges.dispose();
+    return null;
+  }
+
+  for (let i = 0; i < edgePos.array.length; i++) {
+    if (!Number.isFinite(edgePos.array[i])) {
+      logEdgeOffender(ctx, 'edgesNaN', {
+        value: edgePos.array[i],
+        idx: i,
+        length: edgePos.array.length
+      });
+      edges.dispose();
+      return null;
+    }
+  }
+
   return edges;
 }
 
@@ -261,7 +332,13 @@ export class VisualUpgradeSuperpack {
                 if (child.name.includes('Particle') || child.name.includes('particle')) return;
 
                 try {
-                    const edges = safeEdgesGeometry(child.geometry);
+                    const ctx = {
+                        meshName: child.name,
+                        meshUUID: child.uuid,
+                        geoUUID: child.geometry?.uuid,
+                        sourceTag: 'VSU.applyHolographicEdgeGlowPack'
+                    };
+                    const edges = safeEdgesGeometry(child.geometry, ctx);
                     if (!edges) return;
                     const wireframe = new THREE.LineSegments(edges, edgeGlowMaterial);
                     wireframe.position.copy(child.position);
@@ -401,7 +478,13 @@ export class VisualUpgradeSuperpack {
             });
 
             // Convert to wireframe
-            const edges = safeEdgesGeometry(geometry);
+            const ctx = {
+                meshName: 'sigmaRift',
+                meshUUID: null,
+                geoUUID: geometry?.uuid,
+                sourceTag: 'VSU.applySigmaRiftVisualPack'
+            };
+            const edges = safeEdgesGeometry(geometry, ctx);
             if (!edges) return;
             const rift = new THREE.LineSegments(edges, material);
             rift.position.copy(config.pos);

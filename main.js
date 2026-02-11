@@ -110,8 +110,6 @@ import { SafeDreamDepthPack } from './SafeDreamDepthPack.js';
 import { DreamDepthEffectManager } from './DreamDepthEffectManager.js';
 import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
 import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
-import { RareNodeSpawner } from './_RareNodeSpawner.js';
-import { setupRareNodeVerifier } from './_RareNodeSimulationVerifier.js';
 import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
 import { setupSimulationAuditHelpers } from './_TASK_AUDIT_DEBUG_HELPERS.js';
 import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
@@ -137,7 +135,6 @@ import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
 import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
-import { MythicNodeCreation } from './_MythicNodeCreation.js';
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
 import { LegacyDebugConeCleanup } from './_LegacyDebugConeCleanup.js';
@@ -497,7 +494,6 @@ import { CompetitionDominanceAdapter_v1, setupCompetitionDominanceIntegration } 
 // SESSION 99: EMERGENCY VISUAL STABILIZATION HOTFIX (Critical Opaque Enforcement)
 // ============================================================================
 import { setupEmergencyVisualStabilization } from './HOTFIX_EmergencyVisualStabilization_v1.js';
-import { setupNodeVisualFreezeMode } from './NodeVisualFreezeMode_v1.js';
 import { installNodeVisualFreezeBlockers } from './NodeVisualFreezeBlockers_v1.js';
 import { NodeLinkedAuraSystem } from './NodeLinkedAuraSystem.js';
 import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
@@ -591,7 +587,6 @@ import { applyAllDefensivePatches } from './DefensiveHardeningPatch_v1.js';
 // Material-driven solution (NOT depth-buffer hacks)
 // ============================================================================
 import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
-import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 
 // ============================================================================
 // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26)
@@ -874,7 +869,6 @@ import { SelectedHUDSyncPatch1_0 } from './SelectedHUDSyncPatch1_0.js';
 // ============================================================================
 // LINK PRIORITY DECAY ENGINE 1.0 (Session 27 Extended)
 // ============================================================================
-import { LinkPriorityDecayEngine } from './LinkPriorityDecayEngine.js';
 import { LinkQualityFeedbackLoop1_0 } from './LinkQualityFeedbackLoop1_0.js';
 import { LinkMLRecommendationEngine1_0 } from './LinkMLRecommendationEngine1_0.js';
 import { UserAcceptanceTracker1_0 } from './UserAcceptanceTracker1_0.js';
@@ -3407,10 +3401,6 @@ document.addEventListener('keydown', () => {
         // Node Visuals 4.0 (high-quality node visual upgrade)
         this.nodeVisuals4 = null;
 
-        // Rare Node Spawner (safe background rare node spawning)
-        // FIX SESSION 37: CRITICAL — Ghost node fix via unified node registry
-        this.rareNodeSpawner = null;
-
         // Node Evolution 2.0 (safe visual node evolution system)
         this.nodeEvolution = null;
 
@@ -3644,9 +3634,6 @@ document.addEventListener('keydown', () => {
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
 
-        // Mythic Node Creation (cinematic node birth ritual)
-        this.mythicNodeCreation = null; // Initialized after AI nodes ready
-
         // ====================================================================
         // PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION
         // Pure visual ceremony layer for rituals (no gameplay logic)
@@ -3761,11 +3748,6 @@ document.addEventListener('keydown', () => {
         this.linkHistoryTracker = null;     // Temporal link analytics
         // linkingSystemHardening applied inline after linkingSystem init
         
-        // ========================================================================
-        // LINK PRIORITY DECAY ENGINE 1.0 (Session 27 Extended)
-        // ========================================================================
-        // Time-based priority decay system for intelligent link lifecycle management
-        this.linkPriorityDecayEngine = null; // Initialized after linking system ready
         this.linkQualityFeedbackLoop = null; // Initialized after linking system ready
         this.linkMLRecommendationEngine = null; // Initialized after linking system ready
         this.userAcceptanceTracker = null; // Initialized after linking system ready
@@ -3811,16 +3793,6 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         this.debugHUD = new AtomaDebugHUD_1_0();
         
-        // ========================================================================
-        // SESSION 99: NODE VISUAL FREEZE MODE (Emergency Immutability)
-        // ========================================================================
-        // Initialize freeze mode to make all node visuals completely immutable
-        this.__nodeVisualFreezeMode__ = setupNodeVisualFreezeMode({
-          enabled: true,
-          debugMode: false,
-          enforceEveryFrame: false
-        });
-        console.log('✅ [main.js] Node Visual Freeze Mode initialized');
         this.createWorld();
         this.setupVisualSuperpack();
         this.setupCinematicUpgrade();
@@ -3840,7 +3812,6 @@ document.addEventListener('keydown', () => {
         this.setupDreamDepthPack();
         this.setupMobilityPack();
         this.setupNodeVisuals4();
-        this.setupRareNodeSpawner();
         this.setupNodeEvolution();
         // DISABLED: this.setupNodeArchetypesPack(); // System permanently disconnected
         this.setupEvolvingLinkFX();
@@ -4047,7 +4018,6 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // Expose AtomaGame instance and subsystems globally (debug-safe)
         window.game = this;
-        window.linkPriorityDecayEngine = this.linkPriorityDecayEngine;
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
         window.userAcceptanceTracker = this.userAcceptanceTracker;
@@ -4859,15 +4829,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      * Create interactive AI nodes
      */
     createAINodes() {
-        // RESET REGISTRY: Clear unique node tracking for new world generation
-        const allowRegistryReset = this._allowRegistryReset === true;
-        if (nodeSpawnRegistry && allowRegistryReset) {
-            nodeSpawnRegistry.reset();
-            console.log('✓ NodeSpawnRegistry reset for new world generation');
-        } else if (nodeSpawnRegistry && !allowRegistryReset && !this._registryResetSuppressedLogged) {
-            console.warn('[SpawnRegistry] Reset skipped (not during world init)');
-            this._registryResetSuppressedLogged = true;
-        }
         this._allowRegistryReset = false;
 
         this.aiNodes = new AINodes(this.scene, this.player);
@@ -5482,69 +5443,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] Visual Interaction Isolation Patch v2.0 failed:', err.message);
         }
-        
-        // ====================================================================
-        // NODE SURFACE PROTECTION RULE v2.0 (Session 24 Enhanced)
-        // ====================================================================
-        // DISABLED: 503 server error - file import disabled to prevent crash
-        // This system was protecting node cores from aura occlusion
-        // When file serving resumes, re-enable import and initialization
-        /*
-        // Initialize node surface protection to prevent aura occlusion
-        try {
-            this.nodeSurfaceProtection = new NodeSurfaceProtectionRule_v2({
-                auraOpacityCeiling: 0.25,    // Max aura opacity
-                coreOpacityFloor: 0.7,       // Min node core opacity
-                debugEnabled: false
-            });
-            
-            // Protect all existing nodes
-            if (this.aiNodes?.nodes) {
-                this.nodeSurfaceProtection.protectNodes(this.aiNodes.nodes);
-            }
-            
-            // Hook node spawn for automatic protection
-            const originalSpawnNode = this.aiNodes?.spawnNode;
-            if (originalSpawnNode) {
-                this.aiNodes.spawnNode = function(...args) {
-                    const newNode = originalSpawnNode.apply(this, args);
-                    // Protect newly spawned node
-                    if (newNode) {
-                        this.game?.nodeSurfaceProtection?.registerNode(newNode);
-                    }
-                    return newNode;
-                }.bind(this.aiNodes);
-                this.aiNodes.game = this; // Reference for protection hook
-            }
-            
-            // [SESSION 56] Visual Authority Lock: Disable post-link visual overrides
-            // DISABLED: Post-link layering correction was mutating aura opacity & renderOrder
-            // Reason: Violates immutable base state principle
-            // Link FX are added as separate layers, base state never changes
-            
-            // Register observer for link creation events
-            if (this.linkingSystem && this.linkingSystem.registerObserver) {
-                this.linkingSystem.registerObserver({
-                    onLinkCreated: (link) => {
-                        try {
-                            // DISABLED: Attenuate aura opacity on link creation
-                            // this.nodeSurfaceProtection?.onLinkCreated(link);
-                            
-                            // DISABLED: Also apply defensive layering correction
-                            // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
-                            // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
-                        } catch (e) {
-                            // Silent failure
-                        }
-                    }
-                });
-            }
-            
-            console.log('[main.js] NodeSurfaceProtectionRule_v2 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] NodeSurfaceProtectionRule_v2 initialization failed:', err);
-        }
-        */
         
         // ====================================================================
         // NODE CORE MATERIAL AUTHORITY SYSTEM v1.0 (Session 26)
@@ -6196,59 +6094,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         console.log('[main.js] NodeLinker2_RepairLayer1_0 initialized ✓');
         
-        // Initialize Link Priority Decay Engine 1.0 (main system)
-        this.linkPriorityDecayEngine = new LinkPriorityDecayEngine(
-            this.linkingSystem,
-            this.scene
-        );
-        
-        // Wire all upstream systems into decay engine (safe optional chaining)
-        if (this.linkQualityFeedbackLoop) {
-            this.linkPriorityDecayEngine.setQualityFeedbackLoop(this.linkQualityFeedbackLoop);
-        }
-        if (this.userAcceptanceTracker) {
-            this.linkPriorityDecayEngine.setUserAcceptanceTracker(this.userAcceptanceTracker);
-        }
-        if (this.linkMLRecommendationEngine) {
-            this.linkPriorityDecayEngine.setMLRecommendationEngine(this.linkMLRecommendationEngine);
-        }
-        if (this.nodeLinkerRepairLayer) {
-            this.linkPriorityDecayEngine.setRepairLayer(this.nodeLinkerRepairLayer);
-        }
-        
-        // Register decay engine as observer for link events
-        if (this.linkingSystem && this.linkingSystem.registerObserver) {
-            this.linkingSystem.registerObserver({
-                onLinkCreated: (link) => this.linkPriorityDecayEngine?.onLinkCreated(link),
-                onLinkRemoved: (link) => this.linkPriorityDecayEngine?.onLinkRemoved(link),
-                onLinkUpdated: (link) => this.linkPriorityDecayEngine?.onLinkUpdated(link)
-            });
-        }
-        
-        // Register acceptance tracker with linking system (monitor user interactions)
-        if (this.userAcceptanceTracker && this.linkingSystem) {
-            if (this.linkingSystem.registerObserver) {
-                this.linkingSystem.registerObserver({
-                    onLinkCreated: (link) => this.userAcceptanceTracker?.trackLinkCreation(link),
-                    onLinkRemoved: (link) => this.userAcceptanceTracker?.trackLinkRemoval(link),
-                    onLinkInteraction: (link, action) => this.userAcceptanceTracker?.trackInteraction(link, action)
-                });
-            }
-        }
-        
-        // Wire quality feedback loop to linking system for outcome tracking
-        if (this.linkQualityFeedbackLoop && this.linkingSystem) {
-            if (this.linkingSystem.registerObserver) {
-                this.linkingSystem.registerObserver({
-                    onLinkCreated: (link) => this.linkQualityFeedbackLoop?.onLinkCreated(link),
-                    onLinkRemoved: (link) => this.linkQualityFeedbackLoop?.onLinkRemoved(link)
-                });
-            }
-        }
-        
-        console.log('[main.js] LinkPriorityDecayEngine system initialized ✓');
-        console.log('[main.js] ✓ All 5 dependency systems ready: Decay → Feedback → Acceptance → ML → Repair');
-
         // ====================================================================
         // TIER 1 INTEGRATION: Core Active Systems (Phase A)
         // Corruption Transmission + Harmony Stabilization
@@ -6977,17 +6822,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.camera,
                 this.renderer,
                 this.linguisticOverlay // Pass linguistic overlay for integration
-            );
-        }
-
-        // Initialize Mythic Node Creation (after AI nodes ready)
-        if (!this.mythicNodeCreation) {
-            this.mythicNodeCreation = new MythicNodeCreation(
-                this.scene,
-                this.camera,
-                this.player,
-                this.aiNodes,
-                this.worldPersonalityController
             );
         }
 
@@ -8968,15 +8802,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.mythicRitualController.update(deltaTime, this.aiNodes.nodes);
         }
 
-        // Update Mythic Node Creation (cinematic node birth ritual)
-        if (this.mythicNodeCreation) {
-            // Wire orchestrator on first update (lazy init)
-            if (!this.mythicNodeCreation.effectOrchestrator && this.effectOrchestrator) {
-                this.mythicNodeCreation.effectOrchestrator = this.effectOrchestrator;
-            }
-            this.mythicNodeCreation.update(deltaTime);
-        }
-
         // ====================================================================
         // PHASE 8: Update Network Ritual Visual Orchestration
         // Pure visual ceremony layer — orchestrates canonical templates
@@ -9133,10 +8958,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
 
         // Update Link Priority Decay Engine 1.0 - Time-based priority management
-        if (this.linkPriorityDecayEngine) {
-            this.linkPriorityDecayEngine.update(deltaTime, this.time);
-        }
-        
         // ====================================================================
         // TIER 2 VISUAL INTEGRATION: Update Visual Feedback Systems
         // ====================================================================
@@ -9312,11 +9133,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.nodeVisuals4.update(deltaTime);
         }
 
-        // Update Rare Node Spawner - Background rare node spawning system
-        if (this.rareNodeSpawner) {
-            this.rareNodeSpawner.update(deltaTime);
-        }
-
         // Update Node Evolution 2.0 - Visual node evolution system
         if (this.nodeEvolution && this.aiNodes) {
             measure('nodeEvolution', () => {
@@ -9484,14 +9300,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             }
         } catch (err) {
             console.warn('UIPrimaryNodeTopBar3_7 update failed:', err);
-        }
-
-        // ========================================================================
-        // SESSION 99: ENFORCE NODE VISUAL FREEZE (Per-frame enforcement disabled)
-        // ========================================================================
-        // PHASE MATERIAL-MUTATION-KILL: Freeze state applied on activation only.
-        if (this.__nodeVisualFreezeMode__) {
-            // Intentional no-op: per-frame freeze enforcement removed.
         }
 
         // ========================================================================
@@ -10130,9 +9938,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // Create demo nodes
         if (window.__ALLOW_EXTERNAL_SPAWN__ === true) {
-            this.nodeEditor.createNode(new THREE.Vector3(-5, 2, -5), { type: 'input', synergy: 'linear' });
-            this.nodeEditor.createNode(new THREE.Vector3(0, 2, 0), { type: 'processor', synergy: 'fusion' });
-            this.nodeEditor.createNode(new THREE.Vector3(5, 2, 5), { type: 'output', synergy: 'quantum' });
+            /// Spawn moved to AINodes authority (removed)
         } else {
             console.warn('[SpawnAuthority] External spawn blocked');
         }
@@ -10422,41 +10228,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         this.nodeVisuals4.printStatusReport();
 
         console.log('✓ Node Visuals 4.0 initialized');
-    }
-
-    /**
-     * Setup Rare Node Spawner
-     * SAFE: Background rare node spawning system
-     * ✓ 10 unique rare node types
-     * ✓ Safe collision avoidance
-     * ✓ No world transforms
-     * ✓ Node-local visuals only
-     */
-    setupRareNodeSpawner() {
-        if (!this.aiNodes || !this.player) {
-            console.warn('Player or AI Nodes not initialized, deferring Rare Node Spawner setup');
-            return;
-        }
-
-        // SESSION 37 FIX CRITICAL: Pass aiNodes instance itself (not just nodes list)
-        // This ensures RareNodeSpawner registers nodes to this.aiNodes.nodes (authoritative)
-        // Not to a local nodesList copy (which would create ghost nodes)
-        this.rareNodeSpawner = new RareNodeSpawner(
-            this.scene,
-            this.player,
-            this.aiNodes  // ✓ Pass full instance for registry access
-        );
-
-        this.rareNodeSpawner.printStatusReport();
-
-        // Setup runtime verifier for diagnostics
-        setupRareNodeVerifier(this.aiNodes, this.rareNodeSpawner);
-        console.log('✓ Rare Node Verifier initialized (window.__rareNodeVerifier)');
-        
-        // Setup simulation audit helpers (Session 37+ Part 2)
-        setupSimulationAuditHelpers(this.aiNodes, this.scene, this.effectOrchestrator);
-
-        console.log('✓ Rare Node Spawner initialized (COHESION FIX: authoritative registry)');
     }
 
     /**
@@ -14605,93 +14376,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         console.log('  Commands: computeLinkQuality(nodeA, nodeB) | testQualityMatrix() | testRandomCandidates() | getQualityStats()');
         console.log('  Control: setQualityThreshold(0-100)');
 
-        // ====================================================================
-        // LINK PRIORITY DECAY ENGINE 1.0 CONSOLE API (Session 27 Extended)
-        // ====================================================================
-        
-        // Get decay engine status
-        window.getDecayEngineStatus = function () {
-            if (!window.game || !window.game.linkPriorityDecayEngine) {
-                console.warn('⚠ LinkPriorityDecayEngine not available');
-                return;
-            }
-            const engine = window.game.linkPriorityDecayEngine;
-            console.group('📊 Link Priority Decay Engine Status');
-            console.log('Active:', engine.isActive?.() ?? 'N/A');
-            console.log('Total Links:', engine.getTotalLinks?.() ?? 0);
-            console.log('Decayed Links:', engine.getDecayedLinksCount?.() ?? 0);
-            console.log('Average Priority:', (engine.getAveragePriority?.() ?? 0).toFixed(2));
-            console.log('Decay Rate (%):', (engine.decayRatePercent ?? 1).toFixed(2));
-            console.log('Half-Life (seconds):', engine.halfLifeSeconds ?? 60);
-            console.groupEnd();
-        };
-
-        // Get individual link decay stats
-        window.getDecayStats = function (nodeAId, nodeBId) {
-            if (!window.game || !window.game.linkPriorityDecayEngine) {
-                console.warn('⚠ LinkPriorityDecayEngine not available');
-                return;
-            }
-            if (!nodeAId || !nodeBId) {
-                console.warn('⚠ Usage: getDecayStats(nodeAId, nodeBId)');
-                return;
-            }
-            const stats = window.game.linkPriorityDecayEngine.getDecayStats?.(nodeAId, nodeBId);
-            if (!stats) {
-                console.warn(`⚠ No decay stats found for link ${nodeAId} → ${nodeBId}`);
-                return;
-            }
-            console.group(`📉 Decay Stats: ${nodeAId} → ${nodeBId}`);
-            console.log('Current Priority:', stats.currentPriority?.toFixed(2) ?? 'N/A');
-            console.log('Initial Priority:', stats.initialPriority?.toFixed(2) ?? 'N/A');
-            console.log('Age (seconds):', stats.ageSeconds?.toFixed(2) ?? 'N/A');
-            console.log('Decay Applied (%):', stats.decayApplied?.toFixed(2) ?? 'N/A');
-            console.log('Is Active:', stats.isActive ?? false);
-            console.groupEnd();
-        };
-
-        // Reset all link priorities
-        window.resetAllPriorities = function () {
-            if (!window.game || !window.game.linkPriorityDecayEngine) {
-                console.warn('⚠ LinkPriorityDecayEngine not available');
-                return;
-            }
-            window.game.linkPriorityDecayEngine.resetAllPriorities?.();
-            console.log('✓ All link priorities reset to 100');
-        };
-
-        // Set custom decay rate
-        window.setDecayRate = function (ratePercent) {
-            if (!window.game || !window.game.linkPriorityDecayEngine) {
-                console.warn('⚠ LinkPriorityDecayEngine not available');
-                return;
-            }
-            if (typeof ratePercent !== 'number' || ratePercent < 0 || ratePercent > 100) {
-                console.warn('⚠ Decay rate must be 0-100 (percent per second)');
-                return;
-            }
-            window.game.linkPriorityDecayEngine.setDecayRate?.(ratePercent);
-            console.log(`✓ Decay rate set to ${ratePercent}% per second`);
-        };
-
-        // Set custom half-life
-        window.setDecayHalfLife = function (seconds) {
-            if (!window.game || !window.game.linkPriorityDecayEngine) {
-                console.warn('⚠ LinkPriorityDecayEngine not available');
-                return;
-            }
-            if (typeof seconds !== 'number' || seconds < 1) {
-                console.warn('⚠ Half-life must be >= 1 second');
-                return;
-            }
-            window.game.linkPriorityDecayEngine.setHalfLife?.(seconds);
-            console.log(`✓ Decay half-life set to ${seconds} seconds`);
-        };
-
-        console.log('✓ LinkPriorityDecayEngine registered');
-        console.log('  Status: getDecayEngineStatus() | getDecayStats(nodeA, nodeB)');
-        console.log('  Control: resetAllPriorities() | setDecayRate(0-100) | setDecayHalfLife(seconds)');
-        
         // [Session 144+] Node Linked Aura System Commands
         window.enableNodeAuras = () => {
             if (this.nodeAuraSystem) {

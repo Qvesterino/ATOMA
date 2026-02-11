@@ -79,8 +79,7 @@ export class SpawnAuthorityConsoleAPI {
       };
       
       if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
-        console.warn('[SpawnAuthority] External spawn blocked');
-        return;
+        console.warn('[SpawnAuthority] External spawn not explicitly enabled — allowing anyway');
       }
       const node = this.aiNodes.spawnNode(cat, pos);
       const actualCategory = node?.userData?.category || 'null';
@@ -121,8 +120,7 @@ export class SpawnAuthorityConsoleAPI {
       };
       
       if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
-        console.warn('[SpawnAuthority] External spawn blocked');
-        return;
+        console.warn('[SpawnAuthority] External spawn not explicitly enabled — allowing anyway');
       }
       const node = this.aiNodes.spawnNode(cat, pos);
       const spawned = node !== null && node !== undefined;

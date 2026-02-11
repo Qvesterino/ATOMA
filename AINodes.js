@@ -1034,6 +1034,37 @@ export class AINodes {
       ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']
     );
     // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
+    const debugCheckGeometry = (mesh, stage) => {
+      if (!mesh || !mesh.geometry) return;
+
+      const pos = mesh.geometry.attributes?.position?.array;
+      if (!pos || pos.length === 0) {
+        console.error('[NODE_GEOM_EMPTY]', {
+          stage,
+          category,
+          index,
+          isSpecial,
+          archetype: mesh.userData?.archetype
+        });
+        return;
+      }
+
+      for (let i = 0; i < pos.length; i++) {
+        if (!Number.isFinite(pos[i])) {
+          console.error('[NODE_GEOM_NAN]', {
+            stage,
+            value: pos[i],
+            idx: i,
+            category,
+            index,
+            isSpecial,
+            archetype: mesh.userData?.archetype
+          });
+          break;
+        }
+      }
+    };
+
     let nodeModel = null;
     try {
       nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
@@ -1043,6 +1074,7 @@ export class AINodes {
     if (!nodeModel) {
       return failClosedVisual(null, 'No canonical visual available');
     }
+    debugCheckGeometry(nodeModel, 'after_model_create');
     if (!hasRenderableVisual(nodeModel)) {
       return failClosedVisual(nodeModel, 'Visual has no renderable content');
     }
@@ -1056,6 +1088,7 @@ export class AINodes {
     }
     nodeModel.position.copy(position);
     nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
+    debugCheckGeometry(nodeModel, 'after_scale');
     
     // [SPAWN AUTHORITY] Apply pre-determined spawn options
     if (options && options.isExtreme) {
@@ -1064,6 +1097,7 @@ export class AINodes {
         nodeModel.userData.extremeArchetype = options.extremeArchetype;
         nodeModel.userData.extremeTier = options.extremeTier;
     }
+    debugCheckGeometry(nodeModel, 'before_children_setup');
     
     // ========================================================================
     // [SPAWN AUTHORITY] BIND TO EnhancedNodeModel
@@ -1234,6 +1268,39 @@ export class AINodes {
       }
       
       function safeEdgesGeometry(sourceGeo) {
+          // ===== EDGES-SOURCE-IDENTIFICATION: Diagnostic Logging =====
+          const posAttr = sourceGeo?.attributes?.position;
+          const arr = posAttr?.array;
+
+          let invalidReason = null;
+
+          if (!posAttr) {
+              invalidReason = 'NO_POSITION_ATTR';
+          }
+          else if (!arr || arr.length === 0) {
+              invalidReason = 'EMPTY_POSITION_ARRAY';
+          }
+          else {
+              for (let i = 0; i < arr.length; i++) {
+                  if (!Number.isFinite(arr[i])) {
+                      invalidReason = 'NaN_AT_INDEX_' + i;
+                      break;
+                  }
+              }
+          }
+
+          if (invalidReason) {
+              console.error('[EdgesSourceInvalid]', {
+                  nodeId: nodeModel?.userData?.id,
+                  archetype: nodeModel?.userData?.archetype,
+                  category: nodeModel?.userData?.category,
+                  geometryType: sourceGeo?.type,
+                  positionCount: arr ? arr.length : 0,
+                  reason: invalidReason
+              });
+          }
+          // ===========================================================
+
           if (!hasFinitePositions(sourceGeo)) {
               return null;
           }

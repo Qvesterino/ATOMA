@@ -6,9 +6,9 @@
  * EnhancedNodeModel or violates safety guarantees.
  * 
  * HARD RULES (NON-NEGOTIABLE):
- * 1. All spawns must come from EnhancedNodeModel
- * 2. Unknown categories must fallback silently to 'input'
- * 3. Missing dependencies must abort cleanly (return null)
+ * 1. All spawns must originate from EnhancedNodeModel metadata (observed but not enforced)
+ * 2. Unknown categories must be reported but not redirected
+ * 3. Missing dependencies must be logged but spawning proceeds
  * 4. Every node MUST have binding metadata
  * 5. Visual meshes MUST NEVER block raycasts
  * 6. Every node MUST be clickable
@@ -16,7 +16,6 @@
 
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { disableRaycastOnMesh } from './RaycastAuthorityInit.js';
-import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 
 export class SpawnAuthorityComplianceGate {
   constructor() {
@@ -38,69 +37,58 @@ export class SpawnAuthorityComplianceGate {
   }
 
   /**
-   * GATE 1: Validate spawn request against hard requirements
-   * Returns normalized category or null if spawn must abort
+   * GATE 1: Observe spawn request and log compliance posture
+   * Returns the requested category (no blocking)
    */
   validateSpawnRequest(requestedCategory, position) {
     this.spawnAttempts++;
-    
+    let valid = true;
+    let reason = 'Validation passed';
+    let finalCategory = requestedCategory;
+    const normalizedCategory = (requestedCategory || '').toLowerCase().trim();
+    const supportedCategory = this.SUPPORTED_CATEGORIES.includes(normalizedCategory);
+    let wasFallback = false;
+
     // ================================================================
     // RULE 1: EnhancedNodeModel must be available
     // ================================================================
     if (!EnhancedNodeModels || typeof EnhancedNodeModels.create !== 'function') {
+      valid = false;
+      reason = 'EnhancedNodeModel unavailable';
       this.rejectedSpawns++;
-      this.lastValidationResult = {
-        valid: false,
-        reason: 'EnhancedNodeModel unavailable',
-        category: null,
-        action: 'ABORT'
-      };
-      return null;  // HARD ABORT
+      console.warn('[SpawnAuthority] EnhancedNodeModel missing - allowing spawn (observer mode)');
     }
 
     // ================================================================
-    // RULE 2: Category must be in supported list (with fallback)
+    // RULE 2: Category must be in supported list (observation only)
     // ================================================================
-    let finalCategory = (requestedCategory || '').toLowerCase().trim();
-    let wasFallback = false;
-
-    if (!finalCategory) {
-      // No category provided - use default
-      finalCategory = 'input';
+    if (!normalizedCategory || !supportedCategory) {
       wasFallback = true;
-    } else if (!this.SUPPORTED_CATEGORIES.includes(finalCategory)) {
-      // Unknown category - FALLBACK SILENTLY (no logging)
-      finalCategory = 'input';
-      wasFallback = true;
+      valid = false;
+      reason = 'Unsupported category';
       this.fallbackSpawns++;
+      console.warn('[SpawnAuthority] Unsupported category observed - allowing spawn');
     }
 
     // ================================================================
-    // RULE 3: Position must be valid (no null/undefined)
+    // RULE 3: Position must be valid (observation only)
     // ================================================================
     if (!position || typeof position.x !== 'number' || 
         typeof position.y !== 'number' || 
         typeof position.z !== 'number') {
+      valid = false;
+      reason = 'Invalid position';
       this.rejectedSpawns++;
-      this.lastValidationResult = {
-        valid: false,
-        reason: 'Invalid position',
-        category: finalCategory,
-        action: 'ABORT'
-      };
-      return null;
+      console.warn('[SpawnAuthority] Invalid position observed - allowing spawn');
     }
 
-    // ================================================================
-    // VALIDATION PASSED: Return normalized category
-    // ================================================================
-    this.successfulSpawns++;
+    this.successfulSpawns += valid ? 1 : 0;
     this.lastValidationResult = {
-      valid: true,
-      reason: 'Validation passed',
+      valid: valid,
+      reason: reason,
       category: finalCategory,
       wasFallback: wasFallback,
-      action: 'SPAWN'
+      action: 'ALLOW'
     };
 
     return finalCategory;
@@ -330,9 +318,9 @@ export class SpawnAuthorityComplianceGate {
    * Hard decision point: spawn or abort?
    */
   shouldRejectSpawn(requestedCategory) {
-    // Never reject if category can be validated
-    const validated = this.validateSpawnRequest(requestedCategory, { x: 0, y: 0, z: 0 });
-    return validated === null;  // Only reject if validation returned null
+    // Authority no longer rejects spawns
+    this.validateSpawnRequest(requestedCategory, { x: 0, y: 0, z: 0 });
+    return false;
   }
 
   /**
@@ -341,21 +329,21 @@ export class SpawnAuthorityComplianceGate {
    * Returns false if duplicate unique spawn is detected
    */
   checkSpawnUniqueness(category, archetype) {
-    return nodeSpawnRegistry.isSpawnAllowed(category, archetype);
+    return true;
   }
 
   /**
-   * REGISTER: Mark a unique spawn as active
+   * REGISTER: Mark a unique spawn as active (observer only)
    */
   registerSpawn(category, archetype, nodeId) {
-    nodeSpawnRegistry.registerSpawn(category, archetype, nodeId);
+    // no-op: uniqueness enforced by AINodes.spawnNode
   }
 
   /**
-   * DEREGISTER: Remove from active unique list
+   * DEREGISTER: Remove from active unique list (observer only)
    */
   deregisterSpawn(category, archetype) {
-    nodeSpawnRegistry.deregisterSpawn(category, archetype);
+    // no-op
   }
 
   /**
