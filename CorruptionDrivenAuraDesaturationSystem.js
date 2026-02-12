@@ -25,7 +25,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 /**
  * Desaturation curves (corruption → saturation multiplier)

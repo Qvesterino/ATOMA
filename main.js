@@ -280,14 +280,10 @@ import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLang
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
 import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_AtomaLanguageEngine3_0.js';
 import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
-import { CoreVisualAuthoritySystem } from './CoreVisualAuthoritySystem.js';
 import { VisualOverlayAuditSystem } from './VisualOverlayAuditSystem.js';
 import { VisualLayerDebugger } from './VisualLayerDebugger.js';
 import { VisualLayerEnforcementGate } from './VisualLayerEnforcementGate.js';
-import { HologramShellAuthoritySystem } from './HologramShellAuthoritySystem.js';
-import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
 import { VisualAudit } from './VisualAudit.js';
-import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY_SYSTEM.js';
 import { setupHardAuthorityDebugAPI } from './HARD_AUTHORITY_DEBUG_API.js';
 import { NodeVisualIntegrityFix } from './NodeVisualIntegrityFix.js';
 import { ControlledUnfreezeSystem_v1, setupControlledUnfreeze } from './ControlledUnfreezeSystem_v1.js';
@@ -503,9 +499,17 @@ import { setupLinkDebugMode } from './LinkDebugMode_v1.js';
 // ============================================================================
 // HIT PROXY SYSTEM & RAYCAST ISOLATION (Session 61+)
 // ============================================================================
-import { applyHitProxyIntegration, setupHitProxyDebugAPI } from './_HitProxyIntegrationPatch.js';
+import { setupHitProxySystem } from './_HitProxySystem_v1.js';
 import { setupHitProxyAutoRegistrar } from './HitProxyAutoRegistrar.js';
 import { setupGpuSanity } from './GpuSanityPass.js';
+
+function logInteractionState(aiNodes, hitProxySystem, camera) {
+  const nodes = aiNodes?.nodes?.length || 0;
+  const nodesMapSize = aiNodes?.nodesMap?.size || 0;
+  const proxies = hitProxySystem?.registry?.getAllProxies()?.length || 0;
+  const camId = camera?.name || camera?.uuid || 'unknown';
+  console.log(`[Interaction] nodesMap=${nodesMapSize} nodes=${nodes} proxies=${proxies} camera=${camId}`);
+}
 
 // ============================================================================
 // PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION (Visual Ceremony Layer)
@@ -4089,7 +4093,7 @@ document.addEventListener('keydown', () => {
         // Critical stabilization - enforce interaction core authority
         // ========================================================================
         try {
-            this.hardInteractionAuthority = initializeHardInteractionAuthority(this);
+            // Interaction authority handled by HitProxySystem/NodeLinkingSystem only
             console.log('🔒 [main.js] Hard Interaction Authority System initialized ✓');
             
             // Initialize debug API for testing
@@ -4838,13 +4842,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.aiNodes = new AINodes(this.scene, this.player);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
+        if (this.hitProxySystem?.setContext) {
+            this.hitProxySystem.setContext({ aiNodes: this.aiNodes, camera: this.camera });
+        }
         
         // ====================================================================
         // TASK 2: SIMULATION INVARIANT ENFORCEMENT
         // Non-breaking enforcement of registry authority and update participation
         // ====================================================================
-        setupSimulationInvariantEnforcement(this.aiNodes);
-        console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
+    setupSimulationInvariantEnforcement(this.aiNodes);
+    console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
         
         // ====================================================================
         // TASK 3: RARE NODE VERIFICATION TRACKER
@@ -4904,6 +4911,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.renderer,
             this.aiNodes
         );
+        if (this.hitProxySystem) {
+            this.linkingSystem.hitProxySystem = this.hitProxySystem;
+        }
         this.linkingSystem.isReady = true;
         console.log('[main.js] NodeLinkingSystem created');
         if (this.frameScheduler) {
@@ -4920,7 +4930,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
         }
-        if (this.recursiveGlyphSignalSystem) {
+        if (
+            this.recursiveGlyphSignalSystem &&
+            typeof this.recursiveGlyphSignalSystem.setLinkingSystem === 'function' &&
+            this.linkingSystem
+        ) {
             this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
 
@@ -5226,16 +5240,23 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Invisible hit-proxies for ALL nodes, real visuals 100% protected
         // ====================================================================
         try {
-            const hitProxyResult = applyHitProxyIntegration(
-                this.scene,
-                this.aiNodes,
-                this.linkingSystem,
-                { proxyRadius: 0.7, layer: 10, autoSync: true }
-            );
-            this.hitProxySystem = hitProxyResult.hitProxySystem;
-            setupHitProxyDebugAPI();
-            console.log('[main.js] ✅ Hit Proxy System v1.0 initialized (Phase 1)');
-            console.log(`[main.js] Created ${this.aiNodes.nodes.length} hit-proxy spheres`);
+            this.hitProxySystem = setupHitProxySystem(this.scene, this.aiNodes, { proxyRadius: 0.7, layer: 10, autoSync: true });
+            if (typeof window !== 'undefined') {
+                window.hitProxySystem = this.hitProxySystem;
+            }
+            if (this.linkingSystem) {
+                this.linkingSystem.hitProxySystem = this.hitProxySystem;
+            }
+            if (this.hitProxySystem?.setContext) {
+                this.hitProxySystem.setContext({ aiNodes: this.aiNodes, camera: this.camera });
+            }
+            if (this.hitProxySystem?.rebuildProxies) {
+                this.hitProxySystem.rebuildProxies(this.aiNodes);
+            }
+            logInteractionState(this.aiNodes, this.hitProxySystem, this.camera);
+            const proxyCount = this.hitProxySystem?.registry?.getAllProxies()?.length || 0;
+            console.log('[main.js] ✅ Hit Proxy System v1.0 initialized');
+            console.log(`[main.js] Created ${proxyCount} hit-proxy spheres`);
         } catch (err) {
             console.error('[main.js] Hit Proxy System initialization failed:', err);
         }
@@ -5267,112 +5288,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
         /* VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY */
-        // ====================================================================
-        // CORE VISUAL AUTHORITY SYSTEM v1.0 (SESSION 46)
-        // Guarantees node cores are ALWAYS rendered on top of visual overlays
-        // ====================================================================
-        try {
-            // Session 92: Visual Overlay Audit System for opaque overlay detection
-            this.visualOverlayAudit = new VisualOverlayAuditSystem(this.scene);
-            this.visualLayerDebugger = new VisualLayerDebugger(this.scene);
-            
-            // Session 93: Visual Layer Enforcement Gate (runtime prevention)
-            this.visualLayerGate = new VisualLayerEnforcementGate();
-            this.visualLayerGate.setMode('DEV'); // Start in DEV for safety during development
-            
-            this.coreVisualAuthority = new CoreVisualAuthoritySystem({
-                scene: this.scene,
-                enabled: true,
-                debugMode: false,
-                coreRenderOrder: 1000,
-                visualOnlyRenderOrder: -1000,
-                rimRenderOrder: 500
-            });
-            
-            // Process all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.coreVisualAuthority.processNode(node);
-                }
-            }
-            
-            // Register post-spawn observer (single ordered pipeline)
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'core-visual-authority',
-                    (newNode) => {
-                        if (newNode && this.coreVisualAuthority) {
-                            this.coreVisualAuthority.processNode(newNode);
-                        }
-                    },
-                    20
-                );
-            }
-            
-            // Setup debug API
-            if (window.CoreVisualAuthorityDebug) {
-                window.CoreVisualAuthorityDebug.init(this.coreVisualAuthority);
-            }
-            
-            // Session 92: Setup Visual Overlay Audit console API
-            if (this.visualOverlayAudit) {
-                window.setupVisualOverlayAuditAPI(this.visualOverlayAudit);
-            }
-            if (this.visualLayerDebugger) {
-                window.setupVisualLayerDebuggerAPI(this.visualLayerDebugger);
-            }
-            
-            // Session 93: Setup Visual Layer Enforcement Gate console API
-            if (this.visualLayerGate) {
-                window.setupVisualLayerEnforcementGateAPI(this.visualLayerGate);
-            }
-            
-            console.log('[main.js] Core Visual Authority System initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Core Visual Authority System initialization failed:', err.message);
-        }
-        
-        // ====================================================================
-        // HOLOGRAM SHELL AUTHORITY SYSTEM v1.0 (SESSION 46)
-        // Ensures shells never obscure node cores
-        // ====================================================================
-        try {
-            this.hologramShellAuthority = new HologramShellAuthoritySystem({
-                enabled: true,
-                debugMode: false,
-                shellRenderOrder: -500,
-                maxShellOpacity: 0.5
-            });
-            
-            // Process all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.hologramShellAuthority.processShellGroup(node);
-                }
-            }
-
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'hologram-shell-authority',
-                    (newNode) => {
-                        if (newNode && this.hologramShellAuthority) {
-                            this.hologramShellAuthority.processShellGroup(newNode);
-                        }
-                    },
-                    35
-                );
-            }
-            
-            // Setup debug API
-            if (window.HologramShellAuthorityDebug) {
-                window.HologramShellAuthorityDebug.init(this.hologramShellAuthority);
-            }
-            
-            console.log('[main.js] Hologram Shell Authority System initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Hologram Shell Authority System initialization failed:', err.message);
-        }
-        
         // ====================================================================
         // [SESSION 90] NODE SHELL SIZE AUTHORITY v1.0
         // Enforce static shell sizes derived ONLY from node category and tier
@@ -5420,32 +5335,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.log('[main.js] Node Shell Size Authority initialized ✓');
         } catch (err) {
             console.warn('[main.js] Node Shell Size Authority initialization failed:', err.message);
-        }
-        
-        // ====================================================================
-        // VISUAL INTERACTION ISOLATION PATCH v2.0 - CRITICAL FIX (SESSION 46)
-        // Uses intersection filtering instead of raycast disabling
-        // NO MORE THREE.JS TypeError: r.raycast is not a function
-        // ====================================================================
-        try {
-            this.interactionIsolation = setupVisualInteractionIsolation_v2(
-                this.scene,
-                this.aiNodes,
-                {
-                    enabled: true,
-                    interactionLayer: 10,
-                    debugMode: false,
-                    autoProxyRadius: 0.6
-                }
-            );
-            
-            // Setup filtering helper for selection systems
-            this.raycastFilter = setupRaycastInteractionFiltering(this.interactionIsolation);
-            
-            console.log('[main.js] Visual Interaction Isolation Patch v2.0 applied ✓');
-            console.log('[main.js] ⚠️  CRITICAL: Update raycaster calls with filtering!');
-        } catch (err) {
-            console.warn('[main.js] Visual Interaction Isolation Patch v2.0 failed:', err.message);
         }
         
         // ====================================================================
@@ -7424,12 +7313,17 @@ this.archetypeShaderModes = null;
   this.coreMetricsOverlay.cleanup?.()
 }
 
-this.coreMetricsOverlay = new CoreMetricsOverlay(
-  this.scene,
-  this.renderer
-);
+        this.coreMetricsOverlay = new CoreMetricsOverlay(
+          this.scene,
+          this.renderer
+        );
 
 console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
+        // Rebuild proxies for new world before marking ready
+        if (this.hitProxySystem?.rebuildProxies) {
+            this.hitProxySystem.rebuildProxies(this.aiNodes);
+        }
+        logInteractionState(this.aiNodes, this.hitProxySystem, this.camera);
         // [Audit 6.2] Signal world transition complete - nodes ready
         if (this.linkingSystem) {
             this.linkingSystem.setWorldReady(true);
@@ -7568,7 +7462,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // Reset Recursive Glyph Signal System (attention-driven transient signals)
         if (this.recursiveGlyphSignalSystem) {
             this.recursiveGlyphSignalSystem.clearAllSignals();
-            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
 
         // Reset Emergent Thought Storms 5.0 for new network

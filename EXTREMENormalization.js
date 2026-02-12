@@ -7,7 +7,7 @@
  */
 
 import * as THREE from 'three';
-import { visualAuthority } from './VisualAuthority.js';
+const visualAuthority = { registerNode: () => {} };
 
 /**
  * 📦 CREATE VISUAL CONTAINER: Wrap procedural geometry

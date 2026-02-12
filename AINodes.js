@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
 
@@ -29,6 +28,9 @@ const FORBIDDEN_NODE_GEOMETRIES = new Set([
   'CircleGeometry',
   'TorusGeometry'
 ]);
+
+// Minimal passthrough: interaction filtering handled solely by NodeLinkingSystem/HitProxySystem
+const filterRaycastIntersections = (intersections) => intersections || [];
 
 // ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
 if (typeof window !== 'undefined') {
@@ -121,8 +123,9 @@ function validateNodeVisualIntegrity(root) {
     if (!obj || obj.isObject3D !== true) return;
     if (obj.isMesh === true) {
       result.meshCount++;
-      if (!obj.material) result.materiallessMeshes.push(obj.uuid || obj.id || 'unknown');
-      if (!obj.geometry) result.geometrylessMeshes.push(obj.uuid || obj.id || 'unknown');
+      const objIdentity = obj.userData?.nodeId || 'unknown';
+      if (!obj.material) result.materiallessMeshes.push(objIdentity);
+      if (!obj.geometry) result.geometrylessMeshes.push(objIdentity);
     } else if (obj.isLine === true || obj.isPoints === true) {
       result.hasLinesPoints = true;
     }
@@ -305,9 +308,20 @@ export class AINodes {
     // Traverse existing scene and disable visual raycasts
     this.scene.traverse(obj => {
       if (!obj.isMesh) return;
+      if (obj.userData?.isHitProxy) return;
+      
+      const userData = obj.userData || {};
+      // DO NOT disable raycast on core interaction objects
+      if (
+        userData.isNodeCore === true ||
+        userData.isCoreMesh === true ||
+        userData.isInteractionProxy === true ||
+        userData.nodeId
+      ) {
+        return;
+      }
       
       // Check if object is marked as visual-only
-      const userData = obj.userData || {};
       const isVisualOnly = 
         userData.isAura === true ||
         userData.isShell === true ||
@@ -341,9 +355,18 @@ export class AINodes {
     
     node.traverse(child => {
       if (!child.isMesh) return;
+      if (child.userData?.isHitProxy) return;
       
       // If marked as visual-only, disable raycasting
       const userData = child.userData || {};
+      if (
+          userData.isNodeCore === true ||
+          userData.isCoreMesh === true ||
+          userData.isInteractionProxy === true ||
+          userData.nodeId
+      ) {
+        return;
+      }
       if (userData.isAura === true ||
           userData.isShell === true ||
           userData.isHologramShell === true ||
@@ -356,6 +379,18 @@ export class AINodes {
         child.raycast = () => null;
       }
     });
+  }
+
+  _ensureCanonicalNodeId(node) {
+    if (!node) return null;
+    node.userData = node.userData || {};
+
+    // Canonical identity: reuse Three.js UUID when no nodeId present
+    if (!node.userData.nodeId) {
+      node.userData.nodeId = node.uuid;
+    }
+
+    return node.userData.nodeId;
   }
   
   /**
@@ -509,6 +544,69 @@ export class AINodes {
     );
   }
 
+  _findCanonicalCoreMesh(nodeModel) {
+    if (!nodeModel) return null;
+    if (nodeModel.userData?.linkTarget?.isMesh) {
+      return nodeModel.userData.linkTarget;
+    }
+    if (nodeModel.userData?.coreMesh?.isMesh) {
+      return nodeModel.userData.coreMesh;
+    }
+    let candidate = null;
+    nodeModel.traverse(child => {
+      if (candidate || !child.isMesh) return;
+      const userData = child.userData || {};
+      if (userData.isNodeCore === true || userData.isCoreMesh === true || userData.visualLayer === 'CORE') {
+        candidate = child;
+        return;
+      }
+      const name = (child.name || '').toLowerCase();
+      if (name.includes('core') || name.includes('body') || name.includes('main')) {
+        candidate = child;
+        return;
+      }
+    });
+    return candidate;
+  }
+
+  _assignCanonicalLinkTarget(nodeModel) {
+    if (!nodeModel || !nodeModel.userData) return null;
+    if (nodeModel.userData.linkTarget?.isMesh) {
+      return nodeModel.userData.linkTarget;
+    }
+    const candidate = this._findCanonicalCoreMesh(nodeModel);
+    if (!candidate) return null;
+    candidate.userData = candidate.userData || {};
+    candidate.userData.isNodeCore = true;
+    candidate.userData.isCoreMesh = true;
+    candidate.userData.visualLayer = candidate.userData.visualLayer || 'CORE';
+    nodeModel.userData.linkTarget = candidate;
+    nodeModel.userData.coreMesh = candidate;
+    return candidate;
+  }
+
+  _bindNodeIdentityToTargets(node) {
+    if (!node || !node.userData) return;
+    const nodeId = this._ensureCanonicalNodeId(node);
+    if (!nodeId) return;
+    const targets = new Set([
+      node.userData.linkTarget,
+      node.userData.coreMesh,
+      node.userData.interactionCollider,
+      node.userData.interactionCore,
+      node.userData.mainBody
+    ]);
+    targets.forEach(target => {
+      if (!target || !target.isMesh) return;
+      target.userData = target.userData || {};
+      target.userData.nodeId = nodeId;
+      target.userData.category = target.userData.category || node.userData.category;
+      target.userData.isNodeCore = true;
+      target.userData.isCoreMesh = true;
+      target.userData.visualLayer = 'CORE';
+    });
+  }
+
   /**
    * Queue heavy visual tasks to spread work across frames (Spawn Visual Burst Gate).
    * Falls back to immediate execution if queue unavailable.
@@ -630,7 +728,7 @@ export class AINodes {
 
   releaseUniqueSpawn(node) {
     if (!node) return false;
-    const nodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
+    const nodeId = node.userData?.nodeId;
     if (!nodeId) return false;
     return this.uniqueSpawnRegistry.releaseUniqueSpawnByNodeId(nodeId);
   }
@@ -645,9 +743,7 @@ export class AINodes {
 
   requestVisualRepair(nodeId, reason = 'manual') {
     if (!this.visualAuthorityRuntime) return false;
-    const node =
-      this.nodesMap?.get?.(nodeId) ||
-      this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === nodeId);
+    const node = this.nodesMap?.get?.(nodeId);
     if (!node) return false;
     return this.visualAuthorityRuntime.requestRepair(node, reason);
   }
@@ -742,7 +838,7 @@ export class AINodes {
           );
           
           if (existingNodeId) {
-             const existingNode = this.nodes.find(n => n.userData.nodeId === existingNodeId || n.uuid === existingNodeId);
+             const existingNode = this.nodes.find(n => n.userData.nodeId === existingNodeId);
              if (existingNode) {
                  this.triggerUpgradePulse(existingNode);
                  console.log(`[SpawnAuthority] Denied duplicate spawn ${archetypeKey}. Upgraded existing node.`);
@@ -784,12 +880,12 @@ export class AINodes {
           spawnAuthorityComplianceGate.registerSpawn(
               isExtreme ? 'extreme' : category,
               archetypeKey,
-              finalizedNode.userData.nodeId || finalizedNode.uuid
+              finalizedNode.userData.nodeId
           );
           const uniqueKey = this._getUniqueArchetypeKey(category, archetypeKey);
           if (uniqueKey) {
             this.uniqueSpawnRegistry.registerUniqueSpawn(
-              finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid,
+              finalizedNode.userData.nodeId,
               uniqueKey,
               { category, source: 'createNodes' }
             );
@@ -1132,22 +1228,7 @@ export class AINodes {
     const layerColors = this.getLayerColorScheme(safeCategory);
     
     // ========== ULTRA EDITION: INTERACTION-ONLY PROXY ==========
-    // Minimal object reserved for selection/raycast/link targeting
-    const linkTarget = new THREE.Object3D();
-    linkTarget.name = 'interaction-proxy';
-    linkTarget.userData = {
-      isInteractionProxy: true,
-      isCoreMesh: true,
-      visualLayer: 'CORE',
-      neutralized: true,
-      neutralizedRole: 'interaction-proxy'
-    };
-    // Guard: Only add interaction proxy if not already present
-    if (!nodeModel.userData.overlays['interaction-proxy']) {
-      nodeModel.add(linkTarget);
-      nodeModel.userData.overlays['interaction-proxy'] = linkTarget;
-    }
-    let linkTargetMesh = linkTarget;
+    // (Legacy stub retained for auditing – no proxy object now created)
     
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS (1-3 thin rings) ==========
     const ringCount = 0;
@@ -1353,7 +1434,7 @@ export class AINodes {
           edgeLines.userData.isVFX = true;
           edgeLines.userData.edgeGlow = true;
           // Guard: Only add edge glow if not already present for this child
-          const edgeKey = `edge-glow-${child.uuid}`;
+          const edgeKey = `edge-glow-${child.userData?.nodeId || 'unknown'}`;
           if (!nodeModel.userData.overlays[edgeKey]) {
             child.add(edgeLines);
             nodeModel.userData.overlays[edgeKey] = edgeLines;
@@ -1490,9 +1571,8 @@ export class AINodes {
       namingMeaning: null,
       
       // ========== LINK TARGET CONTRACT 1.0: Explicit visual target ==========
-      // This is the ONLY object link-state systems are allowed to mutate
-      // Assigned explicitly at spawn time, NEVER inferred or derived
-      linkTarget: linkTargetMesh
+      // This placeholder preserves audit info without spawning new objects
+      linkTarget: null
     };
     
     // ========== SAFE METRICS DNA INTEGRATION 1.0: Attach read-only metrics ==========
@@ -1625,6 +1705,8 @@ export class AINodes {
       console.warn('[NODE_REJECT] Empty visual root');
       return null;
     }
+    
+    this._assignCanonicalLinkTarget(nodeModel);
     
     return nodeModel;
   }
@@ -2160,7 +2242,7 @@ export class AINodes {
     // Register with orchestrator instead of requestAnimationFrame
     if (this.effectOrchestrator) {
       const effect = {
-        id: `activation-pulse-${node.uuid}`,
+        id: `activation-pulse-${node.userData?.nodeId || 'unknown'}`,
         type: 'activationPulse',
         elapsed: 0,
         duration: 1.0, // 1 second in game time
@@ -2666,20 +2748,15 @@ export class AINodes {
    */
   registerNodeRoot(root) {
     if (!root) return root;
-    const id = root.userData?.nodeId;
+    const nodeId = this._ensureCanonicalNodeId(root);
     if (!this.nodes) this.nodes = [];
     if (!this.nodesMap) this.nodesMap = new Map();
 
-    if (!id) {
-      this.nodes.push(root);
-      return root;
+    if (this.nodesMap.has(nodeId)) {
+      return this.nodesMap.get(nodeId);
     }
 
-    if (this.nodesMap.has(id)) {
-      return this.nodesMap.get(id);
-    }
-
-    this.nodesMap.set(id, root);
+    this.nodesMap.set(nodeId, root);
     this.nodes.push(root);
     return root;
   }
@@ -2695,6 +2772,66 @@ export class AINodes {
         this._warnedInvalidNode = true;
       }
       return null;
+    }
+
+    const canonicalNodeId = this._ensureCanonicalNodeId(node);
+
+    if (!this.nodesMap) {
+      this.nodesMap = new Map();
+    }
+    this.nodesMap.set(canonicalNodeId, node);
+
+    let interactionCollider = node.userData.interactionCollider;
+    const scaleX = Number.isFinite(node.scale?.x) ? Math.abs(node.scale.x) : 1;
+    const scaleY = Number.isFinite(node.scale?.y) ? Math.abs(node.scale.y) : 1;
+    const scaleZ = Number.isFinite(node.scale?.z) ? Math.abs(node.scale.z) : 1;
+    const colliderRadius = Math.max(1.0, scaleX, scaleY, scaleZ);
+
+    if (!interactionCollider || !interactionCollider.isMesh) {
+      const geometry = new THREE.SphereGeometry(colliderRadius, 12, 12);
+      const material = new THREE.MeshBasicMaterial({ visible: false });
+      interactionCollider = new THREE.Mesh(geometry, material);
+      interactionCollider.name = 'node-interaction-collider';
+      interactionCollider.frustumCulled = false;
+      interactionCollider.visible = true;
+      interactionCollider.userData = interactionCollider.userData || {};
+      node.userData.interactionCollider = interactionCollider;
+      node.add(interactionCollider);
+    } else if (interactionCollider.parent !== node) {
+      node.add(interactionCollider);
+    }
+
+    interactionCollider.userData = interactionCollider.userData || {};
+    interactionCollider.userData.nodeId = canonicalNodeId;
+    interactionCollider.userData.targetNodeId = canonicalNodeId;
+    interactionCollider.userData.isInteractionProxy = true;
+    interactionCollider.userData.visualLayer = 'CORE';
+    interactionCollider.frustumCulled = false;
+    interactionCollider.visible = true;
+    if (!interactionCollider.material || !(interactionCollider.material instanceof THREE.MeshBasicMaterial)) {
+      interactionCollider.material = new THREE.MeshBasicMaterial({ visible: false });
+    } else {
+      interactionCollider.material.visible = false;
+    }
+
+    node.traverse(child => {
+      if (!child.isMesh) return;
+      if (child.userData?.nodeId) {
+        child.raycast = THREE.Mesh.prototype.raycast;
+      }
+    });
+
+    // Ensure interaction collider exists and has identity
+    const collider = node.userData.interactionCollider;
+    if (collider) {
+      collider.userData = collider.userData || {};
+      // Write identity onto collider ONLY
+      collider.userData.nodeId = canonicalNodeId;
+      if (category) {
+        collider.userData.category = category;
+      }
+    } else if (window.__ATOMA_RAYCAST_DEBUG) {
+      console.warn('[RaycastDebug] Collider missing for node', canonicalNodeId);
     }
 
     const ensureUserDataObject = (obj) => {
@@ -2747,7 +2884,7 @@ export class AINodes {
         meshCount: integrity.meshCount,
         materiallessMeshes: integrity.materiallessMeshes,
         geometrylessMeshes: integrity.geometrylessMeshes,
-        nodeId: node.userData?.nodeId || node.uuid,
+        nodeId: node.userData?.nodeId,
       });
       return null;
     }
@@ -2802,15 +2939,15 @@ export class AINodes {
     if (scaleNonFinite) issues.push('scale-non-finite');
 
     if (issues.length > 0) {
-      console.warn(`[SpawnFinalize] visibility-risk id=${node.uuid || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
+      console.warn(`[SpawnFinalize] visibility-risk id=${canonicalNodeId || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
     }
 
     if (renderableCount === 0) return null;
 
     // Protection: invisible roots must not enter the scene
     if (!node.children || node.children.length === 0) {
-      const nodeId = node.userData?.nodeId || node.uuid || 'unknown';
-      console.warn('[NodeInvisibleAbort]', nodeId);
+      const invisibleNodeId = canonicalNodeId || 'unknown';
+      console.warn('[NodeInvisibleAbort]', invisibleNodeId);
       return null;
     }
 
@@ -2818,10 +2955,10 @@ export class AINodes {
  //   const spherePolicyResult = validateSpherePolicyObject3D(node, {
  //     phase: 'spawn-finalize',
  //     category,
- //     nodeId: node.userData?.nodeId || node.uuid,
+  //     nodeId: node.userData?.nodeId,
  //   });
  //   if (!node.parent && (!node.children || node.children.length === 0 || spherePolicyResult.removed > 0 && !hasRenderableVisual(node))) {
- //     console.warn('[NodeSpawnSkipped] Sphere policy removed renderables, skipping node', node.userData?.nodeId || node.uuid || null);
+  //     console.warn('[NodeSpawnSkipped] Sphere policy removed renderables, skipping node', node.userData?.nodeId || null);
   //    return null;
  //   }
 
@@ -2833,15 +2970,27 @@ export class AINodes {
 
     // Minimal identity + category guarantees
     const rootUserData = ensureUserDataObject(node);
-    if (rootUserData && !rootUserData.id) {
-      rootUserData.id = rootUserData.nodeId || `node-${Date.now()}-${Math.random()}`;
-    }
-    if (rootUserData && !rootUserData.nodeId) {
-      rootUserData.nodeId = rootUserData.id;
-    }
     if (rootUserData && !rootUserData.category && category) {
       rootUserData.category = category;
     }
+
+    const rootNodeId = canonicalNodeId;
+    const core = node.getObjectByProperty('userData.isNodeCore', true);
+    if (core) {
+      core.userData.nodeId = rootNodeId;
+      core.userData.isNodeCore = true;
+      core.userData.visualLayer = 'CORE';
+      if (typeof core.raycast !== 'function') {
+        core.raycast = THREE.Mesh.prototype.raycast;
+      }
+    }
+    node.traverse(obj => {
+      if (!obj.isMesh) return;
+      const ud = obj.userData || {};
+      const isCore = ud.isNodeCore === true || ud.visualLayer === 'CORE';
+      if (isCore) return;
+      obj.raycast = () => null;
+    });
 
     // Register only after visibility is confirmed
     this.registerNodeRoot(node);
@@ -3033,9 +3182,7 @@ export class AINodes {
     if (forcedUniqueKey) {
       const existingUniqueNodeId = this.uniqueSpawnRegistry.getNodeId(forcedUniqueKey);
       if (existingUniqueNodeId) {
-        const existingUniqueNode =
-          this.nodesMap?.get(existingUniqueNodeId) ||
-          this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === existingUniqueNodeId);
+      const existingUniqueNode = this.nodesMap?.get(existingUniqueNodeId);
         if (existingUniqueNode && existingUniqueNode.parent) {
           this._pendingCyclicCandidate = null;
           return existingUniqueNode;
@@ -3120,7 +3267,7 @@ export class AINodes {
           geometryTypes: Array.from(geometryTypes)
         });
         newNode.userData.visualFailed = true;
-        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId || newNode.uuid || null);
+        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId);
         return null;
       }
       
@@ -3133,7 +3280,7 @@ export class AINodes {
           geometryTypes: Array.from(geometryTypes)
         });
         newNode.userData.visualFailed = true;
-        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId || newNode.uuid || null);
+        console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId);
         return null;
       }
     }
@@ -3162,13 +3309,8 @@ export class AINodes {
       this.fallbackNode = newNode;
       this._fallbackNode = newNode;
     }
-    
-    // Primary category assignment (GUARANTEED before HUD/LinkRegistry reads)
-    newNode.userData.id = newNode.userData.id || `node-${Date.now()}-${Math.random()}`;
-    if (newNode.userData.nodeId && newNode.userData.nodeId !== newNode.userData.id) {
-      console.warn('[SpawnIdentity] nodeId diverged; mirroring id');
-    }
-    newNode.userData.nodeId = newNode.userData.id;
+
+    this._ensureCanonicalNodeId(newNode);
     newNode.userData.category = category;  // <- PRIMARY SOURCE
     newNode.userData.archetype = forceArchetype || category || 'default';
     newNode.userData.archetypeKey = archetypeKey || category;
@@ -3195,6 +3337,7 @@ export class AINodes {
     newNode.userData._boundsDirty = true;
     newNode.userData.isRaycastTarget = newNode.userData.__nonRenderable === true ? false : true;
     newNode.userData.coreMesh = coreMesh || null;
+    this._bindNodeIdentityToTargets(newNode);
     
     // Validate all critical tags are set
     if (!newNode.userData.category) {
@@ -3247,7 +3390,7 @@ export class AINodes {
     }
     const finalizedNode = finalized.node;
 
-    const fallbackToken = `instance-${finalizedNode.userData?.nodeId || finalizedNode.userData?.id || Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const fallbackToken = `instance-${finalizedNode.userData?.nodeId || Date.now()}-${Math.random().toString(36).slice(2)}`;
     const variantToken = forceArchetype ??
       finalizedNode.userData?.archetypeKey ??
       finalizedNode.userData?.variantId ??
@@ -3268,7 +3411,7 @@ export class AINodes {
     });
     if (finalizedNode.userData.uniqueArchetypeKey) {
       this.uniqueSpawnRegistry.registerUniqueSpawn(
-        finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid,
+        finalizedNode.userData.nodeId,
         finalizedNode.userData.uniqueArchetypeKey,
         {
           category: finalizedNode.userData.category,
@@ -3313,7 +3456,7 @@ export class AINodes {
     // ========== STEP 11: DEBUG LOG (OPTIONAL) ==========
     if (this.debugMode) {
       console.log('[AINodes] Spawned node', {
-        id: newNode.userData.id,
+        nodeId: newNode.userData.nodeId,
         category: newNode.userData.category,
         archetype: newNode.userData.archetype,
         hasMetrics: !!newNode.userData.metrics,
@@ -3351,7 +3494,7 @@ export class AINodes {
     // Orchestrator will drive dt-based animation
     if (this.effectOrchestrator) {
       const effect = {
-        id: `materialize-${node.uuid}`,
+        id: `materialize-${node.userData?.nodeId || 'materialize'}`,
         type: 'materialization',
         elapsed: 0,
         duration: 0.8, // 800ms in seconds
@@ -3578,6 +3721,10 @@ export class AINodes {
     this.connections = [];
     this.activeNodes.clear();
     this.materializingNodes.clear();
+    if (this.nodesMap) {
+      this.nodesMap.clear();
+    }
+    this.nodesMap = new Map();
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();

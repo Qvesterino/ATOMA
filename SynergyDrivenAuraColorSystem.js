@@ -24,7 +24,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 /**
  * Synergy states and their associated colors

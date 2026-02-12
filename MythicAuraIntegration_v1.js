@@ -41,7 +41,7 @@
  */
 
 import { CONFIG } from './config.js';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 /**
  * MythicAuraEnhancer: Per-aura mythic enhancement state

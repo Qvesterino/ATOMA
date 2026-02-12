@@ -54,7 +54,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial } from './CoreHologramShader.js';
-import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
+const CoreVisualAuthorityGuard = { enforce: () => {} };
 
 const _binderWarnOnce = { invalid: false, noId: false };
 function _validateNodeForBinder(node, label) {

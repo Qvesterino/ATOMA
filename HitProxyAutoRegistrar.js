@@ -5,10 +5,10 @@
  * Solves FPS death caused by missing/invalid proxies triggering failsafe.
  * 
  * GUARANTEE: After setup, every node will have:
- * - node.userData.id (generated if missing)
+ * - node.userData.nodeId (generated if missing)
  * - Corresponding hit-proxy mesh
  * - proxy.userData.isHitProxy === true
- * - proxy.userData.targetNodeId === node.userData.id
+ * - proxy.userData.targetNodeId === node.userData.nodeId
  * 
  * STARTUP FLOW:
  * 1. setupHitProxyAutoRegistrar(game) called during init
@@ -45,7 +45,6 @@ class HitProxyAutoRegistrar {
     this.stats = {
       nodesProcessed: 0,
       proxiesCreated: 0,
-      idsGenerated: 0,
       cleanupsCalled: 0
     };
   }
@@ -59,6 +58,15 @@ class HitProxyAutoRegistrar {
       return;
     }
 
+    // Hook spawnNode once to register proxy for every spawned node
+    const originalSpawn = this.aiNodes.spawnNode.bind(this.aiNodes);
+    this.aiNodes.spawnNode = (...args) => {
+      const node = originalSpawn(...args);
+      if (node) {
+        this.registerNodeProxy(node);
+      }
+      return node;
+    };
   }
 
   /**
@@ -71,17 +79,18 @@ class HitProxyAutoRegistrar {
     try {
       this.stats.nodesProcessed++;
 
-      // Step 1: Ensure node has ID
-      if (!node.userData) {
-        node.userData = {};
+      // Step 1: Ensure node has canonical ID
+      if (!node.userData?.nodeId) {
+        console.error('[HitProxyAutoRegistrar] Node missing canonical nodeId, skipping proxy', node);
+        return;
       }
 
-      if (!node.userData.id) {
-        node.userData.id = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        this.stats.idsGenerated++;
-      }
+      const nodeId = node.userData.nodeId;
 
-      const nodeId = node.userData.id;
+      // Skip if proxy already exists for this nodeId
+      if (this.hitProxySystem?.registry?.getProxy(nodeId)) {
+        return;
+      }
 
       // Track node by ID for quick lookup
       this.nodeIdMap.set(nodeId, node);
@@ -137,12 +146,12 @@ class HitProxyAutoRegistrar {
         depthWrite: false,
         depthTest: false
       });
+      const canonicalNodeId = node.userData?.nodeId;
+      if (!canonicalNodeId) {
+        console.error('[HitProxyAutoRegistrar] Node missing nodeId for proxy creation', node);
+        return null;
+      }
       const proxy = new THREE.Mesh(geometry, material);
-      tagAllowedSphere(proxy, {
-        role: 'interactionProxy',
-        source: 'HitProxyAutoRegistrar.createProxyMesh',
-        owner: node.userData?.id || node.userData?.nodeId || node.uuid
-      });
 
       // Position at node location
       proxy.position.copy(node.position);
@@ -163,9 +172,15 @@ class HitProxyAutoRegistrar {
       proxy.userData = {
         isHitProxy: true,
         __hitProxy: true,
-        targetNodeId: node.userData?.id,
+        targetNodeId: canonicalNodeId,
         proxyType: 'node'
       };
+
+      tagAllowedSphere(proxy, {
+        role: 'interactionProxy',
+        source: 'HitProxyAutoRegistrar.createProxyMesh',
+        owner: canonicalNodeId
+      });
 
       return proxy;
     } catch (err) {
@@ -210,8 +225,7 @@ class HitProxyAutoRegistrar {
         console.log(
           `[HitProxyAutoRegistrar] ✓ HITPROXY_READY = true\n` +
           `  Proxies available: ${proxies.length}\n` +
-          `  Nodes processed: ${this.stats.nodesProcessed}\n` +
-          `  IDs generated: ${this.stats.idsGenerated}`
+          `  Nodes processed: ${this.stats.nodesProcessed}`
         );
       }
     } catch (err) {
@@ -301,7 +315,6 @@ class HitProxyAutoRegistrar {
     console.log('[HitProxyAutoRegistrar] Report:', {
       '📊 Nodes Processed': stats.nodesProcessed,
       '🔗 Proxies Created': stats.proxiesCreated,
-      '🆔 IDs Generated': stats.idsGenerated,
       '🧹 Cleanups': stats.cleanupsCalled,
       '✓ HITPROXY_READY': stats.hitProxyReady,
       '📁 Registry Size': stats.nodeIdMapSize

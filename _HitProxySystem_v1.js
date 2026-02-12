@@ -46,7 +46,7 @@ const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
   : function(node) {
       if (!node) return null;
       const ud = node.userData || {};
-      return ud.id || ud.nodeId || node.uuid || null;
+      return ud.nodeId || ud.id || node.uuid || null;
     };
 
 // ============================================================================
@@ -77,6 +77,14 @@ class HitProxyFactory {
     mesh.userData.__hardInvisibleProxy = true;
 
     return mesh;
+  }
+
+  /**
+   * Update context references after world switch
+   */
+  setContext({ aiNodes, camera } = {}) {
+    if (aiNodes) this.aiNodes = aiNodes;
+    if (camera) this.camera = camera;
   }
 
   /**
@@ -274,15 +282,25 @@ class HitProxyController {
    * Create and attach proxy to a specific node
    */
   attachProxyToNode(node, proxyRadius = 0.7) {
-    // [SESSION 62B] FIX: Check userData.id (not nodeId)
-    // AINodes uses userData.id, not userData.nodeId
+    // [SESSION 62B] FIX: Ensure canonical nodeId is present
     let nodeId = getNodeIdentity(node);
     
-    // If still no ID, generate one
+    // If still no ID, generate one and store as nodeId (primary) and id (fallback)
     if (!nodeId) {
       nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       if (!node.userData) node.userData = {};
-      node.userData.id = nodeId;
+      node.userData.nodeId = nodeId;
+      if (!node.userData.id) {
+        node.userData.id = nodeId;
+      }
+    } else {
+      if (!node.userData) node.userData = {};
+      if (!node.userData.nodeId) {
+        node.userData.nodeId = nodeId;
+      }
+      if (!node.userData.id) {
+        node.userData.id = nodeId;
+      }
     }
 
     // Check if proxy already exists
@@ -391,6 +409,7 @@ class HitProxySystem {
     this.scene = scene;
     this.aiNodes = aiNodes;
     this.options = options;
+    this.camera = options.camera || null;
 
     // Initialize components
     this.registry = new HitProxyRegistry();
@@ -402,28 +421,50 @@ class HitProxySystem {
   }
 
   /**
-   * Initialize proxy system — create proxies for all existing nodes
+   * Rebuild proxies for all current nodes (clears registry + scene proxies)
    */
-  initialize() {
-    if (this.setupDone) return;
+  rebuildProxies(aiNodes = this.aiNodes) {
+    if (aiNodes) {
+      this.aiNodes = aiNodes;
+    }
+    // Clear existing proxies
+    for (const proxy of this.registry.getAllProxies()) {
+      this.scene.remove(proxy);
+    }
+    this.registry.clear();
+    this.proxiesCreated = false;
+    this.setupDone = false;
+
+    if (!aiNodes?.nodes) {
+      console.warn('[HitProxy] coverage mismatch nodes=0 proxies=0');
+      return;
+    }
 
     const proxyRadius = this.options.proxyRadius ?? 0.7;
 
-    // Create proxies for all nodes
-    if (this.aiNodes?.nodes) {
-      for (const node of this.aiNodes.nodes) {
-        this.controller.attachProxyToNode(node, proxyRadius);
+    for (const node of aiNodes.nodes) {
+      const proxy = this.controller.attachProxyToNode(node, proxyRadius);
+      if (proxy) {
+        this.layer.enableForRaycast(proxy);
       }
     }
 
-    // Enable all proxies for raycasting
-    for (const proxy of this.registry.getAllProxies()) {
-      this.layer.enableForRaycast(proxy);
+    const nodeCount = aiNodes.nodes.length;
+    const proxyCount = this.registry.getAllProxies().length;
+    if (nodeCount !== proxyCount) {
+      console.warn(`[HitProxy] coverage mismatch nodes=${nodeCount} proxies=${proxyCount}`);
     }
 
     this.proxiesCreated = true;
     this.setupDone = true;
-    
+  }
+
+  /**
+   * Initialize proxy system — create proxies for all existing nodes
+   */
+  initialize() {
+    if (this.setupDone) return;
+    this.rebuildProxies(this.aiNodes);
     console.log(`[HitProxySystem] Initialized with ${this.registry.getAllProxies().length} proxies`);
   }
 

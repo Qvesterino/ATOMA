@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+const filterRaycastIntersections = (intersections) => intersections || [];
 
 // Policy: NodeEditor must not create real nodes (bypass guard)
 const NODE_EDITOR_DEBUG_MARKERS_ENABLED = false;

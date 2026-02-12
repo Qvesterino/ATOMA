@@ -19,7 +19,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 /**
  * Session 96: Fresnel Rim-Light Controller with Enforcement

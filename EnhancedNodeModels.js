@@ -111,6 +111,15 @@ export class EnhancedNodeModels {
     }
   }
 
+  static _variantIndex(nodeId, modulo) {
+    if (!nodeId || !modulo) return 0;
+    let hash = 0;
+    for (let i = 0; i < nodeId.length; i++) {
+      hash = (hash * 33 + nodeId.charCodeAt(i)) >>> 0;
+    }
+    return hash % modulo;
+  }
+
   static _isRegistryValid() {
     const reg = this._ALL_NODE_FACTORIES;
     if (!reg || typeof reg !== 'object') return false;
@@ -574,11 +583,6 @@ export class EnhancedNodeModels {
    * - ResonanceChamber (NEW - Session 84)
    */
   static createInputNode(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CANONICAL_VARIANTS.input;
     const poolFns = {
       4: this.createInputSignalReceptor.bind(this),
@@ -589,7 +593,8 @@ export class EnhancedNodeModels {
       9: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
       10: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const idx = EnhancedNodeModels._variantIndex(group.userData?.nodeId, pool.length);
+    const selected = pool[idx];
     EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -980,11 +985,6 @@ export class EnhancedNodeModels {
    * - PipelineFlow (NEW - Session 81)
    */
   static createProcessNode(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CANONICAL_VARIANTS.process;
     const poolFns = {
       3: this.createProcessFluxChamber.bind(this),
@@ -994,7 +994,8 @@ export class EnhancedNodeModels {
       7: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
       8: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const idx = EnhancedNodeModels._variantIndex(group.userData?.nodeId, pool.length);
+    const selected = pool[idx];
     EnhancedNodeModels._ensureRegistry('process', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -1466,12 +1467,6 @@ export class EnhancedNodeModels {
    * - KnotSingularity (NEW - Session 82)
    */
   static createIntegrationNode(group, index, color) {
-    // Deterministic selection per node ID
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-    
     const variants = [
       this.createKnotTrefoil.bind(this),            // TrefoilKnot
       this.createKnotFigureEight.bind(this),        // FigureEightKnot
@@ -1494,7 +1489,7 @@ export class EnhancedNodeModels {
       return null;
     }
 
-    const startIndex = nodeId % variants.length;
+    const startIndex = EnhancedNodeModels._variantIndex(group.userData?.nodeId, variants.length);
     for (let i = 0; i < variants.length; i++) {
       const idx = (startIndex + i) % variants.length;
       const factory = variants[idx];
@@ -1618,11 +1613,6 @@ export class EnhancedNodeModels {
    * - SignalDrift (NEW - Session 81)
    */
   static createAnalyticsNode(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CANONICAL_VARIANTS.analytics;
     const poolFns = {
       1: this.createAnalyticsNode2.bind(this),
@@ -1635,7 +1625,8 @@ export class EnhancedNodeModels {
       9: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
     };
     
-    let selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const idx = EnhancedNodeModels._variantIndex(group.userData?.nodeId, pool.length);
+    let selected = pool[idx];
     
     // Safety: ensure variantIndex is valid
     if (!poolFns[selected]) {
@@ -2144,11 +2135,6 @@ export class EnhancedNodeModels {
    * - ArchiveDrum (NEW - Session 116)
    */
   static createStorageNode(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CANONICAL_VARIANTS.storage;
     const poolFns = {
       0: this.createStorageNode0.bind(this),
@@ -2164,7 +2150,8 @@ export class EnhancedNodeModels {
       11: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
       12: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const idx = EnhancedNodeModels._variantIndex(group.userData?.nodeId, pool.length);
+    const selected = pool[idx];
     EnhancedNodeModels._ensureRegistry('storage', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -2792,12 +2779,6 @@ export class EnhancedNodeModels {
    * - HollowSpine (NEW - optional)
    */
   static createControlNode(group, index, color) {
-    // Deterministic selection per node ID
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-    
     const variants = [
       this.createAxiomCrystalNode.bind(this),      // AxiomCrystal (CANONICAL)
       this.createControlNode0.bind(this),          // OctagonalCore+Rim (legacy)
@@ -2818,7 +2799,8 @@ export class EnhancedNodeModels {
     if (EnhancedNodeModels.__EXTRA_FACTORIES?.control) {
       variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.control);
     }
-    return variants[nodeId % variants.length](group, color);
+    const variant = variants[EnhancedNodeModels._variantIndex(group.userData?.nodeId, variants.length)];
+    return variant(group, color);
   }
 
   /**

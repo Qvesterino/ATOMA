@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+const filterRaycastIntersections = (intersections) => intersections || [];
 
 const logOnce = (key, fn) => {
   if (typeof window === 'undefined') {

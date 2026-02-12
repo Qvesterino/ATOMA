@@ -13,7 +13,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 export class AuraModulationSystem {
   constructor(enforcementGate = null) {

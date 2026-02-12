@@ -23,7 +23,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 import VisualTime from './src/time/VisualTime.js';
 
 export class GlyphLayer4_MultiFusion {

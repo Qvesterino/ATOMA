@@ -81,7 +81,7 @@
  *   this.archetypeAuraFX.dispose();
  */
 
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 
 // Private symbol to track patched materials - prevents repeated shader compilation
 const AURA_ENHANCEMENT_PATCHED = Symbol('auraEnhancementPatched');

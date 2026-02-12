@@ -271,6 +271,22 @@ class InteractionIsolationEngine_v2 {
       // Enable interaction layer on core
       coreMesh.layers.enable(this.interactionLayer);
 
+      const canonicalNodeId =
+        nodeGroup.userData?.nodeId ||
+        nodeGroup.userData?.id ||
+        nodeGroup.id ||
+        nodeGroup.uuid;
+
+      coreMesh.userData = coreMesh.userData || {};
+      coreMesh.userData.nodeId = coreMesh.userData.nodeId || canonicalNodeId;
+      coreMesh.userData.targetNodeId = coreMesh.userData.targetNodeId || canonicalNodeId;
+
+      if (coreInfo.isProxy === true) {
+        coreMesh.userData.isInteractionProxy = true;
+        coreMesh.userData.nodeId = canonicalNodeId;
+        coreMesh.userData.targetNodeId = canonicalNodeId;
+      }
+
       this.coreMeshMap.set(nodeId, {
         mesh: coreMesh,
         isProxy: coreInfo.isProxy,
@@ -299,8 +315,26 @@ class InteractionIsolationEngine_v2 {
   _markVisualOnlyMeshes(nodeGroup, coreMesh) {
     const traverse = (obj) => {
       if (obj === coreMesh) return;
+      if (obj.userData?.isHitProxy) return;
+      
+      // VisualIsolation protection - early exit for interaction colliders
+      if (obj.userData?.isInteractionCollider) return;
+      
+      // HARD EXEMPTION: Do not mark __ATOMA_INTERACTION_COLLIDER__ as non-interactive
+      if (obj.name === "__ATOMA_INTERACTION_COLLIDER__") return;
+
+      if (obj.userData?.isInteractionProxy === true) return;
+      if (obj.userData?.isInteractionCore === true) return;
+      if (obj.userData?.nodeId) return;
+      if (obj.userData?.targetNodeId) return;
 
       if (obj instanceof THREE.Mesh) {
+        if (
+          obj.userData?.isNodeCore === true ||
+          obj.userData?.visualLayer === 'CORE'
+        ) {
+          return;
+        }
         const isVisualOnly = InteractionCoreIdentifier.isVisualOnlyMesh(obj);
 
         if (isVisualOnly) {

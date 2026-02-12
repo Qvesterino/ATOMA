@@ -1,3 +1,5 @@
+const filterRaycastIntersections = (intersections) => intersections || [];
+
 /**
  * NODE INSPECT OVERLAY 3.0 — REWORKED UI
  * 

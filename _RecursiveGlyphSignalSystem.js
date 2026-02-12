@@ -422,6 +422,12 @@ export class RecursiveGlyphSignalSystem {
 
     const group = new THREE.Group();
     group.userData.isRecursiveGlyphSignal = true;
+    group.userData.glyphComponent = 'recursive-signal';
+    group.userData.isGlyph = true;
+    group.userData.isVFX = true;
+    group.userData.visualLayer = 'VFX';
+    group.userData.archetype = 'SYSTEM';
+    group.userData.category = 'glyph';
     group.name = `RecursiveGlyphSignal_${contextKey}`;
 
     const rootRing = this._createMesh(this.sharedGeometry.ring, meaning.color, 0.52);
@@ -445,6 +451,11 @@ export class RecursiveGlyphSignalSystem {
     const foldCount = this.isFieldActive() ? 1 : meaning.recursionLayers;
     for (let i = 0; i < foldCount; i++) {
       const fold = new THREE.Group();
+      fold.userData.isGlyph = true;
+      fold.userData.isVFX = true;
+      fold.userData.visualLayer = 'VFX';
+      fold.userData.archetype = 'SYSTEM';
+      fold.userData.category = 'glyph';
       const foldRing = this._createMesh(this.sharedGeometry.ring, meaning.color, 0.36);
       const foldCore = this._createMesh(this.sharedGeometry.micro, meaning.color, 0.5);
       foldCore.scale.setScalar(0.8);
@@ -499,6 +510,12 @@ export class RecursiveGlyphSignalSystem {
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.isRecursiveGlyphSignal = true;
+    mesh.userData.glyphComponent = 'recursive-signal';
+    mesh.userData.isGlyph = true;
+    mesh.userData.isVFX = true;
+    mesh.userData.visualLayer = 'VFX';
+    mesh.userData.archetype = 'SYSTEM';
+    mesh.userData.category = 'glyph';
     return mesh;
   }
 
@@ -623,4 +640,3 @@ export class RecursiveGlyphSignalSystem {
     return x * x;
   }
 }
-

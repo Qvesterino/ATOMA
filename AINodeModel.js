@@ -3,6 +3,77 @@ import { createCoreIdentityMaterial, createNodeHologramShell, updateHologramShel
 import { CONFIG } from './config.js';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
+function ensureCoreIdentity(nodeRoot, mesh) {
+  if (!mesh || !nodeRoot) return mesh;
+  mesh.userData = mesh.userData || {};
+  const nodeId = nodeRoot.userData?.nodeId || nodeRoot.userData?.id || mesh.userData.nodeId;
+  if (nodeId) {
+    mesh.userData.nodeId = nodeId;
+  }
+  if (!mesh.userData.nodeId && nodeRoot.userData?.nodeId) {
+    mesh.userData.nodeId = nodeRoot.userData.nodeId;
+  }
+  if (nodeRoot.userData?.category && !mesh.userData.category) {
+    mesh.userData.category = nodeRoot.userData.category;
+  }
+  mesh.userData.isNodeCore = true;
+  mesh.userData.isCoreMesh = true;
+  mesh.userData.visualLayer = 'CORE';
+  if (mesh.userData.nonInteractive === true) {
+    mesh.userData.nonInteractive = false;
+  }
+  if (typeof mesh.raycast !== 'function') {
+    mesh.raycast = THREE.Mesh.prototype.raycast;
+  }
+  return mesh;
+}
+
+function ensureInteractionCollider(nodeRoot, mainBody) {
+  if (!nodeRoot || !mainBody) return null;
+
+  // Check if collider already exists
+  const existing = nodeRoot.userData.interactionCollider;
+  if (existing) return existing;
+
+  // Compute bounding sphere from main body geometry
+  mainBody.geometry.computeBoundingSphere();
+  const coreRadius = mainBody.geometry.boundingSphere?.radius || 1.0;
+  const colliderRadius = coreRadius * 1.8; // 1.8x default per spec
+
+  // Create invisible interaction collider mesh
+  const colliderGeo = new THREE.SphereGeometry(colliderRadius, 16, 16);
+  const colliderMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false
+  });
+
+  const collider = new THREE.Mesh(colliderGeo, colliderMat);
+
+  // Set name per spec
+  collider.name = '__ATOMA_INTERACTION_COLLIDER__';
+  collider.userData.isInteractionCollider = true;
+  collider.userData.visualLayer = 'CORE';
+
+  // IMPORTANT: collider must have valid raycast function
+  collider.raycast = THREE.Mesh.prototype.raycast;
+
+  // IMPORTANT: collider must not be frustum culled
+  collider.frustumCulled = false;
+
+  // IMPORTANT: collider must be visible (even though fully transparent)
+  collider.visible = true;
+
+  // Attach collider to nodeRoot (NOT to mainBody)
+  nodeRoot.add(collider);
+
+  // Store reference on nodeRoot
+  nodeRoot.userData.interactionCollider = collider;
+
+  return collider;
+}
+
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
@@ -61,11 +132,14 @@ export class AINodeModel {
     mainMaterial.depthTest = true;
     // =======================================
     
-    const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
-    mainBody.frustumCulled = false;
-    mainBody.userData.visualLayer = 'CORE';
-    mainBody.userData.isNodeCore = true; // EXPLICIT MARKING
-    mainBody.renderOrder = 0; // CORE renders first
+  const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
+  mainBody.frustumCulled = false;
+  ensureCoreIdentity(nodeRoot, mainBody);
+  mainBody.userData.visualLayer = 'CORE';
+  if (typeof mainBody.raycast !== 'function') {
+    mainBody.raycast = THREE.Mesh.prototype.raycast;
+  }
+  mainBody.renderOrder = 0; // CORE renders first
     
     // === NODE INTERACTION AUTHORITY ===
     // Designate this mesh as the ONLY valid interaction target
@@ -152,33 +226,34 @@ export class AINodeModel {
     }
     
     // === INVISIBLE INTERACTION COLLIDER ===
-    // Create a single authoritative interaction surface
-    // This is the ONLY mesh that should be raycast
-    const colliderGeometry = new THREE.SphereGeometry(1.2, 8, 8);
-    const colliderMaterial = new THREE.MeshBasicMaterial({
-      transparent: true,
-      opacity: 0,
-      wireframe: false,
-      depthWrite: false,
-      depthTest: false
-    });
-    const collider = new THREE.Mesh(colliderGeometry, colliderMaterial);
-    tagAllowedSphere(collider, { role: 'collider', source: 'AINodeModel.createCoreNode', owner: group.userData?.id || group.uuid });
-    collider.userData.interactionAuthority = true;
-    collider.userData.isInteractionCollider = true;
-    collider.name = 'InteractionCollider';
-    nodeRoot.add(collider); // Add to node root for raycasting
-    group.userData.interactionCollider = collider;
+    // Use centralized ensureInteractionCollider function
+    const collider = ensureInteractionCollider(nodeRoot, mainBody);
+    if (collider) {
+      collider.userData.nodeId = nodeRoot.userData?.nodeId || mainBody.userData.nodeId;
+      group.userData.interactionCollider = collider;
+    }
     // =====================================
     
-    group.userData = {
-      type: 'core',
-      color: color,
-      mainBody: mainBody,
-      holoShell: holoShell,
-      edges: edges,
-      interactionCollider: collider
-    };
+    group.userData = group.userData || {};
+    group.userData.type = 'core';
+    group.userData.color = color;
+    group.userData.mainBody = mainBody;
+    group.userData.holoShell = holoShell;
+    group.userData.edges = edges;
+    group.userData.interactionCollider = collider;
+
+    group.traverse(obj => {
+      if (!obj.isMesh) return;
+      const ud = obj.userData || {};
+      const isCore = ud.visualLayer === 'CORE' || ud.isNodeCore === true;
+      if (isCore) {
+        if (typeof obj.raycast !== 'function') {
+          obj.raycast = THREE.Mesh.prototype.raycast;
+        }
+      } else {
+        obj.raycast = () => null;
+      }
+    });
     
     return group;
   }
@@ -209,10 +284,17 @@ export class AINodeModel {
     
     const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
     mainBody.frustumCulled = false;
-    mainBody.userData.visualLayer = 'CORE';
-    mainBody.userData.isNodeCore = true;
+    ensureCoreIdentity(nodeRoot, mainBody);
     mainBody.renderOrder = 0;
     nodeRoot.add(mainBody);
+    
+    // === INVISIBLE INTERACTION COLLIDER ===
+    const collider = ensureInteractionCollider(nodeRoot, mainBody);
+    if (collider) {
+      collider.userData.nodeId = nodeRoot.userData.nodeId;
+      group.userData.interactionCollider = collider;
+    }
+    // =====================================
     
     // HOLOGRAM SHELL - SEPARATE AURA LAYER
     const holoShell = createNodeHologramShell(mainBody, color);
@@ -266,12 +348,11 @@ export class AINodeModel {
       group.add(panel);
     }
     
-    group.userData = {
-      type: 'data',
-      color: color,
-      mainBody: mainBody,
-      edges: edges
-    };
+    group.userData = group.userData || {};
+    group.userData.type = 'data';
+    group.userData.color = color;
+    group.userData.mainBody = mainBody;
+    group.userData.edges = edges;
     
     return group;
   }
@@ -302,10 +383,17 @@ export class AINodeModel {
     
     const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
     mainBody.frustumCulled = false;
-    mainBody.userData.visualLayer = 'CORE';
-    mainBody.userData.isNodeCore = true;
+    ensureCoreIdentity(nodeRoot, mainBody);
     mainBody.renderOrder = 0;
     nodeRoot.add(mainBody);
+    
+    // === INVISIBLE INTERACTION COLLIDER ===
+    const collider = ensureInteractionCollider(nodeRoot, mainBody);
+    if (collider) {
+      collider.userData.nodeId = nodeRoot.userData.nodeId;
+      group.userData.interactionCollider = collider;
+    }
+    // =====================================
     
     // HOLOGRAM SHELL - SEPARATE AURA LAYER
     const holoShell = createNodeHologramShell(mainBody, color);
@@ -376,13 +464,12 @@ export class AINodeModel {
       group.add(corner);
     });
     
-    group.userData = {
-      type: 'memory',
-      color: color,
-      mainBody: mainBody,
-      edges: edges,
-      frame: frame
-    };
+    group.userData = group.userData || {};
+    group.userData.type = 'memory';
+    group.userData.color = color;
+    group.userData.mainBody = mainBody;
+    group.userData.edges = edges;
+    group.userData.frame = frame;
     
     return group;
   }
@@ -406,8 +493,16 @@ export class AINodeModel {
     
     const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
     mainBody.frustumCulled = false;
-    mainBody.userData.visualLayer = 'CORE';
+    ensureCoreIdentity(nodeRoot, mainBody);
     nodeRoot.add(mainBody);
+    
+    // === INVISIBLE INTERACTION COLLIDER ===
+    const collider = ensureInteractionCollider(nodeRoot, mainBody);
+    if (collider) {
+      collider.userData.nodeId = nodeRoot.userData.nodeId;
+      group.userData.interactionCollider = collider;
+    }
+    // =====================================
     
     // HOLOGRAM SHELL - UNIFIED CREATION (STABLE ICOSPHERE)
     const holoShell = createNodeHologramShell(mainBody, color);
@@ -473,12 +568,11 @@ export class AINodeModel {
       plate.add(plateEdges);
     }
     
-    group.userData = {
-      type: 'logic',
-      color: color,
-      mainBody: mainBody,
-      edges: edges
-    };
+    group.userData = group.userData || {};
+    group.userData.type = 'logic';
+    group.userData.color = color;
+    group.userData.mainBody = mainBody;
+    group.userData.edges = edges;
     
     return group;
   }
@@ -502,8 +596,16 @@ export class AINodeModel {
     
     const mainBody = new THREE.Mesh(mainGeometry, mainMaterial);
     mainBody.frustumCulled = false;
-    mainBody.userData.visualLayer = 'CORE';
+    ensureCoreIdentity(nodeRoot, mainBody);
     nodeRoot.add(mainBody);
+    
+    // === INVISIBLE INTERACTION COLLIDER ===
+    const collider = ensureInteractionCollider(nodeRoot, mainBody);
+    if (collider) {
+      collider.userData.nodeId = nodeRoot.userData.nodeId;
+      group.userData.interactionCollider = collider;
+    }
+    // =====================================
     
     // HOLOGRAM SHELL - UNIFIED CREATION (STABLE ICOSPHERE)
     const holoShell = createNodeHologramShell(mainBody, color);
@@ -561,13 +663,12 @@ export class AINodeModel {
     tagAllowedSphere(core, { role: 'canonicalSphere', source: 'AINodeModel.createNeuralNode', owner: group.userData?.id || group.uuid });
     group.add(core);
     
-    group.userData = {
-      type: 'neural',
-      color: color,
-      mainBody: mainBody,
-      edges: edges,
-      core: core
-    };
+    group.userData = group.userData || {};
+    group.userData.type = 'neural';
+    group.userData.color = color;
+    group.userData.mainBody = mainBody;
+    group.userData.edges = edges;
+    group.userData.core = core;
     
     return group;
   }
@@ -688,7 +789,11 @@ export class AINodeModel {
     tagAllowedSphere(collider, { role: 'collider', source: 'AINodeModel.ensureInteractionCollider', owner: nodeGroup.userData?.id || nodeGroup.uuid });
     collider.userData.interactionAuthority = true;
     collider.userData.isInteractionCollider = true;
-    collider.name = 'InteractionCollider';
+    collider.name = '__ATOMA_INTERACTION_COLLIDER__';
+    collider.userData.visualLayer = 'CORE';
+    collider.raycast = THREE.Mesh.prototype.raycast;
+    collider.frustumCulled = false;
+    collider.visible = true;
     
     nodeRoot.add(collider);
     nodeGroup.userData.interactionCollider = collider;

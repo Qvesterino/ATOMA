@@ -8,7 +8,7 @@
  */
 
 import * as THREE from 'three';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+const filterRaycastIntersections = (intersections) => intersections || [];
 import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 import { getLinkTarget, hasValidLinkTarget } from './LinkStateVisualLock.js';
 

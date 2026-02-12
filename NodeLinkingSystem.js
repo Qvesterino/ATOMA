@@ -17,12 +17,13 @@ import { safeComputeBounds, getSafeBoundingSphere } from './src/three/GeometryBo
 // Legacy bounds path preserved to prevent visual hierarchy corruption.
 const USE_LEGACY_NODE_BOUNDS = true;
 
+const filterRaycastIntersections = (intersections) => intersections || [];
+
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
 import { DynamicLinkThicknessSystem } from './_DynamicLinkThicknessSystem.js';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import VisualAuthorityLock from './VisualAuthorityLock.js';
 import { 
   applyFinalNodeVisualState, 
@@ -80,9 +81,9 @@ function _validateBinderNode(node) {
     }
     return false;
   }
-  if (!node.userData.nodeId && !node.userData.id) {
+  if (!node.userData.nodeId) {
     if (!_binderWarned.noId) {
-      console.warn('[NodeLinkingSystem] Node without id skipped for visual binder');
+      console.warn('[NodeLinkingSystem] Node without nodeId skipped for visual binder');
       _binderWarned.noId = true;
     }
     return false;
@@ -332,6 +333,7 @@ export class NodeLinkingSystem {
       ghostLinks: [],
       lastCleanTime: Date.now()
     };
+    this.interactionIsolationFilter = null;
     
     this.links = [];
     this.ghostLinks = [];  // Predicted connections
@@ -481,6 +483,11 @@ export class NodeLinkingSystem {
     });
     
     this.setupEventListeners();
+
+    // Ensure proxy coverage at construction if available
+    if (this.hitProxySystem?.rebuildProxies) {
+      this.hitProxySystem.rebuildProxies(this.aiNodes);
+    }
   }
 
   // Phase B.5 – Raycast candidate filter (coarse frustum + distance)
@@ -2010,34 +2017,13 @@ createLinkSuccessPulse(sourceNode, targetNode) {
   /**
    * [Stab2] Get stable node identifier
    * Used for consistent link lookups across selection cycles
-   * 
-   * Priority:
-   * 1. userData.nodeId (assigned during spawn)
-   * 2. uuid (THREE.Object3D property)
-   * 3. id (fallback)
-   * 
+   *
    * @param {THREE.Object3D} node - The node to identify
-   * @returns {string} Stable identifier for this node
+   * @returns {string|null} Stable identifier for this node
    */
   getNodeId(node) {
-    if (!node) return null;
-    
-    // Primary: Dedicated nodeId field
-    if (node.userData && node.userData.nodeId) {
-      return node.userData.nodeId;
-    }
-    
-    // Fallback 1: THREE.js uuid (always present)
-    if (node.uuid) {
-      return node.uuid;
-    }
-    
-    // Fallback 2: Legacy id field
-    if (node.id) {
-      return String(node.id);
-    }
-    
-    return null;
+    if (!node || !node.userData) return null;
+    return node.userData.nodeId || null;
   }
 
   /**
@@ -2651,7 +2637,7 @@ getLinksForNode(node) {
     
     if (!Number.isFinite(worldPos.x) || !Number.isFinite(worldPos.y) || !Number.isFinite(worldPos.z)) {
       // Node position is also invalid - return null to prevent crashes
-      console.warn('[computeNodeBoundingSphere] Node has invalid position', node.id || node.uuid);
+      console.warn('[computeNodeBoundingSphere] Node has invalid position', node.userData?.nodeId || 'unknown');
       return null;
     }
     
@@ -2664,331 +2650,22 @@ getLinksForNode(node) {
   }
 
   getNodeAtPosition(clientX, clientY, callsite = 'unknown') {
-    // ========================================================================
-    // [INTERACTION AUTHORITY FIX] RELIABLE NODE SELECTION
-    // Enforces single raycast target per node: CORE MESH ONLY
-    // ========================================================================
-    
-    // Fast path: use hit-proxy system when fully ready to avoid failsafe violations
-    const proxiesReady = window.HITPROXY_READY === true &&
-                         window.hitProxySystem?.registry?.getAllProxies()?.length > 0 &&
-                         window.safeProxyRaycaster;
-
-    if (proxiesReady) {
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      window.safeProxyRaycaster.setFromCamera(this.mouse, this.camera);
-      const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-      const proxyHits = window.hitProxySystem.raycast(
-        window.safeProxyRaycaster,
-        this.camera,
-        null,
-        { callsite }
-      );
-      const proxyElapsed = (typeof performance !== 'undefined')
-        ? (performance.now() - proxyStart)
-        : (Date.now() - proxyStart);
-      recordRaycastCost('proxy_raycast', proxyElapsed, callsite, { path: 'proxy' });
-
-      if (proxyHits.length > 0) {
-        const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-        const nodeId = proxyHits[0].nodeId || proxyHits[0].object?.userData?.targetNodeId;
-        const hitNode = this.aiNodes.nodes.find(n => {
-          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
-            ? window.getNodeIdentity(n)
-            : (n.userData?.id || n.userData?.nodeId || n.uuid);
-          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
-        });
-        const resolveElapsed = (typeof performance !== 'undefined')
-          ? (performance.now() - resolveStart)
-          : (Date.now() - resolveStart);
-        recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'proxy' });
-        if (hitNode) {
-          if (typeof window !== 'undefined') {
-            window.__raycastProxyHitCount = (window.__raycastProxyHitCount || 0) + 1;
-          }
-          return hitNode;
-        }
-      }
-      if (typeof window !== 'undefined') {
-        window.__raycastProxyMissCount = (window.__raycastProxyMissCount || 0) + 1;
-        window.__raycastVisualFallbackCount = (window.__raycastVisualFallbackCount || 0) + 1;
-        const dbg = window.DEBUG_RAYCAST_PROXY === true;
-        const every = window.RAYCAST_PROXY_MISS_LOG_EVERY || 120;
-        const miss = window.__raycastProxyMissCount;
-        if (dbg && miss % every === 0) {
-          const info = { miss, hit: window.__raycastProxyHitCount || 0, fallback: window.__raycastVisualFallbackCount || 0 };
-          console.debug("[Raycast] proxy miss → fallback to visual", info);
-        }
-      }
-    }
-
-    // Convert to normalized device coordinates
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-    
-    // Update raycaster with extended distance (4x default)
+
+    if (!this.raycaster) {
+      this.raycaster = new THREE.Raycaster();
+    }
     this.raycaster.setFromCamera(this.mouse, this.camera);
-    this.raycaster.far = this.interactionConfig.maxLinkingDistance;
-    
-    // ========================================================================
-    // STRATEGY: Direct raycast against node core meshes ONLY
-    // ========================================================================
-    // Collect all node core meshes (authoritative raycast targets)
-    const coreMeshes = [];
-    
-    for (const node of this.aiNodes.nodes) {
-      if (!node || !node.visible) continue;
-      if (!this._nodeWithinTargetingBounds(node)) continue;
 
-      if (node.userData?._boundsDirty) {
-        this.computeNodeBoundingSphere(node);
-        node.userData._boundsDirty = false;
-      }
-      
-      // Traverse node tree to find core mesh
-      // Priority: find mesh marked as isNodeCore, or first mesh in node
-      const raycastTargetAllowed = node.userData?.isRaycastTarget !== false;
-      let coreMesh = node.userData?.coreMesh || null;
+    const hits = this.hitProxySystem.raycast(this.raycaster, this.mouse);
+    if (!hits || hits.length === 0) return null;
 
-      if ((!coreMesh || !coreMesh.isMesh) && raycastTargetAllowed) {
-        node.traverse(child => {
-          if (!coreMesh && child.isMesh && child.visible) {
-            // Prefer explicitly marked core mesh
-            if (child.userData?.isNodeCore === true) {
-              coreMesh = child;
-            }
-            // Otherwise accept first visible mesh (likely the core)
-            // But skip obvious visual-only meshes
-            else if (!child.userData?.isAura && 
-                     !child.userData?.isShell &&
-                     !child.userData?.isHologramShell &&
-                     !child.userData?.isParticle &&
-                     !child.userData?.isFX &&
-                     !child.userData?.isGlyph &&
-                     !child.userData?.isLinkVisual &&
-                     child.userData?.isNodeCore !== false) {
-              coreMesh = child;
-            }
-          }
-        });
-      }
-      
-      if (coreMesh) {
-        if (node.userData) {
-          node.userData.coreMesh = coreMesh;
-          node.userData.isRaycastTarget = node.userData.isRaycastTarget ?? true;
-        }
-        if (raycastTargetAllowed) {
-          coreMeshes.push(coreMesh);
-        }
-      } else if (raycastTargetAllowed && node?.userData?.boundingSphere === undefined) {
-        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
-      }
-    }
-    
-    // Guard: No core meshes found
-    if (coreMeshes.length === 0) {
-      return null;
-    }
-    
-    // ========================================================================
-    // PRIMARY: Raycast against core meshes ONLY
-    // ========================================================================
-    const previousFallbackFlag = window.__RAYCAST_FALLBACK_ACTIVE === true;
-    window.__RAYCAST_FALLBACK_ACTIVE = true;
-    const visualStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    const intersects = this.raycaster.intersectObjects(coreMeshes, false);
-    const visualElapsed = (typeof performance !== 'undefined')
-      ? (performance.now() - visualStart)
-      : (Date.now() - visualStart);
-    recordRaycastCost('visual_raycast', visualElapsed, callsite, { path: 'visual-core' });
-    window.__RAYCAST_FALLBACK_ACTIVE = previousFallbackFlag;
-    
-    if (intersects.length > 0) {
-      // Find the parent node for this core mesh
-      const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-      const hitMesh = intersects[0].object;
-      let parentNode = hitMesh;
-      
-      while (parentNode) {
-        if (this.aiNodes.nodes.includes(parentNode)) {
-          if (parentNode.userData?.nodeId) {
-            console.log('[NodeLinkingSystem] ✓ Node core raycast hit confirmed');
-          }
-          const resolveElapsed = (typeof performance !== 'undefined')
-            ? (performance.now() - resolveStart)
-            : (Date.now() - resolveStart);
-          recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'visual-core' });
-          return parentNode;
-        }
-        parentNode = parentNode.parent;
-      }
-      const resolveElapsed = (typeof performance !== 'undefined')
-        ? (performance.now() - resolveStart)
-        : (Date.now() - resolveStart);
-      recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'visual-core' });
-    }
-    
-    // ========================================================================
-    // FALLBACK: Selection buffer (spherecast) for easier picking
-    // This prevents accidental misclicks when hovering near nodes
-    // ========================================================================
-    const rayOrigin = this.raycaster.ray.origin;
-    const rayDirection = this.raycaster.ray.direction;
-    const bufferRadius = this.interactionConfig.selectionBufferRadius;
-    let closestNode = null;
-    let closestDistance = Infinity;
-    const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    
-    for (const node of this.aiNodes.nodes) {
-      // Skip invisible nodes
-      if (!node || !node.visible) continue;
-      
-      // Use node's bounding sphere for selection buffer check
-      if (!node.userData.boundingSphere || node.userData._boundsDirty) {
-        this.computeNodeBoundingSphere(node);
-        if (node.userData) {
-          node.userData._boundsDirty = false;
-        }
-      }
+    const nodeId = hits[0].object?.userData?.targetNodeId;
+    if (!nodeId) return null;
 
-      if (!node.userData.boundingSphere) {
-        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
-        continue;
-      }
-      
-      const nodeSphere = node.userData.boundingSphere;
-      _scratchVecB.copy(nodeSphere.center);
-      const effectiveRadius = nodeSphere.radius + bufferRadius;
-      
-      // Calculate closest point on ray to sphere center
-      _scratchVecC.copy(_scratchVecB).sub(rayOrigin);
-      const projection = _scratchVecC.dot(rayDirection);
-      
-      // Only consider nodes in front of camera
-      if (projection < 0) continue;
-      
-      _scratchVecA.copy(rayDirection).multiplyScalar(projection).add(rayOrigin);
-      const distanceToNode = _scratchVecA.distanceTo(_scratchVecB);
-      
-      // Check if ray passes within selection buffer of node
-      if (distanceToNode <= effectiveRadius && projection <= this.interactionConfig.maxLinkingDistance) {
-        const distanceFromCamera = rayOrigin.distanceTo(_scratchVecB);
-        
-        // Select closest node (prefer nodes closer to camera)
-        if (distanceFromCamera < closestDistance) {
-          closestDistance = distanceFromCamera;
-          closestNode = node;
-        }
-      }
-    }
-    
-    const resolveElapsed = (typeof performance !== 'undefined')
-      ? (performance.now() - resolveStart)
-      : (Date.now() - resolveStart);
-    recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'sphere-buffer' });
-    return closestNode;
-  }
-  
-  /**
-   * [CRITICAL STABILIZATION] NODE INTERACTION AUTHORITY
-   * Get node ONLY via hit-proxies (guaranteed safe, visual meshes never participate)
-   * Used when LOCK_INTERACTION = true
-   * @private
-   */
-  _getNodeAtPositionFromProxies(clientX, clientY) {
-    try {
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-      
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-      this.raycaster.far = this.interactionConfig.maxLinkingDistance;
-      
-      // ONLY use hit-proxies (visual meshes excluded)
-      const hitProxyMeshes = window.hitProxySystem?.registry?.getAllProxies() || [];
-
-      if (hitProxyMeshes.length === 0) {
-        return null;  // No proxies available
-      }
-
-      const boundedProxies = this._filterNodeTargetingProxies(hitProxyMeshes);
-      if (boundedProxies.length === 0) {
-        return null;
-      }
-
-      const intersects = this.raycaster.intersectObjects(boundedProxies, false);
-      const filtered = filterRaycastIntersections(intersects);
-      
-      if (filtered.length > 0) {
-        const targetNodeId = filtered[0].object?.userData?.targetNodeId;
-        if (targetNodeId) {
-          const hitNode = this.aiNodes.nodes.find(n => n.userData?.id === targetNodeId);
-          if (hitNode) {
-            return hitNode;
-          }
-        }
-      }
-      
-      return null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  /**
-   * [DEBUG MODE] Direct node selection (temporary recovery mode)
-   * Used when window.DEBUG_DIRECT_NODE_SELECTION === true
-   * Bypasses hit-proxy system entirely - raycast directly against visible meshes
-   * @private
-   */
-  _getNodeAtPositionDirect(clientX, clientY) {
-    try {
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-      this.raycaster.far = this.interactionConfig.maxLinkingDistance;
-
-      // Collect all visible node meshes (direct - no proxies)
-      const nodeMeshes = [];
-      if (this.aiNodes?.nodes) {
-      for (const node of this.aiNodes.nodes) {
-        if (!this._nodeWithinTargetingBounds(node)) continue;
-        node.traverse(child => {
-            if (child.isMesh) {
-              nodeMeshes.push(child);
-            }
-          });
-        }
-      }
-
-      if (nodeMeshes.length === 0) return null;
-
-      // Raycast directly (temporary recovery only)
-      const intersects = this.raycaster.intersectObjects(nodeMeshes, false);
-      if (intersects.length > 0) {
-        // Find parent node
-        for (const intersection of intersects) {
-          let obj = intersection.object;
-          while (obj) {
-            if (obj.userData?.id && this.aiNodes.nodes.includes(obj)) {
-              return obj;
-            }
-            obj = obj.parent;
-          }
-        }
-      }
-
-      return null;
-    } catch (err) {
-      return null;
-    }
+    return this.aiNodes?.nodesMap?.get(nodeId) || null;
   }
   
   /**
@@ -4689,8 +4366,9 @@ getLinksForNode(node) {
     // Before: Collected all real meshes (cores, auras, glyphs) → raycast violations
     // After: Use registered hit-proxy meshes only → zero violations
     let proxyMeshes = [];
-    if (window.hitProxySystem && window.hitProxySystem.registry) {
-      proxyMeshes = window.hitProxySystem.registry.getAllProxies();
+    const hitProxySystem = this.hitProxySystem || (typeof window !== 'undefined' ? window.hitProxySystem : null);
+    if (hitProxySystem?.registry) {
+      proxyMeshes = hitProxySystem.registry.getAllProxies();
     }
     const totalProxies = proxyMeshes.length;
     const boundedProxies = this._filterNodeTargetingProxies(proxyMeshes);
@@ -4757,13 +4435,8 @@ getLinksForNode(node) {
     let resolvedNode = null;
     if (filtered.length > 0) {
       const nodeId = filtered[0].object?.userData?.targetNodeId || filtered[0].nodeId;
-      if (nodeId && this.aiNodes?.nodes) {
-        resolvedNode = this.aiNodes.nodes.find(n => {
-          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
-            ? window.getNodeIdentity(n)
-            : (n.userData?.id || n.userData?.nodeId || n.uuid);
-          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
-        }) || null;
+      if (nodeId) {
+        resolvedNode = this.aiNodes?.nodesMap?.get(nodeId) || null;
       }
     }
 
@@ -5460,8 +5133,8 @@ getLinksForNode(node) {
     // [SYNERGY GLYPH REVEAL] Update glyph system with synergy levels for both nodes
     // Glyphs reveal progressively as synergy increases
     if (window.glyphSystem && link.source && link.target) {
-      const sourceNodeId = link.source.userData?.nodeId || link.source.uuid;
-      const targetNodeId = link.target.userData?.nodeId || link.target.uuid;
+      const sourceNodeId = link.source.userData?.nodeId;
+      const targetNodeId = link.target.userData?.nodeId;
       
       if (sourceNodeId) {
         window.glyphSystem.updateNodeSynergy(sourceNodeId, normalized.synergy);
@@ -5876,7 +5549,8 @@ getLinksForNode(node) {
     const targetGroups = new Map();
     
     for (const event of contagionEvents) {
-      const targetId = event.target.uuid;
+      const targetId = event.target?.userData?.nodeId;
+      if (!targetId) continue;
       if (!targetGroups.has(targetId)) {
         targetGroups.set(targetId, []);
       }

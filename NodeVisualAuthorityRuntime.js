@@ -15,6 +15,7 @@ export class NodeVisualAuthorityRuntime {
 
   applyBaseline(node, context = {}) {
     if (!node || !(node instanceof THREE.Object3D)) return false;
+    if (node.userData?.isHitProxy) return false;
 
     node.visible = true;
     if (!isFiniteScale(node.scale) || node.scale.x <= 0 || node.scale.y <= 0 || node.scale.z <= 0) {
@@ -39,6 +40,7 @@ export class NodeVisualAuthorityRuntime {
 
     node.traverse((child) => {
       if (!child || child.isObject3D !== true) return;
+      if (child.userData?.isHitProxy) return;
 
       const userData = child.userData || {};
       if (userData.isInteractionProxy === true) {

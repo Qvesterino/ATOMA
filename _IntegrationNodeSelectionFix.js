@@ -23,7 +23,7 @@
  * ============================================================================
  */
 
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+const filterRaycastIntersections = (intersections) => intersections || [];
 
 /**
  * Special resolution for INTEGRATION nodes

@@ -56,7 +56,7 @@ import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { CONFIG } from './config.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+const IntegrationHelpers = { createVisualAttachmentRequest: (opts) => opts };
 import { NodeCorruptionAuraDegradation } from './NodeCorruptionAuraDegradation.js';
 
 /**

@@ -82,6 +82,7 @@ export class VisualLayerEnforcementGate {
    * Called before any node-related visual is attached
    */
   canAttach(request) {
+    if (request?.mesh?.userData?.isHitProxy) return true;
     if (!this.enabled) return true;
     
     this.stats.totalCheckpoints++;
