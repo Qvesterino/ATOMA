@@ -404,7 +404,16 @@ export class NodeLinkingSystem {
     this.onLinkRemovedCallbacks = [];
     
     this.raycaster = new THREE.Raycaster();
+    this.raycaster.layers.set(10);
+    Object.defineProperty(this.raycaster.layers, 'enableAll', {
+      value: () => console.warn('[Raycast] enableAll blocked'),
+      writable: false,
+      configurable: false,
+      enumerable: false
+    });
     this.mouse = new THREE.Vector2();
+    this._layerLockLogged = false;
+    console.log('[InteractionAuthority] NodeLinkingSystem active (no external patches)');
     
     // [SESSION 110] Camera Motion Gating for Smoothness
     // Decouples camera updates from heavy raycasting to eliminate stutter
@@ -488,6 +497,12 @@ export class NodeLinkingSystem {
     if (this.hitProxySystem?.rebuildProxies) {
       this.hitProxySystem.rebuildProxies(this.aiNodes);
     }
+  }
+
+  setContext({ aiNodes, camera, renderer } = {}) {
+    if (aiNodes) this.aiNodes = aiNodes;
+    if (camera) this.camera = camera;
+    if (renderer) this.renderer = renderer;
   }
 
   // Phase B.5 – Raycast candidate filter (coarse frustum + distance)
@@ -2650,6 +2665,9 @@ getLinksForNode(node) {
   }
 
   getNodeAtPosition(clientX, clientY, callsite = 'unknown') {
+    if (!window?.game?.worldReady) {
+      return null;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -2658,6 +2676,11 @@ getLinksForNode(node) {
       this.raycaster = new THREE.Raycaster();
     }
     this.raycaster.setFromCamera(this.mouse, this.camera);
+    this.raycaster.layers.set(10);
+    if (!this._layerLockLogged) {
+      console.log('[Raycast] Layer locked to 10');
+      this._layerLockLogged = true;
+    }
 
     const hits = this.hitProxySystem.raycast(this.raycaster, this.mouse);
     if (!hits || hits.length === 0) return null;
@@ -4103,6 +4126,12 @@ getLinksForNode(node) {
    * Update all links - positions, animations, and traffic simulation
    */
   update(deltaTime, time) {
+    if (window?.game?._worldSwitchInProgress) {
+      return;
+    }
+    if (this._disposed) {
+      return;
+    }
     // [Audit 6.2] Skip update if world not ready (during world transitions)
     if (!this.worldReady) {
       return;

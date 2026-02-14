@@ -212,6 +212,10 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
       radius = coreMesh.geometry.boundingSphere.radius;
     }
   }
+  if (!Number.isFinite(radius) || radius <= 0) {
+    console.warn('[HologramGuard] Invalid radius prevented', radius);
+    radius = 1;
+  }
 
   // Get STABLE hologram geometry (not derived from core mesh)
   const geometry = getStableHologramGeometry(radius, hologramDetail);
@@ -236,7 +240,12 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
   shell.frustumCulled = false;
   
   // Scale shell slightly larger than core
-  shell.scale.multiplyScalar(scale);
+  let safeScale = scale;
+  if (!Number.isFinite(safeScale) || safeScale <= 0) {
+    console.warn('[HologramGuard] Invalid shell scale prevented', safeScale);
+    safeScale = 1;
+  }
+  shell.scale.multiplyScalar(safeScale);
   
   // Mark as hologram shell for identification
   shell.userData.visualLayer = 'CORE_SHELL';

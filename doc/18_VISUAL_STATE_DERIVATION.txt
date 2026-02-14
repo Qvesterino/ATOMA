@@ -1,0 +1,202 @@
+PHASE: VISUAL-STATE-DERIVATION AUDIT REPORT
+READ ONLY – NO MODIFICATIONS
+STEP 1 — Direct Material Writes
+File	System	Property	Frequency
+color.set	NodeVisualFreezeMode	material.color.setHex/copy	INIT
+emissive.set	CorruptionVisualFX	material.emissive.set/copy	EVENT
+emissiveIntensity	SynergyVFX	material.emissiveIntensity =	PER-FRAME
+opacity	LinkAuraSystem	material.opacity =	PER-FRAME
+transparent	NodeVisualStateBinder	material.transparent =	INIT
+visible	LinkBeadSystem	mesh.visible =	EVENT
+scale	NodeLinkingSystem	mesh.scale.setScalar	INIT
+Frequency Summary:
+INIT: ~40-50 instances (spawn/setup phase)
+EVENT: ~100+ instances (triggered by events)
+PER-FRAME: ~300+ instances (in update loops)
+STEP 2 — Gameplay-Driven Visuals
+GAMEPLAY DERIVED (Systems using metrics)
+Metric	Files Using	Visual Properties Affected
+synergy	SynergyCascadeVisualizer, SynergyGlowController, LinkGlowSynergyEngine1_0, _AdaptiveGlyphRendering1_0, _ExtremeLinkVisuals4_0, LinkSynergyColorTransition, SynergyHighways, SynergyVFX	color, emissiveIntensity, opacity, scale, pulse speed
+harmony	HarmonicRecoveryVisualSystem, HarmonicCascadeAmplification, HarmonicResonanceCoupling, _AdaptiveGlyphRendering1_0, _ExtremeLinkVisuals4_0	color hue shift, opacity, emissive, pulse amplitude
+corruption	CorruptionVisualFX, CorruptionVisualIntegrationPatch, TIER4_CorruptionFeedbackVisuals, _ExtremeLinkVisuals4_0	color desaturation (→red/dark), opacity reduction, emissive dimming, flicker
+load	_ExtremeLinkVisuals4_0, SafeMemoryTrailsManager, LinkDirectionalStreaks	emissiveIntensity (traffic glow), particle emission rate, thickness
+stability	_AdaptiveGlyphRendering1_0, ResonanceEchoTrailSystem, SynapticSpecializationAdapter_v1, SynapticFatigueAdapter_v1	scale jitter, rotation wobble, opacity flicker, speed variation
+STATIC
+NodeVisualStateBinder (initial setup only)
+VisualAuthorityLock (static authority enforcement)
+NodeCoreMaterialAuthority (snapshot restoration)
+UNKNOWN
+~50 files with time-based animations (synergy, harmony metrics potentially used but unclear derivation)
+STEP 3 — Final Composer Detection
+Systems That Compute Visual Profiles:
+System	Computes	Applies Combined?
+LinkGlowSynergyEngine1_0	computeVisualProfile(score) → glowIntensity, lineWidth, pulseSpeed, emissiveBoost, color	✅ YES - applies to link materials
+SynergyHighways2_0	computeVisualProfile(avgSynergy, maxSynergy, volatility)	✅ YES - applies to highway materials
+NodeVisualStateBinder	Binds visual state to mesh	❌ NO - just applies passed values
+VisualStateSnapshot	Saves/restores material state	❌ NO - persistence only
+Finding: NO CENTRAL COMPOSER EXISTS
+Each visual system independently:
+
+Computes visual parameters from gameplay metrics
+Applies directly to materials
+No single system aggregates all visual changes before application
+Mark as: FRAGMENTED
+
+STEP 4 — Mutation Count
+Systems Modifying Visuals Per-Frame:
+*Core Visual Systems* (15)
+LinkGlowSynergyEngine1_0
+LinkAuraSystem_v1
+NodeAuraSystem_v1
+NodeAuraRefactor_ElegantRim
+SynergyVFX
+SynergyCascadeVisualizer
+SynergyHighways
+CascadeParticleSystem
+HarmonicResonanceCoupling
+HarmonicHubAuraSystem
+HarmonicInfluencePropagation
+HarmonicCascadeAmplification
+HarmonicRecoveryVisualSystem
+CorruptionVisualFX
+StandingWaveVisualRenderer
+*Link Visual Systems* (20)
+LinkTrailParticleSystem
+LinkSemanticPictogramSystem
+LinkResonanceFlowSystem
+LinkPulseRing
+LinkHealingParticleSystem
+LinkCorruptionParticleSystem
+LinkEnergyRingSystem
+AnimatedLinkFlow
+LinkSynergyColorTransition
+LinkThicknessScaling
+LinkDirectionalStreaks
+LinkDecayEffectApplier
+LinkCorruptionSpreadAnimator
+LinkMicroImpulseAdapter
+LinkCategoryTransition
+SafeLegendaryLinkFX
+_ExtremeLinkVisuals4_0
+_ExtremeLinkVisualPack3
+SynergyBonusFXLayer
+SynergyResonanceShaderPack
+*Node Visual Systems* (25)
+_AdaptiveGlyphRendering1_0
+_AtomaGlyphSystem3_0
+_AtomaGlyphSystem4_0
+_SemanticGlyphAI
+_RecursiveGlyphSignalSystem
+_RecursiveGlyphMessaging4_0
+_LinkedGlyphMessaging3_0
+_ProceduralMeaningEngine
+_NodeEvolution3_ExtremeSafe
+_ExtremeAINodeEvolution3
+_ExtremeNodeArchetypes_SafePack
+_SafeNodePersonalityFX
+_SafeEvolutionManager
+_SafeLegendaryNodePack
+_SafeNewNodeCategories1_0
+PersonalityVFXLayer
+PersonalityVisualAdapter
+_MythicRitualPlayer
+_MythicNodeCreation
+_MythicSeedGlyph
+_MythicRitualController
+NodeStateMachine_v1
+NodeHierarchyVisuals
+NodeHierarchyVisualFeedback
+ArchetypeAuraFX
+ArchetypeColorFX
+*World/Global Visual Systems* (15)
+SafeQuantumIllusionsPack1
+SafeMemoryTrailsManager
+SafeColonyExpansion2
+_SafeWorldFXPack
+_SafeLegendaryWorldEvents
+_SafeAIWeatherPack
+_EmergentThoughtStorms5_0
+WaveInterferencePatternSystem
+StandingWaveOscillationTrapSystem
+ResonanceRuptureVisualSystem
+CascadeResonanceWaveVisualization
+ParticleStreamCascadeAcceleration
+VisualUpgradeSuperpack
+WorldPersonalityController
+Authority/Correction Systems (8)
+VisualAuthorityLock
+NodeCoreMaterialAuthority
+NodeSurfaceProtectionRule_v2
+VisualInteractionIsolationPatch_v2
+VisualHierarchyCorrectionSystem
+VisualSpherePolicy
+MetricsVisualFX
+VisualStateSnapshot
+Total: 83+ systems modifying visuals per-frame
+*FINAL SUMMARY*
+Visual Authority Systems: 4-6
+VisualAuthorityLock
+NodeCoreMaterialAuthority
+NodeSurfaceProtectionRule_v2
+VisualHierarchyCorrectionSystem
+Per-frame Mutators: 83+ systems
+Final Composer Exists: NO
+Fragmentation Level: CRITICAL
+Systems Writing to Specific Properties
+*color* (~114 writes)
+SynergyHighways, SynergyVFX, SynergyCascadeVisualizer
+LinkGlowSynergyEngine, LinkSynergyColorTransition, LinkStreakColorDynamics
+CorruptionVisualFX, CorruptionVisualIntegrationPatch
+ArchetypeVisualTransitionEngine, ArchetypeVisualDifferentiationSystem
+NodeStateMachine, NodeHierarchyVisuals, NodeHierarchyVisualFeedback
+_AdaptiveGlyphRendering, _AtomaGlyphSystem, _SemanticGlyphAI
+_ExtremeLinkVisuals, _ExtremeNodeArchetypes, _SafeNodePersonalityFX
+AuraModulationSystem, AuraModulationIntegration
+AnimatedLinkFlow, AnimatedLinkFlow, AnimatedLinkFlow
+emissive (~50+ writes)
+SynergyHighwayVisuals, T2_CorruptionVisualIntegration_v1, SystemStateOverlay
+CorruptionVisualFX, CorruptionVisualIntegrationPatch
+_AdaptiveGlyphRendering1_0, _AtomaGlyphSystem3_0, _AtomaGlyphSystem4_0
+_ExtremeLinkVisuals4_0, _ExtremeAINodeEvolution3
+_SafeEvolutionManager, _SafeLegendaryNodePack, _SafeNodePersonalityFX
+PersonalityVFXLayer, _ProceduralMeaningEngine, _SemanticGlyphAI
+AuraModulationSystem, AuraModulationIntegration
+*opacity* (~300+ writes)
+LinkAuraSystem_v1, LinkTrailParticleSystem, LinkSemanticPictogramSystem
+NodeAuraSystem_v1, NodeAuraRefactor_ElegantRim
+SynergyVFX, SynergyCascadeVisualizer, SynergyHighways
+HarmonicRecoveryVisualSystem, HarmonicHubAuraSystem
+CorruptionVisualFX, TIER4_CorruptionFeedbackVisuals
+WaveInterferencePatternSystem, StandingWaveVisualRenderer
+_AdaptiveGlyphRendering1_0, _AtomaGlyphSystem3_0, _AtomaGlyphSystem4_0
+_ExtremeLinkVisuals4_0, _ExtremeAINodeEvolution3
+_SafeEvolutionManager, _SafeLegendaryNodePack, _SafeNodePersonalityFX
+_SafeWorldFXPack, _SafeLegendaryWorldEvents, _SafeAIWeatherPack
+PersonalityVFXLayer, PersonalityVisualAdapter
+_MythicRitualPlayer, _MythicNodeCreation, _MythicSeedGlyph
+NodeStateMachine_v1, NodeHierarchyVisuals
+ArchetypeAuraFX, ArchetypeColorFX
+*Scale* (~47 writes)
+NodeLinkingSystem, NodeAuraSystem_v1, NodeLinkedAuraSystem
+NodeShellSizeAuthority
+LinkAuraSystem_v1, LinkTrailParticleSystem
+SynergyCascadeVisualizer, SynergyVFX
+StandingWaveVisualRenderer, StandingWaveOscillationTrapSystem
+_AdaptiveGlyphRendering1_0, _SemanticGlyphAI
+_SafeLegendaryLinkFX, _SafeLegendaryWorldEvents
+_SafeWorldFXPack, _SafeQuantumIllusionsPack1
+HarmonicRecoveryVisualSystem, HarmonicInfluencePropagation
+GlyphAnimationModulator
+AIConsciousnessLayer
+*CRITICAL FINDINGS*
+1. Extreme Fragmentation: 83+ systems independently modify visuals per-frame with no coordination
+2. No Single Authority: Multiple "authority" systems exist but none truly centralize visual state
+3. Property Collision Risk: Same materials modified by multiple systems (e.g., color set by 20+ systems)
+4. Performance Impact: 300+ material property writes per-frame without batching or deduplication
+5. Missing Composer: While individual systems compute visual profiles, no system computes FINAL combined visual state once
+*Recommended Actions:*
+Design a VisualComposer system that aggregates all visual state changes and applies once per-frame
+Implement property locking/preemption to prevent conflicting writes
+Add mutation tracing to identify and eliminate redundant systems
+Batch material updates to reduce Three.js material state changes
+Create a visual property ownership registry to establish clear authority boundaries

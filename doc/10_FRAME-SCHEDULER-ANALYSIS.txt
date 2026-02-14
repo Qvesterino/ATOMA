@@ -1,0 +1,126 @@
+FRAME-SCHEDULER-AUTHORITY-MAP - FORENSIC ANALYSIS
+READ ONLY – TIMING AUTHORITY FORENSIC REPORT
+
+STEP 1 — UPDATE LOOPS INVENTORY
+System / Class	File	Update Method Name	Timing Source	Frequency	Risk Level
+Main Loop	main.js	animate()	requestAnimationFrame	~60 FPS	LOW (Primary Authority)
+FrameScheduler	FrameScheduler.js	tick()	Called from animate()	Variable per layer	LOW (Controlled)
+ExtremeAINodeEvolution3.js	_ExtremeAINodeEvolution3.js	updateVisuals()	Date.now() (Direct)	Uncoupled	HIGH (Independent)
+MythicRitualController	_MythicRitualController.js	updateActiveRitual()	Date.now() (Direct)	Uncoupled	HIGH (Independent)
+WorldPersonalityController	_WorldPersonalityController.js	updateMood()	Date.now() (Direct)	Uncoupled	HIGH (Independent)
+ResonanceCascadeVisualization	ResonanceCascadeVisualization_Session117B.js	update()	Date.now() (Direct)	Uncoupled	HIGH (Independent)
+SynergyAuraColorIntegrationPatch	SynergyAuraColorIntegrationPatch.js	animate()	requestAnimationFrame (Closure)	~60 FPS	HIGH (Independent RAF)
+WaveShaderBridge_v1	WaveShaderBridge_v1.js	animate()	requestAnimationFrame (Closure)	~60 FPS	HIGH (Independent RAF)
+Note: The 9 setInterval results are in test/example files only (T4004_HARMONY_HEALING_TEST_RUNNER.js, WEEK16_SHADER_MODE_SNIPPETS.js, etc.).
+
+STEP 2 — SYSTEMS CALLED FROM main.js ANIMATE
+From main.js analysis:
+
+System	File	Called from animate?	Registered in FrameScheduler?	Double-update risk?
+renderer.render	main.js	YES (Direct)	NO	NO (Rendering only)
+frameScheduler.tick	main.js	YES (Direct)	N/A (Is the scheduler)	NO
+cameraController.update	main.js	Via FrameScheduler	YES (realtime layer)	NO
+playerController.update	main.js	Via FrameScheduler	YES (realtime layer)	NO
+aiNodes.update	main.js	Via FrameScheduler	YES (visual/simulation layers)	NO
+nodeLinking.update	main.js	Via FrameScheduler	YES (visual layer)	NO
+Finding: All major production systems are properly registered in FrameScheduler. No double-update risks found from animate().
+
+STEP 3 — LOCAL DELTA SOURCES ANALYSIS
+System	Local delta calculation?	Uses FrameScheduler delta?	Time unit	Risk Level
+Main Loop	NO	YES (clock.getDelta())	seconds	LOW
+FrameScheduler	NO	YES (receives deltaTime)	seconds	LOW
+ExtremeAINodeEvolution3.js	YES	NO	ms (Date.now())	HIGH
+MythicRitualController	YES	NO	ms (Date.now())	HIGH
+WorldPersonalityController	YES	NO	ms (Date.now())	HIGH
+ResonanceCascadeVisualization_Session117B.js	YES	NO	ms (Date.now())	HIGH
+SynergyAuraColorIntegrationPatch.js	YES	NO	ms (performance.now())	HIGH
+WaveShaderBridge_v1.js	YES	NO	seconds (performance.now())	HIGH
+Note: Many systems use performance.now() for performance tracking/timestamps (not delta calculation), which is safe.
+
+STEP 4 — MULTIPLE TIMING AUTHORITIES DETECTED
+HIGH RISK SYSTEMS (Independent RAF Loops)
+SynergyAuraColorIntegrationPatch.js
+
+Creates its own requestAnimationFrame loop
+Not registered in FrameScheduler
+Runs at uncoupled frame rate
+Risk: Visual desync, performance overhead
+WaveShaderBridge_v1.js
+
+Creates its own requestAnimationFrame loop
+Not registered in FrameScheduler
+Runs at uncoupled frame rate
+Risk: Shader timing desync
+HIGH RISK SYSTEMS (Direct Date.now() Usage)
+_ExtremeAINodeEvolution3.js
+
+Uses Date.now() directly for ALL visual animations
+No deltaTime integration
+Affects: rotation, pulse, glow, position wobble
+MAJOR RISK: Visual animations desynced from game time
+_MythicRitualController.js
+
+Uses Date.now() for ritual phase timing
+No deltaTime integration
+Affects: ritual progression, visual effects
+MAJOR RISK: Ritual timing desynced from game time
+_WorldPersonalityController.js
+
+Uses Date.now() for mood changes and visual animations
+No deltaTime integration
+Affects: personality transitions, particle motion, band positions
+MAJOR RISK: Mood system desynced from game time
+ResonanceCascadeVisualization_Session117B.js
+
+Uses Date.now() for cascade ripple animations
+No deltaTime integration
+Affects: ripple intensity, oscillation
+HIGH RISK: Cascade visual desync
+MEDIUM RISK SYSTEMS
+Multiple systems use performance.now() for effect duration tracking:
+
+PulseBoundaryInteractionAdapter_v1.js
+SynergyCascadeFXBridge_v1.js
+SynergyChainReaction_v1.js
+Many other visual effect systems
+Risk Level: MEDIUM (these use Date.now() for duration/aging, not per-frame animation)
+
+SUMMARY
+1) Total Update Loops Found: 8
+1 main RAF loop (primary authority)
+2 independent RAF loops (HIGH RISK)
+5 systems using direct Date.now() for animation (HIGH RISK)
+2) Systems Outside FrameScheduler: 7
+SynergyAuraColorIntegrationPatch.js (independent RAF)
+WaveShaderBridge_v1.js (independent RAF)
+_ExtremeAINodeEvolution3.js (direct Date.now())
+_MythicRitualController.js (direct Date.now())
+_WorldPersonalityController.js (direct Date.now())
+ResonanceCascadeVisualization_Session117B.js (direct Date.now())
+Various example/test files (not production)
+3) Systems with Independent RAF: 2
+SynergyAuraColorIntegrationPatch.js
+WaveShaderBridge_v1.js
+4) Systems Computing Their Own Delta: 5
+_ExtremeAINodeEvolution3.js (implicit via Date.now())
+_MythicRitualController.js (implicit via Date.now())
+_WorldPersonalityController.js (implicit via Date.now())
+ResonanceCascadeVisualization_Session117B.js (implicit via Date.now())
+SynergyAuraColorIntegrationPatch.js (implicit via performance.now())
+5) Potential Double-Update Risks: LOW
+Good News: All core production systems (AINodes, NodeLinkingSystem, ComputeSynergyScore, etc.) are properly registered in FrameScheduler. No double-update risks detected in main systems.
+
+High Risk: 5 systems are running on independent timebases (Date.now() instead of deltaTime), which could cause:
+
+Visual animations running faster/slower than game time
+Ritual phases completing at wrong times
+Mood changes desynchronized from game events
+Pause/Time-scale not affecting these systems
+RECOMMENDATIONS
+CRITICAL: Refactor _ExtremeAINodeEvolution3.js to use deltaTime instead of Date.now()
+CRITICAL: Refactor _MythicRitualController.js to use deltaTime for ritual timing
+CRITICAL: Refactor _WorldPersonalityController.js to use deltaTime for all animations
+HIGH: Integrate SynergyAuraColorIntegrationPatch.js RAF loop into FrameScheduler
+HIGH: Integrate WaveShaderBridge_v1.js RAF loop into FrameScheduler
+MEDIUM: Review ResonanceCascadeVisualization_Session117B.js for deltaTime integration
+END OF FORENSIC ANALYSIS

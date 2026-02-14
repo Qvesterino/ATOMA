@@ -1,0 +1,250 @@
+        this.scene.background = new THREE.Color(0x0a0a12);
+
+        // Corridor fog for depth
+        this.scene.fog = new THREE.FogExp2(0x0f0f1a, 0.008);
+
+        // Soft ambient lighting
+        const ambientLight = new THREE.AmbientLight(0x3344aa, 0.3);
+        this.scene.add(ambientLight);
+
+        // Directional light from above
+        const directionalLight = new THREE.DirectionalLight(0x6666aa, 0.4);
+        directionalLight.position.set(0, 20, 10);
+        directionalLight.castShadow = false;
+        this.scene.add(directionalLight);
+
+        // Rim lights from sides
+        const leftRimLight = new THREE.DirectionalLight(0x00dddd, 0.25);
+        leftRimLight.position.set(-20, 5, 0);
+        this.scene.add(leftRimLight);
+
+        const rightRimLight = new THREE.DirectionalLight(0x8800ff, 0.25);
+        rightRimLight.position.set(20, 5, 0);
+        this.scene.add(rightRimLight);
+
+        // Ceiling glow
+        const ceilingLight = new THREE.PointLight(0x6633aa, 0.3, 50);
+        ceilingLight.position.set(0, 9, 0);
+        this.scene.add(ceilingLight);
+    }
+
+    /**
+     * Setup player with first-person controls
+     */
+    setupPlayer() {
+        // Create invisible player object (we're in first-person)
+        const playerGeometry = new THREE.BoxGeometry(0.5, 1.8, 0.5);
+        const playerMaterial = new THREE.MeshBasicMaterial({
+            visible: false
+        });
+        this.player = new THREE.Mesh(playerGeometry, playerMaterial);
+        this.player.position.set(0, 1, 0);
+        this.scene.add(this.player);
+
+        // Setup player controller with increased speed
+        this.playerController = new PlayerController(this.player, {
+            moveSpeed: CONFIG.player.moveSpeed, // Already set to 15 (250% of 6)
+            jumpForce: CONFIG.player.jumpForce,
+            gravity: CONFIG.player.gravity,
+            groundLevel: 1
+        });
+
+        // Setup first-person camera
+        this.cameraController = new FirstPersonCameraController(
+            this.camera,
+            this.player,
+            this.renderer.domElement,
+            {
+                eyeHeight: CONFIG.player.eyeHeight,
+                mouseSensitivity: 0.002
+            }
+        );
+
+        // Enable first-person mode
+        this.cameraController.enable();
+    }
+
+    /**
+     * Create the ATOMA world
+     */
+    createWorld() {
+        // ATOMA: visual layer prune/reset on world switch
+        this.frameScheduler?.resetLayer?.('visual');
+
+        if (typeof window !== 'undefined') {
+            window.game = window.game || this;
+            if (window.game._worldInitialized) {
+                console.warn('[World] Reinitializing — performing hard reset');
+            }
+            window.game._worldInitialized = true;
+        }
+
+        if (this.currentMode === 'sigma') {
+            this.sigmaRift = new SigmaRiftChamber(this.scene);
+            this.activeWorld = this.sigmaRift;
+        } else if (this.currentMode === 'desert') {
+            this.dreamDesert = new DreamDesert(this.scene, this.camera);
+            this.activeWorld = this.dreamDesert;
+        } else if (this.currentMode === 'quantum') {
+            this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
+            this.quantumIsland = new QuantumIsland(this.scene, this.camera);
+            this.activeWorld = this.quantumIsland;
+        } else if (this.currentMode === 'fractal') {
+            this.fractalValley = new FractalValley(this.scene);
+            this.activeWorld = this.fractalValley;
+        } else if (this.currentMode === 'memory') {
+            this.memoryLane = new MemoryLane(this.scene);
+            this.activeWorld = this.memoryLane;
+        } else {
+            this.chamber = new World(this.scene);
+            this.activeWorld = this.chamber;
+        }
+
+        // Create AI nodes for this environment
+        this._allowRegistryReset = true;
+        this._spawnNodesOnce = false;
+        this.createAINodes();
+
+        // ====================================================================
+        // CONTROLLED UNFREEZE SYSTEM: Safe reactivation of visual systems
+        // ====================================================================
+        try {
+            setupControlledUnfreeze(this);
+            console.log('[main.js] ControlledUnfreezeSystem initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] ControlledUnfreezeSystem initialization failed:', err);
+        }
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_WORLD_TRANSITIONING = false;
+        }
+    }
+
+    /**
+     * Create interactive AI nodes
+     */
+    createAINodes() {
+        this._allowRegistryReset = false;
+        if (this._spawnNodesOnce) {
+            console.warn('[World] spawnNodes already executed for this world load');
+            return;
+        }
+        this._spawnNodesOnce = true;
+
+        // Scene cleanup: remove old nodes before spawning new ones
+        if (this.scene) {
+            const toRemove = [];
+            this.scene.traverse(obj => {
+                if (obj.userData?.nodeId) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach(obj => obj.parent?.remove(obj) || this.scene.remove(obj));
+        }
+        if (this.linkingSystem?.hitProxySystem?.registry) {
+            const proxies = this.linkingSystem.hitProxySystem.registry.getAllProxies();
+            proxies.forEach(proxy => this.scene?.remove(proxy));
+            this.linkingSystem.hitProxySystem.registry.clear();
+        }
+        if (this.aiNodes) {
+            this.aiNodes.nodes = [];
+            this.aiNodes.nodesMap?.clear();
+        }
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+        }
+
+        this.aiNodes = new AINodes(this.scene, this.player);
+        window.__ATOMA_AINODES__ = this.aiNodes;
+        this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
+        if (this.hitProxySystem?.setContext) {
+            this.hitProxySystem.setContext({ aiNodes: this.aiNodes, camera: this.camera });
+        }
+        
+        // ====================================================================
+        // TASK 2: SIMULATION INVARIANT ENFORCEMENT
+        // Non-breaking enforcement of registry authority and update participation
+        // ====================================================================
+    setupSimulationInvariantEnforcement(this.aiNodes);
+    console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
+        
+        // ====================================================================
+        // TASK 3: RARE NODE VERIFICATION TRACKER
+        // Track update ticks, registry participation, shell visibility
+        // ====================================================================
+        setupRareNodeVerificationTracker(this.aiNodes);
+        console.log('✓ Rare Node Verification Tracker initialized (TASK 3)');
+        
+        // Archetype Visual System – Activation
+        const archetypeVisualSystem = patchArchetypeVisuals(this.aiNodes, true);
+        console.log('✅ Archetype Visual System enabled (debug mode ON)');
+        // Optional: first-spawn program-count log (guarded by PROGRAM_LOG)
+        let __loggedFirstSpawn = false;
+        const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
+        this.aiNodes.createNode = (...args) => {
+            const node = originalCreateNode(...args);
+            if (!__loggedFirstSpawn) {
+                logPrograms('after-first-node', this.renderer);
+                __loggedFirstSpawn = true;
+            }
+            return node;
+        };
+        
+        // ========================================================================
+        // SESSION 20: VISUAL HIERARCHY CORRECTION SYSTEM v1.0
+        // Enforces visual dominance of core node geometry over auxiliary layers
+        // ========================================================================
+        this.visualHierarchyCorrection = new VisualHierarchyCorrectionSystem_v1({
+          enableAutoEnforcement: true,
+          enableDebug: false, // Set to true for debug logging
+          enforcementMode: 'constrain', // 'constrain' | 'suppress' | 'relocate'
+          radiusScaleFactor: 1.8,
+          suppressLegacyExtremes: true
+        });
+        
+        // Register all created nodes with hierarchy system
+        for (const node of this.aiNodes.nodes) {
+          this.visualHierarchyCorrection.registerNode(node, node.userData?.category || 'input');
+        }
+        console.log('[main.js] Visual Hierarchy Correction System v1.0 initialized ✓');
+
+        // Initialize dynamic node spawning system
+        this.aiNodes.initializeNodeSpawning();
+
+        // ====================================================================
+        // SIMULATION EFFECT ORCHESTRATOR (Session 37+ FIXED)
+        // Central hub for all dt-based animations (no requestAnimationFrame)
+        // Consolidates: node materialization, link pulses, mythic effects
+        // ====================================================================
+        this.effectOrchestrator = new SimulationEffectOrchestrator(this.scene);
+        console.log('[main.js] Simulation Effect Orchestrator initialized ✓');
+
+        // Create node linking system
+        this.linkingSystem = new NodeLinkingSystem(
+            this.scene,
+            this.camera,
+            this.renderer,
+            this.aiNodes
+        );
+        if (this.hitProxySystem) {
+            this.linkingSystem.hitProxySystem = this.hitProxySystem;
+        }
+        this.linkingSystem.isReady = true;
+        console.log('[main.js] NodeLinkingSystem created');
+        if (this.frameScheduler) {
+            this.frameScheduler.register(
+                'visual',
+                (dt) => {
+                    if (this.linkingSystem && this.linkingSystem.isReady === true) {
+                        this.linkingSystem.update(dt, this.time);
+                    }
+                },
+                'visual.linkingSystem'
+            );
+        }
+        if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
+            this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
+        }
+        if (
+            this.recursiveGlyphSignalSystem &&
+            typeof this.recursiveGlyphSignalSystem.setLinkingSystem === 'function' &&
+            this.linkingSystem

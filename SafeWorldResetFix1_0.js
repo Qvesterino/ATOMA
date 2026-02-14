@@ -325,14 +325,10 @@ export class SafeWorldResetFix1_0 {
       console.warn('⚠ Failed to remove world FX overlays:', e.message);
     }
     
-    // Process deferred cleanup queue
-    while (this.cleanupQueue.length > 0) {
-      const item = this.cleanupQueue.shift();
-      try {
-        item.dispose();
-      } catch (e) {
-        // Silently skip disposal errors
-      }
+    // Process deferred cleanup queue (detach-only, no actual disposal to keep GL programs alive)
+    if (this.cleanupQueue.length > 0) {
+      this.cleanupQueue.length = 0;
+      console.log('SafeWorldResetFix: cleared deferred cleanup queue without disposing GPU resources');
     }
     
     console.log('✓ Scene cleanup complete');

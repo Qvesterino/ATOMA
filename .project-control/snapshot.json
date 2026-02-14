@@ -1,0 +1,3932 @@
+{
+  "snapshot_version": 1,
+  "snapshot_id": "2026-02-14T15-01-10__a894bf",
+  "file_count": 654,
+  "files": [
+    {
+      "path": "AbsoluteLinkStateNuclearLock.js",
+      "size": 14082,
+      "modified": "2026-01-27T18:23:51.912386+00:00",
+      "sha256": "8464a73f2c8338185063017b151028472328f0202badb0380c349f715430003d"
+    },
+    {
+      "path": "AbsoluteRaycastLock.js",
+      "size": 17201,
+      "modified": "2025-12-30T13:56:38.042832+00:00",
+      "sha256": "f8b76814bb228a33fbdfc6fc089a62dd04e4d2ab44f01c25645854fa834138b4"
+    },
+    {
+      "path": "ACTIVATE_NUCLEAR_LOCK.js",
+      "size": 7943,
+      "modified": "2025-12-30T13:56:38.061838+00:00",
+      "sha256": "1be71650bb3a670f31d970256e8cb59a346c0a948b01888d47bc5a91ec115aed"
+    },
+    {
+      "path": "ACTIVATE_VISUAL_LOCK.js",
+      "size": 158,
+      "modified": "2026-01-19T18:03:19.462986+00:00",
+      "sha256": "1355902036e014e1d6ec4b9f44f73aabb3e38e5d82bf9968cf13c5e585f42064"
+    },
+    {
+      "path": "AdaptivePerformanceMonitor_v1.js",
+      "size": 12027,
+      "modified": "2026-01-22T18:59:12.433896+00:00",
+      "sha256": "137cf3867524640c8006714707b41fcafe37a26432ea9af9a8bed7928d56ae79"
+    },
+    {
+      "path": "AIAutomationHUD.js",
+      "size": 22117,
+      "modified": "2026-01-21T17:54:13.531755+00:00",
+      "sha256": "833a9c29c46ebb5321f5d458e0b492e40f9be27b3785313c18a29e4be53f8072"
+    },
+    {
+      "path": "AIConsciousnessLayer.js",
+      "size": 25676,
+      "modified": "2026-01-25T22:33:21.799115+00:00",
+      "sha256": "83073be4f759484150c98495514586ccf7f789a3521f57720cf95b6c75a52720"
+    },
+    {
+      "path": "AINodeModel.js",
+      "size": 27457,
+      "modified": "2026-02-12T08:25:38.312977+00:00",
+      "sha256": "e447ad13b8e01c67d81d05aa0c9e579ddecaa292772bd4d810657026326fc945"
+    },
+    {
+      "path": "AINodes.js",
+      "size": 147784,
+      "modified": "2026-02-12T22:11:15.467199+00:00",
+      "sha256": "7215a819d39b13748e36a573aa47feb70375353b12c6e6c026d37c851c7c6da6"
+    },
+    {
+      "path": "AnalyticsEnhancedVariants_Session81.js",
+      "size": 11722,
+      "modified": "2025-12-30T13:56:38.249197+00:00",
+      "sha256": "b5d6003ca31bd7fd7da4b8be94b242aa6c6540372458e0e3d4c7c2017463d0ba"
+    },
+    {
+      "path": "AnimatedLinkFlow.js",
+      "size": 14878,
+      "modified": "2026-02-08T22:19:36.126076+00:00",
+      "sha256": "de8c1d9769b2df1cff9798864a3b1ba3678cacfd0310c6fd2b5023c785add9e3"
+    },
+    {
+      "path": "ArchetypeAscensionCurves_v1.js",
+      "size": 20588,
+      "modified": "2026-01-25T09:11:30.306214+00:00",
+      "sha256": "875e580983817bfaf7fd58c213a1b7112c9c03a893fae3b577d2b8f8591bf8ae"
+    },
+    {
+      "path": "ArchetypeAuraEnhancement_v1.js",
+      "size": 19181,
+      "modified": "2026-02-12T11:18:20.302691+00:00",
+      "sha256": "ccf9bfb79e70bb781c6dadfdd7ee8cd91c6293d26c369c7178d882cb93b2a323"
+    },
+    {
+      "path": "ArchetypeColorPaletteSystem_v1.js",
+      "size": 21412,
+      "modified": "2026-01-25T09:05:21.808005+00:00",
+      "sha256": "8c60c9503cf48c7101326195a03576422ef84922628a25baabe9a35f844bb3ce"
+    },
+    {
+      "path": "ArchetypeGameplayEffects_v1.js",
+      "size": 25833,
+      "modified": "2025-12-30T13:56:38.321004+00:00",
+      "sha256": "781cc5267e9eda1295608589ca783f9c0c52d6002bd7fcb4b5ba88ea671f665e"
+    },
+    {
+      "path": "ArchetypeNeuralLinkVis_v1.js",
+      "size": 15919,
+      "modified": "2026-01-21T20:26:10.756898+00:00",
+      "sha256": "9b0e0ad73fb2e79add5068f95cad4e64c983ec6af6ef0b074b10199edff00981"
+    },
+    {
+      "path": "ArchetypeShaderModes_v1.js",
+      "size": 16107,
+      "modified": "2026-01-21T20:31:26.406914+00:00",
+      "sha256": "4dadf892a25d5e101e8a3cbb68b7171774e32f94f4ce82d71d7059655daf1605"
+    },
+    {
+      "path": "ArchetypeVisualDifferentiationSystem_v1.js",
+      "size": 17371,
+      "modified": "2026-02-08T16:09:01.969750+00:00",
+      "sha256": "d98d499f5acd9798473aeabfa290a9be50bff89ad088e3dabad7f4ed2bc88300"
+    },
+    {
+      "path": "ArchetypeVisualIntegrationPatch_v1.js",
+      "size": 10154,
+      "modified": "2026-02-09T18:21:19.758466+00:00",
+      "sha256": "7eae1a51c842543bc05280dc5895651e44aeca12809f7c33c482ddd9660b4f4c"
+    },
+    {
+      "path": "ArchetypeVisualIntegrationPatch_v1_GAMEPLAY.js",
+      "size": 17100,
+      "modified": "2025-12-30T13:56:38.390371+00:00",
+      "sha256": "49d55a6b1533c77d0575233402cde71574eec856956035f92dc91217f835a3c1"
+    },
+    {
+      "path": "ArchetypeVisualProfiles_v1.js",
+      "size": 29049,
+      "modified": "2025-12-30T13:56:38.399076+00:00",
+      "sha256": "d5ae885e9d8fba48be5c778f227479be3c18f31a5a87cc6cd4465f5981303992"
+    },
+    {
+      "path": "ArchetypeVisualTransitionEngine_v2.js",
+      "size": 11990,
+      "modified": "2026-02-05T22:32:45.731075+00:00",
+      "sha256": "2c32d07fd5717d91840fffe460e8c78cd5109fae0a54d4e7485562c7eec8f66e"
+    },
+    {
+      "path": "AtomaAudioModulation.js",
+      "size": 18525,
+      "modified": "2026-01-16T23:17:04.016835+00:00",
+      "sha256": "aff8ac63fb918270c79a73fcfd9b9d47be45c7fbab17799f9e68cbd8375d6064"
+    },
+    {
+      "path": "AtomaAudioSystem.js",
+      "size": 6482,
+      "modified": "2025-12-30T13:56:38.446059+00:00",
+      "sha256": "efefcb5ce75bfe90dde1e9399a4e6791d7ec3500771f972148a5d6914ee86433"
+    },
+    {
+      "path": "AtomaDebugHUD_1_0.js",
+      "size": 25790,
+      "modified": "2025-12-30T13:56:38.504043+00:00",
+      "sha256": "127a39b50db9db1a197eb16d1131699182e0a9e37f4d721c86572c5948f50353"
+    },
+    {
+      "path": "atoma_daemon.py",
+      "size": 2471,
+      "modified": "2026-01-08T15:20:50.305901+00:00",
+      "sha256": "716479cdc7969c8f2b01abf6eb21330ad9bc87aca6b32f41a9c2e8b0658fc75a"
+    },
+    {
+      "path": "AudioSystem.js",
+      "size": 14035,
+      "modified": "2025-12-30T13:56:38.869516+00:00",
+      "sha256": "59f519644a93b341e20036d21a28b86e1f3ed544e97520666f3d1088e5b4c484"
+    },
+    {
+      "path": "AuraBaselineInvalidationFix.js",
+      "size": 4099,
+      "modified": "2025-12-30T13:56:39.014364+00:00",
+      "sha256": "b96dc2084ef54f8496e606de56938edc91270abc99ec42c106d49cfd410c51e9"
+    },
+    {
+      "path": "AuraLODCulling.js",
+      "size": 8763,
+      "modified": "2025-12-30T13:56:39.026280+00:00",
+      "sha256": "5e1e67bfd2c6b9a5dfc660bcc23b3ab532cbd42f50365373bb764527d331a5c4"
+    },
+    {
+      "path": "AuraModulationIntegration_v1.js",
+      "size": 7864,
+      "modified": "2026-01-22T19:05:58.887902+00:00",
+      "sha256": "6f26f4a9b3a3cb246162aed7e8b8533e59435e9dbf1c62d9d70da32d786aff81"
+    },
+    {
+      "path": "AuraModulationSystem.js",
+      "size": 12948,
+      "modified": "2026-02-12T20:52:51.359002+00:00",
+      "sha256": "d32ec853453db3aa55834e3b7283130f3d4bb34e9d6e4900c01c9e408ca7cb8b"
+    },
+    {
+      "path": "AuraRefactorValidationHelper.js",
+      "size": 12501,
+      "modified": "2025-12-30T13:56:39.103392+00:00",
+      "sha256": "1bb429726da84f17713c27dca9ef199f2b55e9961abef37ba4029b9e0abb5e3c"
+    },
+    {
+      "path": "AutoConnectEngine.ts",
+      "size": 23348,
+      "modified": "2025-12-30T13:56:39.127791+00:00",
+      "sha256": "d14093d4c59afd85b990b3af63a767c47984b9433f41ab6d6b3cccd18ca715a1"
+    },
+    {
+      "path": "AutoLinkFeedbackUI1_0.js",
+      "size": 14439,
+      "modified": "2025-12-30T13:56:39.149967+00:00",
+      "sha256": "22a49c0225cd01507002c4aa7342f82a974b9b47821090202e179bb1709b5488"
+    },
+    {
+      "path": "BeadDebugUtils.js",
+      "size": 8816,
+      "modified": "2026-02-10T14:06:50.407520+00:00",
+      "sha256": "f11c1f03d3872e67e6d005841ee2e3b1b55a0bebc60928c75e372ddfd811282b"
+    },
+    {
+      "path": "BeadEdgeCaseHandler.js",
+      "size": 8279,
+      "modified": "2025-12-30T13:56:39.177435+00:00",
+      "sha256": "213c36eb5cbfbd773e2d10f12e7915ac70527ac1650c497ef6b566b438e4c778"
+    },
+    {
+      "path": "BeadPerformanceMonitor.js",
+      "size": 6839,
+      "modified": "2025-12-30T13:56:39.188326+00:00",
+      "sha256": "7406c4c8ce779efd46275abf4021695975aab00fa8435681d1a2ceaa99a9c631"
+    },
+    {
+      "path": "BeadSystemTuning.js",
+      "size": 5506,
+      "modified": "2025-12-30T13:56:39.204696+00:00",
+      "sha256": "bed07ba88bf57902f782fbf4a5a7ced6f84214f30501e1ca749b77186acf35fd"
+    },
+    {
+      "path": "CanonicalGeometryFamilies_v1.js",
+      "size": 42091,
+      "modified": "2026-02-11T07:49:17.103268+00:00",
+      "sha256": "9f89940c596560044016c83333fc693acb5def50fd2064b0a29d929572505987"
+    },
+    {
+      "path": "CanonicalTemplate3_StressVisuals.js",
+      "size": 9027,
+      "modified": "2025-12-30T13:56:39.476239+00:00",
+      "sha256": "3ba04527c7325551eb362457a95992030a33bd5738b5941418996a016972f16d"
+    },
+    {
+      "path": "CascadeParticleColorTinting_Session119.js",
+      "size": 17585,
+      "modified": "2026-01-16T23:17:29.839079+00:00",
+      "sha256": "84287fa84ca172eb5c8ea4710a990c7f1ad8c5965650f49df57270fb2af3fb4e"
+    },
+    {
+      "path": "CascadeParticleEmissionBoost_Session118.js",
+      "size": 11038,
+      "modified": "2025-12-30T13:56:39.522913+00:00",
+      "sha256": "b65a9dc94aed0c5fb4b7a6a050c6ec44b3f73097a26d7d09592d2031f4047ad9"
+    },
+    {
+      "path": "CascadeParticleSystem_Session120.js",
+      "size": 18889,
+      "modified": "2026-01-25T21:48:44.405479+00:00",
+      "sha256": "9dca16063c35444db993e0c642639420f0fdc5229d13c9f3cbe721856e826ae5"
+    },
+    {
+      "path": "CascadeResonanceWaveVisualization_Session146.js",
+      "size": 14575,
+      "modified": "2026-01-25T09:02:53.299251+00:00",
+      "sha256": "cf2883fab6354ce146930520da3f62c3f2f93b3b25c0f280209c95a8d8e18278"
+    },
+    {
+      "path": "CascadeSystemConsoleAPI.js",
+      "size": 11293,
+      "modified": "2025-12-30T13:56:39.580799+00:00",
+      "sha256": "930441c3a56ce01091f792b89e7476f425cab15a9069619af5e7c467f25971d7"
+    },
+    {
+      "path": "CascadingHarmonicResonanceAmplification.js",
+      "size": 22227,
+      "modified": "2026-01-16T23:20:42.131901+00:00",
+      "sha256": "e4ba87c30333d36099f46424fd7dd91a2ee14357d2cf5ea4a74cab697a268849"
+    },
+    {
+      "path": "CascadingRuptureSystem.js",
+      "size": 20866,
+      "modified": "2026-01-22T19:18:17.488410+00:00",
+      "sha256": "a4720274c19437223193db59d7e0125090a9a9c95f82d7b92a949495d8c48ce1"
+    },
+    {
+      "path": "CASCADING_RESONANCE_EXAMPLES.js",
+      "size": 16971,
+      "modified": "2026-01-25T09:00:11.871237+00:00",
+      "sha256": "7877ee403dc62695c411b90537cfa59e3ca10e6b1809802eed82a7cedd4d5e87"
+    },
+    {
+      "path": "CinematicUpgrade.js",
+      "size": 6270,
+      "modified": "2026-01-22T19:19:28.531518+00:00",
+      "sha256": "508fbe93135a44c5447019c77da7b5621af7f84527dc9821a6ba307c41ea69e2"
+    },
+    {
+      "path": "CognitiveHorizonPlane.js",
+      "size": 15269,
+      "modified": "2026-01-25T21:07:14.297372+00:00",
+      "sha256": "a05f7dd9b0f39e497ee9e266c0833f669cd63a691a0fcbd6026186ba738ddd85"
+    },
+    {
+      "path": "CollapsibleHudWrapper.js",
+      "size": 7889,
+      "modified": "2025-12-30T13:56:39.687838+00:00",
+      "sha256": "a6cafedf0417feb742b24b08ee0078ed6900d3f04b7da61d5a1b4b8834b49ea1"
+    },
+    {
+      "path": "ColonyRegistry.js",
+      "size": 14032,
+      "modified": "2025-12-30T13:56:39.694127+00:00",
+      "sha256": "a065f9121e302e1febd617baa37242aa27f14c3e4ae8d7de891773bd96951ca2"
+    },
+    {
+      "path": "ColonyVFXManager.js",
+      "size": 15427,
+      "modified": "2026-01-22T19:19:57.553207+00:00",
+      "sha256": "eec365e32ddb3c00fb8bde3f4aff00cdb5d1a809ad3eef45358f5761b9f6d701"
+    },
+    {
+      "path": "CompetitionDominanceAdapter_v1.js",
+      "size": 18081,
+      "modified": "2025-12-30T13:56:39.708108+00:00",
+      "sha256": "dbde34cc6fc3b70f05625351169643ba57ee9451650a3655c2fa6906d1af4442"
+    },
+    {
+      "path": "CompositeGlyphGenerator.js",
+      "size": 14386,
+      "modified": "2026-02-06T21:27:26.720736+00:00",
+      "sha256": "4535dfd739b4304dc1fb09b341ba242e7dd335739ac81b3c046f1a3778b3d142"
+    },
+    {
+      "path": "CompositeGlyphResonanceFeedback.js",
+      "size": 47301,
+      "modified": "2026-02-10T14:06:37.112400+00:00",
+      "sha256": "126c852849f77e826510e817db7bdcc4309caa8b1562de3b5969eeda3ff0f6b3"
+    },
+    {
+      "path": "ComputeSynergyScore2_0.js",
+      "size": 24843,
+      "modified": "2025-12-30T13:56:39.808188+00:00",
+      "sha256": "16920293118116b9180da141248ed5efa5dad856facb8771918d3525e6b452c3"
+    },
+    {
+      "path": "ComputeSynergyScore2_1.js",
+      "size": 12675,
+      "modified": "2025-12-30T13:56:39.828055+00:00",
+      "sha256": "e8f1e8b7210bdba13f5c267536b71a7d484122cf14c90a4c31fef9770ad5e087"
+    },
+    {
+      "path": "config.js",
+      "size": 6035,
+      "modified": "2026-01-28T18:16:06.735367+00:00",
+      "sha256": "3d317b38dcbb1cec2e3ea05bd7685d3744df9968c66a9ef904bd66ffcdf1c52f"
+    },
+    {
+      "path": "ControlEnhancedVariants_Session83.js",
+      "size": 15673,
+      "modified": "2025-12-30T13:56:39.860689+00:00",
+      "sha256": "0c19401d8a22f2ecdfdc12ba32441e95801d52d6b2c3ac6ea9898e75d41fad04"
+    },
+    {
+      "path": "ControlledUnfreezeSystem_v1.js",
+      "size": 11113,
+      "modified": "2025-12-30T13:56:39.869528+00:00",
+      "sha256": "c5446099fc224f8ac0d406cde0a9bdcd80fe84108019537e92d4516dc2a3c4aa"
+    },
+    {
+      "path": "ControlNodeGeometries_v1.js",
+      "size": 9435,
+      "modified": "2025-12-30T13:56:39.885439+00:00",
+      "sha256": "1e4c3d9f92eedd22e383e09b61702dc3aca1f25bfa34531b65b1caff2446ee8a"
+    },
+    {
+      "path": "ControlNodeSpecialGoverners_Session114.js",
+      "size": 17144,
+      "modified": "2025-12-30T13:56:39.889583+00:00",
+      "sha256": "e8900a884d623ba482cfd7879b6ed73b8709b82b34c3377249f30f055eed7498"
+    },
+    {
+      "path": "ControlSpineVariants_Session100.js",
+      "size": 17864,
+      "modified": "2025-12-30T13:56:39.909801+00:00",
+      "sha256": "dda7d6694a010c2a3b07f6649adf25bf27436d321d321b16822e070235c7c94f"
+    },
+    {
+      "path": "ControlSpineVariants_Session100_INTEGRATION_EXAMPLES.js",
+      "size": 13277,
+      "modified": "2025-12-30T13:56:39.905248+00:00",
+      "sha256": "9f5c8bfbafdcc150bfcfd0fe240c35cf1c4f276cc47f7cec4634da7a82175462"
+    },
+    {
+      "path": "ControlSpineVariants_Session100_VERIFICATION.js",
+      "size": 10605,
+      "modified": "2025-12-30T13:56:39.914248+00:00",
+      "sha256": "b4fa936866160698c3b97eac5c2c296915211dadde854f12ecdeb2508ba1c049"
+    },
+    {
+      "path": "CoreHologramShader.js",
+      "size": 9983,
+      "modified": "2026-02-12T20:53:02.562427+00:00",
+      "sha256": "f33f0cfa62659e8547620b67314cf3fd6ea9d74037bae84808246013d5b3910b"
+    },
+    {
+      "path": "CoreMaterialMutationDetector.js",
+      "size": 15494,
+      "modified": "2026-01-27T22:11:40.667273+00:00",
+      "sha256": "83765b9527a1c0422327c140df3ce1fc4746addd712d7c6b19dc767b32495db8"
+    },
+    {
+      "path": "CoreMaterialMutationTestSuite.js",
+      "size": 13820,
+      "modified": "2025-12-30T13:56:39.942577+00:00",
+      "sha256": "42c65016352f4075496aad219c2aea990d53e1225131766459cd542f26e4d52e"
+    },
+    {
+      "path": "CoreMaterialPropertyLock.js",
+      "size": 6692,
+      "modified": "2026-02-05T19:59:42.644915+00:00",
+      "sha256": "c8801786ae08bf086b1ff31d6eb6f89aa7e5fa44cade0dfb8eaeccd3ad5d98ff"
+    },
+    {
+      "path": "CoreMetricAuthorityMonitor.js",
+      "size": 9729,
+      "modified": "2025-12-30T13:56:39.958538+00:00",
+      "sha256": "4a0408d6dc1fbebe65451cf7dc2846ee501a24c8ee5d843ac907c8a3fc0404b3"
+    },
+    {
+      "path": "CoreMetricsCalculator.js",
+      "size": 7188,
+      "modified": "2026-01-15T13:18:46.965959+00:00",
+      "sha256": "1446248211077ce793e5aa280e9d3e3acffe101a42d7c0b6472753f9b24aa9f1"
+    },
+    {
+      "path": "CoreMetricsEngineAdapter.js",
+      "size": 1278,
+      "modified": "2026-01-16T23:22:07.187623+00:00",
+      "sha256": "0eaf86393c35132a395849b3d88e4804061e165927cbcf77b3fea7733cbb056d"
+    },
+    {
+      "path": "CoreMetricsHUD.js",
+      "size": 13278,
+      "modified": "2026-01-30T09:46:16.032080+00:00",
+      "sha256": "74979aabc9ad6616f52327d2c3bbc67c24f30ab8c161c22bcd65fa8a634ee552"
+    },
+    {
+      "path": "CoreMetricsOverlay.js",
+      "size": 8564,
+      "modified": "2026-01-26T00:27:20.280556+00:00",
+      "sha256": "24b2e09a9cf57af21011b0aa0b42912e0ad0ca58df9bc34efa7f75105b59458b"
+    },
+    {
+      "path": "CoreMetricsViewModel.js",
+      "size": 4481,
+      "modified": "2026-01-15T19:47:47.226878+00:00",
+      "sha256": "b9b1960ac8e46cd2224b2707ba975bc229a9789d16ec042ec714903bea780a57"
+    },
+    {
+      "path": "CorruptionDesaturationIntegrationPatch.js",
+      "size": 12988,
+      "modified": "2025-12-30T13:56:40.064979+00:00",
+      "sha256": "49c83b52d1f5690b9cfb5cc84ce1a26056f0d889d8ba2cdc441d6f2303c28637"
+    },
+    {
+      "path": "CorruptionDrivenAuraDesaturationSystem.js",
+      "size": 15449,
+      "modified": "2026-02-12T11:18:52.478801+00:00",
+      "sha256": "38a3439f3e8effb33ec472c99784f34c0bc685b36b6ea4acfdd598a1d6736a15"
+    },
+    {
+      "path": "CorruptionVisualFX_v1.js",
+      "size": 22914,
+      "modified": "2026-02-06T16:56:58.920691+00:00",
+      "sha256": "c6cfd6eb2e4e6ddc601b12e7a57321303f07e73f2d620e83f034036ee7eb74b6"
+    },
+    {
+      "path": "CorruptionVisualIntegrationPatch_v1.js",
+      "size": 10332,
+      "modified": "2025-12-30T13:56:40.126906+00:00",
+      "sha256": "35d83ec6f28c2b50e49b24fae2f31e5610dca775a4c3ed0da1d05937cc0d8085"
+    },
+    {
+      "path": "CriticalNodeFailureSystem.js",
+      "size": 20412,
+      "modified": "2026-01-22T19:24:51.472346+00:00",
+      "sha256": "68be27bca8c9b66d895c13b65ecc1936141e6c21307b9b67785aa8fee8d36458"
+    },
+    {
+      "path": "DefensiveHardeningPatch_v1.js",
+      "size": 14894,
+      "modified": "2025-12-30T13:56:40.247108+00:00",
+      "sha256": "132ad812e8853e788911aaa45989d2a53fcc90f41c7907851177e6a1b897fd7a"
+    },
+    {
+      "path": "DefensiveHardeningValidationHelper.js",
+      "size": 10181,
+      "modified": "2025-12-30T13:56:40.255740+00:00",
+      "sha256": "297d356abd298511fa42bff7f5650114298715387f804d613df732cd6e2bbdea"
+    },
+    {
+      "path": "DreamDepthEffectManager.js",
+      "size": 9087,
+      "modified": "2026-01-22T19:25:41.848985+00:00",
+      "sha256": "e302202e36bb95d23b860b21a243c1a189d0a2111a1649705eb0584d3522c995"
+    },
+    {
+      "path": "DreamDesert.js",
+      "size": 18480,
+      "modified": "2026-01-17T20:27:59.663883+00:00",
+      "sha256": "1c7cfbdc4f150beecbe786dc1e26c1e4e2194d7afb112ba79944fae3eb826f60"
+    },
+    {
+      "path": "DreamDesert2.js",
+      "size": 24597,
+      "modified": "2026-02-05T09:58:20.772638+00:00",
+      "sha256": "8ed94dad3dd6a5cbc7a8c14574130ceb4b4c2d74d91cde24ee44126eb2ac8c10"
+    },
+    {
+      "path": "DynamicLinkColorSystem.js",
+      "size": 12554,
+      "modified": "2025-12-30T13:56:40.393706+00:00",
+      "sha256": "af63750beecb6665b92397793ea66fa65820ac354757749edde57d1e232a9dcd"
+    },
+    {
+      "path": "EchoRippleIntegrationPatch_Session125.js",
+      "size": 5973,
+      "modified": "2025-12-30T13:56:40.421933+00:00",
+      "sha256": "9327ad9e46f20225846c6f5a1c36111b8b23f2ee37fbb3157271beb9d313046e"
+    },
+    {
+      "path": "EmergencyAuraKillSwitch_v1.js",
+      "size": 5023,
+      "modified": "2025-12-30T13:56:40.442538+00:00",
+      "sha256": "848676e9fb13b80c3d10064210b1240d668b8e7e6f5315dbe95395251d1b1d47"
+    },
+    {
+      "path": "EnergyOrb.js",
+      "size": 10305,
+      "modified": "2026-01-22T19:59:26.626464+00:00",
+      "sha256": "a5530040313a73d9249241a6a5968473e969fca0a96cd0aa7c74fa06d4a51e4f"
+    },
+    {
+      "path": "EnergyVisualProfile.js",
+      "size": 16692,
+      "modified": "2025-12-30T13:56:40.503187+00:00",
+      "sha256": "6050b549fc49d4ba1e8d22d49a074d91fa102df7f91eb14c36358af2ae58cff3"
+    },
+    {
+      "path": "EnforcementGateAutoRecoveryBridge.js",
+      "size": 10404,
+      "modified": "2025-12-30T13:56:40.507247+00:00",
+      "sha256": "c0355ff8c134e850a61c2bbadd94569247e62a1bf87977d9be60ef161915404c"
+    },
+    {
+      "path": "EnforcementViolationAutoRecovery.js",
+      "size": 18084,
+      "modified": "2026-01-27T20:45:51.374375+00:00",
+      "sha256": "0f2f845c1495454ac71dd1d19d3fa7fa28b2bc4e165cb00b1d8322a90d3e5c2b"
+    },
+    {
+      "path": "EngineHealthDiagnostics1_0.js",
+      "size": 19758,
+      "modified": "2025-12-30T13:56:40.527995+00:00",
+      "sha256": "20088f4c575c873bdb1fa4591d9b8ad932a12cb2f119f2a6e53a0d158f9b605f"
+    },
+    {
+      "path": "ENGINE_HEALTH_CHECK_CONSOLE_API.js",
+      "size": 17136,
+      "modified": "2025-12-30T13:56:40.523876+00:00",
+      "sha256": "7a7f56f89f8431b8ed29fe192f3e3e0b9eef2d8c0ee5f7b6e3f578fa86fc393e"
+    },
+    {
+      "path": "EnhancedNodeModelLinkState.js",
+      "size": 6856,
+      "modified": "2025-12-30T13:56:40.535720+00:00",
+      "sha256": "045b5cf4437acbdae92b07955d66e8562c7ecc70f8bdd85100476ff7f6e220cd"
+    },
+    {
+      "path": "EnhancedNodeModels.js",
+      "size": 178535,
+      "modified": "2026-02-12T21:19:25.951418+00:00",
+      "sha256": "d89eaeb206af9045c49e4cfdb5d5dfb99b2a7a9440f09b57b69f2c80f6c02a44"
+    },
+    {
+      "path": "EnhancedNodeModelsSafeReplacements.js",
+      "size": 12244,
+      "modified": "2026-02-10T11:28:44.696049+00:00",
+      "sha256": "a2802edc5fa4077b31532a6dceeb1b5b84d3f46383b0c17334f1f8033bef53af"
+    },
+    {
+      "path": "EnvironmentalHazards.js",
+      "size": 9804,
+      "modified": "2026-01-22T20:00:46.265598+00:00",
+      "sha256": "1da8659fb2a8047f69934ed7a33597ad86f2bf494b3a7ad133432c71c301c3d1"
+    },
+    {
+      "path": "EventVisualSuppression_v1.js",
+      "size": 13508,
+      "modified": "2025-12-30T13:56:40.568863+00:00",
+      "sha256": "b831e55f91cdaff8f58cc24fe23653917a82bc621dfc1c6ea2e6730d81f0c0ae"
+    },
+    {
+      "path": "EvolutionRegistry.js",
+      "size": 25094,
+      "modified": "2026-02-05T22:04:08.614888+00:00",
+      "sha256": "cb4d7122998eb6eaca2b1337ca2fa4230e4d5e2b23d17023fd228afd56ca6bfe"
+    },
+    {
+      "path": "EXTREMENormalization.js",
+      "size": 6493,
+      "modified": "2026-02-12T11:26:03.955348+00:00",
+      "sha256": "55c33622b23af1b0e7ab956e574633d9db6922685d11788dd0fd12b0f1e13091"
+    },
+    {
+      "path": "EXTREME_AI_NODES_CODE_PATCHES.js",
+      "size": 13176,
+      "modified": "2026-02-09T20:32:47.046022+00:00",
+      "sha256": "398d32fe8d7ee9a52681d6fd4ba19d1aa509d7a3998d210774cc3c203c8ed8e6"
+    },
+    {
+      "path": "FireLikeAuraConfig.js",
+      "size": 7468,
+      "modified": "2025-12-30T13:56:41.052135+00:00",
+      "sha256": "b47961e9f98f67b459134d80c0d24d58d9c44682426f979da0abcf535e63e91f"
+    },
+    {
+      "path": "ForceNodeOpaqueBodySystem_v1.js",
+      "size": 5620,
+      "modified": "2025-12-30T13:56:41.073866+00:00",
+      "sha256": "6c1b943554058635fbc82c91d8eb9ed3cf90c6abe2b373698ee4863c7af19be6"
+    },
+    {
+      "path": "FractalValley.js",
+      "size": 26105,
+      "modified": "2026-02-09T20:11:31.517241+00:00",
+      "sha256": "b609955b065f5310abf4e333ee4f8b48f1ec8e55602ea79b7781c58bd2508dbc"
+    },
+    {
+      "path": "FrameClock.js",
+      "size": 957,
+      "modified": "2026-01-12T11:42:41.016825+00:00",
+      "sha256": "466dc7f40500b7aaf4146fcd10c672d730b65b3553f3013ca1e682cb03a6f384"
+    },
+    {
+      "path": "FrameEnforcementEngine.js",
+      "size": 8292,
+      "modified": "2026-02-07T16:12:41.205213+00:00",
+      "sha256": "a37abfcd100ca6f9736c2fe986515523a58b062ca79308f57074f623bec1d8be"
+    },
+    {
+      "path": "FrameScheduler.js",
+      "size": 11884,
+      "modified": "2026-02-08T08:19:14.428105+00:00",
+      "sha256": "689f0374221d0ed723fb8af629c3541add47f63497df75f3a41b49c6250f8de7"
+    },
+    {
+      "path": "FrameUpdateLoopOrderValidator_v1.js",
+      "size": 25877,
+      "modified": "2026-01-20T11:10:58.833201+00:00",
+      "sha256": "704d415b1ee1af2c4ab4569c34130fbd81394e89730480a0619fd673b05dd7d8"
+    },
+    {
+      "path": "FresnelAuraIntegrationExample.js",
+      "size": 16712,
+      "modified": "2025-12-30T13:56:41.135025+00:00",
+      "sha256": "87f642b8fc00bd2a416164fbfd04a5df8f1e99f2fddc486333824b6b7dea1911"
+    },
+    {
+      "path": "FresnelAuraIntegrationPatch.js",
+      "size": 9924,
+      "modified": "2026-01-25T20:41:54.573906+00:00",
+      "sha256": "7247da3bb29077ffbdc3bb9e221331041f3b5eecc504d4ff524446968a3b5708"
+    },
+    {
+      "path": "FresnelRimLightAuraShader.js",
+      "size": 17183,
+      "modified": "2026-02-12T11:19:10.141509+00:00",
+      "sha256": "52ca3b47d48cad80bc971058ec4f3f014cbc01ce52b6894d9067fae184847383"
+    },
+    {
+      "path": "FXPerformanceController_v1.js",
+      "size": 7990,
+      "modified": "2025-12-30T13:56:41.176440+00:00",
+      "sha256": "9e4f9ad4cc9d5f2bcf5d4ef1a1fc1ed18262a2f15d51bdc94afd1cd03f3060b8"
+    },
+    {
+      "path": "FXPerformanceScaler_v1.js",
+      "size": 6579,
+      "modified": "2026-01-22T20:02:32.977016+00:00",
+      "sha256": "e4bf81a3d7a44ed48a6f9588d00a6d1f4dfed40429ed5e8863fe24a727bb65b4"
+    },
+    {
+      "path": "FXPerformanceSmoothTransition_v1.js",
+      "size": 9878,
+      "modified": "2026-01-22T20:02:59.737680+00:00",
+      "sha256": "d5f3a7a4694bd7aa9765eceb8351e5cfa22710f2d0fb5cf94d3e88e851dbc616"
+    },
+    {
+      "path": "FXRuntime_v1.js",
+      "size": 10305,
+      "modified": "2026-01-29T16:22:42.971420+00:00",
+      "sha256": "9a5e3613236d38b95cb4c7a99a3c0f046f3c4129476f277f84c3acd72a2ba519"
+    },
+    {
+      "path": "GlobalAuraOpacityClamp.js",
+      "size": 10141,
+      "modified": "2026-02-12T11:19:24.641290+00:00",
+      "sha256": "adf6d892a5a3cef6c8c19c45bffaa2356d40d236a55b17fbf72d53c07b44456e"
+    },
+    {
+      "path": "GlobalAuraOpacityClamp_Integration.js",
+      "size": 4712,
+      "modified": "2025-12-30T13:56:41.227166+00:00",
+      "sha256": "b308f9be69f6f08e0e7afe882fe7e19646399620099b22cc6e0ee4db9d0c0d67"
+    },
+    {
+      "path": "GlyphAnimationModulator.js",
+      "size": 11659,
+      "modified": "2025-12-30T13:56:41.247938+00:00",
+      "sha256": "51cae511082d30ddfbe657b21d2cc622396d298a9dad4f7144cdf8f71fe0dfe7"
+    },
+    {
+      "path": "GlyphFusionZone.js",
+      "size": 18713,
+      "modified": "2026-01-22T20:04:00.957448+00:00",
+      "sha256": "2ea61636e494be7824ebcfc0d07f412ef1b09e7e699be223b1eb38cab2905302"
+    },
+    {
+      "path": "GpuSanityPass.js",
+      "size": 3540,
+      "modified": "2026-01-26T19:00:28.546772+00:00",
+      "sha256": "7b7672df2d6d319463bb618cec0147e394e00710b56eaed3b4c088737286e69a"
+    },
+    {
+      "path": "HARD_AUTHORITY_DEBUG_API.js",
+      "size": 13589,
+      "modified": "2025-12-30T13:56:41.376765+00:00",
+      "sha256": "e452ecf38ec44149c409d69477cfcc1e8a9167b49eeae218ef443bb9201a4be3"
+    },
+    {
+      "path": "HarmonicAudioReactivitySystem_Session135.js",
+      "size": 13101,
+      "modified": "2025-12-30T13:56:41.401946+00:00",
+      "sha256": "b8be83bda9a90ba38795dfba686353dfe9821dcf77ebdcc2fb8e0b52b901ed76"
+    },
+    {
+      "path": "HarmonicCascadeAmplification_Session145.js",
+      "size": 10294,
+      "modified": "2026-01-22T20:28:01.040532+00:00",
+      "sha256": "a233b3bf1056de75500a333cce359e2b608e0d5797fb3472750aacc767033486"
+    },
+    {
+      "path": "HarmonicHealingVisualSystem_Session134.js",
+      "size": 8772,
+      "modified": "2026-01-25T09:19:10.518466+00:00",
+      "sha256": "0cf80a41b1bd10f74423c0f011879a70a0af86f90d75e17790253b9c2f0507ab"
+    },
+    {
+      "path": "HarmonicHubAuraIntegrationPatch_Session126.js",
+      "size": 7045,
+      "modified": "2025-12-30T13:56:41.444713+00:00",
+      "sha256": "a722410db7730c887f9d9a142327c5792243758d24d2a5fd03b9480ee39c677e"
+    },
+    {
+      "path": "HarmonicHubAuraSystem_Session126.js",
+      "size": 22838,
+      "modified": "2026-01-22T20:36:47.588051+00:00",
+      "sha256": "5178f311521ae2aef1fd29b82440b34ca06336d49dc537303e55e3b04f9062e5"
+    },
+    {
+      "path": "HarmonicHubCollapseController.js",
+      "size": 14654,
+      "modified": "2025-12-30T13:56:41.452420+00:00",
+      "sha256": "153691b08f346c11edb3b9608c903bcece9b7989ed5f5141e1217794fb2af517"
+    },
+    {
+      "path": "HarmonicHubDebugger.js",
+      "size": 11603,
+      "modified": "2025-12-30T13:56:41.456690+00:00",
+      "sha256": "816e46c355db4ab3c3649bda43398a3de0f815c63d57889652e55c8524e54b7c"
+    },
+    {
+      "path": "HarmonicHubRecoveryController.js",
+      "size": 17345,
+      "modified": "2025-12-30T13:56:41.504839+00:00",
+      "sha256": "b7708b3e51a8daf3928655f96deeae2f1d4b3060ce4b2f99c46a588f1b7d08f5"
+    },
+    {
+      "path": "HarmonicHubResilienceController.js",
+      "size": 15286,
+      "modified": "2025-12-30T13:56:41.509367+00:00",
+      "sha256": "88e6212af90fee1f42c45afa2fd290fe971edb233f5dffe50e59402b565b1656"
+    },
+    {
+      "path": "HarmonicInfluencePropagationIntegrationPatch_Session127.js",
+      "size": 7852,
+      "modified": "2026-01-16T23:29:11.404517+00:00",
+      "sha256": "66b23c4bc92aeb4b03c2234c8e6ba74b311051a6e9382ce8567756d96f7b6e67"
+    },
+    {
+      "path": "HarmonicInfluencePropagationSystem_Session127.js",
+      "size": 19805,
+      "modified": "2026-02-08T21:12:07.235530+00:00",
+      "sha256": "e2b2579dc48cffcbd57b96953686b88eea53e06d9dad96e1c8d61c4dc76bdf23"
+    },
+    {
+      "path": "HarmonicNodeResonanceHalos.js",
+      "size": 21949,
+      "modified": "2026-02-07T11:11:22.823410+00:00",
+      "sha256": "87ecd32ec4d6e67749f61c10b7140a4c50b36b07faeebe64650c5b47dda09214"
+    },
+    {
+      "path": "HarmonicPhaseSynchronization_Session146.js",
+      "size": 12995,
+      "modified": "2026-01-22T20:39:16.782623+00:00",
+      "sha256": "6cb7b4ed1d5964eaef2f2e8f291a9139c700bad07e5c76f92f34315842f69905"
+    },
+    {
+      "path": "HarmonicRecoveryVisualSystem_Session138.js",
+      "size": 16149,
+      "modified": "2026-01-25T20:24:34.476298+00:00",
+      "sha256": "1c319486888be8f277e5aeffecd4ebd5f1a6fbbb48a17c88a02fea49bb64516d"
+    },
+    {
+      "path": "HarmonicResonanceCoupling_v1.js",
+      "size": 12940,
+      "modified": "2026-02-07T19:26:05.243186+00:00",
+      "sha256": "036fb9536f6efd93d2f3c6fc1ab580e8c17e6680d058962b5bf1b3de8b64f85d"
+    },
+    {
+      "path": "HarmonicResonanceFeedbackSystem.js",
+      "size": 26777,
+      "modified": "2026-02-06T12:53:34.183952+00:00",
+      "sha256": "b67c38deb05551abf359b1e46db129035cd7d2cbc0f07a51a75fcd4451e6a52a"
+    },
+    {
+      "path": "HarmonicSyncEffectApplier.js",
+      "size": 7850,
+      "modified": "2025-12-30T13:56:41.615955+00:00",
+      "sha256": "87938053a74187b2ec76f07f7f7ccc9e27579af5a6ac40d90828d7d2e0813e65"
+    },
+    {
+      "path": "HarmonicTopologyLearningSystem.js",
+      "size": 26325,
+      "modified": "2026-01-22T20:40:27.990891+00:00",
+      "sha256": "6bdf618e659e5d42b6dad78d5820d149d722fe3f3d0388369b96b86b9934eba5"
+    },
+    {
+      "path": "HARMONIC_HALO_EXAMPLES.js",
+      "size": 16533,
+      "modified": "2025-12-30T13:56:41.425339+00:00",
+      "sha256": "7919c9f06913099b0ea660c484ceb7de2a0e940edf69278465c8f5eefd7e25de"
+    },
+    {
+      "path": "HARMONIC_HUB_INTEGRATION_EXAMPLES.js",
+      "size": 16614,
+      "modified": "2026-01-16T23:27:54.116795+00:00",
+      "sha256": "0f00205f5b5ff680aad425f7320a909634235115e14cf515a0d2d21ded8e615a"
+    },
+    {
+      "path": "HARMONIC_RECOVERY_EXAMPLES.js",
+      "size": 23033,
+      "modified": "2026-01-16T23:28:49.374286+00:00",
+      "sha256": "4e19570aa6aeb6c3cb38f65110b12fa71f33bae87cf0cc1999a15c0963bb9f70"
+    },
+    {
+      "path": "HARMONIC_RESILIENCE_EXAMPLES.js",
+      "size": 21857,
+      "modified": "2025-12-30T13:56:41.571253+00:00",
+      "sha256": "537866da2379d582928a6f36fcc790b64fdba21e1a5c9350434300da253faeb7"
+    },
+    {
+      "path": "HarmonyAuraController.js",
+      "size": 9576,
+      "modified": "2026-02-12T11:19:45.056594+00:00",
+      "sha256": "27031750e5e797418d83389b69d3dd7b15fdb54021872a3beedae57490bd7d3b"
+    },
+    {
+      "path": "HarmonyAuraIntegrationGuide.js",
+      "size": 10058,
+      "modified": "2025-12-30T13:56:41.650696+00:00",
+      "sha256": "d6a2b8488240fce46dc7a2f851ad5dbb2f5e9f806f741e99f6f0a996efd18f13"
+    },
+    {
+      "path": "HarmonyAuraShaderMaterial.js",
+      "size": 7245,
+      "modified": "2025-12-30T13:56:41.663613+00:00",
+      "sha256": "ffcfaa1eeca903a6c87b9e69af6ed3ed6ba0d53c2dfe4ba04518faeb12ecb9b2"
+    },
+    {
+      "path": "HarmonyStabilizationIntegrationPatch_v1.js",
+      "size": 9420,
+      "modified": "2025-12-30T13:56:41.671964+00:00",
+      "sha256": "d5c45f88676f5dcff833808d5114a7e5d2050a1dc588c23944109dbb0412e361"
+    },
+    {
+      "path": "HarmonyStabilizationSystem_v1.js",
+      "size": 34600,
+      "modified": "2026-01-28T14:07:04.135597+00:00",
+      "sha256": "76c4a08d9e90c02a77967817a91e0048cb2546972867dd4b442fac465d385e93"
+    },
+    {
+      "path": "HARMONY_STABILIZATION_v1_EXAMPLES.js",
+      "size": 14732,
+      "modified": "2026-01-25T08:54:29.598248+00:00",
+      "sha256": "d1671cfb22a469eadd5c42e19afb07bc95c0cf66e589961e0d357d9a219d3cfc"
+    },
+    {
+      "path": "HealingParticleSystem_Session136.js",
+      "size": 12315,
+      "modified": "2025-12-30T13:56:41.711600+00:00",
+      "sha256": "9a6c3484cbbd6c614d8b13ee273b8f0413c3477a10323ace3616fef68b696a94"
+    },
+    {
+      "path": "HitProxyAutoRegistrar.js",
+      "size": 10334,
+      "modified": "2026-02-12T12:23:19.208744+00:00",
+      "sha256": "5ce9c2497da197f05da13f65c8663dd7cdafaa7eae86f70386bbb6f06bb138d5"
+    },
+    {
+      "path": "HOTFIX_EmergencyVisualStabilization_v1.js",
+      "size": 4588,
+      "modified": "2025-12-30T13:56:41.779432+00:00",
+      "sha256": "19b3b6f233b7bb4ae4036e6297cd1ee0ab40c6ae638dfb84f61e19bf0d2883d2"
+    },
+    {
+      "path": "HubInfluencePropagation.js",
+      "size": 18890,
+      "modified": "2025-12-30T13:56:41.804224+00:00",
+      "sha256": "8bdfecda93501c032c1665f9efe385ad2363e947b3f661817e822681bff3f2a1"
+    },
+    {
+      "path": "HubProximityDetector.js",
+      "size": 9229,
+      "modified": "2025-12-30T13:56:41.819586+00:00",
+      "sha256": "2d85c3a967aadcae9371f9d50bb9ff004cefa580e0e44a63398833c2998d0d12"
+    },
+    {
+      "path": "HUB_INFLUENCE_EXAMPLES.js",
+      "size": 16312,
+      "modified": "2026-01-22T20:38:50.832077+00:00",
+      "sha256": "12b9e4f0adb46bd359a8ddfc0c955dd24bd3ba5f81914c5dc41e0726fb2e1e00"
+    },
+    {
+      "path": "HudCollapseSystem1_0.js",
+      "size": 5114,
+      "modified": "2026-01-21T16:44:24.606430+00:00",
+      "sha256": "77e4a8c5d3060e1571e3766db4a1e11de69d0a29c80c5e1a0e4a7ac1f71f1084"
+    },
+    {
+      "path": "HUDLayoutManager.js",
+      "size": 8225,
+      "modified": "2025-12-30T13:56:41.839721+00:00",
+      "sha256": "ca4bf61a0caeba3ecfaf19f12d491ab6615857f626f821b665b58d5c8679f470"
+    },
+    {
+      "path": "HUDRegistry.js",
+      "size": 1615,
+      "modified": "2026-01-21T16:44:43.233517+00:00",
+      "sha256": "2c9aba8998e9395b17cfb11ff10642fa4294c90647a9b2dc281dae22ad929cdb"
+    },
+    {
+      "path": "InfluenceAttenuationAbsorptionSystem_Session128.js",
+      "size": 3370,
+      "modified": "2025-12-30T13:56:42.004286+00:00",
+      "sha256": "d35b67cc489b8fb4e2527e6a69b04b63e3e0df924a0bcc58eaba0825661bd5be"
+    },
+    {
+      "path": "InfluenceReflectionBackPressureSystem_Session129.js",
+      "size": 17274,
+      "modified": "2025-12-30T13:56:42.008298+00:00",
+      "sha256": "da77cf955f1bfa428d4a78fa1e60f30e2566489651d67cc569dd721b6279bc78"
+    },
+    {
+      "path": "InputEnhancedVariants_Session84.js",
+      "size": 16646,
+      "modified": "2025-12-30T13:56:42.016124+00:00",
+      "sha256": "3cb0673de7813339e1dd1b610751101ddd8781a25a437f59117840063e1e26b2"
+    },
+    {
+      "path": "InputRuntime_v1.js",
+      "size": 11877,
+      "modified": "2025-12-30T13:56:42.035705+00:00",
+      "sha256": "02494b3647bb5ba2bfae4fe397f4df1c3a69b34104afceeab57a79176ce34a49"
+    },
+    {
+      "path": "InputSensoryAnimationPatch.js",
+      "size": 7305,
+      "modified": "2025-12-30T13:56:42.041057+00:00",
+      "sha256": "49f6dcaee75558358df7851c21af1718861d48ccf4408848e653ac7b6b88a1eb"
+    },
+    {
+      "path": "InputSensoryEnhanced_Session111.js",
+      "size": 12557,
+      "modified": "2026-01-27T23:13:26.097192+00:00",
+      "sha256": "2f7f79fde272b150ec3f83a72f7656c001e63e325ee106f67d7ff7e61a906b4b"
+    },
+    {
+      "path": "InputSensoryGeometries_v1.js",
+      "size": 16843,
+      "modified": "2026-01-27T23:13:40.254687+00:00",
+      "sha256": "3c81fbeb33f3453bb27191216f89c6e74a669f670023be1193a8c4e0028b5307"
+    },
+    {
+      "path": "IntegrationEnhancedVariants_Session110.js",
+      "size": 11459,
+      "modified": "2026-02-05T19:14:36.824191+00:00",
+      "sha256": "82b9d7fc843a2d01777debc3032bafb86a8be21308a14f7c99029980e8e946fa"
+    },
+    {
+      "path": "IntegrationEnhancedVariants_Session82.js",
+      "size": 16725,
+      "modified": "2025-12-30T13:56:42.096452+00:00",
+      "sha256": "0ffbaa4b357dd9078329c0d06709c6a7fbf56b8531d0fe91122aaad89cdcb4f1"
+    },
+    {
+      "path": "InterferenceEffectApplier.js",
+      "size": 9429,
+      "modified": "2025-12-30T13:56:42.174511+00:00",
+      "sha256": "0d8775b536550145d32624ff25082a60cdc3daa6691bc17fad3515b3df9ca15c"
+    },
+    {
+      "path": "LegacyLinkStateNeutralization.js",
+      "size": 5630,
+      "modified": "2025-12-30T13:56:42.251993+00:00",
+      "sha256": "2d7b284765177f4d0fa4215bdef5daa6f69f41710df16055b276e0fcb54c9eb7"
+    },
+    {
+      "path": "LegacyLinkStateShutdown.js",
+      "size": 10192,
+      "modified": "2025-12-30T13:56:42.256023+00:00",
+      "sha256": "d26819f714190d35924edbe90f15bc969a8609aef538be16751f253866aea1bf"
+    },
+    {
+      "path": "LegacyNodeModelFilter.js",
+      "size": 6606,
+      "modified": "2026-01-31T15:21:03.266772+00:00",
+      "sha256": "5897ec92ac657dfc41a5879f55316babf9754aa3b1f9bd0e7ba12d1e96b33904"
+    },
+    {
+      "path": "LinkAuraSystem_v1.js",
+      "size": 20306,
+      "modified": "2026-02-07T10:11:03.092056+00:00",
+      "sha256": "1e378b277433dade21e9157cf43700a63a59f3443e656a23a94b3582c0d5a572"
+    },
+    {
+      "path": "LinkAutomationEngine1_0.js",
+      "size": 11295,
+      "modified": "2025-12-30T13:56:42.303667+00:00",
+      "sha256": "eea2fc3dd8b309c0011f83cd7cca661a700ebe2b3482767e0b0dada02a32e55f"
+    },
+    {
+      "path": "LinkAutomationMonitor2_0.js",
+      "size": 29767,
+      "modified": "2025-12-30T13:56:42.319609+00:00",
+      "sha256": "1260fe039a49e8d9ad6b89644b2fbb1ae27e5b8be14359d1c8ea90191deab6d5"
+    },
+    {
+      "path": "LinkAutomationMonitor3_0.js",
+      "size": 19228,
+      "modified": "2025-12-30T13:56:42.332002+00:00",
+      "sha256": "9a14377861a305c01fa91c21d82715d619018e9605d21f71367ba6a0f8c20456"
+    },
+    {
+      "path": "LinkAutomationMonitorHUD2_0.js",
+      "size": 14749,
+      "modified": "2026-01-21T15:57:14.574497+00:00",
+      "sha256": "f3e99b8a12b9801aeeb34282d49bcc30ae3f75a6f810514e5345907a60e24dbc"
+    },
+    {
+      "path": "LinkBeadSystem.js",
+      "size": 20277,
+      "modified": "2026-02-08T21:13:31.439783+00:00",
+      "sha256": "898e7458e01985a01959a8d02dc47c2993cb03aba678bc8c51e6377d63da0d07"
+    },
+    {
+      "path": "LinkBeadTrailSystem.js",
+      "size": 8683,
+      "modified": "2025-12-30T13:56:42.376919+00:00",
+      "sha256": "4f6b7999416df9e3af0bd823f528eca56e092726359f0e3ea9ec1e7d7eeb7a5f"
+    },
+    {
+      "path": "LinkBeadVisualEffects.js",
+      "size": 5783,
+      "modified": "2025-12-30T13:56:42.381612+00:00",
+      "sha256": "5f2451c9ab618074eb9c801b453bd7f645e5e4d8b953175057db2c42104e1838"
+    },
+    {
+      "path": "LinkBufferSafetyAudit.js",
+      "size": 5542,
+      "modified": "2025-12-30T13:56:42.385635+00:00",
+      "sha256": "4590dad29615474be1564e9dc6f67ba4df2745f5f3ba8f04ab0fcdc7b9b0aff8"
+    },
+    {
+      "path": "LinkCascadePulseManager.js",
+      "size": 15642,
+      "modified": "2025-12-30T13:56:42.388649+00:00",
+      "sha256": "e8d24f29c3a4deb7328cf76864d634f55d5b063c663540c727cc0a3120e33ba3"
+    },
+    {
+      "path": "LinkCategoryTransitionIntegrationPatch.js",
+      "size": 6235,
+      "modified": "2026-01-25T09:27:33.046952+00:00",
+      "sha256": "37dfe219486ed807103862ed1e286d76a4b5a2b41fc22c8bdbcaac60b1c562ca"
+    },
+    {
+      "path": "LinkCategoryTransitionSystem.js",
+      "size": 15574,
+      "modified": "2026-01-25T08:50:14.688095+00:00",
+      "sha256": "21ae4749c348dd51c3b3978da512ea362de9a5a82b9846b40c2c625dceedf4d7"
+    },
+    {
+      "path": "LinkCollapseSystem.js",
+      "size": 15267,
+      "modified": "2026-01-22T20:47:14.263789+00:00",
+      "sha256": "28cef49e67c96817d8ef78a728ff22f50152ee63bf28a16930767693e936911f"
+    },
+    {
+      "path": "LinkCorrelationEngine1_0.js",
+      "size": 23323,
+      "modified": "2025-12-30T13:56:42.424688+00:00",
+      "sha256": "09b4e21e32b0ef9c876d6b788d9a68b2d8c2cfa7f9ef9973cce74df2fbe64e63"
+    },
+    {
+      "path": "LinkCorruptionMorphingSystem.js",
+      "size": 19912,
+      "modified": "2025-12-30T13:56:42.435524+00:00",
+      "sha256": "7b3c8ac86b2a4063124b3798747b60b204fc82b9de36a9f05ecf1bfc8e946064"
+    },
+    {
+      "path": "LinkCorruptionParticleSystem.js",
+      "size": 13482,
+      "modified": "2026-02-10T14:47:44.391684+00:00",
+      "sha256": "c2b8d6a3dbb51e8c495d32563b858ad0b727804dea8a567650877c72c2bd0693"
+    },
+    {
+      "path": "LinkCorruptionSpreadAnimator.js",
+      "size": 7842,
+      "modified": "2025-12-30T13:56:42.444141+00:00",
+      "sha256": "4982b944721f531466be9bb3b61767e3262575f963411afd7fdc4fbaccb4cbdd"
+    },
+    {
+      "path": "LinkCorruptionTransmissionIntegrationPatch_v1.js",
+      "size": 11335,
+      "modified": "2025-12-30T13:56:42.448198+00:00",
+      "sha256": "e80f273790e88f450fb26ba1f3630954142c7187766c308a51b0b9819c307dbb"
+    },
+    {
+      "path": "LinkCorruptionTransmission_v1.js",
+      "size": 197553,
+      "modified": "2026-01-28T14:00:19.066347+00:00",
+      "sha256": "b826674fa0be107270207dc4e51a42dc18fd1a8780f39294607548c86e4fd77a"
+    },
+    {
+      "path": "LinkDebugMode_v1.js",
+      "size": 6688,
+      "modified": "2025-12-30T13:56:42.485791+00:00",
+      "sha256": "8672663f15d309ea4374ae9dece31124895277f7dec0b7d183ea4525b3bdd479"
+    },
+    {
+      "path": "LinkDecayEffectApplier.js",
+      "size": 11773,
+      "modified": "2025-12-30T13:56:42.489407+00:00",
+      "sha256": "b8fb512eb3927feb2427162f9ddcc8e5b887c5f8ea1e4ecf05624f55b3838b92"
+    },
+    {
+      "path": "LinkDecayTracker.js",
+      "size": 7122,
+      "modified": "2025-12-30T13:56:42.492950+00:00",
+      "sha256": "3fdd9583ebc4908c0067bb942fca2b4348f951e60e323db74e47c2ce420b32de"
+    },
+    {
+      "path": "LinkDegradationSystem.js",
+      "size": 15750,
+      "modified": "2026-01-22T20:50:35.444915+00:00",
+      "sha256": "091b7f5897b2f389f4f61914c652462c08bc82f8b23cf6f1b819c9b187306acc"
+    },
+    {
+      "path": "LinkDirectionalGradientPolish.js",
+      "size": 18024,
+      "modified": "2025-12-30T13:56:42.509427+00:00",
+      "sha256": "be0e6032ee85b294d2b6d4571028fc2a6279d6d8fb9cb7d53eac1e2775c2c70f"
+    },
+    {
+      "path": "LinkDirectionalStreaks.js",
+      "size": 21523,
+      "modified": "2026-02-08T21:13:06.457555+00:00",
+      "sha256": "da1144829dca1f20ce9f38a58f1f670a120bacd6eaba6e05c4810aa97dc3ca08"
+    },
+    {
+      "path": "LinkEligibilityGate_v1.js",
+      "size": 11092,
+      "modified": "2025-12-30T13:56:42.573936+00:00",
+      "sha256": "8e59f08b252d848712823fefe1bb3d2841801745d5b7ac9306a94312c7578c7a"
+    },
+    {
+      "path": "LinkEmissionPulsingSystem.js",
+      "size": 20602,
+      "modified": "2026-02-08T22:20:22.136316+00:00",
+      "sha256": "b1af36b7c2a902d51a298c3b3e35e94c9d91757fd1716c413e7b72217193ea16"
+    },
+    {
+      "path": "LinkEnergyRingSystem.js",
+      "size": 3496,
+      "modified": "2026-02-08T21:14:26.880439+00:00",
+      "sha256": "921fbc070a6c4cdff8f9f09527da8d4c6ec4aad436211ce1d0e286f9afea8218"
+    },
+    {
+      "path": "LinkEnergyWave.js",
+      "size": 5244,
+      "modified": "2025-12-30T13:56:42.598055+00:00",
+      "sha256": "b4690be40771bd1be0f747f1eaec7eb443b16c7333d2dd71489bbb89eb97e784"
+    },
+    {
+      "path": "LinkEngine.ts",
+      "size": 14565,
+      "modified": "2025-12-30T13:56:42.601576+00:00",
+      "sha256": "f93b4a8cd390edc26b4c724ea77e66fc2d2d42f43c33a0e1cd791000458f5cf5"
+    },
+    {
+      "path": "LinkEventOrderValidator.js",
+      "size": 4537,
+      "modified": "2025-12-30T13:56:42.610702+00:00",
+      "sha256": "176db79c07ccd47039476931ee532c18deb5897988994739ca885cc2237e5efc"
+    },
+    {
+      "path": "LinkEventVisualCoordinator_v1.js",
+      "size": 5405,
+      "modified": "2025-12-30T13:56:42.614960+00:00",
+      "sha256": "943c938fbafaf7250d7b4428c7eb57319b4c34d4b980fec8d29df602bbda6815"
+    },
+    {
+      "path": "LinkExtensionConfig.js",
+      "size": 2351,
+      "modified": "2025-12-30T13:56:42.625797+00:00",
+      "sha256": "d33cb44bb6588507bf16d327b05a57ed4298eee9c97328b76633fa06310ab885"
+    },
+    {
+      "path": "LinkFeedbackHUD1_0.js",
+      "size": 13168,
+      "modified": "2025-12-30T13:56:42.630365+00:00",
+      "sha256": "ee63443225a7f29d818cde687b4886bb3a935d306dbe08506d47422362352593"
+    },
+    {
+      "path": "LinkFeedbackLoopTestHelper.js",
+      "size": 15861,
+      "modified": "2025-12-30T13:56:42.662349+00:00",
+      "sha256": "fd0129d1fc8bb575197926af0e23daa2ddf1334eb3d3ef50dd8a0dd46da73aa8"
+    },
+    {
+      "path": "LinkGlowSynergyEngine1_0.js",
+      "size": 15808,
+      "modified": "2026-01-27T19:28:07.032249+00:00",
+      "sha256": "d56c653086e83f7dd93d1e7a101e0779e18dcbfcf7280e95f4a945b9429e25e8"
+    },
+    {
+      "path": "LinkGlowSynergyEngine_v2.js",
+      "size": 12018,
+      "modified": "2025-12-30T13:56:42.674232+00:00",
+      "sha256": "a6d41e4c933c30d1778212afe6406cd4ad4a493087afa1786b94fda31d097cc3"
+    },
+    {
+      "path": "LinkHealingParticleSystem.js",
+      "size": 17203,
+      "modified": "2025-12-30T13:56:42.726928+00:00",
+      "sha256": "39a987282374907e438ada0635f91c1812685bca228a8200f993154cd80a136f"
+    },
+    {
+      "path": "LinkHistoryTracker1_0.js",
+      "size": 21858,
+      "modified": "2025-12-30T13:56:42.771901+00:00",
+      "sha256": "9505e7b2e400cf7d2a24cf266675fe88eac0dcdf4229adc1b8e140ac65f218ee"
+    },
+    {
+      "path": "LinkingSystemHardening.js",
+      "size": 7761,
+      "modified": "2025-12-30T13:56:42.837955+00:00",
+      "sha256": "a12b66d785f953c45b1c1c882266f882257880f4d98a3cc01a0e0276066202cb"
+    },
+    {
+      "path": "LinkMetricsSanityGuard_v1.js",
+      "size": 1424,
+      "modified": "2026-02-06T22:45:08.143889+00:00",
+      "sha256": "e9703eacdbe2cfff4430c5eb9cd2439e02cf5222336df0ca3a67fc9e0401b79d"
+    },
+    {
+      "path": "LinkMetricsToVisualBridge_v1.js",
+      "size": 8108,
+      "modified": "2026-01-22T20:57:02.776230+00:00",
+      "sha256": "2c3f2a2aa07dceeb05769e3e0b3b0f2c3c9ef69174dd75326427f95831575bd1"
+    },
+    {
+      "path": "LinkMicroImpulseAdapter.js",
+      "size": 19745,
+      "modified": "2025-12-30T13:56:42.877207+00:00",
+      "sha256": "9c7d420a1a5af91d9fa2e8e73009b85623d8dd9e3bc9b0d34c0638ebb90486e3"
+    },
+    {
+      "path": "LinkMicroImpulseAdapter_v1.js",
+      "size": 14539,
+      "modified": "2025-12-30T13:56:42.883038+00:00",
+      "sha256": "7fe889ae144dde378308937213cb82c2aa85534fa6bc3420686701c7ebfa381a"
+    },
+    {
+      "path": "LinkMicroImpulseIntegrationSetup.js",
+      "size": 2378,
+      "modified": "2025-12-30T13:56:42.888198+00:00",
+      "sha256": "b9e27e6dec7c203fa677dd3ce199826a04c737444f7b7336ee5be18cfa6f5aac"
+    },
+    {
+      "path": "LinkMLRecommendationEngine1_0.js",
+      "size": 35691,
+      "modified": "2025-12-30T13:56:42.906477+00:00",
+      "sha256": "372b04273803f41e6a206cad1d60610f573b0136d9fa54bd4e20046484dfb282"
+    },
+    {
+      "path": "LinkPersonalityStateMachine_v1.js",
+      "size": 15375,
+      "modified": "2025-12-30T13:56:42.987162+00:00",
+      "sha256": "8c5935de89713374b5438770c42fa01de70bfce7dde005e431fb4f9cd327b003"
+    },
+    {
+      "path": "LinkPictogramLibrary.js",
+      "size": 18572,
+      "modified": "2026-02-06T21:27:10.316375+00:00",
+      "sha256": "2097116bbd3e685628e1cc094ce89ce0b83507f7ed0869f524320e9425ece251"
+    },
+    {
+      "path": "LinkPriorityDecayEngine.js",
+      "size": 21886,
+      "modified": "2026-01-21T09:21:43.125284+00:00",
+      "sha256": "b434ce787f6556faf9c00f36a542db48cbf293135f33b0446177e0af6b58ba5d"
+    },
+    {
+      "path": "LinkPrioritySystem.js",
+      "size": 16193,
+      "modified": "2026-01-21T10:07:30.167400+00:00",
+      "sha256": "f01adbacbfb3f745a8cc2a318d860bba894cd3c0662fe6fd54a2f4a987157994"
+    },
+    {
+      "path": "LinkPulsePhaseSync.js",
+      "size": 15014,
+      "modified": "2025-12-30T13:56:43.064512+00:00",
+      "sha256": "209e27a6824e44b7b46749c7113d032096971f59e21673eb5e9e76cd56bcf638"
+    },
+    {
+      "path": "LinkPulseRing.js",
+      "size": 4129,
+      "modified": "2026-02-08T21:12:39.652250+00:00",
+      "sha256": "7dde7af1fb84426038b42492d22411e41f3892aa087214ba87faf76f8204c9ea"
+    },
+    {
+      "path": "LinkPulseWaveInjector.js",
+      "size": 16385,
+      "modified": "2025-12-30T13:56:43.073158+00:00",
+      "sha256": "b98a445901ad3fddb6bee21edaed1cb69fe8e9c877b1ce159ec58a3f863a7975"
+    },
+    {
+      "path": "LinkQualityCalculator.js",
+      "size": 15271,
+      "modified": "2026-01-22T21:01:09.656518+00:00",
+      "sha256": "fe578b614eb52cae46e7b2728536f544317e0b382487e0f6fdc3fe2e4f84edc6"
+    },
+    {
+      "path": "LinkQualityFeedbackLoop1_0.js",
+      "size": 25251,
+      "modified": "2025-12-30T13:56:43.097539+00:00",
+      "sha256": "1c71124fde75211f19fda201239c32190d8b368157b0e541e0da6a7337ea7c19"
+    },
+    {
+      "path": "LinkQualityPredictor1_0.js",
+      "size": 17367,
+      "modified": "2025-12-30T13:56:43.123818+00:00",
+      "sha256": "5957c6a3ebb9fae0b45696fb537437d190559eb87ac3878bd0c8bdc141000e9e"
+    },
+    {
+      "path": "LinkRecommendationAI1_0.js",
+      "size": 11545,
+      "modified": "2025-12-30T13:56:43.134652+00:00",
+      "sha256": "f330c59b984b72932164b983a80ea17854f0524b99da6f8997cd009f11343a3f"
+    },
+    {
+      "path": "LinkRendererConduit.js",
+      "size": 48112,
+      "modified": "2026-02-08T21:11:09.026012+00:00",
+      "sha256": "85452e80722cca0e85c9f2656bbb6159432f3f8b4bf579c705a537e61daaede4"
+    },
+    {
+      "path": "LinkRendererMetricsIntegrationPatch_v1.js",
+      "size": 9063,
+      "modified": "2025-12-30T13:56:43.162007+00:00",
+      "sha256": "58dce7e6f8362d6a89df007ebca801d3eec645818bf82d92cb637a0bc388d2de"
+    },
+    {
+      "path": "LinkResonanceFlowIntegrationPatch_Session124.js",
+      "size": 6372,
+      "modified": "2025-12-30T13:56:43.182779+00:00",
+      "sha256": "49d8e9ad2552c8a1bde515dc25dec960eeaae26caf78771b6a171a34287134d6"
+    },
+    {
+      "path": "LinkResonanceFlowSystem_Session124.js",
+      "size": 17808,
+      "modified": "2026-02-10T14:47:44.393199+00:00",
+      "sha256": "02ab1f0c09f5fe890b91a4e474ff08bdf840a7e5d90abad7863d33c54fa93c34"
+    },
+    {
+      "path": "LinkRingArcDischarges.js",
+      "size": 11276,
+      "modified": "2026-02-08T21:14:06.920167+00:00",
+      "sha256": "011256363655c46d8e8e9eb763b00856a9317d06718aa49df9be13d42fbc0301"
+    },
+    {
+      "path": "LinkSemanticMetricsBridge_v1.js",
+      "size": 2522,
+      "modified": "2026-02-06T22:28:01.387688+00:00",
+      "sha256": "8b87d344d474d7157c87004974684f78c65d545ef72d1fa1409cb51e520d458b"
+    },
+    {
+      "path": "LinkSemanticPictogramSystem.js",
+      "size": 19968,
+      "modified": "2026-01-16T23:25:24.069955+00:00",
+      "sha256": "73f03740fcce1700a53aeede829896f0d8f0d015144919298364f8d5ed292708"
+    },
+    {
+      "path": "LinkSemanticPictogramSystem_Enhanced.js",
+      "size": 34834,
+      "modified": "2025-12-30T13:56:43.193926+00:00",
+      "sha256": "0e8cf2a2acb19d840926341f7eabdd7f7ef6108b3ae8203564ecf87a7620480e"
+    },
+    {
+      "path": "LinkSemanticPictogramSystem_WithFusion.js",
+      "size": 4201,
+      "modified": "2025-12-30T13:56:43.202859+00:00",
+      "sha256": "5a71070799a76442ed422eed326f0a3d2e7b59d0815ef8d84153eb3b614434e8"
+    },
+    {
+      "path": "LinkShaderMetricsIntegration_v1.js",
+      "size": 12055,
+      "modified": "2025-12-30T13:56:43.231723+00:00",
+      "sha256": "22dc4b8ed2a10d9e05152fd3a8aa769bebaff68070993eac1af5a71928e793e1"
+    },
+    {
+      "path": "LinkSparkSystem.js",
+      "size": 10183,
+      "modified": "2025-12-30T13:56:43.237977+00:00",
+      "sha256": "75d4d2ed5547892757bd335e2674330653d096e2a4aba5f4f1a1f8fd2db02392"
+    },
+    {
+      "path": "LinkStateVisualLanguageIntegration.js",
+      "size": 9578,
+      "modified": "2026-01-28T09:20:04.980136+00:00",
+      "sha256": "732470f8aece74a10327ed5b4381f29d06afed4621c4731624b33ad229da50e8"
+    },
+    {
+      "path": "LinkStateVisualLock.js",
+      "size": 4885,
+      "modified": "2025-12-30T13:56:43.266868+00:00",
+      "sha256": "d1ea017219bbe11bfe239662c8baeec393532766c93c2febe95003895f1b80a8"
+    },
+    {
+      "path": "LinkStreakColorDynamics_Session115.js",
+      "size": 9620,
+      "modified": "2025-12-30T13:56:43.283337+00:00",
+      "sha256": "b2de6afd74246ebcddc17d5bd522155123f6cf6c07afbaf4bbfe3733a11ee36f"
+    },
+    {
+      "path": "LinkSurfacePhaseRipples.js",
+      "size": 14396,
+      "modified": "2025-12-30T13:56:43.286504+00:00",
+      "sha256": "b1b86251fd4b09999f649ee39277f3999f1974bb7f5c56abb1c9945480d39ada"
+    },
+    {
+      "path": "LinkSynergyColorTransition.js",
+      "size": 21275,
+      "modified": "2025-12-30T13:56:43.292034+00:00",
+      "sha256": "884156a92bb53b6fbdd4efcc85266371961b18c9d769b987f7338ede17cea106"
+    },
+    {
+      "path": "LinkTargetContract.js",
+      "size": 5635,
+      "modified": "2025-12-30T13:56:43.319624+00:00",
+      "sha256": "f773432dfaf0ddd1e6af349222af8779ddaa4ada429d4ed84ebc05bf52e2d261"
+    },
+    {
+      "path": "LinkThicknessMetricsIntegrationPatch_v1.js",
+      "size": 9868,
+      "modified": "2025-12-30T13:56:43.324078+00:00",
+      "sha256": "ad8ef552b386b2c51a997d7d675dfdef166db110a30003c5d8ec51e64f18f5fb"
+    },
+    {
+      "path": "LinkThicknessScaling_v1.js",
+      "size": 11372,
+      "modified": "2026-02-08T22:21:05.967139+00:00",
+      "sha256": "5ac529e56e3f5abd001706c207f9a8f965654e82f3f6b14faee2f3b4881c6263"
+    },
+    {
+      "path": "LinkTrailParticleSystem.js",
+      "size": 16908,
+      "modified": "2025-12-30T13:56:43.350806+00:00",
+      "sha256": "9cf4c1eee9106bbcc796463be6f0c35b66794cf72b191dd08b841e58dee941d3"
+    },
+    {
+      "path": "LinkVisualMoodSystem.js",
+      "size": 21507,
+      "modified": "2026-01-22T21:02:09.058290+00:00",
+      "sha256": "b0bb0216d701da448da95a5b4994050d3ff76b659284ace7dfd18125213efd3b"
+    },
+    {
+      "path": "LinkVisualStateAdapter.js",
+      "size": 17707,
+      "modified": "2025-12-30T13:56:43.379768+00:00",
+      "sha256": "8bf2f9c4dda4f2a099ef1909c54ddbe57b49791fad882772718590a2a9de55e9"
+    },
+    {
+      "path": "LINK_AURA_SHADER_VERIFICATION.js",
+      "size": 13453,
+      "modified": "2025-12-30T13:56:42.294470+00:00",
+      "sha256": "ea46567bf0a891238f24ce4c9a3006af86e668cab604ae1e26a0a9559bad8046"
+    },
+    {
+      "path": "LINK_CORRUPTION_TRANSMISSION_v1_EXAMPLES.js",
+      "size": 20655,
+      "modified": "2025-12-30T13:56:42.459555+00:00",
+      "sha256": "b6f9765144063ef495c46b510eb21a2bcca214a1d8b3fc921e3ed1d04992fbbe"
+    },
+    {
+      "path": "LINK_DEGRADATION_MAINJS_PATCH.js",
+      "size": 11408,
+      "modified": "2025-12-30T13:56:42.501792+00:00",
+      "sha256": "37ee1310b1c0dfaad2d90c50137f7ecbebb8b4db7767696e65b84dc49125e13d"
+    },
+    {
+      "path": "LINK_EVENT_INTEGRATION_SNIPPET.js",
+      "size": 10282,
+      "modified": "2025-12-30T13:56:42.607097+00:00",
+      "sha256": "1d8ecef41e61393cbc265fbbb4e3b9e92037a1c9c66d33f6b77c16ca1b149c12"
+    },
+    {
+      "path": "LINK_GRADIENT_POLISH_EXAMPLES.js",
+      "size": 15463,
+      "modified": "2025-12-30T13:56:42.702007+00:00",
+      "sha256": "162767c627b69c411f4533b8b420f96b657fdef0f9c21cd5e18f27efc98d577e"
+    },
+    {
+      "path": "LINK_MORPHING_EXAMPLES.js",
+      "size": 17320,
+      "modified": "2025-12-30T13:56:42.943400+00:00",
+      "sha256": "42c6fba165a4b122261bd40a44a2d5252f161408349e735482b2ed48cd2d33f5"
+    },
+    {
+      "path": "LINK_SHADER_LANGUAGE_EXAMPLES.js",
+      "size": 11725,
+      "modified": "2025-12-30T13:56:43.214935+00:00",
+      "sha256": "6d4fe9f5f9d87f8e923a1cc9437aea4c76542ab69c57de9beaff95ea44f0e950"
+    },
+    {
+      "path": "main.js",
+      "size": 679751,
+      "modified": "2026-02-12T22:33:22.938577+00:00",
+      "sha256": "e5de007f6b37da6a343bf8539d12ece52cabe8948a60736dcd5a6a8675459429"
+    },
+    {
+      "path": "MAIN_JS_LINK_METRICS_INTEGRATION_SNIPPET.js",
+      "size": 10188,
+      "modified": "2025-12-30T13:56:43.414002+00:00",
+      "sha256": "e71fff5c961cede747d2c8b4566fe2699bf05f407a4f12a40c644c5e7463de23"
+    },
+    {
+      "path": "MAIN_JS_LINK_THICKNESS_INTEGRATION_SNIPPET.js",
+      "size": 12439,
+      "modified": "2025-12-30T13:56:43.418161+00:00",
+      "sha256": "8b4540e7d299cdde59927e6bfcf7e9830e32a924a6c4d12ccb65efe1267af6dd"
+    },
+    {
+      "path": "MAIN_JS_PATCH_GLOW.js",
+      "size": 14742,
+      "modified": "2025-12-30T13:56:43.422792+00:00",
+      "sha256": "f762d77bffc52e3e9ce3e979bd737d9aceaaf189ef1c3dc87f8eeaae293fe9bd"
+    },
+    {
+      "path": "MapConfigBase.js",
+      "size": 3499,
+      "modified": "2026-02-05T12:00:16.025384+00:00",
+      "sha256": "26c41a5e57ae085bbc761597d24c4edafdb2a3b8282f8edeb65fc72b811ea139"
+    },
+    {
+      "path": "MapReferencePlaneFactory.js",
+      "size": 9314,
+      "modified": "2025-12-30T13:56:43.449890+00:00",
+      "sha256": "e0d907f24572c30cfb955be99d02708c558704e439cb077a4b04064777657f6d"
+    },
+    {
+      "path": "MaterialMutationDetector.js",
+      "size": 5055,
+      "modified": "2026-02-08T08:22:52.422023+00:00",
+      "sha256": "2fa74d40eeaa87f52c358400dd5891ec9d9e3c48448b60f7a186b6abb574ac36"
+    },
+    {
+      "path": "MemoryLane.js",
+      "size": 20699,
+      "modified": "2026-02-09T20:10:40.644655+00:00",
+      "sha256": "a00031d36db95a3a5770fb891f6d2028a5320bbec17722544a8849695b2a46b5"
+    },
+    {
+      "path": "MemoryTrailRegistry.js",
+      "size": 11369,
+      "modified": "2026-01-22T21:08:20.081940+00:00",
+      "sha256": "ef6229df2b8ead81cbc32d428ad22a32b4e39313ef5e322171f875fe9d1114af"
+    },
+    {
+      "path": "MetricCompatibilityLayer.js",
+      "size": 1629,
+      "modified": "2026-01-14T13:53:08.158775+00:00",
+      "sha256": "ffc3e9dd5dfbef4d7bbac035ecda18cea84c65ca69059d68ba74721628365aa8"
+    },
+    {
+      "path": "MetricInterpretationLayer_v1.js",
+      "size": 9695,
+      "modified": "2025-12-30T13:56:43.506111+00:00",
+      "sha256": "24c0566ff10459466019c0a67dee076e5ac198660c4aa6748369ddebd91389f5"
+    },
+    {
+      "path": "MetricReactiveWorldEvents.js",
+      "size": 31504,
+      "modified": "2026-02-10T14:47:44.394779+00:00",
+      "sha256": "57cd75ca12296381453e2585efff9cf0b6cbfad39f7e6a79546e6f78d167e23e"
+    },
+    {
+      "path": "MetricsRuntime_v1.js",
+      "size": 20935,
+      "modified": "2026-01-16T11:52:09.213231+00:00",
+      "sha256": "fd0b2a127fa2df809fe98c7451a351f95586c9a3245fa637ff23656a754f6318"
+    },
+    {
+      "path": "MultiStrandConduitShader.js",
+      "size": 15996,
+      "modified": "2026-01-27T20:32:42.134322+00:00",
+      "sha256": "08d583318051f71147102fe1e5121ca2a903e6f4b047fc2d51be1b2c75dd7721"
+    },
+    {
+      "path": "MythicAuraIntegration_v1.js",
+      "size": 14283,
+      "modified": "2026-02-12T11:20:00.753900+00:00",
+      "sha256": "8b8d6f6dd2936b11c8dae815d44ae4800b4d2219ae375a38cdc1fc1666c4d005"
+    },
+    {
+      "path": "MythicEvolutionFX_v1.js",
+      "size": 18589,
+      "modified": "2026-01-22T21:13:18.567517+00:00",
+      "sha256": "49616a10449d187bcedcc602d83fcc1e34e3ba40a96747aa7c83bdce34dc4cc8"
+    },
+    {
+      "path": "NeonLinkVisuals.js",
+      "size": 85218,
+      "modified": "2026-02-10T14:47:44.397957+00:00",
+      "sha256": "8faf30a1079bb65756f2f19ce34384fcb9d58f0a06ca071cbfd77ff796ddf86d"
+    },
+    {
+      "path": "NetworkFatigueSystem_v0.js",
+      "size": 14591,
+      "modified": "2025-12-30T13:56:43.706603+00:00",
+      "sha256": "29bd694b048e1f40942e57807af2717f9054c4475e4f291d15f55edf637b6c4f"
+    },
+    {
+      "path": "NetworkFatigueSystem_v0_DEBUG.js",
+      "size": 10702,
+      "modified": "2026-01-28T14:16:45.566954+00:00",
+      "sha256": "f0c4378bab6fe53b628a1a338d57dc4db5b0427e861a3da7f188a0e2f5279216"
+    },
+    {
+      "path": "NetworkRituals_v1.js",
+      "size": 31897,
+      "modified": "2025-12-30T13:56:43.731035+00:00",
+      "sha256": "c6fccfb870c9c8711b814ba69ff53049d7145251466ab35ec115a6075b0dbd13"
+    },
+    {
+      "path": "NetworkStateAIReasoner.js",
+      "size": 4136,
+      "modified": "2026-01-21T10:53:42.774893+00:00",
+      "sha256": "75fae5fda3fc50f07db194555881bc97cda20f993a9cf1f21d57719e4e5e7ba6"
+    },
+    {
+      "path": "NetworkStressAggregator.js",
+      "size": 12072,
+      "modified": "2026-01-22T21:44:50.973989+00:00",
+      "sha256": "6ce378e4f4a0161155d0abc2177568be785697211bc16e183868a9c5fa3490d4"
+    },
+    {
+      "path": "NodeAuraParticleImpactBridge.js",
+      "size": 5423,
+      "modified": "2025-12-30T13:56:43.827826+00:00",
+      "sha256": "c34cc397b11a6d1a5c9bb0a7345b0c74fcb1cc4dea669d282f42c39aa6e67119"
+    },
+    {
+      "path": "NodeAuraRefactor_ElegantRim.js",
+      "size": 16097,
+      "modified": "2026-01-25T19:37:17.117154+00:00",
+      "sha256": "aa65e46b3f35daa16b2d6eb8618cd85b1a8b04b9b2c8818475ad2c8576391812"
+    },
+    {
+      "path": "NodeAuraSystem_v1.js",
+      "size": 31147,
+      "modified": "2026-02-12T11:20:18.980256+00:00",
+      "sha256": "0048d798fdc9355d2fbf16ebbdbfd6da932edaed7c7fd169c12f4f13d7189996"
+    },
+    {
+      "path": "NodeCategoryAudit.js",
+      "size": 20774,
+      "modified": "2026-02-01T13:52:21.813553+00:00",
+      "sha256": "25fed6e00efc68c8a387721657b902b2eb1f49fd301d51851a0940c7d6b58b42"
+    },
+    {
+      "path": "NodeCoreMaterialAuthority.js",
+      "size": 6790,
+      "modified": "2026-02-08T18:58:56.956807+00:00",
+      "sha256": "d293a5d993e0edb700137ae405cc0d05855b494e4593c90c27fb2f8c6a8928bd"
+    },
+    {
+      "path": "NodeCoreOpaqueEnforcer_Session113.js",
+      "size": 8963,
+      "modified": "2026-02-07T21:48:49.066180+00:00",
+      "sha256": "c614e340c12ab12a1c53767f2668aea69c1b0b7cd4940ab4689b3e8725b94adb"
+    },
+    {
+      "path": "NodeCorruptionAuraDegradation.js",
+      "size": 8898,
+      "modified": "2025-12-30T13:56:43.890802+00:00",
+      "sha256": "c3622444948bdb7c69bc068f3b379b6c461eac20b5512ea58e287e1fc1c454d4"
+    },
+    {
+      "path": "NodeDepthAndHoloPreservationFix.js",
+      "size": 10871,
+      "modified": "2026-01-27T18:23:28.176718+00:00",
+      "sha256": "5daee305d310778af15e3e1dab61832e22cfddb2b064c8bdc63b271ac450e434"
+    },
+    {
+      "path": "NodeDynamicMetrics.js",
+      "size": 19366,
+      "modified": "2026-01-28T15:06:03.952818+00:00",
+      "sha256": "a7fdb178364427bcbb9741548f9ad284a7d8d55bc6d6e5eef63412d119d2f7e8"
+    },
+    {
+      "path": "NodeEditor.js",
+      "size": 18142,
+      "modified": "2026-02-12T11:15:47.791394+00:00",
+      "sha256": "66592a9d575b233d710526ba2afc591d8f68b954932931a0b3ffe2f027d813c9"
+    },
+    {
+      "path": "NodeEditorRuntime_v1.js",
+      "size": 8487,
+      "modified": "2025-12-30T13:56:43.933036+00:00",
+      "sha256": "ffeffbc043611c6b8741a233171f476b1f1eae8594e1ee862ee5994a4bebb3b6"
+    },
+    {
+      "path": "NodeGrouping.js",
+      "size": 11281,
+      "modified": "2025-12-30T13:56:43.978103+00:00",
+      "sha256": "6439b4de7bf962394c71cfcc045f741e5e75ccb324a17f48aeaee56b7ff52849"
+    },
+    {
+      "path": "NodeHarmonicManager.js",
+      "size": 7008,
+      "modified": "2025-12-30T13:56:43.982669+00:00",
+      "sha256": "91241f5de1e830344ce778991bb41b8e82b1c394fc9f756bac134cefc4144a65"
+    },
+    {
+      "path": "NodeHarmonicSyncController.js",
+      "size": 13410,
+      "modified": "2025-12-30T13:56:43.986070+00:00",
+      "sha256": "3f7625c6b8500b2aaf40a38e22fe7f9d50b906b6d42d939970aeaba7d7817664"
+    },
+    {
+      "path": "NodeHierarchyBridge_v1.js",
+      "size": 12786,
+      "modified": "2026-02-11T12:12:12.336380+00:00",
+      "sha256": "1787eda2c2ecda61bf36506e508490d7f7f9dde713da72a227fe0f661c64bc7c"
+    },
+    {
+      "path": "NodeHierarchyEffectsPool_v1.js",
+      "size": 8897,
+      "modified": "2025-12-30T13:56:43.996678+00:00",
+      "sha256": "d2b7c40154f1893c7712c45a395a4ffb22923977edbc4a863ac828c27c58c64b"
+    },
+    {
+      "path": "NodeHierarchySystem_v1.js",
+      "size": 14530,
+      "modified": "2025-12-30T13:56:44.028143+00:00",
+      "sha256": "3f7597d1bffa3806c6823de0e76f0b2e5faafa3074832f8b497b734b5033a6bb"
+    },
+    {
+      "path": "NodeHierarchyVisualFeedback_v1.js",
+      "size": 15667,
+      "modified": "2026-01-22T22:01:27.906931+00:00",
+      "sha256": "5a18a96b8ad16385dbf56d6af373c39cc72e729b7e06ed634bcde01daee292bf"
+    },
+    {
+      "path": "NodeHierarchyVisuals_v1.js",
+      "size": 9632,
+      "modified": "2026-02-09T20:08:46.458782+00:00",
+      "sha256": "7bfcb70464f7d0973cc3fdbd5b228340e8d6962afa91ec9f2ca8468686e34a7b"
+    },
+    {
+      "path": "NodeImpactManager.js",
+      "size": 21265,
+      "modified": "2025-12-30T13:56:44.058579+00:00",
+      "sha256": "a6091131414f2351ca8868b733c1dab64a9078b01e79428a1a7765265cfa8e70"
+    },
+    {
+      "path": "NodeInspectOverlay1_0.js",
+      "size": 15006,
+      "modified": "2026-01-29T16:47:07.371033+00:00",
+      "sha256": "ffb868c90c08ed67c8a2329a69d8a1edc48d872c8b09353b8cb4ba476b95e995"
+    },
+    {
+      "path": "NodeInspectOverlay3_0.js",
+      "size": 12725,
+      "modified": "2026-02-12T11:17:07.469763+00:00",
+      "sha256": "0dfff90bd3669b82bf34080bbec40a5e062072f7b8d878123057dd7a492375e8"
+    },
+    {
+      "path": "NodeInteractionEngine.ts",
+      "size": 20331,
+      "modified": "2025-12-30T13:56:44.102793+00:00",
+      "sha256": "2cf5040d45607f842ea6e4e771825f59d2d90483a01a98b1ea67f13785ba4af1"
+    },
+    {
+      "path": "NodeInterferenceManager.js",
+      "size": 6433,
+      "modified": "2025-12-30T13:56:44.106964+00:00",
+      "sha256": "adef5154b992c093ccfe83955ef59142d3eee8f967247115d5eba94aec9fb11b"
+    },
+    {
+      "path": "NodeLinkedAuraIntegrationPatch_Session123.js",
+      "size": 6061,
+      "modified": "2025-12-30T13:56:44.111489+00:00",
+      "sha256": "213f759fb556d8bd944118ae298642901f2ed2a9e6eb716f6fb7281abc8a60fc"
+    },
+    {
+      "path": "NodeLinkedAuraRenderer_Session146.js",
+      "size": 13963,
+      "modified": "2026-01-26T00:21:33.248986+00:00",
+      "sha256": "6788090974a67af09fb74024b9a7089842794117ee0866b7fc323813e3b355a4"
+    },
+    {
+      "path": "NodeLinkedAuraSystem.js",
+      "size": 37209,
+      "modified": "2026-02-07T21:21:02.658505+00:00",
+      "sha256": "02882ef74fe54dd89da4ad64b3ffee701eca3d246c9280255d94bea268ee848c"
+    },
+    {
+      "path": "NodeLinkedAuraSystem_Session123.js",
+      "size": 21234,
+      "modified": "2026-01-25T19:43:08.376721+00:00",
+      "sha256": "73ec160ece803b9600f113033c29fd2462b92712aff860fc4da057237b9b9392"
+    },
+    {
+      "path": "NodeLinker2_RepairLayer1_0.js",
+      "size": 18519,
+      "modified": "2025-12-30T13:56:44.156370+00:00",
+      "sha256": "f9d359bff7613d8b018ba8184b5072384b8bc327f495c1e1dd760e5a0b115859"
+    },
+    {
+      "path": "NodeLinkingInvariantGuard.js",
+      "size": 11555,
+      "modified": "2025-12-30T13:56:44.169895+00:00",
+      "sha256": "33e88b8d4a7c7217c8b35b1c3642eca493da75551a2c304acce228776d9bd8de"
+    },
+    {
+      "path": "NodeLinkingSystem.js",
+      "size": 234909,
+      "modified": "2026-02-12T22:11:21.178974+00:00",
+      "sha256": "8dd0624be74ea6703480dea7e291ac54495edde56b3dd9d157e2ad5dfa932b68"
+    },
+    {
+      "path": "NodePersonality2_0.js",
+      "size": 31541,
+      "modified": "2026-02-07T21:20:54.210808+00:00",
+      "sha256": "b555b04f30d4ae3787adcd5793dc16e6c32d3a347cd759281c3197fb8a8f4d6e"
+    },
+    {
+      "path": "NodePersonality2_0_EnhancedLayer.js",
+      "size": 15899,
+      "modified": "2025-12-30T13:56:44.208164+00:00",
+      "sha256": "b93b77ca3cbfc5fc5e586324f743d844b52ca74644322691154c1fd77888aa2a"
+    },
+    {
+      "path": "NodePersonalitySystem2_0.js",
+      "size": 19667,
+      "modified": "2026-02-07T21:20:58.217414+00:00",
+      "sha256": "a16935be62c72db2d68135d913d6a77041a6e9e7c69e399a58b09ecaee5f36e9"
+    },
+    {
+      "path": "NodePersonality_VisualAdapter.js",
+      "size": 14523,
+      "modified": "2026-01-22T22:07:46.749638+00:00",
+      "sha256": "5e2033802e451484017cd0a4dba3c848e60c0905d769c0528825299c1465fa8a"
+    },
+    {
+      "path": "NodeQualityCalculator.js",
+      "size": 15788,
+      "modified": "2026-01-22T22:13:12.427313+00:00",
+      "sha256": "7f3dc59a186c33fa5125be3075c5a4ac834995334766a57c2bc0e0842409f145"
+    },
+    {
+      "path": "NodeShaderActivation_v1.js",
+      "size": 7171,
+      "modified": "2025-12-30T13:56:44.327406+00:00",
+      "sha256": "5be7e6b6ee57b7996b4fc270eca3a4cb97bfd65306e7a074cb8607729954e4c1"
+    },
+    {
+      "path": "NodeShellSizeAuthority.js",
+      "size": 10335,
+      "modified": "2026-02-10T09:54:31.727413+00:00",
+      "sha256": "74f2c884cc59bcab1507a2da991ac7834a002e30ad0004327b4afc7d01e9dd1a"
+    },
+    {
+      "path": "NodeSpawnRegistry.js",
+      "size": 3414,
+      "modified": "2025-12-30T13:56:44.377627+00:00",
+      "sha256": "f86666ea7a0d49405cd0448854eaacfaffedab33461cdd81cb5d1bce80dadfdd"
+    },
+    {
+      "path": "NodeSpawnValidationGate_v1.js",
+      "size": 5418,
+      "modified": "2025-12-30T13:56:44.382528+00:00",
+      "sha256": "044d0b864ea4f3c386af47960db0afab1296ea6a3d01997c408bbcdaf37e2c66"
+    },
+    {
+      "path": "NodeStateMachine_v1.js",
+      "size": 18773,
+      "modified": "2026-02-07T19:26:36.180938+00:00",
+      "sha256": "5f98beb71daace23cd26d079e9dff6cb712b7cbdf0995476c4f1e413f925216e"
+    },
+    {
+      "path": "NodeStateMachine_v1_EXAMPLES.js",
+      "size": 17508,
+      "modified": "2025-12-30T13:56:44.394796+00:00",
+      "sha256": "9d6bfa3d10f1a29b18676aaf238ff7cf0a523ce654f6c454efa58ad607281f65"
+    },
+    {
+      "path": "NodeSurfaceDominanceRule_v1.js",
+      "size": 9103,
+      "modified": "2026-02-09T18:21:19.763608+00:00",
+      "sha256": "706e5f373c1429cd2ee21d51ebb64a65352ef279646106932be67ec697ad4a49"
+    },
+    {
+      "path": "NodeSurfaceProtectionRule_v2.js",
+      "size": 16604,
+      "modified": "2026-01-27T21:41:53.720626+00:00",
+      "sha256": "186d3413f2d18ee2cbbb5d1b8a1c66ba89d1f5d38fdee86a4ab2e71e5116f2fb"
+    },
+    {
+      "path": "NodeSurfaceProtection_DepthAnchor.js",
+      "size": 8618,
+      "modified": "2026-02-11T12:12:17.855265+00:00",
+      "sha256": "428f5809cd753a614315b0f4c753d223b1985d79ef90c9bc07e0b0843c51536e"
+    },
+    {
+      "path": "NodeSynergyIntegration1_0.js",
+      "size": 14636,
+      "modified": "2026-01-25T09:42:23.553295+00:00",
+      "sha256": "8685f67861ef915f80407cd5eecb969f9e564a3596826313469b49802d6e0c8b"
+    },
+    {
+      "path": "NodeSynergyInterferenceController.js",
+      "size": 9575,
+      "modified": "2025-12-30T13:56:44.491988+00:00",
+      "sha256": "87a06d14ccdf7438f525ad9e4aff46525eff3278ff7e4cb4837b7f869277bce4"
+    },
+    {
+      "path": "NodeVisualAuthorityRuntime.js",
+      "size": 3269,
+      "modified": "2026-02-12T12:30:54.790981+00:00",
+      "sha256": "cbb286ab70ec0df1bb705dbdab7e7ba50a968589583f48ee516efdb6a2b22390"
+    },
+    {
+      "path": "NodeVisualFreezeBlockers_v1.js",
+      "size": 11449,
+      "modified": "2025-12-30T13:56:44.502828+00:00",
+      "sha256": "76490b0d32b70cae1477c1f7e9e590fe748b1c7018774b6460148ab48d33ff1b"
+    },
+    {
+      "path": "NodeVisualFreezeMode_v1.js",
+      "size": 6035,
+      "modified": "2026-02-07T16:12:59.525482+00:00",
+      "sha256": "e7cf94b80cadf9c3c301c5ef6d34f68c7f553becd1ead7ea32e33bee90b58792"
+    },
+    {
+      "path": "NodeVisualIntegrityFix.js",
+      "size": 13535,
+      "modified": "2025-12-30T13:56:44.517951+00:00",
+      "sha256": "26a6121e2ebd508b9a693c936445dcd9334c2a8b7dffca6589d70202338c0d36"
+    },
+    {
+      "path": "NodeVisualReadinessGate_v1.js",
+      "size": 7482,
+      "modified": "2025-12-30T13:56:44.526533+00:00",
+      "sha256": "56ee42f9d8f0121b1c05d67d8771cd3ee0f3b1e6658fcbad49915545f2b3d596"
+    },
+    {
+      "path": "NodeVisualStateBinder.js",
+      "size": 45548,
+      "modified": "2026-02-12T11:26:34.009609+00:00",
+      "sha256": "a8d8c5388419be3c293237913e04a5568a0e53374c6b82cef942f676a6a3cc4c"
+    },
+    {
+      "path": "NodeVisualStateBinder_OLD_v1.js",
+      "size": 20363,
+      "modified": "2025-12-30T13:56:44.567381+00:00",
+      "sha256": "763991fd4e1beafb5b97ecee8ee9644685b859e56b0c0a41b00ab7fd79f61573"
+    },
+    {
+      "path": "NUCLEAR_LOCK_INTEGRATION.js",
+      "size": 5421,
+      "modified": "2025-12-30T13:56:44.582708+00:00",
+      "sha256": "07cc6139a7ca714333ed65c5b4ca15635b17f2997244ad3cfebea46bbdc3ccb4"
+    },
+    {
+      "path": "ParticleCascadeFlowDeflection.js",
+      "size": 14807,
+      "modified": "2026-01-25T09:40:52.357212+00:00",
+      "sha256": "755cda2943de3197f4f802b1b7c90a80b1f7c8905e0b1aff1a44da7779f2a1a9"
+    },
+    {
+      "path": "ParticleEmissionIntegrationPatch.js",
+      "size": 6834,
+      "modified": "2026-01-25T09:44:23.430218+00:00",
+      "sha256": "e08c6c5234c2c478f0f6a07c46c4517c1892c971bda2b9ea4378e9b0962bc527"
+    },
+    {
+      "path": "ParticleEmissionRateScaling.js",
+      "size": 11767,
+      "modified": "2025-12-30T13:56:44.609867+00:00",
+      "sha256": "ad13914deb1535c903375339f65c5c179890d0b03637a43cecda456ee7f276f2"
+    },
+    {
+      "path": "ParticleEmissionScaler.js",
+      "size": 13236,
+      "modified": "2026-01-25T09:48:31.735748+00:00",
+      "sha256": "8c4f069b82c6a14bc81cd39c649d750ddd208c22d6681e7b4e9b53281ef529fc"
+    },
+    {
+      "path": "ParticleSemanticDensityAdapter_Session121.js",
+      "size": 12249,
+      "modified": "2025-12-30T13:56:44.637578+00:00",
+      "sha256": "374848442bc46aba8a3a1fd835981d883a1f6e6272c6394e97db242dd693aad0"
+    },
+    {
+      "path": "ParticleStreamCascadeAcceleration.js",
+      "size": 13436,
+      "modified": "2025-12-30T13:56:44.650156+00:00",
+      "sha256": "8c2c83ece0069c6407d4ec2bc24f62fd96f91b17d82d67521d759ce1b75453ed"
+    },
+    {
+      "path": "ParticleStreamCascadeAccelerationIntegrationPatch.js",
+      "size": 10476,
+      "modified": "2025-12-30T13:56:44.642165+00:00",
+      "sha256": "6ee4e811af93bc151b6f8b7bcb815799bbdf67824368b6584d3c2488445c5267"
+    },
+    {
+      "path": "ParticleStreamCascadeAccelerationIntegrationSetup.js",
+      "size": 13363,
+      "modified": "2026-01-25T09:50:21.273244+00:00",
+      "sha256": "0c34110d51f0f69167cd989dec3d4c301556c680bf7f4a6f8895b042df708ef6"
+    },
+    {
+      "path": "ParticleTrailIntegrationPatch_Session122.js",
+      "size": 4592,
+      "modified": "2025-12-30T13:56:44.657448+00:00",
+      "sha256": "c5cb69972fbc7ccb851e36bd146790998414291f71cfa6d72cae50ac0d7a3227"
+    },
+    {
+      "path": "ParticleTrailSystem_Session122.js",
+      "size": 13411,
+      "modified": "2025-12-30T13:56:44.669722+00:00",
+      "sha256": "1b17b42d04c1d3a9e52a0a8e73b2250206078e1fa4548db0c04c4ef8bc34169a"
+    },
+    {
+      "path": "PersonalityMaterialProfileRegistry_v1.js",
+      "size": 13531,
+      "modified": "2025-12-30T13:56:44.794180+00:00",
+      "sha256": "2e12f3af946d30f845318447ec1ba998263ab32696f4faa166665766a819d35e"
+    },
+    {
+      "path": "PersonalityRuntime_v1.js",
+      "size": 5609,
+      "modified": "2026-01-25T09:53:09.277967+00:00",
+      "sha256": "c145cafbdeebff11fbbcbc3b7e51f8da7938328f896cbe0d075e41ffcc013557"
+    },
+    {
+      "path": "PersonalityShaderAdvancedFX_v1.js",
+      "size": 14362,
+      "modified": "2026-01-25T20:55:43.016221+00:00",
+      "sha256": "e64eca9227586ceaca9968651210520b430b913289a4ecea73404c36738fc81f"
+    },
+    {
+      "path": "PersonalityShaderBridge_v1.js",
+      "size": 14374,
+      "modified": "2026-01-25T09:56:50.120805+00:00",
+      "sha256": "2aef5b7f750be1789b1dad6014fa7f8daecf2c69ec57c284db9c446d27b03d44"
+    },
+    {
+      "path": "PersonalityShaderEffects_Pack_v1.js",
+      "size": 23594,
+      "modified": "2026-01-21T20:55:12.129030+00:00",
+      "sha256": "6b83fe4e5ab7af58da7e24f0db664caf663ce69a4ac329558d8f00131a7d01d2"
+    },
+    {
+      "path": "PersonalityShaderStabilizedFX_v1.js",
+      "size": 19118,
+      "modified": "2026-01-21T21:00:14.400869+00:00",
+      "sha256": "b6a3800b3f3d7da225d42b795838561e1cdecf1c402007d05d878f22badcd18d"
+    },
+    {
+      "path": "PersonalitySignalSmoother_v1.js",
+      "size": 12976,
+      "modified": "2025-12-30T13:56:44.837982+00:00",
+      "sha256": "02ebd136dc6de08b4aed6f8551b9d1b32d7c37649771cbe1e85a9f686e187634"
+    },
+    {
+      "path": "PersonalityVFXLayer_v1.js",
+      "size": 14315,
+      "modified": "2025-12-30T13:56:44.845725+00:00",
+      "sha256": "6ed8dcce6e71119b7ed52ba838ee8b4ae4c21013c3726b796b9bd73a8cb5fa07"
+    },
+    {
+      "path": "PHASE5_CascadePropagationVisuals_v1.js",
+      "size": 14821,
+      "modified": "2026-01-25T09:58:24.925598+00:00",
+      "sha256": "cf579e4fd4f9a3984156cd4061a149ba579426986216642fa3bd1b3c98594d1b"
+    },
+    {
+      "path": "PHASE5_CascadeVisualizationBridge_v1.js",
+      "size": 11679,
+      "modified": "2026-01-25T10:00:17.133097+00:00",
+      "sha256": "87975afcc9707472b03b3bba5c923757afb4042882cde56e025e625521a2e725"
+    },
+    {
+      "path": "PHASE5_CorruptionBridge_v1.js",
+      "size": 11710,
+      "modified": "2026-01-25T10:06:49.051088+00:00",
+      "sha256": "04738163956b8b3547e727e578ff0a5db8c31ad324a6655672e9dfcaa5d41bfd"
+    },
+    {
+      "path": "PHASE5_InterNetworkVisualizationBridge_v1.js",
+      "size": 12134,
+      "modified": "2026-02-01T14:06:01.955631+00:00",
+      "sha256": "643f39811d326b2fb149440e860ec7ad218be17025f6e56926519c0f6d21ce05"
+    },
+    {
+      "path": "PHASE5_MultiNetworkManager_v1.js",
+      "size": 11926,
+      "modified": "2026-01-25T10:15:36.306388+00:00",
+      "sha256": "802d338178f4fa55ef9e7eec227cae9e73ea3ba1ebc9810f64381c8e185cf354"
+    },
+    {
+      "path": "PHASE5_MultiNetworkOrchestrator_v1.js",
+      "size": 7743,
+      "modified": "2026-01-25T10:17:59.595326+00:00",
+      "sha256": "666caaa2a4a5cbbbe634fe38ad4a000e745e1fcd5d6638c0c6282dc5cc7e1a52"
+    },
+    {
+      "path": "PHASE5_NetworkSynchronization_v1.js",
+      "size": 11282,
+      "modified": "2025-12-30T13:56:45.352996+00:00",
+      "sha256": "35eaa8a1bf18f86181a896793e3c3ec0a7532604d7779bd80283ebc114552bc7"
+    },
+    {
+      "path": "Phase8RitualVisualOrchestration.js",
+      "size": 20182,
+      "modified": "2026-01-25T10:39:00.002705+00:00",
+      "sha256": "eee38fe43ef15574c4a237088120efa856397f0bb86b2d82fc5b1e7d28228584"
+    },
+    {
+      "path": "Phase8VisualBridge.js",
+      "size": 10390,
+      "modified": "2025-12-30T13:56:45.419587+00:00",
+      "sha256": "01c1f36fb66170f7b5ded90fcea7d86ddb15d32eb25cf1b395721147e87e745b"
+    },
+    {
+      "path": "PostProcessing.js",
+      "size": 13155,
+      "modified": "2026-01-27T19:56:43.653634+00:00",
+      "sha256": "b963f937b5ec6e63be9137ebbd65170eb9945c92850fc30bab6a7feb1248df1a"
+    },
+    {
+      "path": "PreCascadeVisualHint_Session146.js",
+      "size": 14217,
+      "modified": "2026-01-25T11:04:42.251573+00:00",
+      "sha256": "19242842b64379314e440aa403fa8806194c1c96a460bf65678b56350ff259e7"
+    },
+    {
+      "path": "PriorityDecayEngine1_0.js",
+      "size": 16227,
+      "modified": "2026-01-21T09:21:58.194040+00:00",
+      "sha256": "b84ecf9da10f98dd87677e14fe8b083c9f7e1c61bca490b520f9e6f824d40c9f"
+    },
+    {
+      "path": "PriorityHistoryEngine1_0.js",
+      "size": 23391,
+      "modified": "2025-12-30T13:56:45.525867+00:00",
+      "sha256": "15839433368b6d7ca48b661c6653196682a677fc1bbf4ada88b949291be2b8db"
+    },
+    {
+      "path": "ProceduralHarmonicGlyphGenerator.js",
+      "size": 24738,
+      "modified": "2026-01-25T11:06:47.789338+00:00",
+      "sha256": "e5d5f1a2311cd40898843e50f5c78677ca0820718ca7580b8fba9a9e05e19f63"
+    },
+    {
+      "path": "ProcessEnhancedVariants_Session81.js",
+      "size": 10232,
+      "modified": "2025-12-30T13:56:45.586539+00:00",
+      "sha256": "1789ed671dd42892c696749e590eed471c120563bf23889e1b061271785da099"
+    },
+    {
+      "path": "PulseBoundaryInteractionAdapter_v1.js",
+      "size": 20068,
+      "modified": "2026-02-06T13:28:27.297010+00:00",
+      "sha256": "6652bc532699445e01c98124074b2d4b9307b258688da1e66d7bc397e2e83973"
+    },
+    {
+      "path": "PulseIntersectionImpulseAdapter_v1.js",
+      "size": 15516,
+      "modified": "2025-12-30T13:56:45.628087+00:00",
+      "sha256": "cc78c6838b9e3e0e375bd4a7ae41e8a8be5e427d901bdac5535ca1d5bf188e88"
+    },
+    {
+      "path": "PulseIntersectionIntegrationSetup.js",
+      "size": 3913,
+      "modified": "2026-01-13T20:40:39.849088+00:00",
+      "sha256": "caaa42c40a1decba3c9069deb03d06245ef0ff82c489d11125ea0cb687d1ba81"
+    },
+    {
+      "path": "PulseWaveSystemBridge_v1.js",
+      "size": 8143,
+      "modified": "2026-02-06T20:29:11.488066+00:00",
+      "sha256": "b41831000ee1f0df7c54e6506a7f519d20882008388ac123a37d8b7b56e55beb"
+    },
+    {
+      "path": "QuantumIllusionRegistry.js",
+      "size": 5386,
+      "modified": "2026-01-25T11:08:39.140834+00:00",
+      "sha256": "bc61353d11a9cbd7480acab3f6bc715dbbf1ea523c1448f923a108a771426efa"
+    },
+    {
+      "path": "QuantumIsland.js",
+      "size": 21987,
+      "modified": "2026-01-17T20:38:06.907418+00:00",
+      "sha256": "2aca16d9b5899b2135b104e572582d4c585e3044938b9ab8419d5e59b7736acd"
+    },
+    {
+      "path": "QuantumNode.js",
+      "size": 9773,
+      "modified": "2026-01-31T14:20:35.061266+00:00",
+      "sha256": "7ba32bfac656bea6ffadbb2db607ba9ac54b2e0a3de64c2b9407407bc6345ac7"
+    },
+    {
+      "path": "RawCameraControlPack1.js",
+      "size": 18576,
+      "modified": "2026-01-29T20:53:34.503110+00:00",
+      "sha256": "1124b10134a23f7f66572de634c56a7233230ac03ed808cf50a55c8838723798"
+    },
+    {
+      "path": "RaycastAuthorityInit.js",
+      "size": 1233,
+      "modified": "2026-02-12T11:22:30.813498+00:00",
+      "sha256": "308de9cd0d435ed63f1984eeaa8ba3efe8f29730930368af2acb8c022131dbcd"
+    },
+    {
+      "path": "RegionalEquilibriumFieldSystem.js",
+      "size": 21988,
+      "modified": "2025-12-30T13:56:45.955473+00:00",
+      "sha256": "4d9f57fbe2961d9b7496282d032a57ad600c4571ffe7eb35b5973debb26f703a"
+    },
+    {
+      "path": "RegionalHarmonicCycleController.js",
+      "size": 12142,
+      "modified": "2025-12-30T13:56:45.958761+00:00",
+      "sha256": "dbcad87087495ec01e58e46ce262864efac366ab4ccacdcd2e52547920a11592"
+    },
+    {
+      "path": "RegionalHarmonyZones.js",
+      "size": 17981,
+      "modified": "2025-12-30T13:56:45.974249+00:00",
+      "sha256": "f1945f778f2d25b802981488311fe493ec144e45cf27f850b1df8891cd60fe3c"
+    },
+    {
+      "path": "RenderCostProfile.js",
+      "size": 2205,
+      "modified": "2026-01-19T16:32:34.692718+00:00",
+      "sha256": "bf0f53fd53728c783613b6bd6e89593e54f2587c1c4664daf0e6f00357a199c9"
+    },
+    {
+      "path": "ResonanceCascadeVisualization_Session117B.js",
+      "size": 18367,
+      "modified": "2026-01-25T11:11:00.203943+00:00",
+      "sha256": "7f7d9772b2bd826aac628fa2890e4c5acadcdb2098ce6bb8a3bf8a7f7868d7a3"
+    },
+    {
+      "path": "ResonanceEchoTrailSystem.js",
+      "size": 19945,
+      "modified": "2026-01-25T20:10:38.378340+00:00",
+      "sha256": "0eeb718dbeb9a8e66c2babfcc7df4ce64ebdf5624bd031ca70f72aea9623c6c9"
+    },
+    {
+      "path": "ResonanceFeedback_v1.js",
+      "size": 22827,
+      "modified": "2025-12-30T13:56:46.010180+00:00",
+      "sha256": "359e5008dcd44e6463b9bda5c777adf88ede81b869d25e08824d28c6a4af7ab5"
+    },
+    {
+      "path": "ResonanceRuptureVisualSystem_Session133.js",
+      "size": 30848,
+      "modified": "2025-12-30T13:56:46.034495+00:00",
+      "sha256": "4eb22daea89183c7c4350fe4704c99e72c48faef35a0062cbd539eeea960491d"
+    },
+    {
+      "path": "RitualVisualOrchestrator.js",
+      "size": 21952,
+      "modified": "2025-12-30T13:56:46.067252+00:00",
+      "sha256": "384854d020151661586eb30feb8bd40acc7c57213116ccc2e3a6835d7cd5b6e3"
+    },
+    {
+      "path": "RITUAL_VISUAL_ORCHESTRATOR_EXAMPLES.js",
+      "size": 19535,
+      "modified": "2025-12-30T13:56:46.055221+00:00",
+      "sha256": "c54aec4d9b386ec74615767bda3141d2a573f79154ab61c2a85338ae32031d68"
+    },
+    {
+      "path": "SafeColonyExpansion2.js",
+      "size": 20825,
+      "modified": "2026-01-25T11:16:35.640574+00:00",
+      "sha256": "e572ae6c8b6d5f2f1fd39400eb83584100220ea42b464127fc6ee7e4aac95aa8"
+    },
+    {
+      "path": "SafeDreamDepthPack.js",
+      "size": 16061,
+      "modified": "2026-01-25T22:45:18.530005+00:00",
+      "sha256": "e3422bd2137c115d8b593c4fdcce96f3964e91e11dffe8a124f799274aaf9490"
+    },
+    {
+      "path": "SafeLinkMemoryTrails.js",
+      "size": 10051,
+      "modified": "2025-12-30T13:56:46.290016+00:00",
+      "sha256": "00932fa0122cab2019ec7c4855eca5a3a86736d4f70912395e33e26c32d87bd4"
+    },
+    {
+      "path": "SafeMemoryTrailsManager.js",
+      "size": 12229,
+      "modified": "2026-01-25T11:19:46.011268+00:00",
+      "sha256": "faf4b61ff56006bb7e4a19b1a3a13485774e2284e1c406360256f8aefefbf78e"
+    },
+    {
+      "path": "SafeMetricsDNAIntegration1_0.js",
+      "size": 8729,
+      "modified": "2026-01-28T11:51:14.753013+00:00",
+      "sha256": "d28c4d89702e372cfd209e662fedd3d94ac611516407f537c94776a3a30dea72"
+    },
+    {
+      "path": "SafeMetricsFX1_1.js",
+      "size": 11466,
+      "modified": "2026-02-07T10:09:16.447970+00:00",
+      "sha256": "b6b862e7e7953c720bbde9f21abe066e9428556d1c4acc8917789abaedc69b75"
+    },
+    {
+      "path": "SafeMobilityPack4.js",
+      "size": 17552,
+      "modified": "2026-02-12T11:16:07.182008+00:00",
+      "sha256": "a93aa1a5f05d9ae4a930ce1efe9a7aaaaa1a9dd6346026e6f65cd57b031ad19b"
+    },
+    {
+      "path": "SafeNodeMemoryTrails.js",
+      "size": 9491,
+      "modified": "2025-12-30T13:56:46.354903+00:00",
+      "sha256": "026c84e422de0a962d58c73c7898bc6f244c3ac2ff795cd64f7074c760ca85db"
+    },
+    {
+      "path": "SafePlayerMemoryTrails.js",
+      "size": 9430,
+      "modified": "2025-12-30T13:56:46.373042+00:00",
+      "sha256": "1beccf08f88eba3cdfe6788529adcaca973205b9972db4300d000be9c982134e"
+    },
+    {
+      "path": "SafeQuantumIllusionsPack1.js",
+      "size": 27511,
+      "modified": "2026-02-10T14:47:19.614512+00:00",
+      "sha256": "b188ff073e0c159d49862e9b87089dab2ab155c55fca8823fdfe8907b947522f"
+    },
+    {
+      "path": "SafeWorldResetFix1_0.js",
+      "size": 25034,
+      "modified": "2026-02-12T19:41:58.525771+00:00",
+      "sha256": "6561acecf392539c01a1ab155458d15adb6c7389e14fa9fa75f9e8ee761dae1a"
+    },
+    {
+      "path": "SelectedHUDSyncPatch1_0.js",
+      "size": 13470,
+      "modified": "2025-12-30T13:56:46.492957+00:00",
+      "sha256": "cd05ead8b7117c87c8fe5d60e2a5385ba6325588cd4d7150b5e1259596d2dbd5"
+    },
+    {
+      "path": "SelectedHUDSyncPatch1_0_TestHelper.js",
+      "size": 15206,
+      "modified": "2025-12-30T13:56:46.505411+00:00",
+      "sha256": "f1425d399dbe3dfa435d40db19c2349764d535880ca3a671f7ae608ea0a82472"
+    },
+    {
+      "path": "SemanticActivityFilter_v1.js",
+      "size": 1352,
+      "modified": "2026-02-06T23:01:01.640589+00:00",
+      "sha256": "8d945db0d7a89ba316b446de825cda91a7a15e764e5d69b51edfb7782c4eb0ff"
+    },
+    {
+      "path": "SemanticMetricAdapter.js",
+      "size": 4638,
+      "modified": "2026-01-15T12:55:53.528414+00:00",
+      "sha256": "bdfa416713a677c9e08104f4d4b3b018460b3e0059b5239f8409db23e57bccce"
+    },
+    {
+      "path": "SigmaNode.js",
+      "size": 3536,
+      "modified": "2026-02-09T20:07:34.587232+00:00",
+      "sha256": "f222f34b1456342c4ddc412085d0d8b58639e0f1c9a3d7efe542f8dcb1a9e79b"
+    },
+    {
+      "path": "SigmaRiftChamber.js",
+      "size": 28285,
+      "modified": "2026-02-09T20:06:25.494672+00:00",
+      "sha256": "d2f6e7fcb6a7008433e4214044fdb45c622ce62e409b3387f418dbd18589ebef"
+    },
+    {
+      "path": "SimulationEffectOrchestrator.js",
+      "size": 13046,
+      "modified": "2025-12-30T13:56:48.278562+00:00",
+      "sha256": "07a7578eebcb2a4595aa430b230641fa48a80ac29ce1282016e662aa10f4e143"
+    },
+    {
+      "path": "SimulationEffectPool.js",
+      "size": 16603,
+      "modified": "2025-12-30T13:56:48.283175+00:00",
+      "sha256": "57821af55822da24e16f564ecc4bec6350f2ad1a0b00a54a2d07c2f0b6c8c626"
+    },
+    {
+      "path": "SoakTestLogging_v1.js",
+      "size": 8156,
+      "modified": "2026-01-25T11:22:38.158922+00:00",
+      "sha256": "4f1200f1467d81b1463d04a88435bfa6b25249e38a132f02f8fcd41ad5f7c3c6"
+    },
+    {
+      "path": "SpawnAuthorityComplianceGate.js",
+      "size": 11733,
+      "modified": "2026-02-11T13:46:41.586653+00:00",
+      "sha256": "648a0ed46970daa9c89d543d4537e57c8bc019d69e0b1be8d182f4703faab5aa"
+    },
+    {
+      "path": "SpawnAuthorityConsoleAPI.js",
+      "size": 9405,
+      "modified": "2026-02-11T13:46:12.324641+00:00",
+      "sha256": "7c5f82f45e53678d5635dae56b0ea75a73ac50a2cf973236a6186d323cbc08d8"
+    },
+    {
+      "path": "SpawnCycleValidator.js",
+      "size": 595,
+      "modified": "2026-01-31T16:01:34.031885+00:00",
+      "sha256": "27ba52ab7dc52fcb666c5b414b85491de182cf7c0af62100fbab85856b14bbf1"
+    },
+    {
+      "path": "SpawnerConsolidationDetector_v1.js",
+      "size": 5376,
+      "modified": "2025-12-30T13:56:48.371827+00:00",
+      "sha256": "caf9e9170e8accb16ed2ed8394fe53b6e46426f7f49bc9f5de7b93df6a5ae3dd"
+    },
+    {
+      "path": "SphereCreatorTrace.js",
+      "size": 7267,
+      "modified": "2026-02-10T17:07:52.304274+00:00",
+      "sha256": "fb1dd0c05fb2f0ded74ef50b0df5dd562823b0056e982e8039576b97bcd3c9a8"
+    },
+    {
+      "path": "StandingWaveOscillationTrapSystem_Session130.js",
+      "size": 24532,
+      "modified": "2025-12-30T13:56:48.428687+00:00",
+      "sha256": "46209f5d7f02d3676f41812ac2f96cc78e9d235d3049975bc197fa8769e25e74"
+    },
+    {
+      "path": "StandingWaveVisualRenderer_Session131.js",
+      "size": 28106,
+      "modified": "2025-12-30T13:56:48.433317+00:00",
+      "sha256": "25d18135a061838c13572871498036babc2ddf6864176146694634b953af51f8"
+    },
+    {
+      "path": "StorageEnhancedVariants_Session81.js",
+      "size": 9749,
+      "modified": "2026-01-27T23:14:06.247718+00:00",
+      "sha256": "9fe6420f1bbcd0eaf9cf91dc2dc79ef4b85373ee6801b53a452a223eb6522d0f"
+    },
+    {
+      "path": "StorageNodesVisual_Session116.js",
+      "size": 15837,
+      "modified": "2025-12-30T13:56:48.461981+00:00",
+      "sha256": "c9240e0a81efdf8bb32874bc7c67ae2f041b517dbfdcee7797c594608b714b21"
+    },
+    {
+      "path": "StressBasedParticleScaler_v1.js",
+      "size": 9736,
+      "modified": "2026-01-25T11:27:27.193000+00:00",
+      "sha256": "3ee90c500eb0a5f032a3972f01d534d34edb0e96e5bd39a3f4c2104a742ca46c"
+    },
+    {
+      "path": "StressTurbulenceController.js",
+      "size": 7710,
+      "modified": "2025-12-30T13:56:48.489898+00:00",
+      "sha256": "d8341fd51507141f4c17e3af10536eff3da18016eb41d17e22eafab078aa1d6e"
+    },
+    {
+      "path": "StressTurbulenceIntegrationGuide.js",
+      "size": 10404,
+      "modified": "2025-12-30T13:56:48.493428+00:00",
+      "sha256": "7c348e46584d771f527d78141598d57fc18e04e99fd0e73339ae3718cfe4f06f"
+    },
+    {
+      "path": "StressTurbulenceShaderMaterial.js",
+      "size": 7387,
+      "modified": "2025-12-30T13:56:48.500919+00:00",
+      "sha256": "2e33f7d44f93331209bddcf0dc187fcea75a46527e9cb3174ca06b8b39c81484"
+    },
+    {
+      "path": "SURFACE_RIPPLES_EXAMPLES.js",
+      "size": 18339,
+      "modified": "2025-12-30T13:56:48.521894+00:00",
+      "sha256": "7464ad55b783df3223db7d52522db895f23dd935f07662489c8215bc51a4dddc"
+    },
+    {
+      "path": "SynapticConflictAdaptiveResolution_Session117.js",
+      "size": 17020,
+      "modified": "2025-12-30T13:56:48.530788+00:00",
+      "sha256": "ee4b401fc7ff45358a33ca909e234ae962662bd87fce7037cfd280ea3ed030c0"
+    },
+    {
+      "path": "SynapticFatigueAdapter_v1.js",
+      "size": 17775,
+      "modified": "2026-02-06T13:35:58.816071+00:00",
+      "sha256": "8bc123a6437c0f811166d17e89cee8604f57d80b19e4a15cd66fd1a7ab1bbb73"
+    },
+    {
+      "path": "SynapticGatingAdapter_v1.js",
+      "size": 13428,
+      "modified": "2026-02-06T13:04:54.751695+00:00",
+      "sha256": "54f04622fe358688d92a01cacf35611e48406be63e027827c7dfd040050e0fd9"
+    },
+    {
+      "path": "SynapticSpecializationAdapter_v1.js",
+      "size": 16097,
+      "modified": "2025-12-30T13:56:48.566816+00:00",
+      "sha256": "63c69a0aba96b9b272a0cbe3ec33b6c1ccbc64ff9e3890e8fa987220ec0aa6f0"
+    },
+    {
+      "path": "SynergyAuraColorIntegrationExample.js",
+      "size": 15338,
+      "modified": "2025-12-30T13:56:48.590886+00:00",
+      "sha256": "83eab1b354019289cd20423e3933603651d8c5950ff538f01e93ba0f970b32f3"
+    },
+    {
+      "path": "SynergyAuraColorIntegrationPatch.js",
+      "size": 11602,
+      "modified": "2025-12-30T13:56:48.596036+00:00",
+      "sha256": "066dc0865d4df4b003605331deaeaa1296a8fd96e6864d011dcf3f4858726a24"
+    },
+    {
+      "path": "SynergyBonusFXLayer_v1.js",
+      "size": 21991,
+      "modified": "2026-01-25T22:55:46.774718+00:00",
+      "sha256": "1135653a4a9bf395e09210e8d142a04ae20425bedb9a008d1065b2c88cc0b259"
+    },
+    {
+      "path": "SynergyBonusVisualization_v1.js",
+      "size": 12881,
+      "modified": "2026-01-25T23:00:38.389573+00:00",
+      "sha256": "4dc74c55f8bdb6b4642dd2f5d480bdef04a17d5dd7a78b28073841da19787c61"
+    },
+    {
+      "path": "SynergyCascadeFXBridge_v1.js",
+      "size": 24519,
+      "modified": "2026-02-06T12:57:51.931493+00:00",
+      "sha256": "e6018188824a11904e14279749139cda5165ecef26e033942d4687dd4c085673"
+    },
+    {
+      "path": "SynergyCascadeVisualizer.js",
+      "size": 27633,
+      "modified": "2026-01-25T11:43:03.713851+00:00",
+      "sha256": "02fc48fdf8202260694bb3b325eb938914c59e10127a37ebb51511863128b804"
+    },
+    {
+      "path": "SynergyChainReaction_v1.js",
+      "size": 24516,
+      "modified": "2026-02-06T18:09:05.591898+00:00",
+      "sha256": "1a4081e51a69289e274c17a2c03f470190a0739c8af03b3302321777ba3e97f6"
+    },
+    {
+      "path": "SynergyDrivenAuraColorSystem.js",
+      "size": 14528,
+      "modified": "2026-02-12T11:20:39.557878+00:00",
+      "sha256": "f639b3b20cf5e3b877a1c5b74e00325d4659f2dec5cb8e00930826753469ae55"
+    },
+    {
+      "path": "SynergyGlowController.js",
+      "size": 5891,
+      "modified": "2025-12-30T13:56:48.720743+00:00",
+      "sha256": "c6122dbf3fd3ab9ecd714d70d0b5455515f3e3e57a2bef7a71acbb5beeeb7f8d"
+    },
+    {
+      "path": "SynergyGlowIntegrationGuide.js",
+      "size": 9674,
+      "modified": "2025-12-30T13:56:48.737731+00:00",
+      "sha256": "dea96c30cfa52c110432aadf318e1f05fe1ff04eb1f028d0613648eb79705dd3"
+    },
+    {
+      "path": "SynergyGlowShaderMaterial.js",
+      "size": 5364,
+      "modified": "2025-12-30T13:56:48.753813+00:00",
+      "sha256": "986ca05e0f4d882ee5de42309ae9f65b92fc87d208317642dec908184c2d51d3"
+    },
+    {
+      "path": "SynergyHighways1_0.js",
+      "size": 14563,
+      "modified": "2026-01-25T11:44:37.920634+00:00",
+      "sha256": "0214272e23557a51fee645de5f08877f1633154d8d3872373e727ae12316acfd"
+    },
+    {
+      "path": "SynergyHighways2_0.js",
+      "size": 18120,
+      "modified": "2025-12-30T13:56:48.796005+00:00",
+      "sha256": "383d34e746e2344fd91d4a36af89dd373cda56aa68ead1271494f12244f857fa"
+    },
+    {
+      "path": "SynergyHighwayVisuals3D_1_0.js",
+      "size": 21835,
+      "modified": "2025-12-30T13:56:48.832809+00:00",
+      "sha256": "fdfeac7baa4088cbd46ff8770a41701bda48a6e1d41694f1a98e0ea0dbbac985"
+    },
+    {
+      "path": "SynergyPulseVisuals_v1.js",
+      "size": 5665,
+      "modified": "2025-12-30T13:56:48.884723+00:00",
+      "sha256": "4da347377fd8363a26558b92afbd86b70d157099e1278c56c13e8d7df039fe74"
+    },
+    {
+      "path": "SynergyRecommendationDebugHUD.js",
+      "size": 12339,
+      "modified": "2026-01-21T16:49:21.538875+00:00",
+      "sha256": "9640ce90acbeb4fc99542073015309c3dc788d7742541d938e57c614078f34ec"
+    },
+    {
+      "path": "SynergyResonanceShaderPack_v1.js",
+      "size": 21753,
+      "modified": "2026-01-25T22:22:54.968621+00:00",
+      "sha256": "46028b286a5bd6d7295cc316655426a4ae9270bedc6673c6f7111d350ce66426"
+    },
+    {
+      "path": "SynergyStateResolver.js",
+      "size": 9999,
+      "modified": "2025-12-30T13:56:48.939798+00:00",
+      "sha256": "9cb124b5e29dbdfc000024b3e4efd1e932f62a576d7ae9a9d6f8858d5081ceb9"
+    },
+    {
+      "path": "SynergyTravelingWaveFX_v1.js",
+      "size": 24124,
+      "modified": "2026-01-29T09:02:17.026109+00:00",
+      "sha256": "5094af02a782f14eb387209915ce3687594d8584d4d30a189ba7092bc12b0028"
+    },
+    {
+      "path": "SynergyTrendHUD1_0.js",
+      "size": 15449,
+      "modified": "2025-12-30T13:56:48.951779+00:00",
+      "sha256": "12bce1b14d70a06af263aa2928cc7c20adb2222be2c49af133337c02fb08d30a"
+    },
+    {
+      "path": "SynergyVFX1_0.js",
+      "size": 20945,
+      "modified": "2025-12-30T13:56:48.967581+00:00",
+      "sha256": "a452be103574af07eabfef4dc2a42680e9243a03cb9d14afffbae95b4ac1ea3b"
+    },
+    {
+      "path": "SynergyVFXEngine1_0.js",
+      "size": 29974,
+      "modified": "2026-02-10T14:47:44.412961+00:00",
+      "sha256": "489ea62cc21e66b21854b53d6e0bc7a25c84ad59f37c3db8fdbe17b871655a67"
+    },
+    {
+      "path": "SYNERGY_HUD_MAIN_JS_PATCH.js",
+      "size": 12682,
+      "modified": "2025-12-30T13:56:48.837125+00:00",
+      "sha256": "8fb0cafbc862dd66e7f0f39fa87535827e8668227a4e5162835eb058c2dd49f0"
+    },
+    {
+      "path": "SYNERGY_INTEGRATION_EXAMPLES.ts",
+      "size": 19519,
+      "modified": "2025-12-30T13:56:48.848943+00:00",
+      "sha256": "b404978893f3f9d6e36fed3dc27d0f418b74e80f71877afe1893286739a83fbc"
+    },
+    {
+      "path": "SYNERGY_MAIN_JS_EXAMPLE.js",
+      "size": 10897,
+      "modified": "2025-12-30T13:56:48.880488+00:00",
+      "sha256": "da2026c7042bd46f59ab46b26319b8355985b70d188ebf5d2f8285763616c6ae"
+    },
+    {
+      "path": "SystemInitializationOrderValidator_v1.js",
+      "size": 16948,
+      "modified": "2025-12-30T13:56:49.013325+00:00",
+      "sha256": "45abf54563eb738c6ef4766966faa6b8d24aaa92d6189a160693a1682eb9e232"
+    },
+    {
+      "path": "SystemStateOverlay.js",
+      "size": 18288,
+      "modified": "2026-01-27T17:45:27.413669+00:00",
+      "sha256": "a0b960eb5fc944ef5eb626281ede6483d39dec1e9c6a008586d7d7ab53b4bdaa"
+    },
+    {
+      "path": "SYSTEM_INIT_VALIDATOR_MAINJS_PATCH.js",
+      "size": 13642,
+      "modified": "2025-12-30T13:56:49.038734+00:00",
+      "sha256": "4a5e00af00539b8c72713f55e202d66202cf8367ee1a5adf280503e9c3a94c57"
+    },
+    {
+      "path": "SYSTEM_INIT_VALIDATOR_TEST_SUITE.js",
+      "size": 18881,
+      "modified": "2025-12-30T13:56:49.047245+00:00",
+      "sha256": "bab581fd70397b3094d06bcd82069ec55c5125aa259803e937b8f39d43001d6d"
+    },
+    {
+      "path": "T2_CorruptionVisualIntegration_v1.js",
+      "size": 10587,
+      "modified": "2025-12-30T13:56:49.095525+00:00",
+      "sha256": "221ad281d6cfae3fbab7ff52671f4d363062376827c94c4b3ee76d059c437f53"
+    },
+    {
+      "path": "T2_HarmonyVisualConsumer_v1.js",
+      "size": 10663,
+      "modified": "2025-12-30T13:56:49.098937+00:00",
+      "sha256": "fb899ee1154f0646fd82d839f6f812b7be25ca734719f22bb034b2ebd39e89d3"
+    },
+    {
+      "path": "T4004_HARMONY_HEALING_TEST_RUNNER.js",
+      "size": 19636,
+      "modified": "2026-01-29T22:13:56.305446+00:00",
+      "sha256": "046639b35151e9b83f68898dd48ad6a11576406b407774b33e4782400d4aa1f9"
+    },
+    {
+      "path": "TemporalEventEffects.js",
+      "size": 6282,
+      "modified": "2026-01-26T09:51:16.700381+00:00",
+      "sha256": "f544cefd3e5751a22b48c5ae121f28e8dd269df4832c17e1ee92e01610d21d52"
+    },
+    {
+      "path": "TemporalUnitSystem.js",
+      "size": 4112,
+      "modified": "2026-01-25T11:52:53.489380+00:00",
+      "sha256": "5ed7f003a4dedee15b6ca5cb2b461c26e5524eec651b538582d29b8dca80230f"
+    },
+    {
+      "path": "temp_lines.py",
+      "size": 176,
+      "modified": "2026-02-11T22:54:26.202941+00:00",
+      "sha256": "a74a22fab743034d219ef4e1ff30a6bc17f3662cb09d4e78c2a09321df2534f7"
+    },
+    {
+      "path": "TIER4_CorruptionFeedbackVisuals_v1.js",
+      "size": 9817,
+      "modified": "2026-01-25T11:59:09.901689+00:00",
+      "sha256": "2ed5736eda013738ff579329ca2394d336d3a74ce5038a86161fe7960ca37ac0"
+    },
+    {
+      "path": "TIER4_GameplayFeedbackUI_v1.js",
+      "size": 12249,
+      "modified": "2025-12-30T13:56:49.324073+00:00",
+      "sha256": "181b636742173e2f8d0a812fff823d480f496f4dafe15fc0733f1d28b34abda3"
+    },
+    {
+      "path": "TIER4_GameplayIntegrationBridge_v1.js",
+      "size": 9254,
+      "modified": "2026-01-25T11:57:28.243437+00:00",
+      "sha256": "8a9aa595fcc26e3d28ab2409ccb0195e7bd8f3a38618f426c2e65737782cd6ac"
+    },
+    {
+      "path": "TIER4_GameplayIntegrationCore_v1.js",
+      "size": 11145,
+      "modified": "2026-01-25T12:03:42.147054+00:00",
+      "sha256": "bdec4fec974f6d99c0282fa4f15450286835140ccd412b908b41defb1fcc2f0c"
+    },
+    {
+      "path": "tmp_search.py",
+      "size": 424,
+      "modified": "2026-02-11T09:50:00.205106+00:00",
+      "sha256": "489ba937441af74a29899b44113387a6ba838f3e97c80810d340264915af8487"
+    },
+    {
+      "path": "tmp_three.js",
+      "size": 78,
+      "modified": "2026-01-27T23:03:37.050197+00:00",
+      "sha256": "bcb55b21302884aeb45cef731fb824be2ea0384a113076dfd13e5d0b017d55be"
+    },
+    {
+      "path": "TopologyBiasVisualizationLayer.js",
+      "size": 26941,
+      "modified": "2026-01-25T12:08:45.766147+00:00",
+      "sha256": "1abd67f7a99b89b8d0581fc506aefc39b871622e130ccee5513b99a27f0b1c15"
+    },
+    {
+      "path": "TrafficEngine.ts",
+      "size": 21092,
+      "modified": "2025-12-30T13:56:49.389767+00:00",
+      "sha256": "ad17e23b0164f6a667ba93c6db74c666e8fd9aff21c62b842b98886c3b95fb51"
+    },
+    {
+      "path": "TRAFFIC_INTEGRATION_EXAMPLES.ts",
+      "size": 21329,
+      "modified": "2025-12-30T13:56:49.393937+00:00",
+      "sha256": "59522eab59aa03ac4f071d7341328398c6754164a71642b371f809863f2eb6dc"
+    },
+    {
+      "path": "TransparentStateAuthority.js",
+      "size": 5213,
+      "modified": "2026-02-09T19:25:57.339453+00:00",
+      "sha256": "6712b9a0415789d16c33862f64171ad127b1c63d94655d72499d2ef8d0984726"
+    },
+    {
+      "path": "UIControlledStateFix_1_0.js",
+      "size": 16475,
+      "modified": "2025-12-30T13:56:49.448758+00:00",
+      "sha256": "7a91880112f67a143c4f7b4669cb63c516b16fd310b7c51d33451932281c57f3"
+    },
+    {
+      "path": "UIHelpText.js",
+      "size": 1966,
+      "modified": "2026-01-12T11:20:07.540805+00:00",
+      "sha256": "90fe60264a809c3396bd80ecb40e91ec28bffa2bec8bde5baca8584ab2bd37f2"
+    },
+    {
+      "path": "UIHudManager.js",
+      "size": 6773,
+      "modified": "2026-01-15T13:34:15.491997+00:00",
+      "sha256": "d500eb9a67ffdcbbbf2c359d075dcfcfd462c658143e34662ee9fbcfea3453d4"
+    },
+    {
+      "path": "UINodeInspectPanel.js",
+      "size": 9345,
+      "modified": "2026-01-14T20:23:36.154369+00:00",
+      "sha256": "8197d4b7fd75bbdc4e30d0c9cebbac6f11026d707f7966b6a6925673e02f9143"
+    },
+    {
+      "path": "UISelectedHUD.js",
+      "size": 22472,
+      "modified": "2025-12-30T13:56:49.505306+00:00",
+      "sha256": "c6fc644d093910f077e45633086fd32f86f2b045ae0184b40f99477ad443dd23"
+    },
+    {
+      "path": "UIWorldStatusBar.js",
+      "size": 4330,
+      "modified": "2025-12-30T13:56:49.573152+00:00",
+      "sha256": "711f3f27b578c476d10ff5013edb263e385794f68617e8369825ab8f14ee6c7f"
+    },
+    {
+      "path": "UndoRedoSystem.js",
+      "size": 13348,
+      "modified": "2025-12-30T13:56:49.606599+00:00",
+      "sha256": "4643f448305e911e7ee48374775b68b0b4f070d8abe202977ad6d123598b1e3e"
+    },
+    {
+      "path": "UniqueSpawnRegistry.js",
+      "size": 2986,
+      "modified": "2026-02-10T09:54:46.565364+00:00",
+      "sha256": "fddfe9a78e18a77a51794560f8b485778b3fe353baa7692a85577e9e84e20f11"
+    },
+    {
+      "path": "UserAcceptanceTracker1_0.js",
+      "size": 2918,
+      "modified": "2025-12-30T13:56:49.623195+00:00",
+      "sha256": "a64408bade187a199a32d9163b354d417832078fcf110a11f687fcbca900c288"
+    },
+    {
+      "path": "VerifyLinkStateContractCompliance.js",
+      "size": 11746,
+      "modified": "2025-12-30T13:56:49.647148+00:00",
+      "sha256": "71af16abbf43c9bc0f705939bc7bde04bf84f298627864684ba138f98cc595fa"
+    },
+    {
+      "path": "VisualAudit.js",
+      "size": 11821,
+      "modified": "2025-12-30T13:56:49.650815+00:00",
+      "sha256": "0bafe3aad1636bb66ba95d08de47752b283863132e9f6150ea77b6c323c0a427"
+    },
+    {
+      "path": "VisualAuthorityLock.js",
+      "size": 6820,
+      "modified": "2025-12-30T13:56:49.666769+00:00",
+      "sha256": "98af7d0db3a0f0500a182426be9e4d5be1d43f944393bdfe57cb05f4f4e1cf56"
+    },
+    {
+      "path": "VisualAutoWiringSystem.js",
+      "size": 12528,
+      "modified": "2025-12-30T13:56:49.681316+00:00",
+      "sha256": "273264ca793508ed0a37bf9f101067ca5385179729a2a074b5a7dba63bdc5f08"
+    },
+    {
+      "path": "VisualEchoTrails_v1_Integration.js",
+      "size": 8581,
+      "modified": "2025-12-30T13:56:49.701364+00:00",
+      "sha256": "702bd86d1444b2af82f05a36f856e8e5da76572ac31a98344fd33eca020e0ba3"
+    },
+    {
+      "path": "VisualEchoTrails_v1_Shader.js",
+      "size": 12719,
+      "modified": "2025-12-30T13:56:49.705526+00:00",
+      "sha256": "773880ca6bf6caa0707809e136a804c0c895a6947774de1def7d2c4b31fdaf86"
+    },
+    {
+      "path": "VisualHierarchyRegistry.js",
+      "size": 11946,
+      "modified": "2025-12-30T13:56:49.767696+00:00",
+      "sha256": "81f32d7a1a4e88dafe2f1b016f3af74f8088ba3f5ffc4daf8396d20ca4795fb2"
+    },
+    {
+      "path": "VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js",
+      "size": 16553,
+      "modified": "2026-02-12T12:29:04.441623+00:00",
+      "sha256": "c4e8b07b4edfb86d2f99354da51c75de08a173c7662e0b979aa4c4605cbfb6ba"
+    },
+    {
+      "path": "VisualizationEngine.ts",
+      "size": 17762,
+      "modified": "2025-12-30T13:56:49.804671+00:00",
+      "sha256": "05981e625c2f07e73eb7eae5091a133fce176c0eeebbf08e5359c9b418528f47"
+    },
+    {
+      "path": "VisualLayerDebugger.js",
+      "size": 5867,
+      "modified": "2025-12-30T13:56:49.808074+00:00",
+      "sha256": "28d7b6c7d86b852c7309f6afe54ab728d01632042a5ea4ac410f2d2d5a16a327"
+    },
+    {
+      "path": "VisualLayerEnforcementGate.js",
+      "size": 16672,
+      "modified": "2026-02-12T12:31:06.074440+00:00",
+      "sha256": "144c8ac786b3678e62d2595b340a0317aded4d82b5268cf72ee5bb9755e4293b"
+    },
+    {
+      "path": "VisualLockFrameHook.js",
+      "size": 272,
+      "modified": "2026-01-19T18:03:01.849464+00:00",
+      "sha256": "f40a5091882694a1d4efd85cffe152867c79f24614a1c2383692af837284ef0b"
+    },
+    {
+      "path": "VisualMetricModel_v1.js",
+      "size": 14219,
+      "modified": "2026-01-25T12:11:56.419607+00:00",
+      "sha256": "ac49bcdc60d3d8aa8d943128384abedb67ba56a098b9201f82b13e06ec531e9c"
+    },
+    {
+      "path": "VisualNetworkTimeElasticity_v1.js",
+      "size": 7328,
+      "modified": "2025-12-30T13:56:49.914726+00:00",
+      "sha256": "2b52393759cbfe0b697f96dee6f759c788812fa9509a1937b3db17e0d5fd95fd"
+    },
+    {
+      "path": "VisualOverlayAuditSystem.js",
+      "size": 9765,
+      "modified": "2026-02-01T13:52:11.614377+00:00",
+      "sha256": "ba1f3fe79d9e7c1df5296dab6faf62f2f7e8bad7fa5f1cf6ff20f9ee4617a403"
+    },
+    {
+      "path": "VisualSpherePolicy.js",
+      "size": 10218,
+      "modified": "2026-02-10T20:30:11.261632+00:00",
+      "sha256": "9ee23630ec5c1b8717c74267c209750fbb5d621c9e69e548b26618b3b8743eef"
+    },
+    {
+      "path": "VisualStateSnapshot.js",
+      "size": 12236,
+      "modified": "2026-01-27T20:51:13.667114+00:00",
+      "sha256": "568601f7cae0c297c90115b4cbdbf4f58f487814c17938b808ef08a8fe0c1198"
+    },
+    {
+      "path": "VisualTemplateReferenceImplementations.js",
+      "size": 14955,
+      "modified": "2026-01-25T12:14:11.944407+00:00",
+      "sha256": "7d4552e80509db36f411c54a74a20667a918e1fa371aee5c62a9ff08633e66ea"
+    },
+    {
+      "path": "VisualTemplateRegistry.js",
+      "size": 8377,
+      "modified": "2025-12-30T13:56:49.991615+00:00",
+      "sha256": "1f0f9be2704fd3b318304354f876c7023aa83655cdad7ddec05ff43dcab05233"
+    },
+    {
+      "path": "VisualTemplateResolver.js",
+      "size": 12585,
+      "modified": "2025-12-30T13:56:49.998194+00:00",
+      "sha256": "4c555a6ceb0590396e341e4bb9d206d75f89dafbbba222ff4b98293d2b6ce98f"
+    },
+    {
+      "path": "VisualUpgradeSuperpack.js",
+      "size": 26709,
+      "modified": "2026-02-11T20:12:49.229818+00:00",
+      "sha256": "b0b0f4ca821d348224de3078280e9060f75cf499cee45e0fc60484ef63c09c26"
+    },
+    {
+      "path": "VISUAL_HIERARCHY_VERIFICATION_TEST.js",
+      "size": 10224,
+      "modified": "2025-12-30T13:56:49.775519+00:00",
+      "sha256": "ea38c90fc71227f5f29e5beb3e6923ebccca2b09ec4721677b4c5f0a8f089c59"
+    },
+    {
+      "path": "W21_ResonanceFeedback_Snippets.js",
+      "size": 16509,
+      "modified": "2025-12-30T13:56:50.085770+00:00",
+      "sha256": "877a05f07040c996f4664f2178105b4230be158e24f47402084f508824955928"
+    },
+    {
+      "path": "W23_TRAVELING_WAVE_FX_SNIPPETS.js",
+      "size": 25097,
+      "modified": "2025-12-30T13:56:50.109972+00:00",
+      "sha256": "aa1e70174bc691b0e671c8a89d56d99a708e3cb1b80aee71246ab77e0479618e"
+    },
+    {
+      "path": "WaveDynamicsShaderPack_v1.js",
+      "size": 18527,
+      "modified": "2026-01-27T16:29:35.699244+00:00",
+      "sha256": "34437e81fcf52b1dab31a7bdd0e4634806a3c07d196c6cda186e9ff35a07579b"
+    },
+    {
+      "path": "WaveInterferenceEngine_v1.js",
+      "size": 20056,
+      "modified": "2026-02-06T20:30:51.037517+00:00",
+      "sha256": "28e665e6e80213957caa461c1a02ede6e0dd47dc886361c8fb9350a53a1739e2"
+    },
+    {
+      "path": "WaveInterferencePatternSystem_Session132.js",
+      "size": 26828,
+      "modified": "2025-12-30T13:56:50.146320+00:00",
+      "sha256": "810ff400d4910df8d4e242c0d3a491bdbe0d76c66f4eac9159a8909c14d31f5c"
+    },
+    {
+      "path": "WaveParticleEmitter_v1.js",
+      "size": 23901,
+      "modified": "2026-02-06T20:24:25.709274+00:00",
+      "sha256": "4771d2f39e0908adbb05bf8691f47911da31726690b856dfe16e88b85721ea98"
+    },
+    {
+      "path": "WaveShaderBridge_v1.js",
+      "size": 24417,
+      "modified": "2026-02-06T20:28:28.926826+00:00",
+      "sha256": "9c9db21c0e8a820372f97ad573e5cfec049b88a79d69bf2eafaaed06895ca8dd"
+    },
+    {
+      "path": "WaveShaderMaterialPatch_v1.js",
+      "size": 17694,
+      "modified": "2026-01-27T16:30:39.097442+00:00",
+      "sha256": "eef13f85f7c348aa2629b39d43714faaf61030f80c276e05dd092a0fbb1f01ff"
+    },
+    {
+      "path": "WaveTravelShaderPack_v1.js",
+      "size": 19412,
+      "modified": "2026-01-27T16:28:22.125307+00:00",
+      "sha256": "c0aaf2daeb1750879d547d394e1985c9f6659f488be97d22f76ffe4d0244fe8d"
+    },
+    {
+      "path": "WAVE_INTERFERENCE_ENGINE_SNIPPETS.js",
+      "size": 18516,
+      "modified": "2025-12-30T13:56:50.133951+00:00",
+      "sha256": "90991446b5f2182ce2baafe190bfaee4cdfde4699dcf8b40df789ae086ffa9ab"
+    },
+    {
+      "path": "WEEK10_LINK_AURA_INTEGRATION_SNIPPET.js",
+      "size": 12082,
+      "modified": "2025-12-30T13:56:50.170891+00:00",
+      "sha256": "08272d5134b76274489269aba25d1324a29ec941c72b2d9954c996d0a64b585e"
+    },
+    {
+      "path": "WEEK11_MYTHIC_EVOLUTION_INTEGRATION_SNIPPET.js",
+      "size": 13201,
+      "modified": "2026-01-25T12:18:32.005777+00:00",
+      "sha256": "71bc8ee583c50dd91b6b96907710dec04d6b1d42aa8f02f2ad60489ff37bf2bd"
+    },
+    {
+      "path": "WEEK12_MYTHIC_AURA_INTEGRATION_SNIPPETS.js",
+      "size": 13350,
+      "modified": "2025-12-30T13:56:50.217225+00:00",
+      "sha256": "37bb6336ce9423a448edab9602ea5dedca5177a56480a7bd165d88efd486496a"
+    },
+    {
+      "path": "WEEK13_ARCHETYPE_CURVES_SNIPPETS.js",
+      "size": 15739,
+      "modified": "2025-12-30T13:56:50.236673+00:00",
+      "sha256": "6e666c3891615cf839dcbbcb4007098f633e91d82e0a28abe8c4c82333fc29d0"
+    },
+    {
+      "path": "WEEK14_AURA_INTEGRATION_SNIPPETS.js",
+      "size": 14635,
+      "modified": "2025-12-30T13:56:50.265009+00:00",
+      "sha256": "f4dd388e8b98f3b46aa6c379bfdf162504d629ab14e6122f212828b8497af647"
+    },
+    {
+      "path": "WEEK15_COLOR_SNIPPETS.js",
+      "size": 9661,
+      "modified": "2025-12-30T13:56:50.283462+00:00",
+      "sha256": "c5dc778c473a62953b40454717e6709ce89f01aef0613543bedd178cf2845689"
+    },
+    {
+      "path": "WEEK16_SHADER_MODE_SNIPPETS.js",
+      "size": 12381,
+      "modified": "2025-12-30T13:56:50.308806+00:00",
+      "sha256": "aecbd0913a2de4131ea627d49b0c8425d891db500cc4e9013862b44691fe03e5"
+    },
+    {
+      "path": "Week20_Integration_Snippet.js",
+      "size": 14402,
+      "modified": "2025-12-30T13:56:50.362339+00:00",
+      "sha256": "680d1cf5a3f133f957f3eb8b82c484dd0a8e902f97becb2c83915f64ebe70ded"
+    },
+    {
+      "path": "WEEK25_CASCADE_FX_SNIPPETS.js",
+      "size": 22289,
+      "modified": "2025-12-30T13:56:50.415231+00:00",
+      "sha256": "6649da8d47f094a34fd95a96c5139d186c24c23962e661967a512dde312f69a6"
+    },
+    {
+      "path": "WEEK5_INTEGRATION_SNIPPET.js",
+      "size": 8296,
+      "modified": "2025-12-30T13:56:50.467517+00:00",
+      "sha256": "9cb17133c6b184ee9bf77eb5a55fdbd4100e36dcfff75e6dbe0ea90fa5c162de"
+    },
+    {
+      "path": "WEEK6_INTEGRATION_SNIPPET.js",
+      "size": 12306,
+      "modified": "2025-12-30T13:56:50.490964+00:00",
+      "sha256": "c4557a55fe31a5cf25c69d4e2719beb471c18aa44083c698900ecd2c7f6f4df2"
+    },
+    {
+      "path": "WEEK7_INTEGRATION_SNIPPET.js",
+      "size": 12897,
+      "modified": "2025-12-30T13:56:50.499004+00:00",
+      "sha256": "3c62b9832c66c7c678496a754371e3fea84427ef02142f9c24f6eaed4ea4a244"
+    },
+    {
+      "path": "WEEK8_ALT_INTEGRATION_SNIPPET.js",
+      "size": 13221,
+      "modified": "2025-12-30T13:56:50.532435+00:00",
+      "sha256": "b6aec5d7fb8824c3bb5dcea24df4f6efc297d48b2b4312c3939943bb8833137a"
+    },
+    {
+      "path": "WEEK9_AURA_INTEGRATION_SNIPPET.js",
+      "size": 14016,
+      "modified": "2025-12-30T13:56:50.535452+00:00",
+      "sha256": "397d31309c868eadfce153fad2c68996a3a1c774205591c5e05d3395674fa22e"
+    },
+    {
+      "path": "World.js",
+      "size": 15439,
+      "modified": "2026-02-09T20:04:28.041615+00:00",
+      "sha256": "45c9f9663d92aed7241e7bc476661f9b2ebcdbe7c3ef7c4a0c28bce9c77b2c73"
+    },
+    {
+      "path": "WorldRuntime_v1.js",
+      "size": 6300,
+      "modified": "2026-01-29T15:13:44.070094+00:00",
+      "sha256": "46480d95c9a68da378cac9a36c9fe0ba670851669d90a5daab36b79a3f267722"
+    },
+    {
+      "path": "WorldScaffold_v2.js",
+      "size": 10086,
+      "modified": "2026-01-17T20:40:16.187641+00:00",
+      "sha256": "7626084680f3cd7164c7d8833b45feeb5e1db8697d7fbd2a1164d21bb9d08782"
+    },
+    {
+      "path": "ZeroGravityControls.js",
+      "size": 8843,
+      "modified": "2026-01-29T20:52:49.173534+00:00",
+      "sha256": "784c7b0923db9bdbbc5f1a5726583bb5ead68cbc2b0541228ef7dde0faf18116"
+    },
+    {
+      "path": "ZoneAudioReactivity.js",
+      "size": 22006,
+      "modified": "2025-12-30T13:56:50.625683+00:00",
+      "sha256": "5947ef1c8e35ed053263c6ce5e64388ce7abfaa8b562d9da566c0e163d7a1b73"
+    },
+    {
+      "path": "_AdaptiveGlyphRendering1_0.js",
+      "size": 17982,
+      "modified": "2026-02-07T19:25:34.487579+00:00",
+      "sha256": "1e642311c67e6bd6793f3f86bf2cbbd25031e794b025c004c4ad0d53827eff2b"
+    },
+    {
+      "path": "_AIEmotionalFeed3_1.js",
+      "size": 9768,
+      "modified": "2026-01-22T16:02:33.494885+00:00",
+      "sha256": "cf5aa04d15c928451b819b256df43c254545427e5a8aa37aedd4e3db93d1d142"
+    },
+    {
+      "path": "_AINarrativePatterns6_0.js",
+      "size": 22635,
+      "modified": "2026-01-19T23:41:09.045862+00:00",
+      "sha256": "87e13ad88a4ce61979a3fddffd820d78aac61eb048536ad115bb6011b65cb13e"
+    },
+    {
+      "path": "_AIThoughtStorms2_0.js",
+      "size": 24769,
+      "modified": "2026-01-19T23:28:07.996602+00:00",
+      "sha256": "53f34f32563fc85f61fbc07415b8467301994f920128a952b68b8b0662da6683"
+    },
+    {
+      "path": "_AmbientEntityManager.js",
+      "size": 21643,
+      "modified": "2026-01-22T16:12:33.754764+00:00",
+      "sha256": "ff67b3c7f64272442df19ed624ed1b59c664f1a1383ce982e9930afd96b583d9"
+    },
+    {
+      "path": "_AmbientEntityRegistry.js",
+      "size": 4764,
+      "modified": "2025-12-30T13:56:38.244615+00:00",
+      "sha256": "db60c88b2fbddc5117c171a728bbd062ad5f2ebf100269fbe9d938239fd7e2a6"
+    },
+    {
+      "path": "_AtomaGlyphSystem3_0.js",
+      "size": 42735,
+      "modified": "2026-01-25T23:36:53.576762+00:00",
+      "sha256": "e14636e94e1a73ff43835f6a6ae93f6eb44271b59c72cce4cb06c270083eab53"
+    },
+    {
+      "path": "_AtomaGlyphSystem4_0.js",
+      "size": 61123,
+      "modified": "2026-01-25T23:57:32.476819+00:00",
+      "sha256": "7cd05805f4a133dc64617b78ab71748f3ee5eabd1332771b0bbc5eb09e110410"
+    },
+    {
+      "path": "_AtomaLanguageEngine2_0.js",
+      "size": 22671,
+      "modified": "2026-01-16T22:49:30.974204+00:00",
+      "sha256": "048b66c8cf7f956d89a17d9fc023ee10e5209d9ce0bf48b77ad1170574e5a0a7"
+    },
+    {
+      "path": "_AtomaLanguageEngine3_0.js",
+      "size": 32061,
+      "modified": "2026-01-16T22:51:04.936579+00:00",
+      "sha256": "ed680977acf3e125383779a3415a3e74f6ac98c4aa5c57ef7f5816c8500017a6"
+    },
+    {
+      "path": "_AtomaNamingEngine.js",
+      "size": 17771,
+      "modified": "2025-12-30T13:56:38.650929+00:00",
+      "sha256": "f5206ffbd0352ba36135aa58ce99be71134dbfaa53c517a39a06d30fd96d17db"
+    },
+    {
+      "path": "_AtomaUIUpdate3_0.js",
+      "size": 12142,
+      "modified": "2026-01-22T16:30:05.939483+00:00",
+      "sha256": "c81b9665523e155f8bf6fec7e6f0c571d382861b338cd4ef3a9a08cb880764c9"
+    },
+    {
+      "path": "_DynamicLinkThicknessSystem.js",
+      "size": 10056,
+      "modified": "2025-12-30T13:56:40.401159+00:00",
+      "sha256": "d92f1355f93b1afa32d729a72f4334b9668c37684724dbc36ff707933cf7adb9"
+    },
+    {
+      "path": "_EmergentThoughtStorms5_0.js",
+      "size": 26759,
+      "modified": "2026-01-16T23:00:07.260110+00:00",
+      "sha256": "4dd45cb2e8c977520a7400ff29d4c4fdf5c43beee842ed4cdafb06ca81ac856f"
+    },
+    {
+      "path": "_EmissiveUtils.js",
+      "size": 5216,
+      "modified": "2025-12-30T13:56:40.491671+00:00",
+      "sha256": "8e29e1387d49ad5554e05dc7d0687f33df248c98e46f74d9aef7490ff7e41897"
+    },
+    {
+      "path": "_EvolvingLinkFX2_0.js",
+      "size": 21599,
+      "modified": "2025-12-30T13:56:40.627138+00:00",
+      "sha256": "15fdc5c8175d18a432f90004c9942a39d00f8925c339582a53a23dce40920de2"
+    },
+    {
+      "path": "_ExtremeAINodeEvolution3.js",
+      "size": 30667,
+      "modified": "2026-02-07T11:17:44.358699+00:00",
+      "sha256": "0a121c350babca75de48bbddff2df866eb8b424839faad123bf20fdf86a3be92"
+    },
+    {
+      "path": "_ExtremeAINodePack.js",
+      "size": 32687,
+      "modified": "2026-01-31T14:20:40.326407+00:00",
+      "sha256": "9eecab556ffd0b6d6eb057c16181a9efef98af80a932b5173abf2bdbffe3b1d8"
+    },
+    {
+      "path": "_ExtremeAIShaderPack.js",
+      "size": 30435,
+      "modified": "2026-01-22T18:10:50.038467+00:00",
+      "sha256": "c702ba3e54e0dd7408e3a5ed910564040acdf59bf6b53b4bde08a04b77a58a22"
+    },
+    {
+      "path": "_ExtremeAIShaderTestSuite.js",
+      "size": 21843,
+      "modified": "2026-01-22T18:24:50.624188+00:00",
+      "sha256": "9b152b546f4256dc812e3101668d38f7a2e25a1d50a62adf6128e97d8c6f0d92"
+    },
+    {
+      "path": "_ExtremeLinkVisualPack3.js",
+      "size": 20487,
+      "modified": "2026-01-25T23:09:52.941226+00:00",
+      "sha256": "8f392ea0ec3a979a99b9c0df887489824d0a94d330814c0003a57a3cac77a446"
+    },
+    {
+      "path": "_ExtremeLinkVisuals4_0.js",
+      "size": 23270,
+      "modified": "2026-01-26T09:04:24.012525+00:00",
+      "sha256": "a1b40649dddc8e81d82a187ef40670e28b3b7dffc560c4f2ba9013fbe840105b"
+    },
+    {
+      "path": "_ExtremeNodeArchetypes_SafePack.js",
+      "size": 25117,
+      "modified": "2026-01-17T18:25:58.050629+00:00",
+      "sha256": "9e13bd7c458dc341dfb31df04f4a3b63b15c3613406aeaadf81e3bd40175326e"
+    },
+    {
+      "path": "_FractalHexMarker.js",
+      "size": 16873,
+      "modified": "2026-01-22T18:28:35.321562+00:00",
+      "sha256": "da513900bf1f4df52e44e2b51eeefd069e5b56e2ee2b835670cab1da5caab859"
+    },
+    {
+      "path": "_GlyphFusionOverlay4_1.js",
+      "size": 21393,
+      "modified": "2026-01-16T23:02:35.489516+00:00",
+      "sha256": "3189f24ef506e6e16c7fb45fe24edd5b611f949cf99542a2802b35f014584f68"
+    },
+    {
+      "path": "_GlyphLayer4_MultiFusion.js",
+      "size": 35461,
+      "modified": "2026-02-12T11:20:57.837163+00:00",
+      "sha256": "987bb5adfe909ef267d623f3d65c9577d579f375d58c6fce36eadd9b1ead0a30"
+    },
+    {
+      "path": "_GlyphPurityMode5_1.js",
+      "size": 11560,
+      "modified": "2026-01-16T23:05:06.614246+00:00",
+      "sha256": "a9eb1d3eaed9bed032ce4feed4471b16a98e7daa0307290d9201133222e7beb8"
+    },
+    {
+      "path": "_HitProxySystem_v1.js",
+      "size": 17295,
+      "modified": "2026-02-12T12:35:26.680346+00:00",
+      "sha256": "154f2c3b167b62e6b1dc8b900c39acb19e3a4545fe980e0fe458fd38b57da417"
+    },
+    {
+      "path": "_IntegrationNodeSelectionFix.js",
+      "size": 9958,
+      "modified": "2026-02-12T14:56:51.164548+00:00",
+      "sha256": "0d933b1a4391490de311c7a17857e0df34f481ab361d57bc50d10b4657c6b648"
+    },
+    {
+      "path": "_LegacyDebugConeCleanup.js",
+      "size": 11788,
+      "modified": "2025-12-30T13:56:42.232439+00:00",
+      "sha256": "76be859b186a9a87a9bebc214c53c53a5b41438705108d182391d2e5a7f1173a"
+    },
+    {
+      "path": "_LegacyGlyphCleanup.js",
+      "size": 7149,
+      "modified": "2025-12-30T13:56:42.244090+00:00",
+      "sha256": "1a1e117d8cc736d346d3b35b3d07fb0735eae3266fba20749d938f752643216f"
+    },
+    {
+      "path": "_LinkedGlyphMessaging3_0.js",
+      "size": 23727,
+      "modified": "2026-01-16T23:08:51.243265+00:00",
+      "sha256": "e1e12062ae2b2aabd7b7b369b7a5ba3f695ba33fad04aea0b5fcde67b837c24c"
+    },
+    {
+      "path": "_LinkedGlyphSynchronization1_0.js",
+      "size": 19126,
+      "modified": "2026-01-16T23:09:09.234186+00:00",
+      "sha256": "a2439247e5fb22006d2e4fa6cd96be72228baf32ef9a51b84fac7caff1e4a6d7"
+    },
+    {
+      "path": "_LinkGlyphFlow.js",
+      "size": 14386,
+      "modified": "2026-01-22T18:35:20.866600+00:00",
+      "sha256": "c113decdf40bd84511ac66315d355c487bdce3c2e7fffc9fa1ef33b6ab656991"
+    },
+    {
+      "path": "_MythicNodeCreation.js",
+      "size": 28347,
+      "modified": "2026-02-10T09:51:05.394829+00:00",
+      "sha256": "ab4c83705c7be218e68f027d1d44235bf39463ff5c1880f397c77cf4a480370c"
+    },
+    {
+      "path": "_MythicRitualController.js",
+      "size": 31907,
+      "modified": "2026-02-11T20:47:32.447776+00:00",
+      "sha256": "005fbfca180fc23c668894fde4e5bb0249b985e2ba5c41ba0416e0ec33aaea2d"
+    },
+    {
+      "path": "_MythicRitualPlayer.js",
+      "size": 29738,
+      "modified": "2025-12-30T13:56:43.623470+00:00",
+      "sha256": "def00d6c2bd3e39e29ae6d082194e7f2daa462489699dda3e436080b8c4947c7"
+    },
+    {
+      "path": "_MythicSeedGlyph.js",
+      "size": 12990,
+      "modified": "2025-12-30T13:56:43.631836+00:00",
+      "sha256": "35fdaec04f18c4af787746ea9e13aae5354359cea9eb3ae35dae29bdbbbb29b1"
+    },
+    {
+      "path": "_NeuralCurveLinkVisuals.js",
+      "size": 17432,
+      "modified": "2026-02-10T14:06:44.064507+00:00",
+      "sha256": "c23f5643dc548bc0580843e01e0e00e37675d414480df767a04235b07b9ce324"
+    },
+    {
+      "path": "_NewNodeCategoryVisuals.js",
+      "size": 31235,
+      "modified": "2025-12-30T13:56:43.777606+00:00",
+      "sha256": "e0f184fc357c045681956153b47944f52b406416ee177a0e63435edf3540b639"
+    },
+    {
+      "path": "_NodeEvolution2_0.js",
+      "size": 27823,
+      "modified": "2026-02-07T21:18:16.081096+00:00",
+      "sha256": "b49d6c6dbd3b517c761cde951a38a58b5703009c4dde7a9e0b1bb686db28fd77"
+    },
+    {
+      "path": "_NodeEvolution3_ExtremeSafe.js",
+      "size": 14942,
+      "modified": "2026-01-22T18:41:51.086056+00:00",
+      "sha256": "30c8636ba890a2f4e0ad73a2b598a310a256f0f4a132168e6bda4bb320972a9d"
+    },
+    {
+      "path": "_NodeInspectLinguisticOverlay.js",
+      "size": 14241,
+      "modified": "2025-12-30T13:56:44.074036+00:00",
+      "sha256": "ae6c97be7331c638576dc2c4cdfc6dcdde440a76477188ac5811418ce46e9a2d"
+    },
+    {
+      "path": "_NodeLinking2_3.js",
+      "size": 29744,
+      "modified": "2026-02-12T11:16:38.488451+00:00",
+      "sha256": "d45171956c08440b875b675912b4c17e41eccc3f6c1440a9102eb3106afee63e"
+    },
+    {
+      "path": "_NodeMicroEvents.js",
+      "size": 33231,
+      "modified": "2026-02-07T19:28:19.370534+00:00",
+      "sha256": "6d9c1c64d8c0f6fa7fdb63b6eb22ead3b2b7880b7b24a174ad211c6c593b4e5e"
+    },
+    {
+      "path": "_NodeSelectionCore3_4.js",
+      "size": 9194,
+      "modified": "2025-12-30T13:56:44.311985+00:00",
+      "sha256": "38ce27696993c27c02d14f382fca50cc25fa2e2df77bf205372b63e827a0c8d8"
+    },
+    {
+      "path": "_NodeSpawnLogger4_0.js",
+      "size": 5639,
+      "modified": "2025-12-30T13:56:44.371014+00:00",
+      "sha256": "060dd12e0d9c8d6a8b752ab51e0e45d483ba237b9401f1551ae4e2b34661b274"
+    },
+    {
+      "path": "_NodeVisualBootstrap3_0.js",
+      "size": 9632,
+      "modified": "2025-12-30T13:56:44.498603+00:00",
+      "sha256": "f4b969ba5aabd74fa80622f7b1421636fd6ec153189fa98f67df8c3945bc4399"
+    },
+    {
+      "path": "_NodeVisuals4_0.js",
+      "size": 19204,
+      "modified": "2026-02-07T21:18:12.467582+00:00",
+      "sha256": "fb7cfd38b474d11538d13913437eb836f31313838364c0991e40c11e73e54b93"
+    },
+    {
+      "path": "_ObjectExtensibilityGuard.js",
+      "size": 6318,
+      "modified": "2025-12-30T13:56:44.590556+00:00",
+      "sha256": "188f08a4aab1174f078dfc321c08f4f6c8a8ba1e6a896154c1ea692f3079cb52"
+    },
+    {
+      "path": "_ProceduralMeaningEngine.js",
+      "size": 23720,
+      "modified": "2026-01-16T23:12:31.671167+00:00",
+      "sha256": "519969dd196224151ff1ab27e66150afa2e7cc006e7523d76d4887fb76a9ee95"
+    },
+    {
+      "path": "_RareNodeSimulationVerifier.js",
+      "size": 7175,
+      "modified": "2025-12-30T13:56:45.732037+00:00",
+      "sha256": "56dcc67d0f6ac30063a0424af12c74321d5945faf036eb129599797f335a60f2"
+    },
+    {
+      "path": "_RareNodeSpawner.js",
+      "size": 22175,
+      "modified": "2026-02-09T20:26:22.467207+00:00",
+      "sha256": "db0f98eec7167d7343c625cbc1e6387c3ef2b925d4aeeb04879250b966530f39"
+    },
+    {
+      "path": "_RecursiveGlyphMessaging4_0.js",
+      "size": 27903,
+      "modified": "2026-01-16T23:13:05.184848+00:00",
+      "sha256": "8931681fccea86a1e87d9d86992cc2af2e2ae5567685f249f0a62fd571db1c84"
+    },
+    {
+      "path": "_RecursiveGlyphSignalSystem.js",
+      "size": 18169,
+      "modified": "2026-02-11T22:01:48.642758+00:00",
+      "sha256": "07f3c36246f073d9242bf3a3901f71e1afabdfd784d9994feb32f1ce794ef737"
+    },
+    {
+      "path": "_SafeAIWeatherPack.js",
+      "size": 31170,
+      "modified": "2026-01-19T21:41:20.462613+00:00",
+      "sha256": "9b579304d4a8a12008189aed9c5a94892ea6ce86edf3041cb2db0e29f2adafed"
+    },
+    {
+      "path": "_SafeEvolutionManager.js",
+      "size": 18892,
+      "modified": "2026-02-10T14:47:44.418732+00:00",
+      "sha256": "ae08799a0198636cce810aacfedece86250799bddfab6d842b20ebc28a629ea5"
+    },
+    {
+      "path": "_SafeLegendaryLinkFX.js",
+      "size": 32165,
+      "modified": "2026-02-10T14:47:44.419738+00:00",
+      "sha256": "a0c4e598fcd7ccdd6e1f02cc9ae2ac0af7a40dfaa7bb60febf97f4d721800fa1"
+    },
+    {
+      "path": "_SafeLegendaryNodePack.js",
+      "size": 30874,
+      "modified": "2026-02-10T14:47:44.421334+00:00",
+      "sha256": "67255e04f612998db2de8910c66eb62feb16c06374d34326720bf620ee796fd5"
+    },
+    {
+      "path": "_SafeLegendaryWorldEvents.js",
+      "size": 26308,
+      "modified": "2026-02-10T14:47:44.422853+00:00",
+      "sha256": "05bf4cc2c0deac451549508daa98691f6b654411058e221f7a2eb2821f5515ac"
+    },
+    {
+      "path": "_SafeNewNodeCategories1_0.js",
+      "size": 29292,
+      "modified": "2026-01-16T23:16:00.154650+00:00",
+      "sha256": "5daf017145902c620d200e795c760de8324d72b2948b02d0176a6a613e200e07"
+    },
+    {
+      "path": "_SafeNodeArchetypesPack.js",
+      "size": 36890,
+      "modified": "2026-02-09T20:04:57.364761+00:00",
+      "sha256": "62816fc6b9c155a1a9155c414dfe90de99d887b48f2f3fd6d3ec309dba6a2221"
+    },
+    {
+      "path": "_SafeNodePersonalityFX.js",
+      "size": 23927,
+      "modified": "2026-01-26T20:32:58.452014+00:00",
+      "sha256": "70e5eec6e04fee88a258cae17d635a80d7100a08381725179b82f5982c8ec395"
+    },
+    {
+      "path": "_SafeNodeUnlinking3_3.js",
+      "size": 3673,
+      "modified": "2025-12-30T13:56:46.368775+00:00",
+      "sha256": "43fe1161f09d594fb39692b62a7f941b951ed7b5aae8034e9e27ade810029238"
+    },
+    {
+      "path": "_SafeWorldFXPack.js",
+      "size": 36573,
+      "modified": "2026-02-07T23:15:25.209852+00:00",
+      "sha256": "998bbd7c4e8138b4db4b7005812ee7c2db77af313a35d9ac2a64fbad36461a0b"
+    },
+    {
+      "path": "_SemanticGlyphAI.js",
+      "size": 28721,
+      "modified": "2026-02-12T11:21:15.258671+00:00",
+      "sha256": "5344f86a827608b55cce7e6a949e71a8330a15d2c9f608227e032e70148a5677"
+    },
+    {
+      "path": "_SESSION_38_VERIFICATION_SCRIPT.js",
+      "size": 6468,
+      "modified": "2025-12-30T13:56:47.314287+00:00",
+      "sha256": "43e4ba4573cc87ebe0a970e82d299a65e9c6b5c7b1ac3613f3a1f666cace793d"
+    },
+    {
+      "path": "_SIMULATION_INVARIANT_ENFORCEMENT.js",
+      "size": 6417,
+      "modified": "2026-02-09T18:25:35.140530+00:00",
+      "sha256": "f6e741687951a735f779ab4a94b5a5752d59b4b5e223fad30ff47badc996ca1a"
+    },
+    {
+      "path": "_T4003_CORRUPTION_CASCADE_TEST_RUNNER.js",
+      "size": 16557,
+      "modified": "2025-12-30T13:56:49.111060+00:00",
+      "sha256": "894ba65b13212548a9b17015dd9df6a0777595e8c83c26cef31c8033efc97be6"
+    },
+    {
+      "path": "_TASK_3_RARE_NODE_VERIFICATION.js",
+      "size": 11365,
+      "modified": "2026-02-09T18:26:36.621238+00:00",
+      "sha256": "94cd8f69f39cf309746c9222c50e7dffc91dc51ad5008eb7ba4efd9fecd9e387"
+    },
+    {
+      "path": "_TASK_AUDIT_DEBUG_HELPERS.js",
+      "size": 9308,
+      "modified": "2025-12-30T13:56:49.175251+00:00",
+      "sha256": "3724572493b76e42ed7bda24f1447a92d33d70566fbbdec27d538dffdaba5d55"
+    },
+    {
+      "path": "_UICategoryLegend3_1.js",
+      "size": 4955,
+      "modified": "2025-12-30T13:56:49.444659+00:00",
+      "sha256": "0ba3ddc06a035080fac6339faee306cddf3c93f70aef58f937c8d5ee813e4a7f"
+    },
+    {
+      "path": "_UIPrimaryNodeAura3_7.js",
+      "size": 6877,
+      "modified": "2026-01-22T18:51:33.800298+00:00",
+      "sha256": "69e0359715041a1ca5e82da1f5cb823e64199afc5c5b948c3a01a9ea30eb5430"
+    },
+    {
+      "path": "_UIPrimaryNodeTopBar3_7.js",
+      "size": 3533,
+      "modified": "2025-12-30T13:56:49.489804+00:00",
+      "sha256": "d5bf5bfdfc1a0ddfe983c0c4d6040c6121fc3f7582f99d71e1f8b9ab1b61baed"
+    },
+    {
+      "path": "_UISelectedNodeBadge3_2.js",
+      "size": 5170,
+      "modified": "2026-01-22T18:53:40.437685+00:00",
+      "sha256": "2029c175783c27ec51a16de3707c215b0b1e64ac7042c81dec5d4fdf4c1d7d0f"
+    },
+    {
+      "path": "_UISelectedNodeHighlight3_2.js",
+      "size": 6258,
+      "modified": "2026-01-22T18:55:10.333193+00:00",
+      "sha256": "f083834f373ab27db7261c93397d5fc2443db33c65b119d25aecf567990667d9"
+    },
+    {
+      "path": "_UISelectedNodeLabel3_3.js",
+      "size": 6544,
+      "modified": "2026-01-22T18:56:22.306251+00:00",
+      "sha256": "634ad26fd0f8701c7455f0c4777ae1b70eae18267f72a7d281db0e0df8735170"
+    },
+    {
+      "path": "_UISelectedNodeTopBar3_4.js",
+      "size": 6249,
+      "modified": "2026-01-22T18:57:21.743066+00:00",
+      "sha256": "25b70babbce919b646de2123417d38218053cc502e88cd4c91452b2c92f40fd9"
+    },
+    {
+      "path": "_VisualHierarchyCorrectionSystem_v1.js",
+      "size": 18183,
+      "modified": "2026-02-05T20:00:17.350839+00:00",
+      "sha256": "fca65335ecbc06336f1044077affe6867c15b16bda728855a23a638f44add4ad"
+    },
+    {
+      "path": "_VisualLockCompleteIntegration.js",
+      "size": 8010,
+      "modified": "2025-12-30T13:56:49.837709+00:00",
+      "sha256": "f424bd1fda209e9c1732cfd650a0fba5aa836ffd7429b0642776d79c4686ea33"
+    },
+    {
+      "path": "_VisualLockDiagnostics.js",
+      "size": 12993,
+      "modified": "2025-12-30T13:56:49.848500+00:00",
+      "sha256": "a23de37d8bb383fd42d521fb8d3d72a8f7409ef8e41b0484e3b088a69b6f9c95"
+    },
+    {
+      "path": "_VisualRootAutoRegister.js",
+      "size": 9803,
+      "modified": "2026-02-09T18:21:19.769606+00:00",
+      "sha256": "e674390647bef944cf033a3962fd803fc79824cd103a732e338c5f38d4a1c81c"
+    },
+    {
+      "path": "_WorldPersonalityController.js",
+      "size": 37529,
+      "modified": "2026-02-10T14:47:44.424446+00:00",
+      "sha256": "c5a2f1b0ace7470a7a10437c877be4aef66aad027b7adc1c224c46121309aa30"
+    },
+    {
+      "path": ".cline\\hooks\\postToolUse.js",
+      "size": 244,
+      "modified": "2026-01-11T19:22:28.859174+00:00",
+      "sha256": "0b82567e43bedd0057a377370f7102ded19aa358ce4c1bbe1cdeecd2ff0c17bd"
+    },
+    {
+      "path": ".cline\\hooks\\preToolUse.js",
+      "size": 580,
+      "modified": "2026-01-11T19:21:12.087433+00:00",
+      "sha256": "f89cf910ce9bbd7db728c5062ec8595886c96ef3cb19f1c3ae55051590f2b1ff"
+    },
+    {
+      "path": ".cline\\hooks\\taskComplete.js",
+      "size": 329,
+      "modified": "2026-01-11T19:23:02.878997+00:00",
+      "sha256": "20db1a5412edb1de5cfaa45d93888f7d5970ee6512a9b9933131e19ab9e47938"
+    },
+    {
+      "path": ".cline\\hooks\\taskStart.js",
+      "size": 434,
+      "modified": "2026-01-11T19:20:49.005697+00:00",
+      "sha256": "bc8226c9028117dda0fda29c3361acb207dd9cf5ea4eccc9abeddadf9ab1d00b"
+    },
+    {
+      "path": "assets\\UISelectedHUD.js",
+      "size": 1945,
+      "modified": "2025-12-30T13:56:50.802725+00:00",
+      "sha256": "aa3ea20fab6a6a771d60393d9f17f8708b0cb2ee45164a5fa2ba1777414e623b"
+    },
+    {
+      "path": "docs\\toto nejsu rules\\NodeStateBuffer.ts",
+      "size": 1307,
+      "modified": "2025-12-29T17:14:37.194443+00:00",
+      "sha256": "8053c8b41e040ecaa4e926e9606435ef7fecc4fc304b5025b11808f163c185cd"
+    },
+    {
+      "path": "documentation\\sanity.js",
+      "size": 27,
+      "modified": "2026-01-12T22:45:09.121121+00:00",
+      "sha256": "b2fcc3085ad46b981f1dd5d4f5ff8a905761d7618a4fd08a75a4aa22bb4c914f"
+    },
+    {
+      "path": "documentation\\scripts\\inject_frame_scheduler_guard.py",
+      "size": 1264,
+      "modified": "2026-01-25T08:37:31.731834+00:00",
+      "sha256": "6a9cdc796032378ea64e868f98295a5adecadb13b42a9fca126dc46a6724b1b6"
+    },
+    {
+      "path": "Engine\\Debug\\DebugLog.js",
+      "size": 357,
+      "modified": "2026-02-08T08:17:13.037127+00:00",
+      "sha256": "137666a240d0eb5532528e9e6afb569f7b3ae1a24ac3fcd45dd97fbb13bb9610"
+    },
+    {
+      "path": "Engine\\Debug\\MaterialFreezeGuard.js",
+      "size": 1881,
+      "modified": "2026-02-07T10:11:40.500594+00:00",
+      "sha256": "63888dc79910dad255820c6451a77ca0f16260d12d2c7a7df6be7a3d2eb64cba"
+    },
+    {
+      "path": "Engine\\Debug\\ShaderFreezeGuard.js",
+      "size": 11520,
+      "modified": "2026-02-10T14:06:10.281886+00:00",
+      "sha256": "b0064bfb5b7b9396e8c7bcb4fb6eeddfeccb90d47fe385f9fd95a4076d1e76a3"
+    },
+    {
+      "path": "Engine\\Debug\\ShaderVariantDetector.js",
+      "size": 10780,
+      "modified": "2026-02-08T08:24:49.680518+00:00",
+      "sha256": "62fe39dede3f8f8a165b4f34c8bd3378e13c124c8a5e72039d0e38c155f861f1"
+    },
+    {
+      "path": "rosie\\controls\\rosieControls.js",
+      "size": 9216,
+      "modified": "2026-01-29T21:51:27.657094+00:00",
+      "sha256": "88da59c47082ba61f664990eb63a99a146b35ac3f33394be03dd20c4d509a5f7"
+    },
+    {
+      "path": "rosie\\controls\\rosieMobileControls.js",
+      "size": 7793,
+      "modified": "2025-12-30T13:56:50.722499+00:00",
+      "sha256": "7b4658b8657abc7444ec560b9e3ac13b29a83d97fa4dc37ad5b6c1c76e8a11c5"
+    },
+    {
+      "path": "scripts\\materialMutationKillGuard.js",
+      "size": 2383,
+      "modified": "2026-02-07T16:15:54.124516+00:00",
+      "sha256": "5956766e010dcb958520f723a101b231bcb91180207c1f33a82098bfc840da79"
+    },
+    {
+      "path": "scripts\\smoke.js",
+      "size": 308,
+      "modified": "2026-01-08T07:58:46.298558+00:00",
+      "sha256": "1cd4547ae5ac65c1e50294cdb26f2020c2a18edbab854cf7c2def300864417f1"
+    },
+    {
+      "path": "scripts\\verify.js",
+      "size": 691,
+      "modified": "2026-01-08T07:58:21.643630+00:00",
+      "sha256": "088ba971743a4378bf4247cae2abaa3a45a56594b551c451239cc66e723a69de"
+    },
+    {
+      "path": "shaders\\AITechDistortionShader.js",
+      "size": 6124,
+      "modified": "2025-12-30T13:56:50.730306+00:00",
+      "sha256": "e013f57e8649bc6d3319c51b6e3039519013173185f405a1e0b8d128d2711484"
+    },
+    {
+      "path": "shaders\\LinkAuraShader.js",
+      "size": 17313,
+      "modified": "2026-02-09T18:21:19.773254+00:00",
+      "sha256": "a136b522d316c66e48792d302f536cbf3e00677e975430cc2626dd0eeb6a03b0"
+    },
+    {
+      "path": "shaders\\LinkAuraSystem_v1.js",
+      "size": 19390,
+      "modified": "2026-01-25T19:30:54.276975+00:00",
+      "sha256": "d9a550bd6b4b6979fd3205dfbe64188e8a797cd3e85b030b72d04cf3824ea93b"
+    },
+    {
+      "path": "shaders\\LinkStateVisualLanguage.js",
+      "size": 8917,
+      "modified": "2025-12-30T13:56:50.756308+00:00",
+      "sha256": "099311c60e8c8cd2dc9c6b574fae458727d65ab10a5218141a52579a2602ecd4"
+    },
+    {
+      "path": "shaders\\NeonEdgeGlowShader.js",
+      "size": 4376,
+      "modified": "2025-12-30T13:56:50.733629+00:00",
+      "sha256": "239c74f117cb4219c058d338e67ac1aa94435989d7b48fb1ca2451b224f619bb"
+    },
+    {
+      "path": "shaders\\NeonPulseShader.js",
+      "size": 5805,
+      "modified": "2025-12-30T13:56:50.735669+00:00",
+      "sha256": "376554955ffd708ed65e85520c0ad77f6a2c090ac7c3338d3bd465c49b112c26"
+    },
+    {
+      "path": "shaders\\NodeAuraShader.js",
+      "size": 16564,
+      "modified": "2025-12-30T13:56:50.758459+00:00",
+      "sha256": "5760b6a91ea371add8c3a36b53a59379025091e6ba8390196fb4a790266b8972"
+    },
+    {
+      "path": "shaders\\RiftEnergyShader.js",
+      "size": 7380,
+      "modified": "2025-12-30T13:56:50.738755+00:00",
+      "sha256": "beeffd8bc11157d3d83d73c549c458b5858e32fa26fde0b53179546dc6d34d15"
+    },
+    {
+      "path": "shaders\\StressVisualShaders.js",
+      "size": 4867,
+      "modified": "2025-12-30T13:56:50.761980+00:00",
+      "sha256": "64336e6fe8d03506a2570892dfee874a0fa8785eea07e2344a30e0e94add3fae"
+    },
+    {
+      "path": "shaders\\UtilityShaders.js",
+      "size": 9733,
+      "modified": "2026-01-27T19:07:28.565086+00:00",
+      "sha256": "bc684349c7f4f14f72e93feff46e59bc4885fb65c2daf04b763c3c46987ba935"
+    },
+    {
+      "path": "src\\test_orphan_ghost.js",
+      "size": 26,
+      "modified": "2026-02-13T21:31:52.782778+00:00",
+      "sha256": "05792c8019b888b9430a319b81f5f538c96e3a8ea2436e24fff5d1e0fd5a312f"
+    },
+    {
+      "path": "src\\metrics\\MaterialDebugGuard_v1.js",
+      "size": 1579,
+      "modified": "2026-01-17T19:02:39.039659+00:00",
+      "sha256": "b11455d0647dc6bb80d2dc43556f893d1b348527a0c7f0e5f749561dab6082fc"
+    },
+    {
+      "path": "src\\metrics\\NetworkMembershipResolver.js",
+      "size": 2593,
+      "modified": "2026-01-15T15:12:41.717538+00:00",
+      "sha256": "d722fd5741134ee134454ad4dd64c5fe04b06bfd29170758dc98dde34ad8f2fe"
+    },
+    {
+      "path": "src\\metrics\\NetworkMetricsAggregator.js",
+      "size": 8382,
+      "modified": "2026-01-16T11:11:48.605676+00:00",
+      "sha256": "a0e4d80127ea0c2402ac5da87ba000fc3a5325dc63058e4ebceca0645eec3f03"
+    },
+    {
+      "path": "src\\metrics\\NodeMetricEngine.js",
+      "size": 4592,
+      "modified": "2026-01-28T12:01:29.552481+00:00",
+      "sha256": "7718b4328b3f366f3b63bab27a4bc3dfa5065d129b4633050400756f9c0b7dc8"
+    },
+    {
+      "path": "src\\metrics\\rendering\\MaterialKeys_v1.js",
+      "size": 0,
+      "modified": "2026-01-17T17:16:00.687385+00:00",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src\\metrics\\rendering\\MaterialRegistry_v1.js",
+      "size": 12216,
+      "modified": "2026-02-07T10:11:30.892745+00:00",
+      "sha256": "b6c499781e2706a84b930f24d925f09fd8572a904081f7b397c1080610dea442"
+    },
+    {
+      "path": "src\\metrics\\rendering\\MaterialTemplates_v1.js",
+      "size": 0,
+      "modified": "2026-01-17T17:16:27.770315+00:00",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src\\render\\TransmissionSanitizer.js",
+      "size": 2344,
+      "modified": "2026-01-27T23:15:20.733905+00:00",
+      "sha256": "e6003414ad31962c64bf872f9f33378e8ca224f0b769fa976345972edb3d313d"
+    },
+    {
+      "path": "src\\three\\GeometryBoundsSafe.js",
+      "size": 9471,
+      "modified": "2026-02-09T20:05:50.649070+00:00",
+      "sha256": "b553dd368a4568cadca6dc6caebf23a5d7f9a0affc8f58ab3e23335911d5f77a"
+    },
+    {
+      "path": "src\\time\\VisualTime.js",
+      "size": 646,
+      "modified": "2026-01-25T17:34:23.638234+00:00",
+      "sha256": "a2cec79e9574a9fce1843a079c3b9b4b03e3caad614a5515930794cb85494178"
+    },
+    {
+      "path": "tests\\VisualSpherePolicy.test.js",
+      "size": 1944,
+      "modified": "2026-02-10T14:47:44.426030+00:00",
+      "sha256": "77bf5dfb36e3c3a0baf0aacb8bd15965054863777ece3292cb42695a10839a90"
+    },
+    {
+      "path": "ui\\hud\\VariantBAdvisorHUD.js",
+      "size": 5261,
+      "modified": "2026-01-21T18:04:07.669558+00:00",
+      "sha256": "dcc8f9844b6a1bb7f40df910a10e18739f1491109a49006de5c92767009f54be"
+    }
+  ],
+  "generated_at": "2026-02-14T15:01:10.847197+00:00"
+}

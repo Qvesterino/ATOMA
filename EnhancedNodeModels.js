@@ -14,6 +14,15 @@ import { ControlNodeSpecialGovernors } from './ControlNodeSpecialGoverners_Sessi
 import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 import { AINodeModel } from './AINodeModel.js';
 
+function __safeScaleGeometry(geometry, x, y, z, context) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+    console.error('[GeometryScaleInvalid]', context, { x, y, z });
+    return false;
+  }
+  geometry.scale(x, y, z);
+  return true;
+}
+
 // Canonical-only variant pools (curated from audit)
 const CANONICAL_VARIANTS = {
   input:    [4, 5, 6, 7, 8, 9, 10],
@@ -740,7 +749,7 @@ export class EnhancedNodeModels {
 
       // Create inner portal (floating icosahedron)
       const portalGeometry = new THREE.IcosahedronGeometry(0.25, 2);
-      portalGeometry.scale(0.95, 1.15, 0.9); // Elongated vertically
+      __safeScaleGeometry(portalGeometry, 0.95, 1.15, 0.9, 'EnhancedNodeModels');
       
       const portalMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -907,7 +916,7 @@ export class EnhancedNodeModels {
 
       // Create central concentration point (focal core)
       const focalGeometry = new THREE.OctahedronGeometry(0.18, 1);
-      focalGeometry.scale(1.0, 0.7, 1.0); // Flatten slightly
+      __safeScaleGeometry(focalGeometry, 1.0, 0.7, 1.0, 'EnhancedNodeModels');
       
       const focalMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -1091,7 +1100,7 @@ export class EnhancedNodeModels {
 
       // Create inner processing core (counter-rotating asymmetric shape)
       const innerCoreGeometry = new THREE.OctahedronGeometry(0.28, 2);
-      innerCoreGeometry.scale(0.9, 1.2, 0.75); // Asymmetric elongation
+      __safeScaleGeometry(innerCoreGeometry, 0.9, 1.2, 0.75, 'EnhancedNodeModels');
       
       const innerCoreMaterial = new THREE.MeshStandardMaterial({
         transparent: false,
@@ -1280,7 +1289,7 @@ export class EnhancedNodeModels {
     try {
       // Create central processor core (asymmetric tetrahedron - non-spherical)
       const processorGeometry = new THREE.TetrahedronGeometry(0.35, 2);
-      processorGeometry.scale(1.1, 1.3, 0.9); // Asymmetric elongation
+      __safeScaleGeometry(processorGeometry, 1.1, 1.3, 0.9, 'EnhancedNodeModels');
       
       const processorMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -1768,7 +1777,7 @@ export class EnhancedNodeModels {
     try {
       // Create central seed geometry (asymmetric icosahedron)
       const seedGeometry = new THREE.IcosahedronGeometry(0.35, 3);
-      seedGeometry.scale(1.1, 0.85, 1.0); // Asymmetric elongation
+      __safeScaleGeometry(seedGeometry, 1.1, 0.85, 1.0, 'EnhancedNodeModels');
       
       const seedMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -1802,7 +1811,12 @@ export class EnhancedNodeModels {
       for (let i = 0; i < echoCount; i++) {
         // Create echo geometry (scaled tetrahedron, different from seed)
         const echoGeometry = new THREE.TetrahedronGeometry(0.18, 2);
-        echoGeometry.scale(0.9 + i * 0.05, 1.1 - i * 0.08, 0.95);
+        const sx = 0.9 + i * 0.05;
+        const sy = 1.1 - i * 0.08;
+        const sz = 0.95;
+        if (!__safeScaleGeometry(echoGeometry, sx, sy, sz, 'EnhancedNodeModels-loop')) {
+          continue;
+        }
         
         const echo = new THREE.Mesh(echoGeometry, echoMaterial);
         
@@ -2399,7 +2413,7 @@ export class EnhancedNodeModels {
     try {
       // Create central anchor (non-spherical - diamond-like octahedron)
       const anchorGeometry = new THREE.OctahedronGeometry(0.3, 2);
-      anchorGeometry.scale(1.0, 1.4, 0.85); // Asymmetrical elongation
+      __safeScaleGeometry(anchorGeometry, 1.0, 1.4, 0.85, 'EnhancedNodeModels');
       
       const anchorMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
@@ -3268,7 +3282,7 @@ export class EnhancedNodeModels {
    */
   static createSigmaNode0(group, color) {
     const ellipsoidGeo = new THREE.IcosahedronGeometry(0.8, 4);
-    ellipsoidGeo.scale(1.2, 0.8, 0.9); // Slightly elongated
+    __safeScaleGeometry(ellipsoidGeo, 1.2, 0.8, 0.9, 'EnhancedNodeModels');
     const ellipsoidMat = new THREE.MeshStandardMaterial({
       transparent: false,
       opacity: 1,

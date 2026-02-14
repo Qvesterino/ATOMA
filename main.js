@@ -502,6 +502,7 @@ import { setupLinkDebugMode } from './LinkDebugMode_v1.js';
 import { setupHitProxySystem } from './_HitProxySystem_v1.js';
 import { setupHitProxyAutoRegistrar } from './HitProxyAutoRegistrar.js';
 import { setupGpuSanity } from './GpuSanityPass.js';
+import { setupIntegrationDebugAPI } from './_IntegrationNodeSelectionFix.js';
 
 function logInteractionState(aiNodes, hitProxySystem, camera) {
   const nodes = aiNodes?.nodes?.length || 0;
@@ -847,8 +848,6 @@ import { initializeHudCollapseSystem, verifyHudCollapseSystem } from './HudColla
 // INTEGRATION NODE SELECTION FIX (Targeted Compatibility)
 // Enable selection of INTEGRATION nodes via parent chain resolution
 // ============================================================================
-import { patchIntegrationNodeSelection, setupIntegrationDebugAPI } from './_IntegrationNodeSelectionFix.js';
-
 // ============================================================================
 // SYNERGY ANALYSIS & SCORING SYSTEM (Session 19 Extended)
 // ============================================================================
@@ -3002,6 +3001,8 @@ class AtomaGame {
         
         this.clock = new THREE.Clock();
         this.time = 0;
+        this._animationFrameId = null;
+        this._loopStartedLogged = false;
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -3015,7 +3016,7 @@ class AtomaGame {
         window.frameClock = this.frameClock;
         window.debugFrameClock = () => this.frameClock.getStats();
         this.updateValidator = new FrameUpdateLoopOrderValidator_v1();
-        // L.3 OBSERVATION ONLY — DO NOT OPTIMIZE HERE
+        // L.3 OBSERVATION ONLY – DO NOT OPTIMIZE HERE
         this.renderProfile = new RenderCostProfile();
         if (typeof window !== 'undefined') {
             window.__ATOMA_RENDER_PROFILE__ = {
@@ -3039,6 +3040,9 @@ class AtomaGame {
         window.ATOMA_SEMANTIC_TRACE = (opts) => this.semanticBus.getSemanticTrace(opts);
         window.ATOMA_SEMANTIC_REPLAY = (fn) => this.semanticBus.replaySemanticTrace(fn);
         window.ATOMA_SEMANTIC_TRACE_CLEAR = () => this.semanticBus.clearSemanticTrace();
+        this.worldReady = false;
+        this._worldSwitchInProgress = false;
+        this._lastWorldSwitchAt = 0;
         // Phase F.1: semantic → visual contract (read-only derived visual state)
         window.ATOMA_SEMANTIC_VISUAL_STATE = () => this.semanticBus.getSemanticVisualState();
         // Phase F.2: semantic → motion intent (read-only derived signals for camera layer)
@@ -4265,13 +4269,6 @@ window.__ATOMA_SCENE__ = this.scene;
             warmupAllVisualVariants(this.renderer, this.scene, this.camera);
         }
 
-        // Scene census (every 3 seconds) to identify draw-call owners
-        this._sceneAuditTimer = setInterval(() => {
-            if (typeof this.auditSceneObjects === 'function') {
-                this.auditSceneObjects(this.scene);
-            }
-        }, 3000);
-
         // [B.3-C4] Post-processing toggle stabilization (build once)
         if (typeof window !== 'undefined') {
             window.__POST_PROCESSING_BUILT = window.__POST_PROCESSING_BUILT || false;
@@ -4794,6 +4791,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ATOMA: visual layer prune/reset on world switch
         this.frameScheduler?.resetLayer?.('visual');
 
+        if (typeof window !== 'undefined') {
+            window.game = window.game || this;
+            if (window.game._worldInitialized) {
+                console.warn('[World] Reinitializing — performing hard reset');
+            }
+            window.game._worldInitialized = true;
+        }
+
         if (this.currentMode === 'sigma') {
             this.sigmaRift = new SigmaRiftChamber(this.scene);
             this.activeWorld = this.sigmaRift;
@@ -4817,6 +4822,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
+        this._spawnNodesOnce = false;
         this.createAINodes();
 
         // ====================================================================
@@ -4838,6 +4844,34 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      */
     createAINodes() {
         this._allowRegistryReset = false;
+        if (this._spawnNodesOnce) {
+            console.warn('[World] spawnNodes already executed for this world load');
+            return;
+        }
+        this._spawnNodesOnce = true;
+
+        // Scene cleanup: remove old nodes before spawning new ones
+        if (this.scene) {
+            const toRemove = [];
+            this.scene.traverse(obj => {
+                if (obj.userData?.nodeId) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach(obj => obj.parent?.remove(obj) || this.scene.remove(obj));
+        }
+        if (this.linkingSystem?.hitProxySystem?.registry) {
+            const proxies = this.linkingSystem.hitProxySystem.registry.getAllProxies();
+            proxies.forEach(proxy => this.scene?.remove(proxy));
+            this.linkingSystem.hitProxySystem.registry.clear();
+        }
+        if (this.aiNodes) {
+            this.aiNodes.nodes = [];
+            this.aiNodes.nodesMap?.clear();
+        }
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+        }
 
         this.aiNodes = new AINodes(this.scene, this.player);
         window.__ATOMA_AINODES__ = this.aiNodes;
@@ -5281,7 +5315,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Enable INTEGRATION nodes to be selected via parent chain resolution
         // ====================================================================
         try {
-            patchIntegrationNodeSelection(this.linkingSystem, this.aiNodes);
             setupIntegrationDebugAPI(this.aiNodes);
             console.log('[main.js] INTEGRATION Node Selection Fix applied ✓');
         } catch (err) {
@@ -6867,8 +6900,28 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
     setupModeSwitch() {
         document.addEventListener('keydown', (e) => {
             if (e.code === 'KeyM') {
+                if (e.repeat) return;
                 this.switchMode();
             }
+        });
+    }
+
+    _stopRAF() {
+        if (this._animationFrameId) {
+            cancelAnimationFrame(this._animationFrameId);
+            this._animationFrameId = null;
+        }
+    }
+
+    _startRAF(force = false) {
+        if (force || !this._animationFrameId) {
+            this._animationFrameId = requestAnimationFrame(this.animate.bind(this));
+        }
+    }
+
+    _nextFrame() {
+        return new Promise(resolve => {
+            requestAnimationFrame(resolve);
         });
     }
 
@@ -6905,19 +6958,58 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * NOW WITH: Safe World Reset Fix 1.0 - Prevents map-switch crashes
      */
     async switchMode() {
-        // PHASE 1: Begin transition and pause visual systems
-        if (typeof window !== 'undefined') {
-            window.__ATOMA_WORLD_TRANSITIONING = true;
+        if (this._worldSwitchInProgress) {
+            console.warn('[World] switchMode ignored: in progress');
+            return;
         }
-        this.worldResetFix.beginMapTransition({
-            coreMetricsOverlay: this.coreMetricsOverlay,
-            metricReactiveEvents: null, // DISABLED: Legacy system
-            nodePersonality: this.nodePersonality,
-            evolvingLinkFX: this.evolvingLinkFX,
-            worldFXPack: this.worldFXPack,
-            scene: this.scene,
-            renderer: this.renderer
-        });
+        this._worldSwitchInProgress = true;
+        this.worldReady = false;
+        this._stopRAF();
+
+        const now = performance.now();
+        if (now - this._lastWorldSwitchAt < 300) {
+            console.warn('[World] switchMode ignored: cooldown');
+            return;
+        }
+        this._lastWorldSwitchAt = now;
+
+        try {
+            if (this.linkingSystem?.setWorldReady) {
+                this.linkingSystem.setWorldReady(false);
+            }
+
+            const timers = [
+                '_sceneAuditTimer',
+                '_spawnInterval',
+                '_updateInterval',
+                '_learningInterval',
+                '_consolidationInterval'
+            ];
+            timers.forEach(t => {
+                if (this[t]) {
+                    clearInterval(this[t]);
+                    this[t] = null;
+                    console.log('[World] Cleared timer:', t);
+                }
+            });
+            console.log('[World] Timers removed');
+            await this._nextFrame();
+            await this._nextFrame();
+
+            // PHASE 1: Begin transition and pause visual systems
+            if (typeof window !== 'undefined') {
+                window.__ATOMA_WORLD_TRANSITIONING = true;
+            }
+            this.worldResetFix.beginMapTransition({
+                coreMetricsOverlay: this.coreMetricsOverlay,
+                metricReactiveEvents: null, // DISABLED: Legacy system
+                nodePersonality: this.nodePersonality,
+                evolvingLinkFX: this.evolvingLinkFX,
+                worldFXPack: this.worldFXPack,
+                scene: this.scene,
+                renderer: this.renderer
+            });
+            await this._nextFrame();
 
         // Dispose old AI nodes, linking system, and all effect packs
         if (this.worldFXPack) {
@@ -7240,10 +7332,29 @@ this.archetypeShaderModes = null;
         // PHASE 2: Clean old scene visuals
         this.worldResetFix.cleanOldScene();
 
-        // Clear current world
-        this.scene.children = this.scene.children.filter(child =>
-            child === this.player || child instanceof THREE.Light
-        );
+        // Detach old world roots
+        if (this.scene) {
+            this.scene.children = this.scene.children.filter(child =>
+                child === this.player || child instanceof THREE.Light
+            );
+            const nodes = this.aiNodes?.nodes || [];
+            nodes.forEach(node => {
+                if (node.parent === this.scene) {
+                    this.scene.remove(node);
+                }
+            });
+            const proxies = this.hitProxySystem?.registry?.getAllProxies?.() || [];
+            proxies.forEach(proxy => {
+                if (proxy.parent === this.scene) {
+                    this.scene.remove(proxy);
+                }
+            });
+            console.log('[World] switchMode: detach-only teardown (no scene dispose)');
+        }
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+        }
 
         // Cycle through modes
         if (this.currentMode === 'sigma') {
@@ -7305,9 +7416,37 @@ this.archetypeShaderModes = null;
             window.__ATOMA_WORLD_TRANSITIONING = false;
         }
 
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+            this.linkingSystem.isProcessing = false;
+            console.log('[World] Linking state reset');
+        }
+
         // Create new AI nodes
+        this.worldReady = false;
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+            this.linkingSystem.isProcessing = false;
+        }
+        if (this.hitProxySystem?.registry) {
+            this.hitProxySystem.registry.clear();
+        }
+        console.log('[World] System state cleared');
         this._allowRegistryReset = true;
         this.createAINodes();
+        if (this.linkingSystem?.hitProxySystem) {
+            const proxySystem = this.linkingSystem.hitProxySystem;
+            if (proxySystem.setContext) {
+                proxySystem.setContext({ aiNodes: this.aiNodes, camera: this.camera });
+            }
+            if (proxySystem.rebuildProxies) {
+                proxySystem.rebuildProxies(this.aiNodes);
+                const proxyCount = proxySystem.registry?.getAllProxies?.()?.length || 0;
+                console.log('[World] Proxies rebuilt:', proxyCount);
+            }
+        }
         this.setupRecursiveGlyphSignalSystem();
         if (this.coreMetricsOverlay) {
   this.coreMetricsOverlay.cleanup?.()
@@ -7324,6 +7463,15 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
             this.hitProxySystem.rebuildProxies(this.aiNodes);
         }
         logInteractionState(this.aiNodes, this.hitProxySystem, this.camera);
+        const nodes = this.aiNodes?.nodes?.length || 0;
+        const proxies = this.hitProxySystem?.registry?.getAllProxies()?.length || 0;
+        if (nodes > 0 && proxies === nodes) {
+            this.worldReady = true;
+            console.log('[World] READY', { nodes, proxies });
+        } else {
+            this.worldReady = false;
+            console.warn('[World] NOT READY', { nodes, proxies });
+        }
         // [Audit 6.2] Signal world transition complete - nodes ready
         if (this.linkingSystem) {
             this.linkingSystem.setWorldReady(true);
@@ -7473,6 +7621,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (this.narrativePatterns) {
             this.narrativePatterns.cleanup();
         }
+        await this._nextFrame();
 
         // PHASE 3: Wait for new scene to be ready
         const sceneReady = await this.worldResetFix.waitForNewSceneReady(
@@ -7484,6 +7633,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (!sceneReady) {
             console.warn('⚠ New scene failed to initialize, attempting recovery');
         }
+        await this._nextFrame();
 
         // PHASE 4: Reinitialize visual systems
         await this.worldResetFix.reinitializeVisualSystems({
@@ -7501,6 +7651,17 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // PHASE 5: Complete transition
         this.worldResetFix.completeTransition();
+        console.log('[World] Minimal lifecycle active');
+        } catch (e) {
+            console.error('[SwitchMode] ERROR', e);
+        } finally {
+            this.worldReady = true;
+            this._worldSwitchInProgress = false;
+            if (!this._rafRunning) {
+                this._startRAF();
+            }
+            console.warn('[SwitchMode] Exit failsafe applied');
+        }
     }
 
     /**
@@ -7689,13 +7850,21 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
     }
 
-    /**
-     * Main animation loop
-     */
-    animate() {
-        this.updateValidator?.startFrame();
-        requestAnimationFrame(() => this.animate());
-        window.__enforceProxyVisualLock?.();
+  /**
+   * Main animation loop
+   */
+  animate() {
+    if (!this._loopStartedLogged) {
+      console.log('[GameLoop] animate started');
+      this._loopStartedLogged = true;
+    }
+    this.updateValidator?.startFrame();
+    if (this._worldSwitchInProgress) {
+      this._startRAF(true);
+      return;
+    }
+    this._startRAF(true);
+    window.__enforceProxyVisualLock?.();
 
         const t0 = performance.now();
         const tracingSpike = window.__DBG_SPIKE_TRACE === true;
@@ -7791,9 +7960,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
 
         // FrameScheduler drives layer-gated systems (visual/render integration point)
-        if (this.frameScheduler) {
-            this.frameScheduler.tick(deltaTime);
-        }
+    if (this.frameScheduler && !this._worldSwitchInProgress) {
+        this.frameScheduler.tick(deltaTime);
+    }
         
         // Update player and camera
         // migrated to FrameScheduler (Phase C.1)

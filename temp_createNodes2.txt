@@ -1,0 +1,100 @@
+        } catch (err) {
+            console.warn('[main.js] LinkMetricsToVisualBridge initialization deferred:', err.message);
+            this.linkMetricsToVisualBridge = null;
+        }
+        
+        // ===================================================================
+        // [SESSION 106+] STRESS-BASED PARTICLE SCALER - Particle scaling from link stress
+        // ===================================================================
+        // Scales link particle emission rates based on per-link stress values
+        // Higher stress = more/faster particles with color-coded feedback
+        this.stressBasedParticleScaler = null;
+        
+        setTimeout(() => {
+            if (!this.stressBasedParticleScaler && this.linkMetricsToVisualBridge && this.linkingSystem) {
+                try {
+                    this.stressBasedParticleScaler = new StressBasedParticleScaler_v1(
+                        this.linkMetricsToVisualBridge,
+                        this.linkingSystem,
+                        {
+                            // Particle emission scaling
+                            minParticleMultiplier: 0.5,        // Reduce to 0.5x at 0% stress
+                            maxParticleMultiplier: 3.0,        // Increase to 3.0x at 100% stress
+                            particleScalingCurve: 'quadratic', // 'linear', 'quadratic', 'exponential'
+                            
+                            // Particle speed scaling
+                            minParticleSpeed: 1.0,             // Min speed multiplier
+                            maxParticleSpeed: 2.5,             // Max speed multiplier
+                            
+                            // Color coding by stress
+                            enableStressColors: true,
+                            
+                            // Smoothing for temporal coherence
+                            enableSmoothing: true,
+                            smoothingAlpha: 0.2,
+                            
+                            // Performance
+                            enableCache: true,
+                            enableLogging: false,
+                            enabled: true,
+                        }
+                    );
+                    
+                    // Setup console debug API
+                    setupStressParticleScalerConsoleAPI(this.stressBasedParticleScaler);
+                    console.log('[main.js] StressBasedParticleScaler deferred initialization ✓');
+                } catch (err) {
+                    console.error('[main.js] StressBasedParticleScaler init error:', err);
+                }
+            }
+        }, 150);  // Wait 150ms to ensure LinkMetricsToVisualBridge is ready first
+        
+        // 2. User Acceptance Tracker 1.0 - Player interaction metrics
+        this.userAcceptanceTracker = new UserAcceptanceTracker1_0();
+        console.log('[main.js] UserAcceptanceTracker1_0 initialized ✓');
+        
+        // 3. Link ML Recommendation Engine 1.0 - ML-based learning (depends on feedback loop)
+        this.linkMLRecommendationEngine = LinkMLRecommendationEngine1_0;
+        if (this.linkMLRecommendationEngine?.setFeedbackLoop && this.linkQualityFeedbackLoop) {
+            this.linkMLRecommendationEngine.setFeedbackLoop(this.linkQualityFeedbackLoop);
+        }
+        if (this.linkMLRecommendationEngine?.setUserAcceptanceTracker && this.userAcceptanceTracker) {
+            this.linkMLRecommendationEngine.setUserAcceptanceTracker(this.userAcceptanceTracker);
+        }
+        console.log('[main.js] LinkMLRecommendationEngine1_0 initialized ✓');
+        
+        // 4. Node Linker Repair Layer 1.0 - Self-healing validation (depends on quality feedback)
+        this.nodeLinkerRepairLayer = new NodeLinker2_RepairLayer1_0(this.linkingSystem, this.aiNodes);
+        if (this.nodeLinkerRepairLayer?.init) {
+            this.nodeLinkerRepairLayer.init();
+        }
+        console.log('[main.js] NodeLinker2_RepairLayer1_0 initialized ✓');
+        
+        // ====================================================================
+        // TIER 1 INTEGRATION: Core Active Systems (Phase A)
+        // Corruption Transmission + Harmony Stabilization
+        // ====================================================================
+        
+        // Initialize Link Corruption Transmission v1.0
+        try {
+            this.linkCorruptionTransmission = new LinkCorruptionTransmission_v1(
+                this.aiNodes,           // AI nodes system
+                this.linkingSystem       // Link system
+            );
+            console.log('[main.js] LinkCorruptionTransmission_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkCorruptionTransmission_v1 initialization failed:', err);
+        }
+        
+        // Initialize Harmony Stabilization System v1.0
+        try {
+            this.harmonyStabilizationSystem = new HarmonyStabilizationSystem_v1(
+                this.aiNodes,                               // AI nodes system
+                this.linkingSystem,                         // Link system
+                false,                                      // Debug mode off
+                this.linkCorruptionTransmission             // LinkCorruptionTransmission for category multipliers
+            );
+            console.log('[main.js] HarmonyStabilizationSystem_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] HarmonyStabilizationSystem_v1 initialization failed:', err);
+        }

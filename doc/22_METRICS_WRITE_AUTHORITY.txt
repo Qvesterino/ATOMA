@@ -1,0 +1,209 @@
+METRIC-WRITE-AUTHORITY AUDIT REPORT
+EXECUTIVE SUMMARY
+Classification: CHAOTIC (HIGH RISK)
+
+ATOMA's metric write authority is severely fragmented with 7 independent writers competing for node metrics and 5 writers competing for link metrics. Critical conflicts exist between INIT and EVENT-driven systems, and visual systems are performing per-frame overwrites that bypass all governance.
+
+STEP 1 — NODE METRIC WRITES
+File	System	Metric	Frequency
+NodeSynergyIntegration1_0.js	NodeSynergyIntegration	link.synergy	EVENT
+NodeDynamicMetrics.js	NodeDynamicMetrics	metrics.synergy, harmony, stability, corruption, loadRatio	PER-FRAME (LOCKED)
+src/metrics/NodeMetricEngine.js	NodeMetricEngine	synergy, harmony, stability, corruption, loadPressure	INIT + EVENT
+LinkCorruptionTransmission_v1.js	LinkCorruptionTransmission	node.userData.corruption, node.userData.harmonyLevel	EVENT (feedback)
+SafeMetricsDNAIntegration1_0.js	SafeMetricsDNAIntegration	metrics (full object)	INIT (destructive overwrite)
+Node Metric Write Conflicts
+synergy → [NodeSynergyIntegration, NodeDynamicMetrics, NodeMetricEngine]
+
+CONFLICT: Multiple writers with different schemas
+NodeSynergyIntegration writes to link.synergy (0-100 scale)
+NodeMetricEngine writes to node.userData.metrics.synergy (0-1 scale)
+Phase C3 lock disables NodeDynamicMetrics but doesn't prevent other conflicts
+harmony → [NodeDynamicMetrics, NodeMetricEngine, LinkCorruptionTransmission]
+
+CONFLICT: NodeMetricEngine vs LinkCorruptionTransmission feedback loops
+NodeMetricEngine: INIT + EVENT (link creation/removal)
+LinkCorruptionTransmission: EVENT (healing feedback)
+Phase C3 lock disables NodeDynamicMetrics but other conflicts remain
+corruption → [NodeDynamicMetrics, NodeMetricEngine, LinkCorruptionTransmission]
+
+CONFLICT: Multiple writers at different frequencies
+LinkCorruptionTransmission has complex multi-phase corruption writes:
+Cascade handlers: EVENT (infection)
+Healing cascade: PER-FRAME
+Feedback loops: EVENT
+Phase C3 locks prevent cascade handler writes but NOT feedback loops
+stability → [NodeDynamicMetrics, NodeMetricEngine]
+
+CONFLICT: INIT (NodeMetricEngine) vs PER-FRAME (NodeDynamicMetrics, locked)
+Phase C3 prevents per-frame overwrites but INIT conflicts remain
+loadPressure → [NodeMetricEngine]
+
+NO CONFLICT: Single writer
+STEP 2 — LINK METRIC WRITES
+File	System	Metric	Frequency
+NodeSynergyIntegration1_0.js	NodeSynergyIntegration	link.synergy	EVENT
+LinkCorruptionTransmission_v1.js	LinkCorruptionTransmission	link.synergy, link.userData.synergy	EVENT (rebuild + feedback)
+LinkCorruptionTransmission_v1.js	LinkCorruptionTransmission	link.userData.corruptionLevel, integrity	PER-FRAME
+VisualTemplateReferenceImplementations.js	Visual system	link.userData.synergy	PER-FRAME (CRITICAL!)
+LINK_MORPHING_EXAMPLES.js	Morphing system	link.userData.corruption	CONDITIONAL
+LinkQualityCalculator.js	LinkQualityCalculator	link.userData.quality	INIT
+Link Metric Write Conflicts
+synergy → [NodeSynergyIntegration, LinkCorruptionTransmission, VisualTemplateReferenceImplementations]
+
+CRITICAL CONFLICT: Visual system performs per-frame overwrite!
+NodeSynergyIntegration: EVENT-driven computation
+LinkCorruptionTransmission: EVENT (rebuild deduction + feedback gain)
+VisualTemplateReferenceImplementations: PER-FRAME unconditional overwrite
+RISK: Visual system destroys gameplay metric values every frame
+corruption → [LinkCorruptionTransmission, LINK_MORPHING_EXAMPLES, Visual system]
+
+MODERATE CONFLICT: LINK_MORPHING_EXAMPLES conditional writes
+LinkCorruptionTransmission: PER-FRAME (integrity tracking, transmission)
+LINK_MORPHING_EXAMPLES: CONDITIONAL (morph event)
+VisualTemplateReferenceImplementations: PER-FRAME (read-only, no overwrite)
+quality → [LinkQualityCalculator]
+
+NO CONFLICT: Single writer
+stress → [None writing to link.stress]
+
+NO WRITER: Stress is computed but never written to link objects
+STEP 3 — CENTRAL AUTHORITY DETECTION
+Systems Found
+System	Authority	Frequency	Status
+NodeMetricEngine	Canonical gameplay metrics	INIT + EVENT	PRIMARY BUT WEAK
+SafeMetricsDNAIntegration	Archetype DNA metrics	INIT	DESTRUCTIVE
+NodeDynamicMetrics	Dynamic derived metrics	PER-FRAME	LOCKED (Phase C3)
+NodeSynergyIntegration	Link synergy computation	EVENT	FRAGMENTED
+LinkCorruptionTransmission	Corruption transmission	EVENT + PER-FRAME	COMPLEX
+CoreMetricsCalculator	Metric visualization	READ-ONLY	✅ SAFE
+Authority Structure
+Single Authority: NO
+
+Multiple independent writers exist
+No coordination between NodeMetricEngine, SafeMetricsDNAIntegration, and LinkCorruptionTransmission
+Multiple Independent Writers: YES
+
+At least 7 independent node metric writers
+At least 5 independent link metric writers
+No central coordination or ordering guarantees
+STEP 4 — CONFLICT DETECTION
+High-Risk Conflicts
+CRITICAL: Visual System Overwrites
+
+// VisualTemplateReferenceImplementations.js
+link.userData.synergy = glow.intensity;  // PER-FRAME!
+Severity: CRITICAL
+Impact: Destroys all gameplay synergy calculations every frame
+No write lock: Visual system ignores all governance
+CRITICAL: SafeMetricsDNAIntegration Overwrite
+
+// SafeMetricsDNAIntegration1_0.js
+node.userData.metrics = { energy:65, harmony:80, ... };  // FULL OBJECT OVERWRITE
+Severity: CRITICAL
+Impact: Destroys NodeMetricEngine's canonical metrics
+Called after: NodeMetricEngine.initNodeMetrics()
+Result: Archetype nodes lose synergy, corruption, loadPressure
+HIGH: Synergy Feedback Loops
+Writers: NodeSynergyIntegration, LinkCorruptionTransmission (feedback)
+Conflict: Two independent systems modify same metric
+No coordination: Feedback loops don't respect each other's cooldowns
+Risk: Runaway amplification or oscillation
+HIGH: Corruption Feedback Loops
+Writers: NodeMetricEngine, LinkCorruptionTransmission (healing + feedback)
+Conflict: Multiple corruption modification paths
+Different scales: NodeMetricEngine (0-1), LinkCorruptionTransmission (0-1)
+Risk: Corruption instability
+MEDIUM: INIT Order Conflicts
+NodeMetricEngine.initNodeMetrics() → Schema 1 defaults
+SafeMetricsDNAIntegration.attachMetrics() → Schema 2 (destructive overwrite)
+NodeMetricEngine.onNodeSpawn() → Nudges toward Schema 1 (no-op on Schema 2 fields)
+Result: Schema mismatch depending on node type
+
+Per-Frame Writers
+System	Frequency	Locked
+NodeDynamicMetrics	PER-FRAME	✅ YES (Phase C3)
+LinkCorruptionTransmission (corruption, integrity)	PER-FRAME	❌ NO
+VisualTemplateReferenceImplementations (synergy)	PER-FRAME	❌ NO
+STEP 5 — DERIVATION ORDER
+Current Order Status
+base → propagation → network → visual
+
+
+[INIT]
+├── NodeMetricEngine.initNodeMetrics()  ← Schema 1 (canonical)
+└── SafeMetricsDNAIntegration.attachMetrics()  ← Schema 2 (destructive!)
+
+[EVENT]
+├── NodeMetricEngine.onLinkCreated()
+├── NodeMetricEngine.onLinkRemoved()
+├── NodeMetricEngine.onOverload()
+├── NodeSynergyIntegration.handleSynergy()  ← link.synergy write
+├── LinkCorruptionTransmission feedback loops
+└── LinkCorruptionTransmission rebuild/repair
+
+[PER-FRAME]
+├── NodeDynamicMetrics.update()  ← LOCKED (Phase C3)
+├── LinkCorruptionTransmission.updateTransmission()  ← corruption, integrity
+└── VisualTemplateReferenceImplementations  ← UNCONDITIONAL OVERWRITE!
+Order Problems
+INIT Order Violation: SafeMetricsDNAIntegration overwrites NodeMetricEngine
+No Network Derivation: No system computes network-wide metrics
+Visual → Gameplay Backflow: Visual system writes gameplay metrics (wrong direction!)
+No Clear Propagation: Metrics don't flow through systems in a defined order
+FINAL SUMMARY
+Systems Writing to Each Metric
+Node Metrics:
+
+synergy → NodeMetricEngine, NodeDynamicMetrics (locked), NodeSynergyIntegration (links only)
+harmony → NodeMetricEngine, NodeDynamicMetrics (locked), LinkCorruptionTransmission (feedback)
+corruption → NodeMetricEngine, NodeDynamicMetrics (locked), LinkCorruptionTransmission (feedback + cascade)
+stability → NodeMetricEngine, NodeDynamicMetrics (locked)
+loadPressure → NodeMetricEngine (only)
+Link Metrics:
+
+synergy → NodeSynergyIntegration, LinkCorruptionTransmission (rebuild + feedback), VisualTemplateReferenceImplementations (per-frame)
+corruption → LinkCorruptionTransmission, LINK_MORPHING_EXAMPLES (conditional)
+quality → LinkQualityCalculator (only)
+stress → NO WRITER (computed but never stored)
+Central Metric Authority
+Status: NO CENTRAL AUTHORITY
+
+NodeMetricEngine attempts to be canonical but is weakened by:
+SafeMetricsDNAIntegration destructive overwrites
+LinkCorruptionTransmission feedback loops
+No enforcement mechanism
+Conflict Patterns
+INIT Conflicts: SafeMetricsDNAIntegration vs NodeMetricEngine
+EVENT Conflicts: Multiple systems writing same metrics on events
+PER-FRAME Conflicts: Visual system overwrites everything
+Schema Conflicts: 0-1 scale vs 0-120 scale vs 0-100 scale
+Per-Frame Writers
+Status	System	Metric
+LOCKED	NodeDynamicMetrics	All node metrics (energy, stability, harmony, corruption)
+ACTIVE	LinkCorruptionTransmission	link.userData.corruptionLevel, integrity
+ACTIVE	VisualTemplateReferenceImplementations	link.userData.synergy (CRITICAL!)
+Derivation Order Status
+FAIL: Systems overwrite each other without order
+
+Base metrics destroyed by SafeMetricsDNAIntegration
+No propagation to network level
+Visual system backflows into gameplay (anti-pattern)
+No clear dependency graph
+CLASSIFICATION
+
+METRIC AUTHORITY: CHAOTIC (HIGH RISK)
+Risk Level: 🔴 CRITICAL
+
+Immediate Actions Required:
+
+Disable visual system writes: Visual systems must be read-only
+Fix SafeMetricsDNAIntegration: Must merge, not overwrite
+Centralize feedback loops: Move all feedback to NodeMetricEngine
+Add write locks: Per-frame writers need governance
+Define derivation order: Establish clear metric flow
+Long-term Architecture:
+
+Create MetricManager with write authority
+All metric changes must go through MetricManager
+Establish init → event → frame → visual ordering
+Add metric conflict detection at runtime

@@ -1,0 +1,180 @@
+
+        // PHASE 2: Clean old scene visuals
+        this.worldResetFix.cleanOldScene();
+
+        // Detach old world roots
+        if (this.scene) {
+            this.scene.children = this.scene.children.filter(child =>
+                child === this.player || child instanceof THREE.Light
+            );
+            const nodes = this.aiNodes?.nodes || [];
+            nodes.forEach(node => {
+                if (node.parent === this.scene) {
+                    this.scene.remove(node);
+                }
+            });
+            const proxies = this.hitProxySystem?.registry?.getAllProxies?.() || [];
+            proxies.forEach(proxy => {
+                if (proxy.parent === this.scene) {
+                    this.scene.remove(proxy);
+                }
+            });
+            console.log('[World] switchMode: detach-only teardown (no scene dispose)');
+        }
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+        }
+
+        // Cycle through modes
+        if (this.currentMode === 'sigma') {
+            this.currentMode = 'memory';
+        } else if (this.currentMode === 'memory') {
+            this.currentMode = 'fractal';
+        } else if (this.currentMode === 'fractal') {
+            this.currentMode = 'quantum';
+        } else if (this.currentMode === 'quantum') {
+            this.currentMode = 'desert';
+        } else if (this.currentMode === 'desert') {
+            this.currentMode = 'chamber';
+        } else {
+            this.currentMode = 'sigma';
+        }
+
+        // Update subtitle
+        const subtitle = document.getElementById('subtitle');
+        const modeNames = {
+            sigma: 'SIGMA RIFT CHAMBER - BOSS ARENA',
+            memory: 'MEMORY LANE MODE',
+            fractal: 'FRACTAL VALLEY MODE',
+            quantum: 'QUANTUM ISLAND MODE',
+            desert: 'DREAM DESERT MODE',
+            chamber: 'NODE-SPACE CORE SIMULATION'
+        };
+        if (subtitle) {
+            subtitle.textContent = modeNames[this.currentMode];
+        }
+
+        // Setup new environment
+        if (this.currentMode === 'sigma') {
+            this.setupSigmaRiftEnvironment();
+            this.sigmaRift = new SigmaRiftChamber(this.scene);
+            this.activeWorld = this.sigmaRift;
+        } else if (this.currentMode === 'desert') {
+            this.setupDreamDesertEnvironment();
+            this.dreamDesert = new DreamDesert(this.scene);
+            this.activeWorld = this.dreamDesert;
+        } else if (this.currentMode === 'quantum') {
+            this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
+            this.quantumIsland = new QuantumIsland(this.scene, this.camera);
+            this.activeWorld = this.quantumIsland;
+        } else if (this.currentMode === 'fractal') {
+            this.setupFractalValleyEnvironment();
+            this.fractalValley = new FractalValley(this.scene);
+            this.activeWorld = this.fractalValley;
+        } else if (this.currentMode === 'memory') {
+            this.setupMemoryLaneEnvironment();
+            this.memoryLane = new MemoryLane(this.scene);
+            this.activeWorld = this.memoryLane;
+        } else {
+            this.setupChamberEnvironment();
+            this.chamber = new World(this.scene);
+            this.activeWorld = this.chamber;
+        }
+
+        if (typeof window !== 'undefined') {
+            window.__ATOMA_WORLD_TRANSITIONING = false;
+        }
+
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+            this.linkingSystem.isProcessing = false;
+            console.log('[World] Linking state reset');
+        }
+
+        // Create new AI nodes
+        this.worldReady = false;
+        if (this.linkingSystem) {
+            this.linkingSystem.selectedNode = null;
+            this.linkingSystem.isLinking = false;
+            this.linkingSystem.isProcessing = false;
+        }
+        if (this.hitProxySystem?.registry) {
+            this.hitProxySystem.registry.clear();
+        }
+        console.log('[World] System state cleared');
+        this._allowRegistryReset = true;
+        this.createAINodes();
+        if (this.linkingSystem?.hitProxySystem) {
+            const proxySystem = this.linkingSystem.hitProxySystem;
+            if (proxySystem.setContext) {
+                proxySystem.setContext({ aiNodes: this.aiNodes, camera: this.camera });
+            }
+            if (proxySystem.rebuildProxies) {
+                proxySystem.rebuildProxies(this.aiNodes);
+                const proxyCount = proxySystem.registry?.getAllProxies?.()?.length || 0;
+                console.log('[World] Proxies rebuilt:', proxyCount);
+            }
+        }
+        this.setupRecursiveGlyphSignalSystem();
+        if (this.coreMetricsOverlay) {
+  this.coreMetricsOverlay.cleanup?.()
+}
+
+        this.coreMetricsOverlay = new CoreMetricsOverlay(
+          this.scene,
+          this.renderer
+        );
+
+console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
+        // Rebuild proxies for new world before marking ready
+        if (this.hitProxySystem?.rebuildProxies) {
+            this.hitProxySystem.rebuildProxies(this.aiNodes);
+        }
+        logInteractionState(this.aiNodes, this.hitProxySystem, this.camera);
+        const nodes = this.aiNodes?.nodes?.length || 0;
+        const proxies = this.hitProxySystem?.registry?.getAllProxies()?.length || 0;
+        if (nodes > 0 && proxies === nodes) {
+            this.worldReady = true;
+            console.log('[World] READY', { nodes, proxies });
+        } else {
+            this.worldReady = false;
+            console.warn('[World] NOT READY', { nodes, proxies });
+        }
+        // [Audit 6.2] Signal world transition complete - nodes ready
+        if (this.linkingSystem) {
+            this.linkingSystem.setWorldReady(true);
+        }
+
+        // Reinitialize Node Evolution 2.0 for new nodes
+        this.setupNodeEvolution();
+
+        // DISABLED: Reinitialize Safe Node Archetypes Pack for new nodes
+        // this.setupNodeArchetypesPack(); // System permanently disconnected
+
+        // Reinitialize evolution manager for new nodes
+        this.setupEvolutionManager();
+
+        // Reinitialize legendary pack for new nodes
+        this.setupLegendaryPack();
+
+        // Reinitialize legendary link FX for new links
+        this.setupLegendaryLinkFX();
+
+        // Reinitialize world events for new environment
+        this.setupWorldEvents();
+
+        // Reinitialize weather pack for new environment
+        this.setupWeatherPack();
+
+        // Reinitialize camera FX for new environment
+
+        // Reinitialize personality FX for new nodes
+        this.setupPersonalityFX();
+
+        // Reinitialize world FX for new environment
+        this.setupWorldFXPack();
+
+        // Reinitialize Semantic Glyph AI for new nodes
+        this.setupSemanticGlyphAI();

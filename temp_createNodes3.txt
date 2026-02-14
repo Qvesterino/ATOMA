@@ -1,0 +1,100 @@
+        
+        // Connect UISelectedHUD to the new linkingSystem
+        if (this.selectedHUD) {
+            console.log('[main.js] ✓ selectedHUD exists, connecting to linkingSystem');
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD successfully connected to linkingSystem');
+        } else {
+            console.warn('[main.js] ⚠ selectedHUD not initialized! Getting fresh instance');
+            this.selectedHUD = getSelectedHUD();
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD instance obtained and connected to linkingSystem');
+        }
+
+        // Initialize HUD Synchronization Patch 1.0 (single source of truth for HUD updates)
+        // AFTER selectedHUD.setLinkingSystem() to ensure both parameters are ready
+        this.selectedHUDSyncPatch = new SelectedHUDSyncPatch1_0(
+            this.selectedHUD,
+            this.linkingSystem
+        );
+        this.selectedHUDSyncPatch.init();
+        console.log('[main.js] SelectedHUDSyncPatch1_0 initialized ✓');
+        
+        // ====================================================================
+        // LINK PRIORITY DECAY ENGINE 1.0 INITIALIZATION (Session 27 Extended)
+        // ====================================================================
+        // Initialize 4 upstream dependency systems (in dependency order)
+        
+        // ===================================================================
+        // [SESSION 88] LINK QUALITY CALCULATOR - Per-frame quality metrics
+        // ===================================================================
+        this.linkQualityCalculator = new LinkQualityCalculator(
+            this.linkingSystem,
+            this.nodeDynamics,
+            {
+                // Quality component weighting (sums to 1.0)
+                structuralWeight: 0.30,          // Link geometry & validity
+                harmonyWeight: 0.40,             // Node stability & harmony
+                loadWeight: 0.15,                // Load pressure ratio
+                corruptionWeight: 0.15,          // Corruption influence
+                
+                // Structural quality parameters
+                baseStructuralScore: 80,
+                maxLinkDistance: 50,
+                distancePenaltyRate: 0.5,
+                stalenessThreshold: 5000,
+                
+                // EMA smoothing (optional, disabled by default)
+                enableEmaSmoothing: false,
+                emasAlpha: 0.2
+            }
+        );
+        console.log('[main.js] LinkQualityCalculator initialized ✓');
+        
+        // 1. Link Quality Feedback Loop 1.0 - Link outcome evaluation
+        this.linkQualityFeedbackLoop = new LinkQualityFeedbackLoop1_0(this.linkingSystem);
+        console.log('[main.js] LinkQualityFeedbackLoop1_0 initialized ✓');
+        
+        // ===================================================================
+        // [SESSION 88] LINK DEGRADATION SYSTEM - Quality-based effect scaling
+        // ===================================================================
+        this.linkDegradationSystem = new LinkDegradationSystem(
+            this.linkingSystem,
+            this.linkQualityCalculator,
+            {
+                // Quality thresholds (aligned with LinkQualityCalculator levels)
+                fullQualityThreshold: 80,        // 100% efficient
+                degradedStartThreshold: 55,      // Degradation begins
+                severeThreshold: 30,             // Heavy degradation
+                criticalThreshold: 10,           // Near collapse
+                
+                // Visual effect scaling
+                minVisualIntensity: 0.15,        // Don't go fully invisible
+                minParticleEmission: 0.20,       // Some particles always
+                
+                // Load noise/jitter effects
+                enableLoadNoise: true,
+                maxLoadNoiseIntensity: 0.3,
+                
+                // Metrics contribution scaling
+                enableMetricsScaling: true,
+                minMetricsContribution: 0.1,
+                
+                // Degradation curve shaping
+                enableExponentialFalloff: true,
+                exponentialPower: 1.5
+            }
+        );
+        console.log('[main.js] LinkDegradationSystem initialized ✓');
+        
+        // ===================================================================
+        // [SESSION 89] LINK COLLAPSE SYSTEM - Conditional failure under extreme stress
+        // ===================================================================
+        this.linkCollapseSystem = new LinkCollapseSystem(
+            this.linkingSystem,
+            this.linkQualityCalculator,
+            this.linkDegradationSystem,
+            {
+                // Collapse eligibility thresholds
+                corruptionThreshold: 0.8,           // 80% corruption
+                criticalLoadThreshold: 1.0,         // 100% node capacity

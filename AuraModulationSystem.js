@@ -271,8 +271,13 @@ export class AuraModulationSystem {
     const curve = this.animationCurves.scale_swell;
     const swell = Math.sin(progress * Math.PI * curve.speed) * 0.5 + 0.5;
     const targetScale = curve.min + (curve.max - curve.min) * swell * modulation.intensity;
-    
-    aura.scale.copy(baseline.scale).multiplyScalar(targetScale);
+    let safeScale = targetScale;
+    if (!Number.isFinite(safeScale) || safeScale <= 0) {
+      console.warn('[AuraGuard] Invalid scale prevented', safeScale);
+      safeScale = 1;
+    }
+
+    aura.scale.copy(baseline.scale).multiplyScalar(safeScale);
   }
   
   /**

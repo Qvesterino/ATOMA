@@ -1,0 +1,350 @@
+                        this.nodeCoreAuthority.registerNodeCore(node);
+                    }
+                }
+                
+                // Register post-spawn observer (single ordered pipeline)
+                if (this.aiNodes?.registerPostSpawnObserver) {
+                    this.aiNodes.registerPostSpawnObserver(
+                        'node-core-material-authority',
+                        (newNode) => {
+                            if (newNode && this.nodeCoreAuthority) {
+                                this.nodeCoreAuthority.registerNodeCore(newNode);
+                            }
+                        },
+                        30
+                    );
+                }
+                
+                // [SESSION 56 FORENSIC FIX] Register observer for link events
+                // DISABLED: correctPostLinkLayering was calling undefined function (import was disabled)
+                // This was mutating renderOrder and aura opacity POST-LINK
+                // Visual authority lock: Base state is immutable, only FX layers are added
+                if (this.linkingSystem && this.linkingSystem.registerObserver) {
+                    this.linkingSystem.registerObserver({
+                        onLinkCreated: (link) => {
+                            try {
+                                // Re-assert core materials after link creation
+                                if (link?.nodes?.[0]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[0]);
+                                if (link?.nodes?.[1]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[1]);
+                                
+                                // DISABLED (Session 56): Defensive layering correction was calling undefined function
+                                // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
+                                // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
+                            } catch (e) {
+                                // Silent failure
+                            }
+                        }
+                    });
+                }
+                
+                // Setup console API for debugging (optional)
+                if (typeof setupNodeCoreAuthorityConsoleAPI === 'function') {
+                    window.debugCoreAuthority = setupNodeCoreAuthorityConsoleAPI(this.nodeCoreAuthority);
+                } else {
+                    console.log('[main.js] CoreAuthority console API not installed (optional)');
+                }
+                
+                console.log('[main.js] NodeCoreMaterialAuthority initialized ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] NodeCoreMaterialAuthority initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26)
+        // Prevents event visual effects from diluting or occluding cores
+        // ====================================================================
+        try {
+            this.eventVisualSuppression = new EventVisualSuppression_v1({
+                debugEnabled: false,
+                enableLogging: false,
+                suppressionStrength: 0.8,    // Aggressive suppression
+                suppressCoreEmissive: false,
+                suppressCoreOpacity: false,
+                suppressCoreOverlays: true,
+                suppressCoreMaterial: false,
+                redirectToAura: true
+            });
+            
+            // Register common event sources for monitoring
+            // These will be used to track which systems are applying effects
+            
+            // Suppress VFX effects for all nodes
+            if (this.aiNodes?.nodes) {
+                this.eventVisualSuppression.suppressVFXEventEffects(this.aiNodes.nodes);
+            }
+            
+            // Register post-spawn observer (single ordered pipeline)
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'event-visual-suppression',
+                    (newNode) => {
+                        if (newNode && this.eventVisualSuppression) {
+                            this.eventVisualSuppression.suppressVFXEventEffects([newNode]);
+                        }
+                    },
+                    45
+                );
+            }
+            
+            // Setup console API for debugging
+            window.debugEventSuppression = setupEventSuppressionConsoleAPI(this.eventVisualSuppression);
+            
+            console.log('[main.js] EventVisualSuppression initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] EventVisualSuppression initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // AURA MODULATION SYSTEM v1.0 (Session 27)
+        // Receives redirected event intensity and applies modulation to auras
+        // ====================================================================
+        try {
+            this.auraModulationSystem = new AuraModulationSystem();
+            setupAuraModulationConsoleAPI(this.auraModulationSystem);
+            
+            // Initialize integration with EventVisualSuppression
+            this.auraModulationIntegration = new AuraModulationIntegration_v1(
+                this.auraModulationSystem,
+                this.eventVisualSuppression,
+                this.scene
+            );
+            this.auraModulationIntegration.initialize();
+            setupAuraModulationIntegrationConsoleAPI(this.auraModulationIntegration);
+            
+            // Setup redirection in EventVisualSuppression
+            setupAuraModulationRedirection(this.auraModulationIntegration);
+            
+            // Hook existing nodes
+            this.auraModulationIntegration.hookExistingNodes();
+            
+            console.log('[main.js] AuraModulationSystem v1.0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] AuraModulationSystem initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // ENHANCED NODE MODEL LINK STATE v1.0 (Session 28) — DISABLED
+        // Reason: Violates visual authority lock. Linking is a relationship,
+        // not a visual mutation. BaseVisualState is immutable authority.
+        // Nodes must look IDENTICAL before and after linking.
+        // Link FX are applied as ADDITIVE layers only (arc, glow, pulse).
+        // ====================================================================
+        // DISABLED: this.enhancedNodeModelLinkState = new EnhancedNodeModelLinkState();
+        // Kept commented for reference but NOT instantiated
+        
+        // ====================================================================
+        // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
+        // Clamps all aura opacity to ≤ 0.10 after linking
+        // ====================================================================
+//        try {
+//            this.globalAuraOpacityClamp = new GlobalAuraOpacityClamp();
+//            setupGlobalAuraOpacityClampConsoleAPI(this.globalAuraOpacityClamp);
+//            
+//            // [TASK 1 FIX] Integrate with NodeLinkingSystem for automatic aura clamping on link creation
+//           if (this.linkingSystem) {
+//                integrateGlobalAuraOpacityClamp(this.linkingSystem, this.globalAuraOpacityClamp);
+//                setupGlobalAuraOpacityClampIntegrationConsoleAPI(this.linkingSystem, this.globalAuraOpacityClamp);
+//                console.log('[main.js] ✅ GlobalAuraOpacityClamp integrated with NodeLinkingSystem');
+//            } else {
+//                console.warn('[main.js] ⚠️ linkingSystem not available for GlobalAuraOpacityClamp integration');
+//            }
+//            
+//            console.log('[main.js] GlobalAuraOpacityClamp initialized ✓');
+//        } catch (err) {
+//            console.warn('[main.js] GlobalAuraOpacityClamp initialization failed:', err);
+//        }
+        
+        // ====================================================================
+        // CORE MATERIAL MUTATION DETECTOR v1.0 (Session 28)
+        // Automated detection and repair of core material mutations
+        // ====================================================================
+        try {
+            this.coreMaterialMutationDetector = new CoreMaterialMutationDetector({
+                debugEnabled: false,
+                reportViolations: true,
+                autoRepair: false,
+                maxViolationsToReport: 100,
+            });
+            setupCoreMutationDetectorConsoleAPI(this.coreMaterialMutationDetector);
+            
+            // Initialize test suite
+            this.coreMaterialTestSuite = new CoreMaterialMutationTestSuite(
+                this.coreMaterialMutationDetector,
+                this.scene,
+                {
+                    verbose: true,
+                    stopOnFailure: false,
+                    maxTestDuration: 5000,
+                }
+            );
+            setupCoreMaterialTestSuiteConsoleAPI(this.coreMaterialTestSuite);
+            
+            // Register all node cores with detector
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    // Find core mesh (usually node.mesh itself or first child)
+                    let core = node.mesh || node;
+                    if (core && core.material) {
+                        this.coreMaterialMutationDetector.registerCore(node, core);
+                    }
+                }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-mutation-detector',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialMutationDetector) return;
+                        const core = newNode.mesh || newNode;
+                        if (core && core.material) {
+                            this.coreMaterialMutationDetector.registerCore(newNode, core);
+                        }
+                    },
+                    50
+                );
+            }
+            
+            console.log('[main.js] CoreMaterialMutationDetector initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CoreMaterialMutationDetector initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
+        // Enforces immutability of core material properties at runtime
+        // ====================================================================
+        try {
+            this.coreMaterialPropertyLock = new CoreMaterialPropertyLock({
+                debugEnabled: false,
+                enforceOnFrame: false,
+                violationDetectionEnabled: true,
+            });
+            setupCoreMaterialPropertyLockConsoleAPI(this.coreMaterialPropertyLock);
+            
+            // Initialize tracking map for iteration
+            this.coreMaterialPropertyLock.initializeTrackingMap();
+            
+            // Register all node core materials with the lock
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    // Traverse node to find all core materials
+                    node.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            // Check if this is a core mesh (marked with isNodeCore flag)
+                            if (child.userData?.isNodeCore || 
+                                child.name?.toLowerCase().includes('core') ||
+                                child.userData?.vfxType?.includes('core')) {
+                                
+                                // Register core material for locking
+                                this.coreMaterialPropertyLock.registerCoreMaterial(
+                                    child.material,
+                                    node.userData?.id || 'unknown'
+                                );
+                                
+                                // Add to tracking map for frame enforcement
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-material-property-lock',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialPropertyLock) return;
+                        newNode.traverse((child) => {
+                            if (!child.isMesh || !child.material) return;
+                            if (
+                                child.userData?.isNodeCore ||
+                                child.name?.toLowerCase().includes('core') ||
+                                child.userData?.vfxType?.includes('core')
+                            ) {
+                                this.coreMaterialPropertyLock.registerCoreMaterial(
+                                    child.material,
+                                    newNode.userData?.id || 'unknown'
+                                );
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        });
+                    },
+                    55
+                );
+            }
+            
+            console.log('[main.js] CoreMaterialPropertyLock initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CoreMaterialPropertyLock initialization failed:', err);
+        }
+        
+        // Initialize Link Recommendation AI 1.0 (after linking system ready)
+        this.linkRecommendationAI = new LinkRecommendationAI1_0(
+            this.linkingSystem,
+            null, // correlationEngine (optional, attached later if available)
+            null, // priorityHistoryEngine (optional, attached later if available)
+            null  // priorityDecayEngine (optional, attached later if available)
+        );
+        console.log('[main.js] LinkRecommendationAI1_0 initialized ✓');
+        
+        // Initialize Link Automation Engine 1.0 (after recommendation AI ready)
+        this.linkAutomationEngine = new LinkAutomationEngine1_0(
+            this.linkingSystem,
+            this.linkRecommendationAI,
+            {
+                automationThreshold: 0.65,
+                maxLinksPerCycle: 3,
+                requireUserTrigger: true,
+                safetyCooldownMs: 500,
+                enabled: false
+            }
+        );
+        console.log('[main.js] LinkAutomationEngine1_0 initialized ✓');
+        
+        // Initialize Link Quality Predictor 1.0 (link viability evaluation)
+        this.linkQualityPredictor = new LinkQualityPredictor1_0(
+            this.linkingSystem,
+            computeSynergyScore,
+            this.scene
+        );
+        console.log('[main.js] LinkQualityPredictor1_0 initialized ✓');
+        
+        // Integrate quality predictor with recommendation AI
+        // (AI will use predictor to rank candidates)
+        if (this.linkRecommendationAI && this.linkQualityPredictor) {
+            this.linkRecommendationAI.linkQualityPredictor = this.linkQualityPredictor;
+        }
+        
+        // Integrate quality predictor with automation engine
+        // (Automation will filter poor-quality links)
+        if (this.linkAutomationEngine && this.linkQualityPredictor) {
+            this.linkAutomationEngine.linkQualityPredictor = this.linkQualityPredictor;
+            this.linkQualityPredictor.setAutomationThreshold(65); // 65+ quality required
+        }
+        
+        // Initialize Synergy Recommendation Debug HUD 1.0 (real-time monitoring)
+        this.synergyDebugHUD = new SynergyRecommendationDebugHUD(
+            this.linkRecommendationAI,
+            this.linkAutomationEngine
+        );
+        console.log('[main.js] SynergyRecommendationDebugHUD1_0 initialized ✓');
+        
+        // Initialize Auto Link Feedback UI 1.0 (visual feedback for automation)
+        this.autoLinkFeedbackUI = new AutoLinkFeedbackUI1_0(
+            this.scene,
+            this.neonLinkVisuals || null // Will use if available
+        );
+        
+        // Register callback for link creation feedback
+        if (this.linkAutomationEngine && this.autoLinkFeedbackUI) {
+            this.linkAutomationEngine.registerOnAutoLinkCreated((sourceNode, targetNode, synergyScore) => {
+                this.autoLinkFeedbackUI.registerOnAutoLink(sourceNode, targetNode, synergyScore);
+            });
+        }
+        console.log('[main.js] AutoLinkFeedbackUI1_0 initialized ✓');
+        
+        // Connect UISelectedHUD to the new linkingSystem
+        if (this.selectedHUD) {
+            console.log('[main.js] ✓ selectedHUD exists, connecting to linkingSystem');
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);

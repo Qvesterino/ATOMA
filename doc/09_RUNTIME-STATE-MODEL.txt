@@ -1,0 +1,204 @@
+ATOMA RUNTIME ENGINE STATE MODEL — FORENSIC ANALYSIS
+EXECUTIVE SUMMARY
+ATOMA engine currently runs in VISUAL LOCKDOWN MODE - a high-severity emergency state that locks most visual systems, enforces strict interaction authority, and disables significant feature sets. The engine is configured for maximum stability with 12 active global control flags and 6 major visual locks.
+
+STEP 1 — GLOBAL CONTROL SOURCES
+PRIMARY GLOBAL FLAGS (CONFIG-based)
+Flag Name	File	Default Value	Risk Level	Affects
+CONFIG.visuals.LOCK_NODE_VISUALS	config.js	true	HIGH	All node opacity/scale/color/emissive/visibility mutations
+CONFIG.visuals.LOCK_LINK_VISUALS	config.js	true	HIGH	All link auras, particles, overlays
+CONFIG.visuals.LOCK_INTERACTION	config.js	true	HIGH	Raycasting targets invisible interaction meshes only
+CONFIG.visuals.PARTICLE_BOUNDS_CHECK	config.js	false	MEDIUM	Confines link particles to curve radius
+CONFIG.visuals.FREEZE_MODE_SAFE	config.js	true	HIGH	Safe freeze/unfreeze without visual artifacts
+CONFIG.debug.VISUAL_LOCKDOWN	config.js	true	HIGH	Hard disable all visual complexity
+CONFIG.features.ENABLE_NODE_AURAS	config.js	false	MEDIUM	Node aura system disabled (Session 99)
+CONFIG.rendering.DISABLE_TRANSMISSION_PASS	config.js	true	MEDIUM	Zeroes MeshPhysicalMaterial.transmission
+SECONDARY GLOBAL FLAGS (WINDOW-based)
+Flag Name	Default Value	Risk Level	Affects
+window.ATOMA_DISABLE_MYTHIC_RITUALS	true	MEDIUM	Mythic ritual system globally disabled
+window.ATOMA_DISABLE_PARASITIC_HUDS	true	LOW	Parasitic HUD overlays disabled
+window.ATOMA_HARD_KILL_PARASITIC_DOM	true	LOW	Hard kill all parasitic DOM elements
+window.ATOMA_HARD_OFF_LANGUAGE_ENGINE	true	MEDIUM	Language/poetry systems disabled
+window.DEBUG_VISUAL_MODE	true	HIGH	Master debug override for visuals
+window.VISUAL_AUTHORITY_LOCK	true	HIGH	Hard interaction authority engaged
+ENGINE LIFECYCLE FLAGS
+Flag Name	Type	Purpose
+game._worldSwitchInProgress	boolean	Blocks linking during map transitions
+game.worldReady	boolean	Indicates world fully initialized
+window.__ATOMA_WORLD_TRANSITIONING	boolean	External world transition flag
+STEP 2 — GLOBAL LOCK SYSTEMS
+VisualAuthorityLock System (VisualAuthorityLock.js)
+System	Restriction Type	Blocks Globally	Runtime Changeable
+VisualAuthorityLock.canModifyNode()	Visual mutations	All node opacity, scale, color, emissive, visibility changes	No (requires CONFIG change)
+VisualAuthorityLock.canModifyLink()	Visual mutations	All link auras, particles, overlays	No (requires CONFIG change)
+VisualAuthorityLock.canRaycastVisuals()	Interaction	Raycasting on visual meshes (forces interaction meshes)	No (requires CONFIG change)
+VisualAuthorityLock.freezeModeSafe()	Freeze mode	Prevents freeze mode artifacts	No (requires CONFIG change)
+VisualAuthorityLock.shouldCheckParticleBounds()	Particles	Confines link particles to curve bounds	No (requires CONFIG change)
+Highlight: What gets blocked globally
+When LOCK_NODE_VISUALS = true:
+
+All visual mutations to node materials
+Opacity changes
+Scale changes
+Color modifications
+Emissive intensity changes
+Visibility toggles
+When LOCK_LINK_VISUALS = true:
+
+All link visual decorations
+Aura effects on links
+Particle systems on links
+Overlay effects
+Links render as geometry-only
+When LOCK_INTERACTION = true:
+
+Raycasting on actual node meshes
+Forces use of invisible hit-proxy meshes only
+Prevents direct visual interaction
+STEP 3 — EMERGENCY / STABILIZATION PATTERNS
+Emergency & Stabilization Systems
+System	Reason (from comments)	What is Disabled	Default State	Still Referenced
+Session 99 Stabilization	"Emergency Visual Stabilization"	CONFIG.features.ENABLE_NODE_AURAS = false	ACTIVE	YES (checked in NodeAuraSystem, MythicAuraIntegration)
+Session 103 Visual Lockdown	"Emergency Visual Lockdown"	CONFIG.debug.VISUAL_LOCKDOWN = true	ACTIVE	YES (checked in NeonLinkVisuals, AINodeModel)
+Mythic Rituals Disable	"🔥 Mythic Rituals globally disabled"	window.ATOMA_DISABLE_MYTHIC_RITUALS = true	ACTIVE	YES (checked in MythicRitualController, _MythicSeedGlyph)
+Node Aura Kill Switch	"EMERGENCY AURA KILL SWITCH"	window.__DISABLE_ALL_NODE_AURAS__ = true	ACTIVE	YES (checked in EmergencyAuraKillSwitch_v1.js)
+Node Visual Freeze Mode	"EMERGENCY STABILIZATION SYSTEM - Make all node visuals 100% immutable"	Freeze mode blocks all visual mutations	CONTROLLED	YES (ControlledUnfreezeSystem_v1.js manages reactivation)
+Archetype Patch Disable	"ArchetypeIntegrationPatch: DISABLED"	window.ATOMA_DISABLE_ARCHETYPE_PATCH = true	ACTIVE	YES (checked in ArchetypeVisualIntegrationPatch_v1.js)
+Opaque Enforcer Disable	"SHADER STORM PROTECTION"	window.ATOMA_DISABLE_OPAQUE_ENFORCER disables enforcer	INACTIVE (flag false)	YES (checked in NodeCoreOpaqueEnforcer_Session113.js)
+Transmission Pass Disable	"DISABLE_TRANSMISSION_PASS"	Zeros MeshPhysicalMaterial.transmission	ACTIVE	YES (checked in main.js)
+HIGH SEVERITY: Temporary but Permanent
+Session 99 Stabilization - Marked as emergency hotfix but remains as default configuration Session 103 Visual Lockdown - Marked as temporary debug mode but active by default Mythic Rituals - Disabled as "ritual" system, but referenced in multiple places
+
+Performance Protections
+Protection	What it Protects	Active
+SafeReplacements	Enhanced node models (unstable nodes excluded)	YES
+VisualAuthorityLock	All visual mutations	YES
+NodeCoreMaterialAuthority	Core material immutability	YES
+CoreMaterialPropertyLock	Runtime material property enforcement	YES
+STEP 4 — RUNTIME MODE INFERENCE
+Identified Runtime Modes
+Mode Name	Active Flags	Systems Affected	Severity	Likely Current Default
+NORMAL	Most visuals enabled, no global locks	Full visual systems, all interactions	LOW	NO
+VISUAL LOCKDOWN	LOCK_NODE_VISUALS=true, LOCK_LINK_VISUALS=true, LOCK_INTERACTION=true, VISUAL_LOCKDOWN=true	All visual mutations blocked, links geometry-only, interaction via proxies only	HIGH	YES ✓
+STABILIZATION	ENABLE_NODE_AURAS=false, DISABLE_TRANSMISSION_PASS=true, DISABLE_MYTHIC_RITUALS=true	Auras disabled, transmission pass disabled, rituals disabled	MEDIUM	YES
+DEBUG / DEVELOPMENT	DEBUG_VISUAL_MODE=true, multiple window.DEBUG flags	Debug logging enabled, debug HUDs, debug visual modes	MEDIUM	YES
+EMERGENCY SAFE	FREEZE_MODE_SAFE=true, VISUAL_AUTHORITY_LOCK=true	Mutations blocked, scheduler restricted, interaction authority enforced	HIGH	YES
+Mode Combinations
+Current Mode: MIXED STABILIZATION + VISUAL LOCKDOWN
+
+The engine runs in a hybrid state combining:
+
+Visual Lockdown (all visuals blocked)
+Stabilization (auras/transmission/rituals disabled)
+Emergency Safe (freeze mode safe, interaction authority)
+Debug mode (debug visual mode enabled)
+STEP 5 — CURRENT DEFAULT ENGINE STATE
+Current Default Mode: VISUAL LOCKDOWN STABILIZATION
+Characteristics
+Visual systems: LOCKED
+
+Node visuals: All mutations blocked (LOCK_NODE_VISUALS=true)
+Link visuals: Geometry-only, no auras/particles (LOCK_LINK_VISUALS=true)
+Auras: Disabled (ENABLE_NODE_AURAS=false)
+Transmission: Disabled (DISABLE_TRANSMISSION_PASS=true)
+Interaction: RESTRICTED
+
+Visual raycasting: Blocked (LOCK_INTERACTION=true)
+Interaction authority: Hard enforced (VISUAL_AUTHORITY_LOCK=true)
+Hit-proxy system: Enforced (all interaction via invisible proxies)
+VFX: DISABLED/MINIMAL
+
+Mythic rituals: Disabled (ATOMA_DISABLE_MYTHIC_RITUALS=true)
+Language/poetry: Disabled (ATOMA_HARD_OFF_LANGUAGE_ENGINE=true)
+Archetype visual patch: Disabled (ATOMA_DISABLE_ARCHETYPE_PATCH=true)
+Parasitic HUDs: Disabled (ATOMA_DISABLE_PARASITIC_HUDS=true)
+Mutation systems: RESTRICTED
+
+Freeze mode: Safe mode enabled (FREEZE_MODE_SAFE=true)
+Core material authority: Enforced
+Material property lock: Active
+Performance protections: ACTIVE
+
+Visual authority: Locked globally
+Safe replacements: Active for unstable nodes
+Emergency kill switches: Available
+Engine State Classification
+The engine is currently in: STABILIZATION MODE
+
+Evidence:
+
+Multiple Session 99/103 stabilization hotfixes active by default
+Visual lockdown flags enabled (LOCK_NODE_VISUALS, LOCK_LINK_VISUALS, LOCK_INTERACTION)
+Feature flags disabling major systems (auras, rituals, transmission)
+Emergency systems installed and active (VisualAuthorityLock, ControlledUnfreezeSystem)
+FINAL SUMMARY
+Statistics
+Total global control flags found: 16
+
+CONFIG-based: 8
+Window-based: 6
+Engine lifecycle: 2
+Number of systems affected by global locks: 8+
+
+Node visuals: All visual mutations blocked
+Link visuals: Auras, particles, overlays blocked
+Interaction: Raycasting restricted to proxies
+Aura system: Fully disabled
+Mythic rituals: Globally disabled
+Transmission pass: Disabled
+Language engine: Disabled
+Parasitic HUDs: Disabled
+Number of temporary/emergency disables still active: 8
+
+Session 99 Stabilization (auras disabled)
+Session 103 Visual Lockdown (debug mode)
+Mythic Rituals disable
+Node Aura Kill Switch
+Archetype Patch disable
+Transmission Pass disable
+Language Engine disable
+Parasitic HUDs disable
+Identified runtime modes: 5
+
+NORMAL (not active)
+VISUAL LOCKDOWN (active)
+STABILIZATION (active)
+DEBUG/DEVELOPMENT (active)
+EMERGENCY SAFE (active)
+Current default runtime state: VISUAL LOCKDOWN STABILIZATION
+
+Visuals: Locked globally
+Interaction: Hard restricted
+VFX: Mostly disabled
+Mutations: Restricted
+Performance protections: Active
+Major Risks
+🔴 Hidden Lockdowns:
+
+High Risk: Visual Lockdown mode is marked as "temporary debug mode" but is the default configuration
+High Risk: Session 99 Stabilization is marked as "emergency hotfix" but remains permanent default
+Medium Risk: VisualAuthorityLock prevents ANY visual system from running without explicit CONFIG changes
+🔴 Conflicting Global States:
+
+High Risk: DEBUG_VISUAL_MODE=true (debug enabled) conflicts with LOCK_* flags (everything locked)
+Medium Risk: VISUAL_LOCKDOWN=true locks visuals but multiple visual systems still initialize and check locks every frame
+Medium Risk: Multiple emergency systems (AuraKillSwitch, VisualAuthorityLock, ControlledUnfreeze) overlapping responsibilities
+🔴 Undefined Engine Mode:
+
+High Risk: No single "engine mode" flag - behavior determined by combination of 8+ separate flags
+High Risk: No documentation of "normal production mode" vs "stabilization mode"
+Medium Risk: Some systems still check disabled features (auras, rituals) every frame despite being permanently off
+Critical Observation
+The ATOMA engine runs in what was intended to be temporary emergency/stabilization mode but has become the permanent default configuration. This creates a false "emergency" state where:
+
+Visual systems are over-locked - Most VFX and visual features are permanently disabled
+Debug mode is active - Intended for development but is production default
+Emergency hotfixes are permanent - Session 99/103 fixes were temporary but now permanent
+No path to "normal" - No documented way to switch to full-featured production mode
+RECOMMENDATION: The engine needs a clear "production mode" configuration that:
+
+Disables debug flags
+Enables aur system (if desired)
+Unlocks visual mutations (if desired)
+Removes "temporary" emergency locks that became permanent
+Analysis Complete — READ ONLY, NO MODIFICATIONS MADE

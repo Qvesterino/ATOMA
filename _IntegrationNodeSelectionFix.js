@@ -155,7 +155,7 @@ export function patchIntegrationNodeSelection(linkingSystem, aiNodes) {
       
       this.raycaster.setFromCamera(this.mouse, this.camera);
       this.raycaster.far = this.interactionConfig?.maxLinkingDistance || 4000;
-      this.raycaster.layers.enableAll();
+      this.raycaster.layers.set(10);
       
       // Collect raycastable objects
       const meshesToTest = [];

@@ -271,6 +271,7 @@ export class AINodes {
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
     this.debugMode = false;  // Set to true for spawn debug logging
+    this._disposed = false;
 
     // Spawn range helpers for fallback recovery
     this.minSpawnDistance = 15;
@@ -1385,6 +1386,17 @@ export class AINodes {
           if (!hasFinitePositions(sourceGeo)) {
               return null;
           }
+
+          for (let i = 0; i < arr.length; i++) {
+              if (!Number.isFinite(arr[i])) {
+                  console.error('[EdgesSkip_NaN]', {
+                      geometryType: sourceGeo.type,
+                      index: i,
+                      value: arr[i]
+                  });
+                  return null;
+              }
+          }
           const edgeGeometry = new THREE.EdgesGeometry(sourceGeo);
           
           // FIX 2: Validate position attribute after EdgesGeometry creation
@@ -1815,6 +1827,8 @@ export class AINodes {
    * Update node system
    */
   update(deltaTime, time) {
+    if (window?.game?._worldSwitchInProgress) return;
+    if (this._disposed) return;
     const profileEnabled = typeof window !== 'undefined' && window.__ATOMA_PROFILE__ === true;
     if (profileEnabled) this._ensureProfilingStore();
 
@@ -3702,6 +3716,8 @@ export class AINodes {
   }
   
   dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
     this.nodes.forEach(node => {
       this.releaseUniqueSpawn(node);
       this.scene.remove(node);

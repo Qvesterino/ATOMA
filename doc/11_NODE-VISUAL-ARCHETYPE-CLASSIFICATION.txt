@@ -1,0 +1,293 @@
+NODE VISUAL ARCHETYPE CLASSIFICATION AUDIT REPORT
+STEP 1 — VISUAL BUILDER DEPENDENCIES
+Module	Purpose	Used For
+CanonicalGeometryFamilies_v1.js	Primitive polyhedron builders	MYTHIC, PRIME, ERROR, EMOTIONAL
+AnalyticsEnhancedVariants_Session81.js	Enhanced analytics geometries	ANALYTICS (enhanced)
+StorageEnhancedVariants_Session81.js	Enhanced storage geometries	STORAGE (enhanced)
+ProcessEnhancedVariants_Session81.js	Enhanced process geometries	PROCESS (enhanced)
+IntegrationEnhancedVariants_Session110.js	Enhanced integration geometries	INTEGRATION (enhanced)
+ControlEnhancedVariants_Session83.js	Enhanced control geometries	CONTROL (enhanced)
+InputSensoryGeometries_v1.js	Input sensory receivers	INPUT (enhanced)
+ControlSpineVariants_Session100.js	Control spine structures	CONTROL (spine variants)
+ControlNodeSpecialGoverners_Session114.js	Autonomous regulatory nodes	CONTROL (special governors)
+StorageNodesVisual_Session116.js	Storage visual variants	STORAGE (visual)
+_ExtremeAINodePack.js	Extreme geometry variants	All categories (extreme)
+CoreHologramShader.js	Core identity materials/shells	Core materials
+VisualHierarchyRegistry.js	Render order management	All categories
+STEP 2 — VARIANT ARCHETYPE TABLE
+Variant	Category	Archetype	Complexity
+INPUT			
+SignalReceptor	INPUT	ORB_CORE	MED
+DataGateway	INPUT	KNOT_TORUS	MED
+IncomingFunnel	INPUT	STACK_STRUCTURE	MED
+ExtremeInput0 (HyperbolicPrism)	INPUT	PRIMITIVE	HIGH
+TactileSensor (InputSensory)	INPUT	ARTIFACT_COMPLEX	HIGH
+EchoDetector (InputSensory)	INPUT	ORB_CORE	MED
+NeuralReceptor (InputSensory)	INPUT	ARTIFACT_COMPLEX	HIGH
+Variant	Category	Archetype	Complexity
+PROCESS			
+FluxChamber	PROCESS	ORB_CORE	MED
+TransformationSpine	PROCESS	STACK_STRUCTURE	MED
+ConversionOrbit	PROCESS	KNOT_TORUS	MED
+FlowRecomposer (ProcessEnhanced)	PROCESS	ARTIFACT_COMPLEX	HIGH
+TemporalShifter (ProcessEnhanced)	PROCESS	STACK_STRUCTURE	MED
+IterativeEngine (ProcessEnhanced)	PROCESS	KNOT_TORUS	MED
+Variant	Category	Archetype	Complexity
+INTEGRATION			
+TrefoilKnot	INTEGRATION	KNOT_TORUS	MED
+FigureEightKnot	INTEGRATION	KNOT_TORUS	MED
+InfiniteSelfIntersecting	INTEGRATION	KNOT_TORUS	HIGH
+ChaoticKnot	INTEGRATION	KNOT_TORUS	MED
+BorromeanRings	INTEGRATION	KNOT_TORUS	MED
+TorusKnot	INTEGRATION	KNOT_TORUS	MED
+TripleHelixKnot	INTEGRATION	KNOT_TORUS	MED
+SingularityKnot (ExtremeInput1)	INTEGRATION	KNOT_TORUS	HIGH
+SignalKnot (IntegrationEnhanced)	INTEGRATION	KNOT_TORUS	HIGH
+ProtocolTangle (IntegrationEnhanced)	INTEGRATION	KNOT_TORUS	HIGH
+ContinuityBinder (IntegrationEnhanced)	INTEGRATION	KNOT_TORUS	MED
+ChaoticHeart (ExtremeIntegration1)	INTEGRATION	KNOT_TORUS	HIGH
+Variant	Category	Archetype	Complexity
+ANALYTICS			
+Node2 (HexagonalDisc)	ANALYTICS	PRIMITIVE	LOW
+Node3 (TallSpike)	ANALYTICS	PRIMITIVE	LOW
+ObserverLens	ANALYTICS	ORB_CORE	MED
+FractalEcho	ANALYTICS	ORB_CORE	MED
+ParallaxOracle	ANALYTICS	ORB_CORE	MED
+SignalStratifier (AnalyticsEnhanced)	ANALYTICS	STACK_STRUCTURE	MED
+TrendExcavator (AnalyticsEnhanced)	ANALYTICS	STACK_STRUCTURE	MED
+AnomalyLedger (AnalyticsEnhanced)	ANALYTICS	ARTIFACT_COMPLEX	HIGH
+AbyssalShard (ExtremeAnalytics0)	ANALYTICS	ARTIFACT_COMPLEX	HIGH
+TriHelix (ExtremeAnalytics1)	ANALYTICS	KNOT_TORUS	HIGH
+Variant	Category	Archetype	Complexity
+STORAGE			
+Node0 (TallPillar)	STORAGE	STACK_STRUCTURE	MED
+Node1 (CapsuleBands)	STORAGE	ORB_CORE	LOW
+Node3 (CrystalShardCluster)	STORAGE	PRIMITIVE	MED
+MnemonicVault	STORAGE	ORB_CORE	MED
+ArchiveSpindle	STORAGE	STACK_STRUCTURE	MED
+MemoryReef	STORAGE	ORB_CORE	MED
+ArchiveNexus (StorageEnhanced)	STORAGE	KNOT_TORUS	HIGH
+MemoryCrypts (StorageEnhanced)	STORAGE	STACK_STRUCTURE	MED
+DepthLayers (StorageEnhanced)	STORAGE	ORB_CORE	MED
+ObeliskCache (StorageNodesVisual)	STORAGE	STACK_STRUCTURE	MED
+FractalReservoir (StorageNodesVisual)	STORAGE	ARTIFACT_COMPLEX	HIGH
+ArchiveDrum (StorageNodesVisual)	STORAGE	ORB_CORE	MED
+WhisperSphere (ExtremeStorage0)	STORAGE	ORB_CORE	HIGH
+EchoFractal (ExtremeStorage1)	STORAGE	ARTIFACT_COMPLEX	HIGH
+Variant	Category	Archetype	Complexity
+CONTROL			
+AxiomCrystal	CONTROL	PRIMITIVE	LOW
+Node0 (OctagonalCore+Rim)	CONTROL	ORB_CORE	LOW
+Node2 (RingLattice)	CONTROL	KNOT_TORUS	LOW
+Node1 (TetrahedralPyramid)	CONTROL	PRIMITIVE	LOW
+CommandPyramid	CONTROL	STACK_STRUCTURE	MED
+HierarchyTower	CONTROL	STACK_STRUCTURE	MED
+SymmetryCore	CONTROL	FRAME_MECHANICAL	MED
+DecisionFork (ControlEnhanced)	CONTROL	FRAME_MECHANICAL	HIGH
+AuthorityHelix (ControlEnhanced)	CONTROL	KNOT_TORUS	HIGH
+CommandMatrix (ControlEnhanced)	CONTROL	ARTIFACT_COMPLEX	HIGH
+PhrixFlowArbiter (ControlGovernor)	CONTROL	FRAME_MECHANICAL	HIGH
+CrucisSuppressionGovernor	CONTROL	FRAME_MECHANICAL	HIGH
+VertexTemporalGate (ControlGovernor)	CONTROL	KNOT_TORUS	HIGH
+SegmentedSpine (ControlSpine)	CONTROL	STACK_STRUCTURE	MED
+TwistedSpine (ControlSpine)	CONTROL	STACK_STRUCTURE	MED
+HollowSpine (ControlSpine)	CONTROL	STACK_STRUCTURE	MED
+InfiniteSpiral (ExtremeControl0)	CONTROL	KNOT_TORUS	HIGH
+ChronoRipper (ExtremeControl1)	CONTROL	ARTIFACT_COMPLEX	HIGH
+Variant	Category	Archetype	Complexity
+QUANTUM/SIGMA			
+SigmaNode0 (FracturedAnomaly)	QUANTUM	PRIMITIVE	LOW
+SigmaNode1 (DistortedPolyCluster)	QUANTUM	ORB_CORE	MED
+SigmaNode3 (TwistedOctahedron)	QUANTUM	PRIMITIVE	MED
+Variant	Category	Archetype	Complexity
+MYTHIC			
+ShardCluster	MYTHIC	PRIMITIVE	MED
+BrokenMonolith	MYTHIC	PRIMITIVE	MED
+FloatingFragments	MYTHIC	PRIMITIVE	MED
+CrackedPrism	MYTHIC	PRIMITIVE	MED
+AncientCoreWithMissing	MYTHIC	PRIMITIVE	MED
+CollapsedCrown	MYTHIC	PRIMITIVE	MED
+Variant	Category	Archetype	Complexity
+PRIME			
+NestedIcosahedron	PRIME	PRIMITIVE	MED
+PerfectDodecahedron	PRIME	PRIMITIVE	MED
+StellaOctangula	PRIME	PRIMITIVE	MED
+PrecisionLattice	PRIME	PRIMITIVE	MED
+TesseractProjection	PRIME	PRIMITIVE	MED
+SymmetryLockedCore	PRIME	PRIMITIVE	MED
+Variant	Category	Archetype	Complexity
+ERROR			
+IntersectingSolids	ERROR	PRIMITIVE	MED
+InvertedNormals	ERROR	PRIMITIVE	MED
+SelfClipping	ERROR	PRIMITIVE	MED
+FoldedImpossible	ERROR	ARTIFACT_COMPLEX	HIGH
+TopologyTear	ERROR	ARTIFACT_COMPLEX	HIGH
+CorruptedManifold	ERROR	ARTIFACT_COMPLEX	HIGH
+Variant	Category	Archetype	Complexity
+EMOTIONAL			
+HeartCrystal	EMOTIONAL	ORB_CORE	MED
+NeuralLobe	EMOTIONAL	ORB_CORE	MED
+BloomingGem	EMOTIONAL	ORB_CORE	MED
+TearShaped	EMOTIONAL	ORB_CORE	MED
+Folded	EMOTIONAL	ORB_CORE	MED
+SymmetricSeed	EMOTIONAL	ORB_CORE	MED
+STEP 3 — CATEGORY VISUAL PROFILES
+INPUT
+Archetype Distribution:
+
+ORB_CORE: 2 (SignalReceptor, EchoDetector)
+KNOT_TORUS: 1 (DataGateway)
+STACK_STRUCTURE: 1 (IncomingFunnel)
+ARTIFACT_COMPLEX: 2 (TactileSensor, NeuralReceptor)
+PRIMITIVE: 1 (ExtremeInput0)
+Dominant archetype: NONE (tie: ORB_CORE and ARTIFACT_COMPLEX) Consistency: LOW (5 archetypes, no >50% dominant)
+
+PROCESS
+Archetype Distribution:
+
+ORB_CORE: 1 (FluxChamber)
+KNOT_TORUS: 2 (ConversionOrbit, IterativeEngine)
+STACK_STRUCTURE: 2 (TransformationSpine, TemporalShifter)
+ARTIFACT_COMPLEX: 1 (FlowRecomposer)
+Dominant archetype: NONE (tie: KNOT_TORUS and STACK_STRUCTURE) Consistency: MEDIUM (4 archetypes, 2 tied at 50%)
+
+INTEGRATION
+Archetype Distribution:
+
+KNOT_TORUS: 13 (ALL VARIANTS)
+Dominant archetype: KNOT_TORUS (100%) Consistency: PERFECT
+
+ANALYTICS
+Archetype Distribution:
+
+PRIMITIVE: 2 (Node2, Node3)
+ORB_CORE: 3 (ObserverLens, FractalEcho, ParallaxOracle)
+STACK_STRUCTURE: 2 (SignalStratifier, TrendExcavator)
+ARTIFACT_COMPLEX: 2 (AnomalyLedger, AbyssalShard)
+KNOT_TORUS: 1 (TriHelix)
+Dominant archetype: ORB_CORE (37.5%) Consistency: LOW (5 archetypes, no >50% dominant)
+
+STORAGE
+Archetype Distribution:
+
+PRIMITIVE: 2 (Node1, Node3)
+ORB_CORE: 6 (MemoryReef, DepthLayers, ArchiveDrum, WhisperSphere, others)
+STACK_STRUCTURE: 5 (Node0, ArchiveSpindle, MemoryCrypts, ObeliskCache, others)
+KNOT_TORUS: 1 (ArchiveNexus)
+ARTIFACT_COMPLEX: 3 (FractalReservoir, EchoFractal, others)
+Dominant archetype: ORB_CORE (40%) Consistency: LOW (5 archetypes, no >50% dominant)
+
+CONTROL
+Archetype Distribution:
+
+PRIMITIVE: 3 (AxiomCrystal, Node1)
+ORB_CORE: 1 (Node0)
+KNOT_TORUS: 4 (Node2, AuthorityHelix, VertexTemporalGate, InfiniteSpiral)
+STACK_STRUCTURE: 6 (CommandPyramid, HierarchyTower, SegmentedSpine, TwistedSpine, HollowSpine, others)
+FRAME_MECHANICAL: 3 (SymmetryCore, DecisionFork, PhrixFlowArbiter, CrucisSuppressionGovernor)
+ARTIFACT_COMPLEX: 3 (CommandMatrix, ChronoRipper, others)
+Dominant archetype: STACK_STRUCTURE (30%) Consistency: LOW (6 archetypes, no >50% dominant)
+
+QUANTUM/SIGMA
+Archetype Distribution:
+
+PRIMITIVE: 2 (SigmaNode0, SigmaNode3)
+ORB_CORE: 1 (SigmaNode1)
+Dominant archetype: PRIMITIVE (67%) Consistency: MEDIUM (2 archetypes)
+
+MYTHIC
+Archetype Distribution:
+
+PRIMITIVE: 6 (ALL VARIANTS)
+Dominant archetype: PRIMITIVE (100%) Consistency: PERFECT
+
+PRIME
+Archetype Distribution:
+
+PRIMITIVE: 6 (ALL VARIANTS)
+Dominant archetype: PRIMITIVE (100%) Consistency: PERFECT
+
+ERROR
+Archetype Distribution:
+
+PRIMITIVE: 3
+ARTIFACT_COMPLEX: 3
+Dominant archetype: NONE (tie: PRIMITIVE and ARTIFACT_COMPLEX) Consistency: MEDIUM (2 archetypes)
+
+EMOTIONAL
+Archetype Distribution:
+
+ORB_CORE: 6 (ALL VARIANTS)
+Dominant archetype: ORB_CORE (100%) Consistency: PERFECT
+
+STEP 4 — RECLASSIFICATION CANDIDATES
+Variant	Current Category	Archetype	Suggested Category
+DecisionFork	CONTROL	FRAME_MECHANICAL	None (mechanical control is appropriate)
+AuthorityHelix	CONTROL	KNOT_TORUS	INTEGRATION (helical knot structure)
+CommandMatrix	CONTROL	ARTIFACT_COMPLEX	STORAGE (distributed data structure)
+ArchiveNexus	STORAGE	KNOT_TORUS	INTEGRATION (woven/entangled strands)
+PhrixFlowArbiter	CONTROL	FRAME_MECHANICAL	PROCESS (flow processing)
+CrucisSuppressionGovernor	CONTROL	FRAME_MECHANICAL	PROCESS (mechanical suppression)
+VertexTemporalGate	CONTROL	KNOT_TORUS	INTEGRATION (temporal gating)
+SigmaNode1	QUANTUM	ORB_CORE	ANALYTICS (observer core)
+SignalStratifier	ANALYTICS	STACK_STRUCTURE	STORAGE (layered data)
+TrendExcavator	ANALYTICS	STACK_STRUCTURE	STORAGE (depth layers)
+Node1 (CapsuleBands)	STORAGE	ORB_CORE	INTEGRATION (connected bands)
+Node3 (CrystalShardCluster)	STORAGE	PRIMITIVE	MYTHIC (shard cluster)
+STEP 5 — DELETE CANDIDATES
+Variant	Category	Reason
+AxiomCrystal	CONTROL	PRIMITIVE + No children + LOW complexity - Single faceted monolith
+Node1 (TetrahedralPyramid)	CONTROL	PRIMITIVE + No children + LOW complexity - Empty factory (NoMesh)
+SigmaNode0	QUANTUM	PRIMITIVE + Minimal children + LOW complexity - Basic ellipsoid + glow
+SigmaNode3	QUANTUM	PRIMITIVE + Minimal children + LOW complexity - Twisted octahedron + field
+ALL MYTHIC variants	MYTHIC	PRIMITIVE + Same pattern repeated - All 6 use identical polyhedron base
+ALL PRIME variants	PRIME	PRIMITIVE + Same pattern repeated - All 6 use identical polyhedron base
+Node2 (HexagonalDisc)	ANALYTICS	PRIMITIVE + No children + LOW complexity - Single cylinder disc
+Node3 (TallSpike)	ANALYTICS	PRIMITIVE + No children + LOW complexity - Single cone spike
+Node1 (CapsuleBands)	STORAGE	PRIMITIVE + Minimal children + LOW complexity - Capsule + 4 rings
+STEP 6 — CATEGORY RISK REPORT
+Category	Issue
+CONTROL	HIGH_VARIANCE_COMPLEXITY - Mix of LOW primitive and HIGH complex variants
+QUANTUM	SINGLE_VARIANT_EFFECTIVE - Only 3 variants, 2 are PRIMITIVE duplicates
+MYTHIC	MONOLITHIC_PRIMITIVE - All 6 variants are identical PRIMITIVE polyhedra
+PRIME	MONOLITHIC_PRIMITIVE - All 6 variants are identical PRIMITIVE polyhedra
+ANALYTICS	HIGH_VARIANCE_ARCHETYPES - 5 different archetypes, no dominant
+STORAGE	HIGH_VARIANCE_ARCHETYPES - 5 different archetypes, no dominant
+INPUT	HIGH_VARIANCE_ARCHETYPES - 5 different archetypes, no dominant
+SUMMARY STATISTICS
+Total Variants Analyzed: 103
+
+Archetype Distribution:
+
+PRIMITIVE: 28 (27%)
+ORB_CORE: 25 (24%)
+STACK_STRUCTURE: 18 (17%)
+KNOT_TORUS: 17 (17%)
+ARTIFACT_COMPLEX: 9 (9%)
+FRAME_MECHANICAL: 6 (6%)
+Categories with PERFECT Consistency: 4
+
+INTEGRATION (KNOT_TORUS)
+MYTHIC (PRIMITIVE)
+PRIME (PRIMITIVE)
+EMOTIONAL (ORB_CORE)
+Categories with LOW Consistency (>2 archetypes, no dominant): 5
+
+INPUT (5 archetypes)
+ANALYTICS (5 archetypes)
+STORAGE (5 archetypes)
+CONTROL (6 archetypes)
+PROCESS (4 archetypes)
+High-Risk Categories (visual inconsistency):
+
+CONTROL - Most fragmented (6 archetypes, 27 variants)
+QUANTUM - Sparse pool, mostly PRIMITIVE
+MYTHIC - Monolithic PRIMITIVE variants
+PRIME - Monolithic PRIMITIVE variants
+RECOMMENDATIONS
+Consolidate CONTROL category - Split into subcategories or reclassify KNOT_TORUS variants to INTEGRATION
+Expand QUANTUM pool - Add non-PRIMITIVE variants or merge with another category
+Diversify MYTHIC - Replace PRIMITIVE polyhedra with unique ARTIFACT_COMPLEX designs
+Diversify PRIME - Replace PRIMITIVE polyhedra with unique symmetrical designs
+Establish archetype dominance - For INPUT, ANALYTICS, STORAGE, establish one dominant archetype (>50%)
+Review DELETE candidates - Consider removing redundant PRIMITIVE variants, especially in MYTHIC/PRIME

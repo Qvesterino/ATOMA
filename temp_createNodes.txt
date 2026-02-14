@@ -1,0 +1,100 @@
+                                    child.material,
+                                    newNode.userData?.id || 'unknown'
+                                );
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        });
+                    },
+                    55
+                );
+            }
+            
+            console.log('[main.js] CoreMaterialPropertyLock initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CoreMaterialPropertyLock initialization failed:', err);
+        }
+        
+        // Initialize Link Recommendation AI 1.0 (after linking system ready)
+        this.linkRecommendationAI = new LinkRecommendationAI1_0(
+            this.linkingSystem,
+            null, // correlationEngine (optional, attached later if available)
+            null, // priorityHistoryEngine (optional, attached later if available)
+            null  // priorityDecayEngine (optional, attached later if available)
+        );
+        console.log('[main.js] LinkRecommendationAI1_0 initialized ✓');
+        
+        // Initialize Link Automation Engine 1.0 (after recommendation AI ready)
+        this.linkAutomationEngine = new LinkAutomationEngine1_0(
+            this.linkingSystem,
+            this.linkRecommendationAI,
+            {
+                automationThreshold: 0.65,
+                maxLinksPerCycle: 3,
+                requireUserTrigger: true,
+                safetyCooldownMs: 500,
+                enabled: false
+            }
+        );
+        console.log('[main.js] LinkAutomationEngine1_0 initialized ✓');
+        
+        // Initialize Link Quality Predictor 1.0 (link viability evaluation)
+        this.linkQualityPredictor = new LinkQualityPredictor1_0(
+            this.linkingSystem,
+            computeSynergyScore,
+            this.scene
+        );
+        console.log('[main.js] LinkQualityPredictor1_0 initialized ✓');
+        
+        // Integrate quality predictor with recommendation AI
+        // (AI will use predictor to rank candidates)
+        if (this.linkRecommendationAI && this.linkQualityPredictor) {
+            this.linkRecommendationAI.linkQualityPredictor = this.linkQualityPredictor;
+        }
+        
+        // Integrate quality predictor with automation engine
+        // (Automation will filter poor-quality links)
+        if (this.linkAutomationEngine && this.linkQualityPredictor) {
+            this.linkAutomationEngine.linkQualityPredictor = this.linkQualityPredictor;
+            this.linkQualityPredictor.setAutomationThreshold(65); // 65+ quality required
+        }
+        
+        // Initialize Synergy Recommendation Debug HUD 1.0 (real-time monitoring)
+        this.synergyDebugHUD = new SynergyRecommendationDebugHUD(
+            this.linkRecommendationAI,
+            this.linkAutomationEngine
+        );
+        console.log('[main.js] SynergyRecommendationDebugHUD1_0 initialized ✓');
+        
+        // Initialize Auto Link Feedback UI 1.0 (visual feedback for automation)
+        this.autoLinkFeedbackUI = new AutoLinkFeedbackUI1_0(
+            this.scene,
+            this.neonLinkVisuals || null // Will use if available
+        );
+        
+        // Register callback for link creation feedback
+        if (this.linkAutomationEngine && this.autoLinkFeedbackUI) {
+            this.linkAutomationEngine.registerOnAutoLinkCreated((sourceNode, targetNode, synergyScore) => {
+                this.autoLinkFeedbackUI.registerOnAutoLink(sourceNode, targetNode, synergyScore);
+            });
+        }
+        console.log('[main.js] AutoLinkFeedbackUI1_0 initialized ✓');
+        
+        // Connect UISelectedHUD to the new linkingSystem
+        if (this.selectedHUD) {
+            console.log('[main.js] ✓ selectedHUD exists, connecting to linkingSystem');
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD successfully connected to linkingSystem');
+        } else {
+            console.warn('[main.js] ⚠ selectedHUD not initialized! Getting fresh instance');
+            this.selectedHUD = getSelectedHUD();
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD instance obtained and connected to linkingSystem');
+        }
+
+        // Initialize HUD Synchronization Patch 1.0 (single source of truth for HUD updates)
+        // AFTER selectedHUD.setLinkingSystem() to ensure both parameters are ready
+        this.selectedHUDSyncPatch = new SelectedHUDSyncPatch1_0(
+            this.selectedHUD,
+            this.linkingSystem
+        );
+        this.selectedHUDSyncPatch.init();

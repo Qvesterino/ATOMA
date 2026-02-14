@@ -1,0 +1,80 @@
+        let __loggedFirstSpawn = false;
+        const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
+        this.aiNodes.createNode = (...args) => {
+            const node = originalCreateNode(...args);
+            if (!__loggedFirstSpawn) {
+                logPrograms('after-first-node', this.renderer);
+                __loggedFirstSpawn = true;
+            }
+            return node;
+        };
+        
+        // ========================================================================
+        // SESSION 20: VISUAL HIERARCHY CORRECTION SYSTEM v1.0
+        // Enforces visual dominance of core node geometry over auxiliary layers
+        // ========================================================================
+        this.visualHierarchyCorrection = new VisualHierarchyCorrectionSystem_v1({
+          enableAutoEnforcement: true,
+          enableDebug: false, // Set to true for debug logging
+          enforcementMode: 'constrain', // 'constrain' | 'suppress' | 'relocate'
+          radiusScaleFactor: 1.8,
+          suppressLegacyExtremes: true
+        });
+        
+        // Register all created nodes with hierarchy system
+        for (const node of this.aiNodes.nodes) {
+          this.visualHierarchyCorrection.registerNode(node, node.userData?.category || 'input');
+        }
+        console.log('[main.js] Visual Hierarchy Correction System v1.0 initialized ✓');
+
+        // Initialize dynamic node spawning system
+        this.aiNodes.initializeNodeSpawning();
+
+        // ====================================================================
+        // SIMULATION EFFECT ORCHESTRATOR (Session 37+ FIXED)
+        // Central hub for all dt-based animations (no requestAnimationFrame)
+        // Consolidates: node materialization, link pulses, mythic effects
+        // ====================================================================
+        this.effectOrchestrator = new SimulationEffectOrchestrator(this.scene);
+        console.log('[main.js] Simulation Effect Orchestrator initialized ✓');
+
+        // Create node linking system
+        this.linkingSystem = new NodeLinkingSystem(
+            this.scene,
+            this.camera,
+            this.renderer,
+            this.aiNodes
+        );
+        if (this.hitProxySystem) {
+            this.linkingSystem.hitProxySystem = this.hitProxySystem;
+        }
+        this.linkingSystem.isReady = true;
+        console.log('[main.js] NodeLinkingSystem created');
+        if (this.frameScheduler) {
+            this.frameScheduler.register(
+                'visual',
+                (dt) => {
+                    if (this.linkingSystem && this.linkingSystem.isReady === true) {
+                        this.linkingSystem.update(dt, this.time);
+                    }
+                },
+                'visual.linkingSystem'
+            );
+        }
+        if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
+            this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
+        }
+        if (
+            this.recursiveGlyphSignalSystem &&
+            typeof this.recursiveGlyphSignalSystem.setLinkingSystem === 'function' &&
+            this.linkingSystem
+        ) {
+            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
+        }
+
+        // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
+        if (
+            typeof window !== 'undefined' &&
+            window.__shaderWarmupDone !== true &&
+            window.__ATOMA_WARMUP_COMPLETE !== true
+        ) {
