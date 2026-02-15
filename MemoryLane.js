@@ -6,8 +6,9 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Walking through the AI's own memories
  */
 export class MemoryLane {
-  constructor(scene) {
+  constructor({ scene, worldRoot }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.serverTowers = [];
     this.holograms = [];
     this.memoryShards = [];
@@ -39,7 +40,7 @@ export class MemoryLane {
     this.floor = new THREE.Mesh(floorGeometry, floorMaterial);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.position.y = 0;
-    this.scene.add(this.floor);
+    this.worldRoot.add(this.floor);
   }
   
   /**
@@ -132,7 +133,7 @@ export class MemoryLane {
       rimLight: rimLight
     };
     
-    this.scene.add(towerGroup);
+    this.worldRoot.add(towerGroup);
     this.serverTowers.push(towerGroup);
   }
   
@@ -164,7 +165,7 @@ export class MemoryLane {
         glitchTimer: Math.random() * 10
       };
       
-      this.scene.add(panel);
+      this.worldRoot.add(panel);
       this.ceilingPanels.push(panel);
       
       // Panel outline
@@ -186,7 +187,7 @@ export class MemoryLane {
       const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
       outline.rotation.x = Math.PI / 2;
       outline.position.set(0, 10, z);
-      this.scene.add(outline);
+      this.worldRoot.add(outline);
     }
   }
   
@@ -209,13 +210,13 @@ export class MemoryLane {
     const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(-15, 5, 0);
-    this.scene.add(leftWall);
+    this.worldRoot.add(leftWall);
     
     // Right wall
     const rightWall = new THREE.Mesh(leftWallGeometry, wallMaterial.clone());
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(15, 5, 0);
-    this.scene.add(rightWall);
+    this.worldRoot.add(rightWall);
     
     // Wall glitch panels
     this.createWallGlitchPanels(leftWall, 'left');
@@ -250,7 +251,7 @@ export class MemoryLane {
         glitchDuration: 0
       };
       
-      this.scene.add(panel);
+      this.worldRoot.add(panel);
       this.glitchWalls.push(panel);
     }
   }
@@ -274,13 +275,13 @@ export class MemoryLane {
     const leftStrip = new THREE.Mesh(stripGeometry, stripMaterial);
     leftStrip.position.set(-12, 0.03, 0);
     leftStrip.userData = { pulseOffset: 0 };
-    this.scene.add(leftStrip);
+    this.worldRoot.add(leftStrip);
     
     // Right strip
     const rightStrip = new THREE.Mesh(stripGeometry, stripMaterial.clone());
     rightStrip.position.set(12, 0.03, 0);
     rightStrip.userData = { pulseOffset: Math.PI };
-    this.scene.add(rightStrip);
+    this.worldRoot.add(rightStrip);
     
     this.neonStrips = [leftStrip, rightStrip];
   }
@@ -308,7 +309,7 @@ export class MemoryLane {
         scrollSpeed: 0.5 + Math.random() * 0.5
       };
       
-      this.scene.add(hologram);
+      this.worldRoot.add(hologram);
       this.holograms.push(hologram);
     }
   }
@@ -439,7 +440,7 @@ export class MemoryLane {
       const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
       shard.add(edges);
       
-      this.scene.add(shard);
+      this.worldRoot.add(shard);
       this.memoryShards.push(shard);
     }
   }
@@ -488,7 +489,7 @@ export class MemoryLane {
     
     this.particles = new THREE.Points(geometry, material);
     this.particles.userData.velocities = velocities;
-    this.scene.add(this.particles);
+    this.worldRoot.add(this.particles);
   }
   
   /**
@@ -527,7 +528,7 @@ export class MemoryLane {
         fadePhase: 0
       };
       
-      this.scene.add(arc);
+      this.worldRoot.add(arc);
       this.arcs.push(arc);
     }
   }
@@ -548,7 +549,7 @@ export class MemoryLane {
     this.fogPlane = new THREE.Mesh(fogGeometry, fogMaterial);
     this.fogPlane.rotation.x = -Math.PI / 2;
     this.fogPlane.position.y = 0.2;
-    this.scene.add(this.fogPlane);
+    this.worldRoot.add(this.fogPlane);
   }
   
   /**

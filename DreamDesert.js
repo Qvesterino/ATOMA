@@ -8,8 +8,9 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Surreal, peaceful, geometric desertscape
  */
 export class DreamDesert {
-  constructor(scene, camera = null) {
+  constructor({ scene, worldRoot, camera = null }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.crystals = [];
     this.fragments = [];
@@ -93,7 +94,7 @@ export class DreamDesert {
     // Store reference for potential updates
     this.desert = desert;
     
-    this.scene.add(desert);
+    this.worldRoot.add(desert);
     
     // Create geometric dunes with subtle patterns
     this.dunes = [];
@@ -130,7 +131,7 @@ export class DreamDesert {
         breathOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(dune);
+      this.worldRoot.add(dune);
       this.dunes.push(dune);
     }
   }
@@ -229,7 +230,7 @@ export class DreamDesert {
         pulseOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(vein);
+      this.worldRoot.add(vein);
       this.energyVeins.push(vein);
     }
   }
@@ -277,7 +278,7 @@ export class DreamDesert {
         originalY: crystal.position.y
       };
       
-      this.scene.add(crystal);
+      this.worldRoot.add(crystal);
       this.crystals.push(crystal);
     }
   }
@@ -342,7 +343,7 @@ export class DreamDesert {
         originalY: fragment.position.y
       };
       
-      this.scene.add(fragment);
+      this.worldRoot.add(fragment);
       this.fragments.push(fragment);
     }
   }
@@ -398,7 +399,7 @@ export class DreamDesert {
     this.particles = new THREE.Points(geometry, material);
     this.particles.renderOrder = 30;    // ✅ Draw last (additive)
     this.particles.userData.velocities = velocities;
-    this.scene.add(this.particles);
+    this.worldRoot.add(this.particles);
   }
   
   /**
@@ -438,7 +439,7 @@ export class DreamDesert {
         waveOffset: i * Math.PI / 3
       };
       
-      this.scene.add(ribbon);
+      this.worldRoot.add(ribbon);
       this.auroraRibbons.push(ribbon);
     }
   }
@@ -474,7 +475,7 @@ export class DreamDesert {
         glitchDuration: 0
       };
       
-      this.scene.add(plane);
+      this.worldRoot.add(plane);
       this.glitchPlanes.push(plane);
     }
   }

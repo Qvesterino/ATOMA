@@ -9,8 +9,9 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * An ancient, sacred AI chamber built around a gigantic glowing Rift
  */
 export class SigmaRiftChamber {
-  constructor(scene, camera = null) {
+  constructor({ scene, worldRoot, camera = null }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.animatedObjects = [];
     this.chamberRadius = 60;
@@ -100,7 +101,7 @@ export class SigmaRiftChamber {
     });
     
     this.starfield = new THREE.Points(starfieldGeometry, starfieldMaterial);
-    this.scene.add(this.starfield);
+    this.worldRoot.add(this.starfield);
     
     this.createSigmaRuneLights();
   }
@@ -135,7 +136,7 @@ export class SigmaRiftChamber {
         });
         
         const line = new THREE.Line(geometry, material);
-        this.scene.add(line);
+        this.worldRoot.add(line);
         
         this.animatedObjects.push({
           object: line,
@@ -183,7 +184,7 @@ export class SigmaRiftChamber {
       });
       
       const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-      this.scene.add(wall);
+      this.worldRoot.add(wall);
       
       const symbolAngle = (i + 0.5) / wallSegments * Math.PI * 2;
       const symbolX = Math.cos(symbolAngle) * this.chamberRadius;
@@ -211,7 +212,7 @@ export class SigmaRiftChamber {
       });
       
       const line = new THREE.Line(geometry, material);
-      this.scene.add(line);
+      this.worldRoot.add(line);
     }
   }
   
@@ -238,7 +239,7 @@ export class SigmaRiftChamber {
     });
     
     const symbol = new THREE.Line(geometry, material);
-    this.scene.add(symbol);
+    this.worldRoot.add(symbol);
     
     this.animatedObjects.push({
       object: symbol,
@@ -261,7 +262,7 @@ export class SigmaRiftChamber {
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
-    this.scene.add(floor);
+    this.worldRoot.add(floor);
     
     const patternRadius = this.chamberRadius * 0.8;
     const hexRadius = 2;
@@ -297,7 +298,7 @@ export class SigmaRiftChamber {
         });
         
         const triangle = new THREE.Line(geometry, material);
-        this.scene.add(triangle);
+        this.worldRoot.add(triangle);
       }
     }
   }
@@ -317,7 +318,7 @@ export class SigmaRiftChamber {
     });
     
     const hexagon = new THREE.Line(geometry, material);
-    this.scene.add(hexagon);
+    this.worldRoot.add(hexagon);
     
     if (Math.random() > 0.5) {
       this.animatedObjects.push({
@@ -359,7 +360,7 @@ export class SigmaRiftChamber {
     
     this.riftCore = new THREE.Mesh(geometry, material);
     this.riftCore.position.y = this.riftHeight / 2;
-    this.scene.add(this.riftCore);
+    this.worldRoot.add(this.riftCore);
     
     this.animatedObjects.push({
       object: this.riftCore,
@@ -382,11 +383,11 @@ export class SigmaRiftChamber {
       const rim = new THREE.Mesh(rimGeometry, rimMaterial);
       rim.position.y = y;
       rim.rotation.x = Math.PI / 2;
-      this.scene.add(rim);
+      this.worldRoot.add(rim);
       
       const rimLight = new THREE.PointLight(0x00ffaa, 1, 25);
       rimLight.position.y = y;
-      this.scene.add(rimLight);
+      this.worldRoot.add(rimLight);
     }
     
     const verticalLineCount = 16;
@@ -409,7 +410,7 @@ export class SigmaRiftChamber {
       });
       
       const line = new THREE.Line(geometry, material);
-      this.scene.add(line);
+      this.worldRoot.add(line);
       
       this.animatedObjects.push({
         object: line,
@@ -458,7 +459,7 @@ export class SigmaRiftChamber {
     });
     
     this.riftParticles = new THREE.Points(geometry, material);
-    this.scene.add(this.riftParticles);
+    this.worldRoot.add(this.riftParticles);
     
     this.riftParticleData = {
       velocities: velocities,
@@ -492,7 +493,7 @@ export class SigmaRiftChamber {
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.position.y = this.riftHeight / 2;
       ring.rotation.x = Math.PI / 2;
-      this.scene.add(ring);
+      this.worldRoot.add(ring);
       
       this.animatedObjects.push({
         object: ring,
@@ -531,7 +532,7 @@ export class SigmaRiftChamber {
     const monolith = new THREE.Mesh(geometry, material);
     monolith.position.set(x, y, z);
     monolith.rotation.y = angle;
-    this.scene.add(monolith);
+    this.worldRoot.add(monolith);
     
     const edgeGeometry = new THREE.EdgesGeometry(geometry);
     const pos = edgeGeometry.attributes?.position?.array;
@@ -591,7 +592,7 @@ export class SigmaRiftChamber {
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.position.y = height;
       ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-      this.scene.add(ring);
+      this.worldRoot.add(ring);
       
       this.animatedObjects.push({
         object: ring,
@@ -632,7 +633,7 @@ export class SigmaRiftChamber {
       });
       
       const path = new THREE.Line(geometry, material);
-      this.scene.add(path);
+      this.worldRoot.add(path);
       
       this.createPathParticles(curve);
     }
@@ -659,7 +660,7 @@ export class SigmaRiftChamber {
     });
     
     const particles = new THREE.Points(geometry, material);
-    this.scene.add(particles);
+    this.worldRoot.add(particles);
     
     this.animatedObjects.push({
       object: particles,
@@ -697,7 +698,7 @@ export class SigmaRiftChamber {
     });
     
     this.driftParticles = new THREE.Points(geometry, material);
-    this.scene.add(this.driftParticles);
+    this.worldRoot.add(this.driftParticles);
     
     this.driftData = {
       velocities: velocities,

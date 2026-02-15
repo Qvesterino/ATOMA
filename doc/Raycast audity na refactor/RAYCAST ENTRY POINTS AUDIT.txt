@@ -1,0 +1,180 @@
+ATOMA – STATIC CODE AUDIT
+PHASE: RAYCAST ENTRY POINTS DISCOVERY
+SECTION 1 — Raycaster Instances Summary
+File	Line	Raycaster Instance Name	Created Here?	Target Source	Recursive?	Uses Layers?	Notes
+_HitProxyIntegrationPatch.js	~95	raycaster (local)	Y	getAllProxies()	N	Y (layer 10)	Wrapper creates safe proxy raycaster
+_NodeLinking2_3.js	~120	this.raycaster	Y	scene.traverse() → custom array	Y (true)	N	Scene traversal for node collection
+_HitProxySystem_v1.js	~340	raycaster (local)	Y	getAllProxies()	N	Y (layer 10)	Factory method creates proxy raycaster
+NodeLinkingSystem.js	~230	this.raycaster	Y	coreMeshes[]	N (false)	N	Core mesh targeting (no layers)
+NodeLinkingSystem.js	~240	window.safeProxyRaycaster	N (external)	getAllProxies()	N	Y (layer 10)	Uses hit-proxy system
+NodeInspectOverlay3_0.js	~42	this.raycaster	Y	scene.traverse() → allObjects[]	N	N	❌ ANTI-PATTERN: Full scene traversal
+NodeInspectOverlay1_0.js	~1	this.raycaster	Y	Unknown (legacy)	Unknown	Unknown	Legacy version (obsolete)
+NodeEditor.js	~1	this.raycaster	Y	nodes.map(n => n.mesh)	N	N	Multiple intersect calls per frame
+AINodes.js	~800	raycaster (local)	Y	scene.children	Y (true)	N	❌ ANTI-PATTERN: Recursive scene traversal
+HARD_AUTHORITY_DEBUG_API.js	~50	raycaster (local)	Y	node (single)	Y (true)	N	Debug mode only
+HARD_INTERACTION_AUTHORITY_SYSTEM.js	~200	raycaster (local)	Y	Filtered objects	N	Y (layer 10)	Creates hardened raycaster wrapper
+SafeMobilityPack4.js	~300	raycaster (local)	Y	_collectValidRaycastTargets()	Y (true)	N	Ground detection system
+SpawnAuthorityConsoleAPI.js	~100	raycaster (local)	Y	coreMesh (single)	Y (true)	N	Debug/testing only
+_IntegrationNodeSelectionFix.js	~150	this.raycaster	N (external)	meshesToTest	N (false)	N	Uses existing raycaster
+RaycastSanitizationEngine_v1.js	~1	raycaster (parameter)	N	Varies	Varies	N	Utility function wrapper
+RaycastTargetRegistry.js	~1	raycaster (commented)	N	N/A	N/A	N/A	❌ ANTI-PATTERN: Commented but not used
+SECTION 2 — Intersect Call Map
+Primary Intersection Points
+File	Method	Objects Tested	Recursive	Context	Notes
+_NodeLinking2_3.js	_getRaycastNode()	nodes[] (from scene.traverse)	TRUE ❌	Mouse move	Full scene traversal every raycast
+NodeLinkingSystem.js	getNodeAtPosition()	coreMeshes[]	FALSE	Click/Click-hold	Core mesh targeting
+NodeLinkingSystem.js	updateCrosshairNodeTargeting()	candidateMeshes[]	FALSE	Animate loop	Crosshair tracking
+NodeLinkingSystem.js	_getNodeAtPositionFromProxies()	boundedProxies[]	FALSE	Fallback	Proxy-only targeting
+NodeLinkingSystem.js	_getNodeAtPositionDirect()	nodeMeshes[]	FALSE	Debug recovery	Direct node mesh raycast
+NodeInspectOverlay3_0.js	onMouseClick()	allObjects[]	FALSE ❌	Click	Full scene traversal
+NodeEditor.js	updateNodeHover()	nodes.map(n => n.mesh)	FALSE	Mouse move	Per-frame hover check
+NodeEditor.js	handleDrag()	nodes.map(n => n.mesh)	FALSE	Drag event	Link creation drag
+AINodes.js	Spawn collision check	scene.children	TRUE ❌	Node spawn	Scene traversal for ground check
+SafeMobilityPack4.js	Ground check	_collectValidRaycastTargets()	TRUE ❌	Animate loop	Recursive target collection
+Wrapper/Redirect Systems
+System	Method	Redirect Target	Notes
+_HitProxyIntegrationPatch.js	createProxyRedirectingRaycaster()	Hit-proxy system	Intercepts all intersectObjects calls
+_HitProxyIntegrationPatch.js	createSafeProxyRaycaster()	Hit-proxy registry	Enforced proxy-only raycasting
+HARD_INTERACTION_AUTHORITY_SYSTEM.js	createHardenedRaycaster()	Filtered interaction cores	Layer 10 filtering
+RaycastSanitizationEngine_v1.js	Various utility methods	Sanitized objects	Safety wrapper for raycasts
+SECTION 3 — Layer Usage Summary
+Layer 10 (INTERACTION_LAYER) - Primary
+File	Usage	Purpose
+_HitProxySystem_v1.js	proxyMesh.layers.enable(10)	Hit-proxy targeting
+VisualInteractionIsolationPatch.js	coreMesh.layers.enable(this.interactionLayer)	Core mesh isolation
+HitProxyAutoRegistrar.js	proxy.layers.enable(this.proxyLayer)	Proxy activation
+HARD_INTERACTION_AUTHORITY_SYSTEM.js	activeCore.layers.enable(10)	Hard interaction authority
+AINodeModel.js	mainBody.layers.enable(10)	Node model interaction
+Layer 0 (Default Layer) - Multiple uses
+File	Usage	Purpose
+PostProcessing.js	object.layers.enable(1)	Post-processing pass
+NodeVisualAuthorityRuntime.js	node.layers.mask = 1	Default layer enforcement
+DreamDesert.js	desert.layers.set(0)	Terrain/ground
+CognitiveHorizonPlane.js	plane.layers.set(0)	Horizon plane
+Dynamic Layer Management
+File	Pattern	Notes
+VisualLayerEnforcementIntegrationHelpers.js	mesh.layers.enable(INTERACTION_LAYER)	Helper function
+NodeVisualAuthorityRuntime.js	Validates node.layers.mask === 0	Detects disabled layers
+AINodes.js	node.layers.mask = 1	Forces default layer
+SECTION 4 — Potential Architectural Risks
+CRITICAL RISKS
+Multiple Concurrent Raycasters
+
+Risk: At least 6 separate raycaster instances exist simultaneously
+Impact: Difficult to audit, inconsistent behavior, potential conflicts
+Locations:
+_NodeLinking2_3.js (this.raycaster)
+NodeLinkingSystem.js (this.raycaster)
+NodeInspectOverlay3_0.js (this.raycaster)
+NodeEditor.js (this.raycaster)
+AINodes.js (local raycaster)
+HARD_AUTHORITY_DEBUG_API.js (local raycaster)
+Scene Traversal Anti-Patterns
+
+Risk: Performance degradation, unpredictable hit targets
+Anti-Pattern Files:
+_NodeLinking2_3.js - scene.traverse() for node collection
+NodeInspectOverlay3_0.js - scene.traverse() for click detection
+AINodes.js - intersectObjects(scene.children, true) recursive
+SafeMobilityPack4.js - Recursive target collection
+Impact: O(n) traversal every raycast, hits visual artifacts
+Hit-Proxy System Not Universally Used
+
+Risk: Inconsistent interaction behavior, visual mesh raycasting violations
+Observation:
+Hit-proxy system exists (_HitProxySystem_v1.js)
+NodeLinkingSystem.js has proxy fallback but also visual-core raycast
+NodeInspectOverlay3_0.js does NOT use proxies
+NodeEditor.js does NOT use proxies
+Impact: Some systems bypass proxy safety
+MODERATE RISKS
+Recursive Intersect Calls
+
+Risk: Unbounded traversal, unpredictable hit results
+Locations:
+_NodeLinking2_3.js - intersectObjects(nodes, true) ❌
+AINodes.js - intersectObjects(scene.children, true) ❌
+SafeMobilityPack4.js - intersectObjects(targets, true) ❌
+Impact: Hits nested objects (auras, glyphs, shells)
+Raycaster in Animate Loop
+
+Risk: Performance bottleneck if unchecked
+Locations:
+NodeLinkingSystem.js - updateCrosshairNodeTargeting() per frame
+NodeEditor.js - updateNodeHover() per frame
+SafeMobilityPack4.js - Ground check per frame
+Mitigation: Some have frequency gating/throttling
+Raycaster Recreated Per Click
+
+Observation: Most raycasters are instance variables (created once)
+Exception: AINodes.js creates new raycaster for spawn check
+Status: Mostly acceptable pattern
+SECTION 5 — Suspicious Patterns
+CONFIRMED ANTI-PATTERNS
+Pattern 1: scene.traverse() for Click Detection
+Files: _NodeLinking2_3.js, NodeInspectOverlay3_0.js
+Code:
+
+scene.traverse((obj) => {
+  if (obj.userData && obj.userData.isNode) {
+    nodes.push(obj);
+  }
+});
+const intersects = this.raycaster.intersectObjects(nodes);
+Violation: Full scene traversal every raycast
+Recommendation: Use hit-proxy system or registered target registry
+Pattern 2: intersectObjects(scene.children, true) with Recursive Flag
+Files: AINodes.js, SafeMobilityPack4.js
+Code:
+
+const intersects = raycaster.intersectObjects(scene.children, true);
+Violation: Recursive traversal, hits visual artifacts
+Recommendation: Use non-recursive + filtered targets
+Pattern 3: Multiple Intersect Calls Per Frame
+Files: NodeEditor.js
+Code: Multiple sequential intersectObjects() calls per update
+Violation: Inefficient batching
+Recommendation: Consolidate raycasts or cache results
+Pattern 4: Raycast Logic Inside Visual/VFX Systems
+Files: SafeMobilityPack4.js (mobility VFX)
+Code: Raycast for ground detection in VFX update loop
+Violation: Visual system performing gameplay raycasts
+Recommendation: Separate concerns (visual vs interaction)
+SUSPICIOUS PATTERNS (Require Investigation)
+Legacy Raycast Override System
+
+File: CustomRaycastOverride.js
+Pattern: Commented-out raycast code
+Concern: Dead code or disabled functionality
+RaycastTargetRegistry Not Used
+
+File: RaycastTargetRegistry.js
+Pattern: Registry exists but commented-out in usage
+Concern: Partial implementation
+Dual Raycasting Paths
+
+File: NodeLinkingSystem.js
+Pattern: Both proxy AND visual-core raycasting
+Concern: Which path is active at runtime?
+Debug Mode Raycasters
+
+Files: HARD_AUTHORITY_DEBUG_API.js, SpawnAuthorityConsoleAPI.js
+Pattern: Raycasters created only for debug
+Concern: Could leak into production
+SUMMARY STATISTICS
+Total Raycaster Instances Identified: 13
+Files Using Hit-Proxy System: 3
+Files Bypassing Hit-Proxy System: 4
+Files with Scene Traversal Anti-Pattern: 3
+Files with Recursive Intersect Calls: 3
+Raycasters in Animate Loop: 3
+Raycasters in DOM Event Handlers: 6
+Raycasters in Debug Mode Only: 2
+ARCHITECTURAL RECOMMENDATIONS
+Consolidate Raycasting: Single authoritative raycaster system
+Universal Proxy Adoption: All interaction systems must use hit-proxies
+Eliminate Scene Traversal: Use registered target registries only
+Ban Recursive Intersect: Enforce non-recursive raycasts
+Separate Visual vs Interaction: VFX systems should not raycast
+Audit Debug Code: Ensure debug-only raycasters don't leak to production
+Audit completed. No code modifications made. Static analysis only.

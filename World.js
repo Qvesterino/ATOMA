@@ -9,8 +9,9 @@ const WORLD_DECOR_NODE_IMPERSONATORS = false;
  * Minimal, precise, cinematic holographic space
  */
 export class World {
-  constructor(scene) {
+  constructor({ scene, worldRoot }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.worldDecorations = [];
     this.ripples = [];
     
@@ -39,7 +40,7 @@ export class World {
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
-    this.scene.add(floor);
+    this.worldRoot.add(floor);
     
     // Thin holographic ring at edge
     const ringGeometry = new THREE.RingGeometry(
@@ -56,7 +57,7 @@ export class World {
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.01;
-    this.scene.add(ring);
+    this.worldRoot.add(ring);
     
     // Inner circle accent
     const innerCircle = new THREE.RingGeometry(11.8, 12, 64);
@@ -69,7 +70,7 @@ export class World {
     const inner = new THREE.Mesh(innerCircle, innerMaterial);
     inner.rotation.x = -Math.PI / 2;
     inner.position.y = 0.02;
-    this.scene.add(inner);
+    this.worldRoot.add(inner);
   }
   
   /**
@@ -89,7 +90,7 @@ export class World {
     });
     this.singularity = new THREE.Mesh(coreGeometry, coreMaterial);
     this.singularity.position.y = CONFIG.chamber.coreHeight;
-    this.scene.add(this.singularity);
+    this.worldRoot.add(this.singularity);
     
     // Add point light at singularity
     const coreLight = new THREE.PointLight(
@@ -98,7 +99,7 @@ export class World {
       30
     );
     coreLight.position.copy(this.singularity.position);
-    this.scene.add(coreLight);
+    this.worldRoot.add(coreLight);
     this.coreLight = coreLight;
     
     // Create ripple rings (will animate outward)
@@ -119,7 +120,7 @@ export class World {
         baseRadius: 0.5
       };
       
-      this.scene.add(ripple);
+      this.worldRoot.add(ripple);
       this.ripples.push(ripple);
     }
   }
@@ -151,7 +152,7 @@ export class World {
       platform.position.z = Math.sin(angle) * distance;
       platform.rotation.y = angle + Math.PI / 2;
       
-      this.scene.add(platform);
+      this.worldRoot.add(platform);
       
       // Add thin neon edge
       const edgeGeometry = new THREE.EdgesGeometry(platformGeometry);
@@ -179,7 +180,7 @@ export class World {
         floatOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(platform);
+      this.worldRoot.add(platform);
     }
   }
   
@@ -199,7 +200,7 @@ export class World {
     const arc = new THREE.Mesh(arcGeometry, arcMaterial);
     arc.rotation.x = Math.PI / 2;
     arc.position.y = CONFIG.chamber.coreHeight;
-    this.scene.add(arc);
+    this.worldRoot.add(arc);
     
     this.arc = arc;
   }
@@ -235,7 +236,7 @@ export class World {
       });
       
       const line = new THREE.Line(geometry, material);
-      this.scene.add(line);
+      this.worldRoot.add(line);
     }
   }
   
@@ -272,7 +273,7 @@ export class World {
       });
       
       const wire = new THREE.Line(geometry, material);
-      this.scene.add(wire);
+      this.worldRoot.add(wire);
     }
   }
   
@@ -332,7 +333,7 @@ export class World {
         pulseOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(node);
+      this.worldRoot.add(node);
       this.worldDecorations.push(node);
       
       // Add subtle connection lines to nearby nodes
@@ -349,7 +350,7 @@ export class World {
             opacity: 0.15
           });
           const line = new THREE.Line(lineGeometry, lineMaterial);
-          this.scene.add(line);
+          this.worldRoot.add(line);
         }
       }
     }
@@ -400,7 +401,7 @@ export class World {
     
     this.particles = new THREE.Points(geometry, material);
     this.particles.userData.velocities = velocities;
-    this.scene.add(this.particles);
+    this.worldRoot.add(this.particles);
   }
   
   /**

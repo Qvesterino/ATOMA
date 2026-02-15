@@ -1,0 +1,129 @@
+STATIC AUDIT: WORLD SWITCH CALL GRAPH & AUTHORITY MAP
+A) SWITCH ENTRY POINTS TABLE
+File	Line	Function	Direct/Indirect	Safe/Unsafe
+main.js	7348-7366	keydown handler (M key)	DIRECT	❌ UNSAFE
+WorldRuntime_v1.js	113-141	switchWorld()	DIRECT	⚠️ DELEGATES to main.js
+main.js	7368-7398	cycleWorld()	DIRECT	⚠️ DELEGATES to setupSigma/desert/etc
+B) MODE MUTATION TABLE
+File	Line	Variable	Who Writes	Risk
+main.js	3308	this.currentMode	AtomaGame constructor	✅ SAFE (initialization)
+main.js	7354	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+main.js	7356	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+main.js	7358	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+main.js	7360	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+main.js	7362	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+main.js	7364	this.currentMode	keydown 'M' handler	❌ HIGH RISK (direct mutation)
+WorldRuntime_v1.js	56, 79, 121	this.currentMode	WorldRuntime constructor/init	✅ SAFE (reads from game, mirrors state)
+WorldRuntime_v1.js	191	this.currentMode	WorldRuntime.dispose()	✅ SAFE (cleanup)
+_NeuralCurveLinkVisuals.js	68	this.currentMode	NeuralCurveLinkVisuals constructor	✅ SAFE (unrelated variable, different scope)
+Note: _NeuralCurveLinkVisuals.js line 68 is a FALSE POSITIVE - it's a separate currentMode property specific to that class for curve visualization modes (SYMMETRIC/CATEGORY_BIAS/STABILITY_AWARE/ASYMMETRIC), NOT the game world mode.
+
+C) CALL GRAPH
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    WORLD SWITCH AUTHORITY                       │
+└─────────────────────────────────────────────────────────────────┘
+
+                            ┌──────────────────┐
+                            │  AtomaGame.init  │
+                            └────────┬─────────┘
+                                     │
+                                     ▼
+                     ┌─────────────────────────────┐
+                     │ this.currentMode = 'fractal' │ ◄─── INITIAL ASSIGNMENT
+                     └─────────────────────────────┘
+                                     │
+                                     ▼
+                    ┌────────────────────────────────┐
+                    │  setupModeSwitch() (line 4789) │
+                    └────────────┬───────────────────┘
+                                 │
+                ┌────────────────┴────────────────┐
+                │                                 │
+                ▼                                 ▼
+  ┌───────────────────────┐         ┌──────────────────────────┐
+  │   keydown 'M' event   │         │  cycleWorld() (line ???)│
+  │   (lines 7350-7366)   │         │  (called by 'M' key)    │
+  └───────────┬───────────┘         └────────────┬─────────────┘
+              │                                 │
+              ▼                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│      DIRECT CURRENTMODE MUTATION (CIRCULAR MODE SWITCHING)      │
+│                                                                  │
+│  if (this.currentMode === 'sigma')   → this.currentMode = 'memory'  │
+│  if (this.currentMode === 'memory')  → this.currentMode = 'fractal' │
+│  if (this.currentMode === 'fractal')→ this.currentMode = 'quantum' │
+│  if (this.currentMode === 'quantum') → this.currentMode = 'desert'  │
+│  if (this.currentMode === 'desert') → this.currentMode = 'chamber' │
+│  else                               → this.currentMode = 'sigma'    │
+└─────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│     ENVIRONMENT SETUP (DELEGATED VIA setupXXXEnvironment)      │
+│                                                                  │
+│  setupSigmaEnvironment()     (line 7382-7385)                   │
+│  setupDesertEnvironment()    (line 7386-7389)                   │
+│  setupQuantumEnvironment()   (line 7390-7393)                   │
+│  setupFractalEnvironment()   (line 7394-7397)                   │
+│  setupMemoryEnvironment()    (line 7398-7401)                   │
+└─────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+    ┌─────────────────────┐
+    │  switchMode() ???   │
+    │  (main.js internal)│
+    └─────────┬───────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  WorldRuntime_v1 (OPTIONAL)                     │
+│                                                                  │
+│  switchWorld(nextMode)  (line 113-141)                          │
+│    └─> this.game.switchMode() [delegates back to main.js]      │
+│    └─> this.currentMode = this.game.currentMode (mirror)        │
+│                                                                  │
+│  getCurrentMode()  (line 151-154)                               │
+│  isInTransition()  (line 159-162)                               │
+└─────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+    ┌─────────────────────┐
+    │  activeWorld.scene  │
+    │  (current world)     │
+    └─────────────────────┘
+
+
+D) AUTHORITY VERDICT
+❌ NO - THERE IS NO SINGLE AUTHORITY
+Explanation:
+
+Multiple Mutation Points: main.js AtomaGame class has TWO distinct mutation points:
+
+Line 3308: Constructor initialization (safe)
+Lines 7354-7364: Keydown 'M' handler with circular mode switching logic (unsafe)
+No Central Manager: Mode changes happen directly inside the input event handler, not through a centralized mode manager.
+
+Delegation, Not Authority: WorldRuntime_v1.js does NOT have authority - it merely:
+
+Mirrors this.game.currentMode for tracking
+Delegates to this.game.switchMode() (which doesn't exist as shown, logic is inline)
+Circular Logic in Input Handler: The 'M' key handler contains hardcoded circular switching logic (sigma → memory → fractal → quantum → desert → chamber → sigma) that:
+
+Mutates currentMode directly
+Then calls environment setup functions
+Has no abstraction layer
+Environment Setup Direct Calls: The key handler directly calls setupSigmaEnvironment(), setupDesertEnvironment(), etc. (lines 7382-7398), bypassing any central orchestration.
+
+CRITICAL ISSUE: The mode switching system lacks a single authority. World mode changes are triggered and mutated directly from user input handlers without a centralized mode manager.
+
+ADDITIONAL FINDINGS
+READ-ONLY Comparisons (Safe)
+These locations only READ currentMode and do NOT mutate it:
+
+main.js lines 4792, 4795, 4798, 4802, 4805 - Mode comparison for environment setup selection
+main.js line 4938 - Node count calculation based on mode
+main.js lines 7382, 7386, 7390, 7394, 7398 - Mode checking before environment setup
+main.js line 9954 - Mode-based conditional
+FALSE POSITIVE
+_NeuralCurveLinkVisuals.js line 68: This currentMode is a separate property for curve visualization modes (SYMMETRIC/CATEGORY_BIAS/etc), completely unrelated to game world switching.

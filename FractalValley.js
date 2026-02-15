@@ -8,8 +8,9 @@ import { getMapConfig } from './MapConfigBase.js';
  * Represents AI visualization of pattern formation and logic
  */
 export class FractalValley {
-  constructor(scene, camera = null) {
+  constructor({ scene, worldRoot, camera = null }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.mountains = [];
     this.fractalFragments = [];
@@ -110,7 +111,7 @@ export class FractalValley {
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -2;
-    this.scene.add(floor);
+    this.worldRoot.add(floor);
     
     // Hexagonal terrace pattern on floor
     this.createHexTerraces();
@@ -140,7 +141,7 @@ export class FractalValley {
       hex.position.y = -1.5;
       hex.rotation.y = Math.random() * Math.PI;
       
-      this.scene.add(hex);
+      this.worldRoot.add(hex);
       
       // Neon outline
       const edgeGeometry = new THREE.EdgesGeometry(hexGeometry);
@@ -215,7 +216,7 @@ export class FractalValley {
         breathOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(mountain);
+      this.worldRoot.add(mountain);
       this.mountains.push(mountain);
       
       // Add neon edge outlines
@@ -411,7 +412,7 @@ export class FractalValley {
         originalY: fragment.position.y
       };
       
-      this.scene.add(fragment);
+      this.worldRoot.add(fragment);
       this.fractalFragments.push(fragment);
     }
   }
@@ -456,7 +457,7 @@ export class FractalValley {
         flowOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(river);
+      this.worldRoot.add(river);
       this.dataRivers.push(river);
     }
   }
@@ -476,7 +477,7 @@ export class FractalValley {
     this.mist = new THREE.Mesh(mistGeometry, mistMaterial);
     this.mist.rotation.x = -Math.PI / 2;
     this.mist.position.y = -0.5;
-    this.scene.add(this.mist);
+    this.worldRoot.add(this.mist);
   }
   
   /**
@@ -523,7 +524,7 @@ export class FractalValley {
     
     this.particles = new THREE.Points(geometry, material);
     this.particles.userData.velocities = velocities;
-    this.scene.add(this.particles);
+    this.worldRoot.add(this.particles);
   }
   
   /**
@@ -552,7 +553,7 @@ export class FractalValley {
         pulsePhase: 0
       };
       
-      this.scene.add(hologram);
+      this.worldRoot.add(hologram);
       this.holograms.push(hologram);
     }
   }
@@ -597,7 +598,7 @@ export class FractalValley {
         fadePhase: 0
       };
       
-      this.scene.add(symbol);
+      this.worldRoot.add(symbol);
       this.symbols.push(symbol);
     }
   }
@@ -652,7 +653,7 @@ export class FractalValley {
     
     const constellation = new THREE.Points(geometry, material);
     constellation.userData = { pulseOffset: Math.random() * Math.PI * 2 };
-    this.scene.add(constellation);
+    this.worldRoot.add(constellation);
     this.constellations.push(constellation);
   }
   
@@ -681,7 +682,7 @@ export class FractalValley {
         wavePhase: 0
       };
       
-      this.scene.add(wave);
+      this.worldRoot.add(wave);
       this.distortionWaves.push(wave);
     }
   }

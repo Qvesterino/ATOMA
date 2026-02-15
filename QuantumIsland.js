@@ -8,8 +8,9 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Represents quantum instability in AI dream state
  */
 export class QuantumIsland {
-  constructor(scene, camera = null) {
+  constructor({ scene, worldRoot, camera = null }) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.orbitingRocks = [];
     this.floatingShards = [];
@@ -96,7 +97,7 @@ export class QuantumIsland {
     
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
     this.island.position.y = 0;
-    this.scene.add(this.island);
+    this.worldRoot.add(this.island);
     
     // Neon edge highlights
     const edgeCount = 32;
@@ -207,7 +208,7 @@ export class QuantumIsland {
         originalRadius: radius
       };
       
-      this.scene.add(ring);
+      this.worldRoot.add(ring);
       this.vortexRings.push(ring);
     }
     
@@ -250,7 +251,7 @@ export class QuantumIsland {
         rotationSpeed: 0.03
       };
       
-      this.scene.add(swirl);
+      this.worldRoot.add(swirl);
       this.swirlArms.push(swirl);
     }
   }
@@ -302,7 +303,7 @@ export class QuantumIsland {
         rotationSpeed: 0.2 + Math.random() * 0.3
       };
       
-      this.scene.add(rock);
+      this.worldRoot.add(rock);
       this.orbitingRocks.push(rock);
     }
   }
@@ -350,7 +351,7 @@ export class QuantumIsland {
         pulseOffset: Math.random() * Math.PI * 2
       };
       
-      this.scene.add(filament);
+      this.worldRoot.add(filament);
       this.filaments.push(filament);
     }
   }
@@ -400,7 +401,7 @@ export class QuantumIsland {
         originalY: shard.position.y
       };
       
-      this.scene.add(shard);
+      this.worldRoot.add(shard);
       this.floatingShards.push(shard);
     }
   }
@@ -455,7 +456,7 @@ export class QuantumIsland {
     
     this.quantumParticles = new THREE.Points(geometry, material);
     this.quantumParticles.userData.velocities = velocities;
-    this.scene.add(this.quantumParticles);
+    this.worldRoot.add(this.quantumParticles);
   }
   
   /**
@@ -486,7 +487,7 @@ export class QuantumIsland {
         glitchDuration: 0
       };
       
-      this.scene.add(ribbon);
+      this.worldRoot.add(ribbon);
       this.glitchRibbons.push(ribbon);
     }
   }
@@ -513,7 +514,7 @@ export class QuantumIsland {
         pulsePhase: 0
       };
       
-      this.scene.add(pattern);
+      this.worldRoot.add(pattern);
       this.fractalPatterns.push(pattern);
     }
   }
@@ -533,7 +534,7 @@ export class QuantumIsland {
     this.mist = new THREE.Mesh(mistGeometry, mistMaterial);
     this.mist.rotation.x = -Math.PI / 2;
     this.mist.position.y = 0.3;
-    this.scene.add(this.mist);
+    this.worldRoot.add(this.mist);
   }
   
   /**
@@ -573,7 +574,7 @@ export class QuantumIsland {
         pulseOffset: i * 0.5
       };
       
-      this.scene.add(line);
+      this.worldRoot.add(line);
       this.circuitLines.push(line);
     }
   }
