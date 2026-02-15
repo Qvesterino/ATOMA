@@ -1,0 +1,127 @@
+ATOMA – Node Visual ↔ Category Coupling Audit Report
+Executive Summary
+FINDING: ZERO VISUAL COUPLING DETECTED
+
+The audit reveals that node.category has NO influence on visual appearance in the ATOMA codebase. While a getCategoryColor() method exists that defines colors for each category, this method is never invoked by any visual system. Node visuals are controlled exclusively by type, archetype, and explicit factory selection.
+
+A) Coupling Strength Summary
+Visual Aspect	Coupling Strength
+Geometry coupling	NONE
+Material coupling	NONE
+Color coupling	NONE (unused getCategoryColor method exists)
+Runtime effects coupling	NONE
+B) Coupling Table
+File	Function	Category Used For	Visual Aspect	Coupling Type
+EnhancedNodeModels.js	getCategoryColor()	NEVER CALLED	Color (unused)	N/A
+AINodeModel.js	ensureCoreIdentity()	Stored in userData only	None	STORAGE ONLY
+AINodeModel.js	create()	Parameter: type (NOT category)	Geometry, Material, Color	TYPE-BASED
+StorageNodesVisual_Session116.js	createStorageNode()	Parameter: name (NOT category)	Geometry, Material, Color	NAME-BASED
+All Visual Systems	Various	NO CATEGORY USAGE	N/A	NONE
+Key Pattern: Visuals use type (AINodeModel) or name (StorageNodesVisual), never category.
+
+C) Authority Map
+Category → Geometry: [NO FILES]
+No geometry selection uses category
+Visual factories use: type, archetype, explicit geometryName
+Category → Material: [NO FILES]
+No material selection uses category
+Materials determined by: factory methods, archetype profiles, visual systems
+Category → Color: [ENHANCEDNODEMODELS.JS - UNUSED]
+Single source exists but is never invoked:
+File: EnhancedNodeModels.js
+Method: getCategoryColor(category)
+Defines colors: INPUT (0x00ddff), PROCESS (0xffaa00), STORAGE (0x00ff88), INTEGRATION (0xaa00ff), ANALYTICS (0x88ccff), CONTROL (0xff0088), QUANTUM (0xffffff)
+Status: ORPHANED CODE - no callsite found in entire codebase
+Actual color sources:
+
+AINodeModel: getColorByType(type) - uses 'type' not 'category'
+ArchetypeColorPaletteSystem_v1.js - archetype-based
+Direct color parameters to factories
+Category → Runtime Effects: [NO FILES]
+No runtime mutation systems check category
+All visual mutations use: archetype, metrics (synergy, corruption), state flags
+D) Risk Indicators
+✅ NO RISKS DETECTED
+Positive Findings:
+
+Zero multiple category visual authorities - no conflicts exist because category is not used for visuals
+No category overriding archetype - archetypes are independent of category
+No runtime per-frame category checks - performance concern avoided
+No category logic duplication - no category-based visual logic exists to duplicate
+⚠️ OBSERVATIONS (NOT RISKS)
+Orphaned getCategoryColor() method
+
+Location: EnhancedNodeModels.js
+Defines category colors but never used
+Could be legacy code or unimplemented feature
+Impact: None - method is dead code
+Category stored in userData only
+
+Location: AINodeModel.js → ensureCoreIdentity()
+Stores node.userData.category but never reads it
+Impact: None - purely for metadata/gameplay systems
+Expected Insights → ACTUAL FINDINGS
+Expected Insight	Finding
+Does Category = Visual Identity?	NO - Category is gameplay-only, visual identity from type/archetype
+Are archetypes independent of category?	YES - Complete independence confirmed
+Where does visual-category lock exist?	NOWHERE - No lock exists
+Can visuals be reassigned without gameplay impact?	YES - Visuals decoupled from category classification
+Critical Code Evidence
+EnhancedNodeModels.js (Lines ~700-720)
+
+// THIS METHOD EXISTS BUT IS NEVER CALLED
+getCategoryColor(category) {
+  const colors = {
+    INPUT: 0x00ddff,
+    PROCESS: 0xffaa00,
+    STORAGE: 0x00ff88,
+    INTEGRATION: 0xaa00ff,
+    ANALYTICS: 0x88ccff,
+    CONTROL: 0xff0088,
+    QUANTUM: 0xffffff
+  };
+  return colors[category] || 0x00ffaa;
+}
+Search Result: Zero invocations found in entire codebase.
+
+AINodeModel.js (Line ~23)
+
+// Uses TYPE not CATEGORY
+static create(type = 'core', color = 0x00ddff) {
+  const nodeGroup = new THREE.Group();
+  switch(type) {
+    case 'core': return AINodeModel.createCoreNode(nodeGroup, color);
+    case 'data': return AINodeModel.createDataNode(nodeGroup, color);
+    case 'memory': return AINodeModel.createMemoryNode(nodeGroup, color);
+    case 'logic': return AINodeModel.createLogicNode(nodeGroup, color);
+    case 'neural': return AINodeModel.createNeuralNode(nodeGroup, color);
+  }
+}
+StorageNodesVisual_Session116.js (Line ~420)
+
+// Uses NAME not CATEGORY
+static createStorageNode(name, group, color = 0x00ff88) {
+  switch(name.toLowerCase()) {
+    case 'obelisk': return this.createObeliskCache(group, color);
+    case 'fractal': return this.createFractalReservoir(group, color);
+    case 'drum': return this.createArchiveDrum(group, color);
+  }
+}
+Search Results Summary
+All searches for category-based visual logic returned ZERO RESULTS:
+
+✗ getCategoryColor|categoryColor|category\[ - No category color map usage
+✗ Hardcoded category hex colors - No direct color assignments
+✗ \.color\s*= - No color property assignments matching category
+✗ node\.category|\.category\s*=== - No conditional category checks
+✗ \bcategory\b (all files) - No category usage in any JS file
+✗ category in main.js - No category usage in main entry point
+Conclusion
+ATOMA node visuals are completely decoupled from gameplay category classification.
+
+Category is a pure gameplay classification stored in metadata
+Visual identity is controlled by type (AINodeModel) and archetype (enhanced systems)
+The getCategoryColor() method is orphaned legacy code
+Visuals can be reassigned freely without affecting gameplay logic
+No category-based visual coupling exists to audit or refactor
+Recommendation: Consider removing the unused getCategoryColor() method if no future category-based visual features are planned, to reduce codebase maintenance burden.

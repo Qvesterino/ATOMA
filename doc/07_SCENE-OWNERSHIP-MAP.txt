@@ -1,0 +1,388 @@
+ATOMA SCENE OWNERSHIP MAP
+PHASE: READ-ONLY AUDIT COMPLETE
+EXECUTIVE SUMMARY
+CRITICAL FINDING: ATOMA has NO ROOT GROUP ARCHITECTURE. All objects are added directly to the main scene (this.scene). This is a major architectural gap compared to standard Three.js patterns.
+
+Systems accessing scene: 211+ systems Total scene.add() calls: 300+ Total scene.remove() calls: 230+ Named container groups: 7 Root groups (nodesRoot, linksRoot, etc.): 0 (MISSING)
+
+COMPREHENSIVE SYSTEM TABLE
+CORE WORLD SYSTEMS
+System / File	Object Type Added	Direct scene.add?	Uses Root Group?	Root Name	Frequency
+World.js	Floor, Ring, Inner Circle, Singularity, CoreLight, Ripples (5), Platforms (6), Arch, Grid Lines (12), Data Wires (8), Decor Nodes (disabled), Connection Lines, Particles	YES	NO	N/A	Initialization only
+NODE SYSTEMS
+System / File	Object Type Added	Direct scene.add?	Uses Root Group?	Root Name	Frequency
+AINodes.js	Node meshes, Activation pulses	YES	NO	N/A	Runtime (on spawn)
+NodeLinkingSystem.js	Link groups, Selected highlights, Multi-select glows, Creation pulses, Creation rings, Link visual groups	YES	NO	N/A	Runtime (per link)
+NodeLinkingInvariantGuard.js	Detached nodes (repair)	YES	NO	N/A	Runtime (repair)
+World.js	Decorative nodes (disabled)	YES	NO	N/A	Initialization only
+NAMED CONTAINER GROUPS (7 systems)
+System / File	Container Name	Objects	Frequency
+ResonanceEchoTrailSystem.js	'ResonanceEchoPool', 'EchoTrailDebug'	Echo trails, debug visualizations	Initialization only
+ProceduralHarmonicGlyphGenerator.js	'ProceduralGlyphPool'	Procedural glyphs	Initialization only
+LinkSemanticPictogramSystem.js	'PictogramContainer'	Pictogram visuals	Initialization only
+LinkSemanticPictogramSystem_Enhanced.js	'EnhancedPictogramContainer'	Enhanced pictograms	Initialization only
+HarmonicTopologyLearningSystem.js	'TopologyDebug'	Debug visualizations	Initialization only
+HarmonicResonanceFeedbackSystem.js	'ResonanceFieldDebug'	Resonance debug	Initialization only
+GlyphFusionZone.js	'CompositeGlyphPool'	Fusion glyphs	Initialization only
+VFX SYSTEMS (Direct to Scene)
+System / File	Object Type	Frequency
+_SafeWorldFXPack.js	Grid meshes, Wave meshes, Rift meshes, Glitch meshes, Energy streams, Aurora horizons, Mist	Initialization only
+_SafeLegendaryWorldEvents.js	Shockwaves, Blooms, Particles, Sky overlays, Stripes, Ribbons, Beams, Eclipses	Runtime (on event)
+_SafeAIWeatherPack.js	Overlays, Particles, Waves, Ribbons, Glitches, Beams, Clouds	Runtime (on weather event)
+_SafeLegendaryNodePack.js	Rings, Particles, Panels, Crowns, Auras	Runtime (on event)
+_SafeLegendaryLinkFX.js	Bursts, Bands, Panels, Shards, Trails, Echoes, Particles, Frames, Sparks	Runtime (on event)
+_SafeNodePersonalityFX.js	Orbits, Halo rings, Holo symbols, Dust particles	Initialization only
+_SafeEvolutionManager.js	Glow spheres, Core holograms, Orbit rings, Orbiter particles, Bursts	Runtime (on evolution)
+VisualUpgradeSuperpack.js	Volumetric lights, Rays, Atmospheric layers, Edge glow objects, Distortion zones, Rifts	Initialization only
+SynergyVFX1_0.js	Glow meshes, Trail points, Aura groups, Ring meshes, Bursts	Runtime (per link)
+SynergyHighways1_0.js	Highway meshes	Runtime (per link)
+SynergyCascadeVisualizer.js	Ripple lines, Meshes, Lines	Runtime (per cascade)
+TIER4_CorruptionFeedbackVisuals_v1.js	Corruption seeds, Cascade warnings, Harmony pulses	Runtime (on event)
+T2_HarmonyVisualConsumer_v1.js	Zone meshes, Pulse meshes	Runtime (on harmony)
+T2_CorruptionVisualIntegration_v1.js	Particles	Runtime (on corruption)
+HIGHLIGHT/PULSE/UI SYSTEMS
+System / File	Object Type	Frequency
+_UISelectedNodeHighlight3_2.js	Ring meshes, Glow meshes	Runtime (on selection)
+_UISelectedNodeLabel3_3.js	Label sprites	Runtime (on selection)
+_UIPrimaryNodeAura3_7.js	Ring meshes, Pulse meshes	Runtime (on primary node)
+_NodeMicroEvents.js	Rings (multiple), Sparks, Beams	Runtime (on micro events)
+_MythicNodeCreation.js	Seed orb, Birth beam, Ritual group	Runtime (on ritual)
+_MythicRitualController.js	Rings, Fissures, Beams, Spheres, Spirals, Bolts, Mandalas, Waves, Particles	Runtime (on ritual)
+_WorldPersonalityController.js	World pulses	Runtime (on world mood)
+MEMORY TRAIL SYSTEMS
+System / File	Container Name	Frequency
+SafePlayerMemoryTrails.js	'PlayerMemoryTrailContainer'	Initialization only
+SafeNodeMemoryTrails.js	'NodeMemoryTrailsContainer'	Initialization only
+SafeLinkMemoryTrails.js	'LinkMemoryTrailsContainer'	Initialization only
+SafeMemoryTrailsManager.js	'EventImprintContainer'	Initialization only
+GLYPH/SEMANTIC SYSTEMS
+System / File	Container Name	Frequency
+_AtomaGlyphSystem3_0.js	'AtomaGlyphSystem'	Initialization only
+_AtomaGlyphSystem4_0.js	'AtomaGlyphSystem4'	Initialization only
+_LinkedGlyphMessaging3_0.js	'LinkedGlyphMessaging_Messages'	Initialization only
+_RecursiveGlyphMessaging4_0.js	'RecursiveGlyphMessaging_Chains'	Initialization only
+_RecursiveGlyphSignalSystem.js	(unnamed signal container)	Initialization only
+_ProceduralMeaningEngine.js	'ProceduralMeaningEngine_Glyphs'	Initialization only
+_AINarrativePatterns6_0.js	'NarrativePatterns_Debug', 'AmbientEntities'	Initialization only
+_EmergentThoughtStorms5_0.js	'EmergentThoughtStorms_Container'	Initialization only
+REGIONAL SYSTEMS
+System / File	Object Type	Frequency
+RegionalHarmonyZones.js	Zone meshes	Runtime (on zone activation)
+RegionalEquilibriumFieldSystem.js	Field meshes	Runtime (on field activation)
+QuantumIsland.js	Island mesh, Vortex rings, Swirl arms, Orbiting rocks, Filaments, Floating shards, Quantum particles, Mist, Circuit lines	Initialization only
+HarmonicTopologyLearningSystem.js	Debug container (named)	Initialization only
+LINK SYSTEMS
+System / File	Object Type	Frequency
+LinkAuraSystem_v1.js	Aura meshes	Runtime (per link)
+shaders/LinkAuraSystem_v1.js	Aura meshes	Runtime (per link)
+LinkSparkSystem.js	Spark particles	Runtime (on spark event)
+LinkRingArcDischarges.js	Arc groups	Runtime (on arc discharge)
+LinkBeadSystem.js	Bead particles	Runtime (on bead spawn)
+LinkBeadTrailSystem.js	Trail particles	Runtime (per frame update)
+LinkHealingParticleSystem.js	Ring meshes, Particle pool groups	Runtime (on heal)
+LinkCorruptionParticleSystem.js	Corrupted particles	Runtime (on corruption)
+LinkResonanceFlowSystem_Session124.js	Pulse groups	Runtime (on flow)
+LinkMicroImpulseAdapter_v1.js	Impulse visuals	Runtime (on impulse)
+LinkSemanticPictogramSystem.js	Container (named)	Initialization only
+LinkSemanticPictogramSystem_Enhanced.js	Container (named)	Initialization only
+_EvolvingLinkFX2_0.js	Halo rings, Arcs	Runtime (on link evolve)
+_ExtremeLinkVisuals4_0.js	Link visuals group (named)	Initialization only
+PARTICLE/WAVE SYSTEMS
+System / File	Object Type	Frequency
+CascadeParticleSystem_Session120.js	Particle mesh	Initialization only
+ParticleTrailSystem_Session122.js	Trail mesh (named 'ParticleTrails_Session122')	Initialization only
+PHASE5_CascadePropagationVisuals_v1.js	Ring group (named 'CascadeRings')	Initialization only
+WaveInterferencePatternSystem_Session132.js	Constructive burst points, Destructive chaos points, Standing wave ripple points	Initialization only
+WaveParticleEmitter_v1.js	Particles (initialized later)	Initialization only
+HealingParticleSystem_Session136.js	Wave mesh pool, Halo mesh pool	Initialization only
+HarmonicRecoveryVisualSystem_Session138.js	Aura group, Flow group, Field group	Initialization only
+HarmonicHubAuraSystem_Session126.js	Hub aura group	Initialization only
+HarmonicInfluencePropagationSystem_Session127.js	Influence field meshes	Runtime (on influence)
+ResonanceRuptureVisualSystem_Session133.js	Scar mesh pool, Trap zone mesh pool	Runtime (on rupture)
+StandingWaveVisualRenderer_Session131.js	Antinode mesh pool, Trap zone mesh pool	Runtime (on standing wave)
+HAZARD/ENVIRONMENTAL SYSTEMS
+System / File	Object Type	Frequency
+EnvironmentalHazards.js	Hazard meshes, Bolt lines, Auras, Particle groups	Runtime (on hazard spawn/cleanup)
+CriticalNodeFailureSystem.js	Failure visual meshes	Runtime (on failure)
+DreamDepthEffectManager.js	Layer container	Initialization only
+_SafeWorldFXPack.js	VFX container (named 'dream-depth-vfx')	Initialization only
+DEBUG/HELPER SYSTEMS
+System / File	Object Type	Frequency
+_HitProxySystem_v1.js	Hit proxy meshes	Runtime (on proxy create/cleanup)
+LinkDebugMode_v1.js	Debug lines, Debug labels	Runtime (on debug toggle)
+BeadDebugUtils.js	Debug objects	Runtime (on debug)
+NodeEditor.js	Debug markers, Link preview line	Runtime (on edit)
+VisualAudit.js	Audit overlays	Runtime (on audit)
+VisualLayerDebugger.js	Layer visualizations	Runtime (on debug)
+_VisualLockDiagnostics.js	Diagnostic visuals	Runtime (on diagnostics)
+CoreMaterialMutationTestSuite.js	Test meshes	Runtime (on test)
+CompositeGlyphResonanceFeedback.js	Debug spheres	Runtime (on debug)
+HIERARCHY VISUALS
+System / File	Object Type	Frequency
+NodeHierarchyVisuals_v1.js	Hierarchy lines, Ancestor highlight lines	Runtime (on hierarchy change)
+NodeHierarchyVisualFeedback_v1.js	Particles, Rings	Runtime (on feedback)
+NodeHierarchyEffectsPool_v1.js	Effect particles, Effect rings	Runtime (from pool)
+NodeGrouping.js	Groups layer (new THREE.Group)	Initialization only
+SPECIAL ENVIRONMENTS
+System / File	Object Type	Frequency
+SigmaRiftChamber.js	Starfield, Lines, Walls, Symbols, Floor, Triangles, Hexagons, Rift core, Rim lights, Rim rings, Rift particles, Monoliths, Path lines, Particles, Drift particles	Initialization only
+MemoryLane.js	Floor, Server towers, Ceiling panels, Outlines, Left/right walls, Glitch walls, Holograms, Memory shards, Particles, Arcs, Fog plane	Initialization only
+FractalValley.js	Fractal geometry	Initialization only
+DreamDesert.js	Desert environment	Initialization only
+DreamDesert2.js	Desert environment v2	Initialization only
+ColonyVFXManager.js	Volumetric lights, Atmospheric layers	Initialization only
+POST-PROCESSING
+System / File	Object Type	Frequency
+PostProcessing.js	Scene_scene (private), Effect planes	Initialization only
+MetricReactiveWorldEvents.js	Overlay group (named 'metric-reactive-overlays'), Floor	Initialization only
+MISC SYSTEMS
+System / File	Object Type	Frequency
+EnergyOrb.js	Orb mesh	Initialization only
+CognitiveHorizonPlane.js	Horizon plane	Initialization only
+SafeQuantumIllusionsPack1.js	Screen space container (named 'QuantumIllusions_ScreenSpace'), Ghost meshes, Shards, Drift meshes, Path meshes, Symbol meshes, Marker meshes	Runtime (on illusion)
+SafeColonyExpansion2.js	Colony visual containers	Runtime (on expansion)
+NodeAuraSystem_v1.js	Aura meshes	Runtime (per node)
+NodeAuraRefactor_ElegantRim.js	Aura meshes	Runtime (per node)
+SystemStateOverlay.js	Harmony layer, Corruption drift layer, Synergy halos	Runtime (on state change)
+SCENE STRUCTURE DIAGRAM
+
+THREE.Scene (main scene created in main.js)
+│
+├── WORLD GEOMETRY (World.js - static init)
+│   ├── Floor (Circle)
+│   ├── Floor Ring (Ring)
+│   ├── Inner Circle Accent
+│   ├── Singularity Core (Sphere)
+│   ├── Core Light (PointLight)
+│   ├── Ripples (5 Torus)
+│   ├── Platforms (6 Box)
+│   ├── Arch (Torus)
+│   ├── Grid Lines (12 Line)
+│   ├── Data Wires (8 Line)
+│   ├── Decorative Nodes (disabled)
+│   ├── Connection Lines (dynamic)
+│   └── Particle Drift (Points)
+│
+├── LIGHTS (main.js)
+│   ├── AmbientLight
+│   ├── DirectionalLight
+│   ├── HemisphereLight
+│   └── PointLights (multiple)
+│
+├── NODES (direct to scene - NO ROOT GROUP)
+│   └── Node meshes (added by AINodes.js at runtime)
+│
+├── LINKS (direct to scene - NO ROOT GROUP)
+│   └── Link groups (added by NodeLinkingSystem.js at runtime)
+│
+├── NAMED CONTAINER GROUPS (7)
+│   ├── ResonanceEchoPool (ResonanceEchoTrailSystem.js)
+│   ├── EchoTrailDebug (ResonanceEchoTrailSystem.js)
+│   ├── ProceduralGlyphPool (ProceduralHarmonicGlyphGenerator.js)
+│   ├── PictogramContainer (LinkSemanticPictogramSystem.js)
+│   ├── EnhancedPictogramContainer (LinkSemanticPictogramSystem_Enhanced.js)
+│   ├── TopologyDebug (HarmonicTopologyLearningSystem.js)
+│   └── ResonanceFieldDebug (HarmonicResonanceFeedbackSystem.js)
+│
+├── MEMORY TRAIL CONTAINERS (4)
+│   ├── PlayerMemoryTrailContainer
+│   ├── NodeMemoryTrailsContainer
+│   ├── LinkMemoryTrailsContainer
+│   └── EventImprintContainer
+│
+├── GLYPH/SEMANTIC CONTAINERS (7)
+│   ├── AtomaGlyphSystem
+│   ├── AtomaGlyphSystem4
+│   ├── LinkedGlyphMessaging_Messages
+│   ├── RecursiveGlyphMessaging_Chains
+│   ├── ProceduralMeaningEngine_Glyphs
+│   ├── NarrativePatterns_Debug
+│   └── EmergentThoughtStorms_Container
+│
+├── VFX OBJECTS (direct to scene - 50+ systems)
+│   ├── World FX (_SafeWorldFXPack.js)
+│   ├── Legendary Events (_SafeLegendaryWorldEvents.js)
+│   ├── AI Weather (_SafeAIWeatherPack.js)
+│   ├── Legendary Node Pack (_SafeLegendaryNodePack.js)
+│   ├── Legendary Link FX (_SafeLegendaryLinkFX.js)
+│   ├── Node Personality FX (_SafeNodePersonalityFX.js)
+│   ├── Evolution FX (_SafeEvolutionManager.js)
+│   ├── Synergy VFX (SynergyVFX1_0.js)
+│   ├── Synergy Highways (SynergyHighways1_0.js)
+│   ├── Corruption/Harmony visuals (TIER4, T2 systems)
+│   └── ... many more VFX systems
+│
+├── HIGHLIGHT/TEMPORARY OBJECTS (direct to scene)
+│   ├── UI Highlights (_UISelectedNodeHighlight3_2.js)
+│   ├── UI Labels (_UISelectedNodeLabel3_3.js)
+│   ├── Primary Auras (_UIPrimaryNodeAura3_7.js)
+│   ├── Micro Events (_NodeMicroEvents.js)
+│   ├── Ritual FX (_MythicNodeCreation.js, _MythicRitualController.js)
+│   ├── Hit Proxies (_HitProxySystem_v1.js)
+│   ├── Debug Objects (multiple debug systems)
+│   └── ... many more temporary visuals
+│
+├── REGIONAL OBJECTS (direct to scene)
+│   ├── Harmony Zones (RegionalHarmonyZones.js)
+│   ├── Equilibrium Fields (RegionalEquilibriumFieldSystem.js)
+│   ├── Quantum Island (QuantumIsland.js)
+│   └── ... regional systems
+│
+├── LINK VFX (direct to scene)
+│   ├── Auras (LinkAuraSystem_v1.js)
+│   ├── Sparks (LinkSparkSystem.js)
+│   ├── Arc Discharges (LinkRingArcDischarges.js)
+│   ├── Beads (LinkBeadSystem.js)
+│   ├── Trails (LinkBeadTrailSystem.js)
+│   ├── Healing Particles (LinkHealingParticleSystem.js)
+│   ├── Corruption Particles (LinkCorruptionParticleSystem.js)
+│   ├── Resonance Flow (LinkResonanceFlowSystem_Session124.js)
+│   ├── Micro Impulses (LinkMicroImpulseAdapter_v1.js)
+│   ├── Semantic Pictograms (in containers)
+│   └── ... link visual systems
+│
+├── PARTICLE/WAVE SYSTEMS (direct to scene)
+│   ├── Cascade Particles (CascadeParticleSystem_Session120.js)
+│   ├── Particle Trails (ParticleTrailSystem_Session122.js)
+│   ├── Wave Interference (WaveInterferencePatternSystem_Session132.js)
+│   ├── Healing Particles (HealingParticleSystem_Session136.js)
+│   ├── Harmonic Recovery (HarmonicRecoveryVisualSystem_Session138.js)
+│   ├── Resonance Rupture (ResonanceRuptureVisualSystem_Session133.js)
+│   ├── Standing Waves (StandingWaveVisualRenderer_Session131.js)
+│   └── ... particle/wave systems
+│
+├── ENVIRONMENTAL/HAZARD OBJECTS (direct to scene)
+│   ├── Hazards (EnvironmentalHazards.js)
+│   ├── Critical Failure FX (CriticalNodeFailureSystem.js)
+│   ├── Dream Depth FX (DreamDepthEffectManager.js)
+│   └── ... environmental systems
+│
+├── HIERARCHY VISUALS (direct to scene)
+│   ├── Hierarchy Lines (NodeHierarchyVisuals_v1.js)
+│   ├── Ancestor Highlights (NodeHierarchyVisualFeedback_v1.js)
+│   ├── Hierarchy Effects Pool (NodeHierarchyEffectsPool_v1.js)
+│   └── Groups Layer (NodeGrouping.js - single Group)
+│
+├── SPECIAL ENVIRONMENTS (direct to scene)
+│   ├── Sigma Rift Chamber (SigmaRiftChamber.js - 20+ objects)
+│   ├── Memory Lane (MemoryLane.js - 10+ objects)
+│   ├── Fractal Valley (FractalValley.js)
+│   ├── Dream Desert (DreamDesert.js, DreamDesert2.js)
+│   └── Colony FX (ColonyVFXManager.js)
+│
+└── MISC OBJECTS (direct to scene)
+    ├── Energy Orb (EnergyOrb.js)
+    ├── Cognitive Horizon Plane (CognitiveHorizonPlane.js)
+    ├── Quantum Illusions (SafeQuantumIllusionsPack1.js)
+    ├── Colony Expansion (SafeColonyExpansion2.js)
+    ├── Node Auras (NodeAuraSystem_v1.js, NodeAuraRefactor_ElegantRim.js)
+    ├── System Overlay (SystemStateOverlay.js)
+    └── ... misc systems
+HIGH-RISK RUNTIME SCENE MUTATIONS
+CRITICAL: NO ROOT GROUPS
+Risk: Nodes and links are added directly to this.scene instead of organized root groups like nodesRoot, linksRoot, vfxRoot.
+
+Impact:
+
+No hierarchical organization
+Difficult to batch-remove nodes or links
+Performance impact on raycasting (no spatial optimization via group culling)
+Cleanup complexity (must iterate entire scene)
+Systems directly adding nodes/links:
+
+AINodes.js - Adds nodes at runtime: this.scene.add(node)
+NodeLinkingSystem.js - Adds link groups at runtime: this.scene.add(linkGroup)
+NodeLinkingInvariantGuard.js - Repairs detached nodes: this.scene.add(node)
+World.js - Adds decorative nodes (disabled): this.scene.add(node)
+PER-FRAME SCENE MUTATIONS (LOW RISK)
+Only 2 systems perform per-frame scene mutations, and both are cleanup operations:
+
+EnvironmentalHazards.js - Removes hazard bolts: hazard.bolts.forEach(bolt => this.scene.remove(bolt.line))
+main.js - Removes objects via parent: toRemove.forEach(obj => obj.parent?.remove(obj) || this.scene.remove(obj))
+Assessment: These are safe cleanup operations, not problematic per-frame additions.
+
+RUNTIME ADDITIONS (MEDIUM RISK)
+Many systems add objects at runtime, but these are event-driven (not per-frame):
+
+High-frequency additions:
+
+Link visual creation - Every link adds a group (NodeLinkingSystem.js)
+UI highlights - On selection (multiple UI systems)
+VFX objects - On events (50+ VFX systems)
+Hit proxies - On raycast target creation
+Missing removal patterns:
+
+Some systems have destroy() methods, but not all
+Temporary objects (debug meshes, visual feedback) may leak
+Memory trail systems appear to have proper cleanup
+SUMMARY STATISTICS
+Total Systems Writing to Scene
+211+ systems have access to this.scene via constructor
+50+ systems actively add objects to scene
+40+ systems actively remove objects from scene
+Object Distribution
+Category	Direct Adds	Via Containers
+Core World	20+	0
+Nodes	Direct	0
+Links	Direct	0
+VFX	100+	0
+UI/Highlights	20+	0
+Glyphs/Semantic	10+	7 containers
+Memory Trails	4 containers	4 containers
+Link VFX	15+	0
+Particle/Wave	20+	1 container
+Hazards/Env	10+	0
+Hierarchy Visuals	5+	1 group
+Special Env	40+	0
+Debug/Helper	10+	0
+Misc	10+	1 container
+Root Groups Identified: 0
+Expected but missing:
+
+nodesRoot - Would organize all nodes
+linksRoot - Would organize all links
+vfxRoot - Would organize all VFX
+uiRoot - Would organize UI elements
+debugRoot - Would organize debug visuals
+Scene Instances Found
+Main scene: Created in main.js
+
+
+this.scene = new THREE.Scene();
+Other scene instances (in example/test files):
+
+SYNERGY_MAIN_JS_EXAMPLE.js
+WEEK10_LINK_AURA_INTEGRATION_SNIPPET.js
+WEEK12_MYTHIC_AURA_INTEGRATION_SNIPPETS.js
+NodeLinkingSystem.js (test scene)
+NUCLEAR_LOCK_INTEGRATION.js
+SynergyAuraColorIntegrationExample.js
+These appear to be isolated test examples, not running concurrently.
+
+ARCHITECTURAL RECOMMENDATIONS (FOR FUTURE REFERENCE)
+Implement Root Group Architecture
+
+Create nodesRoot, linksRoot, vfxRoot, uiRoot, debugRoot
+Route all additions through appropriate root groups
+Enables hierarchical culling and batch cleanup
+Scene Ownership Registry
+
+Track which system owns each object
+Implement centralized cleanup
+Prevent duplicate additions
+Object Pooling for Temporary Objects
+
+High-frequency temporary objects (UI highlights, pulses)
+Reduce scene.add/remove overhead
+Prevent memory leaks
+Scene Graph Auditing
+
+Implement regular scene graph validation
+Detect orphaned objects
+Track object lifecycle
+Separate Scene Layers
+
+Consider separate scenes for different render passes
+Post-processing could use its own scene
+Debug visualizations could be isolated
+AUDIT COMPLETE - READ ONLY No modifications were made to any files.

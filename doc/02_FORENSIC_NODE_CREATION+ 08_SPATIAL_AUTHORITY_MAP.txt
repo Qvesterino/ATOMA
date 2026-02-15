@@ -1,0 +1,226 @@
+NODE CREATION PIPELINE AUDIT - READ ONLY
+SUMMARY
+Total Creation Pipelines Identified: 7
+
+AINodes.createNode() - Primary canonical creation
+AINodes.spawnNode() - Runtime spawn wrapper
+EnhancedNodeModels.create() - Visual factory
+NodeEditor.createNode() - Debug markers (blocked)
+AINodes.createNodes() - Batch creation
+Specialized spawn methods (spawnMythicNode, spawnPrimeNode, etc.)
+Direct THREE.Group construction - Visual layer containers
+DETAILED CREATION PATH TABLE
+Function Name	File	Called From	Node Type	Fields Initialized	Registers Global?	Generates Identity?	Attaches to Scene?	Differs From Others
+AINodes.createNode()	AINodes.js	createNodes(), spawnNode(), specialized spawns	Category-based (input, process, etc.)	id (nodeId), userData, category, archetype, isSpecial, position, index, variant, visualOwner, enhancedNodeModelBinding, overlays, spawnCycle	YES (nodesMap, nodes array)	YES (nodeId from uuid or userData)	NO (via _finalizeSpawnedNode)	Core creation logic - no scene attachment here
+AINodes.spawnNode()	AINodes.js	updateSpawning(), onLinkCreated(), checkNetworkDensityAndSpawn(), external calls	Category-based + EXTREME (15% chance)	All createNode fields +: spawnContext, isFallback, fallbackReason, uniqueArchetypeKey, namingCode, namingMeaning, isExtreme, extremeArchetype, extremeTier	YES (nodesMap, nodes array, nodeRegistry, uniqueSpawnRegistry)	YES (nodeId)	YES (via _finalizeSpawnedNode)	Wraps createNode + validation + registration + finalization
+EnhancedNodeModels.create()	EnhancedNodeModels.js	AINodes.createNode()	Visual mesh groups by category	archetype, category, visualVariant	NO	NO	NO	Returns THREE.Group with visual hierarchy only
+AINodes.createNodes()	AINodes.js	Initialization (environment setup)	Category-based (random from pool)	Calls createNode indirectly	YES (via createNode → spawnNode)	YES (via createNode)	YES (via createNode)	Batch wrapper around createNode
+NodeEditor.createNode()	NodeEditor.js	External (legacy)	Debug markers (THREE.LineSegments)	id, position, label, isDebugMarker, nonInteractive	NO	YES (generated id)	YES	Blocked by NODE_EDITOR_DEBUG_MARKERS_ENABLED flag
+AINodes.spawnMythicNode()	AINodes.js	External API	Mythic category archetype	All spawnNode fields	YES	YES	YES	Specialized wrapper - calls spawnNode('mythic', position, 'MYTHIC-CEREMONIAL')
+AINodes.spawnPrimeNode()	AINodes.js	External API	Prime category archetype	All spawnNode fields	YES	YES	YES	Specialized wrapper - calls spawnNode('prime', position, 'PRIME-PERFECT')
+AINodes.spawnErrorNode()	AINodes.js	External API	Error category archetype	All spawnNode fields	YES	YES	YES	Specialized wrapper - calls spawnNode('error', position, 'ERROR-ANOMALY')
+AINodes.spawnExtremeNode()	AINodes.js	External API	EXTREME archetype	All spawnNode fields + extremeArchetype	YES	YES	YES	Specialized wrapper - picks random EXTREME archetype
+AINodes.spawnArchetype()	AINodes.js	External API	Named archetype	All spawnNode fields	YES	YES	YES	Specialized wrapper - spawns by archetype name
+ADDITIONAL VISUAL CREATION (NOT NODES)
+Function	File	Creates	Purpose	Registers?	Attaches?
+new THREE.Group()	Multiple files (100+)	Visual containers	VFX, auras, glyphs, link visuals	NO	YES (by caller)
+SigmaNode.constructor()	SigmaNode.js	Specialized node mesh	Sigma node visualization	NO	YES
+QuantumNode.constructor()	QuantumNode.js	Specialized node mesh	Quantum node visualization	NO	YES
+ANALYSIS FINDINGS
+1. MOST USED CREATION PATH
+AINodes.spawnNode() - This is the primary entry point for runtime spawning, used by:
+
+Time-based spawning
+Event-based spawning (link creation)
+Network density monitoring
+External API calls
+All specialized spawn methods (spawnMythicNode, spawnPrimeNode, etc.)
+2. CREATION FLOW HIERARCHY
+
+External/API Calls
+    ↓
+spawnNode() / specialized spawns
+    ↓
+validateCategory() + spawnAuthorityComplianceGate
+    ↓
+createNode() (core geometry creation)
+    ↓
+EnhancedNodeModels.create() (visual factory)
+    ↓
+_finalizeSpawnedNode() (registration + scene attachment)
+3. INCONSISTENT INITIALIZATION RISKS
+Risk	Location	Details
+Identity generation scattered	createNode(), spawnNode(), NodeEditor	Multiple places set nodeId - potential conflicts
+Scene attachment timing	createNode() doesn't attach, _finalizeSpawnedNode() does	Two-step process容易遗漏
+Category validation duplicated	validateCategory(), EnhancedNodeModels.create()	Separate validation in visual layer
+Fallback handling	Multiple paths to 'input' fallback	Fallback logic in createNode() and spawnNode()
+Registry proliferation	nodesMap, nodeRegistry, uniqueSpawnRegistry	Three separate registries for node tracking
+4. FIELDS INITIALIZED COMPARISON
+Core createNode() initializes:
+
+nodeId, userData, category, requestedCategory, categoryValidation
+index, isActive, activationLevel, targetActivation
+particles, light, baseColor, basePosition, variant, pulseOffset
+isSpecial, vfxGlow, vfxHalo, vfxHolo, vfxRings
+layerColors, ultraMode, namingCode, namingMeaning
+spawnCycle, visualOwner, enhancedNodeModelBinding, overlays
+spawnNode() adds:
+
+spawnContext, isFallback, fallbackReason
+uniqueArchetypeKey, isExtreme, extremeArchetype, extremeTier
+archetypeKey, archetype
+linkTarget, coreMesh, interactionCollider
+metrics (via initNodeMetrics)
+NodeEditor.createNode() (when enabled):
+
+id, position, label, isDebugMarker, nonInteractive
+Minimal - only for debug visualization
+5. CANDIDATE FOR CANONICAL CREATION PATH (ANALYSIS)
+Current de facto canonical: AINodes.spawnNode()
+
+Strengths:
+
+Central validation (category whitelist, EnhancedNodeModel compatibility)
+Duplicate prevention (unique spawn registry)
+Proper identity generation (nodeId)
+Complete initialization (all required fields)
+Scene attachment via _finalizeSpawnedNode()
+Integration with post-spawn observers
+Compliance with spawn authority gates
+Weaknesses:
+
+Complex multi-step process (createNode → spawnNode → _finalizeSpawnedNode)
+Fallback logic scattered across functions
+Multiple registries to maintain
+Category validation duplicated with visual layer
+Recommended canonical path: A unified spawnNode() that consolidates:
+
+Category validation (single source)
+Visual creation (EnhancedNodeModels)
+Identity generation (nodeId)
+Metadata initialization (complete userData)
+Registration (single registry)
+Scene attachment
+6. MULTIPLE CREATION FUNCTIONS DOING SIMILAR WORK
+Overlap	Functions	Similar Work
+Category validation	validateCategory(), EnhancedNodeModels.ensureRegistryReady(), spawnAuthorityComplianceGate.validateSpawnRequest()	Checking if category is valid
+Identity generation	_ensureCanonicalNodeId(), createNode (line ~740), spawnNode (line ~1700)	Setting nodeId
+Visual creation	createNode (direct), EnhancedNodeModels.create(), AINodeModel.create*()	Creating node geometry
+Fallback to 'input'	createNode (line ~660), spawnNode (line ~1400, ~1500)	Default category handling
+Scene attachment	_finalizeSpawnedNode(), individual scene.add() calls	Adding to scene
+7. MISSING INITIALIZATION FIELDS IN SOME PATHS
+Path	Missing Fields	Impact
+createNode()	uniqueArchetypeKey, spawnContext, namingCode, namingMeaning, isExtreme, extremeArchetype	Partial initialization
+NodeEditor.createNode()	category, archetype, metrics, visualOwner, enhancedNodeModelBinding	Debug-only, not functional nodes
+EnhancedNodeModels.create()	nodeId, userData.category, userData.archetype	Visual factory only
+CONCLUSION
+Number of creation pipelines: 7 (excluding visual-only THREE.Group construction)
+
+Most used: AINodes.spawnNode() - Runtime spawn entry point
+
+Primary inconsistency risk: Scattered validation and initialization across multiple layers (createNode, spawnNode, EnhancedNodeModels, validation gates)
+
+Canonical candidate: AINodes.spawnNode() already functions as the de facto canonical path, but would benefit from consolidation of validation logic and registry management.
+
+Recommendation: Consolidate duplicate validation logic into a single pre-spawn validation step, and consider merging the three registries (nodesMap, nodeRegistry, uniqueSpawnRegistry) into a unified node registration system.
+_______________________________________________________
+SPATIAL-AUTHORITY-MAP — ATOMA Codebase Audit
+Summary Statistics
+Number of spatial authorities found: 15 distinct systems
+Conflicting distance values detected: 4 conflicts
+Largest world scale assumption: 300 units (FractalValley floor)
+Smallest world scale assumption: 8 units (nodes.minDistance)
+Systems likely to break if world size changes: 8 systems
+TABLE: SPATIAL PARAMETERS BY SYSTEM
+System / File	Parameter / Variable	Purpose	Value	Configurable?	Global Authority?
+config.js	camera.near	Camera visibility	0.5	yes	YES (main camera)
+config.js	camera.far	Camera visibility	1000	yes	YES (main camera)
+config.js	fog.near	Visibility culling	30	yes	YES (global fog)
+config.js	fog.far	Visibility culling	80	yes	YES (global fog)
+config.js	chamber.radius	World boundary	40	yes	unknown (per-mode)
+config.js	chamber.height	World boundary	30	yes	unknown (per-mode)
+config.js	nodes.minDistance	Spawn limit	8	yes	unknown
+config.js	nodes.maxDistance	Spawn limit	25	yes	unknown
+config.js	nodes.minHeight	Spawn limit	3	yes	unknown
+config.js	nodes.maxHeight	Spawn limit	12	yes	unknown
+AuraLODCulling.js	distanceThreshold	LOD	30	yes	unknown
+AuraLODCulling.js	hysteresis	LOD stability	3	yes	unknown
+AuraLODCulling.js	updateInterval	LOD update rate	100ms	yes	unknown
+DreamDesert.js	desertSize	World boundary	200	no	unknown (map-specific)
+DreamDesert.js	dune distance	Spawn limit	20-60	no	unknown (map-specific)
+DreamDesert.js	crystal distance	Spawn limit	10-60	no	unknown (map-specific)
+DreamDesert.js	fragment distance	Spawn limit	15-60	no	unknown (map-specific)
+DreamDesert.js	particle reset radius	World boundary	90	no	unknown (map-specific)
+FractalValley.js	floorSize	World boundary	300	no	unknown (map-specific)
+FractalValley.js	hex distance	Spawn limit	20-80	no	unknown (map-specific)
+FractalValley.js	mountain range offset	World boundary	±80	no	unknown (map-specific)
+FractalValley.js	fragment distance	Spawn limit	30-90	no	unknown (map-specific)
+main.js	camera.near (re-assert)	Camera visibility	0.5	no (hardcoded)	YES
+main.js	camera.far (re-assert)	Camera visibility	1000	no (hardcoded)	YES
+DETECTED RISKS
+HIGH RISK: Multiple Interaction Distances
+Issue: Three different distance regimes for spawning
+
+config.js: nodes.minDistance=8, nodes.maxDistance=25
+DreamDesert.js: spawn radius 20-60
+FractalValley.js: spawn radius 20-90
+Impact: Nodes spawned in different maps will have inconsistent density and coverage.
+
+HIGH RISK: Multiple World Size Assumptions
+Issue: Maps use different world scale parameters
+
+config.js chamber.radius: 40
+DreamDesert.js desertSize: 200
+FractalValley.js floorSize: 300
+Impact: Camera fog (near=30, far=80) will cut off visibility in larger maps prematurely.
+
+HIGH RISK: Hardcoded Magic Numbers
+Issue: Map-specific distances are hardcoded without configuration
+
+
+// DreamDesert.js (line ~42)
+const desertSize = 200;
+
+// FractalValley.js (line ~41)  
+const floorSize = 300;
+Impact: No centralized way to adjust world scale across all maps.
+
+MEDIUM RISK: Fog vs LOD Threshold Mismatch
+Issue: Fog far (80) == Aura LOD threshold (30)
+
+Fog: near=30, far=80
+Aura LOD: threshold=30
+Impact: Auras disappear at the same distance where fog starts, creating visual discontinuity.
+
+MEDIUM RISK: Camera Far Clip (1000) vs World Sizes
+Issue: Camera far clip (1000) is much larger than any map
+
+Largest map: 300 (FractalValley)
+Camera far: 1000
+Impact: Wasted rendering capacity for distant empty space.
+
+SYSTEMS LIKELY TO BREAK IF WORLD SIZE CHANGES
+System	Dependency	Why It Breaks
+AuraLODCulling	distanceThreshold=30	Fixed LOD threshold assumes 30-unit scale; larger maps need larger threshold
+config.js fog	near=30, far=80	Fog assumes ~80-unit world; larger worlds will be fogged too early
+DreamDesert.js	desertSize=200	Hardcoded terrain size doesn't scale with config
+FractalValley.js	floorSize=300	Hardcoded terrain size doesn't scale with config
+NodeLinkingSystem	maxLinkDistance: 50	(implied) Links limited by hardcoded max distance
+Particles (all maps)	Reset bounds 90	Particles reset at fixed radius regardless of map size
+Camera controller	Far clip 1000	While generous, doesn't adapt to actual world bounds
+Spawn systems	min/maxDistance: 8-25	Fixed spawn distances don't scale with map size
+RECOMMENDATIONS
+Create WorldConfig authority - Centralize world scale parameters (radius, bounds) per map type
+Derive LOD from world size - Aura LOD threshold should be percentage of world radius, not fixed 30
+Scale fog to world - Fog near/far should be proportional to chamber.radius or map-specific bounds
+Make map sizes configurable - Extract hardcoded values (200, 300) to MapConfigBase.js
+Unify distance units - Standardize on "chamber units" with conversion factors for different map types
+FINDINGS SUMMARY
+Metric	Value
+Total spatial authorities	15
+Conflicting distance values	4
+Configurable parameters	8
+Hardcoded magic numbers	9
+Systems with global authority	3 (camera, fog, chamber)
+Map-specific authorities	12
+READ ONLY AUDIT COMPLETE — No code modifications made.

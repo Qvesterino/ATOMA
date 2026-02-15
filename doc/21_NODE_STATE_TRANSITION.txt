@@ -1,0 +1,138 @@
+NODE-STATE-TRANSITION FORENSIC AUDIT REPORT
+PHASE: READ-ONLY ANALYSIS
+
+STEP 1 — Node Removal / Destruction
+File	System	Removal Type	Permanent / Temporary
+AINodes.js	dispose()	scene.remove(node) + geometry/material.dispose()	PERMANENT
+AINodes.js	releaseUniqueSpawn()	Registry cleanup	PERMANENT
+NodeGrouping.js	removeNode()	nodes.delete(node)	PERMANENT
+NodeHierarchySystem_v1.js	removeNode()	nodes.delete(node)	PERMANENT
+NodeImpactManager.js	removeNode()	managers.delete(nodeId)	PERMANENT
+AutoConnectEngine.ts	removeNode()	nodes.delete(nodeId)	PERMANENT
+_ExtremeAINodeEvolution3.js	removeNode()	evolutionMap.delete(node)	PERMANENT
+FINDINGS:
+
+Only dispose() in AINodes.js performs actual scene removal + cleanup
+No individual destroyNode() or deleteNode() methods in main system
+Removal is PERMANENT (no revive mechanism)
+Visual cleanup (dispose) only happens in disposal phase
+STEP 2 — Runtime Category Changes
+CATEGORY TRANSITION SITES: NONE DETECTED
+
+File	System	Condition	Frequency
+NONE	NONE	N/A	N/A
+FINDINGS:
+
+userData.category is set once during spawn
+No setCategory(), changeCategory(), or reclassifyNode() methods
+Category validation occurs at spawn time only (validateCategory())
+Runtime category mutation: NO
+STEP 3 — Identity Reset / Reassignment
+IDENTITY RESET DETECTED: NONE
+
+File	System	When	Risk Level
+NONE	NONE	N/A	NONE
+FINDINGS:
+
+nodeId is assigned during spawn via _ensureCanonicalNodeId()
+Primary source: node.userData.nodeId = node.uuid
+No resetNodeId() or regenerateId() methods
+Identity is IMMUTABLE after spawn (confirmed in doc/01_FORENSIC_NODE_IDENTITY.md)
+Fallback generators exist only during creation, never after
+STEP 4 — Reinitialization / Rebuild
+Pattern	System	Type	Scope
+materializeNode()	AINodes.js	Visual-only animation	Spawn-time
+visualBootstrap.bootstrapNode()	NodeVisualBootstrap3_0	Visual-only	Spawn-time
+requestVisualRepair()	NodeVisualAuthorityRuntime	Visual-only	Runtime
+resetNode()	PersonalitySignalSmoother_v1	Signal state	Per-node
+resetNodeSyncState()	_LinkedGlyphSynchronization1_0	Sync state	Per-node
+resetNodeMetricAggregates()	CoreMetricsCalculator	Metric state	Global
+resetNodeMetrics()	NodeDynamicMetrics	Deprecated	N/A
+FINDINGS:
+
+No full node reinitialization
+No mesh recreation (recreateMesh, rebuildMesh not found)
+No archetype reapplication (applyArchetypeAgain not found)
+Reset patterns are limited to:
+Visual-only state (opacity, scale during spawn)
+Signal/sync state (not node identity)
+Metric aggregates (not per-node state)
+STEP 5 — Dead / Disabled State
+DEAD STATE MODEL:
+
+System	State Flag	Behavior
+AINodes.js	userData.isActive (boolean)	Toggle on/off based on player proximity
+AINodes.js	userData.activationLevel (0.0-1.0 float)	Smooth transition (interpolated)
+AINodes.js	userData.targetActivation	Target for smooth transition
+AINodes.js	activeNodes Set	Active node membership
+AINodes.js	Activity Model (ACTIVE/SEMI_ACTIVE/DORMANT)	Iteration control (optional)
+NodeLinkingSystem.js	link.active (boolean)	Link participation in simulation
+FINDINGS:
+
+No isDead flag (nodes never marked dead, only inactive)
+No isDisabled flag (no permanent disabled state)
+No hiddenNode flag (nodes always visible when in scene)
+No removedFromSimulation flag (inactive nodes still in arrays/maps)
+node.visible = false is only used for visual-only meshes (particles, VFX), never core nodes
+Deactivation is TEMPORARY (nodes can reactivate when player approaches)
+FINAL SUMMARY
+Node Removal Mechanisms
+Primary: AINodes.dispose() - removes all nodes from scene, disposes all geometries/materials, clears arrays/maps
+Secondary: releaseUniqueSpawn() - registry cleanup (not scene removal)
+No per-node removal - nodes persist until full system disposal
+Runtime Category Mutation
+ANSWER: NO
+Category is immutable after spawn
+No runtime reclassification mechanisms
+NodeId Reassignment Presence
+ANSWER: NONE
+nodeId is assigned once during spawn
+Identity never changes during node lifecycle
+Confirmed by forensic audit (doc/01_FORENSIC_NODE_IDENTITY.md)
+Reinitialization Systems
+ANSWER: NONE (FULL STATE)
+Visual-only resets exist (materialization animation, visual repair)
+Signal/sync state resets exist (communication layer only)
+No node identity, category, or geometry reinitialization
+Dead/Inactive State Model
+State Flags: userData.isActive, userData.activationLevel (0-1)
+Behavior:
+Inactive nodes remain in arrays/maps
+Visual updates suppressed for inactive nodes
+Reactivation occurs when player returns proximity
+No permanent disabled/dead state
+LIFECYCLE CLASSIFICATION
+NODE LIFECYCLE: STATIC
+Justification:
+
+✅ Identity (nodeId) is immutable
+✅ Category is immutable
+✅ No full reinitialization
+✅ No temporary removal/revival
+❌ NOT EVENT-BASED (activation is proximity-based, not event-driven)
+❌ NOT REBUILDABLE (no mesh recreation or archetype reapplication)
+❌ NOT UNCONTROLLED (deterministic, governed by distance thresholds)
+Lifecycle Flow:
+
+
+SPAWN → (isActive=true) → (activationLevel→1) → UPDATE LOOP
+                  ↓ (player leaves proximity)
+          (isActive=false) → (activationLevel→0) → DORMANT
+                  ↓ (player returns)
+          (isActive=true) → REACTIVATED
+                  ↓
+          SYSTEM DISPOSE → PERMANENT REMOVAL
+Key Constraints:
+
+No state mutations after spawn (category, nodeId, geometry)
+Visual-only state changes (activationLevel, position, rotation)
+Permanent removal only via system disposal
+Temporary inactivation via proximity-based activation system
+RISK ASSESSMENT
+Risk	Level	Reason
+Identity collision	LOW	nodeId uses Three.js UUID, guaranteed unique
+Category mutation	NONE	No runtime mutation mechanisms
+Ghost nodes	MEDIUM	Inactive nodes persist in arrays but not in memory
+Memory leaks	LOW	dispose() properly cleans geometries/materials
+State desync	LOW	Single source of truth (userData)
+AUDIT COMPLETE — READ-ONLY ANALYSIS CONFIRMED
