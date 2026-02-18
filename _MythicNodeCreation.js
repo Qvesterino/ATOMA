@@ -20,6 +20,7 @@
 
 import * as THREE from 'three';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
+import { spawnAuthority } from './SpawnAuthority.js';
 
 export class MythicNodeCreation {
   constructor(scene, camera, player, aiNodes, worldController) {
@@ -782,7 +783,7 @@ export class MythicNodeCreation {
       console.warn('[SpawnAuthority] External spawn blocked');
       return;
     }
-    const nodeModel = this.aiNodes?.spawnNode('mythic', spawnPos, 'MYTHIC-CEREMONIAL');
+    const nodeModel = spawnAuthority.spawn(this.aiNodes, 'mythic', spawnPos, 'MYTHIC-CEREMONIAL');
     if (!nodeModel) {
       return;
     }

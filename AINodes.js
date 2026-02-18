@@ -85,8 +85,6 @@ import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
 import { uniqueSpawnRegistry } from './UniqueSpawnRegistry.js';
 import { uniqueSpawnService } from './UniqueSpawnService.js';
 
-const USE_UNIFIED_UNIQUE_SPAWN = true;
-
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
@@ -391,15 +389,19 @@ export class AINodes {
     // ========== EXTENDED SPAWN SYSTEM 1.0 ==========
     // 6 standard node categories with 4 variants each
     this.nodeCategories = [
-  'input','process','integration','analytics','storage','control',
-  'mythic','prime','error','emotional'
-];
+      'input','process','integration','analytics','storage','control',
+      'mythic','prime','error','emotional'
+    ];
     
     // Special multi-output node types (10% chance of appearing)
     this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
     
     // NEW CATEGORIES (v1.0): Mythic, Prime, Error
     this.newNodeCategories = ['mythic', 'prime', 'error'];
+
+    // Spawn mode gate: INIT during batch creation, RUNTIME after explicit enablement.
+    this.spawnMode = 'INIT'; // 'INIT' | 'RUNTIME' | 'DISABLED'
+    this._spawnModeLogged = false;
     
     // EXTREME ARCHETYPES (49 total standardized types)
     // Format: ORIGIN-PATTERN-SIGNATURE (e.g., CORE-HARMONIC-RESONANT)
@@ -635,10 +637,7 @@ export class AINodes {
     if (!node) return false;
     const nodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
     if (!nodeId) return false;
-    if (USE_UNIFIED_UNIQUE_SPAWN) {
-      return uniqueSpawnService.releaseByNodeId(nodeId);
-    }
-    return this.uniqueSpawnRegistry.releaseUniqueSpawnByNodeId(nodeId);
+    return uniqueSpawnService.releaseByNodeId(nodeId);
   }
 
   isUniqueSpawnAllowed(archetypeKey) {
@@ -695,6 +694,10 @@ export class AINodes {
    * Create nodes based on environment
    */
   createNodes(environment, count = 15) {
+    if (this.spawnMode !== 'INIT') {
+      console.warn(`[SpawnMode] createNodes skipped; mode=${this.spawnMode}`);
+      return;
+    }
     const positions = this.getNodePositions(environment, count);
     
     positions.forEach((pos, index) => {
@@ -734,28 +737,15 @@ export class AINodes {
       }
 
       // ========== SPAWN AUTHORITY: UNIQUENESS CHECK ==========
-      // Single-instance enforcement is centralized in UniqueSpawnService (flag).
-      const unifiedKey = USE_UNIFIED_UNIQUE_SPAWN
-        ? uniqueSpawnService.makeKey({
-            category: isExtreme ? 'extreme' : category,
-            archetype: archetypeKey,
-            forceArchetype: archetypeKey,
-            registryKeyMode: 'createNodes',
-          })
-        : null;
+      // Single-instance enforcement is centralized in UniqueSpawnService.
+      const unifiedKey = uniqueSpawnService.makeKey({
+          category: isExtreme ? 'extreme' : category,
+          archetype: archetypeKey,
+          forceArchetype: archetypeKey,
+          registryKeyMode: 'createNodes',
+      });
 
-      const decision = USE_UNIFIED_UNIQUE_SPAWN
-        ? uniqueSpawnService.check({ key: unifiedKey })
-        : {
-            allowed: spawnAuthorityComplianceGate.checkSpawnUniqueness(
-              isExtreme ? 'extreme' : category,
-              archetypeKey
-            ),
-            existingNodeId: nodeSpawnRegistry.getExistingNodeId(
-              isExtreme ? 'extreme' : category,
-              archetypeKey
-            ),
-          };
+      const decision = uniqueSpawnService.check({ key: unifiedKey });
 
       if (!decision.allowed) {
           // DUPLICATE DETECTED: Upgrade existing instead
@@ -802,35 +792,22 @@ export class AINodes {
 
           // Register the unique spawn
           const registerId = finalizedNode.userData.nodeId || finalizedNode.uuid;
-          const legacyKey = this._getUniqueArchetypeKey(category, archetypeKey);
-
-          if (USE_UNIFIED_UNIQUE_SPAWN) {
-            const registerKey = unifiedKey || legacyKey;
-            if (registerKey) {
-              uniqueSpawnService.register({
-                key: registerKey,
-                nodeId: registerId,
-                meta: { category, source: 'createNodes' }
-              });
-            }
-          } else {
-            spawnAuthorityComplianceGate.registerSpawn(
-                isExtreme ? 'extreme' : category,
-                archetypeKey,
-                registerId
-            );
-            const uniqueKey = legacyKey;
-            if (uniqueKey) {
-              this.uniqueSpawnRegistry.registerUniqueSpawn(
-                registerId,
-                uniqueKey,
-                { category, source: 'createNodes' }
-              );
-            }
+          const registerKey = unifiedKey || this._getUniqueArchetypeKey(category, archetypeKey);
+          if (registerKey) {
+            uniqueSpawnService.register({
+              key: registerKey,
+              nodeId: registerId,
+              meta: { category, source: 'createNodes' }
+            });
           }
       }
     });
     
+    // Transition to runtime (or disabled) after batch init completes.
+    if (this.spawnMode === 'INIT') {
+      this.setSpawnMode('RUNTIME');
+    }
+
     // Create potential connections between nearby nodes
     this.createNodeConnections();
   }
@@ -2898,6 +2875,14 @@ export class AINodes {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    */
   spawnNode(category = null, position = null, forceArchetype = null) {
+    if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
+    this.__spawnTraceCounter++;
+    console.warn(
+      '[SPAWN TRACE]',
+      'count=', this.__spawnTraceCounter,
+      'category=', category,
+      'stack=', new Error().stack.split('\n').slice(2, 6).join(' | ')
+    );
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
@@ -2919,18 +2904,7 @@ export class AINodes {
     let fallbackReason = null;
 
     const archetypeKey = forceArchetype || category;
-    if (!USE_UNIFIED_UNIQUE_SPAWN) {
-      // Legacy guard: duplicate archetypeKey already in nodes array
-      if (archetypeKey) {
-        const exists = this.nodes.some(
-          n => n.userData?.archetypeKey === archetypeKey
-        );
-        if (exists) {
-          this._pendingCyclicCandidate = null;
-          return null;
-        }
-      }
-    }
+    // Legacy array guard removed; uniqueness enforced centrally via UniqueSpawnService.
 
     // ========================================================================
     // [SESSION 110] SINGLE INSTANCE ENFORCEMENT (Registry Check)
@@ -2938,31 +2912,7 @@ export class AINodes {
     // ========================================================================
     const registryKey = this._getRegistryKey(category, forceArchetype);
     
-    if (!USE_UNIFIED_UNIQUE_SPAWN) {
-      if (registryKey && this.nodeRegistry.has(registryKey)) {
-        const existingNode = this.nodeRegistry.get(registryKey);
-        
-        // Verify node still exists in scene (gc check)
-        if (existingNode && existingNode.parent) {
-          if (window.DEBUG_SINGLE_INSTANCE_NODES) {
-            console.log(`[SpawnRegistry] 🛑 Blocked duplicate spawn: ${registryKey}`);
-          }
-          
-          // Trigger soft feedback on existing node
-          if (this.nodeLinkingSystem && this.nodeLinkingSystem.addNodeSelectionGlow) {
-             this.nodeLinkingSystem.addNodeSelectionGlow(existingNode);
-             setTimeout(() => this.nodeLinkingSystem.removeNodeSelectionGlow(existingNode), 500);
-          }
-          
-          this._pendingCyclicCandidate = null;
-          return existingNode; // Return existing instance
-        } else {
-          // Stale entry, clear it
-          this.nodeRegistry.delete(registryKey);
-          this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(registryKey);
-        }
-      }
-    }
+    // Legacy nodeRegistry duplicate gate removed; unified service handles uniqueness.
 
     // ========================================================================
     // [SPAWN AUTHORITY] COMPLIANCE GATE: Validate spawn request FIRST
@@ -3022,42 +2972,34 @@ export class AINodes {
       this._fallbackWarned = true;
     }
 
-    // Single-instance enforcement is centralized in UniqueSpawnService (feature-flagged).
-    let unifiedUniqueKey = null;
-    if (USE_UNIFIED_UNIQUE_SPAWN) {
-      unifiedUniqueKey = uniqueSpawnService.makeKey({
-        category,
-        archetype: archetypeKey || category,
-        forceArchetype,
-        registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
-      });
+    // Single-instance enforcement is centralized in UniqueSpawnService.
+    const unifiedUniqueKey = uniqueSpawnService.makeKey({
+      category,
+      archetype: archetypeKey || category,
+      forceArchetype,
+      registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
+    });
 
-      const decision = uniqueSpawnService.check({
-        key: unifiedUniqueKey,
-        nodes: this.nodes,
-        nodeRegistry: this.nodeRegistry,
-        fallbackNodeId: isFallbackSpawn ? fallbackNodeId : null,
-      });
+    const decision = uniqueSpawnService.check({
+      key: unifiedUniqueKey,
+      nodes: this.nodes,
+      nodeRegistry: this.nodeRegistry,
+      fallbackNodeId: isFallbackSpawn ? fallbackNodeId : null,
+    });
 
-      if (!decision.allowed) {
-        const existingNode =
-          (decision.existingNodeId &&
-            (this.nodesMap?.get(decision.existingNodeId) ||
-              this.nodes.find(
-                n =>
-                  (n.userData?.nodeId || n.userData?.id || n.uuid) === decision.existingNodeId
-              ))) ||
-          (isFallbackSpawn ? this._fallbackNode : null);
+    if (!decision.allowed) {
+      const existingNode =
+        (decision.existingNodeId &&
+          (this.nodesMap?.get(decision.existingNodeId) ||
+            this.nodes.find(
+              n =>
+                (n.userData?.nodeId || n.userData?.id || n.uuid) === decision.existingNodeId
+            ))) ||
+        (isFallbackSpawn ? this._fallbackNode : null);
 
-        this._pendingCyclicCandidate = null;
-        if (existingNode) return existingNode;
-        return null;
-      }
-    } else {
-      if (isFallbackSpawn && this._fallbackNode && this._fallbackNode.parent) {
-        this._pendingCyclicCandidate = null;
-        return this._fallbackNode;
-      }
+      this._pendingCyclicCandidate = null;
+      if (existingNode) return existingNode;
+      return null;
     }
     
     // Canonical category enforcement (Phase 1): prevent INPUT domination when other canonical options exist.
@@ -3102,22 +3044,6 @@ export class AINodes {
     const forcedUniqueKey = forceArchetype
       ? this._getUniqueArchetypeKey(category, forceArchetype)
       : null;
-
-    if (!USE_UNIFIED_UNIQUE_SPAWN) {
-      if (forcedUniqueKey) {
-        const existingUniqueNodeId = this.uniqueSpawnRegistry.getNodeId(forcedUniqueKey);
-        if (existingUniqueNodeId) {
-          const existingUniqueNode =
-            this.nodesMap?.get(existingUniqueNodeId) ||
-            this.nodes.find(n => (n.userData?.nodeId || n.userData?.id || n.uuid) === existingUniqueNodeId);
-          if (existingUniqueNode && existingUniqueNode.parent) {
-            this._pendingCyclicCandidate = null;
-            return existingUniqueNode;
-          }
-          this.uniqueSpawnRegistry.releaseUniqueSpawnByArchetypeKey(forcedUniqueKey);
-        }
-      }
-    }
     
     // ========== FIX 3: SIMPLE VISUAL REJECTION ==========
     // Reject nodes with simple/fallback visuals (primitive spheres only)
@@ -3344,25 +3270,14 @@ export class AINodes {
     });
     if (finalizedNode.userData.uniqueArchetypeKey) {
       const registerNodeId = finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid;
-      if (USE_UNIFIED_UNIQUE_SPAWN) {
-        uniqueSpawnService.register({
-          key: finalizedNode.userData.uniqueArchetypeKey,
-          nodeId: registerNodeId,
-          meta: {
-            category: finalizedNode.userData.category,
-            source: 'spawnNode',
-          },
-        });
-      } else {
-        this.uniqueSpawnRegistry.registerUniqueSpawn(
-          registerNodeId,
-          finalizedNode.userData.uniqueArchetypeKey,
-          {
-            category: finalizedNode.userData.category,
-            source: 'spawnNode',
-          }
-        );
-      }
+      uniqueSpawnService.register({
+        key: finalizedNode.userData.uniqueArchetypeKey,
+        nodeId: registerNodeId,
+        meta: {
+          category: finalizedNode.userData.category,
+          source: 'spawnNode',
+        },
+      });
     }
     this._commitSpawnCycleSuccess(category);
     
@@ -3490,11 +3405,23 @@ export class AINodes {
       this.materializingNodes.delete(node);
     }
   }
-  
+
+  setSpawnMode(mode) {
+    this.spawnMode = mode;
+  }
+
   /**
    * Update spawning system (called every frame)
    */
   updateSpawning(currentTime) {
+    if (this.spawnMode !== 'RUNTIME') {
+      if (!this._spawnModeLogged) {
+        console.warn(`[SpawnMode] updateSpawning skipped; mode=${this.spawnMode}`);
+        this._spawnModeLogged = true;
+      }
+      return;
+    }
+    this._spawnModeLogged = false;
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
@@ -3525,11 +3452,12 @@ export class AINodes {
       this.checkNetworkDensityAndSpawn();
     }
   }
-  
+
   /**
    * Register link event (triggers potential spawn)
    */
   onLinkCreated() {
+    if (this.spawnMode !== 'RUNTIME') return;
     if (!isLinkSpawnEnabled()) {
       if (typeof window !== 'undefined' && window.ATOMA_DEBUG_LINK_SPAWN === true) {
         console.warn('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
@@ -3669,12 +3597,8 @@ export class AINodes {
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();
-    if (USE_UNIFIED_UNIQUE_SPAWN) {
-      this.uniqueSpawnRegistry.clear();
-      uniqueSpawnService.metaByNodeId?.clear?.();
-    } else {
-      this.uniqueSpawnRegistry.clear();
-    }
+    this.uniqueSpawnRegistry.clear();
+    uniqueSpawnService.metaByNodeId?.clear?.();
     this.postSpawnObservers.clear();
   }
   

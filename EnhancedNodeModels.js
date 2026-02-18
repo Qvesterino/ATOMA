@@ -115,6 +115,42 @@ const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 // CONTROL visual toggle (v2 pipeline)
 const USE_CONTROL_V2 = true;
 
+// ========== VARIANT SHUFFLE-BAG STATE ==========
+// category -> { bag: number[], cursor: number, signature: string }
+const _variantBagsByCategory = new Map();
+const _emptyPoolWarned = new Set();
+
+function _shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function _getNextVariantFromBag(category, pool) {
+  const signature = pool.join(',');
+  let entry = _variantBagsByCategory.get(category);
+  const needsRebuild =
+    !entry ||
+    entry.signature !== signature ||
+    entry.bag.length !== pool.length;
+
+  if (needsRebuild) {
+    const bag = pool.slice(); // one-time copy per rebuild
+    _shuffleInPlace(bag);
+    entry = { bag, cursor: 0, signature };
+    _variantBagsByCategory.set(category, entry);
+  }
+
+  const { bag } = entry;
+  const pick = bag[entry.cursor++];
+  if (entry.cursor >= bag.length) {
+    _shuffleInPlace(bag);
+    entry.cursor = 0;
+  }
+  return pick;
+}
+
 // CONTROL v2 caches
 const CONTROL_V2_CACHE = {
   coreGeometry: null,
@@ -1398,11 +1434,19 @@ export class EnhancedNodeModels {
     }
     const nodeGroup = new THREE.Group();
     const cat = (category || 'input').toLowerCase();
-    const pool = CANONICAL_VARIANTS[cat] || [0];
-    let variantIndex = index;
-    if (!pool.includes(variantIndex)) {
-      const pick = Math.floor(Math.random() * pool.length);
-      variantIndex = pool[pick];
+    const pool = CANONICAL_VARIANTS[cat] || [];
+
+    let variantIndex;
+    if (pool.length === 0) {
+      if (!_emptyPoolWarned.has(cat)) {
+        console.warn(`[EnhancedNodeModels] Empty variant pool for category '${cat}'. Using fallback variant 0.`);
+        _emptyPoolWarned.add(cat);
+      }
+      variantIndex = 0;
+      nodeGroup.userData = nodeGroup.userData || {};
+      nodeGroup.userData.variantFallback = 'FALLBACK_EMPTY_POOL';
+    } else {
+      variantIndex = _getNextVariantFromBag(cat, pool);
     }
 
     let rootGroup;

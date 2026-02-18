@@ -4970,6 +4970,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
         this.aiNodes.createNodes(this.currentMode, nodeCount);
+        // Disable runtime spawning after init batch (temporary diagnostic)
+        this.aiNodes.spawnMode = 'DISABLED';
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {

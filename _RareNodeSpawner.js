@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
+import { spawnAuthority } from './SpawnAuthority.js';
 
 /**
  * RARE NODE SPAWNER (SAFE)
@@ -206,7 +207,7 @@ export class RareNodeSpawner {
       console.warn('[SpawnAuthority] External spawn blocked');
       return;
     }
-    const node = this.aiNodes?.spawnNode('input', position, archetypeKey);
+    const node = spawnAuthority.spawn(this.aiNodes, 'input', position, archetypeKey);
     if (!node) {
       return;
     }
