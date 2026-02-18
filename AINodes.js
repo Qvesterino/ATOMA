@@ -1037,17 +1037,15 @@ export class AINodes {
       return null;
     };
 
-    // ========== VARIANT SELECTION: simple validator + uniform index ==========
+    // ========== VISUAL CODE SELECTION: deterministic per-category counter ==========
     if (!this._variantCounterByCategory[category]) {
       this._variantCounterByCategory[category] = 0;
     }
-    const localIndex = this._variantCounterByCategory[category]++;
-    const variantIndex = localIndex;
+    const visualCode = this._variantCounterByCategory[category]++;
     const validatedCategory = spawnCycleValidator.validateCategory(
       safeCategory,
       ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']
     );
-    // EnhancedNodeModels internally mods by pool length; variantIndex ensures determinism per spawn order.
     const debugCheckGeometry = (mesh, stage) => {
       if (!mesh || !mesh.geometry) return;
 
@@ -1081,7 +1079,7 @@ export class AINodes {
 
     let nodeModel = null;
     try {
-      nodeModel = EnhancedNodeModels.create(validatedCategory, variantIndex, coreColor);
+      nodeModel = EnhancedNodeModels.create(validatedCategory, visualCode, coreColor);
     } catch (err) {
       return failClosedVisual(null, err?.message || 'EnhancedNodeModels.create threw');
     }
@@ -1124,7 +1122,7 @@ export class AINodes {
     nodeModel.userData.enhancedNodeModelBinding = {
       sourceModel: 'EnhancedNodeModel',
       category: safeCategory,
-      variantIndex: variantIndex,
+      visualCode: visualCode,
       spawnTime: Date.now()
     };
     
@@ -1142,7 +1140,7 @@ export class AINodes {
     nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.spawnCycle = {
       category: validatedCategory,
-      variantIndex: variantIndex
+      visualCode: visualCode
     };
     
     // Get layer-specific colors for VFX
@@ -1472,7 +1470,7 @@ export class AINodes {
       light: light,
       baseColor: coreColor,
       basePosition: position.clone(),
-      variant: variantIndex % 4,
+      variant: visualCode % 4,
       pulseOffset: Math.random() * Math.PI * 2,
       originalY: position.y,
       isSpecial: isSpecial,
@@ -3258,8 +3256,8 @@ export class AINodes {
     const variantToken = forceArchetype ??
       finalizedNode.userData?.archetypeKey ??
       finalizedNode.userData?.variantId ??
-      finalizedNode.userData?.spawnCycle?.variantIndex ??
-      finalizedNode.userData?.enhancedNodeModelBinding?.variantIndex ??
+      finalizedNode.userData?.spawnCycle?.visualCode ??
+      finalizedNode.userData?.enhancedNodeModelBinding?.visualCode ??
       finalizedNode.userData?.archetype ??
       fallbackToken;
     const normalizedUniqueKey = unifiedUniqueKey ||

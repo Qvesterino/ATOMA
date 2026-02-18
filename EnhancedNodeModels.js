@@ -1372,7 +1372,7 @@ export class EnhancedNodeModels {
    * Create node by category and index
    * FIX 1: Lazy THREE guard - prevent visual creation when THREE is unavailable
    */
-  static create(category = 'input', index = 0, color = 0x00ffff) {
+  static create(category = 'input', visualCode = 0, color = 0x00ffff) {
     // FIX 1: Direct THREE guard before any visual creation
     if (!THREE || !THREE.Group) {
       if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
@@ -1397,21 +1397,20 @@ export class EnhancedNodeModels {
       return null;
     }
 
-    const visualCode = _sessionVariantEngine
+    const resolvedVisualCode = _sessionVariantEngine
       ? _sessionVariantEngine.getNext(cat, pool.join(','), pool)
-      : pool[index % pool.length];
-    if (visualCode == null) {
+      : pool[visualCode % pool.length];
+    if (resolvedVisualCode == null) {
       console.warn(`[EnhancedNodeModels] No visual code available for category '${cat}'.`);
       return null;
     }
 
-    const registryEntry = NODE_VISUAL_REGISTRY[visualCode];
+    const registryEntry = NODE_VISUAL_REGISTRY[resolvedVisualCode];
     if (!registryEntry) {
-      console.warn(`[EnhancedNodeModels] Missing registry entry for visualCode ${visualCode}`);
+      console.warn(`[EnhancedNodeModels] Missing registry entry for visualCode ${resolvedVisualCode}`);
       return null;
     }
 
-    const variantIndex = visualCode;
     const resolveFactory = (name) => {
       if (typeof this[name] === 'function') return this[name].bind(this);
       switch (name) {
@@ -1446,18 +1445,17 @@ export class EnhancedNodeModels {
 
     const factoryFn = resolveFactory(registryEntry.factoryName);
     if (!factoryFn) {
-      console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${visualCode})`);
+      console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${resolvedVisualCode})`);
       return null;
     }
 
-    const variantIndex = visualCode;
-    const rootGroup = factoryFn(nodeGroup, variantIndex, color);
+    const rootGroup = factoryFn(nodeGroup, resolvedVisualCode, color);
 
     if (rootGroup) {
       nodeGroup.userData = nodeGroup.userData || {};
-      nodeGroup.userData.visualCode = visualCode;
+      nodeGroup.userData.visualCode = resolvedVisualCode;
       if (!rootGroup.userData) rootGroup.userData = {};
-      rootGroup.userData.visualCode = visualCode;
+      rootGroup.userData.visualCode = resolvedVisualCode;
     }
 
     const clearPartialVisuals = (group) => {
@@ -1729,11 +1727,6 @@ export class EnhancedNodeModels {
 
   // Legacy INPUT visuals retained as fallback
   static _createInputNodeLegacy(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CATEGORY_POOLS.input || [];
     const poolFns = {
       101: this.createInputSignalReceptor.bind(this),
@@ -1743,7 +1736,8 @@ export class EnhancedNodeModels {
       105: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
       106: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const counter = Number.isFinite(index) ? index : 0;
+    const selected = pool[counter % pool.length];
     EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -2134,11 +2128,6 @@ export class EnhancedNodeModels {
    * - PipelineFlow (NEW - Session 81)
    */
   static createProcessNode(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CATEGORY_POOLS.process || [];
     const poolFns = {
       201: this.createProcessFluxChamber.bind(this),
@@ -2148,7 +2137,8 @@ export class EnhancedNodeModels {
       205: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
       206: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const counter = Number.isFinite(index) ? index : 0;
+    const selected = pool[counter % pool.length];
     EnhancedNodeModels._ensureRegistry('process', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -2620,47 +2610,27 @@ export class EnhancedNodeModels {
    * - KnotSingularity (NEW - Session 82)
    */
   static createIntegrationNode(group, index, color) {
-    // Deterministic selection per node ID
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-    
-    const variants = [
-      this.createKnotTrefoil.bind(this),            // TrefoilKnot
-      this.createKnotFigureEight.bind(this),        // FigureEightKnot
-      this.createKnotInfiniteSelfIntersecting.bind(this), // InfiniteSelfIntersectingKnot
-      this.createKnotChaotic.bind(this),            // ChaoticKnotCore
-      this.createKnotBorromean.bind(this),          // BorromeanRings
-      this.createKnotTorusKnot.bind(this),          // TorusKnot
-      this.createKnotTripleHelix.bind(this),        // TripleHelixKnot
-      this.createExtremeInput1.bind(this),          // SingularityKnot (moved from INPUT)
-      IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),  // Signal Knot (Session 110)
-      IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),  // Protocol Tangle (Session 110)
-      IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants)   // Continuity Binder (Session 110)
-    ];
-    EnhancedNodeModels._ensureRegistry('integration', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.integration) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.integration);
-    }
-
-    if (variants.length === 0) {
-      return null;
-    }
-
-    const startIndex = nodeId % variants.length;
-    for (let i = 0; i < variants.length; i++) {
-      const idx = (startIndex + i) % variants.length;
-      const factory = variants[idx];
-      try {
-        const result = factory(group, color);
-        if (result) return result;
-      } catch (err) {
-        // Silent failover: continue to next variant
-      }
-    }
-
-    return null;
+    const pool = CATEGORY_POOLS.integration || [];
+    const factoryMap = {
+      301: this.createKnotTrefoil.bind(this),
+      302: this.createKnotFigureEight.bind(this),
+      303: this.createKnotInfiniteSelfIntersecting.bind(this),
+      304: this.createKnotChaotic.bind(this),
+      305: this.createKnotBorromean.bind(this),
+      306: this.createKnotTorusKnot.bind(this),
+      307: this.createKnotTripleHelix.bind(this),
+      308: this.createExtremeInput1.bind(this),
+      309: IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),
+      310: IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
+      311: IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants)
+    };
+    EnhancedNodeModels._ensureRegistry('integration', Object.values(factoryMap));
+    if (pool.length === 0) return null;
+    const counter = Number.isFinite(index) ? index : 0;
+    const selected = pool[counter % pool.length];
+    const factory = factoryMap[selected];
+    if (!factory) return null;
+    return factory(group, color);
   }
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
@@ -2701,7 +2671,7 @@ export class EnhancedNodeModels {
     if (meshCount === 0) {
       console.error('[AnalyticsFactoryEmpty]', {
         factory: 'createAnalyticsNode2',
-        variantIndex: '2',
+        visualCode: '2',
         group
       });
     }
@@ -2749,7 +2719,7 @@ export class EnhancedNodeModels {
     if (meshCount === 0) {
       console.error('[AnalyticsFactoryEmpty]', {
         factory: 'createAnalyticsNode3',
-        variantIndex: '3',
+        visualCode: '3',
         group
       });
     }
@@ -2899,11 +2869,6 @@ export class EnhancedNodeModels {
 
   // Legacy ANALYTICS visuals retained as fallback
   static _createAnalyticsNodeLegacy(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CATEGORY_POOLS.analytics || [];
     const poolFns = {
       401: this.createAnalyticsNode2.bind(this),
@@ -2916,9 +2881,9 @@ export class EnhancedNodeModels {
       408: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
     };
     
-    let selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    let selected = pool[(Number.isFinite(index) ? index : 0) % pool.length];
     
-    // Safety: ensure variantIndex is valid
+    // Safety: ensure visualCode is valid
     if (!poolFns[selected]) {
       console.warn('[AnalyticsFactoryFallback] Invalid variant index:', selected, 'falling back to pool[0]');
       selected = pool[0];
@@ -2931,7 +2896,7 @@ export class EnhancedNodeModels {
     if (result === null) {
       console.error('[AnalyticsFactoryNull]', {
         factory: 'createAnalyticsNode',
-        variantIndex: selected,
+        visualCode: selected,
         poolIndex: pool[nodeId % pool.length]
       });
     }
@@ -3024,7 +2989,7 @@ export class EnhancedNodeModels {
       if (meshCount === 0) {
         console.error('[AnalyticsFactoryEmpty]', {
           factory: 'createAnalyticsObserverLens',
-          variantIndex: '3',
+          visualCode: '3',
           group
         });
       }
@@ -3037,7 +3002,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
-      console.error('[AnalyticsFactoryNull]', { variantIndex: '3', error: err.message });
+      console.error('[AnalyticsFactoryNull]', { visualCode: '3', error: err.message });
       return null;
     }
   }
@@ -3137,7 +3102,7 @@ export class EnhancedNodeModels {
       if (meshCount === 0) {
         console.error('[AnalyticsFactoryEmpty]', {
           factory: 'createAnalyticsFractalEcho',
-          variantIndex: '4',
+          visualCode: '4',
           group
         });
       }
@@ -3150,7 +3115,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
-      console.error('[AnalyticsFactoryNull]', { variantIndex: '4', error: err.message });
+      console.error('[AnalyticsFactoryNull]', { visualCode: '4', error: err.message });
       return null;
     }
   }
@@ -3243,7 +3208,7 @@ export class EnhancedNodeModels {
       if (meshCount === 0) {
         console.error('[AnalyticsFactoryEmpty]', {
           factory: 'createAnalyticsParallaxOracle',
-          variantIndex: '5',
+          visualCode: '5',
           group
         });
       }
@@ -3256,7 +3221,7 @@ export class EnhancedNodeModels {
         reason: 'Visual build failed — fallback visuals are forbidden',
         error: err
       });
-      console.error('[AnalyticsFactoryNull]', { variantIndex: '5', error: err.message });
+      console.error('[AnalyticsFactoryNull]', { visualCode: '5', error: err.message });
       return null;
     }
   }
@@ -3542,11 +3507,6 @@ export class EnhancedNodeModels {
 
   // Legacy STORAGE visuals retained as fallback
   static _createStorageNodeLegacy(group, index, color) {
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
-    }
-
     const pool = CATEGORY_POOLS.storage || [];
     const poolFns = {
       501: this.createStorageNode0.bind(this),
@@ -3562,7 +3522,8 @@ export class EnhancedNodeModels {
       511: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
       512: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)
     };
-    const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
+    const counter = Number.isFinite(index) ? index : 0;
+    const selected = pool[counter % pool.length];
     EnhancedNodeModels._ensureRegistry('storage', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
@@ -4200,27 +4161,29 @@ export class EnhancedNodeModels {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
     
-    const variants = [
-      this.createAxiomCrystalNode.bind(this),      // AxiomCrystal (CANONICAL)
-      this.createControlNode0.bind(this),          // OctagonalCore+Rim (legacy)
-      this.createControlNode2.bind(this),          // ControlRingLattice (legacy)
-      this.createControlNode1.bind(this),          // SpikedControlFrame (legacy)
-      this.createControlCommandPyramid.bind(this), // CommandPyramid (NEW)
-      this.createControlHierarchyTower.bind(this), // HierarchyTower (NEW)
-      this.createControlSymmetryCore.bind(this),   // SymmetryCore (NEW)
-      this.createExtremeControl0.bind(this),       // InfiniteSpiral (EXTREME)
-      ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),    // DecisionFork (NEW)
-      ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),  // AuthorityHelix (NEW)
-      ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),   // CommandMatrix (NEW)
-      ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),        // ΦRIX (NEW - Session 114)
-      ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors), // CRUCIS (NEW - Session 114)
-      ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors)       // VERTEX (NEW - Session 114)
-    ];
-    EnhancedNodeModels._ensureRegistry('control', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.control) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.control);
-    }
-    return variants[nodeId % variants.length](group, color);
+    const pool = CATEGORY_POOLS.control || [];
+    const factoryMap = {
+      601: this.createAxiomCrystalNode.bind(this),
+      602: this.createControlNode0.bind(this),
+      603: this.createControlNode2.bind(this),
+      604: this.createControlNode1.bind(this),
+      605: this.createControlCommandPyramid.bind(this),
+      606: this.createControlHierarchyTower.bind(this),
+      607: this.createControlSymmetryCore.bind(this),
+      608: this.createExtremeControl0.bind(this),
+      609: ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),
+      610: ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),
+      611: ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),
+      612: ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
+      613: ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
+      614: ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors)
+    };
+    const counter = Number.isFinite(index) ? index : 0;
+    const selected = pool[counter % pool.length];
+    const factory = factoryMap[selected];
+    if (!factory) return null;
+    EnhancedNodeModels._ensureRegistry('control', Object.values(factoryMap));
+    return factory(group, color);
   }
 
   /**
