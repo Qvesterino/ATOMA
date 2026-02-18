@@ -73,8 +73,9 @@ import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { isEmissiveCapable, safeSetEmissive } from './_EmissiveUtils.js';
 import { NodeSpawnLogger } from './_NodeSpawnLogger4_0.js';
 import { NodeVisualBootstrap3_0 } from './_NodeVisualBootstrap3_0.js';
-import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
-import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
+// LEGACY SPAWN MODULE REMOVED – HARD DISABLED
+// import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
+// import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
 import { spawnCycleValidator } from './SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
@@ -259,9 +260,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
  * Unified system that works across all ATOMA environments
  */
 export class AINodes {
-  constructor(scene, player) {
+  constructor(scene, player, variantEngine = null) {
     this.scene = scene;
     this.player = player;
+    this.variantEngine = variantEngine || (typeof window !== 'undefined' ? window.sessionVariantEngine : null);
     this.nodes = [];
     this.nodesMap = new Map();
     this.connections = [];
@@ -376,15 +378,9 @@ export class AINodes {
     
     // ========== EXTREME SYSTEMS ACTIVATION v1.0 ==========
     // Initialize EXTREME node packs (visual + archetype definitions)
-    try {
-      this.extremeNodePack = new ExtremeAINodePack();
-      this.extremeArchetypesPack = new ExtremeNodeArchetypes_SafePack();
-      console.log('[AINodes] ✓ EXTREME systems initialized');
-    } catch (err) {
-      console.warn('[AINodes] EXTREME systems init failed (non-critical):', err.message);
-      this.extremeNodePack = null;
-      this.extremeArchetypesPack = null;
-    }
+    // LEGACY SPAWN MODULE REMOVED – HARD DISABLED
+    this.extremeNodePack = null;
+    this.extremeArchetypesPack = null;
     
     // ========== EXTENDED SPAWN SYSTEM 1.0 ==========
     // 6 standard node categories with 4 variants each
@@ -398,6 +394,9 @@ export class AINodes {
     
     // NEW CATEGORIES (v1.0): Mythic, Prime, Error
     this.newNodeCategories = ['mythic', 'prime', 'error'];
+
+    // Per-category variant counters (deterministic, no cross-category coupling)
+    this._variantCounterByCategory = {};
 
     // Spawn mode gate: INIT during batch creation, RUNTIME after explicit enablement.
     this.spawnMode = 'INIT'; // 'INIT' | 'RUNTIME' | 'DISABLED'
@@ -1039,7 +1038,11 @@ export class AINodes {
     };
 
     // ========== VARIANT SELECTION: simple validator + uniform index ==========
-    const variantIndex = this.nodeCounter++;
+    if (!this._variantCounterByCategory[category]) {
+      this._variantCounterByCategory[category] = 0;
+    }
+    const localIndex = this._variantCounterByCategory[category]++;
+    const variantIndex = localIndex;
     const validatedCategory = spawnCycleValidator.validateCategory(
       safeCategory,
       ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']

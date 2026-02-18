@@ -118,6 +118,15 @@ import { setupSimulationAuditHelpers } from './_TASK_AUDIT_DEBUG_HELPERS.js';
 import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
+import { SessionVariantEngine } from './SessionVariantEngine.js';
+import { setSessionVariantEngine } from './EnhancedNodeModels.js';
+
+// Session-scoped variant engine (deterministic)
+const sessionVariantEngine = new SessionVariantEngine(Date.now());
+setSessionVariantEngine(sessionVariantEngine);
+if (typeof window !== 'undefined') {
+    window.sessionVariantEngine = sessionVariantEngine;
+}
 import { EvolvingLinkFX2_0 } from './_EvolvingLinkFX2_0.js';
 import { NodePersonality2_0 } from './NodePersonality2_0.js';
 import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
@@ -4864,7 +4873,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      createAINodes() {
         this._allowRegistryReset = false;
 
-        this.aiNodes = new AINodes(this.scene, this.player);
+        this.aiNodes = new AINodes(this.scene, this.player, sessionVariantEngine);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         
@@ -4970,8 +4979,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
         this.aiNodes.createNodes(this.currentMode, nodeCount);
-        // Disable runtime spawning after init batch (temporary diagnostic)
-        this.aiNodes.spawnMode = 'DISABLED';
+        // Enable runtime spawning after init batch
+        this.aiNodes.spawnMode = 'RUNTIME';
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {
@@ -8855,7 +8864,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         if (window.__ALLOW_EXTERNAL_SPAWN__ === true) {
             /// Spawn moved to AINodes authority (removed)
         } else {
-            console.warn('[SpawnAuthority] External spawn blocked');
+            console.warn('[Spawn] External spawn blocked');
         }
     }
 
@@ -11089,89 +11098,6 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         console.log('  - window.extremeLinks.setGlobalBrightness(value)');
         console.log('  - window.extremeLinks.printStats()');
         console.log('  - window.extremeLinks.printConfig()');
-
-        // ========== EXTENDED SPAWN SYSTEM 1.0 COMMANDS ==========
-        console.log('✓ Extended Spawn System 1.0 commands available:');
-        console.log('  - spawn.mythic() — Spawn ultra-rare MYTHIC node (0.5-1.5%)');
-        console.log('  - spawn.prime() — Spawn rare PRIME node (2-3%)');
-        console.log('  - spawn.error() — Spawn unstable ERROR node (0.5-1.5%)');
-        console.log('  - spawn.extreme() — Spawn EXTREME archetype (4-6%)');
-        console.log('  - spawn.archetype(name) — Spawn specific archetype');
-        console.log('  - spawn.stats() — Print archetype statistics');
-        console.log('  - spawn.list() — List all 49 archetypes');
-        console.log('  - spawn.weights() — Show spawn weight distribution');
-
-        // Setup extended spawn system console API
-        window.spawn = {
-            mythic: () => {
-                if (window.game && window.game.aiNodes) {
-                    const node = window.game.aiNodes.spawnMythicNode();
-                    console.log(`✓ MYTHIC node spawned at (${node.position.x.toFixed(1)}, ${node.position.y.toFixed(1)}, ${node.position.z.toFixed(1)})`);
-                }
-            },
-
-            prime: () => {
-                if (window.game && window.game.aiNodes) {
-                    const node = window.game.aiNodes.spawnPrimeNode();
-                    console.log(`✓ PRIME node spawned at (${node.position.x.toFixed(1)}, ${node.position.y.toFixed(1)}, ${node.position.z.toFixed(1)})`);
-                }
-            },
-
-            error: () => {
-                if (window.game && window.game.aiNodes) {
-                    const node = window.game.aiNodes.spawnErrorNode();
-                    console.log(`✓ ERROR node spawned at (${node.position.x.toFixed(1)}, ${node.position.y.toFixed(1)}, ${node.position.z.toFixed(1)})`);
-                }
-            },
-
-            extreme: () => {
-                if (window.game && window.game.aiNodes) {
-                    const node = window.game.aiNodes.spawnExtremeNode();
-                    console.log(`✓ EXTREME node spawned at (${node.position.x.toFixed(1)}, ${node.position.y.toFixed(1)}, ${node.position.z.toFixed(1)})`);
-                }
-            },
-
-            archetype: (name) => {
-                if (window.game && window.game.aiNodes) {
-                    const node = window.game.aiNodes.spawnArchetype(name);
-                    if (node) {
-                        console.log(`✓ Archetype ${name} spawned at (${node.position.x.toFixed(1)}, ${node.position.y.toFixed(1)}, ${node.position.z.toFixed(1)})`);
-                    }
-                }
-            },
-
-            stats: () => {
-                if (window.game && window.game.aiNodes) {
-                    window.game.aiNodes.printArchetypeStats();
-                }
-            },
-
-            list: () => {
-                if (window.game && window.game.aiNodes) {
-                    const archetypes = Object.keys(window.game.aiNodes.extremeArchetypes);
-                    console.log(`🧬 All 49 Standardized Archetypes:`);
-                    console.table(archetypes.map(a => ({
-                        archetype: a,
-                        baseCategory: window.game.aiNodes.extremeArchetypes[a]
-                    })));
-                }
-            },
-
-            weights: () => {
-                if (window.game && window.game.aiNodes) {
-                    const weights = window.game.aiNodes.spawningConfig.spawnWeights;
-                    console.log(`📊 Spawn Weight Distribution:`);
-                    console.table({
-                        standard: `${(weights.standard * 100).toFixed(1)}% (6 categories)`,
-                        mythic: `${(weights.mythic * 100).toFixed(1)}% (ultra-rare)`,
-                        prime: `${(weights.prime * 100).toFixed(1)}% (rare)`,
-                        error: `${(weights.error * 100).toFixed(1)}% (unstable)`,
-                        extreme: `${(weights.extreme * 100).toFixed(1)}% (13 archetypes)`,
-                        special: `${(weights.special * 100).toFixed(1)}% (sigma/quantum/emotional)`
-                    });
-                }
-            }
-        };
 
         // Setup ATOMA Naming Engine console API
         console.log('✓ ATOMA Naming Engine 1.0 commands available:');

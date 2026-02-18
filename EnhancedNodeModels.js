@@ -16,7 +16,7 @@ import { AINodeModel } from './AINodeModel.js';
 
 // Canonical-only variant pools (curated from audit)
 const CANONICAL_VARIANTS = {
-  input:    [4, 5, 6, 7, 8, 9, 10],
+  input:    [4, 5, 6, 8, 9, 10],
   process:  [3, 4, 5, 6, 7, 8],
   integration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
   analytics: [1, 2, 3, 4, 5, 7, 8, 9],
@@ -115,41 +115,14 @@ const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 // CONTROL visual toggle (v2 pipeline)
 const USE_CONTROL_V2 = true;
 
-// ========== VARIANT SHUFFLE-BAG STATE ==========
-// category -> { bag: number[], cursor: number, signature: string }
-const _variantBagsByCategory = new Map();
 const _emptyPoolWarned = new Set();
 
-function _shuffleInPlace(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = (Math.random() * (i + 1)) | 0;
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
+let _sessionVariantEngine = null;
+export function setSessionVariantEngine(engine) {
+  _sessionVariantEngine = engine;
 }
 
-function _getNextVariantFromBag(category, pool) {
-  const signature = pool.join(',');
-  let entry = _variantBagsByCategory.get(category);
-  const needsRebuild =
-    !entry ||
-    entry.signature !== signature ||
-    entry.bag.length !== pool.length;
-
-  if (needsRebuild) {
-    const bag = pool.slice(); // one-time copy per rebuild
-    _shuffleInPlace(bag);
-    entry = { bag, cursor: 0, signature };
-    _variantBagsByCategory.set(category, entry);
-  }
-
-  const { bag } = entry;
-  const pick = bag[entry.cursor++];
-  if (entry.cursor >= bag.length) {
-    _shuffleInPlace(bag);
-    entry.cursor = 0;
-  }
-  return pick;
-}
+// Debug helper moved to SessionVariantEngine (none here)
 
 // CONTROL v2 caches
 const CONTROL_V2_CACHE = {
@@ -1233,7 +1206,6 @@ export class EnhancedNodeModels {
       this.createInputSignalReceptor.bind(this),
       this.createInputDataGateway.bind(this),
       this.createInputIncomingFunnel.bind(this),
-      this.createExtremeInput0.bind(this),
       InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
       InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
       InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced),
@@ -1445,8 +1417,12 @@ export class EnhancedNodeModels {
       variantIndex = 0;
       nodeGroup.userData = nodeGroup.userData || {};
       nodeGroup.userData.variantFallback = 'FALLBACK_EMPTY_POOL';
+    } else if (_sessionVariantEngine) {
+      const signature = pool.join(',');
+      variantIndex = _sessionVariantEngine.getNext(cat, signature, pool);
     } else {
-      variantIndex = _getNextVariantFromBag(cat, pool);
+      // Fallback deterministic cycle if engine missing
+      variantIndex = pool[index % pool.length];
     }
 
     let rootGroup;
@@ -1792,7 +1768,6 @@ export class EnhancedNodeModels {
       4: this.createInputSignalReceptor.bind(this),
       5: this.createInputDataGateway.bind(this),
       6: this.createInputIncomingFunnel.bind(this),
-      7: this.createExtremeInput0.bind(this),
       8: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
       9: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
       10: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
