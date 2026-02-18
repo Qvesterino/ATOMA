@@ -38,9 +38,447 @@ const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
   'TorusGeometry'
 ]);
 
+// PRIME visual toggle (v2 pipeline)
+const USE_PRIME_V2 = true;
+
+// PRIME v2 shared caches (geometries/materials/positions)
+const PRIME_V2_CACHE = {
+  coreGeometry: null,
+  edgesGeometry: null,
+  ringGeometry: null,
+  latticeGeometry: null,
+  latticePositions: null
+};
+const PRIME_V2_MATERIALS = new Map(); // keyed by color hex
+
+// MYTHIC visual toggle (v2 pipeline)
+const USE_MYTHIC_V2 = true;
+
+// MYTHIC v2 caches
+const MYTHIC_V2_CACHE = {
+  coreGeometry: null,
+  edgesGeometry: null,
+  ringGeometry: null,
+  shardGeometry: null,
+  haloGeometry: null,
+  runeGeometry: null,
+  crownPositions: null
+};
+const MYTHIC_V2_MATERIALS = new Map(); // keyed by color hex
+
+// ERROR visual toggle (v2 pipeline)
+const USE_ERROR_V2 = true;
+
+// ERROR v2 caches
+const ERROR_V2_CACHE = {
+  coreGeometry: null,
+  edgesGeometry: null,
+  ringGeometry: null,
+  frameGeometry: null,
+  frameEdgesGeometry: null,
+  voidGeometry: null,
+  haloGeometry: null
+};
+const ERROR_V2_MATERIALS = new Map(); // keyed by color hex
+
+// STORAGE visual toggle (v2 pipeline)
+const USE_STORAGE_V2 = true;
+
+// STORAGE v2 caches
+const STORAGE_V2_CACHE = {
+  columnGeometry: null,
+  ringGeometry: null,
+  bandGeometry: null,
+  sliceGeometry: null,
+  haloGeometry: null,
+  spineGeometry: null,
+  timelineGeometry: null
+};
+const STORAGE_V2_MATERIALS = new Map(); // keyed by color hex
+
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
   return mat;
+}
+
+// PRIME v2 helpers (geometry/material caches + lattice points)
+function _getPrimeV2Geometries() {
+  if (!PRIME_V2_CACHE.coreGeometry) {
+    PRIME_V2_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.6, 1);
+    PRIME_V2_CACHE.coreGeometry.computeBoundingSphere();
+    PRIME_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(PRIME_V2_CACHE.coreGeometry, 18);
+    PRIME_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.05, 12, 64);
+    const pinHeight = 0.18;
+    const pinRadius = 0.05;
+    const pinGeom = new THREE.CylinderGeometry(pinRadius, pinRadius, pinHeight, 6);
+    pinGeom.translate(0, pinHeight * 0.5, 0); // lift so base sits at origin
+    PRIME_V2_CACHE.latticeGeometry = pinGeom;
+  }
+  return PRIME_V2_CACHE;
+}
+
+function _getPrimeV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffffff;
+  if (PRIME_V2_MATERIALS.has(colorHex)) return PRIME_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.7,
+    roughness: 0.2,
+    emissive: colorHex,
+    emissiveIntensity: 0.35
+  });
+
+  const edgesMat = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: true
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false
+  });
+
+  const latticeMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.5,
+    roughness: 0.1,
+    emissive: colorHex,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
+  });
+
+  const mats = { coreMat, edgesMat, ringMat, latticeMat };
+  PRIME_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getPrimeV2LatticePositions(coreGeometry) {
+  if (PRIME_V2_CACHE.latticePositions) return PRIME_V2_CACHE.latticePositions;
+
+  const positions = [];
+  const attr = coreGeometry?.attributes?.position;
+  if (!attr) {
+    PRIME_V2_CACHE.latticePositions = positions;
+    return positions;
+  }
+
+  const seen = new Set();
+  const temp = new THREE.Vector3();
+  const radius = coreGeometry.boundingSphere?.radius ?? 1.0;
+
+  for (let i = 0; i < attr.count; i += 2) { // sample every 2nd vertex to keep count low
+    temp.fromBufferAttribute(attr, i);
+    const key = `${temp.x.toFixed(3)}|${temp.y.toFixed(3)}|${temp.z.toFixed(3)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    temp.normalize().multiplyScalar(radius * 1.05);
+    positions.push(temp.clone());
+  }
+
+  PRIME_V2_CACHE.latticePositions = positions;
+  return positions;
+}
+
+function hashString(str) {
+  let hash = 0;
+  const input = String(str ?? '');
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0; // 32-bit
+  }
+  return hash;
+}
+
+// ---------- MYTHIC v2 helpers ----------
+function _mythicSeededRng(seed = 1) {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 0xffffffff;
+  };
+}
+
+function _getMythicV2Geometries() {
+  if (!MYTHIC_V2_CACHE.coreGeometry) {
+    MYTHIC_V2_CACHE.coreGeometry = new THREE.DodecahedronGeometry(0.65, 0);
+    MYTHIC_V2_CACHE.coreGeometry.computeBoundingSphere();
+    MYTHIC_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(MYTHIC_V2_CACHE.coreGeometry, 15);
+    MYTHIC_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.95, 0.06, 14, 96);
+    const shardGeom = new THREE.TetrahedronGeometry(0.16, 0);
+    shardGeom.rotateX(Math.PI / 5);
+    shardGeom.translate(0, 0.1, 0);
+    MYTHIC_V2_CACHE.shardGeometry = shardGeom;
+
+    const haloPositions = [];
+    const haloCount = 80;
+    for (let i = 0; i < haloCount; i++) {
+      const angle = (i / haloCount) * Math.PI * 2;
+      haloPositions.push(Math.cos(angle) * 1.32, Math.sin(angle) * 1.32, 0);
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    MYTHIC_V2_CACHE.haloGeometry = haloGeometry;
+
+    const runePositions = [];
+    const runeCount = 100;
+    for (let i = 0; i < runeCount; i++) {
+      const a = (i / runeCount) * Math.PI * 2;
+      const r = 1.15 + 0.05 * Math.sin(i * 0.7);
+      runePositions.push(Math.cos(a) * r, 0.15 * Math.sin(i * 1.1), Math.sin(a) * r);
+    }
+    const runeGeometry = new THREE.BufferGeometry();
+    runeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(runePositions, 3));
+    MYTHIC_V2_CACHE.runeGeometry = runeGeometry;
+  }
+  return MYTHIC_V2_CACHE;
+}
+
+function _getMythicV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xffdd00;
+  if (MYTHIC_V2_MATERIALS.has(colorHex)) return MYTHIC_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.6,
+    roughness: 0.18,
+    emissive: colorHex,
+    emissiveIntensity: 0.4
+  });
+
+  const edgesMat = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: true
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false
+  });
+
+  const shardMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.55,
+    roughness: 0.12,
+    emissive: colorHex,
+    emissiveIntensity: 0.55,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false
+  });
+
+  const haloMat = new THREE.PointsMaterial({
+    color: colorHex,
+    size: 0.06,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
+  });
+
+  const mats = { coreMat, edgesMat, ringMat, shardMat, haloMat };
+  MYTHIC_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+function _getMythicV2CrownPositions(coreGeometry) {
+  if (MYTHIC_V2_CACHE.crownPositions) return MYTHIC_V2_CACHE.crownPositions;
+
+  const positions = [];
+  const steps = 28;
+  const radius = (coreGeometry.boundingSphere?.radius || 0.65) * 1.25;
+  for (let i = 0; i < steps; i++) {
+    const angle = (i / steps) * Math.PI * 2;
+    const tilt = 0.22; // crown height
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const y = radius * tilt;
+    positions.push(new THREE.Vector3(x, y, z));
+  }
+  MYTHIC_V2_CACHE.crownPositions = positions;
+  return positions;
+}
+
+// ---------- ERROR v2 helpers ----------
+function _getErrorV2Geometries() {
+  if (!ERROR_V2_CACHE.coreGeometry) {
+    ERROR_V2_CACHE.coreGeometry = new THREE.TetrahedronGeometry(0.55, 1);
+    ERROR_V2_CACHE.coreGeometry.computeBoundingSphere();
+    ERROR_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(ERROR_V2_CACHE.coreGeometry, 15);
+    ERROR_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.95, 0.04, 12, 96);
+
+    ERROR_V2_CACHE.frameGeometry = new THREE.BoxGeometry(1.0, 1.0, 1.0);
+    ERROR_V2_CACHE.frameEdgesGeometry = new THREE.EdgesGeometry(ERROR_V2_CACHE.frameGeometry, 1);
+
+    ERROR_V2_CACHE.voidGeometry = new THREE.SphereGeometry(0.22, 12, 10);
+
+    const haloCount = 90;
+    const haloPositions = [];
+    for (let i = 0; i < haloCount; i++) {
+      const a = (i / haloCount) * Math.PI * 2;
+      haloPositions.push(Math.cos(a) * 1.32, Math.sin(a) * 1.32, 0);
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    ERROR_V2_CACHE.haloGeometry = haloGeometry;
+  }
+  return ERROR_V2_CACHE;
+}
+
+function _getErrorV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff3333;
+  if (ERROR_V2_MATERIALS.has(colorHex)) return ERROR_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.25,
+    roughness: 0.4,
+    emissive: 0x992255,
+    emissiveIntensity: 0.35
+  });
+
+  const edgesMat = new THREE.LineBasicMaterial({
+    color: 0xff44aa,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: true
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xcc66ff,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const frameMat = new THREE.LineBasicMaterial({
+    color: 0x66ccff,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: true
+  });
+
+  const voidMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false
+  });
+
+  const haloMat = new THREE.PointsMaterial({
+    color: 0x66ccff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const shadowMat = coreMat.clone();
+  shadowMat.emissiveIntensity = 0.12;
+  shadowMat.opacity = 0.8;
+  shadowMat.transparent = true;
+
+  const mats = { coreMat, edgesMat, ringMat, frameMat, voidMat, haloMat, shadowMat };
+  ERROR_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- STORAGE v2 helpers ----------
+function _getStorageV2Geometries() {
+  if (!STORAGE_V2_CACHE.columnGeometry) {
+    STORAGE_V2_CACHE.columnGeometry = new THREE.CylinderGeometry(0.35, 0.35, 2.8, 18, 1, false);
+    STORAGE_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.48, 0.045, 10, 64);
+    STORAGE_V2_CACHE.bandGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 12, 1, true);
+    STORAGE_V2_CACHE.sliceGeometry = new THREE.BoxGeometry(0.14, 0.04, 0.36);
+
+    const haloPositions = [];
+    const haloCount = 96;
+    for (let i = 0; i < haloCount; i++) {
+      const a = (i / haloCount) * Math.PI * 2;
+      haloPositions.push(Math.cos(a) * 0.7, 0, Math.sin(a) * 0.7);
+    }
+    const haloGeometry = new THREE.BufferGeometry();
+    haloGeometry.setAttribute('position', new THREE.Float32BufferAttribute(haloPositions, 3));
+    STORAGE_V2_CACHE.haloGeometry = haloGeometry;
+
+    const spineGeometry = new THREE.BufferGeometry();
+    spineGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, -1.4, 0, 0, 1.4, 0], 3));
+    STORAGE_V2_CACHE.spineGeometry = spineGeometry;
+
+    const timelinePositions = [];
+    const timelineCount = 36;
+    for (let i = 0; i < timelineCount; i++) {
+      const y = -1.25 + (i / (timelineCount - 1)) * 2.5;
+      timelinePositions.push(0, y, 0);
+    }
+    const timelineGeometry = new THREE.BufferGeometry();
+    timelineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(timelinePositions, 3));
+    STORAGE_V2_CACHE.timelineGeometry = timelineGeometry;
+  }
+  return STORAGE_V2_CACHE;
+}
+
+function _getStorageV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x88ccff;
+  if (STORAGE_V2_MATERIALS.has(colorHex)) return STORAGE_V2_MATERIALS.get(colorHex);
+
+  const columnMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.25,
+    roughness: 0.45,
+    emissive: 0x66bbee,
+    emissiveIntensity: 0.3
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x99e0ff,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const bandMat = new THREE.MeshBasicMaterial({
+    color: 0xb3ecff,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false
+  });
+
+  const sliceMat = new THREE.MeshBasicMaterial({
+    color: 0xc4f4ff,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false
+  });
+
+  const spineMat = new THREE.LineBasicMaterial({
+    color: 0xa9e8ff,
+    transparent: true,
+    opacity: 0.85
+  });
+
+  const timelineMat = new THREE.PointsMaterial({
+    color: 0xa9e8ff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { columnMat, ringMat, bandMat, sliceMat, spineMat, timelineMat };
+  STORAGE_V2_MATERIALS.set(colorHex, mats);
+  return mats;
 }
 
 /**
@@ -2144,6 +2582,123 @@ export class EnhancedNodeModels {
    * - ArchiveDrum (NEW - Session 116)
    */
   static createStorageNode(group, index, color) {
+    if (USE_STORAGE_V2) {
+      const v2 = this.createStorageNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createStorageNodeLegacy(group, index, color);
+  }
+
+  /**
+   * STORAGE v2: Memory Monolith
+   * Hierarchy:
+   * STORAGE_NODE
+   *   - CORE_GROUP (MemoryCoreColumn + DataSpine)
+   *   - LAYER_GROUP (MemoryRings + CompressionBands + DataSlices)
+   *   - ARCHIVE_GROUP (ArchiveHalo + TimelineParticles)
+   */
+  static createStorageNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getStorageV2Geometries();
+      const materials = _getStorageV2Materials(color);
+      const storageRoot = new THREE.Group();
+      storageRoot.name = 'STORAGE_NODE';
+      storageRoot.userData.visualVariant = 'STORAGE_V2';
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const column = new THREE.Mesh(geometries.columnGeometry, materials.columnMat);
+      column.name = 'MemoryCoreColumn';
+      coreGroup.add(column);
+
+      const spine = new THREE.LineSegments(geometries.spineGeometry, materials.spineMat);
+      spine.name = 'DataSpine';
+      coreGroup.add(spine);
+
+      storageRoot.add(coreGroup);
+
+      // LAYERS
+      const layerGroup = new THREE.Group();
+      layerGroup.name = 'LAYER_GROUP';
+
+      const ringsGroup = new THREE.Group();
+      ringsGroup.name = 'MemoryRings';
+      const ringCount = 6;
+      for (let i = 0; i < ringCount; i++) {
+        const ring = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+        ring.name = `MemoryRing_${i}`;
+        const y = -1.1 + (i / (ringCount - 1)) * 2.2;
+        ring.position.y = y;
+        const scale = 0.95 + (i * 0.05);
+        ring.scale.set(scale, 1.0, scale);
+        ring.rotation.y = 0.18 * i;
+        ringsGroup.add(ring);
+      }
+      layerGroup.add(ringsGroup);
+
+      const bandsGroup = new THREE.Group();
+      bandsGroup.name = 'CompressionBands';
+      const bandLevels = [-1.0, -0.4, 0.2, 0.9];
+      bandLevels.forEach((y, idx) => {
+        const band = new THREE.Mesh(geometries.bandGeometry, materials.bandMat);
+        band.name = `CompressionBand_${idx}`;
+        band.position.y = y;
+        band.scale.x = band.scale.z = 1.0 + idx * 0.05;
+        bandsGroup.add(band);
+      });
+      layerGroup.add(bandsGroup);
+
+      const sliceCount = 60;
+      const slices = new THREE.InstancedMesh(geometries.sliceGeometry, materials.sliceMat, sliceCount);
+      slices.name = 'DataSlices';
+      slices.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const rng = _mythicSeededRng(group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1);
+      const sliceObj = new THREE.Object3D();
+      for (let i = 0; i < sliceCount; i++) {
+        const y = -1.2 + rng() * 2.4;
+        const radius = 0.55 + rng() * 0.25;
+        const angle = rng() * Math.PI * 2;
+        sliceObj.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+        sliceObj.rotation.y = angle + Math.PI / 2;
+        sliceObj.rotation.x = (rng() - 0.5) * 0.2;
+        const scale = 0.8 + rng() * 0.4;
+        sliceObj.scale.set(scale, scale, scale);
+        sliceObj.updateMatrix();
+        slices.setMatrixAt(i, sliceObj.matrix);
+      }
+      slices.instanceMatrix.needsUpdate = true;
+      layerGroup.add(slices);
+
+      storageRoot.add(layerGroup);
+
+      // ARCHIVE
+      const archiveGroup = new THREE.Group();
+      archiveGroup.name = 'ARCHIVE_GROUP';
+
+      const halo = new THREE.Points(geometries.haloGeometry, materials.timelineMat);
+      halo.name = 'ArchiveHalo';
+      halo.frustumCulled = false;
+      archiveGroup.add(halo);
+
+      const timeline = new THREE.Points(geometries.timelineGeometry, materials.timelineMat);
+      timeline.name = 'TimelineParticles';
+      timeline.frustumCulled = false;
+      archiveGroup.add(timeline);
+
+      storageRoot.add(archiveGroup);
+
+      storageRoot.userData.visualReady = true;
+      group.add(storageRoot);
+      return group;
+    } catch (err) {
+      console.error('[StorageV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy STORAGE visuals retained as fallback
+  static _createStorageNodeLegacy(group, index, color) {
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
@@ -3402,6 +3957,118 @@ export class EnhancedNodeModels {
    * - CrackedPrism, AncientCoreWithMissing, CollapsedCrown
    */
   static createMythicNode(group, index, color) {
+    if (USE_MYTHIC_V2) {
+      const v2 = this.createMythicNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createMythicNodeLegacy(group, index, color);
+  }
+
+  /**
+   * MYTHIC v2 visual pipeline (sacred relic look)
+   * Hierarchy:
+   * MYTHIC_NODE
+   *   - CORE_GROUP (CoreMesh + CoreEdges)
+   *   - RELIC_GROUP (GlyphRing + CrownShards instancing + FloatingRunes)
+   *   - AURA_GROUP (MythicShell_1/2 + HaloPoints)
+   */
+  static createMythicNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getMythicV2Geometries();
+      const materials = _getMythicV2Materials(color);
+      const mythicRoot = new THREE.Group();
+      mythicRoot.name = 'MYTHIC_NODE';
+      mythicRoot.userData.visualVariant = 'MYTHIC_V2';
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'CoreMesh';
+      const coreEdges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
+      coreEdges.name = 'CoreEdges';
+      coreGroup.add(coreMesh);
+      coreGroup.add(coreEdges);
+      mythicRoot.add(coreGroup);
+
+      // RELIC
+      const relicGroup = new THREE.Group();
+      relicGroup.name = 'RELIC_GROUP';
+
+      const glyphRing = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      glyphRing.name = 'GlyphRing';
+      glyphRing.scale.setScalar(1.08);
+      relicGroup.add(glyphRing);
+
+      const crownPositions = _getMythicV2CrownPositions(geometries.coreGeometry);
+      const shardCount = crownPositions.length;
+      const crown = new THREE.InstancedMesh(geometries.shardGeometry, materials.shardMat, shardCount);
+      crown.name = 'CrownShards';
+      crown.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const rng = _mythicSeededRng(group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1);
+      const up = new THREE.Vector3(0, 1, 0);
+      const scratch = new THREE.Object3D();
+      crownPositions.forEach((pos, i) => {
+        const dir = pos.clone().normalize();
+        scratch.position.copy(pos);
+        scratch.quaternion.setFromUnitVectors(up, dir);
+        const roll = rng() * Math.PI * 2;
+        scratch.rotateY(roll);
+        const scale = 0.85 + rng() * 0.4;
+        scratch.scale.setScalar(scale);
+        scratch.updateMatrix();
+        crown.setMatrixAt(i, scratch.matrix);
+      });
+      crown.instanceMatrix.needsUpdate = true;
+      relicGroup.add(crown);
+
+      // Floating runes (points cloud)
+      const runes = new THREE.Points(geometries.runeGeometry, materials.haloMat);
+      runes.name = 'FloatingRunes';
+      runes.frustumCulled = false;
+      relicGroup.add(runes);
+
+      mythicRoot.add(relicGroup);
+
+      // AURA
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+
+      const halo = new THREE.Points(geometries.haloGeometry, materials.haloMat);
+      halo.name = 'HaloPoints';
+      halo.frustumCulled = false;
+      auraGroup.add(halo);
+
+      const shell1 = createNodeHologramShell(coreMesh);
+      if (shell1) {
+        shell1.name = 'MythicShell_1';
+        shell1.scale.setScalar(1.10);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(shell1);
+      }
+      const shell2 = createNodeHologramShell(coreMesh);
+      if (shell2) {
+        shell2.name = 'MythicShell_2';
+        shell2.scale.setScalar(1.18);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(shell2);
+      }
+
+      mythicRoot.add(auraGroup);
+
+      mythicRoot.userData.visualReady = true;
+      group.add(mythicRoot);
+      return group;
+    } catch (err) {
+      console.error('[MythicV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy MYTHIC visuals retained as fallback
+  static _createMythicNodeLegacy(group, index, color) {
     const variants = [
       () => CanonicalGeometryFamilies.createMythicShardCluster(1.0),
       () => CanonicalGeometryFamilies.createMythicBrokenMonolith(1.0),
@@ -3432,6 +4099,110 @@ export class EnhancedNodeModels {
    * - PrecisionLattice, TesseractProjection, SymmetryLockedCore
    */
   static createPrimeNode(group, index, color) {
+    if (USE_PRIME_V2) {
+      const v2 = this.createPrimeNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createPrimeNodeLegacy(group, index, color);
+  }
+
+  /**
+   * PRIME v2 visual pipeline (structure-only, no spawn changes)
+   * Hierarchy:
+   * PRIME_NODE
+   *   - CORE_GROUP (core mesh + edge lines)
+   *   - STRUCTURE_GROUP (orbit rings + lattice instanced pins)
+   *   - AURA_GROUP (dual hologram shells)
+   */
+  static createPrimeNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getPrimeV2Geometries();
+      const materials = _getPrimeV2Materials(color);
+      const primeRoot = new THREE.Group();
+      primeRoot.name = 'PRIME_NODE';
+      primeRoot.userData.visualVariant = 'PRIME_V2';
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      coreMesh.name = 'PrimeCore';
+      const coreEdges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
+      coreEdges.name = 'CoreEdges';
+      coreGroup.add(coreMesh);
+      coreGroup.add(coreEdges);
+      primeRoot.add(coreGroup);
+
+      // STRUCTURE
+      const structureGroup = new THREE.Group();
+      structureGroup.name = 'STRUCTURE_GROUP';
+
+      const ringA = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      ringA.name = 'OrbitRing_A';
+      ringA.rotation.set(0, 0, 0);
+      ringA.renderOrder = EnhancedNodeModels._getCoreRenderOrder();
+      structureGroup.add(ringA);
+
+      const ringB = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      ringB.name = 'OrbitRing_B';
+      ringB.rotation.x = THREE.MathUtils.degToRad(35);
+      ringB.rotation.z = THREE.MathUtils.degToRad(20);
+      ringB.scale.setScalar(1.08);
+      ringB.renderOrder = EnhancedNodeModels._getCoreRenderOrder();
+      structureGroup.add(ringB);
+
+      const latticePositions = _getPrimeV2LatticePositions(geometries.coreGeometry);
+      const latticeCount = Math.max(0, latticePositions.length);
+      const lattice = new THREE.InstancedMesh(geometries.latticeGeometry, materials.latticeMat, latticeCount);
+      lattice.name = 'LatticeInstances';
+      lattice.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+      const up = new THREE.Vector3(0, 1, 0);
+      const scratch = new THREE.Object3D();
+      latticePositions.forEach((pos, i) => {
+        scratch.position.copy(pos);
+        scratch.quaternion.setFromUnitVectors(up, pos.clone().normalize());
+        scratch.scale.setScalar(1.0);
+        scratch.updateMatrix();
+        lattice.setMatrixAt(i, scratch.matrix);
+      });
+      lattice.instanceMatrix.needsUpdate = true;
+      structureGroup.add(lattice);
+
+      primeRoot.add(structureGroup);
+
+      // AURA
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      const shell1 = createNodeHologramShell(coreMesh);
+      if (shell1) {
+        shell1.name = 'PrimeShell_1';
+        shell1.scale.setScalar(1.08);
+        shell1.frustumCulled = false;
+        shell1.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(shell1);
+      }
+      const shell2 = createNodeHologramShell(coreMesh);
+      if (shell2) {
+        shell2.name = 'PrimeShell_2';
+        shell2.scale.setScalar(1.14);
+        shell2.frustumCulled = false;
+        shell2.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(shell2);
+      }
+      primeRoot.add(auraGroup);
+
+      primeRoot.userData.visualReady = true;
+      group.add(primeRoot);
+      return group;
+    } catch (err) {
+      console.error('[PrimeV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy PRIME visuals (kept as fallback)
+  static _createPrimeNodeLegacy(group, index, color) {
     const variants = [
       () => CanonicalGeometryFamilies.createPrimeNestedIcosahedron(1.0),
       () => CanonicalGeometryFamilies.createPrimePerfectDodecahedron(1.0),
@@ -3462,6 +4233,96 @@ export class EnhancedNodeModels {
    * - FoldedImpossible, TopologyTear, CorruptedManifold
    */
   static createErrorNode(group, index, color) {
+    if (USE_ERROR_V2) {
+      const v2 = this.createErrorNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createErrorNodeLegacy(group, index, color);
+  }
+
+  /**
+   * ERROR v2: Impossible Geometry
+   * Hierarchy:
+   * ERROR_NODE
+   *   - CORE_GROUP (ImpossibleCore + HardEdges)
+   *   - STRUCTURE_GROUP (MisalignedRing + OffsetFrame + ShadowDuplicate)
+   *   - DISTORTION_GROUP (InnerVoid + ThinHalo)
+   */
+  static createErrorNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getErrorV2Geometries();
+      const materials = _getErrorV2Materials(color);
+
+      const errorRoot = new THREE.Group();
+      errorRoot.name = 'ERROR_NODE';
+      errorRoot.userData.visualVariant = 'ERROR_V2';
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'ImpossibleCore';
+      core.scale.set(1.0, 0.85, 1.1);
+      core.rotation.set(0.15, -0.08, 0.0);
+      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
+      edges.name = 'HardEdges';
+      coreGroup.add(core);
+      coreGroup.add(edges);
+      errorRoot.add(coreGroup);
+
+      // STRUCTURE
+      const structureGroup = new THREE.Group();
+      structureGroup.name = 'STRUCTURE_GROUP';
+
+      const ring = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      ring.name = 'MisalignedRing';
+      ring.position.x = 0.12;
+      ring.rotation.set(0.22, -0.14, 0.35);
+      ring.scale.set(1.05, 0.92, 1.0);
+      structureGroup.add(ring);
+
+      const frameEdges = new THREE.LineSegments(geometries.frameEdgesGeometry, materials.frameMat);
+      frameEdges.name = 'OffsetFrame';
+      frameEdges.scale.set(1.2, 1.2, 1.2);
+      frameEdges.rotation.set(-0.25, 0.35, 0.18);
+      structureGroup.add(frameEdges);
+
+      const shadow = new THREE.Mesh(geometries.coreGeometry, materials.shadowMat);
+      shadow.name = 'ShadowDuplicate';
+      shadow.scale.set(1.03, 1.03, 1.03);
+      shadow.position.z = 0.05;
+      shadow.rotation.set(-0.12, 0.18, -0.05);
+      structureGroup.add(shadow);
+
+      errorRoot.add(structureGroup);
+
+      // DISTORTION
+      const distortionGroup = new THREE.Group();
+      distortionGroup.name = 'DISTORTION_GROUP';
+
+      const innerVoid = new THREE.Mesh(geometries.voidGeometry, materials.voidMat);
+      innerVoid.name = 'InnerVoid';
+      innerVoid.scale.setScalar(0.3);
+      distortionGroup.add(innerVoid);
+
+      const halo = new THREE.Points(geometries.haloGeometry, materials.haloMat);
+      halo.name = 'ThinHalo';
+      halo.frustumCulled = false;
+      distortionGroup.add(halo);
+
+      errorRoot.add(distortionGroup);
+
+      errorRoot.userData.visualReady = true;
+      group.add(errorRoot);
+      return group;
+    } catch (err) {
+      console.error('[ErrorV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy ERROR visuals retained as fallback
+  static _createErrorNodeLegacy(group, index, color) {
     const variants = [
       () => CanonicalGeometryFamilies.createErrorIntersectingSolids(1.0),
       () => CanonicalGeometryFamilies.createErrorInvertedNormals(1.0),
