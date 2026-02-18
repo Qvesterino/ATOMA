@@ -74,8 +74,8 @@ const ERROR_V2_CACHE = {
   coreGeometry: null,
   edgesGeometry: null,
   ringGeometry: null,
-  frameGeometry: null,
-  frameEdgesGeometry: null,
+  cageGeometry: null,
+  cageEdgesGeometry: null,
   voidGeometry: null,
   haloGeometry: null
 };
@@ -95,6 +95,22 @@ const STORAGE_V2_CACHE = {
   timelineGeometry: null
 };
 const STORAGE_V2_MATERIALS = new Map(); // keyed by color hex
+
+// INPUT visual toggle (v2 pipeline)
+const USE_INPUT_V2 = true;
+
+// INPUT v2 caches
+const INPUT_V2_CACHE = {
+  coreGeometry: null,
+  edgesGeometry: null,
+  arrowGeometry: null,
+  ringGeometry: null,
+  streamGeometry: null,
+  haloGeometry: null,
+  particlesGeometry: null,
+  vectorGeometry: null
+};
+const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
@@ -316,8 +332,19 @@ function _getErrorV2Geometries() {
     ERROR_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(ERROR_V2_CACHE.coreGeometry, 15);
     ERROR_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.95, 0.04, 12, 96);
 
-    ERROR_V2_CACHE.frameGeometry = new THREE.BoxGeometry(1.0, 1.0, 1.0);
-    ERROR_V2_CACHE.frameEdgesGeometry = new THREE.EdgesGeometry(ERROR_V2_CACHE.frameGeometry, 1);
+    const baseCage = new THREE.IcosahedronGeometry(0.9, 0);
+    const pos = baseCage.attributes.position;
+    const range = 0.08;
+    for (let i = 0; i < pos.count; i++) {
+      const ox = Math.sin(i * 12.9898 + 0.1) * range;
+      const oy = Math.sin(i * 26.703 + 0.5) * range;
+      const oz = Math.sin(i * 5.913 + 1.3) * range;
+      pos.setXYZ(i, pos.getX(i) + ox, pos.getY(i) + oy, pos.getZ(i) + oz);
+    }
+    pos.needsUpdate = true;
+    baseCage.computeVertexNormals();
+    ERROR_V2_CACHE.cageGeometry = baseCage;
+    ERROR_V2_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(baseCage, 8);
 
     ERROR_V2_CACHE.voidGeometry = new THREE.SphereGeometry(0.22, 12, 10);
 
@@ -364,7 +391,7 @@ function _getErrorV2Materials(color) {
     color: 0x66ccff,
     transparent: true,
     opacity: 0.7,
-    depthWrite: true
+    depthWrite: false
   });
 
   const voidMat = new THREE.MeshBasicMaterial({
@@ -478,6 +505,102 @@ function _getStorageV2Materials(color) {
 
   const mats = { columnMat, ringMat, bandMat, sliceMat, spineMat, timelineMat };
   STORAGE_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- INPUT v2 helpers ----------
+function _getInputV2Geometries() {
+  if (!INPUT_V2_CACHE.coreGeometry) {
+    INPUT_V2_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.45, 1);
+    INPUT_V2_CACHE.coreGeometry.computeBoundingSphere();
+    INPUT_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(INPUT_V2_CACHE.coreGeometry, 12);
+    INPUT_V2_CACHE.arrowGeometry = new THREE.ConeGeometry(0.07, 0.28, 8);
+    INPUT_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.65, 0.06, 10, 80);
+    INPUT_V2_CACHE.streamGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.52);
+    INPUT_V2_CACHE.haloGeometry = new THREE.RingGeometry(0.6, 0.75, 48);
+
+    // Vector lines: 5 axes with slight offsets
+    const vecPositions = [];
+    const lineEnds = [
+      [0, -1.1, 0, 0, 1.1, 0],
+      [0.4, -1.0, -0.2, -0.4, 1.0, 0.2],
+      [-0.35, -1.2, 0.25, 0.35, 1.2, -0.25],
+      [0.2, -1.0, 0.6, -0.2, 1.0, -0.6],
+      [-0.55, -0.9, -0.1, 0.55, 0.9, 0.1]
+    ];
+    lineEnds.forEach(p => vecPositions.push(...p));
+    const vecGeo = new THREE.BufferGeometry();
+    vecGeo.setAttribute('position', new THREE.Float32BufferAttribute(vecPositions, 3));
+    INPUT_V2_CACHE.vectorGeometry = vecGeo;
+
+    // Entry particles: biased hemisphere (x > 0)
+    const particlePositions = [];
+    const particleCount = 120;
+    for (let i = 0; i < particleCount; i++) {
+      const r = 0.85 + Math.random() * 0.3;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.6; // hemisphere cap
+      const x = Math.cos(theta) * Math.sin(phi) * r + 0.35;
+      const y = (Math.random() - 0.5) * 0.6;
+      const z = Math.sin(theta) * Math.sin(phi) * r;
+      particlePositions.push(x, y, z);
+    }
+    const particleGeo = new THREE.BufferGeometry();
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    INPUT_V2_CACHE.particlesGeometry = particleGeo;
+  }
+  return INPUT_V2_CACHE;
+}
+
+function _getInputV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ddff;
+  if (INPUT_V2_MATERIALS.has(colorHex)) return INPUT_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.6,
+    roughness: 0.2,
+    emissive: colorHex,
+    emissiveIntensity: 0.5
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.55
+  });
+
+  const neonMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const streamMat = new THREE.MeshBasicMaterial({
+    color: 0x66f0ff,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false
+  });
+
+  const vectorMat = new THREE.LineBasicMaterial({
+    color: 0x99ffff,
+    transparent: true,
+    opacity: 0.7
+  });
+
+  const particleMat = new THREE.PointsMaterial({
+    color: 0x99ffff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, edgeMat, neonMat, streamMat, vectorMat, particleMat };
+  INPUT_V2_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -1012,6 +1135,144 @@ export class EnhancedNodeModels {
    * - ResonanceChamber (NEW - Session 84)
    */
   static createInputNode(group, index, color) {
+    if (USE_INPUT_V2) {
+      const v2 = this.createInputNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createInputNodeLegacy(group, index, color);
+  }
+
+  /**
+   * INPUT v2: Data Singularity Intake
+   * Hierarchy:
+   * INPUT_NODE
+   *   - CORE_GROUP (SignalCore + CoreEdges)
+   *   - FLOW_GROUP (InflowArrows + OrbitBands + VectorLines + DataStreams)
+   *   - EMISSION_GROUP (PulseHalo + EntryParticles)
+   */
+  static createInputNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getInputV2Geometries();
+      const materials = _getInputV2Materials(color);
+      const inputRoot = new THREE.Group();
+      inputRoot.name = 'INPUT_NODE';
+      inputRoot.userData.visualVariant = 'INPUT_V2';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'SignalCore';
+      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
+      edges.name = 'CoreEdges';
+      coreGroup.add(core);
+      coreGroup.add(edges);
+      inputRoot.add(coreGroup);
+
+      // FLOW
+      const flowGroup = new THREE.Group();
+      flowGroup.name = 'FLOW_GROUP';
+
+      // InflowArrows (instanced)
+      const arrowCount = 26;
+      const arrows = new THREE.InstancedMesh(geometries.arrowGeometry, materials.neonMat, arrowCount);
+      arrows.name = 'InflowArrows';
+      arrows.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const radius = (geometries.coreGeometry.boundingSphere?.radius || 0.45) * 1.5;
+      for (let i = 0; i < arrowCount; i++) {
+        const dir = new THREE.Vector3(
+          rng() * 2 - 1,
+          rng() * 2 - 1,
+          rng() * 2 - 1
+        ).normalize();
+        scratch.position.copy(dir).multiplyScalar(radius);
+        scratch.lookAt(0, 0, 0);
+        const scale = 0.85 + rng() * 0.5;
+        scratch.scale.setScalar(scale);
+        scratch.updateMatrix();
+        arrows.setMatrixAt(i, scratch.matrix);
+      }
+      arrows.instanceMatrix.needsUpdate = true;
+      flowGroup.add(arrows);
+
+      // OrbitBands
+      const orbitGroup = new THREE.Group();
+      orbitGroup.name = 'OrbitBands';
+      const orbitRadii = [0.8, 1.0, 1.2];
+      orbitRadii.forEach((r, idx) => {
+        const ring = new THREE.Mesh(geometries.ringGeometry, materials.neonMat);
+        ring.name = `OrbitBand_${idx}`;
+        ring.scale.setScalar(r / 0.65); // base radius 0.65
+        ring.rotation.set(
+          idx === 0 ? 0.2 : 0.4,
+          idx * 0.35,
+          idx === 2 ? -0.3 : 0.1
+        );
+        flowGroup.add(ring);
+      });
+
+      // VectorLines
+      const vecLines = new THREE.LineSegments(geometries.vectorGeometry, materials.vectorMat);
+      vecLines.name = 'VectorLines';
+      flowGroup.add(vecLines);
+
+      // DataStreams (instanced)
+      const streamCount = 36;
+      const streams = new THREE.InstancedMesh(geometries.streamGeometry, materials.streamMat, streamCount);
+      streams.name = 'DataStreams';
+      streams.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      for (let i = 0; i < streamCount; i++) {
+        const angle = rng() * Math.PI * 2;
+        const r = 0.85 + rng() * 0.4;
+        const y = 0.6 + rng() * 0.8;
+        scratch.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+        scratch.rotation.set(
+          -Math.PI / 2 + (rng() - 0.5) * 0.2,
+          angle + Math.PI,
+          0
+        );
+        const scl = 0.6 + rng() * 0.6;
+        scratch.scale.set(1, 1, scl);
+        scratch.updateMatrix();
+        streams.setMatrixAt(i, scratch.matrix);
+      }
+      streams.instanceMatrix.needsUpdate = true;
+      flowGroup.add(streams);
+
+      inputRoot.add(flowGroup);
+
+      // EMISSION
+      const emissionGroup = new THREE.Group();
+      emissionGroup.name = 'EMISSION_GROUP';
+
+      const halo = new THREE.Mesh(geometries.haloGeometry, materials.neonMat);
+      halo.name = 'PulseHalo';
+      halo.rotation.x = Math.PI / 2;
+      halo.scale.setScalar(1.2);
+      emissionGroup.add(halo);
+
+      const particles = new THREE.Points(geometries.particlesGeometry, materials.particleMat);
+      particles.name = 'EntryParticles';
+      particles.frustumCulled = false;
+      emissionGroup.add(particles);
+
+      inputRoot.add(emissionGroup);
+
+      inputRoot.userData.visualReady = true;
+      group.add(inputRoot);
+      return group;
+    } catch (err) {
+      console.error('[InputV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy INPUT visuals retained as fallback
+  static _createInputNodeLegacy(group, index, color) {
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
@@ -4245,7 +4506,7 @@ export class EnhancedNodeModels {
    * Hierarchy:
    * ERROR_NODE
    *   - CORE_GROUP (ImpossibleCore + HardEdges)
-   *   - STRUCTURE_GROUP (MisalignedRing + OffsetFrame + ShadowDuplicate)
+   *   - STRUCTURE_GROUP (MisalignedRing + DistortedPolyCage + ShadowDuplicate)
    *   - DISTORTION_GROUP (InnerVoid + ThinHalo)
    */
   static createErrorNodeStyled_v2(group, index, color) {
@@ -4281,11 +4542,11 @@ export class EnhancedNodeModels {
       ring.scale.set(1.05, 0.92, 1.0);
       structureGroup.add(ring);
 
-      const frameEdges = new THREE.LineSegments(geometries.frameEdgesGeometry, materials.frameMat);
-      frameEdges.name = 'OffsetFrame';
-      frameEdges.scale.set(1.2, 1.2, 1.2);
-      frameEdges.rotation.set(-0.25, 0.35, 0.18);
-      structureGroup.add(frameEdges);
+      const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.frameMat);
+      cage.name = 'DistortedPolyCage';
+      cage.scale.set(1.2, 1.05, 1.15);
+      cage.rotation.set(-0.22, 0.28, 0.14);
+      structureGroup.add(cage);
 
       const shadow = new THREE.Mesh(geometries.coreGeometry, materials.shadowMat);
       shadow.name = 'ShadowDuplicate';
