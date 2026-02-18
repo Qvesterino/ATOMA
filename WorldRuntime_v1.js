@@ -80,12 +80,6 @@ export class WorldRuntime_v1 {
             }
 
             // Always ensure world object is attached to scene
-            if (this.game.activeWorld) {
-                const worldObj = this.game.activeWorld.scene || this.game.activeWorld;
-                if (!this.game.scene.children.includes(worldObj)) {
-                    this.game.scene.add(worldObj);
-                }
-            }
 
             // Ensure we have an active world
             if (this.game.activeWorld) {

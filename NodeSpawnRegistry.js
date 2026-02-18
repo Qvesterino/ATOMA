@@ -5,12 +5,10 @@
  * Prevents logical duplication of Mythic, Prime, and specific Named nodes.
  */
 
-export class NodeSpawnRegistry {
+import { uniqueSpawnService } from './UniqueSpawnService.js';
+
+ export class NodeSpawnRegistry {
     constructor() {
-        // Map of active unique nodes: "Category:Archetype" -> NodeID
-        this.activeUniqueNodes = new Map();
-        
-        // Debug metrics
         this.deniedSpawns = 0;
         this.allowedSpawns = 0;
     }
@@ -23,12 +21,14 @@ export class NodeSpawnRegistry {
      * @returns {boolean} true if spawn is allowed, false if denied (duplicate)
      */
     isSpawnAllowed(category, archetype) {
-        if (!this._isUniqueType(category, archetype)) {
-            return true; // Generic nodes are always allowed
+        const key = uniqueSpawnService.makeKey({ category, archetype });
+        const decision = uniqueSpawnService.check({ key });
+        if (decision.allowed) {
+            this.allowedSpawns++;
+        } else {
+            this.deniedSpawns++;
         }
-
-        const key = this._makeKey(category, archetype);
-        return !this.activeUniqueNodes.has(key);
+        return decision.allowed;
     }
 
     /**
@@ -39,12 +39,11 @@ export class NodeSpawnRegistry {
      * @param {string} nodeId 
      */
     registerSpawn(category, archetype, nodeId) {
-        if (this._isUniqueType(category, archetype)) {
-            const key = this._makeKey(category, archetype);
-            this.activeUniqueNodes.set(key, nodeId);
-            this.allowedSpawns++;
-            // console.log(`[NodeSpawnRegistry] Registered unique node: ${key} (${nodeId})`);
-        }
+        const key = uniqueSpawnService.makeKey({ category, archetype });
+        if (!key) return;
+        uniqueSpawnService.register({ key, nodeId, meta: { category, source: 'NodeSpawnRegistry' } });
+        this.allowedSpawns++;
+        // console.log(`[NodeSpawnRegistry] Registered unique node: ${key} (${nodeId})`);
     }
 
     /**
@@ -54,51 +53,30 @@ export class NodeSpawnRegistry {
      * @param {string} archetype 
      */
     deregisterSpawn(category, archetype) {
-        if (this._isUniqueType(category, archetype)) {
-            const key = this._makeKey(category, archetype);
-            this.activeUniqueNodes.delete(key);
-            // console.log(`[NodeSpawnRegistry] Deregistered unique node: ${key}`);
-        }
+        const key = uniqueSpawnService.makeKey({ category, archetype });
+        if (!key) return;
+        uniqueSpawnService.releaseByKey(key);
+        // console.log(`[NodeSpawnRegistry] Deregistered unique node: ${key}`);
     }
 
     /**
      * Get the existing node ID for a unique archetype.
      */
     getExistingNodeId(category, archetype) {
-        const key = this._makeKey(category, archetype);
-        return this.activeUniqueNodes.get(key);
-    }
-
-    /**
-     * Helper: Determine if a Category+Archetype combination requires uniqueness.
-     */
-    _isUniqueType(category, archetype) {
-        const c = (category || '').toLowerCase();
-        const a = (archetype || '').toLowerCase();
-
-        // 1. Mythic and Prime categories are inherently unique per archetype
-        if (c === 'mythic' || c === 'prime' || c === 'sigma' || c === 'quantum') {
-             // If archetype is provided and not generic default
-             if (a && a !== 'default' && a !== c) {
-                 return true;
-             }
-        }
-
-        // 2. Specific "Named" archetypes from any category
-        // Heuristic: If archetype name is complex (contains hyphens) it's likely a specific unique type
-        if (a && a.includes('-')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    _makeKey(category, archetype) {
-        return `${category}:${archetype}`.toLowerCase();
+        const key = uniqueSpawnService.makeKey({ category, archetype });
+        if (!key) return null;
+        const decision = uniqueSpawnService.check({ key });
+        return decision.existingNodeId;
     }
     
     reset() {
-        this.activeUniqueNodes.clear();
+        // Clear underlying registry to mirror previous reset behavior.
+        if (uniqueSpawnService?.registry?.clear) {
+            uniqueSpawnService.registry.clear();
+        }
+        if (uniqueSpawnService?.metaByNodeId?.clear) {
+            uniqueSpawnService.metaByNodeId.clear();
+        }
         this.deniedSpawns = 0;
         this.allowedSpawns = 0;
     }
