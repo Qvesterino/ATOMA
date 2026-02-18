@@ -13,22 +13,8 @@ import { InputSensoryEnhanced } from './InputSensoryEnhanced_Session111.js';
 import { ControlNodeSpecialGovernors } from './ControlNodeSpecialGoverners_Session114.js';
 import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 import { AINodeModel } from './AINodeModel.js';
+import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 
-// Canonical-only variant pools (curated from audit)
-const CANONICAL_VARIANTS = {
-  input:    [4, 5, 6, 8, 9, 10],
-  process:  [3, 4, 5, 6, 7, 8],
-  integration: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-  analytics: [1, 2, 3, 4, 5, 7, 8, 9],
-  storage:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-  control:  [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-  quantum:  [3],           // Retained only non-primitive ChaoticHeart (moved from INTEGRATION)
-  sigma:    [],           // REMOVED: All variants 0,1,2,3 are primitive orbs (IcosahedronGeometry x2, OctahedronGeometry)
-  mythic:   [0, 1, 2, 3, 4, 5],
-  prime:    [0, 1, 2, 3, 4, 5],
-  error:    [0, 1, 2, 3, 4, 5],
-  emotional:[0, 1, 2, 3, 4, 5]
-};
 
 const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
   'SphereGeometry',
@@ -114,8 +100,6 @@ const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 
 // CONTROL visual toggle (v2 pipeline)
 const USE_CONTROL_V2 = true;
-
-const _emptyPoolWarned = new Set();
 
 let _sessionVariantEngine = null;
 export function setSessionVariantEngine(engine) {
@@ -1406,87 +1390,74 @@ export class EnhancedNodeModels {
     }
     const nodeGroup = new THREE.Group();
     const cat = (category || 'input').toLowerCase();
-    const pool = CANONICAL_VARIANTS[cat] || [];
+    const pool = CATEGORY_POOLS[cat] || [];
 
-    let variantIndex;
     if (pool.length === 0) {
-      if (!_emptyPoolWarned.has(cat)) {
-        console.warn(`[EnhancedNodeModels] Empty variant pool for category '${cat}'. Using fallback variant 0.`);
-        _emptyPoolWarned.add(cat);
-      }
-      variantIndex = 0;
-      nodeGroup.userData = nodeGroup.userData || {};
-      nodeGroup.userData.variantFallback = 'FALLBACK_EMPTY_POOL';
-    } else if (_sessionVariantEngine) {
-      const signature = pool.join(',');
-      variantIndex = _sessionVariantEngine.getNext(cat, signature, pool);
-    } else {
-      // Fallback deterministic cycle if engine missing
-      variantIndex = pool[index % pool.length];
+      console.warn(`[EnhancedNodeModels] Empty visual pool for category '${cat}'.`);
+      return null;
     }
 
-    let rootGroup;
-    switch(cat) {
-      // INPUT NODES (Cyan)
-      case 'input':
-        rootGroup = this.createInputNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // PROCESS NODES (Amber/Gold)
-      case 'process':
-        rootGroup = this.createProcessNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // INTEGRATION NODES (Green)
-      case 'integration':
-        rootGroup = this.createIntegrationNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // ANALYTICS NODES (Violet)
-      case 'analytics':
-        rootGroup = this.createAnalyticsNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // STORAGE NODES (Silver/Pale Blue)
-      case 'storage':
-        rootGroup = this.createStorageNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // CONTROL NODES (Red/Magenta)
-      case 'control':
-        rootGroup = this.createControlNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // QUANTUM NODES (Bright Green - Dimensional Anomaly)
-      case 'quantum':
-      case 'sigma': // Legacy alias for compatibility
-        rootGroup = this.createQuantumNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // MYTHIC NODES (Ancient Fractured Relics)
-      case 'mythic':
-        rootGroup = this.createMythicNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // PRIME NODES (Perfect Axioms)
-      case 'prime':
-        rootGroup = this.createPrimeNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // ERROR NODES (Frozen Corruption)
-      case 'error':
-        rootGroup = this.createErrorNode(nodeGroup, variantIndex, color);
-        break;
-      
-      // EMOTIONAL NODES (Crystalline Organics)
-      case 'emotional':
-        rootGroup = this.createEmotionalNode(nodeGroup, variantIndex, color);
-        break;
-      
-      default:
-        console.warn(`[NODE_REJECT] Canonical visual missing — node not spawned (${category})`);
-        // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow nodes without canonical visuals
-        // return null;
+    const visualCode = _sessionVariantEngine
+      ? _sessionVariantEngine.getNext(cat, pool.join(','), pool)
+      : pool[index % pool.length];
+    if (visualCode == null) {
+      console.warn(`[EnhancedNodeModels] No visual code available for category '${cat}'.`);
+      return null;
+    }
+
+    const registryEntry = NODE_VISUAL_REGISTRY[visualCode];
+    if (!registryEntry) {
+      console.warn(`[EnhancedNodeModels] Missing registry entry for visualCode ${visualCode}`);
+      return null;
+    }
+
+    const variantIndex = visualCode;
+    const resolveFactory = (name) => {
+      if (typeof this[name] === 'function') return this[name].bind(this);
+      switch (name) {
+        case 'createInputSensory_TactileSensor': return InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced);
+        case 'createInputSensory_EchoDetector': return InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced);
+        case 'createInputSensory_NeuralReceptor': return InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced);
+        case 'createProcessEnhanced_FlowRecomposer': return ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants);
+        case 'createProcessEnhanced_TemporalShifter': return ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants);
+        case 'createProcessEnhanced_IterativeEngine': return ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants);
+        case 'createIntegrationEnhanced_SignalKnot': return IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants);
+        case 'createIntegrationEnhanced_ProtocolTangle': return IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants);
+        case 'createIntegrationEnhanced_ContinuityBinder': return IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants);
+        case 'createAnalyticsEnhanced_SignalStratifier': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants);
+        case 'createAnalyticsEnhanced_TrendExcavator': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants);
+        case 'createAnalyticsEnhanced_AnomalyLedger': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants);
+        case 'createStorageEnhanced_ArchiveNexus': return StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants);
+        case 'createStorageEnhanced_MemoryCrypts': return StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants);
+        case 'createStorageEnhanced_DepthLayers': return StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants);
+        case 'createObeliskCache': return StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual);
+        case 'createFractalReservoir': return StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual);
+        case 'createArchiveDrum': return StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual);
+        case 'createControlEnhanced_DecisionFork': return ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants);
+        case 'createControlEnhanced_AuthorityHelix': return ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants);
+        case 'createControlEnhanced_CommandMatrix': return ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants);
+        case 'createPhrixFlowArbiter': return ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors);
+        case 'createCrucisSuppressionGovernor': return ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors);
+        case 'createVertexTemporalGate': return ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors);
+        default:
+          return null;
+      }
+    };
+
+    const factoryFn = resolveFactory(registryEntry.factoryName);
+    if (!factoryFn) {
+      console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${visualCode})`);
+      return null;
+    }
+
+    const variantIndex = visualCode;
+    const rootGroup = factoryFn(nodeGroup, variantIndex, color);
+
+    if (rootGroup) {
+      nodeGroup.userData = nodeGroup.userData || {};
+      nodeGroup.userData.visualCode = visualCode;
+      if (!rootGroup.userData) rootGroup.userData = {};
+      rootGroup.userData.visualCode = visualCode;
     }
 
     const clearPartialVisuals = (group) => {
@@ -1763,14 +1734,14 @@ export class EnhancedNodeModels {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
 
-    const pool = CANONICAL_VARIANTS.input;
+    const pool = CATEGORY_POOLS.input || [];
     const poolFns = {
-      4: this.createInputSignalReceptor.bind(this),
-      5: this.createInputDataGateway.bind(this),
-      6: this.createInputIncomingFunnel.bind(this),
-      8: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
-      9: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
-      10: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
+      101: this.createInputSignalReceptor.bind(this),
+      102: this.createInputDataGateway.bind(this),
+      103: this.createInputIncomingFunnel.bind(this),
+      104: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
+      105: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
+      106: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
     };
     const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
     EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
@@ -2168,14 +2139,14 @@ export class EnhancedNodeModels {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
 
-    const pool = CANONICAL_VARIANTS.process;
+    const pool = CATEGORY_POOLS.process || [];
     const poolFns = {
-      3: this.createProcessFluxChamber.bind(this),
-      4: this.createProcessTransformationSpine.bind(this),
-      5: this.createProcessConversionOrbit.bind(this),
-      6: ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
-      7: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
-      8: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)
+      201: this.createProcessFluxChamber.bind(this),
+      202: this.createProcessTransformationSpine.bind(this),
+      203: this.createProcessConversionOrbit.bind(this),
+      204: ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
+      205: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
+      206: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants)
     };
     const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
     EnhancedNodeModels._ensureRegistry('process', Object.values(poolFns));
@@ -2933,16 +2904,16 @@ export class EnhancedNodeModels {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
 
-    const pool = CANONICAL_VARIANTS.analytics;
+    const pool = CATEGORY_POOLS.analytics || [];
     const poolFns = {
-      1: this.createAnalyticsNode2.bind(this),
-      2: this.createAnalyticsNode3.bind(this),
-      3: this.createAnalyticsObserverLens.bind(this),
-      4: this.createAnalyticsFractalEcho.bind(this),
-      5: this.createAnalyticsParallaxOracle.bind(this),
-      7: AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
-      8: AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
-      9: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
+      401: this.createAnalyticsNode2.bind(this),
+      402: this.createAnalyticsNode3.bind(this),
+      403: this.createAnalyticsObserverLens.bind(this),
+      404: this.createAnalyticsFractalEcho.bind(this),
+      405: this.createAnalyticsParallaxOracle.bind(this),
+      406: AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
+      407: AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
+      408: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants)
     };
     
     let selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
@@ -3576,20 +3547,20 @@ export class EnhancedNodeModels {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
     }
 
-    const pool = CANONICAL_VARIANTS.storage;
+    const pool = CATEGORY_POOLS.storage || [];
     const poolFns = {
-      0: this.createStorageNode0.bind(this),
-      1: this.createStorageNode1.bind(this),
-      2: this.createStorageNode3.bind(this),
-      4: this.createStorageMnemonicVault.bind(this),
-      5: this.createStorageArchiveSpindle.bind(this),
-      6: this.createStorageMemoryReef.bind(this),
-      7: StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
-      8: StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
-      9: StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
-      10: StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
-      11: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
-      12: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)
+      501: this.createStorageNode0.bind(this),
+      502: this.createStorageNode1.bind(this),
+      503: this.createStorageNode3.bind(this),
+      504: this.createStorageMnemonicVault.bind(this),
+      505: this.createStorageArchiveSpindle.bind(this),
+      506: this.createStorageMemoryReef.bind(this),
+      507: StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
+      508: StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
+      509: StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
+      510: StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
+      511: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
+      512: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual)
     };
     const selected = pool.includes(nodeId) ? nodeId : pool[nodeId % pool.length];
     EnhancedNodeModels._ensureRegistry('storage', Object.values(poolFns));

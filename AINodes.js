@@ -1088,6 +1088,9 @@ export class AINodes {
     if (!nodeModel) {
       return failClosedVisual(null, 'No canonical visual available');
     }
+    if (nodeModel.userData?.visualCode !== undefined) {
+      nodeModel.userData.visualCode = nodeModel.userData.visualCode;
+    }
     debugCheckGeometry(nodeModel, 'after_model_create');
     if (!hasRenderableVisual(nodeModel)) {
       return failClosedVisual(nodeModel, 'Visual has no renderable content');
