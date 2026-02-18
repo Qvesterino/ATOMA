@@ -112,6 +112,68 @@ const INPUT_V2_CACHE = {
 };
 const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 
+// CONTROL visual toggle (v2 pipeline)
+const USE_CONTROL_V2 = true;
+
+// CONTROL v2 caches
+const CONTROL_V2_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  ringGeometry: null,
+  satGeometry: null,
+  cageGeometry: null,
+  cageEdgesGeometry: null,
+  barrierGeometry: null,
+  axisGeometry: null,
+  matrixGeometry: null
+};
+const CONTROL_V2_MATERIALS = new Map(); // keyed by color hex
+
+// ANALYTICS visual toggle (v2 pipeline)
+const USE_ANALYTICS_V2 = true;
+
+// ANALYTICS v2 caches
+const ANALYTICS_V2_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  hexRingGeometry: null,
+  planeGeometry: null,
+  vectorGeometry: null,
+  gridGeometry: null,
+  diskGeometry: null,
+  particlesGeometry: null
+};
+const ANALYTICS_V2_MATERIALS = new Map(); // keyed by color hex
+
+// QUANTUM visual toggle (v2 pipeline)
+const USE_QUANTUM_V2 = true;
+
+// QUANTUM v2 caches
+const QUANTUM_V2_CACHE = {
+  baseGeometry: null,
+  edgesGeometry: null,
+  fragmentGeometry: null,
+  planeGeometry: null,
+  arcGeometry: null,
+  dustGeometry: null,
+  bridgeGeometry: null
+};
+const QUANTUM_V2_MATERIALS = new Map(); // keyed by color hex
+
+// EMOTIONAL visual toggle (v2 pipeline)
+const USE_EMOTIONAL_V2 = true;
+
+// EMOTIONAL v2 caches
+const EMO_V2_CACHE = {
+  coreGeometry: null,
+  shellGeometry: null,
+  edgesGeometry: null,
+  tendrilGeometry: null,
+  fragmentGeometry: null,
+  particlesGeometry: null
+};
+const EMO_V2_MATERIALS = new Map(); // keyed by color hex
+
 // Enforce opaque, front-facing core materials for core meshes
 function enforceOpaqueCoreMaterial(mat) {
   return mat;
@@ -601,6 +663,409 @@ function _getInputV2Materials(color) {
 
   const mats = { coreMat, edgeMat, neonMat, streamMat, vectorMat, particleMat };
   INPUT_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- CONTROL v2 helpers ----------
+function _getControlV2Geometries() {
+  if (!CONTROL_V2_CACHE.coreGeometry) {
+    CONTROL_V2_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.55, 1);
+    CONTROL_V2_CACHE.coreGeometry.computeBoundingSphere();
+    CONTROL_V2_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_CACHE.coreGeometry, 12);
+    CONTROL_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.06, 12, 96);
+    CONTROL_V2_CACHE.satGeometry = new THREE.BoxGeometry(0.18, 0.12, 0.22);
+
+    const cageGeom = new THREE.IcosahedronGeometry(1.05, 0);
+    CONTROL_V2_CACHE.cageGeometry = cageGeom;
+    CONTROL_V2_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(cageGeom, 10);
+
+    CONTROL_V2_CACHE.barrierGeometry = new THREE.SphereGeometry(1.28, 24, 18);
+
+    // Axis beams (X,Y,Z) through origin
+    const axisPositions = [
+      -1.4, 0, 0, 1.4, 0, 0,
+      0, -1.4, 0, 0, 1.4, 0,
+      0, 0, -1.4, 0, 0, 1.4
+    ];
+    const axisGeo = new THREE.BufferGeometry();
+    axisGeo.setAttribute('position', new THREE.Float32BufferAttribute(axisPositions, 3));
+    CONTROL_V2_CACHE.axisGeometry = axisGeo;
+
+    // Signal matrix points on sphere
+    const matrixPositions = [];
+    const count = 200;
+    for (let i = 0; i < count; i++) {
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      const r = 1.15;
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      matrixPositions.push(x, y, z);
+    }
+    const matrixGeo = new THREE.BufferGeometry();
+    matrixGeo.setAttribute('position', new THREE.Float32BufferAttribute(matrixPositions, 3));
+    CONTROL_V2_CACHE.matrixGeometry = matrixGeo;
+  }
+  return CONTROL_V2_CACHE;
+}
+
+function _getControlV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff0088;
+  if (CONTROL_V2_MATERIALS.has(colorHex)) return CONTROL_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.55,
+    roughness: 0.22,
+    emissive: colorHex,
+    emissiveIntensity: 0.5
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: 0xff4fa6,
+    transparent: true,
+    opacity: 0.65
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xff66cc,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  });
+
+  const cageMat = new THREE.LineBasicMaterial({
+    color: 0x99e0ff,
+    transparent: true,
+    opacity: 0.65
+  });
+
+  const beamMat = new THREE.LineBasicMaterial({
+    color: 0xffaad6,
+    transparent: true,
+    opacity: 0.8
+  });
+
+  const satMat = new THREE.MeshStandardMaterial({
+    color: 0xff55aa,
+    metalness: 0.35,
+    roughness: 0.25,
+    emissive: 0xff2299,
+    emissiveIntensity: 0.45
+  });
+
+  const barrierMat = new THREE.MeshStandardMaterial({
+    color: 0x440022,
+    emissive: 0xff2299,
+    emissiveIntensity: 0.18,
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false
+  });
+
+  const matrixMat = new THREE.PointsMaterial({
+    color: 0xa9e8ff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, edgeMat, ringMat, cageMat, beamMat, satMat, barrierMat, matrixMat };
+  CONTROL_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- ANALYTICS v2 helpers ----------
+function _getAnalyticsV2Geometries() {
+  if (!ANALYTICS_V2_CACHE.coreGeometry) {
+    ANALYTICS_V2_CACHE.coreGeometry = new THREE.CylinderGeometry(0.55, 0.55, 0.9, 6, 1, false);
+    ANALYTICS_V2_CACHE.coreGeometry.computeBoundingSphere();
+    ANALYTICS_V2_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(ANALYTICS_V2_CACHE.coreGeometry, 10);
+
+    ANALYTICS_V2_CACHE.hexRingGeometry = new THREE.RingGeometry(0.52, 0.7, 6);
+    ANALYTICS_V2_CACHE.planeGeometry = new THREE.PlaneGeometry(1.1, 0.65);
+
+    const vecPositions = [];
+    const vectors = [
+      [0, -0.7, 0, 0, 0.9, 0],
+      [0.45, -0.6, -0.15, -0.45, 0.6, 0.15],
+      [-0.35, -0.75, 0.25, 0.35, 0.75, -0.25],
+      [0.2, -0.5, 0.6, -0.2, 0.5, -0.6],
+      [-0.6, -0.55, -0.1, 0.6, 0.55, 0.1],
+      [0.15, -0.9, 0.0, -0.15, 0.9, 0.0]
+    ];
+    vectors.forEach(v => vecPositions.push(...v));
+    const vecGeo = new THREE.BufferGeometry();
+    vecGeo.setAttribute('position', new THREE.Float32BufferAttribute(vecPositions, 3));
+    ANALYTICS_V2_CACHE.vectorGeometry = vecGeo;
+
+    ANALYTICS_V2_CACHE.gridGeometry = new THREE.BoxGeometry(0.12, 0.02, 0.12);
+
+    ANALYTICS_V2_CACHE.diskGeometry = new THREE.CircleGeometry(1.25, 48);
+
+    const particlePositions = [];
+    const particleCount = 160;
+    for (let i = 0; i < particleCount; i++) {
+      const r = 0.2 + Math.random() * 0.6;
+      const theta = Math.random() * Math.PI * 2;
+      const y = 0.4 + Math.random() * 0.8;
+      particlePositions.push(Math.cos(theta) * r, y, Math.sin(theta) * r);
+    }
+    const particleGeo = new THREE.BufferGeometry();
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    ANALYTICS_V2_CACHE.particlesGeometry = particleGeo;
+  }
+  return ANALYTICS_V2_CACHE;
+}
+
+function _getAnalyticsV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xaa00ff;
+  if (ANALYTICS_V2_MATERIALS.has(colorHex)) return ANALYTICS_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.35,
+    roughness: 0.35,
+    emissive: 0xff33cc,
+    emissiveIntensity: 0.45
+  });
+
+  const layerMat = new THREE.MeshBasicMaterial({
+    color: 0xff66ff,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false
+  });
+
+  const lineMat = new THREE.LineBasicMaterial({
+    color: 0x88ddff,
+    transparent: true,
+    opacity: 0.8
+  });
+
+  const gridMat = new THREE.MeshBasicMaterial({
+    color: 0x99e8ff,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false
+  });
+
+  const particleMat = new THREE.PointsMaterial({
+    color: 0xff66ff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const mats = { coreMat, layerMat, lineMat, gridMat, particleMat };
+  ANALYTICS_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- QUANTUM v2 helpers ----------
+function _getQuantumV2Geometries() {
+  if (!QUANTUM_V2_CACHE.baseGeometry) {
+    QUANTUM_V2_CACHE.baseGeometry = new THREE.DodecahedronGeometry(0.6, 0);
+    QUANTUM_V2_CACHE.baseGeometry.computeBoundingSphere();
+    QUANTUM_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(QUANTUM_V2_CACHE.baseGeometry, 8);
+
+    QUANTUM_V2_CACHE.fragmentGeometry = new THREE.TetrahedronGeometry(0.14, 0);
+    QUANTUM_V2_CACHE.planeGeometry = new THREE.PlaneGeometry(0.9, 0.35);
+    QUANTUM_V2_CACHE.arcGeometry = new THREE.BoxGeometry(0.35, 0.04, 0.06);
+    QUANTUM_V2_CACHE.bridgeGeometry = new THREE.BufferGeometry();
+    QUANTUM_V2_CACHE.bridgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+
+    // Quantum dust points
+    const dustPositions = [];
+    const dustCount = 180;
+    for (let i = 0; i < dustCount; i++) {
+      const r = 0.9 + Math.random() * 0.4;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      dustPositions.push(x, y, z);
+    }
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    QUANTUM_V2_CACHE.dustGeometry = dustGeo;
+  }
+  return QUANTUM_V2_CACHE;
+}
+
+function _getQuantumV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x6600ff;
+  if (QUANTUM_V2_MATERIALS.has(colorHex)) return QUANTUM_V2_MATERIALS.get(colorHex);
+
+  const primaryMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.4,
+    roughness: 0.35,
+    emissive: 0xaa22ff,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.9
+  });
+
+  const ghostA = new THREE.MeshBasicMaterial({
+    color: 0xcc99ff,
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false
+  });
+  const ghostB = ghostA.clone(); ghostB.opacity = 0.2;
+  const ghostC = ghostA.clone(); ghostC.opacity = 0.18;
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: 0x99e8ff,
+    transparent: true,
+    opacity: 0.65
+  });
+
+  const fragmentMat = new THREE.MeshBasicMaterial({
+    color: 0x99ffff,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false
+  });
+
+  const lineMat = new THREE.LineBasicMaterial({
+    color: 0x66e0ff,
+    transparent: true,
+    opacity: 0.6
+  });
+
+  const dustMat = new THREE.PointsMaterial({
+    color: 0xcc99ff,
+    size: 0.04,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const planeMat = new THREE.MeshBasicMaterial({
+    color: 0x8844ff,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
+  const mats = {
+    primaryMat,
+    ghostA,
+    ghostB,
+    ghostC,
+    edgeMat,
+    fragmentMat,
+    lineMat,
+    dustMat,
+    planeMat
+  };
+  QUANTUM_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- EMOTIONAL v2 helpers ----------
+function _getEmotionalV2Geometries() {
+  if (!EMO_V2_CACHE.coreGeometry) {
+    EMO_V2_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.6, 0);
+    EMO_V2_CACHE.coreGeometry.computeBoundingSphere();
+    EMO_V2_CACHE.shellGeometry = new THREE.IcosahedronGeometry(0.68, 0);
+    EMO_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(EMO_V2_CACHE.coreGeometry, 10);
+    EMO_V2_CACHE.tendrilGeometry = new THREE.BoxGeometry(0.08, 0.55, 0.08);
+    EMO_V2_CACHE.fragmentGeometry = new THREE.TetrahedronGeometry(0.12, 0);
+
+    const particlePositions = [];
+    const particleCount = 200;
+    for (let i = 0; i < particleCount; i++) {
+      const r = 0.8 + Math.random() * 0.8;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.7; // hemisphere bias
+      const x = r * Math.sin(phi) * Math.cos(theta) + 0.18; // bias to one side
+      const y = (Math.random() - 0.5) * 0.6;
+      const z = r * Math.sin(phi) * Math.sin(theta);
+      particlePositions.push(x, y, z);
+    }
+    const particleGeo = new THREE.BufferGeometry();
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    EMO_V2_CACHE.particlesGeometry = particleGeo;
+  }
+  return EMO_V2_CACHE;
+}
+
+function _getEmotionalV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff4488;
+  if (EMO_V2_MATERIALS.has(colorHex)) return EMO_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.2,
+    roughness: 0.45,
+    emissive: 0xff66aa,
+    emissiveIntensity: 0.5
+  });
+
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: 0x66f0ff,
+    transparent: true,
+    opacity: 0.25,
+    depthWrite: false
+  });
+
+  const shellAMat = new THREE.MeshBasicMaterial({
+    color: 0xff66cc,
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false
+  });
+
+  const shellBMat = new THREE.MeshBasicMaterial({
+    color: 0x66d5ff,
+    transparent: true,
+    opacity: 0.1,
+    depthWrite: false
+  });
+
+  const tendrilMat = new THREE.MeshBasicMaterial({
+    color: 0xff55aa,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const fragmentMat = new THREE.MeshBasicMaterial({
+    color: 0xff99c2,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false
+  });
+
+  const particleMat = new THREE.PointsMaterial({
+    color: 0xff88bb,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: 0xffaacd,
+    transparent: true,
+    opacity: 0.55
+  });
+
+  const mats = { coreMat, glowMat, shellAMat, shellBMat, tendrilMat, fragmentMat, particleMat, edgeMat };
+  EMO_V2_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -2317,6 +2782,133 @@ export class EnhancedNodeModels {
    * - SignalDrift (NEW - Session 81)
    */
   static createAnalyticsNode(group, index, color) {
+    if (USE_ANALYTICS_V2) {
+      const v2 = this.createAnalyticsNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createAnalyticsNodeLegacy(group, index, color);
+  }
+
+  /**
+   * ANALYTICS v2: Predictive Computation Engine
+   * Hierarchy:
+   * ANALYTICS_NODE
+   *   - CORE_GROUP (ComputationCore + LogicFrame)
+   *   - DATA_GROUP (HexLayerStack + RotatingDataPlanes + SignalVectors + DataGrid)
+   *   - PROJECTION_GROUP (ProjectionDisk + PredictiveParticles)
+   */
+  static createAnalyticsNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getAnalyticsV2Geometries();
+      const materials = _getAnalyticsV2Materials(color);
+      const analyticsRoot = new THREE.Group();
+      analyticsRoot.name = 'ANALYTICS_NODE';
+      analyticsRoot.userData.visualVariant = 'ANALYTICS_V2';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+
+      // CORE GROUP
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'ComputationCore';
+      core.scale.set(1.0, 1.1, 1.0);
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.lineMat);
+      coreEdges.name = 'LogicFrame';
+      coreGroup.add(core);
+      coreGroup.add(coreEdges);
+      analyticsRoot.add(coreGroup);
+
+      // DATA GROUP
+      const dataGroup = new THREE.Group();
+      dataGroup.name = 'DATA_GROUP';
+
+      // HexLayerStack
+      const hexStack = new THREE.Group();
+      hexStack.name = 'HexLayerStack';
+      const layers = 4;
+      for (let i = 0; i < layers; i++) {
+        const ring = new THREE.Mesh(geometries.hexRingGeometry, materials.layerMat);
+        ring.name = `HexLayer_${i}`;
+        ring.position.y = -0.35 + (i / (layers - 1)) * 0.7;
+        ring.rotation.z = 0.2 * i;
+        const s = 0.9 + i * 0.05;
+        ring.scale.setScalar(s);
+        hexStack.add(ring);
+      }
+      dataGroup.add(hexStack);
+
+      // RotatingDataPlanes
+      const planeGroup = new THREE.Group();
+      planeGroup.name = 'RotatingDataPlanes';
+      const planeCount = 3;
+      for (let i = 0; i < planeCount; i++) {
+        const plane = new THREE.Mesh(geometries.planeGeometry, materials.layerMat);
+        plane.name = `DataPlane_${i}`;
+        plane.position.y = -0.15 + 0.15 * i;
+        plane.rotation.set(0.2 * i, 0.35 * i, 0.1 * i);
+        plane.scale.set(0.7 + i * 0.1, 0.7 + i * 0.05, 1);
+        planeGroup.add(plane);
+      }
+      dataGroup.add(planeGroup);
+
+      // SignalVectors
+      const vectors = new THREE.LineSegments(geometries.vectorGeometry, materials.lineMat);
+      vectors.name = 'SignalVectors';
+      dataGroup.add(vectors);
+
+      // DataGrid (instanced thin boxes)
+      const gridCount = 48;
+      const grid = new THREE.InstancedMesh(geometries.gridGeometry, materials.gridMat, gridCount);
+      grid.name = 'DataGrid';
+      grid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      for (let i = 0; i < gridCount; i++) {
+        const r = 0.75 + rng() * 0.35;
+        const ang = rng() * Math.PI * 2;
+        const y = -0.45 + rng() * 0.9;
+        scratch.position.set(Math.cos(ang) * r, y, Math.sin(ang) * r);
+        scratch.rotation.y = ang;
+        scratch.rotation.x = (rng() - 0.5) * 0.3;
+        const s = 0.6 + rng() * 0.6;
+        scratch.scale.set(s, 1, s);
+        scratch.updateMatrix();
+        grid.setMatrixAt(i, scratch.matrix);
+      }
+      grid.instanceMatrix.needsUpdate = true;
+      dataGroup.add(grid);
+
+      analyticsRoot.add(dataGroup);
+
+      // PROJECTION GROUP
+      const projectionGroup = new THREE.Group();
+      projectionGroup.name = 'PROJECTION_GROUP';
+
+      const disk = new THREE.Mesh(geometries.diskGeometry, materials.layerMat);
+      disk.name = 'ProjectionDisk';
+      disk.rotation.x = -Math.PI / 2;
+      disk.scale.setScalar(1.15);
+      projectionGroup.add(disk);
+
+      const particles = new THREE.Points(geometries.particlesGeometry, materials.particleMat);
+      particles.name = 'PredictiveParticles';
+      particles.frustumCulled = false;
+      projectionGroup.add(particles);
+
+      analyticsRoot.add(projectionGroup);
+
+      analyticsRoot.userData.visualReady = true;
+      group.add(analyticsRoot);
+      return group;
+    } catch (err) {
+      console.error('[AnalyticsV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy ANALYTICS visuals retained as fallback
+  static _createAnalyticsNodeLegacy(group, index, color) {
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
       nodeId = nodeId.charCodeAt(0) + nodeId.length;
@@ -3608,6 +4200,10 @@ export class EnhancedNodeModels {
    * - HollowSpine (NEW - optional)
    */
   static createControlNode(group, index, color) {
+    if (USE_CONTROL_V2) {
+      const v2 = this.createControlNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
     // Deterministic selection per node ID
     let nodeId = group.userData.id || index;
     if (typeof nodeId === 'string') {
@@ -3636,6 +4232,118 @@ export class EnhancedNodeModels {
     }
     return variants[nodeId % variants.length](group, color);
   }
+
+  /**
+   * CONTROL v2: Cybernetic Dominion Core
+   * Hierarchy:
+   * CONTROL_NODE
+   *   - CORE_GROUP (AuthorityCore + CoreFrame + CentralSpine)
+   *   - DOMINION_GROUP (TripleOrbitRings + SatelliteProcessors + AxisBeams + CommandGrid)
+   *   - OVERRIDE_GROUP (EnergyBarrier + SignalMatrix)
+   */
+  static createControlNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getControlV2Geometries();
+      const materials = _getControlV2Materials(color);
+      const controlRoot = new THREE.Group();
+      controlRoot.name = 'CONTROL_NODE';
+      controlRoot.userData.visualVariant = 'CONTROL_V2';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'AuthorityCore';
+      core.scale.setScalar(1.05);
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'CoreFrame';
+      const spine = new THREE.LineSegments(geometries.axisGeometry, materials.beamMat);
+      spine.name = 'CentralSpine';
+      spine.scale.set(0.3, 1.0, 0.3);
+      coreGroup.add(core);
+      coreGroup.add(coreEdges);
+      coreGroup.add(spine);
+      controlRoot.add(coreGroup);
+
+      // DOMINION
+      const dominionGroup = new THREE.Group();
+      dominionGroup.name = 'DOMINION_GROUP';
+
+      // TripleOrbitRings
+      const ringScales = [0.95, 1.15, 1.35];
+      ringScales.forEach((s, idx) => {
+        const ring = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+        ring.name = `TripleOrbitRing_${idx}`;
+        ring.scale.setScalar(s);
+        ring.rotation.set(idx * 0.3, idx === 1 ? 0.4 : 0.1, idx === 2 ? -0.35 : 0.0);
+        dominionGroup.add(ring);
+      });
+
+      // SatelliteProcessors (instanced)
+      const satCount = 14;
+      const sats = new THREE.InstancedMesh(geometries.satGeometry, materials.satMat, satCount);
+      sats.name = 'SatelliteProcessors';
+      sats.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const satRadius = (geometries.coreGeometry.boundingSphere?.radius || 0.55) * 1.8;
+      for (let i = 0; i < satCount; i++) {
+        const dir = new THREE.Vector3(
+          rng() * 2 - 1,
+          rng() * 2 - 1,
+          rng() * 2 - 1
+        ).normalize();
+        scratch.position.copy(dir).multiplyScalar(satRadius);
+        scratch.lookAt(dir.clone().multiplyScalar(2)); // orient outward
+        scratch.rotateY(Math.PI / 2);
+        const scale = 0.8 + rng() * 0.5;
+        scratch.scale.setScalar(scale);
+        scratch.updateMatrix();
+        sats.setMatrixAt(i, scratch.matrix);
+      }
+      sats.instanceMatrix.needsUpdate = true;
+      dominionGroup.add(sats);
+
+      // AxisBeams
+      const beams = new THREE.LineSegments(geometries.axisGeometry, materials.beamMat);
+      beams.name = 'AxisBeams';
+      dominionGroup.add(beams);
+
+      // CommandGrid (outer cage edges)
+      const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.cageMat);
+      cage.name = 'CommandGrid';
+      cage.scale.setScalar(1.1);
+      dominionGroup.add(cage);
+
+      controlRoot.add(dominionGroup);
+
+      // OVERRIDE
+      const overrideGroup = new THREE.Group();
+      overrideGroup.name = 'OVERRIDE_GROUP';
+
+      const barrier = new THREE.Mesh(geometries.barrierGeometry, materials.barrierMat);
+      barrier.name = 'EnergyBarrier';
+      barrier.scale.setScalar(1.05);
+      overrideGroup.add(barrier);
+
+      const matrix = new THREE.Points(geometries.matrixGeometry, materials.matrixMat);
+      matrix.name = 'SignalMatrix';
+      matrix.frustumCulled = false;
+      overrideGroup.add(matrix);
+
+      controlRoot.add(overrideGroup);
+
+      controlRoot.userData.visualReady = true;
+      group.add(controlRoot);
+      return group;
+    } catch (err) {
+      console.error('[ControlV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
 
   /**
    * Get spine variant by name (Session 100)
@@ -4079,6 +4787,10 @@ export class EnhancedNodeModels {
    * - ChaoticHeart
   */
   static createQuantumNode(group, index, color) {
+    if (USE_QUANTUM_V2) {
+      const v2 = this.createQuantumNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
     const variants = [
       this.createSigmaNode0.bind(this),           // FracturedAnomaly
       this.createSigmaNode1.bind(this),           // DistortedPolyCluster
@@ -4091,6 +4803,175 @@ export class EnhancedNodeModels {
     }
     return variants[index % variants.length](group, color);
   }
+
+  /**
+   * QUANTUM v2: Superposition Fracture Engine
+   * Hierarchy:
+   * QUANTUM_NODE
+   *   - CORE_GROUP (PrimaryCore + GhostCore_A/B/C + CoreEdges)
+   *   - FRACTURE_GROUP (FractureFragments + PhaseBridges + QuantumDust)
+   *   - FIELD_GROUP (BrokenArcSegments + PhasePlanes)
+   */
+  static createQuantumNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getQuantumV2Geometries();
+      const materials = _getQuantumV2Materials(color);
+      const quantumRoot = new THREE.Group();
+      quantumRoot.name = 'QUANTUM_NODE';
+      quantumRoot.userData.visualVariant = 'QUANTUM_V2';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+
+      // CORE GROUP
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const primary = new THREE.Mesh(geometries.baseGeometry, materials.primaryMat);
+      primary.name = 'PrimaryCore';
+      primary.scale.set(1.0, 0.95, 1.08);
+      coreGroup.add(primary);
+
+      const ghostA = new THREE.Mesh(geometries.baseGeometry, materials.ghostA);
+      ghostA.name = 'GhostCore_A';
+      ghostA.position.set(0.08, 0.02, -0.04);
+      ghostA.scale.setScalar(1.03);
+      coreGroup.add(ghostA);
+
+      const ghostB = new THREE.Mesh(geometries.baseGeometry, materials.ghostB);
+      ghostB.name = 'GhostCore_B';
+      ghostB.position.set(-0.06, 0.05, 0.03);
+      ghostB.scale.setScalar(0.98);
+      coreGroup.add(ghostB);
+
+      const ghostC = new THREE.Mesh(geometries.baseGeometry, materials.ghostC);
+      ghostC.name = 'GhostCore_C';
+      ghostC.position.set(0.02, -0.07, 0.05);
+      ghostC.scale.set(1.06, 1.0, 1.08);
+      coreGroup.add(ghostC);
+
+      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
+      edges.name = 'CoreEdges';
+      coreGroup.add(edges);
+
+      quantumRoot.add(coreGroup);
+
+      // FRACTURE GROUP
+      const fractureGroup = new THREE.Group();
+      fractureGroup.name = 'FRACTURE_GROUP';
+
+      const fragmentCount = 70;
+      const fragments = new THREE.InstancedMesh(geometries.fragmentGeometry, materials.fragmentMat, fragmentCount);
+      fragments.name = 'FractureFragments';
+      fragments.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const radius = 1.15;
+      for (let i = 0; i < fragmentCount; i++) {
+        const r = radius + rng() * 0.4;
+        const theta = rng() * Math.PI * 2;
+        const phi = Math.acos(2 * rng() - 1);
+        const bias = rng() < 0.6 ? 0.3 : -0.2; // cluster bias
+        const x = r * Math.sin(phi) * Math.cos(theta) + bias;
+        const y = r * Math.sin(phi) * Math.sin(theta);
+        const z = r * Math.cos(phi);
+        const dir = new THREE.Vector3(x, y, z).normalize();
+        scratch.position.set(x, y, z);
+        scratch.lookAt(dir.clone().multiplyScalar(2));
+        scratch.rotateY(Math.PI / 2);
+        const s = 0.7 + rng() * 0.6;
+        scratch.scale.setScalar(s);
+        scratch.updateMatrix();
+        fragments.setMatrixAt(i, scratch.matrix);
+      }
+      fragments.instanceMatrix.needsUpdate = true;
+      fractureGroup.add(fragments);
+
+      // PhaseBridges (short lines between random ghost offsets)
+      const bridgeLines = [];
+      const bridgeCount = 12;
+      for (let i = 0; i < bridgeCount; i++) {
+        const a = new THREE.Vector3(
+          (rng() - 0.5) * 0.3,
+          (rng() - 0.5) * 0.3,
+          (rng() - 0.5) * 0.3
+        );
+        const b = a.clone().add(new THREE.Vector3(
+          (rng() - 0.5) * 0.5,
+          (rng() - 0.5) * 0.5,
+          (rng() - 0.5) * 0.5
+        ));
+        bridgeLines.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+      const bridgeGeo = new THREE.BufferGeometry();
+      bridgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(bridgeLines, 3));
+      const bridges = new THREE.LineSegments(bridgeGeo, materials.lineMat);
+      bridges.name = 'PhaseBridges';
+      fractureGroup.add(bridges);
+
+      const dust = new THREE.Points(geometries.dustGeometry, materials.dustMat);
+      dust.name = 'QuantumDust';
+      dust.frustumCulled = false;
+      fractureGroup.add(dust);
+
+      quantumRoot.add(fractureGroup);
+
+      // FIELD GROUP
+      const fieldGroup = new THREE.Group();
+      fieldGroup.name = 'FIELD_GROUP';
+
+      // BrokenArcSegments (boxes in two tilted layers)
+      const arcGroup = new THREE.Group();
+      arcGroup.name = 'BrokenArcSegments';
+      const arcLayer = (tiltX, tiltZ, offsetY) => {
+        const segments = 8;
+        for (let i = 0; i < segments; i++) {
+          const arc = new THREE.Mesh(geometries.arcGeometry, materials.fragmentMat);
+          arc.name = `ArcSeg_${tiltX}_${i}`;
+          const ang = (i / segments) * Math.PI * 1.2; // not full circle
+          const r = 1.25;
+          arc.position.set(Math.cos(ang) * r, offsetY, Math.sin(ang) * r);
+          arc.rotation.y = -ang;
+          arc.rotation.x = tiltX;
+          arc.rotation.z = tiltZ;
+          arcGroup.add(arc);
+        }
+      };
+      arcLayer(0.12, 0.05, 0.08);
+      arcLayer(0.55, -0.35, -0.06);
+      fieldGroup.add(arcGroup);
+
+      // PhasePlanes
+      const planeGroup = new THREE.Group();
+      planeGroup.name = 'PhasePlanes';
+      const planeCount = 3;
+      for (let i = 0; i < planeCount; i++) {
+        const plane = new THREE.Mesh(geometries.planeGeometry, materials.planeMat);
+        plane.name = `PhasePlane_${i}`;
+        plane.rotation.set(
+          (rng() - 0.5) * 0.9,
+          (rng() - 0.5) * 0.9,
+          (rng() - 0.5) * 0.9
+        );
+        plane.position.set(
+          (rng() - 0.5) * 0.2,
+          (rng() - 0.5) * 0.25,
+          (rng() - 0.5) * 0.2
+        );
+        plane.scale.set(0.9 + rng() * 0.2, 0.6 + rng() * 0.2, 1);
+        fieldGroup.add(plane);
+      }
+
+      quantumRoot.add(fieldGroup);
+
+      quantumRoot.userData.visualReady = true;
+      group.add(quantumRoot);
+      return group;
+    } catch (err) {
+      console.error('[QuantumV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
 
 // ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
   static createSigmaNode(group, index, color) {
@@ -4615,6 +5496,126 @@ export class EnhancedNodeModels {
    * - TearShaped, Folded, SymmetricSeed
    */
   static createEmotionalNode(group, index, color) {
+    if (USE_EMOTIONAL_V2) {
+      const v2 = this.createEmotionalNodeStyled_v2(group, index, color);
+      if (v2) return v2;
+    }
+    return this._createEmotionalNodeLegacy(group, index, color);
+  }
+
+  /**
+   * EMOTIONAL v2: Affective Distortion Core
+   * Hierarchy:
+   * EMOTIONAL_NODE
+   *   - CORE_GROUP (DistortedCore + CoreEdges + InnerGlowLayer)
+   *   - AURA_GROUP (EmotionShell_A + EmotionShell_B + EmotionMist)
+   *   - TENDRIL_GROUP (EmotionalTendrils + MicroFragments)
+   */
+  static createEmotionalNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getEmotionalV2Geometries();
+      const materials = _getEmotionalV2Materials(color);
+      const emotionalRoot = new THREE.Group();
+      emotionalRoot.name = 'EMOTIONAL_NODE';
+      emotionalRoot.userData.visualVariant = 'EMOTIONAL_V2';
+
+      const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
+      const rng = _mythicSeededRng(seed);
+      const scratch = new THREE.Object3D();
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'DistortedCore';
+      core.scale.set(1.0, 0.82, 1.15);
+      core.rotation.set(0.18, -0.1, 0.05);
+      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
+      edges.name = 'CoreEdges';
+      const glow = new THREE.Mesh(geometries.shellGeometry, materials.glowMat);
+      glow.name = 'InnerGlowLayer';
+      glow.scale.setScalar(1.1);
+      coreGroup.add(core);
+      coreGroup.add(edges);
+      coreGroup.add(glow);
+      emotionalRoot.add(coreGroup);
+
+      // AURA
+      const auraGroup = new THREE.Group();
+      auraGroup.name = 'AURA_GROUP';
+      const shellA = new THREE.Mesh(geometries.shellGeometry, materials.shellAMat);
+      shellA.name = 'EmotionShell_A';
+      shellA.scale.setScalar(1.25);
+      shellA.rotation.set(rng() * 0.6, rng() * 0.6, rng() * 0.6);
+      auraGroup.add(shellA);
+      const shellB = new THREE.Mesh(geometries.shellGeometry, materials.shellBMat);
+      shellB.name = 'EmotionShell_B';
+      shellB.scale.setScalar(1.4);
+      shellB.rotation.set(rng() * 0.8, rng() * 0.8, rng() * 0.8);
+      auraGroup.add(shellB);
+      const mist = new THREE.Points(geometries.particlesGeometry, materials.particleMat);
+      mist.name = 'EmotionMist';
+      mist.frustumCulled = false;
+      auraGroup.add(mist);
+      emotionalRoot.add(auraGroup);
+
+      // TENDRILS
+      const tendrilGroup = new THREE.Group();
+      tendrilGroup.name = 'TENDRIL_GROUP';
+
+      const tendrilCount = 12;
+      const tendrils = new THREE.InstancedMesh(geometries.tendrilGeometry, materials.tendrilMat, tendrilCount);
+      tendrils.name = 'EmotionalTendrils';
+      tendrils.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const rBase = (geometries.coreGeometry.boundingSphere?.radius || 0.6) * 1.1;
+      for (let i = 0; i < tendrilCount; i++) {
+        const dir = new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1).normalize();
+        scratch.position.copy(dir).multiplyScalar(rBase + 0.2 * rng());
+        scratch.lookAt(dir.clone().multiplyScalar(2));
+        const len = 0.7 + rng() * 0.9;
+        scratch.scale.set(0.6 + rng() * 0.3, len, 0.6 + rng() * 0.3);
+        scratch.rotation.x += (rng() - 0.5) * 0.3;
+        scratch.rotation.y += (rng() - 0.5) * 0.3;
+        scratch.updateMatrix();
+        tendrils.setMatrixAt(i, scratch.matrix);
+      }
+      tendrils.instanceMatrix.needsUpdate = true;
+      tendrilGroup.add(tendrils);
+
+      const fragCount = 60;
+      const frags = new THREE.InstancedMesh(geometries.fragmentGeometry, materials.fragmentMat, fragCount);
+      frags.name = 'MicroFragments';
+      frags.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      for (let i = 0; i < fragCount; i++) {
+        const r = 0.9 + rng() * 0.7;
+        const theta = rng() * Math.PI * 2;
+        const phi = Math.acos(2 * rng() - 1);
+        const x = r * Math.sin(phi) * Math.cos(theta) + (rng() - 0.5) * 0.15;
+        const y = r * Math.sin(phi) * Math.sin(theta) + (rng() - 0.5) * 0.15;
+        const z = r * Math.cos(phi) + (rng() - 0.5) * 0.15;
+        scratch.position.set(x, y, z);
+        scratch.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        const s = 0.6 + rng() * 0.5;
+        scratch.scale.setScalar(s);
+        scratch.updateMatrix();
+        frags.setMatrixAt(i, scratch.matrix);
+      }
+      frags.instanceMatrix.needsUpdate = true;
+      tendrilGroup.add(frags);
+
+      emotionalRoot.add(tendrilGroup);
+
+      emotionalRoot.userData.visualReady = true;
+      group.add(emotionalRoot);
+      return group;
+    } catch (err) {
+      console.error('[EmotionalV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  // Legacy EMOTIONAL visuals retained as fallback
+  static _createEmotionalNodeLegacy(group, index, color) {
     const variants = [
       () => CanonicalGeometryFamilies.createEmotionalHeartCrystal(1.0),
       () => CanonicalGeometryFamilies.createEmotionalNeuralLobe(1.0),
