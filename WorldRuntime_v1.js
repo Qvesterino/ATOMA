@@ -69,9 +69,22 @@ export class WorldRuntime_v1 {
 
         try {
             // Bootstrap the initial world by calling existing main.js logic
-            // createAINodes() already handles world creation internally
-            if (this.game.createAINodes) {
+            // Always ensure world is created first
+            if (!this.game.activeWorld) {
+                this.game.createWorld();
+            }
+
+            // Optional AI bootstrap
+            if (window.ATOMA_ENABLE_AINODES === true && typeof this.game.createAINodes === "function") {
                 this.game.createAINodes();
+            }
+
+            // Always ensure world object is attached to scene
+            if (this.game.activeWorld) {
+                const worldObj = this.game.activeWorld.scene || this.game.activeWorld;
+                if (!this.game.scene.children.includes(worldObj)) {
+                    this.game.scene.add(worldObj);
+                }
             }
 
             // Ensure we have an active world

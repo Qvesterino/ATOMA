@@ -4,6 +4,7 @@
 // === GLOBAL CONSOLE GATE ===
 window.ATOMA_LOG_LEVEL = window.ATOMA_LOG_LEVEL ?? 'error'; 
 // levels: 'error' | 'warn' | 'info' | 'log'
+window.ATOMA_ENABLE_AINODES = false;
 
 (function () {
     const original = {
@@ -4104,6 +4105,7 @@ document.addEventListener('keydown', () => {
             installShaderFreezeGuard(this.renderer);
         }
 
+        this.configureSystemRegistry();
         this.animate();
 
     }
@@ -4852,11 +4854,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] ControlledUnfreezeSystem initialization failed:', err);
         }
     }
-
+/*  createAINodes() {
+  console.log("AINodes INIT ONLY");
+  return; // tvrdý early exit
+ } */
     /**
      * Create interactive AI nodes
      */
-    createAINodes() {
+     createAINodes() {
         this._allowRegistryReset = false;
 
         this.aiNodes = new AINodes(this.scene, this.player);
@@ -5290,7 +5295,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
-        /* VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY */
+        // VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY 
         // ====================================================================
         // CORE VISUAL AUTHORITY SYSTEM v1.0 (SESSION 46)
         // Guarantees node cores are ALWAYS rendered on top of visual overlays
@@ -7839,6 +7844,465 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
     }
 
+    registerSystem(name, priority, updaterFn) {
+        systemRegistry.register(name, { update: updaterFn }, { priority });
+    }
+
+    configureSystemRegistry() {
+        let priority = 10;
+        const reg = (name, fn) => {
+            this.registerSystem(name, priority, fn);
+            priority += 10;
+        };
+
+        reg('activeWorld', (dt) => {
+            if (this.activeWorld) this.activeWorld.update(dt, this.time);
+        });
+        reg('visualSuperpack', (dt) => this.visualSuperpack?.update?.(dt));
+        reg('cinematicUpgrade', (dt) => this.cinematicUpgrade?.update?.(dt));
+        reg('nodeEditor', (dt) => this.nodeEditor?.update?.(dt));
+        reg('hazards', (dt) => {
+            if (this.hazards) {
+                this.hazards.update(dt);
+                const hazardEffect = this.hazards.getHazardEffect(this.player?.position);
+                if (hazardEffect && this.player?.position?.add) {
+                    this.player.position.add(hazardEffect.multiplyScalar(0.5));
+                }
+            }
+        });
+        reg('aiNodes', (dt) => {
+            if (!this.aiNodes) return;
+            const aiNodesUpdateStart = performance.now();
+            this.aiNodes.update(dt, this.time);
+            this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
+            this.aiNodes.updateSpawning?.(Date.now());
+            this.nodeUiAcc = (this.nodeUiAcc || 0) + dt;
+            if (this.nodeUiAcc >= 0.1) {
+                this.nodeUiAcc = 0;
+                this.updateNodeUI();
+            }
+            if ((this.frameCount || 0) % 60 === 0) {
+                for (const node of this.aiNodes.nodes || []) {
+                    relaxNodeMetrics(node, 1.0);
+                }
+            }
+        });
+        reg('undoRedoUi', (dt) => {
+            this.undoUiAcc = (this.undoUiAcc || 0) + dt;
+            if (this.undoUiAcc >= 0.1) {
+                this.undoUiAcc = 0;
+                this.updateUndoRedoUI();
+            }
+        });
+        reg('linkCorruptionTransmission', (dt) => safeTick(this.linkCorruptionTransmission, dt));
+        reg('harmonyStabilizationSystem', (dt) => safeTick(this.harmonyStabilizationSystem, dt));
+        reg('effectOrchestrator', (dt) => safeTick(this.effectOrchestrator, dt, this.time));
+        reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
+        reg('auraModulationIntegration', (dt) => this.auraModulationIntegration?.update?.(dt));
+        reg('dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
+        reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
+        reg('linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
+        reg('linkCollapseSystem', (dt) => this.linkCollapseSystem?.update?.(dt));
+        reg('nodeShellSizeAuthority', (_dt) => this.nodeShellSizeAuthority?.enforceShellSizes?.(null, this.nodeAuraSystem || null));
+        reg('particleEmissionScaler', (dt) => this.particleEmissionScaler?.update?.(dt));
+        reg('linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
+        reg('stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
+        reg('cascadeVisualizerTick', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
+        reg('visualNetworkTimeElasticity', (_dt) => {
+            if (this._runElasticityPending) {
+                this._runElasticityPending = false;
+                this.visualNetworkTimeElasticityTick?.(this._pendingElasticityDt);
+            }
+        });
+        reg('synergyPulseVisuals', (_dt) => {
+            if (this._runSynergyPulsePending) {
+                this._runSynergyPulsePending = false;
+                this.synergyPulseVisualsTick?.(this._pendingSynergyPulseDt);
+            }
+        });
+        reg('harmonicResonanceCoupling', (_dt) => {
+            if (this._runHarmonicResonancePending) {
+                this._runHarmonicResonancePending = false;
+                this.harmonicResonanceCouplingTick?.(this._pendingHarmonicResonanceDt);
+            }
+        });
+        reg('harmonicHubAuraSystem', (_dt) => {
+            if (this._runHarmonicHubAuraPending) {
+                this._runHarmonicHubAuraPending = false;
+                this.harmonicHubAuraSystemTick?.(this._pendingHarmonicHubAuraDt);
+            }
+        });
+        reg('harmonicInfluencePropagation', (_dt) => {
+            if (this._runHarmonicInfluencePending) {
+                this._runHarmonicInfluencePending = false;
+                this.harmonicInfluencePropagationTick?.(this._pendingHarmonicInfluenceDt);
+            }
+        });
+        reg('harmonicCascadeAmplification', (_dt) => {
+            if (this._runHarmonicCascadePending) {
+                this._runHarmonicCascadePending = false;
+                this.harmonicCascadeAmplificationTick?.(this._pendingHarmonicCascadeDt);
+            }
+        });
+        reg('audioSynergyMonitor', () => {
+            if (this.audioSystem && this.nodeDynamicMetrics) {
+                const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+                if (avgSynergy >= this.synergyActivationThreshold && this.previousSynergyState !== 'active') {
+                    this.audioSystem.playSynergyActive();
+                    this.previousSynergyState = 'active';
+                } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'active') {
+                    this.audioSystem.playSynergyFade();
+                    this.previousSynergyState = 'fading';
+                } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'fading') {
+                    this.previousSynergyState = 'none';
+                }
+            }
+        });
+        reg('echoTrailsIntegration', () => {
+            if (this.echoTrailsIntegration && this.nodeDynamicMetrics) {
+                const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+                const visualTime = window.VISUAL_TIME ?? this.time;
+                this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
+            }
+        });
+        reg('frameAccounting', (_dt) => {
+            this.frameCount = (this.frameCount || 0) + 1;
+            window.__atomaPerf.frameCount += 1;
+            if (window.__atomaPerf.frameCount % 300 === 0) {
+                const fc = window.__atomaPerf.frameCount;
+                console.log('ATOMA PERF (avg ms per frame):');
+                for (const k in window.__atomaPerf.systems) {
+                    console.log(k, (window.__atomaPerf.systems[k] / fc).toFixed(3));
+                }
+            }
+        });
+        reg('metricsVisualFX', (dt) => {
+            if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
+                this.metricsVisualFX.update(dt, this.aiNodes.nodes);
+            }
+        });
+        reg('worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
+        reg('fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
+        reg('nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
+        reg('inputRuntime_v1', (dt) => this.inputRuntime_v1?.update?.(dt));
+        reg('metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
+        reg('personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
+        reg('personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
+        reg('fxPerformanceScaler', (dt) => this.fxPerformanceScaler?.update?.(dt));
+        reg('adaptivePerformanceMonitor', (dt) => this.adaptivePerformanceMonitor?.update?.(dt));
+        reg('fxPerformanceTransition', (dt) => this.fxPerformanceTransition?.update?.(dt));
+        reg('personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
+        reg('personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
+        reg('advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
+        reg('archetypeCurves', (dt) => this.archetypeCurves?.update?.(dt));
+        reg('archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
+        reg('archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
+        reg('archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
+        reg('nodeShaderActivation', (dt) => this.nodeShaderActivation?.update?.(dt));
+        reg('linkPersonalityStateMachine', (dt) => {
+            if (this.linkPersonalityStateMachine && this.nodeLinking) {
+                this.linkPersonalityStateMachine.update(dt, this.nodeLinking.links || []);
+            }
+        });
+        reg('synergyBonusVisualization', (dt) => {
+            if (this.synergyBonusVisualization && this.nodeLinking) {
+                this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
+            }
+        });
+        reg('synergyBonusFXLayer', (dt) => {
+            if (this.synergyBonusFXLayer && this.nodeLinking) {
+                this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
+            }
+        });
+        reg('synergyResonanceShaderPack', (dt) => {
+            if (this.synergyResonanceShaderPack && this.nodeLinking) {
+                this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
+            }
+        });
+        reg('resonanceFeedback', (dt) => {
+            if (this.resonanceFeedback && this.aiNodes && this.nodeLinking) {
+                this.resonanceFeedback.update(
+                    dt,
+                    this.aiNodes.nodes || [],
+                    this.nodeLinking.links || []
+                );
+            }
+        });
+        reg('synergyCascadeFXBridge', (dt) => {
+            if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
+                this.synergyCascadeFXBridge.update(
+                    dt,
+                    this.aiNodes.nodes || [],
+                    this.nodeLinking.links || []
+                );
+            }
+        });
+        reg('synapticGatingAdapter', (_dt) => {
+            if (this.synapticGatingAdapter && this.aiNodes) {
+                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || []);
+            }
+        });
+        reg('pulseWaveSystemBridge', (dt) => {
+            if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
+                this.pulseWaveSystemBridge.update(dt, {
+                    waveEngine: this.waveInterferenceEngine,
+                    links: this.nodeLinking?.links || [],
+                    nodeDynamicMetrics: this.nodeDynamicMetrics,
+                    pulseIntersectionAdapter: this.pulseIntersectionAdapter
+                });
+            }
+        });
+        reg('pulseBoundaryInteractionAdapter', (_dt) => {
+            if (this.pulseBoundaryInteractionAdapter && this.aiNodes && this.nodeLinking) {
+                this.pulseBoundaryInteractionAdapter.update({
+                    links: this.nodeLinking?.links || [],
+                    nodes: this.aiNodes?.nodes || [],
+                    nodeDynamicMetrics: this.nodeDynamicMetrics,
+                    aiNodes: this.aiNodes
+                });
+            }
+        });
+        reg('synapticFatigueAdapter', (dt) => {
+            if (this.synapticFatigueAdapter && this.aiNodes) {
+                this.synapticFatigueAdapter.updateFatigue(
+                    this.aiNodes.nodes || [],
+                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    dt,
+                    this.time * 1000
+                );
+            }
+        });
+        reg('synapticSpecializationAdapter', (dt) => {
+            if (this.synapticSpecializationAdapter && this.aiNodes) {
+                this.synapticSpecializationAdapter.updateSpecialization(
+                    this.aiNodes.nodes || [],
+                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    dt,
+                    this.time * 1000
+                );
+            }
+        });
+        reg('waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
+            links: this.nodeLinking?.links || [],
+            nodes: this.aiNodes?.nodes || [],
+            time: this.time,
+            visualTime: window.VISUAL_TIME ?? this.time,
+            nodeDynamicMetrics: this.nodeDynamicMetrics
+        }));
+        reg('waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
+        reg('waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
+        reg('cascadeParticleEmissionBoost', (dt) => {
+            const boostSystem = this.cascadeParticleEmissionBoost;
+            if (!boostSystem) return;
+
+            const links = this.nodeLinking?.links;
+            if (!Array.isArray(links) || links.length === 0) return;
+
+            const cascadeSystem = this.cascadeVisualizer || null;
+            boostSystem.update(dt, links, cascadeSystem);
+        });
+        reg('cascadeParticleColorTinting', (dt) => this.cascadeParticleColorTinting?.update?.(dt, this.time));
+        reg('cascadeParticleSystem', (dt) => this.cascadeParticleSystem?.update?.(dt, this.time));
+        reg('particleSemanticDensity', (dt) => this.particleSemanticDensity?.update?.(dt, this.time));
+        reg('influenceAttenuationAbsorption', (dt) => this.influenceAttenuationAbsorption?.update?.(dt, this.time));
+        reg('influenceReflection', (dt) => this.influenceReflection?.update?.(dt, this.time));
+        reg('standingWaveTrap', (dt) => this.standingWaveTrap?.update?.(dt, this.time));
+        reg('standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
+        reg('waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
+        reg('resonanceRupture', (dt) => this.resonanceRupture?.update?.(dt, this.time));
+        reg('cascadeAccelSetup', (dt) => this.cascadeAccelSetup?.update?.(dt, this.time));
+        reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
+        reg('pulseIntersectionAdapter', () => this.pulseIntersectionAdapter?.update?.());
+        reg('nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
+        reg('nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
+        reg('worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
+        reg('mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
+        reg('phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
+        reg('mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
+        reg('glyphSystem', (dt) => this.glyphSystem?.update?.(dt));
+        reg('glyphSystem4', (dt) => this.glyphSystem4?.update?.(dt, this.aiNodes?.nodes));
+        reg('glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
+        reg('compositeResonanceFeedback', (dt) => this.compositeResonanceFeedback?.update?.(dt));
+        reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
+        reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
+        reg('proceduralMeaningEngine', (dt) => this.proceduralMeaningEngine?.update?.(dt, this.aiNodes?.nodes, this.semanticGlyphAI));
+        reg('linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
+        reg('adaptiveGlyphRendering', (dt) => this.adaptiveGlyphRendering?.update?.(dt, this.aiNodes?.nodes));
+        reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
+        reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
+        reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
+        reg('hitProxySystem', (dt) => this.hitProxySystem?.update?.(dt));
+        reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
+        reg('tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
+        reg('phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
+        reg('phase5CascadePropagationVisuals', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt));
+        reg('phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
+        reg('nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
+        reg('legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
+        reg('legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
+        reg('worldEvents', (dt) => this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer));
+        reg('weatherPack', (dt) => this.weatherPack?.update?.(dt, this.scene, this.camera));
+        reg('personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
+        reg('worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
+        reg('ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
+        reg('memoryTrails', (dt) => this.memoryTrails?.update?.(dt));
+        reg('quantumIllusions', (dt) => this.quantumIllusions?.update?.(dt));
+        reg('colonyManager', (dt) => this.colonyManager?.update?.(dt));
+        reg('dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
+        reg('dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
+        reg('mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
+        reg('nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
+        reg('nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
+        reg('evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
+        reg('nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
+        reg('extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
+        reg('newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
+        reg('extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
+        reg('extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
+        reg('linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
+        reg('consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
+        reg('poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
+        reg('emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
+        reg('nodeLinking', (dt) => this.nodeLinking?.update?.(dt));
+        reg('primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
+        reg('primaryNodeTopBar', () => this.primaryNodeTopBar?.update?.());
+        reg('linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });
+        reg('hardInteractionAuthority', () => {
+            if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
+                this.hardInteractionAuthority.safetyNet();
+            }
+        });
+        reg('regionalEquilibrium', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.regionalEquilibrium && this.harmonySystem && this.ruptureSystem) {
+                this.regionalEquilibrium.update(
+                    dt,
+                    this.time,
+                    {
+                        nodes: this.aiNodes?.nodes || [],
+                        links: this.linkingSystem?.links || []
+                    },
+                    this.harmonySystem,
+                    this.ruptureSystem,
+                    this.standingWaveSystem
+                );
+            }
+        });
+        reg('cascadingRuptures', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.cascadingRuptures?.enabled) {
+                this.cascadingRuptures.update(
+                    dt,
+                    this.time,
+                    this.ruptureSystem,
+                    this.harmonySystem
+                );
+            }
+        });
+        reg('criticalNodeFailure', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.criticalNodeFailure?.enabled) {
+                this.criticalNodeFailure.update(dt, this.time);
+            }
+        });
+        reg('linkSemanticPictograms', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.linkSemanticPictograms?.enabled) {
+                this.linkSemanticPictograms.update(dt, this.time, this.aiNodes);
+            }
+        });
+        reg('harmonicResonance', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.harmonicResonance?.enabled) {
+                this.harmonicResonance.update(
+                    dt,
+                    this.linkSemanticPictograms?.fusionZoneManager,
+                    this.linkSemanticPictograms?.pictogramSystem?.pictograms,
+                    this.linkingSystem
+                );
+            }
+        });
+        reg('resonanceEchoTrails', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.resonanceEchoTrails?.enabled) {
+                this.resonanceEchoTrails.update(
+                    dt,
+                    this.linkSemanticPictograms?.fusionZoneManager?.compositeGlyphs
+                );
+            }
+        });
+        reg('harmonicTopology', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.harmonicTopology?.enabled) {
+                this.harmonicTopology.update(
+                    dt,
+                    this.linkSemanticPictograms?.fusionZoneManager,
+                    this.linkingSystem
+                );
+            }
+        });
+        reg('topologyViz', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.topologyViz?.enabled) {
+                const networkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0,
+                    instability: this.nodeDynamicMetrics?.avgInstability || 0
+                };
+                this.topologyViz.update(dt, networkState);
+            }
+        });
+        reg('proceduralGlyphGenerator', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.proceduralGlyphGenerator?.enabled) {
+                this.proceduralGlyphGenerator.update(dt);
+            }
+        });
+        reg('harmonicCycleController', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.harmonicCycleController?.enabled) {
+                const harmonicNetworkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
+                };
+                this.harmonicCycleController.update(dt, harmonicNetworkState);
+            }
+        });
+        reg('glyphAnimationModulator', (_dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.glyphAnimationModulator?.enabled && this.proceduralGlyphGenerator?.glyphInstances) {
+                const harmonicNetworkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
+                };
+                this.glyphAnimationModulator.update(
+                    this.proceduralGlyphGenerator.glyphInstances,
+                    harmonicNetworkState
+                );
+            }
+        });
+        reg('slowSemanticReset', () => {
+            if (this._runSlowSemanticPending) {
+                this._runSlowSemanticPending = false;
+            }
+        });
+        reg('coreMaterialMutationDetector', (_dt) => {
+            if (this.coreMaterialMutationDetector && (this.frameCount % 300 === 0)) {
+                this.coreMaterialMutationDetector.checkAllCores();
+            }
+        });
+        reg('coreMaterialPropertyLock', (_dt) => {
+            if (this.coreMaterialPropertyLock && (this.frameCount % 300 === 0)) {
+                this.coreMaterialPropertyLock.enforceFrame();
+            }
+        });
+    }
+
     /**
      * Main animation loop
      */
@@ -7950,1613 +8414,8 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // const cameraRotation = this.cameraController.update();
         // this.playerController.update(deltaTime, cameraRotation);
 
-        // Update active world
-        if (this.activeWorld) {
-            measure('activeWorld', () => {
-                this.activeWorld.update(deltaTime, this.time);
-            });
-        }
-
-        // Update Visual Upgrade Superpack
-        if (this.visualSuperpack) {
-            measure('visualSuperpack', () => {
-                this.visualSuperpack.update(deltaTime);
-            });
-        }
-
-        // Update cinematic effects
-        if (this.cinematicUpgrade) {
-            this.cinematicUpgrade.update(deltaTime);
-        }
-
-        // Update node editor
-        if (this.nodeEditor) {
-            this.nodeEditor.update(deltaTime);
-        }
-
-        // Update environmental hazards
-        if (this.hazards) {
-            this.hazards.update(deltaTime);
-
-            // Apply hazard forces to player
-            const hazardEffect = this.hazards.getHazardEffect(this.player.position);
-            this.player.position.add(hazardEffect.multiplyScalar(0.5)); // Dampen effect
-        }
-
-        // Update AI nodes
-        if (this.aiNodes) {
-            measure('aiNodes', () => {
-                mark('aiNodes.update', () => {
-                    const aiNodesUpdateStart = performance.now();
-                    this.aiNodes.update(deltaTime, this.time);
-                    this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
-                    // === DEBUG: expose FrameUpdateLoopOrderValidator to console (DEV ONLY) ===
-                    if (this.updateValidator && !window.updateValidator) {
-                        window.updateValidator = this.updateValidator;
-                        console.log('[Validator] updateValidator exposed to window');
-                    }
-                    // Update dynamic node spawning system
-                    this.aiNodes.updateSpawning(Date.now());
-
-                    // Node info HUD update throttled to ~10Hz to cut per-frame DOM writes
-                    this.nodeUiAcc += deltaTime;
-                    if (this.nodeUiAcc >= 0.1) {
-                        this.nodeUiAcc = 0;
-                        this.updateNodeUI();
-                    }
-
-                    // Lightweight relaxation every ~60 frames (~1s)
-                    if (this.frameCount % 60 === 0) {
-                        for (const node of this.aiNodes.nodes) {
-                            relaxNodeMetrics(node, 1.0); // coarse tick, not per-frame
-                        }
-                    }
-                });
-            });
-        }
-        
-        // [Session 144+] Update Node Linked Aura System
-        // migrated to FrameScheduler (Phase C.1)
-        // if (this.nodeAuraSystem && this.aiNodes) {
-        //     mark('nodeAuraSystem.update', () => {
-        //         this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
-        //     });
-        // }
-        
-        // [Session 144+] Update undo/redo UI (throttled to ~10Hz)
-        this.undoUiAcc += deltaTime;
-        if (this.undoUiAcc >= 0.1) {
-            this.undoUiAcc = 0;
-            this.updateUndoRedoUI();
-        }
-
-        // ====================================================================
-        // TIER 1 INTEGRATION: Core Active Systems (Phase A)
-        // Corruption Transmission & Harmony Stabilization
-        // Using safeTick() adapter for universal method compatibility
-        // ====================================================================
-        
-        safeTick(this.linkCorruptionTransmission, deltaTime);
-        safeTick(this.harmonyStabilizationSystem, deltaTime);
-
-        // ====================================================================
-        // SIMULATION EFFECT ORCHESTRATOR TICK (Session 37+ FIXED)
-        // Central hub for ALL time-based effects (dt-driven, no rAF loops)
-        // Call AFTER simulation updates and BEFORE visual effects
-        // Using safeTick() adapter for universal method compatibility
-        // ====================================================================
-        safeTick(this.effectOrchestrator, deltaTime, this.time);
-
-        // Update Visual Hierarchy Correction System v1.0 (enforce visual dominance)
-        if (this.visualHierarchyCorrection) {
-            this.visualHierarchyCorrection.update(deltaTime);
-        }
-
-        // ====================================================================
-        // AURA MODULATION SYSTEM v1.0 (Session 27)
-        // Updates all active aura modulations per frame
-        // ====================================================================
-        if (this.auraModulationIntegration) {
-            this.auraModulationIntegration.update(deltaTime);
-        }
-
-        // ====================================================================
-        // DYNAMIC LINK COLOR SYSTEM v1.0 — Real-time synergy-driven colors
-        // Updates link colors every frame based on current synergy scores
-        // ====================================================================
-        if (this.dynamicLinkColorSystem) {
-            mark('dynamicLinkColorSystem.update', () => {
-                this.dynamicLinkColorSystem.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 88] LINK QUALITY CALCULATOR — Per-frame quality metrics
-        // Calculates quality scores (0-100) based on structural, harmony, load, corruption
-        // Must run BEFORE LinkDegradationSystem which reads quality scores
-        // ====================================================================
-        if (this.linkQualityCalculator) {
-            mark('linkQualityCalculator.update', () => {
-                this.linkQualityCalculator.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 88] LINK DEGRADATION SYSTEM — Quality-based effect scaling
-        // Maps quality scores to efficiency multipliers (0.0-1.0)
-        // Applies degradation to visual intensity, metrics weight, particle rate
-        // Must run AFTER LinkQualityCalculator which provides quality input
-        // ====================================================================
-        if (this.linkDegradationSystem) {
-            mark('linkDegradationSystem.update', () => {
-                this.linkDegradationSystem.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 89] LINK COLLAPSE SYSTEM — Conditional failure under extreme stress
-        // Tracks sustained corruption + critical load to trigger link collapse
-        // Must run AFTER LinkQualityCalculator and LinkDegradationSystem
-        // ====================================================================
-        if (this.linkCollapseSystem) {
-            mark('linkCollapseSystem.update', () => {
-                this.linkCollapseSystem.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 90] NODE SHELL SIZE AUTHORITY — Enforce static shell sizes
-        // Decouple shell scale from network metrics (corruption, load, stress)
-        // Shells are static per node category and tier, never dynamic
-        // Must run AFTER aura updates to override any dynamic scaling
-        // ====================================================================
-        if (this.nodeShellSizeAuthority) {
-            this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
-        }
-
-        // ====================================================================
-        // [SESSION 91] PARTICLE EMISSION SCALER — Update network particle metrics
-        // Scales particle emission based on corruption, stress, and load
-        // Must run AFTER LinkQualityCalculator and LinkDegradationSystem
-        // ====================================================================
-        if (this.particleEmissionScaler) {
-            mark('particleEmissionScaler.update', () => {
-                this.particleEmissionScaler.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 105] LINK METRICS TO VISUAL BRIDGE — Real-time metrics-to-shader wiring
-        // Aggregates 4 metric sources (degradation, collapse, corruption, contagion)
-        // into per-link stress values that drive fracture/kink visualization
-        // Must run AFTER LinkQualityCalculator, LinkDegradationSystem, LinkCollapseSystem
-        // ====================================================================
-        if (this.linkMetricsToVisualBridge) {
-            mark('linkMetricsToVisualBridge.update', () => {
-                this.linkMetricsToVisualBridge.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // [SESSION 106+] STRESS-BASED PARTICLE SCALER — Particle effects from link stress
-        // Scales link particle emission rates based on per-link stress values
-        // Higher stress = more/faster/color-changed particles
-        // Must run AFTER LinkMetricsToVisualBridge
-        // ====================================================================
-        if (this.stressBasedParticleScaler) {
-            mark('stressBasedParticleScaler.update', () => {
-                this.stressBasedParticleScaler.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // SYNERGY CASCADE PROPAGATION VISUALIZER v1.0 — Network energy flow
-        // Visualizes synergy energy cascading through linked networks
-        // ====================================================================
-        if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick(deltaTime);
-
-        // ====================================================================
-        // SYNERGY VISUAL EFFECTS v1.0 — Pure world-space visual feedback
-        // Soft breathing pulse on nodes + visual time elasticity tracking
-        // ====================================================================
-        
-        this._pendingSynergyPulseDt = deltaTime;
-        this._runSynergyPulsePending = true;
-
-        this._pendingElasticityDt = deltaTime;
-        this._runElasticityPending = true;
-        
-        if (!this._runHarmonicResonancePending) this.harmonicResonanceCouplingTick(deltaTime);
-        
-        if (!this._runHarmonicHubAuraPending) this.harmonicHubAuraSystemTick(deltaTime);
-        
-        if (!this._runHarmonicInfluencePending) this.harmonicInfluencePropagationTick(deltaTime);
-        
-        if (!this._runHarmonicCascadePending) this.harmonicCascadeAmplificationTick(deltaTime);
-        
-        // ====================================================================
-        // ATOMA AUDIO SYSTEM — Synergy State Monitoring
-        // Trigger audio feedback for synergy activation/fading
-        // ====================================================================
-        if (this.audioSystem && this.nodeDynamicMetrics) {
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-            
-            // Detect state transitions
-            if (avgSynergy >= this.synergyActivationThreshold && this.previousSynergyState !== 'active') {
-                // Synergy just activated
-                this.audioSystem.playSynergyActive();
-                this.previousSynergyState = 'active';
-            } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'active') {
-                // Synergy just faded
-                this.audioSystem.playSynergyFade();
-                this.previousSynergyState = 'fading';
-            } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'fading') {
-                // Completely faded
-                this.previousSynergyState = 'none';
-            }
-        }
-
-        // Update echo trail shader uniforms (per-frame visual time propagation)
-        if (this.echoTrailsIntegration && this.nodeDynamicMetrics) {
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-            const visualTime = window.VISUAL_TIME ?? this.time;
-            mark('echoTrailsIntegration.updateAllMaterials', () => {
-                this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
-            });
-        }
-
-        // ====================================================================
-        // CORE MATERIAL MUTATION DETECTION (Periodic Check)
-        // Check every 300 frames (~5 seconds at 60fps) for core mutations
-        // ====================================================================
-        if (this.coreMaterialMutationDetector && this.frameCount % 300 === 0) {
-            const violationCount = this.coreMaterialMutationDetector.checkAllCores();
-            if (violationCount > 0 && Math.random() < 0.01) {
-                // Log occasionally (1% of checks that have violations) to avoid spam
-                console.warn(
-                    `[Mutation Check] ${violationCount} core material violations detected`
-                );
-            }
-        }
-        this.frameCount = (this.frameCount || 0) + 1;
-        window.__atomaPerf.frameCount += 1;
-        if (window.__atomaPerf.frameCount % 300 === 0) {
-            console.log('ATOMA PERF (avg ms per frame):');
-            const fc = window.__atomaPerf.frameCount;
-            for (const k in window.__atomaPerf.systems) {
-                console.log(k, (window.__atomaPerf.systems[k] / fc).toFixed(3));
-            }
-        }
-        
-        // ====================================================================
-        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Diagnostic cadence)
-        // Run at low frequency in report-only mode (no per-frame mutation loop)
-        // ====================================================================
-        if (this.coreMaterialPropertyLock && this.frameCount % 300 === 0) {
-            mark('coreMaterialPropertyLock.enforceFrame', () => {
-                // enforceFrame is report-only in stabilized runtime mode.
-                const lockViolationCount = this.coreMaterialPropertyLock.enforceFrame();
-                if (lockViolationCount > 0) {
-                    console.warn(
-                        `[Core Material Lock] ${lockViolationCount} property lock violations detected`
-                    );
-                }
-            });
-        }
-
-        if (runVisualSemantic && !this._runVisualSemanticPending) {
-        // 30 Hz visual/semantic cadence (motion-critical work stayed above at 60 Hz)
-
-        // Update Safe Metrics FX 1.1 (subtle visual effects - 15Hz throttled)
-        if (this.metricsVisualFX && this.aiNodes) {
-            this.metricsVisualFX.update(deltaTime, this.aiNodes.nodes);
-        }
-
-        // ====================================================================
-        // EXTRACTION PACK V1.1: Update World Runtime Orchestration
-        // ====================================================================
-        this.worldRuntime_v1?.update?.(deltaTime);
-
-        // ====================================================================
-        // EXTRACTION PACK V1.1: Update FX Runtime Orchestration
-        // ====================================================================
-    //    this.fxRuntime_v1?.update?.(deltaTime);
-
-        // ====================================================================
-        // EXTRACTION PACK V1.2: Update Node Editor Runtime Orchestration
-        // ====================================================================
-        this.nodeEditorRuntime_v1?.update?.(deltaTime);
-
-        // ====================================================================
-        // EXTRACTION PACK V1.3: Update Input Runtime Orchestration
-        // ====================================================================
-        this.inputRuntime_v1?.update?.(deltaTime);
-
-        // ====================================================================
-        // EXTRACTION PACK V1.0: Update Metrics Runtime Orchestration
-        // Runs every frame (60fps) to ensure __ATOMA_LIVE_METRICS__ is always up-to-date
-        // ====================================================================
-        if (this.metricsRuntime_v1) {
-            measure('metricsRuntime_v1', () => {
-                this.metricsRuntime_v1.update(deltaTime);
-            });
-        }
-
-  //      if (shouldRunMetrics && this.coreMetricsVM) {
-            // Use visual nodes because normalized metrics live under node.userData.visualMetrics
-   //         updateCoreMetricsViewModel(this.coreMetricsVM, this.aiNodes, this.frameCount);
-  //      }
-
-        // ====================================================================
-        // EXTRACTION PACK V1.0: Update Personality Runtime Orchestration
-        // ====================================================================
-        if (this.personalityRuntime_v1) {
-            measure('personalityRuntime_v1', () => {
-                this.personalityRuntime_v1.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Personality Visual Adapter (Week 1)
-        // ====================================================================
-        // Computes visual personality signals from Phase 3 metrics
-        // Writes to node.userData.personalityVisual for VFX/shader systems
-        // Safe, additive layer - doesn't modify existing personality systems
-        if (this.personalityVisualAdapter && this.aiNodes) {
-            this.personalityVisualAdapter.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Performance Scaler (Performance Mode)
-        // ====================================================================
-        // Applies global FX scaling multipliers to all personality signals
-        // Runs after PersonalityVisualAdapter, before VFX/Shader systems
-        // Allows instant quality switching without reinitializing shaders
-        if (this.fxPerformanceScaler) {
-            this.fxPerformanceScaler.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Adaptive Performance Monitor (Automatic FPS Scaling)
-        // ====================================================================
-        // Automatically toggles LowFX based on sustained frame rate changes
-        // Uses hysteresis + time windows to avoid rapid oscillation
-        // Respects manual F7 overrides (locks to MANUAL_LOCKED mode)
-        if (this.adaptivePerformanceMonitor?.update) {
-            measure('adaptivePerformanceMonitor', () => {
-                this.adaptivePerformanceMonitor.update(deltaTime);
-            });
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Smooth Transition Layer (Week 4.5 Visual Polish)
-        // ====================================================================
-        // Smoothly interpolates multipliers during LowFX toggles
-        // Creates polished fade effects instead of instant jumps
-        // Works with both manual F7 and adaptive auto-toggle
-        if (this.fxPerformanceTransition?.update) {
-            this.fxPerformanceTransition.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Personality VFX Layer (Week 2)
-        // ====================================================================
-        // Applies visual effects based on personality signals
-        // Effects: emissive intensity, pulse, jitter, rotation, color tint
-        // All transformations are frame-local and reversible
-        if (this.personalityVFXLayer && this.aiNodes) {
-            this.personalityVFXLayer.update(deltaTime, this.time || this.elapsedTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Personality Shader Bridge (Week 3)
-        // ====================================================================
-        // Bind personality signals to GPU shader uniforms
-        // Effects: emissive modulation, tinting, noise/distortion (in shaders)
-        if (this.personalityShaderBridge?.update) {
-            this.personalityShaderBridge.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Personality Shader Advanced FX (Week 5)
-        // ====================================================================
-        // Apply procedural GPU distortion based on personality signals
-        // Effects: chaos wobble, energy ripples, resonance waves, focus warp, corruption jitter
-        if (this.advancedShaderFX?.update) {
-            this.advancedShaderFX.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Archetype Ascension Curves (Week 13)
-        // ====================================================================
-        // Recompute personality-driven ascension curve profiles
-        // Outputs to node.userData.archetypeEvolution for Week 14/15 systems
-        if (this.archetypeCurves && this.aiNodes) {
-            this.archetypeCurves.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Archetype Aura Enhancement (Week 14)
-        // ====================================================================
-        // Apply multiplier to node/link aura visuals based on Week 13 signals
-        // Runs after ascension curves but before shader bridge for GPU updates
-        if (this.archetypeAuraFX && this.aiNodes) {
-            this.archetypeAuraFX.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Archetype Color Palette System (Week 15)
-        // ====================================================================
-        // Apply personality-driven color palette shifts based on Week 13/14 signals
-        // Runs after aura enhancement for coordinated visual updates
-        if (this.archetypeColorFX && this.aiNodes) {
-            this.archetypeColorFX.update(deltaTime);
-        }
-
-        // ====================================================================
-        // PHASE 3C: Update Archetype Shader Modes (Week 16)
-        // ====================================================================
-        // Update GPU shader mode orchestration based on Week 13/14/15 signals
-        // Runs after color palette for coordinated shader mode switching
-        this.archetypeShaderModes?.update?.(deltaTime);
-
-        // ====================================================================
-        // WEEK 18: Update Node Selection Shader Activation
-        // ====================================================================
-        // Update selection-driven shader intensity boosts (smooth EMA interpolation)
-        this.nodeShaderActivation?.update?.(deltaTime);
-
-        // ====================================================================
-        // WEEK 18 (ALT): Update Link Personality State Machine
-        // ====================================================================
-        // Compute personality states for all links (EMA smoothing, <1.5ms for 1000 links)
-        // Outputs: link.userData.personalityState with stability, turbulence, ascensionBoost
-        if (this.linkPersonalityStateMachine && this.nodeLinking) {
-            this.linkPersonalityStateMachine.update(deltaTime, this.nodeLinking.links || []);
-        }
-
-        // ====================================================================
-        // WEEK 19: Update Synergy Bonus Visualization
-        // ====================================================================
-        // Compute synergy bonuses for all links (EMA smoothing, <1ms for 1500 links)
-        // Outputs: link.userData.synergyBonus with tier, pulseStrength, chromaShift, resonanceRipples
-        if (this.synergyBonusVisualization && this.nodeLinking) {
-            this.synergyBonusVisualization.update(deltaTime, this.nodeLinking.links || []);
-        }
-
-        // ====================================================================
-        // WEEK 19 (ALT): Update Synergy Bonus FX Layer
-        // ====================================================================
-        // Apply GPU shader effects to high-synergy links (emissive, pulsing, chroma, ripples)
-        // Reads from: link.userData.synergyBonus (populated by SynergyBonusVisualization_v1)
-        // Updates shader uniforms for all links in <1ms
-        if (this.synergyBonusFXLayer && this.nodeLinking) {
-            this.synergyBonusFXLayer.update(deltaTime, this.nodeLinking.links || []);
-        }
-
-        // ====================================================================
-        // WEEK 20: Update Synergy Resonance Shader Pack
-        // ====================================================================
-        // Apply advanced resonance effects (multi-freq pulse, chromatic ripple, flow)
-        // Works alongside Week 19 FX layer for layered effects
-        // Reads from: link.userData.synergyBonus (populated by SynergyBonusVisualization_v1)
-        // Updates GPU uniforms per material in <0.5ms
-        if (this.synergyResonanceShaderPack && this.nodeLinking) {
-            this.synergyResonanceShaderPack.update(deltaTime, this.nodeLinking.links || []);
-        }
-
-        // ====================================================================
-        // WEEK 21: Update AI Network Resonance Feedback
-        // ====================================================================
-        // Sample network-level resonance across all nodes & links
-        // Compute local feedback signals & aggregate global network mood
-        // Influences node behavior, link behavior, and overall network state
-        // Reads from: node/link userData (all Week 19-20 systems)
-        if (this.resonanceFeedback && this.aiNodes && this.nodeLinking) {
-            this.resonanceFeedback.update(
-                deltaTime,
-                this.aiNodes.nodes || [],
-                this.nodeLinking.links || []
-            );
-        }
-
-        // ====================================================================
-        // WEEK 22: Update Synergy Chain Reactions (Cascade Propagation)
-        // ====================================================================
-        // SRP-1: gated via FrameScheduler visual layer (<=30Hz), default OFF
-        // Workload caps enforced inside system (30 nodes / 50 links per frame)
-        // Enable via console: enableSynergyChainReaction(true)
-
-        // ====================================================================
-        // WEEK 22B: Update Synergy Cascade FX Bridge (Events → Shader Signals)
-        // ====================================================================
-        // Convert chain reaction events to shader-friendly cascade signals
-        // Update node/link cascade states with smoothed intensities
-        // Send signals to target shader systems (resonance, bonus FX, auras, archetypes)
-        // Generates radial pulses, traveling waves, brightness flashes, aura spikes
-        if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
-            this.synergyCascadeFXBridge.update(
-                deltaTime,
-                this.aiNodes.nodes || [],
-                this.nodeLinking.links || []
-            );
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Update Wave Interference Engine (Multi-Origin Waves)
-        // ====================================================================
-        // Burst-only snapshot engine (event-driven, no per-frame solver)
-        // Produces immutable burst snapshots and never mutates node/link userData
-        // Trigger sources: semantic events + explicit burst-intent API
-        //        if (this.waveInterferenceEngine && this.aiNodes && this.nodeLinking) {
-       //     this.waveInterferenceEngine.update(
-        //        deltaTime,
-          //      {
-          //          nodes: this.aiNodes.nodes || [],
-          //          links: this.nodeLinking.links || [],
-          //          network: this.nodeLinking  // For BFS traversal
-         //       }
-         //   );
-      //  }
-        // ====================================================================
-        // SYNAPTIC GATING ADAPTER — Compute synaptic gate strength for all nodes
-        // ====================================================================
-        // Compute how strongly each node amplifies or dampens passing pulses
-        // Must run FIRST in pulse pipeline to establish gate strengths
-        // Gate is purely visual and modulates boundary interactions
-        if (this.synapticGatingAdapter && this.aiNodes) {
-            this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || []);
-        }
-
-        // ====================================================================
-        // PULSE WAVE SYSTEM BRIDGE — Connect wave propagation to neural firing
-        // ====================================================================
-        // Convert burst field samples into pulse positions on links
-        // Triggers intersection impulses as waves travel (neural action potentials)
-        // Reads snapshot samples from waveInterferenceEngine (no graph traversal)
-        if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
-            this.pulseWaveSystemBridge.update(deltaTime, {
-                waveEngine: this.waveInterferenceEngine,
-                links: this.nodeLinking?.links || [],
-                nodeDynamicMetrics: this.nodeDynamicMetrics,
-                pulseIntersectionAdapter: this.pulseIntersectionAdapter
-            });
-        }
-
-        // ====================================================================
-        // PULSE BOUNDARY INTERACTION ADAPTER — Energy dissipation/absorption at nodes
-        // ====================================================================
-        // Process boundary effects when pulses reach node endpoints:
-        // - Absorption: node halo brightens
-        // - Dissipation: pulse fades near endpoint
-        // - Reflection: weaker pulse rebounds (rare, corruption-driven)
-        // - Split: energy fans into other links (harmonic hubs only)
-        // Must run AFTER pulse position updates
-        if (this.pulseBoundaryInteractionAdapter && this.aiNodes && this.nodeLinking) {
-            this.pulseBoundaryInteractionAdapter.update({
-                links: this.nodeLinking?.links || [],
-                nodes: this.aiNodes?.nodes || [],
-                nodeDynamicMetrics: this.nodeDynamicMetrics,
-                aiNodes: this.aiNodes
-            });
-        }
-
-        // ====================================================================
-        // SYNAPTIC FATIGUE ADAPTER — Long-term wear and recovery at nodes
-        // ====================================================================
-        // Track cumulative synaptic fatigue from repeated gating activity
-        // Fatigue accumulates from: |gateStrength|, pulse density, hub splitting
-        // Fatigue decays from: rest periods, harmony, reduced load
-        // Visual effects: halo dulling, phase lag, subtle flicker (high fatigue only)
-        // Must run AFTER gating is computed to read gate strengths
-        if (this.synapticFatigueAdapter && this.aiNodes) {
-            this.synapticFatigueAdapter.updateFatigue(
-                this.aiNodes.nodes || [],
-                this.synapticGatingAdapter?.nodeGateMap || new Map(),
-                deltaTime,
-                this.time * 1000  // Convert to ms
-            );
-        }
-
-        // ====================================================================
-        // SYNAPTIC SPECIALIZATION ADAPTER — Visual learning from behavior
-        // ====================================================================
-        // Nodes develop visual identities based on dominant gating behavior
-        // Specialization: +1.0 = excitatory (amplifies), -1.0 = inhibitory (dampens)
-        // Visual expression: halo rhythm, pulse shape, ripple coherence adapt
-        // Must run AFTER gating is computed to read gate strengths
-        if (this.synapticSpecializationAdapter && this.aiNodes) {
-            this.synapticSpecializationAdapter.updateSpecialization(
-                this.aiNodes.nodes || [],
-                this.synapticGatingAdapter?.nodeGateMap || new Map(),
-                deltaTime,
-                this.time * 1000  // Convert to ms
-            );
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Update Wave Shader Bridge (GPU Uniform Injection)
-        // ====================================================================
-        // Read burst field samples and push normalized values to shader uniforms
-        // EMA smoothing: alpha ~0.18 for ~0.4-0.5s response time
-        // Performance: trivial per-frame overhead (<0.1ms per material)
-        if (!VISUAL_TICKS_ENABLED) {
-            if (!this._visualTickNoticeShown) {
-                console.log('[perf] Visual ticks disabled (wave shaders frozen)');
-                this._visualTickNoticeShown = true;
-            }
-        } else if (this.waveShaderBridge && this.aiNodes && this.nodeLinking && this.postProcessingEnabled !== false) {
-            this.waveShaderBridge.update(deltaTime, {
-                nodes: this.aiNodes.nodes || [],
-                links: this.nodeLinking.links || []
-            });
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Update Wave Shader Material Patch (GPU Shader Patching)
-        // ====================================================================
-        // Shader effects are driven by uniforms from bridge (no explicit update needed)
-        // Materials automatically receive wave data and render with 7 effects
-        // Shader patches are applied at compile time via onBeforeCompile
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Update Wave Travel Shader Pack (GPU Motion Effects)
-        // ====================================================================
-        // Advance global time for traveling-wave animations
-        // Vertex displacement, UV flow, color gradients, pulse bursts all driven by time
-        // Multi-frequency oscillation + rift chaos effects update per frame
-        // Performance: trivial per-frame cost (time accumulation + uniform updates)
-        if (VISUAL_TICKS_ENABLED && this.waveTravelShaderPack && this.postProcessingEnabled !== false) {
-            this.waveTravelShaderPack.update(deltaTime);
-        }
-
-        // ====================================================================
-        // WEEK 25 (BONUS): Update Wave Dynamics Shader Pack (Advanced FX Layers)
-        // ====================================================================
-        // Advance global time for breathing/ripple/diffusion animations
-        // All 3 FX layers driven by accumulated time + wave physics uniforms
-        // Standing-wave breathing, quantum ripples, color diffusion pulses update per frame
-        // Performance: <0.2ms per frame (time accumulation + minimal uniform writes)
-        if (VISUAL_TICKS_ENABLED && this.waveDynamicsShaderPack && this.postProcessingEnabled !== false) {
-            this.waveDynamicsShaderPack.update(deltaTime);
-        }
-
-        // ====================================================================
-        // WEEK 27: Update Wave Particle Emitter (GPU-Reactive Particle FX)
-        // ====================================================================
-        // Emit particles based on real-time wave interference conditions:
-        // - Constructive Burst Particles when constructive > 0.7
-        // - Destructive Chaos Sparks when destructive > 0.7
-        // - Standing Wave Ripple Rings when standing > 0.65
-        // Reads from: waveInterferenceEngine snapshot sampler (legacy fallback supported)
-        // Performance: <2ms per frame for 200-400 nodes with ~2000 active particles
-        try {
-            this.particleEmitter?.update?.(
-                deltaTime,
-                this.aiNodes?.nodes ?? [],
-                this.nodeLinking?.links ?? [],
-                this.waveInterferenceEngine
-            );
-        } catch (err) {
-            console.warn('[main.js] WaveParticleEmitter_v1 update failed:', err);
-        }
-
-        // ====================================================================
-        // SESSION 118: CASCADE PARTICLE EMISSION BOOST - Per-Frame Update
-        // ====================================================================
-        // Drives particle emission boost on cascade-affected links:
-        // - Reads cascade intensity from ResonanceCascadeVisualization
-        // - Computes emission multiplier (1.0-3.0x) per link
-        // - Stores in link.userData.cascadeParticleEmissionBoost
-        // - Modulates downstream particle emitters
-        // Performance: <0.5ms per frame for 200-400 links
-        try {
-            if (this.cascadeParticleEmissionBoost && this.nodeLinking?.links) {
-                this.cascadeParticleEmissionBoost.update(
-                    deltaTime,
-                    this.nodeLinking.links,
-                    this.resonanceCascade  // Cascade system reference
-                );
-            }
-        } catch (err) {
-            console.warn('[main.js] CascadeParticleEmissionBoost update failed:', err);
-        }
-
-        // ====================================================================
-        // SESSION 119: CASCADE PARTICLE COLOR TINTING - Per-Frame Update
-        // ====================================================================
-        // Colors particles based on conflict type:
-        // - Reads cascade intensity and conflict type
-        // - Detects conflict type from hub state and node positions
-        // - Computes color based on conflict type palette
-        // - Stores in link.userData.cascadeParticleColor
-        // - Enables downstream particle systems to use type-specific colors
-        // Performance: <0.3ms per frame for 200-400 links
-        try {
-            if (this.cascadeParticleColorTinting && this.nodeLinking?.links) {
-                this.cascadeParticleColorTinting.update(
-                    deltaTime,
-                    this.nodeLinking.links,
-                    this.resonanceCascade,           // Cascade system
-                    this.synapticConflict            // Conflict system (Session 117)
-                );
-            }
-        } catch (err) {
-            console.warn('[main.js] CascadeParticleColorTinting update failed:', err);
-        }
-
-        // ====================================================================
-        // SESSION 120: CASCADE PARTICLE SYSTEM - Per-Frame Update
-        // ====================================================================
-        // Update semantic particles (shape & velocity encoding)
-        // - Spawns new particles from active cascades
-        // - Updates physics for existing particles
-        // - Renders using single-draw-call POINTS system
-        try {
-            if (this.cascadeParticleSystem && this.nodeLinking?.links) {
-                this.cascadeParticleSystem.update(
-                    deltaTime,
-                    this.nodeLinking.links
-                );
-            }
-        } catch (err) {
-            console.warn('[main.js] CascadeParticleSystem update failed:', err);
-        }
-
-        // ====================================================================
-        // SESSION 121: PARTICLE SEMANTIC DENSITY - Per-Frame Update
-        // ====================================================================
-        // Update particle clustering and density
-        // - Computes intensity from cascade state
-        // - Computes urgency from change rates and thresholds
-        // - Controls spawn density and cluster cohesion
-        // - Zero allocations, pure adapter pattern
-        try {
-            if (this.particleSemanticDensity && this.nodeLinking?.links) {
-                this.particleSemanticDensity.update(
-                    deltaTime,
-                    this.nodeLinking.links,
-                    this.synapticConflict,          // For unresolved conflict tracking
-                    this.resonanceCascade           // For cascade state
-                );
-            }
-        } catch (err) {
-            console.warn('[main.js] ParticleSemanticDensity update failed:', err);
-        }
-
-        // ====================================================================
-        // SESSION 128: INFLUENCE ATTENUATION & ABSORPTION VISUALS
-        // Visualizes how harmonic influence weakens/absorbs at non-harmonic nodes
-        // ====================================================================
-        if (this.influenceAttenuationAbsorption && this.aiNodes && this.linkingSystem) {
-            this.influenceAttenuationAbsorption.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 129: INFLUENCE REFLECTION & BACK-PRESSURE VISUALS
-        // Visualizes how resistant nodes reject influence through reflection
-        // ====================================================================
-        if (this.influenceReflection && this.aiNodes && this.linkingSystem) {
-            this.influenceReflection.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 130: STANDING WAVE & OSCILLATION TRAP VISUALS
-        // Visualizes energy trapped between opposing nodes
-        // ====================================================================
-        if (this.standingWaveTrap && this.aiNodes && this.linkingSystem) {
-            this.standingWaveTrap.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 131: STANDING WAVE VISUAL RENDERER
-        // Renders mesh visuals (update AFTER trap system)
-        // ====================================================================
-        if (this.standingWaveRenderer && this.standingWaveTrap) {
-            this.standingWaveRenderer.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
-        // Visualizes wave collision patterns (update AFTER all wave systems)
-        // ====================================================================
-        if (this.waveInterference && this.influenceReflection) {
-            this.waveInterference.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 133: RESONANCE RUPTURE VISUAL SYSTEM
-        // Detects rupture conditions and creates burst visuals
-        // ====================================================================
-        if (this.resonanceRupture && this.standingWaveTrap) {
-            this.resonanceRupture.update(deltaTime, this.time);
-        }
-
-        // ====================================================================
-        // SESSION 134-136: HARMONIC HEALING SYSTEM UPDATE
-        // ====================================================================
-        const healingState = { 
-            harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
-            corruption: this.nodeDynamicMetrics?.avgCorruption || 0 
-        };
-
-        // 1. Audio Reactivity (Session 135)
-        if (this.harmonicAudio) {
-            safeTick(this.harmonicAudio, deltaTime, this.time, healingState);
-        }
-
-        // 2. Healing Particles (Session 136) - Visual trails & sparkles
-        if (this.healingParticles) {
-            safeTick(this.healingParticles, deltaTime, this.time, healingState, this.camera);
-        }
-
-        // 3. Harmonic Healing Waves (Session 134) - Logic driver for waves
-        if (this.harmonicHealing) {
-            safeTick(this.harmonicHealing, deltaTime, this.time, healingState);
-        }
-
-        // ====================================================================
-        // PARTICLE STREAM CASCADE ACCELERATION - Per-Frame Update
-        // ====================================================================
-        // Update cascade acceleration system:
-        // 1. Recompute cascading resonance through network layers
-        // 2. Update particle acceleration multipliers based on cascade depth
-        // 3. Apply velocity modifications to emitted particles
-        // Performance: <1ms per frame (negligible at typical game framerates)
-        try {
-            if (this.cascadeAccelSetup?.isInitialized) {
-                this.cascadeAccelSetup.update(deltaTime, this.time);
-            }
-
-            // === LINK MICRO-IMPULSES: Update event-driven electrical responses ===
-            if (this.microImpulseAdapter) {
-                this.microImpulseAdapter.update();
-            }
-
-            // === PULSE INTERSECTION IMPULSES: Update neural firing on wave contact ===
-            if (this.pulseIntersectionAdapter) {
-                this.pulseIntersectionAdapter.update();
-            }
-        } catch (err) {
-            console.warn('[main.js] ParticleStreamCascadeAcceleration update failed:', err);
-        }
-
-        // ====================================================================
-        // WEEK 17: Update Archetype Neural Link Visualization
-        // ====================================================================
-        // Update neural link visualizations based on link compatibility/resonance
-        // Renders dynamic beams per link with archetype-driven effects
-        this.neuralLinkVis?.update?.(deltaTime);
-
-        // Update Node Personality System 2.0 (personality-driven animations)
-        if (this.nodePersonalitySystem && this.aiNodes) {
-            this.nodePersonalitySystem.update(deltaTime, this.aiNodes.nodes);
-        }
-
-        // Update Node Micro-Events 1.0 (personality-driven spontaneous events)
-        if (this.nodeMicroEvents && this.aiNodes) {
-            measure('nodeMicroEvents', () => {
-                this.nodeMicroEvents.update(deltaTime, this.aiNodes.nodes);
-            });
-        }
-
-        // Update World Personality Controller 2.0 (global mood-driven world events)
-        if (this.worldPersonalityController && this.aiNodes) {
-            measure('worldPersonalityController', () => {
-                this.worldPersonalityController.update(deltaTime, this.aiNodes.nodes);
-            });
-        }
-        if (this.frameCount % (60 * 30) === 0) {
-  console.log(this.coreMetricsVM.metrics, this.coreMetricsVM.meta);
-}
-
-
-        // Update Mythic Ritual Controller 1.0 (rare ceremonial events)
-        if (this.mythicRitualController && this.aiNodes) {
-            this.mythicRitualController.update(deltaTime, this.aiNodes.nodes);
-        }
-
-        // ====================================================================
-        // PHASE 8: Update Network Ritual Visual Orchestration
-        // Pure visual ceremony layer — orchestrates canonical templates
-        // ====================================================================
-        if (this.phase8RitualOrchestration) {
-            const deltaTimeMs = deltaTime * 1000;  // Convert to milliseconds
-            this.phase8RitualOrchestration.update(deltaTimeMs);
-        }
-
-        // Update Mythic Seed Glyph System (visual markers with animations)
-        if (this.mythicSeedGlyph && this.aiNodes) {
-            // Scan nodes for mythic/seeded state (throttled to 5Hz)
-            if (!this.mythicGlyphScanTimer) this.mythicGlyphScanTimer = 0;
-            this.mythicGlyphScanTimer += deltaTime;
-            if (this.mythicGlyphScanTimer >= 0.2) { // Every 0.2s = 5Hz
-                this.mythicSeedGlyph.scanAndApplyGlyphs(this.aiNodes.nodes);
-                this.mythicGlyphScanTimer = 0;
-            }
-
-            // Update animations
-            this.mythicSeedGlyph.update(deltaTime, this.camera);
-        }
-
-        // NEUTRALIZED: Legacy Debug Cone Cleanup (Session 23 - Per-frame execution disabled)
-        // Update(): Now dormant - no per-frame scene traversal
-        // Use onDemandCleanup() or manualCleanup() for explicit cleanup triggers
-        // Eliminates continuous O(n) scene traversal; cleanup only runs when needed
-        // if (this.legacyConeCleanup && this.aiNodes) {
-        //     this.legacyConeCleanup.update(this.aiNodes.nodes);  // DISABLED: no longer runs every frame
-        // }
-
-        // DISABLED: Fractal Hex Marker System (legacy debug system - replaced by Glyph Slot System 2.0)
-        // if (this.fractalHexMarker && this.aiNodes) {
-        //   if (!this.fractalHexScanTimer) this.fractalHexScanTimer = 0;
-        //   this.fractalHexScanTimer += deltaTime;
-        //   if (this.fractalHexScanTimer >= 0.2) {
-        //     this.fractalHexMarker.detectAndReplaceDebugCones(this.aiNodes.nodes);
-        //     this.fractalHexScanTimer = 0;
-        //   }
-        //   this.fractalHexMarker.update(deltaTime);
-        // }
-
-        // Update ATOMA Glyph System 3.0 (unified glyph animations)
-        if (this.glyphSystem) {
-            this.glyphSystem.update(deltaTime);
-        }
-
-        // Update ATOMA Glyph System 4.0 (Animated Meaning Edition)
-        if (this.glyphSystem4 && this.aiNodes) {
-            this.glyphSystem4.update(deltaTime, this.aiNodes.nodes);
-        }
-
-        // Update ATOMA Glyph Layer 4.0 (Multi-Glyph Fusion)
-        if (this.glyphLayer4) {
-            this.glyphLayer4.update(deltaTime);
-        }
-
-        // Update Composite Glyph Resonance Feedback (Session 140+ Visual-Only)
-        // Makes composite glyph resonance perceptible through spatial & temporal cues
-        if (this.compositeResonanceFeedback) {
-            this.compositeResonanceFeedback.update(deltaTime);
-            
-            // Optional: Apply subtle phase alignment to nearby glyphs
-            if (this.compositeResonanceFeedback.glyphAnimationInfluenceEnabled) {
-                this.compositeResonanceFeedback.applyGlyphAnimationInfluence();
-            }
-        }
-
-        // Update Semantic Glyph AI 5.0 (After Glyph Layer 4.0)
-        if (this.semanticGlyphAI && this.aiNodes) {
-            measure('semanticGlyphAI', () => {
-                this.semanticGlyphAI.update(deltaTime, this.aiNodes.nodes);
-            });
-        }
-
-        // Update Glyph Fusion Overlay 4.1 (After Semantic Glyph AI)
-        if (this.glyphFusionOverlay) {
-            this.glyphFusionOverlay.update(deltaTime);
-        }
-
-        // Update Procedural Meaning Engine 1.0 (After Semantic Glyph AI)
-        if (this.proceduralMeaningEngine && this.aiNodes) {
-            this.proceduralMeaningEngine.update(deltaTime, this.aiNodes.nodes, this.semanticGlyphAI);
-        }
-
-        // Update Link Glyph Flow 1.0 (After linking system)
-        if (this.linkGlyphFlow) {
-            this.linkGlyphFlow.update(deltaTime);
-        }
-
-        // Update Adaptive Glyph Rendering 1.0 (Apply metric-driven animations)
-        // Must run after all glyph systems but before render
-        if (this.adaptiveGlyphRendering && this.aiNodes) {
-            this.adaptiveGlyphRendering.update(deltaTime, this.aiNodes.nodes);
-        }
-
-        // Update Linked Glyph Synchronization 1.0 (Coordinate linked node animations)
-        // Must run after Adaptive Glyph Rendering for sync to work properly
-        if (this.linkedGlyphSync && this.aiNodes && this.linkingSystem) {
-            this.linkedGlyphSync.update(deltaTime, this.aiNodes, this.linkingSystem);
-        }
-
-        // Update Linked Glyph Messaging 3.0 (Ultra symbolic AI language transport)
-        // Must run after all glyph systems
-        if (this.linkedGlyphMessaging && this.aiNodes && this.linkingSystem) {
-            this.linkedGlyphMessaging.update(deltaTime, this.aiNodes, this.linkingSystem);
-        }
-
-        // Update Recursive Glyph Messaging 4.0 (Recursive meaning chains)
-        // Must run after Linked Glyph Messaging 3.0
-        // Phase D.8 – detached from per-frame execution
-        // System remains initialized but dormant
-        // (per-frame update removed from animate())
-
-        // Update Emergent Thought Storms 5.0 (chain collision phenomena)
-        // Must run after Recursive Glyph Messaging 4.0
-        // Phase D – detached from per-frame execution
-        // System remains initialized but dormant
-        // (per-frame update removed from animate())
-
-        // Update AI Narrative Patterns 6.0 (narrative structure layer)
-        // Must run after Emergent Thought Storms 5.0
-        if (this.narrativePatterns && this.aiNodes && this.linkingSystem) {
-            this.narrativePatterns.update(deltaTime, this.aiNodes.nodes, this.linkingSystem.links, this.worldMetrics || {});
-        }
-
-        } // end 30 Hz semantic/UI cadence
-
-        // Update linking system with time and deltaTime for animations
-        if (this.linkingSystem) {
-            this.updateLinkingUI();
-        }
-
-        // ============================================================================
-        // PHASE 1 LINK SYSTEMS REACTIVATION (Session 107+)
-        // Update calls: LinkCorrelationEngine + History (NO visual systems)
-        // ============================================================================
-        
-        // Update Link Correlation Engine (tickable: every 3 seconds)
-        if (this.linkCorrelationEngine) {
-            try {
-                this.linkCorrelationEngine.tick(deltaTime);
-            } catch (err) {
-                console.warn('[LinkCorrelationEngine] Update error:', err.message);
-            }
-        }
-
-        // ====================================================================
-        // HIT PROXY SYSTEM UPDATE (Session 61+)
-        // Synchronize proxy positions with nodes, maintain raycast isolation
-        // ====================================================================
-        if (this.hitProxySystem) {
-            this.hitProxySystem.update(deltaTime);
-        }
-
-        // Update Link Priority Decay Engine 1.0 - Time-based priority management
-        // ====================================================================
-        // TIER 2 VISUAL INTEGRATION: Update Visual Feedback Systems
-        // ====================================================================
-        
-        // T2-002: Update Corruption Visual Integration
-        // Wires link.corruptionLevel → visual tinting + particles
-        if (this.t2CorruptionVisualIntegration && this.linkingSystem?.links) {
-            this.t2CorruptionVisualIntegration.update(deltaTime, this.linkingSystem.links);
-        }
-        
-        // T2-003: Update Harmony Visual Consumer
-        // DISABLED: HarmonyVisualConsumer update (primitive spheres removed)
-        // if (this.t2HarmonyVisualConsumer && this.aiNodes) {
-        //     this.t2HarmonyVisualConsumer.update(deltaTime, this.aiNodes, this.harmonyStabilizationSystem);
-        // }
-        
-        // ====================================================================
-        // TIER 4 GAMEPLAY INTEGRATION: Update Visual + UI Feedback
-        // ====================================================================
-        
-        // Update TIER 4 gameplay feedback (visual effects + UI)
-        if (this.tier4GameplayIntegration) {
-            this.tier4GameplayIntegration.update(deltaTime);
-        }
-        
-        // ====================================================================
-        // PHASE 5: MULTI-NETWORK SYNCHRONIZATION UPDATE
-        // ====================================================================
-        
-        // Update Phase 5 multi-network state synchronization
-        if (this.phase5MultiNetworkOrchestrator) {
-            this.phase5MultiNetworkOrchestrator.update(deltaTime);
-        }
-        
-        // ====================================================================
-        // PHASE 5: INTER-NETWORK CONNECTION VISUALS UPDATE
-        // ====================================================================
-        // Update inter-network connection visualization (animated flows + anchors)
-        // Inter-network visuals disabled: skip update
-        
-        // ====================================================================
-        // PHASE 5: CASCADE PROPAGATION VISUALS UPDATE
-        // ====================================================================
-        // Update cascade visual effects (expanding rings)
-        if (this.phase5CascadePropagationVisuals) {
-            this.phase5CascadePropagationVisuals.update(deltaTime);
-        }
-        
-        // Update cascade visualization bridge (detect and visualize cascades)
-        if (this.phase5CascadeVisualizationBridge) {
-            this.phase5CascadeVisualizationBridge.update(deltaTime);
-        }
-
-        // ====================================================================
-        // NODE HIERARCHY SYSTEM UPDATE — Synchronize hierarchy visuals
-        // ====================================================================
-        // Update hierarchy visualization and positions
-        if (this.nodeHierarchyBridge) {
-            this.nodeHierarchyBridge.update();
-        }
-
-        // Update Safe Evolution Manager - External node evolution system
-        if (this.evolutionManager && this.linkingSystem && this.aiNodes) {
-        }
-
-        // Update Safe Legendary Node Pack - External legendary system
-        if (this.legendaryPack && this.linkingSystem && this.aiNodes && this.evolutionManager) {
-            this.legendaryPack.update(
-                deltaTime,
-                this.aiNodes.nodes,
-                this.linkingSystem,
-                this.evolutionManager
-            );
-        }
-
-        // Update Safe Legendary Link FX - Link enhancements
-        if (this.legendaryLinkFX && this.linkingSystem && this.legendaryPack && this.evolutionManager) {
-            this.legendaryLinkFX.update(
-                deltaTime,
-                this.linkingSystem.links,
-                this.legendaryPack,
-                this.evolutionManager
-            );
-        }
-
-        // Update Safe Legendary World Events - Global event system
-        if (this.worldEvents && this.legendaryPack && this.linkingSystem && this.evolutionManager) {
-            this.worldEvents.update(
-                deltaTime,
-                this.legendaryPack,
-                this.linkingSystem,
-                this.evolutionManager
-            );
-        }
-
-        // Update Safe AI Weather Pack - Dynamic weather system
-        if (this.weatherPack && this.legendaryPack && this.linkingSystem && this.evolutionManager && this.worldEvents) {
-            this.weatherPack.update(
-                deltaTime,
-                this.legendaryPack,
-                this.linkingSystem,
-                this.evolutionManager,
-                this.worldEvents
-            );
-        }
-
-        // Update Safe Node Personality FX - Behavioral node visuals
-        if (this.personalityFX && this.aiNodes && this.linkingSystem && this.evolutionManager && this.weatherPack && this.worldEvents) {
-            this.personalityFX.update(
-                deltaTime,
-                this.aiNodes.nodes,
-                this.linkingSystem,
-                this.evolutionManager,
-                this.weatherPack,
-                this.worldEvents,
-                this.camera
-            );
-        }
-
-        // Update Safe World FX Pack - Environmental effects
-        if (this.worldFXPack && this.aiNodes && this.linkingSystem && this.evolutionManager && this.legendaryPack) {
-            this.worldFXPack.update(
-                deltaTime,
-                this.aiNodes.nodes,
-                this.linkingSystem,
-                this.evolutionManager,
-                this.legendaryPack
-            );
-        }
-
-        // Update Ambient Entities - Holographic VFX entities
-        if (this.ambientEntityManager) {
-            // Update synergy for entity spawning
-            const avgSynergy = this.linkingSystem?.getAverageSynergy?.() || 0;
-            this.ambientEntityManager.updateSynergy(avgSynergy);
-
-            // Main update
-            this.ambientEntityManager.update(deltaTime);
-        }
-
-        // Update Safe Memory Trails Pack 1.0 - Holographic memory traces
-        if (this.memoryTrails) {
-            this.memoryTrails.update(deltaTime);
-        }
-
-        // Update Safe Quantum Illusions Pack 1.0 - Visual hallucination effects
-        if (this.quantumIllusions) {
-            this.quantumIllusions.setGlobalTime(this.time);
-            this.quantumIllusions.update(deltaTime);
-        }
-
-        // Update Safe Colony Expansion 2.0 - Living AI ecosystem
-        if (this.colonyManager) {
-            this.colonyManager.update(deltaTime);
-        }
-
-        // Update Safe Dream Depth Pack - AI DOF simulation
-        if (this.dreamDepthPack && this.dreamDepthEffects) {
-            // Update world systems reference
-            this.dreamDepthWorldSystems.colonies = this.colonyManager?.registry?.getAllColonies?.() || [];
-
-            this.dreamDepthPack.update(deltaTime, this.dreamDepthWorldSystems);
-            this.dreamDepthEffects.update(deltaTime);
-        }
-
-        // Update Safe Mobility Pack 4.0 - Enhanced movement with dash and double jump
-        if (this.mobilityPack) {
-            this.mobilityPack.update(deltaTime);
-        }
-
-        // Update Node Visuals 4.0 - Premium node visual effects
-        if (this.nodeVisuals4) {
-            this.nodeVisuals4.update(deltaTime);
-        }
-
-        // Update Node Evolution 2.0 - Visual node evolution system
-        if (this.nodeEvolution && this.aiNodes) {
-            measure('nodeEvolution', () => {
-                this.nodeEvolution.update(deltaTime, {}, this.linkingSystem);
-            });
-        }
-
-        // DISABLED: Update Safe Node Archetypes Pack - Visual archetype animations
-        // if (this.nodeArchetypesPack) {
-        //   this.nodeArchetypesPack.update(deltaTime);
-        // }
-
-        // Update Evolving Link FX 2.0 - Visual link evolution
-        if (this.evolvingLinkFX && this.linkingSystem) {
-            this.evolvingLinkFX.update(deltaTime, null, null);
-        }
-
-        // Update Node Personality 2.0 - Unique personality signatures
-        if (this.nodePersonality) {
-            this.nodePersonality.update(deltaTime, this.time);
-        }
-        // Core visual metrics + overlays are now driven by FrameScheduler (visual layer, 30Hz)
-
-        // Update Extreme AI Shader Test Suite (diagnostics - opt-in, very cheap when disabled)
-        if (this.extremeShaderTestSuite) {
-            this.extremeShaderTestSuite.update(deltaTime);
-        }
-
-        // Update Safe New Node Categories 1.0 (Mythic, Prime, Error node animations)
-        if (this.newNodeCategories) {
-            this.newNodeCategories.update(deltaTime, this.time);
-        }
-
-        // Update New Node Category Visuals 1.0 (Enhanced visual layer)
-        try {
-            if (this.newNodeVisuals && this.newNodeVisuals.animate) {
-                this.newNodeVisuals.animate(deltaTime);
-            }
-        } catch (err) {
-            console.warn('NewNodeCategoryVisuals update failed:', err);
-        }
-
-        // Update Extreme Link Visual Pack 3.0 (Multi-layer neon beams + glyphs)
-        try {
-            if (this.extremeLinkVisuals && this.extremeLinkVisuals.update) {
-                this.extremeLinkVisuals.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('ExtremeLinkVisualPack3 update failed:', err);
-        }
-
-        // Update Neural Curve Link Visuals 1.0 (Dynamic Bézier curved links)
-        try {
-            if (this.neuralCurveLinkVisuals && this.linkingSystem && this.linkingSystem.links) {
-                for (const link of this.linkingSystem.links) {
-                    if (link.active) {
-                        this.neuralCurveLinkVisuals.updateLink(link, this.time, deltaTime);
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('NeuralCurveLinkVisuals update failed:', err);
-        }
-
-        // Update Extreme Link Visuals 4.0 (Neural curvature & depth)
-        try {
-            if (this.extremeLinkVisuals4) {
-                this.extremeLinkVisuals4.update(deltaTime, this.camera);
-            }
-        } catch (err) {
-            console.warn('ExtremeLinkVisuals4_0 update failed:', err);
-        }
-
-        // Update Link Visual Mood System (mood transitions & smooth lerping)
-        try {
-            if (this.linkVisualMoodSystem) {
-                this.linkVisualMoodSystem.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('LinkVisualMoodSystem update failed:', err);
-        }
-
-        // Update AI Consciousness Layer 1.0 (Neural thought visualization)
-        try {
-            if (this.consciousnessLayer) {
-                this.consciousnessLayer.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('AIConsciousnessLayer update failed:', err);
-        }
-
-        // Update ATOMA Language Engine 3.0 (Procedural AI Poetry)
-        try {
-            if (this.poetryEngine) {
-                this.poetryEngine.update(deltaTime, this.time);
-            }
-        } catch (err) {
-            console.warn('AtomaLanguageEngine3_0 update failed:', err);
-        }
-
-        // ========================================================================
-        // ATOMA UI 3.1 - Update All Components
-        // ========================================================================
-        // DISABLED: UINodeAutoDetect3_1 (replaced by NodeLinking2_3)
-        // try {
-        //   if (this.autoDetect) {
-        //     this.autoDetect.update(deltaTime);
-        //   }
-        // } catch (err) {
-        //   console.warn('UINodeAutoDetect3_1 update failed:', err);
-        // }
-
-        try {
-            if (this.emotionalFeed) {
-                this.emotionalFeed.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('AIEmotionalFeed3_1 update failed:', err);
-        }
-
-        // ACTIVE: NodeLinking2_3 with integrated double-click + primary node
-        try {
-            if (this.nodeLinking) {
-                mark('nodeLinking.update', () => {
-                    this.nodeLinking.update(deltaTime);
-                });
-            }
-        } catch (err) {
-            console.warn('NodeLinking2_3 update failed:', err);
-        }
-
-        // DISABLED: UINodeHoverTooltip3_1 (conflicts with NodeLinking2_3)
-         try {
-        //   if (this.hoverTooltip) {
-        //     this.hoverTooltip.update(deltaTime);
-        //   }
-        // } catch (err) {
-        //   console.warn('UINodeHoverTooltip3_1 update failed:', err);
-        // }
-
-        // ========================================================================
-        // ATOMA UI 3.2 - Update Interaction Polishing
-        // ========================================================================
-        // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
-        // Moved to END of createAINodes() to ensure clean lifecycle
-        // ========================================================================
-        } catch (err) {
-            console.warn('UISelectedNodeTopBar3_4 update failed:', err);
-        }
-
-        // ========================================================================
-        // ATOMA UI 3.7 - Update Primary Node System
-        // ========================================================================
-        try {
-            if (this.primaryNodeAura) {
-                this.primaryNodeAura.update(deltaTime);
-            }
-        } catch (err) {
-            console.warn('UIPrimaryNodeAura3_7 update failed:', err);
-        }
-
-        try {
-            if (this.primaryNodeTopBar) {
-                this.primaryNodeTopBar.update();
-            }
-        } catch (err) {
-            console.warn('UIPrimaryNodeTopBar3_7 update failed:', err);
-        }
-
-        // ========================================================================
-        // SESSION 99: UPDATE LINK DEBUG VISUALIZATION (When enabled)
-        // ========================================================================
-        // Update debug visuals if link debug mode is active
-        if (this.linkDebugMode && this.linkDebugMode.enabled) {
-            this.linkDebugMode.updateDebugVisuals();
-        }
-
-        // ========================================================================
-        // SESSION 104: FRAME-END VISUAL SAFETY NET (Hard Interaction Authority)
-        // ========================================================================
-        // Last line of defense: Guarantee node cores remain visible and interactive
-        // This runs at end of frame to ensure NO system can win over interaction cores
-        if (this.hardInteractionAuthority && this.scene && this.frameCount % 180 === 0) {
-            this.hardInteractionAuthority.safetyNet();
-        }
-
-        if (runSlowSemantic && !this._runSlowSemanticPending) {
-        // 10 Hz deep semantic/world-mood cadence (interpretation, not motion)
-        // ========================================================================
-        // REGIONAL EQUILIBRIUM FIELD SYSTEM — Territorial Visualization
-        // ========================================================================
-        // Updates regional ambient fields based on harmony, corruption, synergy
-        // Reads: harmonySystem, ruptureSystem, standingWaveSystem (read-only)
-        // Outputs: Visual mesh transforms, material uniforms (no gameplay mutation)
-        // Must run late in frame (after all network state updates)
-        if (this.regionalEquilibrium && this.harmonySystem && this.ruptureSystem) {
-            this.regionalEquilibrium.update(
-                deltaTime,
-                this.time,
-                {
-                    nodes: this.aiNodes?.nodes || [],
-                    links: this.linkingSystem?.links || []
-                },
-                this.harmonySystem,
-                this.ruptureSystem,
-                this.standingWaveSystem
-            );
-        }
-
-        // ========================================================================
-        // CASCADING RUPTURE SYSTEM — Regional Collapse Propagation
-        // ========================================================================
-        // Detects rupture cascade conditions and propagates visual effects
-        // Reads: ruptureSystem, harmonySystem (read-only)
-        // Outputs: Visual cascade effects, triggers node failure events
-        // DISABLED BY DEFAULT: Enable via game.cascadingRuptures.enable()
-        if (this.cascadingRuptures && this.cascadingRuptures.enabled) {
-            this.cascadingRuptures.update(
-                deltaTime,
-                this.time,
-                this.ruptureSystem,
-                this.harmonySystem
-            );
-        }
-
-        // ========================================================================
-        // CRITICAL NODE FAILURE SYSTEM — Link Severing on Collapse
-        // ========================================================================
-        // Detects critical nodes and severs links after countdown
-        // Reads: Node stability, corruption (read-only)
-        // Writes: Links (DESTRUCTIVE - severs connections)
-        // DISABLED BY DEFAULT: Enable via game.criticalNodeFailure.enable()
-        if (this.criticalNodeFailure && this.criticalNodeFailure.enabled) {
-            this.criticalNodeFailure.update(deltaTime, this.time);
-        }
-
-        // ========================================================================
-        // LINK SEMANTIC PICTOGRAM SYSTEM — Visual Meaning Carriers
-        // ========================================================================
-        // Updates floating pictograms above links that encode network state
-        // Includes: Multi-layer stack, morphing, depth/parallax, flow intelligence, glyph fusion
-        // Reads: Link state, node harmony/corruption/synergy (read-only)
-        // Outputs: Pictogram positions, materials, visibility (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.linkSemanticPictograms && this.linkSemanticPictograms.enabled) {
-            this.linkSemanticPictograms.update(deltaTime, this.time, this.aiNodes);
-        }
-
-        // ========================================================================
-        // HARMONIC RESONANCE FEEDBACK SYSTEM — Emergent Motion Guidance
-        // ========================================================================
-        // Composite glyphs emit subtle resonance fields influencing nearby link motion
-        // Closed visual feedback loop: meaning shapes motion through phase alignment
-        // Reads: Composite glyph state, link positions, pictogram data (read-only)
-        // Outputs: Link phase modulation, pictogram speed/spacing adjustments (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.harmonicResonance && this.harmonicResonance.enabled) {
-            this.harmonicResonance.update(
-                deltaTime,
-                this.linkSemanticPictograms?.fusionZoneManager,
-                this.linkSemanticPictograms?.pictogramSystem?.pictograms,
-                this.linkingSystem
-            );
-        }
-
-        // ========================================================================
-        // RESONANCE ECHO TRAIL SYSTEM — Temporal Memory of Meaning
-        // ========================================================================
-        // Harmonic afterimages following composite glyph movement and dissolution
-        // Echoes spawn at low frequency (time-sliced), fade smoothly over time
-        // Reads: Composite glyph positions, state (harmony/stability/synergy) (read-only)
-        // Outputs: Echo mesh visibility, opacity, position (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.resonanceEchoTrails && this.resonanceEchoTrails.enabled) {
-            this.resonanceEchoTrails.update(
-                deltaTime,
-                this.linkSemanticPictograms?.fusionZoneManager?.compositeGlyphs
-            );
-        }
-
-        // ========================================================================
-        // HARMONIC TOPOLOGY LEARNING SYSTEM — Long-Term Network Memory
-        // ========================================================================
-        // Visualizes network learning through topology evolution
-        // Tracks preferred flow paths, reinforced links, learned avoidance patterns
-        // Reads: Composite glyph synthesis, link success/failure, rupture events (read-only)
-        // Outputs: Topology bias vectors, learning metrics, region state (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.harmonicTopology && this.harmonicTopology.enabled) {
-            this.harmonicTopology.update(
-                deltaTime,
-                this.linkSemanticPictograms?.fusionZoneManager,
-                this.linkingSystem
-            );
-        }
-
-        // ========================================================================
-        // TOPOLOGY BIAS VISUALIZATION LAYER — Spatial Learning Perception
-        // ========================================================================
-        // POLISHED: Added missing update loop call for topology visualization
-        // Renders learned topology bias vectors and flow fields
-        // Reveals how space itself has learned preferences over time
-        // Reads: Topology system regions (read-only)
-        // Outputs: Bias vector meshes, flow field shaders (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.topologyViz && this.topologyViz.enabled) {
-            // Compute network state for flow field modulation
-            const networkState = {
-                harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
-                corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
-                synergy: this.nodeDynamicMetrics?.avgSynergy || 0,
-                instability: this.nodeDynamicMetrics?.avgInstability || 0
-            };
-            
-            this.topologyViz.update(deltaTime, networkState);
-        }
-
-        // ========================================================================
-        // PROCEDURAL HARMONIC GLYPH GENERATOR — Emergent Visual Language
-        // ========================================================================
-        // Generates procedural glyphs from topology learning history
-        // Creates unique symbols representing emergent network identity
-        // Reads: Topology learning regions, flow bias, reinforcement history (read-only)
-        // Outputs: Procedural glyph geometry, visibility, emergence timing (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.proceduralGlyphGenerator && this.proceduralGlyphGenerator.enabled) {
-            this.proceduralGlyphGenerator.update(deltaTime);
-        }
-
-        // ========================================================================
-        // REGIONAL HARMONIC CYCLE CONTROLLER — Breath of Regions
-        // ========================================================================
-        // Manages harmonic activity cycles for topology regions
-        // Drives subtle glyph animation through cycle-based modulation
-        // Reads: Region state, harmony, stability, healing (read-only)
-        // Outputs: Cycle phase, animation parameters (visual-only)
-        // Adapter pattern: no gameplay mutation
-        const harmonicNetworkState = {
-            harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
-            corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
-            stability: this.nodeDynamicMetrics?.avgStability || 0.5,
-            synergy: this.nodeDynamicMetrics?.avgSynergy || 0
-        };
-        
-        if (this.harmonicCycleController && this.harmonicCycleController.enabled) {
-            this.harmonicCycleController.update(deltaTime, harmonicNetworkState);
-        }
-
-        // ========================================================================
-        // GLYPH ANIMATION MODULATOR — Glyphs Breathing with Regions
-        // ========================================================================
-        // Applies harmonic cycle animations to procedural glyphs
-        // Makes glyphs breathe with regional harmonic activity
-        // Reads: Cycle phase, glyph state (read-only)
-        // Outputs: Glyph rotation, scale, opacity (visual-only)
-        // Adapter pattern: no gameplay mutation
-        if (this.glyphAnimationModulator && this.glyphAnimationModulator.enabled) {
-            if (this.proceduralGlyphGenerator?.glyphInstances) {
-                this.glyphAnimationModulator.update(
-                    this.proceduralGlyphGenerator.glyphInstances,
-                    harmonicNetworkState
-                );
-            }
-        }
-        } // end 10 Hz semantic/world-mood cadence
-
-    //  const dt = performance.now() - t0;
-    //  if (dt > 50) {
-    //      console.warn('[RAF_STALL]', dt.toFixed(1), 'ms');
-    //  }
+        // Centralized System Registry execution (deterministic, toggleable)
+        systemRegistry.runFrame(this, deltaTime);
 
         if (tracingSpike) {
             const frameMs = performance.now() - frameStart;
