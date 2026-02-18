@@ -1,0 +1,2139 @@
+createAINodes() {
+        this._allowRegistryReset = false;
+
+        this.aiNodes = new AINodes(this.scene, this.player);
+        window.__ATOMA_AINODES__ = this.aiNodes;
+        this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
+        
+        // ====================================================================
+        // TASK 2: SIMULATION INVARIANT ENFORCEMENT
+        // Non-breaking enforcement of registry authority and update participation
+        // ====================================================================
+        setupSimulationInvariantEnforcement(this.aiNodes);
+        console.log('✓ Simulation Invariant Enforcement initialized (TASK 2)');
+        
+        // ====================================================================
+        // TASK 3: RARE NODE VERIFICATION TRACKER
+        // Track update ticks, registry participation, shell visibility
+        // ====================================================================
+        setupRareNodeVerificationTracker(this.aiNodes);
+        console.log('✓ Rare Node Verification Tracker initialized (TASK 3)');
+        
+        // Archetype Visual System – Activation
+        const archetypeVisualSystem = patchArchetypeVisuals(this.aiNodes, true);
+        console.log('✅ Archetype Visual System enabled (debug mode ON)');
+        // Optional: first-spawn program-count log (guarded by PROGRAM_LOG)
+        let __loggedFirstSpawn = false;
+        const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
+        this.aiNodes.createNode = (...args) => {
+            const node = originalCreateNode(...args);
+            if (!__loggedFirstSpawn) {
+                logPrograms('after-first-node', this.renderer);
+                __loggedFirstSpawn = true;
+            }
+            return node;
+        };
+        
+        // ========================================================================
+        // SESSION 20: VISUAL HIERARCHY CORRECTION SYSTEM v1.0
+        // Enforces visual dominance of core node geometry over auxiliary layers
+        // ========================================================================
+        this.visualHierarchyCorrection = new VisualHierarchyCorrectionSystem_v1({
+          enableAutoEnforcement: true,
+          enableDebug: false, // Set to true for debug logging
+          enforcementMode: 'constrain', // 'constrain' | 'suppress' | 'relocate'
+          radiusScaleFactor: 1.8,
+          suppressLegacyExtremes: true
+        });
+        
+        // Register all created nodes with hierarchy system
+        for (const node of this.aiNodes.nodes) {
+          this.visualHierarchyCorrection.registerNode(node, node.userData?.category || 'input');
+        }
+        console.log('[main.js] Visual Hierarchy Correction System v1.0 initialized ✓');
+
+        // Initialize dynamic node spawning system
+        this.aiNodes.initializeNodeSpawning();
+
+        // ====================================================================
+        // SIMULATION EFFECT ORCHESTRATOR (Session 37+ FIXED)
+        // Central hub for all dt-based animations (no requestAnimationFrame)
+        // Consolidates: node materialization, link pulses, mythic effects
+        // ====================================================================
+        this.effectOrchestrator = new SimulationEffectOrchestrator(this.scene);
+        console.log('[main.js] Simulation Effect Orchestrator initialized ✓');
+
+        // Create node linking system
+        this.linkingSystem = new NodeLinkingSystem(
+            this.scene,
+            this.camera,
+            this.renderer,
+            this.aiNodes
+        );
+        this.linkingSystem.isReady = true;
+        console.log('[main.js] NodeLinkingSystem created');
+        if (this.frameScheduler) {
+            this.frameScheduler.register(
+                'visual',
+                (dt) => {
+                    if (this.linkingSystem && this.linkingSystem.isReady === true) {
+                        this.linkingSystem.update(dt, this.time);
+                    }
+                },
+                'visual.linkingSystem'
+            );
+        }
+        if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
+            this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
+        }
+        if (this.recursiveGlyphSignalSystem) {
+            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
+        }
+
+        // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
+        if (
+            typeof window !== 'undefined' &&
+            window.__shaderWarmupDone !== true &&
+            window.__ATOMA_WARMUP_COMPLETE !== true
+        ) {
+            logPrograms('pre-warmup', this.renderer);
+            warmUpArchetypeShaders(this.renderer, {
+                waveShaderBridge: this.waveShaderBridge,
+                waveShaderMaterialPatch: this.waveShaderMaterialPatch,
+                waveTravelShaderPack: this.waveTravelShaderPack,
+                waveDynamicsShaderPack: this.waveDynamicsShaderPack
+            });
+            logPrograms('post-warmup', this.renderer);
+        }
+        const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
+        this.aiNodes.createNodes(this.currentMode, nodeCount);
+
+        // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
+        try {
+            if (this.waveShaderBridge && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderBridge?.registerNodeMaterial?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Bridge: Node materials registered ✓');
+            }
+            if (this.waveShaderBridge && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderBridge?.registerLinkMaterial?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Bridge: Link materials registered ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Shader Bridge material registration error:', err);
+        }
+
+        try {
+            if (this.waveShaderMaterialPatch && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'DEFAULT'));
+                }
+                console.log('[main.js] Wave Shader Material Patch: Node materials patched ✓');
+            }
+            if (this.waveShaderMaterialPatch && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'SYNERGY'));
+                }
+                console.log('[main.js] Wave Shader Material Patch: Link materials patched ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Shader Material Patch patching error:', err);
+        }
+
+        try {
+            if (this.waveTravelShaderPack && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_LINEAR'));
+                }
+                console.log('[main.js] Wave Travel Shader Pack: Node materials registered ✓');
+            }
+            if (this.waveTravelShaderPack && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_INTERFERENCE'));
+                }
+                console.log('[main.js] Wave Travel Shader Pack: Link materials registered ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Travel Shader Pack registration error:', err);
+        }
+
+        try {
+            if (this.waveDynamicsShaderPack && this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const mats = node?.material
+                        ? (Array.isArray(node.material) ? node.material : [node.material])
+                        : [];
+                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'AURA'));
+                }
+                console.log('[main.js] Wave Dynamics Shader Pack: Node materials applied ✓');
+            }
+            if (this.waveDynamicsShaderPack && this.nodeLinking?.links) {
+                for (const link of this.nodeLinking.links) {
+                    const mats = link?.material
+                        ? (Array.isArray(link.material) ? link.material : [link.material])
+                        : [];
+                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'SYNERGY'));
+                }
+                console.log('[main.js] Wave Dynamics Shader Pack: Link materials applied ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Wave Dynamics Shader Pack application error:', err);
+        }
+
+        // Hook audio feedback to link events
+        const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
+        this.linkingSystem.createLink = (sourceNode, targetNode) => {
+            const result = originalCreateLink(sourceNode, targetNode);
+            if (this.audioSystem && this.audioSystem.initialized) {
+                this.audioSystem.playLinkCreated();
+            }
+            return result;
+        };
+        
+        const originalRemoveLink = this.linkingSystem.removeLink.bind(this.linkingSystem);
+        this.linkingSystem.removeLink = (link) => {
+            const result = originalRemoveLink(link);
+            if (this.audioSystem && this.audioSystem.initialized) {
+                this.audioSystem.playLinkBroken();
+            }
+            return result;
+        };
+        
+        console.log('✓ Audio feedback hooked to link creation/removal');
+        
+        // [Session 144+] Initialize Node Linked Aura System (ENABLED)
+        this.nodeAuraSystem = new NodeLinkedAuraSystem(
+            this.scene,
+            this.linkingSystem,
+            { enabled: true }  // Feature flag - enabled by default
+        );
+        
+        // Wire orchestrator to linking system for effect registration
+        this.linkingSystem.effectOrchestrator = this.effectOrchestrator;
+        
+        // Wire orchestrator to AINodes for materialization effects
+        this.aiNodes.effectOrchestrator = this.effectOrchestrator;
+
+        // ============================================================================
+        // PHASE 1 LINK SYSTEMS REACTIVATION (Session 107+)
+        // Infrastructure recovery: LinkCorrelationEngine + Hardening + History
+        // ============================================================================
+        
+        // === System 1: Link History Tracker 1.0 (LOW RISK) ===
+        try {
+            this.linkHistoryTracker = new LinkHistoryTracker1_0(this.linkingSystem, this.scene, {
+                enabled: true,
+                bufferSize: 100,
+                trackQualityChanges: true,
+                trackPriorityChanges: true,
+                trackCorruptionChanges: true
+            });
+            console.log('[main.js] LinkHistoryTracker1_0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkHistoryTracker1_0 initialization failed:', err.message);
+            this.linkHistoryTracker = null;
+        }
+
+        // === System 2: Link Correlation Engine 1.0 (LOW RISK) ===
+        try {
+            this.linkCorrelationEngine = new LinkCorrelationEngine1_0(
+                this.linkingSystem,
+                this.linkHistoryTracker,
+                {
+                    tickIntervalMs: 3000,              // Run analysis every 3 seconds
+                    maxWorkPerTickMs: 1.0,             // Limit to 1ms per frame
+                    minSamplesForCorrelation: 5,       // Need 5+ samples before correlating
+                    correlationMethod: 'pearson',      // Pearson correlation (standard)
+                    minCorrelationScore: 0.15,         // Only report correlations > 0.15
+                    minClusterSize: 2,                 // Clusters must have 2+ links
+                    enabled: true
+                }
+            );
+            console.log('[main.js] LinkCorrelationEngine1_0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkCorrelationEngine1_0 initialization failed:', err.message);
+            this.linkCorrelationEngine = null;
+        }
+
+        // === System 3: Linking System Hardening (MEDIUM RISK) ===
+        try {
+            if (this.linkingSystem && this.linkGuard) {
+                hardenNodeLinkingSystem(
+                    this.linkingSystem,
+                    this.aiNodes,
+                    this.scene,
+                    this.linkGuard
+                );
+                console.log('[main.js] Linking System Hardening applied ✓');
+            } else {
+                console.warn('[main.js] Skipping hardening: linkingSystem or linkGuard not ready');
+            }
+        } catch (err) {
+            console.warn('[main.js] Linking System Hardening failed:', err.message);
+        }
+
+        // ====================================================================
+        // LINK ELIGIBILITY GATE v1.0 (Session 99 - Logic-First Repair)
+        // Single authoritative source for all link eligibility decisions
+        // ====================================================================
+        try {
+            this.linkEligibilityGate = setupLinkEligibilityGate({
+                aiNodes: this.aiNodes,
+                linkingSystem: this.linkingSystem,
+                debugMode: false  // Set to true to see eligibility logs
+            });
+            console.log('[main.js] LinkEligibilityGate initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkEligibilityGate initialization failed:', err);
+        }
+
+        // ====================================================================
+        // LINK DEBUG MODE v1.0 (Session 99 - Debug Visibility)
+        // Temporary debug visualization for link eligibility testing
+        // ====================================================================
+        try {
+            this.linkDebugMode = setupLinkDebugMode({
+                scene: this.scene,
+                linkingSystem: this.linkingSystem,
+                eligibilityGate: this.linkEligibilityGate,
+                enabled: false  // Set to true to enable debug visualization
+            });
+            console.log('[main.js] LinkDebugMode initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkDebugMode initialization failed:', err);
+        }
+
+        // ====================================================================
+        // DYNAMIC LINK COLOR SYSTEM v1.0 (NEW - Real-time synergy colors)
+        // Automatically updates link colors based on current synergy scores
+        // ====================================================================
+        try {
+            this.dynamicLinkColorSystem = new DynamicLinkColorSystem(this.linkingSystem);
+            
+            // Configure for smooth transitions
+            this.dynamicLinkColorSystem.configure({
+                enabled: true,
+                updateFrequency: 1,        // Update every frame
+                transitionDuration: 0.3,   // Smooth 300ms transitions
+                useParticleColors: true,   // Color particles too
+                batchSize: 50              // Process 50 links per batch
+            });
+            
+            setupDynamicLinkColorSystemConsoleAPI(this.dynamicLinkColorSystem);
+            console.log('[main.js] DynamicLinkColorSystem initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] DynamicLinkColorSystem initialization failed:', err);
+            this.dynamicLinkColorSystem = null;
+        }
+
+        // ====================================================================
+        // ANIMATED LINK FLOW SYSTEM v1.0 (Session 112 - Data visualization)
+        // Visualizes data flow between nodes with animated packets and beams
+        // ====================================================================
+        try {
+            if (this.linkingSystem && this.linkingSystem.flowSystem) {
+                if (typeof setupAnimatedLinkFlowConsoleAPI === 'function') {
+                    setupAnimatedLinkFlowConsoleAPI(this.linkingSystem.flowSystem);
+                    console.log('[main.js] Animated Link Flow System console API initialized ✓');
+                } else {
+                    console.log('[main.js] AnimatedLinkFlow console API not installed (optional)');
+                }
+            }
+        } catch (err) {
+            console.warn('[main.js] Animated Link Flow System setup failed:', err);
+        }
+
+        // ====================================================================
+        // SYNERGY CASCADE PROPAGATION VISUALIZER v1.0 (NEW)
+        // Real-time visualization of synergy energy flowing through networks
+        // ====================================================================
+        try {
+            this.cascadeVisualizer = new SynergyCascadeVisualizer(
+                this.scene,
+                this.linkingSystem,
+                this.camera
+            );
+            
+            // Configure cascade properties
+            this.cascadeVisualizer.config.detectionThreshold = 0.7;
+            this.cascadeVisualizer.config.propagationSpeed = 2.0;
+            this.cascadeVisualizer.config.particleCount = 8;
+            
+            console.log('[main.js] SynergyCascadeVisualizer initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyCascadeVisualizer initialization failed:', err);
+            this.cascadeVisualizer = null;
+        }
+
+        // ====================================================================
+        // HIT PROXY SYSTEM v1.0 (Session 61+)
+        // Strict raycast proxy architecture — PHASE 1 PRIMARY SYSTEM
+        // Invisible hit-proxies for ALL nodes, real visuals 100% protected
+        // ====================================================================
+        try {
+            const hitProxyResult = applyHitProxyIntegration(
+                this.scene,
+                this.aiNodes,
+                this.linkingSystem,
+                { proxyRadius: 0.7, layer: 10, autoSync: true }
+            );
+            this.hitProxySystem = hitProxyResult.hitProxySystem;
+            setupHitProxyDebugAPI();
+            console.log('[main.js] ✅ Hit Proxy System v1.0 initialized (Phase 1)');
+            console.log(`[main.js] Created ${this.aiNodes.nodes.length} hit-proxy spheres`);
+        } catch (err) {
+            console.error('[main.js] Hit Proxy System initialization failed:', err);
+        }
+
+        // Raycast isolation/failsafe systems removed (handled by consolidated sanitization/registry)
+
+        // ====================================================================
+        // HIT-PROXY AUTO-REGISTRAR v1.0 (SESSION 62B - FPS Death Prevention)
+        // Ensures every spawned node gets a valid hit-proxy automatically
+        // Prevents FPS death from missing/invalid proxies triggering failsafe
+        // ====================================================================
+        try {
+            const hitProxyAutoRegistrar = setupHitProxyAutoRegistrar(this);
+            this.hitProxyAutoRegistrar = hitProxyAutoRegistrar;
+            console.log('[main.js] ✅ Hit-Proxy Auto-Registrar initialized (Session 62B)');
+        } catch (err) {
+            console.warn('[main.js] Hit-Proxy Auto-Registrar initialization warning:', err);
+        }
+        
+        // ====================================================================
+        // INTEGRATION NODE SELECTION FIX v1.0 (Targeted Compatibility)
+        // Enable INTEGRATION nodes to be selected via parent chain resolution
+        // ====================================================================
+        try {
+            patchIntegrationNodeSelection(this.linkingSystem, this.aiNodes);
+            setupIntegrationDebugAPI(this.aiNodes);
+            console.log('[main.js] INTEGRATION Node Selection Fix applied ✓');
+        } catch (err) {
+            console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
+        }
+        /* VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY */
+        // ====================================================================
+        // CORE VISUAL AUTHORITY SYSTEM v1.0 (SESSION 46)
+        // Guarantees node cores are ALWAYS rendered on top of visual overlays
+        // ====================================================================
+        try {
+            // Session 92: Visual Overlay Audit System for opaque overlay detection
+            this.visualOverlayAudit = new VisualOverlayAuditSystem(this.scene);
+            this.visualLayerDebugger = new VisualLayerDebugger(this.scene);
+            
+            // Session 93: Visual Layer Enforcement Gate (runtime prevention)
+            this.visualLayerGate = new VisualLayerEnforcementGate();
+            this.visualLayerGate.setMode('DEV'); // Start in DEV for safety during development
+            
+            this.coreVisualAuthority = new CoreVisualAuthoritySystem({
+                scene: this.scene,
+                enabled: true,
+                debugMode: false,
+                coreRenderOrder: 1000,
+                visualOnlyRenderOrder: -1000,
+                rimRenderOrder: 500
+            });
+            
+            // Process all existing nodes
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    this.coreVisualAuthority.processNode(node);
+                }
+            }
+            
+            // Register post-spawn observer (single ordered pipeline)
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-visual-authority',
+                    (newNode) => {
+                        if (newNode && this.coreVisualAuthority) {
+                            this.coreVisualAuthority.processNode(newNode);
+                        }
+                    },
+                    20
+                );
+            }
+            
+            // Setup debug API
+            if (window.CoreVisualAuthorityDebug) {
+                window.CoreVisualAuthorityDebug.init(this.coreVisualAuthority);
+            }
+            
+            // Session 92: Setup Visual Overlay Audit console API
+            if (this.visualOverlayAudit) {
+                window.setupVisualOverlayAuditAPI(this.visualOverlayAudit);
+            }
+            if (this.visualLayerDebugger) {
+                window.setupVisualLayerDebuggerAPI(this.visualLayerDebugger);
+            }
+            
+            // Session 93: Setup Visual Layer Enforcement Gate console API
+            if (this.visualLayerGate) {
+                window.setupVisualLayerEnforcementGateAPI(this.visualLayerGate);
+            }
+            
+            console.log('[main.js] Core Visual Authority System initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Core Visual Authority System initialization failed:', err.message);
+        }
+        
+        // ====================================================================
+        // HOLOGRAM SHELL AUTHORITY SYSTEM v1.0 (SESSION 46)
+        // Ensures shells never obscure node cores
+        // ====================================================================
+        try {
+            this.hologramShellAuthority = new HologramShellAuthoritySystem({
+                enabled: true,
+                debugMode: false,
+                shellRenderOrder: -500,
+                maxShellOpacity: 0.5
+            });
+            
+            // Process all existing nodes
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    this.hologramShellAuthority.processShellGroup(node);
+                }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'hologram-shell-authority',
+                    (newNode) => {
+                        if (newNode && this.hologramShellAuthority) {
+                            this.hologramShellAuthority.processShellGroup(newNode);
+                        }
+                    },
+                    35
+                );
+            }
+            
+            // Setup debug API
+            if (window.HologramShellAuthorityDebug) {
+                window.HologramShellAuthorityDebug.init(this.hologramShellAuthority);
+            }
+            
+            console.log('[main.js] Hologram Shell Authority System initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Hologram Shell Authority System initialization failed:', err.message);
+        }
+        
+        // ====================================================================
+        // [SESSION 90] NODE SHELL SIZE AUTHORITY v1.0
+        // Enforce static shell sizes derived ONLY from node category and tier
+        // Decouple shell scale from network metrics (load, stress, corruption)
+        // ====================================================================
+        try {
+            this.nodeShellSizeAuthority = new NodeShellSizeAuthority({
+                baseShellSize: 1.0,
+                minShellSize: 0.6,
+                maxShellSize: 1.5,
+                enabled: true,
+                debugMode: false,
+                minEnforceIntervalMs: 250,
+                tierMultipliers: {
+                    1: 0.9,
+                    2: 1.0,
+                    3: 1.1,
+                    4: 1.2,
+                    5: 1.3,
+                }
+            });
+            
+            // Register all existing nodes
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    const category = node.userData?.category || 'crystal';
+                    const tier = node.userData?.evolutionTier || 2;
+                    this.nodeShellSizeAuthority.registerNode(node, category, tier);
+                }
+            }
+            
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'node-shell-size-registration',
+                    (newNode) => {
+                        if (!newNode || !this.nodeShellSizeAuthority) return;
+                        const category = newNode.userData?.category || 'crystal';
+                        const tier = newNode.userData?.evolutionTier || 2;
+                        this.nodeShellSizeAuthority.registerNode(newNode, category, tier);
+                    },
+                    40
+                );
+            }
+            
+            console.log('[main.js] Node Shell Size Authority initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Node Shell Size Authority initialization failed:', err.message);
+        }
+        
+        // ====================================================================
+        // VISUAL INTERACTION ISOLATION PATCH v2.0 - CRITICAL FIX (SESSION 46)
+        // Uses intersection filtering instead of raycast disabling
+        // NO MORE THREE.JS TypeError: r.raycast is not a function
+        // ====================================================================
+        try {
+            this.interactionIsolation = setupVisualInteractionIsolation_v2(
+                this.scene,
+                this.aiNodes,
+                {
+                    enabled: true,
+                    interactionLayer: 10,
+                    debugMode: false,
+                    autoProxyRadius: 0.6
+                }
+            );
+            
+            // Setup filtering helper for selection systems
+            this.raycastFilter = setupRaycastInteractionFiltering(this.interactionIsolation);
+            
+            console.log('[main.js] Visual Interaction Isolation Patch v2.0 applied ✓');
+            console.log('[main.js] ⚠️  CRITICAL: Update raycaster calls with filtering!');
+        } catch (err) {
+            console.warn('[main.js] Visual Interaction Isolation Patch v2.0 failed:', err.message);
+        }
+        
+        // ====================================================================
+        // NODE CORE MATERIAL AUTHORITY SYSTEM v1.0 (Session 26)
+        // Material-driven solution: ensures cores are NEVER overridden by auras
+        // ====================================================================
+        try {
+            if (typeof NodeCoreMaterialAuthority !== 'function') {
+                console.error('[main.js] NodeCoreMaterialAuthority invalid export:', NodeCoreMaterialAuthority);
+            } else {
+                this.nodeCoreAuthority = new NodeCoreMaterialAuthority();
+                
+                // Register all existing nodes
+                if (this.aiNodes?.nodes) {
+                    for (const node of this.aiNodes.nodes) {
+                        this.nodeCoreAuthority.registerNodeCore(node);
+                    }
+                }
+                
+                // Register post-spawn observer (single ordered pipeline)
+                if (this.aiNodes?.registerPostSpawnObserver) {
+                    this.aiNodes.registerPostSpawnObserver(
+                        'node-core-material-authority',
+                        (newNode) => {
+                            if (newNode && this.nodeCoreAuthority) {
+                                this.nodeCoreAuthority.registerNodeCore(newNode);
+                            }
+                        },
+                        30
+                    );
+                }
+                
+                // [SESSION 56 FORENSIC FIX] Register observer for link events
+                // DISABLED: correctPostLinkLayering was calling undefined function (import was disabled)
+                // This was mutating renderOrder and aura opacity POST-LINK
+                // Visual authority lock: Base state is immutable, only FX layers are added
+                if (this.linkingSystem && this.linkingSystem.registerObserver) {
+                    this.linkingSystem.registerObserver({
+                        onLinkCreated: (link) => {
+                            try {
+                                // Re-assert core materials after link creation
+                                if (link?.nodes?.[0]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[0]);
+                                if (link?.nodes?.[1]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[1]);
+                                
+                                // DISABLED (Session 56): Defensive layering correction was calling undefined function
+                                // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
+                                // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
+                            } catch (e) {
+                                // Silent failure
+                            }
+                        }
+                    });
+                }
+                
+                // Setup console API for debugging (optional)
+                if (typeof setupNodeCoreAuthorityConsoleAPI === 'function') {
+                    window.debugCoreAuthority = setupNodeCoreAuthorityConsoleAPI(this.nodeCoreAuthority);
+                } else {
+                    console.log('[main.js] CoreAuthority console API not installed (optional)');
+                }
+                
+                console.log('[main.js] NodeCoreMaterialAuthority initialized ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] NodeCoreMaterialAuthority initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26)
+        // Prevents event visual effects from diluting or occluding cores
+        // ====================================================================
+        try {
+            this.eventVisualSuppression = new EventVisualSuppression_v1({
+                debugEnabled: false,
+                enableLogging: false,
+                suppressionStrength: 0.8,    // Aggressive suppression
+                suppressCoreEmissive: false,
+                suppressCoreOpacity: false,
+                suppressCoreOverlays: true,
+                suppressCoreMaterial: false,
+                redirectToAura: true
+            });
+            
+            // Register common event sources for monitoring
+            // These will be used to track which systems are applying effects
+            
+            // Suppress VFX effects for all nodes
+            if (this.aiNodes?.nodes) {
+                this.eventVisualSuppression.suppressVFXEventEffects(this.aiNodes.nodes);
+            }
+            
+            // Register post-spawn observer (single ordered pipeline)
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'event-visual-suppression',
+                    (newNode) => {
+                        if (newNode && this.eventVisualSuppression) {
+                            this.eventVisualSuppression.suppressVFXEventEffects([newNode]);
+                        }
+                    },
+                    45
+                );
+            }
+            
+            // Setup console API for debugging
+            window.debugEventSuppression = setupEventSuppressionConsoleAPI(this.eventVisualSuppression);
+            
+            console.log('[main.js] EventVisualSuppression initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] EventVisualSuppression initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // AURA MODULATION SYSTEM v1.0 (Session 27)
+        // Receives redirected event intensity and applies modulation to auras
+        // ====================================================================
+        try {
+            this.auraModulationSystem = new AuraModulationSystem();
+            setupAuraModulationConsoleAPI(this.auraModulationSystem);
+            
+            // Initialize integration with EventVisualSuppression
+            this.auraModulationIntegration = new AuraModulationIntegration_v1(
+                this.auraModulationSystem,
+                this.eventVisualSuppression,
+                this.scene
+            );
+            this.auraModulationIntegration.initialize();
+            setupAuraModulationIntegrationConsoleAPI(this.auraModulationIntegration);
+            
+            // Setup redirection in EventVisualSuppression
+            setupAuraModulationRedirection(this.auraModulationIntegration);
+            
+            // Hook existing nodes
+            this.auraModulationIntegration.hookExistingNodes();
+            
+            console.log('[main.js] AuraModulationSystem v1.0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] AuraModulationSystem initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // ENHANCED NODE MODEL LINK STATE v1.0 (Session 28) — DISABLED
+        // Reason: Violates visual authority lock. Linking is a relationship,
+        // not a visual mutation. BaseVisualState is immutable authority.
+        // Nodes must look IDENTICAL before and after linking.
+        // Link FX are applied as ADDITIVE layers only (arc, glow, pulse).
+        // ====================================================================
+        // DISABLED: this.enhancedNodeModelLinkState = new EnhancedNodeModelLinkState();
+        // Kept commented for reference but NOT instantiated
+        
+        // ====================================================================
+        // GLOBAL AURA OPACITY CLAMP v1.0 (Session 28)
+        // Clamps all aura opacity to ≤ 0.10 after linking
+        // ====================================================================
+//        try {
+//            this.globalAuraOpacityClamp = new GlobalAuraOpacityClamp();
+//            setupGlobalAuraOpacityClampConsoleAPI(this.globalAuraOpacityClamp);
+//            
+//            // [TASK 1 FIX] Integrate with NodeLinkingSystem for automatic aura clamping on link creation
+//           if (this.linkingSystem) {
+//                integrateGlobalAuraOpacityClamp(this.linkingSystem, this.globalAuraOpacityClamp);
+//                setupGlobalAuraOpacityClampIntegrationConsoleAPI(this.linkingSystem, this.globalAuraOpacityClamp);
+//                console.log('[main.js] ✅ GlobalAuraOpacityClamp integrated with NodeLinkingSystem');
+//            } else {
+//                console.warn('[main.js] ⚠️ linkingSystem not available for GlobalAuraOpacityClamp integration');
+//            }
+//            
+//            console.log('[main.js] GlobalAuraOpacityClamp initialized ✓');
+//        } catch (err) {
+//            console.warn('[main.js] GlobalAuraOpacityClamp initialization failed:', err);
+//        }
+        
+        // ====================================================================
+        // CORE MATERIAL MUTATION DETECTOR v1.0 (Session 28)
+        // Automated detection and repair of core material mutations
+        // ====================================================================
+        try {
+            this.coreMaterialMutationDetector = new CoreMaterialMutationDetector({
+                debugEnabled: false,
+                reportViolations: true,
+                autoRepair: false,
+                maxViolationsToReport: 100,
+            });
+            setupCoreMutationDetectorConsoleAPI(this.coreMaterialMutationDetector);
+            
+            // Initialize test suite
+            this.coreMaterialTestSuite = new CoreMaterialMutationTestSuite(
+                this.coreMaterialMutationDetector,
+                this.scene,
+                {
+                    verbose: true,
+                    stopOnFailure: false,
+                    maxTestDuration: 5000,
+                }
+            );
+            setupCoreMaterialTestSuiteConsoleAPI(this.coreMaterialTestSuite);
+            
+            // Register all node cores with detector
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    // Find core mesh (usually node.mesh itself or first child)
+                    let core = node.mesh || node;
+                    if (core && core.material) {
+                        this.coreMaterialMutationDetector.registerCore(node, core);
+                    }
+                }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-mutation-detector',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialMutationDetector) return;
+                        const core = newNode.mesh || newNode;
+                        if (core && core.material) {
+                            this.coreMaterialMutationDetector.registerCore(newNode, core);
+                        }
+                    },
+                    50
+                );
+            }
+            
+            console.log('[main.js] CoreMaterialMutationDetector initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CoreMaterialMutationDetector initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
+        // Enforces immutability of core material properties at runtime
+        // ====================================================================
+        try {
+            this.coreMaterialPropertyLock = new CoreMaterialPropertyLock({
+                debugEnabled: false,
+                enforceOnFrame: false,
+                violationDetectionEnabled: true,
+            });
+            setupCoreMaterialPropertyLockConsoleAPI(this.coreMaterialPropertyLock);
+            
+            // Initialize tracking map for iteration
+            this.coreMaterialPropertyLock.initializeTrackingMap();
+            
+            // Register all node core materials with the lock
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    // Traverse node to find all core materials
+                    node.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            // Check if this is a core mesh (marked with isNodeCore flag)
+                            if (child.userData?.isNodeCore || 
+                                child.name?.toLowerCase().includes('core') ||
+                                child.userData?.vfxType?.includes('core')) {
+                                
+                                // Register core material for locking
+                                this.coreMaterialPropertyLock.registerCoreMaterial(
+                                    child.material,
+                                    node.userData?.id || 'unknown'
+                                );
+                                
+                                // Add to tracking map for frame enforcement
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'core-material-property-lock',
+                    (newNode) => {
+                        if (!newNode || !this.coreMaterialPropertyLock) return;
+                        newNode.traverse((child) => {
+                            if (!child.isMesh || !child.material) return;
+                            if (
+                                child.userData?.isNodeCore ||
+                                child.name?.toLowerCase().includes('core') ||
+                                child.userData?.vfxType?.includes('core')
+                            ) {
+                                this.coreMaterialPropertyLock.registerCoreMaterial(
+                                    child.material,
+                                    newNode.userData?.id || 'unknown'
+                                );
+                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
+                            }
+                        });
+                    },
+                    55
+                );
+            }
+            
+            console.log('[main.js] CoreMaterialPropertyLock initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CoreMaterialPropertyLock initialization failed:', err);
+        }
+        
+        // Initialize Link Recommendation AI 1.0 (after linking system ready)
+        this.linkRecommendationAI = new LinkRecommendationAI1_0(
+            this.linkingSystem,
+            null, // correlationEngine (optional, attached later if available)
+            null, // priorityHistoryEngine (optional, attached later if available)
+            null  // priorityDecayEngine (optional, attached later if available)
+        );
+        console.log('[main.js] LinkRecommendationAI1_0 initialized ✓');
+        
+        // Initialize Link Automation Engine 1.0 (after recommendation AI ready)
+        this.linkAutomationEngine = new LinkAutomationEngine1_0(
+            this.linkingSystem,
+            this.linkRecommendationAI,
+            {
+                automationThreshold: 0.65,
+                maxLinksPerCycle: 3,
+                requireUserTrigger: true,
+                safetyCooldownMs: 500,
+                enabled: false
+            }
+        );
+        console.log('[main.js] LinkAutomationEngine1_0 initialized ✓');
+        
+        // Initialize Link Quality Predictor 1.0 (link viability evaluation)
+        this.linkQualityPredictor = new LinkQualityPredictor1_0(
+            this.linkingSystem,
+            computeSynergyScore,
+            this.scene
+        );
+        console.log('[main.js] LinkQualityPredictor1_0 initialized ✓');
+        
+        // Integrate quality predictor with recommendation AI
+        // (AI will use predictor to rank candidates)
+        if (this.linkRecommendationAI && this.linkQualityPredictor) {
+            this.linkRecommendationAI.linkQualityPredictor = this.linkQualityPredictor;
+        }
+        
+        // Integrate quality predictor with automation engine
+        // (Automation will filter poor-quality links)
+        if (this.linkAutomationEngine && this.linkQualityPredictor) {
+            this.linkAutomationEngine.linkQualityPredictor = this.linkQualityPredictor;
+            this.linkQualityPredictor.setAutomationThreshold(65); // 65+ quality required
+        }
+        
+        // Initialize Synergy Recommendation Debug HUD 1.0 (real-time monitoring)
+        this.synergyDebugHUD = new SynergyRecommendationDebugHUD(
+            this.linkRecommendationAI,
+            this.linkAutomationEngine
+        );
+        console.log('[main.js] SynergyRecommendationDebugHUD1_0 initialized ✓');
+        
+        // Initialize Auto Link Feedback UI 1.0 (visual feedback for automation)
+        this.autoLinkFeedbackUI = new AutoLinkFeedbackUI1_0(
+            this.scene,
+            this.neonLinkVisuals || null // Will use if available
+        );
+        
+        // Register callback for link creation feedback
+        if (this.linkAutomationEngine && this.autoLinkFeedbackUI) {
+            this.linkAutomationEngine.registerOnAutoLinkCreated((sourceNode, targetNode, synergyScore) => {
+                this.autoLinkFeedbackUI.registerOnAutoLink(sourceNode, targetNode, synergyScore);
+            });
+        }
+        console.log('[main.js] AutoLinkFeedbackUI1_0 initialized ✓');
+        
+        // Connect UISelectedHUD to the new linkingSystem
+        if (this.selectedHUD) {
+            console.log('[main.js] ✓ selectedHUD exists, connecting to linkingSystem');
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD successfully connected to linkingSystem');
+        } else {
+            console.warn('[main.js] ⚠ selectedHUD not initialized! Getting fresh instance');
+            this.selectedHUD = getSelectedHUD();
+            this.selectedHUD.setLinkingSystem(this.linkingSystem);
+            console.log('[main.js] ✓ HUD instance obtained and connected to linkingSystem');
+        }
+
+        // Initialize HUD Synchronization Patch 1.0 (single source of truth for HUD updates)
+        // AFTER selectedHUD.setLinkingSystem() to ensure both parameters are ready
+        this.selectedHUDSyncPatch = new SelectedHUDSyncPatch1_0(
+            this.selectedHUD,
+            this.linkingSystem
+        );
+        this.selectedHUDSyncPatch.init();
+        console.log('[main.js] SelectedHUDSyncPatch1_0 initialized ✓');
+        
+        // ====================================================================
+        // LINK PRIORITY DECAY ENGINE 1.0 INITIALIZATION (Session 27 Extended)
+        // ====================================================================
+        // Initialize 4 upstream dependency systems (in dependency order)
+        
+        // ===================================================================
+        // [SESSION 88] LINK QUALITY CALCULATOR - Per-frame quality metrics
+        // ===================================================================
+        this.linkQualityCalculator = new LinkQualityCalculator(
+            this.linkingSystem,
+            this.nodeDynamics,
+            {
+                // Quality component weighting (sums to 1.0)
+                structuralWeight: 0.30,          // Link geometry & validity
+                harmonyWeight: 0.40,             // Node stability & harmony
+                loadWeight: 0.15,                // Load pressure ratio
+                corruptionWeight: 0.15,          // Corruption influence
+                
+                // Structural quality parameters
+                baseStructuralScore: 80,
+                maxLinkDistance: 50,
+                distancePenaltyRate: 0.5,
+                stalenessThreshold: 5000,
+                
+                // EMA smoothing (optional, disabled by default)
+                enableEmaSmoothing: false,
+                emasAlpha: 0.2
+            }
+        );
+        console.log('[main.js] LinkQualityCalculator initialized ✓');
+        
+        // 1. Link Quality Feedback Loop 1.0 - Link outcome evaluation
+        this.linkQualityFeedbackLoop = new LinkQualityFeedbackLoop1_0(this.linkingSystem);
+        console.log('[main.js] LinkQualityFeedbackLoop1_0 initialized ✓');
+        
+        // ===================================================================
+        // [SESSION 88] LINK DEGRADATION SYSTEM - Quality-based effect scaling
+        // ===================================================================
+        this.linkDegradationSystem = new LinkDegradationSystem(
+            this.linkingSystem,
+            this.linkQualityCalculator,
+            {
+                // Quality thresholds (aligned with LinkQualityCalculator levels)
+                fullQualityThreshold: 80,        // 100% efficient
+                degradedStartThreshold: 55,      // Degradation begins
+                severeThreshold: 30,             // Heavy degradation
+                criticalThreshold: 10,           // Near collapse
+                
+                // Visual effect scaling
+                minVisualIntensity: 0.15,        // Don't go fully invisible
+                minParticleEmission: 0.20,       // Some particles always
+                
+                // Load noise/jitter effects
+                enableLoadNoise: true,
+                maxLoadNoiseIntensity: 0.3,
+                
+                // Metrics contribution scaling
+                enableMetricsScaling: true,
+                minMetricsContribution: 0.1,
+                
+                // Degradation curve shaping
+                enableExponentialFalloff: true,
+                exponentialPower: 1.5
+            }
+        );
+        console.log('[main.js] LinkDegradationSystem initialized ✓');
+        
+        // ===================================================================
+        // [SESSION 89] LINK COLLAPSE SYSTEM - Conditional failure under extreme stress
+        // ===================================================================
+        this.linkCollapseSystem = new LinkCollapseSystem(
+            this.linkingSystem,
+            this.linkQualityCalculator,
+            this.linkDegradationSystem,
+            {
+                // Collapse eligibility thresholds
+                corruptionThreshold: 0.8,           // 80% corruption
+                criticalLoadThreshold: 1.0,         // 100% node capacity
+                
+                // Temporal requirements
+                minStressAccumulation: 3000,        // 3 seconds minimum
+                maxStressWindow: 10000,             // 10 second tracking window
+                
+                // Collapse progression (0.0 - 1.0 scale)
+                warningThreshold: 0.3,              // 30% → warning state
+                criticalThreshold: 0.7,             // 70% → critical state
+                collapseThreshold: 1.0,             // 100% → collapse
+                
+                // Stress dynamics
+                stressAccumulationRate: 0.15,       // +0.15 per second under extreme conditions
+                stressRecoveryRate: 0.05,           // -0.05 per second when improving
+                
+                // Visual feedback integration
+                enableVisualFeedback: true,         // Feed collapse state to visual systems
+            }
+        );
+        console.log('[main.js] LinkCollapseSystem initialized ✓');
+        
+        // ===================================================================
+        // [SESSION 91] PARTICLE EMISSION SCALER - Network corruption/stress driven
+        // ===================================================================
+        this.particleEmissionScaler = new ParticleEmissionScaler(
+            this.nodeDynamicMetrics,
+            this.linkingSystem,
+            {
+                // Network-level scaling sources
+                useNetworkCorruption: true,
+                useNetworkStress: true,
+                useNetworkLoad: true,
+                
+                // Corruption scaling
+                corruptionCurve: 'exponential',      // Accelerates as corruption increases
+                corruptionMultiplier: 2.0,           // Up to 2x more particles at max corruption
+                corruptionThreshold: 0.3,            // Start scaling at 30% corruption
+                
+                // Stress scaling
+                stressCurve: 'exponential',
+                stressMultiplier: 1.5,               // Up to 1.5x more at max stress
+                stressThreshold: 0.4,                // Start at 40% network stress
+                
+                // Load scaling
+                loadMultiplier: 1.2,                 // Up to 1.2x at max load
+                loadThreshold: 0.7,                  // Start at 70% load
+                
+                // Per-link scaling
+                perLinkCorruptionMultiplier: 1.5,    // Links scale by own corruption
+                perLinkDegradationMultiplier: 1.3,   // Links scale by quality degradation
+                
+                // Temporal smoothing (EMA)
+                emissionEMAAlpha: 0.15,              // Smooth transitions
+                
+                // Debug
+                enabled: true,
+                debugMode: false,
+            }
+        );
+        console.log('[main.js] ParticleEmissionScaler initialized ✓');
+
+        // Canonical semantic link metrics bridge (0-1 normalized)
+        this.linkSemanticMetricsBridge = null;
+        try {
+            if (this.linkingSystem) {
+                this.linkSemanticMetricsBridge = new LinkSemanticMetricsBridge_v1(this.linkingSystem);
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkSemanticMetricsBridge_v1 init failed:', err?.message || err);
+            this.linkSemanticMetricsBridge = null;
+        }
+        this.linkMetricsSanityGuard = null;
+        try {
+            if (this.linkingSystem) {
+                this.linkMetricsSanityGuard = new LinkMetricsSanityGuard_v1(this.linkingSystem);
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkMetricsSanityGuard_v1 init failed:', err?.message || err);
+            this.linkMetricsSanityGuard = null;
+        }
+        this.semanticActivityFilter = null;
+        try {
+            if (this.linkingSystem) {
+                this.semanticActivityFilter = new SemanticActivityFilter_v1(this.linkingSystem);
+                this.semanticActivityFilter.update();
+            }
+        } catch (err) {
+            console.warn('[main.js] SemanticActivityFilter_v1 init failed:', err?.message || err);
+            this.semanticActivityFilter = null;
+        }
+        if (typeof window !== 'undefined') {
+            window.semanticActivityFilter = this.semanticActivityFilter;
+        }
+        
+        // ===================================================================
+        // [SESSION 105] LINK METRICS TO VISUAL BRIDGE - Real-time metrics-to-visuals
+        // ===================================================================
+        // Aggregates metrics from LinkDegradationSystem, LinkCollapseSystem, and
+        // CorruptionSystem into unified shader uniforms that drive link fracture visualization
+        try {
+            // Defer initialization until systems are stable
+            this.linkMetricsToVisualBridge = null;
+            
+            // Initialize after animate loop starts (when all systems are ready)
+            setTimeout(() => {
+                if (!this.linkMetricsToVisualBridge && this.linkDegradationSystem && this.linkCollapseSystem) {
+                    try {
+                        this.linkMetricsToVisualBridge = new LinkMetricsToVisualBridge(
+                            this.linkDegradationSystem,
+                            this.linkCollapseSystem,
+                            null,  // CorruptionSystem not directly available; can be wired later
+                            this.linkingSystem?.visuals  // NeonLinkVisuals instance
+                        );
+                        // Setup console debug API for metrics bridge
+                        setupLinkMetricsBridgeConsoleAPI(this.linkMetricsToVisualBridge);
+                        console.log('[main.js] LinkMetricsToVisualBridge deferred initialization ✓');
+                    } catch (err) {
+                        console.error('[main.js] LinkMetricsToVisualBridge init error:', err);
+                    }
+                }
+            }, 100);
+        } catch (err) {
+            console.warn('[main.js] LinkMetricsToVisualBridge initialization deferred:', err.message);
+            this.linkMetricsToVisualBridge = null;
+        }
+        
+        // ===================================================================
+        // [SESSION 106+] STRESS-BASED PARTICLE SCALER - Particle scaling from link stress
+        // ===================================================================
+        // Scales link particle emission rates based on per-link stress values
+        // Higher stress = more/faster particles with color-coded feedback
+        this.stressBasedParticleScaler = null;
+        
+        setTimeout(() => {
+            if (!this.stressBasedParticleScaler && this.linkMetricsToVisualBridge && this.linkingSystem) {
+                try {
+                    this.stressBasedParticleScaler = new StressBasedParticleScaler_v1(
+                        this.linkMetricsToVisualBridge,
+                        this.linkingSystem,
+                        {
+                            // Particle emission scaling
+                            minParticleMultiplier: 0.5,        // Reduce to 0.5x at 0% stress
+                            maxParticleMultiplier: 3.0,        // Increase to 3.0x at 100% stress
+                            particleScalingCurve: 'quadratic', // 'linear', 'quadratic', 'exponential'
+                            
+                            // Particle speed scaling
+                            minParticleSpeed: 1.0,             // Min speed multiplier
+                            maxParticleSpeed: 2.5,             // Max speed multiplier
+                            
+                            // Color coding by stress
+                            enableStressColors: true,
+                            
+                            // Smoothing for temporal coherence
+                            enableSmoothing: true,
+                            smoothingAlpha: 0.2,
+                            
+                            // Performance
+                            enableCache: true,
+                            enableLogging: false,
+                            enabled: true,
+                        }
+                    );
+                    
+                    // Setup console debug API
+                    setupStressParticleScalerConsoleAPI(this.stressBasedParticleScaler);
+                    console.log('[main.js] StressBasedParticleScaler deferred initialization ✓');
+                } catch (err) {
+                    console.error('[main.js] StressBasedParticleScaler init error:', err);
+                }
+            }
+        }, 150);  // Wait 150ms to ensure LinkMetricsToVisualBridge is ready first
+        
+        // 2. User Acceptance Tracker 1.0 - Player interaction metrics
+        this.userAcceptanceTracker = new UserAcceptanceTracker1_0();
+        console.log('[main.js] UserAcceptanceTracker1_0 initialized ✓');
+        
+        // 3. Link ML Recommendation Engine 1.0 - ML-based learning (depends on feedback loop)
+        this.linkMLRecommendationEngine = LinkMLRecommendationEngine1_0;
+        if (this.linkMLRecommendationEngine?.setFeedbackLoop && this.linkQualityFeedbackLoop) {
+            this.linkMLRecommendationEngine.setFeedbackLoop(this.linkQualityFeedbackLoop);
+        }
+        if (this.linkMLRecommendationEngine?.setUserAcceptanceTracker && this.userAcceptanceTracker) {
+            this.linkMLRecommendationEngine.setUserAcceptanceTracker(this.userAcceptanceTracker);
+        }
+        console.log('[main.js] LinkMLRecommendationEngine1_0 initialized ✓');
+        
+        // 4. Node Linker Repair Layer 1.0 - Self-healing validation (depends on quality feedback)
+        this.nodeLinkerRepairLayer = new NodeLinker2_RepairLayer1_0(this.linkingSystem, this.aiNodes);
+        if (this.nodeLinkerRepairLayer?.init) {
+            this.nodeLinkerRepairLayer.init();
+        }
+        console.log('[main.js] NodeLinker2_RepairLayer1_0 initialized ✓');
+        
+        // ====================================================================
+        // TIER 1 INTEGRATION: Core Active Systems (Phase A)
+        // Corruption Transmission + Harmony Stabilization
+        // ====================================================================
+        
+        // Initialize Link Corruption Transmission v1.0
+        try {
+            this.linkCorruptionTransmission = new LinkCorruptionTransmission_v1(
+                this.aiNodes,           // AI nodes system
+                this.linkingSystem       // Link system
+            );
+            console.log('[main.js] LinkCorruptionTransmission_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkCorruptionTransmission_v1 initialization failed:', err);
+        }
+        
+        // Initialize Harmony Stabilization System v1.0
+        try {
+            this.harmonyStabilizationSystem = new HarmonyStabilizationSystem_v1(
+                this.aiNodes,                               // AI nodes system
+                this.linkingSystem,                         // Link system
+                false,                                      // Debug mode off
+                this.linkCorruptionTransmission             // LinkCorruptionTransmission for category multipliers
+            );
+            console.log('[main.js] HarmonyStabilizationSystem_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] HarmonyStabilizationSystem_v1 initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // T4-003: CORRUPTION CASCADE TEST RUNNER (Debug Console)
+        // Setup console commands for cascade validation
+        // ====================================================================
+        try {
+            setupCorruptionCascadeTestRunner(this);
+            console.log('[main.js] T4-003 Corruption Cascade Test Runner initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] T4-003 Test Runner initialization error:', err);
+        }
+
+        // ====================================================================
+        // T4-004: HARMONY HEALING TEST RUNNER (Debug Console)
+        // Setup console commands for harmony validation
+        // ====================================================================
+        try {
+            setupHarmonyHealingTestRunner(this);
+            console.log('[main.js] T4-004 Harmony Healing Test Runner initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] T4-004 Test Runner initialization error:', err);
+        }
+        
+        // ====================================================================
+        // TIER 2 VISUAL INTEGRATION: Visual System Wiring (T2-002 & T2-003)
+        // ====================================================================
+        
+        // T2-002: Initialize Corruption Visual Integration
+        try {
+            this.t2CorruptionVisualIntegration = new T2_CorruptionVisualIntegration_v1(
+                this.scene,
+                this.linkingSystem,
+                null  // CorruptionVisualFX reference (optional)
+            );
+            console.log('[main.js] T2_CorruptionVisualIntegration_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] T2_CorruptionVisualIntegration_v1 initialization failed:', err);
+        }
+        
+        // T2-003: DISABLED - Harmony Visual Consumer creates primitive sphere auras
+        // Violates ATOMA visual policy (no SphereGeometry allowed)
+        console.log('[ATOMA] HarmonyVisualConsumer DISABLED (primitive sphere source removed)');
+        // try {
+        //     this.t2HarmonyVisualConsumer = new T2_HarmonyVisualConsumer_v1(
+        //         this.scene,
+        //         this.harmonyStabilizationSystem
+        //     );
+        //     console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
+        // } catch (err) {
+        //     console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
+        // }
+        
+        // ====================================================================
+        // TIER 4 GAMEPLAY INTEGRATION: Gameplay Layer
+        // Connect player actions to TIER 1-3 systems
+        // ====================================================================
+        try {
+            this.tier4GameplayIntegration = new TIER4_GameplayIntegrationBridge({
+                enableDebug: false,
+                enableVisualFeedback: true,
+                enableUIFeedback: true,
+                enableGameplayLogic: true,
+                linkCreationCorruptionSeed: 0.1,
+                linkCreationHarmonyBoost: 0.3,
+                linkDestructionHarmonyBoost: 0.2,
+                cascadeMitigationStrength: 0.15,
+                showCorruptionSeedPulse: true,
+                showCascadeWarning: true,
+                showHarmonyPulse: true,
+                uiPosition: 'top-right',
+                uiTheme: 'neon'
+            });
+            
+            // Initialize with all required systems
+            this.tier4GameplayIntegration.initialize(
+                this.linkingSystem,
+                this.aiNodes,
+                this.scene,
+                this.linkCorruptionTransmission,
+                this.harmonyStabilizationSystem
+            );
+            
+            console.log('[main.js] TIER4_GameplayIntegrationBridge initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] TIER4_GameplayIntegrationBridge initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // PHASE 5: MULTI-NETWORK SYNCHRONIZATION INITIALIZATION
+        // ====================================================================
+        try {
+            this.phase5MultiNetworkOrchestrator = new PHASE5_MultiNetworkOrchestrator({
+                enableDebug: false,
+                enableLogging: false,
+                maxNetworks: 10,
+                syncInterval: 100,
+                enableCorruptionSpread: true,
+                enableSynchronization: true,
+                enableEventPropagation: true
+            });
+            
+            // Initialize orchestrator
+            this.phase5MultiNetworkOrchestrator.initialize();
+            
+            // Register primary network (current network as Network 0)
+            // This allows future multi-network scenarios
+            this.phase5MultiNetworkOrchestrator.registerNetwork(
+                'primary',
+                {
+                    aiNodes: this.aiNodes,
+                    linkingSystem: this.linkingSystem,
+                    linkCorruptionTransmission: this.linkCorruptionTransmission,
+                    harmonyStabilizationSystem: this.harmonyStabilizationSystem
+                },
+                {
+                    name: 'Primary Network',
+                    position: { x: 0, y: 0, z: 0 }
+                }
+            );
+            
+            console.log('[main.js] PHASE5_MultiNetworkOrchestrator initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] PHASE5_MultiNetworkOrchestrator initialization failed:', err);
+        }
+        
+        // ====================================================================
+        // PHASE 5: INTER-NETWORK CONNECTION VISUALS (Disabled)
+        // ====================================================================
+        // Hard off: skip initialization of visuals and bridge
+        // this.phase5InterNetworkConnectionVisuals = null;
+        // this.phase5InterNetworkVisualizationBridge = null;
+        
+        // ====================================================================
+        // PHASE 5: CASCADE PROPAGATION VISUAL EFFECTS
+        // ====================================================================
+        // Initialize cascade propagation visual effects (expanding rings)
+        if (VISUAL_SYSTEMS_ENABLED) {
+            try {
+                this.phase5CascadePropagationVisuals = new PHASE5_CascadePropagationVisuals(
+                    this.scene,
+                    {
+                        enableDebug: false,
+                        enableLogging: false,
+                        ringRadius: 1.5,
+                        expandSpeed: 8.0,
+                        fadeDuration: 0.8,
+                        maxRingSize: 15.0,
+                        corruptionCascadeColor: 0xff3333,  // Red
+                        harmonyCascadeColor: 0x00ffff,     // Cyan
+                        threatCascadeColor: 0xff6600,      // Orange
+                        maxActiveRings: 50,
+                        depthDecayFactor: 0.7
+                    }
+                );
+                console.log('[main.js] PHASE5_CascadePropagationVisuals initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] PHASE5_CascadePropagationVisuals initialization failed:', err);
+            }
+        } else {
+            this.phase5CascadePropagationVisuals = null;
+        }
+        
+        // Initialize cascade visualization bridge
+        if (VISUAL_SYSTEMS_ENABLED) {
+            try {
+                this.phase5CascadeVisualizationBridge = new PHASE5_CascadeVisualizationBridge(
+                    this.aiNodes,
+                    this.linkCorruptionTransmission,
+                    this.phase5CascadePropagationVisuals,
+                    {
+                        enableDebug: false,
+                        enableLogging: false,
+                        corruptionCascadeThreshold: 0.7,
+                        threatCascadeThreshold: 0.5,
+                        harmonyCascadeThreshold: 0.8,
+                        maxEventHistory: 100
+                    }
+                );
+                console.log('[main.js] PHASE5_CascadeVisualizationBridge initialized ✓');
+            } catch (err) {
+                console.warn('[main.js] PHASE5_CascadeVisualizationBridge initialization failed:', err);
+            }
+        } else {
+            this.phase5CascadeVisualizationBridge = null;
+        }
+
+        // ====================================================================
+        // NODE HIERARCHY SYSTEM v1.0 — Parent-Child Node Relationships
+        // Enables organizational hierarchies, property cascading, visualization
+        // ====================================================================
+        try {
+            this.nodeHierarchyBridge = new NodeHierarchyBridge(
+                this.scene,
+                this.camera,
+                this.aiNodes,
+                this.linkingSystem
+            );
+            
+            // Initialize after all nodes/links are ready
+            this.nodeHierarchyBridge.init();
+            
+            // Expose console API for debugging
+            window.hierarchyDebug = this.nodeHierarchyBridge.getConsoleAPI();
+            
+            console.log('[main.js] NodeHierarchyBridge v1.0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NodeHierarchyBridge initialization failed:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C PERSONALITY VISUAL ADAPTER (Week 1 - Visual Personality)
+        // ====================================================================
+        // Initialize PersonalityVisualAdapter (computes visual personality signals)
+        // This is a safe, additive layer that reads Phase 3 metrics and writes
+        // visual personality signals to node.userData.personalityVisual
+        this.personalityVisualAdapter = new PersonalityVisualAdapter(
+            this.aiNodes,
+            this.linkingSystem,
+            {
+                enableDebug: false,
+                enableWarnings: false
+            }
+        );
+        console.log('[main.js] PersonalityVisualAdapter initialized ✓');
+
+        // ====================================================================
+        // PHASE 3C PERSONALITY VFX LAYER (Week 2 - Visual Effects Application)
+        // ====================================================================
+        // Initialize PersonalityVFXLayer_v1 (applies VFX effects to nodes)
+        // This layer reads personality visual signals and applies frame-local
+        // transformations: emissive intensity, pulse, jitter, rotation, color tint
+        this.personalityVFXLayer = new PersonalityVFXLayer_v1(
+            this.aiNodes,
+            {
+                enableDebug: false,
+                enableWarnings: false
+            }
+        );
+        console.log('[main.js] PersonalityVFXLayer_v1 initialized ✓');
+
+        // ====================================================================
+        // PHASE 3C PERSONALITY SHADER BRIDGE (Week 3 - GPU Shader Integration)
+        // ====================================================================
+        // Initialize PersonalityShaderBridge_v1 (binds signals to GPU uniforms)
+        // This layer safely injects personality uniforms into shaders
+        // without modifying existing shader logic
+        try {
+            this.personalityShaderBridge = new PersonalityShaderBridge_v1(
+                this.scene,
+                this.aiNodes,
+                {
+                    enableDebug: false,
+                    enableWarnings: false
+                }
+            );
+            console.log('[main.js] PersonalityShaderBridge_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize PersonalityShaderBridge_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C PERSONALITY SHADER EFFECTS PACK (Week 4 - Visual Polish)
+        // ====================================================================
+        // Initialize PersonalityShaderEffects_Pack_v1 (advanced shader effects)
+        // This layer applies gameplay-readable effects (bloom, corruption, waves, etc)
+        // using the existing uniforms from PersonalityShaderBridge_v1
+        try {
+            this.personalityShaderEffects = new PersonalityShaderEffects_Pack_v1({
+                enableDebug: false,
+                enableWarnings: false
+            });
+            console.log('[main.js] PersonalityShaderEffects_Pack_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize PersonalityShaderEffects_Pack_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C PERSONALITY SHADER ADVANCED FX (Week 5 - Procedural Distortion)
+        // ====================================================================
+        // Initialize PersonalityShaderAdvancedFX_v1 (GPU-side procedural noise effects)
+        // This layer applies advanced vertex/fragment distortion using procedural noise
+        // driven by personality signals from PersonalityShaderBridge_v1
+        try {
+            this.advancedShaderFX = new PersonalityShaderAdvancedFX_v1({
+                scene: this.scene,
+                lowFXProvider: () => this.lowFXModeEnabled ?? false,
+            });
+            console.log('[main.js] AdvancedFX initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] AdvancedFX init error:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C ARCHETYPE ASCENSION CURVES (Week 13 - Personality-Driven Curves)
+        // ====================================================================
+        // Initialize ArchetypeAscensionCurves_v1 (personality-driven ascension profiling)
+        // This layer reads from MythicEvolutionFX and writes ascension multipliers
+        // for Week 14/15 systems to apply
+        try {
+            this.archetypeCurves = new ArchetypeAscensionCurves_v1({
+                aiNodes: this.aiNodes,
+                mythicEvolutionFX: this.mythicEvolutionFX,
+                nodeDynamicMetrics: this.nodeDynamicMetrics,
+                nodeQualityCalculator: this.nodeQualityCalculator,
+                visualMetricModel: this.visualMetricModel,
+            });
+            console.log('[main.js] ArchetypeAscensionCurves_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize ArchetypeAscensionCurves_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C ARCHETYPE AURA ENHANCEMENT (Week 14 - GPU Enhancement Multiplier)
+        // ====================================================================
+        // Initialize ArchetypeAuraEnhancement_v1 (applies multiplier to node/link auras)
+        // This layer depends on Week 13 curves and enhances Week 9/10 aura systems
+        try {
+            this.archetypeAuraFX = new ArchetypeAuraEnhancement_v1({
+                aiNodes: this.aiNodes,
+                archetypeCurves: this.archetypeCurves,
+                nodeAuraSystem: this.nodeAuraSystem || null,  // If available (Week 9)
+                linkAuraSystem: this.linkAuraSystem || null,  // If available (Week 10)
+            });
+            console.log('[main.js] ArchetypeAuraEnhancement_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize ArchetypeAuraEnhancement_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C ARCHETYPE COLOR PALETTE SYSTEM (Week 15 - Signal-Driven Colors)
+        // ====================================================================
+        // Initialize ArchetypeColorPaletteSystem_v1 (applies personality-driven colors)
+        // This layer depends on Weeks 13 & 14 and integrates with Week 14 aura system
+        try {
+            this.archetypeColorFX = new ArchetypeColorPaletteSystem_v1({
+                aiNodes: this.aiNodes,
+                archetypeCurves: this.archetypeCurves,
+                archetypeAuraFX: this.archetypeAuraFX,
+                scene: this.scene,
+            });
+            console.log('[main.js] ArchetypeColorPaletteSystem_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize ArchetypeColorPaletteSystem_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C ARCHETYPE SHADER MODES (Week 16 - GPU Shader Mode Orchestration)
+        // ====================================================================
+        // Initialize ArchetypeShaderModes_v1 (GPU shader mode controller)
+        // This layer depends on Week 15 color palette and orchestrates shader modes
+        // across all GPU-rendered nodes and effects
+        try {
+            this.archetypeShaderModes = new ArchetypeShaderModes_v1({ scene: this.scene, camera: this.camera, renderer: this.renderer });
+            console.log('[main.js] ArchetypeShaderModes_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] ArchetypeShaderModes_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 17: ARCHETYPE NEURAL LINK VISUALIZATION (GPU Link Resonance)
+        // ====================================================================
+        // Initialize ArchetypeNeuralLinkVis_v1 (neural link visualization)
+        // This layer visualizes archetype-based neural link resonance
+        // Renders dynamic beams based on compatibility/resonance/entropy/ascension
+        try {
+            this.neuralLinkVis = new ArchetypeNeuralLinkVis_v1({
+                scene: this.scene,
+                debugEnabled: false
+            });
+            console.log('[main.js] ArchetypeNeuralLinkVis_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] ArchetypeNeuralLinkVis_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 18: NODE SELECTION SHADER ACTIVATION (Selection-Driven Boost)
+        // ====================================================================
+        // Initialize NodeShaderActivation_v1 (selection-hooked shader intensity boost)
+        // This layer listens to node selection events and amplifies the selected node's
+        // archetype shader mode with intensity × 1.35 and distortion × 1.25
+        try {
+            this.nodeShaderActivation = new NodeShaderActivation_v1({
+                selectionCore: this.selectionCore,
+                archetypeShaderModes: this.archetypeShaderModes,
+                debugEnabled: false
+            });
+            this.nodeShaderActivation.init();
+            console.log('[main.js] NodeShaderActivation_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NodeShaderActivation_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 18 (ALT): LINK PERSONALITY STATE MACHINE (Dynamic Link Personalities)
+        // ====================================================================
+        // Initialize LinkPersonalityStateMachine_v1 (compute link personality states)
+        // This system evaluates 1000+ links in <1.5ms with EMA smoothing
+        // Outputs: link.userData.personalityState (state ID, name, stability, turbulence, ascension)
+        // Reads from: visualGlow, personalityVisual, archetypeEvolution (no modifications)
+        try {
+            this.linkPersonalityStateMachine = new LinkPersonalityStateMachine_v1({
+                debugEnabled: false
+            });
+            console.log('[main.js] LinkPersonalityStateMachine_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkPersonalityStateMachine_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 19: SYNERGY BONUS VISUALIZATION (High-Synergy Link Effects)
+        // ====================================================================
+        // Initialize SynergyBonusVisualization_v1 (compute synergy bonuses for links)
+        // This system highlights high-synergy links with dynamic visual effects
+        // Evaluates 1500+ links in <1ms with multi-tier EMA smoothing
+        // Outputs: link.userData.synergyBonus (tier, pulseStrength, chromaShift, resonanceRipples)
+        // Reads from: visualGlow (synergy score)
+        try {
+            this.synergyBonusVisualization = new SynergyBonusVisualization_v1({
+                debugEnabled: false
+            });
+            console.log('[main.js] SynergyBonusVisualization_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyBonusVisualization_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 19 (ALT): SYNERGY BONUS FX LAYER (GPU-Based Synergy Flares)
+        // ====================================================================
+        // Initialize SynergyBonusFXLayer_v1 (GPU shader effects on synergy links)
+        // This system reads synergy bonus data and applies shader-based visual flares
+        // Emissive boosting (10–90%), multi-frequency pulsing (0.5–3 Hz), chroma flares
+        // Evaluates 1500+ links in <1ms with per-material shader patches
+        // Reads from: link.userData.synergyBonus (computed by SynergyBonusVisualization_v1)
+        try {
+            this.synergyBonusFXLayer = new SynergyBonusFXLayer_v1({
+                maxLinksPerFrame: null,  // No frame limit
+                globalIntensity: 1.0,
+                enableRipples: true,
+                enableChroma: true,
+                debugEnabled: false
+            });
+            console.log('[main.js] SynergyBonusFXLayer_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyBonusFXLayer_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 20: SYNERGY RESONANCE SHADER PACK (Multi-Frequency Resonance FX)
+        // ====================================================================
+        // Initialize SynergyResonanceShaderPack_v1 (advanced resonance effects)
+        // This system provides multi-frequency pulse, chromatic ripples, and flow mapping
+        // Works alongside Week 19 FXLayer for layered, expressive synergy visuals
+        // Per-material shader patching with dynamic uniform updates
+        // Reads from: link.userData.synergyBonus (populated by SynergyBonusVisualization_v1)
+        try {
+            this.synergyResonanceShaderPack = new SynergyResonanceShaderPack_v1({
+                debugEnabled: false,
+                globalMultiFreqStrength: 1.0,    // Multi-frequency pulse intensity
+                globalChromaticStrength: 1.0,    // Chromatic aberration intensity
+                globalFlowSpeed: 1.0             // Coherence flow animation speed
+            });
+            console.log('[main.js] SynergyResonanceShaderPack_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyResonanceShaderPack_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 21: AI NETWORK RESONANCE FEEDBACK (Network-Level Feedback)
+        // ====================================================================
+        // Initialize ResonanceFeedback_v1 (AI network resonance feedback system)
+        // This system samples synergy, personality, and shader data across the network
+        // Computes local resonance for nodes & links, aggregates into global "network mood"
+        // Influences node behavior, link behavior, and overall network state
+        // Reads from: node/link userData (all previous Week systems)
+        try {
+            this.resonanceFeedback = new ResonanceFeedback_v1({
+                debugEnabled: false,
+                maxNodesPerFrame: null,     // No frame limit
+                maxLinksPerFrame: null      // No frame limit
+            });
+            console.log('[main.js] ResonanceFeedback_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] ResonanceFeedback_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 22: SYNERGY CHAIN REACTIONS (Emergent Cascade Events)
+        // ====================================================================
+        // Initialize SynergyChainReaction_v1 (cascade event propagation system)
+        // This system monitors synergy thresholds and propagates chain reactions
+        // Events cascade through linked nodes with resonance/personality filtering
+        // Generates LinkEvents (for shader effects) and NodeEvents (for AI behavior)
+        // Reads from: node/link userData (synergy, resonance, personality)
+        // Outputs: chainReaction.getActiveReactions() for shader/AI integration
+        try {
+            this.synergyChainReaction = new SynergyChainReaction_v1({
+                enabled: false,              // default OFF (SRP-1)
+                emitEvents: false,           // only emit when explicitly enabled
+                debugEnabled: false,
+                primaryThreshold: 0.75,     // Node synergy to trigger cascade
+                synergyThreshold: 0.75,     // legacy naming (ignored by v1 but kept for parity)
+                resonanceSimilarityThreshold: 0.6,  // Resonance compatibility
+                personalityCompatibilityThreshold: 0.5,  // Personality filter
+                synergyMinimum: 0.3,        // Min synergy for propagation
+                minimumIntensity: 0.1,      // Stop cascade below this
+                maxHops: 8,                 // Max chain depth
+                maxReactionsPerFrame: null, // No frame limit
+                maxNodesPerFrame: 30,
+                maxLinksPerFrame: 50,
+                intensityDecayPerHop: 0.82
+            });
+            console.log('[main.js] SynergyChainReaction_v1 initialized ✓');
+            window.enableSynergyChainReaction = (flag = false) => {
+                if (!this.synergyChainReaction) {
+                    console.warn('[SynergyChainReaction_v1] instance not ready');
+                    return false;
+                }
+                const enable = Boolean(flag);
+                this.synergyChainReaction.enabled = enable;
+                this.synergyChainReaction.emitEvents = enable;
+                if (enable) {
+                    console.log('[SynergyChainReaction_v1] ENABLED (<=30Hz, caps: 30 nodes / 50 links)');
+                }
+                return enable;
+            };
+        } catch (err) {
+            console.warn('[main.js] SynergyChainReaction_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
+        // ====================================================================
+        // Initialize SynergyCascadeFXBridge_v1 (cascade event → shader signals)
+        // This system converts chain reaction events into GPU-friendly shader signals
+        // Connects cascade propagation to visual effects (pulses, waves, glows, distortions)
+        // Sends signals to: resonance shaders, bonus FX, auras, archetype systems
+        // Reads from: SynergyChainReaction_v1.getActiveReactions()
+        // Outputs: GPU cascade visual reactions (radial pulse, line waves, flashes, spikes)
+        try {
+            this.synergyCascadeFXBridge = new SynergyCascadeFXBridge_v1({
+                debugEnabled: false,
+                enableNodeGlow: true,           // Node aura cascade glow
+                enableLinkWaves: true,          // Link traveling waves
+                enableResonanceMode: true,      // Multi-freq resonance effects
+                enableArchetypeBoost: true,     // Archetype-specific cascade boost
+                maxNodesPerFrame: null,         // No frame limit
+                maxLinksPerFrame: null          // No frame limit
+            });
+            
+            // Register event source
+            this.synergyCascadeFXBridge.registerEventSource(this.synergyChainReaction);
+            
+            // Register target shader systems (will be available after initialization)
+            // These are registered in a second pass after all systems are initialized
+            
+            console.log('[main.js] SynergyCascadeFXBridge_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyCascadeFXBridge_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 27: WAVE PARTICLE EMITTER (GPU-Reactive Particle FX)
+        // ====================================================================
+        // Emits 3 particle families based on real-time wave interference:
+        // - Constructive Burst Particles (cyan-white synergy sparks)
+        // - Destructive Chaos Sparks (orange-red chaotic explosions)
+        // - Standing Wave Ripple Rings (circular harmonic expansion)
+        // Reads from: WaveInterferenceEngine burst snapshot sampler
+        // Performance: <2ms per frame for 200-400 nodes with ~2000 active particles
+        try {
+            this.particleEmitter = new WaveParticleEmitter_v1({
+                maxParticlesPerFamily: 2000,
+                emissionRate: 1.0,
+                constructiveThreshold: 0.7,
+                destructiveThreshold: 0.7,
+                standingWaveThreshold: 0.65,
+                amplitudeSpikeThreshold: 0.12,
+                amplitudeEMAAlpha: 0.15,
+                debugMode: false
+            });
+            this.particleEmitter?.init?.(this.renderer, this.scene);
+            console.log('[main.js] WaveParticleEmitter_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
+        }
+
+        // ====================================================================
+        // PARTICLE STREAM CASCADE ACCELERATION (Layer-Depth Based Particle Dynamics)
+        // ====================================================================
+        // Accelerates particle streams based on cascade layer depth:
+        // - Layer 0 (hubs): Slow, steady acceleration (strong harmonic control)
+        // - Layer 1-2: Medium acceleration (cascade propagating)
+        // - Layer 3-4: Faster acceleration (cascade attenuating, particles escape)
+        // - Layer 5+: Maximum acceleration (far field, weak constraint)
+        // 
+        // Integrates: CascadingHarmonicResonance → ParticleStreamCascadeAcceleration → WaveParticleEmitter
+        // Performance: <1ms per frame, zero impact for non-cascaded nodes
+        try {
+            this.cascadeAccelSetup = new ParticleStreamCascadeAccelerationIntegrationSetup(
+                this.nodeDynamicMetrics,
+                this.linkingSystem,
+                this.particleEmitter,
+                {
+                    enableCascadingResonance: true,
+                    enableCascadeAcceleration: true,
+                    enableIntegrationPatch: true,
+                    setupConsoleAPIs: true,
+                    consoleAPIPrefix: 'cascadeParticle',
+                    debugMode: false
+                }
+            );
+            
+            // Defer initialization until after all systems are ready
+            // (nodeDynamicMetrics and linkingSystem must be fully initialized)
+            setTimeout(() => {
+                this.cascadeAccelSetup.initialize(this.scene, this);
+                console.log('[main.js] ParticleStreamCascadeAcceleration initialized ✓');
+            }, 500);
+        } catch (err) {
+            console.warn('[main.js] ParticleStreamCascadeAcceleration initialization failed:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C PERFORMANCE MODE (Centralized FX Scaling)
+        // ====================================================================
+        // Initialize FXPerformanceController_v1 + FXPerformanceScaler_v1
+        // This layer provides global scaling of all Phase 3c visual effects
+        // Toggle with F7 key (see keyboard event listener below)
+        try {
+            this.fxPerformance = new FXPerformanceController_v1({
+                enableDebug: false,
+                enableWarnings: false
+            });
+            this.fxPerformanceScaler = new FXPerformanceScaler_v1(
+                this.aiNodes,
+                this.fxPerformance,
+                { enableDebug: false }
+            );
+            console.log('[main.js] FXPerformanceController_v1 + Scaler initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize FXPerformanceController_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C ADAPTIVE PERFORMANCE MONITOR (Automatic FPS-based scaling)
+        // ====================================================================
+        // Initialize AdaptivePerformanceMonitor_v1
+        // This layer automatically toggles LowFX based on frame rate
+        // User F7 toggle locks system to manual mode (notifyManualToggle)
+        // Resets to AUTO mode on map transitions (resetToAuto)
+        // Includes callback for smooth transitions (Week 4.5)
+        try {
+            this.adaptivePerformanceMonitor = new AdaptivePerformanceMonitor_v1(
+                this.fxPerformance,
+                {
+                    targetFPS: 60,
+                    hysteresisFPS: 5,
+                    lowFXDelaySec: 3.0,
+                    highFXDelaySec: 5.0,
+                    emaAlpha: 0.1,
+                    // Callback for smooth transitions (Week 4.5)
+                    transitionCallback: (toLowFX) => {
+                        if (this.fxPerformanceTransition?.startTransition) {
+                            this.fxPerformanceTransition.startTransition(toLowFX);
+                        }
+                    }
+                }
+            );
+            console.log('[main.js] AdaptivePerformanceMonitor_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize AdaptivePerformanceMonitor_v1:', err);
+        }
+
+        // ====================================================================
+        // PHASE 3C SMOOTH TRANSITION LAYER (Week 4.5 - Visual Polish)
+        // ====================================================================
+        // Initialize FXPerformanceSmoothTransition_v1
+        // This layer smoothly interpolates multipliers during LowFX toggles
+        // Creates polished fade-in/fade-out effects instead of instant jumps
+        // Integrates with both manual F7 and adaptive auto-toggle
+        try {
+            this.fxPerformanceTransition = new FXPerformanceSmoothTransition_v1(
+                this.fxPerformance,
+                {
+                    duration: 0.6,  // 0.6 second smooth transition
+                    enableDebug: false
+                }
+            );
+            console.log('[main.js] FXPerformanceSmoothTransition_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize FXPerformanceSmoothTransition_v1:', err);
+        }
+
+        // Initialize or update Node Inspect Overlay (with Linguistic Overlay)
+        if (!this.nodeInspectOverlay) {
+            this.nodeInspectOverlay = new NodeInspectOverlay1_0(
+                this.scene,
+                this.camera,
+                this.renderer,
+                this.linguisticOverlay // Pass linguistic overlay for integration
+            );
+        }
+
+        // ====================================================================
+        // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
+        // ====================================================================
+try {
+this.metricsRuntime_v1 = new MetricsRuntime_v1({
+  nodes: this.aiNodes,
+  links: this.links, // fallback / legacy
+  linkSystem: this.linkingSystem, // 🔥 KANONICKÝ
+  metricsSystems: {
+    nodeDynamicMetrics: this.nodeDynamicMetrics,
+    linkQualityCalculator: this.linkQualityCalculator,
+    nodeQualityCalculator: this.nodeQualityCalculator,
+    visualMetricModel: this.visualMetricModel,
+    safeMetricsFX: this.safeMetricsFX
+  },
+  options: {
+    useNetworkMetricsAggregator: true
+  }
+});
+
+  console.log('[main.js] MetricsRuntime_v1 initialized ✓');
+  // 🔗 Inject canonical link system into NetworkMetricsAggregator
+  this.metricsRuntime_v1?.networkMetricsAggregator?.setLinkSource?.(
+    this.nodeLinkingSystem
+  );
+
+  // fallback (ak setter neexistuje)
+  if (this.metricsRuntime_v1?.networkMetricsAggregator) {
+    this.metricsRuntime_v1.networkMetricsAggregator.linkSystem =
+      this.nodeLinkingSystem;
+  }
+
+} catch (err) {
+  console.warn('[main.js] MetricsRuntime_v1 failed:', err);
+}
+
+        // ====================================================================
+        // EXTRACTION PACK V1.0 — PERSONALITY RUNTIME ORCHESTRATION
+        // ====================================================================
+        try {
+            this.personalityRuntime_v1 = new PersonalityRuntime_v1({
+                nodes: this.aiNodes,
+                personalitySystems: {
+                    adapter: this.personalityVisualAdapter,
+                    vfx: this.personalityVFXLayer,
+                    shaderBridge: this.personalityShaderBridge,
+                    shaderFX: this.advancedShaderFX
+                }
+            });
+            console.log('[main.js] PersonalityRuntime_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] PersonalityRuntime_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // EXTRACTION PACK V1.1 — WORLD RUNTIME ORCHESTRATION
+        // ====================================================================
+        try {
+            this.worldRuntime_v1 = new WorldRuntime_v1({ game: this });
+            console.log('[main.js] WorldRuntime_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] WorldRuntime_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // EXTRACTION PACK V1.1 — FX RUNTIME ORCHESTRATION
+        // ====================================================================
+       // try {
+       //     this.fxRuntime_v1 = new FXRuntime_v1({ game: this });
+      //      console.log('[main.js] FXRuntime_v1 initialized ✓');
+      //  } catch (err) {
+      //      console.warn('[main.js] FXRuntime_v1 failed:', err);
+      //  }
+
+        // ====================================================================
+        // EXTRACTION PACK V1.2 — NODE EDITOR RUNTIME ORCHESTRATION
+        // ====================================================================
+        try {
+            this.nodeEditorRuntime_v1 = new NodeEditorRuntime_v1({ game: this });
+            this.nodeEditorRuntime_v1.init?.();
+            console.log('[main.js] NodeEditorRuntime_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NodeEditorRuntime_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // EXTRACTION PACK V1.3 — INPUT RUNTIME ORCHESTRATION
+        // ====================================================================
+        try {
+            this.inputRuntime_v1 = new InputRuntime_v1({ game: this });
+            this.inputRuntime_v1.init?.();
+            console.log('[main.js] InputRuntime_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] InputRuntime_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // WEEK 22B: CASCADE FX BRIDGE TARGET SYSTEM REGISTRATION
+        // ====================================================================
+        // Second pass: Register all target shader systems with cascade bridge
+        // This must happen after all systems are initialized
+        if (this.synergyCascadeFXBridge) {
+            try {
+                if (this.synergyResonanceShaderPack) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('resonanceShader', this.synergyResonanceShaderPack);
+                }
+                if (this.synergyBonusFXLayer) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('bonusFXLayer', this.synergyBonusFXLayer);
+                }
+                if (this.nodeAuraSystem) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('nodeAuraSystem', this.nodeAuraSystem);
+                }
+                if (this.linkAuraSystem) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('linkAuraSystem', this.linkAuraSystem);
+                }
+                if (this.nodeShaderActivation) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('nodeShaderActivation', this.nodeShaderActivation);
+                }
+                if (this.archetypeShaderModes) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('archetypeShaderModes', this.archetypeShaderModes);
+                }
+                console.log('[main.js] SynergyCascadeFXBridge target systems registered ✓');
+            } catch (err) {
+                console.warn('[main.js] Cascade FX Bridge target registration failed:', err);
+            }
+        }
+
+        // ====================================================================
+        // CRITICAL VISUAL INTEGRITY ENFORCEMENT (Session X)
+        // ====================================================================
+        // Ensures nodes retain full visual fidelity even when linked
+        // - Locks core materials against external mutation
+        // - Preserves holographic layers (rings, fresnel, wireframes)
+        // - Neutralizes legacy pulsing/scaling behaviors
+        // - Enforces link/aura transparency constraints
+        try {
+            NodeVisualIntegrityFix.initializeVisualIntegrity(this.scene);
+            console.log('[main.js] NodeVisualIntegrityFix initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NodeVisualIntegrityFix initialization failed:', err);
+        }
+    }

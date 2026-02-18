@@ -218,7 +218,7 @@ export function applyNodeSurfaceDominanceLayer(scene) {
                     materials.forEach(mat => {
                         if (mat && typeof mat === 'object') {
                             mat.depthTest = true;      // Enable depth testing
-                            mat.depthWrite = true;     // Allow writing to depth buffer
+                            mat.depthWrite = false;     // Allow writing to depth buffer
                         }
                     });
                 }

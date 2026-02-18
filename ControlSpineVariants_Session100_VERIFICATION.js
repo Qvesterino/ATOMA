@@ -50,7 +50,7 @@ export const VERIFICATION_CHECKLIST = {
   materials: {
     'All materials: transparent = false': true,
     'All materials: opacity = 1.0': true,
-    'All materials: depthWrite = true': true,
+    'All materials: depthWrite = false': false,
     'All materials: depthTest = true': true,
     'No aura materials added': true,
     'No shell materials added': true,

@@ -1602,7 +1602,7 @@ export class AINodes {
           
           // Lock material depth properties
           if (child.material) {
-            child.material.depthWrite = true;
+           
             child.material.depthTest = true;
             child.material.transparent = false;
             child.material.opacity = 1.0;

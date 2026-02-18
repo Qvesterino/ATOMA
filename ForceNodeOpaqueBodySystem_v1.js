@@ -145,7 +145,7 @@ export class ForceNodeOpaqueBodySystem_v1 {
       // FORCE OPAQUE
       mat.transparent = false;
       mat.opacity = 1.0;
-      mat.depthWrite = true;
+  
       mat.depthTest = true;
       mat.needsUpdate = true;
     }

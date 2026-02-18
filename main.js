@@ -37,7 +37,9 @@ window.ATOMA_LOG_LEVEL = window.ATOMA_LOG_LEVEL ?? 'error';
 // ============================================================================
 import { debugLog } from './Engine/Debug/DebugLog.js';
 import * as THREE from 'three';
+import { systemRegistry } from './engine/SystemRegistry.js';
 window.THREE = THREE;
+window.SYSTEM_REGISTRY = systemRegistry;
 // TEMP DISABLED: SphereCreatorTrace blocking spawn pipeline
 // import { installSphereCreatorTrace } from './SphereCreatorTrace.js';
 import { installMaterialMutationDetector } from './MaterialMutationDetector.js';
