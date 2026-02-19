@@ -100,6 +100,7 @@ const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 
 // CONTROL visual toggle (v2 pipeline)
 const USE_CONTROL_V2 = true;
+const USE_CONTROL_V2_LEGACY = false;
 
 let _sessionVariantEngine = null;
 export function setSessionVariantEngine(engine) {
@@ -121,6 +122,20 @@ const CONTROL_V2_CACHE = {
   matrixGeometry: null
 };
 const CONTROL_V2_MATERIALS = new Map(); // keyed by color hex
+
+// CONTROL v2 legacy caches (Cybernetic Dominion Core)
+const CONTROL_V2_LEGACY_CACHE = {
+  coreGeometry: null,
+  coreEdgesGeometry: null,
+  ringGeometry: null,
+  satGeometry: null,
+  cageGeometry: null,
+  cageEdgesGeometry: null,
+  barrierGeometry: null,
+  axisGeometry: null,
+  matrixGeometry: null
+};
+const CONTROL_V2_LEGACY_MATERIALS = new Map(); // keyed by color hex
 
 // ANALYTICS visual toggle (v2 pipeline)
 const USE_ANALYTICS_V2 = true;
@@ -669,17 +684,89 @@ function _getInputV2Materials(color) {
 // ---------- CONTROL v2 helpers ----------
 function _getControlV2Geometries() {
   if (!CONTROL_V2_CACHE.coreGeometry) {
-    CONTROL_V2_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.55, 1);
-    CONTROL_V2_CACHE.coreGeometry.computeBoundingSphere();
-    CONTROL_V2_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_CACHE.coreGeometry, 12);
-    CONTROL_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.06, 12, 96);
-    CONTROL_V2_CACHE.satGeometry = new THREE.BoxGeometry(0.18, 0.12, 0.22);
+    CONTROL_V2_CACHE.coreGeometry = new THREE.CylinderGeometry(0.52, 0.58, 1.22, 6, 1, false);
+    CONTROL_V2_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_CACHE.coreGeometry, 10);
+    CONTROL_V2_CACHE.spireGeometry = new THREE.CylinderGeometry(0.038, 0.026, 1.5, 8, 1, false);
+    CONTROL_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.88, 0.05, 12, 72);
+    CONTROL_V2_CACHE.segmentGeometry = new THREE.BoxGeometry(0.16, 0.08, 0.14);
+    CONTROL_V2_CACHE.overrideGeometry = new THREE.TorusGeometry(1.14, 0.015, 8, 64);
+  }
+  return CONTROL_V2_CACHE;
+}
+
+function _getControlV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0xff0088;
+  if (CONTROL_V2_MATERIALS.has(colorHex)) return CONTROL_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.6,
+    roughness: 0.3,
+    emissive: colorHex,
+    emissiveIntensity: 0.18
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.4
+  });
+
+  const spireMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.5,
+    roughness: 0.25,
+    emissive: colorHex,
+    emissiveIntensity: 0.25
+  });
+
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.55,
+    roughness: 0.28,
+    emissive: colorHex,
+    emissiveIntensity: 0.14
+  });
+
+  const segmentMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.62,
+    roughness: 0.24,
+    emissive: colorHex,
+    emissiveIntensity: 0.1
+  });
+
+  const overrideMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false
+  });
+
+  const mats = { coreMat, edgeMat, spireMat, ringMat, segmentMat, overrideMat };
+  Object.values(mats).forEach(mat => {
+    mat.userData = mat.userData || {};
+    mat.userData.isShared = true;
+    mat.userData.noMaterialMutation = true;
+  });
+  CONTROL_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- CONTROL v2 legacy helpers (Cybernetic Dominion Core) ----------
+function _getControlV2Geometries_Legacy() {
+  if (!CONTROL_V2_LEGACY_CACHE.coreGeometry) {
+    CONTROL_V2_LEGACY_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.55, 1);
+    CONTROL_V2_LEGACY_CACHE.coreGeometry.computeBoundingSphere();
+    CONTROL_V2_LEGACY_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_LEGACY_CACHE.coreGeometry, 12);
+    CONTROL_V2_LEGACY_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.06, 12, 96);
+    CONTROL_V2_LEGACY_CACHE.satGeometry = new THREE.BoxGeometry(0.18, 0.12, 0.22);
 
     const cageGeom = new THREE.IcosahedronGeometry(1.05, 0);
-    CONTROL_V2_CACHE.cageGeometry = cageGeom;
-    CONTROL_V2_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(cageGeom, 10);
+    CONTROL_V2_LEGACY_CACHE.cageGeometry = cageGeom;
+    CONTROL_V2_LEGACY_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(cageGeom, 10);
 
-    CONTROL_V2_CACHE.barrierGeometry = new THREE.SphereGeometry(1.28, 24, 18);
+    CONTROL_V2_LEGACY_CACHE.barrierGeometry = new THREE.SphereGeometry(1.28, 24, 18);
 
     // Axis beams (X,Y,Z) through origin
     const axisPositions = [
@@ -689,9 +776,9 @@ function _getControlV2Geometries() {
     ];
     const axisGeo = new THREE.BufferGeometry();
     axisGeo.setAttribute('position', new THREE.Float32BufferAttribute(axisPositions, 3));
-    CONTROL_V2_CACHE.axisGeometry = axisGeo;
+    CONTROL_V2_LEGACY_CACHE.axisGeometry = axisGeo;
 
-    // Signal matrix points on sphere
+    // Signal matrix points on sphere (randomized once per cache build)
     const matrixPositions = [];
     const count = 200;
     for (let i = 0; i < count; i++) {
@@ -707,14 +794,14 @@ function _getControlV2Geometries() {
     }
     const matrixGeo = new THREE.BufferGeometry();
     matrixGeo.setAttribute('position', new THREE.Float32BufferAttribute(matrixPositions, 3));
-    CONTROL_V2_CACHE.matrixGeometry = matrixGeo;
+    CONTROL_V2_LEGACY_CACHE.matrixGeometry = matrixGeo;
   }
-  return CONTROL_V2_CACHE;
+  return CONTROL_V2_LEGACY_CACHE;
 }
 
-function _getControlV2Materials(color) {
+function _getControlV2Materials_Legacy(color) {
   const colorHex = typeof color === 'number' ? color : 0xff0088;
-  if (CONTROL_V2_MATERIALS.has(colorHex)) return CONTROL_V2_MATERIALS.get(colorHex);
+  if (CONTROL_V2_LEGACY_MATERIALS.has(colorHex)) return CONTROL_V2_LEGACY_MATERIALS.get(colorHex);
 
   const coreMat = new THREE.MeshStandardMaterial({
     color: colorHex,
@@ -776,7 +863,7 @@ function _getControlV2Materials(color) {
   });
 
   const mats = { coreMat, edgeMat, ringMat, cageMat, beamMat, satMat, barrierMat, matrixMat };
-  CONTROL_V2_MATERIALS.set(colorHex, mats);
+  CONTROL_V2_LEGACY_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -2744,86 +2831,112 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * Analytics Node 3: Tall thin spike with violet rim
+   * Analytics Node 3: Recursive Insight Engine
    */
   static createAnalyticsNode3(group, color) {
-    // Tall spike prism
-    const spikeGeometry = new THREE.ConeGeometry(0.3, 1.4, 8);
-    // Subtle vertex perturbation for intelligent instability
-    const posAttr = spikeGeometry.attributes.position;
-    for (let i = 0; i < posAttr.count; i++) {
-      const y = posAttr.getY(i);
-      const x = posAttr.getX(i);
-      const z = posAttr.getZ(i);
-      const offset = Math.sin(y * 6.0) * 0.01;
-      posAttr.setXYZ(i, x + offset, y, z);
-    }
-    spikeGeometry.computeVertexNormals();
+    // Layered ring stack with subtle imperfections.
+    const stackGroup = new THREE.Group();
+    const ringConfigs = [
+      { radius: 0.34, tube: 0.055, y: -0.28, rotX: 0.12, rotZ: -0.08, sx: 1.02, sz: 0.98, arc: Math.PI * 2 },
+      { radius: 0.47, tube: 0.06, y: 0.00, rotX: -0.06, rotZ: 0.11, sx: 0.98, sz: 1.02, arc: Math.PI * 2 },
+      { radius: 0.62, tube: 0.05, y: 0.31, rotX: 0.09, rotZ: 0.05, sx: 1.02, sz: 0.98, arc: Math.PI * 1.72 }
+    ];
 
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.6,
-      roughness: 0.35,
-      emissive: color,
-      emissiveIntensity: 0.3
-
-    });
-    const spike = new THREE.Mesh(spikeGeometry, material);
-    group.add(spike);
-
-    // Dual cone interference shell (wireframe)
-    const spikeWireMat = new THREE.MeshBasicMaterial({
-      color: color,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false
-    });
-    const spikeWire = new THREE.Mesh(spikeGeometry.clone(), spikeWireMat);
-    spikeWire.scale.setScalar(1.03);
-    spikeWire.rotation.y += 0.08;
-    spikeWire.rotation.x += 0.03;
-    group.add(spikeWire);
-
-    // Soft violet rim
-    const rimGeometry = new THREE.TorusGeometry(0.4, 0.08, 8, 32);
-    const rimMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.4
-    });
-    const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-    rim.position.y = 0.15;
-    rim.rotation.x = 0.4;
-    rim.rotation.z = 0.2;
-    group.add(rim);
-
-    // Fragment halo
-    const fragmentCount = 7;
-    for (let i = 0; i < fragmentCount; i++) {
-      const fragGeo = new THREE.TetrahedronGeometry(0.07, 0);
-      const fragMat = new THREE.MeshBasicMaterial({
+    ringConfigs.forEach((cfg, i) => {
+      const ringMaterial = new THREE.MeshStandardMaterial({
         color: color,
-        transparent: true,
-        opacity: 0.7
+        metalness: 0.55,
+        roughness: 0.35,
+        emissive: color,
+        emissiveIntensity: i === 1 ? 0.24 : 0.18
       });
-      const frag = new THREE.Mesh(fragGeo, fragMat);
-      const angle = (i / fragmentCount) * Math.PI * 2;
-      const radius = 0.45;
-      const yOffset = (Math.random() - 0.5) * 0.1;
-      frag.position.set(
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(cfg.radius, cfg.tube, 12, 48, cfg.arc),
+        ringMaterial
+      );
+      ring.position.y = cfg.y;
+      ring.rotation.x = cfg.rotX;
+      ring.rotation.z = cfg.rotZ;
+      ring.scale.set(cfg.sx, 1, cfg.sz);
+      stackGroup.add(ring);
+
+      if (i === 1) {
+        const glowRing = new THREE.Mesh(
+          new THREE.TorusGeometry(cfg.radius * 0.97, cfg.tube * 0.75, 10, 48),
+          new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        glowRing.position.copy(ring.position);
+        glowRing.rotation.copy(ring.rotation);
+        stackGroup.add(glowRing);
+      }
+    });
+
+    // Vertical data axis with transform-only pulse in animate().
+    const spine = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6),
+      new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.25,
+        roughness: 0.2,
+        emissive: color,
+        emissiveIntensity: 0.38
+      })
+    );
+    spine.userData.isAnalyticsSpine = true;
+    spine.userData.pulseBaseScale = 1;
+    stackGroup.add(spine);
+
+    group.add(stackGroup);
+
+    // Overthinking echo: wireframe clone of the stack with slight offset.
+    const echo = stackGroup.clone(true);
+    echo.scale.setScalar(1.04);
+    echo.rotation.y = 0.05;
+    echo.traverse(obj => {
+      if (obj.isMesh) {
+        obj.material = new THREE.MeshBasicMaterial({
+          color: color,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.25,
+          depthWrite: false
+        });
+      }
+    });
+    group.add(echo);
+
+    // Floating data shards with slow orbital movement + bob.
+    const shardGroup = new THREE.Group();
+    shardGroup.userData.isAnalyticsShardGroup = true;
+    const shardCount = 6;
+    for (let i = 0; i < shardCount; i++) {
+      const shard = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.05, 0),
+        new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.75
+        })
+      );
+      const angle = (i / shardCount) * Math.PI * 2;
+      const radius = 0.5 + (i % 2 === 0 ? 0.04 : -0.03);
+      shard.position.set(
         Math.cos(angle) * radius,
-        yOffset,
+        -0.18 + i * 0.07,
         Math.sin(angle) * radius
       );
-      frag.userData.ignoreRaycast = true;
-      group.add(frag);
+      shard.userData.bobPhase = i * 0.9;
+      shard.userData.ignoreRaycast = true;
+      shardGroup.add(shard);
     }
+    group.add(shardGroup);
+    group.userData.nodeGeometryName = 'ANALYTICS_RECURSIVE_INSIGHT_ENGINE';
 
     // --- Analytics Factory Trace ---
     let meshCount = 0;
@@ -2891,6 +3004,18 @@ export class EnhancedNodeModels {
       coreEdges.name = 'LogicFrame';
       coreGroup.add(core);
       coreGroup.add(coreEdges);
+      // Vertical data spine (pulse scale.y)
+      const spineGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6);
+      const spineMat = materials.lineMat.clone();
+      spineMat.transparent = true;
+      spineMat.opacity = 0.55;
+      spineMat.emissive = (spineMat.emissive || new THREE.Color(color));
+      spineMat.emissiveIntensity = 0.25;
+      const spine = new THREE.Mesh(spineGeo, spineMat);
+      spine.name = 'DataSpine';
+      spine.userData.isAnalyticsSpine = true;
+      spine.userData.pulseBaseScale = 1;
+      coreGroup.add(spine);
       analyticsRoot.add(coreGroup);
 
       // DATA GROUP
@@ -2902,12 +3027,18 @@ export class EnhancedNodeModels {
       hexStack.name = 'HexLayerStack';
       const layers = 4;
       for (let i = 0; i < layers; i++) {
-        const ring = new THREE.Mesh(geometries.hexRingGeometry, materials.layerMat);
+        const chopped = (i === 1);
+        const ringGeometry = chopped
+          ? new THREE.RingGeometry(0.52, 0.7, 6, 1, 0, Math.PI * 1.7)
+          : geometries.hexRingGeometry;
+        const ring = new THREE.Mesh(ringGeometry, materials.layerMat);
         ring.name = `HexLayer_${i}`;
         ring.position.y = -0.35 + (i / (layers - 1)) * 0.7;
-        ring.rotation.z = 0.2 * i;
+        ring.rotation.z = 0.2 * i + 0.05 * (rng() - 0.5);
+        const sx = 1 + (i % 2 === 0 ? 0.02 : -0.02);
+        const sz = 1 + (i % 2 === 0 ? -0.02 : 0.02);
         const s = 0.9 + i * 0.05;
-        ring.scale.setScalar(s);
+        ring.scale.set(s * sx, s, s * sz);
         hexStack.add(ring);
       }
       dataGroup.add(hexStack);
@@ -2930,6 +3061,30 @@ export class EnhancedNodeModels {
       const vectors = new THREE.LineSegments(geometries.vectorGeometry, materials.lineMat);
       vectors.name = 'SignalVectors';
       dataGroup.add(vectors);
+
+      // Floating data shards between rings
+      const shardGroup = new THREE.Group();
+      shardGroup.name = 'DataShards';
+      shardGroup.userData.isAnalyticsShardGroup = true;
+      const shardCount = 6;
+      for (let i = 0; i < shardCount; i++) {
+        const fragGeo = new THREE.IcosahedronGeometry(0.05, 0);
+        const fragMat = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.7
+        });
+        const frag = new THREE.Mesh(fragGeo, fragMat);
+        const angle = (i / shardCount) * Math.PI * 2;
+        const radius = 0.45;
+        frag.position.set(Math.cos(angle) * radius, (rng() - 0.5) * 0.1, Math.sin(angle) * radius);
+        frag.userData.orbitAngle = angle;
+        frag.userData.orbitSpeed = 0.25 + rng() * 0.2;
+        frag.userData.bobPhase = rng() * Math.PI * 2;
+        frag.userData.ignoreRaycast = true;
+        shardGroup.add(frag);
+      }
+      dataGroup.add(shardGroup);
 
       // DataGrid (instanced thin boxes)
       const gridCount = 48;
@@ -2962,6 +3117,19 @@ export class EnhancedNodeModels {
       disk.rotation.x = -Math.PI / 2;
       disk.scale.setScalar(1.15);
       projectionGroup.add(disk);
+      // Gradient inner glow ring
+      const innerGlowGeo = new THREE.TorusGeometry(0.32, 0.05, 12, 64);
+      const innerGlowMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending
+      });
+      const innerGlow = new THREE.Mesh(innerGlowGeo, innerGlowMat);
+      innerGlow.name = 'InnerGlowRing';
+      innerGlow.rotation.x = -Math.PI / 2;
+      innerGlow.position.y = -0.05;
+      projectionGroup.add(innerGlow);
 
       const particles = new THREE.Points(geometries.particlesGeometry, materials.particleMat);
       particles.name = 'PredictiveParticles';
@@ -2969,6 +3137,41 @@ export class EnhancedNodeModels {
       projectionGroup.add(particles);
 
       analyticsRoot.add(projectionGroup);
+
+      // Distortion wireframe echo
+      const echo = new THREE.Group();
+      echo.name = 'AnalyticsEcho';
+      echo.scale.setScalar(1.04);
+      echo.rotation.y = 0.05;
+      const echoMat = new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.25
+      });
+      hexStack.children.forEach(r => {
+        const wf = new THREE.LineSegments(new THREE.EdgesGeometry(r.geometry), echoMat);
+        wf.position.copy(r.position);
+        wf.rotation.copy(r.rotation);
+        wf.scale.copy(r.scale);
+        echo.add(wf);
+      });
+      planeGroup.children.forEach(p => {
+        const wf = new THREE.LineSegments(new THREE.EdgesGeometry(p.geometry), echoMat);
+        wf.position.copy(p.position);
+        wf.rotation.copy(p.rotation);
+        wf.scale.copy(p.scale);
+        echo.add(wf);
+      });
+      projectionGroup.children.forEach(obj => {
+        if (obj.isMesh && obj.geometry) {
+          const wf = new THREE.LineSegments(new THREE.EdgesGeometry(obj.geometry), echoMat);
+          wf.position.copy(obj.position);
+          wf.rotation.copy(obj.rotation);
+          wf.scale.copy(obj.scale);
+          echo.add(wf);
+        }
+      });
+      analyticsRoot.add(echo);
 
       analyticsRoot.userData.visualReady = true;
       group.add(analyticsRoot);
@@ -3417,32 +3620,129 @@ export class EnhancedNodeModels {
    * Storage Node 1: Capsule with inner bands
    */
   static createStorageNode1(group, color) {
-    // Capsule base
-    const capsuleGeometry = new THREE.CapsuleGeometry(0.35, 1, 8, 16);
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.2
+    group.userData = group.userData || {};
+    const colorHex = new THREE.Color(color).getHex();
 
-    });
-    const capsule = new THREE.Mesh(capsuleGeometry, material);
-    group.add(capsule);
+    if (!this.__storageCapsuleV2Cache) {
+      const outerGeometry = new THREE.CapsuleGeometry(0.35, 1.0, 8, 16);
+      const lineCount = 8;
+      const lineRadius = 0.17;
+      const halfHeight = 0.48;
+      const flowPositions = new Float32Array(lineCount * 2 * 3);
+      for (let i = 0; i < lineCount; i++) {
+        const angle = (i / lineCount) * Math.PI * 2;
+        const x = Math.cos(angle) * lineRadius;
+        const z = Math.sin(angle) * lineRadius;
+        const idx = i * 6;
+        flowPositions[idx] = x;
+        flowPositions[idx + 1] = -halfHeight;
+        flowPositions[idx + 2] = z;
+        flowPositions[idx + 3] = x;
+        flowPositions[idx + 4] = halfHeight;
+        flowPositions[idx + 5] = z;
+      }
+      const flowGeometry = new THREE.BufferGeometry();
+      flowGeometry.setAttribute('position', new THREE.BufferAttribute(flowPositions, 3));
 
-    // Inner bands
-    for (let i = 0; i < 4; i++) {
-      const bandGeometry = new THREE.TorusGeometry(0.38, 0.08, 8, 32);
-      const band = new THREE.Mesh(bandGeometry, material);
-      band.position.y = (i - 1.5) * 0.35;
-      group.add(band);
+      this.__storageCapsuleV2Cache = {
+        geometries: {
+          outerGeometry,
+          innerGeometry: new THREE.CapsuleGeometry(0.31, 0.86, 8, 16),
+          edgeGeometry: new THREE.EdgesGeometry(outerGeometry),
+          flowGeometry,
+          ringGeometryA: new THREE.TorusGeometry(0.43, 0.02, 8, 48),
+          ringGeometryB: new THREE.TorusGeometry(0.33, 0.018, 8, 40),
+          pulseBandGeometry: new THREE.TorusGeometry(0.36, 0.014, 8, 48)
+        },
+        materials: new Map()
+      };
     }
 
+    const cache = this.__storageCapsuleV2Cache;
+    let mats = cache.materials.get(colorHex);
+    if (!mats) {
+      mats = {
+        outerMat: new THREE.MeshStandardMaterial({
+          color: colorHex,
+          metalness: 0.65,
+          roughness: 0.28,
+          emissive: colorHex,
+          emissiveIntensity: 0.08,
+          transparent: true,
+          opacity: 0.25
+        }),
+        innerMat: new THREE.MeshStandardMaterial({
+          color: colorHex,
+          metalness: 0.72,
+          roughness: 0.18,
+          emissive: colorHex,
+          emissiveIntensity: 0.42
+        }),
+        edgeMat: new THREE.LineBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.35
+        }),
+        flowMat: new THREE.LineBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.5
+        }),
+        ringMat: new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.3,
+          depthWrite: false
+        }),
+        pulseMat: new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false
+        })
+      };
+      cache.materials.set(colorHex, mats);
+    }
+
+    const outerShell = new THREE.Mesh(cache.geometries.outerGeometry, mats.outerMat);
+    group.add(outerShell);
+
+    const innerShell = new THREE.Mesh(cache.geometries.innerGeometry, mats.innerMat);
+    group.add(innerShell);
+
+    const edgeOverlay = new THREE.LineSegments(cache.geometries.edgeGeometry, mats.edgeMat);
+    group.add(edgeOverlay);
+
+    const flowLines = new THREE.LineSegments(cache.geometries.flowGeometry, mats.flowMat);
+    flowLines.userData.isStorageFlow = true;
+    group.add(flowLines);
+
+    const ringA = new THREE.Mesh(cache.geometries.ringGeometryA, mats.ringMat);
+    ringA.rotation.x = Math.PI * 0.5;
+    ringA.rotation.z = 0.22;
+    ringA.position.y = 0.2;
+    group.add(ringA);
+
+    const ringB = new THREE.Mesh(cache.geometries.ringGeometryB, mats.ringMat);
+    ringB.rotation.x = Math.PI * 0.5;
+    ringB.rotation.z = -0.2;
+    ringB.position.y = -0.22;
+    group.add(ringB);
+
+    const pulseBand = new THREE.Mesh(cache.geometries.pulseBandGeometry, mats.pulseMat);
+    pulseBand.rotation.x = Math.PI * 0.5;
+    group.add(pulseBand);
+
+    // Localized animation hook for this capsule variant only.
+    innerShell.onBeforeRender = () => {
+      const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+      ringA.rotation.y = t * 0.22;
+      ringB.rotation.y = -t * 0.18;
+      const pulse = 1 + Math.sin(t * 1.4) * 0.04;
+      pulseBand.scale.set(pulse, 1, pulse);
+    };
+
+    group.userData.visualVariant = 'STORAGE_CAPSULE_V2';
     return group;
   }
 
@@ -3450,36 +3750,118 @@ export class EnhancedNodeModels {
    * Storage Node 3: Cluster of crystal shards
    */
   static createStorageNode3(group, color) {
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.8,
-      roughness: 0.25,
-      emissive: color,
-      emissiveIntensity: 0.2
+    group.userData = group.userData || {};
+    const colorHex = new THREE.Color(color).getHex();
+    const shardRadius = 0.35;
+    const orbitRadius = 0.58;
 
-    });
+    if (!this.__storageShardV2Cache) {
+      this.__storageShardV2Cache = {
+        geometries: {
+          shardGeometry: new THREE.TetrahedronGeometry(shardRadius, 1),
+          coreGeometry: new THREE.SphereGeometry(shardRadius, 16, 16),
+          ringGeometry: new THREE.TorusGeometry(orbitRadius + 0.08, 0.03, 10, 48),
+          particleGeometry: new THREE.BoxGeometry(0.06, 0.06, 0.06)
+        },
+        materials: new Map()
+      };
+    }
 
-    // 4 crystal shards
-    const positions = [
-      [-0.4, -0.2, -0.4],
-      [0.4, -0.2, -0.4],
-      [-0.4, 0.2, 0.4],
-      [0.4, 0.2, 0.4]
-    ];
+    const cache = this.__storageShardV2Cache;
+    let mats = cache.materials.get(colorHex);
+    if (!mats) {
+      mats = {
+        shardMat: new THREE.MeshStandardMaterial({
+          transparent: false,
+          opacity: 1,
+          depthWrite: true,
+          depthTest: true,
+          side: THREE.FrontSide,
+          color: colorHex,
+          metalness: 0.8,
+          roughness: 0.25,
+          emissive: colorHex,
+          emissiveIntensity: 0.22
+        }),
+        coreMat: new THREE.MeshStandardMaterial({
+          color: colorHex,
+          metalness: 0.35,
+          roughness: 0.15,
+          emissive: colorHex,
+          emissiveIntensity: 0.62
+        }),
+        ringMat: new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.25,
+          depthWrite: false
+        }),
+        particleMat: new THREE.MeshStandardMaterial({
+          color: colorHex,
+          metalness: 0.45,
+          roughness: 0.35,
+          emissive: colorHex,
+          emissiveIntensity: 0.3
+        })
+      };
+      cache.materials.set(colorHex, mats);
+    }
 
-    positions.forEach(pos => {
-      const shardGeometry = new THREE.TetrahedronGeometry(0.35);
-      const shard = new THREE.Mesh(shardGeometry, material);
-      shard.position.set(...pos);
-      shard.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      group.add(shard);
-    });
+    const shardOrbit = new THREE.Group();
+    const shardCount = 4;
+    for (let i = 0; i < shardCount; i++) {
+      const angle = (i / shardCount) * Math.PI * 2;
+      const shard = new THREE.Mesh(cache.geometries.shardGeometry, mats.shardMat);
+      shard.position.set(
+        Math.cos(angle) * orbitRadius,
+        0,
+        Math.sin(angle) * orbitRadius
+      );
+      shard.rotation.set(0.2, angle + Math.PI * 0.25, -0.15);
+      shard.userData.isStorageShard = true;
+      shard.userData.orbitAngle = angle;
+      shard.userData.orbitRadius = orbitRadius;
+      shardOrbit.add(shard);
+    }
+    group.add(shardOrbit);
 
+    const core = new THREE.Mesh(cache.geometries.coreGeometry, mats.coreMat);
+    core.scale.setScalar(0.4); // 40% of shard radius basis geometry
+    group.add(core);
+
+    const containmentRing = new THREE.Mesh(cache.geometries.ringGeometry, mats.ringMat);
+    containmentRing.rotation.x = Math.PI * 0.5;
+    group.add(containmentRing);
+
+    const particleGroup = new THREE.Group();
+    const particleCount = 6;
+    for (let i = 0; i < particleCount; i++) {
+      const p = new THREE.Mesh(cache.geometries.particleGeometry, mats.particleMat);
+      const angle = (i / particleCount) * Math.PI * 2;
+      const r = 0.2 + (i % 2 === 0 ? 0.04 : -0.02);
+      p.position.set(Math.cos(angle) * r, (i % 3 - 1) * 0.08, Math.sin(angle) * r);
+      p.userData.isStorageParticle = true;
+      p.userData.baseY = p.position.y;
+      p.userData.phase = i * 0.9;
+      particleGroup.add(p);
+    }
+    group.add(particleGroup);
+
+    // Localized animation hook for this shard variant only.
+    core.onBeforeRender = () => {
+      const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+      shardOrbit.rotation.y = t * 0.18;
+      shardOrbit.children.forEach((shard, idx) => {
+        const phase = t * 0.75 + idx * 0.6;
+        shard.position.y = Math.sin(phase) * 0.03;
+      });
+      particleGroup.rotation.y = -t * 0.22;
+      particleGroup.children.forEach((p, idx) => {
+        p.position.y = (p.userData.baseY || 0) + Math.sin(t * 1.2 + (p.userData.phase || idx)) * 0.02;
+      });
+    };
+
+    group.userData.visualVariant = 'STORAGE_SHARD_V2';
     return group;
   }
 
@@ -3653,97 +4035,153 @@ export class EnhancedNodeModels {
    */
   static createStorageMnemonicVault(group, color) {
     try {
-      // Create inner irregular crystal core (asymmetrical octahedron)
-      const innerCoreVertices = new Float32Array([
-        // Asymmetrical base
-        0.25, -0.35, 0.0,     // 0
-        0.15, -0.35, 0.20,    // 1
-        -0.12, -0.35, 0.18,   // 2
-        -0.22, -0.35, -0.08,  // 3
-        0.08, -0.35, -0.18,   // 4
-        
-        // Asymmetrical middle
-        0.22, 0.0, -0.05,     // 5
-        0.12, 0.0, 0.22,      // 6
-        -0.18, 0.0, 0.15,     // 7
-        -0.25, 0.0, -0.12,    // 8
-        
-        // Asymmetrical top point (offset from center)
-        -0.08, 0.35, 0.05     // 9
-      ]);
+      group.userData = group.userData || {};
+      const colorHex = new THREE.Color(color).getHex();
 
-      const innerCoreIndices = new Uint16Array([
-        // Base structure (pyramid-like)
-        0, 1, 6,
-        1, 2, 7,
-        2, 3, 8,
-        3, 4, 5,
-        4, 0, 5,
-        
-        // Mid-structure
-        0, 5, 6,
-        1, 6, 7,
-        2, 7, 8,
-        3, 8, 5,
-        4, 5, 9,
-        
-        // Top connections (asymmetrical)
-        5, 6, 9,
-        6, 7, 9,
-        7, 8, 9,
-        8, 5, 9,
-        0, 1, 2,
-        2, 3, 4
-      ]);
+      if (!this.__storageMnemonicVaultCache) {
+        const mainGeometry = new THREE.DodecahedronGeometry(0.72, 0);
+        this.__storageMnemonicVaultCache = {
+          geometries: {
+            mainGeometry,
+            edgesGeometry: new THREE.EdgesGeometry(mainGeometry),
+            ringGeometryA: new THREE.TorusGeometry(0.82, 0.028, 10, 48),
+            ringGeometryB: new THREE.TorusGeometry(0.58, 0.022, 10, 40),
+            particleGeometry: new THREE.BoxGeometry(0.07, 0.07, 0.07),
+            auraGeometry: new THREE.SphereGeometry(0.95, 16, 16)
+          },
+          materials: new Map()
+        };
+      }
 
-      const innerCoreGeometry = new THREE.BufferGeometry();
-      innerCoreGeometry.setAttribute('position', new THREE.BufferAttribute(innerCoreVertices, 3));
-      innerCoreGeometry.setIndex(new THREE.BufferAttribute(innerCoreIndices, 1));
-      innerCoreGeometry.computeVertexNormals();
+      const cache = this.__storageMnemonicVaultCache;
+      let mats = cache.materials.get(colorHex);
+      if (!mats) {
+        mats = {
+          shellMat: new THREE.MeshStandardMaterial({
+            color: colorHex,
+            metalness: 0.78,
+            roughness: 0.22,
+            emissive: colorHex,
+            emissiveIntensity: 0.16,
+            transparent: true,
+            opacity: 0.52
+          }),
+          innerCoreMat: new THREE.MeshStandardMaterial({
+            color: colorHex,
+            metalness: 0.62,
+            roughness: 0.16,
+            emissive: colorHex,
+            emissiveIntensity: 0.6
+          }),
+          edgeMat: new THREE.LineBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: 0.34
+          }),
+          ringMat: new THREE.MeshBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: 0.38,
+            depthWrite: false
+          }),
+          particleMat: new THREE.MeshStandardMaterial({
+            color: colorHex,
+            metalness: 0.55,
+            roughness: 0.3,
+            emissive: colorHex,
+            emissiveIntensity: 0.28
+          }),
+          auraMat: new THREE.MeshBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false,
+            side: THREE.BackSide
+          })
+        };
+        cache.materials.set(colorHex, mats);
+      }
 
-      // Inner core material - emerald/jade crystalline
-      const innerCoreMaterial = new THREE.MeshPhysicalMaterial({
-        color: color,
-        metalness: 0.6,
-        roughness: 0.15,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.5,
-        ior: 1.48,
-        reflectivity: 0.7,
-        emissive: color,
-        emissiveIntensity: 0.2
-      });
-
-      const innerCore = new THREE.Mesh(innerCoreGeometry, innerCoreMaterial);
-      innerCore.scale.set(0.38, 0.38, 0.38);
-      innerCore.userData.isInnerCore = true;
-      innerCore.userData.visualCoreImmutable = true;
-      group.add(innerCore);
-
-      // Create outer faceted containment frame (12-faced dodecahedron-like shell)
-      const outerShellGeometry = new THREE.DodecahedronGeometry(0.7, 0);
-      const outerShellMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.75,
-        roughness: 0.25,
-        emissive: color,
-        emissiveIntensity: 0.15,
-        transparent: true,
-        opacity: 0.5
-      });
-      
-      const outerShell = new THREE.Mesh(outerShellGeometry, outerShellMaterial);
+      const outerShell = new THREE.Mesh(cache.geometries.mainGeometry, mats.shellMat);
       outerShell.userData.isOuterShell = true;
       outerShell.userData.visualCoreImmutable = true;
       group.add(outerShell);
 
-      // Store animation metadata (transform-only)
-      group.userData.mnemonicCoreRotationAxis = new THREE.Vector3(0.3, 1, -0.2).normalize();
-      group.userData.mnemonicCoreRotationSpeed = 0.08; // Very slow
-      group.userData.mnemonicShellRotationAxis = new THREE.Vector3(-0.4, -0.8, 0.3).normalize();
-      group.userData.mnemonicShellRotationSpeed = -0.06; // Counter-rotation
+      // Inner emissive core based on the main shell geometry (scaled to 60%).
+      const innerCore = new THREE.Mesh(cache.geometries.mainGeometry, mats.innerCoreMat);
+      innerCore.scale.setScalar(0.6);
+      innerCore.userData.isInnerCore = true;
+      innerCore.userData.visualCoreImmutable = true;
+      group.add(innerCore);
 
-      // Mark as immutable
+      const edgeOverlay = new THREE.LineSegments(cache.geometries.edgesGeometry, mats.edgeMat);
+      edgeOverlay.userData.visualCoreImmutable = true;
+      group.add(edgeOverlay);
+
+      const ringA = new THREE.Mesh(cache.geometries.ringGeometryA, mats.ringMat);
+      ringA.rotation.x = Math.PI * 0.5;
+      ringA.userData.visualCoreImmutable = true;
+      group.add(ringA);
+
+      const ringB = new THREE.Mesh(cache.geometries.ringGeometryB, mats.ringMat);
+      ringB.rotation.z = Math.PI * 0.5;
+      ringB.userData.visualCoreImmutable = true;
+      group.add(ringB);
+
+      const particleOrbit = new THREE.Group();
+      const particleCount = 6;
+      for (let i = 0; i < particleCount; i++) {
+        const particle = new THREE.Mesh(cache.geometries.particleGeometry, mats.particleMat);
+        const angle = (i / particleCount) * Math.PI * 2;
+        const radius = 0.33 + (i % 2 === 0 ? 0.05 : -0.03);
+        particle.position.set(
+          Math.cos(angle) * radius,
+          (i % 2 === 0 ? 0.08 : -0.08),
+          Math.sin(angle) * radius
+        );
+        particle.userData.isStorageParticle = true;
+        particle.userData.baseY = particle.position.y;
+        particle.userData.phase = i * 0.7;
+        particle.userData.visualCoreImmutable = true;
+        particleOrbit.add(particle);
+      }
+      group.add(particleOrbit);
+
+      const aura = new THREE.Mesh(cache.geometries.auraGeometry, mats.auraMat);
+      aura.userData.visualCoreImmutable = true;
+      group.add(aura);
+
+      // Local animation hook: only affects this builder's meshes.
+      outerShell.onBeforeRender = () => {
+        const t = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001);
+
+        ringA.rotation.y = t * 0.28;
+        ringB.rotation.y = -t * 0.22;
+
+        particleOrbit.rotation.y = t * 0.18;
+        particleOrbit.children.forEach((p, idx) => {
+          const phase = t * 1.05 + (p.userData.phase || idx * 0.5);
+          p.position.y = (p.userData.baseY || 0) + Math.sin(phase) * 0.02;
+          p.rotation.x = phase * 0.25;
+          p.rotation.z = -phase * 0.2;
+        });
+
+        if (group.userData.storageBreath) {
+          if (group.userData.storageBreathBaseScale == null) {
+            group.userData.storageBreathBaseScale = group.scale.x || 1;
+          }
+          const base = group.userData.storageBreathBaseScale || 1;
+          const breath = 1 + Math.sin(t * 0.85) * 0.02;
+          group.scale.setScalar(base * breath);
+        }
+      };
+
+      group.userData.mnemonicCoreRotationAxis = new THREE.Vector3(0.3, 1, -0.2).normalize();
+      group.userData.mnemonicCoreRotationSpeed = 0.08;
+      group.userData.mnemonicShellRotationAxis = new THREE.Vector3(-0.4, -0.8, 0.3).normalize();
+      group.userData.mnemonicShellRotationSpeed = -0.06;
+      group.userData.storageBreath = true;
+      group.userData.visualVariant = 'STORAGE_V2';
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'STORAGE_MNEMONIC_VAULT';
 
@@ -4263,16 +4701,22 @@ export class EnhancedNodeModels {
    * - HollowSpine (NEW - optional)
    */
   static createControlNode(group, index, color) {
+    if (USE_CONTROL_V2_LEGACY) {
+      const legacy = this.createControlNodeStyled_v2_Legacy(group, index, color);
+      if (legacy) return legacy;
+    }
     if (USE_CONTROL_V2) {
       const v2 = this.createControlNodeStyled_v2(group, index, color);
       if (v2) return v2;
     }
-    // Deterministic selection per node ID
-    let nodeId = group.userData.id || index;
-    if (typeof nodeId === 'string') {
-      nodeId = nodeId.charCodeAt(0) + nodeId.length;
+    if (!this.__controlLegacyRedirectWarned) {
+      console.warn('[ControlLegacyRedirect] Falling back to CONTROL_V2 visual builder.');
+      this.__controlLegacyRedirectWarned = true;
     }
-    
+    const redirected = this.createControlNodeStyled_v2(group, index, color);
+    if (redirected) return redirected;
+
+    // Safety fallback only if CONTROL_V2 fails unexpectedly.
     const pool = CATEGORY_POOLS.control || [];
     const factoryMap = {
       601: this.createAxiomCrystalNode.bind(this),
@@ -4299,17 +4743,110 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * CONTROL v2: Cybernetic Dominion Core
+   * CONTROL v2: Authority Column Core
    * Hierarchy:
    * CONTROL_NODE
-   *   - CORE_GROUP (AuthorityCore + CoreFrame + CentralSpine)
-   *   - DOMINION_GROUP (TripleOrbitRings + SatelliteProcessors + AxisBeams + CommandGrid)
-   *   - OVERRIDE_GROUP (EnergyBarrier + SignalMatrix)
+   *   - CORE_GROUP (AuthorityColumn + AuthorityColumnEdges + AuthoritySpire)
+   *   - DOMINION_GROUP (InnerRigidRing + OuterSegmentedRing)
+   *   - OVERRIDE_GROUP (OverrideAuthorityBand)
    */
   static createControlNodeStyled_v2(group, index, color) {
     try {
       const geometries = _getControlV2Geometries();
       const materials = _getControlV2Materials(color);
+      const controlRoot = new THREE.Group();
+      controlRoot.name = 'CONTROL_NODE';
+      controlRoot.userData.visualVariant = 'CONTROL_V2';
+
+      // CORE
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+      const core = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      core.name = 'AuthorityColumn';
+      core.userData.visualLayer = 'CORE';
+
+      const coreEdges = new THREE.LineSegments(geometries.coreEdgesGeometry, materials.edgeMat);
+      coreEdges.name = 'AuthorityColumnEdges';
+      coreEdges.userData.visualLayer = 'CORE';
+
+      const spine = new THREE.Mesh(geometries.spireGeometry, materials.spireMat);
+      spine.name = 'AuthoritySpire';
+      spine.position.y = 0.08;
+      spine.userData.visualLayer = 'CONTROL_SPIRE';
+      spine.userData.pulseBaseScaleY = 1;
+
+      coreGroup.add(core);
+      coreGroup.add(coreEdges);
+      coreGroup.add(spine);
+      controlRoot.add(coreGroup);
+
+      // DOMINION
+      const dominionGroup = new THREE.Group();
+      dominionGroup.name = 'DOMINION_GROUP';
+
+      const innerRing = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      innerRing.name = 'InnerRigidRing';
+      innerRing.rotation.x = Math.PI / 2;
+      innerRing.userData.visualLayer = 'RING_INNER';
+      dominionGroup.add(innerRing);
+
+      const segmentedRing = new THREE.Group();
+      segmentedRing.name = 'OuterSegmentedRing';
+      const segmentCount = 18;
+      const segmentRadius = 1.13;
+      for (let i = 0; i < segmentCount; i++) {
+        const segment = new THREE.Mesh(geometries.segmentGeometry, materials.segmentMat);
+        const angle = (i / segmentCount) * Math.PI * 2;
+        segment.position.set(
+          Math.cos(angle) * segmentRadius,
+          0,
+          Math.sin(angle) * segmentRadius
+        );
+        segment.rotation.y = -angle + Math.PI / 2;
+        segment.userData.visualLayer = 'RING_SEGMENT';
+        segment.userData.segmentIndex = i;
+        segmentedRing.add(segment);
+      }
+      dominionGroup.add(segmentedRing);
+
+      controlRoot.add(dominionGroup);
+
+      // OVERRIDE
+      const overrideGroup = new THREE.Group();
+      overrideGroup.name = 'OVERRIDE_GROUP';
+
+      const overrideRing = new THREE.Mesh(geometries.overrideGeometry, materials.overrideMat);
+      overrideRing.name = 'OverrideAuthorityBand';
+      overrideRing.rotation.x = Math.PI / 2;
+      overrideGroup.add(overrideRing);
+
+      controlRoot.add(overrideGroup);
+
+      controlRoot.userData.controlV2InnerRing = innerRing;
+      controlRoot.userData.controlV2SegmentRing = segmentedRing;
+      controlRoot.userData.controlV2Spire = spine;
+      controlRoot.userData.controlV2InnerRingSpeed = 0.18;
+      controlRoot.userData.controlV2SegmentRingSpeed = -0.12;
+      controlRoot.userData.controlV2SpireSpeed = 0.09;
+      controlRoot.userData.controlV2SpirePulseSpeed = 1.25;
+      controlRoot.userData.controlV2SpirePulseAmp = 0.02;
+      controlRoot.userData.visualReady = true;
+      group.add(controlRoot);
+      return group;
+    } catch (err) {
+      console.error('[ControlV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  /**
+   * CONTROL v2 LEGACY: Cybernetic Dominion Core
+   * (Restored for diagnostics; not part of registry by default)
+   */
+  static createControlNodeStyled_v2_Legacy(group, index, color) {
+    try {
+      const geometries = _getControlV2Geometries_Legacy();
+      const materials = _getControlV2Materials_Legacy(color);
       const controlRoot = new THREE.Group();
       controlRoot.name = 'CONTROL_NODE';
       controlRoot.userData.visualVariant = 'CONTROL_V2';
@@ -5759,6 +6296,55 @@ export class EnhancedNodeModels {
       nodeGroup.rotation.z += deltaTime * 0.2 * axis.z;
     }
 
+    // CONTROL_V2 deterministic motion (no random traversal)
+    if (
+      nodeGroup.userData?.visualVariant === 'CONTROL_V2' ||
+      nodeGroup.children.some(c => c.userData?.visualVariant === 'CONTROL_V2')
+    ) {
+      const controlV2Root = nodeGroup.userData?.visualVariant === 'CONTROL_V2'
+        ? nodeGroup
+        : nodeGroup.children.find(c => c.userData?.visualVariant === 'CONTROL_V2');
+      if (!controlV2Root) {
+        // Keep animation flow intact for other categories.
+      } else {
+
+        let innerRing = controlV2Root.userData.controlV2InnerRing;
+        let segmentedRing = controlV2Root.userData.controlV2SegmentRing;
+        let spire = controlV2Root.userData.controlV2Spire;
+
+        if (!innerRing || !segmentedRing || !spire) {
+          const coreGroup = controlV2Root.children.find(c => c.name === 'CORE_GROUP');
+          const dominionGroup = controlV2Root.children.find(c => c.name === 'DOMINION_GROUP');
+          if (!spire && coreGroup) {
+            spire = coreGroup.children.find(c => c.name === 'AuthoritySpire');
+            controlV2Root.userData.controlV2Spire = spire || null;
+          }
+          if (!innerRing && dominionGroup) {
+            innerRing = dominionGroup.children.find(c => c.name === 'InnerRigidRing');
+            controlV2Root.userData.controlV2InnerRing = innerRing || null;
+          }
+          if (!segmentedRing && dominionGroup) {
+            segmentedRing = dominionGroup.children.find(c => c.name === 'OuterSegmentedRing');
+            controlV2Root.userData.controlV2SegmentRing = segmentedRing || null;
+          }
+        }
+
+        if (innerRing) {
+          innerRing.rotation.z += deltaTime * (controlV2Root.userData.controlV2InnerRingSpeed || 0.18);
+        }
+        if (segmentedRing) {
+          segmentedRing.rotation.y += deltaTime * (controlV2Root.userData.controlV2SegmentRingSpeed || -0.12);
+        }
+        if (spire) {
+          spire.rotation.y += deltaTime * (controlV2Root.userData.controlV2SpireSpeed || 0.09);
+          const base = spire.userData.pulseBaseScaleY || 1;
+          const amp = controlV2Root.userData.controlV2SpirePulseAmp || 0.02;
+          const speed = controlV2Root.userData.controlV2SpirePulseSpeed || 1.25;
+          spire.scale.y = base * (1 + Math.sin(time * speed) * amp);
+        }
+      }
+    }
+
     // POLISH: Animate inner signal rotations (INPUT nodes)
     if (nodeGroup.userData.innerSignalRotationAxis) {
       const innerSignal = nodeGroup.children.find(c => c.geometry && c.geometry.type === 'TetrahedronGeometry');
@@ -5992,6 +6578,20 @@ export class EnhancedNodeModels {
       // Funnel rotation
       nodeGroup.rotation.y += deltaTime * nodeGroup.userData.funnelRotationSpeed;
     }
+
+    // ANALYTICS shard orbit & spine pulse
+    nodeGroup.traverse(child => {
+      if (child.userData?.isAnalyticsShardGroup) {
+        child.rotation.y += deltaTime * 0.25;
+        child.children.forEach(frag => {
+          frag.position.y = Math.sin(time * 1.2 + frag.userData.bobPhase) * 0.05;
+        });
+      }
+      if (child.userData?.isAnalyticsSpine) {
+        const base = child.userData.pulseBaseScale || 1;
+        child.scale.y = base * (1 + Math.sin(time * 1.5) * 0.02);
+      }
+    });
 
     // POLISH: Animate COMMAND_PYRAMID (core rotation; glow pulsing disabled)
     // [SESSION 107] LEGACY SCALE PULSE AUDIT - Glow pulsing removed
