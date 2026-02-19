@@ -9,6 +9,7 @@ import { getMapConfig } from './MapConfigBase.js';
  */
 export class FractalValley {
   constructor({ scene, worldRoot, camera = null }) {
+    console.log('WORLD CONSTRUCTOR:', this.constructor.name);
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.camera = camera;

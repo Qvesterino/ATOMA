@@ -2976,7 +2976,7 @@ class AtomaGame {
         // ========================================================================
         // STEP 1 — GLOBAL AUTHORITY FLAGS (CRITICAL STABILIZATION)
         // ========================================================================
-        window.DEBUG_VISUAL_MODE = true;
+        window.DEBUG_VISUAL_MODE = false;
         console.log("⚠️ DEBUG_VISUAL_MODE ENABLED - Visuals Disabled, Interactions Hardened");
         if (typeof window !== 'undefined' && window.DEBUG_VISUAL_MODE) {
             installMaterialDebugGuard();
@@ -2996,7 +2996,7 @@ class AtomaGame {
         // ========================================================================
         // STEP 1b — HARD INTERACTION AUTHORITY (Session 104 Critical Stabilization)
         // ========================================================================
-        window.VISUAL_AUTHORITY_LOCK = true;
+        window.VISUAL_AUTHORITY_LOCK = false;
         console.log('🔒 [AtomaGame] VISUAL_AUTHORITY_LOCK ENABLED - Hard interaction authority engaged');
 
         document.addEventListener("contextmenu", e => e.preventDefault());
@@ -3009,6 +3009,7 @@ class AtomaGame {
         
         this.clock = new THREE.Clock();
         this.time = 0;
+        this._switchInProgress = false;
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -7017,6 +7018,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      */
     setupModeSwitch() {
         document.addEventListener('keydown', (e) => {
+            console.log('KEYDOWN:', e.code);
             if (e.code === 'KeyM') {
                 this.switchMode();
             }
@@ -7056,6 +7058,15 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * NOW WITH: Safe World Reset Fix 1.0 - Prevents map-switch crashes
      */
     async switchMode() {
+        if (this._switchInProgress) {
+            console.warn('[switchMode] reentry blocked');
+            return;
+        }
+        this._switchInProgress = true;
+        try {
+        try {
+        console.log('SWITCH ENTERED');
+        console.log("MODE BEFORE:", this.currentMode);
         // PHASE 1: Begin transition and pause visual systems
         this.worldResetFix.beginMapTransition({
             coreMetricsOverlay: this.coreMetricsOverlay,
@@ -7392,6 +7403,11 @@ this.archetypeShaderModes = null;
         this.scene.children = this.scene.children.filter(child =>
             child === this.player || child instanceof THREE.Light
         );
+        console.log('AFTER CLEAN', {
+            sceneChildren: this.scene.children.length,
+            worldRootExists: !!this.worldRoot,
+            worldRootChildren: this.worldRoot?.children?.length ?? null
+        });
 
         // Cycle through modes
         if (this.currentMode === 'sigma') {
@@ -7407,6 +7423,7 @@ this.archetypeShaderModes = null;
         } else {
             this.currentMode = 'sigma';
         }
+        console.log("MODE AFTER:", this.currentMode);
 
         // Update subtitle
         const subtitle = document.getElementById('subtitle');
@@ -7425,6 +7442,12 @@ this.archetypeShaderModes = null;
         this.worldRoot = new THREE.Group();
         this.worldRoot.name = "ATOMA_WorldRoot";
         this.scene.add(this.worldRoot);
+        console.log("NEW WORLDROOT CREATED", this.worldRoot.uuid);
+        console.log('BEFORE WORLD CONSTRUCTOR', {
+            mode: this.currentMode,
+            sceneChildren: this.scene.children.length,
+            worldRootChildren: this.worldRoot.children.length
+        });
 
         // Setup new environment
         if (this.currentMode === 'sigma') {
@@ -7474,21 +7497,31 @@ this.archetypeShaderModes = null;
             });
             this.activeWorld = this.chamber;
         }
+        console.log("AFTER WORLD BUILD:", this.worldRoot.children.length);
+        } catch (e) {
+            console.error("SWITCH CRASHED:", e);
+        }
+        console.log('AFTER WORLD CONSTRUCTOR', {
+            mode: this.currentMode,
+            worldRootChildren: this.worldRoot.children.length,
+            sceneChildren: this.scene.children.length
+        });
 
+        // Defer AI/node subsystems to next frame after transition completes
         // Create new AI nodes
         this._allowRegistryReset = true;
         this.createAINodes();
         this.setupRecursiveGlyphSignalSystem();
         if (this.coreMetricsOverlay) {
-  this.coreMetricsOverlay.cleanup?.()
-}
+            this.coreMetricsOverlay.cleanup?.();
+        }
 
-this.coreMetricsOverlay = new CoreMetricsOverlay(
-  this.scene,
-  this.renderer
-);
+        this.coreMetricsOverlay = new CoreMetricsOverlay(
+            this.scene,
+            this.renderer
+        );
 
-console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
+        console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         // [Audit 6.2] Signal world transition complete - nodes ready
         if (this.linkingSystem) {
             this.linkingSystem.setWorldReady(true);
@@ -7641,7 +7674,7 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
         }
 
         // PHASE 3: Wait for new scene to be ready
-        const sceneReady = await this.worldResetFix.waitForNewSceneReady(
+        const sceneReady = this.worldResetFix.waitForNewSceneReady(
             this.scene,
             this.aiNodes,
             this.linkingSystem
@@ -7667,6 +7700,9 @@ console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
 
         // PHASE 5: Complete transition
         this.worldResetFix.completeTransition();
+        } finally {
+            this._switchInProgress = false;
+        }
     }
 
     /**

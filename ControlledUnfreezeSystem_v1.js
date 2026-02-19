@@ -122,6 +122,9 @@ export class ControlledUnfreezeSystem_v1 {
       const original_auraApply = game.auraModulationIntegration.applyModulation;
       if (original_auraApply) {
         game.auraModulationIntegration.applyModulation = function(node, intensity) {
+          if (game.aiNodes && !game.aiNodes.nodes?.includes(node)) {
+            return original_auraApply?.call(this, node, intensity); // Ignore non-AI nodes (world objects)
+          }
           if (this.config?.CLAMP_AURA_OPACITY) {
             // Clamp intensity before applying
             intensity = Math.min(intensity, this.config.CLAMP_AURA_OPACITY);
@@ -138,6 +141,9 @@ export class ControlledUnfreezeSystem_v1 {
       const original_evoApply = game.nodeEvolution.applyEvolution;
       if (original_evoApply) {
         game.nodeEvolution.applyEvolution = function(node, evolutionData) {
+          if (game.aiNodes && !game.aiNodes.nodes?.includes(node)) {
+            return original_evoApply?.call(this, node, evolutionData); // Skip non-AI world objects
+          }
           // Don't scale nodes - just update visual markers
           if (evolutionData?.scale !== undefined) {
             evolutionData.scale = 1.0; // Lock scale
@@ -154,11 +160,18 @@ export class ControlledUnfreezeSystem_v1 {
       const original_persoApply = game.personalityVFXLayer.applyEffect;
       if (original_persoApply) {
         game.personalityVFXLayer.applyEffect = function(node, personalitySignal) {
+          if (game.aiNodes && !game.aiNodes.nodes?.includes(node)) {
+            return original_persoApply?.call(this, node, personalitySignal); // Avoid touching world visuals
+          }
           // Allow personality effects, but preserve node opacity
           const originalOpacity = node?.material?.opacity ?? 1.0;
+          const originalLayers = node?.layers?.mask;
           const result = original_persoApply?.call(this, node, personalitySignal);
           if (node?.material && originalOpacity !== undefined) {
             node.material.opacity = originalOpacity; // Restore
+          }
+          if (originalLayers !== undefined && node?.layers) {
+            node.layers.mask = originalLayers; // Preserve layer state
           }
           return result;
         };
@@ -206,6 +219,10 @@ export class ControlledUnfreezeSystem_v1 {
    * Call this once after scene is initialized
    */
   static executeControlledUnfreeze(game) {
+    if (window.__FORENSIC_SAFE_MODE__ === true) {
+      console.log('[forensic] ControlledUnfreeze: SAFE MODE – skipping unfreeze sequence');
+      return false;
+    }
     console.group('%c[CONTROLLED UNFREEZE SEQUENCE]', 'color: #00ff88; font-weight: bold; font-size: 14px');
 
     if (!game.__nodeVisualFreezeMode__) {
@@ -294,6 +311,10 @@ export class ControlledUnfreezeSystem_v1 {
  * Quick setup function
  */
 export function setupControlledUnfreeze(game) {
+  if (window.__FORENSIC_SAFE_MODE__ === true) {
+    console.log('[forensic] setupControlledUnfreeze(): SAFE MODE – no monkey-patches applied');
+    return;
+  }
   ControlledUnfreezeSystem_v1.executeControlledUnfreeze(game);
   
   // Expose diagnostics globally

@@ -68,28 +68,23 @@ export class WorldRuntime_v1 {
         }
 
         try {
-            // Bootstrap the initial world by calling existing main.js logic
-            // Always ensure world is created first
-            if (!this.game.activeWorld) {
-                this.game.createWorld();
-            }
-
-            // Optional AI bootstrap
-            if (window.ATOMA_ENABLE_AINODES === true && typeof this.game.createAINodes === "function") {
-                this.game.createAINodes();
-            }
-
-            // Always ensure world object is attached to scene
-
-            // Ensure we have an active world
+            // Create world unconditionally
+            this.game.createWorld();
+            
+            // Create AI nodes (deterministic path)
+            this.game.createAINodes();
+            
+            // Verify scene attachment
             if (this.game.activeWorld) {
-                this.currentMode = this.game.currentMode || 'fractal';
-                if (!this.game.scene.children.includes(this.game.activeWorld.scene || this.game.activeWorld)) {
-                    // Scene likely already added during createAINodes
+                const worldObj = this.game.activeWorld.scene || this.game.activeWorld;
+                if (!this.game.scene.children.includes(worldObj)) {
+                    this.game.scene.add(worldObj);
                 }
             } else {
-                console.warn('[WorldRuntime_v1] No active world after initialization');
+                console.warn('[WorldRuntime_v1] initInitialWorld: activeWorld missing after createWorld()');
             }
+
+            this.currentMode = this.game.currentMode || 'fractal';
         } catch (err) {
             console.warn('[WorldRuntime_v1] initInitialWorld failed:', err.message);
         }
@@ -120,6 +115,11 @@ export class WorldRuntime_v1 {
             
             // Call existing switchMode() logic in main.js
             // This handles all cleanup, scene management, etc.
+            if (this.game._switchInProgress) {
+                console.warn('[WorldRuntime_v1] switchMode already in progress; skipping reentrant call');
+                this.isTransitioning = false;
+                return;
+            }
             if (this.game.switchMode) {
                 this.game.switchMode();
             }
