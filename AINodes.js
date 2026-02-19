@@ -1090,6 +1090,25 @@ export class AINodes {
     let nodeModel = null;
     try {
       nodeModel = EnhancedNodeModels.create(validatedCategory, visualCode, coreColor);
+      // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
+      if (nodeModel) {
+        const visualCodeLog = nodeModel.userData?.visualCode ?? 'UNKNOWN';
+        const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
+        const childCount = nodeModel.children?.length ?? 0;
+
+        console.log(
+          '[SPAWN_TRACE]',
+          {
+            category,
+            visualCode: visualCodeLog,
+            factoryName,
+            childCount,
+            nodeId: nodeModel.userData?.nodeId ?? nodeModel.uuid
+          }
+        );
+      } else {
+        console.warn('[SPAWN_TRACE_NULL]', { category });
+      }
     } catch (err) {
       return failClosedVisual(null, err?.message || 'EnhancedNodeModels.create threw');
     }

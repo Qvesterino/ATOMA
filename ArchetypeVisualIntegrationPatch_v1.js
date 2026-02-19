@@ -1,22 +1,5 @@
-// === THREE SAFE LOADER (v1.1) ===
-// The system must NOT crash if THREE is missing (e.g. Rosebud runtime)
-// Try to import THREE safely, fallback to window/globalThis, otherwise disable features.
-
-let THREE_SAFE = null;
-
-// Try global THREE first (works in browser + Atoma engine immediately)
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-if (!THREE_SAFE) {
-  console.warn('[ArchetypeVisualSystem] THREE not detected – enabling SAFE MODE (no Color, no Material edits).');
-}
-
-// Expose as THREE
-const THREE = THREE_SAFE;
-
+import * as THREE from 'three';
+
 if (typeof window !== 'undefined') {
   window.ATOMA_DISABLE_ARCHETYPE_PATCH = true;
   console.log('[VISUAL PIPELINE] ArchetypeIntegrationPatch: DISABLED');

@@ -1,16 +1,5 @@
-// === THREE SAFE LOADER (v1.1) ===
-let THREE_SAFE = null;
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-if (!THREE_SAFE) {
-  console.warn('[ArchetypeVisualTransitionEngine_v2] THREE not detected – enabling SAFE MODE.');
-}
-
-const THREE = THREE_SAFE;
-
+import * as THREE from 'three';
+
 /**
  * ARCHETYPE VISUAL TRANSITION ENGINE v2.0
  * 

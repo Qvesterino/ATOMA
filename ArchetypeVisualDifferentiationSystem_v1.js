@@ -1,21 +1,6 @@
-// === THREE SAFE LOADER (v1.1) ===
-// The system must NOT crash if THREE is missing (e.g. Rosebud runtime)
-// Try to import THREE safely, fallback to window/globalThis, otherwise disable features.
+import * as THREE_LIB from 'three';
 
-let THREE_SAFE = null;
-
-// Try global THREE first (works in browser + Atoma engine immediately)
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-if (!THREE_SAFE) {
-  console.warn('[ArchetypeVisualSystem] THREE not detected – enabling SAFE MODE (no Color, no Material edits).');
-}
-
-// Expose as THREE
-const THREE = THREE_SAFE;
+let THREE = null;
 
 /**
  * ARCHETYPE VISUAL DIFFERENTIATION SYSTEM v1.0
@@ -50,6 +35,14 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
     };
     this.transitionEngine = new ArchetypeVisualTransitionEngine_v2(debugMode);
     
+    if (!THREE && THREE_LIB) {
+      THREE = THREE_LIB;
+    }
+
+    if (!THREE) {
+      console.warn('[ArchetypeVisualSystem] THREE not detected – enabling SAFE MODE (no Color, no Material edits).');
+    }
+
     if (this.debugMode) {
       console.log('%c[ArchetypeVisualDifferentiationSystem_v1] Initialized with Transition Engine v2.0', 'color: cyan; font-weight: bold;');
     }
@@ -524,3 +517,4 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
     }
   }
 }
+
