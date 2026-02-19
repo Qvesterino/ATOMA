@@ -73,6 +73,7 @@ import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { isEmissiveCapable, safeSetEmissive } from './_EmissiveUtils.js';
 import { NodeSpawnLogger } from './_NodeSpawnLogger4_0.js';
 import { NodeVisualBootstrap3_0 } from './_NodeVisualBootstrap3_0.js';
+import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
 // LEGACY SPAWN MODULE REMOVED – HARD DISABLED
 // import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
 // import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
@@ -799,6 +800,9 @@ export class AINodes {
               meta: { category, source: 'createNodes' }
             });
           }
+
+          // NODE SPAWN LOGGER v4.0: Log spawn with full validation
+          NodeSpawnLogger.logSpawn(finalizedNode, category, pos, "AINodes.createNodes");
       }
     });
     
@@ -3285,8 +3289,18 @@ export class AINodes {
     }
     this._commitSpawnCycleSuccess(category);
     
-    // NODE SPAWN LOGGER v4.0: Log spawn with full validation
-    NodeSpawnLogger.logSpawn(newNode, category, spawnPos);
+    // NODE SPAWN LOGGER v4.0: Log spawn with visualCode and factoryName
+    const visualCode = finalizedNode.userData?.visualCode;
+    const factoryName = visualCode !== undefined ? NODE_VISUAL_REGISTRY[visualCode]?.factoryName : 'unknown';
+    const nodeId = finalizedNode.userData?.nodeId || finalizedNode.uuid;
+    
+    NodeSpawnLogger.logSpawn({
+      category,
+      visualCode,
+      factoryName,
+      nodeId,
+      source: "AINodes.spawnNode"
+    });
     
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code

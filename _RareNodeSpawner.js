@@ -207,7 +207,8 @@ export class RareNodeSpawner {
       console.warn('[SpawnAuthority] External spawn blocked');
       return;
     }
-    const node = spawnAuthority.spawn(this.aiNodes, 'input', position, archetypeKey);
+    // Spawn removed: single authority = AINodes.spawnNode()
+    const node = null;
     if (!node) {
       return;
     }

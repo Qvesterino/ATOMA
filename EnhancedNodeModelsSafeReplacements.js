@@ -248,9 +248,8 @@ export function createEnhancedNodeReplacement(category, index, color) {
     case 'prime':
     case 'error':
     case 'emotional':
-      // Use EnhancedNodeModels which has production variants
-      EnhancedNodeModels.ensureRegistryReady?.();
-      return EnhancedNodeModels.create(category, index, color);
+      // Spawn removed: single authority = AINodes.spawnNode()
+      return null;
     
     default:
       console.warn(`[EnhancedNodeModelsSafeReplacements] Unknown category: ${category}`);

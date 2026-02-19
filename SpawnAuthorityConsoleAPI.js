@@ -82,7 +82,8 @@ export class SpawnAuthorityConsoleAPI {
       if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
         console.warn('[SpawnAuthority] External spawn not explicitly enabled — allowing anyway');
       }
-      const node = spawnAuthority.spawn(this.aiNodes, cat, pos);
+      // Spawn removed: single authority = AINodes.spawnNode()
+      const node = null;
       const actualCategory = node?.userData?.category || 'null';
       const passed = actualCategory === 'input';
       
@@ -123,7 +124,8 @@ export class SpawnAuthorityConsoleAPI {
       if (window.__ALLOW_EXTERNAL_SPAWN__ !== true) {
         console.warn('[SpawnAuthority] External spawn not explicitly enabled — allowing anyway');
       }
-      const node = spawnAuthority.spawn(this.aiNodes, cat, pos);
+      // Spawn removed: single authority = AINodes.spawnNode()
+      const node = null;
       const spawned = node !== null && node !== undefined;
       const hasBinding = node?.userData?.enhancedNodeModelBinding !== undefined;
       const hasCategory = node?.userData?.category === cat;

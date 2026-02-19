@@ -18,20 +18,46 @@ export const NodeSpawnLogger = {
 
   /**
    * Log a node spawn event with full validation
-   * @param {THREE.Object3D} node - The spawned node object
-   * @param {string} category - Node category (input, process, error, mythic, etc.)
-   * @param {THREE.Vector3} position - Spawn position
+   * New format: logSpawn({ category, visualCode, factoryName, nodeId, source })
+   * Legacy format: logSpawn(node, category, position, source)
+   * 
+   * @param {Object|THREE.Object3D} paramsOrNode - Either spawn params object or node object
+   * @param {string} category - Node category (legacy format only)
+   * @param {THREE.Vector3} position - Spawn position (legacy format only)
+   * @param {string} source - Spawn source
    */
-  logSpawn(node, category, position) {
+  logSpawn(paramsOrNode, category, position, source = "unknown") {
     if (!this.enabled) return;
 
     const ts = performance.now().toFixed(2);
 
+    // Check if first argument is the new object format
+    const isNewFormat = paramsOrNode && typeof paramsOrNode === 'object' && !paramsOrNode.isObject3D;
+    
+    if (isNewFormat) {
+      // New simplified format: { category, visualCode, factoryName, nodeId, source }
+      const { category: cat, visualCode, factoryName, nodeId, source: src } = paramsOrNode;
+      const safeCategory = cat || "undefined";
+      const safeVisualCode = visualCode !== undefined ? visualCode : "??";
+      const safeFactoryName = factoryName || "unknown";
+      const safeNodeId = nodeId || "??";
+      
+      // Print simplified one-line format
+      console.log(
+        `%c[Spawn] cat=${safeCategory} code=${safeVisualCode} factory=${safeFactoryName} id=${safeNodeId}`,
+        "color:#7cf; font-weight:bold;"
+      );
+      return;
+    }
+
+    // Legacy format: logSpawn(node, category, position, source)
+    const node = paramsOrNode;
     const safeCategory =
       category || node?.userData?.category || node?.category || "undefined";
+    const actualSource = source || "unknown";
 
     console.groupCollapsed(
-      `%c[Spawn ${ts}ms] Node ID: ${node.uuid || node.id || "??"} | Category: ${safeCategory}`,
+      `%c[Spawn ${ts}ms] Node ID: ${node.uuid || node.id || "??"} | Category: ${safeCategory} | Source: ${actualSource}`,
       "color:#7cf; font-weight:bold;"
     );
 

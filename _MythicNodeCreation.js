@@ -783,7 +783,8 @@ export class MythicNodeCreation {
       console.warn('[SpawnAuthority] External spawn blocked');
       return;
     }
-    const nodeModel = spawnAuthority.spawn(this.aiNodes, 'mythic', spawnPos, 'MYTHIC-CEREMONIAL');
+    // Spawn removed: single authority = AINodes.spawnNode()
+    const nodeModel = null;
     if (!nodeModel) {
       return;
     }

@@ -220,7 +220,8 @@ export function warmupAllVisualVariants(renderer, scene, camera) {
     EnhancedNodeModels.ensureRegistryReady?.();
 
     for (const cat of categories) {
-        const node = EnhancedNodeModels.create?.(cat, 0, 0xffffff);
+        // Spawn removed: single authority = AINodes.spawnNode()
+        const node = null;
         if (!node) {
             continue;
         }

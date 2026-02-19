@@ -6797,7 +6797,8 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
 
   EnhancedNodeModels.ensureRegistryReady?.();
   for (const cat of categories) {
-    const node = EnhancedNodeModels.create(cat, 0, 0xffffff);
+    // Spawn removed: single authority = AINodes.spawnNode()
+    const node = null;
     if (!node) continue;
     node.scale.setScalar(0.001); // tiny, keeps warm-up invisible
     node.position.set(0, 0, 0);

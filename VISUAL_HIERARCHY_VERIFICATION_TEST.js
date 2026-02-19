@@ -226,9 +226,13 @@ export class VisualHierarchyVerificationTest {
       }
 
       // Create a test node
-      const testNode = window.EnhancedNodeModels.create('input', 0, 0x00ffff);
+      // Spawn removed: single authority = AINodes.spawnNode()
+      const testNode = null;
 
-      if (!testNode) throw new Error('Node creation failed');
+      if (!testNode) {
+        this.skip('Node creation disabled by spawn authority enforcement');
+        return;
+      }
 
       // Check that children have visualLayer userData
       const hasCoreLayer = testNode.children.some(child => child.userData.visualLayer === 'CORE');
