@@ -3584,7 +3584,12 @@ export class AINodes {
       this.scene.remove(node);
       node.children.forEach(child => {
         if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
+        // DISPOSE SAFETY: Skip shared materials (marked with userData.isShared = true)
+        // Shared materials are cached in v2 builders (QUANTUM_V2_MATERIALS, etc.)
+        // and must not be disposed - they persist for the lifetime of the application
+        if (child.material && !child.material.userData?.isShared) {
+          child.material.dispose();
+        }
       });
     });
     

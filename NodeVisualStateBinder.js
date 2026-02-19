@@ -208,6 +208,15 @@ export function restoreBaseVisualState(node) {
     return false;
   }
 
+  // TRAVERSAL SAFETY: Skip material restoration for v2 QUANTUM/SIGMA nodes
+  // These nodes have immutable, shared materials that should not be restored
+  const visualVariant = node.userData.visualVariant;
+  if (visualVariant === 'QUANTUM_V2' || visualVariant === 'SIGMA_V2') {
+    // Skip material restoration but still mark as restored
+    node.userData.visualStateRestoredAt = Date.now();
+    return true;
+  }
+
   const baseState = node.userData.baseVisualState;
   const components = baseState.visualComponents;
 

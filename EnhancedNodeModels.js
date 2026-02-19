@@ -138,8 +138,9 @@ const ANALYTICS_V2_CACHE = {
 };
 const ANALYTICS_V2_MATERIALS = new Map(); // keyed by color hex
 
-// QUANTUM visual toggle (v2 pipeline)
-const USE_QUANTUM_V2 = true;
+  // QUANTUM visual toggle (v2 pipeline) - HARD LOCKED TO V2
+  const USE_QUANTUM_V2 = true;
+  const USE_SIGMA_V2 = true;
 
 // QUANTUM v2 caches
 const QUANTUM_V2_CACHE = {
@@ -152,6 +153,12 @@ const QUANTUM_V2_CACHE = {
   bridgeGeometry: null
 };
 const QUANTUM_V2_MATERIALS = new Map(); // keyed by color hex
+const SIGMA_V2_CACHE = {
+  baseGeometry: null,
+  edgesGeometry: null,
+  ringGeometry: null
+};
+const SIGMA_V2_MATERIALS = new Map(); // keyed by color hex
 
 // EMOTIONAL visual toggle (v2 pipeline)
 const USE_EMOTIONAL_V2 = true;
@@ -963,7 +970,61 @@ function _getQuantumV2Materials(color) {
     dustMat,
     planeMat
   };
+  
+  // Mark cached materials as shared for dispose safety
+  mats.primaryMat.userData = { isShared: true };
+  mats.ghostA.userData = { isShared: true };
+  mats.ghostB.userData = { isShared: true };
+  mats.ghostC.userData = { isShared: true };
+  mats.edgeMat.userData = { isShared: true };
+  mats.fragmentMat.userData = { isShared: true };
+  mats.lineMat.userData = { isShared: true };
+  mats.dustMat.userData = { isShared: true };
+  mats.planeMat.userData = { isShared: true };
+  
   QUANTUM_V2_MATERIALS.set(colorHex, mats);
+  return mats;
+}
+
+// ---------- SIGMA v2 helpers ----------
+function _getSigmaV2Geometries() {
+  if (!SIGMA_V2_CACHE.baseGeometry) {
+    SIGMA_V2_CACHE.baseGeometry = new THREE.IcosahedronGeometry(0.6, 1);
+    SIGMA_V2_CACHE.baseGeometry.computeBoundingSphere();
+    SIGMA_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(SIGMA_V2_CACHE.baseGeometry, 12);
+    SIGMA_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.05, 12, 64);
+  }
+  return SIGMA_V2_CACHE;
+}
+
+function _getSigmaV2Materials(color) {
+  const colorHex = typeof color === 'number' ? color : 0x00ffee;
+  if (SIGMA_V2_MATERIALS.has(colorHex)) return SIGMA_V2_MATERIALS.get(colorHex);
+
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.55,
+    roughness: 0.28,
+    emissive: colorHex,
+    emissiveIntensity: 0.25,
+    transparent: false,
+    opacity: 1
+  });
+
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: 0xaaddff,
+    transparent: true,
+    opacity: 0.45
+  });
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.35
+  });
+
+  const mats = { coreMat, edgeMat, ringMat };
+  SIGMA_V2_MATERIALS.set(colorHex, mats);
   return mats;
 }
 
@@ -1444,6 +1505,9 @@ export class EnhancedNodeModels {
     };
 
     const factoryFn = resolveFactory(registryEntry.factoryName);
+    if (cat === 'quantum') {
+      console.log(`[EnhancedNodeModels.create] QUANTUM using factory: ${registryEntry.factoryName}`);
+    }
     if (!factoryFn) {
       console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${resolvedVisualCode})`);
       return null;
@@ -2685,6 +2749,17 @@ export class EnhancedNodeModels {
   static createAnalyticsNode3(group, color) {
     // Tall spike prism
     const spikeGeometry = new THREE.ConeGeometry(0.3, 1.4, 8);
+    // Subtle vertex perturbation for intelligent instability
+    const posAttr = spikeGeometry.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const y = posAttr.getY(i);
+      const x = posAttr.getX(i);
+      const z = posAttr.getZ(i);
+      const offset = Math.sin(y * 6.0) * 0.01;
+      posAttr.setXYZ(i, x + offset, y, z);
+    }
+    spikeGeometry.computeVertexNormals();
+
     const material = new THREE.MeshStandardMaterial({
       transparent: false,
       opacity: 1,
@@ -2701,6 +2776,20 @@ export class EnhancedNodeModels {
     const spike = new THREE.Mesh(spikeGeometry, material);
     group.add(spike);
 
+    // Dual cone interference shell (wireframe)
+    const spikeWireMat = new THREE.MeshBasicMaterial({
+      color: color,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false
+    });
+    const spikeWire = new THREE.Mesh(spikeGeometry.clone(), spikeWireMat);
+    spikeWire.scale.setScalar(1.03);
+    spikeWire.rotation.y += 0.08;
+    spikeWire.rotation.x += 0.03;
+    group.add(spikeWire);
+
     // Soft violet rim
     const rimGeometry = new THREE.TorusGeometry(0.4, 0.08, 8, 32);
     const rimMaterial = new THREE.MeshBasicMaterial({
@@ -2709,9 +2798,32 @@ export class EnhancedNodeModels {
       opacity: 0.4
     });
     const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-    rim.position.y = -0.5;
-    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.15;
+    rim.rotation.x = 0.4;
+    rim.rotation.z = 0.2;
     group.add(rim);
+
+    // Fragment halo
+    const fragmentCount = 7;
+    for (let i = 0; i < fragmentCount; i++) {
+      const fragGeo = new THREE.TetrahedronGeometry(0.07, 0);
+      const fragMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.7
+      });
+      const frag = new THREE.Mesh(fragGeo, fragMat);
+      const angle = (i / fragmentCount) * Math.PI * 2;
+      const radius = 0.45;
+      const yOffset = (Math.random() - 0.5) * 0.1;
+      frag.position.set(
+        Math.cos(angle) * radius,
+        yOffset,
+        Math.sin(angle) * radius
+      );
+      frag.userData.ignoreRaycast = true;
+      group.add(frag);
+    }
 
     // --- Analytics Factory Trace ---
     let meshCount = 0;
@@ -4740,21 +4852,39 @@ export class EnhancedNodeModels {
    * - ChaoticHeart
   */
   static createQuantumNode(group, index, color) {
+    // HARD REDIRECT: QUANTUM always uses v2 builder
+    // Legacy path is quarantined with dev-only warning
     if (USE_QUANTUM_V2) {
       const v2 = this.createQuantumNodeStyled_v2(group, index, color);
+      console.log('BUILDER CALLED: createQuantumNode (dispatch to v2)', { variant: 'QUANTUM_V2' });
       if (v2) return v2;
     }
-    const variants = [
-      this.createSigmaNode0.bind(this),           // FracturedAnomaly
-      this.createSigmaNode1.bind(this),           // DistortedPolyCluster
-      this.createSigmaNode3.bind(this),           // TwistedOctahedron+ResonanceField
-      this.createExtremeIntegration1.bind(this)   // ChaoticHeart (moved from INTEGRATION)
-    ];
-    EnhancedNodeModels._ensureRegistry('quantum', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.quantum) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.quantum);
-    }
-    return variants[index % variants.length](group, color);
+    
+    // LEGACY QUARANTINE: This path should never be reached
+    // If reached, log warning with stack trace for debugging
+    console.warn(
+      "[LEGACY VISUAL] QUANTUM v2 builder failed, falling back to legacy. " +
+      "This should never happen - v2 is hard-locked. Stack:",
+      new Error().stack
+    );
+    
+    // Hard fallback to v2 even if legacy was attempted
+    const v2Fallback = this.createQuantumNodeStyled_v2(group, index, color);
+    if (v2Fallback) return v2Fallback;
+    
+    // Final fallback: return minimal placeholder for dev visibility
+    const placeholder = new THREE.Group();
+    placeholder.name = 'QUANTUM_FALLBACK_LEGACY';
+    placeholder.userData.visualVariant = 'QUANTUM_V2_FALLBACK';
+    const placeholderGeo = new THREE.DodecahedronGeometry(0.5, 0);
+    const placeholderMat = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      wireframe: true
+    });
+    const placeholderMesh = new THREE.Mesh(placeholderGeo, placeholderMat);
+    placeholder.add(placeholderMesh);
+    group.add(placeholder);
+    return group;
   }
 
   /**
@@ -4772,6 +4902,10 @@ export class EnhancedNodeModels {
       const quantumRoot = new THREE.Group();
       quantumRoot.name = 'QUANTUM_NODE';
       quantumRoot.userData.visualVariant = 'QUANTUM_V2';
+      console.log('BUILDER CALLED: createQuantumNodeStyled_v2', { visualVariant: quantumRoot.userData.visualVariant });
+      
+      // Mark root for traversal safety - skip material restoration for v2 nodes
+      quantumRoot.userData.skipMaterialRestoration = true;
 
       const seed = group?.userData?.nodeId ? hashString(group.userData.nodeId) : index || 1;
       const rng = _mythicSeededRng(seed);
@@ -4926,121 +5060,129 @@ export class EnhancedNodeModels {
   }
 
 
-// ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
+  // ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
   static createSigmaNode(group, index, color) {
+    if (USE_SIGMA_V2) {
+      const v2 = this.createSigmaNodeStyled_v2(group, index, color);
+      console.log('BUILDER CALLED: createSigmaNode (dispatch to v2)', { variant: 'SIGMA_V2' });
+      if (v2) return v2;
+    }
     return this.createQuantumNode(group, index, color);
   }
 
   /**
-   * Sigma Node 0: Soft elliptical form
+   * SIGMA v2: Minimalist harmonic cone form
+   * Hierarchy:
+   * SIGMA_NODE
+   *   - CORE_GROUP (IcosaCore + CoreEdges)
+   *   - FIELD_GROUP (SigmaRings)
+   */
+  static createSigmaNodeStyled_v2(group, index, color) {
+    try {
+      const geometries = _getSigmaV2Geometries();
+      const materials = _getSigmaV2Materials(color);
+
+      const sigmaRoot = new THREE.Group();
+      sigmaRoot.name = 'SIGMA_NODE';
+      sigmaRoot.userData.visualVariant = 'SIGMA_V2';
+      console.log('BUILDER CALLED: createSigmaNodeStyled_v2', { visualVariant: sigmaRoot.userData.visualVariant });
+
+      // CORE GROUP
+      const coreGroup = new THREE.Group();
+      coreGroup.name = 'CORE_GROUP';
+
+      const core = new THREE.Mesh(geometries.baseGeometry, materials.coreMat);
+      core.name = 'SigmaCore';
+      coreGroup.add(core);
+
+      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
+      edges.name = 'CoreEdges';
+      coreGroup.add(edges);
+
+      sigmaRoot.add(coreGroup);
+
+      // FIELD GROUP (orthogonal rings)
+      const fieldGroup = new THREE.Group();
+      fieldGroup.name = 'FIELD_GROUP';
+
+      const ringCount = 2;
+      sigmaRoot.userData.orbitRingCount = ringCount;
+      for (let i = 0; i < ringCount; i++) {
+        const ring = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+        ring.name = `SigmaRing_${i}`;
+        ring.rotation.x = i === 0 ? Math.PI / 2 : 0;
+        ring.rotation.y = i === 1 ? Math.PI / 2 : 0;
+        ring.userData.isSigmaRing = true;
+        ring.userData.isOrbitRing = true;
+        ring.userData.orbitAxis = (i === 0 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+        ring.userData.orbitSpeed = 0.05 + i * 0.02; // slow rotation
+        ring.userData.visualCoreImmutable = true;
+        fieldGroup.add(ring);
+      }
+
+      sigmaRoot.add(fieldGroup);
+
+      sigmaRoot.userData.visualReady = true;
+      group.add(sigmaRoot);
+      return group;
+    } catch (err) {
+      console.error('[SigmaV2Abort]', { reason: err?.message || err });
+      return null;
+    }
+  }
+
+  /**
+   * Sigma Node 0: Soft elliptical form [LEGACY - QUARANTINED]
+   * This legacy builder should never be called.
+   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode0(group, color) {
-    const ellipsoidGeo = new THREE.IcosahedronGeometry(0.8, 4);
-    ellipsoidGeo.scale(1.2, 0.8, 0.9); // Slightly elongated
-    const ellipsoidMat = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.6,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3
-
-    });
-    const ellipsoid = new THREE.Mesh(ellipsoidGeo, ellipsoidMat);
-    group.add(ellipsoid);
-
-    // Dimensional glow effect
-    const glowGeo = new THREE.SphereGeometry(1.1, 16, 16);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.15,
-      wireframe: false
-    });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
-    group.add(glow);
-
-    return group;
+    // LEGACY QUARANTINE WARNING
+    console.warn(
+      "[LEGACY VISUAL] SigmaNode0 (legacy builder) called. " +
+      "SIGMA nodes should use QUANTUM v2 builder. " +
+      "Redirecting to v2. Stack:",
+      new Error().stack
+    );
+    
+    // Hard redirect to v2 builder
+    return this.createQuantumNodeStyled_v2(group, 0, color);
   }
 
   /**
-   * Sigma Node 1: Rotating dimensional rings
+   * Sigma Node 1: Rotating dimensional rings [LEGACY - QUARANTINED]
+   * This legacy builder should never be called.
+   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode1(group, color) {
-    const coreGeo = new THREE.OctahedronGeometry(0.6, 2);
-    const coreMat = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.7,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.35
-
-    });
-    const core = new THREE.Mesh(coreGeo, coreMat);
-    group.add(core);
-
-    // Dimensional rings
-    for (let i = 0; i < 2; i++) {
-      const ringGeo = new THREE.TorusGeometry(1.2 + i * 0.3, 0.06, 8, 100);
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.3 - i * 0.1
-      });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = Math.PI / 3 + i * 0.3;
-      ring.rotation.z = Math.PI / 6 + i * 0.2;
-      group.add(ring);
-    }
-
-    group.userData.rotationAxis = new THREE.Vector3(0.5, 1, 0.5).normalize();
-    return group;
+    // LEGACY QUARANTINE WARNING
+    console.warn(
+      "[LEGACY VISUAL] SigmaNode1 (legacy builder) called. " +
+      "SIGMA nodes should use QUANTUM v2 builder. " +
+      "Redirecting to v2. Stack:",
+      new Error().stack
+    );
+    
+    // Hard redirect to v2 builder
+    return this.createQuantumNodeStyled_v2(group, 1, color);
   }
 
   /**
-   * Sigma Node 3: Twisted anomaly
+   * Sigma Node 3: Twisted anomaly [LEGACY - QUARANTINED]
+   * This legacy builder should never be called.
+   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode3(group, color) {
-    // Create twisted form using scaled octahedra
-    const twistedGeo = new THREE.OctahedronGeometry(0.8, 3);
-    const twistedMat = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.65,
-      roughness: 0.35,
-      emissive: color,
-      emissiveIntensity: 0.3
-
-    });
-    const twisted = new THREE.Mesh(twistedGeo, twistedMat);
-    twisted.rotation.z = Math.PI / 4;
-    group.add(twisted);
-
-    // Resonance field
-    const fieldGeo = new THREE.SphereGeometry(1.0, 12, 12);
-    const fieldMat = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.08,
-      wireframe: true
-    });
-    const field = new THREE.Mesh(fieldGeo, fieldMat);
-    group.add(field);
-
-    return group;
+    // LEGACY QUARANTINE WARNING
+    console.warn(
+      "[LEGACY VISUAL] SigmaNode3 (legacy builder) called. " +
+      "SIGMA nodes should use QUANTUM v2 builder. " +
+      "Redirecting to v2. Stack:",
+      new Error().stack
+    );
+    
+    // Hard redirect to v2 builder
+    return this.createQuantumNodeStyled_v2(group, 3, color);
   }
 
   // ===== MYTHIC NODES (Ancient Fractured Relics - 6 variants) =====

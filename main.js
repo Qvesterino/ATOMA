@@ -3010,6 +3010,7 @@ class AtomaGame {
         this.clock = new THREE.Clock();
         this.time = 0;
         this._switchInProgress = false;
+        this._switchCallId = 0;
         
         // ========================================================================
         // PHASE MMD-1: MATERIAL MUTATION DETECTOR
@@ -7057,440 +7058,317 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * Switch between environments
      * NOW WITH: Safe World Reset Fix 1.0 - Prevents map-switch crashes
      */
-    async switchMode() {
+       switchMode() {
         if (this._switchInProgress) {
             console.warn('[switchMode] reentry blocked');
             return;
         }
         this._switchInProgress = true;
+        const _callId = ++this._switchCallId;
         try {
-        try {
-        console.log('SWITCH ENTERED');
-        console.log("MODE BEFORE:", this.currentMode);
-        // PHASE 1: Begin transition and pause visual systems
-        this.worldResetFix.beginMapTransition({
-            coreMetricsOverlay: this.coreMetricsOverlay,
-            metricReactiveEvents: null, // DISABLED: Legacy system
-            nodePersonality: this.nodePersonality,
-            evolvingLinkFX: this.evolvingLinkFX,
-            worldFXPack: this.worldFXPack,
-            scene: this.scene,
-            renderer: this.renderer
-        });
-
-        // Dispose old AI nodes, linking system, and all effect packs
-        if (this.worldFXPack) {
-            this.worldFXPack.disableAll();
-        }
-        if (this.legendaryPack) {
-            this.legendaryPack.disableAll();
-        }
-        if (this.legendaryLinkFX) {
-            this.legendaryLinkFX.disableAll();
-        }
-        if (this.worldEvents) {
-            this.worldEvents.disableAll();
-        }
-        if (this.weatherPack) {
-            this.weatherPack.disableAll();
-        }
-        if (this.personalityFX) {
-            this.personalityFX.disableAll();
-        }
-        if (this.evolutionManager) {
-            this.evolutionManager.disableAll();
-        }
-        if (this.quantumIllusions) {
-            this.quantumIllusions.clearAll();
-        }
-        
-        // Dispose System State Overlay (safe cleanup for new world)
-        if (this.systemStateOverlay) {
             try {
-                this.systemStateOverlay.dispose();
-            } catch (err) {
-                console.warn('[main.js] SystemStateOverlay disposal failed:', err);
-            }
-        }
-        
-        // [Audit 6.2] Signal world transition start
-        if (this.linkingSystem) {
-            this.linkingSystem.setWorldReady(false);
-        }
-        
-        // Clear auto-link feedback UI effects during map transition
-        if (this.autoLinkFeedbackUI) {
-            this.autoLinkFeedbackUI.clearAll();
-        }
-        
-        // Note: Synergy Debug HUD continues to show on new map (data updates automatically)
-        
-        // Dispose PersonalityVisualAdapter (safe cleanup)
-        if (this.personalityVisualAdapter) {
-            this.personalityVisualAdapter = null;
-        }
+                console.log('SWITCH ENTERED', { callId: _callId });
+                console.log("MODE BEFORE:", this.currentMode);
+                // PHASE 1: Begin transition and pause visual systems
+                this.worldResetFix.beginMapTransition({
+                    coreMetricsOverlay: this.coreMetricsOverlay,
+                    metricReactiveEvents: null, // DISABLED: Legacy system
+                    nodePersonality: this.nodePersonality,
+                    evolvingLinkFX: this.evolvingLinkFX,
+                    worldFXPack: this.worldFXPack,
+                    scene: this.scene,
+                    renderer: this.renderer
+                });
 
-        // Dispose PersonalityVFXLayer (safe cleanup)
-        if (this.personalityVFXLayer) {
-            if (this.personalityVFXLayer.clearCache) {
-                this.personalityVFXLayer.clearCache();
-            }
-            this.personalityVFXLayer = null;
-        }
+                // Dispose old AI nodes, linking system, and all effect packs
+                if (this.worldFXPack) this.worldFXPack.disableAll();
+                if (this.legendaryPack) this.legendaryPack.disableAll();
+                if (this.legendaryLinkFX) this.legendaryLinkFX.disableAll();
+                if (this.worldEvents) this.worldEvents.disableAll();
+                if (this.weatherPack) this.weatherPack.disableAll();
+                if (this.personalityFX) this.personalityFX.disableAll();
+                if (this.evolutionManager) this.evolutionManager.disableAll();
+                if (this.quantumIllusions) this.quantumIllusions.clearAll();
 
-        // Dispose PersonalityShaderBridge (safe cleanup)
-        if (this.personalityShaderBridge) {
-            if (this.personalityShaderBridge.dispose) {
-                this.personalityShaderBridge.dispose();
-            }
-            this.personalityShaderBridge = null;
-        }
+                // Dispose System State Overlay (safe cleanup for new world)
+                if (this.systemStateOverlay) {
+                    try { this.systemStateOverlay.dispose(); }
+                    catch (err) { console.warn('[main.js] SystemStateOverlay disposal failed:', err); }
+                }
 
-        // Dispose PersonalityShaderEffects (safe cleanup)
-        if (this.personalityShaderEffects) {
-            // No dispose needed for effects pack (stateless)
-            this.personalityShaderEffects = null;
-        }
+                // [Audit 6.2] Signal world transition start
+                if (this.linkingSystem) this.linkingSystem.setWorldReady(false);
 
-        // Dispose PersonalityShaderAdvancedFX (safe cleanup)
-        if (this.advancedShaderFX) {
-            this.advancedShaderFX.dispose();
-            this.advancedShaderFX = null;
-        }
+                // Clear auto-link feedback UI effects during map transition
+                if (this.autoLinkFeedbackUI) this.autoLinkFeedbackUI.clearAll();
 
-        // Dispose ArchetypeColorPaletteSystem (safe cleanup)
-        if (this.archetypeColorFX) {
-            if (this.archetypeColorFX.dispose) {
-                this.archetypeColorFX.dispose();
-            }
-            this.archetypeColorFX = null;
-        }
+                // Note: Synergy Debug HUD continues to show on new map (data updates automatically)
 
-        // Dispose ArchetypeAuraEnhancement (safe cleanup)
-        if (this.archetypeAuraFX) {
-            if (this.archetypeAuraFX.dispose) {
-                this.archetypeAuraFX.dispose();
-            }
-            this.archetypeAuraFX = null;
-        }
+                // Dispose PersonalityVisualAdapter (safe cleanup)
+                if (this.personalityVisualAdapter) this.personalityVisualAdapter = null;
 
-        // Dispose ArchetypeAscensionCurves (safe cleanup)
-        if (this.archetypeCurves) {
-            if (this.archetypeCurves.dispose) {
-                this.archetypeCurves.dispose();
-            }
-            this.archetypeCurves = null;
-        }
+                // Dispose PersonalityVFXLayer (safe cleanup)
+                if (this.personalityVFXLayer) {
+                    if (this.personalityVFXLayer.clearCache) this.personalityVFXLayer.clearCache();
+                    this.personalityVFXLayer = null;
+                }
 
-        // Dispose ArchetypeShaderModes (safe cleanup)
-        // try {
-            this.archetypeShaderModes?.dispose?.();
-this.archetypeShaderModes = null;
+                // Dispose PersonalityShaderBridge (safe cleanup)
+                if (this.personalityShaderBridge) {
+                    if (this.personalityShaderBridge.dispose) this.personalityShaderBridge.dispose();
+                    this.personalityShaderBridge = null;
+                }
 
+                // Dispose PersonalityShaderEffects (safe cleanup)
+                if (this.personalityShaderEffects) this.personalityShaderEffects = null;
 
-        // Dispose ArchetypeNeuralLinkVis (safe cleanup)
-        try {
-            this.neuralLinkVis?.dispose?.();
-            this.neuralLinkVis = null;
-        } catch (err) {
-            console.warn('[main.js] ArchetypeNeuralLinkVis_v1 cleanup failed:', err);
-        }
+                // Dispose PersonalityShaderAdvancedFX (safe cleanup)
+                if (this.advancedShaderFX) {
+                    this.advancedShaderFX.dispose();
+                    this.advancedShaderFX = null;
+                }
 
-        // Dispose NodeShaderActivation (safe cleanup)
-        try {
-            this.nodeShaderActivation?.dispose?.();
-            this.nodeShaderActivation = null;
-        } catch (err) {
-            console.warn('[main.js] NodeShaderActivation_v1 cleanup failed:', err);
-        }
+                // Dispose ArchetypeColorPaletteSystem (safe cleanup)
+                if (this.archetypeColorFX) {
+                    if (this.archetypeColorFX.dispose) this.archetypeColorFX.dispose();
+                    this.archetypeColorFX = null;
+                }
 
-        // Dispose LinkPersonalityStateMachine (safe cleanup)
-        try {
-            this.linkPersonalityStateMachine?.dispose?.();
-            this.linkPersonalityStateMachine = null;
-        } catch (err) {
-            console.warn('[main.js] LinkPersonalityStateMachine_v1 cleanup failed:', err);
-        }
+                // Dispose ArchetypeAuraEnhancement (safe cleanup)
+                if (this.archetypeAuraFX) {
+                    if (this.archetypeAuraFX.dispose) this.archetypeAuraFX.dispose();
+                    this.archetypeAuraFX = null;
+                }
 
-        // Dispose SynergyBonusVisualization (safe cleanup)
-        try {
-            this.synergyBonusVisualization?.dispose?.();
-            this.synergyBonusVisualization = null;
-        } catch (err) {
-            console.warn('[main.js] SynergyBonusVisualization_v1 cleanup failed:', err);
-        }
+                // Dispose ArchetypeAscensionCurves (safe cleanup)
+                if (this.archetypeCurves) {
+                    if (this.archetypeCurves.dispose) this.archetypeCurves.dispose();
+                    this.archetypeCurves = null;
+                }
 
-        // Dispose SynergyBonusFXLayer (safe cleanup)
-        try {
-            this.synergyBonusFXLayer?.dispose?.();
-            this.synergyBonusFXLayer = null;
-        } catch (err) {
-            console.warn('[main.js] SynergyBonusFXLayer_v1 cleanup failed:', err);
-        }
+                // Dispose ArchetypeShaderModes (safe cleanup)
+                this.archetypeShaderModes?.dispose?.();
+                this.archetypeShaderModes = null;
 
-        // Dispose SynergyResonanceShaderPack (safe cleanup)
-        try {
-            this.synergyResonanceShaderPack?.dispose?.();
-            this.synergyResonanceShaderPack = null;
-        } catch (err) {
-            console.warn('[main.js] SynergyResonanceShaderPack_v1 cleanup failed:', err);
-        }
+                // Dispose ArchetypeNeuralLinkVis (safe cleanup)
+                try {
+                    this.neuralLinkVis?.dispose?.();
+                    this.neuralLinkVis = null;
+                } catch (err) {
+                    console.warn('[main.js] ArchetypeNeuralLinkVis_v1 cleanup failed:', err);
+                }
 
-        // Dispose ResonanceFeedback (safe cleanup)
-        try {
-            this.resonanceFeedback?.dispose?.();
-            this.resonanceFeedback = null;
-        } catch (err) {
-            console.warn('[main.js] ResonanceFeedback_v1 cleanup failed:', err);
-        }
+                // Dispose NodeShaderActivation (safe cleanup)
+                try {
+                    this.nodeShaderActivation?.dispose?.();
+                    this.nodeShaderActivation = null;
+                } catch (err) {
+                    console.warn('[main.js] NodeShaderActivation_v1 cleanup failed:', err);
+                }
 
-        // Dispose SynergyChainReaction (safe cleanup)
-        try {
-            this.synergyChainReaction?.dispose?.();
-            this.synergyChainReaction = null;
-        } catch (err) {
-            console.warn('[main.js] SynergyChainReaction_v1 cleanup failed:', err);
-        }
+                // Dispose LinkPersonalityStateMachine (safe cleanup)
+                try {
+                    this.linkPersonalityStateMachine?.dispose?.();
+                    this.linkPersonalityStateMachine = null;
+                } catch (err) {
+                    console.warn('[main.js] LinkPersonalityStateMachine_v1 cleanup failed:', err);
+                }
 
-        // Dispose SynergyCascadeFXBridge (safe cleanup)
-        try {
-            this.synergyCascadeFXBridge?.dispose?.();
-            this.synergyCascadeFXBridge = null;
-        } catch (err) {
-            console.warn('[main.js] SynergyCascadeFXBridge_v1 cleanup failed:', err);
-        }
+                // Dispose SynergyBonusVisualization (safe cleanup)
+                try {
+                    this.synergyBonusVisualization?.dispose?.();
+                    this.synergyBonusVisualization = null;
+                } catch (err) {
+                    console.warn('[main.js] SynergyBonusVisualization_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 25 (BONUS): Cleanup Wave Interference Engine
-        // ====================================================================
-        try {
-            this.waveInterferenceEngine?.dispose?.();
-            this.waveInterferenceEngine = null;
-            if (typeof window !== 'undefined') {
-                delete window.emitWaveInterferenceBurstIntent;
-                delete window.emitWaveRegimeTransition;
-                delete window.getWaveInterferenceBurstState;
-            }
-        } catch (err) {
-            console.warn('[main.js] WaveInterferenceEngine_v1 cleanup failed:', err);
-        }
+                // Dispose SynergyBonusFXLayer (safe cleanup)
+                try {
+                    this.synergyBonusFXLayer?.dispose?.();
+                    this.synergyBonusFXLayer = null;
+                } catch (err) {
+                    console.warn('[main.js] SynergyBonusFXLayer_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 25 (BONUS): Cleanup Wave Shader Bridge
-        // ====================================================================
-        try {
-            this.waveShaderBridge?.dispose?.();
-            this.waveShaderBridge = null;
-        } catch (err) {
-            console.warn('[main.js] WaveShaderBridge_v1 cleanup failed:', err);
-        }
+                // Dispose SynergyResonanceShaderPack (safe cleanup)
+                try {
+                    this.synergyResonanceShaderPack?.dispose?.();
+                    this.synergyResonanceShaderPack = null;
+                } catch (err) {
+                    console.warn('[main.js] SynergyResonanceShaderPack_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 25 (BONUS): Cleanup Wave Shader Material Patch
-        // ====================================================================
-        try {
-            this.waveShaderMaterialPatch?.dispose?.();
-            this.waveShaderMaterialPatch = null;
-        } catch (err) {
-            console.warn('[main.js] WaveShaderMaterialPatch_v1 cleanup failed:', err);
-        }
+                // Dispose ResonanceFeedback (safe cleanup)
+                try {
+                    this.resonanceFeedback?.dispose?.();
+                    this.resonanceFeedback = null;
+                } catch (err) {
+                    console.warn('[main.js] ResonanceFeedback_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 25 (BONUS): Cleanup Wave Travel Shader Pack
-        // ====================================================================
-        try {
-            this.waveTravelShaderPack?.dispose?.();
-            this.waveTravelShaderPack = null;
-        } catch (err) {
-            console.warn('[main.js] WaveTravelShaderPack_v1 cleanup failed:', err);
-        }
+                // Dispose SynergyChainReaction (safe cleanup)
+                try {
+                    this.synergyChainReaction?.dispose?.();
+                    this.synergyChainReaction = null;
+                } catch (err) {
+                    console.warn('[main.js] SynergyChainReaction_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 25 (BONUS): Cleanup Wave Dynamics Shader Pack
-        // ====================================================================
-        try {
-            this.waveDynamicsShaderPack?.dispose?.();
-            this.waveDynamicsShaderPack = null;
-        } catch (err) {
-            console.warn('[main.js] WaveDynamicsShaderPack_v1 cleanup failed:', err);
-        }
+                // Dispose SynergyCascadeFXBridge (safe cleanup)
+                try {
+                    this.synergyCascadeFXBridge?.dispose?.();
+                    this.synergyCascadeFXBridge = null;
+                } catch (err) {
+                    console.warn('[main.js] SynergyCascadeFXBridge_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // WEEK 27: Cleanup Wave Particle Emitter
-        // ====================================================================
-        try {
-            this.particleEmitter?.dispose?.();
-            this.particleEmitter = null;
-        } catch (err) {
-            console.warn('[main.js] WaveParticleEmitter_v1 cleanup failed:', err);
-        }
+                // Cleanup Wave systems
+                try {
+                    this.waveInterferenceEngine?.dispose?.();
+                    this.waveInterferenceEngine = null;
+                    if (typeof window !== 'undefined') {
+                        delete window.emitWaveInterferenceBurstIntent;
+                        delete window.emitWaveRegimeTransition;
+                        delete window.getWaveInterferenceBurstState;
+                    }
+                } catch (err) {
+                    console.warn('[main.js] WaveInterferenceEngine_v1 cleanup failed:', err);
+                }
 
-        // ====================================================================
-        // EXTRACTION PACK V1.3: Cleanup Input Runtime Orchestration
-        // ====================================================================
-        this.inputRuntime_v1?.dispose?.();
-        this.inputRuntime_v1 = null;
+                try { this.waveShaderBridge?.dispose?.(); this.waveShaderBridge = null; }
+                catch (err) { console.warn('[main.js] WaveShaderBridge_v1 cleanup failed:', err); }
 
-        // ====================================================================
-        // EXTRACTION PACK V1.2: Cleanup Node Editor Runtime Orchestration
-        // ====================================================================
-        this.nodeEditorRuntime_v1?.dispose?.();
-        this.nodeEditorRuntime_v1 = null;
+                try { this.waveShaderMaterialPatch?.dispose?.(); this.waveShaderMaterialPatch = null; }
+                catch (err) { console.warn('[main.js] WaveShaderMaterialPatch_v1 cleanup failed:', err); }
 
-        // ====================================================================
-        // EXTRACTION PACK V1.1: Cleanup Runtime Orchestration
-        // ====================================================================
-        this.fxRuntime_v1?.dispose?.();
-        this.fxRuntime_v1 = null;
-        this.worldRuntime_v1?.dispose?.();
-        this.worldRuntime_v1 = null;
+                try { this.waveTravelShaderPack?.dispose?.(); this.waveTravelShaderPack = null; }
+                catch (err) { console.warn('[main.js] WaveTravelShaderPack_v1 cleanup failed:', err); }
 
-        // ====================================================================
-        // EXTRACTION PACK V1.0: Cleanup Runtime Orchestration
-        // ====================================================================
-        this.metricsRuntime_v1?.dispose?.();
-        this.metricsRuntime_v1 = null;
-        
-        this.personalityRuntime_v1?.dispose?.();
-        this.personalityRuntime_v1 = null;
+                try { this.waveDynamicsShaderPack?.dispose?.(); this.waveDynamicsShaderPack = null; }
+                catch (err) { console.warn('[main.js] WaveDynamicsShaderPack_v1 cleanup failed:', err); }
 
-        // ========================================================================
-        // EXTRACTION PACK V1.0 — METRICS RUNTIME ORCHESTRATION
-        // EXACTLY ONE metricsRuntime_v1 instance per world
-        // MUST be recreated after every map switch
-        // ========================================================================
-        // 1. Dispose any previous instance defensively
-        if (this.metricsRuntime_v1) {
-            this.metricsRuntime_v1.dispose();
-            this.metricsRuntime_v1 = null;
-        }
+                try { this.particleEmitter?.dispose?.(); this.particleEmitter = null; }
+                catch (err) { console.warn('[main.js] WaveParticleEmitter_v1 cleanup failed:', err); }
 
-        // 2. Create a NEW MetricsRuntime_v1 instance with FULL references
-        this.metricsRuntime_v1 = new MetricsRuntime_v1({
-            aiNodes: this.aiNodes,
-            linkingSystem: this.linkingSystem,
-            scene: this.scene,
-            player: this.player
-        });
+                // Runtime orchestrations cleanup
+                this.inputRuntime_v1?.dispose?.(); this.inputRuntime_v1 = null;
+                this.nodeEditorRuntime_v1?.dispose?.(); this.nodeEditorRuntime_v1 = null;
+                this.fxRuntime_v1?.dispose?.(); this.fxRuntime_v1 = null;
+                this.worldRuntime_v1?.dispose?.(); this.worldRuntime_v1 = null;
+                this.metricsRuntime_v1?.dispose?.(); this.metricsRuntime_v1 = null;
+                this.personalityRuntime_v1?.dispose?.(); this.personalityRuntime_v1 = null;
 
-        // 3. Add ONE debug log
-        console.info("[MetricsRuntime] Reinitialized after map switch");
+                if (this.metricsRuntime_v1) { this.metricsRuntime_v1.dispose(); this.metricsRuntime_v1 = null; }
+                this.metricsRuntime_v1 = new MetricsRuntime_v1({
+                    aiNodes: this.aiNodes,
+                    linkingSystem: this.linkingSystem,
+                    scene: this.scene,
+                    player: this.player
+                });
+                console.info("[MetricsRuntime] Reinitialized after map switch");
 
-        // Dispose FXPerformance Controller & Scaler (safe cleanup)
-        if (this.fxPerformance) {
-            this.fxPerformance = null;
-        }
-        if (this.fxPerformanceScaler) {
-            this.fxPerformanceScaler = null;
-        }
+                if (this.fxPerformance) this.fxPerformance = null;
+                if (this.fxPerformanceScaler) this.fxPerformanceScaler = null;
+                if (this.adaptivePerformanceMonitor) this.adaptivePerformanceMonitor.resetToAuto();
+                if (this.linkingSystem) this.linkingSystem.dispose();
+                if (this.aiNodes) this.aiNodes.dispose();
 
-        // Reset Adaptive Performance Monitor to AUTO mode (for new map)
-        if (this.adaptivePerformanceMonitor) {
-            this.adaptivePerformanceMonitor.resetToAuto();
-        }
-        
-        if (this.linkingSystem) {
-            this.linkingSystem.dispose();
-        }
-        if (this.aiNodes) {
-            this.aiNodes.dispose();
-        }
+                // PHASE 2: Clean old scene visuals
+                this.worldResetFix.cleanOldScene();
 
-        // PHASE 2: Clean old scene visuals
-        this.worldResetFix.cleanOldScene();
+                // Clear current world
+                this.scene.children = this.scene.children.filter(child =>
+                    child === this.player || child instanceof THREE.Light
+                );
+                console.log('AFTER CLEAN', {
+                    sceneChildren: this.scene.children.length,
+                    worldRootExists: !!this.worldRoot,
+                    worldRootChildren: this.worldRoot?.children?.length ?? null
+                });
 
-        // Clear current world
-        this.scene.children = this.scene.children.filter(child =>
-            child === this.player || child instanceof THREE.Light
-        );
-        console.log('AFTER CLEAN', {
-            sceneChildren: this.scene.children.length,
-            worldRootExists: !!this.worldRoot,
-            worldRootChildren: this.worldRoot?.children?.length ?? null
-        });
+                // Cycle through modes
+                if (this.currentMode === 'sigma') {
+                    this.currentMode = 'memory';
+                } else if (this.currentMode === 'memory') {
+                    this.currentMode = 'fractal';
+                } else if (this.currentMode === 'fractal') {
+                    this.currentMode = 'quantum';
+                } else if (this.currentMode === 'quantum') {
+                    this.currentMode = 'desert';
+                } else if (this.currentMode === 'desert') {
+                    this.currentMode = 'chamber';
+                } else {
+                    this.currentMode = 'sigma';
+                }
+                console.log("MODE AFTER:", this.currentMode);
 
-        // Cycle through modes
-        if (this.currentMode === 'sigma') {
-            this.currentMode = 'memory';
-        } else if (this.currentMode === 'memory') {
-            this.currentMode = 'fractal';
-        } else if (this.currentMode === 'fractal') {
-            this.currentMode = 'quantum';
-        } else if (this.currentMode === 'quantum') {
-            this.currentMode = 'desert';
-        } else if (this.currentMode === 'desert') {
-            this.currentMode = 'chamber';
-        } else {
-            this.currentMode = 'sigma';
-        }
-        console.log("MODE AFTER:", this.currentMode);
+                // Update subtitle
+                const subtitle = document.getElementById('subtitle');
+                const modeNames = {
+                    sigma: 'SIGMA RIFT CHAMBER - BOSS ARENA',
+                    memory: 'MEMORY LANE MODE',
+                    fractal: 'FRACTAL VALLEY MODE',
+                    quantum: 'QUANTUM ISLAND MODE',
+                    desert: 'DREAM DESERT MODE',
+                    chamber: 'NODE-SPACE CORE SIMULATION'
+                };
+                if (subtitle) {
+                    subtitle.textContent = modeNames[this.currentMode];
+                }
 
-        // Update subtitle
-        const subtitle = document.getElementById('subtitle');
-        const modeNames = {
-            sigma: 'SIGMA RIFT CHAMBER - BOSS ARENA',
-            memory: 'MEMORY LANE MODE',
-            fractal: 'FRACTAL VALLEY MODE',
-            quantum: 'QUANTUM ISLAND MODE',
-            desert: 'DREAM DESERT MODE',
-            chamber: 'NODE-SPACE CORE SIMULATION'
-        };
-        if (subtitle) {
-            subtitle.textContent = modeNames[this.currentMode];
-        }
-
-        this.worldRoot = new THREE.Group();
-        this.worldRoot.name = "ATOMA_WorldRoot";
-        this.scene.add(this.worldRoot);
-        console.log("NEW WORLDROOT CREATED", this.worldRoot.uuid);
-        console.log('BEFORE WORLD CONSTRUCTOR', {
-            mode: this.currentMode,
-            sceneChildren: this.scene.children.length,
-            worldRootChildren: this.worldRoot.children.length
-        });
+                this.worldRoot = new THREE.Group();
+                this.worldRoot.name = "ATOMA_WorldRoot";
+                this.scene.add(this.worldRoot);
+                console.log("NEW WORLDROOT CREATED", this.worldRoot.uuid);
+                console.log('BEFORE WORLD CONSTRUCTOR', {
+                    mode: this.currentMode,
+                    sceneChildren: this.scene.children.length,
+                    worldRootChildren: this.worldRoot.children.length
+                });
 
         // Setup new environment
+        console.log('WORLD CONSTRUCTOR START', { callId: _callId, mode: this.currentMode });
         if (this.currentMode === 'sigma') {
             this.setupSigmaRiftEnvironment();
             this.sigmaRift = new SigmaRiftChamber({
                 scene: this.scene,
                 worldRoot: this.worldRoot,
-                camera: this.camera
-            });
-            this.activeWorld = this.sigmaRift;
-        } else if (this.currentMode === 'desert') {
-            this.setupDreamDesertEnvironment();
-            this.dreamDesert = new DreamDesert({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
-            this.activeWorld = this.dreamDesert;
-        } else if (this.currentMode === 'quantum') {
-            this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
-            this.quantumIsland = new QuantumIsland({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
-            this.activeWorld = this.quantumIsland;
-        } else if (this.currentMode === 'fractal') {
-            this.setupFractalValleyEnvironment();
-            this.fractalValley = new FractalValley({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
-            this.activeWorld = this.fractalValley;
-        } else if (this.currentMode === 'memory') {
-            this.setupMemoryLaneEnvironment();
-            this.memoryLane = new MemoryLane({
-                scene: this.scene,
-                worldRoot: this.worldRoot
-            });
-            this.activeWorld = this.memoryLane;
-        } else {
-            this.setupChamberEnvironment();
+                        camera: this.camera
+                    });
+                    this.activeWorld = this.sigmaRift;
+                } else if (this.currentMode === 'desert') {
+                    this.setupDreamDesertEnvironment();
+                    this.dreamDesert = new DreamDesert({
+                        scene: this.scene,
+                        worldRoot: this.worldRoot,
+                        camera: this.camera
+                    });
+                    this.activeWorld = this.dreamDesert;
+                } else if (this.currentMode === 'quantum') {
+                    this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
+                    this.quantumIsland = new QuantumIsland({
+                        scene: this.scene,
+                        worldRoot: this.worldRoot,
+                        camera: this.camera
+                    });
+                    this.activeWorld = this.quantumIsland;
+                } else if (this.currentMode === 'fractal') {
+                    this.setupFractalValleyEnvironment();
+                    this.fractalValley = new FractalValley({
+                        scene: this.scene,
+                        worldRoot: this.worldRoot,
+                        camera: this.camera
+                    });
+                    this.activeWorld = this.fractalValley;
+                } else if (this.currentMode === 'memory') {
+                    this.setupMemoryLaneEnvironment();
+                    this.memoryLane = new MemoryLane({
+                        scene: this.scene,
+                        worldRoot: this.worldRoot
+                    });
+                    this.activeWorld = this.memoryLane;
+                } else {
+                    this.setupChamberEnvironment();
             this.chamber = new World({
                 scene: this.scene,
                 worldRoot: this.worldRoot
@@ -7498,208 +7376,208 @@ this.archetypeShaderModes = null;
             this.activeWorld = this.chamber;
         }
         console.log("AFTER WORLD BUILD:", this.worldRoot.children.length);
-        } catch (e) {
-            console.error("SWITCH CRASHED:", e);
-        }
-        console.log('AFTER WORLD CONSTRUCTOR', {
-            mode: this.currentMode,
-            worldRootChildren: this.worldRoot.children.length,
-            sceneChildren: this.scene.children.length
-        });
-
-        // Defer AI/node subsystems to next frame after transition completes
-        // Create new AI nodes
-        this._allowRegistryReset = true;
-        this.createAINodes();
-        this.setupRecursiveGlyphSignalSystem();
-        if (this.coreMetricsOverlay) {
-            this.coreMetricsOverlay.cleanup?.();
-        }
-
-        this.coreMetricsOverlay = new CoreMetricsOverlay(
-            this.scene,
-            this.renderer
-        );
-
-        console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
-        // [Audit 6.2] Signal world transition complete - nodes ready
-        if (this.linkingSystem) {
-            this.linkingSystem.setWorldReady(true);
-        }
-
-        // Reinitialize Node Evolution 2.0 for new nodes
-        this.setupNodeEvolution();
-
-        // DISABLED: Reinitialize Safe Node Archetypes Pack for new nodes
-        // this.setupNodeArchetypesPack(); // System permanently disconnected
-
-        // Reinitialize evolution manager for new nodes
-        this.setupEvolutionManager();
-
-        // Reinitialize legendary pack for new nodes
-        this.setupLegendaryPack();
-
-        // Reinitialize legendary link FX for new links
-        this.setupLegendaryLinkFX();
-
-        // Reinitialize world events for new environment
-        this.setupWorldEvents();
-
-        // Reinitialize weather pack for new environment
-        this.setupWeatherPack();
-
-        // Reinitialize camera FX for new environment
-
-        // Reinitialize personality FX for new nodes
-        this.setupPersonalityFX();
-
-        // Reinitialize world FX for new environment
-        this.setupWorldFXPack();
-
-        // Reinitialize Semantic Glyph AI for new nodes
-        this.setupSemanticGlyphAI();
-
-        // Reinitialize Glyph Fusion Overlay 4.1 for new nodes
-        this.setupGlyphFusionOverlay();
-
-        // Hide Node Inspect Overlay during transition (will reappear when looking at nodes)
-        if (this.nodeInspectOverlay) {
-            this.nodeInspectOverlay.forceHide();
-        }
-
-        // Reset Metrics FX for new nodes
-        if (this.metricsVisualFX) {
-            this.metricsVisualFX.reset();
-        }
-
-        // Reset Node Personality System for new nodes
-        if (this.nodePersonalitySystem) {
-            this.nodePersonalitySystem.reset();
-        }
-
-        // Reset Mythic Seed Glyph System for new nodes
-        if (this.mythicSeedGlyph) {
-            this.mythicSeedGlyph.cleanup();
-            // Remove old markers in new scene
-            this.mythicSeedGlyph.removeOldMarkers();
-        }
-
-        // Reset Legacy Debug Cone Cleanup for new nodes
-        if (this.legacyConeCleanup) {
-            this.legacyConeCleanup.reset();
-        }
-
-        // DISABLED: Fractal Hex Marker System (legacy debug system)
-        // if (this.fractalHexMarker) {
-        //   this.fractalHexMarker.cleanup();
-        // }
-
-        // Run Legacy Glyph Cleanup again on world transition
-        if (this.legacyGlyphCleanup) {
-            this.legacyGlyphCleanup.resetStats();
-            this.legacyGlyphCleanup.cleanupLegacyGlyphs();
-        }
-
-        // Reset ATOMA Glyph System 3.0 for new nodes
-        if (this.glyphSystem) {
-            this.glyphSystem.cleanup();
-        }
-
-        // Reset ATOMA Glyph System 4.0 for new nodes
-        if (this.glyphSystem4) {
-            this.glyphSystem4.cleanup();
-        }
-
-        // Reset ATOMA Glyph Layer 4.0 for new nodes
-        if (this.glyphLayer4) {
-            this.glyphLayer4.cleanup();
-        }
-
-        // Run Glyph Purity Mode 5.1 purification on world transition
-        // Ensures no stray fallback glyphs appear in new world
-        if (this.glyphPurityMode) {
-            this.glyphPurityMode.resetStats();
-            const removed = this.glyphPurityMode.purifyScene();
-            if (removed > 0) {
-                console.log(`✓ Glyph Purity: Removed ${removed} unauthorized glyphs from new world`);
+        console.log('WORLD CONSTRUCTOR END', { callId: _callId, mode: this.currentMode, worldRootChildren: this.worldRoot.children.length });
+            } catch (e) {
+                console.error("SWITCH CRASHED:", e);
             }
-        }
+            console.log('AFTER WORLD CONSTRUCTOR', {
+                mode: this.currentMode,
+                worldRootChildren: this.worldRoot.children.length,
+                sceneChildren: this.scene.children.length
+            });
 
-        // Reset Glyph Fusion Overlay 4.1 for new nodes
-        if (this.glyphFusionOverlay) {
-            this.glyphFusionOverlay.cleanup();
-        }
+            // Create new AI nodes
+            this._allowRegistryReset = true;
+            // this.createAINodes();
+            this.setupRecursiveGlyphSignalSystem();
+            if (this.coreMetricsOverlay) {
+                this.coreMetricsOverlay.cleanup?.();
+            }
 
-        // Reset Procedural Meaning Engine 1.0 for new nodes
-        if (this.proceduralMeaningEngine) {
-            this.proceduralMeaningEngine.cleanup();
-            // Reinitialize for new nodes
-            this.setupProceduralMeaningEngine();
-        }
+            this.coreMetricsOverlay = new CoreMetricsOverlay(
+                this.scene,
+                this.renderer
+            );
 
-        // Reset Link Glyph Flow 1.0 for new links
-        if (this.linkGlyphFlow) {
-            this.linkGlyphFlow.cleanupAll();
-        }
+            console.log('[switchMode] CoreMetricsOverlay reinitialized after world switch');
+            // [Audit 6.2] Signal world transition complete - nodes ready
+            if (this.linkingSystem) {
+                this.linkingSystem.setWorldReady(true);
+            }
 
-        // Reset Linked Glyph Synchronization 1.0 for new links
-        if (this.linkedGlyphSync) {
-            this.linkedGlyphSync.cleanup();
-        }
+            // Reinitialize Node Evolution 2.0 for new nodes
+            this.setupNodeEvolution();
 
-        // Reset Linked Glyph Messaging 3.0 for new links
-        if (this.linkedGlyphMessaging) {
-            this.linkedGlyphMessaging.cleanup();
-        }
+            // DISABLED: Reinitialize Safe Node Archetypes Pack for new nodes
+            // this.setupNodeArchetypesPack(); // System permanently disconnected
 
-        // Reset Recursive Glyph Messaging 4.0 for new links
-        if (this.recursiveGlyphMessaging) {
-            this.recursiveGlyphMessaging.cleanup();
-        }
+            // Reinitialize evolution manager for new nodes
+            this.setupEvolutionManager();
 
-        // Reset Recursive Glyph Signal System (attention-driven transient signals)
-        if (this.recursiveGlyphSignalSystem) {
-            this.recursiveGlyphSignalSystem.clearAllSignals();
-            this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
-        }
+            // Reinitialize legendary pack for new nodes
+            this.setupLegendaryPack();
 
-        // Reset Emergent Thought Storms 5.0 for new network
-        if (this.emergentThoughtStorms) {
-            this.emergentThoughtStorms.cleanup();
-        }
+            // Reinitialize legendary link FX for new links
+            this.setupLegendaryLinkFX();
 
-        // Reset AI Narrative Patterns 6.0 for new network
-        if (this.narrativePatterns) {
-            this.narrativePatterns.cleanup();
-        }
+            // Reinitialize world events for new environment
+            this.setupWorldEvents();
 
-        // PHASE 3: Wait for new scene to be ready
-        const sceneReady = this.worldResetFix.waitForNewSceneReady(
-            this.scene,
-            this.aiNodes,
-            this.linkingSystem
-        );
+            // Reinitialize weather pack for new environment
+            this.setupWeatherPack();
 
-        if (!sceneReady) {
-            console.warn('⚠ New scene failed to initialize, attempting recovery');
-        }
+            // Reinitialize camera FX for new environment
 
-        // PHASE 4: Reinitialize visual systems
-        await this.worldResetFix.reinitializeVisualSystems({
-            coreMetricsOverlay: this.coreMetricsOverlay,
-            metricReactiveEvents: null, // DISABLED: Legacy system
-            nodePersonality: this.nodePersonality,
-            evolvingLinkFX: this.evolvingLinkFX,
-            worldFXPack: this.worldFXPack,
-            scene: this.scene,
-            renderer: this.renderer
-        });
+            // Reinitialize personality FX for new nodes
+            this.setupPersonalityFX();
 
-        // Reset player position
-        this.player.position.set(0, 1, 0);
+            // Reinitialize world FX for new environment
+            this.setupWorldFXPack();
 
-        // PHASE 5: Complete transition
-        this.worldResetFix.completeTransition();
+            // Reinitialize Semantic Glyph AI for new nodes
+            this.setupSemanticGlyphAI();
+
+            // Reinitialize Glyph Fusion Overlay 4.1 for new nodes
+            this.setupGlyphFusionOverlay();
+
+            // Hide Node Inspect Overlay during transition (will reappear when looking at nodes)
+            if (this.nodeInspectOverlay) {
+                this.nodeInspectOverlay.forceHide();
+            }
+
+            // Reset Metrics FX for new nodes
+            if (this.metricsVisualFX) {
+                this.metricsVisualFX.reset();
+            }
+
+            // Reset Node Personality System for new nodes
+            if (this.nodePersonalitySystem) {
+                this.nodePersonalitySystem.reset();
+            }
+
+            // Reset Mythic Seed Glyph System for new nodes
+            if (this.mythicSeedGlyph) {
+                this.mythicSeedGlyph.cleanup();
+                // Remove old markers in new scene
+                this.mythicSeedGlyph.removeOldMarkers();
+            }
+
+            // Reset Legacy Debug Cone Cleanup for new nodes
+            if (this.legacyConeCleanup) {
+                this.legacyConeCleanup.reset();
+            }
+
+            // DISABLED: Fractal Hex Marker System (legacy debug system)
+            // if (this.fractalHexMarker) {
+            //   this.fractalHexMarker.cleanup();
+            // }
+
+            // Run Legacy Glyph Cleanup again on world transition
+            if (this.legacyGlyphCleanup) {
+                this.legacyGlyphCleanup.resetStats();
+                this.legacyGlyphCleanup.cleanupLegacyGlyphs();
+            }
+
+            // Reset ATOMA Glyph System 3.0 for new nodes
+            if (this.glyphSystem) {
+                this.glyphSystem.cleanup();
+            }
+
+            // Reset ATOMA Glyph System 4.0 for new nodes
+            if (this.glyphSystem4) {
+                this.glyphSystem4.cleanup();
+            }
+
+            // Reset ATOMA Glyph Layer 4.0 for new nodes
+            if (this.glyphLayer4) {
+                this.glyphLayer4.cleanup();
+            }
+
+            // Run Glyph Purity Mode 5.1 purification on world transition
+            // Ensures no stray fallback glyphs appear in new world
+            if (this.glyphPurityMode) {
+                this.glyphPurityMode.resetStats();
+                const removed = this.glyphPurityMode.purifyScene();
+                if (removed > 0) {
+                    console.log(`✓ Glyph Purity: Removed ${removed} unauthorized glyphs from new world`);
+                }
+            }
+
+            // Reset Glyph Fusion Overlay 4.1 for new nodes
+            if (this.glyphFusionOverlay) {
+                this.glyphFusionOverlay.cleanup();
+            }
+
+            // Reset Procedural Meaning Engine 1.0 for new nodes
+            if (this.proceduralMeaningEngine) {
+                this.proceduralMeaningEngine.cleanup();
+                // Reinitialize for new nodes
+                this.setupProceduralMeaningEngine();
+            }
+
+            // Reset Link Glyph Flow 1.0 for new links
+            if (this.linkGlyphFlow) {
+                this.linkGlyphFlow.cleanupAll();
+            }
+
+            // Reset Linked Glyph Synchronization 1.0 for new links
+            if (this.linkedGlyphSync) {
+                this.linkedGlyphSync.cleanup();
+            }
+
+            // Reset Linked Glyph Messaging 3.0 for new links
+            if (this.linkedGlyphMessaging) {
+                this.linkedGlyphMessaging.cleanup();
+            }
+
+            // Reset Recursive Glyph Messaging 4.0 for new links
+            if (this.recursiveGlyphMessaging) {
+                this.recursiveGlyphMessaging.cleanup();
+            }
+
+            // Reset Recursive Glyph Signal System (attention-driven transient signals)
+            if (this.recursiveGlyphSignalSystem) {
+                this.recursiveGlyphSignalSystem.clearAllSignals();
+                this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
+            }
+
+            // Reset Emergent Thought Storms 5.0 for new network
+            if (this.emergentThoughtStorms) {
+                this.emergentThoughtStorms.cleanup();
+            }
+
+            // Reset AI Narrative Patterns 6.0 for new network
+            if (this.narrativePatterns) {
+                this.narrativePatterns.cleanup();
+            }
+
+            // PHASE 3: Wait for new scene to be ready
+            const sceneReady = this.worldResetFix.waitForNewSceneReady(
+                this.scene,
+                this.aiNodes,
+                this.linkingSystem
+            );
+
+            if (!sceneReady) {
+                console.warn('⚠ New scene failed to initialize, attempting recovery');
+            }
+
+            // PHASE 4: Reinitialize visual systems
+            this.worldResetFix.reinitializeVisualSystems({
+                coreMetricsOverlay: this.coreMetricsOverlay,
+                metricReactiveEvents: null, // DISABLED: Legacy system
+                nodePersonality: this.nodePersonality,
+                evolvingLinkFX: this.evolvingLinkFX,
+                worldFXPack: this.worldFXPack,
+                scene: this.scene,
+                renderer: this.renderer
+            });
+
+            // Reset player position
+            this.player.position.set(0, 1, 0);
+
+            // PHASE 5: Complete transition
+            this.worldResetFix.completeTransition();
         } finally {
             this._switchInProgress = false;
         }
