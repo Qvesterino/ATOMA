@@ -298,6 +298,126 @@ function _mythicSeededRng(seed = 1) {
   };
 }
 
+function hashNodeIdToFloat(nodeId = '') {
+  if (!nodeId) return 0.0;
+  let hash = 0;
+  for (let i = 0; i < nodeId.length; i++) {
+    hash = ((hash << 5) - hash) + nodeId.charCodeAt(i);
+    hash |= 0;
+  }
+  return ((hash % 1000) + 1000) % 1000 / 1000;
+}
+
+function createVortexMaterial(seedValue, baseColor = 0x00eaff) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    wireframe: true,
+    uniforms: {
+      uTime: { value: 0 },
+      uSeed: { value: seedValue },
+      uColor: { value: new THREE.Color(baseColor) }
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uSeed;
+      varying vec3 vPos;
+
+      float hash(float n) {
+        return fract(sin(n) * 43758.5453123);
+      }
+
+      void main() {
+        vPos = position;
+        float noise = sin(position.y * 4.0 + uTime * 2.0 + uSeed) * 0.15;
+        float twist = sin(position.x * 3.0 + uSeed) * 0.1;
+        vec3 newPosition = position;
+        newPosition.x += noise;
+        newPosition.z += twist;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      varying vec3 vPos;
+
+      void main() {
+        float intensity = 0.7 + 0.3 * sin(length(vPos) * 5.0);
+        gl_FragColor = vec4(uColor * intensity, 0.85);
+      }
+    `
+  });
+}
+
+function createControlFractureMaterial(seedValue, baseColor = 0xff2244) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    uniforms: {
+      uTime: { value: 0 },
+      uSeed: { value: seedValue },
+      uColor: { value: new THREE.Color(baseColor) }
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uSeed;
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normal;
+        float noise = sin(position.y * 5.0 + uTime + uSeed) * 0.04;
+        vec3 displaced = position + normal * noise;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      varying vec3 vNormal;
+      void main() {
+        float intensity = 0.5 + 0.5 * dot(normalize(vNormal), vec3(0.0, 1.0, 0.0));
+        gl_FragColor = vec4(uColor * intensity, 0.95);
+      }
+    `,
+    side: THREE.DoubleSide
+  });
+}
+
+function createSigmaCollapseMaterial(seedValue, baseColor = 0xff2244) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    uniforms: {
+      uTime: { value: 0 },
+      uSeed: { value: seedValue },
+      uCollapseStrength: { value: 0.5 },
+      uColor: { value: new THREE.Color(baseColor) }
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uSeed;
+      uniform float uCollapseStrength;
+      varying vec3 vPos;
+
+      void main() {
+        vPos = position;
+        float pulse = sin(uTime * 2.0 + uSeed) * uCollapseStrength * 0.04;
+        float pull = (1.0 - smoothstep(0.0, 1.0, length(position))) * uCollapseStrength * 0.1;
+        vec3 displaced = position + normal * (pulse - pull);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uCollapseStrength;
+      varying vec3 vPos;
+
+      void main() {
+        float len = length(vPos);
+        float intensity = 0.6 + 0.4 * sin(len * 5.0 + uCollapseStrength * 3.0);
+        float alpha = 0.7 + 0.3 * cos(len * 4.0);
+        gl_FragColor = vec4(uColor * intensity, alpha);
+      }
+    `,
+    side: THREE.DoubleSide
+  });
+}
+
 function _getMythicV2Geometries() {
   if (!MYTHIC_V2_CACHE.coreGeometry) {
     MYTHIC_V2_CACHE.coreGeometry = new THREE.DodecahedronGeometry(0.65, 0);
@@ -1718,9 +1838,152 @@ export class EnhancedNodeModels {
    * Input Node 3: Rectangular gateway frame with cyan edge light
    */
   static createInputNode3(group, color) {
-    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-      console.error('[VisualBuildFail]', { archetype: 'input-3', category: 'input', reason: 'NoMesh' });
+    const seed = group?.userData?.nodeId ? hashNodeIdToFloat(group.userData.nodeId) : hashNodeIdToFloat(String(color || 0x00ffff));
+    const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
+    const inputRoot = new THREE.Group();
+    inputRoot.name = 'INPUT_FRAGMENTED_INTAKE';
+
+    // Torus-knot vortex core with shader deformation
+    const knotGeo = new THREE.TorusKnotGeometry(0.38, 0.09, 120, 12, 2, 3);
+    const vortexMat = createVortexMaterial(seed, color);
+    const vortexMesh = new THREE.Mesh(knotGeo, vortexMat);
+    vortexMesh.name = 'VortexCore';
+    vortexMesh.userData.isInputVortexCore = true;
+    vortexMesh.userData.vortexUniforms = vortexMat.uniforms;
+    vortexMesh.scale.set(
+      1 + seed * 0.3,
+      1 + seed * 0.1,
+      1 + seed * 0.25
+    );
+    inputRoot.add(vortexMesh);
+
+    // Gradient inner glow ring
+    const glowRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.32, 0.05, 12, 48),
+      new THREE.MeshBasicMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.35,
+        transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    glowRing.name = 'GradientCoreRing';
+    glowRing.rotation.x = Math.PI / 2;
+    glowRing.position.y = -0.1;
+    inputRoot.add(glowRing);
+
+    // Fragmented shard cluster
+    const shardGroup = new THREE.Group();
+    shardGroup.name = 'FragmentShardCluster';
+    const shardCount = 15;
+    const shardMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.3,
+      transparent: true,
+      opacity: 0.6,
+      metalness: 0.2,
+      roughness: 0.4
+    });
+    for (let i = 0; i < shardCount; i++) {
+      const scale = 0.6 + rng() * 0.4;
+      const shardGeo = new THREE.IcosahedronGeometry(0.05 * (0.8 + rng() * 0.6), 0);
+      shardGeo.translate(
+        (rng() - 0.5) * 0.1,
+        (rng() - 0.5) * 0.04,
+        (rng() - 0.5) * 0.1
+      );
+      const shard = new THREE.Mesh(shardGeo, shardMat);
+      const radius = 0.55 + rng() * 0.15;
+      const angle = (i / shardCount) * Math.PI * 2 + rng() * 0.2;
+      shard.position.set(
+        Math.cos(angle) * radius,
+        (rng() - 0.5) * 0.1,
+        Math.sin(angle) * radius
+      );
+      shard.scale.setScalar(scale);
+      shard.rotation.set(
+        rng() * Math.PI,
+        rng() * Math.PI,
+        rng() * Math.PI
+      );
+      shard.userData.ignoreRaycast = true;
+      shardGroup.add(shard);
     }
+    inputRoot.add(shardGroup);
+
+    // Directional particle stream
+    const streamPositions = [];
+    const streamCount = 60;
+    for (let i = 0; i < streamCount; i++) {
+      const t = i / (streamCount - 1);
+      const radius = 0.8 * (1 - t) + 0.1;
+      const angle = t * Math.PI * 2.5 + rng() * 0.5;
+      const y = -0.4 + t * 0.9 + (rng() - 0.5) * 0.05;
+      streamPositions.push(
+        Math.cos(angle) * radius,
+        y,
+        Math.sin(angle) * radius
+      );
+    }
+    const streamGeo = new THREE.BufferGeometry();
+    streamGeo.setAttribute('position', new THREE.Float32BufferAttribute(streamPositions, 3));
+    const stream = new THREE.Points(streamGeo, new THREE.PointsMaterial({
+      color,
+      size: 0.05,
+      transparent: true,
+      opacity: 0.7
+    }));
+    stream.name = 'DirectionalStream';
+    inputRoot.add(stream);
+
+    // Broken orbital spline
+    const splinePoints = [];
+    for (let i = 0; i < 6; i++) {
+      const radius = 0.6 - i * 0.08;
+      const angle = i * Math.PI * 0.4 + rng() * 0.2;
+      splinePoints.push(new THREE.Vector3(
+        Math.cos(angle) * radius,
+        -0.2 + i * 0.07,
+        Math.sin(angle) * radius
+      ));
+    }
+    const spline = new THREE.CatmullRomCurve3(splinePoints, false, 'catmullrom', 0.3);
+    const splineLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(spline.getPoints(48)),
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.45
+      })
+    );
+    splineLine.name = 'BrokenOrbit';
+    inputRoot.add(splineLine);
+
+    // Distortion overlay
+    const echoLines = new THREE.Group();
+    echoLines.name = 'DistortionOverlay';
+    const echoMat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.25
+    });
+    const echoKnot = new THREE.LineSegments(new THREE.EdgesGeometry(knotGeo), echoMat);
+    echoKnot.scale.copy(vortexMesh.scale).multiplyScalar(1.05);
+    echoKnot.rotation.set(0.05, 0.05, 0);
+    echoLines.add(echoKnot);
+    const echoArc = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(spline.getPoints(32)),
+      echoMat
+    );
+    echoArc.rotation.x = 0.02;
+    echoLines.add(echoArc);
+    inputRoot.add(echoLines);
+
+    // Final group assembly
+    group.add(inputRoot);
     return group;
   }
 
@@ -2697,12 +2960,143 @@ export class EnhancedNodeModels {
   }
 
   /**
-   * Integration Node 1: (purged)
+   * Integration Node 1: Chaotic Bridge Core
    */
   static createIntegrationNode1(group, color) {
-    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-      console.error('[VisualBuildFail]', { archetype: 'integration-1', category: 'integration', reason: 'NoMesh' });
+    const nodeKey = group?.userData?.nodeId || String(color || 0);
+    const seed = hashNodeIdToFloat(nodeKey);
+    const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
+    const root = new THREE.Group();
+    root.name = 'INTEGRATION_CHAOTIC_BRIDGE';
+
+    const baseMaterial = new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.4,
+      roughness: 0.45,
+      emissive: color,
+      emissiveIntensity: 0.15
+    });
+
+    const perturb = (geom, magnitude = 0.04) => {
+      const attr = geom.attributes.position;
+      for (let i = 0; i < attr.count; i++) {
+        attr.setXYZ(
+          i,
+          attr.getX(i) + (rng() - 0.5) * magnitude,
+          attr.getY(i) + (rng() - 0.5) * (magnitude * 0.5),
+          attr.getZ(i) + (rng() - 0.5) * magnitude
+        );
+      }
+      geom.computeVertexNormals();
+    };
+
+    const createCore = (scaleVec, offsetX) => {
+      const geom = new THREE.BoxGeometry(0.45, 0.9, 0.3);
+      perturb(geom, 0.05);
+      const mesh = new THREE.Mesh(geom, baseMaterial.clone());
+      mesh.scale.set(scaleVec.x, scaleVec.y, scaleVec.z);
+      mesh.position.x = offsetX;
+      mesh.rotateY(rng() * Math.PI * 0.2);
+      mesh.userData.coreReference = true;
+      root.add(mesh);
+      return mesh;
+    };
+
+    const coreA = createCore(new THREE.Vector3(1, 1, 1), -0.28);
+    const coreB = createCore(new THREE.Vector3(0.9, 1.1, 0.85), 0.32);
+
+    // Bridge network
+    const bridgePositions = [];
+    const samplePoints = mesh => {
+      const posAttr = mesh.geometry.attributes.position;
+      const points = [];
+      for (let i = 0; i < posAttr.count; i++) {
+        const world = new THREE.Vector3();
+        world.fromBufferAttribute(posAttr, i);
+        world.applyMatrix4(mesh.matrixWorld);
+        points.push(world);
+      }
+      return points;
+    };
+    group.updateMatrixWorld();
+    const pointsA = samplePoints(coreA);
+    const pointsB = samplePoints(coreB);
+    const segmentCount = 18;
+    for (let i = 0; i < segmentCount; i++) {
+      const pa = pointsA[Math.floor(rng() * pointsA.length)];
+      const pb = pointsB[Math.floor(rng() * pointsB.length)];
+      bridgePositions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
     }
+    const bridgeGeom = new THREE.BufferGeometry();
+    bridgeGeom.setAttribute('position', new THREE.Float32BufferAttribute(bridgePositions, 3));
+    const bridge = new THREE.Line(bridgeGeom, new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.65
+    }));
+    bridge.name = 'BridgeNetwork';
+    root.add(bridge);
+
+    // Fragment plates
+    const plates = new THREE.Group();
+    plates.name = 'FragmentPlates';
+    const plateCount = 8 + Math.floor(rng() * 3);
+    for (let i = 0; i < plateCount; i++) {
+      const plateGeo = new THREE.TetrahedronGeometry(0.08 + rng() * 0.04, 0);
+      perturb(plateGeo, 0.02);
+      const plate = new THREE.Mesh(plateGeo, baseMaterial.clone());
+      const radius = 0.45 + rng() * 0.2;
+      const angle = rng() * Math.PI * 2;
+      plate.position.set(
+        Math.cos(angle) * radius,
+        -0.1 + (rng() - 0.5) * 0.2,
+        Math.sin(angle) * radius
+      );
+      plate.scale.setScalar(0.8 + rng() * 0.4);
+      plate.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      plate.userData.fragmentPlate = true;
+      plates.add(plate);
+    }
+    root.add(plates);
+
+    // Orbit interference layer
+    const orbitPoints = [];
+    const orbitSegments = 7;
+    for (let i = 0; i < orbitSegments; i++) {
+      const radius = 0.6 + (i * 0.04);
+      const angle = i * Math.PI * 0.35 + rng() * 0.4;
+      orbitPoints.push(new THREE.Vector3(
+        Math.cos(angle) * radius,
+        -0.1 + rng() * 0.3,
+        Math.sin(angle) * radius
+      ));
+    }
+    const orbitCurve = new THREE.CatmullRomCurve3(orbitPoints, false, 'catmullrom', 0.5);
+    const orbitTube = new THREE.TubeGeometry(orbitCurve, 48, 0.025, 5, false);
+    const orbitMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.35
+    });
+    const orbit = new THREE.Mesh(orbitTube, orbitMat);
+    orbit.name = 'OrbitInterference';
+    orbit.userData.isIntegrationOrbit = true;
+    orbit.rotation.x = 0.1;
+    root.add(orbit);
+
+    // Wire chaos cage
+    const cageGeo = new THREE.BoxGeometry(1.4, 1.1, 0.9);
+    perturb(cageGeo, 0.08);
+    const cageEdges = new THREE.LineSegments(new THREE.EdgesGeometry(cageGeo), new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.3
+    }));
+    cageEdges.scale.set(1.08, 1.0, 0.9);
+    cageEdges.userData.visualLayer = 'INTERNAL';
+    root.add(cageEdges);
+
+    group.add(root);
     return group;
   }
 
@@ -4520,36 +4914,103 @@ export class EnhancedNodeModels {
    * Control Node 3: X-shaped form with beveled edges
    */
   static createControlNode3(group, color) {
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const rawSeed = hashString(nodeKey);
+    const positiveSeed = Math.abs(rawSeed) || 1;
+    const rng = _mythicSeededRng(positiveSeed);
+    const root = new THREE.Group();
+    root.name = 'CONTROL_AUTHORITATIVE_FRACTURE';
+
+    const perturb = (geom, strength = 0.04) => {
+      const attr = geom.attributes.position;
+      for (let i = 0; i < attr.count; i++) {
+        attr.setXYZ(
+          i,
+          attr.getX(i) + (rng() - 0.5) * strength,
+          attr.getY(i) + (rng() - 0.5) * strength * 0.6,
+          attr.getZ(i) + (rng() - 0.5) * strength
+        );
+      }
+      geom.computeVertexNormals();
+    };
+
+    const coreGeo = new THREE.IcosahedronGeometry(0.8, 2);
+    perturb(coreGeo, 0.12);
+    coreGeo.scale(1, 1.15, 1);
+    const coreMat = createControlFractureMaterial(positiveSeed, color);
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.name = 'FracturedCore';
+    coreMesh.userData.isControl3Core = true;
+    coreMesh.userData.fractureUniforms = coreMat.uniforms;
+    root.add(coreMesh);
+
+    // Authority shards
+    const shardCount = 8 + Math.floor(rng() * 7);
+    for (let i = 0; i < shardCount; i++) {
+      const shardGeo = new THREE.TetrahedronGeometry(0.25, 0);
+      perturb(shardGeo, 0.08);
+      const shardMat = new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.3,
+        roughness: 0.5,
+        emissive: color,
+        emissiveIntensity: 0.15,
+        transparent: true,
+        opacity: 0.6
+      });
+      const shard = new THREE.Mesh(shardGeo, shardMat);
+      const radius = 1.2 + rng() * 0.6;
+      const angle = rng() * Math.PI * 2;
+      shard.position.set(
+        Math.cos(angle) * radius,
+        (rng() - 0.5) * 0.3,
+        Math.sin(angle) * radius
+      );
+      shard.scale.setScalar(0.2 + rng() * 0.3);
+      shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      shard.userData.authorityShard = true;
+      root.add(shard);
+    }
+
+    // Fracture cage
+    const cageGeo = new THREE.DodecahedronGeometry(1.4, 0);
+    perturb(cageGeo, 0.13);
+    const cageEdges = new THREE.EdgesGeometry(cageGeo);
+    const cagePositions = cageEdges.attributes.position.array;
+    const filtered = [];
+    for (let i = 0; i < cagePositions.length; i += 6) {
+      if (rng() > 0.3) continue;
+      filtered.push(
+        cagePositions[i], cagePositions[i + 1], cagePositions[i + 2],
+        cagePositions[i + 3], cagePositions[i + 4], cagePositions[i + 5]
+      );
+    }
+    const cageGeom = new THREE.BufferGeometry();
+    cageGeom.setAttribute('position', new THREE.Float32BufferAttribute(filtered.length ? filtered : cagePositions, 3));
+    const cage = new THREE.LineSegments(cageGeom, new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.4
+    }));
+    cage.scale.setScalar(1.4);
+    root.add(cage);
+
+    // Authority axis
+    const axisGeo = new THREE.CylinderGeometry(0.03, 0.02, 1.8, 8, 4, true);
+    perturb(axisGeo, 0.05);
+    const axis = new THREE.Mesh(axisGeo, new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.6,
+      roughness: 0.4,
       emissive: color,
-      emissiveIntensity: 0.35
+      emissiveIntensity: 0.2
+    }));
+    axis.position.y = 0;
+    axis.rotation.set(0.1, 0, 0.05);
+    axis.userData.isAuthorityAxis = true;
+    root.add(axis);
 
-    });
-
-    // Four beveled boxes forming X
-    const positions = [
-      [0.6, 0.6, 0],
-      [-0.6, 0.6, 0],
-      [0.6, -0.6, 0],
-      [-0.6, -0.6, 0]
-    ];
-
-    positions.forEach((pos, i) => {
-      const boxGeometry = new THREE.BoxGeometry(0.3, 0.3, 1);
-      const box = new THREE.Mesh(boxGeometry, material);
-      box.position.set(...pos);
-      box.rotation.z = (i < 2 ? Math.PI / 4 : -Math.PI / 4);
-      group.add(box);
-    });
-
+    group.add(root);
     return group;
   }
 
@@ -5607,6 +6068,120 @@ export class EnhancedNodeModels {
     return this.createQuantumNode(group, index, color);
   }
 
+  static createSigmaNode2(group, color) {
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const seedValue = hashString(nodeKey);
+    const seed = Math.abs(seedValue) || 1;
+    const rng = _mythicSeededRng(seed);
+    const sigmaRoot = new THREE.Group();
+    sigmaRoot.name = 'SIGMA_ENTROPY_COLLAPSE';
+    sigmaRoot.userData.isSigmaLayer = true;
+
+    const perturb = (geom, magnitude = 0.1) => {
+      const attr = geom.attributes.position;
+      for (let i = 0; i < attr.count; i++) {
+        attr.setXYZ(
+          i,
+          attr.getX(i) + (rng() - 0.5) * magnitude,
+          attr.getY(i) + (rng() - 0.5) * magnitude * 0.6,
+          attr.getZ(i) + (rng() - 0.5) * magnitude
+        );
+      }
+      geom.computeVertexNormals();
+    };
+
+    // Layer A: fractured torus skeleton (wireframe)
+    const torusGeo = new THREE.TorusGeometry(0.75, 0.1, 64, 32);
+    perturb(torusGeo, 0.08);
+    const edgesGeom = new THREE.EdgesGeometry(torusGeo);
+    const filtered = [];
+    const posArray = edgesGeom.attributes.position.array;
+    for (let i = 0; i < posArray.length; i += 6) {
+      if (rng() < 0.3) continue; // remove some segments
+      filtered.push(
+        posArray[i], posArray[i + 1], posArray[i + 2],
+        posArray[i + 3], posArray[i + 4], posArray[i + 5]
+      );
+    }
+    const torusWire = new THREE.LineSegments(
+      filtered.length
+        ? new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(filtered, 3))
+        : edgesGeom,
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.7
+      })
+    );
+    torusWire.scale.set(1.1, 0.95, 0.85);
+    torusWire.userData.isSigmaLayer = true;
+    sigmaRoot.add(torusWire);
+
+    // Layer B: ruptured icosa core
+    const coreGeo = new THREE.IcosahedronGeometry(0.6, 2);
+    perturb(coreGeo, 0.18);
+    const coreMat = createSigmaCollapseMaterial(seed, color);
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    coreMesh.userData.isSigmaCore = true;
+    coreMesh.userData.collapseUniforms = coreMat.uniforms;
+    sigmaRoot.add(coreMesh);
+
+    // Layer C: vertical dislocation rings
+    const layersGroup = new THREE.Group();
+    layersGroup.name = 'SigmaDislocationLayers';
+    const layerCount = 3 + Math.floor(rng() * 3);
+    for (let i = 0; i < layerCount; i++) {
+      const ringGeo = new THREE.TorusGeometry(0.5 + i * 0.12, 0.05 + rng() * 0.03, 16, 40);
+      perturb(ringGeo, 0.02);
+      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.25 + rng() * 0.2,
+        blending: THREE.AdditiveBlending
+      }));
+      ring.position.y = -0.2 + i * 0.12 + (rng() - 0.5) * 0.08;
+      ring.rotation.z = rng() * 0.4 - 0.2;
+      ring.userData.isSigmaLayer = true;
+      ring.userData.ringSpeed = 0.02 + rng() * 0.05;
+      layersGroup.add(ring);
+    }
+    sigmaRoot.add(layersGroup);
+
+    // Layer D: entropy shards
+    const shardGroup = new THREE.Group();
+    shardGroup.name = 'SigmaEntropyShards';
+    const shardCount = 10 + Math.floor(rng() * 9);
+    for (let i = 0; i < shardCount; i++) {
+      const shardGeo = new THREE.TetrahedronGeometry(0.1 + rng() * 0.05, 0);
+      perturb(shardGeo, 0.06);
+      const shardMat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.25,
+        transparent: true,
+        opacity: 0.45 + rng() * 0.15,
+        metalness: 0.3,
+        roughness: 0.5
+      });
+      const shard = new THREE.Mesh(shardGeo, shardMat);
+      const dist = 1.0 + rng() * 0.8;
+      const angle = rng() * Math.PI * 2;
+      shard.position.set(
+        Math.cos(angle) * dist,
+        (rng() - 0.5) * 0.4,
+        Math.sin(angle) * dist
+      );
+      shard.scale.setScalar(0.2 + rng() * 0.3);
+      shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      shard.userData.isSigmaShard = true;
+      shardGroup.add(shard);
+    }
+    sigmaRoot.add(shardGroup);
+
+    group.add(sigmaRoot);
+    return group;
+  }
+
   /**
    * SIGMA v2: Minimalist harmonic cone form
    * Hierarchy:
@@ -6590,6 +7165,31 @@ export class EnhancedNodeModels {
       if (child.userData?.isAnalyticsSpine) {
         const base = child.userData.pulseBaseScale || 1;
         child.scale.y = base * (1 + Math.sin(time * 1.5) * 0.02);
+      }
+      if (child.userData?.isInputVortexCore && child.userData.vortexUniforms?.uTime) {
+        child.userData.vortexUniforms.uTime.value = performance.now() * 0.001;
+      }
+      if (child.userData?.isIntegrationOrbit) {
+        child.rotation.y += deltaTime * 0.08;
+      }
+      if (child.userData?.isControl3Core && child.userData.fractureUniforms?.uTime) {
+        child.userData.fractureUniforms.uTime.value = performance.now() * 0.001;
+      }
+      if (child.userData?.isAuthorityAxis) {
+        child.rotation.y += deltaTime * 0.05;
+        child.rotation.x += deltaTime * 0.02;
+      }
+      if (child.userData?.isSigmaCore && child.userData.collapseUniforms) {
+        child.userData.collapseUniforms.uTime.value = performance.now() * 0.001;
+        const strength = 0.4 + 0.2 * Math.sin(performance.now() * 0.0015);
+        child.userData.collapseUniforms.uCollapseStrength.value = strength;
+      }
+      if (child.userData?.isSigmaLayer && child.userData.ringSpeed) {
+        child.rotation.y += deltaTime * child.userData.ringSpeed;
+      }
+      if (child.userData?.isSigmaShard) {
+        child.rotation.x += deltaTime * 0.3;
+        child.rotation.y += deltaTime * 0.2;
       }
     });
 

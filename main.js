@@ -4872,12 +4872,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
     /**
      * Create interactive AI nodes
      */
-     createAINodes() {
+    createAINodes() {
         this._allowRegistryReset = false;
+
+        if (this.aiNodes) {
+            systemRegistry.unregister('aiNodes');
+            this.aiNodes.dispose();
+        }
 
         this.aiNodes = new AINodes(this.scene, this.player, sessionVariantEngine);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
+        systemRegistry.register('aiNodes', this.aiNodes);
         
         // ====================================================================
         // TASK 2: SIMULATION INVARIANT ENFORCEMENT
@@ -7273,6 +7279,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
                 if (this.linkingSystem) this.linkingSystem.dispose();
                 if (this.aiNodes) this.aiNodes.dispose();
 
+
                 // PHASE 2: Clean old scene visuals
                 this.worldResetFix.cleanOldScene();
 
@@ -7388,7 +7395,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
 
             // Create new AI nodes
             this._allowRegistryReset = true;
-            // this.createAINodes();
+            this.createAINodes();
             this.setupRecursiveGlyphSignalSystem();
             if (this.coreMetricsOverlay) {
                 this.coreMetricsOverlay.cleanup?.();

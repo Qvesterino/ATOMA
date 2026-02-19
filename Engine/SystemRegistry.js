@@ -18,6 +18,10 @@
     }
   }
 
+  unregister(name) {
+    this.systems.delete(name);
+  }
+
   disable(name) {
     if (this.systems.has(name)) {
       this.systems.get(name).enabled = false;

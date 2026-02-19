@@ -67,6 +67,7 @@ export const NODE_VISUAL_REGISTRY = {
   612: { category: 'control', factoryName: 'createPhrixFlowArbiter' },
   613: { category: 'control', factoryName: 'createCrucisSuppressionGovernor' },
   614: { category: 'control', factoryName: 'createVertexTemporalGate' },
+  615: { category: 'control', factoryName: 'createControlNode3' },
 
   // Quantum (7xx) — sigma shares pool
   701: { category: 'quantum', factoryName: 'createSigmaNode0' },
@@ -79,6 +80,7 @@ export const NODE_VISUAL_REGISTRY = {
   802: { category: 'sigma', factoryName: 'createSigmaNode1' },
   803: { category: 'sigma', factoryName: 'createSigmaNode3' },
   804: { category: 'sigma', factoryName: 'createExtremeIntegration1' },
+  805: { category: 'sigma', factoryName: 'createSigmaNode2' },
 
   // Mythic / Prime / Error / Emotional (9xx+)
   901: { category: 'mythic', factoryName: 'createMythicNode' },

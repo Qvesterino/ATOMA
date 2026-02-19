@@ -813,6 +813,12 @@ export class AINodes {
 
     // Create potential connections between nearby nodes
     this.createNodeConnections();
+
+    // Reset runtime spawn timer so the next world spawns soon after init
+    if (this.spawningConfig) {
+      const minInterval = this.spawningConfig.timeSpawnInterval?.min ?? 1000;
+      this.spawningConfig.nextTimeSpawn = Date.now() + minInterval;
+    }
   }
 
   /**
@@ -3440,6 +3446,7 @@ export class AINodes {
       return;
     }
     this._spawnModeLogged = false;
+    console.log("NOW:", Date.now(), "NEXT:", this.spawningConfig.nextTimeSpawn);
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
