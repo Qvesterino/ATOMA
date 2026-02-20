@@ -37,6 +37,7 @@ export class LinkSemanticPictogramSystem_WithFusion {
             worldRoot,
             this.compositeGlyphGenerator
         );
+        this.root = this.fusionZoneManager.root;
 
         this.enabled = true;
 

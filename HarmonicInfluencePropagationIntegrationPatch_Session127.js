@@ -75,6 +75,7 @@ export function integrateHarmonicInfluenceSystem(
         
         const harmonicInfluenceSystem = new HarmonicInfluencePropagationSystem_Session127(
           scene,
+          worldRoot,
           world,
           harmonicHubSystem,
           nodeAuraSystem,

@@ -77,6 +77,7 @@ export function integrateHarmonicHubSystem(
         
         const harmonicHubSystem = new HarmonicHubAuraSystem_Session126(
           scene,
+          worldRoot,
           world,
           nodeAuraSystem,
           linkResonanceSystem,
