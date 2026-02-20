@@ -46,10 +46,13 @@ import * as THREE from 'three';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class WorldPersonalityController {
-  constructor(scene, camera, renderer) {
+  constructor(scene, worldRoot, camera, renderer) {
     this.scene = scene;
+    this.worldRoot = worldRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.root = new THREE.Group();
+    this.worldRoot.add(this.root);
     
     // Global network mood state
     this.worldMood = {
@@ -578,7 +581,7 @@ export class WorldPersonalityController {
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
-    this.scene.add(particles);
+    this.root.add(particles);
     
     this.activeEventVisuals.set('harmonic_shafts', {
       object: particles,
@@ -636,7 +639,7 @@ export class WorldPersonalityController {
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
     particles.userData.velocity = new THREE.Vector3(0, -0.5, 0);
-    this.scene.add(particles);
+    this.root.add(particles);
     
     this.activeEventVisuals.set('data_particles', {
       object: particles,
@@ -694,7 +697,7 @@ export class WorldPersonalityController {
     }
     
     group.userData.isWorldFX = true;
-    this.scene.add(group);
+    this.root.add(group);
     
     this.activeEventVisuals.set('energy_arcs', {
       object: group,
@@ -766,7 +769,7 @@ export class WorldPersonalityController {
     
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
-    this.scene.add(particles);
+    this.root.add(particles);
     
     this.activeEventVisuals.set('chaos_nebula', {
       object: particles,
@@ -820,7 +823,7 @@ export class WorldPersonalityController {
     }
     
     group.userData.isWorldFX = true;
-    this.scene.add(group);
+    this.root.add(group);
     
     this.activeEventVisuals.set('shadow_bands', {
       object: group,
@@ -878,7 +881,7 @@ export class WorldPersonalityController {
     const particles = new THREE.Points(geometry, material);
     particles.userData.isWorldFX = true;
     particles.userData.velocity = new THREE.Vector3(0.5, 0, 0);
-    this.scene.add(particles);
+    this.root.add(particles);
     
     this.activeEventVisuals.set('memory_streaks', {
       object: particles,
@@ -935,7 +938,7 @@ export class WorldPersonalityController {
     }
     
     group.userData.isWorldFX = true;
-    this.scene.add(group);
+    this.root.add(group);
     
     this.activeEventVisuals.set('light_pillars', {
       object: group,
@@ -1066,7 +1069,7 @@ export class WorldPersonalityController {
       clampSphere(bloom);
       bloom.position.copy(cluster.center);
       bloom.userData.isWorldFX = true;
-      this.scene.add(bloom);
+      this.root.add(bloom);
       
       this.activeEventVisuals.set(key, {
         object: bloom,
@@ -1108,7 +1111,7 @@ export class WorldPersonalityController {
       
       const shimmer = new THREE.Points(geometry, material);
       shimmer.userData.isWorldFX = true;
-      this.scene.add(shimmer);
+      this.root.add(shimmer);
       
       this.activeEventVisuals.set(key, {
         object: shimmer,
@@ -1178,7 +1181,7 @@ export class WorldPersonalityController {
    */
   cleanupVisual(visual) {
     if (visual.object) {
-      this.scene.remove(visual.object);
+      this.root.remove(visual.object);
       
       if (visual.object.geometry) {
         visual.object.geometry.dispose();

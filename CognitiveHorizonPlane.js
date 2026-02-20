@@ -24,8 +24,8 @@ import VisualTime from './src/time/VisualTime.js';
  */
 
 export class CognitiveHorizonPlane {
-  constructor(scene, camera) {
-    this.scene = scene;
+  constructor(parent, camera) {
+    this.parent = parent;
     this.camera = camera;
     this.time = 0;
     this._timeOrigin = undefined;
@@ -52,7 +52,7 @@ export class CognitiveHorizonPlane {
     this.createGridOverlay();
     this.createGlowGradient();
     
-    this.scene.add(this.planeGroup);
+    this.parent.add(this.planeGroup);
   }
   
   /**

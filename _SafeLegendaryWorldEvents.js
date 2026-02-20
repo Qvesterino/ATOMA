@@ -15,10 +15,13 @@ import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
  */
 
 export class SafeLegendaryWorldEvents {
-  constructor(scene, camera, renderer) {
+  constructor(scene, worldRoot, camera, renderer) {
     this.scene = scene;
+    this.worldRoot = worldRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.root = new THREE.Group();
+    this.worldRoot.add(this.root);
     
     // EXTERNAL STATE - Never touch engine internals
     this.registry = {
@@ -318,7 +321,7 @@ export class SafeLegendaryWorldEvents {
     const shockwave = new THREE.Mesh(shockGeo, shockMat);
     shockwave.position.y = 0;
     shockwave.userData = { isLegendaryWorldVFX: true, type: 'cosmic_shockwave' };
-    this.scene.add(shockwave);
+    this.root.add(shockwave);
     this.vfxContainer.shockwaves.push({
       mesh: shockwave,
       maxRadius: 100,
@@ -340,7 +343,7 @@ export class SafeLegendaryWorldEvents {
     const bloom = new THREE.Mesh(bloomGeo, bloomMat);
     bloom.position.z = -50;
     bloom.userData = { isLegendaryWorldVFX: true, type: 'cosmic_bloom' };
-    this.scene.add(bloom);
+    this.root.add(bloom);
     this.vfxContainer.overlays.push(bloom);
   }
   
@@ -402,7 +405,7 @@ export class SafeLegendaryWorldEvents {
         rotationSpeed: Math.random() * 2
       };
       
-      this.scene.add(particle);
+      this.root.add(particle);
       this.vfxContainer.particles.push(particle);
     }
     
@@ -420,7 +423,7 @@ export class SafeLegendaryWorldEvents {
     const skyOverlay = new THREE.Mesh(skyGeo, skyMat);
     skyOverlay.position.z = -100;
     skyOverlay.userData = { isLegendaryWorldVFX: true, type: 'fractal_sky' };
-    this.scene.add(skyOverlay);
+    this.root.add(skyOverlay);
     this.vfxContainer.overlays.push(skyOverlay);
   }
   
@@ -486,7 +489,7 @@ export class SafeLegendaryWorldEvents {
         scanPosition: 0
       };
       
-      this.scene.add(stripe);
+      this.root.add(stripe);
       this.vfxContainer.overlays.push(stripe);
     }
     
@@ -515,7 +518,7 @@ export class SafeLegendaryWorldEvents {
       
       const ribbon = new THREE.Line(geo, mat);
       ribbon.userData = { isLegendaryWorldVFX: true, type: 'sigma_ribbon' };
-      this.scene.add(ribbon);
+      this.root.add(ribbon);
       this.vfxContainer.beams.push(ribbon);
     }
   }
@@ -574,7 +577,7 @@ export class SafeLegendaryWorldEvents {
       clampSphere(singularity);
     singularity.position.set(0, 60, -80);
     singularity.userData = { isLegendaryWorldVFX: true, type: 'quantum_singularity' };
-    this.scene.add(singularity);
+    this.root.add(singularity);
     this.vfxContainer.meshes.push(singularity);
     
     // Create spectral rays emanating downward
@@ -600,7 +603,7 @@ export class SafeLegendaryWorldEvents {
       
       const ray = new THREE.Line(rayGeo, rayMat);
       ray.userData = { isLegendaryWorldVFX: true, type: 'quantum_ray', index: i };
-      this.scene.add(ray);
+      this.root.add(ray);
       this.vfxContainer.beams.push(ray);
     }
     
@@ -616,7 +619,7 @@ export class SafeLegendaryWorldEvents {
     const eclipse = new THREE.Mesh(eclipseGeo, eclipseMat);
     eclipse.position.z = -98;
     eclipse.userData = { isLegendaryWorldVFX: true, type: 'eclipse_overlay' };
-    this.scene.add(eclipse);
+    this.root.add(eclipse);
     this.vfxContainer.overlays.push(eclipse);
   }
   
@@ -673,7 +676,7 @@ export class SafeLegendaryWorldEvents {
         baseColor: [0xff0000, 0x00ff00, 0x0000ff][i]
       };
       
-      this.scene.add(aurora);
+      this.root.add(aurora);
       this.vfxContainer.overlays.push(aurora);
     }
     
@@ -703,7 +706,7 @@ export class SafeLegendaryWorldEvents {
         speed: 1 + Math.random() * 2
       };
       
-      this.scene.add(trail);
+      this.root.add(trail);
       this.vfxContainer.particles.push(trail);
     }
   }
@@ -762,7 +765,7 @@ export class SafeLegendaryWorldEvents {
   cleanupAllVFX() {
     // Remove all meshes
     this.vfxContainer.meshes.forEach(mesh => {
-      this.scene.remove(mesh);
+      this.root.remove(mesh);
       if (mesh.geometry) mesh.geometry.dispose();
       if (mesh.material) mesh.material.dispose();
     });
@@ -770,7 +773,7 @@ export class SafeLegendaryWorldEvents {
     
     // Remove all particles
     this.vfxContainer.particles.forEach(particle => {
-      this.scene.remove(particle);
+      this.root.remove(particle);
       if (particle.geometry) particle.geometry.dispose();
       if (particle.material) particle.material.dispose();
     });
@@ -778,7 +781,7 @@ export class SafeLegendaryWorldEvents {
     
     // Remove all shockwaves
     this.vfxContainer.shockwaves.forEach(shock => {
-      this.scene.remove(shock.mesh);
+      this.root.remove(shock.mesh);
       if (shock.mesh.geometry) shock.mesh.geometry.dispose();
       if (shock.mesh.material) shock.mesh.material.dispose();
     });
@@ -786,7 +789,7 @@ export class SafeLegendaryWorldEvents {
     
     // Remove all beams
     this.vfxContainer.beams.forEach(beam => {
-      this.scene.remove(beam);
+      this.root.remove(beam);
       if (beam.geometry) beam.geometry.dispose();
       if (beam.material) beam.material.dispose();
     });
@@ -794,7 +797,7 @@ export class SafeLegendaryWorldEvents {
     
     // Remove all overlays
     this.vfxContainer.overlays.forEach(overlay => {
-      this.scene.remove(overlay);
+      this.root.remove(overlay);
       if (overlay.geometry) overlay.geometry.dispose();
       if (overlay.material) overlay.material.dispose();
     });
@@ -802,7 +805,7 @@ export class SafeLegendaryWorldEvents {
     
     // Remove all trails
     this.vfxContainer.trails.forEach(trail => {
-      this.scene.remove(trail);
+      this.root.remove(trail);
       if (trail.geometry) trail.geometry.dispose();
       if (trail.material) trail.material.dispose();
     });

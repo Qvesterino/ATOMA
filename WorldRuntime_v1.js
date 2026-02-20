@@ -77,8 +77,8 @@ export class WorldRuntime_v1 {
             // Verify scene attachment
             if (this.game.activeWorld) {
                 const worldObj = this.game.activeWorld.scene || this.game.activeWorld;
-                if (!this.game.scene.children.includes(worldObj)) {
-                    this.game.scene.add(worldObj);
+                if (!this.game.worldRoot || !this.game.scene.children.includes(this.game.worldRoot)) {
+                    this.game.scene.add(this.game.worldRoot);
                 }
             } else {
                 console.warn('[WorldRuntime_v1] initInitialWorld: activeWorld missing after createWorld()');

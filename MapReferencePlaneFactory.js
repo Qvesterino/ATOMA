@@ -25,33 +25,33 @@ import { CognitiveHorizonPlane } from './CognitiveHorizonPlane.js';
 export class MapReferencePlaneFactory {
   /**
    * Create a reference plane for a map
-   * @param {string} planeType - Type of plane from map.referencePlane
-   * @param {THREE.Scene} scene - Target scene
-   * @param {THREE.Camera} camera - Camera for optional shader uniforms
-   * @param {Object} options - Additional configuration
-   * @returns {Object} Reference plane instance
-   */
-  static createPlane(planeType, scene, camera, options = {}) {
+ * @param {string} planeType - Type of plane from map.referencePlane
+ * @param {THREE.Object3D} parent - Target attachment root (worldRoot)
+ * @param {THREE.Camera} camera - Camera for optional shader uniforms
+ * @param {Object} options - Additional configuration
+ * @returns {Object} Reference plane instance
+ */
+  static createPlane(planeType, parent, camera, options = {}) {
     const normalizedType = (planeType || 'void_plane').toLowerCase();
     
     switch (normalizedType) {
       case 'dream_plane':
-        return this.createDreamPlane(scene, camera, options);
+        return this.createDreamPlane(parent, camera, options);
       
       case 'quantum_plane':
-        return this.createQuantumPlane(scene, camera, options);
+        return this.createQuantumPlane(parent, camera, options);
       
       case 'logic_plane':
-        return this.createLogicPlane(scene, camera, options);
+        return this.createLogicPlane(parent, camera, options);
       
       case 'void_plane':
-        return this.createVoidPlane(scene, camera, options);
+        return this.createVoidPlane(parent, camera, options);
       
       default:
         console.warn(
           `[MapReferencePlaneFactory] Unknown plane type: "${planeType}". Falling back to void_plane.`
         );
-        return this.createVoidPlane(scene, camera, options);
+        return this.createVoidPlane(parent, camera, options);
     }
   }
   
@@ -62,7 +62,7 @@ export class MapReferencePlaneFactory {
    * - Subtle procedural grid
    * - Soft glow near horizon
    */
-  static createDreamPlane(scene, camera, options = {}) {
+  static createDreamPlane(parent, camera, options = {}) {
     const config = {
       size: 300,
       segments: 128,
@@ -73,7 +73,7 @@ export class MapReferencePlaneFactory {
       ...options
     };
     
-    const plane = new CognitiveHorizonPlane(scene, camera);
+    const plane = new CognitiveHorizonPlane(parent, camera);
     plane.setConfig(config);
     plane.userData = { 
       type: 'dream_plane',
@@ -90,7 +90,7 @@ export class MapReferencePlaneFactory {
    * - Faster wave motion
    * - Uncertainty-like shimmer effect
    */
-  static createQuantumPlane(scene, camera, options = {}) {
+  static createQuantumPlane(parent, camera, options = {}) {
     const config = {
       size: 300,
       segments: 128,
@@ -102,7 +102,7 @@ export class MapReferencePlaneFactory {
     };
     
     // Use CognitiveHorizonPlane with quantum config
-    const plane = new CognitiveHorizonPlane(scene, camera);
+    const plane = new CognitiveHorizonPlane(parent, camera);
     plane.setConfig(config);
     
     // Modify colors for quantum aesthetic
@@ -126,7 +126,7 @@ export class MapReferencePlaneFactory {
    * - Mechanical precision
    * - Minimal wave motion
    */
-  static createLogicPlane(scene, camera, options = {}) {
+  static createLogicPlane(parent, camera, options = {}) {
     const config = {
       size: 300,
       segments: 256,         // Higher resolution for grid precision
@@ -137,7 +137,7 @@ export class MapReferencePlaneFactory {
       ...options
     };
     
-    const plane = new CognitiveHorizonPlane(scene, camera);
+    const plane = new CognitiveHorizonPlane(parent, camera);
     plane.setConfig(config);
     
     // Modify colors for logic aesthetic
@@ -161,7 +161,7 @@ export class MapReferencePlaneFactory {
    * - Almost invisible unless looking for it
    * - Lowest visual impact
    */
-  static createVoidPlane(scene, camera, options = {}) {
+  static createVoidPlane(parent, camera, options = {}) {
     const config = {
       size: 300,
       segments: 64,          // Lower resolution for performance
@@ -172,7 +172,7 @@ export class MapReferencePlaneFactory {
       ...options
     };
     
-    const plane = new CognitiveHorizonPlane(scene, camera);
+    const plane = new CognitiveHorizonPlane(parent, camera);
     plane.setConfig(config);
     
     // Modify colors for void aesthetic
@@ -220,17 +220,18 @@ export class MapReferencePlaneFactory {
  * Initialize reference plane for a map
  * Call this during map creation to set up the reference plane
  * 
- * @param {THREE.Scene} scene - Target scene
+ * @param {THREE.Scene} scene - Target scene (for logging)
+ * @param {THREE.Object3D} parent - Attachment parent (worldRoot)
  * @param {THREE.Camera} camera - Camera
  * @param {string} planeType - Type from map.referencePlane
  * @param {Object} options - Additional configuration
  * @returns {Object} Reference plane instance
  */
-export function initMapReferencePlane(scene, camera, planeType, options = {}) {
+export function initMapReferencePlane(scene, parent, camera, planeType, options = {}) {
   console.log(`\n[REFERENCE PLANE INIT] Initializing plane type: ${planeType}`);
   console.log(`[REFERENCE PLANE INIT] Scene children before: ${scene.children.length}`);
   
-  const plane = MapReferencePlaneFactory.createPlane(planeType, scene, camera, options);
+  const plane = MapReferencePlaneFactory.createPlane(planeType, parent || scene, camera, options);
   
   console.log(`[REFERENCE PLANE INIT] Scene children after: ${scene.children.length}`);
   

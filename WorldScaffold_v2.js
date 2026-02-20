@@ -53,32 +53,37 @@ export class WorldScaffold_v2 {
     this.groundPlane = null;
     this.horizonOverlay = null;
     this.fogLayer = null;
+    this.root = null;
   }
 
   /**
    * Initialize all static world scaffolding
    * @param {THREE.Scene} scene - Scene to add geometry to
    * @param {THREE.Camera} camera - Camera (used for setup only)
+   * @param {THREE.Object3D} worldRoot - World attachment root
    * 
    * SINGLE INITIALIZATION ONLY
    * This method must be called exactly once.
    * After init, the scaffold is completely inert.
    */
-  init(scene, camera) {
+  init(scene, camera, worldRoot) {
     if (!scene) {
       console.warn('[WorldScaffold_v2] Scene not provided, skipping scaffold init');
       return;
     }
+    const parent = worldRoot || scene;
+    this.root = new THREE.Group();
+    parent.add(this.root);
 
     // ========================================================================
     // 1. GROUND REFERENCE — Large static plane
     // ========================================================================
-    this._createGroundPlane(scene);
+    this._createGroundPlane(this.root);
 
     // ========================================================================
     // 2. HORIZON CUE — Soft color gradient overlay
     // ========================================================================
-    this._createHorizonOverlay(scene, camera);
+    this._createHorizonOverlay(this.root, camera);
 
     // ========================================================================
     // 3. DEPTH HINT — Static fog
@@ -93,7 +98,7 @@ export class WorldScaffold_v2 {
    * Static plane at Y = -500 (far below world center)
    * Subtle gradient: darker edges, lighter center
    */
-  _createGroundPlane(scene) {
+  _createGroundPlane(parent) {
     // Large quad geometry (1000 x 1000 units)
     const geometry = new THREE.PlaneGeometry(2000, 2000);
 
@@ -119,7 +124,7 @@ export class WorldScaffold_v2 {
     this.groundPlane.receiveShadow = true;
     this.groundPlane.castShadow = false;
 
-    scene.add(this.groundPlane);
+    parent.add(this.groundPlane);
   }
 
   /**
@@ -183,7 +188,7 @@ export class WorldScaffold_v2 {
    * Create horizon overlay — soft vertical color gradient
    * Large billboard that stays behind all nodes
    */
-  _createHorizonOverlay(scene, camera) {
+  _createHorizonOverlay(parent, camera) {
     // Large sphere at world origin (renders behind everything due to depth)
     const geometry = new THREE.SphereGeometry(3000, 32, 32);
 
@@ -232,7 +237,7 @@ export class WorldScaffold_v2 {
 
     this.horizonOverlay = new THREE.Mesh(geometry, shaderMaterial);
     this.horizonOverlay.renderOrder = -1;  // Always behind other objects
-    scene.add(this.horizonOverlay);
+    parent.add(this.horizonOverlay);
   }
 
   /**

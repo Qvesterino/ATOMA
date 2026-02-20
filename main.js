@@ -4457,6 +4457,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Initialize World Personality Controller 2.0 (after scene/camera/renderer ready)
         this.worldPersonalityController = new WorldPersonalityController(
             this.scene,
+            this.worldRoot,
             this.camera,
             this.renderer
         );
@@ -4532,24 +4533,22 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.scene.background = new THREE.Color(0x0a0a14);
         this.scene.fog = new THREE.FogExp2(0x0d1a12, 0.008);
 
-        // Clear existing lights
-        this.scene.children = this.scene.children.filter(child =>
-            !(child instanceof THREE.Light)
-        );
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
 
         // Minimal dark ambient
         const ambientLight = new THREE.AmbientLight(0x0d4d40, 0.1);
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Soft key light with cyan tint
         const keyLight = new THREE.DirectionalLight(0x00ccdd, 0.15);
         keyLight.position.set(30, 20, 30);
-        this.scene.add(keyLight);
+        lightParent?.add(keyLight);
 
         // Rim light with green tint from Rift
         const rimLight = new THREE.DirectionalLight(0x00ff88, 0.1);
         rimLight.position.set(-30, 20, -30);
-        this.scene.add(rimLight);
+        lightParent?.add(rimLight);
     }
 
     /**
@@ -4569,15 +4568,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Ground fog
         this.scene.fog = new THREE.FogExp2(0xccbbff, 0.008);
 
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
+
         // Soft ambient lighting
         const ambientLight = new THREE.AmbientLight(0xffeeff, 0.6);
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Soft directional light (no hard shadows)
         const directionalLight = new THREE.DirectionalLight(0xffddff, 0.4);
         directionalLight.position.set(10, 30, 10);
         directionalLight.castShadow = false;
-        this.scene.add(directionalLight);
+        lightParent?.add(directionalLight);
 
         // Hemisphere light for sky/ground gradient
         const hemisphereLight = new THREE.HemisphereLight(
@@ -4585,7 +4587,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             0xf5d0f0,  // Ground color
             0.5
         );
-        this.scene.add(hemisphereLight);
+        lightParent?.add(hemisphereLight);
     }
 
     /**
@@ -4595,17 +4597,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.scene.background = new THREE.Color(CONFIG.colors.background);
         this.scene.fog = new THREE.FogExp2(CONFIG.colors.fog, 0.015);
 
-        // Clear existing lights
-        this.scene.children = this.scene.children.filter(child =>
-            !(child instanceof THREE.Light)
-        );
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
 
         // Minimal and calm lighting
         const ambientLight = new THREE.AmbientLight(
             CONFIG.colors.primary,
             CONFIG.lighting.ambientIntensity
         );
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Very subtle directional for depth
         const directionalLight = new THREE.DirectionalLight(
@@ -4613,7 +4613,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             0.1
         );
         directionalLight.position.set(10, 20, 10);
-        this.scene.add(directionalLight);
+        lightParent?.add(directionalLight);
     }
 
     /**
@@ -4626,15 +4626,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Subtle void fog
         this.scene.fog = new THREE.FogExp2(0x2a1a4a, 0.01);
 
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
+
         // Soft ambient glow
         const ambientLight = new THREE.AmbientLight(0x8866ff, 0.4);
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Directional light from above (no hard shadows)
         const directionalLight = new THREE.DirectionalLight(0x00dddd, 0.3);
         directionalLight.position.set(0, 50, 0);
         directionalLight.castShadow = false;
-        this.scene.add(directionalLight);
+        lightParent?.add(directionalLight);
 
         // Hemisphere for void gradient
         const hemisphereLight = new THREE.HemisphereLight(
@@ -4642,16 +4645,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             0x00cccc,  // Ground cyan
             0.4
         );
-        this.scene.add(hemisphereLight);
+        lightParent?.add(hemisphereLight);
 
         // Subtle point lights for atmosphere
         const pointLight1 = new THREE.PointLight(0x8800ff, 0.3, 50);
         pointLight1.position.set(20, 10, 20);
-        this.scene.add(pointLight1);
+        lightParent?.add(pointLight1);
 
         const pointLight2 = new THREE.PointLight(0x00dddd, 0.3, 50);
         pointLight2.position.set(-20, 10, -20);
-        this.scene.add(pointLight2);
+        lightParent?.add(pointLight2);
     }
 
     /**
@@ -4676,7 +4679,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         ground.position.y = 0;
         ground.receiveShadow = true;
         
-        this.scene.add(ground);
+        this.worldRoot?.add(ground);
         
         // Add subtle neon ring edge
         const ringGeometry = new THREE.TorusGeometry(groundRadius - 1, 0.5, 32, 100);
@@ -4692,7 +4695,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         ring.rotation.x = -Math.PI / 2;
         ring.position.y = 0.01; // Slightly above to prevent z-fighting
         
-        this.scene.add(ring);
+        this.worldRoot?.add(ring);
     }
 
     /**
@@ -4705,15 +4708,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Distant fog for depth
         this.scene.fog = new THREE.FogExp2(0x7766cc, 0.006);
 
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
+
         // Soft pastel ambient light
         const ambientLight = new THREE.AmbientLight(0xddccff, 0.6);
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Directional light for rim glow (no shadows)
         const directionalLight = new THREE.DirectionalLight(0xffeeff, 0.5);
         directionalLight.position.set(20, 50, 20);
         directionalLight.castShadow = false;
-        this.scene.add(directionalLight);
+        lightParent?.add(directionalLight);
 
         // Hemisphere for valley gradient
         const hemisphereLight = new THREE.HemisphereLight(
@@ -4721,16 +4727,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             0xd4c8f0,  // Ground pastel
             0.5
         );
-        this.scene.add(hemisphereLight);
+        lightParent?.add(hemisphereLight);
 
         // Subtle fill lights
         const fillLight1 = new THREE.PointLight(0xaa88ff, 0.2, 80);
         fillLight1.position.set(-40, 20, -40);
-        this.scene.add(fillLight1);
+        lightParent?.add(fillLight1);
 
         const fillLight2 = new THREE.PointLight(0x88ddff, 0.2, 80);
         fillLight2.position.set(40, 20, 40);
-        this.scene.add(fillLight2);
+        lightParent?.add(fillLight2);
     }
 
     /**
@@ -4743,29 +4749,32 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Corridor fog for depth
         this.scene.fog = new THREE.FogExp2(0x0f0f1a, 0.008);
 
+        const lightParent = this.worldLightingRoot || this.worldRoot;
+        lightParent?.clear?.();
+
         // Soft ambient lighting
         const ambientLight = new THREE.AmbientLight(0x3344aa, 0.3);
-        this.scene.add(ambientLight);
+        lightParent?.add(ambientLight);
 
         // Directional light from above
         const directionalLight = new THREE.DirectionalLight(0x6666aa, 0.4);
         directionalLight.position.set(0, 20, 10);
         directionalLight.castShadow = false;
-        this.scene.add(directionalLight);
+        lightParent?.add(directionalLight);
 
         // Rim lights from sides
         const leftRimLight = new THREE.DirectionalLight(0x00dddd, 0.25);
         leftRimLight.position.set(-20, 5, 0);
-        this.scene.add(leftRimLight);
+        lightParent?.add(leftRimLight);
 
         const rightRimLight = new THREE.DirectionalLight(0x8800ff, 0.25);
         rightRimLight.position.set(20, 5, 0);
-        this.scene.add(rightRimLight);
+        lightParent?.add(rightRimLight);
 
         // Ceiling glow
         const ceilingLight = new THREE.PointLight(0x6633aa, 0.3, 50);
         ceilingLight.position.set(0, 9, 0);
-        this.scene.add(ceilingLight);
+        lightParent?.add(ceilingLight);
     }
 
     /**
@@ -4806,32 +4815,32 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
     initSigmaWorld() {
         this.currentMode = 'sigma';
-        this.setupSigmaRiftEnvironment();
         this.createWorld();
+        this.setupSigmaRiftEnvironment?.();
     }
 
     initDesertWorld() {
         this.currentMode = 'desert';
-        this.setupDreamDesertEnvironment();
         this.createWorld();
+        this.setupDreamDesertEnvironment();
     }
 
     initQuantumWorld() {
         this.currentMode = 'quantum';
-        this.setupQuantumIslandEnvironment();
         this.createWorld();
+        this.setupQuantumIslandEnvironment();
     }
 
     initFractalWorld() {
         this.currentMode = 'fractal';
-        this.setupFractalValleyEnvironment();
         this.createWorld();
+        this.setupFractalValleyEnvironment();
     }
 
     initChamberWorld() {
         this.currentMode = 'chamber';
-        this.setupChamberEnvironment();
         this.createWorld();
+        this.setupChamberEnvironment();
     }
 
     /**
@@ -4841,9 +4850,28 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ATOMA: visual layer prune/reset on world switch
         this.frameScheduler?.resetLayer?.('visual');
 
+        if (this.worldRoot) {
+            this.scene.remove(this.worldRoot);
+        }
+
         this.worldRoot = new THREE.Group();
         this.worldRoot.name = "ATOMA_WorldRoot";
         this.scene.add(this.worldRoot);
+        this.worldLightingRoot = new THREE.Group();
+        this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
+        this.worldRoot.add(this.worldLightingRoot);
+
+        if (this.worldPersonalityController?.root) {
+            this.worldPersonalityController.root.parent?.remove(this.worldPersonalityController.root);
+            this.worldRoot.add(this.worldPersonalityController.root);
+        }
+
+        [this.worldFXPack, this.worldEvents, this.weatherPack, this.metricReactiveEvents].forEach(sys => {
+            if (sys?.root) {
+                sys.root.parent?.remove(sys.root);
+                this.worldRoot.add(sys.root);
+            }
+        });
 
         if (this.currentMode === 'sigma') {
             this.sigmaRift = new SigmaRiftChamber(
@@ -4860,7 +4888,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             );
             this.activeWorld = this.dreamDesert;
         } else if (this.currentMode === 'quantum') {
-            this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
             this.quantumIsland = new QuantumIsland(
                 this.scene,
                 this.worldRoot,
@@ -8900,7 +8927,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * SAFE: Zero modifications to core systems, VFX overlays only
      */
     setupWorldEvents() {
-        this.worldEvents = new SafeLegendaryWorldEvents(this.scene, this.camera, this.renderer);
+        this.worldEvents = new SafeLegendaryWorldEvents(this.scene, this.worldRoot, this.camera, this.renderer);
 
         // Auto-triggers rare global events, no invasive setup needed
     }
@@ -8910,7 +8937,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * SAFE: Zero modifications to core systems, VFX overlays only
      */
     setupWeatherPack() {
-        this.weatherPack = new SafeAIWeatherPack(this.scene, this.camera);
+        this.weatherPack = new SafeAIWeatherPack(this.scene, this.worldRoot, this.camera);
 
         // Auto-generates dynamic weather, no invasive setup needed
     }
@@ -8931,7 +8958,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * SAFE: Zero shader/material modifications, VFX overlays only
      */
     setupWorldFXPack() {
-        this.worldFXPack = new SafeWorldFXPack(this.scene, this.camera);
+        this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.camera);
 
         // Auto-generates environmental effects, no setup needed
     }
@@ -9382,7 +9409,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         }
 
         // DISABLED: Legacy metric reactive system initialization
-        // this.metricReactiveEvents = new MetricReactiveWorldEvents(this.scene, this.renderer, this.coreMetricsOverlay);
+        // this.metricReactiveEvents = new MetricReactiveWorldEvents(this.scene, this.worldRoot, this.renderer, this.coreMetricsOverlay);
 
         // console.log('✓ Metric-Reactive World Events 1.0 initialized');
         // console.log('  - Events trigger based on live metrics');

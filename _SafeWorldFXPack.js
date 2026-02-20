@@ -23,9 +23,12 @@ function areWorldFXEnabled() {
 }
 
 export class SafeWorldFXPack {
-  constructor(scene, camera) {
+  constructor(scene, worldRoot, camera) {
     this.scene = scene;
+    this.worldRoot = worldRoot || scene;
     this.camera = camera;
+    this.root = new THREE.Group();
+    this.worldRoot.add(this.root);
     
     // VFX Containers
     this.vfxLayers = {
@@ -394,7 +397,7 @@ export class SafeWorldFXPack {
       // Remove when done
       if (shift.age > this.config.dimensionalDuration) {
         if (shift.gridMesh) {
-          this.scene.remove(shift.gridMesh);
+          this.root.remove(shift.gridMesh);
           shift.gridMesh.geometry.dispose();
           shift.gridMesh.material.dispose();
         }
@@ -439,7 +442,7 @@ export class SafeWorldFXPack {
     const gridMesh = new THREE.LineSegments(gridGeo, gridMat);
     gridMesh.position.y = 0.5;
     gridMesh.userData = { isWorldFX: true, type: 'dimensional_shift' };
-    this.scene.add(gridMesh);
+    this.root.add(gridMesh);
     
     // Choose random color shift direction
     const colorOffsets = [
@@ -507,7 +510,7 @@ export class SafeWorldFXPack {
         if (wave.mesh) {
           const materialType = wave.materialType || wave.type;
           this._releaseRiftWaveMaterial(materialType, wave.mesh.material);
-          this.scene.remove(wave.mesh);
+          this.root.remove(wave.mesh);
           wave.mesh.geometry.dispose();
         }
         return false;
@@ -594,7 +597,7 @@ export class SafeWorldFXPack {
       waveMesh.rotation.x = -Math.PI / 2;
       waveMesh.userData = { isWorldFX: true, type: 'rift_wave' };
       
-      this.scene.add(waveMesh);
+      this.root.add(waveMesh);
       
       this.vfxLayers.riftWaves.push({
         age: 0,
@@ -630,7 +633,7 @@ export class SafeWorldFXPack {
       waveMesh.position.copy(this.scene.position);
       waveMesh.userData = { isWorldFX: true, type: 'rift_wave_radial' };
       
-      this.scene.add(waveMesh);
+      this.root.add(waveMesh);
       
       this.vfxLayers.riftWaves.push({
         age: 0,
@@ -749,7 +752,7 @@ export class SafeWorldFXPack {
     const fractalMesh = new THREE.LineSegments(fractalGeo, fractalMat);
     fractalMesh.userData = { isWorldFX: true, type: 'fractal_sky' };
     
-    this.scene.add(fractalMesh);
+    this.root.add(fractalMesh);
     this.vfxLayers.fractalSky = fractalMesh;
   }
   
@@ -815,12 +818,12 @@ export class SafeWorldFXPack {
       // Remove when done
       if (rift.age > this.config.quantumRiftDuration) {
         if (rift.mesh) {
-          this.scene.remove(rift.mesh);
+          this.root.remove(rift.mesh);
           rift.mesh.geometry.dispose();
           rift.mesh.material.dispose();
         }
         rift.ripples.forEach(r => {
-          this.scene.remove(r.mesh);
+          this.root.remove(r.mesh);
           r.mesh.geometry.dispose();
           r.mesh.material.dispose();
         });
@@ -855,7 +858,7 @@ export class SafeWorldFXPack {
     const riftMesh = new THREE.Mesh(riftGeo, riftMat);
     riftMesh.position.set(x, 30, z);
     riftMesh.userData = { isWorldFX: true, type: 'quantum_rift' };
-    this.scene.add(riftMesh);
+    this.root.add(riftMesh);
     
     // Create ripple rings
     const ripples = [];
@@ -877,7 +880,7 @@ export class SafeWorldFXPack {
       rippleMesh.position.set(x, 30, z);
       rippleMesh.rotation.x = Math.random() * Math.PI;
       rippleMesh.userData = { isWorldFX: true, type: 'quantum_rift_ripple' };
-      this.scene.add(rippleMesh);
+      this.root.add(rippleMesh);
       
       ripples.push({ mesh: rippleMesh });
     }
@@ -914,7 +917,7 @@ export class SafeWorldFXPack {
       // Remove when done
       if (glitch.age > this.config.sigmaGlitchDuration) {
         if (glitch.mesh) {
-          this.scene.remove(glitch.mesh);
+          this.root.remove(glitch.mesh);
           glitch.mesh.geometry.dispose();
           glitch.mesh.material.dispose();
         }
@@ -957,7 +960,7 @@ export class SafeWorldFXPack {
     
     const glitchMesh = new THREE.LineSegments(glitchGeo, glitchMat);
     glitchMesh.userData = { isWorldFX: true, type: 'sigma_glitch' };
-    this.scene.add(glitchMesh);
+    this.root.add(glitchMesh);
     
     this.vfxLayers.sigmaGlitches.push({
       age: 0,
@@ -1037,7 +1040,7 @@ export class SafeWorldFXPack {
         index: i
       };
       
-      this.scene.add(streamMesh);
+      this.root.add(streamMesh);
       this.vfxLayers.energyStreams.push(streamMesh);
     }
   }
@@ -1097,7 +1100,7 @@ export class SafeWorldFXPack {
     const auroraMesh = new THREE.LineSegments(auroraGeo, auroraMat);
     auroraMesh.userData = { isWorldFX: true, type: 'aurora_horizon' };
     
-    this.scene.add(auroraMesh);
+    this.root.add(auroraMesh);
     this.vfxLayers.auroraHorizons.push(auroraMesh);
   }
   
@@ -1123,7 +1126,7 @@ export class SafeWorldFXPack {
     // Clean dimensional shifts
     this.vfxLayers.dimensionalShifts.forEach(shift => {
       if (shift.gridMesh) {
-        this.scene.remove(shift.gridMesh);
+        this.root.remove(shift.gridMesh);
         shift.gridMesh.geometry.dispose();
         shift.gridMesh.material.dispose();
       }
@@ -1132,7 +1135,7 @@ export class SafeWorldFXPack {
     // Clean rift waves
     this.vfxLayers.riftWaves.forEach(wave => {
       if (wave.mesh) {
-        this.scene.remove(wave.mesh);
+        this.root.remove(wave.mesh);
         wave.mesh.geometry.dispose();
         wave.mesh.material.dispose();
       }
@@ -1141,12 +1144,12 @@ export class SafeWorldFXPack {
     // Clean quantum rifts
     this.vfxLayers.quantumRifts.forEach(rift => {
       if (rift.mesh) {
-        this.scene.remove(rift.mesh);
+        this.root.remove(rift.mesh);
         rift.mesh.geometry.dispose();
         rift.mesh.material.dispose();
       }
       rift.ripples.forEach(r => {
-        this.scene.remove(r.mesh);
+        this.root.remove(r.mesh);
         r.mesh.geometry.dispose();
         r.mesh.material.dispose();
       });
@@ -1155,7 +1158,7 @@ export class SafeWorldFXPack {
     // Clean sigma glitches
     this.vfxLayers.sigmaGlitches.forEach(glitch => {
       if (glitch.mesh) {
-        this.scene.remove(glitch.mesh);
+        this.root.remove(glitch.mesh);
         glitch.mesh.geometry.dispose();
         glitch.mesh.material.dispose();
       }
@@ -1163,21 +1166,21 @@ export class SafeWorldFXPack {
     
     // Clean fractal sky
     if (this.vfxLayers.fractalSky) {
-      this.scene.remove(this.vfxLayers.fractalSky);
+      this.root.remove(this.vfxLayers.fractalSky);
       this.vfxLayers.fractalSky.geometry.dispose();
       this.vfxLayers.fractalSky.material.dispose();
     }
     
     // Clean energy streams
     this.vfxLayers.energyStreams.forEach(stream => {
-      this.scene.remove(stream);
+      this.root.remove(stream);
       stream.geometry.dispose();
       stream.material.dispose();
     });
     
     // Clean aurora horizons
     this.vfxLayers.auroraHorizons.forEach(aurora => {
-      this.scene.remove(aurora);
+      this.root.remove(aurora);
       aurora.geometry.dispose();
       aurora.material.dispose();
     });

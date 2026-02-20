@@ -49,6 +49,7 @@ export class SigmaRiftChamber {
     try {
       this.referencePlane = initMapReferencePlane(
         this.scene,
+        this.worldRoot,
         this.camera,
         this.mapConfig.referencePlane
       );

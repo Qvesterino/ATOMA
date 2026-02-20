@@ -54,6 +54,7 @@ export class DreamDesert2 {
     try {
       this.referencePlane = initMapReferencePlane(
         this.scene,
+        this.worldRoot,
         this.camera,
         this.mapConfig.referencePlane
       );

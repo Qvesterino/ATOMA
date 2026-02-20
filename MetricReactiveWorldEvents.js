@@ -20,8 +20,11 @@ import { projectHudMetrics } from './SemanticMetricAdapter.js';
  */
 
 export class MetricReactiveWorldEvents {
-  constructor(scene, renderer, coreMetricsOverlay) {
+  constructor(scene, worldRoot, renderer, coreMetricsOverlay) {
     this.scene = scene;
+    this.worldRoot = worldRoot || scene;
+    this.root = new THREE.Group();
+    this.worldRoot.add(this.root);
     this.renderer = renderer;
     this.coreMetricsOverlay = coreMetricsOverlay;
     
@@ -74,7 +77,7 @@ export class MetricReactiveWorldEvents {
     // Scene references for overlays
     this.overlayGroup = new THREE.Group();
     this.overlayGroup.name = 'metric-reactive-overlays';
-    this.scene.add(this.overlayGroup);
+    this.root.add(this.overlayGroup);
     if (typeof window !== 'undefined') {
       window.__ATOMA_SPHERE_POLICY__?.registerRoot?.(this.overlayGroup, 'metric-reactive-overlays');
     }

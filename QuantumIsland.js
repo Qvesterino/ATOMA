@@ -53,6 +53,7 @@ export class QuantumIsland {
     try {
       this.referencePlane = initMapReferencePlane(
         this.scene,
+        this.worldRoot,
         this.camera,
         this.mapConfig.referencePlane
       );

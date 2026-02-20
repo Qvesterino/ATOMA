@@ -15,9 +15,12 @@ import * as THREE from 'three';
  */
 
 export class SafeAIWeatherPack {
-  constructor(scene, camera) {
+  constructor(scene, worldRoot, camera) {
     this.scene = scene;
+    this.worldRoot = worldRoot || scene;
     this.camera = camera;
+    this.root = new THREE.Group();
+    this.worldRoot.add(this.root);
     
     // EXTERNAL STATE - Never touch engine internals
     this.registry = {
@@ -348,7 +351,7 @@ export class SafeAIWeatherPack {
     const cloud = new THREE.Mesh(cloudGeo, cloudMat);
     cloud.position.z = -100;
     cloud.userData = { isAIWeatherVFX: true, type: 'quantum_cloud' };
-    this.scene.add(cloud);
+    this.root.add(cloud);
     this.vfxLayers.overlays.push(cloud);
     
     // Create ripple wave particles
@@ -377,7 +380,7 @@ export class SafeAIWeatherPack {
         speed: 1 + Math.random() * 3
       };
       
-      this.scene.add(wave);
+      this.root.add(wave);
       this.vfxLayers.waves.push(wave);
     }
     
@@ -411,7 +414,7 @@ export class SafeAIWeatherPack {
         frequency: 2 + Math.random() * 2
       };
       
-      this.scene.add(arc);
+      this.root.add(arc);
       this.vfxLayers.beams.push(arc);
     }
   }
@@ -479,7 +482,7 @@ export class SafeAIWeatherPack {
         offset: 0
       };
       
-      this.scene.add(stripe);
+      this.root.add(stripe);
       this.vfxLayers.glitches.push(stripe);
     }
     
@@ -507,7 +510,7 @@ export class SafeAIWeatherPack {
         speed: 20 + Math.random() * 40
       };
       
-      this.scene.add(noise);
+      this.root.add(noise);
       this.vfxLayers.glitches.push(noise);
     }
   }
@@ -576,7 +579,7 @@ export class SafeAIWeatherPack {
         brightness: Math.random()
       };
       
-      this.scene.add(drop);
+      this.root.add(drop);
       this.vfxLayers.particles.push(drop);
     }
     
@@ -606,7 +609,7 @@ export class SafeAIWeatherPack {
         lifetime: 3
       };
       
-      this.scene.add(ripple);
+      this.root.add(ripple);
       this.vfxLayers.waves.push(ripple);
     }
   }
@@ -679,7 +682,7 @@ export class SafeAIWeatherPack {
         baseColor: colors[i % colors.length]
       };
       
-      this.scene.add(ribbon);
+      this.root.add(ribbon);
       this.vfxLayers.ribbons.push(ribbon);
     }
     
@@ -709,7 +712,7 @@ export class SafeAIWeatherPack {
         height: dust.position.y
       };
       
-      this.scene.add(dust);
+      this.root.add(dust);
       this.vfxLayers.particles.push(dust);
     }
   }
@@ -776,7 +779,7 @@ export class SafeAIWeatherPack {
         speed: 0.5 + i * 0.2
       };
       
-      this.scene.add(fog);
+      this.root.add(fog);
       this.vfxLayers.overlays.push(fog);
     }
     
@@ -814,7 +817,7 @@ export class SafeAIWeatherPack {
         rotationSpeed: Math.random() * 2
       };
       
-      this.scene.add(fractal);
+      this.root.add(fractal);
       this.vfxLayers.particles.push(fractal);
     }
     
@@ -845,7 +848,7 @@ export class SafeAIWeatherPack {
         frequency: 1 + Math.random() * 2
       };
       
-      this.scene.add(beam);
+      this.root.add(beam);
       this.vfxLayers.beams.push(beam);
     }
   }
@@ -949,7 +952,7 @@ export class SafeAIWeatherPack {
   cleanupAllWeatherVFX() {
     // Remove all overlays
     this.vfxLayers.overlays.forEach(overlay => {
-      this.scene.remove(overlay);
+      this.root.remove(overlay);
       if (overlay.geometry) overlay.geometry.dispose();
       if (overlay.material) overlay.material.dispose();
     });
@@ -957,7 +960,7 @@ export class SafeAIWeatherPack {
     
     // Remove all particles
     this.vfxLayers.particles.forEach(particle => {
-      this.scene.remove(particle);
+      this.root.remove(particle);
       if (particle.geometry) particle.geometry.dispose();
       if (particle.material) particle.material.dispose();
     });
@@ -965,7 +968,7 @@ export class SafeAIWeatherPack {
     
     // Remove all waves
     this.vfxLayers.waves.forEach(wave => {
-      this.scene.remove(wave);
+      this.root.remove(wave);
       if (wave.geometry) wave.geometry.dispose();
       if (wave.material) wave.material.dispose();
     });
@@ -973,7 +976,7 @@ export class SafeAIWeatherPack {
     
     // Remove all ribbons
     this.vfxLayers.ribbons.forEach(ribbon => {
-      this.scene.remove(ribbon);
+      this.root.remove(ribbon);
       if (ribbon.geometry) ribbon.geometry.dispose();
       if (ribbon.material) ribbon.material.dispose();
     });
@@ -981,7 +984,7 @@ export class SafeAIWeatherPack {
     
     // Remove all glitches
     this.vfxLayers.glitches.forEach(glitch => {
-      this.scene.remove(glitch);
+      this.root.remove(glitch);
       if (glitch.geometry) glitch.geometry.dispose();
       if (glitch.material) glitch.material.dispose();
     });
@@ -989,7 +992,7 @@ export class SafeAIWeatherPack {
     
     // Remove all beams
     this.vfxLayers.beams.forEach(beam => {
-      this.scene.remove(beam);
+      this.root.remove(beam);
       if (beam.geometry) beam.geometry.dispose();
       if (beam.material) beam.material.dispose();
     });
@@ -997,7 +1000,7 @@ export class SafeAIWeatherPack {
     
     // Remove all glows
     this.vfxLayers.glows.forEach(glow => {
-      this.scene.remove(glow);
+      this.root.remove(glow);
       if (glow.geometry) glow.geometry.dispose();
       if (glow.material) glow.material.dispose();
     });
@@ -1005,7 +1008,7 @@ export class SafeAIWeatherPack {
     
     // Remove all clouds
     this.vfxLayers.clouds.forEach(cloud => {
-      this.scene.remove(cloud);
+      this.root.remove(cloud);
       if (cloud.geometry) cloud.geometry.dispose();
       if (cloud.material) cloud.material.dispose();
     });
