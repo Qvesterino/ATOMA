@@ -3320,6 +3320,13 @@ this.setHudDirty('nodeInspect');
         console.log('  API: scheduler.stats() | scheduler.listSystems() | scheduler.clear()');
         
         this.currentMode = 'fractal'; // Default: Fractal Valley
+        this.worldRegistry = {
+            fractal: () => this.initFractalWorld(),
+            quantum: () => this.initQuantumWorld(),
+            desert: () => this.initDesertWorld(),
+            chamber: () => this.initChamberWorld(),
+            sigma: () => this.initSigmaWorld()
+        };
 
         // ========================================================================
         // AUDIO SYSTEM (ATOMA Audio Design)
@@ -4795,6 +4802,36 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Enable first-person mode
         this.cameraController.enable();
+    }
+
+    initSigmaWorld() {
+        this.currentMode = 'sigma';
+        this.setupSigmaRiftEnvironment();
+        this.createWorld();
+    }
+
+    initDesertWorld() {
+        this.currentMode = 'desert';
+        this.setupDreamDesertEnvironment();
+        this.createWorld();
+    }
+
+    initQuantumWorld() {
+        this.currentMode = 'quantum';
+        this.setupQuantumIslandEnvironment();
+        this.createWorld();
+    }
+
+    initFractalWorld() {
+        this.currentMode = 'fractal';
+        this.setupFractalValleyEnvironment();
+        this.createWorld();
+    }
+
+    initChamberWorld() {
+        this.currentMode = 'chamber';
+        this.setupChamberEnvironment();
+        this.createWorld();
     }
 
     /**
@@ -7058,6 +7095,21 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
                 }
             }
         });
+    }
+
+    loadWorld(worldId) {
+        if (!this.worldRegistry[worldId]) {
+            console.warn("Unknown world:", worldId);
+            return;
+        }
+
+        console.log("Loading world:", worldId);
+
+        this.worldResetFix.cleanOldScene();
+
+        this.currentMode = worldId;
+
+        this.worldRegistry[worldId]();
     }
 
     /**
