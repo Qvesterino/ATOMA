@@ -8,7 +8,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Represents quantum instability in AI dream state
  */
 export class QuantumIsland {
-  constructor({ scene, worldRoot, camera = null }) {
+  constructor(scene, worldRoot, camera = null) {
     console.log('WORLD CONSTRUCTOR:', this.constructor.name);
     this.scene = scene;
     this.worldRoot = worldRoot;

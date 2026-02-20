@@ -9,7 +9,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * An ancient, sacred AI chamber built around a gigantic glowing Rift
  */
 export class SigmaRiftChamber {
-  constructor({ scene, worldRoot, camera = null }) {
+  constructor(scene, worldRoot, camera = null) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.camera = camera;

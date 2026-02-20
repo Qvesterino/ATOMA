@@ -11,8 +11,9 @@ import { getMapConfig } from './MapConfigBase.js';
  * Separate invisible collision layer for physics
  */
 export class DreamDesert2 {
-  constructor(scene, camera) {
+  constructor(scene, worldRoot, camera = null) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.visualObjects = [];
     this.collisionObjects = [];
@@ -137,7 +138,7 @@ export class DreamDesert2 {
     dunes.receiveShadow = true;
     dunes.name = 'mainDunes';
     
-    this.scene.add(dunes);
+    this.worldRoot.add(dunes);
     this.visualObjects.push(dunes);
   }
   
@@ -180,7 +181,7 @@ export class DreamDesert2 {
       ridge.receiveShadow = true;
       ridge.name = 'fractalRidge';
       
-      this.scene.add(ridge);
+      this.worldRoot.add(ridge);
       this.visualObjects.push(ridge);
     }
   }
@@ -241,7 +242,7 @@ export class DreamDesert2 {
         }
       };
       
-      this.scene.add(fragment);
+      this.worldRoot.add(fragment);
       this.visualObjects.push(fragment);
       this.animatedObjects.push({
         object: fragment,
@@ -299,7 +300,7 @@ export class DreamDesert2 {
     volumetric.rotation.x = -Math.PI / 2;
     volumetric.name = 'volumetricRays';
     
-    this.scene.add(volumetric);
+    this.worldRoot.add(volumetric);
     
     this.animatedObjects.push({
       object: volumetric,
@@ -315,7 +316,7 @@ export class DreamDesert2 {
   createAdvancedLighting() {
     // Ambient light - warm, dreamlike base (global illumination base)
     const ambientLight = new THREE.AmbientLight(0xffc8d8, 0.45);
-    this.scene.add(ambientLight);
+    this.worldRoot.add(ambientLight);
     
     // Main directional light - dream-artificial sun with soft shadows
     const sunLight = new THREE.DirectionalLight(0xffddcc, 0.72);
@@ -331,7 +332,7 @@ export class DreamDesert2 {
     sunLight.shadow.radius = 6;                    // Larger radius for softer shadows
     sunLight.shadow.normalBias = 0.02;
     sunLight.shadowMapSize = new THREE.Vector2(4096, 4096);
-    this.scene.add(sunLight);
+    this.worldRoot.add(sunLight);
     
     // Primary fill light - cyan, balances warmth and bounces light
     const fillLight = new THREE.DirectionalLight(0x88ffff, 0.38);
@@ -340,30 +341,30 @@ export class DreamDesert2 {
     fillLight.shadow.mapSize.width = 2048;
     fillLight.shadow.mapSize.height = 2048;
     fillLight.shadow.radius = 3;
-    this.scene.add(fillLight);
+    this.worldRoot.add(fillLight);
     
     // Rim light - magenta holographic accent for edge definition
     const rimLight = new THREE.DirectionalLight(0xff99ff, 0.28);
     rimLight.position.set(30, 52, -110);
     rimLight.castShadow = false;                  // Subtle, no shadow
-    this.scene.add(rimLight);
+    this.worldRoot.add(rimLight);
     
     // Bounce light - subtle violet from below for subsurface feel
     const bounceLight = new THREE.DirectionalLight(0xaa99ff, 0.22);
     bounceLight.position.set(-10, -30, 15);
     bounceLight.castShadow = false;
-    this.scene.add(bounceLight);
+    this.worldRoot.add(bounceLight);
     
     // Secondary fill - subtle cyan from opposite side
     const secondaryFill = new THREE.DirectionalLight(0xccffff, 0.15);
     secondaryFill.position.set(100, 18, -70);
     secondaryFill.castShadow = false;
-    this.scene.add(secondaryFill);
+    this.worldRoot.add(secondaryFill);
     
     // Soft warm fill from ground for global illumination
     const groundFill = new THREE.DirectionalLight(0xffe8dd, 0.08);
     groundFill.position.set(0, -50, 0);
-    this.scene.add(groundFill);
+    this.worldRoot.add(groundFill);
   }
   
   /**
@@ -406,7 +407,7 @@ export class DreamDesert2 {
     const particles = new THREE.Points(geometry, particleMaterial);
     particles.name = 'dreamParticles';
     
-    this.scene.add(particles);
+    this.worldRoot.add(particles);
     this.particleSystems.push({
       object: particles,
       positions: positions,
@@ -451,7 +452,7 @@ export class DreamDesert2 {
     const shimmerParticles = new THREE.Points(shimmerGeo, shimmerMaterial);
     shimmerParticles.name = 'shimmerParticles';
     
-    this.scene.add(shimmerParticles);
+    this.worldRoot.add(shimmerParticles);
     this.particleSystems.push({
       object: shimmerParticles,
       positions: shimmerPos,
@@ -483,7 +484,7 @@ export class DreamDesert2 {
     const mist1 = new THREE.Mesh(mistGeo1, mistMat1);
     mist1.position.y = 0.5;
     mist1.rotation.x = -Math.PI / 2;
-    this.scene.add(mist1);
+    this.worldRoot.add(mist1);
     
     // Layer 2: Mid-height atmospheric haze
     const mistGeo2 = new THREE.PlaneGeometry(300, 300);
@@ -497,7 +498,7 @@ export class DreamDesert2 {
     const mist2 = new THREE.Mesh(mistGeo2, mistMat2);
     mist2.position.y = 15;
     mist2.rotation.x = -Math.PI / 2;
-    this.scene.add(mist2);
+    this.worldRoot.add(mist2);
     
     // Layer 3: High-altitude glow
     const mistGeo3 = new THREE.PlaneGeometry(350, 350);
@@ -511,7 +512,7 @@ export class DreamDesert2 {
     const mist3 = new THREE.Mesh(mistGeo3, mistMat3);
     mist3.position.y = 35;
     mist3.rotation.x = -Math.PI / 2;
-    this.scene.add(mist3);
+    this.worldRoot.add(mist3);
     
     // Light shaft effect - moving godrays
     const rayGeo = new THREE.PlaneGeometry(200, 200);
@@ -525,7 +526,7 @@ export class DreamDesert2 {
     const rays = new THREE.Mesh(rayGeo, rayMat);
     rays.position.set(30, 20, 40);
     rays.rotation.x = -0.3;
-    this.scene.add(rays);
+    this.worldRoot.add(rays);
     
     this.animatedObjects.push({
       object: rays,

@@ -6,7 +6,7 @@ import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js
  * Walking through the AI's own memories
  */
 export class MemoryLane {
-  constructor({ scene, worldRoot }) {
+  constructor(scene, worldRoot) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.serverTowers = [];

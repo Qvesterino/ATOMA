@@ -8,7 +8,7 @@ import { getMapConfig } from './MapConfigBase.js';
  * Represents AI visualization of pattern formation and logic
  */
 export class FractalValley {
-  constructor({ scene, worldRoot, camera = null }) {
+  constructor(scene, worldRoot, camera = null) {
     console.log('WORLD CONSTRUCTOR:', this.constructor.name);
     this.scene = scene;
     this.worldRoot = worldRoot;

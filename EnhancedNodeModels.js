@@ -8357,7 +8357,7 @@ if (typeof window !== "undefined") {
   window.EnhancedNodeModels = EnhancedNodeModels;
 
   // Self-heal on attach
-  EnhancedNodeModels.ensureRegistryReady();
+  // EnhancedNodeModels.ensureRegistryReady();
 
   // Dev helper
   window.ensureNodeRegistry = () => {

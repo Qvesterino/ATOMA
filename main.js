@@ -4809,39 +4809,39 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.scene.add(this.worldRoot);
 
         if (this.currentMode === 'sigma') {
-            this.sigmaRift = new SigmaRiftChamber({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
+            this.sigmaRift = new SigmaRiftChamber(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
             this.activeWorld = this.sigmaRift;
         } else if (this.currentMode === 'desert') {
-            this.dreamDesert = new DreamDesert({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
+            this.dreamDesert = new DreamDesert(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
             this.activeWorld = this.dreamDesert;
         } else if (this.currentMode === 'quantum') {
             this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
-            this.quantumIsland = new QuantumIsland({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
+            this.quantumIsland = new QuantumIsland(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
             this.activeWorld = this.quantumIsland;
         } else if (this.currentMode === 'fractal') {
-            this.fractalValley = new FractalValley({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                camera: this.camera
-            });
+            this.fractalValley = new FractalValley(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
             this.activeWorld = this.fractalValley;
         } else if (this.currentMode === 'memory') {
-            this.memoryLane = new MemoryLane({
-                scene: this.scene,
-                worldRoot: this.worldRoot
-            });
+            this.memoryLane = new MemoryLane(
+                this.scene,
+                this.worldRoot
+            );
             this.activeWorld = this.memoryLane;
         } else {
             this.chamber = new World({
@@ -7337,42 +7337,42 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         console.log('WORLD CONSTRUCTOR START', { callId: _callId, mode: this.currentMode });
         if (this.currentMode === 'sigma') {
             this.setupSigmaRiftEnvironment();
-            this.sigmaRift = new SigmaRiftChamber({
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                        camera: this.camera
-                    });
+            this.sigmaRift = new SigmaRiftChamber(
+                this.scene,
+                this.worldRoot,
+                this.camera
+            );
                     this.activeWorld = this.sigmaRift;
                 } else if (this.currentMode === 'desert') {
                     this.setupDreamDesertEnvironment();
-                    this.dreamDesert = new DreamDesert({
-                        scene: this.scene,
-                        worldRoot: this.worldRoot,
-                        camera: this.camera
-                    });
+                    this.dreamDesert = new DreamDesert(
+                        this.scene,
+                        this.worldRoot,
+                        this.camera
+                    );
                     this.activeWorld = this.dreamDesert;
                 } else if (this.currentMode === 'quantum') {
                     this.setupQuantumIslandEnvironment(); // Restored for lighting/fog/ground
-                    this.quantumIsland = new QuantumIsland({
-                        scene: this.scene,
-                        worldRoot: this.worldRoot,
-                        camera: this.camera
-                    });
+                    this.quantumIsland = new QuantumIsland(
+                        this.scene,
+                        this.worldRoot,
+                        this.camera
+                    );
                     this.activeWorld = this.quantumIsland;
                 } else if (this.currentMode === 'fractal') {
                     this.setupFractalValleyEnvironment();
-                    this.fractalValley = new FractalValley({
-                        scene: this.scene,
-                        worldRoot: this.worldRoot,
-                        camera: this.camera
-                    });
+                    this.fractalValley = new FractalValley(
+                        this.scene,
+                        this.worldRoot,
+                        this.camera
+                    );
                     this.activeWorld = this.fractalValley;
                 } else if (this.currentMode === 'memory') {
                     this.setupMemoryLaneEnvironment();
-                    this.memoryLane = new MemoryLane({
-                        scene: this.scene,
-                        worldRoot: this.worldRoot
-                    });
+                    this.memoryLane = new MemoryLane(
+                        this.scene,
+                        this.worldRoot
+                    );
                     this.activeWorld = this.memoryLane;
                 } else {
                     this.setupChamberEnvironment();

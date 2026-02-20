@@ -15,7 +15,7 @@ if (typeof window !== "undefined") {
 }
 // Debug/guard flag: disable all visual fallbacks (legacy simple spheres, etc.)
 if (typeof window !== 'undefined' && window.ATOMA_NO_FALLBACK_SPHERES === undefined) {
-  window.ATOMA_NO_FALLBACK_SPHERES = true;
+  window.ATOMA_NO_FALLBACK_SPHERES = false;
 }
 
 const ALLOWED_GEOMETRIES = new Set([
