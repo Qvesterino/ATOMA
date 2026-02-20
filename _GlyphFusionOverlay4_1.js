@@ -35,15 +35,18 @@
 import * as THREE from 'three';
 
 export class GlyphFusionOverlay4_1 {
-  constructor(scene, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    const attachRoot = worldRoot || scene;
     
     // Master container for all fusion glyphs
     this.fusionContainer = new THREE.Group();
     this.fusionContainer.userData.isFusionOverlay4 = true;
     this.fusionContainer.name = 'GlyphFusionOverlay4_1';
-    this.scene.add(this.fusionContainer);
+    attachRoot.add(this.fusionContainer);
+    this.root = this.fusionContainer;
     
     // Per-node fusion tracking
     this.nodeFusionMap = new Map();  // nodeId → { node, fusionGroup, meshes[], animState }
@@ -676,9 +679,10 @@ export class GlyphFusionOverlay4_1 {
     }
     
     // Remove master container
-    if (this.fusionContainer.parent) {
-      this.fusionContainer.parent.remove(this.fusionContainer);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
     }
+    this.root?.clear?.();
     
     this.nodeFusionMap.clear();
     this.animationState.clear();

@@ -53,9 +53,11 @@
 import * as THREE from 'three';
 
 export class RecursiveGlyphMessaging4_0 {
-  constructor(scene, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    const attachRoot = worldRoot || scene;
     
     // Enable/disable
     this.enabled = true;
@@ -76,7 +78,8 @@ export class RecursiveGlyphMessaging4_0 {
     this.chainContainer = new THREE.Group();
     this.chainContainer.userData.isRecursiveChains = true;
     this.chainContainer.name = 'RecursiveGlyphMessaging_Chains';
-    this.scene.add(this.chainContainer);
+    attachRoot.add(this.chainContainer);
+    this.root = this.chainContainer;
     
     // Link tracking
     this.trackedLinks = new Map();  // linkId → { sourceNode, targetNode, lastChainTime }
@@ -891,5 +894,25 @@ export class RecursiveGlyphMessaging4_0 {
     console.log('  window.atoma.debugRecursiveMessages()');
     console.log('  window.atoma.clearRecursiveGlyphs()');
     console.log('═══════════════════════════════════════════════════════════');
+  }
+
+  dispose() {
+    this.cleanup();
+
+    this.root?.traverse(obj => {
+      if (obj.isMesh) {
+        obj.geometry?.dispose();
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => mat?.dispose?.());
+        } else {
+          obj.material?.dispose?.();
+        }
+      }
+    });
+
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
   }
 }

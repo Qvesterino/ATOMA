@@ -20,22 +20,25 @@ import { SafePlayerMemoryTrails } from './SafePlayerMemoryTrails.js';
  */
 
 export class SafeMemoryTrailsManager {
-  constructor(scene, camera) {
+  constructor(scene, worldRoot, camera) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
+    const attachRoot = worldRoot || scene;
     
     // Central registry for all trail state
     this.registry = new MemoryTrailRegistry();
     
     // Trail systems
-    this.nodeTrails = new SafeNodeMemoryTrails(scene, this.registry);
-    this.linkTrails = new SafeLinkMemoryTrails(scene, this.registry);
-    this.playerTrails = new SafePlayerMemoryTrails(scene, camera, this.registry);
+    this.nodeTrails = new SafeNodeMemoryTrails(scene, worldRoot, this.registry);
+    this.linkTrails = new SafeLinkMemoryTrails(scene, worldRoot, this.registry);
+    this.playerTrails = new SafePlayerMemoryTrails(scene, worldRoot, camera, this.registry);
     
     // World event imprint system
     this.eventImprintContainer = new THREE.Group();
     this.eventImprintContainer.name = 'EventImprintContainer';
-    this.scene.add(this.eventImprintContainer);
+    attachRoot.add(this.eventImprintContainer);
+    this.root = this.eventImprintContainer;
     
     // Integration tracking
     this.aiNodesRef = null;
@@ -384,6 +387,9 @@ export class SafeMemoryTrailsManager {
     this.nodeTrails.dispose();
     this.linkTrails.dispose();
     this.playerTrails.dispose();
-    this.scene.remove(this.eventImprintContainer);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
   }
 }

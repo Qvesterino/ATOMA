@@ -55,9 +55,11 @@ import * as THREE from 'three';
 const MOTION_OFF_PHASE1 = true;
 
 export class HarmonicInfluencePropagationSystem_Session127 {
-  constructor(scene, world, harmonicHubSystem, nodeAuraSystem, config = {}) {
+  constructor(scene, worldRoot, world, harmonicHubSystem, nodeAuraSystem, config = {}) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.world = world;
+    this._attachRoot = worldRoot || scene;
     this.harmonicHubSystem = harmonicHubSystem;
     this.nodeAuraSystem = nodeAuraSystem;
     
@@ -116,6 +118,10 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       debugMode: config.debugMode ?? false,
     };
     
+    this.root = new THREE.Group();
+    this.root.name = 'HarmonicInfluencePropagationRoot';
+    this._attachRoot.add(this.root);
+    
     // Propagation state
     this.propagationSources = new Map();  // hubId → { lastPulseTime, pulseCount }
     this.activeInfluenceWaves = [];        // Array of traveling waves
@@ -153,11 +159,11 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Create groups for rendering
     this.auraGroup = new THREE.Group();
     this.auraGroup.name = 'harmonic-influence-auras';
-    this.scene.add(this.auraGroup);
+    this.root.add(this.auraGroup);
     
     this.flowGroup = new THREE.Group();
     this.flowGroup.name = 'harmonic-influence-flows';
-    this.scene.add(this.flowGroup);
+    this.root.add(this.flowGroup);
     
     // Create reusable geometries
     this._createAuraGeometry();
@@ -614,12 +620,10 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    * Cleanup
    */
   dispose() {
-    if (this.auraGroup) {
-      this.scene.remove(this.auraGroup);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
     }
-    if (this.flowGroup) {
-      this.scene.remove(this.flowGroup);
-    }
+    this.root?.clear?.();
     
     if (this.auraGeometry) this.auraGeometry.dispose();
     if (this.auraGeometryLOD) this.auraGeometryLOD.dispose();

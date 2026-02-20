@@ -248,8 +248,14 @@ class CompositeGlyphTracker {
 // ============================================================================
 
 export class ResonanceEchoTrailSystem {
-    constructor(scene) {
+    constructor(scene, worldRoot) {
         this.scene = scene;
+        this.worldRoot = worldRoot;
+        this._attachRoot = worldRoot || scene;
+
+        this.root = new THREE.Group();
+        this.root.name = 'ResonanceEchoTrailRoot';
+        this._attachRoot.add(this.root);
         
         // Echo pool
         this.echoInstances = [];
@@ -281,7 +287,7 @@ export class ResonanceEchoTrailSystem {
     initializeEchoPool() {
         const container = new THREE.Group();
         container.name = 'ResonanceEchoPool';
-        this.scene.add(container);
+        this.root.add(container);
         this.container = container;
         
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
@@ -444,7 +450,7 @@ export class ResonanceEchoTrailSystem {
     setupDebugVisualization() {
         const container = new THREE.Group();
         container.name = 'EchoTrailDebug';
-        this.scene.add(container);
+        this.root.add(container);
         this.debugEchoVisualization = container;
     }
     
@@ -509,6 +515,26 @@ export class ResonanceEchoTrailSystem {
             averageLifetime: averageEchoLifetime.toFixed(2),
             trackedComposites: this.compositeTrackers.size
         };
+    }
+
+    dispose() {
+        this.resetAll();
+
+        this.root?.traverse(obj => {
+            if (obj.isMesh) {
+                obj.geometry?.dispose();
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach(mat => mat?.dispose?.());
+                } else {
+                    obj.material?.dispose?.();
+                }
+            }
+        });
+
+        if (this.root?.parent) {
+            this.root.parent.remove(this.root);
+        }
+        this.root?.clear?.();
     }
 }
 

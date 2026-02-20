@@ -33,10 +33,12 @@ import * as THREE from 'three';
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
 
 export class SemanticGlyphAI {
-  constructor(scene, glyphLayer4System, enforcementGate = null) {
+  constructor(scene, worldRoot, glyphLayer4System, enforcementGate = null) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.glyphLayer4 = glyphLayer4System;
     this.enforcementGate = enforcementGate;  // Optional enforcement gate
+    const attachRoot = worldRoot || scene;
     
     // Semantic state tracking per node
     this.semanticState = new Map();  // nodeId → { state, parameters, timers }
@@ -57,7 +59,8 @@ export class SemanticGlyphAI {
     this.helperContainer = new THREE.Group();
     this.helperContainer.userData.isSemanticHelper = true;
     this.helperContainer.name = 'SemanticGlyphAI_Helpers';
-    this.scene.add(this.helperContainer);
+    attachRoot.add(this.helperContainer);
+    this.root = this.helperContainer;
     
     // Configuration
     this.config = {
@@ -864,9 +867,10 @@ export class SemanticGlyphAI {
     }
     
     // Remove helper container
-    if (this.helperContainer.parent) {
-      this.helperContainer.parent.remove(this.helperContainer);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
     }
+    this.root?.clear?.();
     
     // Clear maps
     this.semanticState.clear();

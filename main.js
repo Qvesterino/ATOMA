@@ -8909,7 +8909,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * SAFE: Creates holographic memory trails for nodes, links, and player
      */
     setupMemoryTrails() {
-        this.memoryTrails = new SafeMemoryTrailsManager(this.scene, this.camera);
+        this.memoryTrails = new SafeMemoryTrailsManager(this.scene, this.worldRoot, this.camera);
 
         // Register read-only world system references
         if (this.aiNodes && this.linkingSystem && this.player && this.personalityFX &&
@@ -9346,7 +9346,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
             return;
         }
 
-        this.semanticGlyphAI = new SemanticGlyphAI(this.scene, this.glyphLayer4);
+        this.semanticGlyphAI = new SemanticGlyphAI(this.scene, this.worldRoot, this.glyphLayer4);
 
         console.log('✓ Semantic Glyph AI 5.0 initialized');
         console.log('  - Glyphs react to node metrics and state');
@@ -9363,7 +9363,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
             return;
         }
 
-        this.glyphFusionOverlay = new GlyphFusionOverlay4_1(this.scene, this.semanticGlyphAI);
+        this.glyphFusionOverlay = new GlyphFusionOverlay4_1(this.scene, this.worldRoot, this.semanticGlyphAI);
 
         // Initialize fusion glyphs for all existing nodes
         if (this.aiNodes) {
@@ -9428,7 +9428,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
             return;
         }
 
-        this.linkedGlyphMessaging = new LinkedGlyphMessaging3_0(this.scene, this.semanticGlyphAI);
+        this.linkedGlyphMessaging = new LinkedGlyphMessaging3_0(this.scene, this.worldRoot, this.semanticGlyphAI);
         this.linkedGlyphMessaging.setEnabled(true);
 
         console.log('✓ Linked Glyph Messaging 3.0 active');
@@ -9448,7 +9448,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
             return;
         }
 
-        this.recursiveGlyphMessaging = new RecursiveGlyphMessaging4_0(this.scene, this.semanticGlyphAI);
+        this.recursiveGlyphMessaging = new RecursiveGlyphMessaging4_0(this.scene, this.worldRoot, this.semanticGlyphAI);
         this.recursiveGlyphMessaging.setEnabled(true);
 
         console.log('✓ Recursive Glyph Messaging 4.0 active');
@@ -10198,6 +10198,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         try {
             this.linkSemanticPictograms = new LinkSemanticPictogramSystem_WithFusion(
                 this.scene,
+                this.worldRoot,
                 this.linkingSystem,
                 this.camera
             );
@@ -10232,7 +10233,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      */
     setupResonanceEchoTrails() {
         try {
-            this.resonanceEchoTrails = new ResonanceEchoTrailSystem(this.scene);
+            this.resonanceEchoTrails = new ResonanceEchoTrailSystem(this.scene, this.worldRoot);
             setupResonanceEchoConsoleAPI(this, this.resonanceEchoTrails);
             console.log('[main.js] ResonanceEchoTrailSystem initialized ✓');
             console.log('[main.js] Features: echo pool, temporal decay, harmony modulation');
@@ -10271,6 +10272,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
 
             this.topologyViz = new TopologyBiasVisualizationLayer(
                 this.scene,
+                this.worldRoot,
                 this.camera,
                 this.harmonicTopology
             );
@@ -10299,6 +10301,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
 
             this.proceduralGlyphGenerator = new ProceduralHarmonicGlyphGenerator(
                 this.scene,
+                this.worldRoot,
                 this.harmonicTopology
             );
             
@@ -10683,6 +10686,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         try {
             this.harmonicHubAuraSystem = new HarmonicHubAuraSystem_Session126(
                 this.scene,
+                this.worldRoot,
                 this.aiNodes,
                 this.nodeAuraSystem,
                 this.harmonicResonanceCoupling,
@@ -10709,6 +10713,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         try {
             this.harmonicInfluencePropagation = new HarmonicInfluencePropagationSystem_Session127(
                 this.scene,
+                this.worldRoot,
                 this.aiNodes,
                 this.harmonicHubAuraSystem,
                 this.nodeAuraSystem,

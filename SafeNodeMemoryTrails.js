@@ -15,14 +15,17 @@ import * as THREE from 'three';
  */
 
 export class SafeNodeMemoryTrails {
-  constructor(scene, memoryTrailRegistry) {
+  constructor(scene, worldRoot, memoryTrailRegistry) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.registry = memoryTrailRegistry;
+    const attachRoot = worldRoot || scene;
     
     // VFX container
     this.trailContainer = new THREE.Group();
     this.trailContainer.name = 'NodeMemoryTrailsContainer';
-    this.scene.add(this.trailContainer);
+    attachRoot.add(this.trailContainer);
+    this.root = this.trailContainer;
     
     // Material cache for trails
     this.materials = {
@@ -320,7 +323,10 @@ export class SafeNodeMemoryTrails {
    */
   dispose() {
     this.clearAllTrails();
-    this.scene.remove(this.trailContainer);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
     Object.values(this.materials).forEach(mat => mat.dispose());
   }
 }

@@ -50,9 +50,11 @@
 import * as THREE from 'three';
 
 export class LinkedGlyphMessaging3_0 {
-  constructor(scene, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    const attachRoot = worldRoot || scene;
     
     // Enable/disable messaging
     this.enabled = true;
@@ -72,7 +74,8 @@ export class LinkedGlyphMessaging3_0 {
     this.messageContainer = new THREE.Group();
     this.messageContainer.userData.isMessaging = true;
     this.messageContainer.name = 'LinkedGlyphMessaging_Messages';
-    this.scene.add(this.messageContainer);
+    attachRoot.add(this.messageContainer);
+    this.root = this.messageContainer;
     
     // Link tracking
     this.trackedLinks = new Map();  // linkId → { sourceNode, targetNode, lastMessageTime }
@@ -754,8 +757,8 @@ export class LinkedGlyphMessaging3_0 {
    */
   printStatusReport() {
     const stats = this.getStatistics();
-    console.group('═══ LINKED GLYPH MESSAGING 3.0 STATUS ═══');
-    console.log(`Status: ${stats.enabled ? '📨 ACTIVE' : '⊗ DISABLED'}`);
+    console.group('=== LINKED GLYPH MESSAGING 3.0 STATUS ===');
+    console.log(`Status: ${stats.enabled ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`Messages Active: ${stats.messagesActive}`);
     console.log(`Messages Spawned: ${stats.messagesSpawned}`);
     console.log(`Messages Completed: ${stats.messagesCompleted}`);
@@ -765,17 +768,38 @@ export class LinkedGlyphMessaging3_0 {
     console.log(`Total Frames: ${stats.totalFrames}`);
     console.groupEnd();
   }
-  
-  /**
+/**
    * Clear all active messages (emergency cleanup)
    */
   clearAllMessages() {
-    console.log('🗑️ Clearing all active glyph messages...');
+    console.log('Clearing all active glyph messages...');
     this.activeMessages.forEach((messages) => {
       messages.forEach(msg => this.despawnMessage(msg));
     });
     this.activeMessages.clear();
     this.stats.messagesActive = 0;
-    console.log('✓ All messages cleared');
+    console.log('All messages cleared');
+  }
+
+  dispose() {
+    this.clearAllMessages();
+    this.trackedLinks.clear();
+    this.generationTimers.clear();
+
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
+
+    this.messageContainer?.traverse(obj => {
+      if (obj.isMesh) {
+        obj.geometry?.dispose();
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => mat?.dispose?.());
+        } else {
+          obj.material?.dispose?.();
+        }
+      }
+    });
   }
 }

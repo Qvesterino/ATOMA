@@ -176,8 +176,10 @@ class CompositeGlyphInstance {
 
 export class GlyphFusionZoneManager {
     
-    constructor(scene, compositeGlyphGenerator) {
+    constructor(scene, worldRoot, compositeGlyphGenerator) {
         this.scene = scene;
+        this.worldRoot = worldRoot;
+        this._attachRoot = worldRoot || scene;
         this.compositeGlyphGenerator = compositeGlyphGenerator;
 
         // Fusion zones
@@ -206,8 +208,9 @@ export class GlyphFusionZoneManager {
     initializeCompositeGlyphPool() {
         const container = new THREE.Group();
         container.name = 'CompositeGlyphPool';
-        this.scene.add(container);
+        this._attachRoot.add(container);
         this.container = container;
+        this.root = container;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
             // Placeholder geometry (will be replaced on fusion)
@@ -543,9 +546,10 @@ export class GlyphFusionZoneManager {
         this.compositeGlyphs.forEach(c => c.reset());
         this.nodeZoneMap.clear();
 
-        if (this.container) {
-            this.scene.remove(this.container);
+        if (this.root?.parent) {
+            this.root.parent.remove(this.root);
         }
+        this.root?.clear?.();
 
         console.log('[GlyphFusionZoneManager] Disposed');
     }

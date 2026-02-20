@@ -34,6 +34,7 @@ export class AtomaGlyphSystem4_0 {
     this.glyphContainer = new THREE.Group();
     this.glyphContainer.userData.isAtomaGlyph4Container = true;
     this.glyphContainer.name = 'AtomaGlyphSystem4';
+    this.root = this.glyphContainer;
     this.scene.add(this.glyphContainer);
     
     // Registry: nodeId → { node, glyphGroup, glyphType, metadata, context }
@@ -116,6 +117,23 @@ export class AtomaGlyphSystem4_0 {
     this.lastClusterCheck = 0;
     
     console.log('✓ ATOMA Glyph System 4.0 (Animated Meaning Edition) initialized');
+  }
+
+  dispose() {
+    const root = this.root || this.glyphContainer;
+    if (!root) return;
+    root.traverse((obj) => {
+      if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+        obj.geometry.dispose();
+      }
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => m && typeof m.dispose === 'function' && m.dispose());
+        } else if (typeof obj.material.dispose === 'function') {
+          obj.material.dispose();
+        }
+      }
+    });
   }
   
   // ============================================================

@@ -32,6 +32,7 @@ export class AtomaGlyphSystem3_0 {
     this.glyphContainer = new THREE.Group();
     this.glyphContainer.userData.isAtomaGlyphContainer = true;
     this.glyphContainer.name = 'AtomaGlyphSystem';
+    this.root = this.glyphContainer;
     this.scene.add(this.glyphContainer);
     
     // Registry: nodeId → { node, glyphGroup, glyphType, metadata }
@@ -71,6 +72,23 @@ export class AtomaGlyphSystem3_0 {
     };
     
     console.log('✓ ATOMA Glyph System 3.0 initialized');
+  }
+
+  dispose() {
+    const root = this.root || this.glyphContainer;
+    if (!root) return;
+    root.traverse((obj) => {
+      if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+        obj.geometry.dispose();
+      }
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => m && typeof m.dispose === 'function' && m.dispose());
+        } else if (typeof obj.material.dispose === 'function') {
+          obj.material.dispose();
+        }
+      }
+    });
   }
   
   // ============================================================

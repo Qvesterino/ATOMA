@@ -16,6 +16,7 @@
  *   // Create harmonic hub system (after other aura/resonance systems)
  *   const harmonicHubSystem = new HarmonicHubAuraSystem_Session126(
  *     scene,
+ *     worldRoot,
  *     world,
  *     nodeAuraSystem,
  *     linkResonanceSystem,

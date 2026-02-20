@@ -229,8 +229,10 @@ class FlowFieldCell {
 // ============================================================================
 
 export class TopologyBiasVisualizationLayer {
-    constructor(scene, camera, topologySystem) {
+    constructor(scene, worldRoot, camera, topologySystem) {
         this.scene = scene;
+        this.worldRoot = worldRoot;
+        this._attachRoot = worldRoot || scene;
         this.camera = camera;
         this.topologySystem = topologySystem;
         
@@ -238,6 +240,10 @@ export class TopologyBiasVisualizationLayer {
         this.debugBiasVectors = CONFIG.DEBUG_DRAW_BIAS_VECTORS;
         this.debugFlowFields = CONFIG.DEBUG_DRAW_FLOW_FIELDS;
         this.debugShowRegions = CONFIG.DEBUG_SHOW_REGIONS;
+
+        this.root = new THREE.Group();
+        this.root.name = 'TopologyBiasVisualizationRoot';
+        this._attachRoot.add(this.root);
         
         // Bias vector system
         this.biasVectorInstances = [];
@@ -281,7 +287,7 @@ export class TopologyBiasVisualizationLayer {
         // Create debug visualization container
         this.biasVectorContainer = new THREE.Group();
         this.biasVectorContainer.name = 'topology-bias-vectors';
-        this.scene.add(this.biasVectorContainer);
+        this.root.add(this.biasVectorContainer);
     }
     
     updateBiasVectors(deltaTime) {
@@ -450,7 +456,7 @@ export class TopologyBiasVisualizationLayer {
         
         this.flowFieldContainer = new THREE.Group();
         this.flowFieldContainer.name = 'topology-flow-fields';
-        this.scene.add(this.flowFieldContainer);
+        this.root.add(this.flowFieldContainer);
     }
     
     updateFlowFields(deltaTime, networkState) {
@@ -691,6 +697,11 @@ export class TopologyBiasVisualizationLayer {
         this.biasVectorInstances = [];
         this.flowFieldCells.clear();
         this.recentInfluencePositions = [];
+
+        if (this.root?.parent) {
+            this.root.parent.remove(this.root);
+        }
+        this.root?.clear?.();
     }
 }
 

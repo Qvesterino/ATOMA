@@ -16,15 +16,18 @@ import * as THREE from 'three';
  */
 
 export class SafePlayerMemoryTrails {
-  constructor(scene, camera, memoryTrailRegistry) {
+  constructor(scene, worldRoot, camera, memoryTrailRegistry) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.camera = camera;
     this.registry = memoryTrailRegistry;
+    const attachRoot = worldRoot || scene;
     
     // VFX container
     this.trailContainer = new THREE.Group();
     this.trailContainer.name = 'PlayerMemoryTrailContainer';
-    this.scene.add(this.trailContainer);
+    attachRoot.add(this.trailContainer);
+    this.root = this.trailContainer;
     
     // Trail line renderer
     this.trailLine = null;
@@ -332,6 +335,10 @@ export class SafePlayerMemoryTrails {
    */
   dispose() {
     this.clearTrail();
-    this.scene.remove(this.trailContainer);
+    this.clearParticles();
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
   }
 }

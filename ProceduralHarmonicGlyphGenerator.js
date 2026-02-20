@@ -352,9 +352,11 @@ class ProceduralGeometryGenerator {
 // ============================================================================
 
 export class ProceduralHarmonicGlyphGenerator {
-    constructor(scene, topologySystem) {
+    constructor(scene, worldRoot, topologySystem) {
         this.scene = scene;
+        this.worldRoot = worldRoot;
         this.topologySystem = topologySystem;
+        this._attachRoot = worldRoot || scene;
         
         // Glyph instances
         this.glyphInstances = [];
@@ -383,8 +385,9 @@ export class ProceduralHarmonicGlyphGenerator {
     initializeGlyphPool() {
         const container = new THREE.Group();
         container.name = 'ProceduralGlyphPool';
-        this.scene.add(container);
+        this._attachRoot.add(container);
         this.container = container;
+        this.root = container;
         
         for (let i = 0; i < CONFIG.GLYPH_POOL_SIZE; i++) {
             // Create line-based glyph geometry
@@ -675,8 +678,11 @@ export class ProceduralHarmonicGlyphGenerator {
                 glyph.mesh.material.dispose();
             }
         }
-        
-        this.container?.clear();
+
+        if (this.root?.parent) {
+            this.root.parent.remove(this.root);
+        }
+        this.root?.clear?.();
     }
 }
 

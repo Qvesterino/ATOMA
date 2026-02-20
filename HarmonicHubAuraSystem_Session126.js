@@ -56,9 +56,11 @@
 import * as THREE from 'three';
 
 export class HarmonicHubAuraSystem_Session126 {
-  constructor(scene, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
+  constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
     this.scene = scene;
+    this.worldRoot = worldRoot;
     this.world = world;
+    this._attachRoot = worldRoot || scene;
     this.nodeAuraSystem = nodeAuraSystem;
     this.linkResonanceSystem = linkResonanceSystem;
     
@@ -157,7 +159,8 @@ export class HarmonicHubAuraSystem_Session126 {
     // Create resonance field group
     this.fieldGroup = new THREE.Group();
     this.fieldGroup.name = 'harmonic-hub-fields';
-    this.scene.add(this.fieldGroup);
+    this._attachRoot.add(this.fieldGroup);
+    this.root = this.fieldGroup;
   }
   
   /**
@@ -695,9 +698,10 @@ export class HarmonicHubAuraSystem_Session126 {
    * Cleanup
    */
   dispose() {
-    if (this.fieldGroup) {
-      this.scene.remove(this.fieldGroup);
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
     }
+    this.root?.clear?.();
     
     for (const mesh of this.fieldMeshes.values()) {
       if (mesh.geometry) mesh.geometry.dispose();

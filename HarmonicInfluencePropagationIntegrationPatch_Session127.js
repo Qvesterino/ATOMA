@@ -16,6 +16,7 @@
  *   // Create harmonic influence propagation system
  *   const harmonicInfluenceSystem = new HarmonicInfluencePropagationSystem_Session127(
  *     scene,
+ *     worldRoot,
  *     world,
  *     harmonicHubSystem,
  *     nodeAuraSystem,

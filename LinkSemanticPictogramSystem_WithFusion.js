@@ -15,8 +15,9 @@ import { GlyphFusionZoneManager } from './GlyphFusionZone.js';
 import { CompositeGlyphGenerator } from './CompositeGlyphGenerator.js';
 
 export class LinkSemanticPictogramSystem_WithFusion {
-    constructor(scene, linkingSystem, camera) {
+    constructor(scene, worldRoot, linkingSystem, camera) {
         this.scene = scene;
+        this.worldRoot = worldRoot;
         this.linkingSystem = linkingSystem;
         this.camera = camera;
 
@@ -33,6 +34,7 @@ export class LinkSemanticPictogramSystem_WithFusion {
         // Fusion zone manager
         this.fusionZoneManager = new GlyphFusionZoneManager(
             scene,
+            worldRoot,
             this.compositeGlyphGenerator
         );
 
