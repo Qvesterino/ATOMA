@@ -803,6 +803,11 @@ export class AINodes {
 
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation
           NodeSpawnLogger.logSpawn(finalizedNode, category, pos, "AINodes.createNodes");
+
+          // === REGISTRY TRACE (createNodes path) ===
+          if (finalizedNode) {
+            nodeSpawnRegistry.registerSpawn(finalizedNode, 'AINodes.createNodes');
+          }
       }
     });
     
@@ -3326,6 +3331,8 @@ export class AINodes {
       nodeId,
       source: "AINodes.spawnNode"
     });
+
+    nodeSpawnRegistry.registerSpawn(newNode, 'AINodes.spawnNode');
     
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code

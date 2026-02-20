@@ -1727,6 +1727,15 @@ export class EnhancedNodeModels {
       nodeGroup.userData.visualCode = resolvedVisualCode;
       if (!rootGroup.userData) rootGroup.userData = {};
       rootGroup.userData.visualCode = resolvedVisualCode;
+      rootGroup.userData.factoryName = registryEntry.factoryName;
+      rootGroup.userData.category = cat;
+    }
+
+    // === VISUAL META INJECTION (NON-DESTRUCTIVE) ===
+    if (rootGroup && rootGroup.userData) {
+      rootGroup.userData.visualCode = resolvedVisualCode;
+      rootGroup.userData.factoryName = registryEntry.factoryName;
+      rootGroup.userData.category = cat;
     }
 
     const clearPartialVisuals = (group) => {

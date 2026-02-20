@@ -38,12 +38,46 @@ import { uniqueSpawnService } from './UniqueSpawnService.js';
      * @param {string} archetype 
      * @param {string} nodeId 
      */
-    registerSpawn(category, archetype, nodeId) {
+    registerSpawn(arg1, arg2, arg3) {
+        let category = null;
+        let archetype = null;
+        let nodeId = null;
+        let node = null;
+        let source = 'NodeSpawnRegistry';
+
+        if (arg1 && arg1.isObject3D) {
+            node = arg1;
+            source = arg2 || source;
+            category = node.userData?.category;
+            archetype = node.userData?.archetypeKey || node.userData?.archetype;
+            nodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
+        } else {
+            category = arg1;
+            archetype = arg2;
+            nodeId = arg3;
+        }
+
         const key = uniqueSpawnService.makeKey({ category, archetype });
         if (!key) return;
-        uniqueSpawnService.register({ key, nodeId, meta: { category, source: 'NodeSpawnRegistry' } });
+
+        uniqueSpawnService.register({ key, nodeId, meta: { category: category ?? 'unknown', source } });
         this.allowedSpawns++;
-        // console.log(`[NodeSpawnRegistry] Registered unique node: ${key} (${nodeId})`);
+
+        if (typeof console !== 'undefined') {
+            const meta = {
+                nodeId: nodeId?.toString?.() ?? (node?.uuid) ?? 'unknown',
+                category: category ?? node?.userData?.category ?? 'unknown',
+                visualCode: node?.userData?.visualCode ?? 'unknown',
+                factoryName: node?.userData?.factoryName ?? 'unknown',
+                childCount: node?.children?.length ?? 0,
+                source,
+                timestamp:
+                    typeof performance !== 'undefined' && typeof performance.now === 'function'
+                        ? performance.now()
+                        : Date.now()
+            };
+            console.log('[NODE_SPAWN]', meta);
+        }
     }
 
     /**

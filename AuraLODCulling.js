@@ -78,7 +78,13 @@ export class AuraLODCulling {
       const isSelected = keepVisibleWhenSelected &&
         (node.userData.isSelected || node.userData.isInspected || node.userData.isHovered);
       
-      const inFrustum = this._frustum.containsPoint(node.position) || isSelected;
+      const auraRadius = this._getAuraBoundingRadius(node, auras);
+      const sphere = new THREE.Sphere(
+        node.getWorldPosition(new THREE.Vector3()),
+        auraRadius
+      );
+
+      const inFrustum = this._frustum.intersectsSphere(sphere) || isSelected;
       
       if (!inFrustum) {
         // Node is outside frustum and not selected: hide all auras, skip distance check
@@ -154,6 +160,25 @@ export class AuraLODCulling {
     }
     
     return auras;
+  }
+
+  _getAuraBoundingRadius(node, auras) {
+    let maxRadius = 0;
+
+    for (const aura of auras) {
+      if (!aura?.geometry) continue;
+
+      if (!aura.geometry.boundingSphere) {
+        aura.geometry.computeBoundingSphere();
+      }
+
+      const sphere = aura.geometry.boundingSphere;
+      const scaledRadius = sphere.radius * (aura.scale?.x ?? 1);
+
+      maxRadius = Math.max(maxRadius, scaledRadius);
+    }
+
+    return maxRadius || 1;
   }
   
   /**
