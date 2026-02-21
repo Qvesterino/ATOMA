@@ -33,6 +33,10 @@ export const NodeSpawnLogger = {
       const ts = (typeof performance !== 'undefined' && typeof performance.now === 'function')
         ? performance.now().toFixed(2)
         : Date.now().toString();
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_LOG_HIT = (window.__SPAWN_LOG_HIT || 0) + 1;
+        window.__SPAWN_LOG_LAST = paramsOrNode;
+      }
 
       // Check if first argument is the new object format
       const isNewFormat = paramsOrNode && typeof paramsOrNode === 'object' && !paramsOrNode.isObject3D;
@@ -46,9 +50,8 @@ export const NodeSpawnLogger = {
         const safeNodeId = nodeId || "??";
         
         // Print simplified one-line format
-        console.log(
-          `%c[Spawn] cat=${safeCategory} code=${safeVisualCode} factory=${safeFactoryName} id=${safeNodeId}`,
-          "color:#7cf; font-weight:bold;"
+        console.error(
+          `[Spawn] cat=${safeCategory} code=${safeVisualCode} factory=${safeFactoryName} id=${safeNodeId} src=${src || 'unknown'}`
         );
         return;
       }
@@ -59,6 +62,9 @@ export const NodeSpawnLogger = {
         category || node?.userData?.category || node?.category || "undefined";
       const actualSource = source || "unknown";
 
+      console.error(
+        `[Spawn ${ts}ms] Node ID: ${node?.uuid || node?.id || "??"} | Category: ${safeCategory} | Source: ${actualSource}`
+      );
       console.groupCollapsed(
         `%c[Spawn ${ts}ms] Node ID: ${node?.uuid || node?.id || "??"} | Category: ${safeCategory} | Source: ${actualSource}`,
         "color:#7cf; font-weight:bold;"
@@ -88,7 +94,7 @@ export const NodeSpawnLogger = {
           "color: orange; font-weight:bold;"
         );
       } else {
-        console.log("• Material type:", mat.type || mat.constructor?.name);
+        console.error("• Material type:", mat.type || mat.constructor?.name);
 
         // Material safety validation
         const safeTypes = [
@@ -119,12 +125,12 @@ export const NodeSpawnLogger = {
               "color: yellow; font-weight:bold;"
             );
           } else {
-            console.log("• Material emissive protection: ✅ (Line material, no emissive)");
+            console.error("• Material emissive protection: ✅ (Line material, no emissive)");
           }
         } else if (mat.isMeshStandardMaterial || mat.isMeshLambertMaterial || mat.isMeshPhongMaterial) {
           if (mat.emissive) {
-            console.log("• Emissive color:", `#${mat.emissive.getHexString()}`);
-            console.log("• Emissive intensity:", mat.emissiveIntensity || 0);
+            console.error("• Emissive color:", `#${mat.emissive.getHexString()}`);
+            console.error("• Emissive intensity:", mat.emissiveIntensity || 0);
           }
         }
       }
@@ -136,35 +142,35 @@ export const NodeSpawnLogger = {
           "color: red; font-weight:bold;"
         );
       } else if (position) {
-        console.log(
+        console.error(
           `• Position: (${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)})`
         );
       }
 
       // ========== VALIDATION 4: EVOLUTION STATE ==========
       if (node?.userData && node.userData.evolutionStage !== undefined) {
-        console.log("• Evolution Stage:", node.userData.evolutionStage);
+        console.error("• Evolution Stage:", node.userData.evolutionStage);
       }
 
       // ========== VALIDATION 5: CATEGORY PRESETS READY ==========
       if (node?.userData && node.userData.category) {
-        console.log("• userData.category verified:", node.userData.category);
+        console.error("• userData.category verified:", node.userData.category);
       }
 
       // ========== VALIDATION 6: NAMING SYSTEM ==========
       if (node?.userData && node.userData.namingCode) {
-        console.log("• Naming Code:", node.userData.namingCode);
+        console.error("• Naming Code:", node.userData.namingCode);
         if (node.userData.namingMeaning) {
-          console.log("• Meaning:", node.userData.namingMeaning);
+          console.error("• Meaning:", node.userData.namingMeaning);
         }
       }
 
       // ========== SUMMARY ==========
-      console.log("✅ Node spawn validation complete");
+      console.error("✅ Node spawn validation complete");
 
       console.groupEnd();
     } catch (err) {
-      console.warn('[NodeSpawnLogger] logSpawn error (logging skipped):', err?.message || err);
+      console.error('[NodeSpawnLogger] logSpawn error (logging skipped):', err?.message || err);
     }
   },
 

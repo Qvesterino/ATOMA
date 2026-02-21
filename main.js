@@ -4846,7 +4846,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
     /**
      * Create the ATOMA world
      */
-    createWorld() {
+    createWorld(reason) {
+        const reasonForCreate = reason || this._pendingCreateWorldReason || 'CREATE_WORLD';
+        this._pendingCreateWorldReason = null;
         // ATOMA: visual layer prune/reset on world switch
         this.frameScheduler?.resetLayer?.('visual');
 
@@ -4917,7 +4919,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
-        this.createAINodes();
+        this.createAINodes(reasonForCreate);
 
         // ====================================================================
         // CONTROLLED UNFREEZE SYSTEM: Safe reactivation of visual systems
@@ -4936,8 +4938,24 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
     /**
      * Create interactive AI nodes
      */
-    createAINodes() {
+    createAINodes(reason = 'UNKNOWN') {
+        // AINodes ownership: created in createWorld(); do not create here.
         this._allowRegistryReset = false;
+
+        const allowedReasons = new Set(['CREATE_WORLD', 'MAP_SWITCH']);
+        if (!allowedReasons.has(reason)) {
+            const stack = new Error().stack;
+            if (typeof window !== 'undefined') {
+                window.__AINODES_CREATE_COUNT = (window.__AINODES_CREATE_COUNT || 0) + 1;
+                window.__AINODES_LAST_STACK = stack;
+            }
+            console.error("[AINODES_ILLEGAL_CREATE]", reason, stack);
+            throw new Error("AINodes may only be created from createWorld()");
+        }
+        if (typeof window !== 'undefined') {
+            window.__AINODES_CREATE_COUNT = (window.__AINODES_CREATE_COUNT || 0) + 1;
+            window.__AINODES_LAST_STACK = new Error().stack;
+        }
 
         if (this.aiNodes) {
             systemRegistry.unregister('aiNodes');
@@ -7145,6 +7163,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
 
         this.currentMode = worldId;
 
+        this._pendingCreateWorldReason = 'MAP_SWITCH';
         this.worldRegistry[worldId]();
     }
 

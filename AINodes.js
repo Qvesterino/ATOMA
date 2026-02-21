@@ -97,6 +97,52 @@ import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationF
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
 // import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
 
+// === SPAWN DIAGNOSTICS (temporary, minimal overhead) ===
+const __ensureSpawnDiag = () => {
+  if (typeof window === 'undefined') return null;
+  window.__SPAWN_DIAG = window.__SPAWN_DIAG || {
+    createNodesEnter: 0,
+    createNodesSkip: 0,
+    spawnNodeEnter: 0,
+    spawnNodeAbort: {},
+    finalizeNull: {},
+    logged: 0
+  };
+  return window.__SPAWN_DIAG;
+};
+const __SPAWN_DIAG_ONCE = typeof Set !== 'undefined' ? new Set() : { has: () => false, add: () => {} };
+const __diagOnce = (key, msg) => {
+  if (__SPAWN_DIAG_ONCE.has(key)) return;
+  __SPAWN_DIAG_ONCE.add(key);
+  try {
+    console.error(msg);
+  } catch (e) {
+    /* no-op */
+  }
+};
+
+function findSpawnIdentity(node){
+  let src = null;
+  if (node && typeof node.traverse === 'function') {
+    node.traverse(o=>{
+      if (!src && o.userData && (o.userData.visualCode != null || o.userData.factoryName)) src = o;
+    });
+  }
+  return (src && src.userData) ? src.userData : (node?.userData || {});
+}
+
+// Preserve visual identity between wrappers
+function copySpawnIdentity(fromObj, toObj) {
+  if (!fromObj || !toObj) return;
+  const src = fromObj.userData || {};
+  toObj.userData = toObj.userData || {};
+  ['visualCode', 'factoryName', 'category'].forEach((k) => {
+    if (src[k] !== undefined && toObj.userData[k] === undefined) {
+      toObj.userData[k] = src[k];
+    }
+  });
+}
+
 function hasRenderableVisual(object3D) {
   if (!object3D) return false;
   const stack = [object3D];
@@ -694,7 +740,11 @@ export class AINodes {
    * Create nodes based on environment
    */
   createNodes(environment, count = 15) {
+    const __diag = __ensureSpawnDiag();
+    if (__diag) __diag.createNodesEnter++;
     if (this.spawnMode !== 'INIT') {
+      if (__diag) __diag.createNodesSkip++;
+      __diagOnce('createNodesSkip', `[SpawnMode] createNodes skipped; mode=${this.spawnMode}\n${new Error().stack}`);
       console.warn(`[SpawnMode] createNodes skipped; mode=${this.spawnMode}`);
       return;
     }
@@ -750,6 +800,7 @@ export class AINodes {
       if (!decision.allowed) {
           // DUPLICATE DETECTED: Upgrade existing instead
           const existingNodeId = decision.existingNodeId;
+          if (__diag) __diag.spawnNodeAbort.unique_denied = (__diag.spawnNodeAbort.unique_denied || 0) + 1;
           
           if (existingNodeId) {
              const existingNode = this.nodes.find(n => n.userData.nodeId === existingNodeId || n.uuid === existingNodeId);
@@ -770,6 +821,7 @@ export class AINodes {
 
       const node = this.createNode(category, pos, index, isSpecial, options);
       if (!node) {
+        if (__diag) __diag.spawnNodeAbort.createNode_null = (__diag.spawnNodeAbort.createNode_null || 0) + 1;
         // Spawn failed – skip safely
         return;
       }
@@ -780,8 +832,9 @@ export class AINodes {
         return;
       }
       const finalized = this._finalizeSpawnedNode(node, category, pos);
-      
-      if (finalized && finalized.node) {
+      if (!finalized || !finalized.node) {
+        if (__diag) __diag.spawnNodeAbort.finalize_null = (__diag.spawnNodeAbort.finalize_null || 0) + 1;
+      } else {
           const finalizedNode = finalized.node;
           this._runPostSpawnObservers(finalizedNode, {
             source: 'createNodes',
@@ -803,13 +856,15 @@ export class AINodes {
 
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
           const ud = finalizedNode.userData || {};
+          const logUd = findSpawnIdentity(finalizedNode);
           NodeSpawnLogger.logSpawn({
             category,
-            visualCode: ud.visualCode ?? 'unknown',
-            factoryName: ud.factoryName ?? 'factory-unknown',
-            nodeId: ud.nodeId ?? finalizedNode.uuid,
+            visualCode: logUd.visualCode,
+            factoryName: logUd.factoryName,
+            nodeId: finalizedNode.userData?.id,
             source: 'AINodes.createNodes'
           });
+          if (__diag) __diag.logged++;
 
           // === REGISTRY TRACE (createNodes path) ===
           if (finalizedNode) {
@@ -1104,6 +1159,7 @@ export class AINodes {
       nodeModel = EnhancedNodeModels.create(validatedCategory, visualCode, coreColor);
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
+        copySpawnIdentity(nodeModel, nodeModel);
         const visualCodeLog = nodeModel.userData?.visualCode ?? 'UNKNOWN';
         const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
         const childCount = nodeModel.children?.length ?? 0;
@@ -2745,11 +2801,13 @@ export class AINodes {
    * All spawn entrypoints must route through this to guarantee on-screen results.
    */
   _finalizeSpawnedNode(node, category, position, options = {}) {
+    const __diag = __ensureSpawnDiag();
     if (!node || !(node instanceof THREE.Object3D)) {
       if (!this._warnedInvalidNode) {
         console.warn('[SpawnFinalize] Invalid node object supplied; spawn aborted');
         this._warnedInvalidNode = true;
       }
+      if (__diag) __diag.finalizeNull.invalid_object3d = (__diag.finalizeNull.invalid_object3d || 0) + 1;
       return null;
     }
 
@@ -2861,12 +2919,16 @@ export class AINodes {
       console.warn(`[SpawnFinalize] visibility-risk id=${node.uuid || 'unknown'} cat=${category || 'unknown'} issues=${issues.join(',')}`);
     }
 
-    if (renderableCount === 0) return null;
+    if (renderableCount === 0) {
+      if (__diag) __diag.finalizeNull.zero_renderables = (__diag.finalizeNull.zero_renderables || 0) + 1;
+      return null;
+    }
 
     // Protection: invisible roots must not enter the scene
     if (!node.children || node.children.length === 0) {
       const nodeId = node.userData?.nodeId || node.uuid || 'unknown';
       console.warn('[NodeInvisibleAbort]', nodeId);
+      if (__diag) __diag.finalizeNull.no_children = (__diag.finalizeNull.no_children || 0) + 1;
       return null;
     }
 
@@ -2909,6 +2971,26 @@ export class AINodes {
       }
     }
 
+    // Recover visual identity from children if missing on root
+    if (node?.userData?.visualCode === undefined) {
+      let found = null;
+      node.traverse(o => {
+        if (found || !o?.userData?.visualCode) return;
+        found = o;
+      });
+      if (found) {
+        copySpawnIdentity(found, node);
+      }
+    }
+    if (node && node.children && !node.userData.visualCode) {
+      const src = node.children.find(c => c.userData?.visualCode);
+      if (src) {
+        node.userData.visualCode = src.userData.visualCode;
+        node.userData.factoryName = src.userData.factoryName;
+        node.userData.category = src.userData.category;
+      }
+    }
+
     return { node, sceneAdded, renderableCount, badBoundsCount };
   }
 
@@ -2920,6 +3002,8 @@ export class AINodes {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    */
   spawnNode(category = null, position = null, forceArchetype = null) {
+    const __diag = __ensureSpawnDiag();
+    if (__diag) __diag.spawnNodeEnter++;
     if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
     this.__spawnTraceCounter++;
     console.warn(
@@ -2967,6 +3051,7 @@ export class AINodes {
     
     // HARD ABORT if validation failed (returns null only on critical errors)
     if (validatedCategory === null) {
+      if (__diag) __diag.spawnNodeAbort.compliance_null = (__diag.spawnNodeAbort.compliance_null || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;  // Clean abort, no node added to scene
     }
@@ -3033,6 +3118,7 @@ export class AINodes {
     });
 
     if (!decision.allowed) {
+      if (__diag) __diag.spawnNodeAbort.unique_denied = (__diag.spawnNodeAbort.unique_denied || 0) + 1;
       const existingNode =
         (decision.existingNodeId &&
           (this.nodesMap?.get(decision.existingNodeId) ||
@@ -3078,6 +3164,7 @@ export class AINodes {
         category,
         reason: 'No canonical visual registered'
       });
+      if (__diag) __diag.spawnNodeAbort.missing_visual = (__diag.spawnNodeAbort.missing_visual || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;
     }
@@ -3123,6 +3210,7 @@ export class AINodes {
     const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
     if (!newNode) {
       // Spawn failed – skip safely
+      if (__diag) __diag.spawnNodeAbort.createNode_null = (__diag.spawnNodeAbort.createNode_null || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;
     }
@@ -3288,6 +3376,7 @@ export class AINodes {
     // ========== STEP 7: FINALIZE (SCENE ATTACH + REGISTRATION) ==========
     const finalized = this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey });
     if (!finalized) {
+      if (__diag) __diag.spawnNodeAbort.finalize_null = (__diag.spawnNodeAbort.finalize_null || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;
     }
@@ -3327,17 +3416,17 @@ export class AINodes {
     this._commitSpawnCycleSuccess(category);
     
     // NODE SPAWN LOGGER v4.0: Log spawn with visualCode and factoryName
-    const visualCode = finalizedNode.userData?.visualCode;
-    const factoryName = visualCode !== undefined ? NODE_VISUAL_REGISTRY[visualCode]?.factoryName : 'unknown';
-    const nodeId = finalizedNode.userData?.nodeId || finalizedNode.uuid;
-    
+    const logUd = findSpawnIdentity(finalizedNode);
+    const nodeId = finalizedNode.userData?.id || finalizedNode.uuid;
+
     NodeSpawnLogger.logSpawn({
       category,
-      visualCode,
-      factoryName,
+      visualCode: logUd.visualCode,
+      factoryName: logUd.factoryName,
       nodeId,
       source: "AINodes.spawnNode"
     });
+    if (__diag) __diag.logged++;
 
     nodeSpawnRegistry.registerSpawn(newNode, 'AINodes.spawnNode');
     

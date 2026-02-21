@@ -1679,6 +1679,8 @@ export class EnhancedNodeModels {
       return null;
     }
 
+    console.error("[ENHANCED_CREATE_MARKER]", resolvedVisualCode, registryEntry.factoryName);
+
     const resolveFactory = (name) => {
       if (typeof this[name] === 'function') return this[name].bind(this);
       switch (name) {
@@ -1723,9 +1725,7 @@ export class EnhancedNodeModels {
     const rootGroup = factoryFn(nodeGroup, resolvedVisualCode, color);
 
     if (rootGroup) {
-      nodeGroup.userData = nodeGroup.userData || {};
-      nodeGroup.userData.visualCode = resolvedVisualCode;
-      if (!rootGroup.userData) rootGroup.userData = {};
+      rootGroup.userData = rootGroup.userData || {};
       rootGroup.userData.visualCode = resolvedVisualCode;
       rootGroup.userData.factoryName = registryEntry.factoryName;
       rootGroup.userData.category = cat;
@@ -1734,7 +1734,7 @@ export class EnhancedNodeModels {
     // === VISUAL META INJECTION (NON-DESTRUCTIVE) ===
     if (rootGroup && rootGroup.userData) {
       rootGroup.userData.visualCode = resolvedVisualCode;
-      rootGroup.userData.factoryName = registryEntry.factoryName;
+      rootGroup.userData.factoryName = NODE_VISUAL_REGISTRY[resolvedVisualCode]?.factoryName || registryEntry.factoryName;
       rootGroup.userData.category = cat;
     }
 

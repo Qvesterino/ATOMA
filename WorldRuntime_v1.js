@@ -68,12 +68,11 @@ export class WorldRuntime_v1 {
         }
 
         try {
-            // Create world unconditionally
-            this.game.createWorld();
-            
-            // Create AI nodes (deterministic path)
-            this.game.createAINodes();
-            
+            // Create world only if not already initialized; AINodes created inside createWorld()
+            if (!this.game.worldRoot || !this.game.scene?.children?.includes?.(this.game.worldRoot)) {
+                this.game.createWorld();
+            }
+
             // Verify scene attachment
             if (this.game.activeWorld) {
                 const worldObj = this.game.activeWorld.scene || this.game.activeWorld;
@@ -83,6 +82,7 @@ export class WorldRuntime_v1 {
             } else {
                 console.warn('[WorldRuntime_v1] initInitialWorld: activeWorld missing after createWorld()');
             }
+            // AINodes ownership: created in createWorld(); do not create here.
 
             this.currentMode = this.game.currentMode || 'fractal';
         } catch (err) {
