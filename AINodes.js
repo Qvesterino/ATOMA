@@ -801,8 +801,15 @@ export class AINodes {
             });
           }
 
-          // NODE SPAWN LOGGER v4.0: Log spawn with full validation
-          NodeSpawnLogger.logSpawn(finalizedNode, category, pos, "AINodes.createNodes");
+          // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
+          const ud = finalizedNode.userData || {};
+          NodeSpawnLogger.logSpawn({
+            category,
+            visualCode: ud.visualCode ?? 'unknown',
+            factoryName: ud.factoryName ?? 'factory-unknown',
+            nodeId: ud.nodeId ?? finalizedNode.uuid,
+            source: 'AINodes.createNodes'
+          });
 
           // === REGISTRY TRACE (createNodes path) ===
           if (finalizedNode) {
