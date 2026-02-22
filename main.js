@@ -53,7 +53,6 @@ import { FractalValley } from './FractalValley.js';
 import { MemoryLane } from './MemoryLane.js';
 import { AINodes } from './AINodes.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
-import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
@@ -4261,7 +4260,7 @@ hudP05Observer.observe(document.body, {
             75,
             window.innerWidth / window.innerHeight,
             0.5,
-            12000
+            1000
         );
         this.camera.position.set(0, 2, 5);
 window.__ATOMA_CAMERA__ = this.camera;
@@ -4967,13 +4966,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         systemRegistry.register('aiNodes', this.aiNodes);
-        if (typeof window !== 'undefined') {
-            window.__ATOMA_DEBUG = {
-                scene: this.scene,
-                worldRoot: this.worldRoot,
-                aiNodes: this.aiNodes
-            };
-        }
         
         // ====================================================================
         // TASK 2: SIMULATION INVARIANT ENFORCEMENT
@@ -5075,83 +5067,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             });
             logPrograms('post-warmup', this.renderer);
         }
-        // Legacy bulk init spawns disabled; runtime scheduler handles spawning.
-        // const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
-        // this.aiNodes.createNodes(this.currentMode, nodeCount);
+        const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
+        this.aiNodes.createNodes(this.currentMode, nodeCount);
         // Enable runtime spawning after init batch
-        EnhancedNodeModels.ensureRegistryReady?.();
-        const prewarmVisuals = () => {
-            if (this._visualPrewarmDone) return;
-            try {
-                const prewarmGroup = new THREE.Group();
-                for (const codeStr of Object.keys(NODE_VISUAL_REGISTRY)) {
-                    const code = Number(codeStr);
-                    const entry = NODE_VISUAL_REGISTRY[code];
-                    if (!entry) continue;
-                    try {
-                        const node = EnhancedNodeModels.create(entry.category, code, null);
-                        if (node) prewarmGroup.add(node);
-                    } catch (e) {
-                        if (window.ATOMA_DEBUG_SPAWN_LOGS) {
-                            console.warn('[VisualPrewarm] failed', { code, error: e?.message });
-                        }
-                    }
-                }
-                this.scene.add(prewarmGroup);
-                if (this.renderer?.compile && this.camera) {
-                    try {
-                        this.renderer.compile(this.scene, this.camera);
-                    } catch (e) {
-                        if (window.ATOMA_DEBUG_SPAWN_LOGS) {
-                            console.warn('[VisualPrewarm] compile failed', e?.message);
-                        }
-                    }
-                }
-                // Cleanup temporary visuals
-                prewarmGroup.traverse(obj => {
-                    if (obj.geometry) obj.geometry.dispose();
-                    if (Array.isArray(obj.material)) {
-                        obj.material.forEach(m => { if (m && !m.userData?.isShared) m.dispose(); });
-                    } else if (obj.material && !obj.material.userData?.isShared) {
-                        obj.material.dispose();
-                    }
-                });
-                this.scene.remove(prewarmGroup);
-                this._visualPrewarmDone = true;
-            } catch (e) {
-                if (window.ATOMA_DEBUG_SPAWN_LOGS) {
-                    console.warn('[VisualPrewarm] unexpected failure', e?.message);
-                }
-            }
-        };
-        prewarmVisuals();
         this.aiNodes.spawnMode = 'RUNTIME';
-        this.aiNodes._runtimeSpawnIndex = 0;
-        this.aiNodes.spawningConfig.nextTimeSpawn = Date.now() + 2000;
-        if (this.frameScheduler?.unregister) {
-            this.frameScheduler.unregister('aiNodes-update');
-            this.frameScheduler.unregister('aiNodes-spawn');
-        }
-
-        // Per-frame visuals/AI
-        this.frameScheduler.register(
-            'realtime',
-            (dt) => {
-                if (!this.aiNodes) return;
-                this.aiNodes.update?.(dt);
-            },
-            'aiNodes-update'
-        );
-
-        // Deterministic spawn tick on simulation layer
-        this.frameScheduler.register(
-            'simulation',
-            () => {
-                if (!this.aiNodes) return;
-                this.aiNodes.updateSpawning?.(Date.now());
-            },
-            'aiNodes-spawn'
-        );
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {
@@ -7175,13 +7094,13 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         // - Preserves holographic layers (rings, fresnel, wireframes)
         // - Neutralizes legacy pulsing/scaling behaviors
         // - Enforces link/aura transparency constraints
-       /*   try {
+        try {
             NodeVisualIntegrityFix.initializeVisualIntegrity(this.scene);
             console.log('[main.js] NodeVisualIntegrityFix initialized ✓');
         } catch (err) {
             console.warn('[main.js] NodeVisualIntegrityFix initialization failed:', err);
-        } */
-    } 
+        }
+    }
 
     /**
      * Setup mode switching (M key)
@@ -7466,6 +7385,23 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
                 const hazardEffect = this.hazards.getHazardEffect(this.player?.position);
                 if (hazardEffect && this.player?.position?.add) {
                     this.player.position.add(hazardEffect.multiplyScalar(0.5));
+                }
+            }
+        });
+        reg('aiNodes', (dt) => {
+            if (!this.aiNodes) return;
+            const aiNodesUpdateStart = performance.now();
+            this.aiNodes.update(dt, this.time);
+            this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
+            this.aiNodes.updateSpawning?.(Date.now());
+            this.nodeUiAcc = (this.nodeUiAcc || 0) + dt;
+            if (this.nodeUiAcc >= 0.1) {
+                this.nodeUiAcc = 0;
+                this.updateNodeUI();
+            }
+            if ((this.frameCount || 0) % 60 === 0) {
+                for (const node of this.aiNodes.nodes || []) {
+                    relaxNodeMetrics(node, 1.0);
                 }
             }
         });
