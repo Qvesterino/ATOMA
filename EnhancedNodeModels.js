@@ -1417,11 +1417,30 @@ export class EnhancedNodeModels {
     emotional: []
   };
   static _ensureRegistry(category, variantList) {
-    const reg = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
-    if (!reg || !Array.isArray(variantList)) return;
+    if (!EnhancedNodeModels._ALL_NODE_FACTORIES[category]) {
+      EnhancedNodeModels._ALL_NODE_FACTORIES[category] = [];
+    }
+    const reg = EnhancedNodeModels._ALL_NODE_FACTORIES[category];
+    if (!Array.isArray(variantList)) return;
     for (const fn of variantList) {
-      if (typeof fn !== 'function') continue;
-      if (!reg.includes(fn)) reg.push(fn);
+      if (!fn || typeof fn !== 'function') {
+        console.error('[FACTORY REGISTER ERROR]', {
+          category,
+          fn,
+          type: typeof fn,
+          stack: new Error().stack
+        });
+        continue;
+      }
+      try {
+        reg.push(fn);
+      } catch (e) {
+        console.error('[FACTORY PUSH CRASH]', {
+          category,
+          fnName: fn?.name,
+          error: e
+        });
+      }
     }
   }
 
@@ -1442,11 +1461,8 @@ export class EnhancedNodeModels {
     }
     if (this._isRegistryValid()) return true; // already OK
 
-    if (this._registryInitialized === true) {
-      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-        console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'RegistryInvalidLate' });
-      }
-      return false;
+    if (this._registryInitialized === true && !this._isRegistryValid()) {
+      console.warn('[FACTORY] Registry invalid after init. Forcing rebuild.');
     }
 
     console.warn("[EnhancedNodeModels] Registry invalid → rebuilding");
@@ -1455,15 +1471,27 @@ export class EnhancedNodeModels {
       this._registerAllFactories();
       this._registryInitialized = true;
     } catch (e) {
-      console.error("[EnhancedNodeModels] Registry rebuild failed", e);
+      console.error("[EnhancedNodeModels] Registry rebuild failed", e, e?.stack);
       return false;
     }
 
-    return this._isRegistryValid();
+    const valid = this._isRegistryValid();
+    if (valid) {
+      const summary = Object.fromEntries(
+        Object.entries(this._ALL_NODE_FACTORIES || {}).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
+      );
+      if (!this._registryLogged) {
+        console.log('[FACTORY] Registry keys + counts', summary);
+        this._registryLogged = true;
+      }
+    }
+    return valid;
   }
   
 
   static _registerAllFactories() {
+
+    console.log('[FACTORY] BEGIN REGISTER');
 
     // Always recreate registry container (safe + deterministic)
     this._ALL_NODE_FACTORIES = {
@@ -1601,6 +1629,12 @@ export class EnhancedNodeModels {
       ...(this.__EXTRA_FACTORIES?.emotional || [])
     ]);
 
+    console.log('[FACTORY] REGISTRY STATE',
+      Object.fromEntries(
+        Object.entries(this._ALL_NODE_FACTORIES).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
+      )
+    );
+
   }
 
   static get __ALL_NODE_FACTORIES() {
@@ -1699,6 +1733,22 @@ export class EnhancedNodeModels {
 
     const resolvedVisualCode = resolveVisualCode(cat, visualToken);
     if (resolvedVisualCode == null) {
+      if (typeof window !== 'undefined' && !window.__CODE_MISSING_DUMPED) {
+        window.__CODE_MISSING_DUMPED = true;
+        const catNorm = String(category || '').toLowerCase().trim();
+        const pool = CATEGORY_POOLS?.[catNorm] || [];
+        console.error('[SPAWN_CODE_MISSING_TRACE]', {
+          categoryRaw: category,
+          categoryNorm: catNorm,
+          poolExists: !!pool,
+          poolLen: Array.isArray(pool) ? pool.length : null,
+          poolSample: Array.isArray(pool) ? pool.slice(0, 10) : null,
+          resolvedVisualCode,
+          hasRegistryEntry: resolvedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[String(resolvedVisualCode)] : false,
+          registryKeyType: resolvedVisualCode != null ? typeof resolvedVisualCode : null,
+          registryHasNumericKey: resolvedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[Number(resolvedVisualCode)] : false
+        }, new Error('STACK').stack);
+      }
       console.warn(`[EnhancedNodeModels] No visual code available for category '${cat}'.`);
       return null;
     }
@@ -1706,6 +1756,24 @@ export class EnhancedNodeModels {
     const registryEntry = NODE_VISUAL_REGISTRY[resolvedVisualCode];
     if (!registryEntry) {
       console.warn(`[EnhancedNodeModels] Missing registry entry for visualCode ${resolvedVisualCode}`);
+      if (typeof window !== 'undefined' && !window.__FACTORY_UNKNOWN_DUMPED) {
+        window.__FACTORY_UNKNOWN_DUMPED = true;
+        const catNorm = String(category || '').toLowerCase().trim();
+        const trace = {
+          categoryRaw: category,
+          categoryNorm: catNorm,
+          visualCode: resolvedVisualCode,
+          hasVisualEntry: false,
+          visualEntry: null,
+          factoryName: null,
+          hasFactoryFn: false,
+          factoryFnType: 'undefined',
+          factoriesByCategoryCount:
+            EnhancedNodeModels?._ALL_NODE_FACTORIES?.[catNorm]?.length ?? null,
+          keysSample: Object.keys(NODE_VISUAL_REGISTRY || {}).slice(0, 10),
+        };
+        console.error('[FACTORY_UNKNOWN_TRACE]', trace, new Error('TRACE_STACK').stack);
+      }
       return null;
     }
 
@@ -1751,6 +1819,30 @@ export class EnhancedNodeModels {
     }
     if (!factoryFn) {
       console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${resolvedVisualCode})`);
+      if (typeof window !== 'undefined' && !window.__FACTORY_UNKNOWN_DUMPED) {
+        window.__FACTORY_UNKNOWN_DUMPED = true;
+        const catNorm = String(category || '').toLowerCase().trim();
+        const trace = {
+          categoryRaw: category,
+          categoryNorm: catNorm,
+          visualCode: resolvedVisualCode,
+          hasVisualEntry: true,
+          visualEntry: registryEntry,
+          factoryName: registryEntry.factoryName,
+          hasFactoryFn:
+            !!(EnhancedNodeModels?.[registryEntry.factoryName] ||
+              globalThis?.[registryEntry.factoryName] ||
+              this?.[registryEntry.factoryName]),
+          factoryFnType:
+            typeof (EnhancedNodeModels?.[registryEntry.factoryName] ||
+              globalThis?.[registryEntry.factoryName] ||
+              this?.[registryEntry.factoryName]),
+          factoriesByCategoryCount:
+            EnhancedNodeModels?._ALL_NODE_FACTORIES?.[catNorm]?.length ?? null,
+          keysSample: Object.keys(NODE_VISUAL_REGISTRY || {}).slice(0, 10),
+        };
+        console.error('[FACTORY_UNKNOWN_TRACE]', trace, new Error('TRACE_STACK').stack);
+      }
       return null;
     }
 
@@ -3239,46 +3331,116 @@ static _createInputNodeLegacy(group, index, color) {
   /**
    * Analytics Node 2: Hexagonal disc with fractal patterns
    */
-  static createAnalyticsNode2(group, color) {
-    // Hexagonal disc
-    const hexGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.2, 6);
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.7,
-      roughness: 0.3,
-      emissive: color,
-      emissiveIntensity: 0.3
+static createAnalyticsNode2(group, color) {
 
-    });
-    const hex = new THREE.Mesh(hexGeometry, material);
-    group.add(hex);
+  // ===== BASE PLATFORM (stacked hex layers) =====
+  const baseMaterial = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.6,
+    roughness: 0.3,
+    emissive: color,
+    emissiveIntensity: 0.15
+  });
 
-    // Fractal cut patterns (nested hexagons)
-    for (let i = 1; i <= 2; i++) {
-      const innerHexGeometry = new THREE.CylinderGeometry(0.8 - i * 0.25, 0.8 - i * 0.25, 0.25, 6);
-      const innerHex = new THREE.Mesh(innerHexGeometry, material);
-      innerHex.position.y = i * 0.05;
-      group.add(innerHex);
-    }
-
-    // --- Analytics Factory Trace ---
-    let meshCount = 0;
-    group.traverse(o => { if (o.isMesh) meshCount++; });
-    if (meshCount === 0) {
-      console.error('[AnalyticsFactoryEmpty]', {
-        factory: 'createAnalyticsNode2',
-        visualCode: '2',
-        group
-      });
-    }
-
-    return group;
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.CylinderGeometry(
+      1 - i * 0.15,
+      1 - i * 0.15,
+      0.25,
+      6
+    );
+    const mesh = new THREE.Mesh(geo, baseMaterial);
+    mesh.position.y = i * 0.2;
+    group.add(mesh);
   }
+
+  // ===== ENERGY BEAM =====
+  const beamGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.5, 12);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.35
+  });
+
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.position.y = 1.4;
+  group.add(beam);
+
+  // ===== FLOATING CORE POLYHEDRON =====
+  const coreGeo = new THREE.IcosahedronGeometry(0.6, 1);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.5,
+    metalness: 0.4,
+    roughness: 0.2
+  });
+
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  core.position.y = 2.4;
+  group.add(core);
+
+  // Wireframe overlay
+  const wireGeo = new THREE.IcosahedronGeometry(0.65, 1);
+  const wireMat = new THREE.MeshBasicMaterial({
+    color,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.7
+  });
+
+  const wire = new THREE.Mesh(wireGeo, wireMat);
+  wire.position.y = 2.4;
+  group.add(wire);
+
+  // ===== ORBIT RING =====
+  const ringGeo = new THREE.TorusGeometry(1.1, 0.05, 16, 64);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.3,
+    metalness: 0.8,
+    roughness: 0.2
+  });
+
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 2.4;
+  group.add(ring);
+
+  // ===== CRYSTAL PILLARS =====
+  const crystalGeo = new THREE.ConeGeometry(0.2, 1.2, 4);
+  const crystalMat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.4,
+    metalness: 0.3,
+    roughness: 0.1
+  });
+
+  const crystalCount = 6;
+  const radius = 1.4;
+
+  for (let i = 0; i < crystalCount; i++) {
+    const angle = (i / crystalCount) * Math.PI * 2;
+    const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+
+    crystal.position.set(
+      Math.cos(angle) * radius,
+      0.6,
+      Math.sin(angle) * radius
+    );
+
+    crystal.lookAt(0, 2.4, 0);
+    group.add(crystal);
+  }
+
+  // ===== Metadata =====
+  group.userData.visualTier = "ANALYTICS_V3";
+  group.userData.hasEnergyCore = true;
+
+  return group;
+}
 
   /**
    * Analytics Node 3: Recursive Insight Engine
@@ -3998,74 +4160,75 @@ static _createInputNodeLegacy(group, index, color) {
    * UPGRADED: Enforced segment spacing, per-segment micro-rotation, optional vertical core light
    * VISUAL HIERARCHY: Core light opacity reduced to 0.08 (was 0.15, subtle background)
    */
-  static createStorageNode0(group, color) {
-    // Main pillar (optional background reference, mostly transparent)
-    const pillarGeometry = new THREE.BoxGeometry(0.5, 1.2, 0.5);
-    const pillarMaterial = new THREE.MeshStandardMaterial({
+ static createStorageNode0(group, color) {
+
+  const sliceCount = 6;
+  const sliceHeight = 0.18;
+  const sliceSpacing = 0.34;
+
+  // === FRACTURED MEMORY SLABS ===
+  for (let i = 0; i < sliceCount; i++) {
+
+    // Slight bevel look via slightly thinner geometry
+    const sliceGeometry = new THREE.BoxGeometry(0.55, sliceHeight, 0.55);
+
+    const sliceMaterial = new THREE.MeshStandardMaterial({
       color: color,
-      metalness: 0.8,
-      roughness: 0.2,
+      metalness: 0.9,
+      roughness: 0.15,
       emissive: color,
-      emissiveIntensity: 0.1,
-      transparent: true,
-      opacity: 0.15
+      emissiveIntensity: 0.35
     });
-    const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
-    pillar.renderOrder = 0;  // Core layer
-    group.add(pillar);
 
-    // Memory slices - FIXED: Enforced spacing, no merging
-    const sliceCount = 6;
-    const sliceHeight = 0.15;
-    const sliceSpacing = 0.32; // Ensure clear gaps between slices
-    
-    for (let i = 0; i < sliceCount; i++) {
-      const sliceGeometry = new THREE.BoxGeometry(0.50, sliceHeight, 0.50);
-      const sliceMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.8,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.25
+    const slice = new THREE.Mesh(sliceGeometry, sliceMaterial);
 
-      });
-      const slice = new THREE.Mesh(sliceGeometry, sliceMaterial);
-      
-      // POLISH: Consistent vertical spacing, per-segment micro-rotation for visual interest
-      slice.position.y = (i - sliceCount / 2) * sliceSpacing;
-      slice.rotation.z = (Math.sin(i * 0.5) * 0.08); // Subtle micro-rotation per segment
-      slice.renderOrder = 0;  // Core layer
-      slice.userData = { segmentIndex: i };
-      
-      group.add(slice);
+    slice.position.y = (i - sliceCount / 2) * sliceSpacing;
+
+    // Intentional asymmetry
+    slice.rotation.y = (i % 2 === 0 ? 0.12 : -0.12);
+    slice.rotation.z = Math.sin(i * 0.8) * 0.06;
+
+    // One segment slightly offset (write pulse illusion)
+    if (i === 3) {
+      slice.position.x += 0.05;
+      slice.scale.set(1.05, 1, 1.05);
     }
 
-    // POLISH: Optional faint vertical core light (visualization of memory flow)
-    // VISUAL HIERARCHY: Reduced opacity from 0.15 to 0.08 (very subtle inner glow)
-    const coreLightGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.1, 8);
-    const coreLightMat = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.08,  // Reduced from 0.15
-      emissive: color,
-      emissiveIntensity: 0.3
-    });
-    const coreLight = new THREE.Mesh(coreLightGeo, coreLightMat);
-    coreLight.renderOrder = 1;  // Inner layer
-    coreLight.userData = { isCoreLightVFX: true };
-    group.add(coreLight);
-
-    group.userData.segmentCount = sliceCount;
-    group.userData.segmentMicroRotationEnabled = true;
-
-    return group;
+    slice.userData = { segmentIndex: i };
+    group.add(slice);
   }
 
+  // === CENTRAL DATA BEAM ===
+  const beamGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.4, 12);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.18
+  });
+
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.userData = { isCoreLightVFX: true };
+  group.add(beam);
+
+  // === BASE ANCHOR (heavy stability feel) ===
+  const baseGeo = new THREE.CylinderGeometry(0.4, 0.45, 0.15, 16);
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: color,
+    metalness: 1,
+    roughness: 0.3,
+    emissive: color,
+    emissiveIntensity: 0.15
+  });
+
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = -1.2;
+  group.add(base);
+
+  group.userData.segmentCount = sliceCount;
+  group.userData.segmentMicroRotationEnabled = true;
+
+  return group;
+}
   /**
    * Storage Node 1: Capsule with inner bands
    */

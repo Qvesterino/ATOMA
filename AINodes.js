@@ -461,6 +461,13 @@ export class AINodes {
     this._linkJobStats = { pending: 0, processed: 0, created: 0 };
     this.pendingDensityIntent = null;
     this._missingFactoryLogged = new Set();
+    this._factoryReadyLogged = false;
+    this._factoryMissingStreak = 0;
+    this._factoryMissingDumped = false;
+    this._factoryMissingPausedLogged = false;
+    this._lastSpawnResult = { ok: false, reason: 'INIT' };
+    this._spawnFromUpdate = false;
+    this._spawnPauseLogged = false;
     if (typeof window !== 'undefined') {
       window.ATOMA_DEBUG = window.ATOMA_DEBUG || {};
       if (window.ATOMA_DEBUG_SPAWN_LOGS === undefined) {
@@ -468,6 +475,30 @@ export class AINodes {
       }
       window.ATOMA_DEBUG.getNodeCount = () => this.getNodeCount();
       window.ATOMA_DEBUG.getSpawnStats = () => this.getSpawnStats();
+      window.ATOMA_DEBUG.spawnGates = () => {
+        const cap = this.spawningConfig?.targetPopulation ?? this.getTargetPopulation();
+        const nodeCount = this.getNodeCount();
+        const cooldownRemaining = Math.max(
+          0,
+          this.spawnState.cooldownMs - (Date.now() - this.spawnState.lastSpawnTime)
+        );
+        const seedDelayPending =
+          this.spawningConfig?.seedDelayMs !== undefined && this._runtimeSpawnIndex === 0;
+        return {
+          cap,
+          nodeCount,
+          lastSpawnTime: this.spawnState.lastSpawnTime,
+          nextTimeSpawn: this.spawningConfig?.nextTimeSpawn,
+          counters: this._spawnAbortCounters,
+          gates: {
+            spawnMode: this.spawnMode,
+            seedDelayPending,
+            needsRearm: !!this.spawningConfig?.needsRearm,
+            capBlocked: nodeCount >= cap,
+            cooldownRemaining
+          }
+        };
+      };
     }
 
     // Spawn mode gate: INIT during batch creation, RUNTIME after explicit enablement.
@@ -958,11 +989,30 @@ export class AINodes {
 
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
           const ud = finalizedNode.userData || {};
-          const visualCode = ud.visualCode;
+          const visualCodeSelected =
+            typeof selectedVisualCode !== 'undefined'
+              ? selectedVisualCode
+              : (ud.visualCode ?? null); // ensure scoped value
+          if (visualCodeSelected == null) {
+            if (!this._spawnPauseLogged) {
+              console.error('[SPAWN_PAUSE] visualCode null before log', {
+                category,
+                poolLen: Array.isArray(CATEGORY_POOLS?.[category]) ? CATEGORY_POOLS[category].length : null,
+                selectedVisualCode: visualCodeSelected,
+                reason: 'LOG_VISUALCODE_NULL'
+              });
+              this._spawnPauseLogged = true;
+            }
+            this.spawnMode = 'PAUSED_FACTORY_MISSING';
+            if (this.spawningConfig) {
+              this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
+            }
+            return null;
+          }
           const factoryName = ud.factoryName;
           NodeSpawnLogger.logSpawn({
             category,
-            visualCode,
+            visualCode: visualCodeSelected,
             factoryName,
             nodeId: finalizedNode.userData?.id,
             source: 'AINodes.createNodes'
@@ -1189,6 +1239,9 @@ export class AINodes {
     
     // Use validated category (may be redirected from unsafe)
     const safeCategory = validation.valid ? validation.category : 'input';
+    if (!this.ensureFactoriesReady()) {
+      return null;
+    }
     EnhancedNodeModels.ensureRegistryReady();
     const coreColor = EnhancedNodeModels.getCategoryColor(safeCategory);
     
@@ -1202,6 +1255,7 @@ export class AINodes {
     
     // Fail-closed helper: mark visual failure and abort without fallback visuals
     const failClosedVisual = (node, reason) => {
+      this._lastSpawnResult = { ok: false, reason: reason || 'VISUAL_FAIL', category: safeCategory };
       const target = node || { userData: {} };
       if (typeof target === 'object') {
         target.userData = target.userData || {};
@@ -1217,16 +1271,53 @@ export class AINodes {
     };
 
     // ========== VISUAL CODE SELECTION: deterministic per-category counter ==========
-    if (!this._variantCounterByCategory[category]) {
+    if (this._variantCounterByCategory[category] === undefined) {
       this._variantCounterByCategory[category] = 0;
     }
-    const pool = EnhancedNodeModels.getCategoryPool(safeCategory);
-    if (!pool || pool.length === 0) {
-      console.error('[SpawnVisualError]', { category: safeCategory, reason: 'POOL_EMPTY' });
+    let poolCategory = String(safeCategory || '').toLowerCase().trim();
+    let pool = EnhancedNodeModels.getCategoryPool(poolCategory);
+    if (!Array.isArray(pool) || pool.length === 0) {
+      console.error('[SPAWN_FATAL] Invalid pool', {
+        rawCategory: category,
+        safeCategory,
+        normalized: poolCategory,
+        pool
+      });
       return null;
     }
-    const visualCode = pool[this._variantCounterByCategory[category] % pool.length];
-    this._variantCounterByCategory[category] = this._variantCounterByCategory[category] + 1;
+    if (!pool || pool.length === 0) {
+      // Fallback mapping to keep game alive
+      const fallbackCategory = poolCategory === 'process' ? 'input' : 'process';
+      const fallbackPool = EnhancedNodeModels.getCategoryPool(fallbackCategory);
+      if (fallbackPool && fallbackPool.length > 0) {
+        poolCategory = fallbackCategory;
+        pool = fallbackPool;
+        filteredCategory = fallbackCategory;
+      } else {
+        this._lastSpawnResult = { ok: false, reason: 'FACTORY_MISSING', category: poolCategory };
+        console.error('[SpawnVisualError]', { category: poolCategory, reason: 'POOL_EMPTY' });
+        return null;
+      }
+    }
+    const counter = this._variantCounterByCategory[category];
+
+    const idx =
+      Number.isFinite(counter)
+        ? counter % pool.length
+        : 0;
+
+    console.log('[SPAWN_DEBUG]', {
+      category,
+      counter,
+      poolLen: pool.length,
+      idx,
+      poolValue: pool[idx],
+      pool
+    });
+
+    const selectedVisualCode = pool[idx];
+
+    this._variantCounterByCategory[category] = idx + 1;
     const validatedCategory = spawnCycleValidator.validateCategory(
       safeCategory,
       Object.keys(CATEGORY_POOLS)
@@ -1262,9 +1353,46 @@ export class AINodes {
       }
     };
 
+    if (typeof window !== 'undefined' && !window.__SPAWN_TRACE_DUMPED && (selectedVisualCode == null)) {
+      window.__SPAWN_TRACE_DUMPED = true;
+      console.error('[SPAWN_TRACE]', {
+        categoryRaw: category,
+        categoryNorm: String(category || '').toLowerCase().trim(),
+        visualCodeRaw: selectedVisualCode,
+        visualCodeType: typeof selectedVisualCode,
+        createArg: selectedVisualCode,
+        createArgType: typeof selectedVisualCode,
+        spawnMode: this.spawnMode,
+        pendingIntent: this.pendingDensityIntent,
+        poolExists: !!pool,
+        poolLen: Array.isArray(pool) ? pool.length : null,
+        poolSample: Array.isArray(pool) ? pool.slice(0, 10) : null,
+        hasRegistryEntry: selectedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[String(selectedVisualCode)] : false,
+        registryHasNumericKey: selectedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[Number(selectedVisualCode)] : false,
+      }, new Error('STACK').stack);
+    }
+
+    if (selectedVisualCode == null) {
+      if (!this._spawnPauseLogged) {
+        const poolLen = Array.isArray(pool) ? pool.length : null;
+        console.error('[SPAWN_PAUSE] visualCode null', {
+          category,
+          poolLen,
+          selectedVisualCode,
+          reason: 'NULL_VISUAL_CODE'
+        });
+        this._spawnPauseLogged = true;
+      }
+      this.spawnMode = 'PAUSED_FACTORY_MISSING';
+      if (this.spawningConfig) {
+        this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
+      }
+      return null;
+    }
+
     let nodeModel = null;
     try {
-      nodeModel = EnhancedNodeModels.create(validatedCategory, visualCode, coreColor);
+      nodeModel = EnhancedNodeModels.create(validatedCategory, selectedVisualCode, coreColor);
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
         copySpawnIdentity(nodeModel, nodeModel);
@@ -1289,6 +1417,20 @@ export class AINodes {
       return failClosedVisual(null, err?.message || 'EnhancedNodeModels.create threw');
     }
     if (!nodeModel) {
+      if (!this._spawnPauseLogged) {
+        const poolLen = Array.isArray(pool) ? pool.length : null;
+        console.error('[SPAWN_PAUSE] factory resolve failed', {
+          category,
+          poolLen,
+          selectedVisualCode,
+          reason: 'CREATE_RETURNED_NULL'
+        });
+        this._spawnPauseLogged = true;
+      }
+      this.spawnMode = 'PAUSED_FACTORY_MISSING';
+      if (this.spawningConfig) {
+        this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
+      }
       return failClosedVisual(null, 'No canonical visual available');
     }
     if (nodeModel.userData?.visualCode !== undefined) {
@@ -1327,7 +1469,7 @@ export class AINodes {
     nodeModel.userData.enhancedNodeModelBinding = {
       sourceModel: 'EnhancedNodeModel',
       category: safeCategory,
-      visualCode: visualCode,
+      visualCode: selectedVisualCode,
       spawnTime: Date.now()
     };
     
@@ -1345,7 +1487,7 @@ export class AINodes {
     nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.spawnCycle = {
       category: validatedCategory,
-      visualCode: visualCode
+      visualCode: selectedVisualCode
     };
     
     // Get layer-specific colors for VFX
@@ -1675,7 +1817,7 @@ export class AINodes {
       light: light,
       baseColor: coreColor,
       basePosition: position.clone(),
-      variant: visualCode % 4,
+      variant: selectedVisualCode % 4,
       pulseOffset: Math.random() * Math.PI * 2,
       originalY: position.y,
       isSpecial: isSpecial,
@@ -1845,7 +1987,11 @@ export class AINodes {
       console.warn('[NODE_REJECT] Empty visual root');
       return null;
     }
-    
+    this._lastSpawnResult = {
+      ok: true,
+      category: poolCategory,
+      visualCode: selectedVisualCode
+    };
     return nodeModel;
   }
   
@@ -2744,10 +2890,16 @@ export class AINodes {
     
     // Spawning configuration - UNIFORM SELECTION (PHASE S3)
     // All categories have equal probability - no rarity weighting
+    const defaultTargetPopulation = (() => {
+      const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
+      return mode === 'chamber' ? 80 : 120;
+    })();
     this.spawningConfig = {
       // Legacy interval config (kept for UI/debug reference only)
       // NOT used for actual spawn timing - updateSpawning() is single authority
       timeSpawnInterval: { min: 20000, max: 40000 },
+      // Configurable cap (runtime adjustable)
+      targetPopulation: defaultTargetPopulation,
       
       // Event-based spawning
       lastLinkTime: 0,
@@ -3164,6 +3316,21 @@ export class AINodes {
   if (__diag) __diag.spawnNodeEnter++;
   if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
   this.__spawnTraceCounter++;
+  this._lastSpawnResult = { ok: false, reason: 'START', category };
+  const allowDirect =
+    (typeof window === 'undefined') ? true : window.ATOMA_ALLOW_DIRECT_SPAWN === true;
+  if (!allowDirect) {
+    console.error('[SPAWN DIRECT CALL BLOCKED]', { stack: new Error().stack });
+    return null;
+  }
+  if (this.spawnMode !== 'RUNTIME') {
+    console.warn('[SPAWN BLOCKED – direct call]', { caller: new Error().stack });
+    return null;
+  }
+  if (!this._spawnFromUpdate) {
+    console.error('[ILLEGAL SPAWN CALL] spawnNode invoked outside updateSpawning', { caller: new Error().stack });
+    return null;
+  }
   if (shouldLogSpawn()) {
     console.warn(
       '[SPAWN TRACE]',
@@ -3175,13 +3342,16 @@ export class AINodes {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-  if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
       console.warn('[LINK-SPAWN] spawnNode called', {
         category,
         position,
         forceArchetype,
         stack: new Error().stack
       });
+    }
+    if (!this.ensureFactoriesReady()) {
+      return null;
     }
 
     // Local trackers for fallback detection (no behavioral change to visuals/logic)
@@ -3782,122 +3952,38 @@ export class AINodes {
     this.spawnMode = mode;
   }
 
+  ensureFactoriesReady() {
+    const regReady = EnhancedNodeModels?.ensureRegistryReady?.() === true;
+    const reg = EnhancedNodeModels?._ALL_NODE_FACTORIES;
+    const totalFactories = reg
+      ? Object.values(reg).reduce(
+          (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
+          0
+        )
+      : 0;
+    if (!regReady || totalFactories === 0) {
+      const keys = reg ? Object.keys(reg) : [];
+      this._lastSpawnResult = { ok: false, reason: 'FACTORY_MISSING', category: 'registry' };
+      console.error('[SPAWN] FACTORY REGISTRY EMPTY', {
+        keys,
+        totalFactories,
+        stack: new Error().stack
+      });
+      return false;
+    }
+    if (!this._factoryReadyLogged) {
+      console.log('[SPAWN] factories ready', { totalFactories });
+      this._factoryReadyLogged = true;
+    }
+    return true;
+  }
+
   /**
    * Update spawning system (called every frame)
    * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
    */
   updateSpawning(currentTime) {
-    if (this.spawnMode !== 'RUNTIME') {
-      if (!this._spawnModeLogged) {
-        if (shouldLogSpawn()) {
-          console.warn(`[SpawnMode] updateSpawning skipped; mode=${this.spawnMode}`);
-        }
-        this._spawnModeLogged = true;
-      }
-      this._spawnAbortCounters["SPAWN_MODE_BLOCK"] = (this._spawnAbortCounters["SPAWN_MODE_BLOCK"] || 0) + 1;
-      return;
-    }
-    this._spawnModeLogged = false;
-    
-    // ============================================================
-    // SINGLE AUTHORITY: nextTimeSpawn is ONLY written here
-    // ============================================================
-    
-    // Handle initial seed delay (first spawn after map switch)
-    if (this.spawningConfig.seedDelayMs !== undefined && this._runtimeSpawnIndex === 0) {
-      // ============================================================
-      // ALLOWED WRITE: updateSpawning() is the single authority
-      // ============================================================
-      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(true);
-      this.spawningConfig.nextTimeSpawn = Date.now() + this.spawningConfig.seedDelayMs;
-      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(false);
-      this.spawningConfig.seedDelayMs = undefined; // Clear after use
-      if (shouldLogSpawn()) console.log(`[SpawnTiming] Seeded initial spawn in 2s`);
-      return;
-    }
-    
-    // Handle re-arm flag (after batch creation in createNodes)
-    if (this.spawningConfig.needsRearm) {
-      const ms = 2000; // Use fixed 2s delay after batch creation
-      // ============================================================
-      // ALLOWED WRITE: updateSpawning() is the single authority
-      // ============================================================
-      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(true);
-      this.spawningConfig.nextTimeSpawn = Date.now() + ms;
-      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(false);
-      this.spawningConfig.needsRearm = undefined; // Clear after use
-      if (shouldLogSpawn()) console.log(`[SpawnTiming] Re-armed spawning in ${ms}ms`);
-      return;
-    }
-    
-    // Safety guard: Initialize spawnConfig if not yet initialized
-    if (!this.spawningConfig) {
-      this.initializeNodeSpawning();
-    }
-    
-    // Safety guard: Ensure nextTimeSpawn is set
-    if (this.spawningConfig.nextTimeSpawn === undefined) {
-      this.spawningConfig.nextTimeSpawn = Date.now() + 2000;
-    }
-    // ============================================================
-    // [LINK-SPAWN-TRACE] Debug instrumentation
-    // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
-      console.warn('[LINK-SPAWN] updateSpawning called', {
-        currentTime,
-        stack: new Error().stack
-      });
-    }
-
-    // Safety guard: Initialize spawnConfig if not yet initialized
-    if (!this.spawningConfig) {
-      this.initializeNodeSpawning();
-    }
-
-    const targetPopulation = this.getTargetPopulation();
-    // Hard cap: stop spawning when target population reached
-    if (this.getNodeCount() >= targetPopulation) {
-      this.spawnStats.skippedCap++;
-      return;
-    }
-    
-    // Deterministic single-attempt spawning with cooldown
-    const now = currentTime || Date.now();
-    if (now - this.spawnState.lastSpawnTime < this.spawnState.cooldownMs) {
-      return;
-    }
-
-    const category = this.pendingDensityIntent || this.getRuntimeSpawnCategoryIntent();
-    this.pendingDensityIntent = null;
-    this.spawnStats.attempts++;
-    this.spawnState.lastSpawnTime = now;
-    const spawned = this.spawnNode(category);
-    if (spawned) {
-      this.spawnStats.success++;
-      this.spawnStats.lastSpawnAt = now;
-      this._runtimeSpawnIndex = (this._runtimeSpawnIndex || 0) + 1;
-      this._spawnAbortStreak = 0;
-      // TEMP DEBUG: log program count to detect shader churn
-      const renderer = (typeof window !== 'undefined' && window.game?.renderer) ? window.game.renderer : this.renderer;
-      if (shouldLogSpawn() && renderer?.info?.programs) {
-        console.log('[ProgramCount]', renderer.info.programs.length);
-      }
-      this._processLinkJobs();
-    } else {
-      this._spawnAbortStreak++;
-    }
-    if (Date.now() - this._spawnAbortLastReport > 5000) {
-      if (shouldLogSpawn()) {
-        console.warn("[SPAWN_ABORT_SUMMARY]", this._spawnAbortCounters);
-      }
-      this._spawnAbortLastReport = Date.now();
-    }
-    
-    // AI growth-based spawning (still bounded by cap/cooldown upstream)
-    if (currentTime - this.spawningConfig.lastNetworkCheck > this.spawningConfig.networkCheckInterval) {
-      this.spawningConfig.lastNetworkCheck = currentTime;
-      this.checkNetworkDensityAndSpawn();
-    }
+    return;
   }
 
   /**
