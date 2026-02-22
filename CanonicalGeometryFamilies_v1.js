@@ -13,6 +13,15 @@
 
 import * as THREE from 'three';
 
+// Shared geometry cache for deterministic builders
+const GEOMETRY_CACHE = new Map(); // key -> BufferGeometry
+const getCachedGeometry = (key, buildFn) => {
+  if (GEOMETRY_CACHE.has(key)) return GEOMETRY_CACHE.get(key);
+  const geom = buildFn();
+  GEOMETRY_CACHE.set(key, geom);
+  return geom;
+};
+
 export class CanonicalGeometryFamilies {
   
   /**
@@ -109,6 +118,27 @@ export class CanonicalGeometryFamilies {
     }
   }
   
+  /**
+   * Validation: ensure geometry has finite positions (catches NaN propagation).
+   */
+  static _validateGeometry(geometry, builderName = 'unknown') {
+    if (!geometry) {
+      throw new Error(`Missing geometry in ${builderName}`);
+    }
+    const pos = geometry.attributes && geometry.attributes.position;
+    if (!pos) {
+      throw new Error(`Missing position in ${builderName}`);
+    }
+    const arr = pos.array;
+    for (let i = 0; i < arr.length; i++) {
+      if (!Number.isFinite(arr[i])) {
+        console.error('NaN in geometry', builderName);
+        throw new Error('NaN geometry');
+      }
+    }
+    return geometry;
+  }
+  
   // ===== MYTHIC CATEGORY (Ancient Fractured Relics) =====
   
   /**
@@ -127,8 +157,10 @@ export class CanonicalGeometryFamilies {
     ];
     
     positions.forEach((pos, idx) => {
+      const shardGeometry = new THREE.TetrahedronGeometry(0.25 + Math.random() * 0.15, 0);
+      this._validateGeometry(shardGeometry, 'createMythicShardCluster:shard');
       const shard = new THREE.Mesh(
-        new THREE.TetrahedronGeometry(0.25 + Math.random() * 0.15, 0),
+        shardGeometry,
         this._getMythicMaterial()
       );
       shard.position.set(...pos);
@@ -149,8 +181,10 @@ export class CanonicalGeometryFamilies {
    * Tall structure with large chunks missing
    * Feels eroded and ancient
    */
+  // Deterministic – safe for geometry cache
   static createMythicBrokenMonolith(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('mythic-broken-monolith', () => {
+      const geometry = new THREE.BufferGeometry();
     const vertices = new Float32Array([
       // Left intact section
       -0.25, -0.45, 0, -0.15, -0.45, 0, -0.15, 0.45, 0, -0.25, 0.45, 0,
@@ -169,17 +203,20 @@ export class CanonicalGeometryFamilies {
       8, 9, 10, 9, 11, 10
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      this._validateGeometry(geometry, 'createMythicBrokenMonolith');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getMythicMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -212,8 +249,10 @@ export class CanonicalGeometryFamilies {
     const group = new THREE.Group();
     
     // Fragment 1: Flat broken slab
+    const slabGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.4);
+    this._validateGeometry(slabGeometry, 'createMythicFloatingFragments:slab');
     const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, 0.15, 0.4),
+      slabGeometry,
       this._getMythicMaterial()
     );
     slab.position.set(-0.15, 0.1, 0);
@@ -221,8 +260,10 @@ export class CanonicalGeometryFamilies {
     group.add(slab);
     
     // Fragment 2: Cracked chunk
+    const chunkGeometry = new THREE.BoxGeometry(0.25, 0.3, 0.2);
+    this._validateGeometry(chunkGeometry, 'createMythicFloatingFragments:chunk');
     const chunk = new THREE.Mesh(
-      new THREE.BoxGeometry(0.25, 0.3, 0.2),
+      chunkGeometry,
       this._getMythicMaterial()
     );
     chunk.position.set(0.2, -0.1, 0.15);
@@ -230,8 +271,10 @@ export class CanonicalGeometryFamilies {
     group.add(chunk);
     
     // Fragment 3: Pointed shard
+    const shardGeometry = new THREE.TetrahedronGeometry(0.2, 0);
+    this._validateGeometry(shardGeometry, 'createMythicFloatingFragments:shard');
     const shard = new THREE.Mesh(
-      new THREE.TetrahedronGeometry(0.2, 0),
+      shardGeometry,
       this._getMythicMaterial()
     );
     shard.position.set(-0.05, 0.25, -0.2);
@@ -239,8 +282,10 @@ export class CanonicalGeometryFamilies {
     group.add(shard);
     
     // Fragment 4: Twisted piece
+    const twistGeometry = new THREE.OctahedronGeometry(0.18, 1);
+    this._validateGeometry(twistGeometry, 'createMythicFloatingFragments:twist');
     const twist = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.18, 1),
+      twistGeometry,
       this._getMythicMaterial()
     );
     twist.position.set(0.15, -0.2, -0.1);
@@ -260,8 +305,10 @@ export class CanonicalGeometryFamilies {
    * Prismatic form with visible fracture lines
    * Feels fractured but still unified
    */
+  // Deterministic – safe for geometry cache
   static createMythicCrackedPrism(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('mythic-cracked-prism', () => {
+      const geometry = new THREE.BufferGeometry();
     const vertices = new Float32Array([
       // Left prism section
       -0.3, -0.4, 0, -0.15, -0.4, 0.2, -0.15, 0.4, 0.2, -0.3, 0.4, 0,
@@ -282,17 +329,20 @@ export class CanonicalGeometryFamilies {
       2, 6, 10, 2, 10, 3
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      this._validateGeometry(geometry, 'createMythicCrackedPrism');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getMythicMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -345,6 +395,7 @@ export class CanonicalGeometryFamilies {
       geometry.computeBoundingBox();
     }
     
+    this._validateGeometry(geometry, 'createMythicAncientCoreWithMissing');
     const mesh = new THREE.Mesh(geometry, this._getMythicMaterial());
     mesh.scale.multiplyScalar(scale);
     mesh.userData.geometryFamily = 'MYTHIC';
@@ -376,8 +427,10 @@ export class CanonicalGeometryFamilies {
     const group = new THREE.Group();
     
     // Crown base (broken ring)
+    const baseGeometry = new THREE.TorusGeometry(0.4, 0.08, 8, 32);
+    this._validateGeometry(baseGeometry, 'createMythicCollapsedCrown:base');
     const base = new THREE.Mesh(
-      new THREE.TorusGeometry(0.4, 0.08, 8, 32),
+      baseGeometry,
       this._getMythicMaterial()
     );
     base.scale.y = 0.6;
@@ -390,8 +443,10 @@ export class CanonicalGeometryFamilies {
       const height = 0.3 + Math.random() * 0.2;
       const radius = 0.4 + Math.random() * 0.1;
       
+      const pointGeometry = new THREE.ConeGeometry(0.08, height, 6);
+      this._validateGeometry(pointGeometry, 'createMythicCollapsedCrown:point');
       const point = new THREE.Mesh(
-        new THREE.ConeGeometry(0.08, height, 6),
+        pointGeometry,
         this._getMythicMaterial()
       );
       point.position.x = Math.cos(angle) * radius;
@@ -416,18 +471,31 @@ export class CanonicalGeometryFamilies {
    * Small icosahedron perfectly nested inside larger one
    * Pure mathematical perfection
    */
+  // Deterministic – safe for geometry cache
   static createPrimeNestedIcosahedron(scale = 1.0) {
     const group = new THREE.Group();
     
+    const outerGeometry = getCachedGeometry('prime-nested-ico-outer', () => {
+      const g = new THREE.IcosahedronGeometry(0.5, 2);
+      this._validateGeometry(g, 'createPrimeNestedIcosahedron:outer');
+      return g;
+    });
+    this._validateGeometry(outerGeometry, 'createPrimeNestedIcosahedron:outer');
     const outer = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.5, 2),
+      outerGeometry,
       this._getPrimeMaterial()
     );
     outer.userData.isCore = true;
     group.add(outer);
     
+    const innerGeometry = getCachedGeometry('prime-nested-ico-inner', () => {
+      const g = new THREE.IcosahedronGeometry(0.28, 2);
+      this._validateGeometry(g, 'createPrimeNestedIcosahedron:inner');
+      return g;
+    });
+    this._validateGeometry(innerGeometry, 'createPrimeNestedIcosahedron:inner');
     const inner = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.28, 2),
+      innerGeometry,
       this._getPrimeMaterial()
     );
     inner.userData.isCore = true;
@@ -445,16 +513,21 @@ export class CanonicalGeometryFamilies {
    * PRIME-1: Perfect Dodecahedron
    * Pure 12-faced symmetry, absolute perfection
    */
+  // Deterministic – safe for geometry cache
   static createPrimePerfectDodecahedron(scale = 1.0) {
-    const geometry = new THREE.DodecahedronGeometry(0.5, 0);
+    const geometry = getCachedGeometry('prime-perfect-dodeca', () => {
+      const geometry = new THREE.DodecahedronGeometry(0.5, 0);
     
-    // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      // Compute bounding volumes (once, at creation)
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      this._validateGeometry(geometry, 'createPrimePerfectDodecahedron');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getPrimeMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -483,20 +556,30 @@ export class CanonicalGeometryFamilies {
    * Two interpenetrating tetrahedra forming 8-pointed star
    * Inside-out mathematical form
    */
+  // Deterministic – safe for geometry cache
   static createPrimeStellaOctangula(scale = 1.0) {
     const group = new THREE.Group();
     
     // Tetrahedron 1 (normal)
+    const sharedTetGeometry = getCachedGeometry('prime-stella-octa-tetra', () => {
+      const g = new THREE.TetrahedronGeometry(0.4, 0);
+      this._validateGeometry(g, 'createPrimeStellaOctangula:tet');
+      return g;
+    });
+    const tetGeometry1 = sharedTetGeometry;
+    this._validateGeometry(tetGeometry1, 'createPrimeStellaOctangula:tet1');
     const tet1 = new THREE.Mesh(
-      new THREE.TetrahedronGeometry(0.4, 0),
+      tetGeometry1,
       this._getPrimeMaterial()
     );
     tet1.userData.isCore = true;
     group.add(tet1);
     
     // Tetrahedron 2 (inverted, 5x scale to interpen)
+    const tetGeometry2 = sharedTetGeometry;
+    this._validateGeometry(tetGeometry2, 'createPrimeStellaOctangula:tet2');
     const tet2 = new THREE.Mesh(
-      new THREE.TetrahedronGeometry(0.4, 0),
+      tetGeometry2,
       this._getPrimeMaterial()
     );
     tet2.rotation.set(Math.PI, 0, 0);
@@ -516,16 +599,22 @@ export class CanonicalGeometryFamilies {
    * Perfect geometric lattice of small spheres in exact grid
    * Pure order and regularity
    */
+  // Deterministic – safe for geometry cache
   static createPrimePrecisionLattice(scale = 1.0) {
     const group = new THREE.Group();
     const gridSize = 3;
     const spacing = 0.25;
+    const sphereGeometry = getCachedGeometry('prime-precision-lattice', () => {
+      const g = new THREE.SphereGeometry(0.08, 16, 16);
+      this._validateGeometry(g, 'createPrimePrecisionLattice:sphere');
+      return g;
+    });
     
     for (let x = 0; x < gridSize; x++) {
       for (let y = 0; y < gridSize; y++) {
         for (let z = 0; z < gridSize; z++) {
           const sphere = new THREE.Mesh(
-            new THREE.SphereGeometry(0.08, 16, 16),
+            sphereGeometry,
             this._getPrimeMaterial()
           );
           sphere.position.set(
@@ -551,8 +640,10 @@ export class CanonicalGeometryFamilies {
    * 4D hypercube projected to 3D
    * Mathematical axiom made visible
    */
+  // Deterministic – safe for geometry cache
   static createPrimeTesseractProjection(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('prime-tesseract-projection', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // 16 vertices of tesseract (4D cube in 3D projection)
     const vertices = new Float32Array([
@@ -570,17 +661,20 @@ export class CanonicalGeometryFamilies {
       12, 13, 13, 15, 15, 14, 14, 12
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      this._validateGeometry(geometry, 'createPrimeTesseractProjection');
+      return geometry;
+    });
     
     const lines = new THREE.LineSegments(
       geometry,
@@ -612,16 +706,21 @@ export class CanonicalGeometryFamilies {
    * Perfect sphere-like form but faceted into octahedron
    * Minimal axiom, maximum symmetry
    */
+  // Deterministic – safe for geometry cache
   static createPrimeSymmetryLockedCore(scale = 1.0) {
-    const geometry = new THREE.OctahedronGeometry(0.5, 3);
+    const geometry = getCachedGeometry('prime-symmetry-core', () => {
+      const geometry = new THREE.OctahedronGeometry(0.5, 3);
     
-    // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      // Compute bounding volumes (once, at creation)
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      this._validateGeometry(geometry, 'createPrimeSymmetryLockedCore');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getPrimeMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -652,18 +751,29 @@ export class CanonicalGeometryFamilies {
    * Two cubes overlapping impossibly
    * Logical contradiction made solid
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorIntersectingSolids(scale = 1.0) {
     const group = new THREE.Group();
     
+    const cubeGeometry = getCachedGeometry('error-intersecting-cube', () => {
+      const g = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+      this._validateGeometry(g, 'createErrorIntersectingSolids:cube');
+      return g;
+    });
+    const cubeGeometry1 = cubeGeometry;
+    this._validateGeometry(cubeGeometry1, 'createErrorIntersectingSolids:cube1');
     const cube1 = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.4, 0.4),
+      cubeGeometry,
       this._getErrorMaterial()
     );
     cube1.rotation.set(0.3, 0.2, 0.1);
     group.add(cube1);
     
+    const cubeGeometry2 = cubeGeometry;
+    this._validateGeometry(cubeGeometry2, 'createErrorIntersectingSolids:cube2');
     const cube2 = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.4, 0.4),
+      cubeGeometry2,
       this._getErrorMaterial()
     );
     cube2.position.set(0.2, 0.1, 0.15);
@@ -684,23 +794,28 @@ export class CanonicalGeometryFamilies {
    * Mesh with deliberately inverted normals (inside-out)
    * Feels topologically broken
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorInvertedNormals(scale = 1.0) {
-    const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const posAttr = geometry.getAttribute('position');
-    
-    // Invert all normals by negating them
-    const normAttr = geometry.getAttribute('normal');
-    if (normAttr) {
-      const normals = normAttr.array;
-      for (let i = 0; i < normals.length; i++) {
-        normals[i] *= -1;
+    const geometry = getCachedGeometry('error-inverted-sphere', () => {
+      const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+      const posAttr = geometry.getAttribute('position');
+      
+      // Invert all normals by negating them
+      const normAttr = geometry.getAttribute('normal');
+      if (normAttr) {
+        const normals = normAttr.array;
+        for (let i = 0; i < normals.length; i++) {
+          normals[i] *= -1;
+        }
+        normAttr.needsUpdate = true;
       }
-      normAttr.needsUpdate = true;
-    }
-    
-    geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-    
+      
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      this._validateGeometry(geometry, 'createErrorInvertedNormals');
+      return geometry;
+    });
     const mesh = new THREE.Mesh(geometry, this._getErrorMaterial());
     mesh.scale.multiplyScalar(scale);
     mesh.scale.z *= -1; // Also flip on Z to ensure inside-out effect
@@ -718,8 +833,11 @@ export class CanonicalGeometryFamilies {
    * Geometry that passes through itself
    * Impossible topology
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorSelfClipping(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('error-selfclipping-buffer', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Create two interpenetrating shapes
     const vertices = new Float32Array([
@@ -734,17 +852,21 @@ export class CanonicalGeometryFamilies {
       4, 5, 6, 5, 6, 7, 6, 7, 4, 7, 4, 5
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      
+      this._validateGeometry(geometry, 'createErrorSelfClipping');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getErrorMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -774,8 +896,11 @@ export class CanonicalGeometryFamilies {
    * Penrose-like impossible triangle rendered in 3D
    * Contradiction made visible
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorFoldedImpossible(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('error-folded-buffer', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Penrose triangle-inspired folded structure
     const vertices = new Float32Array([
@@ -790,17 +915,21 @@ export class CanonicalGeometryFamilies {
       0, 1, 3, 1, 4, 3, 2, 5, 7
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      
+      this._validateGeometry(geometry, 'createErrorFoldedImpossible');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getErrorMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -830,8 +959,11 @@ export class CanonicalGeometryFamilies {
    * Mesh with discontinuous faces (torn apart)
    * Manifold violation
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorTopologyTear(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('error-topology-tear', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Cube with a tear/hole in it
     const vertices = new Float32Array([
@@ -849,17 +981,21 @@ export class CanonicalGeometryFamilies {
       1, 5, 6, 1, 6, 2   // Right
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      
+      this._validateGeometry(geometry, 'createErrorTopologyTear');
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getErrorMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -889,27 +1025,47 @@ export class CanonicalGeometryFamilies {
    * Non-manifold mesh with floating faces and duplicated vertices
    * Complete geometric corruption
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createErrorCorruptedManifold(scale = 1.0) {
     const group = new THREE.Group();
     
     // Main deformed shape
+    const mainGeometry = getCachedGeometry('error-corrupt-main-ico', () => {
+      const g = new THREE.IcosahedronGeometry(0.4, 1);
+      this._validateGeometry(g, 'createErrorCorruptedManifold:main');
+      return g;
+    });
+    this._validateGeometry(mainGeometry, 'createErrorCorruptedManifold:main');
     const main = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.4, 1),
+      mainGeometry,
       this._getErrorMaterial()
     );
     group.add(main);
     
     // Floating disconnected face
+    const floatingGeometry = getCachedGeometry('error-corrupt-floating-sphere', () => {
+      const g = new THREE.SphereGeometry(0.15, 8, 8);
+      this._validateGeometry(g, 'createErrorCorruptedManifold:floating');
+      return g;
+    });
+    this._validateGeometry(floatingGeometry, 'createErrorCorruptedManifold:floating');
     const floating = new THREE.Mesh(
-      new THREE.SphereGeometry(0.15, 8, 8),
+      floatingGeometry,
       this._getErrorMaterial()
     );
     floating.position.set(0.4, 0.3, -0.2);
     group.add(floating);
     
     // Inverted floating piece
+    const invertedGeometry = getCachedGeometry('error-corrupt-inverted-tetra', () => {
+      const g = new THREE.TetrahedronGeometry(0.15, 0);
+      this._validateGeometry(g, 'createErrorCorruptedManifold:inverted');
+      return g;
+    });
+    this._validateGeometry(invertedGeometry, 'createErrorCorruptedManifold:inverted');
     const inverted = new THREE.Mesh(
-      new THREE.TetrahedronGeometry(0.15, 0),
+      invertedGeometry,
       this._getErrorMaterial()
     );
     inverted.position.set(-0.3, -0.3, 0.25);
@@ -932,8 +1088,10 @@ export class CanonicalGeometryFamilies {
    * Heart-like shape but fully faceted
    * Intimate and crystalline
    */
+  // Deterministic – safe for geometry cache
   static createEmotionalHeartCrystal(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('emo-heart-crystal', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Stylized faceted heart shape
     const vertices = new Float32Array([
@@ -953,17 +1111,19 @@ export class CanonicalGeometryFamilies {
       1, 2, 3, 1, 3, 4, 1, 4, 5, 1, 5, 7
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getEmotionalMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -992,22 +1152,31 @@ export class CanonicalGeometryFamilies {
    * Brain-like with faceted surface
    * Feels thoughtful and organic
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createEmotionalNeuralLobe(scale = 1.0) {
     const group = new THREE.Group();
     
     // Central lobe
-    const center = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 8, 8),
-      this._getEmotionalMaterial()
-    );
+    const centerGeometry = getCachedGeometry('emo-neural-center', () => {
+      const g = new THREE.SphereGeometry(0.3, 8, 8);
+      this._validateGeometry(g, 'createEmotionalNeuralLobe:center');
+      return g;
+    });
+    const center = new THREE.Mesh(centerGeometry, this._getEmotionalMaterial());
     center.userData.isCore = true;
     group.add(center);
     
     // Side lobes (organic placement)
+    const lobeGeometry = getCachedGeometry('emo-neural-lobe', () => {
+      const g = new THREE.SphereGeometry(0.15, 6, 6);
+      this._validateGeometry(g, 'createEmotionalNeuralLobe:lobe');
+      return g;
+    });
     for (let i = 0; i < 4; i++) {
       const angle = (i / 4) * Math.PI * 2;
       const lobe = new THREE.Mesh(
-        new THREE.SphereGeometry(0.15, 6, 6),
+        lobeGeometry,
         this._getEmotionalMaterial()
       );
       lobe.position.x = Math.cos(angle) * 0.35;
@@ -1029,22 +1198,31 @@ export class CanonicalGeometryFamilies {
    * Blossom-like crystal petals
    * Feels opening and vulnerable
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createEmotionalBloomingGem(scale = 1.0) {
     const group = new THREE.Group();
     
     // Center core
-    const core = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.15, 1),
-      this._getEmotionalMaterial()
-    );
+    const coreGeometry = getCachedGeometry('emo-bloom-core', () => {
+      const g = new THREE.OctahedronGeometry(0.15, 1);
+      this._validateGeometry(g, 'createEmotionalBloomingGem:core');
+      return g;
+    });
+    const core = new THREE.Mesh(coreGeometry, this._getEmotionalMaterial());
     core.userData.isCore = true;
     group.add(core);
     
     // Petals (6)
+    const petalGeometry = getCachedGeometry('emo-bloom-petal', () => {
+      const g = new THREE.TetrahedronGeometry(0.15, 0);
+      this._validateGeometry(g, 'createEmotionalBloomingGem:petal');
+      return g;
+    });
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2;
       const petal = new THREE.Mesh(
-        new THREE.TetrahedronGeometry(0.15, 0),
+        petalGeometry,
         this._getEmotionalMaterial()
       );
       petal.position.x = Math.cos(angle) * 0.35;
@@ -1067,8 +1245,11 @@ export class CanonicalGeometryFamilies {
    * Teardrop with faceted surface
    * Feels melancholic and fluid
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createEmotionalTearShaped(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('emo-tear-shaped', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Teardrop vertices (faceted)
     const vertices = new Float32Array([
@@ -1088,17 +1269,19 @@ export class CanonicalGeometryFamilies {
       1, 7, 0, 3, 5, 7, 4, 6, 7, 5, 7, 6
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getEmotionalMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -1127,8 +1310,11 @@ export class CanonicalGeometryFamilies {
    * Folded/closed form suggesting introspection
    * Organic but symmetrical
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createEmotionalFolded(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('emo-folded', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Folded form (like closed hands)
     const vertices = new Float32Array([
@@ -1142,17 +1328,19 @@ export class CanonicalGeometryFamilies {
       0, 1, 6, 1, 7, 6
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getEmotionalMaterial());
     mesh.scale.multiplyScalar(scale);
@@ -1181,8 +1369,11 @@ export class CanonicalGeometryFamilies {
    * Seed-like form with perfect symmetry
    * Feels potential and growth
    */
+  // Deterministic – safe for geometry cache
+  // Deterministic – safe for geometry cache
   static createEmotionalSymmetricSeed(scale = 1.0) {
-    const geometry = new THREE.BufferGeometry();
+    const geometry = getCachedGeometry('emo-symmetric-seed', () => {
+      const geometry = new THREE.BufferGeometry();
     
     // Seed shape (ellipsoid with facets)
     const vertices = new Float32Array([
@@ -1201,17 +1392,19 @@ export class CanonicalGeometryFamilies {
       7, 11, 10, 8, 10, 11, 5, 11, 12, 10, 11, 12
     ]);
     
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      geometry.computeVertexNormals();
     
     // Compute bounding volumes (once, at creation)
-    if (geometry.boundingSphere === null) {
-      geometry.computeBoundingSphere();
-    }
-    if (!geometry.boundingBox) {
-      geometry.computeBoundingBox();
-    }
+      if (geometry.boundingSphere === null) {
+        geometry.computeBoundingSphere();
+      }
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      return geometry;
+    });
     
     const mesh = new THREE.Mesh(geometry, this._getEmotionalMaterial());
     mesh.scale.multiplyScalar(scale);

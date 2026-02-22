@@ -73,7 +73,7 @@ import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { isEmissiveCapable, safeSetEmissive } from './_EmissiveUtils.js';
 import { NodeSpawnLogger } from './_NodeSpawnLogger4_0.js';
 import { NodeVisualBootstrap3_0 } from './_NodeVisualBootstrap3_0.js';
-import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
+import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 // LEGACY SPAWN MODULE REMOVED – HARD DISABLED
 // import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
 // import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
@@ -120,6 +120,9 @@ const __diagOnce = (key, msg) => {
     /* no-op */
   }
 };
+
+// Debug flag helper for spawn logging
+const shouldLogSpawn = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_SPAWN_LOGS === true);
 
 function findSpawnIdentity(node){
   let src = null;
@@ -444,6 +447,28 @@ export class AINodes {
 
     // Per-category variant counters (deterministic, no cross-category coupling)
     this._variantCounterByCategory = {};
+    this.spawnStats = {
+      attempts: 0,
+      success: 0,
+      skippedCap: 0,
+      lastSpawnAt: 0
+    };
+    this.spawnState = {
+      lastSpawnTime: 0,
+      cooldownMs: 1000
+    };
+    this.pendingLinkJobs = [];
+    this._linkJobStats = { pending: 0, processed: 0, created: 0 };
+    this.pendingDensityIntent = null;
+    this._missingFactoryLogged = new Set();
+    if (typeof window !== 'undefined') {
+      window.ATOMA_DEBUG = window.ATOMA_DEBUG || {};
+      if (window.ATOMA_DEBUG_SPAWN_LOGS === undefined) {
+        window.ATOMA_DEBUG_SPAWN_LOGS = false;
+      }
+      window.ATOMA_DEBUG.getNodeCount = () => this.getNodeCount();
+      window.ATOMA_DEBUG.getSpawnStats = () => this.getSpawnStats();
+    }
 
     // Spawn mode gate: INIT during batch creation, RUNTIME after explicit enablement.
     this.spawnMode = 'INIT'; // 'INIT' | 'RUNTIME' | 'DISABLED'
@@ -532,6 +557,9 @@ export class AINodes {
     // Runtime spawn intent rotation to avoid INPUT lock-in
     this._runtimeSpawnIndex = 0;
     this._spawnIntentLogged = false;
+    this._spawnAbortCounters = {};
+    this._spawnAbortLastReport = Date.now();
+    this._spawnAbortStreak = 0;
 
     // Spawn-cycle state (deterministic cyclic runtime category intent)
     this.spawnCycleState = {
@@ -623,6 +651,80 @@ export class AINodes {
   _getUniqueArchetypeKey(category, archetype) {
     const archetypeKey = String(archetype || category || '').trim().toLowerCase();
     return archetypeKey || null;
+  }
+
+  getNodeCount() {
+    return Array.isArray(this.nodes) ? this.nodes.length : 0;
+  }
+
+  getSpawnStats() {
+    return { ...this.spawnStats, nodeCount: this.getNodeCount() };
+  }
+
+  getTargetPopulation() {
+    const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
+    if (mode === 'chamber') return 12;
+    return 15;
+  }
+
+  _processLinkJobs() {
+    const BUDGET = 50;
+    const MAX_LINKS_PER_NODE = 8;
+    let processed = 0;
+    let created = 0;
+    while (this.pendingLinkJobs.length && processed < BUDGET) {
+      const job = this.pendingLinkJobs[0];
+      const newNode =
+        this.nodesMap?.get(job.newNodeId) ||
+        this.nodes.find(
+          (n) =>
+            (n.userData?.nodeId || n.userData?.id || n.uuid) === job.newNodeId
+        );
+      if (!newNode) {
+        this.pendingLinkJobs.shift();
+        continue;
+      }
+      while (job.startIndex < this.nodes.length && processed < BUDGET) {
+        const existingNode = this.nodes[job.startIndex];
+        job.startIndex++;
+        processed++;
+        if (!existingNode || existingNode === newNode) continue;
+        const distance = newNode.position.distanceTo(existingNode.position);
+        if (distance < this.connectionDistance && Math.random() < 0.3) {
+          if (!this._linkExists(newNode, existingNode)) {
+            this.nodeLinkingSystem?.createLink?.(newNode, existingNode);
+            job.linksCreated++;
+            created++;
+            if (job.linksCreated >= MAX_LINKS_PER_NODE) break;
+          }
+        }
+      }
+      if (job.startIndex >= this.nodes.length || job.linksCreated >= MAX_LINKS_PER_NODE) {
+        this.pendingLinkJobs.shift();
+      } else {
+        break; // budget hit
+      }
+    }
+    this._linkJobStats = {
+      pending: this.pendingLinkJobs.length,
+      processed,
+      created
+    };
+    if (shouldLogSpawn()) {
+      console.log('[LinkJobs]', this._linkJobStats);
+    }
+  }
+
+  _linkExists(a, b) {
+    const links = this.nodeLinkingSystem?.links || [];
+    const ida = this.nodeLinkingSystem?.getNodeId?.(a) || a.userData?.nodeId || a.uuid;
+    const idb = this.nodeLinkingSystem?.getNodeId?.(b) || b.userData?.nodeId || b.uuid;
+    for (const link of links) {
+      const la = link.sourceNodeId || link.source?.userData?.nodeId || link.source?.uuid;
+      const lb = link.targetNodeId || link.target?.userData?.nodeId || link.target?.uuid;
+      if ((la === ida && lb === idb) || (la === idb && lb === ida)) return true;
+    }
+    return false;
   }
 
   getSpawnCycleState() {
@@ -856,11 +958,12 @@ export class AINodes {
 
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
           const ud = finalizedNode.userData || {};
-          const logUd = findSpawnIdentity(finalizedNode);
+          const visualCode = ud.visualCode;
+          const factoryName = ud.factoryName;
           NodeSpawnLogger.logSpawn({
             category,
-            visualCode: logUd.visualCode,
-            factoryName: logUd.factoryName,
+            visualCode,
+            factoryName,
             nodeId: finalizedNode.userData?.id,
             source: 'AINodes.createNodes'
           });
@@ -881,10 +984,9 @@ export class AINodes {
     // Create potential connections between nearby nodes
     this.createNodeConnections();
 
-    // Reset runtime spawn timer so the next world spawns soon after init
+    // Mark that spawning needs re-arming (updateSpawning() will handle it)
     if (this.spawningConfig) {
-      const minInterval = this.spawningConfig.timeSpawnInterval?.min ?? 1000;
-      this.spawningConfig.nextTimeSpawn = Date.now() + minInterval;
+      this.spawningConfig.needsRearm = true;
     }
   }
 
@@ -1118,10 +1220,16 @@ export class AINodes {
     if (!this._variantCounterByCategory[category]) {
       this._variantCounterByCategory[category] = 0;
     }
-    const visualCode = this._variantCounterByCategory[category]++;
+    const pool = EnhancedNodeModels.getCategoryPool(safeCategory);
+    if (!pool || pool.length === 0) {
+      console.error('[SpawnVisualError]', { category: safeCategory, reason: 'POOL_EMPTY' });
+      return null;
+    }
+    const visualCode = pool[this._variantCounterByCategory[category] % pool.length];
+    this._variantCounterByCategory[category] = this._variantCounterByCategory[category] + 1;
     const validatedCategory = spawnCycleValidator.validateCategory(
       safeCategory,
-      ['input','process','integration','analytics','storage','control','quantum','sigma','mythic','prime','error','emotional']
+      Object.keys(CATEGORY_POOLS)
     );
     const debugCheckGeometry = (mesh, stage) => {
       if (!mesh || !mesh.geometry) return;
@@ -2588,15 +2696,58 @@ export class AINodes {
    * Manages time-based, event-based, and AI-growth spawning
    */
   initializeNodeSpawning() {
-    // Time-based spawn interval configuration
-    const timeSpawnInterval = { min: 20000, max: 40000 };
+    // ============================================================
+    // DEV-ONLY GUARD: Detect writes to nextTimeSpawn outside updateSpawning()
+    // ============================================================
+    const DEV_GUARDS_ENABLED = (typeof window !== 'undefined') && (window.ATOMA_DEV_GUARDS === true);
+    
+    // Token to allow writes - only set within updateSpawning()
+    let allowWriteToken = false;
+    
+    // ============================================================
+    // DEV-ONLY GUARD: Wrap nextTimeSpawn with property interceptor
+    // ============================================================
+    const guardNextTimeSpawn = (configObj) => {
+      if (!DEV_GUARDS_ENABLED) return;
+      
+      const rawNextTimeSpawn = Date.now() + 5000; // Initial seed value
+      
+      Object.defineProperty(configObj, 'nextTimeSpawn', {
+        get: () => rawNextTimeSpawn,
+        set: (value) => {
+          if (!allowWriteToken) {
+            // Unauthorized write detected!
+            const error = new Error('[SPAWN_TIMING_GUARD] Unauthorized write to spawningConfig.nextTimeSpawn');
+            console.error(error.message);
+            console.error('Stack trace:', error.stack);
+            console.error('Value attempted:', value);
+            console.error('This property should ONLY be written by updateSpawning()');
+          } else {
+            // Authorized write - allow it
+            rawNextTimeSpawn = Date.now() + value; // value is offset from Date.now()
+          }
+        },
+        enumerable: true,
+        configurable: true
+      });
+      
+      // Store raw value for internal use
+      configObj._rawNextTimeSpawn = rawNextTimeSpawn;
+    };
+    
+    // ============================================================
+    // Store token setter for updateSpawning() to use
+    // ============================================================
+    this.__spawnTimingGuard = {
+      setAllowWriteToken: (value) => { allowWriteToken = value; }
+    };
     
     // Spawning configuration - UNIFORM SELECTION (PHASE S3)
     // All categories have equal probability - no rarity weighting
     this.spawningConfig = {
-      // Time-based spawning (every 20-40 seconds)
-      timeSpawnInterval: timeSpawnInterval,
-      nextTimeSpawn: Date.now() + (timeSpawnInterval.min + Math.random() * (timeSpawnInterval.max - timeSpawnInterval.min)),
+      // Legacy interval config (kept for UI/debug reference only)
+      // NOT used for actual spawn timing - updateSpawning() is single authority
+      timeSpawnInterval: { min: 20000, max: 40000 },
       
       // Event-based spawning
       lastLinkTime: 0,
@@ -2620,8 +2771,14 @@ export class AINodes {
       
     };
     
+    // ============================================================
+    // ACTIVATE THE GUARD on spawningConfig (must be AFTER config creation)
+    // ============================================================
+    guardNextTimeSpawn(this.spawningConfig);
+    
     // Materialize animation tracking
     this.materializingNodes = new Set();
+    this._runtimeSpawnIndex = 0;
 
     // Spawn Visual Burst Gate (queues heavy visual work to spread across frames)
     this.spawnVisualQueue = (typeof window !== 'undefined'
@@ -2665,8 +2822,7 @@ export class AINodes {
    * Get random spawn interval (milliseconds)
    */
   getRandomSpawnInterval() {
-    const { min, max } = this.spawningConfig.timeSpawnInterval;
-    return min + Math.random() * (max - min);
+    return 6000; // steady interval after ramp
   }
   
   /**
@@ -2826,6 +2982,8 @@ export class AINodes {
 
     // Keep child state untouched; only enforce root visibility and sane scale.
     node.visible = true;
+    // TEMP DEBUG: prevent frustum culling on spawned node root to diagnose disappearing visuals
+    node.frustumCulled = false;
     const scaleNonFinite =
       !Number.isFinite(node.scale?.x) ||
       !Number.isFinite(node.scale?.y) ||
@@ -3002,20 +3160,22 @@ export class AINodes {
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
    */
   spawnNode(category = null, position = null, forceArchetype = null) {
-    const __diag = __ensureSpawnDiag();
-    if (__diag) __diag.spawnNodeEnter++;
-    if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
-    this.__spawnTraceCounter++;
+  const __diag = __ensureSpawnDiag();
+  if (__diag) __diag.spawnNodeEnter++;
+  if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
+  this.__spawnTraceCounter++;
+  if (shouldLogSpawn()) {
     console.warn(
       '[SPAWN TRACE]',
       'count=', this.__spawnTraceCounter,
       'category=', category,
       'stack=', new Error().stack.split('\n').slice(2, 6).join(' | ')
     );
+  }
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+  if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
       console.warn('[LINK-SPAWN] spawnNode called', {
         category,
         position,
@@ -3052,6 +3212,7 @@ export class AINodes {
     // HARD ABORT if validation failed (returns null only on critical errors)
     if (validatedCategory === null) {
       if (__diag) __diag.spawnNodeAbort.compliance_null = (__diag.spawnNodeAbort.compliance_null || 0) + 1;
+      this._spawnAbortCounters["COMPLIANCE_BLOCK"] = (this._spawnAbortCounters["COMPLIANCE_BLOCK"] || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;  // Clean abort, no node added to scene
     }
@@ -3119,6 +3280,7 @@ export class AINodes {
 
     if (!decision.allowed) {
       if (__diag) __diag.spawnNodeAbort.unique_denied = (__diag.spawnNodeAbort.unique_denied || 0) + 1;
+      this._spawnAbortCounters["UNIQUE_BLOCK"] = (this._spawnAbortCounters["UNIQUE_BLOCK"] || 0) + 1;
       const existingNode =
         (decision.existingNodeId &&
           (this.nodesMap?.get(decision.existingNodeId) ||
@@ -3160,11 +3322,15 @@ export class AINodes {
     const registryEntry = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
     const hasCanonicalVisual = Array.isArray(registryEntry) && registryEntry.length > 0;
     if (!hasCanonicalVisual) {
-      console.error('[NodeSpawnBlocked]', {
-        category,
-        reason: 'No canonical visual registered'
-      });
+      if (shouldLogSpawn() && !this._missingFactoryLogged.has(category)) {
+        console.error('[NodeSpawnBlocked]', {
+          category,
+          reason: 'No canonical visual registered'
+        });
+        this._missingFactoryLogged.add(category);
+      }
       if (__diag) __diag.spawnNodeAbort.missing_visual = (__diag.spawnNodeAbort.missing_visual || 0) + 1;
+      this._spawnAbortCounters["INVALID_CATEGORY"] = (this._spawnAbortCounters["INVALID_CATEGORY"] || 0) + 1;
       this._pendingCyclicCandidate = null;
       return null;
     }
@@ -3207,12 +3373,44 @@ export class AINodes {
     
     // ========== STEP 3: CREATE NODE GEOMETRY (SYNC) ==========
     const isSpecial = this.specialNodeTypes.includes(category) || this.newNodeCategories.includes(category);
-    const newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+    let newNode = null;
+    try {
+      newNode = this.createNode(category, spawnPos, this.nodes.length, isSpecial);
+    } catch (e) {
+      if (shouldLogSpawn()) {
+        console.error('[SpawnVisualError]', {
+          category,
+          visualCode: undefined,
+          error: e
+        });
+      }
+      this._spawnAbortCounters["VISUAL_THROW"] = (this._spawnAbortCounters["VISUAL_THROW"] || 0) + 1;
+      this._pendingCyclicCandidate = null;
+      return false;
+    }
     if (!newNode) {
       // Spawn failed – skip safely
+      this._spawnAbortCounters["CREATE_NODE_NULL"] = (this._spawnAbortCounters["CREATE_NODE_NULL"] || 0) + 1;
       if (__diag) __diag.spawnNodeAbort.createNode_null = (__diag.spawnNodeAbort.createNode_null || 0) + 1;
       this._pendingCyclicCandidate = null;
-      return null;
+      return false;
+    }
+
+    // Ensure visual identity is stamped immediately after factory
+    if (newNode.userData) {
+      const vc = newNode.userData.visualCode;
+      if (vc !== undefined) {
+        newNode.userData.visualCode = vc;
+        const fn = NODE_VISUAL_REGISTRY[vc]?.factoryName;
+        if (fn && !newNode.userData.factoryName) {
+          newNode.userData.factoryName = fn;
+        }
+      }
+      // TEMP DEBUG: log boundingSphere radius if present
+      const bs = newNode?.geometry?.boundingSphere || newNode?.children?.[0]?.geometry?.boundingSphere;
+      if (shouldLogSpawn() && bs) {
+        console.warn('[SpawnDebug] boundingSphere', { radius: bs.radius });
+      }
     }
     if (false && (newNode.userData?.visualFailed === true || newNode.userData?.__visualFailed === true)) {
       console.warn('[NODE_REJECT] Canonical visual missing - node not spawned');
@@ -3374,13 +3572,41 @@ export class AINodes {
     }
     
     // ========== STEP 7: FINALIZE (SCENE ATTACH + REGISTRATION) ==========
-    const finalized = this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey });
+    let finalized = null;
+    try {
+      finalized = this._finalizeSpawnedNode(newNode, category, spawnPos, { registryKey });
+    } catch (e) {
+      console.error('[SpawnVisualError]', {
+        category,
+        visualCode: newNode?.userData?.visualCode,
+        error: e
+      });
+      this._spawnAbortCounters["VISUAL_THROW"] = (this._spawnAbortCounters["VISUAL_THROW"] || 0) + 1;
+      this._pendingCyclicCandidate = null;
+      return false;
+    }
     if (!finalized) {
+      this._spawnAbortCounters["FINALIZE_NULL"] = (this._spawnAbortCounters["FINALIZE_NULL"] || 0) + 1;
       if (__diag) __diag.spawnNodeAbort.finalize_null = (__diag.spawnNodeAbort.finalize_null || 0) + 1;
       this._pendingCyclicCandidate = null;
-      return null;
+      return false;
     }
     const finalizedNode = finalized.node;
+    if (window.ATOMA_DEBUG_SPAWN_LOGS) {
+      let meshCount = 0;
+      let geometryCount = 0;
+      finalizedNode.traverse(obj => {
+        if (obj.isMesh) {
+          meshCount++;
+          if (obj.geometry) geometryCount++;
+        }
+      });
+      console.log("[MythicSpawnStats]", {
+        category,
+        meshCount,
+        geometryCount
+      });
+    }
 
     const fallbackToken = `instance-${finalizedNode.userData?.nodeId || finalizedNode.userData?.id || Date.now()}-${Math.random().toString(36).slice(2)}`;
     const variantToken = forceArchetype ??
@@ -3416,13 +3642,15 @@ export class AINodes {
     this._commitSpawnCycleSuccess(category);
     
     // NODE SPAWN LOGGER v4.0: Log spawn with visualCode and factoryName
-    const logUd = findSpawnIdentity(finalizedNode);
-    const nodeId = finalizedNode.userData?.id || finalizedNode.uuid;
+    const ud = finalizedNode.userData || {};
+    const nodeId = ud.id || finalizedNode.uuid;
+    const visualCode = ud.visualCode;
+    const factoryName = ud.factoryName;
 
     NodeSpawnLogger.logSpawn({
       category,
-      visualCode: logUd.visualCode,
-      factoryName: logUd.factoryName,
+      visualCode,
+      factoryName,
       nodeId,
       source: "AINodes.spawnNode"
     });
@@ -3441,15 +3669,13 @@ export class AINodes {
       this.materializeNode(newNode);
     }
     
-    // ========== STEP 10: CREATE CONNECTIONS (SYNC) ==========
-    if (this.nodeLinkingSystem && newNode.userData?.__nonRenderable !== true) {
-      for (const existingNode of this.nodes.slice(0, -1)) {
-        const distance = newNode.position.distanceTo(existingNode.position);
-        if (distance < this.connectionDistance && Math.random() < 0.3) {
-          this.nodeLinkingSystem.createLink(newNode, existingNode);
-        }
-      }
-    }
+    // ========== STEP 10: DEFERRED CONNECTIONS ==========
+    if (!this.pendingLinkJobs) this.pendingLinkJobs = [];
+    this.pendingLinkJobs.push({
+      newNodeId: newNode.userData?.nodeId || newNode.userData?.id || newNode.uuid,
+      startIndex: 0,
+      linksCreated: 0
+    });
     
     // Phase D.4: Notify WaveInterferenceEngine of NODE_SPAWN event (DEBUG-gated)
     if (window.CONFIG?.debug?.DEBUG_WAVE_ENGINE && this.waveInterferenceEngine) {
@@ -3558,21 +3784,65 @@ export class AINodes {
 
   /**
    * Update spawning system (called every frame)
+   * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
    */
   updateSpawning(currentTime) {
     if (this.spawnMode !== 'RUNTIME') {
       if (!this._spawnModeLogged) {
-        console.warn(`[SpawnMode] updateSpawning skipped; mode=${this.spawnMode}`);
+        if (shouldLogSpawn()) {
+          console.warn(`[SpawnMode] updateSpawning skipped; mode=${this.spawnMode}`);
+        }
         this._spawnModeLogged = true;
       }
+      this._spawnAbortCounters["SPAWN_MODE_BLOCK"] = (this._spawnAbortCounters["SPAWN_MODE_BLOCK"] || 0) + 1;
       return;
     }
     this._spawnModeLogged = false;
-    console.log("NOW:", Date.now(), "NEXT:", this.spawningConfig.nextTimeSpawn);
+    
+    // ============================================================
+    // SINGLE AUTHORITY: nextTimeSpawn is ONLY written here
+    // ============================================================
+    
+    // Handle initial seed delay (first spawn after map switch)
+    if (this.spawningConfig.seedDelayMs !== undefined && this._runtimeSpawnIndex === 0) {
+      // ============================================================
+      // ALLOWED WRITE: updateSpawning() is the single authority
+      // ============================================================
+      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(true);
+      this.spawningConfig.nextTimeSpawn = Date.now() + this.spawningConfig.seedDelayMs;
+      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(false);
+      this.spawningConfig.seedDelayMs = undefined; // Clear after use
+      if (shouldLogSpawn()) console.log(`[SpawnTiming] Seeded initial spawn in 2s`);
+      return;
+    }
+    
+    // Handle re-arm flag (after batch creation in createNodes)
+    if (this.spawningConfig.needsRearm) {
+      const ms = 2000; // Use fixed 2s delay after batch creation
+      // ============================================================
+      // ALLOWED WRITE: updateSpawning() is the single authority
+      // ============================================================
+      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(true);
+      this.spawningConfig.nextTimeSpawn = Date.now() + ms;
+      if (this.__spawnTimingGuard) this.__spawnTimingGuard.setAllowWriteToken(false);
+      this.spawningConfig.needsRearm = undefined; // Clear after use
+      if (shouldLogSpawn()) console.log(`[SpawnTiming] Re-armed spawning in ${ms}ms`);
+      return;
+    }
+    
+    // Safety guard: Initialize spawnConfig if not yet initialized
+    if (!this.spawningConfig) {
+      this.initializeNodeSpawning();
+    }
+    
+    // Safety guard: Ensure nextTimeSpawn is set
+    if (this.spawningConfig.nextTimeSpawn === undefined) {
+      this.spawningConfig.nextTimeSpawn = Date.now() + 2000;
+    }
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
       console.warn('[LINK-SPAWN] updateSpawning called', {
         currentTime,
         stack: new Error().stack
@@ -3583,17 +3853,47 @@ export class AINodes {
     if (!this.spawningConfig) {
       this.initializeNodeSpawning();
     }
-    
-    // Time-based spawning
-    if (currentTime > this.spawningConfig.nextTimeSpawn) {
-      const category = this.getRuntimeSpawnCategoryIntent();
-      
-      this.spawnNode(category);
-     
-      this.spawningConfig.nextTimeSpawn = currentTime + this.getRandomSpawnInterval();
+
+    const targetPopulation = this.getTargetPopulation();
+    // Hard cap: stop spawning when target population reached
+    if (this.getNodeCount() >= targetPopulation) {
+      this.spawnStats.skippedCap++;
+      return;
     }
     
-    // AI growth-based spawning
+    // Deterministic single-attempt spawning with cooldown
+    const now = currentTime || Date.now();
+    if (now - this.spawnState.lastSpawnTime < this.spawnState.cooldownMs) {
+      return;
+    }
+
+    const category = this.pendingDensityIntent || this.getRuntimeSpawnCategoryIntent();
+    this.pendingDensityIntent = null;
+    this.spawnStats.attempts++;
+    this.spawnState.lastSpawnTime = now;
+    const spawned = this.spawnNode(category);
+    if (spawned) {
+      this.spawnStats.success++;
+      this.spawnStats.lastSpawnAt = now;
+      this._runtimeSpawnIndex = (this._runtimeSpawnIndex || 0) + 1;
+      this._spawnAbortStreak = 0;
+      // TEMP DEBUG: log program count to detect shader churn
+      const renderer = (typeof window !== 'undefined' && window.game?.renderer) ? window.game.renderer : this.renderer;
+      if (shouldLogSpawn() && renderer?.info?.programs) {
+        console.log('[ProgramCount]', renderer.info.programs.length);
+      }
+      this._processLinkJobs();
+    } else {
+      this._spawnAbortStreak++;
+    }
+    if (Date.now() - this._spawnAbortLastReport > 5000) {
+      if (shouldLogSpawn()) {
+        console.warn("[SPAWN_ABORT_SUMMARY]", this._spawnAbortCounters);
+      }
+      this._spawnAbortLastReport = Date.now();
+    }
+    
+    // AI growth-based spawning (still bounded by cap/cooldown upstream)
     if (currentTime - this.spawningConfig.lastNetworkCheck > this.spawningConfig.networkCheckInterval) {
       this.spawningConfig.lastNetworkCheck = currentTime;
       this.checkNetworkDensityAndSpawn();
@@ -3614,7 +3914,7 @@ export class AINodes {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
       console.warn('[LINK-SPAWN] onLinkCreated called (link -> spawn trigger)', {
         currentTime: Date.now(),
         lastLinkTime: this.spawningConfig.lastLinkTime,
@@ -3628,6 +3928,11 @@ export class AINodes {
     if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
       // Occasionally spawn node on link creation (20% chance)
       if (Math.random() < 0.2) {
+        const targetPopulation = this.getTargetPopulation();
+        if (this.getNodeCount() >= targetPopulation) {
+          this.spawnStats.skippedCap++;
+          return;
+        }
         const category = this.getRuntimeSpawnCategoryIntent();
         
         this.spawnNode(category);
@@ -3645,7 +3950,7 @@ export class AINodes {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
       console.warn('[LINK-SPAWN] checkNetworkDensityAndSpawn called', {
         currentNodeCount: this.nodes.length,
         stack: new Error().stack
@@ -3653,7 +3958,7 @@ export class AINodes {
     }
 
     const currentNodeCount = this.nodes.length;
-    const maxTarget = this.spawningConfig.maxNodesTarget;
+    const maxTarget = Math.min(this.spawningConfig.maxNodesTarget, this.getTargetPopulation());
 
     if (currentNodeCount >= maxTarget) {
       return; // hard cap reached
@@ -3662,22 +3967,9 @@ export class AINodes {
     const clusterAreas = this.identifyClusterAreas();
     const category = this.getRuntimeSpawnCategoryIntent();
     if (clusterAreas.highDensity.length > 0 && Math.random() < 0.5) {
-      // Spawn in underutilized area
-      const underutilized = clusterAreas.lowDensity[
-        Math.floor(Math.random() * clusterAreas.lowDensity.length)
-      ];
-      this.spawnNode(category, underutilized);
+      this.pendingDensityIntent = category;
     } else {
-      // Regular spawn
-      this.spawnNode(category);
-    }
-    
-    // Occasionally spawn rare node
-    if (Math.random() < 0.1) {
-      const rareCategory = this.specialNodeTypes[
-        Math.floor(Math.random() * this.specialNodeTypes.length)
-      ];
-      this.spawnNode(rareCategory);
+      this.pendingDensityIntent = category;
     }
   }
   

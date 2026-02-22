@@ -15,6 +15,18 @@ import { StorageNodesVisual } from './StorageNodesVisual_Session116.js';
 import { AINodeModel } from './AINodeModel.js';
 import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 
+function validateMeshGeometry(mesh, label = 'unknown') {
+  if (!mesh || !mesh.geometry || !mesh.geometry.attributes || !mesh.geometry.attributes.position) {
+    throw new Error(`Invalid geometry: NaN detected (${label})`);
+  }
+  const arr = mesh.geometry.attributes.position.array;
+  for (let i = 0; i < arr.length; i++) {
+    if (!Number.isFinite(arr[i])) {
+      throw new Error(`Invalid geometry: NaN detected (${label})`);
+    }
+  }
+}
+
 
 const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
   'SphereGeometry',
@@ -308,8 +320,11 @@ function hashNodeIdToFloat(nodeId = '') {
   return ((hash % 1000) + 1000) % 1000 / 1000;
 }
 
+const VORTEX_MATERIAL_CACHE = new Map(); // key: baseColor hex
 function createVortexMaterial(seedValue, baseColor = 0x00eaff) {
-  return new THREE.ShaderMaterial({
+  const key = String(baseColor);
+  if (VORTEX_MATERIAL_CACHE.has(key)) return VORTEX_MATERIAL_CACHE.get(key);
+  const mat = new THREE.ShaderMaterial({
     transparent: true,
     wireframe: true,
     uniforms: {
@@ -346,10 +361,15 @@ function createVortexMaterial(seedValue, baseColor = 0x00eaff) {
       }
     `
   });
+  VORTEX_MATERIAL_CACHE.set(key, mat);
+  return mat;
 }
 
+const CONTROL_FRACTURE_MATERIAL_CACHE = new Map(); // key: baseColor hex
 function createControlFractureMaterial(seedValue, baseColor = 0xff2244) {
-  return new THREE.ShaderMaterial({
+  const key = String(baseColor);
+  if (CONTROL_FRACTURE_MATERIAL_CACHE.has(key)) return CONTROL_FRACTURE_MATERIAL_CACHE.get(key);
+  const mat = new THREE.ShaderMaterial({
     transparent: true,
     uniforms: {
       uTime: { value: 0 },
@@ -377,10 +397,15 @@ function createControlFractureMaterial(seedValue, baseColor = 0xff2244) {
     `,
     side: THREE.DoubleSide
   });
+  CONTROL_FRACTURE_MATERIAL_CACHE.set(key, mat);
+  return mat;
 }
 
+const SIGMA_COLLAPSE_MATERIAL_CACHE = new Map(); // key: baseColor hex
 function createSigmaCollapseMaterial(seedValue, baseColor = 0xff2244) {
-  return new THREE.ShaderMaterial({
+  const key = String(baseColor);
+  if (SIGMA_COLLAPSE_MATERIAL_CACHE.has(key)) return SIGMA_COLLAPSE_MATERIAL_CACHE.get(key);
+  const mat = new THREE.ShaderMaterial({
     transparent: true,
     uniforms: {
       uTime: { value: 0 },
@@ -416,6 +441,8 @@ function createSigmaCollapseMaterial(seedValue, baseColor = 0xff2244) {
     `,
     side: THREE.DoubleSide
   });
+  SIGMA_COLLAPSE_MATERIAL_CACHE.set(key, mat);
+  return mat;
 }
 
 function _getMythicV2Geometries() {
@@ -1640,7 +1667,7 @@ export class EnhancedNodeModels {
    * Create node by category and index
    * FIX 1: Lazy THREE guard - prevent visual creation when THREE is unavailable
    */
-  static create(category = 'input', visualCode = 0, color = 0x00ffff) {
+  static create(category = 'input', visualToken = 0, color = 0x00ffff) {
     // FIX 1: Direct THREE guard before any visual creation
     if (!THREE || !THREE.Group) {
       if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
@@ -1665,9 +1692,12 @@ export class EnhancedNodeModels {
       return null;
     }
 
-    const resolvedVisualCode = _sessionVariantEngine
-      ? _sessionVariantEngine.getNext(cat, pool.join(','), pool)
-      : pool[visualCode % pool.length];
+    const resolveVisualCode = (catName, token) => {
+      if (Number.isInteger(token) && token >= 100) return token; // already resolved code
+      return pool[token % pool.length];
+    };
+
+    const resolvedVisualCode = resolveVisualCode(cat, visualToken);
     if (resolvedVisualCode == null) {
       console.warn(`[EnhancedNodeModels] No visual code available for category '${cat}'.`);
       return null;
@@ -1679,7 +1709,9 @@ export class EnhancedNodeModels {
       return null;
     }
 
-    console.error("[ENHANCED_CREATE_MARKER]", resolvedVisualCode, registryEntry.factoryName);
+    if (typeof window !== 'undefined' && window.ATOMA_DEBUG_SPAWN_LOGS === true) {
+      console.error("[ENHANCED_CREATE_MARKER]", resolvedVisualCode, registryEntry.factoryName);
+    }
 
     const resolveFactory = (name) => {
       if (typeof this[name] === 'function') return this[name].bind(this);
@@ -2148,22 +2180,37 @@ export class EnhancedNodeModels {
     }
   }
 
-  // Legacy INPUT visuals retained as fallback
-  static _createInputNodeLegacy(group, index, color) {
-    const pool = CATEGORY_POOLS.input || [];
-    const poolFns = {
-      101: this.createInputSignalReceptor.bind(this),
-      102: this.createInputDataGateway.bind(this),
-      103: this.createInputIncomingFunnel.bind(this),
-      104: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
-      105: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
-      106: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
-    };
-    const counter = Number.isFinite(index) ? index : 0;
-    const selected = pool[counter % pool.length];
-    EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
-    return (poolFns[selected] || poolFns[pool[0]])(group, color);
+// Legacy INPUT visuals retained as fallback
+static _createInputNodeLegacy(group, index, color) {
+  const pool = CATEGORY_POOLS.input || [];
+  const poolFns = {
+    101: this.createInputSignalReceptor.bind(this),
+    102: this.createInputDataGateway.bind(this),
+    103: this.createInputIncomingFunnel.bind(this),
+    104: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
+    105: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
+    106: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced)
+  };
+  const counter = Number.isFinite(index) ? index : 0;
+  const selected = pool[counter % pool.length];
+  const factory = poolFns[selected] || poolFns[pool[0]];
+  
+  // FAIL-CLOSED: No fallback allowed when flag is true
+  if (window.ATOMA_NO_FALLBACK_VISUALS !== false && (!factory || pool.length === 0)) {
+    const reason = !factory ? 'FACTORY_MISSING' : 'POOL_EMPTY';
+    const resolvedCode = pool[selected] || selected;
+    console.error('[VisualBuildFail]', { 
+      archetype: 'input', 
+      category: 'input', 
+      resolvedVisualCode: resolvedCode,
+      reason: `LEGACY_FALLBACK_${reason}` 
+    });
+    return null;
   }
+  
+  EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
+  return factory ? factory(group, color) : null;
+}
 
   /**
    * INPUT: SIGNAL_RECEPTOR (NEW - Session 63)
@@ -4882,9 +4929,56 @@ export class EnhancedNodeModels {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-      console.error('[VisualBuildFail]', { archetype: 'control-1', category: 'control', reason: 'NoMesh' });
-    }
+    // Base pyramid core
+    const coreGeometry = new THREE.TetrahedronGeometry(0.9, 1);
+    const coreMaterial = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
+      color,
+      metalness: 0.9,
+      roughness: 0.15,
+      emissive: color,
+      emissiveIntensity: 0.5
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.renderOrder = 0;
+    group.add(core);
+
+    // Framing ring rotated off-axis for silhouette change
+    const ringGeometry = new THREE.TorusGeometry(1.05, 0.08, 10, 40);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.45
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.x = Math.PI / 3;
+    ring.rotation.y = Math.PI / 6;
+    ring.renderOrder = 1;
+    group.add(ring);
+
+    // Floating apex crystal
+    const apexGeometry = new THREE.OctahedronGeometry(0.25, 0);
+    const apexMaterial = new THREE.MeshStandardMaterial({
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.FrontSide,
+      color,
+      metalness: 0.85,
+      roughness: 0.25,
+      emissive: color,
+      emissiveIntensity: 0.4
+    });
+    const apex = new THREE.Mesh(apexGeometry, apexMaterial);
+    apex.position.set(0, 0.9, 0);
+    apex.renderOrder = 2;
+    group.add(apex);
+
     return group;
   }
 
@@ -5859,39 +5953,12 @@ export class EnhancedNodeModels {
    * - ChaoticHeart
   */
   static createQuantumNode(group, index, color) {
-    // HARD REDIRECT: QUANTUM always uses v2 builder
-    // Legacy path is quarantined with dev-only warning
-    if (USE_QUANTUM_V2) {
-      const v2 = this.createQuantumNodeStyled_v2(group, index, color);
-      console.log('BUILDER CALLED: createQuantumNode (dispatch to v2)', { variant: 'QUANTUM_V2' });
-      if (v2) return v2;
+    const v2 = this.createQuantumNodeStyled_v2(group, index, color);
+    console.log('BUILDER CALLED: createQuantumNode (dispatch to v2)', { variant: 'QUANTUM_V2' });
+    if (!v2) {
+      throw new Error('QUANTUM v2 builder failed');
     }
-    
-    // LEGACY QUARANTINE: This path should never be reached
-    // If reached, log warning with stack trace for debugging
-    console.warn(
-      "[LEGACY VISUAL] QUANTUM v2 builder failed, falling back to legacy. " +
-      "This should never happen - v2 is hard-locked. Stack:",
-      new Error().stack
-    );
-    
-    // Hard fallback to v2 even if legacy was attempted
-    const v2Fallback = this.createQuantumNodeStyled_v2(group, index, color);
-    if (v2Fallback) return v2Fallback;
-    
-    // Final fallback: return minimal placeholder for dev visibility
-    const placeholder = new THREE.Group();
-    placeholder.name = 'QUANTUM_FALLBACK_LEGACY';
-    placeholder.userData.visualVariant = 'QUANTUM_V2_FALLBACK';
-    const placeholderGeo = new THREE.DodecahedronGeometry(0.5, 0);
-    const placeholderMat = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      wireframe: true
-    });
-    const placeholderMesh = new THREE.Mesh(placeholderGeo, placeholderMat);
-    placeholder.add(placeholderMesh);
-    group.add(placeholder);
-    return group;
+    return v2;
   }
 
   /**
@@ -6258,16 +6325,11 @@ export class EnhancedNodeModels {
    * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode0(group, color) {
-    // LEGACY QUARANTINE WARNING
-    console.warn(
-      "[LEGACY VISUAL] SigmaNode0 (legacy builder) called. " +
-      "SIGMA nodes should use QUANTUM v2 builder. " +
-      "Redirecting to v2. Stack:",
-      new Error().stack
-    );
-    
-    // Hard redirect to v2 builder
-    return this.createQuantumNodeStyled_v2(group, 0, color);
+    const v2 = this.createQuantumNodeStyled_v2(group, 0, color);
+    if (!v2) {
+      throw new Error('SIGMA node0 v2 builder failed');
+    }
+    return v2;
   }
 
   /**
@@ -6276,16 +6338,11 @@ export class EnhancedNodeModels {
    * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode1(group, color) {
-    // LEGACY QUARANTINE WARNING
-    console.warn(
-      "[LEGACY VISUAL] SigmaNode1 (legacy builder) called. " +
-      "SIGMA nodes should use QUANTUM v2 builder. " +
-      "Redirecting to v2. Stack:",
-      new Error().stack
-    );
-    
-    // Hard redirect to v2 builder
-    return this.createQuantumNodeStyled_v2(group, 1, color);
+    const v2 = this.createQuantumNodeStyled_v2(group, 1, color);
+    if (!v2) {
+      throw new Error('SIGMA node1 v2 builder failed');
+    }
+    return v2;
   }
 
   /**
@@ -6294,32 +6351,56 @@ export class EnhancedNodeModels {
    * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
    */
   static createSigmaNode3(group, color) {
-    // LEGACY QUARANTINE WARNING
-    console.warn(
-      "[LEGACY VISUAL] SigmaNode3 (legacy builder) called. " +
-      "SIGMA nodes should use QUANTUM v2 builder. " +
-      "Redirecting to v2. Stack:",
-      new Error().stack
-    );
-    
-    // Hard redirect to v2 builder
-    return this.createQuantumNodeStyled_v2(group, 3, color);
+    const v2 = this.createQuantumNodeStyled_v2(group, 3, color);
+    if (!v2) {
+      throw new Error('SIGMA node3 v2 builder failed');
+    }
+    return v2;
   }
 
   // ===== MYTHIC NODES (Ancient Fractured Relics - 6 variants) =====
 
   /**
    * Main mythic node creator
-   * CANONICAL CATEGORY: MYTHIC
-   * - ShardCluster, BrokenMonolith, FloatingFragments
-   * - CrackedPrism, AncientCoreWithMissing, CollapsedCrown
+   * Legacy shared entry is no longer used by registry (strict 1:1 mapping).
    */
   static createMythicNode(group, index, color) {
-    if (USE_MYTHIC_V2) {
-      const v2 = this.createMythicNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createMythicNodeLegacy(group, index, color);
+    throw new Error('createMythicNode is deprecated; use visualCode-specific mythic factories.');
+  }
+
+  static _createMythicGeometry(group, builderFn, label) {
+    const mesh = builderFn?.(1.0);
+    if (!mesh) throw new Error(`Mythic builder failed: ${label}`);
+    validateMeshGeometry(mesh, label);
+    if (!mesh.userData) mesh.userData = {};
+    mesh.userData.category = 'mythic';
+    mesh.userData.visualReady = true;
+    group.add(mesh);
+    return group;
+  }
+
+  static createMythicShardClusterNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicShardCluster, 'ShardCluster');
+  }
+
+  static createMythicBrokenMonolithNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicBrokenMonolith, 'BrokenMonolith');
+  }
+
+  static createMythicFloatingFragmentsNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicFloatingFragments, 'FloatingFragments');
+  }
+
+  static createMythicCrackedPrismNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicCrackedPrism, 'CrackedPrism');
+  }
+
+  static createMythicAncientCoreWithMissingNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicAncientCoreWithMissing, 'AncientCoreWithMissing');
+  }
+
+  static createMythicCollapsedCrownNode(group, visualCode, color) {
+    return this._createMythicGeometry(group, CanonicalGeometryFamilies.createMythicCollapsedCrown, 'CollapsedCrown');
   }
 
   /**
@@ -6425,29 +6506,6 @@ export class EnhancedNodeModels {
     }
   }
 
-  // Legacy MYTHIC visuals retained as fallback
-  static _createMythicNodeLegacy(group, index, color) {
-    const variants = [
-      () => CanonicalGeometryFamilies.createMythicShardCluster(1.0),
-      () => CanonicalGeometryFamilies.createMythicBrokenMonolith(1.0),
-      () => CanonicalGeometryFamilies.createMythicFloatingFragments(1.0),
-      () => CanonicalGeometryFamilies.createMythicCrackedPrism(1.0),
-      () => CanonicalGeometryFamilies.createMythicAncientCoreWithMissing(1.0),
-      () => CanonicalGeometryFamilies.createMythicCollapsedCrown(1.0)
-    ];
-    EnhancedNodeModels._ensureRegistry('mythic', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.mythic) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.mythic);
-    }
-    
-    const mesh = variants[index % variants.length]();
-    if (!mesh.userData) mesh.userData = {};
-    mesh.userData.category = 'mythic';
-    mesh.userData.visualReady = true;
-    group.add(mesh);
-    return group;
-  }
-
   // ===== PRIME NODES (Perfect Axioms - 6 variants) =====
 
   /**
@@ -6457,11 +6515,7 @@ export class EnhancedNodeModels {
    * - PrecisionLattice, TesseractProjection, SymmetryLockedCore
    */
   static createPrimeNode(group, index, color) {
-    if (USE_PRIME_V2) {
-      const v2 = this.createPrimeNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createPrimeNodeLegacy(group, index, color);
+    throw new Error('createPrimeNode is deprecated; use visualCode-specific prime factories.');
   }
 
   /**
@@ -6560,26 +6614,45 @@ export class EnhancedNodeModels {
   }
 
   // Legacy PRIME visuals (kept as fallback)
-  static _createPrimeNodeLegacy(group, index, color) {
-    const variants = [
-      () => CanonicalGeometryFamilies.createPrimeNestedIcosahedron(1.0),
-      () => CanonicalGeometryFamilies.createPrimePerfectDodecahedron(1.0),
-      () => CanonicalGeometryFamilies.createPrimeStellaOctangula(1.0),
-      () => CanonicalGeometryFamilies.createPrimePrecisionLattice(1.0),
-      () => CanonicalGeometryFamilies.createPrimeTesseractProjection(1.0),
-      () => CanonicalGeometryFamilies.createPrimeSymmetryLockedCore(1.0)
-    ];
-    EnhancedNodeModels._ensureRegistry('prime', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.prime) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.prime);
-    }
-    
-    const mesh = variants[index % variants.length]();
+  static _createPrimeGeometry(builderFn, label) {
+    const root = new THREE.Group();
+    const mesh = builderFn?.(1.0);
+    if (!mesh) throw new Error(`Prime builder failed: ${label}`);
+    validateMeshGeometry(mesh, label);
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'prime';
     mesh.userData.visualReady = true;
-    group.add(mesh);
-    return group;
+    root.add(mesh);
+    return root;
+  }
+
+  static createPrimeNestedIcosahedronNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimeNestedIcosahedron, 'NestedIcosahedron');
+  }
+
+  static createPrimePerfectDodecahedronNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimePerfectDodecahedron, 'PerfectDodecahedron');
+  }
+
+  static createPrimeStellaOctangulaNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimeStellaOctangula, 'StellaOctangula');
+  }
+
+  static createPrimePrecisionLatticeNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimePrecisionLattice, 'PrecisionLattice');
+  }
+
+  static createPrimeTesseractProjectionNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimeTesseractProjection, 'TesseractProjection');
+  }
+
+  static createPrimeSymmetryLockedCoreNode(group, visualCode, color) {
+    return this._createPrimeGeometry(CanonicalGeometryFamilies.createPrimeSymmetryLockedCore, 'SymmetryLockedCore');
+  }
+
+  static getCategoryPool(cat) {
+    const key = (cat || '').toLowerCase();
+    return CATEGORY_POOLS[key] || [];
   }
 
   // ===== ERROR NODES (Frozen Corruption - 6 variants) =====
@@ -6591,15 +6664,11 @@ export class EnhancedNodeModels {
    * - FoldedImpossible, TopologyTear, CorruptedManifold
    */
   static createErrorNode(group, index, color) {
-    if (USE_ERROR_V2) {
-      const v2 = this.createErrorNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createErrorNodeLegacy(group, index, color);
+    throw new Error('createErrorNode is deprecated; use visualCode-specific error factories.');
   }
 
   /**
-   * ERROR v2: Impossible Geometry
+   * ERROR v2: Impossible Geometry (restored)
    * Hierarchy:
    * ERROR_NODE
    *   - CORE_GROUP (ImpossibleCore + HardEdges)
@@ -6670,6 +6739,13 @@ export class EnhancedNodeModels {
 
       errorRoot.add(distortionGroup);
 
+      // Validate geometries on all meshes
+      errorRoot.traverse(o => {
+        if (o?.isMesh || o?.isPoints || o?.isLine || o?.isLineSegments) {
+          validateMeshGeometry(o, o.name || 'error-child');
+        }
+      });
+
       errorRoot.userData.visualReady = true;
       group.add(errorRoot);
       return group;
@@ -6679,28 +6755,46 @@ export class EnhancedNodeModels {
     }
   }
 
-  // Legacy ERROR visuals retained as fallback
-  static _createErrorNodeLegacy(group, index, color) {
-    const variants = [
-      () => CanonicalGeometryFamilies.createErrorIntersectingSolids(1.0),
-      () => CanonicalGeometryFamilies.createErrorInvertedNormals(1.0),
-      () => CanonicalGeometryFamilies.createErrorSelfClipping(1.0),
-      () => CanonicalGeometryFamilies.createErrorFoldedImpossible(1.0),
-      () => CanonicalGeometryFamilies.createErrorTopologyTear(1.0),
-      () => CanonicalGeometryFamilies.createErrorCorruptedManifold(1.0)
-    ];
-    EnhancedNodeModels._ensureRegistry('error', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.error) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.error);
-    }
-    
-    const mesh = variants[index % variants.length]();
-    if (!mesh.userData) mesh.userData = {};
-    mesh.userData.category = 'error';
-    mesh.userData.isError = true;
-    mesh.userData.visualReady = true;
-    group.add(mesh);
-    return group;
+  static createErrorIntersectingSolidsNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 0, color);
+    if (!res) throw new Error('Error v2 builder failed for IntersectingSolids');
+    return g;
+  }
+
+  static createErrorInvertedNormalsNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 1, color);
+    if (!res) throw new Error('Error v2 builder failed for InvertedNormals');
+    return g;
+  }
+
+  static createErrorSelfClippingNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 2, color);
+    if (!res) throw new Error('Error v2 builder failed for SelfClipping');
+    return g;
+  }
+
+  static createErrorFoldedImpossibleNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 3, color);
+    if (!res) throw new Error('Error v2 builder failed for FoldedImpossible');
+    return g;
+  }
+
+  static createErrorTopologyTearNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 4, color);
+    if (!res) throw new Error('Error v2 builder failed for TopologyTear');
+    return g;
+  }
+
+  static createErrorCorruptedManifoldNode(group, visualCode, color) {
+    const g = new THREE.Group();
+    const res = this.createErrorNodeStyled_v2(g, 5, color);
+    if (!res) throw new Error('Error v2 builder failed for CorruptedManifold');
+    return g;
   }
 
   // ===== EMOTIONAL NODES (Crystalline Organics - 6 variants) =====
