@@ -989,10 +989,7 @@ export class AINodes {
 
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
           const ud = finalizedNode.userData || {};
-          const visualCodeSelected =
-            typeof selectedVisualCode !== 'undefined'
-              ? selectedVisualCode
-              : (ud.visualCode ?? null); // ensure scoped value
+          const visualCodeSelected = ud.visualCode;
           if (visualCodeSelected == null) {
             if (!this._spawnPauseLogged) {
               console.error('[SPAWN_PAUSE] visualCode null before log', {
@@ -1185,6 +1182,7 @@ export class AINodes {
    * - DEPRECATED_CATEGORIES: Redirected to safe equivalent
    */
   createNode(category, position, index, isSpecial = false, options = {}) {
+    let finalVisualCode = null;
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
@@ -1316,6 +1314,7 @@ export class AINodes {
     });
 
     const selectedVisualCode = pool[idx];
+    finalVisualCode = selectedVisualCode;
 
     this._variantCounterByCategory[category] = idx + 1;
     const validatedCategory = spawnCycleValidator.validateCategory(
@@ -1353,32 +1352,32 @@ export class AINodes {
       }
     };
 
-    if (typeof window !== 'undefined' && !window.__SPAWN_TRACE_DUMPED && (selectedVisualCode == null)) {
+    if (typeof window !== 'undefined' && !window.__SPAWN_TRACE_DUMPED && (finalVisualCode == null)) {
       window.__SPAWN_TRACE_DUMPED = true;
       console.error('[SPAWN_TRACE]', {
         categoryRaw: category,
         categoryNorm: String(category || '').toLowerCase().trim(),
-        visualCodeRaw: selectedVisualCode,
-        visualCodeType: typeof selectedVisualCode,
-        createArg: selectedVisualCode,
-        createArgType: typeof selectedVisualCode,
+        visualCodeRaw: finalVisualCode,
+        visualCodeType: typeof finalVisualCode,
+        createArg: finalVisualCode,
+        createArgType: typeof finalVisualCode,
         spawnMode: this.spawnMode,
         pendingIntent: this.pendingDensityIntent,
         poolExists: !!pool,
         poolLen: Array.isArray(pool) ? pool.length : null,
         poolSample: Array.isArray(pool) ? pool.slice(0, 10) : null,
-        hasRegistryEntry: selectedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[String(selectedVisualCode)] : false,
-        registryHasNumericKey: selectedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[Number(selectedVisualCode)] : false,
+        hasRegistryEntry: finalVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[String(finalVisualCode)] : false,
+        registryHasNumericKey: finalVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[Number(finalVisualCode)] : false,
       }, new Error('STACK').stack);
     }
 
-    if (selectedVisualCode == null) {
+    if (finalVisualCode == null) {
       if (!this._spawnPauseLogged) {
         const poolLen = Array.isArray(pool) ? pool.length : null;
         console.error('[SPAWN_PAUSE] visualCode null', {
           category,
           poolLen,
-          selectedVisualCode,
+          selectedVisualCode: finalVisualCode,
           reason: 'NULL_VISUAL_CODE'
         });
         this._spawnPauseLogged = true;
@@ -1392,7 +1391,7 @@ export class AINodes {
 
     let nodeModel = null;
     try {
-      nodeModel = EnhancedNodeModels.create(validatedCategory, selectedVisualCode, coreColor);
+      nodeModel = EnhancedNodeModels.create(validatedCategory, finalVisualCode, coreColor);
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
         copySpawnIdentity(nodeModel, nodeModel);
@@ -1422,7 +1421,7 @@ export class AINodes {
         console.error('[SPAWN_PAUSE] factory resolve failed', {
           category,
           poolLen,
-          selectedVisualCode,
+          selectedVisualCode: finalVisualCode,
           reason: 'CREATE_RETURNED_NULL'
         });
         this._spawnPauseLogged = true;
@@ -1433,9 +1432,7 @@ export class AINodes {
       }
       return failClosedVisual(null, 'No canonical visual available');
     }
-    if (nodeModel.userData?.visualCode !== undefined) {
-      nodeModel.userData.visualCode = nodeModel.userData.visualCode;
-    }
+    nodeModel.userData.visualCode = finalVisualCode;
     debugCheckGeometry(nodeModel, 'after_model_create');
     if (!hasRenderableVisual(nodeModel)) {
       return failClosedVisual(nodeModel, 'Visual has no renderable content');
@@ -1469,7 +1466,7 @@ export class AINodes {
     nodeModel.userData.enhancedNodeModelBinding = {
       sourceModel: 'EnhancedNodeModel',
       category: safeCategory,
-      visualCode: selectedVisualCode,
+      visualCode: finalVisualCode,
       spawnTime: Date.now()
     };
     
@@ -1487,7 +1484,7 @@ export class AINodes {
     nodeModel.userData = nodeModel.userData || {};
     nodeModel.userData.spawnCycle = {
       category: validatedCategory,
-      visualCode: selectedVisualCode
+      visualCode: finalVisualCode
     };
     
     // Get layer-specific colors for VFX
@@ -1817,7 +1814,7 @@ export class AINodes {
       light: light,
       baseColor: coreColor,
       basePosition: position.clone(),
-      variant: selectedVisualCode % 4,
+      variant: finalVisualCode % 4,
       pulseOffset: Math.random() * Math.PI * 2,
       originalY: position.y,
       isSpecial: isSpecial,
@@ -1990,7 +1987,7 @@ export class AINodes {
     this._lastSpawnResult = {
       ok: true,
       category: poolCategory,
-      visualCode: selectedVisualCode
+      visualCode: finalVisualCode
     };
     return nodeModel;
   }
