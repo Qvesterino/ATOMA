@@ -1386,268 +1386,6 @@ function _getEmotionalV2Materials(color) {
 export class EnhancedNodeModels {
   // Shared EXTREME generator instance
   static extremeNodePack = new ExtremeAINodePack();
-  // Master registry for discovery/debug (not used for weighting)
-  static _ALL_NODE_FACTORIES = {
-    input: [],
-    process: [],
-    integration: [],
-    storage: [],
-    analytics: [],
-    control: [],
-    quantum: [],
-    sigma: [],
-    mythic: [],
-    prime: [],
-    error: [],
-    emotional: []
-  };
-  static __EXTRA_FACTORIES = {
-    // Legacy AINodeModel visuals made reachable via pools
-    input: [AINodeModel.createCoreNode.bind(AINodeModel)],
-    process: [AINodeModel.createLogicNode.bind(AINodeModel)],
-    integration: [AINodeModel.createNeuralNode.bind(AINodeModel)],
-    storage: [AINodeModel.createMemoryNode.bind(AINodeModel)],
-    analytics: [AINodeModel.createDataNode.bind(AINodeModel)],
-    control: [],
-    quantum: [],
-    sigma: [],
-    mythic: [],
-    prime: [],
-    error: [],
-    emotional: []
-  };
-  static _ensureRegistry(category, variantList) {
-    if (!EnhancedNodeModels._ALL_NODE_FACTORIES[category]) {
-      EnhancedNodeModels._ALL_NODE_FACTORIES[category] = [];
-    }
-    const reg = EnhancedNodeModels._ALL_NODE_FACTORIES[category];
-    if (!Array.isArray(variantList)) return;
-    for (const fn of variantList) {
-      if (!fn || typeof fn !== 'function') {
-        console.error('[FACTORY REGISTER ERROR]', {
-          category,
-          fn,
-          type: typeof fn,
-          stack: new Error().stack
-        });
-        continue;
-      }
-      try {
-        reg.push(fn);
-      } catch (e) {
-        console.error('[FACTORY PUSH CRASH]', {
-          category,
-          fnName: fn?.name,
-          error: e
-        });
-      }
-    }
-  }
-
-  static _isRegistryValid() {
-    const reg = this._ALL_NODE_FACTORIES;
-    if (!reg || typeof reg !== 'object') return false;
-
-    // at least one category must have factories
-    return Object.values(reg).some(arr => Array.isArray(arr) && arr.length > 0);
-  }
-
-  static ensureRegistryReady() {
-    if (!THREE || !THREE.Group) {
-      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-        console.error('[VisualBuildFail]', { archetype: 'registry', category: 'all', reason: 'SafeModeNoTHREE' });
-      }
-      return false;
-    }
-    if (this._isRegistryValid()) return true; // already OK
-
-    if (this._registryInitialized === true && !this._isRegistryValid()) {
-      console.warn('[FACTORY] Registry invalid after init. Forcing rebuild.');
-    }
-
-    console.warn("[EnhancedNodeModels] Registry invalid → rebuilding");
-
-    try {
-      this._registerAllFactories();
-      this._registryInitialized = true;
-    } catch (e) {
-      console.error("[EnhancedNodeModels] Registry rebuild failed", e, e?.stack);
-      return false;
-    }
-
-    const valid = this._isRegistryValid();
-    if (valid) {
-      const summary = Object.fromEntries(
-        Object.entries(this._ALL_NODE_FACTORIES || {}).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
-      );
-      if (!this._registryLogged) {
-        console.log('[FACTORY] Registry keys + counts', summary);
-        this._registryLogged = true;
-      }
-    }
-    return valid;
-  }
-  
-
-  static _registerAllFactories() {
-
-    console.log('[FACTORY] BEGIN REGISTER');
-
-    // Always recreate registry container (safe + deterministic)
-    this._ALL_NODE_FACTORIES = {
-      input: [],
-      process: [],
-      integration: [],
-      storage: [],
-      analytics: [],
-      control: [],
-      quantum: [],
-      sigma: [],
-      mythic: [],
-      prime: [],
-      error: [],
-      emotional: []
-    };
-    // INPUT
-    EnhancedNodeModels._ensureRegistry('input', [
-      this.createInputSignalReceptor.bind(this),
-      this.createInputDataGateway.bind(this),
-      this.createInputIncomingFunnel.bind(this),
-      InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
-      InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
-      InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced),
-      ...(this.__EXTRA_FACTORIES?.input || [])
-    ]);
-
-    // PROCESS
-    EnhancedNodeModels._ensureRegistry('process', [
-      this.createProcessFluxChamber.bind(this),
-      this.createProcessTransformationSpine.bind(this),
-      this.createProcessConversionOrbit.bind(this),
-      ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
-      ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
-      ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants),
-      ...(this.__EXTRA_FACTORIES?.process || [])
-    ]);
-
-    // INTEGRATION
-    EnhancedNodeModels._ensureRegistry('integration', [
-      this.createKnotTrefoil.bind(this),
-      this.createKnotFigureEight.bind(this),
-      this.createKnotInfiniteSelfIntersecting.bind(this),
-      this.createKnotChaotic.bind(this),
-      this.createKnotBorromean.bind(this),
-      this.createKnotTorusKnot.bind(this),
-      this.createKnotTripleHelix.bind(this),
-      this.createExtremeInput1.bind(this),
-      IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),
-      IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
-      IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants),
-      ...(this.__EXTRA_FACTORIES?.integration || [])
-    ]);
-
-    // ANALYTICS
-    EnhancedNodeModels._ensureRegistry('analytics', [
-      this.createAnalyticsNode2.bind(this),
-      this.createAnalyticsNode3.bind(this),
-      this.createAnalyticsObserverLens.bind(this),
-      this.createAnalyticsFractalEcho.bind(this),
-      this.createAnalyticsParallaxOracle.bind(this),
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
-      AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants),
-      ...(this.__EXTRA_FACTORIES?.analytics || [])
-    ]);
-
-    // STORAGE
-    EnhancedNodeModels._ensureRegistry('storage', [
-      this.createStorageNode0.bind(this),
-      this.createStorageNode1.bind(this),
-      this.createStorageNode3.bind(this),
-      this.createStorageMnemonicVault.bind(this),
-      this.createStorageArchiveSpindle.bind(this),
-      this.createStorageMemoryReef.bind(this),
-      StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
-      StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
-      StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
-      StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
-      StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
-      StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual),
-      ...(this.__EXTRA_FACTORIES?.storage || [])
-    ]);
-
-    // CONTROL
-    EnhancedNodeModels._ensureRegistry('control', [
-      this.createAxiomCrystalNode.bind(this),
-      this.createControlNode0.bind(this),
-      this.createControlNode2.bind(this),
-      this.createControlNode1.bind(this),
-      this.createControlCommandPyramid.bind(this),
-      this.createControlHierarchyTower.bind(this),
-      this.createControlSymmetryCore.bind(this),
-      this.createExtremeControl0.bind(this),
-      ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),
-      ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),
-      ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),
-      ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
-      ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
-      ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors),
-      ...(this.__EXTRA_FACTORIES?.control || [])
-    ]);
-
-    // QUANTUM (sigma alias shares same pool)
-    EnhancedNodeModels._ensureRegistry('quantum', [
-      this.createSigmaNode0.bind(this),
-      this.createSigmaNode1.bind(this),
-      this.createSigmaNode3.bind(this),
-      this.createExtremeIntegration1.bind(this),
-      ...(this.__EXTRA_FACTORIES?.quantum || [])
-    ]);
-    EnhancedNodeModels._ensureRegistry('sigma', EnhancedNodeModels._ALL_NODE_FACTORIES.quantum);
-
-    // MYTHIC
-    EnhancedNodeModels._ensureRegistry('mythic', [
-      this.createMythicNode.bind(this),
-      ...(this.__EXTRA_FACTORIES?.mythic || [])
-    ]);
-
-    // PRIME
-    EnhancedNodeModels._ensureRegistry('prime', [
-      this.createPrimeNode.bind(this),
-      ...(this.__EXTRA_FACTORIES?.prime || [])
-    ]);
-
-    // ERROR
-    EnhancedNodeModels._ensureRegistry('error', [
-      this.createErrorNode.bind(this),
-      ...(this.__EXTRA_FACTORIES?.error || [])
-    ]);
-
-    // EMOTIONAL
-    EnhancedNodeModels._ensureRegistry('emotional', [
-      this.createEmotionalNode.bind(this),
-      ...(this.__EXTRA_FACTORIES?.emotional || [])
-    ]);
-
-    console.log('[FACTORY] REGISTRY STATE',
-      Object.fromEntries(
-        Object.entries(this._ALL_NODE_FACTORIES).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
-      )
-    );
-
-  }
-
-  static get __ALL_NODE_FACTORIES() {
-    return this._ALL_NODE_FACTORIES;
-  }
-
-  static set __ALL_NODE_FACTORIES(value) {
-    this._ALL_NODE_FACTORIES = value;
-  }
-
-  static __registerAllFactories() {
-    return this._registerAllFactories();
-  }
 
   // ============================================================================
   // LEGACY SCALE PULSE AUDIT & DISABLE (Session 107)
@@ -1697,272 +1435,91 @@ export class EnhancedNodeModels {
     }
   }
 
+  static _resolveFactory(name) {
+    if (!name) return null;
+    if (typeof EnhancedNodeModels[name] === 'function') return EnhancedNodeModels[name].bind(EnhancedNodeModels);
+
+    const external = {
+      // Input
+      createInputSensory_TactileSensor: InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced),
+      createInputSensory_EchoDetector: InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced),
+      createInputSensory_NeuralReceptor: InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced),
+
+      // Process
+      createProcessEnhanced_FlowRecomposer: ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants),
+      createProcessEnhanced_TemporalShifter: ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants),
+      createProcessEnhanced_IterativeEngine: ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants),
+
+      // Integration
+      createIntegrationEnhanced_SignalKnot: IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants),
+      createIntegrationEnhanced_ProtocolTangle: IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
+      createIntegrationEnhanced_ContinuityBinder: IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants),
+
+      // Analytics
+      createAnalyticsEnhanced_SignalStratifier: AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants),
+      createAnalyticsEnhanced_TrendExcavator: AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants),
+      createAnalyticsEnhanced_AnomalyLedger: AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants),
+
+      // Storage
+      createStorageEnhanced_ArchiveNexus: StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants),
+      createStorageEnhanced_MemoryCrypts: StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants),
+      createStorageEnhanced_DepthLayers: StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants),
+      createObeliskCache: StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual),
+      createFractalReservoir: StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual),
+      createArchiveDrum: StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual),
+
+      // Control
+      createControlEnhanced_DecisionFork: ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),
+      createControlEnhanced_AuthorityHelix: ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),
+      createControlEnhanced_CommandMatrix: ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),
+      createPhrixFlowArbiter: ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
+      createCrucisSuppressionGovernor: ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
+      createVertexTemporalGate: ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors),
+    };
+
+    return external[name] || null;
+  }
+
   /**
    * Create node by category and index
    * FIX 1: Lazy THREE guard - prevent visual creation when THREE is unavailable
    */
-  static create(category = 'input', visualToken = 0, color = 0x00ffff) {
-    // FIX 1: Direct THREE guard before any visual creation
+  static create(category = 'input', visualCode = 0, color = 0x00ffff) {
     if (!THREE || !THREE.Group) {
       if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
         console.error('[VisualBuildFail]', { archetype: category, category, reason: 'THREE_UNAVAILABLE' });
       }
       return null;
     }
-    
-    const registryReady = this.ensureRegistryReady();
-    if (!registryReady || !this._isRegistryValid()) {
-      if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-        console.error('[VisualBuildFail]', { archetype: category, category, reason: 'RegistryInvalid' });
-      }
-      return null;
-    }
-    const nodeGroup = new THREE.Group();
+
     const cat = (category || 'input').toLowerCase();
-    const pool = CATEGORY_POOLS[cat] || [];
-
-    if (pool.length === 0) {
-      console.warn(`[EnhancedNodeModels] Empty visual pool for category '${cat}'.`);
+    const def = NODE_VISUAL_REGISTRY[visualCode];
+    if (!def) {
+      console.error('[VisualBuildFail]', { category: cat, visualCode, reason: 'RegistryMissing' });
       return null;
     }
 
-    const resolveVisualCode = (catName, token) => {
-      if (Number.isInteger(token) && token >= 100) return token; // already resolved code
-      return pool[token % pool.length];
-    };
-
-    const resolvedVisualCode = resolveVisualCode(cat, visualToken);
-    if (resolvedVisualCode == null) {
-      if (typeof window !== 'undefined' && !window.__CODE_MISSING_DUMPED) {
-        window.__CODE_MISSING_DUMPED = true;
-        const catNorm = String(category || '').toLowerCase().trim();
-        const pool = CATEGORY_POOLS?.[catNorm] || [];
-        console.error('[SPAWN_CODE_MISSING_TRACE]', {
-          categoryRaw: category,
-          categoryNorm: catNorm,
-          poolExists: !!pool,
-          poolLen: Array.isArray(pool) ? pool.length : null,
-          poolSample: Array.isArray(pool) ? pool.slice(0, 10) : null,
-          resolvedVisualCode,
-          hasRegistryEntry: resolvedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[String(resolvedVisualCode)] : false,
-          registryKeyType: resolvedVisualCode != null ? typeof resolvedVisualCode : null,
-          registryHasNumericKey: resolvedVisualCode != null ? !!NODE_VISUAL_REGISTRY?.[Number(resolvedVisualCode)] : false
-        }, new Error('STACK').stack);
-      }
-      console.warn(`[EnhancedNodeModels] No visual code available for category '${cat}'.`);
+    const defCat = String(def.category || '').toLowerCase().trim();
+    if (defCat !== cat) {
+      console.error('[VisualBuildFail]', { category: cat, visualCode, defCategory: defCat, reason: 'CategoryMismatch' });
       return null;
     }
 
-    const registryEntry = NODE_VISUAL_REGISTRY[resolvedVisualCode];
-    if (!registryEntry) {
-      console.warn(`[EnhancedNodeModels] Missing registry entry for visualCode ${resolvedVisualCode}`);
-      if (typeof window !== 'undefined' && !window.__FACTORY_UNKNOWN_DUMPED) {
-        window.__FACTORY_UNKNOWN_DUMPED = true;
-        const catNorm = String(category || '').toLowerCase().trim();
-        const trace = {
-          categoryRaw: category,
-          categoryNorm: catNorm,
-          visualCode: resolvedVisualCode,
-          hasVisualEntry: false,
-          visualEntry: null,
-          factoryName: null,
-          hasFactoryFn: false,
-          factoryFnType: 'undefined',
-          factoriesByCategoryCount:
-            EnhancedNodeModels?._ALL_NODE_FACTORIES?.[catNorm]?.length ?? null,
-          keysSample: Object.keys(NODE_VISUAL_REGISTRY || {}).slice(0, 10),
-        };
-        console.error('[FACTORY_UNKNOWN_TRACE]', trace, new Error('TRACE_STACK').stack);
-      }
-      return null;
-    }
-
-    if (typeof window !== 'undefined' && window.ATOMA_DEBUG_SPAWN_LOGS === true) {
-      console.error("[ENHANCED_CREATE_MARKER]", resolvedVisualCode, registryEntry.factoryName);
-    }
-
-    const resolveFactory = (name) => {
-      if (typeof this[name] === 'function') return this[name].bind(this);
-      switch (name) {
-        case 'createInputSensory_TactileSensor': return InputSensoryEnhanced.createInputSensory_TactileSensor.bind(InputSensoryEnhanced);
-        case 'createInputSensory_EchoDetector': return InputSensoryEnhanced.createInputSensory_EchoDetector.bind(InputSensoryEnhanced);
-        case 'createInputSensory_NeuralReceptor': return InputSensoryEnhanced.createInputSensory_NeuralReceptor.bind(InputSensoryEnhanced);
-        case 'createProcessEnhanced_FlowRecomposer': return ProcessEnhancedVariants.createProcessEnhanced_FlowRecomposer.bind(ProcessEnhancedVariants);
-        case 'createProcessEnhanced_TemporalShifter': return ProcessEnhancedVariants.createProcessEnhanced_TemporalShifter.bind(ProcessEnhancedVariants);
-        case 'createProcessEnhanced_IterativeEngine': return ProcessEnhancedVariants.createProcessEnhanced_IterativeEngine.bind(ProcessEnhancedVariants);
-        case 'createIntegrationEnhanced_SignalKnot': return IntegrationEnhancedVariants.createIntegrationEnhanced_SignalKnot.bind(IntegrationEnhancedVariants);
-        case 'createIntegrationEnhanced_ProtocolTangle': return IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants);
-        case 'createIntegrationEnhanced_ContinuityBinder': return IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants);
-        case 'createAnalyticsEnhanced_SignalStratifier': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_SignalStratifier.bind(AnalyticsEnhancedVariants);
-        case 'createAnalyticsEnhanced_TrendExcavator': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_TrendExcavator.bind(AnalyticsEnhancedVariants);
-        case 'createAnalyticsEnhanced_AnomalyLedger': return AnalyticsEnhancedVariants.createAnalyticsEnhanced_AnomalyLedger.bind(AnalyticsEnhancedVariants);
-        case 'createStorageEnhanced_ArchiveNexus': return StorageEnhancedVariants.createStorageEnhanced_ArchiveNexus.bind(StorageEnhancedVariants);
-        case 'createStorageEnhanced_MemoryCrypts': return StorageEnhancedVariants.createStorageEnhanced_MemoryCrypts.bind(StorageEnhancedVariants);
-        case 'createStorageEnhanced_DepthLayers': return StorageEnhancedVariants.createStorageEnhanced_DepthLayers.bind(StorageEnhancedVariants);
-        case 'createObeliskCache': return StorageNodesVisual.createObeliskCache.bind(StorageNodesVisual);
-        case 'createFractalReservoir': return StorageNodesVisual.createFractalReservoir.bind(StorageNodesVisual);
-        case 'createArchiveDrum': return StorageNodesVisual.createArchiveDrum.bind(StorageNodesVisual);
-        case 'createControlEnhanced_DecisionFork': return ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants);
-        case 'createControlEnhanced_AuthorityHelix': return ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants);
-        case 'createControlEnhanced_CommandMatrix': return ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants);
-        case 'createPhrixFlowArbiter': return ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors);
-        case 'createCrucisSuppressionGovernor': return ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors);
-        case 'createVertexTemporalGate': return ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors);
-        default:
-          return null;
-      }
-    };
-
-    const factoryFn = resolveFactory(registryEntry.factoryName);
-    if (cat === 'quantum') {
-      console.log(`[EnhancedNodeModels.create] QUANTUM using factory: ${registryEntry.factoryName}`);
-    }
+    const factoryFn = EnhancedNodeModels._resolveFactory(def.factoryName);
     if (!factoryFn) {
-      console.warn(`[EnhancedNodeModels] Factory not found for ${registryEntry.factoryName} (visualCode ${resolvedVisualCode})`);
-      if (typeof window !== 'undefined' && !window.__FACTORY_UNKNOWN_DUMPED) {
-        window.__FACTORY_UNKNOWN_DUMPED = true;
-        const catNorm = String(category || '').toLowerCase().trim();
-        const trace = {
-          categoryRaw: category,
-          categoryNorm: catNorm,
-          visualCode: resolvedVisualCode,
-          hasVisualEntry: true,
-          visualEntry: registryEntry,
-          factoryName: registryEntry.factoryName,
-          hasFactoryFn:
-            !!(EnhancedNodeModels?.[registryEntry.factoryName] ||
-              globalThis?.[registryEntry.factoryName] ||
-              this?.[registryEntry.factoryName]),
-          factoryFnType:
-            typeof (EnhancedNodeModels?.[registryEntry.factoryName] ||
-              globalThis?.[registryEntry.factoryName] ||
-              this?.[registryEntry.factoryName]),
-          factoriesByCategoryCount:
-            EnhancedNodeModels?._ALL_NODE_FACTORIES?.[catNorm]?.length ?? null,
-          keysSample: Object.keys(NODE_VISUAL_REGISTRY || {}).slice(0, 10),
-        };
-        console.error('[FACTORY_UNKNOWN_TRACE]', trace, new Error('TRACE_STACK').stack);
-      }
+      console.error('[VisualBuildFail]', { category: cat, visualCode, factoryName: def.factoryName, reason: 'FactoryMissing' });
       return null;
     }
 
-    const rootGroup = factoryFn(nodeGroup, resolvedVisualCode, color);
+    const nodeGroup = new THREE.Group();
+    const rootGroup = factoryFn(nodeGroup, visualCode, color);
+    if (!rootGroup) return null;
 
-    if (rootGroup) {
-      rootGroup.userData = rootGroup.userData || {};
-      rootGroup.userData.visualCode = resolvedVisualCode;
-      rootGroup.userData.factoryName = registryEntry.factoryName;
-      rootGroup.userData.category = cat;
-    }
+    rootGroup.userData = rootGroup.userData || {};
+    rootGroup.userData.visualCode = visualCode;
+    rootGroup.userData.factoryName = def.factoryName;
+    rootGroup.userData.category = cat;
 
-    // === VISUAL META INJECTION (NON-DESTRUCTIVE) ===
-    if (rootGroup && rootGroup.userData) {
-      rootGroup.userData.visualCode = resolvedVisualCode;
-      rootGroup.userData.factoryName = NODE_VISUAL_REGISTRY[resolvedVisualCode]?.factoryName || registryEntry.factoryName;
-      rootGroup.userData.category = cat;
-    }
-
-    const clearPartialVisuals = (group) => {
-      if (!group || !group.children) return;
-      while (group.children.length > 0) {
-        const child = group.children[group.children.length - 1];
-        group.remove(child);
-      }
-    };
-
-    // FIX 3: Full visual validation - reject simple/fallback visuals
-    // Hard stop: do not auto-inject fallback materials; log for diagnostics.
-    if (rootGroup) {
-      let meshFound = false;
-      let materialMissing = false;
-      let meshCount = 0;
-      let hasOnlySpheres = true;
-      let geometryTypes = new Set();
-      
-      rootGroup.traverse(obj => {
-        if (obj.isMesh) {
-          meshFound = true;
-          meshCount++;
-          
-          if (!obj.material) materialMissing = true;
-          
-          // Track geometry types for primitive detection
-          if (obj.geometry) {
-            const geoType = obj.geometry.type || obj.geometry.constructor?.name || 'unknown';
-            geometryTypes.add(geoType);
-            if (geoType !== 'SphereGeometry' && 
-                geoType !== 'IcosahedronGeometry' &&
-                geoType !== 'OctahedronGeometry') {
-              hasOnlySpheres = false;
-            }
-          }
-        }
-      });
-      
-      if (!meshFound || materialMissing) {
-        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
-          console.error('[VisualBuildFail]', {
-            archetype: rootGroup.userData?.archetype || category,
-            category: category,
-            reason: meshFound ? 'NoMaterial' : 'NoMesh',
-          });
-        }
-      }
-      
-      // FIX 3: Reject simple visuals (mesh count < 2 or only primitive spheres)
-      // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE
-      if (false && meshFound && !materialMissing) {
-        if (false && meshCount < 2) {
-          console.warn('[VisualBuildReject][SimpleVisual]', { 
-            archetype: rootGroup.userData?.archetype || category,
-            category: category,
-            reason: 'MeshCountLessThan2',
-            meshCount: meshCount,
-            geometryTypes: Array.from(geometryTypes)
-          });
-          clearPartialVisuals(rootGroup);
-          return null;
-        }
-        
-        if (false && hasOnlySpheres && meshCount <= 2) {
-          console.warn('[VisualBuildReject][SimpleVisual]', { 
-            archetype: rootGroup.userData?.archetype || category,
-            category: category,
-            reason: 'PrimitiveSphereOnly',
-            meshCount: meshCount,
-            geometryTypes: Array.from(geometryTypes)
-          });
-          clearPartialVisuals(rootGroup);
-          return null;
-        }
-      }
-
-      const forbiddenMeshes = [];
-      rootGroup.traverse(obj => {
-        if (!obj?.isMesh) return;
-        const g = obj.geometry?.type;
-        if (FORBIDDEN_CANONICAL_GEOMETRIES.has(g)) {
-          forbiddenMeshes.push({ obj, g });
-        }
-      });
-
-      if (false && forbiddenMeshes.length > 0) {
-        for (const hit of forbiddenMeshes) {
-          console.warn('[NODE_VISUAL_KILL] Primitive removed:', hit.g);
-          hit.obj.visible = false;
-          hit.obj.parent?.remove(hit.obj);
-        }
-        console.warn('[NODE_REJECT] Canonical visual missing — node not spawned');
-        clearPartialVisuals(rootGroup);
-        return null;
-      }
-
-      if (false && (rootGroup.children?.length || 0) === 0) {
-        console.warn('[NODE_REJECT] Empty visual root');
-        clearPartialVisuals(rootGroup);
-        return null;
-      }
-    }
     return rootGroup;
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====
@@ -2300,7 +1857,6 @@ static _createInputNodeLegacy(group, index, color) {
     return null;
   }
   
-  EnhancedNodeModels._ensureRegistry('input', Object.values(poolFns));
   return factory ? factory(group, color) : null;
 }
 
@@ -2701,7 +2257,6 @@ static _createInputNodeLegacy(group, index, color) {
     };
     const counter = Number.isFinite(index) ? index : 0;
     const selected = pool[counter % pool.length];
-    EnhancedNodeModels._ensureRegistry('process', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
@@ -3317,7 +2872,6 @@ static _createInputNodeLegacy(group, index, color) {
       310: IntegrationEnhancedVariants.createIntegrationEnhanced_ProtocolTangle.bind(IntegrationEnhancedVariants),
       311: IntegrationEnhancedVariants.createIntegrationEnhanced_ContinuityBinder.bind(IntegrationEnhancedVariants)
     };
-    EnhancedNodeModels._ensureRegistry('integration', Object.values(factoryMap));
     if (pool.length === 0) return null;
     const counter = Number.isFinite(index) ? index : 0;
     const selected = pool[counter % pool.length];
@@ -3815,8 +3369,7 @@ static createAnalyticsNode2(group, color) {
       console.warn('[AnalyticsFactoryFallback] Invalid variant index:', selected, 'falling back to pool[0]');
       selected = pool[0];
     }
-    
-    EnhancedNodeModels._ensureRegistry('analytics', Object.values(poolFns));
+
     const result = (poolFns[selected] || poolFns[pool[0]])(group, color);
 
     // --- Analytics Factory Null Check ---
@@ -4631,7 +4184,6 @@ static createAnalyticsNode2(group, color) {
     };
     const counter = Number.isFinite(index) ? index : 0;
     const selected = pool[counter % pool.length];
-    EnhancedNodeModels._ensureRegistry('storage', Object.values(poolFns));
     return (poolFns[selected] || poolFns[pool[0]])(group, color);
   }
 
@@ -5489,7 +5041,6 @@ static createControlNode0(group, color) {
     const selected = pool[counter % pool.length];
     const factory = factoryMap[selected];
     if (!factory) return null;
-    EnhancedNodeModels._ensureRegistry('control', Object.values(factoryMap));
     return factory(group, color);
   }
 
@@ -7121,12 +6672,7 @@ static createControlNode0(group, color) {
       () => CanonicalGeometryFamilies.createEmotionalFolded(1.0),
       () => CanonicalGeometryFamilies.createEmotionalSymmetricSeed(1.0)
     ];
-    
-    EnhancedNodeModels._ensureRegistry('emotional', variants);
-    if (EnhancedNodeModels.__EXTRA_FACTORIES?.emotional) {
-      variants.push(...EnhancedNodeModels.__EXTRA_FACTORIES.emotional);
-    }
-    
+
     const mesh = variants[index % variants.length]();
     if (!mesh.userData) mesh.userData = {};
     mesh.userData.category = 'emotional';
@@ -8647,66 +8193,4 @@ if (typeof window !== "undefined") {
   window.EnhancedNodeModels = EnhancedNodeModels;
 
   // Self-heal on attach
-  // EnhancedNodeModels.ensureRegistryReady();
-
-  // Dev helper
-  window.ensureNodeRegistry = () => {
-    EnhancedNodeModels.ensureRegistryReady();
-    return EnhancedNodeModels._ALL_NODE_FACTORIES;
-  };
-
-  // ===== DEV ONLY: spawn-all factory smoke test =====
-  window.debugSpawnAllNodes = function() {
-    EnhancedNodeModels.ensureRegistryReady();
-    const results = [];
-    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
-    for (const [category, factories] of Object.entries(categories)) {
-      const list = factories || [];
-      list.forEach((factory, i) => {
-        try {
-          const group = new THREE.Group();
-          const node = factory(group, i, 0x00ffff);
-          if (!node) {
-            results.push({ category, index: i, status: 'NULL_NODE' });
-            return;
-          }
-          results.push({ category, index: i, status: 'OK' });
-        } catch (e) {
-          results.push({ category, index: i, status: 'ERROR', error: e.message });
-        }
-      });
-    }
-    console.table(results);
-    return results;
-  };
-
-  // DEV: Factory registry diagnostics
-  window.debugFactoryCounts = function() {
-    EnhancedNodeModels.ensureRegistryReady();
-    const out = {};
-    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
-    for (const [cat, arr] of Object.entries(categories)) {
-      out[cat] = Array.isArray(arr) ? arr.length : 0;
-    }
-    return out;
-  };
-
-  window.debugFactoryList = function(category) {
-    EnhancedNodeModels.ensureRegistryReady();
-    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
-    const list = categories[category] || [];
-    // Try to surface function names when available
-    return list.map((fn, idx) => fn?.name || `factory_${idx}`);
-  };
-
-  window.debugRegistrySummary = function() {
-    EnhancedNodeModels.ensureRegistryReady();
-    const rows = [];
-    const categories = EnhancedNodeModels._ALL_NODE_FACTORIES || {};
-    for (const [cat, arr] of Object.entries(categories)) {
-      rows.push({ category: cat, count: Array.isArray(arr) ? arr.length : 0 });
-    }
-    console.table(rows);
-    return rows;
-  };
 }
