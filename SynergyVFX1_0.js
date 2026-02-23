@@ -350,20 +350,16 @@ export class SynergyVFX1_0 {
     if (this.time - linkData.lastTrailSpawn > spawnRate) {
       linkData.lastTrailSpawn = this.time;
       
-      // Spawn particle at a random point along the link
-      const t = Math.random();
+      // Spawn particle at mid-point to avoid per-frame randomness
+      const t = 0.5;
       const spawnPos = sourcePos.clone().lerp(targetPos, t);
       
       const velocity = direction.clone().multiplyScalar(
         this.config.trailVelocityBase + synergyStrength * 0.05
       );
       
-      // Add perpendicular velocity for spread
-      const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0).normalize();
-      velocity.add(perpendicular.multiplyScalar((Math.random() - 0.5) * 0.02));
-      
-      // Color shift from source to target
-      const colorT = Math.random();
+      // Color shift from source to target (fixed mid-blend)
+      const colorT = 0.5;
       const sourceColor = link.source.color || new THREE.Color(0x00ddff);
       const targetColor = link.target.color || new THREE.Color(0xff00ff);
       
@@ -371,7 +367,9 @@ export class SynergyVFX1_0 {
       for (let i = 0; i < 2; i++) {
         const particle = {
           position: spawnPos.clone(),
+          startPosition: spawnPos.clone(),
           velocity: velocity.clone(),
+          baseVelocity: velocity.clone(),
           age: 0,
           life: 1.0 + synergyStrength * 0.5,
           color: sourceColor.clone().lerp(targetColor, colorT),
@@ -590,8 +588,15 @@ export class SynergyVFX1_0 {
       const progress = particle.age / particle.life;
       
       if (progress < 1.0) {
-        // Update position
-        particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+        // Compute position from base instead of incremental adds
+        const dispX = particle.baseVelocity.x * particle.age;
+        const dispY = particle.baseVelocity.y * particle.age;
+        const dispZ = particle.baseVelocity.z * particle.age;
+        particle.position.set(
+          particle.startPosition.x + dispX,
+          particle.startPosition.y + dispY,
+          particle.startPosition.z + dispZ
+        );
         
         // Apply fade
         particle.opacity = 1.0 - progress;
@@ -622,7 +627,14 @@ export class SynergyVFX1_0 {
         
         // Update particles
         burst.particles.forEach(p => {
-          p.position.add(p.velocity.clone().multiplyScalar(deltaTime));
+          const dispX = p.baseVelocity.x * elapsed;
+          const dispY = p.baseVelocity.y * elapsed;
+          const dispZ = p.baseVelocity.z * elapsed;
+          p.position.set(
+            p.startPosition.x + dispX,
+            p.startPosition.y + dispY,
+            p.startPosition.z + dispZ
+          );
         });
         
         active.push(burst);

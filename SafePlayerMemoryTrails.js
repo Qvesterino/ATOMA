@@ -87,7 +87,8 @@ export class SafePlayerMemoryTrails {
     for (let i = 0; i < pulseCount; i++) {
       this.particles.push({
         position: playerPos.clone(),
-        velocity: new THREE.Vector3(0, 0, 0),
+        startPosition: playerPos.clone(),
+        baseVelocity: new THREE.Vector3(0, 0, 0),
         age: 0,
         maxAge: 0.6,
         radius: 0,
@@ -111,13 +112,14 @@ export class SafePlayerMemoryTrails {
       
       const velocity = dashDirection.clone().multiplyScalar(15);
       velocity.addScaledVector(
-        new THREE.Vector3(Math.cos(angle), Math.random() - 0.5, Math.sin(angle)),
+        new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)),
         5
       );
       
       this.particles.push({
         position: playerPos.clone(),
-        velocity: velocity,
+        startPosition: playerPos.clone(),
+        baseVelocity: velocity.clone(),
         age: 0,
         maxAge: 0.5,
         size: 0.12,
@@ -141,7 +143,8 @@ export class SafePlayerMemoryTrails {
       
       this.particles.push({
         position: pos.clone(),
-        velocity: new THREE.Vector3(0, 0, 0),
+        startPosition: pos.clone(),
+        baseVelocity: new THREE.Vector3(0, 0, 0),
         age: 0,
         maxAge: 0.4,
         size: 0.15 * (1 - t),
@@ -162,9 +165,9 @@ export class SafePlayerMemoryTrails {
     for (let i = 0; i < particleCount; i++) {
       if (this.particles.length >= this.maxParticles) break;
       
-      // Random direction perpendicular to camera
-      const angle = Math.random() * Math.PI * 2;
-      const elevation = (Math.random() - 0.5) * 0.3;
+      // Deterministic fan perpendicular to camera
+      const angle = (i / Math.max(1, particleCount)) * Math.PI * 2;
+      const elevation = 0;
       
       const velocity = new THREE.Vector3(
         Math.cos(angle) * speed * 0.3,
@@ -174,11 +177,12 @@ export class SafePlayerMemoryTrails {
       
       this.particles.push({
         position: position.clone(),
-        velocity: velocity,
+        startPosition: position.clone(),
+        baseVelocity: velocity.clone(),
         age: 0,
         maxAge: 0.4,
-        size: 0.08 + Math.random() * 0.08,
-        initialSize: 0.08 + Math.random() * 0.08,
+        size: 0.12,
+        initialSize: 0.12,
         opacity: speed * this.config.speedMultiplier,
         color: { r: 0.0, g: 1.0, b: 1.0 },
         type: 'trail'
@@ -265,8 +269,12 @@ export class SafePlayerMemoryTrails {
       if (particle.age >= particle.maxAge) {
         this.particles.splice(i, 1);
       } else {
-        // Update position
-        particle.position.addScaledVector(particle.velocity, deltaTime);
+        // Update position from base instead of incremental adds
+        const dispX = (particle.baseVelocity?.x || 0) * particle.age;
+        const dispY = (particle.baseVelocity?.y || 0) * particle.age;
+        const dispZ = (particle.baseVelocity?.z || 0) * particle.age;
+        const base = particle.startPosition || new THREE.Vector3();
+        particle.position.set(base.x + dispX, base.y + dispY, base.z + dispZ);
         
         // Apply physics
         if (particle.type === 'ring') {
@@ -275,15 +283,13 @@ export class SafePlayerMemoryTrails {
           particle.radius = particle.maxRadius * progress;
           particle.opacity = (1 - progress) * particle.initialOpacity;
         } else if (particle.type === 'dash') {
-          // Fast decay with drag
-          particle.velocity.multiplyScalar(0.90);
+          // Fast decay (opacity only; velocity remains constant)
           particle.opacity = (1 - particle.age / particle.maxAge) * 0.8;
         } else if (particle.type === 'blink') {
           // Slow fade
           particle.opacity = (1 - particle.age / particle.maxAge);
         } else {
-          // Normal trail particles
-          particle.velocity.multiplyScalar(0.95);
+          // Normal trail particles (opacity decay only)
           particle.opacity = (1 - particle.age / particle.maxAge) * particle.initialOpacity;
         }
       }

@@ -1,15 +1,15 @@
-Canonical Metric	Význam
-synergy	Ako dobre je node zapojený do siete
-harmony	Stabilná, pozitívna rezonancia
-stability	Odolnosť voči chaosu / zlyhaniu
-corruption	Entropia, rozpad, toxicita
-loadPressure	Tlak siete na node
+Canonical Metric    Význam
+synergy    Ako dobre je node zapojený do siete
+harmony    Stabilná, pozitívna rezonancia
+stability    Odolnosť voči chaosu / zlyhaniu
+corruption    Entropia, rozpad, toxicita
+loadPressure    Tlak siete na node
 
-Node metric	Global name
-synergy	--> networkSynergy
-harmony -->	harmonyFlow
-stability -->	networkStress
-corruption -->	corruptionLevel
+Node metric    Global name
+synergy    --> networkSynergy
+harmony -->    harmonyFlow
+stability -->    networkStress
+corruption -->    corruptionLevel
 load --> loadPressure
 
 node.userData.metrics = {
@@ -25,6 +25,7 @@ Tieto metriky sú pravda.
 Každý node ich má alebo k nim prispieva.
 
 Canonical truth:
+
 - Node metrics: 0..1 float
 - Global metrics: 0..1 float (derived)
 - HUDs: nikdy nemenia význam, iba formát
@@ -137,7 +138,9 @@ zvyšuje corruption
 znižuje harmony
 
 nepriamo znižuje synergy
+
 _____________________________________________________
+
 II. Per-Node Canonical Metrics
 
 (Gameplay Truth Layer)
@@ -230,6 +233,7 @@ Vzťahy:
 ↑ loadPressure → ↓ harmony
 
 ↑ loadPressure → ↓ stability
+
 _________________________________________________________
 
 🌐 Network / Global Metrics (Aggregated Truth)
@@ -281,6 +285,7 @@ môže spätne ovplyvňovať node load pressure
 ✔️ vysoký load pressure → zvyšuje corruption & znižuje harmony
 
 __________________________________________________
+
 IV. Network / Global Metrics
 
 (Aggregated View Layer)
@@ -289,13 +294,15 @@ IV. Network / Global Metrics
 
 Tieto NIE SÚ nové metriky, iba agregácie:
 
-Global Metric	Derived From
-networkSynergy	avg(node.synergy)
-harmonyFlow	avg(node.harmony)
-networkStress	avg(node.loadPressure)
-corruptionLevel	avg(node.corruption)
-loadPressure	max / weighted avg
+Global Metric    Derived From
+networkSynergy    avg(node.synergy)
+harmonyFlow    avg(node.harmony)
+networkStress    avg(node.loadPressure)
+corruptionLevel    avg(node.corruption)
+loadPressure    max / weighted avg
+
 ___________________________________________
+
 V. Cross-Metric Rules (OFFICIAL)
 
 Tieto pravidlá môžu byť implementované neskôr, ale významovo už platia:
@@ -317,6 +324,7 @@ high harmony ↑ synergy
 high loadPressure ↑ corruption ↓ harmony
 
 _______________________________________________
+
 🎛 K hodnoty pre každú metriku (raw → normalized)
 
 Použijeme saturáciu:
@@ -329,12 +337,12 @@ Odporúčané K (v1)
 
 Predpoklad: raw metriky rastú s pripojeniami / aktivitou a môžu ísť nad 100.
 
-Metrika	Charakter	K (default)	Prečo
-synergy	pomalé budovanie	80	nech synergy nie je „zadarmo“ po pár linkoch
-harmony	stredná citlivosť	60	citlivá, ale nie prehnane
-stability	pomalá, robustná	90	stabilita má byť „ťažká“ na rozbitie aj na vybudovanie
-corruption	rýchlo eskaluje	40	korupcia je agresívna, keď sa rozbehne
-loadPressure	veľmi citlivá	30	tlak systému nech cítiš skoro, je to „warning lamp“
+Metrika    Charakter    K (default)    Prečo
+synergy    pomalé budovanie    80    nech synergy nie je „zadarmo“ po pár linkoch
+harmony    stredná citlivosť    60    citlivá, ale nie prehnane
+stability    pomalá, robustná    90    stabilita má byť „ťažká“ na rozbitie aj na vybudovanie
+corruption    rýchlo eskaluje    40    korupcia je agresívna, keď sa rozbehne
+loadPressure    veľmi citlivá    30    tlak systému nech cítiš skoro, je to „warning lamp“
 Mikro pravidlo (super praktické)
 
 K menšie = metrika sa rýchlo nasýti (prudko reaguje)
@@ -355,7 +363,6 @@ S = norm(synergyRaw, K_SY)       // 0..1
 T = norm(stabilityRaw, K_ST)     // 0..1
 C = norm(corruptionRaw, K_C)     // 0..1
 L = norm(loadRaw, K_L)           // 0..1
-
 
 A potom urob gates:
 
@@ -379,14 +386,12 @@ nie je extrémny load
 
 coherence = clamp01( T * (1 - 0.7*L) );
 
-
 Toto sú dve najdôležitejšie páky. Zvyšok je z nich.
 
 ✅ Core rovnice (v1)
 A) Corruption eats Harmony (korupcia žerie harmóniu)
 dH = +aH * coherence
      - bH * C * (0.5 + 0.5*vulnerability);
-
 
 aH napr. 0.02 * dt
 
@@ -402,7 +407,6 @@ B) Harmony suppresses Corruption (harmónia tlmí korupciu)
 dC = +aC * vulnerability
      - bC * H * coherence;
 
-
 aC napr. 0.03 * dt
 
 bC napr. 0.04 * dt
@@ -417,13 +421,11 @@ Harmony ju vie tlmiť, ale len ak má “kde sa oprieť” (coherence)
 C) LoadPressure increases Corruption (tlak živí korupciu)
 dC += +kLC * L * (0.4 + 0.6*(1 - T));
 
-
 Korupcia rastie z loadu viac, keď je nízka stabilita.
 
 D) High Harmony increases Synergy (harmónia zvyšuje synergickosť)
 dS = +kHS * H * coherence
      - kCS * C * vulnerability;
-
 
 Synergy rastie, keď je Harmony + koherencia, a padá, keď dominuje korupcia.
 
@@ -431,27 +433,27 @@ E) Corruption erodes Stability (korupcia narušuje stabilitu)
 dT = +kHT * H * 0.5
      - kCT * C * (0.3 + 0.7*vulnerability);
 
-
 Stabilita sa dá „liečiť“ harmóniou (pomaly), ale korupcia ju vie rozleptať rýchlejšie.
 
 🎚 Odporúčané koeficienty (v1 default)
 
 Aby si to vedel hneď ladiť, dávam “starter pack”:
 
-Koeficient	Hodnota
-aH	0.020
-bH	0.050
-aC	0.030
-bC	0.040
-kLC	0.025
-kHS	0.030
-kCS	0.020
-kHT	0.010
-kCT	0.030
+Koeficient    Hodnota
+aH    0.020
+bH    0.050
+aC    0.030
+bC    0.040
+kLC    0.025
+kHS    0.030
+kCS    0.020
+kHT    0.010
+kCT    0.030
 
 Použi * dt (deltaTime v sekundách) alebo fix tick.
 
 🧠 Moje vylepšenie pre Atomu (voliteľné, ale veľmi dobré)
+
 1) “Tipping point” pre corruption (zlomový bod)
 
 Korupcia je najzaujímavejšia, keď má fázy:
@@ -465,7 +467,6 @@ Urob jednoduchý multiplier:
 corruptionPhase = smoothstep(0.55, 0.75, C); // 0..1
 C_aggression = 1 + 1.5 * corruptionPhase;
 
-
 A potom používaj C * C_aggression v dC a v poškodeniach.
 
 Výsledok:
@@ -478,9 +479,7 @@ Harmony nech dáva synergy boost len keď je stabilita vysoká:
 resonance = smoothstep(0.6, 0.9, T) * H;
 dS += +0.02 * resonance;
 
-
 To je extrémne “Atoma”: stabilita umožní harmónii rezonovať do synergy.
-
 
 1️⃣ Delta Time (dt) – „koľko času prešlo“
 
@@ -499,7 +498,6 @@ lag → dt ≈ 0.1 s
 Keď píšeš:
 
 value += rate * dt;
-
 
 ➡️ hovoríš:
 
@@ -576,7 +574,6 @@ corruption event → +corruption spike
 onLinkCreated(node) {
   node.metrics.loadPressure += 5;
 
-  
 🧠 IDEÁLNA KOMBINÁCIA PRE ATOMU (môj verdikt)
 
 Event-driven impulzy + Fixed Relax Tick
@@ -603,7 +600,6 @@ updateMetrics(FIXED_DT) {
   applyInteractions(FIXED_DT);
   relaxTowardsBaseline(FIXED_DT);
 }
-
 
 Relax robí:
 
@@ -645,16 +641,15 @@ Preto:
 
 dC = rate * dt;
 
-
 Nie:
 
 dC = rate; // ❌ FPS dependent
 
 🔹 Odporúčané FIXED_DT
-Typ	Hodnota	Použitie
-Relax tick	0.1 s	default
-Jemnejší	0.05 s	citlivé systémy
-Hrubší	0.2 s	pomalé, „organické“
+Typ    Hodnota    Použitie
+Relax tick    0.1 s    default
+Jemnejší    0.05 s    citlivé systémy
+Hrubší    0.2 s    pomalé, „organické“
 
 👉 Ja by som začal 0.1 s (10 Hz).
 

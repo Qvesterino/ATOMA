@@ -368,13 +368,16 @@ export class SystemStateOverlay {
       const pulse = 0.5 + 0.5 * Math.sin(this.time * pulseFreq);
       halo.material.opacity = pulse * pulseFade * 0.12 * synergy;
       
-      // PHASE OFF-1: disabled unbounded overlay drift (restore later via shader pulse)
-      if (!MOTION_OFF_PHASE1) {
-        // Very subtle upward drift
-        halo.position.y += 0.001;
-      }
-    });
-  }
+    // Ensure halos remain anchored; no per-frame position adds
+    if (!halo.userData.basePosition && halo.userData.centerPos) {
+      halo.userData.basePosition = halo.userData.centerPos.clone();
+    }
+    if (halo.userData.basePosition) {
+      const base = halo.userData.basePosition;
+      halo.position.set(base.x, base.y, base.z);
+    }
+  });
+}
   
   /**
    * Update corruption layer (slow drift, uncertain motion)
@@ -391,17 +394,12 @@ export class SystemStateOverlay {
     const corruptionOpacity = this.metrics.corruption * 0.15;
     corruptionMat.opacity = corruptionOpacity;
     
-    // PHASE OFF-1: disabled unbounded overlay drift (restore later via shader pulse)
-    if (!MOTION_OFF_PHASE1) {
-      // Slow, uncertain drift (using layered sine waves for "searching" motion)
-      const driftX = Math.sin(this.time * 0.1) * 0.002;
-      const driftY = Math.cos(this.time * 0.08) * 0.002;
-      const driftZ = Math.sin(this.time * 0.12 + 1) * 0.001;
-      
-      this.layers.corruptionDrift.position.x += driftX;
-      this.layers.corruptionDrift.position.y += driftY;
-      this.layers.corruptionDrift.position.z += driftZ;
+    // Keep corruption layer anchored (no drifting position adds)
+    if (!this.layers.corruptionDrift.userData.basePosition) {
+      this.layers.corruptionDrift.userData.basePosition = this.layers.corruptionDrift.position.clone();
     }
+    const base = this.layers.corruptionDrift.userData.basePosition;
+    this.layers.corruptionDrift.position.set(base.x, base.y, base.z);
     
     // Texture scrolling (slow)
     if (corruptionMat.map) {

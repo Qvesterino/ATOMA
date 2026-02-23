@@ -1386,6 +1386,10 @@ function _getEmotionalV2Materials(color) {
 export class EnhancedNodeModels {
   // Shared EXTREME generator instance
   static extremeNodePack = new ExtremeAINodePack();
+  static __registryReady = false;
+  static __registryMissing = [];
+  static _ALL_NODE_FACTORIES = null;
+  static __ALL_NODE_FACTORIES = null;
 
   // ============================================================================
   // LEGACY SCALE PULSE AUDIT & DISABLE (Session 107)
@@ -1406,6 +1410,54 @@ export class EnhancedNodeModels {
     DISABLE_ANTENNA_PULSE: true,       // Disable SIGNAL_RECEPTOR antenna pulse
     DISABLE_GLOW_PULSING: true,        // Disable COMMAND_PYRAMID glow pulsing
   };
+
+  /**
+   * Legacy compatibility shim for the factory registry.
+   * Builds a grouped view from NODE_VISUAL_REGISTRY and validates factory bindings.
+   * Exposes _ALL_NODE_FACTORIES / __ALL_NODE_FACTORIES for legacy callers.
+   */
+  static ensureRegistryReady() {
+    if (EnhancedNodeModels.__registryReady && EnhancedNodeModels._ALL_NODE_FACTORIES) {
+      return true;
+    }
+
+    const grouped = {};
+    const missing = [];
+
+    for (const [visualCodeStr, def] of Object.entries(NODE_VISUAL_REGISTRY)) {
+      const visualCode = Number(visualCodeStr);
+      const category = def?.category;
+      const factoryName = def?.factoryName;
+      if (!category || !factoryName) {
+        missing.push({ visualCode, reason: 'InvalidDefinition' });
+        continue;
+      }
+
+      const factory = EnhancedNodeModels._resolveFactory(factoryName);
+      if (!factory) {
+        missing.push({ visualCode, category, factoryName, reason: 'FactoryMissing' });
+        continue;
+      }
+
+      const catKey = String(category).toLowerCase();
+      if (!grouped[catKey]) grouped[catKey] = [];
+      grouped[catKey].push({ visualCode, factoryName });
+    }
+
+    EnhancedNodeModels._ALL_NODE_FACTORIES = grouped;
+    EnhancedNodeModels.__ALL_NODE_FACTORIES = grouped; // legacy global access
+    EnhancedNodeModels.__registryMissing = missing;
+    EnhancedNodeModels.__registryReady = missing.length === 0 && Object.keys(grouped).length > 0;
+
+    if (!EnhancedNodeModels.__registryReady && typeof console !== 'undefined') {
+      console.warn('[FactoryRegistry] Missing factory bindings', {
+        missingCount: missing.length,
+        sample: missing.slice(0, 5)
+      });
+    }
+
+    return EnhancedNodeModels.__registryReady;
+  }
 
   /**
    * Get renderOrder for core geometry (from VisualHierarchyRegistry)

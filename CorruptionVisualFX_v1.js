@@ -428,18 +428,12 @@ export class CorruptionVisualFX_v1 {
     const jitterY = Math.sin(t * (visualState.jitterFrequency * 0.7) + visualState.jitterPhase + 1) * jitterAmplitude;
     const jitterZ = Math.sin(t * (visualState.jitterFrequency * 1.3) + visualState.jitterPhase + 2) * jitterAmplitude;
 
-    // Apply offset (don't modify actual position, use temporary offset for rendering)
-    if (visualState.jitterOffset) {
-      visualState.jitterOffset.set(jitterX, jitterY, jitterZ);
-      
-      // Apply offset temporarily (will be reset each frame)
-      if (!nodeModel.userData.originalPosition) {
-        nodeModel.userData.originalPosition = nodeModel.position.clone();
-      }
-      
-      nodeModel.position.copy(nodeModel.userData.originalPosition);
-      nodeModel.position.add(visualState.jitterOffset);
+    // Keep node anchored; no per-frame additive position changes
+    if (!nodeModel.userData.originalPosition) {
+      nodeModel.userData.originalPosition = nodeModel.position.clone();
     }
+    const basePos = nodeModel.userData.originalPosition;
+    nodeModel.position.set(basePos.x, basePos.y, basePos.z);
   }
 
   /**
@@ -496,11 +490,13 @@ export class CorruptionVisualFX_v1 {
           (Math.random() - 0.5) * 0.5
         )
       ),
-      velocity: new THREE.Vector3(
+      startPosition: null, // will be set to position after creation
+      baseVelocity: new THREE.Vector3(
         (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
         (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2),
         (Math.random() - 0.5) * (isBurst ? 0.5 : 0.2)
       ),
+      age: 0,
       life: 1.0,
       maxLife: 0.5 + Math.random() * 0.5,
       color: new THREE.Color(1.0, 0.2 * corruptionLevel, 0.6 * corruptionLevel),
@@ -508,6 +504,7 @@ export class CorruptionVisualFX_v1 {
     };
 
     this.activeParticles.push(particle);
+    particle.startPosition = particle.position.clone();
 
     // Keep particles list from getting too large
     if (this.activeParticles.length > 1000) {
@@ -524,13 +521,25 @@ export class CorruptionVisualFX_v1 {
 
     for (let i = this.activeParticles.length - 1; i >= 0; i--) {
       const particle = this.activeParticles[i];
+      particle.age = (particle.age || 0) + dt;
       
       // Update particle life
-      particle.life -= dt / particle.maxLife;
+      particle.life = 1 - (particle.age / particle.maxLife);
 
-      // Update position with gravity
-      particle.position.add(particle.velocity.clone().multiplyScalar(dt));
-      particle.velocity.y -= 0.5 * dt; // Gravity effect
+      // Update position with gravity using base position (no incremental adds)
+      const start = particle.startPosition || new THREE.Vector3();
+      const vx = particle.baseVelocity?.x || 0;
+      const vy = particle.baseVelocity?.y || 0;
+      const vz = particle.baseVelocity?.z || 0;
+      const dispX = vx * particle.age;
+      const dispZ = vz * particle.age;
+      const gravity = -0.5; // matches prior acceleration
+      const dispY = vy * particle.age + 0.5 * gravity * particle.age * particle.age;
+      particle.position.set(
+        start.x + dispX,
+        start.y + dispY,
+        start.z + dispZ
+      );
 
       // Fade out
       particle.color.multiplyScalar(particle.life);

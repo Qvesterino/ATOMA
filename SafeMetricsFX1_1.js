@@ -177,7 +177,6 @@ export class SafeMetricsFX1_1 {
       if (!flicker) {
         flicker = {
           phase: 0,
-          nextFlicker: Math.random() * 0.5,
         };
         this.flickerStates.set(nodeId, flicker);
       }
@@ -185,13 +184,6 @@ export class SafeMetricsFX1_1 {
       // Update flicker phase
       const flickerFrequency = (instabilityValue / 100) * 0.05; // Very low frequency
       flicker.phase += flickerFrequency;
-
-      // Random flicker trigger (1-2% chance per tick)
-      const flickerChance = 0.015; // 1.5%
-      if (Math.random() < flickerChance) {
-        // Tiny random flicker offset (±2%)
-        targetOffset = (Math.random() - 0.5) * 0.02;
-      }
     } else if (state.instability > instabilityThreshold) {
       // Instability dropped - remove flicker state
       this.flickerStates.delete(node.uuid);

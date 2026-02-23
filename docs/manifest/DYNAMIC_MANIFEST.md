@@ -1,4 +1,5 @@
 # 🌌 DYNAMIC MANIFEST OF ATOMA
+
 ## On Movement, Meaning, and Silence
 
 ---
@@ -102,6 +103,7 @@ Atoma does not simulate reality.
 Atoma **tells stories of systems**.
 
 Therefore:
+
 - waves exist as **snapshots**, not continuous simulations
 - events leave **traces**
 - the world remembers that something happened

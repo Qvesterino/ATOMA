@@ -995,19 +995,10 @@ export class AINodes {
           const ud = finalizedNode.userData || {};
           const visualCodeSelected = ud.visualCode;
           if (visualCodeSelected == null) {
-            if (!this._spawnPauseLogged) {
-              console.error('[SPAWN_PAUSE] visualCode null before log', {
-                category,
-                poolLen: Array.isArray(CATEGORY_POOLS?.[category]) ? CATEGORY_POOLS[category].length : null,
-                selectedVisualCode: visualCodeSelected,
-                reason: 'LOG_VISUALCODE_NULL'
-              });
-              this._spawnPauseLogged = true;
-            }
-            this.spawnMode = 'PAUSED_FACTORY_MISSING';
-            if (this.spawningConfig) {
-              this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
-            }
+            console.warn('[SPAWN_SKIP] visualCode undefined, skipping spawn', {
+              category,
+              poolLen: Array.isArray(CATEGORY_POOLS?.[category]) ? CATEGORY_POOLS[category].length : 0
+            });
             return null;
           }
           const factoryName = ud.factoryName;
@@ -1243,6 +1234,7 @@ export class AINodes {
     
     // Use validated category (may be redirected from unsafe)
     const safeCategory = validation.valid ? validation.category : 'input';
+    this._poolGuardLog = this._poolGuardLog || new Set();
     if (!this.ensureFactoriesReady()) {
       return null;
     }
@@ -1296,7 +1288,11 @@ export class AINodes {
         filteredCategory = fallbackCategory;
       } else {
         this._lastSpawnResult = { ok: false, reason: 'FACTORY_MISSING', category: poolCategory };
-        console.error('[SpawnVisualError]', { category: poolCategory, reason: 'POOL_EMPTY' });
+        const logKey = `POOL_EMPTY:${poolCategory}`;
+        if (!this._poolGuardLog.has(logKey)) {
+          console.error('[SpawnVisualError]', { category: poolCategory, reason: 'POOL_EMPTY' });
+          this._poolGuardLog.add(logKey);
+        }
         return null;
       }
     }
@@ -1379,19 +1375,16 @@ export class AINodes {
     }
 
     if (finalVisualCode == null) {
-      if (!this._spawnPauseLogged) {
-        const poolLen = Array.isArray(pool) ? pool.length : null;
-        console.error('[SPAWN_PAUSE] visualCode null', {
-          category,
+      const poolLen = Array.isArray(pool) ? pool.length : null;
+      const logKey = `VISUALCODE_UNDEFINED:${poolCategory || category || 'unknown'}`;
+      if (!this._poolGuardLog.has(logKey)) {
+        console.error('[SpawnVisualError]', {
+          category: poolCategory || category,
           poolLen,
           selectedVisualCode: finalVisualCode,
-          reason: 'NULL_VISUAL_CODE'
+          reason: 'VISUALCODE_UNDEFINED'
         });
-        this._spawnPauseLogged = true;
-      }
-      this.spawnMode = 'PAUSED_FACTORY_MISSING';
-      if (this.spawningConfig) {
-        this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
+        this._poolGuardLog.add(logKey);
       }
       return null;
     }
@@ -1425,17 +1418,13 @@ export class AINodes {
     if (!nodeModel) {
       if (!this._spawnPauseLogged) {
         const poolLen = Array.isArray(pool) ? pool.length : null;
-        console.error('[SPAWN_PAUSE] factory resolve failed', {
+        console.warn('[SPAWN_PAUSE] factory resolve failed', {
           category,
           poolLen,
           selectedVisualCode: finalVisualCode,
           reason: 'CREATE_RETURNED_NULL'
         });
         this._spawnPauseLogged = true;
-      }
-      this.spawnMode = 'PAUSED_FACTORY_MISSING';
-      if (this.spawningConfig) {
-        this.spawningConfig.nextTimeSpawn = Date.now() + 5000;
       }
       return failClosedVisual(null, 'No canonical visual available');
     }
@@ -1996,6 +1985,11 @@ export class AINodes {
       category: poolCategory,
       visualCode: finalVisualCode
     };
+    if (!nodeModel && typeof window !== 'undefined') {
+      window.__SPAWN_STATS = window.__SPAWN_STATS || {};
+      const key = category || 'unknown';
+      window.__SPAWN_STATS[key] = (window.__SPAWN_STATS[key] || 0) + 1;
+    }
     return nodeModel;
   }
   
@@ -3325,14 +3319,29 @@ export class AINodes {
     (typeof window === 'undefined') ? true : window.ATOMA_ALLOW_DIRECT_SPAWN === true;
   if (!allowDirect) {
     console.error('[SPAWN DIRECT CALL BLOCKED]', { stack: new Error().stack });
+    if (typeof window !== 'undefined') {
+      window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+      const key = category || 'unknown';
+      window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+    }
     return null;
   }
   if (this.spawnMode !== 'RUNTIME') {
     console.warn('[SPAWN BLOCKED – direct call]', { caller: new Error().stack });
+    if (typeof window !== 'undefined') {
+      window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+      const key = category || 'unknown';
+      window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+    }
     return null;
   }
   if (!this._spawnFromUpdate) {
     console.error('[ILLEGAL SPAWN CALL] spawnNode invoked outside updateSpawning', { caller: new Error().stack });
+    if (typeof window !== 'undefined') {
+      window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+      const key = category || 'unknown';
+      window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+    }
     return null;
   }
   if (shouldLogSpawn()) {
@@ -3355,6 +3364,11 @@ export class AINodes {
       });
     }
     if (!this.ensureFactoriesReady()) {
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+        const key = category || 'unknown';
+        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+      }
       return null;
     }
 
@@ -3388,6 +3402,11 @@ export class AINodes {
       if (__diag) __diag.spawnNodeAbort.compliance_null = (__diag.spawnNodeAbort.compliance_null || 0) + 1;
       this._spawnAbortCounters["COMPLIANCE_BLOCK"] = (this._spawnAbortCounters["COMPLIANCE_BLOCK"] || 0) + 1;
       this._pendingCyclicCandidate = null;
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+        const key = category || 'unknown';
+        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+      }
       return null;  // Clean abort, no node added to scene
     }
     
@@ -3466,6 +3485,11 @@ export class AINodes {
 
       this._pendingCyclicCandidate = null;
       if (existingNode) return existingNode;
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+        const key = category || 'unknown';
+        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+      }
       return null;
     }
     
@@ -3506,6 +3530,11 @@ export class AINodes {
       if (__diag) __diag.spawnNodeAbort.missing_visual = (__diag.spawnNodeAbort.missing_visual || 0) + 1;
       this._spawnAbortCounters["INVALID_CATEGORY"] = (this._spawnAbortCounters["INVALID_CATEGORY"] || 0) + 1;
       this._pendingCyclicCandidate = null;
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+        const key = category || 'unknown';
+        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+      }
       return null;
     }
 
@@ -3957,22 +3986,24 @@ export class AINodes {
   }
 
   ensureFactoriesReady() {
-    const regReady = EnhancedNodeModels?.ensureRegistryReady?.() === true;
-    const reg = EnhancedNodeModels?._ALL_NODE_FACTORIES;
-    const totalFactories = reg
-      ? Object.values(reg).reduce(
-          (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
-          0
-        )
-      : 0;
+    const regReady = EnhancedNodeModels.ensureRegistryReady?.() === true;
+    const reg = EnhancedNodeModels?._ALL_NODE_FACTORIES || {};
+    const totalFactories = Object.values(reg).reduce(
+      (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
+      0
+    );
+    const missing = EnhancedNodeModels.__registryMissing || [];
+
     if (!regReady || totalFactories === 0) {
-      const keys = reg ? Object.keys(reg) : [];
       this._lastSpawnResult = { ok: false, reason: 'FACTORY_MISSING', category: 'registry' };
-      console.error('[SPAWN] FACTORY REGISTRY EMPTY', {
-        keys,
-        totalFactories,
-        stack: new Error().stack
-      });
+      if (!this._factoryBlockLogged) {
+        this._factoryBlockLogged = true;
+        console.warn('[SPAWN_BLOCK] Factory registry unavailable', {
+          totalFactories,
+          missingCount: missing.length,
+          missingSample: missing.slice(0, 5)
+        });
+      }
       return false;
     }
     if (!this._factoryReadyLogged) {

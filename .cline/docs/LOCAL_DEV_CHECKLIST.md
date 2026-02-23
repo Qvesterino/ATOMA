@@ -1,6 +1,7 @@
 # ATOMA — LOCAL DEVELOPMENT CHECKLIST
 
 Use this checklist:
+
 - before running Atoma
 - after AI intervention
 - before committing
@@ -59,8 +60,11 @@ If FPS drops → first look for CPU-side error.
 - [ ] AI ONLY modified files I allowed
 
 - [ ] Diff is small and understandable
+
 - [ ] No new "helper" systems appeared
+
 - [ ] No behavior changed elsewhere in the project
+
 - [ ] ATOMA_CORE_CONTEXT.md was not changed
 
 If something doesn't fit → revert.
@@ -103,6 +107,7 @@ If you can't explain it → don't commit yet.
 ## 9️⃣ When Something Feels Wrong
 
 Stop and ask yourself:
+
 - "Did I introduce system duplication?"
 - "Did I bypass the authority of another layer?"
 - "Did I forget that Atoma is an ORGANISM, not a demo?"

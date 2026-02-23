@@ -5,6 +5,7 @@ This project is called ATOMA.
 It is a long-running, modular game engine project.
 
 Rules:
+
 - Always search the codebase before referencing files or functions
 - Do not assume file names or locations
 - Prefer minimal, safe changes
@@ -13,10 +14,12 @@ Rules:
 - Ask before making structural changes if unsure
 
 ## 1. What ATOMA Is
+
 ATOMA is a living, node-based AI simulation and visual system.
 It is NOT a traditional game.
 
 ATOMA represents:
+
 - Nodes as entities with internal state
 - Links as living relationships between nodes
 - Metrics (synergy, harmony, corruption, stress) as invisible forces
@@ -27,6 +30,7 @@ ATOMA behaves more like an organism or ecosystem than a static application.
 ---
 
 ## 2. Technology Stack
+
 - Language: TypeScript
 - Rendering: Three.js (WebGL2), future WebGPU
 - Architecture: modular, layered, GPU-first
@@ -37,6 +41,7 @@ ATOMA behaves more like an organism or ecosystem than a static application.
 ---
 
 ## 3. Core Design Principles
+
 These rules are NON-NEGOTIABLE:
 
 - Stability > performance
@@ -51,15 +56,18 @@ No system should silently override another system.
 ---
 
 ## 4. Nodes
+
 Nodes are not simple meshes.
 
 Each node has:
+
 - A core (must ALWAYS remain visible)
 - A state (metrics, flags, phase)
 - Optional aura or effects (never opaque)
 - Personality or behavior traits (optional)
 
 Rules:
+
 - Node cores must NEVER be hidden by aura, postprocessing, or events
 - Node visuals are controlled by shader uniforms
 - Node animation should be GPU-driven where possible
@@ -67,9 +75,11 @@ Rules:
 ---
 
 ## 5. Links
+
 Links are living connections, not static lines.
 
 Links express:
+
 - Load
 - Direction
 - Quality
@@ -77,6 +87,7 @@ Links express:
 - Historical memory (optional)
 
 Rules:
+
 - Links must not visually dominate nodes
 - Link visuals must reflect metrics truthfully
 - Link logic and visuals are separated systems
@@ -84,7 +95,9 @@ Rules:
 ---
 
 ## 6. Metrics
+
 Core metrics include (but are not limited to):
+
 - Synergy
 - Harmony
 - Corruption
@@ -92,6 +105,7 @@ Core metrics include (but are not limited to):
 - Phase / Resonance
 
 Rules:
+
 - Metrics are computed first
 - Visuals only READ metrics, never invent them
 - Metrics propagation must be deterministic
@@ -99,9 +113,11 @@ Rules:
 ---
 
 ## 7. Visual System
+
 Visuals are an interpretation layer, not gameplay logic.
 
 Visual layers include:
+
 - Node core materials
 - Auras and shells (additive, transparent)
 - Links
@@ -109,6 +125,7 @@ Visual layers include:
 - Postprocessing (bloom, fog, distortion)
 
 Rules:
+
 - Postprocessing must never hide gameplay-critical visuals
 - No visual system may permanently modify core materials
 - All visuals must be safely disableable
@@ -116,6 +133,7 @@ Rules:
 ---
 
 ## 8. GPU Philosophy
+
 ATOMA is GPU-first.
 
 - Prefer shaders over CPU animation
@@ -126,6 +144,7 @@ ATOMA is GPU-first.
 ---
 
 ## 9. Safety Rules for AI
+
 Any AI assisting on ATOMA must follow:
 
 - Do NOT assume missing files
@@ -140,8 +159,10 @@ Silence is preferred over guessing.
 ---
 
 ## 10. Project Goal
+
 The goal of ATOMA is not visual realism.
 The goal is:
+
 - clarity
 - coherence
 - emergent behavior

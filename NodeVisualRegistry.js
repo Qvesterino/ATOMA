@@ -119,5 +119,6 @@ for (const [codeStr, def] of Object.entries(NODE_VISUAL_REGISTRY)) {
   CATEGORY_POOLS[def.category].push(code);
 }
 for (const cat of Object.keys(CATEGORY_POOLS)) {
+  CATEGORY_POOLS[cat] = CATEGORY_POOLS[cat].filter(Number.isFinite);
   CATEGORY_POOLS[cat].sort((a, b) => a - b);
 }
