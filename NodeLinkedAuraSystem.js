@@ -172,7 +172,7 @@ export class NodeLinkedAuraSystem {
     
     const startTime = performance.now();
     
-    this.globalTime += deltaTime;
+    this.globalTime += deltaTime * 1.8; // Increased motion speed
     let activeCount = 0;
     
     // Update existing auras and check for new nodes
@@ -427,10 +427,11 @@ export class NodeLinkedAuraSystem {
     
     // Update motion amplitude (scales with link count, 1-4 max)
     const linkInfluence = Math.min(linkCount, 4) / 4;
+    const linkStrength = 0.4 + linkInfluence * 0.6; // Prevent weak single-link look
     auraData.targetAmplitude = THREE.MathUtils.lerp(
       this.motionParams.baseAmplitude,
       this.motionParams.maxAmplitude,
-      linkInfluence * 0.5
+      linkStrength * 0.5
     );
     
     // Smooth amplitude transition
@@ -455,6 +456,9 @@ export class NodeLinkedAuraSystem {
     
     // Update mesh transform
     auraData.mesh.position.copy(node.position);
+    const scalePulse = 1.0 + Math.sin(this.globalTime * 1.5) * 0.08;
+    auraData.mesh.scale.setScalar(this.visualParams.baseScale * node.scale.x * scalePulse);
+    auraData.mesh.rotation.y += deltaTime * 0.5 * linkStrength;
     
     // Apply flame-like motion to vertices
     this.applyFlameMotion(auraData, deltaTime);
@@ -463,7 +467,7 @@ export class NodeLinkedAuraSystem {
     let targetOpacity = THREE.MathUtils.lerp(
       this.visualParams.minOpacity,
       this.visualParams.maxOpacity,
-      linkInfluence * 0.6
+      linkStrength
     );
     
     // Apply opacity boost during link creation spike
@@ -495,6 +499,9 @@ export class NodeLinkedAuraSystem {
       targetOpacity = Math.max(this.visualParams.minOpacity * 0.5, Math.min(this.visualParams.maxOpacity * 1.2, targetOpacity));
     }
     
+    const pulse = 0.6 + Math.sin(this.globalTime * 2.0) * 0.4;
+    targetOpacity *= pulse;
+
     auraData.material.opacity = THREE.MathUtils.lerp(
       auraData.material.opacity,
       targetOpacity,

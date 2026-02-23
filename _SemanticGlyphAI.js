@@ -223,7 +223,9 @@ export class SemanticGlyphAI {
    * nodes: array of all AI nodes
    */
   update(dt, nodes) {
-    if (!this.enabled || !nodes || nodes.length === 0) return;
+    if (!this.enabled) return;
+    const targetNodes = this.hoverTarget ? [this.hoverTarget] : nodes;
+    if (!targetNodes || targetNodes.length === 0) return;
     
     const startTime = performance.now();
     
@@ -235,10 +237,10 @@ export class SemanticGlyphAI {
     this.decayEventHistory(dt);
     
     // Process each node
-    this.stats.nodesProcessed = nodes.length;
+    this.stats.nodesProcessed = targetNodes.length;
     let statesApplied = 0;
     
-    for (const node of nodes) {
+    for (const node of targetNodes) {
       if (!node || !node.userData) continue;
       
       // Get node ID (use position-based hash if no explicit ID)
@@ -852,6 +854,10 @@ export class SemanticGlyphAI {
   enable() {
     this.enabled = true;
     this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: reevaluate semantics immediately on enable
+  }
+
+  setHoverTarget(node) {
+    this.hoverTarget = node || null;
   }
   
   /**

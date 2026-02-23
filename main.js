@@ -5,7 +5,8 @@
 window.ATOMA_LOG_LEVEL = window.ATOMA_LOG_LEVEL ?? 'error'; 
 // levels: 'error' | 'warn' | 'info' | 'log'
 window.ATOMA_ENABLE_AINODES = false;
-
+window.ATOMA_LINK_VISUALS_ENABLED = true;
+console.log("ATOMA_LINK_VISUALS_ENABLED =", window.ATOMA_LINK_VISUALS_ENABLED);
 (function () {
     const original = {
         log: console.log.bind(console),
@@ -77,7 +78,7 @@ if (typeof window !== 'undefined') {
     window.ATOMA_DEBUG_WORLD = window.ATOMA_DEBUG_WORLD ?? false;
     window.ATOMA_DEBUG_CADENCE = window.ATOMA_DEBUG_CADENCE ?? false;
     window.ATOMA_DEBUG_MATERIAL_MUTATIONS = window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false;
-    window.ATOMA_VISUAL_BASELINE = true;
+    window.ATOMA_VISUAL_BASELINE = false;
     
     // PHASE: LOG-STORM-CUT - Default debug flags to OFF
     window.ATOMA_DEBUG_SPAWN = window.ATOMA_DEBUG_SPAWN ?? false;
@@ -4497,7 +4498,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Initialize ATOMA Glyph Layer 4.0 (Multi-Glyph Fusion)
         // Pass resonance feedback system for composite glyph registration
-        this.glyphLayer4 = new GlyphLayer4_MultiFusion(this.scene, null, this.compositeResonanceFeedback);
+        this.glyphLayer4 = new GlyphLayer4_MultiFusion(
+            this.scene,
+            this.worldRoot,
+            this.compositeResonanceFeedback || null
+        );
+        this.setupSemanticGlyphAI();
+        this._lastHoverGlyphTarget = null;
+        if (this.semanticGlyphAI?.setHoverTarget) {
+            this.semanticGlyphAI.setHoverTarget(null);
+        }
 
         // Initialize Glyph Purity Mode 5.1 (after scene ready)
         // Enforces minimal atmospheric visual identity - ONLY designed glyphs
@@ -4862,6 +4872,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.worldLightingRoot = new THREE.Group();
         this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
         this.worldRoot.add(this.worldLightingRoot);
+
+        if (this.glyphLayer4?.dispose) {
+            this.glyphLayer4.dispose();
+        }
+        this.glyphLayer4 = new GlyphLayer4_MultiFusion(
+            this.scene,
+            this.worldRoot,
+            this.compositeResonanceFeedback || null
+        );
+        this.setupSemanticGlyphAI();
 
         if (this.worldPersonalityController?.root) {
             this.worldPersonalityController.root.parent?.remove(this.worldPersonalityController.root);
@@ -7330,6 +7350,16 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         }
     }
 
+    updateHoverGlyphTarget() {
+        const state = (typeof window !== 'undefined') ? window.__crosshairRaycastState : null;
+        const node = state?.node || null;
+        if (node === this._lastHoverGlyphTarget) return;
+        this._lastHoverGlyphTarget = node;
+        if (this.semanticGlyphAI?.setHoverTarget) {
+            this.semanticGlyphAI.setHoverTarget(node);
+        }
+    }
+
     cascadeVisualizerTick(deltaTime) {
         if (this.cascadeVisualizer) {
             this.cascadeVisualizer.update(deltaTime);
@@ -7641,6 +7671,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         reg('glyphSystem4', (dt) => this.glyphSystem4?.update?.(dt, this.aiNodes?.nodes));
         reg('glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
         reg('compositeResonanceFeedback', (dt) => this.compositeResonanceFeedback?.update?.(dt));
+        reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
         reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
         reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
         reg('proceduralMeaningEngine', (dt) => this.proceduralMeaningEngine?.update?.(dt, this.aiNodes?.nodes, this.semanticGlyphAI));
@@ -8273,7 +8304,6 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
     }
 
     runNodeAuraSystemTick(deltaTime) {
-        console.count("AuraTick");
         if (this.nodeAuraSystem && this.aiNodes) {
             this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
         }
@@ -8929,16 +8959,21 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      */
     setupSemanticGlyphAI() {
         if (!this.glyphLayer4) {
-            console.warn('Glyph Layer 4.0 not initialized, skipping Semantic Glyph AI');
+            console.error('[SemanticGlyphAI] GlyphLayer4 missing - initialization aborted');
+            this.semanticGlyphAI = null;
             return;
         }
 
-        this.semanticGlyphAI = new SemanticGlyphAI(this.scene, this.worldRoot, this.glyphLayer4);
-
-        console.log('✓ Semantic Glyph AI 5.0 initialized');
-        console.log('  - Glyphs react to node metrics and state');
-        console.log('  - Use debugSemanticGlyph(nodeIndex) to inspect');
-        console.log('  - Use debugSemanticStats() for system stats');
+        try {
+            this.semanticGlyphAI = new SemanticGlyphAI(
+                this.scene,
+                this.worldRoot,
+                this.glyphLayer4
+            );
+        } catch (error) {
+            console.error('[SemanticGlyphAI] Initialization failed:', error);
+            this.semanticGlyphAI = null;
+        }
     }
 
     /**
