@@ -305,11 +305,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
 })();
 
-/**
- * AI Node System - Interactive nodes that respond to player proximity
- * Unified system that works across all ATOMA environments
- */
-export class AINodes {
+  /**
+   * AI Node System - Interactive nodes that respond to player proximity
+   * Unified system that works across all ATOMA environments
+   */
+  export class AINodes {
   constructor(scene, player, variantEngine = null) {
     this.scene = scene;
     this.player = player;
@@ -317,6 +317,7 @@ export class AINodes {
     this.nodes = [];
     this.nodesMap = new Map();
     this.connections = [];
+    this._linkMaterialCache = new Map(); // opacityKey -> shared material
     this.activationDistance = 8;
     this.activationHysteresis = 2; // PHASE VD-3 FIX: Prevent flickering at threshold
     this.connectionDistance = 15;
@@ -700,6 +701,19 @@ export class AINodes {
     }
     const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
     return mode === 'chamber' ? 80 : 120;
+  }
+
+  _getSharedLinkMaterial(opacity = 0) {
+    const key = opacity.toFixed(3);
+    if (this._linkMaterialCache.has(key)) return this._linkMaterialCache.get(key);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity,
+      depthWrite: false
+    });
+    this._linkMaterialCache.set(key, mat);
+    return mat;
   }
 
   _processLinkJobs() {
@@ -2055,11 +2069,7 @@ export class AINodes {
     ];
     
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0
-    });
+    const material = this._getSharedLinkMaterial(0);
     
     const line = new THREE.Line(geometry, material);
     line.userData = {
@@ -2411,23 +2421,21 @@ export class AINodes {
       const isNode1Active = node1.userData.isActive;
       const isNode2Active = node2.userData.isActive;
       
+      let targetOpacity = 0;
       // Connection glows when both nodes are active
       if (isNode1Active && isNode2Active) {
-        connection.material.opacity = connection.userData.activeOpacity;
-        
-        // Pulse effect
         const activation1 = node1.userData.activationLevel;
         const activation2 = node2.userData.activationLevel;
         const avgActivation = (activation1 + activation2) / 2;
-        connection.material.opacity = connection.userData.activeOpacity * avgActivation;
+        targetOpacity = connection.userData.activeOpacity * avgActivation;
       } else if (isNode1Active || isNode2Active) {
         // Dim connection if only one is active
         const activeNode = isNode1Active ? node1 : node2;
-        connection.material.opacity = connection.userData.baseOpacity * 
+        targetOpacity = connection.userData.baseOpacity * 
           activeNode.userData.activationLevel;
-      } else {
-        connection.material.opacity = 0;
       }
+
+      connection.material = this._getSharedLinkMaterial(targetOpacity);
       
       // Update line positions (in case nodes move)
       const positions = connection.geometry.attributes.position;

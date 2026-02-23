@@ -461,15 +461,12 @@ export class RegionalHarmonyZones {
         0.1
       );
       
-      // Slow drift motion
-      const driftX = Math.sin(this.time * 0.1 + zone.userData.center.x * 0.01) * 
-                     this.config.driftSpeed;
-      const driftY = Math.cos(this.time * 0.12 + zone.userData.center.y * 0.01) * 
-                     this.config.driftSpeed;
-      const driftZ = Math.sin(this.time * 0.08 + zone.userData.center.z * 0.01) * 
-                     this.config.driftSpeed;
-      
-      zone.position.add(new THREE.Vector3(driftX, driftY, driftZ));
+      // Anchor to original center (drift removed)
+      zone.position.set(
+        zone.userData.center.x,
+        zone.userData.center.y,
+        zone.userData.center.z
+      );
       
       // Update opacity based on global harmony (higher harmony = more visible zones)
       const harmonyFade = 0.5 + globalHarmony * 0.5;

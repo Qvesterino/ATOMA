@@ -581,7 +581,7 @@ import { PHASE5_MultiNetworkOrchestrator } from './PHASE5_MultiNetworkOrchestrat
 //import { PHASE5_InterNetworkConnectionVisuals } from './PHASE5_InterNetworkConnectionVisuals_v1.js';
 import { PHASE5_InterNetworkVisualizationBridge } from './PHASE5_InterNetworkVisualizationBridge_v1.js';
 
-const VISUAL_SYSTEMS_ENABLED = false;
+const VISUAL_SYSTEMS_ENABLED = true;
 import { PHASE5_CascadePropagationVisuals } from './PHASE5_CascadePropagationVisuals_v1.js';
 import { PHASE5_CascadeVisualizationBridge } from './PHASE5_CascadeVisualizationBridge_v1.js';
 
@@ -8273,6 +8273,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
     }
 
     runNodeAuraSystemTick(deltaTime) {
+        console.count("AuraTick");
         if (this.nodeAuraSystem && this.aiNodes) {
             this.nodeAuraSystem.update(deltaTime, this.aiNodes.nodes);
         }

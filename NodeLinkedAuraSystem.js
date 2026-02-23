@@ -84,7 +84,8 @@ export class NodeLinkedAuraSystem {
     this.impactManager = options.impactManager ?? null;  // Optional particle impact manager
     
     // Configuration
-    this.enabled = options.enabled ?? false;  // Disabled by default (feature flag)
+    this.enabled = options.enabled ?? true;  // Enabled by default (feature flag)
+    console.log("NodeAuraSystem enabled:", this.enabled);
     this.debugMode = false;
     
     // Aura tracking
@@ -163,7 +164,11 @@ export class NodeLinkedAuraSystem {
    */
   update(deltaTime, nodes) {
     if (typeof window !== 'undefined' && window.ATOMA_VISUAL_BASELINE) return;
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      console.log("AuraSystem disabled internally");
+      return;
+    }
+    console.log("Aura check nodes:", nodes?.length ?? 0);
     
     const startTime = performance.now();
     
@@ -175,6 +180,9 @@ export class NodeLinkedAuraSystem {
       if (!node || !node.userData) continue;
       
       const linkCount = this.getNodeLinkCount(node);
+      if (linkCount > 0) {
+        console.log("Node should have aura:", node.id || node.uuid || 'unknown', linkCount);
+      }
       
       // Early exit: Node has no links
       if (linkCount === 0) {
@@ -215,6 +223,7 @@ export class NodeLinkedAuraSystem {
   createAura(node) {
     // Create torn, irregular mesh geometry
     const geometry = this.createTornAuraGeometry();
+    console.log("Creating aura for node:", node.id || node.uuid || 'unknown');
     
     // PHASE S-5: Variant properties set at creation time, then frozen
     // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
@@ -247,6 +256,7 @@ export class NodeLinkedAuraSystem {
     };
     
     this.scene.add(mesh);
+    console.log("Aura added to scene");
     
     // Store aura data
     const auraData = {

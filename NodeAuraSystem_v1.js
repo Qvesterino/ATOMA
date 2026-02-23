@@ -59,14 +59,36 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
 import { NodeCorruptionAuraDegradation } from './NodeCorruptionAuraDegradation.js';
 
+function cloneUniformSet(uniforms = {}) {
+  const cloned = {};
+  for (const key of Object.keys(uniforms)) {
+    const val = uniforms[key]?.value;
+    cloned[key] = { value: val && val.clone ? val.clone() : val };
+  }
+  return cloned;
+}
+
+function applyUniformSet(target = {}, source = {}) {
+  for (const key of Object.keys(source)) {
+    if (!target[key]) continue;
+    const srcVal = source[key].value;
+    if (target[key].value?.copy && srcVal?.copy) {
+      target[key].value.copy(srcVal);
+    } else {
+      target[key].value = srcVal;
+    }
+  }
+}
+
 /**
  * AuraInstance: Internal structure for each node's aura
  */
 class AuraInstance {
-  constructor(node, mesh, material, profileId) {
+  constructor(node, mesh, material, uniforms, profileId) {
     this.node = node;
     this.mesh = mesh;
     this.material = material;
+    this.uniforms = uniforms;
     this.profileId = profileId;
 
     this.currentIntensity = 0.0;
@@ -131,6 +153,7 @@ export class NodeAuraSystem_v1 {
 
     // Aura storage
     this.auras = new Map();  // node.id → AuraInstance
+    this.sharedMaterials = new Map(); // profileId → { material, uniforms }
     this.auraGeometry = null;
     this.globalTime = 0;
     this._auraTimeOrigin = VisualTime.now;
@@ -263,6 +286,10 @@ export class NodeAuraSystem_v1 {
     if (!profile) {
       console.warn(`[NodeAuraSystem_v1] Unknown profile: ${profileId}`);
       profileId = 'clarity_aura';
+    }
+
+    if (this.sharedMaterials.has(profileId)) {
+      return this.sharedMaterials.get(profileId);
     }
 
     const uniforms = {
@@ -421,7 +448,9 @@ export class NodeAuraSystem_v1 {
       side: THREE.FrontSide
     });
 
-    return material;
+    const shared = { material, uniforms };
+    this.sharedMaterials.set(profileId, shared);
+    return shared;
   }
 
   /**
@@ -476,9 +505,14 @@ export class NodeAuraSystem_v1 {
       return;
     }
 
-    // Create aura mesh
-    const material = this._buildAuraMaterial(profileId);
-    const mesh = new THREE.Mesh(this.auraGeometry, material);
+    // Create aura mesh (shared material + per-node uniform block)
+    const shared = this._buildAuraMaterial(profileId);
+    const perNodeUniforms = cloneUniformSet(shared.uniforms);
+    const mesh = new THREE.Mesh(this.auraGeometry, shared.material);
+    mesh.userData.auraUniforms = perNodeUniforms;
+    mesh.onBeforeRender = function(renderer, scene, camera, geometry, material) {
+      applyUniformSet(material.uniforms, this.userData?.auraUniforms || {});
+    };
 
     // Position at node location
     if (node.position) {
@@ -500,7 +534,7 @@ export class NodeAuraSystem_v1 {
     }
 
     // Create instance
-    const aura = new AuraInstance(node, mesh, material, profileId);
+    const aura = new AuraInstance(node, mesh, shared.material, perNodeUniforms, profileId);
     const nodeKey = node.id || node;
     this.auras.set(nodeKey, aura);
   }
@@ -659,15 +693,15 @@ update(deltaTime) {
       aura.update(deltaTime);
 
       // Update material uniforms
-      if (aura.material.uniforms) {
-        aura.material.uniforms.uTime.value = this.globalTime;
-        aura.material.uniforms.uAuraIntensity.value = aura.currentIntensity;
-        aura.material.uniforms.uAuraRadius.value = aura.radius;
-        aura.material.uniforms.uClarity.value = signals.clarity || 0;
-        aura.material.uniforms.uResonance.value = signals.resonance || 0;
-        aura.material.uniforms.uEntropy.value = signals.entropy || 0;
-        aura.material.uniforms.uFocus.value = signals.focus || 0;
-        aura.material.uniforms.uCorruption.value = signals.corruption || 0;
+      if (aura.uniforms) {
+        aura.uniforms.uTime.value = this.globalTime;
+        aura.uniforms.uAuraIntensity.value = aura.currentIntensity;
+        aura.uniforms.uAuraRadius.value = aura.radius;
+        aura.uniforms.uClarity.value = signals.clarity || 0;
+        aura.uniforms.uResonance.value = signals.resonance || 0;
+        aura.uniforms.uEntropy.value = signals.entropy || 0;
+        aura.uniforms.uFocus.value = signals.focus || 0;
+        aura.uniforms.uCorruption.value = signals.corruption || 0;
         
         // --- LINK BIRTH AURA ENHANCEMENT ---
         // Apply directional pulse and ripple when node is just linked
@@ -683,11 +717,11 @@ update(deltaTime) {
           birthIntensity = Math.pow(birthIntensity, 0.6);
           
           // Apply link direction and birth intensity to shader
-          if (aura.material.uniforms.uLinkDirection && node.userData?.lastLinkDirection) {
-            aura.material.uniforms.uLinkDirection.value = node.userData.lastLinkDirection.clone();
+          if (aura.uniforms.uLinkDirection && node.userData?.lastLinkDirection) {
+            aura.uniforms.uLinkDirection.value = node.userData.lastLinkDirection.clone();
           }
-          if (aura.material.uniforms.uLinkBirthIntensity) {
-            aura.material.uniforms.uLinkBirthIntensity.value = birthIntensity;
+          if (aura.uniforms.uLinkBirthIntensity) {
+            aura.uniforms.uLinkBirthIntensity.value = birthIntensity;
           }
           
           // Clear flag after duration
@@ -697,8 +731,8 @@ update(deltaTime) {
           }
         } else {
           // Ensure birth intensity is 0 when not just linked
-          if (aura.material.uniforms.uLinkBirthIntensity) {
-            aura.material.uniforms.uLinkBirthIntensity.value = 0;
+          if (aura.uniforms.uLinkBirthIntensity) {
+            aura.uniforms.uLinkBirthIntensity.value = 0;
           }
           aura.birthPulseStart = null;
         }

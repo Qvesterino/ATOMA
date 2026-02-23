@@ -114,6 +114,22 @@ const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
 const USE_CONTROL_V2 = true;
 const USE_CONTROL_V2_LEGACY = false;
 
+// Shared core material cache: key = `${category}|${colorHex.toString(16)}`
+const CORE_MATERIAL_CACHE = new Map();
+function getSharedCoreBasicMaterial(category = 'default', colorHex = 0xffffff, extraProps = {}) {
+  const key = `${category}|${colorHex}`;
+  if (CORE_MATERIAL_CACHE.has(key)) return CORE_MATERIAL_CACHE.get(key);
+  const mat = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: false,
+    depthWrite: true,
+    ...extraProps
+  });
+  mat.userData.sharedCore = true;
+  CORE_MATERIAL_CACHE.set(key, mat);
+  return mat;
+}
+
 let _sessionVariantEngine = null;
 export function setSessionVariantEngine(engine) {
   _sessionVariantEngine = engine;
@@ -226,12 +242,8 @@ function _getPrimeV2Materials(color) {
   const colorHex = typeof color === 'number' ? color : 0xffffff;
   if (PRIME_V2_MATERIALS.has(colorHex)) return PRIME_V2_MATERIALS.get(colorHex);
 
-  const coreMat = new THREE.MeshStandardMaterial({
-    color: colorHex,
-    metalness: 0.7,
-    roughness: 0.2,
-    emissive: colorHex,
-    emissiveIntensity: 0.35
+  const coreMat = getSharedCoreBasicMaterial('prime', colorHex, {
+    opacity: 1.0
   });
 
   const edgesMat = new THREE.LineBasicMaterial({

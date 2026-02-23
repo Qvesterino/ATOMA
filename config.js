@@ -88,7 +88,7 @@ export const CONFIG = {
   // Benefit: Ensures node cores and shells are always fully readable
   // Impact: Visual only, gameplay unaffected, reversible
   features: {
-    ENABLE_NODE_AURAS: false,  // ← DISABLED for visual stabilization (Session 99)
+    ENABLE_NODE_AURAS: true,  // ← DISABLED for visual stabilization (Session 99)
     
     // FEATURE: Node Spawn Validation (Session 99 Task 2)
     // When true: Only nodes defined in enhancedNodeModel can spawn
@@ -107,7 +107,7 @@ export const CONFIG = {
   //  - Scene becomes stable and debuggable
   // This is a diagnostic mode - can be toggled on/off immediately
   debug: {
-    VISUAL_LOCKDOWN: true,  // ← EMERGENCY: Hard disable all visual complexity
+    VISUAL_LOCKDOWN: false,  // ← EMERGENCY: Hard disable all visual complexity
     
     // ============================================================================
     // PHASE D.4: WAVE INTERFERENCE ENGINE DEBUG TRIGGER
@@ -137,14 +137,14 @@ export const CONFIG = {
     // - Prevents linking, events, personality, metrics, automation from modifying node appearance
     // - Blocks: opacity, scale, color, emissive, visibility mutations
     // - Effect: Stable node appearance before/after linking
-    LOCK_NODE_VISUALS: true,
+    LOCK_NODE_VISUALS: false ,
     
     // LINK VISUAL STABILIZATION
     // - Renders links as geometry-only (single curve, no decorations)
     // - Disables: aura, secondary rings, orbitals, external particles
     // - Keeps: main curve, traffic colors, priority thickness
     // - Effect: Clean, stable link appearance
-    LOCK_LINK_VISUALS: true,
+    LOCK_LINK_VISUALS: false,
     
     // NODE INTERACTION AUTHORITY
     // - Raycasting targets invisible interaction meshes ONLY
@@ -156,12 +156,12 @@ export const CONFIG = {
     // - All link particles confined to small radius around curve
     // - Particles disabled entirely if LOCK_LINK_VISUALS = true
     // - Effect: No visual drift, no orphaned particles
-    PARTICLE_BOUNDS_CHECK: true,
+    PARTICLE_BOUNDS_CHECK: false,
     
     // VISUAL FREEZE MODE COMPATIBILITY
     // - Freeze mode ONLY blocks updates, NEVER mutates visuals
     // - No hiding meshes, no opacity changes, no visibility changes
     // - Effect: Safe freeze/unfreeze without visual artifacts
-    FREEZE_MODE_SAFE: true
+    FREEZE_MODE_SAFE: false
   }
 };
