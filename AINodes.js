@@ -489,6 +489,7 @@ export class AINodes {
           nodeCount,
           lastSpawnTime: this.spawnState.lastSpawnTime,
           nextTimeSpawn: this.spawningConfig?.nextTimeSpawn,
+          skippedCap: this.spawnStats.skippedCap,
           counters: this._spawnAbortCounters,
           gates: {
             spawnMode: this.spawnMode,
@@ -693,9 +694,12 @@ export class AINodes {
   }
 
   getTargetPopulation() {
+    // Prefer configured cap; fallback to mode-based default
+    if (this.spawningConfig && Number.isFinite(this.spawningConfig.targetPopulation)) {
+      return this.spawningConfig.targetPopulation;
+    }
     const mode = (typeof window !== 'undefined' ? window.game?.currentMode : null) || this.currentMode || null;
-    if (mode === 'chamber') return 12;
-    return 15;
+    return mode === 'chamber' ? 80 : 120;
   }
 
   _processLinkJobs() {
@@ -1183,12 +1187,14 @@ export class AINodes {
    */
   createNode(category, position, index, isSpecial = false, options = {}) {
     let finalVisualCode = null;
+    const canonicalCategory = String(category || 'input').toLowerCase().trim();
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
     if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
       console.warn('[LINK-SPAWN] createNode called', {
         category,
+        canonicalCategory,
         position,
         index,
         isSpecial,
@@ -1201,7 +1207,7 @@ export class AINodes {
     // [SPAWN AUTHORITY] VALIDATE AGAINST EnhancedNodeModel
     // Enforce that ONLY EnhancedNodeModel-supported categories can spawn
     // ========================================================================
-    const requestedCategory = (category || 'input').toLowerCase().trim();
+    const requestedCategory = canonicalCategory;
     let resolvedCategory = requestedCategory;
     
     // Check if this category has an EnhancedNodeModel.create() implementation
@@ -1269,9 +1275,6 @@ export class AINodes {
     };
 
     // ========== VISUAL CODE SELECTION: deterministic per-category counter ==========
-    if (this._variantCounterByCategory[category] === undefined) {
-      this._variantCounterByCategory[category] = 0;
-    }
     let poolCategory = String(safeCategory || '').toLowerCase().trim();
     let pool = EnhancedNodeModels.getCategoryPool(poolCategory);
     if (!Array.isArray(pool) || pool.length === 0) {
@@ -1297,7 +1300,11 @@ export class AINodes {
         return null;
       }
     }
-    const counter = this._variantCounterByCategory[category];
+    const counterKey = String(poolCategory || canonicalCategory || 'input');
+    if (this._variantCounterByCategory[counterKey] === undefined) {
+      this._variantCounterByCategory[counterKey] = 0;
+    }
+    const counter = this._variantCounterByCategory[counterKey];
 
     const idx =
       Number.isFinite(counter)
@@ -1316,7 +1323,7 @@ export class AINodes {
     const selectedVisualCode = pool[idx];
     finalVisualCode = selectedVisualCode;
 
-    this._variantCounterByCategory[category] = idx + 1;
+    this._variantCounterByCategory[counterKey] = counter + 1;
     const validatedCategory = spawnCycleValidator.validateCategory(
       safeCategory,
       Object.keys(CATEGORY_POOLS)
@@ -1391,7 +1398,7 @@ export class AINodes {
 
     let nodeModel = null;
     try {
-      nodeModel = EnhancedNodeModels.create(validatedCategory, finalVisualCode, coreColor);
+      nodeModel = EnhancedNodeModels.create(poolCategory, finalVisualCode, coreColor);
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
         copySpawnIdentity(nodeModel, nodeModel);
@@ -3980,7 +3987,12 @@ export class AINodes {
    * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
    */
   updateSpawning(currentTime) {
-    return;
+    const cap = this.spawningConfig?.targetPopulation ?? this.getTargetPopulation();
+    const nodeCount = this.getNodeCount();
+    if (nodeCount >= cap) {
+      this.spawnStats.skippedCap++;
+      return;
+    }
   }
 
   /**
@@ -4011,8 +4023,8 @@ export class AINodes {
     if (currentTime - this.spawningConfig.lastLinkTime > this.spawningConfig.linkSpawnCooldown) {
       // Occasionally spawn node on link creation (20% chance)
       if (Math.random() < 0.2) {
-        const targetPopulation = this.getTargetPopulation();
-        if (this.getNodeCount() >= targetPopulation) {
+        const cap = this.spawningConfig?.targetPopulation ?? this.getTargetPopulation();
+        if (this.getNodeCount() >= cap) {
           this.spawnStats.skippedCap++;
           return;
         }

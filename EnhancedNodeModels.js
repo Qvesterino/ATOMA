@@ -4607,8 +4607,8 @@ static createAnalyticsNode2(group, color) {
       group.add(storageRoot);
       return group;
     } catch (err) {
-      console.error('[StorageV2Abort]', { reason: err?.message || err });
-      return null;
+      console.error('[StorageV2Abort]', err);
+      throw err;
     }
   }
 
@@ -5028,65 +5028,89 @@ static createAnalyticsNode2(group, color) {
    * UPGRADED: Added solid central core + very subtle mesh line pulsing for authority/stability
    * VISUAL HIERARCHY: Central core remains visible but not dominant (no opacity change—opaque by design)
    */
-  static createControlNode0(group, color) {
-    // Octagonal core
-    const octGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.8, 8);
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.35
+static createControlNode0(group, color) {
 
-    });
-    const oct = new THREE.Mesh(octGeometry, material);
-    oct.renderOrder = 0;  // Core layer
-    group.add(oct);
+  // ===== BASE PLATFORM (grounded authority) =====
+  const baseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.25, 8);
+  const baseMat = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.6,
+    roughness: 0.35,
+    emissive: color,
+    emissiveIntensity: 0.1
+  });
 
-    // Magenta rim glow
-    const rimGeometry = new THREE.TorusGeometry(1.0, 0.1, 8, 32);
-    const rimMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.5
-    });
-    const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-    rim.rotation.x = Math.PI / 2;
-    rim.renderOrder = 0;  // Core layer
-    group.add(rim);
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  group.add(base);
 
-    // POLISH: Central static polyhedron (solid authority core)
-    // Note: This core is intentionally opaque—it's a design feature (authority symbol)
-    const coreGeometry = new THREE.DodecahedronGeometry(0.25, 0);
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.95,
-      roughness: 0.05,
-      emissive: color,
-      emissiveIntensity: 0.7
 
-    });
-    const centralCore = new THREE.Mesh(coreGeometry, coreMaterial);
-    centralCore.renderOrder = 1;  // Inner layer (visible, intentional)
-    group.add(centralCore);
+  // ===== CENTRAL OBELISK (true control spine) =====
+  const obeliskGeo = new THREE.CylinderGeometry(0.2, 0.35, 2.6, 6);
+  const obeliskMat = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.9,
+    roughness: 0.1,
+    emissive: color,
+    emissiveIntensity: 0.4
+  });
 
-    // POLISH: Subtle pulsing mesh lines for authority (stored as animation metadata)
-    group.userData.meshPulsePhase = 0;
-    group.userData.meshPulseAmplitude = 0.08; // Very subtle (8% amplitude)
-    group.userData.meshPulseSpeed = 0.5;
+  const obelisk = new THREE.Mesh(obeliskGeo, obeliskMat);
+  obelisk.position.y = 1.3;
+  group.add(obelisk);
 
-    return group;
-  }
+
+  // ===== FLOATING CORE =====
+  const coreGeo = new THREE.IcosahedronGeometry(0.45, 0);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.95,
+    roughness: 0.05,
+    emissive: color,
+    emissiveIntensity: 0.8
+  });
+
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  core.position.y = 2.9;
+  group.add(core);
+
+
+  // ===== STABILIZATION FRAME (angular cage) =====
+  const frameGeo = new THREE.OctahedronGeometry(0.8, 0);
+  const frameMat = new THREE.MeshBasicMaterial({
+    color,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.5
+  });
+
+  const frame = new THREE.Mesh(frameGeo, frameMat);
+  frame.position.y = 2.9;
+  group.add(frame);
+
+
+  // ===== TILTED ORBIT RING =====
+  const ringGeo = new THREE.TorusGeometry(1.0, 0.04, 16, 64);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.35,
+    metalness: 0.8,
+    roughness: 0.2
+  });
+
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 2.9;
+  ring.rotation.x = Math.PI / 2.3;
+  ring.rotation.z = 0.6;
+  group.add(ring);
+
+
+  // ===== Metadata =====
+  group.userData.visualTier = "CONTROL_V4";
+  group.userData.hasAuthoritySpine = true;
+
+  return group;
+}
 
   /**
    * Control Node 1: Sharp tetrahedral pyramid
