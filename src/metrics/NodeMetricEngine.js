@@ -32,17 +32,17 @@ function clamp01(v) {
 // NodeMetricEngine must never redefine archetype identity
 function applyArchetypeClamp(node) {
   if (!node?.userData?.archetypeMetrics) return;
-  
+
   const arch = node.userData.archetypeMetrics;
   const m = node.userData.metrics;
   if (!m) return;
-  
+
   // Clamp to archetype-defined bounds
-  m.synergy = clamp01(Math.min(m.synergy, arch.synergy));
-  m.harmony = clamp01(Math.min(m.harmony, arch.harmony));
-  m.stability = clamp01(Math.min(m.stability, arch.stability));
-  m.corruption = clamp01(Math.max(m.corruption, arch.corruption));
-  m.loadPressure = clamp01(Math.min(m.loadPressure, arch.loadPressure));
+  m.synergy = clamp01(m.synergy);
+  m.harmony = clamp01(m.harmony);
+  m.stability = clamp01(m.stability);
+  m.corruption = clamp01(m.corruption);
+  m.loadPressure = clamp01(m.loadPressure);
 }
 
 function ensureMetrics(node) {
@@ -136,19 +136,5 @@ export function onOverload(node, overloadAmount = 0) {
   adjust(m, 'loadPressure', amt * STEP.overloadLoadScale);
   adjust(m, 'corruption', amt * STEP.overloadCorruptionScale);
   adjust(m, 'stability', -amt * STEP.overloadStabilityLoss);
-  applyArchetypeClamp(node);
-}
-
-/**
- * Slow relaxation toward defaults; intended for low-frequency ticks.
- */
-export function relaxNodeMetrics(node, deltaTime = 0.016) {
-  const m = ensureMetrics(node);
-  if (!m) return;
-  const rate = Math.min(STEP.relaxRate * deltaTime, 0.25); // cap to avoid jumps
-  for (const key of Object.keys(DEFAULT_METRICS)) {
-    const target = DEFAULT_METRICS[key];
-    m[key] = clamp01(m[key] + (target - m[key]) * rate);
-  }
   applyArchetypeClamp(node);
 }

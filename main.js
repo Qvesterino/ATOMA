@@ -134,7 +134,6 @@ import { CoreMetricsOverlay } from './CoreMetricsOverlay.js';
 import { createEmptyCoreMetricsViewModel, updateCoreMetricsViewModel } from './CoreMetricsViewModel.js';
 import { SystemStateOverlay } from './SystemStateOverlay.js';
 import { ZoneAudioReactivity } from './ZoneAudioReactivity.js';
-import { relaxNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 // DISABLED: Legacy metric reactive system (replaced by Phase 5-7 architecture)
 // import { MetricReactiveWorldEvents } from './MetricReactiveWorldEvents.js';
 
@@ -7428,11 +7427,6 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
             if (this.nodeUiAcc >= 0.1) {
                 this.nodeUiAcc = 0;
                 this.updateNodeUI();
-            }
-            if ((this.frameCount || 0) % 60 === 0) {
-                for (const node of this.aiNodes.nodes || []) {
-                    relaxNodeMetrics(node, 1.0);
-                }
             }
         });
         reg('undoRedoUi', (dt) => {

@@ -75,6 +75,8 @@ export class MetricsRuntime_v1 {
         this.links = links;
           this.linkSystem = linkSystem;
         this.systems = metricsSystems || {};
+        this._accumulator = 0;
+        this._fixedDt = 0.1; // 10 Hz
         const runtimeOptions = options ?? {};
         this.options = runtimeOptions;
         this.networkMetricsOverrideKey = runtimeOptions.networkMetricsOverrideKey ?? NETWORK_METRICS_OVERRIDE_KEY;
@@ -157,39 +159,73 @@ export class MetricsRuntime_v1 {
      * @param {number} delta - Frame delta time (seconds)
      */
     update(delta) {
-        if (!delta || typeof delta !== 'number') {
+        // Compat: SystemRegistry passes frameContext; accept number dt or frameContext.{dt|deltaTime|delta}
+        const realDt =
+            typeof delta === 'number'
+                ? delta
+                : (delta && typeof delta.dt === 'number'
+                    ? delta.dt
+                    : (delta && typeof delta.deltaTime === 'number'
+                        ? delta.deltaTime
+                        : (delta && typeof delta.delta === 'number' ? delta.delta : null)));
+
+        if (!realDt || typeof realDt !== 'number') {
             return;  // Defensive: skip invalid delta
         }
 
+        const dt = Math.min(realDt, 0.25); // safety clamp
+        this._accumulator += dt;
+
+        while (this._accumulator >= this._fixedDt) {
+            this._step(this._fixedDt);
+            this._accumulator -= this._fixedDt;
+        }
+    }
+
+    _step(dt) {
         try {
-            // Update individual metrics systems in order
-            // Each system is called safely with optional chaining
-            
-            // 1. Node dynamic metrics (runtime behavior tracking)
+            // 1. Update individual metrics systems (fixed-step)
             if (this.systems.nodeDynamicMetrics?.update) {
-                this.systems.nodeDynamicMetrics.update(delta);
+                this.systems.nodeDynamicMetrics.update(dt);
             }
 
-            // 2. Link quality calculation (connection quality scoring)
             if (this.systems.linkQualityCalculator?.update) {
-                this.systems.linkQualityCalculator.update(delta);
+                this.systems.linkQualityCalculator.update(dt);
             }
 
-            // 3. Node quality calculation (node quality metrics)
             if (this.systems.nodeQualityCalculator?.update) {
-                this.systems.nodeQualityCalculator.update(delta);
+                this.systems.nodeQualityCalculator.update(dt);
             }
 
-            // 4. Visual metric model (metric visualization integration)
             if (this.systems.visualMetricModel?.update) {
-                this.systems.visualMetricModel.update(delta);
+                this.systems.visualMetricModel.update(dt);
             }
 
-            // 5. Metrics-driven FX (visual effects based on metrics)
             if (this.systems.safeMetricsFX?.update) {
-                this.systems.safeMetricsFX.update(delta);
+                this.systems.safeMetricsFX.update(dt);
             }
 
+            // 2. Fixed-step relax toward archetype baselines
+            const nodeList = this.nodes?.nodes || this.nodes || [];
+            for (const node of nodeList) {
+                const m = node?.userData?.metrics;
+                const base = node?.userData?.archetypeMetrics;
+                if (!m || !base) continue;
+                const relaxSpeed = 0.02; // gentle return per 10 Hz step
+                m.synergy      += (base.synergy      - m.synergy)      * relaxSpeed;
+                m.harmony      += (base.harmony      - m.harmony)      * relaxSpeed;
+                m.stability    += (base.stability    - m.stability)    * relaxSpeed;
+                m.corruption   += (base.corruption   - m.corruption)   * relaxSpeed;
+                m.loadPressure += (base.loadPressure - m.loadPressure) * relaxSpeed;
+
+                m.synergy = this._clamp01(m.synergy);
+                m.harmony = this._clamp01(m.harmony);
+                m.stability = this._clamp01(m.stability);
+                m.corruption = this._clamp01(m.corruption);
+                m.loadPressure = this._clamp01(m.loadPressure);
+            }
+
+            // 3. Network aggregation (fixed-step)
             if (this.useNetworkMetricsAggregator) {
                 try {
                     this._runNetworkMetricsAggregator();
@@ -204,13 +240,19 @@ export class MetricsRuntime_v1 {
                 this._clearNetworkMetricsOverride();
             }
 
-            // Always publish live metrics every frame
+            // 4. Publish live metrics once per fixed tick
             this._publishLiveMetrics();
 
         } catch (err) {
-            // Defensive error handling - log once, don't crash
             this._logOnce('update error', err);
         }
+    }
+
+    _clamp01(v) {
+        if (!Number.isFinite(v)) return 0;
+        if (v < 0) return 0;
+        if (v > 1) return 1;
+        return v;
     }
 
     _initializeNetworkMetricsAggregator() {
