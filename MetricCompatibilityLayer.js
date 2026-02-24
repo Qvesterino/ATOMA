@@ -15,29 +15,25 @@ export function applyMetricCompatibility(nodes = []) {
 
     const metrics = ud.metrics || (ud.metrics = {});
 
-    if (metrics.synergy === undefined && ud.synergy !== undefined) {
-      metrics.synergy = ud.synergy;
-    }
-
-    if (metrics.harmony === undefined) {
-      if (ud.harmony !== undefined) {
-        metrics.harmony = ud.harmony;
-      } else if (ud.clarity !== undefined) {
-        metrics.harmony = ud.clarity; // legacy clarity maps to harmony
+    const fillIfMissing = (key, value) => {
+      if (metrics[key] === undefined && value !== undefined) {
+        metrics[key] = value;
       }
+    };
+
+    fillIfMissing('synergy', ud.synergy);
+
+    fillIfMissing('harmony', ud.harmony);
+    if (metrics.harmony === undefined && ud.clarity !== undefined) {
+      metrics.harmony = ud.clarity; // legacy clarity maps to harmony
     }
 
-    if (metrics.stability === undefined) {
-      if (ud.stability !== undefined) {
-        metrics.stability = ud.stability;
-      } else if (ud.instability !== undefined) {
-        metrics.stability = 1 - ud.instability; // legacy instability maps to 1 - stability
-      }
+    fillIfMissing('stability', ud.stability);
+    if (metrics.stability === undefined && ud.instability !== undefined) {
+      metrics.stability = 1 - ud.instability; // legacy instability maps to 1 - stability
     }
 
-    if (metrics.corruption === undefined && ud.corruption !== undefined) {
-      metrics.corruption = ud.corruption;
-    }
+    fillIfMissing('corruption', ud.corruption);
 
     if (metrics.loadPressure === undefined) {
       if (ud.loadPressure !== undefined) {

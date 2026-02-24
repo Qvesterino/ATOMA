@@ -184,6 +184,7 @@ export class MetricsRuntime_v1 {
 
     _step(dt) {
         try {
+            console.log("SIM TICK", typeof performance !== 'undefined' ? performance.now() : Date.now());
             // 1. Update individual metrics systems (fixed-step)
             if (this.systems.nodeDynamicMetrics?.update) {
                 this.systems.nodeDynamicMetrics.update(dt);
@@ -225,6 +226,29 @@ export class MetricsRuntime_v1 {
                 m.loadPressure = this._clamp01(m.loadPressure);
             }
 
+            // 3. InteractionKernel Phase 1: flow equalization across links
+            const equalizeRate = 0.05;
+            const linkList = this.linkSystem?.links || this.links || [];
+            for (const link of linkList) {
+                const a = link?.source;
+                const b = link?.target;
+                if (!a?.userData?.metrics || !b?.userData?.metrics) continue;
+                const ma = a.userData.metrics;
+                const mb = b.userData.metrics;
+
+                if (ma.synergy !== undefined && mb.synergy !== undefined) {
+                    const dS = (mb.synergy - ma.synergy) * equalizeRate;
+                    ma.synergy = this._clamp01(ma.synergy + dS);
+                    mb.synergy = this._clamp01(mb.synergy - dS);
+                }
+
+                if (ma.harmony !== undefined && mb.harmony !== undefined) {
+                    const dH = (mb.harmony - ma.harmony) * equalizeRate;
+                    ma.harmony = this._clamp01(ma.harmony + dH);
+                    mb.harmony = this._clamp01(mb.harmony - dH);
+                }
+            }
+
             // 3. Network aggregation (fixed-step)
             if (this.useNetworkMetricsAggregator) {
                 try {
@@ -241,6 +265,10 @@ export class MetricsRuntime_v1 {
             }
 
             // 4. Publish live metrics once per fixed tick
+            this._captureSimulationSnapshot(nodeList);
+            if (typeof this.onSimulationTick === 'function') {
+                this.onSimulationTick(this.lastSimulationSnapshot);
+            }
             this._publishLiveMetrics();
 
         } catch (err) {
@@ -253,6 +281,18 @@ export class MetricsRuntime_v1 {
         if (v < 0) return 0;
         if (v > 1) return 1;
         return v;
+    }
+
+    _captureSimulationSnapshot(nodeList) {
+        const list = Array.isArray(nodeList) ? nodeList : [];
+        this.lastSimulationSnapshot = {
+            nodes: list
+                .filter(n => n?.userData)
+                .map(n => ({
+                    id: n.userData.nodeId || n.userData.id || n.id,
+                    metrics: { ...(n.userData.metrics || {}) }
+                }))
+        };
     }
 
     _initializeNetworkMetricsAggregator() {

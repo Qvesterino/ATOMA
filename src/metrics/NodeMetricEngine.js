@@ -47,11 +47,12 @@ function applyArchetypeClamp(node) {
 
 function ensureMetrics(node) {
   if (!node || !node.userData) return null;
-  const metrics = node.userData.metrics || (node.userData.metrics = {});
+  if (node.userData.metrics) {
+    return node.userData.metrics;
+  }
+  const metrics = (node.userData.metrics = {});
   for (const key of Object.keys(DEFAULT_METRICS)) {
-    if (metrics[key] === undefined) {
-      metrics[key] = DEFAULT_METRICS[key];
-    }
+    metrics[key] = DEFAULT_METRICS[key];
   }
   return metrics;
 }
@@ -71,12 +72,14 @@ export function initNodeMetrics(node) {
  * Initialize metrics on spawn without overwriting existing values.
  */
 export function onNodeSpawn(node) {
+  // Skip spawn nudge when a canonical DNA snapshot already exists
+  if (node?.userData?.metrics?._isMetricSnapshot) {
+    return;
+  }
+
   const m = ensureMetrics(node);
   if (!m) return;
-  // Nudge toward defaults gently.
-  for (const key of Object.keys(DEFAULT_METRICS)) {
-    m[key] = clamp01(m[key] * 0.9 + DEFAULT_METRICS[key] * 0.1);
-  }
+  // No blending toward defaults; preserve existing values
   applyArchetypeClamp(node);
 }
 

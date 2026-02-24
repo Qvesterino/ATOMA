@@ -15,10 +15,11 @@ import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 
 export class NodeInspectOverlay1_0 {
-  constructor(scene, camera, renderer, linguisticOverlay = null) {
+  constructor(scene, camera, renderer, linguisticOverlay = null, game = null) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.game = game;
     
     // ATOMA Language Engine: For archetype naming
     this.languageEngine = new AtomaLanguageEngine2_0();
@@ -261,8 +262,8 @@ export class NodeInspectOverlay1_0 {
       // Get category (functional type)
       const category = userData.category || 'UNKNOWN';
       
-      // Get metrics (safely)
-      const metrics = userData.metrics || {};
+      // Get metrics from simulation snapshot (read-only)
+      const metrics = this._getSnapshotMetrics(this.currentNode) || {};
       
       // Update archetype display
       const archetypeEl = this.hudPanel.querySelector('#node-archetype');
@@ -326,6 +327,22 @@ export class NodeInspectOverlay1_0 {
       // Fail silently - don't crash if data is malformed
       console.warn('NodeInspectOverlay: Error updating content', e);
     }
+  }
+
+  _getSnapshotMetrics(node) {
+    const snapshot = this.game?.metricsRuntime_v1?.lastSimulationSnapshot;
+    if (!snapshot?.nodes) return null;
+    const id = node?.userData?.nodeId || node?.userData?.id || node?.id;
+    if (!id) return null;
+    const entry = snapshot.nodes.find(n => n.id === id);
+    return entry?.metrics || null;
+  }
+
+  onSimulationTick(snapshot) {
+    this.lastSnapshot = snapshot;
+    // reuse throttling interval: run one update pass per simulation tick
+    console.log("NODE INSPECT UPDATE");
+    this.update(this.checkInterval);
   }
 
   /**

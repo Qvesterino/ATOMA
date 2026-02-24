@@ -1,177 +1,33 @@
-/**
- * ============================================================================
- * NODE DYNAMIC METRICS v1.0 - DERIVED / READ-ONLY LAYER
- * ============================================================================
- * //
- * ARCHITECTURAL BOUNDARY:
- * This is a DERIVED, READ-ONLY layer with NO authority over archetype or
- * canonical metrics. It computes real-time, per-frame derived/perceptual values
- * for visual and perceptual systems only.
- * 
- * AUTHORITY SEPARATION:
- * - node.userData.archetypeMetrics: IMMUTABLE archetype identity (SafeMetricsDNAIntegration)
- * - node.userData.metrics: Canonical gameplay metrics (SafeMetricsDNAIntegration + NodeMetricEngine)
- * - This module: DERIVED dynamic metrics only (energy, structural, time-based)
- * 
- * STRICT RULES:
- * - This system MUST NEVER redefine archetype identity
- * - This system MUST NEVER write to node.userData.archetypeMetrics
- * - This system MUST NEVER be used as source of truth for gameplay decisions
- * - This system MUST NEVER clamp values (archetype clamp is in NodeMetricEngine)
- * - This system MUST NOT read archetypeMetrics for logic decisions
- * 
- * RESPONSIBILITY:
- * - Compute structural, dynamic, and time-based metrics once per frame
- * - Store results in node.userData.metrics for read-only access by visual systems
- * - Apply EMA smoothing for stable transitions
- * - Never modify external systems or node hierarchy
- * - Apply soft fatigue multipliers (if enabled)
- * 
- * INTEGRATION:
- * const nodeDynamics = new NodeDynamicMetrics(aiNodes, linkingSystem);
- * 
- * UPDATE LOOP (in main game loop, once per frame):
- * nodeDynamics.update(deltaTime);
- * 
- * READ ACCESS (from visual/perceptual systems only):
- * const metrics = node.userData.metrics;
- * if (metrics) {
- *   energy, stability, harmony, etc. are all available
- * }
- * ============================================================================
- */
+/*
+VISUAL DERIVED LAYER
 
-import { 
-  updateNetworkFatigue, 
-  setupFatigueDebugConsole,
-  getFatigueCorruptionDecayMultiplier 
-} from './NetworkFatigueSystem_v0_DEBUG.js';
+Reads canonical node.userData.metrics (0..1).
+Computes derived visual values.
+Writes ONLY to node.userData.visualMetrics.
+No gameplay authority.
+*/
 
-// Phase C.3: per-frame metric writes disabled
-// Gameplay metrics are now event-driven only.
-const PHASE_C3_METRIC_WRITE_LOCK = true;
-// Network fatigue disabled until Phase C.3 full review.
-const NETWORK_FATIGUE_CALL_ENABLED = false;
+// Deprecated name compatibility is maintained at the bottom of this file.
 
-export class NodeDynamicMetrics {
+export class VisualDerivedMetrics {
   /**
-   * Initialize the metrics system
+   * Initialize the visual metrics layer
    * @param {AINodes} aiNodes - Reference to the AINodes system containing all nodes
    * @param {NodeLinkingSystem} linkingSystem - Reference to the linking system for link counts
    * @param {Object} config - Optional configuration overrides
    */
   constructor(aiNodes, linkingSystem, config = {}) {
-    // Store references
     this.aiNodes = aiNodes;
     this.linkingSystem = linkingSystem;
-    
-    // Initialize fatigue debug API
-    setupFatigueDebugConsole();
-    
-    // Configuration with sensible defaults
+
+    // Minimal configuration: only structural defaults are needed for visuals
     this.config = {
-      // EMA smoothing factor (0-1): higher = faster response, lower = smoother
-      // REBALANCE v1: 0.2 → 0.15 (less flicker, more organic)
-      emasAlpha: config.emasAlpha ?? 0.15,
-      
-      // Energy system parameters
-      // REBALANCE v1: Reduced max and per-link gain; slower decay
-      energyMaximum: config.energyMaximum ?? 110,
-      energyMinimum: config.energyMinimum ?? 0,
-      energyDecayRate: config.energyDecayRate ?? 0.08, // per second when idle (was 0.15)
-      energyGainPerLink: config.energyGainPerLink ?? 6,   // per link (was 8)
-      energyIdleThreshold: config.energyIdleThreshold ?? 2, // seconds before decay
-      
-      // Stability system parameters
-      // REBALANCE v1: Lower base, higher stress factor, lower penalty per link
-      baseStability: config.baseStability ?? 55,      // was 60
-      loadStressFactor: config.loadStressFactor ?? 55,  // (1-loadRatio) * factor (was 40)
-      linkCountPenalty: config.linkCountPenalty ?? 1.5,   // linkCount * factor (was 2)
-      
-      // Node category defaults
-      defaultLoadMax: config.defaultLoadMax ?? 4,
-      
-      // Corruption system
-      // REBALANCE v1: Slower decay, reduced sigma gain for progressive feel
-      corruptionDecayRate: config.corruptionDecayRate ?? 0.035, // was 0.05
-      corruptionGainRate: config.corruptionGainRate ?? 2.0,
-      sigmaCorruptionGain: config.sigmaCorruptionGain ?? 12, // per second for sigma nodes (was 15)
-    };
-    
-    // Internal tracking
-    this.nodeMetricsCache = new Map(); // nodeId → { lastActive, lastValues }
-    
-    // ====================================================================
-    // NODE CATEGORY GAMEPLAY MULTIPLIERS
-    // Numeric modifiers applied to existing metrics by category
-    // Each category has a clear systemic role; defaults = 1.0
-    // ====================================================================
-    this.categoryMultipliers = {
-      input: {
-        energyGain: 1.2,        // Fast energy gain
-        stability: 0.8,         // Low stability (volatile)
-        corruption: 1.2,        // High corruption sensitivity
-        harmony: 0.85,          // Disruptive to harmony
-        loadTolerance: 0.9      // Lower effective loadMax
-      },
-      process: {
-        energyGain: 1.0,        // Baseline
-        stability: 1.0,         // Baseline
-        corruption: 1.0,        // Baseline
-        harmony: 1.0,           // Baseline
-        loadTolerance: 1.0      // Baseline
-      },
-      integration: {
-        energyGain: 0.95,       // Slightly less energy gain
-        stability: 1.05,        // Slightly more stable
-        corruption: 0.9,        // Better corruption resistance
-        harmony: 1.2,           // High harmony affinity
-        loadTolerance: 1.1      // More capacity
-      },
-      analytics: {
-        energyGain: 0.9,        // Slower energy gain
-        stability: 1.15,        // Very high stability
-        corruption: 0.85,       // Low corruption spread
-        harmony: 1.3,           // Very high harmony (was clarity)
-        loadTolerance: 1.05     // Slightly more capacity
-      },
-      storage: {
-        energyGain: 0.8,        // Very slow energy changes
-        stability: 1.3,         // Very high stability (hard to destabilize)
-        corruption: 0.7,        // Strong corruption resistance
-        harmony: 0.8,           // Hard to heal
-        loadTolerance: 1.2      // High capacity
-      },
-      control: {
-        energyGain: 1.0,        // Baseline
-        stability: 1.0,         // Baseline
-        corruption: 0.85,       // Good corruption suppression
-        harmony: 1.1,           // Good harmony flow
-        loadTolerance: 1.0      // Baseline
-      }
+      defaultLoadMax: config.defaultLoadMax ?? 4
     };
   }
-  
+
   /**
-   * Get multipliers for a node's category
-   * @private
-   */
-  _getCategoryMultipliers(node) {
-    const category = node.userData?.category || 'process';
-    return this.categoryMultipliers[category] || this.categoryMultipliers.process;
-  }
-  
-  /**
-   * Get a single multiplier value (with default fallback)
-   * @private
-   */
-  _getMultiplier(node, metricName) {
-    const multipliers = this._getCategoryMultipliers(node);
-    return multipliers[metricName] ?? 1.0;
-  }
-  
-  /**
-   * Main update cycle - call once per frame from game loop
+   * Main update cycle - call once per frame from the render/game loop
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
@@ -179,162 +35,70 @@ export class NodeDynamicMetrics {
     if (!this.aiNodes || !this.aiNodes.nodes) {
       return;
     }
-    
+
     const now = Date.now();
-    
-    // Update all nodes
+
     for (const node of this.aiNodes.nodes) {
-      this._updateNodeMetrics(node, deltaTime, now);
+      this._updateNodeVisuals(node, now);
     }
   }
-  
+
   /**
-   * Update all metrics for a single node
+   * Update visual metrics for a single node
    * @private
    */
-  _updateNodeMetrics(node, deltaTime, now) {
-    if (PHASE_C3_METRIC_WRITE_LOCK) {
-      return;
-    }
-    // INVARIANT: This system NEVER writes to node.userData.archetypeMetrics
-    // archetypeMetrics is immutable and belongs exclusively to SafeMetricsDNAIntegration
-    // Initialize userData if needed
+  _updateNodeVisuals(node, now) {
+    if (!node) return;
+
+    // Ensure userData container
     if (!node.userData) {
       node.userData = {};
     }
-    
-    // Initialize metrics object if needed
-    if (!node.userData.metrics) {
-      // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
-      node.userData.metrics = this._createBlankMetrics();
+
+    // Initialize visual metrics storage
+    if (!node.userData.visualMetrics) {
+      node.userData.visualMetrics = this._createBlankVisualMetrics();
     }
-    
-    const metrics = node.userData.metrics;
-    const nodeId = node.id || node.uuid;
-    
-    // Get or create cache entry
-    if (!this.nodeMetricsCache.has(nodeId)) {
-      this.nodeMetricsCache.set(nodeId, {
-        lastActiveTime: now,
-        previousMetrics: this._createBlankMetrics()
-      });
-    }
-    
-    const cache = this.nodeMetricsCache.get(nodeId);
-    const previousMetrics = cache.previousMetrics;
-    
-    // ========== 1. STRUCTURAL METRICS (computed fresh) ==========
+
+    const visual = node.userData.visualMetrics;
+    const base = node.userData.metrics || null; // READ-ONLY canonical metrics (0..1)
+
+    // Structural/link metrics
     const linkData = this._computeLinkMetrics(node);
-    metrics.linkCount = linkData.linkCount;
-    metrics.incomingLinks = linkData.incomingLinks;
-    metrics.outgoingLinks = linkData.outgoingLinks;
-    metrics.loadMax = node.userData.loadMax ?? this.config.defaultLoadMax;
-    metrics.loadRatio = Math.min(1, linkData.linkCount / metrics.loadMax);
-    
-    // ========== 2. ENERGY DYNAMICS ==========
-    const isIdle = (now - cache.lastActiveTime) / 1000 > this.config.energyIdleThreshold;
-    
-    let newEnergy = previousMetrics.energy ?? 50;
-    
-    // Apply link-based energy gain (with category multiplier)
-    const energyGainMultiplier = this._getMultiplier(node, 'energyGain');
-    newEnergy += this.config.energyGainPerLink * linkData.linkCount * energyGainMultiplier * deltaTime;
-    
-    // Apply decay if idle
-    if (isIdle) {
-      newEnergy -= this.config.energyDecayRate * newEnergy * deltaTime;
-    }
-    
-    // Clamp to valid range
-    newEnergy = Math.max(
-      this.config.energyMinimum,
-      Math.min(this.config.energyMaximum, newEnergy)
-    );
-    
-    // Apply EMA smoothing
-    metrics.energy = this._applyEMA(newEnergy, previousMetrics.energy ?? 50);
-    
-    // ========== 3. STABILITY (load-based) ==========
-    const stabilityMultiplier = this._getMultiplier(node, 'stability');
-    const loadToleranceMultiplier = this._getMultiplier(node, 'loadTolerance');
-    
-    const baseStability = this.config.baseStability * stabilityMultiplier;
-    const loadStress = (1 - metrics.loadRatio) * this.config.loadStressFactor;
-    const linkPenalty = linkData.linkCount * this.config.linkCountPenalty;
-    
-    let newStability = Math.max(0, baseStability + loadStress - linkPenalty);
-    newStability = Math.min(100, newStability);
-    
-    // Apply EMA smoothing
-    metrics.stability = this._applyEMA(newStability, previousMetrics.stability ?? 60);
-    
-    // ========== 4. REMOVED: INSTABILITY (use stability directly) ==========
-    // metrics.instability = 100 - metrics.stability;
-    
-    // ========== 5. HARMONY (combination of stability & inverse load) ==========
-    // REBALANCE v1: Harmony weights adjusted - (stability * 0.6) + ((1 - loadRatio) * 25)
-    // Category multiplier applied to final harmony value
-    const harmonyMultiplier = this._getMultiplier(node, 'harmony');
-    let newHarmony = (metrics.stability * 0.6) + ((1 - metrics.loadRatio) * 25);
-    newHarmony *= harmonyMultiplier;
-    newHarmony = Math.max(0, Math.min(100, newHarmony));
-    
-    metrics.harmony = this._applyEMA(newHarmony, previousMetrics.harmony ?? 50);
-    
-    // ========== 6. HARMONY_B (stability-influenced) ==========
-    // Legacy clarity metric - now folded into harmony calculation
-    let newHarmonyB = 50 + (metrics.stability * 0.5 - 30);
-    newHarmonyB *= harmonyMultiplier;
-    newHarmonyB = Math.max(0, Math.min(100, newHarmonyB));
-    
-    // Merge with existing harmony (weighted average)
-    if (previousMetrics.harmony) {
-      metrics.harmony = this._applyEMA((metrics.harmony + newHarmonyB) / 2, previousMetrics.harmony ?? 50);
-    } else {
-      metrics.harmony = this._applyEMA(newHarmonyB, 50);
-    }
-    
-    // ========== 7. CORRUPTION (special handling for sigma nodes + category multipliers) ==========
-    const corruptionMultiplier = this._getMultiplier(node, 'corruption');
-    let newCorruption = previousMetrics.corruption ?? 0;
-    
-    // Check if node is sigma-like (various patterns)
-    const isSigmaLike = this._isSigmaNode(node);
-    
-    if (isSigmaLike) {
-      // Sigma nodes continuously increase corruption (with category multiplier)
-      newCorruption += this.config.sigmaCorruptionGain * corruptionMultiplier * deltaTime;
-    } else {
-      // Regular nodes slowly decay corruption (with category multiplier)
-      // Apply fatigue decay modifier (if enabled, else returns 1.0)
-      const fatigueDecayMult = getFatigueCorruptionDecayMultiplier(node);
-      newCorruption -= this.config.corruptionDecayRate * newCorruption * corruptionMultiplier * fatigueDecayMult * deltaTime;
-    }
-    
-    // Clamp to 0-100 range
-    newCorruption = Math.max(0, Math.min(100, newCorruption));
-    
-    metrics.corruption = this._applyEMA(newCorruption, previousMetrics.corruption ?? 0);
-    
-    // ========== 8. TIME-BASED METRICS ==========
-    metrics.lastActiveSeconds = (now - cache.lastActiveTime) / 1000;
-    metrics.updatedAt = now;
-    
-    // ========== 9. NETWORK FATIGUE (v0 DEBUG - FLAGGED) ==========
-    // Apply fatigue accumulation/recovery based on stress/health
-    if (NETWORK_FATIGUE_CALL_ENABLED) {
-      updateNetworkFatigue(node, deltaTime, metrics);
-    }
-    
-    // ========== 10. CACHE PREVIOUS VALUES ==========
-    cache.previousMetrics = { ...metrics };
-    
-    // Update last active time if node has activity
-    if (linkData.linkCount > 0 || metrics.energy > 50) {
-      cache.lastActiveTime = now;
-    }
+    visual.linkCount = linkData.linkCount;
+    visual.incomingLinks = linkData.incomingLinks;
+    visual.outgoingLinks = linkData.outgoingLinks;
+
+    visual.loadMax = node.userData.loadMax ?? this.config.defaultLoadMax;
+
+    // Prefer canonical loadPressure (0..1); fallback to link-based ratio
+    const canonicalLoad = base?.loadPressure;
+    const structuralRatio =
+      (typeof linkData.linkCount === 'number' && isFinite(linkData.linkCount) && visual.loadMax > 0)
+        ? linkData.linkCount / visual.loadMax
+        : 0;
+
+    const loadRatio = (typeof canonicalLoad === 'number' && isFinite(canonicalLoad))
+      ? this._clamp01(canonicalLoad)
+      : Math.max(0, Math.min(1, structuralRatio));
+    visual.loadRatio = loadRatio;
+
+    // Canonical-to-visual transforms (0..1 → 0..100)
+    const stabilityNorm = this._clamp01(base?.stability ?? 0.5);
+    const harmonyNorm = this._clamp01(base?.harmony ?? 0.5);
+    const synergyNorm = this._clamp01(base?.synergy ?? 0.5);
+    const corruptionNorm = this._clamp01(base?.corruption ?? 0);
+    const loadPressureNorm = this._clamp01(base?.loadPressure ?? loadRatio);
+
+    visual.stability = this._clamp100(stabilityNorm * 100);
+    visual.harmony = this._clamp100(harmonyNorm * 100);
+    visual.synergy = this._clamp100(synergyNorm * 100);
+    visual.corruption = this._clamp100(corruptionNorm * 100);
+    visual.loadPressure = this._clamp100(loadPressureNorm * 100);
+
+    visual.updatedAt = now;
   }
-  
+
   /**
    * Compute link-based metrics for a node
    * @private
@@ -343,20 +107,19 @@ export class NodeDynamicMetrics {
     let linkCount = 0;
     let incomingLinks = 0;
     let outgoingLinks = 0;
-    
+
     if (!this.linkingSystem || !this.linkingSystem.links) {
       return { linkCount: 0, incomingLinks: 0, outgoingLinks: 0 };
     }
-    
+
     const nodeId = node.id || node.uuid;
-    
-    // Scan all links to find connections
+
     for (const link of this.linkingSystem.links) {
       if (!link || !link.from || !link.to) continue;
-      
+
       const fromId = link.from.id || link.from.uuid;
       const toId = link.to.id || link.to.uuid;
-      
+
       if (fromId === nodeId) {
         outgoingLinks++;
         linkCount++;
@@ -365,57 +128,33 @@ export class NodeDynamicMetrics {
         linkCount++;
       }
     }
-    
+
     return { linkCount, incomingLinks, outgoingLinks };
   }
-  
+
   /**
-   * Check if a node is sigma-like (various detection patterns)
+   * Clamp value to [0, 1]
    * @private
    */
-  _isSigmaNode(node) {
-    if (!node || !node.userData) {
-      return false;
-    }
-    
-    // Check direct flag
-    if (node.userData.isSigma) return true;
-    
-    // Check category
-    if (node.userData.category === 'sigma') return true;
-    
-    // Check archetype pattern
-    const archetype = node.userData.archetype ?? '';
-    if (archetype.includes('SIGMA') || archetype.includes('CHAOS')) {
-      return true;
-    }
-    
-    // Check name pattern (heuristic)
-    const name = node.userData.name ?? '';
-    if (name.toLowerCase().includes('sigma')) {
-      return true;
-    }
-    
-    return false;
+  _clamp01(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return 0;
+    return Math.max(0, Math.min(1, v));
   }
-  
+
   /**
-   * Apply Exponential Moving Average smoothing
-   * Prevents sudden flickers and creates smooth transitions
+   * Clamp value to [0, 100]
    * @private
    */
-  _applyEMA(newValue, previousValue) {
-    // Clamp alpha to valid range
-    const alpha = Math.max(0, Math.min(1, this.config.emasAlpha));
-    return alpha * newValue + (1 - alpha) * previousValue;
+  _clamp100(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return 0;
+    return Math.max(0, Math.min(100, v));
   }
-  
+
   /**
-   * Create a blank metrics object with sensible defaults
+   * Create a blank visual metrics object with sensible defaults
    * @private
    */
-  _createBlankMetrics() {
-    // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
+  _createBlankVisualMetrics() {
     return {
       // Structural
       linkCount: 0,
@@ -423,126 +162,129 @@ export class NodeDynamicMetrics {
       outgoingLinks: 0,
       loadMax: this.config.defaultLoadMax,
       loadRatio: 0,
-      
-      // Dynamic soft metrics (0-100 scale)
-      energy: 50,
-      stability: 60,
+
+      // Visual dynamic metrics (0–100 scale)
+      stability: 50,
       harmony: 50,
+      synergy: 50,
       corruption: 0,
-      
+      loadPressure: 0,
+
       // Time-based
-      lastActiveSeconds: 0,
       updatedAt: Date.now()
     };
   }
-  
+
   /**
-   * Utility: Get metrics for a specific node
-   * Safe to call anytime, returns null if node not found
+   * Utility: Get visual metrics for a specific node
    * @public
    */
   getNodeMetrics(node) {
     if (!node || !node.userData) {
       return null;
     }
-    return node.userData.metrics ?? null;
+    return node.userData.visualMetrics ?? null;
   }
-  
+
   /**
-   * Utility: Reset metrics for a specific node
-   * Useful when nodes are recycled or reset in game
+   * Utility: Reset visual metrics for a specific node
    * @public
    */
-  /**
-   * @deprecated Phase C.5
-   * This function forcibly rewrites derived metrics.
-   * It is NOT compatible with the event-driven metric system.
-   * Do NOT use in runtime code.
-   */
   resetNodeMetrics(node) {
-    console.warn('[NodeDynamicMetrics] resetNodeMetrics is deprecated (Phase C.5). Avoid runtime calls.');
-    if (PHASE_C3_METRIC_WRITE_LOCK) {
-      return;
-    }
+    console.warn('[VisualDerivedMetrics] resetNodeMetrics is deprecated for gameplay; visual-only reset.');
     if (!node || !node.userData) {
       return;
     }
-    // Derived value – not canonical. Do not use for archetype identity or gameplay authority.
-    node.userData.metrics = this._createBlankMetrics();
-    const nodeId = node.id || node.uuid;
-    if (this.nodeMetricsCache.has(nodeId)) {
-      this.nodeMetricsCache.delete(nodeId);
-    }
+    node.userData.visualMetrics = this._createBlankVisualMetrics();
   }
-  
+
   /**
-   * Utility: Get all nodes sorted by a specific metric
-   * Useful for debugging or UI displays
+   * Utility: Get all nodes sorted by a specific visual metric
    * @public
    */
   getNodesSortedByMetric(metricKey, descending = true) {
     if (!this.aiNodes || !this.aiNodes.nodes) {
       return [];
     }
-    
-    const sorted = [...this.aiNodes.nodes].filter(node => {
-      const metrics = this.getNodeMetrics(node);
-      return metrics && metricKey in metrics;
-    }).sort((a, b) => {
-      const metricsA = this.getNodeMetrics(a);
-      const metricsB = this.getNodeMetrics(b);
-      const valA = metricsA?.[metricKey] ?? 0;
-      const valB = metricsB?.[metricKey] ?? 0;
-      return descending ? valB - valA : valA - valB;
-    });
-    
-    return sorted;
+
+    return [...this.aiNodes.nodes]
+      .filter(node => {
+        const metrics = this.getNodeMetrics(node);
+        return metrics && metricKey in metrics;
+      })
+      .sort((a, b) => {
+        const metricsA = this.getNodeMetrics(a);
+        const metricsB = this.getNodeMetrics(b);
+        const valA = metricsA?.[metricKey] ?? 0;
+        const valB = metricsB?.[metricKey] ?? 0;
+        return descending ? valB - valA : valA - valB;
+      });
   }
-  
+
   /**
-   * Utility: Dump all node metrics for debugging
+   * Utility: Dump all visual metrics for debugging
    * @public
    */
   debugDumpAllMetrics() {
     if (!this.aiNodes || !this.aiNodes.nodes) {
-      console.warn('[NodeDynamicMetrics] No nodes available');
+      console.warn('[VisualDerivedMetrics] No nodes available');
       return;
     }
-    
-    console.group('[NodeDynamicMetrics] All Node Metrics');
-    
+
+    console.group('[VisualDerivedMetrics] All Node Visual Metrics');
+
     for (const node of this.aiNodes.nodes) {
       const metrics = this.getNodeMetrics(node);
       if (metrics) {
         const nodeName = node.userData?.name ?? `Node${node.id}`;
         console.log(`${nodeName}:`, {
-          energy: metrics.energy.toFixed(2),
           stability: metrics.stability.toFixed(2),
           harmony: metrics.harmony.toFixed(2),
+          synergy: metrics.synergy?.toFixed(2),
           corruption: metrics.corruption.toFixed(2),
           linkCount: metrics.linkCount,
-          loadRatio: metrics.loadRatio.toFixed(2)
+          loadRatio: metrics.loadRatio.toFixed(2),
+          loadPressure: metrics.loadPressure?.toFixed(2)
         });
       }
     }
-    
+
     console.groupEnd();
   }
-  
+
   /**
-   * Dispose: Clean up internal caches if needed
-   * Safe to call but typically not necessary (no external resources)
+   * Dispose: currently stateless; kept for API symmetry
    * @public
    */
   dispose() {
-    this.nodeMetricsCache.clear();
+    // No caches to clear in pass-through mode
   }
 }
 
 /**
  * Factory function for convenient initialization
- * Usage: const nodeDynamics = getNodeDynamicMetrics(aiNodes, linkingSystem);
+ * Usage: const visuals = getVisualDerivedMetrics(aiNodes, linkingSystem);
  */
-export function getNodeDynamicMetrics(aiNodes, linkingSystem, config = {}) {
-  return new NodeDynamicMetrics(aiNodes, linkingSystem, config);
+export function getVisualDerivedMetrics(aiNodes, linkingSystem, config = {}) {
+  return new VisualDerivedMetrics(aiNodes, linkingSystem, config);
 }
+
+// ---------------------------------------------------------------------------
+// Deprecated aliases for backward compatibility
+// ---------------------------------------------------------------------------
+export const NodeDynamicMetrics = VisualDerivedMetrics;
+export function getNodeDynamicMetrics(aiNodes, linkingSystem, config = {}) {
+  return new VisualDerivedMetrics(aiNodes, linkingSystem, config);
+}
+
+/*
+Integration:
+
+const visualDynamics = new VisualDerivedMetrics(aiNodes, linkingSystem);
+
+In render loop:
+visualDynamics.update(deltaTime);
+
+Visual systems read:
+node.userData.visualMetrics
+*/

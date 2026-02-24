@@ -3179,11 +3179,6 @@ this.frameScheduler.register(
   'coreMetricsOverlay.realtime'
 );
 
-this.frameScheduler.register(
-  'realtime',
-  (dt) => this.runNodeInspectOverlayTick(dt),
-  'nodeInspectOverlay.realtime'
-);
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
@@ -4432,7 +4427,9 @@ window.__ATOMA_SCENE__ = this.scene;
         this.nodeInspectOverlay = new NodeInspectOverlay1_0(
             this.scene,
             this.camera,
-            this.renderer
+            this.renderer,
+            null,
+            this
         );
 
         // Initialize Node Micro-Events 1.0 (after scene/camera ready)
@@ -6974,7 +6971,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.scene,
                 this.camera,
                 this.renderer,
-                this.linguisticOverlay // Pass linguistic overlay for integration
+                this.linguisticOverlay, // Pass linguistic overlay for integration
+                this
             );
         }
 
@@ -6997,6 +6995,11 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
     useNetworkMetricsAggregator: true
   }
 });
+
+this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
+  this.nodeInspectOverlay?.onSimulationTick?.(snapshot);
+  this.nodeInspectPanel?.onSimulationTick?.(snapshot);
+};
 
   console.log('[main.js] MetricsRuntime_v1 initialized ✓');
   // 🔗 Inject canonical link system into NetworkMetricsAggregator
@@ -7901,8 +7904,15 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
         const deltaTime = Math.min(this.clock.getDelta(), 0.1); // Clamp to max 100ms to prevent tab-inactive spikes
         const deltaTimeMs = deltaTime * 1000;
         this.time += deltaTime;
+        if (typeof performance !== 'undefined' && (this.time < 5)) {
+            console.log("DT:", deltaTime);
+        }
         if (this.spherePolicy?.sweepAllRoots) {
             this.spherePolicy.sweepAllRoots(false, { phase: 'animate' });
+        }
+
+        if (this.metricsRuntime_v1) {
+            this.metricsRuntime_v1.update(deltaTime);
         }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
@@ -9304,7 +9314,7 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
      * Persistent panel showing node details
      */
     setupNodeInspectPanel() {
-        this.nodeInspectPanel = new UINodeInspectPanel(this.languageEngine, this.poetryEngine);
+        this.nodeInspectPanel = new UINodeInspectPanel(this.languageEngine, this.poetryEngine, this);
 
         console.log('✓ Node Inspect Panel initialized (persistent display)');
     }

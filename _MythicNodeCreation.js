@@ -798,14 +798,17 @@ export class MythicNodeCreation {
       mood: 'TRANSCENDENT',
       intensity: 1.0,
     };
-    nodeModel.userData.metrics = {
-      SynergyOutput: 100,
-      stability: 95,
-      harmony: 100,
-      harmonyAffinity: 95,
-      stabilityFactor: 5,
-      archetype: 'ASCENDED',
-    };
+    // Metrics are assigned by canonical spawn pipeline; avoid legacy overwrite.
+    if (nodeModel && window.__ALLOW_LEGACY_MYTHIC_METRICS__ === true) {
+      nodeModel.userData.metrics = {
+        SynergyOutput: 100,
+        stability: 95,
+        harmony: 100,
+        harmonyAffinity: 95,
+        stabilityFactor: 5,
+        archetype: 'ASCENDED',
+      };
+    }
 
     // Root scale is owned by canonical spawn baseline authority.
     // Keep ritual progression metadata-only to avoid post-spawn root conflicts.

@@ -3747,13 +3747,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       newNode.userData.isNodeRoot = true;
     }
 
-    // Canonical metrics: ensure present on spawn
-    // Phase C.4: legacy metric compatibility applied once at spawn/load
+    // Canonical metrics: deterministic single-writer path
+    // 1) DNA snapshot (authoritative, full overwrite)
+    SafeMetricsDNAIntegration1_0.attachMetrics(newNode, newNode.userData.archetype);
+    // 2) Legacy compatibility (fill-only)
     applyMetricCompatibility([newNode]);
-    initNodeMetrics(newNode);
-
-    // PHASE B: Call onNodeSpawn hook after metrics initialization
-    onNodeSpawn(newNode);
+    // 3) Allocate defaults only if still missing
+    if (!newNode.userData.metrics) {
+      initNodeMetrics(newNode);
+    }
+    // 4) Spawn nudge only for non-DNA cases
+    if (!newNode.userData?.metrics?._isMetricSnapshot) {
+      onNodeSpawn(newNode);
+    }
 
     // ========== STEP 4.5: EXTREME SPAWN SYSTEM v1.0 - RUNTIME SPAWNING ==========
     // 15% chance to spawn as EXTREME node during runtime

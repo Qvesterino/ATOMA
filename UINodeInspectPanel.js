@@ -18,9 +18,10 @@
  */
 
 export class UINodeInspectPanel {
-  constructor(languageEngine = null, poetryEngine = null) {
+  constructor(languageEngine = null, poetryEngine = null, game = null) {
     this.languageEngine = languageEngine;
     this.poetryEngine = poetryEngine;
+    this.game = game;
     
     this.element = null;
     this.currentNode = null;
@@ -122,7 +123,7 @@ export class UINodeInspectPanel {
 
     const node = this.currentNode;
     const userData = node.userData;
-    const metrics = userData.metrics || {};
+    const metrics = this._getSnapshotMetrics(node) || {};
     
     // Get archetype info
     const code = userData.namingCode || userData.category || 'UNKNOWN';
@@ -193,6 +194,22 @@ export class UINodeInspectPanel {
     `;
     
     this.element.innerHTML = html;
+  }
+
+  _getSnapshotMetrics(node) {
+    const snapshot = this.game?.metricsRuntime_v1?.lastSimulationSnapshot;
+    if (!snapshot?.nodes) return null;
+    const id = node?.userData?.nodeId || node?.userData?.id || node?.id;
+    if (!id) return null;
+    const entry = snapshot.nodes.find(n => n.id === id);
+    return entry?.metrics || null;
+  }
+
+  onSimulationTick(snapshot) {
+    this.lastSnapshot = snapshot;
+    if (this.isVisible) {
+      this._updateContent();
+    }
   }
   
   /**
