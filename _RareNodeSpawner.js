@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
-import { spawnAuthority } from './SpawnAuthority.js';
 
 /**
  * RARE NODE SPAWNER (SAFE)

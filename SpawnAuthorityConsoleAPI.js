@@ -1,17 +1,16 @@
 /**
  * SPAWN AUTHORITY CONSOLE API
- * 
+ *
  * Provides console-accessible commands for:
  * - Auditing spawn compliance
  * - Verifying node integrity
  * - Testing fallback behavior
  * - Monitoring spawn metrics
- * 
+ *
  * Usage: window.SpawnAuthority.audit(), etc.
  */
 
 import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js';
-import { spawnAuthority } from './SpawnAuthority.js';
 
 export class SpawnAuthorityConsoleAPI {
   constructor(aiNodes) {

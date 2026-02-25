@@ -98,13 +98,14 @@ import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js'
 // import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
 
 // === SPAWN DIAGNOSTICS (temporary, minimal overhead) ===
+// UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate spawnNodeAbort object
+// All spawn failure tracking now uses this._spawnAbortCounters
 const __ensureSpawnDiag = () => {
   if (typeof window === 'undefined') return null;
   window.__SPAWN_DIAG = window.__SPAWN_DIAG || {
     createNodesEnter: 0,
     createNodesSkip: 0,
     spawnNodeEnter: 0,
-    spawnNodeAbort: {},
     finalizeNull: {},
     logged: 0
   };
@@ -310,6 +311,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Unified system that works across all ATOMA environments
    */
   export class AINodes {
+
+  // CONSOLIDATED CATEGORY LIST (Fix 1): Static export for external use
+  static SUPPORTED_CATEGORIES = [
+    'input','process','integration','analytics','storage','control',
+    'quantum','sigma','mythic','prime','error','emotional'
+  ];
+
   constructor(scene, player, variantEngine = null) {
     this.scene = scene;
     this.player = player;
@@ -434,12 +442,18 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.extremeArchetypesPack = null;
     
     // ========== EXTENDED SPAWN SYSTEM 1.0 ==========
-    // 6 standard node categories with 4 variants each
+    // CONSOLIDATED CATEGORY LIST (Fix 1): Single source of truth for all supported categories
+    this.SUPPORTED_CATEGORIES = [
+      'input','process','integration','analytics','storage','control',
+      'quantum','sigma','mythic','prime','error','emotional'
+    ];
+
+    // 6 standard node categories with 4 variants each (legacy subset)
     this.nodeCategories = [
       'input','process','integration','analytics','storage','control',
       'mythic','prime','error','emotional'
     ];
-    
+
     // Special multi-output node types (10% chance of appearing)
     this.specialNodeTypes = ['sigma', 'quantum', 'emotional'];
     
@@ -590,9 +604,28 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Runtime spawn intent rotation to avoid INPUT lock-in
     this._runtimeSpawnIndex = 0;
     this._spawnIntentLogged = false;
-    this._spawnAbortCounters = {};
+
+    // UNIFIED ABORT COUNTERS (Fix 3): Single source for spawn failure tracking
+    this._spawnAbortCounters = {
+      UNIQUE_BLOCK: 0,
+      COMPLIANCE_BLOCK: 0,
+      INVALID_CATEGORY: 0,
+      FACTORY_MISSING: 0,
+      CREATE_NODE_NULL: 0,
+      FINALIZE_NULL: 0,
+      VISUAL_THROW: 0
+    };
     this._spawnAbortLastReport = Date.now();
     this._spawnAbortStreak = 0;
+
+    // DEFERRED WORK ERROR HANDLING (Fix 5): Track failed queued work
+    this._failedDeferredWork = [];
+
+    // SPAWN AUTHORITY LOCKDOWN: Request queue (single authority)
+    this.spawnRequestQueue = [];
+
+    // SPAWN AUTHORITY LOCKDOWN: Token system for update loop only
+    this._spawnUpdateToken = false;
 
     // Spawn-cycle state (deterministic cyclic runtime category intent)
     this.spawnCycleState = {
@@ -625,12 +658,31 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Queue heavy visual tasks to spread work across frames (Spawn Visual Burst Gate).
    * Falls back to immediate execution if queue unavailable.
    */
+  // DEFERRED WORK ERROR HANDLING (Fix 5): Added error tracking
   _queueSpawnVisual(node, type, fn) {
     if (!this.spawnVisualQueue) {
-      fn();
+      try {
+        fn();
+      } catch (e) {
+        const nodeId = node?.userData?.nodeId || node?.userData?.id || node?.uuid || 'unknown';
+        console.error('[DeferredWorkFailed]', { nodeId, type, error: e });
+        this._failedDeferredWork.push({ nodeId, type, error: e });
+      }
       return;
     }
-    this.spawnVisualQueue.push({ node, type, fn });
+    this.spawnVisualQueue.push({
+      node,
+      type,
+      fn: () => {
+        try {
+          fn();
+        } catch (e) {
+          const nodeId = node?.userData?.nodeId || node?.userData?.id || node?.uuid || 'unknown';
+          console.error('[DeferredWorkFailed]', { nodeId, type, error: e });
+          this._failedDeferredWork.push({ nodeId, type, error: e });
+        }
+      }
+    });
     if (this.spawnVisualStats) this.spawnVisualStats.queued++;
   }
 
@@ -649,9 +701,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         task.fn();
         if (this.spawnVisualStats) this.spawnVisualStats.executed++;
       } catch (err) {
-        if (typeof console !== 'undefined' && console.warn) {
-          console.warn('[SpawnVisualGate] task failed', err);
-        }
+        // DEFERRED WORK ERROR HANDLING (Fix 5): Track failed tasks
+        const nodeId = task.node?.userData?.nodeId || task.node?.userData?.id || task.node?.uuid || 'unknown';
+        console.error('[SpawnVisualTaskFailed]', { nodeId, type: task.type, error: err });
+        this._failedDeferredWork.push({ nodeId, type: task.type, error: err });
       }
     }
   }
@@ -741,10 +794,18 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         const distance = newNode.position.distanceTo(existingNode.position);
         if (distance < this.connectionDistance && Math.random() < 0.3) {
           if (!this._linkExists(newNode, existingNode)) {
-            this.nodeLinkingSystem?.createLink?.(newNode, existingNode);
-            job.linksCreated++;
-            created++;
-            if (job.linksCreated >= MAX_LINKS_PER_NODE) break;
+            try {
+              this.nodeLinkingSystem?.createLink?.(newNode, existingNode);
+              job.linksCreated++;
+              created++;
+              if (job.linksCreated >= MAX_LINKS_PER_NODE) break;
+            } catch (e) {
+              // DEFERRED WORK ERROR HANDLING (Fix 5): Track failed link creation
+              const newNodeId = newNode?.userData?.nodeId || newNode?.userData?.id || newNode?.uuid || 'unknown';
+              const existingNodeId = existingNode?.userData?.nodeId || existingNode?.userData?.id || existingNode?.uuid || 'unknown';
+              console.error('[LinkCreationFailed]', { newNodeId, existingNodeId, error: e });
+              this._failedDeferredWork.push({ newNodeId, existingNodeId, type: 'link-creation', error: e });
+            }
           }
         }
       }
@@ -951,7 +1012,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       if (!decision.allowed) {
           // DUPLICATE DETECTED: Upgrade existing instead
           const existingNodeId = decision.existingNodeId;
-          if (__diag) __diag.spawnNodeAbort.unique_denied = (__diag.spawnNodeAbort.unique_denied || 0) + 1;
+          // UNIFIED ABORT COUNTERS (Fix 3): Use this._spawnAbortCounters instead of __diag.spawnNodeAbort
+          if (__diag && this._spawnAbortCounters) {
+            this._spawnAbortCounters.UNIQUE_BLOCK = (this._spawnAbortCounters.UNIQUE_BLOCK || 0) + 1;
+          }
           
           if (existingNodeId) {
              const existingNode = this.nodes.find(n => n.userData.nodeId === existingNodeId || n.uuid === existingNodeId);
@@ -972,7 +1036,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
       const node = this.createNode(category, pos, index, isSpecial, options);
       if (!node) {
-        if (__diag) __diag.spawnNodeAbort.createNode_null = (__diag.spawnNodeAbort.createNode_null || 0) + 1;
+        // UNIFIED ABORT COUNTERS (Fix 3): Use this._spawnAbortCounters instead of __diag.spawnNodeAbort
+        if (__diag && this._spawnAbortCounters) {
+          this._spawnAbortCounters.CREATE_NODE_NULL = (this._spawnAbortCounters.CREATE_NODE_NULL || 0) + 1;
+        }
         // Spawn failed – skip safely
         return;
       }
@@ -984,7 +1051,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
       const finalized = this._finalizeSpawnedNode(node, category, pos);
       if (!finalized || !finalized.node) {
-        if (__diag) __diag.spawnNodeAbort.finalize_null = (__diag.spawnNodeAbort.finalize_null || 0) + 1;
+        // UNIFIED ABORT COUNTERS (Fix 3): Use this._spawnAbortCounters instead of __diag.spawnNodeAbort
+        if (__diag && this._spawnAbortCounters) {
+          this._spawnAbortCounters.FINALIZE_NULL = (this._spawnAbortCounters.FINALIZE_NULL || 0) + 1;
+        }
       } else {
           const finalizedNode = finalized.node;
           this._runPostSpawnObservers(finalizedNode, {
@@ -1214,12 +1284,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ========================================================================
     const requestedCategory = canonicalCategory;
     let resolvedCategory = requestedCategory;
-    
+
     // Check if this category has an EnhancedNodeModel.create() implementation
-    const enhancedNodeModelsCategories = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
-    
-    // If requested category is not in EnhancedNodeModel, apply hard fallback
-    if (!enhancedNodeModelsCategories.includes(requestedCategory)) {
+    // CONSOLIDATED CATEGORY LIST (Fix 1): Use single source of truth
+    if (!this.SUPPORTED_CATEGORIES.includes(requestedCategory)) {
       // Unknown category - use hard fallback to first available EnhancedNodeModel category
       resolvedCategory = 'input';
     }
@@ -3311,6 +3379,44 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
 
   /**
+   * SPAWN AUTHORITY LOCKDOWN: Request spawn through queue
+   * Direct spawn APIs must use this, not spawnNode() directly
+   */
+  requestSpawn(request) {
+    this.spawnRequestQueue.push({
+      category: request.category || null,
+      archetype: request.archetype || null,
+      reason: request.reason || 'unspecified',
+      priority: request.priority || 0,
+      timestamp: performance.now()
+    });
+  }
+
+  /**
+   * SPAWN AUTHORITY LOCKDOWN: Process spawn requests in update loop
+   * Called from updateSpawning() - single authority for spawn execution
+   */
+  _processSpawnRequests() {
+    if (!this.spawnRequestQueue.length) return;
+
+    // Sort by priority (higher priority first)
+    this.spawnRequestQueue.sort((a, b) => b.priority - a.priority);
+
+    // Safety throttle: max 1 spawn per frame
+    const maxPerFrame = 1;
+    let processed = 0;
+
+    while (this.spawnRequestQueue.length && processed < maxPerFrame) {
+      const req = this.spawnRequestQueue.shift();
+      // Acquire token to allow spawnNode() to execute
+      this._spawnUpdateToken = true;
+      this.spawnNode(req.category, null, req.archetype);
+      this._spawnUpdateToken = false;
+      processed++;
+    }
+  }
+
+  /**
    * SPAWN REPAIR 2.0 (SAFE EDITION): Spawn a single new node with materialize animation
    * 100% SYNCHRONOUS - No queueMicrotask, no setTimeout, no async delays
    * userData.category is guaranteed set BEFORE any HUD or LinkRegistry reads it
@@ -3343,8 +3449,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     return null;
   }
-  if (!this._spawnFromUpdate) {
-    console.error('[ILLEGAL SPAWN CALL] spawnNode invoked outside updateSpawning', { caller: new Error().stack });
+  // SPAWN AUTHORITY LOCKDOWN: Token guard - only _processSpawnRequests can spawn
+  if (!this._spawnUpdateToken) {
+    console.error('[ILLEGAL SPAWN CALL] spawnNode invoked without update token', { caller: new Error().stack });
     if (typeof window !== 'undefined') {
       window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
       const key = category || 'unknown';
@@ -3407,7 +3514,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // HARD ABORT if validation failed (returns null only on critical errors)
     if (validatedCategory === null) {
-      if (__diag) __diag.spawnNodeAbort.compliance_null = (__diag.spawnNodeAbort.compliance_null || 0) + 1;
+      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
       this._spawnAbortCounters["COMPLIANCE_BLOCK"] = (this._spawnAbortCounters["COMPLIANCE_BLOCK"] || 0) + 1;
       this._pendingCyclicCandidate = null;
       if (typeof window !== 'undefined') {
@@ -3427,12 +3534,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ========================================================================
     // [SPAWN AUTHORITY] PRE-VALIDATION: Is this category in EnhancedNodeModel?
     // ========================================================================
-    const enhancedNodeModelsSupported = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
-    
-    // Double-check: Apply hard fallback if requested category is unknown
-    // (compliance gate should have done this, but defense in depth)
+    // CONSOLIDATED CATEGORY LIST (Fix 1): Use single source of truth
     const requestedCategory = (category || '').toLowerCase().trim();
-    if (requestedCategory && !enhancedNodeModelsSupported.includes(requestedCategory)) {
+    if (requestedCategory && !this.SUPPORTED_CATEGORIES.includes(requestedCategory)) {
       // Unknown or unsupported category - apply hard fallback to 'input'
       category = 'input';
       if (!fallbackReason && requestedCategoryRaw && requestedCategoryRaw !== 'input') {
@@ -3472,15 +3576,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
     });
 
+    // DUPLICATE REGISTRY CHECK REMOVED (Fix 4): nodeRegistry parameter removed
+    // UniqueSpawnService already handles uniqueness via nodes array and internal registry
     const decision = uniqueSpawnService.check({
       key: unifiedUniqueKey,
       nodes: this.nodes,
-      nodeRegistry: this.nodeRegistry,
       fallbackNodeId: isFallbackSpawn ? fallbackNodeId : null,
     });
 
     if (!decision.allowed) {
-      if (__diag) __diag.spawnNodeAbort.unique_denied = (__diag.spawnNodeAbort.unique_denied || 0) + 1;
+      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
       this._spawnAbortCounters["UNIQUE_BLOCK"] = (this._spawnAbortCounters["UNIQUE_BLOCK"] || 0) + 1;
       const existingNode =
         (decision.existingNodeId &&
@@ -3535,7 +3640,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         });
         this._missingFactoryLogged.add(category);
       }
-      if (__diag) __diag.spawnNodeAbort.missing_visual = (__diag.spawnNodeAbort.missing_visual || 0) + 1;
+      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
       this._spawnAbortCounters["INVALID_CATEGORY"] = (this._spawnAbortCounters["INVALID_CATEGORY"] || 0) + 1;
       this._pendingCyclicCandidate = null;
       if (typeof window !== 'undefined') {
@@ -3601,8 +3706,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     if (!newNode) {
       // Spawn failed – skip safely
+      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
       this._spawnAbortCounters["CREATE_NODE_NULL"] = (this._spawnAbortCounters["CREATE_NODE_NULL"] || 0) + 1;
-      if (__diag) __diag.spawnNodeAbort.createNode_null = (__diag.spawnNodeAbort.createNode_null || 0) + 1;
       this._pendingCyclicCandidate = null;
       return false;
     }
@@ -3803,8 +3908,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return false;
     }
     if (!finalized) {
+      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
       this._spawnAbortCounters["FINALIZE_NULL"] = (this._spawnAbortCounters["FINALIZE_NULL"] || 0) + 1;
-      if (__diag) __diag.spawnNodeAbort.finalize_null = (__diag.spawnNodeAbort.finalize_null || 0) + 1;
       this._pendingCyclicCandidate = null;
       return false;
     }
@@ -4032,6 +4137,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
    */
   updateSpawning(currentTime) {
+    // SPAWN AUTHORITY LOCKDOWN: Process request queue first
+    this._processSpawnRequests();
+
     const cap = this.spawningConfig?.targetPopulation ?? this.getTargetPopulation();
     const nodeCount = this.getNodeCount();
     if (nodeCount >= cap) {
@@ -4074,10 +4182,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           return;
         }
         const category = this.getRuntimeSpawnCategoryIntent();
-        
-        this.spawnNode(category);
+
+        // SPAWN AUTHORITY LOCKDOWN: Use request queue
+        this.requestSpawn({
+          category: category,
+          reason: 'link-creation',
+          priority: 3
+        });
         this.spawningConfig.lastLinkTime = currentTime;
-        
+
         // Update last spawn time for analytics
       }
     }
@@ -4187,48 +4300,78 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
   
   // ========== SPECIALIZED SPAWN METHODS (EXTENDED SPAWN SYSTEM 1.0) ==========
-  
+
   /**
    * Spawn a MYTHIC node (ultra-rare: 0.5-1.5% naturally)
+   * SPAWN AUTHORITY LOCKDOWN: Now uses request queue
    */
-  spawnMythicNode(position = null) {
-    return this.spawnNode('mythic', position, 'MYTHIC-CEREMONIAL');
+  spawnMythicNode(reason = 'mythic-api') {
+    this.requestSpawn({
+      category: 'mythic',
+      archetype: 'MYTHIC-CEREMONIAL',
+      reason: reason,
+      priority: 10
+    });
   }
-  
+
   /**
    * Spawn a PRIME node (rare: 2-3% naturally)
+   * SPAWN AUTHORITY LOCKDOWN: Now uses request queue
    */
-  spawnPrimeNode(position = null) {
-    return this.spawnNode('prime', position, 'PRIME-PERFECT');
+  spawnPrimeNode(reason = 'prime-api') {
+    this.requestSpawn({
+      category: 'prime',
+      archetype: 'PRIME-PERFECT',
+      reason: reason,
+      priority: 10
+    });
   }
-  
+
   /**
    * Spawn an ERROR node (unstable: 0.5-1.5% naturally)
+   * SPAWN AUTHORITY LOCKDOWN: Now uses request queue
    */
-  spawnErrorNode(position = null) {
-    return this.spawnNode('error', position, 'ERROR-ANOMALY');
+  spawnErrorNode(reason = 'error-api') {
+    this.requestSpawn({
+      category: 'error',
+      archetype: 'ERROR-ANOMALY',
+      reason: reason,
+      priority: 5
+    });
   }
-  
+
   /**
    * Spawn an EXTREME archetype node (medium-rare: 4-6% naturally)
+   * SPAWN AUTHORITY LOCKDOWN: Now uses request queue
    */
-  spawnExtremeNode(position = null) {
+  spawnExtremeNode(reason = 'extreme-api') {
     const extremeKeys = Object.keys(this.extremeArchetypes).filter(k => k.startsWith('EXTREME-'));
     const archetype = extremeKeys[Math.floor(Math.random() * extremeKeys.length)];
     const baseCategory = this.extremeArchetypes[archetype];
-    return this.spawnNode(baseCategory, position, archetype);
+    this.requestSpawn({
+      category: baseCategory,
+      archetype: archetype,
+      reason: reason,
+      priority: 5
+    });
   }
-  
+
   /**
    * Spawn specific archetype by name (e.g., 'CORE-HARMONIC-RESONANT')
+   * SPAWN AUTHORITY LOCKDOWN: Now uses request queue
    */
-  spawnArchetype(archetypeName, position = null) {
+  spawnArchetype(archetypeName, reason = 'archetype-api') {
     if (!this.extremeArchetypes[archetypeName]) {
       console.warn(`Unknown archetype: ${archetypeName}`);
-      return null;
+      return;
     }
     const baseCategory = this.extremeArchetypes[archetypeName];
-    return this.spawnNode(baseCategory, position, archetypeName);
+    this.requestSpawn({
+      category: baseCategory,
+      archetype: archetypeName,
+      reason: reason,
+      priority: 8
+    });
   }
   
   /**

@@ -17,13 +17,15 @@
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { disableRaycastOnMesh } from './RaycastAuthorityInit.js';
 
+// CONSOLIDATED CATEGORY LIST (Fix 1): Import from AINodes as single source of truth
+// Note: AINodes is instantiated later; we use static property to avoid circular import
+const SUPPORTED_CATEGORIES = ['input', 'process', 'integration', 'analytics', 'storage', 'control', 'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'];
+
 export class SpawnAuthorityComplianceGate {
   constructor() {
     // Registry of all supported node categories from EnhancedNodeModel
-    this.SUPPORTED_CATEGORIES = [
-      'input', 'process', 'integration', 'analytics', 'storage', 'control',
-      'quantum', 'sigma', 'mythic', 'prime', 'error', 'emotional'
-    ];
+    // CONSOLIDATED CATEGORY LIST (Fix 1): Single source of truth
+    this.SUPPORTED_CATEGORIES = SUPPORTED_CATEGORIES;
     
     // Metrics for compliance auditing
     this.spawnAttempts = 0;

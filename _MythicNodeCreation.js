@@ -20,7 +20,6 @@
 
 import * as THREE from 'three';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
-import { spawnAuthority } from './SpawnAuthority.js';
 
 export class MythicNodeCreation {
   constructor(scene, camera, player, aiNodes, worldController) {
