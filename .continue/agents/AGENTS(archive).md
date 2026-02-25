@@ -1,4 +1,4 @@
-# Autonomous ATOMA Engineer (Codex)
+# Autonomous ATOMA Engineer 
 
 ## Purpose
 

@@ -339,6 +339,13 @@ export class NodeLinkingSystem {
       ghostLinks: [],
       lastCleanTime: Date.now()
     };
+
+    // Link curve/bead audit (throttled)
+    this._linkCurveAuditLastLog = 0;
+    this._linkCurveAuditLastLog = 0;
+    this._linkCurveAuditPrev = {
+      total: 0, missingGroup: 0, missingCurve: 0, missingBeads: 0, missingSparks: 0
+    };
     
     this.links = [];
     this.ghostLinks = [];  // Predicted connections
@@ -4439,6 +4446,28 @@ getLinksForNode(node) {
       return;
     }
 
+    // [LinkAudit] Aggregate link/curve/bead/spark state (throttled 1s) when enabled
+    if (typeof window !== 'undefined' && window.__DEBUG_LINK_CURVE_AUDIT__ === true) {
+      const now = Date.now();
+      if (now - (this._linkCurveAuditLastLog || 0) >= 1000) {
+        let total = 0, missingGroup = 0, missingCurve = 0, missingBeads = 0, missingSparks = 0;
+        const links = this.links || [];
+        for (const link of links) {
+          total++;
+          const group = link?.group;
+          if (!group) missingGroup++;
+          if (!link?.curve) missingCurve++;
+          const conduitState = group?.userData?.conduitState;
+          const beadsState = conduitState?.beads;
+          const sparksState = conduitState?.sparks;
+          if (!beadsState) missingBeads++;
+          if (!sparksState) missingSparks++;
+        }
+        console.log(`[LinkAudit] total=${total} missingGroup=${missingGroup} missingCurve=${missingCurve} missingBeads=${missingBeads} missingSparks=${missingSparks}`);
+        this._linkCurveAuditLastLog = now;
+      }
+    }
+
     // Phase B.4 – event-gated (no visual change)
     if (this.camera) {
       const posDist = this.camera.position.distanceToSquared(this._lastDirtyCameraPos);
@@ -6789,20 +6818,18 @@ getLinksForNode(node) {
         if (link?.group?.parent) {
           link.group.parent.remove(link.group);
         }
+        link.group = null;
+        link.curve = null;
       }
-      this.links.length = 0;
     }
 
-    // Clear indices and caches
-    this.linksByNode?.clear?.();
-    this.nodeIdToLinks?.clear?.();
-    this._linkCategoryCache?.clear?.();
-    this.pendingLinkVisualsQueue.length = 0;
-    this.ghostLinks = [];
+    // Preserve link objects; rebuild visuals on next update
+    this.pendingLinkVisualsQueue = Array.isArray(this.links) ? [...this.links] : [];
+    this.ghostLinks = this.ghostLinks || [];
     this.activeLink = null;
     this.linksDirty = true;
     this.nodesDirty = true;
-    this._syncState.linkCount = 0;
+    this._syncState.linkCount = this.links?.length || 0;
     this._syncState.mismatchDetected = false;
 
     // Dispose existing link root if present

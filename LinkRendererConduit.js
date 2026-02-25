@@ -181,6 +181,10 @@ export class LinkRendererConduit {
             colorBias: 0.0
         };
         this._lastVfxDebugTime = 0;
+
+        // Impact material pool (colorHex -> stack of materials)
+        this._impactMaterialPool = new Map();
+        this._impactPoolMaxSize = 20;
     }
 
     /**
@@ -538,30 +542,18 @@ export class LinkRendererConduit {
         }
 
         // 4. Initialize Subsystems (Defensive)
-        let beadVisualizer = null;
-        try {
-            beadVisualizer = new LinkBeadVisualizer(link, this.scene);
-        } catch (e) {
-            console.error('[LinkRendererConduit] LinkBeadVisualizer initialization failed:', e);
-            throw e;
-        }
+        let beadVisualizer = new LinkBeadVisualizer(link, this.scene);
         group.add(beadVisualizer.getGroup());
 
-        let sparkSystem = null;
-        try {
-            sparkSystem = new LinkSparkSystem(this.scene);
-        } catch (e) {
-            console.error('[LinkRendererConduit] LinkSparkSystem initialization failed:', e);
-            throw e;
-        }
+        let sparkSystem = new LinkSparkSystem(this.scene);
         group.add(sparkSystem.getMesh());
 
         let trailSystem = null;
-        try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){}
+        try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){ throw e; }
         if(trailSystem) group.add(trailSystem.getMesh());
 
         let ringSystem = null;
-        try { if (LinkEnergyRingSystem) ringSystem = new LinkEnergyRingSystem(this.scene); } catch(e){}
+        try { if (LinkEnergyRingSystem) ringSystem = new LinkEnergyRingSystem(this.scene); } catch(e){ throw e; }
 
         // 5. Flow Carrier (Mandatory)
         let pulseRing = null;
@@ -570,7 +562,7 @@ export class LinkRendererConduit {
                 pulseRing = new LinkPulseRing(this.scene);
                 group.add(pulseRing.getMesh());
             }
-        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init pulse ring', e); }
+        } catch (e) { throw e; }
 
         // 6. Energy Wave System (Mandatory)
         let energyWave = null;
@@ -578,7 +570,7 @@ export class LinkRendererConduit {
             if (LinkEnergyWave) {
                 energyWave = new LinkEnergyWave();
             }
-        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init energy wave', e); }
+        } catch (e) { throw e; }
 
         // 7. Arc Discharge System (Ring Enhancement)
         let arcDischarges = null;
@@ -587,7 +579,7 @@ export class LinkRendererConduit {
                 arcDischarges = new LinkRingArcDischarges(this.scene);
                 group.add(arcDischarges.getGroup());
             }
-        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init arc discharges', e); }
+        } catch (e) { throw e; }
 
         // 8. Visual State Adapter (Harmony/Corruption Bridge)
         let visualStateAdapter = null;
@@ -595,7 +587,7 @@ export class LinkRendererConduit {
             if (LinkVisualStateAdapter) {
                 visualStateAdapter = new LinkVisualStateAdapter();
             }
-        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init visual state adapter', e); }
+        } catch (e) { throw e; }
 
         // 9. Directional Energy Streaks (Adapter-only flow visualization)
         let directionalStreaks = null;
@@ -897,10 +889,12 @@ export class LinkRendererConduit {
         }
 
         // --- 5. Subsystems Update ---
+        this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + (state.beads ? 1 : 0);
         if (state.beads) {
             if (state.beads.setIntensity) {
                 state.beads.setIntensity(vfx.beadsIntensity);
             }
+            this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + 1;
             state.beads.update(visualDelta, (bead) => {
                 this.triggerNodeImpact(state, link.target, bead);
                 if (bead.size === 'large' && state.rings) {
@@ -915,6 +909,7 @@ export class LinkRendererConduit {
         
         if (state.sparks) {
             const currentColor = (state.strands[0]?.material?.color) || state.baseColor;
+            this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
             state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
         }
@@ -984,6 +979,19 @@ export class LinkRendererConduit {
                 visualDelta,
                 synergyLevel
             );
+        }
+
+        // Throttled aggregate update-call metrics (1/sec) under audit flag
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_CURVE_AUDIT__ === true) {
+            const now = Date.now();
+            if (now - (this._conduitUpdateLastLog || 0) >= 1000) {
+                const beadsCalls = this._beadsUpdateCalls || 0;
+                const sparksCalls = this._sparksUpdateCalls || 0;
+                console.log(`[ConduitUpdate] beadsCalls=${beadsCalls} sparksCalls=${sparksCalls}`);
+                this._beadsUpdateCalls = 0;
+                this._sparksUpdateCalls = 0;
+                this._conduitUpdateLastLog = now;
+            }
         }
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
@@ -1074,6 +1082,46 @@ export class LinkRendererConduit {
         return colors[category] || 0xcccccc;
     }
 
+    _getImpactMaterial(colorHex) {
+        const key = colorHex >>> 0;
+        const stack = this._impactMaterialPool.get(key);
+        if (stack && stack.length > 0) {
+            const mat = stack.pop();
+            mat.opacity = 0.6; // reset to default
+            return mat;
+        }
+
+        const mat = new THREE.MeshBasicMaterial({
+            color: key,
+            opacity: 0.6,
+            wireframe: true,
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide
+        });
+        ensureUserData(mat);
+        mat.userData.__owner = 'LinkRenderer';
+        mat.userData.__domain = 'link';
+        freezeMaterialFlags(mat, 'LinkRenderer');
+        return mat;
+    }
+
+    _returnImpactMaterial(mat) {
+        if (!mat) return;
+        const key = mat.color?.getHex ? mat.color.getHex() >>> 0 : 0;
+        if (!this._impactMaterialPool.has(key)) {
+            this._impactMaterialPool.set(key, []);
+        }
+        const stack = this._impactMaterialPool.get(key);
+        if (stack.length < this._impactPoolMaxSize) {
+            mat.opacity = 0.6;
+            stack.push(mat);
+        } else {
+            mat.dispose();
+        }
+    }
+
     triggerNodeImpact(state, node, bead) {
         if (!node) return;
         const category = node.userData?.category || 'input';
@@ -1093,21 +1141,7 @@ export class LinkRendererConduit {
 
         // PHASE S-5: Variant properties set at creation time, then frozen
         // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
-        const meshMaterial = new THREE.MeshBasicMaterial({
-            color: color,
-            opacity: 0.6,
-            wireframe: true,
-            // Variant properties (frozen after creation):
-            transparent: true,
-            depthWrite: false,
-            depthTest: true,
-            side: THREE.DoubleSide
-        });
-        ensureUserData(meshMaterial);
-        meshMaterial.userData.__owner = 'LinkRenderer';
-        meshMaterial.userData.__domain = 'link';
-        // Freeze variant properties immediately after material creation
-        freezeMaterialFlags(meshMaterial, 'LinkRenderer');
+        const meshMaterial = this._getImpactMaterial(color);
         const mesh = new THREE.Mesh(geometry, meshMaterial);
         mesh.frustumCulled = false;
         geometry.computeBoundingSphere();
@@ -1138,7 +1172,10 @@ export class LinkRendererConduit {
             
             if (p >= 1) {
                 this.scene.remove(grp);
-                grp.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+                grp.traverse(o => { 
+                    if(o.geometry) o.geometry.dispose(); 
+                    if(o.material) this._returnImpactMaterial(o.material); 
+                });
                 state.impacts.splice(i, 1);
             } else {
                 const ease = 1 - Math.pow(1 - p, 3);

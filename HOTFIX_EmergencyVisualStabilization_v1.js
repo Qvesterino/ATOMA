@@ -67,11 +67,6 @@ export class EmergencyVisualStabilizationSystem_v1 {
       this.auraKillSwitch.monitor(this.scene);
     }
     
-    // Enforce opaque bodies on all tracked nodes
-    if (this.scene) {
-      this.opaqueNodeSystem.enforceOpaque(this.scene);
-    }
-    
     // Check if learning phase is over
     if (this.spawnerDetector.learning) {
       const elapsed = Date.now() - this.spawnerDetector.learningStart;

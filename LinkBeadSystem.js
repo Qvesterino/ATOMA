@@ -118,7 +118,7 @@ export const BEAD_CONFIG = {
   // Spawn behavior
   spawn: {
     // Base spawn rate (beads per second at synergy=1.0, traffic=1.0)
-    baseRate: 4.0,
+    baseRate: 3.0,
     // Activity = (synergy + traffic) / 2 (plus external boost)
   },
   
@@ -143,7 +143,7 @@ export const BEAD_CONFIG = {
   fadeDistance: 0.1,
   
   // Pool size (max beads per link)
-  maxBeadsPerLink: 25,
+  maxBeadsPerLink: 10,
   
   // Scale opacity with synergy (higher synergy = more visible beads)
   synergyCoupling: {
@@ -353,7 +353,13 @@ export class LinkBeadPool {
    */
   update(deltaTime, onArrival) {
     // Safety check: need a valid curve to proceed
-    if (!this.link.curve) return;
+    if (!this.link.curve) {
+      // Clear active beads deterministically when curve is missing
+      for (const bead of this.beads) {
+        bead.isActive = false;
+      }
+      return;
+    }
     
     // Get curve length (cached or compute once per frame)
     const curveLength = this.getCurveLength();
@@ -571,6 +577,7 @@ export class LinkBeadVisualizer {
     // Pool and renderer
     this.pool = new LinkBeadPool(link);
     this.renderer = new BeadRenderer(scene);
+    this._fixedAccum = 0;
     
     // Mesh group for beads
     this.group = new THREE.Group();
@@ -636,12 +643,25 @@ export class LinkBeadVisualizer {
    * Update all beads
    */
   update(deltaTime, onArrival) {
+    this._fixedAccum += deltaTime;
+    if (this._fixedAccum < 0.1) return;
+    const step = this._fixedAccum;
+    this._fixedAccum = 0;
+
     // Update pool (spawning and bead logic)
-    this.pool.update(deltaTime, onArrival);
+    this.pool.update(step, onArrival);
     this.pool.invalidateCache(); // Reset cache each frame
     
     // Safety check: need valid curve to render beads
-    if (!this.link.curve) return;
+    if (!this.link.curve) {
+      // Remove any existing meshes when curve is absent
+      for (const [, mesh] of this.beadToMesh) {
+        this.group.remove(mesh);
+        if (mesh.material) mesh.material.dispose();
+      }
+      this.beadToMesh.clear();
+      return;
+    }
     
     const synergy = this.link.synergyScore ?? 0.5;
     const activeBead = this.pool.getActiveBead();

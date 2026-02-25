@@ -114,30 +114,43 @@ export class NodeCoreOpaqueEnforcer {
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of materials) {
         // ENFORCE OPAQUE STATE
-        mat.transparent = false;
-        mat.opacity = 1.0;
-        mat.depthWrite = true;
-        mat.depthTest = true;
-        mat.needsUpdate = true;
+        let variantChanged = false;
+
+        if (mat.transparent !== false) {
+          mat.transparent = false;
+          variantChanged = true;
+        }
+        if (mat.depthWrite !== true) {
+          mat.depthWrite = true;
+          variantChanged = true;
+        }
+        if (mat.depthTest !== true) {
+          mat.depthTest = true;
+          variantChanged = true;
+        }
+        if (mat.opacity !== 1.0) {
+          mat.opacity = 1.0; // opacity-only change
+        }
+
+        if (variantChanged) {
+          mat.needsUpdate = true;
+        }
       }
     }
   }
 
   /**
-   * Per-frame validation - detect and block violations
-   * 
-   * SHADER STORM PROTECTION: Disabled if window.ATOMA_DISABLE_OPAQUE_ENFORCER is true
-   * to prevent runtime material mutations that cause shader recompilation.
+   * Manual scan/repair – invoke explicitly (not per-frame).
+   * Returns number of corrections applied.
    */
-  validateFrame(deltaTime, time) {
-    // SHADER STORM PROTECTION: Early return if disabled
+  repairOnce() {
     if (typeof window !== 'undefined' && window.ATOMA_DISABLE_OPAQUE_ENFORCER) {
       return 0;
     }
     
     if (!this.enabled) return 0;
 
-    let violations = 0;
+    let repairs = 0;
 
     for (const [nodeId, record] of this.trackedNodes) {
       // Skip if node is removed from scene
@@ -152,61 +165,48 @@ export class NodeCoreOpaqueEnforcer {
 
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of materials) {
-          let violated = false;
+          let variantChanged = false;
 
-          // CHECK: transparent flag
           if (mat.transparent !== false) {
-            console.error(
-              `[NODE CORE OPAQUE ENFORCER] VIOLATION: Node ${nodeId} core material transparent=${mat.transparent} (should be false)`
-            );
             mat.transparent = false;
-            violated = true;
-            violations++;
+            variantChanged = true;
+            repairs++;
           }
 
-          // CHECK: opacity value
-          if (Math.abs(mat.opacity - 1.0) > 0.001) {
-            console.error(
-              `[NODE CORE OPAQUE ENFORCER] VIOLATION: Node ${nodeId} core material opacity=${mat.opacity} (should be 1.0)`
-            );
-            mat.opacity = 1.0;
-            violated = true;
-            violations++;
-          }
-
-          // CHECK: depthWrite
           if (mat.depthWrite !== true) {
-            console.error(
-              `[NODE CORE OPAQUE ENFORCER] VIOLATION: Node ${nodeId} core material depthWrite=${mat.depthWrite} (should be true)`
-            );
             mat.depthWrite = true;
-            violated = true;
-            violations++;
+            variantChanged = true;
+            repairs++;
           }
 
-          // CHECK: depthTest
           if (mat.depthTest !== true) {
-            console.error(
-              `[NODE CORE OPAQUE ENFORCER] VIOLATION: Node ${nodeId} core material depthTest=${mat.depthTest} (should be true)`
-            );
             mat.depthTest = true;
-            violated = true;
-            violations++;
+            variantChanged = true;
+            repairs++;
           }
 
-          if (violated) {
+          if (Math.abs(mat.opacity - 1.0) > 0.001) {
+            mat.opacity = 1.0; // opacity-only change
+            repairs++;
+          }
+
+          if (variantChanged) {
             mat.needsUpdate = true;
+          }
+
+          if (variantChanged || Math.abs(mat.opacity - 1.0) > 0.001) {
             record.violationCount++;
           }
         }
       }
     }
 
-    if (violations > 0) {
-      console.warn(`[NODE CORE OPAQUE ENFORCER] Frame violations detected: ${violations}`);
-    }
+    return repairs;
+  }
 
-    return violations;
+  // Back-compat alias; remains manual-use only.
+  validateFrame() {
+    return this.repairOnce();
   }
 
   /**
@@ -272,29 +272,7 @@ export class NodeCoreOpaqueEnforcer {
   }
 }
 
-/**
- * Global instance
- */
-export const globalNodeCoreOpaqueEnforcer = new NodeCoreOpaqueEnforcer();
-
-/**
- * Console API for debugging
- */
-export function setupNodeCoreOpaqueDebugAPI() {
-  window.NodeCoreOpaqueDebug = {
-    enable() {
-      globalNodeCoreOpaqueEnforcer.setEnabled(true);
-    },
-    disable() {
-      globalNodeCoreOpaqueEnforcer.setEnabled(false);
-    },
-    report() {
-      globalNodeCoreOpaqueEnforcer.debugReport();
-    },
-    stats() {
-      return globalNodeCoreOpaqueEnforcer.getStats();
-    }
-  };
-
-  console.log('🔒 Node Core Opaque Debug API ready: window.NodeCoreOpaqueDebug');
+// Optional factory; no default singleton to avoid accidental per-frame wiring.
+export function createNodeCoreOpaqueEnforcer() {
+  return new NodeCoreOpaqueEnforcer();
 }

@@ -74,6 +74,22 @@ void main() {
 }
 `;
 
+let __trailMaterialBase;
+function getTrailMaterialBase() {
+    if (!__trailMaterialBase) {
+        __trailMaterialBase = new THREE.ShaderMaterial({
+            vertexShader: TRAIL_VS,
+            fragmentShader: TRAIL_FS,
+            uniforms: { uTime: { value: 0 } },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true
+        });
+    }
+    return __trailMaterialBase;
+}
+
 export class LinkBeadTrailSystem {
     constructor(scene, maxParticles = 600) {
         this.scene = scene;
@@ -114,18 +130,10 @@ export class LinkBeadTrailSystem {
         geometry.attributes.aColor.usage = THREE.DynamicDrawUsage;
         geometry.attributes.aInfo.usage = THREE.DynamicDrawUsage;
         
-        const material = new THREE.ShaderMaterial({
-            vertexShader: TRAIL_VS,
-            fragmentShader: TRAIL_FS,
-            uniforms: {
-                uTime: { value: 0 }
-            },
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            depthTest: true
-        });
-        
+        const material = getTrailMaterialBase().clone();
+        // Per-instance uniform object to avoid shared state
+        material.uniforms = { uTime: { value: 0 } };
+
         this.mesh = new THREE.Points(geometry, material);
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();

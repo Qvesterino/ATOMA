@@ -181,7 +181,6 @@ export class GlobalAuraOpacityClamp {
     
     // Safe to apply clamp
     aura.material.opacity = clamped;
-    aura.material.needsUpdate = true;
     
     // Mark as clamped
     this.clampedAuras.add(aura);
@@ -236,7 +235,6 @@ export class GlobalAuraOpacityClamp {
     if (originalOpacity === undefined) return false;
     
     aura.material.opacity = originalOpacity;
-    aura.material.needsUpdate = true;
     
     this.clampedAuras.delete(aura);
     this.originalOpacities.delete(aura);

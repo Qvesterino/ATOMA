@@ -117,6 +117,23 @@ void main() {
 }
 `;
 
+let __sparkMaterialBase;
+function getSparkMaterialBase() {
+    if (!__sparkMaterialBase) {
+        __sparkMaterialBase = new THREE.ShaderMaterial({
+            vertexShader: SPARK_VS,
+            fragmentShader: SPARK_FS,
+            // Per-instance uniforms are injected after clone
+            uniforms: {},
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true
+        });
+    }
+    return __sparkMaterialBase;
+}
+
 export class LinkSparkSystem {
     constructor(scene, maxSparks = 60) {
         this.scene = scene;
@@ -168,15 +185,9 @@ export class LinkSparkSystem {
             uOpacity: { value: 0.8 }
         };
 
-        const material = new THREE.ShaderMaterial({
-            vertexShader: SPARK_VS,
-            fragmentShader: SPARK_FS,
-            uniforms: this.uniforms,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            depthTest: true
-        });
+        const material = getSparkMaterialBase().clone();
+        // Ensure per-instance uniforms (do not share uniform object)
+        material.uniforms = this.uniforms;
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render if link is visible

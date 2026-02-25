@@ -65,6 +65,7 @@ function isCoreNodeMesh(mesh) {
 export class ForceNodeOpaqueBodySystem_v1 {
   constructor() {
     this.enabled = true;
+    this.enableRuntimeEnforce = false; // manual-only; never auto-enabled
     this.stats = {
       nodesProcessed: 0,
       materialsForced: 0,
@@ -72,6 +73,7 @@ export class ForceNodeOpaqueBodySystem_v1 {
     };
     
     this.nodeStates = new Map();  // Track which nodes we've seen
+    this._enforcedMaterials = new WeakSet(); // Ensure one-shot material enforcement
     
     console.log('[ForceNodeOpaqueBodySystem] Initialized - Node bodies will be forced opaque');
   }
@@ -131,6 +133,7 @@ export class ForceNodeOpaqueBodySystem_v1 {
     
     for (const mat of materials) {
       if (!mat) continue;
+      if (this._enforcedMaterials.has(mat)) continue;
       
       // Store original state for potential restoration
       if (!mat.userData.__originalState) {
@@ -143,11 +146,35 @@ export class ForceNodeOpaqueBodySystem_v1 {
       }
       
       // FORCE OPAQUE
-      mat.transparent = false;
-      mat.opacity = 1.0;
-  
-      mat.depthTest = true;
-      mat.needsUpdate = true;
+      const nextTransparent = false;
+      const nextOpacity = 1.0;
+      const nextDepthWrite = true;
+      const nextDepthTest = true;
+
+      let variantChanged = false;
+
+      if (mat.transparent !== nextTransparent) {
+        mat.transparent = nextTransparent;
+        variantChanged = true;
+      }
+      if (mat.depthWrite !== nextDepthWrite) {
+        mat.depthWrite = nextDepthWrite;
+        variantChanged = true;
+      }
+      if (mat.depthTest !== nextDepthTest) {
+        mat.depthTest = nextDepthTest;
+        variantChanged = true;
+      }
+
+      if (mat.opacity !== nextOpacity) {
+        mat.opacity = nextOpacity; // opacity-only change; no needsUpdate
+      }
+
+      if (variantChanged) {
+        mat.needsUpdate = true;
+      }
+
+      this._enforcedMaterials.add(mat);
     }
   }
 
@@ -156,6 +183,8 @@ export class ForceNodeOpaqueBodySystem_v1 {
    * Prevents later systems from making node transparent
    */
   enforceOpaque(scene) {
+    // Disabled by default; manual-only. Prevents per-frame traversal.
+    if (!this.enableRuntimeEnforce) return 0;
     if (!this.enabled || !scene) return 0;
     
     let enforced = 0;
@@ -172,12 +201,9 @@ export class ForceNodeOpaqueBodySystem_v1 {
             : [obj.material];
           
           for (const mat of materials) {
-            if (mat.transparent !== false || mat.opacity !== 1.0) {
-              mat.transparent = false;
-              mat.opacity = 1.0;
-              mat.needsUpdate = true;
-              enforced++;
-            }
+            if (this._enforcedMaterials.has(mat)) continue;
+            this._forceOpaqueOnMesh(obj);
+            enforced++;
           }
         }
       });
