@@ -96,19 +96,7 @@ export const CONFIG = {
     ENFORCE_NODE_MODEL_SOURCE: true  // ← ENABLED for source-of-truth enforcement
   },
   
-  // ============================================================================
-  // SESSION 103: EMERGENCY VISUAL LOCKDOWN (Temporary Debug Mode)
-  // ============================================================================
-  // Temporary visual reset to restore readability and verify link renderer
-  // When true:
-  //  - ALL node auras disabled (hard guard)
-  //  - Node cores forced fully visible (opacity 1.0)
-  //  - Link renderer replaced with simple visible line
-  //  - Scene becomes stable and debuggable
-  // This is a diagnostic mode - can be toggled on/off immediately
   debug: {
-    VISUAL_LOCKDOWN: false,  // ← EMERGENCY: Hard disable all visual complexity
-    
     // ============================================================================
     // PHASE D.4: WAVE INTERFERENCE ENGINE DEBUG TRIGGER
     // ============================================================================
@@ -119,32 +107,14 @@ export const CONFIG = {
   },
   
   // ============================================================================
-  // CRITICAL STABILIZATION: VISUAL AUTHORITY LOCKS
+  // CRITICAL STABILIZATION: VISUAL AUTHORITY LOCKS (node-only)
   // ============================================================================
-  // Hard-stabilize node & link visuals to prevent runtime mutations
-  // These flags enforce a single source of truth for all visual properties
-  // 
-  // Rules:
-  // - When LOCK_NODE_VISUALS = true: No system can modify node opacity, scale, color, emissive, visibility
-  // - When LOCK_LINK_VISUALS = true: Links render geometry-only (no auras, particles, overlays)
-  // - When LOCK_INTERACTION = true: Raycasting targets invisible interaction meshes ONLY
-  // - All changes are reversible via these flags
-  // - Violations are silently blocked (no crashes, no warnings)
-  // 
-  // Status: Ready for production use
   visuals: {
     // NODE VISUAL AUTHORITY LOCK
     // - Prevents linking, events, personality, metrics, automation from modifying node appearance
     // - Blocks: opacity, scale, color, emissive, visibility mutations
     // - Effect: Stable node appearance before/after linking
     LOCK_NODE_VISUALS: false ,
-    
-    // LINK VISUAL STABILIZATION
-    // - Renders links as geometry-only (single curve, no decorations)
-    // - Disables: aura, secondary rings, orbitals, external particles
-    // - Keeps: main curve, traffic colors, priority thickness
-    // - Effect: Clean, stable link appearance
-    LOCK_LINK_VISUALS: false,
     
     // NODE INTERACTION AUTHORITY
     // - Raycasting targets invisible interaction meshes ONLY
@@ -153,9 +123,6 @@ export const CONFIG = {
     LOCK_INTERACTION: true,
     
     // PARTICLE SANITY MODE
-    // - All link particles confined to small radius around curve
-    // - Particles disabled entirely if LOCK_LINK_VISUALS = true
-    // - Effect: No visual drift, no orphaned particles
     PARTICLE_BOUNDS_CHECK: false,
     
     // VISUAL FREEZE MODE COMPATIBILITY

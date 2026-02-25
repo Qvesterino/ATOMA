@@ -344,7 +344,8 @@ export class LinkTrailParticleSystem {
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
-    this.poolGroup.userData = { isTrailParticles: true };
+    const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
+    Object.assign(udPool, { isTrailParticles: true });
     this.scene.add(this.poolGroup);
     
     // Impact callback (optional, called when particles arrive at destination)
@@ -366,7 +367,8 @@ export class LinkTrailParticleSystem {
     // Initialize particle pool
     for (let i = 0; i < poolSize; i++) {
       const mesh = new THREE.Mesh(this.geometry, this.material);
-      mesh.userData = { isTrailParticle: true };
+      const udMesh = (mesh && typeof mesh.userData === 'object' && mesh.userData) ? mesh.userData : (() => { try { Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return mesh.userData || {}; })();
+      Object.assign(udMesh, { isTrailParticle: true });
       this.poolGroup.add(mesh);
       
       const particle = new TrailParticle(mesh);

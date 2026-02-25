@@ -43,7 +43,9 @@ function isCoreNodeMesh(mesh) {
 
 function freezeMaterialFlags(material, owner = 'LinkBeadSystem') {
     if (!material) return;
-    if (!material.userData) material.userData = {};
+    if (!material.userData) {
+      Object.defineProperty(material, 'userData', { value: {}, writable: true, configurable: true });
+    }
     material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
     material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
 
@@ -117,9 +119,7 @@ export const BEAD_CONFIG = {
   spawn: {
     // Base spawn rate (beads per second at synergy=1.0, traffic=1.0)
     baseRate: 4.0,
-    // Min activity threshold to spawn any beads
-    minActivityThreshold: 0.1,
-    // Activity = (synergy + traffic) / 2
+    // Activity = (synergy + traffic) / 2 (plus external boost)
   },
   
   // Echo Wave Configuration
@@ -210,6 +210,7 @@ export class LinkBeadPool {
     this.maxBeads = maxBeads;
     this.beads = [];
     this.activeBead = null;
+    this.activityBoost = 0.3; // baseline intensity (from conduit)
     
     // Spawn accumulator
     this.spawnAccumulator = 0;
@@ -234,6 +235,13 @@ export class LinkBeadPool {
     const synergy = this.link.synergyScore ?? 0.5;
     const traffic = this.link.traffic?.load ?? 0;
     return (synergy + traffic) / 2;
+  }
+  
+  /**
+   * External intensity boost (set each frame by conduit)
+   */
+  setActivityBoost(v = 0.1) {
+    this.activityBoost = v;
   }
   
   /**
@@ -268,11 +276,7 @@ export class LinkBeadPool {
    * Spawn a new bead if conditions are met
    */
   trySpawn(deltaTime) {
-    const activity = this.getActivityLevel();
-    
-    if (activity < BEAD_CONFIG.spawn.minActivityThreshold) {
-      return false;
-    }
+    const activity = Math.max(this.getActivityLevel(), this.activityBoost, 0.3);
     
     // Spawn rate scales with activity
     const spawnRate = BEAD_CONFIG.spawn.baseRate * activity;
@@ -450,7 +454,9 @@ export class BeadRenderer {
       blending: THREE.NormalBlending
     });
     // Freeze variant properties on the template material
-    this.material.userData = this.material.userData || {};
+    if (!this.material.userData) {
+      Object.defineProperty(this.material, 'userData', { value: {}, writable: true, configurable: true });
+    }
     this.material.userData.__owner = 'LinkBeadSystem';
     this.material.userData.__domain = 'bead';
     freezeMaterialFlags(this.material, 'LinkBeadSystem');
@@ -460,9 +466,6 @@ export class BeadRenderer {
    * Create a bead mesh for a given bead object
    */
   createBeadMesh(bead, color) {
-    if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
-      return null;
-    }
     const geometry = this.geometries[bead.size];
     const material = this.material.clone();
     
@@ -473,7 +476,8 @@ export class BeadRenderer {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    mesh.userData = { bead: bead, isBead: true };
+    const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
+    Object.assign(ud, { bead: bead, isBead: true });
     
     return mesh;
   }
@@ -540,6 +544,7 @@ export class BeadRenderer {
       );
       baseOpacity *= synergyFactor;
     }
+    baseOpacity = Math.max(0.2, baseOpacity);
     
     // Fade out near end
     const fadeStart = 1.0 - BEAD_CONFIG.fadeDistance;
@@ -569,13 +574,27 @@ export class LinkBeadVisualizer {
     
     // Mesh group for beads
     this.group = new THREE.Group();
-    this.group.userData = { isBeadGroup: true };
+    {
+      const ud = this.group.userData || (Object.defineProperty(this.group, 'userData', { value: {}, writable: true, configurable: true }), this.group.userData);
+      Object.assign(ud, { isBeadGroup: true });
+    }
     
     // Map: bead -> mesh
     this.beadToMesh = new Map();
     
     // Initialize colors
     this.updateColors();
+
+    this._debugAcc = 0;
+  }
+
+  /**
+   * Set external intensity (baseline beads when metrics are low)
+   */
+  setIntensity(intensity = 0.1) {
+    if (this.pool && typeof this.pool.setActivityBoost === 'function') {
+      this.pool.setActivityBoost(intensity);
+    }
   }
   
   /**
@@ -617,9 +636,6 @@ export class LinkBeadVisualizer {
    * Update all beads
    */
   update(deltaTime, onArrival) {
-    if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
-      return;
-    }
     // Update pool (spawning and bead logic)
     this.pool.update(deltaTime, onArrival);
     this.pool.invalidateCache(); // Reset cache each frame
@@ -660,6 +676,14 @@ export class LinkBeadVisualizer {
           this.group.add(mesh);
           this.beadToMesh.set(bead, mesh);
         }
+      }
+    }
+
+    if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+      this._debugAcc += deltaTime;
+      if (this._debugAcc >= 1.0) {
+        console.log('[Beads] dt:', deltaTime.toFixed(4), 'active:', activeBead.length);
+        this._debugAcc = 0;
       }
     }
   }

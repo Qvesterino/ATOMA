@@ -128,7 +128,8 @@ export class LinkBeadTrailSystem {
         
         this.mesh = new THREE.Points(geometry, material);
         this.mesh.frustumCulled = false;
-        this.mesh.userData = { isTrailSystem: true };
+        const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
+        Object.assign(ud, { isTrailSystem: true });
     }
     
     getMesh() {

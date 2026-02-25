@@ -21,6 +21,23 @@ import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import VisualTime from './src/time/VisualTime.js';
 
+// Utility helpers (no allocations)
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const remap = (v, in0, in1, out0, out1) => {
+    if (in1 === in0) return out0;
+    const t = clamp01((v - in0) / (in1 - in0));
+    return out0 + (out1 - out0) * t;
+};
+
+// Safe userData helper (avoids reassigning potentially frozen descriptor)
+const ensureUserData = (obj) => {
+    if (!obj) return {};
+    if (!obj.userData) {
+        Object.defineProperty(obj, 'userData', { value: {}, writable: true, configurable: true });
+    }
+    return obj.userData;
+};
+
 const VARIANT_CRITICAL_PROPS = [
     'transparent',
     'side',
@@ -39,20 +56,20 @@ function isCoreNodeMesh(mesh) {
 
 function freezeMaterialFlags(material, owner = 'LinkRenderer') {
     if (!material) return;
-    if (!material.userData) material.userData = {};
-    material.userData.__frozenVariantProps = material.userData.__frozenVariantProps || new Set();
-    material.userData.__warnedVariantProp = material.userData.__warnedVariantProp || new Set();
+    const ud = ensureUserData(material);
+    ud.__frozenVariantProps = ud.__frozenVariantProps || new Set();
+    ud.__warnedVariantProp = ud.__warnedVariantProp || new Set();
 
     VARIANT_CRITICAL_PROPS.forEach((prop) => {
-        if (material.userData.__frozenVariantProps.has(prop)) return;
+        if (ud.__frozenVariantProps.has(prop)) return;
 
         const desc = Object.getOwnPropertyDescriptor(material, prop);
         if (desc && desc.configurable === false) {
-            if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+            if (variantDebugEnabled() && !ud.__warnedVariantProp.has(prop)) {
                 debugWarn(true, '[VariantLock] Prop already locked, skip redefine', prop, material.uuid);
-                material.userData.__warnedVariantProp.add(prop);
+                ud.__warnedVariantProp.add(prop);
             }
-            material.userData.__frozenVariantProps.add(prop);
+            ud.__frozenVariantProps.add(prop);
             return;
         }
 
@@ -66,23 +83,23 @@ function freezeMaterialFlags(material, owner = 'LinkRenderer') {
                 },
                 set(value) {
                     if (cachedValue === value) return;
-                    if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+                    if (variantDebugEnabled() && !ud.__warnedVariantProp.has(prop)) {
                         console.error('[VariantLock]', prop, 'modified after lock');
-                        material.userData.__warnedVariantProp.add(prop);
+                        ud.__warnedVariantProp.add(prop);
                     }
                 }
             });
-            material.userData.__frozenVariantProps.add(prop);
+            ud.__frozenVariantProps.add(prop);
         } catch (err) {
-            if (variantDebugEnabled() && !material.userData.__warnedVariantProp.has(prop)) {
+            if (variantDebugEnabled() && !ud.__warnedVariantProp.has(prop)) {
                 debugWarn(true, '[VariantLock] Failed to lock prop', prop, material.uuid, err?.message);
-                material.userData.__warnedVariantProp.add(prop);
+                ud.__warnedVariantProp.add(prop);
             }
         }
     });
 
-    material.userData.__owner = material.userData.__owner || owner;
-    material.userData.__flagsFrozen = true;
+    ud.__owner = ud.__owner || owner;
+    ud.__flagsFrozen = true;
     material.__variantLocked = true; // backwards compatibility with existing checks
 }
 
@@ -153,6 +170,35 @@ export class LinkRendererConduit {
         
         // Setup particle arrival callbacks
         this._setupParticleCallbacks();
+
+        // Cached VFX input (reused each frame)
+        this._vfxInput = {
+            baseIntensity: 0.2,
+            beadsIntensity: 0.1,
+            sparksIntensity: 0.05,
+            widthMul: 1.0,
+            speedMul: 1.0,
+            colorBias: 0.0
+        };
+        this._lastVfxDebugTime = 0;
+    }
+
+    /**
+     * Update all links (canonical list) - ensures beads/sparks tick every frame
+     */
+    updateAll(links, deltaTime, time) {
+        const list = links
+            || this.linkSystem?.links
+            || this.links
+            || [];
+
+        if (!list.length && typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            console.warn('[LinkRendererConduit] updateAll called with empty link list');
+        }
+
+        for (const link of list) {
+            this.update(link, deltaTime, time);
+        }
     }
 
     /**
@@ -389,11 +435,8 @@ export class LinkRendererConduit {
      * Create the unified link visual group
      */
     createLinkVisuals(link) {
-        if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
-            return;
-        }
         const group = new THREE.Group();
-        group.userData = { isLinkVisual: true };
+        Object.assign(ensureUserData(group), { isLinkVisual: true });
 
         const sourceCat = link.source.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
@@ -437,21 +480,21 @@ export class LinkRendererConduit {
                 depthTest: true,
                 blending: THREE.NormalBlending
             });
-            material.userData = material.userData || {};
+            ensureUserData(material);
             material.userData.__owner = 'LinkRenderer';
             material.userData.__domain = 'link';
             material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
 
             const geometry = new THREE.BufferGeometry();
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.userData = { strandIndex: i };
+            Object.assign(ensureUserData(mesh), { strandIndex: i });
             mesh.frustumCulled = false;
             geometry.computeBoundingSphere();
             geometry.computeBoundingBox();
             TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: false, depthTest: true });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
-            mesh.userData = mesh.userData || {};
+            ensureUserData(mesh);
             mesh.userData.__depthAuthorityLocked = true;
             
             group.add(mesh);
@@ -480,24 +523,38 @@ export class LinkRendererConduit {
         skinMesh.frustumCulled = false;
         skinGeometry.computeBoundingSphere();
         skinGeometry.computeBoundingBox();
-        skinMaterial.userData = skinMaterial.userData || {};
+        ensureUserData(skinMaterial);
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
         TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: 9, depthWrite: false });
-        skinMesh.userData = skinMesh.userData || {};
+        ensureUserData(skinMesh);
         skinMesh.userData.__depthAuthorityLocked = true;
         group.add(skinMesh);
 
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            console.log('[LinkRendererConduit] LINK GROUP PARENT:', group.parent);
+        }
+
         // 4. Initialize Subsystems (Defensive)
         let beadVisualizer = null;
-        try { if (LinkBeadVisualizer) beadVisualizer = new LinkBeadVisualizer(link, this.scene); } catch(e){}
-        if(beadVisualizer) group.add(beadVisualizer.getGroup());
+        try {
+            beadVisualizer = new LinkBeadVisualizer(link, this.scene);
+        } catch (e) {
+            console.error('[LinkRendererConduit] LinkBeadVisualizer initialization failed:', e);
+            throw e;
+        }
+        group.add(beadVisualizer.getGroup());
 
         let sparkSystem = null;
-        try { if (LinkSparkSystem) sparkSystem = new LinkSparkSystem(this.scene); } catch(e){}
-        if(sparkSystem) group.add(sparkSystem.getMesh());
+        try {
+            sparkSystem = new LinkSparkSystem(this.scene);
+        } catch (e) {
+            console.error('[LinkRendererConduit] LinkSparkSystem initialization failed:', e);
+            throw e;
+        }
+        group.add(sparkSystem.getMesh());
 
         let trailSystem = null;
         try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){}
@@ -599,9 +656,6 @@ export class LinkRendererConduit {
      * Update the geometry and materials of the link
      */
     update(link, deltaTime, time) {
-        if (typeof window !== 'undefined' && window.ATOMA_LINK_VISUALS_ENABLED === false) {
-            return;
-        }
         if (!link.group || !link.group.userData.conduitState) return;
         
         // Canonical RAF time source (behavior-preserving Phase 2A)
@@ -654,23 +708,26 @@ export class LinkRendererConduit {
         link.curve = mainCurve;
         
         // Store link direction for aura modulation later
-        if (!link.userData) link.userData = {};
-        link.userData.linkDirection = linkDir.clone(); 
+        const linkUD = ensureUserData(link);
+        linkUD.linkDirection = linkDir.clone(); 
         
         const frames = mainCurve.computeFrenetFrames(this.config.segments, false);
 
         // --- 2. Dynamic Parameters ---
         const synergy = link.synergyScore ?? 0.5;
         const trafficLoad = link.traffic ? link.traffic.load : 0;
+
+        // Compute normalized VFX inputs (always on; no gating)
+        const vfx = this.computeLinkVfxInput(link, synergy, trafficLoad);
         
         const breathing = Math.sin(visualTime * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
         const twistPhase = visualTime * this.config.twistSpeed;
         
-        const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2);
+        const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2) * vfx.widthMul;
 
         // --- 3. Strand Update (The Braid) ---
         // Optimization: Pre-calculate loop invariants
-        const flowSpeed = 0.2 + (synergy * 1.2);
+        const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
         const noiseBase = 0.005 * (1.0 - synergy);
         
         state.strands.forEach((mesh, i) => {
@@ -683,7 +740,7 @@ export class LinkRendererConduit {
             if (mesh.material && mesh.material.emissiveMap) {
                 mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
                 const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
-                mesh.material.emissiveIntensity = 0.5 * pulse * (1 + trafficLoad);
+                mesh.material.emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
             }
 
             // Generate helical path
@@ -841,6 +898,9 @@ export class LinkRendererConduit {
 
         // --- 5. Subsystems Update ---
         if (state.beads) {
+            if (state.beads.setIntensity) {
+                state.beads.setIntensity(vfx.beadsIntensity);
+            }
             state.beads.update(visualDelta, (bead) => {
                 this.triggerNodeImpact(state, link.target, bead);
                 if (bead.size === 'large' && state.rings) {
@@ -855,8 +915,8 @@ export class LinkRendererConduit {
         
         if (state.sparks) {
             const currentColor = (state.strands[0]?.material?.color) || state.baseColor;
-            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad }, currentColor);
-            state.sparks.uniforms.uThickness.value = activeRadius * 2;
+            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
+            state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
         }
         
         if (state.pulseRing) {
@@ -952,7 +1012,57 @@ export class LinkRendererConduit {
             );
         }
         
+        // Debug hook: log one sample link per second when enabled
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            if (!this._lastVfxDebugTime || (visualTime - this._lastVfxDebugTime) > 1.0) {
+                const beadStats = state.beads?.getStats ? state.beads.getStats() : null;
+                const sparkStats = state.sparks?.getDebugStats ? state.sparks.getDebugStats() : null;
+                console.log('[LinkParticles]', {
+                    linkId: link.id || link.uuid,
+                    beadsIntensity: vfx.beadsIntensity,
+                    sparksIntensity: vfx.sparksIntensity,
+                    beadsActive: beadStats?.active,
+                    beadsActivity: beadStats?.activity,
+                    sparksSpawned: sparkStats?.spawned
+                });
+                this._lastVfxDebugTime = visualTime;
+            }
+        }
+        
         this.updateImpacts(state, visualDelta);
+    }
+
+    /**
+     * Compute normalized VFX inputs with baseline minimums (no gating)
+     */
+    computeLinkVfxInput(link, synergy = 0.5, traffic = 0) {
+        const harmony = link.harmonyLevel ?? link.harmony ?? 0.5;
+        const corruption = link.corruptionLevel ?? link.corruption ?? 0.0;
+        const load = traffic ?? link.loadPressure ?? 0.0;
+
+        const out = this._vfxInput;
+        out.baseIntensity = Math.max(0.15,
+            0.35 * synergy +
+            0.25 * harmony +
+            0.15 * (1 - corruption) +
+            0.15 * load);
+
+        out.beadsIntensity = Math.max(0.05,
+            0.5 * synergy +
+            0.2 * harmony +
+            0.2 * load +
+            0.1 * corruption);
+
+        const corrLoad = Math.max(corruption, load);
+        out.sparksIntensity = Math.max(0.03,
+            0.4 * corrLoad +
+            0.2 * synergy);
+
+        out.widthMul = remap(out.baseIntensity, 0.15, 1.0, 0.9, 1.3);
+        out.speedMul = remap(out.baseIntensity, 0.15, 1.0, 0.8, 1.4);
+        out.colorBias = clamp01(corruption * 0.8);
+
+        return out;
     }
 
     getCategoryColor(category) {
@@ -993,7 +1103,7 @@ export class LinkRendererConduit {
             depthTest: true,
             side: THREE.DoubleSide
         });
-        meshMaterial.userData = meshMaterial.userData || {};
+        ensureUserData(meshMaterial);
         meshMaterial.userData.__owner = 'LinkRenderer';
         meshMaterial.userData.__domain = 'link';
         // Freeze variant properties immediately after material creation
@@ -1003,7 +1113,7 @@ export class LinkRendererConduit {
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
         TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: 40 });
-        mesh.userData = mesh.userData || {};
+        ensureUserData(mesh);
         mesh.userData.__depthAuthorityLocked = true;
         
         group.add(mesh);
@@ -1012,7 +1122,7 @@ export class LinkRendererConduit {
         const scaleMult = beadSize === 'large' ? 1.5 : (beadSize === 'small' ? 0.5 : 1.0);
         group.scale.setScalar(0.1); // Start small
         
-        group.userData = { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh };
+        Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh });
         
         this.scene.add(group);
         state.impacts.push(group);

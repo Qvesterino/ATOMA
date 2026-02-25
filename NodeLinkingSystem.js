@@ -23,7 +23,6 @@ import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
 import { DynamicLinkThicknessSystem } from './_DynamicLinkThicknessSystem.js';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
-import VisualAuthorityLock from './VisualAuthorityLock.js';
 import { 
   applyFinalNodeVisualState, 
   NodeVisualStateBinder, 
@@ -58,6 +57,13 @@ import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js'
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
+
+function ensureUserData(obj) {
+  if (!obj) return {};
+  if (obj.userData && typeof obj.userData === 'object') return obj.userData;
+  try { Object.defineProperty(obj, 'userData', { value: {}, writable: true, configurable: true }); return obj.userData; }
+  catch (e) { try { return obj.userData || {}; } catch (e2) { return {}; } }
+}
 
 const _binderWarned = { invalid: false, noId: false, nonRenderable: false };
 function _validateBinderNode(node) {
@@ -282,6 +288,7 @@ export class NodeLinkingSystem {
     this.camera = camera;
     this.renderer = renderer;
     this.aiNodes = aiNodes;
+    this.linkRoot = null;
     
     // Phase B.4 – event-gated (no visual change)
     this.linksDirty = true;
@@ -1056,7 +1063,7 @@ export class NodeLinkingSystem {
     this.selectedNodeHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
     tagAllowedSphere(this.selectedNodeHighlight, { role: 'highlight', source: 'NodeLinkingSystem.createPrimaryNodeHighlight', owner: this.getNodeId(node) });
     clampSphere(this.selectedNodeHighlight);
-    this.selectedNodeHighlight.userData = { isSelectionHighlight: true, isActive: true, isPrimaryNode: true };
+    Object.assign(ensureUserData(this.selectedNodeHighlight), { isSelectionHighlight: true, isActive: true, isPrimaryNode: true });
     this.selectedNodeHighlight.scale.copy(node.scale);
     this.selectedNodeHighlight.position.copy(node.position);
     this.selectedNodeHighlight.renderOrder = -1;
@@ -1166,7 +1173,7 @@ export class NodeLinkingSystem {
     const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
     tagAllowedSphere(highlight, { role: 'highlight', source: 'NodeLinkingSystem.addToMultiSelect', owner: this.getNodeId(node) });
     clampSphere(highlight);
-    highlight.userData = { isMultiSelectHighlight: true };
+    Object.assign(ensureUserData(highlight), { isMultiSelectHighlight: true });
     highlight.scale.copy(node.scale);
     highlight.position.copy(node.position);
     highlight.renderOrder = -1;
@@ -1597,7 +1604,7 @@ export class NodeLinkingSystem {
     const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
     tagAllowedSphere(glowMesh, { role: 'highlight', source: 'NodeLinkingSystem.addNodeSelectionGlow', owner: this.getNodeId(node) });
     clampSphere(glowMesh);
-    glowMesh.userData = { isSelectionGlow: true, isHover: true };
+    Object.assign(ensureUserData(glowMesh), { isSelectionGlow: true, isHover: true });
     glowMesh.scale.copy(node.scale);
     glowMesh.position.copy(node.position);
     glowMesh.renderOrder = -1;
@@ -3420,7 +3427,8 @@ getLinksForNode(node) {
     // We create a stub because the renderer needs source/target references
     const linkStub = { source: sourceNode, target: targetNode };
     const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
-    this.scene.add(linkGroup);
+    const parent = this.linkRoot || this.scene;
+    parent.add(linkGroup);
     
     // 2. Enforce depth authority (standard ATOMA protocol)
     NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
@@ -3573,7 +3581,7 @@ getLinksForNode(node) {
     try {
       const linkStub = { source: sourceNode, target: targetNode };
       const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
-      this.scene.add(linkGroup);
+      (this.linkRoot || this.scene).add(linkGroup);
       NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
       link.group = linkGroup;
 
@@ -3839,7 +3847,7 @@ getLinksForNode(node) {
       linkGroup.add(pulseRing);
     }
     
-    this.scene.add(linkGroup);
+    (this.linkRoot || this.scene).add(linkGroup);
     
     // ========================================================================
     // [NODE DEPTH PRESERVATION] ENFORCE DEPTH AUTHORITY ON LINK VISUALS
@@ -4473,6 +4481,11 @@ getLinksForNode(node) {
     if (this.categoryTransitionSystem) {
       this.categoryTransitionSystem.update(deltaTime);
     }
+
+    // [Braided Conduit] Per-frame update for all link visuals (strands + beads + sparks)
+    if (this.conduitRenderer && this.links) {
+      this.conduitRenderer.updateAll(this.links, deltaTime, time);
+    }
     
     // [Patch 3.2 HYBRID] Periodic sync: validate index ↔ runtime consistency
     // Run every 500ms to detect and heal corruption
@@ -5053,7 +5066,7 @@ getLinksForNode(node) {
       LinkEmissionPulsingSystem.updateLinkEmissionPulsing(link, link.traffic.load, deltaTime);
     }
 
-    // [BRAIDED CONDUIT] Delegate animation and geometry update
+    // [BRAIDED CONDUIT] Delegate animation and geometry update (per-link)
     if (this.conduitRenderer && !link.extremeMode) {
       this.conduitRenderer.update(link, deltaTime, time);
       return;
@@ -6760,6 +6773,52 @@ getLinksForNode(node) {
    */
   getAIReport() {
     return this._lastAIReport || null;
+  }
+
+  /**
+   * World rebuild hook: clear link visuals/state and attach a fresh LinkRoot under the new world root.
+   * Safe to call multiple times; keeps FrameScheduler registration intact.
+   */
+  resetForWorldRebuild({ scene, worldRoot } = {}) {
+    // Detach and dispose existing link visuals
+    if (Array.isArray(this.links)) {
+      for (const link of this.links) {
+        if (this.conduitRenderer && link?.group) {
+          this.conduitRenderer.disposeLinkVisuals(link.group, link);
+        }
+        if (link?.group?.parent) {
+          link.group.parent.remove(link.group);
+        }
+      }
+      this.links.length = 0;
+    }
+
+    // Clear indices and caches
+    this.linksByNode?.clear?.();
+    this.nodeIdToLinks?.clear?.();
+    this._linkCategoryCache?.clear?.();
+    this.pendingLinkVisualsQueue.length = 0;
+    this.ghostLinks = [];
+    this.activeLink = null;
+    this.linksDirty = true;
+    this.nodesDirty = true;
+    this._syncState.linkCount = 0;
+    this._syncState.mismatchDetected = false;
+
+    // Dispose existing link root if present
+    if (this.linkRoot?.parent) {
+      this.linkRoot.parent.remove(this.linkRoot);
+    }
+
+    // Create and attach a dedicated link root under the active world root
+    this.linkRoot = new THREE.Group();
+    this.linkRoot.name = 'ATOMA_LinkRoot';
+    this.linkRoot.userData = this.linkRoot.userData || {};
+    this.linkRoot.userData.tag = 'LinkRoot';
+    const parent = worldRoot || scene || this.scene;
+    if (parent) {
+      parent.add(this.linkRoot);
+    }
   }
 
   /**

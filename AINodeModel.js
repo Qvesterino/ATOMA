@@ -583,7 +583,7 @@ export class AINodeModel {
     // SESSION 103: EMERGENCY VISUAL LOCKDOWN
     // Override all animations - force node cores fully visible
     // ========================================================================
-    if (window.DEBUG_VISUAL_MODE || CONFIG?.debug?.VISUAL_LOCKDOWN === true) {
+    if (window.DEBUG_VISUAL_MODE) {
       // Force core material to be fully visible
       nodeGroup.traverse((child) => {
         if (child.material && typeof child.material.opacity !== 'undefined') {

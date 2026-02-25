@@ -2,8 +2,14 @@ import * as THREE from 'three';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
-import VisualAuthorityLock from './VisualAuthorityLock.js';
 import VisualTime from './src/time/VisualTime.js';
+
+function ensureUserData(obj) {
+  if (!obj) return {};
+  if (obj.userData && typeof obj.userData === 'object') return obj.userData;
+  try { Object.defineProperty(obj, 'userData', { value: {}, writable: true, configurable: true }); return obj.userData; }
+  catch (e) { try { return obj.userData || {}; } catch (e2) { return {}; } }
+}
 
 // Shared-material dedup configuration (default: enabled)
 const SHARED_MATERIAL_USAGE = {
@@ -862,7 +868,7 @@ export class NeonLinkVisuals {
   
   /**
    * [SESSION 103] Emergency debug link - Simple visible straight line
-   * Used when VISUAL_LOCKDOWN is enabled to verify link rendering
+  * Legacy emergency debug link creation (deprecated)
    * Creates obvious, unchanging line that cannot be confused with old renderer
    * @private
    */
@@ -892,15 +898,15 @@ export class NeonLinkVisuals {
     group.add(line);
     
     // Store minimal metadata
-    group.userData = {
+    Object.assign(ensureUserData(group), {
       type: 'emergencyDebugLink',
       isPreview,
       color,
       line,
       createdAt: Date.now()
-    };
+    });
     
-    console.log('[NeonLinkVisuals] 🟠 EMERGENCY DEBUG LINK created (VISUAL_LOCKDOWN active)');
+    console.log('[NeonLinkVisuals] 🟠 EMERGENCY DEBUG LINK created');
     
     return group;
   }
@@ -909,7 +915,7 @@ export class NeonLinkVisuals {
    * Create a neon Bézier curve between two nodes
    * Returns visualization group with curve and effects
    * [LinkPriority v1.0] Now supports priority-aware visual effects
-   * [SESSION 103] Emergency override: Simple debug link when VISUAL_LOCKDOWN active
+  * Legacy emergency override: Simple debug link
    */
   createNeonCurve(sourcePos, targetPos, options = {}) {
     const {
@@ -929,7 +935,7 @@ export class NeonLinkVisuals {
     // SESSION 103: EMERGENCY VISUAL LOCKDOWN
     // Replace complex link visual with obvious debug line
     // ========================================================================
-    if (window.DEBUG_VISUAL_MODE || (typeof CONFIG !== 'undefined' && CONFIG?.debug?.VISUAL_LOCKDOWN === true)) {
+    if (window.DEBUG_VISUAL_MODE) {
       return this.createEmergencyDebugLink(sourcePos, targetPos, color, isPreview);
     }
     
@@ -1003,7 +1009,7 @@ export class NeonLinkVisuals {
     group.add(glowLine);
     
     // Store metadata for animation
-    group.userData = {
+    Object.assign(ensureUserData(group), {
       type: 'neonCurve',
       curvePoints,
       traffic,
@@ -1017,7 +1023,7 @@ export class NeonLinkVisuals {
       // [LinkPriority v1.0] Store link reference for visual updates
       link: link || null,
       priorityState: link ? this._getPriorityVisualState(link) : null
-    };
+    });
     
     // [LinkPriority v1.0 PACK 1.1] Apply priority effects immediately if link provided
     if (link && link.priority) {
@@ -1349,25 +1355,11 @@ export class NeonLinkVisuals {
   /**
    * Update particle positions and animations
    * Particles now follow curve with perpendicular lateral offset for elegant visual coherence
-   * [VisualAuthority] Respects LOCK_LINK_VISUALS and PARTICLE_BOUNDS_CHECK flags
+   * Particle update
    */
   updateParticles(deltaTime) {
-    // [CRITICAL STABILIZATION] Disable particles if links are locked
-    if (!VisualAuthorityLock.canModifyLink()) {
-      // Remove all particles if link visuals are frozen
-      this.particles.forEach(p => {
-        if (p && p.mesh) {
-          this.scene.remove(p.mesh);
-          if (p.mesh.geometry) p.mesh.geometry.dispose();
-          if (p.mesh.material) p.mesh.material.dispose();
-        }
-      });
-      this.particles = [];
-      return;
-    }
-    
     const particlesToRemove = [];
-    const shouldCheckBounds = VisualAuthorityLock.shouldCheckParticleBounds();
+    const shouldCheckBounds = false;
     
     this.particles.forEach(particle => {
       // Skip update if critical data missing (stability guard)
@@ -1453,14 +1445,9 @@ export class NeonLinkVisuals {
   /**
    * Animate curve with priority-based pulsing
    * Now integrated with LinkPriority v1.0 system
-   * [VisualAuthority] Respects LOCK_LINK_VISUALS flag
+   * Priority-based pulsing
    */
   animateCurveByPriority(linkGroup, priority) {
-    // CRITICAL GUARD: Respect visual authority lock
-    if (!VisualAuthorityLock.canModifyLink()) {
-      return;  // Silently skip if locked
-    }
-    
     // Handle both old API (numeric 0–1) and new LinkPriority object
     let config, pulseSpeedVal, opacityVal;
     
@@ -1502,19 +1489,12 @@ export class NeonLinkVisuals {
    * Variant 2: Dual Stream Flow (particle count + speed)
    * Variant 3: Aura Field Intensity (bloom scale)
    * 
-   * [VisualAuthority] Respects LOCK_LINK_VISUALS flag
-   * 
    * @param {Object} linkGroup - THREE.Group containing link meshes/materials
    * @param {Object} link - Link object with priority data
    */
   applyPriorityEffects(linkGroup, link) {
     if (!linkGroup || !link) return;
     
-    // CRITICAL GUARD: Respect visual authority lock
-    if (!VisualAuthorityLock.canModifyLink()) {
-      return;  // Silently skip if locked
-    }
-
     // Get unified visual state from LinkPriority system
     const state = this._getPriorityVisualState(link);
 
@@ -1583,7 +1563,7 @@ export class NeonLinkVisuals {
     pulseGroup.add(pulse);
     
     // Store animation data
-    pulseGroup.userData = {
+    Object.assign(ensureUserData(pulseGroup), {
       type: 'errorPulse',
       startPos: sourcePos.clone(),
       curvePoints,
@@ -1591,7 +1571,7 @@ export class NeonLinkVisuals {
       duration,
       pulse,
       material
-    };
+    });
     
     this.scene.add(pulseGroup);
     return pulseGroup;
@@ -1639,13 +1619,13 @@ export class NeonLinkVisuals {
     }
     
     // Store animation data
-    effectGroup.userData = {
+    Object.assign(ensureUserData(effectGroup), {
       type: 'shatterEffect',
       fragments,
       createdAt: this.time,
       duration,
       color
-    };
+    });
     
     this.scene.add(effectGroup);
     return effectGroup;
@@ -1700,16 +1680,16 @@ export class NeonLinkVisuals {
       
       const torus = new THREE.Mesh(geometry, material);
       torus.position.copy(nodePosition);
-      torus.userData = { ringIndex: i, color };
+      Object.assign(ensureUserData(torus), { ringIndex: i, color });
       
       glowGroup.add(torus);
     }
     
-    glowGroup.userData = {
+    Object.assign(ensureUserData(glowGroup), {
       type: 'multiOutputGlow',
       nodePosition: nodePosition.clone(),
       createdAt: this.time
-    };
+    });
     
     this.scene.add(glowGroup);
     return glowGroup;
@@ -2053,7 +2033,7 @@ export class NeonLinkVisuals {
     if (!linkMesh || !linkMesh.children) return;
     
     for (const child of linkMesh.children) {
-      if (!child.userData) child.userData = {};
+      ensureUserData(child);
       
       if (isSynergyAwakened) {
         // Synergy awakened: segments become bonded
@@ -2086,7 +2066,7 @@ export class NeonLinkVisuals {
   _applyHarmonyVisuals(linkMesh, isHarmonyStabilized) {
     if (!linkMesh) return;
     
-    if (!linkMesh.userData) linkMesh.userData = {};
+    ensureUserData(linkMesh);
     
     if (isHarmonyStabilized) {
       // Harmony stabilized: smooth, calm, minimal motion
@@ -2096,7 +2076,7 @@ export class NeonLinkVisuals {
       // Regularize segment spacing if present
       if (linkMesh.children && linkMesh.children.length > 0) {
         for (const child of linkMesh.children) {
-          if (!child.userData) child.userData = {};
+          ensureUserData(child);
           child.userData.harmonyDamping = 0.15;  // Slight motion damping
         }
       }
@@ -2124,7 +2104,7 @@ export class NeonLinkVisuals {
   _applyContagionVisuals(linkMesh, contagionStatus) {
     if (!linkMesh || !linkMesh.children) return;
     
-    if (!linkMesh.userData) linkMesh.userData = {};
+    ensureUserData(linkMesh);
     
     const isContagionActive = contagionStatus && contagionStatus.isInfected;
     
@@ -2134,7 +2114,7 @@ export class NeonLinkVisuals {
       
       // Apply contagion glow to all children
       for (const child of linkMesh.children) {
-        if (!child.userData) child.userData = {};
+        ensureUserData(child);
         
         // Track contagion state
         child.userData.isContagious = true;
@@ -2199,7 +2179,7 @@ export class NeonLinkVisuals {
   _applyCorruptionVisuals(linkMesh, corruptionLevel) {
     if (!linkMesh || !linkMesh.children) return;
     
-    if (!linkMesh.userData) linkMesh.userData = {};
+    ensureUserData(linkMesh);
     
     // Corruption state flags
     const isCorrupted = corruptionLevel >= 0.65;
@@ -2208,7 +2188,7 @@ export class NeonLinkVisuals {
     if (isCorrupted) {
       // Store base position/scale for restoration if needed
       for (const child of linkMesh.children) {
-        if (!child.userData) child.userData = {};
+        ensureUserData(child);
         
         // Track corruption state
         child.userData.isCorrupted = true;

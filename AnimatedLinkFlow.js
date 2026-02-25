@@ -177,7 +177,8 @@ export class AnimatedLinkFlow {
       
       // Create and add mesh
       packet.mesh = new THREE.Mesh(packet.geometry, packet.material);
-      packet.mesh.userData = { isFlowPacket: true, linkId: flowState.linkId };
+      const ud = (packet.mesh && typeof packet.mesh.userData === 'object' && packet.mesh.userData) ? packet.mesh.userData : (() => { try { Object.defineProperty(packet.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return packet.mesh.userData || {}; })();
+      Object.assign(ud, { isFlowPacket: true, linkId: flowState.linkId });
       this.scene.add(packet.mesh);
       
       flowState.packets.push(packet);
@@ -197,7 +198,8 @@ export class AnimatedLinkFlow {
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const beam = new THREE.Line(geometry, this.materials.beam.clone());
     
-    beam.userData = { isFlowBeam: true, linkId: flowState.linkId };
+    const udBeam = (beam && typeof beam.userData === 'object' && beam.userData) ? beam.userData : (() => { try { Object.defineProperty(beam, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return beam.userData || {}; })();
+    Object.assign(udBeam, { isFlowBeam: true, linkId: flowState.linkId });
     this.scene.add(beam);
     
     flowState.beam = beam;

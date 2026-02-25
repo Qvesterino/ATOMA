@@ -36,7 +36,8 @@ export class LinkMetricsSanityGuard_v1 {
       let userData = link.userData;
       if (!userData) {
         userData = {};
-        link.userData = userData;
+        const ud = (link && typeof link.userData === 'object' && link.userData) ? link.userData : (() => { try { Object.defineProperty(link, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return link.userData || {}; })();
+        Object.assign(ud, userData);
       }
 
       const synergy = sanitize01(userData.synergy);

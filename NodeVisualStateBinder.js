@@ -56,6 +56,13 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial } from './CoreHologramShader.js';
 import { CoreVisualAuthorityGuard } from './CoreVisualAuthoritySystem.js';
 
+function ensureUserData(obj) {
+  if (!obj) return {};
+  if (obj.userData && typeof obj.userData === 'object') return obj.userData;
+  try { Object.defineProperty(obj, 'userData', { value: {}, writable: true, configurable: true }); return obj.userData; }
+  catch (e) { try { return obj.userData || {}; } catch (e2) { return {}; } }
+}
+
 const _binderWarnOnce = { invalid: false, noId: false };
 function _validateNodeForBinder(node, label) {
   if (!node || node.isObject3D !== true || !node.userData) {
@@ -82,8 +89,7 @@ function _validateNodeForBinder(node, label) {
 // If undefined → treated as true (backward compatible)
 function areLinkVisualsEnabled() {
   if (typeof window === 'undefined') return true;
-  if (window.ATOMA_LINK_VISUALS_ENABLED === undefined) return true;
-  return window.ATOMA_LINK_VISUALS_ENABLED === true;
+  return true;
 }
 
 // ============================================================================
@@ -333,6 +339,7 @@ export function applyLinkFXOnly(node, options = {}) {
     if (fxMesh) {
       node.userData.linkFXMesh = fxMesh;
       node.userData.linkFXAppliedAt = Date.now();
+      console.log('[FX APPLY OK]', node.userData?.linkId || node.userData?.nodeId || '(unknown)');
     }
 
     return { success: true, fxMesh };
@@ -900,7 +907,7 @@ export function applySynergyAwakenedState(node) {
   try {
     // Find and enhance any secondary/internal geometry layers
     for (const child of node.children) {
-      if (!child.userData) child.userData = {};
+      ensureUserData(child);
       
       // Look for internal/secondary layers (usually less visible)
       // TASK 2: Explicitly EXCLUDE CORE layer from any modification
@@ -974,7 +981,7 @@ export function applyHarmonyStabilizedState(node) {
   if (!node) return false;
   
   try {
-    if (!node.userData) node.userData = {};
+    ensureUserData(node);
     
     // Mark as harmony-stabilized
     node.userData.harmonyStabilized = true;
@@ -983,7 +990,7 @@ export function applyHarmonyStabilizedState(node) {
     
     // For any animated children, prepare dampening factors
     for (const child of node.children || []) {
-      if (!child.userData) child.userData = {};
+      ensureUserData(child);
       child.userData.harmonyDampingEnabled = true;
       child.userData.harmonyDampingFactor = 0.2;
     }

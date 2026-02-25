@@ -49,13 +49,14 @@ export class LinkEnergyRingSystem {
         mesh.rotation.z = Math.random() * Math.PI * 2;
 
         // Metadata
-        mesh.userData = {
+        const ud = (mesh && typeof mesh.userData === 'object' && mesh.userData) ? mesh.userData : (() => { try { Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return mesh.userData || {}; })();
+        Object.assign(ud, {
             birthTime: time,
             duration: 0.8,
             baseScale: 0.1,
             maxScale: 4.0,
             color: color
-        };
+        });
 
         this.rings.push(mesh);
         this.scene.add(mesh);

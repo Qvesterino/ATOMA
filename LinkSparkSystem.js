@@ -122,6 +122,7 @@ export class LinkSparkSystem {
         this.scene = scene;
         this.maxSparks = maxSparks;
         this.spawnIndex = 0;
+        this._debugSpawned = 0;
 
         // Configuration
         this.config = {
@@ -179,7 +180,8 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render if link is visible
-        this.points.userData = { isSparkSystem: true };
+        const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
+        Object.assign(ud, { isSparkSystem: true });
     }
 
     getMesh() {
@@ -217,21 +219,14 @@ export class LinkSparkSystem {
         this.uniforms.uColor.value.copy(sparkColor);
 
         // 2. Spawn Logic
-        // Rules: High Synergy OR High Traffic required
+        // Combined activity metric (0.0 - 1.0)
         const synergy = stats.synergy || 0;
         const traffic = stats.traffic || 0;
-        
-        // Combined activity metric (0.0 - 1.0)
-        const activity = Math.max(synergy, traffic);
-        
-        // Threshold: Almost no sparks below 0.3 activity
-        if (activity < 0.3) return;
+        const intensity = stats.intensity !== undefined ? stats.intensity : 0.25;
+        const activity = Math.max(intensity, synergy, traffic);
 
-        // Probability increases with activity
-        // At 0.3 -> 5% chance per frame
-        // At 1.0 -> 40% chance per frame
-        // Modified by deltaTime to be framerate independent
-        const spawnProb = (activity - 0.2) * 5.0 * deltaTime; // e.g. 0.8 * 5 * 0.016 = 0.06 (6% chance)
+        // Probability increases with activity (baseline always on)
+        const spawnProb = Math.min(1, Math.max(0, activity)) * 0.8 * deltaTime;
 
         // Burst check (Echo wave or bead arrival simulation)
         // We'll simulate bursts via random chance for now to keep it decoupled
@@ -239,6 +234,19 @@ export class LinkSparkSystem {
             // Spawn a small burst (1-3 particles)
             const count = Math.floor(Math.random() * 2) + 1;
             this.spawnBurst(count, time, activity);
+        }
+
+        // Opacity scales with activity but never zero
+        this.uniforms.uOpacity.value = 0.15 + 0.6 * Math.min(1, Math.max(0, activity));
+        this.points.visible = true;
+
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            this._debugAcc = (this._debugAcc || 0) + deltaTime;
+            if (this._debugAcc >= 1.0) {
+                console.log('[Sparks] dt:', deltaTime.toFixed(4), 'spawned:', this._debugSpawned || 0);
+                this._debugSpawned = 0;
+                this._debugAcc = 0;
+            }
         }
     }
 
@@ -276,7 +284,7 @@ export class LinkSparkSystem {
 
             // Size (Small, very subtle)
             // 2.0 to 4.0 pixel base size
-            aSize.setX(idx, 2.0 + Math.random() * 3.0);
+            aSize.setX(idx, (2.0 + Math.random() * 3.0) * (0.6 + 0.8 * Math.min(1, Math.max(0, intensity))));
 
             // Cycle index
             this.spawnIndex = (this.spawnIndex + 1) % this.maxSparks;
@@ -292,6 +300,9 @@ export class LinkSparkSystem {
         aAngle.needsUpdate = true;
         aSpeed.needsUpdate = true;
         aSize.needsUpdate = true;
+
+        // Debug spawn counter
+        this._debugSpawned = (this._debugSpawned || 0) + count;
     }
 
     dispose() {
@@ -302,5 +313,11 @@ export class LinkSparkSystem {
                 this.points.parent.remove(this.points);
             }
         }
+    }
+
+    getDebugStats() {
+        const spawned = this._debugSpawned || 0;
+        this._debugSpawned = 0;
+        return { spawned };
     }
 }

@@ -5,8 +5,6 @@
 window.ATOMA_LOG_LEVEL = window.ATOMA_LOG_LEVEL ?? 'error'; 
 // levels: 'error' | 'warn' | 'info' | 'log'
 window.ATOMA_ENABLE_AINODES = false;
-window.ATOMA_LINK_VISUALS_ENABLED = true;
-console.log("ATOMA_LINK_VISUALS_ENABLED =", window.ATOMA_LINK_VISUALS_ENABLED);
 (function () {
     const original = {
         log: console.log.bind(console),
@@ -4862,12 +4860,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.scene.remove(this.worldRoot);
         }
 
-        this.worldRoot = new THREE.Group();
-        this.worldRoot.name = "ATOMA_WorldRoot";
-        this.scene.add(this.worldRoot);
-        this.worldLightingRoot = new THREE.Group();
-        this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
-        this.worldRoot.add(this.worldLightingRoot);
+    this.worldRoot = new THREE.Group();
+    this.worldRoot.name = "ATOMA_WorldRoot";
+    this.scene.add(this.worldRoot);
+    this.worldLightingRoot = new THREE.Group();
+    this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
+    this.worldRoot.add(this.worldLightingRoot);
+    if (this.linkingSystem) {
+        this.linkingSystem.resetForWorldRebuild({ scene: this.scene, worldRoot: this.worldRoot });
+    }
 
         if (this.glyphLayer4?.dispose) {
             this.glyphLayer4.dispose();

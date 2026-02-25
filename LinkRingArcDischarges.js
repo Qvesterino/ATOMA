@@ -25,7 +25,8 @@ export class LinkRingArcDischarges {
         this.scene = scene;
         this.activeArcs = []; // Array of active arc objects
         this.group = new THREE.Group();
-        this.group.userData = { isArcDischarges: true };
+        const ud = (this.group && typeof this.group.userData === 'object' && this.group.userData) ? this.group.userData : (() => { try { Object.defineProperty(this.group, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.group.userData || {}; })();
+        Object.assign(ud, { isArcDischarges: true });
         
         scene.add(this.group);
         
