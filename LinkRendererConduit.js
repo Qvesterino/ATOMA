@@ -117,11 +117,6 @@ export class LinkRendererConduit {
     constructor(scene) {
         this.scene = scene;
 
-        // Auto-enable particle debug once per session to aid visibility tests
-        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === undefined) {
-            window.__DEBUG_LINK_PARTICLES__ = true;
-        }
-        
         this.config = {
             baseRadius: 0.06,
             strandRadius: 0.025,
@@ -725,38 +720,6 @@ export class LinkRendererConduit {
         // Reusing curve object would be ideal but QuadraticBezierCurve3 is light
         const mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
         
-        // DEBUG: bright helper line to verify streak path
-        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-            if (!link.group.userData.__debugStreakLine) {
-                const dbgGeo = new THREE.BufferGeometry();
-                const dbgMat = new THREE.LineBasicMaterial({
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 1.0,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    depthTest: false
-                });
-                const dbgLine = new THREE.Line(dbgGeo, dbgMat);
-                dbgLine.renderOrder = 300;
-                dbgLine.frustumCulled = false;
-                link.group.add(dbgLine);
-                link.group.userData.__debugStreakLine = dbgLine;
-            }
-            const dbgLine = link.group.userData.__debugStreakLine;
-            const segments = 32;
-            const pts = mainCurve.getPoints(segments);
-            const pos = new Float32Array((segments + 1) * 3);
-            for (let i = 0; i < pts.length; i++) {
-                pos[i * 3 + 0] = pts[i].x;
-                pos[i * 3 + 1] = pts[i].y;
-                pos[i * 3 + 2] = pts[i].z;
-            }
-            dbgLine.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            dbgLine.geometry.setDrawRange(0, pts.length);
-            dbgLine.geometry.computeBoundingSphere();
-            dbgLine.geometry.attributes.position.needsUpdate = true;
-        }
         link.curve = mainCurve;
         
         // Store link direction for aura modulation later
