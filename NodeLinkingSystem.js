@@ -370,7 +370,7 @@ export class NodeLinkingSystem {
     this.selectedNodes = new Set();  // Set of selected node references
     this.multiSelectHighlights = new Map();  // node → highlight mesh
     this.selectionPulseAnimations = new Map();  // Track pulse animations by node
-    this.deferLinkVisuals = true; // Gate to defer heavy visual work
+    this.deferLinkVisuals = false; // Build link visuals immediately (avoid missed conduit init)
     this.pendingLinkVisualsQueue = []; // FIFO queue for deferred link visuals
     
     // [Box Selection System] Drag-to-select area-based multi-selection
@@ -3430,26 +3430,14 @@ getLinksForNode(node) {
       this.pendingLinkVisualsQueue.push({ link, sourceNode, targetNode });
       return link;
     }
-    // 1. Create visual group via new renderer
-    // We create a stub because the renderer needs source/target references
-    const linkStub = { source: sourceNode, target: targetNode };
-    const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
-    const parent = this.linkRoot || this.scene;
-    parent.add(linkGroup);
-    
-    // 2. Enforce depth authority (standard ATOMA protocol)
-    NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
-    
-    // 3. Construct Link Object (retaining system compatibility)
+    // 1. Construct Link Object first (so conduit gets real reference)
     const link = {
       source: sourceNode,
       target: targetNode,
       sourceNodeId: this.getNodeId(sourceNode),
       targetNodeId: this.getNodeId(targetNode),
-      
-      group: linkGroup,
+      group: null,
       active: true,
-      
       // Traffic data (required for logic simulation)
       traffic: {
         load: this.trafficSimulation.baseTraffic + Math.random() * 0.2,
@@ -3457,22 +3445,28 @@ getLinksForNode(node) {
         priority: Math.random(),
         bottleneck: false
       },
-      
       // Animation state
       animation: {
         pulsePhase: Math.random() * Math.PI * 2
       },
-      
       // Identity
       id: `link-${this._linkIdCounter++}`,
-      
       // Compatibility flags
       vfxEnabled: true,
       extremeMode: false, // Disables legacy extreme visual updates
-      
       // Creation timestamp
-      createdAt: performance.now()
+      createdAt: performance.now(),
+      visualState: 'pending'
     };
+    
+    // 2. Create visual group via new renderer using real link reference
+    const linkGroup = this.conduitRenderer.createLinkVisuals(link);
+    link.group = linkGroup;
+    const parent = this.linkRoot || this.scene;
+    parent.add(linkGroup);
+    
+    // 3. Enforce depth authority (standard ATOMA protocol)
+    NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
     
     this.links.push(link);
     this._markLinksDirty();
@@ -3586,8 +3580,7 @@ getLinksForNode(node) {
     captureNodeCoreState(sourceNode);
     captureNodeCoreState(targetNode);
     try {
-      const linkStub = { source: sourceNode, target: targetNode };
-      const linkGroup = this.conduitRenderer.createLinkVisuals(linkStub);
+      const linkGroup = this.conduitRenderer.createLinkVisuals(link);
       (this.linkRoot || this.scene).add(linkGroup);
       NodeDepthAndHoloPreservationFix.enforceLinkDepthAuthority(linkGroup);
       link.group = linkGroup;
@@ -3645,7 +3638,7 @@ getLinksForNode(node) {
       }
 
       link.visualState = 'ready';
-      console.log('✓ Braided Link Visuals Ready:  -> ');
+      console.log('✓ Braided Link Visuals Ready:', link.id);
     } finally {
       restoreNodeCoreState(sourceNode);
       restoreNodeCoreState(targetNode);
@@ -4513,7 +4506,20 @@ getLinksForNode(node) {
 
     // [Braided Conduit] Per-frame update for all link visuals (strands + beads + sparks)
     if (this.conduitRenderer && this.links) {
-      this.conduitRenderer.updateAll(this.links, deltaTime, time);
+      try {
+        // If visualState not ready, build immediately (safety)
+        for (const link of this.links) {
+          if (!link.group || !link.group.userData?.conduitState) {
+            this.conduitRenderer.createLinkVisuals(link);
+          }
+        }
+        this.conduitRenderer.updateAll(this.links, deltaTime, time);
+        // Tick conduit-managed particle systems (trail + healing) so emitted particles animate
+        this.conduitRenderer.updateTrailParticles(deltaTime, time);
+        this.conduitRenderer.updateHealingParticles(deltaTime, time);
+      } catch (err) {
+        console.error('[ConduitUpdate][EXCEPTION]', err);
+      }
     }
     
     // [Patch 3.2 HYBRID] Periodic sync: validate index ↔ runtime consistency

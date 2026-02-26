@@ -116,6 +116,11 @@ function freezeMaterialFlags(material, owner = 'LinkRenderer') {
 export class LinkRendererConduit {
     constructor(scene) {
         this.scene = scene;
+
+        // Auto-enable particle debug once per session to aid visibility tests
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === undefined) {
+            window.__DEBUG_LINK_PARTICLES__ = true;
+        }
         
         this.config = {
             baseRadius: 0.06,
@@ -198,6 +203,15 @@ export class LinkRendererConduit {
 
         if (!list.length && typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
             console.warn('[LinkRendererConduit] updateAll called with empty link list');
+        }
+
+        // Debug heartbeat: log once per second to confirm animator runs
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            const now = performance.now();
+            if (!this._dbgLastLog || now - this._dbgLastLog > 1000) {
+                console.debug('[ConduitUpdate]', 'links:', list.length, 'dt:', deltaTime.toFixed(4));
+                this._dbgLastLog = now;
+            }
         }
 
         for (const link of list) {
@@ -602,6 +616,10 @@ export class LinkRendererConduit {
                 const hubController = sourceController?.isActive ? sourceController : null;
                 
                 directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
+                group.userData.conduitState.__streaksInit = true;
+                if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                    console.debug('[DirectionalStreaks] initialized for', link.id);
+                }
             }
         } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init directional streaks', e); }
 
@@ -655,6 +673,15 @@ export class LinkRendererConduit {
         const visualDelta = VisualTime.delta;
 
         const state = link.group.userData.conduitState;
+        if (!state) {
+            // If conduit state missing, rebuild visuals inline
+            const rebuilt = this.createLinkVisuals(link);
+            link.group = rebuilt;
+            if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
+            }
+            return;
+        }
         
         // --- LINK ANCHORING FIX ---
         // Compute anchored start/end points at node surfaces (not centers)
@@ -697,6 +724,39 @@ export class LinkRendererConduit {
 
         // Reusing curve object would be ideal but QuadraticBezierCurve3 is light
         const mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
+        
+        // DEBUG: bright helper line to verify streak path
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            if (!link.group.userData.__debugStreakLine) {
+                const dbgGeo = new THREE.BufferGeometry();
+                const dbgMat = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 1.0,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    depthTest: false
+                });
+                const dbgLine = new THREE.Line(dbgGeo, dbgMat);
+                dbgLine.renderOrder = 300;
+                dbgLine.frustumCulled = false;
+                link.group.add(dbgLine);
+                link.group.userData.__debugStreakLine = dbgLine;
+            }
+            const dbgLine = link.group.userData.__debugStreakLine;
+            const segments = 32;
+            const pts = mainCurve.getPoints(segments);
+            const pos = new Float32Array((segments + 1) * 3);
+            for (let i = 0; i < pts.length; i++) {
+                pos[i * 3 + 0] = pts[i].x;
+                pos[i * 3 + 1] = pts[i].y;
+                pos[i * 3 + 2] = pts[i].z;
+            }
+            dbgLine.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            dbgLine.geometry.setDrawRange(0, pts.length);
+            dbgLine.geometry.computeBoundingSphere();
+            dbgLine.geometry.attributes.position.needsUpdate = true;
+        }
         link.curve = mainCurve;
         
         // Store link direction for aura modulation later
@@ -891,6 +951,10 @@ export class LinkRendererConduit {
         // --- 5. Subsystems Update ---
         this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + (state.beads ? 1 : 0);
         if (state.beads) {
+            // Re-assert render state to bypass global depth clamps
+            if (state.beads.forceRenderState) {
+                state.beads.forceRenderState();
+            }
             if (state.beads.setIntensity) {
                 state.beads.setIntensity(vfx.beadsIntensity);
             }
@@ -1005,19 +1069,32 @@ export class LinkRendererConduit {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
 
-            this.directionalStreaks.update(
-                link.group,
-                mainCurve,
-                visualDelta, // Phase 2A: canonical VisualTime delta
-                synergyLevel,
-                harmonyLevel,
-                corruptionLevel,
-                instability,
-                sourceColor,
-                targetColor,
-                link,
-                visualTime  // Time source: VisualTime (canonical)
-            );
+            try {
+                this.directionalStreaks.update(
+                    link.group,
+                    mainCurve,
+                    visualDelta, // Phase 2A: canonical VisualTime delta
+                    synergyLevel,
+                    harmonyLevel,
+                    corruptionLevel,
+                    instability,
+                    sourceColor,
+                    targetColor,
+                    link,
+                    visualTime  // Time source: VisualTime (canonical)
+                );
+                if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                    console.debug('[StreaksTick]', link.id, 'state:', state.directionalStreaks ? 'ok' : 'missing');
+                }
+            } catch (err) {
+                if (typeof window !== 'undefined') {
+                    console.error('[DirectionalStreaks][EXCEPTION]', err);
+                }
+            }
+        } else {
+            if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                console.warn('[DirectionalStreaks] state missing for link', link.id);
+            }
         }
         
         // Debug hook: log one sample link per second when enabled
@@ -1049,20 +1126,21 @@ export class LinkRendererConduit {
         const load = traffic ?? link.loadPressure ?? 0.0;
 
         const out = this._vfxInput;
-        out.baseIntensity = Math.max(0.15,
+        // Raise baselines so VFX stay visible even at low activity
+        out.baseIntensity = Math.max(0.25,
             0.35 * synergy +
             0.25 * harmony +
             0.15 * (1 - corruption) +
             0.15 * load);
 
-        out.beadsIntensity = Math.max(0.05,
+        out.beadsIntensity = Math.max(0.20,
             0.5 * synergy +
             0.2 * harmony +
             0.2 * load +
             0.1 * corruption);
 
         const corrLoad = Math.max(corruption, load);
-        out.sparksIntensity = Math.max(0.03,
+        out.sparksIntensity = Math.max(0.3,
             0.4 * corrLoad +
             0.2 * synergy);
 

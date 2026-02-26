@@ -1,0 +1,167 @@
+ATOMA Metrics Batch Discovery Progress
+========================================
+Last run: Wednesday, February 25th, 2026 — 21:46 (Europe/Bratislava)
+
+Files scanned: 62
+Next start index: 63
+
+Standard metrics (excluded):
+- synergy
+- harmony
+- stability
+- corruption
+- loadPressure
+
+Metrics found:
+===============
+
+Non-canonical metrics discovered:
+
+1. integrity
+   - File: D:\ATOMA_CLEAN\CoreMetricAuthorityMonitor.js
+   - Line: AUTHORITY_CONTRACT defines integrity as a locked stat
+
+2. networkStress
+   - File: D:\ATOMA_CLEAN\CoreMetricAuthorityMonitor.js
+   - Line: AUTHORITY_CONTRACT defines networkStress as a locked stat
+
+3. ascensionModified
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: ascensionModified is the curve-mapped ascension value (0-1)
+
+4. ascensionMultiplier
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: ascensionMultiplier is the visual FX intensity multiplier (0-2+)
+
+5. personalityInfluence
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: personalityInfluence is how personality signals bias the curve (0-1)
+
+6. curveRaw
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: curveRaw is the raw curve evaluation value
+
+7. curveSmoothed
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: curveSmoothed is the EMA-smoothed curve with hysteresis
+
+8. tierBoost
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: tierBoost is the tier-specific multiplier (1.0-2.0+)
+
+9. nextTierProgress
+   - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+   - Line: nextTierProgress is progress to next tier boundary (0-1)
+
+10. stage
+    - File: D:\ATOMA_CLEAN\ColonyRegistry.js
+    - Line: stage is the colony stage (0-4)
+
+11. mood
+    - File: D:\ATOMA_CLEAN\ColonyRegistry.js
+    - Line: mood is the colony mood (CALM, ACTIVE, OVERDRIVE, DECLINING)
+
+12. density
+    - File: D:\ATOMA_CLEAN\ColonyRegistry.js
+    - Line: density is the relative density of colony nodes
+
+13. energy
+    - File: D:\ATOMA_CLEAN\ColonyRegistry.js
+    - Line: energy is the colony energy level
+
+14. clarity
+    - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+    - Line: clarity is a personality signal
+
+15. resonance
+    - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+    - Line: resonance is a personality signal
+
+16. energy (personality signal)
+    - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+    - Line: energy is a personality signal
+
+17. entropy
+    - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+    - Line: entropy is a personality signal
+
+18. focus
+    - File: D:\ATOMA_CLEAN\ArchetypeAscensionCurves_v1.js
+    - Line: focus is a personality signal
+
+19. risk
+    - File: D:\ATOMA_CLEAN\ui\hud\VariantBAdvisorHUD.js
+    - Line: risk is displayed in the AI Status HUD
+
+20. recovery
+    - File: D:\ATOMA_CLEAN\ui\hud\VariantBAdvisorHUD.js
+    - Line: recovery is displayed in the AI Status HUD
+
+Performance metrics (not game metrics):
+- fpsEMA, totalBeads, activeBeads, avgBeadsPerLink, etc.
+
+Visual parameters (not game metrics):
+- uArchetypeIntensity, uArchetypeRadiusBoost, uArchetypeColorShift, etc.
+- colorShift, animation, glow, particles parameters
+
+Cascade system metrics (system state):
+- cascadeEnergy, cascadeDepth, cascadeChance
+
+Alias metrics (derived from canonical):
+- synergyNorm, harmonyNorm, stabilityNorm, corruptionNorm, energyNorm
+- networkSynergy (alias for synergy)
+- harmonyFlow (alias for harmony)
+- corruptionLevel (alias for corruption)
+- loadPressure (alias for networkLoad)
+
+Note: "networkStress" appears to be an alias for "stability" in some contexts,
+but is also defined as a separate locked stat in CoreMetricAuthorityMonitor.js.
+
+### Metrics from Files 38-62
+
+21. tension
+   - File: D:\ATOMA_CLEAN\_AINarrativePatterns6_0.js
+   - Line: tension is 0-1, drives phase transitions between narrative phases
+
+22. coherence
+   - File: D:\ATOMA_CLEAN\_AINarrativePatterns6_0.js
+   - Line: coherence is 0-1, quality/clarity of pattern
+
+23. phase
+   - File: D:\ATOMA_CLEAN\_AINarrativePatterns6_0.js
+   - Line: phase is narrative phase (INTRO | RISING | CLIMAX | RESOLVE | ECHO)
+
+24. motifId
+   - File: D:\ATOMA_CLEAN\_AINarrativePatterns6_0.js
+   - Line: motifId is recurring visual pattern identifier
+
+25. currentMood
+   - File: D:\ATOMA_CLEAN\_AIThoughtStorms2_0.js
+   - Line: currentMood is network mood state (CALM | FOCUSED | TENSE | CHAOTIC | CRITICAL | SYNERGIC)
+
+26. prevMood
+   - File: D:\ATOMA_CLEAN\_AIThoughtStorms2_0.js
+   - Line: prevMood is previous mood state
+
+27. avgEnergy
+   - File: D:\ATOMA_CLEAN\_AtomaUIUpdate3_0.js
+   - Line: avgEnergy is average energy across all nodes
+
+28. avgClarity
+   - File: D:\ATOMA_CLEAN\_AtomaUIUpdate3_0.js
+   - Line: avgClarity is average clarity across all nodes
+
+29. thoughtDensity
+   - File: D:\ATOMA_CLEAN\_EmergentThoughtStorms5_0.js
+   - Line: thoughtDensity is local chain length for storm triggering
+
+### Internal/State Variables (Not Game Metrics)
+The following were identified as internal state or configuration variables, not game metrics:
+- age (node evolution age)
+- progress (transition progress)
+- stage (evolution stage)
+- averageStage (statistics)
+- currentStage (link evolution stage)
+- targetStage (link evolution target)
+- lastTrafficLoad (link traffic tracking)
+- responsiveness (visual smoothing config)

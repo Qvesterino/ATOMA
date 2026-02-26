@@ -98,9 +98,9 @@ function freezeMaterialFlags(material, owner = 'LinkBeadSystem') {
 export const BEAD_CONFIG = {
   // Bead sizes (radius)
   sizes: {
-    small: 0.035,   // Background flow
-    medium: 0.055,  // Active flow
-    large: 0.085    // Major impulses
+    small: 0.04,    // Background flow
+    medium: 0.06,   // Active flow
+    large: 0.08     // Major impulses
   },
   
   // Base Size distribution (probability)
@@ -118,7 +118,7 @@ export const BEAD_CONFIG = {
   // Spawn behavior
   spawn: {
     // Base spawn rate (beads per second at synergy=1.0, traffic=1.0)
-    baseRate: 3.0,
+    baseRate: 8.0,
     // Activity = (synergy + traffic) / 2 (plus external boost)
   },
   
@@ -132,8 +132,8 @@ export const BEAD_CONFIG = {
   },
   
   // Visual properties
-  opacity: 0.75,
-  emissiveIntensity: 0.4,
+  opacity: 0.35,
+  emissiveIntensity: 0.6,
   
   // Roughness and metalness for soft, glowing appearance
   roughness: 0.5,
@@ -210,7 +210,7 @@ export class LinkBeadPool {
     this.maxBeads = maxBeads;
     this.beads = [];
     this.activeBead = null;
-    this.activityBoost = 0.3; // baseline intensity (from conduit)
+    this.activityBoost = 0.6; // higher baseline so beads are always visible
     
     // Spawn accumulator
     this.spawnAccumulator = 0;
@@ -241,7 +241,8 @@ export class LinkBeadPool {
    * External intensity boost (set each frame by conduit)
    */
   setActivityBoost(v = 0.1) {
-    this.activityBoost = v;
+    // Clamp to a sensible minimum to keep beads spawning
+    this.activityBoost = Math.max(0.5, v);
   }
   
   /**
@@ -369,7 +370,11 @@ export class LinkBeadPool {
     
     // Spawn new beads
     this.trySpawn(deltaTime);
-    
+    // Force at least one bead when none are active (debug visibility)
+    if (this.getActiveBead().length === 0) {
+      this.trySpawn(deltaTime * 3); // triple boost to guarantee spawn
+    }
+
     // Update active beads
     for (const bead of this.beads) {
       if (bead.isActive) {
@@ -379,6 +384,7 @@ export class LinkBeadPool {
         }
       }
     }
+
   }
   
   /**
@@ -457,7 +463,7 @@ export class BeadRenderer {
       side: THREE.DoubleSide,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.NormalBlending
+      blending: THREE.AdditiveBlending
     });
     // Freeze variant properties on the template material
     if (!this.material.userData) {
@@ -475,13 +481,20 @@ export class BeadRenderer {
     const geometry = this.geometries[bead.size];
     const material = this.material.clone();
     
-    if (color) {
-      material.color.copy(color);
-      material.emissive.copy(color);
-    }
+    const tint = color ? color.clone() : new THREE.Color(0x88ccff);
+    material.color.copy(tint);
+    material.emissive.copy(tint);
+    material.emissiveIntensity = BEAD_CONFIG.emissiveIntensity;
+    material.opacity = BEAD_CONFIG.opacity;
+    material.transparent = true;
+    material.depthWrite = false;
+    material.depthTest = false;
+    material.blending = THREE.AdditiveBlending;
+    material.needsUpdate = true;
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
+    mesh.renderOrder = 120; // draw over rope strands, below sparks
     const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
     Object.assign(ud, { bead: bead, isBead: true });
     
@@ -538,6 +551,7 @@ export class BeadRenderer {
     pos.addScaledVector(binormal, offsetY);
     
     mesh.position.copy(pos);
+    // Keep native size; no extra scale
     
     // Calculate base opacity with synergy coupling
     let baseOpacity = BEAD_CONFIG.opacity;
@@ -619,6 +633,25 @@ export class LinkBeadVisualizer {
     // Default color for creation (source color)
     this.color = this.sourceColor;
   }
+
+  /**
+   * Force render state each frame to undo global depth/opacity clamps.
+   */
+  forceRenderState() {
+    this.group?.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      child.renderOrder = 500;
+      child.visible = true;
+      const mat = child.material;
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.depthTest = false;
+      mat.blending = THREE.AdditiveBlending;
+      mat.opacity = BEAD_CONFIG.opacity;
+      if (mat.emissive) mat.emissiveIntensity = BEAD_CONFIG.emissiveIntensity;
+      mat.needsUpdate = true;
+    });
+  }
   
   /**
    * Helper: Get color by category name
@@ -665,6 +698,15 @@ export class LinkBeadVisualizer {
     
     const synergy = this.link.synergyScore ?? 0.5;
     const activeBead = this.pool.getActiveBead();
+
+    // Debug: emit bead counts once per second when debug flag is on
+    if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+      this._debugAcc += step;
+      if (this._debugAcc >= 1.0) {
+        console.debug('[Beads]', this.link.id, 'active:', activeBead.length, 'meshes:', this.beadToMesh.size);
+        this._debugAcc = 0;
+      }
+    }
     
     // Update existing meshes
     for (const [bead, mesh] of this.beadToMesh) {
