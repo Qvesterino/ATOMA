@@ -1208,4 +1208,63 @@ export class SafeWorldFXPack {
       screenOverlays: []
     };
   }
+
+  /**
+   * Reset internal state for world switch
+   * Clears mutable state without removing objects from scene
+   * Safe to call multiple times
+   */
+  resetForWorldSwitch() {
+    // Clear VFX arrays (but do NOT remove from scene)
+    if (Array.isArray(this.vfxLayers.dimensionalShifts)) {
+      this.vfxLayers.dimensionalShifts.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.riftWaves)) {
+      this.vfxLayers.riftWaves.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.energyPulses)) {
+      this.vfxLayers.energyPulses.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.quantumRifts)) {
+      this.vfxLayers.quantumRifts.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.sigmaGlitches)) {
+      this.vfxLayers.sigmaGlitches.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.energyStreams)) {
+      this.vfxLayers.energyStreams.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.auroraHorizons)) {
+      this.vfxLayers.auroraHorizons.length = 0;
+    }
+    if (Array.isArray(this.vfxLayers.screenOverlays)) {
+      this.vfxLayers.screenOverlays.length = 0;
+    }
+    this.vfxLayers.fractalSky = null;
+
+    // Clear world state tracking
+    if (this.worldState) {
+      this.worldState.totalSynergy = 0;
+      this.worldState.totalTraffic = 0;
+      this.worldState.activeNodeCount = 0;
+      this.worldState.legendaryCount = 0;
+      this.worldState.time = 0;
+      this.worldState.dimensionalPhase = 0;
+      this.worldState.riftWaveTimer = 0;
+      this.worldState.pulseTimer = 0;
+      this.worldState.glitchTimer = 0;
+      this.worldState.quantumTimer = 0;
+      this.worldState.breathingPhase = 0;
+    }
+
+    // Clear lights array
+    if (Array.isArray(this.lights)) {
+      this.lights.length = 0;
+    }
+
+    // Clear original lights
+    if (Array.isArray(this.originalLights)) {
+      this.originalLights.length = 0;
+    }
+  }
 }

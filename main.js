@@ -37,7 +37,7 @@ window.ATOMA_ENABLE_AINODES = false;
 // ============================================================================
 import { debugLog } from './Engine/Debug/DebugLog.js';
 import * as THREE from 'three';
-import { systemRegistry } from './engine/SystemRegistry.js';
+import { systemRegistry } from './Engine/SystemRegistry.js';
 window.THREE = THREE;
 window.SYSTEM_REGISTRY = systemRegistry;
 // TEMP DISABLED: SphereCreatorTrace blocking spawn pipeline
@@ -77,6 +77,8 @@ if (typeof window !== 'undefined') {
     window.ATOMA_DEBUG_CADENCE = window.ATOMA_DEBUG_CADENCE ?? false;
     window.ATOMA_DEBUG_MATERIAL_MUTATIONS = window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false;
     window.ATOMA_VISUAL_BASELINE = false;
+    window.ATOMA_PROBE_SPAWN = window.ATOMA_PROBE_SPAWN ?? false;
+    window.ATOMA_WORLD_PROBE = window.ATOMA_WORLD_PROBE ?? false;
     
     // PHASE: LOG-STORM-CUT - Default debug flags to OFF
     window.ATOMA_DEBUG_SPAWN = window.ATOMA_DEBUG_SPAWN ?? false;
@@ -917,6 +919,7 @@ import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
 import { UIPrimaryNodeAura3_7 } from './_UIPrimaryNodeAura3_7.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
+import { WorldSelectorHUD } from './WorldSelectorHUD.js';
 // REMOVED: NodeLinking2_0, NodeLinking2_1, NodeLinking2_2 (superseded by 2.3)
 
 // ============================================================================
@@ -3313,6 +3316,7 @@ this.setHudDirty('nodeInspect');
         console.log('  API: scheduler.stats() | scheduler.listSystems() | scheduler.clear()');
         
         this.currentMode = 'fractal'; // Default: Fractal Valley
+        this.currentTheme = 'fractal';
         this.worldRegistry = {
             fractal: () => this.initFractalWorld(),
             quantum: () => this.initQuantumWorld(),
@@ -3617,6 +3621,12 @@ document.addEventListener('keydown', () => {
         // Safe World Reset Fix 1.0 (safe map transition system)
         this.worldResetFix = new SafeWorldResetFix1_0();
 
+        // World Transition Guard (prevent re-entrant loadWorld/createWorld calls)
+        this._worldTransitionInProgress = false;
+
+        // World Event Listener Registry (prevent memory leaks on world switch)
+        this._worldEventDisposers = [];
+
         // Node Inspect Overlay 1.0 (initialized after scene/camera ready)
         this.nodeInspectOverlay = null;
 
@@ -3799,6 +3809,7 @@ document.addEventListener('keydown', () => {
 
         // OLD UI 3.0 - To be disabled
         this.nodeInspectPanel = null;     // Used by UI 3.2 for persistence
+        this.worldSelectorHUD = null;
 
         this.init();
         this.setupPlayer();
@@ -4032,6 +4043,10 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         // Expose AtomaGame instance and subsystems globally (debug-safe)
         window.game = this;
+        if (!this.worldSelectorHUD) {
+            this.worldSelectorHUD = new WorldSelectorHUD(this);
+        }
+        this.worldSelectorHUD.attach();
         window.linkQualityFeedbackLoop = this.linkQualityFeedbackLoop;
         window.linkMLRecommendationEngine = this.linkMLRecommendationEngine;
         window.userAcceptanceTracker = this.userAcceptanceTracker;
@@ -4819,31 +4834,31 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
     initSigmaWorld() {
         this.currentMode = 'sigma';
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupSigmaRiftEnvironment?.();
     }
 
     initDesertWorld() {
         this.currentMode = 'desert';
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupDreamDesertEnvironment();
     }
 
     initQuantumWorld() {
         this.currentMode = 'quantum';
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupQuantumIslandEnvironment();
     }
 
     initFractalWorld() {
         this.currentMode = 'fractal';
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupFractalValleyEnvironment();
     }
 
     initChamberWorld() {
         this.currentMode = 'chamber';
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupChamberEnvironment();
     }
 
@@ -4851,24 +4866,54 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
      * Create the ATOMA world
      */
     createWorld(reason) {
-        const reasonForCreate = reason || this._pendingCreateWorldReason || 'CREATE_WORLD';
-        this._pendingCreateWorldReason = null;
-        // ATOMA: visual layer prune/reset on world switch
-        this.frameScheduler?.resetLayer?.('visual');
-
-        if (this.worldRoot) {
-            this.scene.remove(this.worldRoot);
+        console.log('[CREATEWORLD] start', { reason, mode: this.currentMode });
+        // World Transition Guard - prevent re-entrant execution
+        if (this._worldTransitionInProgress && reason !== 'MAP_SWITCH') {
+            console.warn('[WorldTransition] Ignored re-entrant createWorld call for reason:', reason);
+            return;
         }
 
-    this.worldRoot = new THREE.Group();
-    this.worldRoot.name = "ATOMA_WorldRoot";
-    this.scene.add(this.worldRoot);
-    this.worldLightingRoot = new THREE.Group();
-    this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
-    this.worldRoot.add(this.worldLightingRoot);
-    if (this.linkingSystem) {
-        this.linkingSystem.resetForWorldRebuild({ scene: this.scene, worldRoot: this.worldRoot });
-    }
+        this._worldTransitionInProgress = true;
+
+        try {
+            // Cleanup old world event listeners
+            this.disposeWorldListeners();
+
+            const reasonForCreate = reason || this._pendingCreateWorldReason || 'CREATE_WORLD';
+            this._pendingCreateWorldReason = null;
+            // ATOMA: visual layer prune/reset on world switch
+            this.frameScheduler?.resetLayer?.('visual');
+
+            if (this.worldRoot) {
+                this.scene.remove(this.worldRoot);
+            }
+
+            // FrameScheduler Stale State Reset (clear simulation/background layer state after old world disposal)
+            // NOTE: Do NOT reset 'realtime' layer (camera, player, core systems)
+            if (this.frameScheduler) {
+                this.frameScheduler.resetLayer('simulation');
+                this.frameScheduler.resetLayer('background');
+            }
+
+            // Stale Reference Hard Reset (prevent old world references from persisting)
+            // Clear references that WILL be recreated immediately
+            // NOTE: linkingSystem is NOT recreated, so we DON'T set it to null
+            this.aiNodes = null;
+            this.worldLightingRoot = null;
+
+        this.worldRoot = new THREE.Group();
+        this.worldRoot.name = "ATOMA_WorldRoot";
+        this.scene.add(this.worldRoot);
+        this.worldLightingRoot = new THREE.Group();
+        this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
+        this.worldRoot.add(this.worldLightingRoot);
+        if (this.linkingSystem) {
+            this.linkingSystem.resetForWorldRebuild({ scene: this.scene, worldRoot: this.worldRoot });
+        }
+        // Reset linkingSystem to prevent stale references (if resetForWorldSwitch exists)
+        if (this.linkingSystem?.resetForWorldSwitch) {
+            this.linkingSystem.resetForWorldSwitch();
+        }
 
         if (this.glyphLayer4?.dispose) {
             this.glyphLayer4.dispose();
@@ -4888,9 +4933,42 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         [this.worldFXPack, this.worldEvents, this.weatherPack, this.metricReactiveEvents].forEach(sys => {
             if (sys?.root) {
                 sys.root.parent?.remove(sys.root);
+            }
+            // Reset reattachable systems to prevent stale references
+            if (sys?.resetForWorldSwitch) {
+                sys.resetForWorldSwitch();
+            }
+            // Reattach to new worldRoot after reset
+            if (sys?.root) {
                 this.worldRoot.add(sys.root);
             }
         });
+
+        // Dispose old world instance before creating new one
+        if (this.activeWorld) {
+            console.log('[WorldInstance] Disposing old activeWorld:', this.activeWorld);
+            
+            // If world instance has dispose(), use it
+            if (this.activeWorld.dispose) {
+                this.activeWorld.dispose();
+            } else {
+                // Minimal disposal for instances without dispose()
+                // 1. Clear world children
+                if (this.activeWorld.worldRoot) {
+                    this.activeWorld.worldRoot.children.forEach(child => {
+                        this.activeWorld.worldRoot.remove(child);
+                        if (child.dispose) {
+                            child.dispose();
+                        }
+                    });
+                }
+                // 2. Clear references
+                this.activeWorld.worldRoot = null;
+                this.activeWorld.scene = null;
+                this.activeWorld.camera = null;
+            }
+        }
+        this.activeWorld = null;
 
         if (this.currentMode === 'sigma') {
             this.sigmaRift = new SigmaRiftChamber(
@@ -4934,6 +5012,21 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.activeWorld = this.chamber;
         }
 
+        if (window.ATOMA_WORLD_PROBE) {
+            const bounds = new THREE.Box3().setFromObject(this.worldRoot);
+            const size = bounds.getSize(new THREE.Vector3());
+            const center = bounds.getCenter(new THREE.Vector3()); 
+            console.log('[WORLD_PROBE]', {
+                mode: this.currentMode,
+                childCount: this.worldRoot.children.length,
+                min: bounds.min.clone(),
+                max: bounds.max.clone(),
+                size,
+                center,
+                cameraPosition: this.camera?.position?.clone()
+            });
+        }
+
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
@@ -4946,6 +5039,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.log('[main.js] ControlledUnfreezeSystem initialized ✓');
         } catch (err) {
             console.warn('[main.js] ControlledUnfreezeSystem initialization failed:', err);
+        }
+        console.log('[CREATEWORLD] end', {
+            reason,
+            mode: this.currentMode,
+            worldRootChildren: this.worldRoot?.children?.length
+        });
+        } finally {
+            this._worldTransitionInProgress = false;
         }
     }
 /*  createAINodes() {
@@ -5091,6 +5192,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
         this.aiNodes.createNodes(this.currentMode, nodeCount);
+        if (window.ATOMA_PROBE_SPAWN) {
+            console.log('[SPAWN_PROBE] mode=', this.currentMode,
+                'requested=', nodeCount,
+                'created=', this.aiNodes?.nodes?.length);
+        }
         // Enable runtime spawning after init batch
         this.aiNodes.spawnMode = 'RUNTIME';
 
@@ -7131,13 +7237,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
-     * Setup mode switching (M key)
+     * Setup mode switching (theme cycle + map hotkey)
      */
     setupModeSwitch() {
         document.addEventListener('keydown', (e) => {
-            console.log('KEYDOWN:', e.code);
+            console.log('[MODEKEY]', e.code, 'shift=', e.shiftKey);
             if (e.code === 'KeyM') {
-                this.switchMode();
+                if (e.shiftKey) {
+                    this.switchWorld();
+                } else {
+                    this.switchMode();
+                }
+            } else if (e.code === 'KeyN') {
+                this.switchWorld();
             }
         });
     }
@@ -7171,28 +7283,74 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     loadWorld(worldId) {
-        if (!this.worldRegistry[worldId]) {
-            console.warn("Unknown world:", worldId);
+        // World Transition Guard - prevent re-entrant execution
+        if (this._worldTransitionInProgress) {
+            console.warn('[WorldTransition] Ignored re-entrant loadWorld call for:', worldId);
             return;
         }
 
-        // Hard reset global scene layer (keep player, lights, existing worldRoot only)
-        this.scene.children
-            .filter(o =>
-                o !== this.worldRoot &&
-                o !== this.player &&
-                !(o instanceof THREE.Light)
-            )
-            .forEach(o => this.scene.remove(o));
+        this._worldTransitionInProgress = true;
 
-        console.log("Loading world:", worldId);
+        try {
+            console.log('[LOADWORLD] start', worldId);
+            // Cleanup old world event listeners
+            this.disposeWorldListeners();
 
-        this.worldResetFix.cleanOldScene();
+            const fn = this.worldRegistry?.[worldId];
+            console.log('[LOADWORLD] before registry', worldId, 'hasKey=', !!fn);
+            if (!fn) {
+                console.warn('[LOADWORLD] unknown world', worldId);
+                return;
+            }
 
-        this.currentMode = worldId;
+            // Hard reset global scene layer (keep player, lights, existing worldRoot only)
+            this.scene.children
+                .filter(o =>
+                    o !== this.worldRoot &&
+                    o !== this.player &&
+                    !(o instanceof THREE.Light)
+                )
+                .forEach(o => this.scene.remove(o));
 
-        this._pendingCreateWorldReason = 'MAP_SWITCH';
-        this.worldRegistry[worldId]();
+            console.log("Loading world:", worldId);
+
+            this.worldResetFix.cleanOldScene();
+
+            this.currentMode = worldId;
+
+            this._pendingCreateWorldReason = 'MAP_SWITCH';
+            fn();
+            console.log('[LOADWORLD] after registry', worldId);
+        } catch (e) {
+            console.error('[LOADWORLD] ERROR', worldId, e);
+            throw e;
+        } finally {
+            this._worldTransitionInProgress = false;
+            console.log('[LOADWORLD] end', worldId);
+        }
+    }
+
+    /**
+     * World Event Listener Registry (prevent memory leaks on world switch)
+     * Automatically registers listeners and provides cleanup
+     */
+    addWorldListener(target, type, handler) {
+        target.addEventListener(type, handler);
+        const disposer = () => {
+            target.removeEventListener(type, handler);
+        };
+        this._worldEventDisposers.push(disposer);
+    }
+
+    /**
+     * Dispose all registered world event listeners
+     * Call this during world switch to prevent memory leaks
+     */
+    disposeWorldListeners() {
+        for (const disposer of this._worldEventDisposers) {
+            disposer();
+        }
+        this._worldEventDisposers.length = 0;
     }
 
     /**
@@ -7202,11 +7360,51 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     switchMode() {
         const order = ["fractal", "quantum", "desert", "chamber", "sigma"];
 
+        const currentIndex = order.indexOf(this.currentTheme ?? this.currentMode);
+        const nextIndex = (currentIndex + 1) % order.length;
+        const nextTheme = order[nextIndex];
+
+        this.currentTheme = nextTheme;
+        this.applyTheme(nextTheme);
+    }
+
+    switchWorld(worldId) {
+        console.log('[SWITCHWORLD] called');
+        if (worldId) {
+            this.loadWorld(worldId);
+            return;
+        }
+        const order = ["fractal", "quantum", "desert", "chamber", "sigma"];
+
         const currentIndex = order.indexOf(this.currentMode);
         const nextIndex = (currentIndex + 1) % order.length;
-        const nextMode = order[nextIndex];
+        const nextWorldId = order[nextIndex];
 
-        this.loadWorld(nextMode);
+        this.loadWorld(nextWorldId);
+    }
+
+    applyTheme(themeId) {
+        switch (themeId) {
+            case 'sigma':
+                this.setupSigmaRiftEnvironment?.();
+                break;
+            case 'desert':
+                this.setupDreamDesertEnvironment?.();
+                break;
+            case 'quantum':
+                this.setupQuantumIslandEnvironment?.();
+                break;
+            case 'fractal':
+                this.setupFractalValleyEnvironment?.();
+                break;
+            case 'memory':
+                this.setupMemoryLaneEnvironment?.();
+                break;
+            case 'chamber':
+            default:
+                this.setupChamberEnvironment?.();
+                break;
+        }
     }
     setupCascadeParticleEmissionBoost() {
         try {

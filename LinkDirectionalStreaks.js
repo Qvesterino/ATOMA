@@ -172,7 +172,7 @@ export class LinkDirectionalStreaks {
         const state = linkGroup.userData.conduitState;
         const streaks = state.directionalStreaks;
         
-        if (!streaks || !streaks.ages) return; // Not initialized or arrays not ready
+        if (!streaks || !streaks.ages || !streaks.geometry || !streaks.material) return; // Not initialized or arrays not ready
         
         // Store link reference for pulse injection
         if (link) {
@@ -402,7 +402,8 @@ export class LinkDirectionalStreaks {
      * @private
      */
     _updateGeometryBuffer(streaks, vertices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0) {
-        if (!streaks.geometry) return;
+        if (!streaks || !streaks.geometry || !Array.isArray(vertices)) return;
+        if (vertices.length === 0) return;
 
         // Log vertex count for debugging (throttled)
         if (typeof window !== 'undefined') {
@@ -462,10 +463,10 @@ export class LinkDirectionalStreaks {
 
         // Update material color with state (ENHANCED: Session 115 color dynamics)
         if (streaks.material) {
-            let color = baseColor || new THREE.Color(0x00ff88);
+            let color = (baseColor && baseColor.isColor) ? baseColor.clone() : new THREE.Color(0x00ff88);
 
             // Lerp toward target if provided
-            if (targetColor) {
+            if (targetColor && targetColor.isColor) {
                 color.lerp(targetColor, 0.3);
             }
 

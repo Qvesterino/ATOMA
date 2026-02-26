@@ -872,6 +872,53 @@ export class SafeLegendaryWorldEvents {
     this.interpretationAccumulator = this.config.eventInterpretationInterval;
     this.pendingEvaluation = true;
   }
+
+  /**
+   * Reset internal state for world switch
+   * Clears mutable state without removing objects from scene
+   * Safe to call multiple times
+   */
+  resetForWorldSwitch() {
+    // Clear registry state
+    if (this.registry) {
+      this.registry.activeEvent = null;
+      this.registry.timer = 0;
+      this.registry.intensity = 0;
+      this.registry.duration = 0;
+      this.registry.phase = 'idle';
+    }
+
+    // Clear tracking timestamps
+    this.lastEventCheck = 0;
+    this.lastEventTime = 0;
+    this.interpretationAccumulator = this.config.eventInterpretationInterval;
+    this.pendingEvaluation = true;
+
+    // Clear VFX containers (but do NOT remove from scene)
+    if (this.vfxContainer) {
+      if (Array.isArray(this.vfxContainer.shockwaves)) {
+        this.vfxContainer.shockwaves.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.particles)) {
+        this.vfxContainer.particles.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.meshes)) {
+        this.vfxContainer.meshes.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.trails)) {
+        this.vfxContainer.trails.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.beams)) {
+        this.vfxContainer.beams.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.overlays)) {
+        this.vfxContainer.overlays.length = 0;
+      }
+      if (Array.isArray(this.vfxContainer.distortionQuads)) {
+        this.vfxContainer.distortionQuads.length = 0;
+      }
+    }
+  }
 }
 
 

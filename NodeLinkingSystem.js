@@ -6862,6 +6862,29 @@ getLinksForNode(node) {
     if (!nodeId || !this.aiNodes?.nodes) return null;
     return this.aiNodes.nodes.find(n => this.getNodeId(n) === nodeId) || null;
   }
+
+  /**
+   * Reset internal state for world switch
+   * Clears mutable state without removing objects from scene
+   * Safe to call multiple times
+   */
+  resetForWorldSwitch() {
+    if (this.linksByNode instanceof Map) {
+      this.linksByNode.clear();
+    }
+
+    if (this._syncState) {
+      this._syncState.linkCount = 0;
+      this._syncState.lastSyncTime = Date.now();
+    }
+
+    this.linksDirty = false;
+    this.nodesDirty = false;
+
+    if (Array.isArray(this.ghostLinks)) {
+      this.ghostLinks.length = 0;
+    }
+  }
 }
 
 // One-time archetype shader warm-up to prevent GPU stalls on first spawn.
@@ -6921,14 +6944,15 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
     disposeNode(node);
   }
 
-  if (typeof window !== 'undefined') {
-    window.__shaderWarmupDone = true;
-    window.__ATOMA_WARMUP_COMPLETE = true;
-    if (typeof window.markAtomaWarmupComplete === 'function') {
-      window.markAtomaWarmupComplete();
+    if (typeof window !== 'undefined') {
+      window.__shaderWarmupDone = true;
+      window.__ATOMA_WARMUP_COMPLETE = true;
+      if (typeof window.markAtomaWarmupComplete === 'function') {
+        window.markAtomaWarmupComplete();
+      }
     }
   }
-}
+
 
 export default NodeLinkingSystem;
 

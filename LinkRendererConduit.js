@@ -40,7 +40,6 @@ const ensureUserData = (obj) => {
 
 const VARIANT_CRITICAL_PROPS = [
     'transparent',
-    'side',
     'blending',
     'depthWrite',
     'depthTest',
@@ -450,6 +449,7 @@ export class LinkRendererConduit {
     createLinkVisuals(link) {
         const group = new THREE.Group();
         Object.assign(ensureUserData(group), { isLinkVisual: true });
+        const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
 
         const sourceCat = link.source.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
@@ -611,7 +611,7 @@ export class LinkRendererConduit {
                 const hubController = sourceController?.isActive ? sourceController : null;
 
                 directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
-                group.userData.conduitState.__streaksInit = true;
+                conduitState.__streaksInit = true;
 
                 // ALWAYS log initialization (for debugging visibility issues)
                 if (typeof window !== 'undefined') {
@@ -628,7 +628,7 @@ export class LinkRendererConduit {
         }
 
         // Store unified state
-        group.userData.conduitState = {
+        Object.assign(conduitState, {
             strands: strands,
             strandCount: strandCount, // Store for update loop
             skinMesh: skinMesh,
@@ -640,11 +640,12 @@ export class LinkRendererConduit {
             energyWave: energyWave,
             arcDischarges: arcDischarges,
             visualStateAdapter: visualStateAdapter,
-            directionalStreaks: directionalStreaks, // Reference to manager
+            directionalStreaks: conduitState.directionalStreaks || null, // Per-link streak state
+            directionalStreaksManager: directionalStreaks, // Manager reference
             phaseOffset: Math.random() * Math.PI * 2,
             baseColor: baseColor,
             impacts: []
-        };
+        });
         
         // Initialize corruption animation state for this link
         if (this.corruptionAnimator && link.id) {

@@ -954,6 +954,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   createNodes(environment, count = 15) {
     const __diag = __ensureSpawnDiag();
     if (__diag) __diag.createNodesEnter++;
+    if (typeof window !== 'undefined' && window.ATOMA_PROBE_SPAWN) {
+      console.log('[SPAWN_PROBE] createNodes enter mode=', this.spawnMode);
+    }
     if (this.spawnMode !== 'INIT') {
       if (__diag) __diag.createNodesSkip++;
       __diagOnce('createNodesSkip', `[SpawnMode] createNodes skipped; mode=${this.spawnMode}\n${new Error().stack}`);

@@ -55,6 +55,8 @@ Carry:
 - Synergy – constructive interaction
 - Harmony – system-wide balance
 - Corruption – overload, decay, misalignment
+- stability
+- LoadPressure
 Metrics influence:
 - visuals
 - behavior

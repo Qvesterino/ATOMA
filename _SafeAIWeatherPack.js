@@ -1081,4 +1081,28 @@ export class SafeAIWeatherPack {
     this.lastWeatherTime = 0;
     this.interpretationAccumulator = 0;
   }
+
+  /**
+   * Reset internal state for world switch
+   * Clears mutable state without removing objects from scene
+   * Safe to call multiple times
+   */
+  resetForWorldSwitch() {
+    // Clear registry state
+    if (this.registry) {
+      this.registry.active = null;
+      this.registry.timer = 0;
+      this.registry.intensity = 0;
+      this.registry.duration = 0;
+      this.registry.phase = 'idle';
+      this.registry.windVector.set(0, 0, 0);
+      this.registry.windStrength = 0;
+    }
+
+    // Clear tracking timestamps
+    this.lastWeatherCheck = 0;
+    this.lastWeatherTime = 0;
+    this.animationTime = 0;
+    this.interpretationAccumulator = 0;
+  }
 }

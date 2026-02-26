@@ -153,12 +153,21 @@ function lockCoreMaterial(material, freeze = true) {
     const handle = (mat) => {
         if (!mat) return;
 
-        // Ensure userData exists
-        mat.userData = mat.userData || {};
+        // userData may be non-writable on locked/immutable materials
+        let userData = null;
+        try {
+            if (mat.userData && typeof mat.userData === 'object') {
+                userData = mat.userData;
+            }
+        } catch (_err) {
+            userData = null;
+        }
 
         // Mark as core material
-        mat.userData.isNodeCore = true;
-        mat.userData.__depthAuthorityLocked = true;
+        if (userData) {
+            userData.isNodeCore = true;
+            userData.__depthAuthorityLocked = true;
+        }
 
         // Core must always participate in depth
         if ('depthWrite' in mat) mat.depthWrite = true;
