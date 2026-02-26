@@ -4983,7 +4983,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         systemRegistry.register('aiNodes', this.aiNodes);
-        
+
+        // CRITICAL: Disable aiNodes in SystemRegistry to prevent duplicate execution
+        // aiNodes.update() runs EXCLUSIVELY via FrameScheduler.register('aiNodes.update', ...)
+        // SystemRegistry execution restored for 118 legacy systems (see SYSTEMREGISTRY_DEPENDENCY_FORENSIC_AUDIT.md)
+        systemRegistry.disable('aiNodes');
+
         // ====================================================================
         // TASK 2: SIMULATION INVARIANT ENFORCEMENT
         // Non-breaking enforcement of registry authority and update participation
@@ -7969,6 +7974,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // this.playerController.update(deltaTime, cameraRotation);
 
         // Centralized System Registry execution (deterministic, toggleable)
+        // RESTORED: systemRegistry.runFrame(this, deltaTime);
+        // REASON: 118 legacy systems depend on SystemRegistry (world appears frozen without this)
+        // See: SYSTEMREGISTRY_DEPENDENCY_FORENSIC_AUDIT.md
+        // NOTE: aiNodes is DISABLED in SystemRegistry to prevent duplicate execution
+        // aiNodes.update() runs EXCLUSIVELY via FrameScheduler.register('aiNodes.update', ...)
         systemRegistry.runFrame(this, deltaTime);
 
         if (tracingSpike) {
