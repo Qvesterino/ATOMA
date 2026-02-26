@@ -605,18 +605,27 @@ export class LinkRendererConduit {
                 directionalStreaks = this.directionalStreaks;
                 // Initialize streaks with deterministic randomization based on link ID
                 const linkIdHash = (link.id || 'default').split('').reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
-                
+
                 // Get harmonic hub controller if this link is connected to a hub
                 const sourceController = this.nodeHarmonicManager?.nodeControllers.get(link.source);
                 const hubController = sourceController?.isActive ? sourceController : null;
-                
+
                 directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
                 group.userData.conduitState.__streaksInit = true;
-                if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                    console.debug('[DirectionalStreaks] initialized for', link.id);
+
+                // ALWAYS log initialization (for debugging visibility issues)
+                if (typeof window !== 'undefined') {
+                    console.log('[DirectionalStreaks] INITIALIZED for link:', link.id, 'hash:', linkIdHash);
+                }
+            } else {
+                if (typeof window !== 'undefined') {
+                    console.warn('[DirectionalStreaks] NOT INITIALIZED - missing LinkDirectionalStreaks or this.directionalStreaks');
                 }
             }
-        } catch (e) { debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init directional streaks', e); }
+        } catch (e) {
+            console.error('[DirectionalStreaks] INITIALIZATION FAILED:', e);
+            debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init directional streaks', e);
+        }
 
         // Store unified state
         group.userData.conduitState = {
@@ -1027,7 +1036,7 @@ export class LinkRendererConduit {
             const corruptionLevel = link.corruptionLevel ?? link.corruption ?? 0.0;
             const instability = link.instability ?? link.instabilityLevel ?? 0.0;
             const synergyLevel = link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5;
-            
+
             const sourceColor = new THREE.Color(state.baseColor);
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
@@ -1047,7 +1056,7 @@ export class LinkRendererConduit {
                     visualTime  // Time source: VisualTime (canonical)
                 );
                 if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                    console.debug('[StreaksTick]', link.id, 'state:', state.directionalStreaks ? 'ok' : 'missing');
+                    console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'instability:', instability);
                 }
             } catch (err) {
                 if (typeof window !== 'undefined') {
@@ -1055,8 +1064,8 @@ export class LinkRendererConduit {
                 }
             }
         } else {
-            if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                console.warn('[DirectionalStreaks] state missing for link', link.id);
+            if (typeof window !== 'undefined') {
+                console.warn('[DirectionalStreaks] NOT UPDATING - state:', !!state.directionalStreaks, 'manager:', !!this.directionalStreaks, 'link:', link.id);
             }
         }
         

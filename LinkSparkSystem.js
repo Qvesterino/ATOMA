@@ -191,6 +191,7 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render if link is visible
+        this.points.renderOrder = 12; // Above strands (10) and directional streaks (11)
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
     }

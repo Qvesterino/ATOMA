@@ -346,15 +346,25 @@ export class LinkDirectionalStreaks {
         if (streaks.material) {
             let baseBrightness = harmonyBrightness;
             let baseOpacity = 0.7 * (1.0 - (instability * 0.3));
-            
+
             // Apply pulse effects to material
             if (pulseEffectData && pulseEffectData.hasPulse) {
                 baseBrightness += pulseEffectData.intensityBoost;
                 baseOpacity *= pulseEffectData.alphaBoost;
             }
-            
+
             streaks.material.emissiveIntensity = baseBrightness;
             streaks.material.opacity = baseOpacity;
+
+            // Log opacity for debugging (throttled to 1 per second)
+            if (typeof window !== 'undefined') {
+                this._streakOpacityLogTime = this._streakOpacityLogTime || 0;
+                this._streakOpacityLogTime += deltaTime;
+                if (this._streakOpacityLogTime > 1.0) {
+                    console.log('[DirectionalStreaks] Opacity:', baseOpacity.toFixed(3), 'instability:', instability.toFixed(3), 'harmony:', harmony.toFixed(3), 'synergy:', synergy.toFixed(3));
+                    this._streakOpacityLogTime = 0;
+                }
+            }
         }
     }
     
@@ -393,62 +403,72 @@ export class LinkDirectionalStreaks {
      */
     _updateGeometryBuffer(streaks, vertices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0) {
         if (!streaks.geometry) return;
-        
+
+        // Log vertex count for debugging (throttled)
+        if (typeof window !== 'undefined') {
+            this._vertexLogTime = this._vertexLogTime || 0;
+            this._vertexLogTime = this._vertexLogTime || 0;
+            this._vertexLogTime++;
+            if (this._vertexLogTime % 60 === 0) { // Every ~1 second at 60fps
+                console.log('[DirectionalStreaks] Vertices:', vertices.length, 'activeStreaks:', activeStreakCount);
+            }
+        }
+
         // Convert vertices array to Float32Array
         const positions = new Float32Array(vertices.length);
         for (let i = 0; i < vertices.length; i++) {
             positions[i] = vertices[i];
         }
-        
+
         // Remove old buffer if exists
         if (streaks.geometry.getAttribute('position')) {
             streaks.geometry.deleteAttribute('position');
         }
-        
+
         // Add position buffer
         streaks.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        
+
         // Compute indices for quad rendering
         const indices = [];
         let vertexCount = 0;
-        
+
         for (let i = 0; i < activeStreakCount; i++) {
             const segmentsInStreak = Math.max(2, Math.floor(this.config.segmentsPerStreak * 0.5)); // Approx
             const verticesInStreak = (segmentsInStreak + 1) * 2;
-            
+
             for (let j = 0; j < segmentsInStreak; j++) {
                 const a = vertexCount + j * 2;
                 const b = vertexCount + j * 2 + 1;
                 const c = vertexCount + (j + 1) * 2;
                 const d = vertexCount + (j + 1) * 2 + 1;
-                
+
                 // Two triangles per quad
                 indices.push(a, b, c);
                 indices.push(b, d, c);
             }
-            
+
             vertexCount += verticesInStreak;
         }
-        
+
         // Remove old indices if exist
         if (streaks.geometry.getIndex()) {
             streaks.geometry.deleteAttribute('index');
         }
-        
+
         // Add index buffer
         if (indices.length > 0) {
             streaks.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
         }
-        
+
         // Update material color with state (ENHANCED: Session 115 color dynamics)
         if (streaks.material) {
             let color = baseColor || new THREE.Color(0x00ff88);
-            
+
             // Lerp toward target if provided
             if (targetColor) {
                 color.lerp(targetColor, 0.3);
             }
-            
+
             // === NEW (Session 115): Apply color dynamics based on harmony + specialization ===
             // This computes dynamic colors considering:
             // - Harmony: brightness and saturation
@@ -463,14 +483,14 @@ export class LinkDirectionalStreaks {
                 synergy            // 0-1
             );
             color.copy(dynamicColor);
-            
+
             // Apply pulse saturation boost (on top of color dynamics)
             if (pulseEffectData && pulseEffectData.hasPulse && pulseEffectData.saturation > 0) {
                 color.getHSL(this._hsl);
                 this._hsl.s = Math.min(1.0, this._hsl.s + pulseEffectData.saturation);
                 color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
             }
-            
+
             streaks.material.color.copy(color);
             streaks.material.emissive.copy(color);
         }
