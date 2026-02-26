@@ -52,6 +52,8 @@ export class LinkEnergyRingSystem {
         const ud = (mesh && typeof mesh.userData === 'object' && mesh.userData) ? mesh.userData : (() => { try { Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return mesh.userData || {}; })();
         Object.assign(ud, {
             birthTime: time,
+            lastTime: time,
+            age: 0,
             duration: 0.8,
             baseScale: 0.1,
             maxScale: 4.0,
@@ -71,8 +73,11 @@ export class LinkEnergyRingSystem {
             const mesh = this.rings[i];
             const data = mesh.userData;
 
-            const age = time - data.birthTime;
-            const progress = age / data.duration;
+            const delta = Math.min(time - (data.lastTime ?? time), 0.1);
+            data.lastTime = time;
+            data.age = (data.age ?? 0) + Math.max(delta, 0);
+
+            const progress = data.age / data.duration;
 
             if (progress >= 1.0) {
                 // Remove

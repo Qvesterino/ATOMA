@@ -463,6 +463,7 @@ export class LinkDirectionalStreaks {
 
         // Update material color with state (ENHANCED: Session 115 color dynamics)
         if (streaks.material) {
+            if (!streaks?.material?.color || !streaks?.material?.emissive) return;
             let color = (baseColor && baseColor.isColor) ? baseColor.clone() : new THREE.Color(0x00ff88);
 
             // Lerp toward target if provided
