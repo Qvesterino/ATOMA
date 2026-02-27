@@ -81,6 +81,7 @@ export class MetricsRuntime_v1 {
         this.options = runtimeOptions;
         this.networkMetricsOverrideKey = runtimeOptions.networkMetricsOverrideKey ?? NETWORK_METRICS_OVERRIDE_KEY;
         this.useNetworkMetricsAggregator = Boolean(runtimeOptions.useNetworkMetricsAggregator);
+        this.externalNetworkMetricsAggregatorControl = Boolean(runtimeOptions.externalNetworkMetricsAggregatorControl);
         this.networkResolver = null;
         this.networkMetricsAggregator = null;
         this.linkSystemAdapter = null;
@@ -250,7 +251,9 @@ export class MetricsRuntime_v1 {
             }
 
             // 3. Network aggregation (fixed-step)
-            if (this.useNetworkMetricsAggregator) {
+            // NOTE: networkMetricsAggregator now runs via FrameScheduler.background layer (2Hz)
+            // Use this.runNetworkMetricsAggregator() to trigger manually from FrameScheduler
+            if (this.useNetworkMetricsAggregator && !this.externalNetworkMetricsAggregatorControl) {
                 try {
                     this._runNetworkMetricsAggregator();
                 } catch (err) {
@@ -260,7 +263,7 @@ export class MetricsRuntime_v1 {
                     this._logOnce('NetworkMetricsAggregator entered ERROR state', err);
                     this._clearNetworkMetricsOverride();
                 }
-            } else {
+            } else if (!this.useNetworkMetricsAggregator) {
                 this._clearNetworkMetricsOverride();
             }
 
@@ -377,6 +380,23 @@ const adapter = this._createLinkSystemAdapter(
         }
 
         this._publishNetworkMetricsOverride(override);
+    }
+
+    /**
+     * Public method to run networkMetricsAggregator manually
+     * Used by FrameScheduler.background layer for 2Hz execution
+     */
+    runNetworkMetricsAggregator() {
+        if (!this.useNetworkMetricsAggregator) return;
+        try {
+            this._runNetworkMetricsAggregator();
+        } catch (err) {
+            if (!this._networkAggregatorError) {
+                this._networkAggregatorError = err;
+            }
+            this._logOnce('NetworkMetricsAggregator entered ERROR state', err);
+            this._clearNetworkMetricsOverride();
+        }
     }
 
     _buildNodeMap() {

@@ -3174,11 +3174,136 @@ class AtomaGame {
         window.debugSchedulerStats = () => this.frameScheduler.getStats();
         window.debugSchedulerList = () => this.frameScheduler.listSystems();
         this.frameScheduler.register('background', () => EnhancedNodeModels.ensureRegistryReady?.(), 'registry-warmup');
-this.frameScheduler.register(
-  'realtime',
-  (dt) => this.runCoreMetricsOverlayTick(dt),
-  'coreMetricsOverlay.realtime'
-);
+        this.frameScheduler.register('background', (dt) => {
+            if (this.harmonicTopology?.enabled) {
+                this.harmonicTopology.update(
+                    dt,
+                    this.linkSemanticPictograms?.fusionZoneManager,
+                    this.linkingSystem
+                );
+            }
+        }, 'background.harmonicTopology');
+        this.frameScheduler.register('background', (dt) => {
+            if (this.proceduralGlyphGenerator?.enabled) {
+                this.proceduralGlyphGenerator.update(dt);
+            }
+        }, 'background.proceduralGlyphGenerator');
+        this.frameScheduler.register('background', (dt) => {
+            if (this.harmonicCycleController?.enabled) {
+                const harmonicNetworkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
+                };
+                this.harmonicCycleController.update(dt, harmonicNetworkState);
+            }
+        }, 'background.harmonicCycleController');
+        this.frameScheduler.register('background', (dt) => {
+            if (this.metricsRuntime_v1) {
+                this.metricsRuntime_v1.runNetworkMetricsAggregator();
+            }
+        }, 'background.networkMetricsAggregator');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.linkCollapseSystem) {
+                this.linkCollapseSystem.update(dt);
+            }
+        }, 'simulation.linkCollapseSystem');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.fxPerformanceScaler) {
+                this.fxPerformanceScaler.update(dt);
+            }
+        }, 'simulation.fxPerformanceScaler');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.adaptivePerformanceMonitor) {
+                this.adaptivePerformanceMonitor.update(dt);
+            }
+        }, 'simulation.adaptivePerformanceMonitor');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.fxPerformanceTransition) {
+                this.fxPerformanceTransition.update(dt);
+            }
+        }, 'simulation.fxPerformanceTransition');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.synapticFatigueAdapter && this.aiNodes) {
+                this.synapticFatigueAdapter.updateFatigue(
+                    this.aiNodes.nodes || [],
+                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    dt,
+                    this.time * 1000
+                );
+            }
+        }, 'simulation.synapticFatigueAdapter');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.synapticSpecializationAdapter && this.aiNodes) {
+                this.synapticSpecializationAdapter.updateSpecialization(
+                    this.aiNodes.nodes || [],
+                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    dt,
+                    this.time * 1000
+                );
+            }
+        }, 'simulation.synapticSpecializationAdapter');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.linkCorruptionTransmission) {
+                safeTick(this.linkCorruptionTransmission, dt);
+            }
+        }, 'simulation.linkCorruptionTransmission');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.harmonyStabilizationSystem) {
+                safeTick(this.harmonyStabilizationSystem, dt);
+            }
+        }, 'simulation.harmonyStabilizationSystem');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.effectOrchestrator) {
+                safeTick(this.effectOrchestrator, dt, this.time);
+            }
+        }, 'simulation.effectOrchestrator');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.nodeShellSizeAuthority) {
+                this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
+            }
+        }, 'simulation.nodeShellSizeAuthority');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.linkPersonalityStateMachine && this.nodeLinking) {
+                this.linkPersonalityStateMachine.update(dt, this.nodeLinking.links || []);
+            }
+        }, 'simulation.linkPersonalityStateMachine');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.synapticGatingAdapter && this.aiNodes) {
+                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || []);
+            }
+        }, 'simulation.synapticGatingAdapter');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.influenceAttenuationAbsorption) {
+                this.influenceAttenuationAbsorption.update(dt, this.time);
+            }
+        }, 'simulation.influenceAttenuationAbsorption');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.influenceReflection) {
+                this.influenceReflection.update(dt, this.time);
+            }
+        }, 'simulation.influenceReflection');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.standingWaveTrap) {
+                this.standingWaveTrap.update(dt, this.time);
+            }
+        }, 'simulation.standingWaveTrap');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.cascadeAccelSetup) {
+                this.cascadeAccelSetup.update(dt, this.time);
+            }
+        }, 'simulation.cascadeAccelSetup');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.coreMetricsOverlay) {
+                this.runCoreMetricsOverlayTick(dt);
+            }
+        }, 'simulation.coreMetricsOverlay');
+        this.frameScheduler.register('simulation', () => {
+            if (this.primaryNodeTopBar) {
+                this.primaryNodeTopBar.update();
+            }
+        }, 'simulation.primaryNodeTopBar');
 
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
@@ -7104,7 +7229,8 @@ this.metricsRuntime_v1 = new MetricsRuntime_v1({
     safeMetricsFX: this.safeMetricsFX
   },
   options: {
-    useNetworkMetricsAggregator: true
+    useNetworkMetricsAggregator: true,
+    externalNetworkMetricsAggregatorControl: true
   }
 });
 
@@ -7643,16 +7769,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.updateUndoRedoUI();
             }
         });
-        reg('linkCorruptionTransmission', (dt) => safeTick(this.linkCorruptionTransmission, dt));
-        reg('harmonyStabilizationSystem', (dt) => safeTick(this.harmonyStabilizationSystem, dt));
-        reg('effectOrchestrator', (dt) => safeTick(this.effectOrchestrator, dt, this.time));
+
+
         reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
         reg('auraModulationIntegration', (dt) => this.auraModulationIntegration?.update?.(dt));
         reg('dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
         reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
         reg('linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
-        reg('linkCollapseSystem', (dt) => this.linkCollapseSystem?.update?.(dt));
-        reg('nodeShellSizeAuthority', (_dt) => this.nodeShellSizeAuthority?.enforceShellSizes?.(null, this.nodeAuraSystem || null));
+
         reg('particleEmissionScaler', (dt) => this.particleEmissionScaler?.update?.(dt));
         reg('linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
         reg('stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
@@ -7737,9 +7861,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         reg('personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
         reg('personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
-        reg('fxPerformanceScaler', (dt) => this.fxPerformanceScaler?.update?.(dt));
-        reg('adaptivePerformanceMonitor', (dt) => this.adaptivePerformanceMonitor?.update?.(dt));
-        reg('fxPerformanceTransition', (dt) => this.fxPerformanceTransition?.update?.(dt));
+
         reg('personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
         reg('personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
         reg('advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
@@ -7748,11 +7870,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
         reg('archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
         reg('nodeShaderActivation', (dt) => this.nodeShaderActivation?.update?.(dt));
-        reg('linkPersonalityStateMachine', (dt) => {
-            if (this.linkPersonalityStateMachine && this.nodeLinking) {
-                this.linkPersonalityStateMachine.update(dt, this.nodeLinking.links || []);
-            }
-        });
+
         reg('synergyBonusVisualization', (dt) => {
             if (this.synergyBonusVisualization && this.nodeLinking) {
                 this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
@@ -7786,11 +7904,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        reg('synapticGatingAdapter', (_dt) => {
-            if (this.synapticGatingAdapter && this.aiNodes) {
-                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || []);
-            }
-        });
+
         reg('pulseWaveSystemBridge', (dt) => {
             if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
                 this.pulseWaveSystemBridge.update(dt, {
@@ -7811,26 +7925,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 });
             }
         });
-        reg('synapticFatigueAdapter', (dt) => {
-            if (this.synapticFatigueAdapter && this.aiNodes) {
-                this.synapticFatigueAdapter.updateFatigue(
-                    this.aiNodes.nodes || [],
-                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
-                    dt,
-                    this.time * 1000
-                );
-            }
-        });
-        reg('synapticSpecializationAdapter', (dt) => {
-            if (this.synapticSpecializationAdapter && this.aiNodes) {
-                this.synapticSpecializationAdapter.updateSpecialization(
-                    this.aiNodes.nodes || [],
-                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
-                    dt,
-                    this.time * 1000
-                );
-            }
-        });
+
         reg('waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
             links: this.nodeLinking?.links || [],
             nodes: this.aiNodes?.nodes || [],
@@ -7853,13 +7948,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('cascadeParticleColorTinting', (dt) => this.cascadeParticleColorTinting?.update?.(dt, this.time));
         reg('cascadeParticleSystem', (dt) => this.cascadeParticleSystem?.update?.(dt, this.time));
         reg('particleSemanticDensity', (dt) => this.particleSemanticDensity?.update?.(dt, this.time));
-        reg('influenceAttenuationAbsorption', (dt) => this.influenceAttenuationAbsorption?.update?.(dt, this.time));
-        reg('influenceReflection', (dt) => this.influenceReflection?.update?.(dt, this.time));
-        reg('standingWaveTrap', (dt) => this.standingWaveTrap?.update?.(dt, this.time));
+
+
+
         reg('standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
         reg('waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
         reg('resonanceRupture', (dt) => this.resonanceRupture?.update?.(dt, this.time));
-        reg('cascadeAccelSetup', (dt) => this.cascadeAccelSetup?.update?.(dt, this.time));
+
         reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
         reg('pulseIntersectionAdapter', () => this.pulseIntersectionAdapter?.update?.());
         reg('nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
@@ -7915,7 +8010,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
         reg('nodeLinking', (dt) => this.nodeLinking?.update?.(dt));
         reg('primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
-        reg('primaryNodeTopBar', () => this.primaryNodeTopBar?.update?.());
+
         reg('linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });
         reg('hardInteractionAuthority', () => {
             if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
@@ -7981,16 +8076,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        reg('harmonicTopology', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.harmonicTopology?.enabled) {
-                this.harmonicTopology.update(
-                    dt,
-                    this.linkSemanticPictograms?.fusionZoneManager,
-                    this.linkingSystem
-                );
-            }
-        });
+
         reg('topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {
@@ -8003,24 +8089,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.topologyViz.update(dt, networkState);
             }
         });
-        reg('proceduralGlyphGenerator', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.proceduralGlyphGenerator?.enabled) {
-                this.proceduralGlyphGenerator.update(dt);
-            }
-        });
-        reg('harmonicCycleController', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.harmonicCycleController?.enabled) {
-                const harmonicNetworkState = {
-                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
-                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
-                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
-                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
-                };
-                this.harmonicCycleController.update(dt, harmonicNetworkState);
-            }
-        });
+
+
         reg('glyphAnimationModulator', (_dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.glyphAnimationModulator?.enabled && this.proceduralGlyphGenerator?.glyphInstances) {
