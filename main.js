@@ -1010,7 +1010,17 @@ class SemanticEventBus {
             ['metrics.spike', { decayStages: [{ afterMs: 500, priority: this.priority.INTERACTIVE }, { afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 2200, cooldownMs: 120, aggregateWithinMs: 500, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.CRITICAL, windowMs: 800, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120, dropRateThreshold: 0.25 } }],
             ['node.selection', { decayStages: [{ afterMs: 300, priority: this.priority.INTERACTIVE }, { afterMs: 1200, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 200, aggregateWithinMs: 250, aggregationStrategy: 'latest', escalate: { threshold: 3, toPriority: this.priority.CRITICAL, windowMs: 900, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 140 } }],
             ['hud.visibility.change', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.INTERACTIVE, windowMs: 700, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120 } }],
-            ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }]
+            ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }],
+            ['network.link.created', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['network.link.destroyed', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['network.node.created', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 150, aggregateWithinMs: 150, aggregationStrategy: 'latest' }],
+            ['network.node.destroyed', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 150, aggregateWithinMs: 150, aggregationStrategy: 'latest' }],
+            ['semantic.state.changed', { decayStages: [{ afterMs: 300, priority: this.priority.BACKGROUND }], expiresMs: 1000, cooldownMs: 200, aggregateWithinMs: 200, aggregationStrategy: 'latest', escalate: { threshold: 3, toPriority: this.priority.INTERACTIVE, windowMs: 1000, maxLevel: 1 } }],
+            ['semantic.cluster.sync', { decayStages: [{ afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 3000, cooldownMs: 300, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
+            ['semantic.cluster.formation', { decayStages: [{ afterMs: 2000, priority: this.priority.BACKGROUND }], expiresMs: 4000, cooldownMs: 500, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
+            ['semantic.ascension', { decayStages: [{ afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 3000, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['semantic.ritual.started', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['semantic.ritual.completed', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }]
         ]);
         this.cooldownMap = new Map();
         // Phase E.3: aggregation buffers keyed by semantic tag
@@ -3453,6 +3463,46 @@ class AtomaGame {
                 );
             }
         }, 'visual.glyphAnimationModulator');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.particleEmissionScaler) {
+                this.particleEmissionScaler.update(dt);
+            }
+        }, 'visual.particleEmissionScaler');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.particleSemanticDensity) {
+                this.particleSemanticDensity.update(dt, this.time);
+            }
+        }, 'visual.particleSemanticDensity');
+        this.frameScheduler.register('visual', (dt) => {
+            const boostSystem = this.cascadeParticleEmissionBoost;
+            if (boostSystem) {
+                const links = this.nodeLinking?.links;
+                if (Array.isArray(links) && links.length > 0) {
+                    const cascadeSystem = this.cascadeVisualizer || null;
+                    boostSystem.update(dt, links, cascadeSystem);
+                }
+            }
+        }, 'visual.cascadeParticleEmissionBoost');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadeParticleColorTinting) {
+                this.cascadeParticleColorTinting.update(dt, this.time);
+            }
+        }, 'visual.cascadeParticleColorTinting');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadeParticleSystem) {
+                this.cascadeParticleSystem.update(dt, this.time);
+            }
+        }, 'visual.cascadeParticleSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.memoryTrails) {
+                this.memoryTrails.update(dt);
+            }
+        }, 'visual.memoryTrails');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.quantumIllusions) {
+                this.quantumIllusions.update(dt);
+            }
+        }, 'visual.quantumIllusions');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -4691,7 +4741,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.camera,
             this.renderer,
             this.worldPersonalityController,
-            this.player // Pass player for participation system
+            this.player, // Pass player for participation system
+            this.semanticBus // Pass semanticBus for event-driven architecture
         );
 
         // Initialize Mythic Seed Glyph System (after scene ready)
@@ -5329,6 +5380,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 logPrograms('after-first-node', this.renderer);
                 __loggedFirstSpawn = true;
             }
+            // Emit network.node.created event for event-driven systems
+            if (this.semanticBus && node) {
+                this.semanticBus.emit('network.node.created', {
+                    nodeId: node.userData.id,
+                    category: node.userData.category,
+                    timestamp: performance.now()
+                }, { priority: this.semanticBus.priority.INTERACTIVE });
+            }
             return node;
         };
         
@@ -5513,6 +5572,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playLinkCreated();
             }
+            // Emit network.link.created event for event-driven systems
+            if (this.semanticBus && result) {
+                this.semanticBus.emit('network.link.created', {
+                    sourceNodeId: sourceNode.userData.id,
+                    targetNodeId: targetNode.userData.id,
+                    linkId: result.userData.id,
+                    timestamp: performance.now()
+                }, { priority: this.semanticBus.priority.INTERACTIVE });
+            }
             return result;
         };
         
@@ -5521,6 +5589,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             const result = originalRemoveLink(link);
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playLinkBroken();
+            }
+            // Emit network.link.destroyed event for event-driven systems
+            if (this.semanticBus && result) {
+                this.semanticBus.emit('network.link.destroyed', {
+                    linkId: link.userData.id,
+                    sourceNodeId: link.userData.sourceId,
+                    targetNodeId: link.userData.targetId,
+                    timestamp: performance.now()
+                }, { priority: this.semanticBus.priority.INTERACTIVE });
             }
             return result;
         };
@@ -7865,7 +7942,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
         reg('linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
 
-        reg('particleEmissionScaler', (dt) => this.particleEmissionScaler?.update?.(dt));
         reg('linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
         reg('stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
         reg('cascadeVisualizerTick', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
@@ -7996,19 +8072,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }));
         reg('waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         reg('waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
-        reg('cascadeParticleEmissionBoost', (dt) => {
-            const boostSystem = this.cascadeParticleEmissionBoost;
-            if (!boostSystem) return;
 
-            const links = this.nodeLinking?.links;
-            if (!Array.isArray(links) || links.length === 0) return;
-
-            const cascadeSystem = this.cascadeVisualizer || null;
-            boostSystem.update(dt, links, cascadeSystem);
-        });
-        reg('cascadeParticleColorTinting', (dt) => this.cascadeParticleColorTinting?.update?.(dt, this.time));
-        reg('cascadeParticleSystem', (dt) => this.cascadeParticleSystem?.update?.(dt, this.time));
-        reg('particleSemanticDensity', (dt) => this.particleSemanticDensity?.update?.(dt, this.time));
 
 
 
@@ -8049,8 +8113,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
         reg('worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
         reg('ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
-        reg('memoryTrails', (dt) => this.memoryTrails?.update?.(dt));
-        reg('quantumIllusions', (dt) => this.quantumIllusions?.update?.(dt));
         reg('colonyManager', (dt) => this.colonyManager?.update?.(dt));
         reg('dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
         reg('dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
@@ -9015,7 +9077,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
-        this.nodeEvolution = new NodeEvolution2_0(this.scene);
+        this.nodeEvolution = new NodeEvolution2_0(this.scene, this.semanticBus);
 
         // Register all current nodes for evolution tracking
         this.aiNodes.nodes.forEach((node, index) => {
@@ -9294,7 +9356,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
-        this.glyphFusionOverlay = new GlyphFusionOverlay4_1(this.scene, this.worldRoot, this.semanticGlyphAI);
+        this.glyphFusionOverlay = new GlyphFusionOverlay4_1(this.scene, this.worldRoot, this.semanticGlyphAI, this.semanticBus);
 
         // Initialize fusion glyphs for all existing nodes
         if (this.aiNodes) {

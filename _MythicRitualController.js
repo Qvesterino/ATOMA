@@ -58,12 +58,13 @@ export class MythicRitualController {
   // 🔥 GLOBAL SAFETY FLAG — Mythic Rituals disabled by default
   static ENABLED = typeof window !== 'undefined' ? !window.ATOMA_DISABLE_MYTHIC_RITUALS : false;
 
-  constructor(scene, camera, renderer, worldPersonalityController, player) {
+  constructor(scene, camera, renderer, worldPersonalityController, player, semanticBus) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
     this.worldController = worldPersonalityController;
     this.player = player;
+    this.semanticBus = semanticBus;
     
     // SAFETY: Early exit if rituals disabled
     if (!MythicRitualController.ENABLED) {
@@ -260,6 +261,17 @@ export class MythicRitualController {
     this.ritualProgress = 0;
     this.ritualStartTime = Date.now() / 1000;
     this.lastRitualTime = Date.now() / 1000;
+    
+    // EMIT EVENT FOR EVENT-DRIVEN SYSTEMS
+    if (this.semanticBus) {
+      this.semanticBus.emit('semantic.ritual.started', {
+        ritualType: ritualType,
+        targetNodeId: nodes?.length > 0 ? nodes[0].userData.id : null,
+        nodes: nodes?.map(n => n.userData.id),
+        timestamp: performance.now()
+      }, { priority: this.semanticBus.priority.INTERACTIVE });
+      console.log(`✓ Ritual started event emitted: ${ritualType}`);
+    }
     
     // Backup world state
     this.backupWorldState();
@@ -988,7 +1000,8 @@ export class MythicRitualController {
    * End ritual and cleanup
    */
   endRitual() {
-    console.log(`✨ MYTHIC RITUAL COMPLETE: ${this.activeRitual}`);
+    const completedRitualType = this.activeRitual;
+    console.log(`✨ MYTHIC RITUAL COMPLETE: ${completedRitualType}`);
     
     // Cleanup all visuals
     this.ritualVisuals.forEach((visual, key) => {
@@ -1030,6 +1043,16 @@ export class MythicRitualController {
       if (this.scene.fog && this.worldStateBackup.fogColor) {
         this.scene.fog.color.copy(this.worldStateBackup.fogColor);
       }
+    }
+    
+    // EMIT EVENT FOR EVENT-DRIVEN SYSTEMS
+    if (this.semanticBus) {
+      this.semanticBus.emit('semantic.ritual.completed', {
+        ritualType: completedRitualType,
+        success: true,
+        timestamp: performance.now()
+      }, { priority: this.semanticBus.priority.INTERACTIVE });
+      console.log(`✓ Ritual completed event emitted: ${completedRitualType}`);
     }
     
     // Reset state

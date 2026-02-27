@@ -35,10 +35,11 @@
 import * as THREE from 'three';
 
 export class GlyphFusionOverlay4_1 {
-  constructor(scene, worldRoot, semanticGlyphAI) {
+  constructor(scene, worldRoot, semanticGlyphAI, semanticBus) {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    this.semanticBus = semanticBus;
     const attachRoot = worldRoot || scene;
     
     // Master container for all fusion glyphs
@@ -74,6 +75,9 @@ export class GlyphFusionOverlay4_1 {
       fadeOutDuration: 0.5,        // seconds
       pulseFrequency: 2.0          // Hz
     };
+    
+    // Enable/disable flag
+    this.enabled = true;
     
     // Color palette
     this.colors = {
@@ -132,6 +136,112 @@ export class GlyphFusionOverlay4_1 {
     for (let i = 0; i < 10; i++) {
       this.geometryPools.hexagons.push(hexGeom);
     }
+  }
+  
+  /**
+   * Subscribe to semantic events for event-driven updates
+   */
+  subscribeToEvents() {
+    if (!this.semanticBus) {
+      console.warn('GlyphFusionOverlay4_1: No semanticBus provided - event-driven disabled');
+      return;
+    }
+    
+    // Network events - trigger exploring state
+    this.semanticBus.subscribe('network.link.created', (evt) => {
+      if (!this.enabled) return;
+      this.handleLinkCreated(evt);
+    });
+    
+    this.semanticBus.subscribe('network.link.destroyed', (evt) => {
+      if (!this.enabled) return;
+      this.handleLinkDestroyed(evt);
+    });
+    
+    // Semantic events - trigger appropriate fusion forms
+    this.semanticBus.subscribe('semantic.state.changed', (evt) => {
+      if (!this.enabled) return;
+      this.handleSemanticStateChanged(evt);
+    });
+    
+    this.semanticBus.subscribe('semantic.cluster.sync', (evt) => {
+      if (!this.enabled) return;
+      this.handleClusterSync(evt);
+    });
+    
+    this.semanticBus.subscribe('semantic.ascension', (evt) => {
+      if (!this.enabled) return;
+      this.handleAscension(evt);
+    });
+    
+    this.semanticBus.subscribe('semantic.ritual.started', (evt) => {
+      if (!this.enabled) return;
+      this.handleRitualStarted(evt);
+    });
+    
+    this.semanticBus.subscribe('semantic.ritual.completed', (evt) => {
+      if (!this.enabled) return;
+      this.handleRitualCompleted(evt);
+    });
+    
+    // Selection event - immediate response
+    this.semanticBus.subscribe('node.selection', (evt) => {
+      if (!this.enabled) return;
+      if (evt.type === 'select') {
+        this.handleNodeSelected(evt.nodeId);
+      } else if (evt.type === 'deselect') {
+        this.handleNodeDeselected(evt.nodeId);
+      }
+    });
+  }
+  
+  /**
+   * Event handlers
+   */
+  handleLinkCreated(evt) {
+    // Trigger exploring state on source node
+    this.triggerExploringState(evt.sourceNodeId, evt.timestamp);
+  }
+  
+  handleLinkDestroyed(evt) {
+    // Fade out fusion glyph on affected nodes
+    this.updateFusionFade(evt.sourceNodeId, 0, 0.5);
+    this.updateFusionFade(evt.targetNodeId, 0, 0.5);
+  }
+  
+  handleSemanticStateChanged(evt) {
+    // Update fusion form based on new state
+    this.updateFusionForm(evt.nodeId, evt.toState, evt.parameters, evt.context);
+  }
+  
+  handleClusterSync(evt) {
+    // Trigger cluster-sync fusion form
+    this.triggerClusterSyncForm(evt.nodeId, evt.syncAmount);
+  }
+  
+  handleAscension(evt) {
+    // Trigger ascended fusion form
+    this.triggerAscendedForm(evt.nodeId);
+  }
+  
+  handleRitualStarted(evt) {
+    // Trigger ritual-active fusion form
+    this.triggerRitualForm(evt.targetNodeId, 'active');
+  }
+  
+  handleRitualCompleted(evt) {
+    // Fade out ritual fusion form
+    this.fadeOutRitualForm(evt.targetNodeId, 1.0);
+  }
+  
+  handleNodeSelected(nodeId) {
+    // Boost fusion glyph intensity on selected node
+    this.boostFusionIntensity(nodeId, 1.5, 0.3);
+  }
+  
+  handleNodeDeselected(nodeId) {
+    // Restore fusion glyph intensity
+    this.restoreFusionIntensity(nodeId);
   }
   
   /**
@@ -197,45 +307,103 @@ export class GlyphFusionOverlay4_1 {
   }
   
   /**
-   * Main update loop - call every frame
+   * Main update loop - call every frame (10Hz subtle animations only)
+   * Semantic state changes are driven via events, not per-frame polling
    */
   update(dt) {
-    if (!this.enabled || !this.semanticGlyphAI) return;
+    if (!this.enabled) return;
     
     const startTime = performance.now();
     
-    // Update each node's fusion glyph
-    for (const [nodeId, fusionData] of this.nodeFusionMap) {
-      const { node, fusionGroup } = fusionData;
-      if (!node) continue;
-      
-      // Get semantic state from SemanticGlyphAI
-      const semanticState = this.semanticGlyphAI.semanticState?.get(nodeId);
-      
-      if (!semanticState) {
-        // No semantic state - fade out fusion glyph
-        this.updateFusionFade(nodeId, 0, dt);
-        continue;
-      }
-      
-      const { type, parameters, context } = semanticState;
-      
-      // Compute fusion intensity based on semantic state
-      const intensity = this.computeFusionIntensity(type, parameters, context);
-      
-      // Update fusion fade
-      this.updateFusionFade(nodeId, intensity, dt);
-      
-      // If intensity > 0, update/create fusion meshes
-      if (intensity > 0.1) {
-        this.updateFusionMeshes(nodeId, type, intensity, context, dt);
-      }
-      
-      // Update animation
-      this.updateFusionAnimation(nodeId, type, intensity, dt);
-    }
+    // Only update subtle animations (fade, rotation, scale breathing)
+    // NO semantic state polling - events drive state changes
+    this.updateSubtleAnimations(dt);
     
     this.stats.frameTime = performance.now() - startTime;
+  }
+  
+  /**
+   * Update subtle animations only (10Hz)
+   * Semantic state is updated via events
+   */
+  updateSubtleAnimations(dt) {
+    for (const [nodeId, fusionData] of this.nodeFusionMap) {
+      this.updateFusionFadeInAnimation(nodeId, dt);
+      this.updateFusionRotationAnimation(nodeId, dt);
+      this.updateFusionScaleBreathing(nodeId, dt);
+    }
+  }
+  
+  /**
+   * Update fusion fade in/out animation
+   */
+  updateFusionFadeInAnimation(nodeId, dt) {
+    const animState = this.animationState.get(nodeId);
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    
+    if (!animState || !fusionData) return;
+    
+    // Smooth fade to target
+    const fadeSpeed = animState.currentFadeTarget > animState.fadePhase ? 
+      1 / this.config.fadeInDuration : 
+      1 / this.config.fadeOutDuration;
+    
+    animState.fadePhase = THREE.MathUtils.lerp(
+      animState.fadePhase,
+      animState.currentFadeTarget,
+      fadeSpeed * dt
+    );
+    
+    // Update mesh opacity based on fade
+    for (const mesh of fusionData.meshes) {
+      if (mesh.material) {
+        mesh.material.opacity = 0.5 * animState.fadePhase;
+      }
+      mesh.visible = animState.fadePhase > 0.05;
+    }
+  }
+  
+  /**
+   * Update fusion rotation animation
+   */
+  updateFusionRotationAnimation(nodeId, dt) {
+    const animState = this.animationState.get(nodeId);
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    
+    if (!animState || !fusionData) return;
+    
+    // Update rotation phase
+    animState.rotPhase += dt * this.config.rotationSpeedMax;
+    
+    // Apply rotation to meshes
+    for (const mesh of fusionData.meshes) {
+      if (mesh.userData.rotationAxis) {
+        const axis = mesh.userData.rotationAxis;
+        mesh.rotation[axis] += dt * this.config.rotationSpeedMax;
+      }
+    }
+  }
+  
+  /**
+   * Update fusion scale breathing animation
+   */
+  updateFusionScaleBreathing(nodeId, dt) {
+    const animState = this.animationState.get(nodeId);
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    
+    if (!animState || !fusionData) return;
+    
+    // Update pulse phase
+    if (!animState.pulsePhase) animState.pulsePhase = 0;
+    animState.pulsePhase += dt * this.config.pulseFrequency * Math.PI * 2;
+    
+    // Compute breathing scale
+    const breathScale = 1.0 + Math.sin(animState.pulsePhase) * this.config.scaleBreathAmount;
+    
+    // Apply scale to fusion group
+    if (fusionData.fusionGroup) {
+      fusionData.fusionGroup.scale.setScalar(breathScale);
+    }
   }
   
   /**
@@ -651,6 +819,362 @@ export class GlyphFusionOverlay4_1 {
       typeDistribution[type] = (typeDistribution[type] || 0) + 1;
     }
     console.log('Fusion type distribution:', typeDistribution);
+  }
+  
+  /**
+   * Trigger exploring state on a node (event-driven)
+   */
+  triggerExploringState(nodeId, timestamp) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Update fusion form to exploring
+    this.updateFusionForm(nodeId, 'exploring', { exploreAmount: 1.0 }, {});
+    
+    // Set fade target to fade in
+    animState.currentFadeTarget = 0.8;
+    animState.lastMeaningType = 'exploring';
+  }
+  
+  /**
+   * Update fusion form based on new state (event-driven)
+   */
+  updateFusionForm(nodeId, meaningType, parameters, context) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Store meaning type for reference
+    animState.lastMeaningType = meaningType;
+    fusionData.meaningType = meaningType;
+    fusionData.parameters = parameters;
+    
+    // Compute fusion intensity
+    const intensity = this.computeFusionIntensity(meaningType, parameters, context);
+    animState.currentFadeTarget = intensity;
+    
+    // Update/create fusion meshes if intensity > 0.1
+    if (intensity > 0.1) {
+      this.updateFusionMeshes(nodeId, meaningType, intensity, context, 0.016);
+    }
+  }
+  
+  /**
+   * Trigger cluster-sync fusion form (event-driven)
+   */
+  triggerClusterSyncForm(nodeId, syncAmount) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Update fusion form to cluster-sync
+    this.updateFusionForm(nodeId, 'cluster-sync', { syncAmount: syncAmount }, {});
+  }
+  
+  /**
+   * Trigger ascended fusion form (event-driven)
+   */
+  triggerAscendedForm(nodeId) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Update fusion form to ascended (same as focused)
+    this.updateFusionForm(nodeId, 'focused', { clarity: 1.0 }, {});
+  }
+  
+  /**
+   * Trigger ritual fusion form (event-driven)
+   */
+  triggerRitualForm(nodeId, state) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Ritual state maps to stressed/conflict
+    const meaningType = state === 'active' ? 'stressed' : 'conflict';
+    this.updateFusionForm(nodeId, meaningType, { stressLevel: 0.8, confictStrength: 0.8 }, {});
+  }
+  
+  /**
+   * Fade out ritual fusion form (event-driven)
+   */
+  fadeOutRitualForm(nodeId, duration) {
+    this.updateFusionFade(nodeId, 0, duration);
+  }
+  
+  /**
+   * Boost fusion glyph intensity on selected node (event-driven)
+   */
+  boostFusionIntensity(nodeId, boostFactor, duration) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Temporarily boost fade phase
+    const originalTarget = animState.currentFadeTarget;
+    animState.currentFadeTarget = Math.min(1, originalTarget * boostFactor);
+    
+    // Restore after duration
+    setTimeout(() => {
+      animState.currentFadeTarget = originalTarget;
+    }, duration * 1000);
+  }
+  
+  /**
+   * Restore fusion glyph intensity (event-driven)
+   */
+  restoreFusionIntensity(nodeId) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState) return;
+    
+    // Restore to computed intensity based on meaning type
+    const intensity = this.computeFusionIntensity(
+      animState.lastMeaningType,
+      fusionData.parameters || {},
+      {}
+    );
+    animState.currentFadeTarget = intensity;
+  }
+  
+  /**
+   * Update fusion meshes for specific form
+   */
+  updateFusionMeshes(nodeId, meaningType, intensity, context, dt) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    const animState = this.animationState.get(nodeId);
+    
+    if (!fusionData || !animState || !fusionData.fusionGroup) return;
+    
+    // Get or create fusion form meshes
+    this.createFusionFormMeshes(nodeId, meaningType, intensity, context);
+  }
+  
+  /**
+   * Create fusion form meshes
+   */
+  createFusionFormMeshes(nodeId, meaningType, intensity, context) {
+    const fusionData = this.nodeFusionMap.get(nodeId);
+    if (!fusionData || !fusionData.fusionGroup) return;
+    
+    const { fusionGroup } = fusionData;
+    
+    // Clear existing meshes
+    for (const mesh of fusionData.meshes) {
+      mesh.visible = false;
+    }
+    fusionData.meshes = [];
+    
+    // Create form based on meaning type
+    switch (meaningType) {
+      case 'focused':
+        this.createFocusedForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'stressed':
+        this.createStressedForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'calm':
+        this.createCalmForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'exploring':
+        this.createExploringForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'leader':
+        this.createLeaderForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'conflict':
+        this.createConflictForm(fusionGroup, intensity, nodeId);
+        break;
+      case 'cluster-sync':
+        this.createClusterSyncForm(fusionGroup, intensity, nodeId);
+        break;
+      default:
+        this.createNeutralForm(fusionGroup, intensity, nodeId);
+    }
+  }
+  
+  /**
+   * Create focused form (dual-rings)
+   */
+  createFocusedForm(fusionGroup, intensity, nodeId) {
+    const ring1 = this.getReusableMesh('rings', this.colors.focused);
+    const ring2 = this.getReusableMesh('rings', this.colors.focused);
+    
+    if (ring1) {
+      ring1.rotation.x = Math.PI / 2;
+      ring1.visible = true;
+      fusionGroup.add(ring1);
+      fusionGroup.meshes.push(ring1);
+      ring1.userData.rotationAxis = 'z';
+    }
+    
+    if (ring2) {
+      ring2.rotation.x = Math.PI / 2;
+      ring2.rotation.y = Math.PI / 4;
+      ring2.visible = true;
+      fusionGroup.add(ring2);
+      fusionGroup.meshes.push(ring2);
+      ring2.userData.rotationAxis = 'z';
+    }
+  }
+  
+  /**
+   * Create stressed form (tri-fold)
+   */
+  createStressedForm(fusionGroup, intensity, nodeId) {
+    const plane1 = this.getReusableMesh('planes', this.colors.stressed);
+    const plane2 = this.getReusableMesh('planes', this.colors.stressed);
+    const plane3 = this.getReusableMesh('planes', this.colors.stressed);
+    
+    [plane1, plane2, plane3].forEach((plane, i) => {
+      if (plane) {
+        const angle = (i / 3) * Math.PI * 2;
+        plane.rotation.x = Math.sin(angle) * 0.5;
+        plane.rotation.y = Math.cos(angle) * 0.5;
+        plane.visible = true;
+        fusionGroup.add(plane);
+        fusionGroup.meshes.push(plane);
+        plane.userData.rotationAxis = 'z';
+      }
+    });
+  }
+  
+  /**
+   * Create calm form (lotus)
+   */
+  createCalmForm(fusionGroup, intensity, nodeId) {
+    for (let i = 0; i < 6; i++) {
+      const petal = this.getReusableMesh('petals', this.colors.calm);
+      if (petal) {
+        const angle = (i / 6) * Math.PI * 2;
+        petal.position.x = Math.cos(angle) * 0.1;
+        petal.position.z = Math.sin(angle) * 0.1;
+        petal.rotation.y = angle;
+        petal.visible = true;
+        fusionGroup.add(petal);
+        fusionGroup.meshes.push(petal);
+        petal.userData.rotationAxis = 'y';
+      }
+    }
+  }
+  
+  /**
+   * Create exploring form (orbiting dots)
+   */
+  createExploringForm(fusionGroup, intensity, nodeId) {
+    for (let i = 0; i < 4; i++) {
+      const hex = this.getReusableMesh('hexagons', this.colors.exploring);
+      if (hex) {
+        const angle = (i / 4) * Math.PI * 2;
+        hex.position.x = Math.cos(angle) * 0.12;
+        hex.position.z = Math.sin(angle) * 0.12;
+        hex.rotation.y = angle;
+        hex.visible = true;
+        fusionGroup.add(hex);
+        fusionGroup.meshes.push(hex);
+        hex.userData.rotationAxis = 'y';
+      }
+    }
+  }
+  
+  /**
+   * Create leader form (crown halo)
+   */
+  createLeaderForm(fusionGroup, intensity, nodeId) {
+    for (let i = 0; i < 4; i++) {
+      const ring = this.getReusableMesh('rings', this.colors.leader);
+      if (ring) {
+        const angle = (i / 4) * Math.PI * 2;
+        ring.rotation.x = Math.PI / 2;
+        ring.position.x = Math.cos(angle) * 0.08;
+        ring.position.z = Math.sin(angle) * 0.08;
+        ring.visible = true;
+        fusionGroup.add(ring);
+        fusionGroup.meshes.push(ring);
+        ring.userData.rotationAxis = 'y';
+      }
+    }
+  }
+  
+  /**
+   * Create conflict form (cross-planes)
+   */
+  createConflictForm(fusionGroup, intensity, nodeId) {
+    const plane1 = this.getReusableMesh('planes', this.colors.conflict);
+    const plane2 = this.getReusableMesh('planes', this.colors.conflict);
+    
+    if (plane1) {
+      plane1.rotation.y = Math.PI / 4;
+      plane1.visible = true;
+      fusionGroup.add(plane1);
+      fusionGroup.meshes.push(plane1);
+      plane1.userData.rotationAxis = 'z';
+    }
+    
+    if (plane2) {
+      plane2.rotation.y = -Math.PI / 4;
+      plane2.visible = true;
+      fusionGroup.add(plane2);
+      fusionGroup.meshes.push(plane2);
+      plane2.userData.rotationAxis = 'z';
+    }
+  }
+  
+  /**
+   * Create cluster-sync form (hexagon-orbital)
+   */
+  createClusterSyncForm(fusionGroup, intensity, nodeId) {
+    for (let i = 0; i < 4; i++) {
+      const hex = this.getReusableMesh('hexagons', this.colors['cluster-sync']);
+      if (hex) {
+        const angle = (i / 4) * Math.PI * 2;
+        hex.position.x = Math.cos(angle) * 0.15;
+        hex.position.z = Math.sin(angle) * 0.15;
+        hex.rotation.y = angle;
+        hex.visible = true;
+        fusionGroup.add(hex);
+        fusionGroup.meshes.push(hex);
+        hex.userData.rotationAxis = 'y';
+      }
+    }
+  }
+  
+  /**
+   * Create neutral form
+   */
+  createNeutralForm(fusionGroup, intensity, nodeId) {
+    // No special form - just empty
+  }
+  
+  /**
+   * Get reusable mesh from pool
+   */
+  getReusableMesh(poolType, color) {
+    const pool = this.geometryPools[poolType];
+    if (!pool || pool.length === 0) return null;
+    
+    const mesh = pool.shift();
+    mesh.material = this.getMaterial(color);
+    return mesh;
+  }
+  
+  /**
+   * Update fusion fade (event-driven)
+   */
+  updateFusionFade(nodeId, targetIntensity, dt) {
+    const animState = this.animationState.get(nodeId);
+    if (!animState) return;
+    
+    animState.currentFadeTarget = targetIntensity;
   }
   
   /**

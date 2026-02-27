@@ -35,8 +35,9 @@ import * as THREE from 'three';
  */
 
 export class NodeEvolution2_0 {
-  constructor(scene) {
+  constructor(scene, semanticBus) {
     this.scene = scene;
+    this.semanticBus = semanticBus;
     
     // Evolution state registry
     this.registry = {
@@ -460,6 +461,19 @@ export class NodeEvolution2_0 {
     if (nextStage > 4) return;
     
     const stageDef = this.config.stages[nextStage];
+    
+    // ============================================================
+    // EMIT EVENT FOR STAGE 4 (ASCENDED)
+    // ============================================================
+    if (nextStage === 4 && this.semanticBus) {
+      this.semanticBus.emit('semantic.ascension', {
+        nodeId: evolutionState.nodeId,
+        fromStage: evolutionState.currentStage,
+        toStage: 'ascended',
+        timestamp: performance.now()
+      }, { priority: this.semanticBus.priority.CRITICAL });
+      console.log(`✓ Node ${evolutionState.nodeId} ascended to Stage 4 (event-driven)`);
+    }
     
     // ============================================================
     // ADD SPECTRAL HIGHLIGHTS (if applicable)
