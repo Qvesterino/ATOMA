@@ -399,6 +399,7 @@ class HitProxySystem {
 
     this.proxiesCreated = false;
     this.setupDone = false;
+    this.isReady = false;
   }
 
   /**
@@ -421,10 +422,22 @@ class HitProxySystem {
       this.layer.enableForRaycast(proxy);
     }
 
+    const proxies = this.registry.getAllProxies();
+    const ready = proxies.length > 0 && proxies.every(p => p?.userData?.targetNodeId);
+
     this.proxiesCreated = true;
     this.setupDone = true;
+    this.isReady = ready;
+
+    if (typeof window !== 'undefined') {
+      window.HITPROXY_READY = ready;
+      if (ready && !window._HITPROXY_READY_LOGGED) {
+        window._HITPROXY_READY_LOGGED = true;
+        console.log(`[HitProxySystem] \u2713 HITPROXY_READY = true (setup)`);
+      }
+    }
     
-    console.log(`[HitProxySystem] Initialized with ${this.registry.getAllProxies().length} proxies`);
+    console.log(`[HitProxySystem] Initialized with ${proxies.length} proxies`);
   }
 
   /**

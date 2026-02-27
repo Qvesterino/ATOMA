@@ -3503,6 +3503,52 @@ class AtomaGame {
                 this.quantumIllusions.update(dt);
             }
         }, 'visual.quantumIllusions');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.visualSuperpack) {
+                this.visualSuperpack.update(dt);
+            }
+        }, 'visual.visualSuperpack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cinematicUpgrade) {
+                this.cinematicUpgrade.update(dt);
+            }
+        }, 'visual.cinematicUpgrade');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.dynamicLinkColorSystem) {
+                this.dynamicLinkColorSystem.update(dt);
+            }
+        }, 'visual.dynamicLinkColorSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.waveShaderBridge) {
+                this.waveShaderBridge.update(dt, {
+                    links: this.nodeLinking?.links || [],
+                    nodes: this.aiNodes?.nodes || [],
+                    time: this.time,
+                    visualTime: window.VISUAL_TIME ?? this.time,
+                    nodeDynamicMetrics: this.nodeDynamicMetrics
+                });
+            }
+        }, 'visual.waveShaderBridge');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.waveTravelShaderPack) {
+                this.waveTravelShaderPack.update(dt);
+            }
+        }, 'visual.waveTravelShaderPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.waveDynamicsShaderPack) {
+                this.waveDynamicsShaderPack.update(dt);
+            }
+        }, 'visual.waveDynamicsShaderPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.standingWaveRenderer) {
+                this.standingWaveRenderer.update(dt, this.time);
+            }
+        }, 'visual.standingWaveRenderer');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.waveInterference) {
+                this.waveInterference.update(dt, this.time);
+            }
+        }, 'visual.waveInterference');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -4776,6 +4822,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.worldRoot,
             this.compositeResonanceFeedback || null
         );
+        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
+            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+        }
         this.setupSemanticGlyphAI();
         this._lastHoverGlyphTarget = null;
         if (this.semanticGlyphAI?.setHoverTarget) {
@@ -5187,6 +5236,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.worldRoot,
             this.compositeResonanceFeedback || null
         );
+        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
+            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+        }
         this.setupSemanticGlyphAI();
 
         if (this.worldPersonalityController?.root) {
@@ -7903,8 +7955,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('activeWorld', (dt) => {
             if (this.activeWorld) this.activeWorld.update(dt, this.time);
         });
-        reg('visualSuperpack', (dt) => this.visualSuperpack?.update?.(dt));
-        reg('cinematicUpgrade', (dt) => this.cinematicUpgrade?.update?.(dt));
         reg('nodeEditor', (dt) => this.nodeEditor?.update?.(dt));
         reg('hazards', (dt) => {
             if (this.hazards) {

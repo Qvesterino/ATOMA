@@ -31,6 +31,12 @@ export class GlyphLayer4_MultiFusion {
     this.scene = scene;
     this.enforcementGate = enforcementGate;  // Optional enforcement gate
     this.resonanceFeedback = resonanceFeedback;  // Optional resonance feedback system
+
+    // Normalize enforcement gate (defensive: sometimes worldRoot is passed)
+    if (this.enforcementGate && typeof this.enforcementGate.canAttach !== 'function') {
+      console.warn('[GlyphLayer4] Invalid enforcementGate, disabling gate', this.enforcementGate);
+      this.enforcementGate = null;
+    }
     
     // Master fusion container
     this.fusionContainer = new THREE.Group();
@@ -808,8 +814,15 @@ export class GlyphLayer4_MultiFusion {
     });
     
     // Check approval before attaching
-    if (this.enforcementGate && !this.enforcementGate.canAttach(request)) {
-      return false;
+    if (this.enforcementGate) {
+      if (typeof this.enforcementGate.canAttach === 'function') {
+        if (!this.enforcementGate.canAttach(request)) {
+          return false;
+        }
+      } else {
+        // Invalid gate type — treat as no gate
+        console.warn('[GlyphLayer4] enforcementGate missing canAttach; skipping gate check');
+      }
     }
     
     // Safe to attach

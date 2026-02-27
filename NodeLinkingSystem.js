@@ -4719,8 +4719,11 @@ getLinksForNode(node) {
     }
 
     // [SESSION 62B] HITPROXY_READY GATE - Prevent FPS death during startup
-    // Only raycast if proxies are ready
-    if (!window.HITPROXY_READY) {
+    // Prefer HITPROXY_READY but fall back to live registry presence
+    const proxyList = window.hitProxySystem?.registry?.getAllProxies?.() || [];
+    const proxiesAvailable = proxyList.length > 0;
+    const ready = (window.HITPROXY_READY === true) || proxiesAvailable;
+    if (!ready) {
       crosshairEl.classList.remove('targeting');
       crosshairState.node = null;
       crosshairState.proxyHit = false;
