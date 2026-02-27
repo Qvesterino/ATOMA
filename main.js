@@ -3353,6 +3353,59 @@ class AtomaGame {
                 this.harmonicCascadeAmplificationTick(this._pendingHarmonicCascadeDt);
             }
         }, 'harmonicCascadeAmplification.realtime');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
+                this.pulseWaveSystemBridge.update(dt, {
+                    waveEngine: this.waveInterferenceEngine,
+                    links: this.nodeLinking?.links || [],
+                    nodeDynamicMetrics: this.nodeDynamicMetrics,
+                    pulseIntersectionAdapter: this.pulseIntersectionAdapter
+                });
+            }
+        }, 'visual.pulseWaveSystemBridge');
+        this.frameScheduler.register('visual', () => {
+            if (this.pulseBoundaryInteractionAdapter && this.aiNodes && this.nodeLinking) {
+                this.pulseBoundaryInteractionAdapter.update({
+                    links: this.nodeLinking?.links || [],
+                    nodes: this.aiNodes?.nodes || [],
+                    nodeDynamicMetrics: this.nodeDynamicMetrics,
+                    aiNodes: this.aiNodes
+                });
+            }
+        }, 'visual.pulseBoundaryInteractionAdapter');
+        this.frameScheduler.register('visual', () => {
+            if (this.pulseIntersectionAdapter) {
+                this.pulseIntersectionAdapter.update();
+            }
+        }, 'visual.pulseIntersectionAdapter');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.resonanceFeedback && this.aiNodes && this.nodeLinking) {
+                this.resonanceFeedback.update(
+                    dt,
+                    this.aiNodes.nodes || [],
+                    this.nodeLinking.links || []
+                );
+            }
+        }, 'visual.resonanceFeedback');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.resonanceRupture) {
+                this.resonanceRupture.update(dt, this.time);
+            }
+        }, 'visual.resonanceRupture');
+        this.frameScheduler.register('visual', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.resonanceEchoTrails?.enabled) {
+                this.resonanceEchoTrails.update(
+                    dt,
+                    this.linkSemanticPictograms?.fusionZoneManager?.compositeGlyphs
+                );
+            }
+        }, 'visual.resonanceEchoTrails');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.compositeResonanceFeedback) {
+                this.compositeResonanceFeedback.update(dt);
+            }
+        }, 'visual.compositeResonanceFeedback');
         this.frameScheduler.register('realtime', () => {
             if (this._runCascadeVisualizerPending) {
                 this._runCascadeVisualizerPending = false;
@@ -3365,6 +3418,41 @@ class AtomaGame {
                 this.runSlowSemanticTick(this._pendingSlowSemanticDt);
             }
         }, 'semantic.slow10Hz');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.glyphSystem) {
+                this.glyphSystem.update(dt);
+            }
+        }, 'visual.glyphSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.glyphSystem4 && this.aiNodes) {
+                this.glyphSystem4.update(dt, this.aiNodes.nodes);
+            }
+        }, 'visual.glyphSystem4');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.proceduralMeaningEngine && this.aiNodes && this.semanticGlyphAI) {
+                this.proceduralMeaningEngine.update(dt, this.aiNodes.nodes, this.semanticGlyphAI);
+            }
+        }, 'visual.proceduralMeaningEngine');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.adaptiveGlyphRendering && this.aiNodes) {
+                this.adaptiveGlyphRendering.update(dt, this.aiNodes.nodes);
+            }
+        }, 'visual.adaptiveGlyphRendering');
+        this.frameScheduler.register('visual', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.glyphAnimationModulator?.enabled && this.proceduralGlyphGenerator?.glyphInstances) {
+                const harmonicNetworkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
+                };
+                this.glyphAnimationModulator.update(
+                    this.proceduralGlyphGenerator.glyphInstances,
+                    harmonicNetworkState
+                );
+            }
+        }, 'visual.glyphAnimationModulator');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -7886,15 +7974,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
             }
         });
-        reg('resonanceFeedback', (dt) => {
-            if (this.resonanceFeedback && this.aiNodes && this.nodeLinking) {
-                this.resonanceFeedback.update(
-                    dt,
-                    this.aiNodes.nodes || [],
-                    this.nodeLinking.links || []
-                );
-            }
-        });
+
         reg('synergyCascadeFXBridge', (dt) => {
             if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
                 this.synergyCascadeFXBridge.update(
@@ -7905,26 +7985,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
 
-        reg('pulseWaveSystemBridge', (dt) => {
-            if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
-                this.pulseWaveSystemBridge.update(dt, {
-                    waveEngine: this.waveInterferenceEngine,
-                    links: this.nodeLinking?.links || [],
-                    nodeDynamicMetrics: this.nodeDynamicMetrics,
-                    pulseIntersectionAdapter: this.pulseIntersectionAdapter
-                });
-            }
-        });
-        reg('pulseBoundaryInteractionAdapter', (_dt) => {
-            if (this.pulseBoundaryInteractionAdapter && this.aiNodes && this.nodeLinking) {
-                this.pulseBoundaryInteractionAdapter.update({
-                    links: this.nodeLinking?.links || [],
-                    nodes: this.aiNodes?.nodes || [],
-                    nodeDynamicMetrics: this.nodeDynamicMetrics,
-                    aiNodes: this.aiNodes
-                });
-            }
-        });
+
 
         reg('waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
             links: this.nodeLinking?.links || [],
@@ -7953,26 +8014,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         reg('standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
         reg('waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
-        reg('resonanceRupture', (dt) => this.resonanceRupture?.update?.(dt, this.time));
+
 
         reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
-        reg('pulseIntersectionAdapter', () => this.pulseIntersectionAdapter?.update?.());
         reg('nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
         reg('nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
         reg('worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
         reg('mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
         reg('phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
         reg('mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
-        reg('glyphSystem', (dt) => this.glyphSystem?.update?.(dt));
-        reg('glyphSystem4', (dt) => this.glyphSystem4?.update?.(dt, this.aiNodes?.nodes));
         reg('glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
-        reg('compositeResonanceFeedback', (dt) => this.compositeResonanceFeedback?.update?.(dt));
         reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
         reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
         reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
-        reg('proceduralMeaningEngine', (dt) => this.proceduralMeaningEngine?.update?.(dt, this.aiNodes?.nodes, this.semanticGlyphAI));
+
+        reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
+        reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
+        reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
         reg('linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
-        reg('adaptiveGlyphRendering', (dt) => this.adaptiveGlyphRendering?.update?.(dt, this.aiNodes?.nodes));
         reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
@@ -8056,26 +8115,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkSemanticPictograms.update(dt, this.time, this.aiNodes);
             }
         });
-        reg('harmonicResonance', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.harmonicResonance?.enabled) {
-                this.harmonicResonance.update(
-                    dt,
-                    this.linkSemanticPictograms?.fusionZoneManager,
-                    this.linkSemanticPictograms?.pictogramSystem?.pictograms,
-                    this.linkingSystem
-                );
-            }
-        });
-        reg('resonanceEchoTrails', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.resonanceEchoTrails?.enabled) {
-                this.resonanceEchoTrails.update(
-                    dt,
-                    this.linkSemanticPictograms?.fusionZoneManager?.compositeGlyphs
-                );
-            }
-        });
+
+
 
         reg('topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
@@ -8091,21 +8132,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
 
 
-        reg('glyphAnimationModulator', (_dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.glyphAnimationModulator?.enabled && this.proceduralGlyphGenerator?.glyphInstances) {
-                const harmonicNetworkState = {
-                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
-                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
-                    stability: this.nodeDynamicMetrics?.avgStability || 0.5,
-                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0
-                };
-                this.glyphAnimationModulator.update(
-                    this.proceduralGlyphGenerator.glyphInstances,
-                    harmonicNetworkState
-                );
-            }
-        });
         reg('slowSemanticReset', () => {
             if (this._runSlowSemanticPending) {
                 this._runSlowSemanticPending = false;

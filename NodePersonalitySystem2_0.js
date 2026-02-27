@@ -423,37 +423,28 @@ export class NodePersonalitySystem2_0 {
    * FRACTAL_DREAMER: Irregular twitches, shifting phases
    */
   applyFractalDreamerMotion(node, state, intensity) {
-    // Small irregular rotation twitches
-    if (node.rotation) {
-      const twitch = Math.sin(state.jitterPhase * 3.7) * 0.01 * intensity;
-      node.rotation.x += twitch * 0.5;
-      node.rotation.z += twitch * 0.3;
-      state.jitterPhase += 0.1;
-    }
+    // REMOVED: Irregular rotation twitches - performance optimization
+    // Keep only smooth sinus-based breathing scale
 
-    // Irregular scale variations
+    // Smooth scale variations (deterministic, no jitter)
     if (node.scale) {
-      const scaleVar = 1.0 + Math.sin(state.breathPhase * 1.3) * 0.03 * intensity;
+      const scaleVar = 1.0 + Math.sin(state.breathPhase) * 0.03 * intensity;
       node.scale.setScalar(scaleVar * 0.9);
     }
   }
 
   /**
-   * QUANTUM_TRICKSTER: Random jitter, micro-tilts
+   * QUANTUM_TRICKSTER: REMOVED (Random jitter removed for performance)
+   * 
+   * QuantumTrickster now uses same deterministic motion as CALM_ANALYST
+   * All random jitter effects removed to prevent GPU thrashing and FPS instability
    */
   applyQuantumTricksterMotion(node, state, intensity) {
-    // Tiny random jitter (very subtle)
-    if (node.rotation) {
-      const jitter = (Math.random() - 0.5) * 0.02 * intensity;
-      node.rotation.x += jitter * 0.3;
-      node.rotation.y += jitter * 0.5;
-      node.rotation.z += jitter * 0.2;
-    }
-
-    // Fast micro-scale changes
+    // REMOVED: All random jitter effects for performance optimization
+    // QuantumTrickster now uses calm, deterministic motion
     if (node.scale) {
-      const quantumScale = 1.0 + (Math.random() - 0.5) * 0.03 * intensity;
-      node.scale.setScalar(quantumScale * 0.9);
+      const breathScale = 1.0 + Math.sin(state.breathPhase) * 0.02 * intensity;
+      node.scale.setScalar(breathScale * 0.9);
     }
   }
 
