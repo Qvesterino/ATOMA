@@ -2,7 +2,7 @@
  * Semantic Metric Naming Adapter
  * Centralizes legacy → canonical metric aliases without changing numeric behavior.
  *
- * Canonical per-node: synergy, harmony, stability, corruption, load
+ * Canonical per-node: synergy, harmony, stability, corruption, loadPressure
  * Canonical global: networkSynergy, harmonyFlow, networkStress, corruptionLevel, loadPressure
  */
 function firstDefined(...values) {
@@ -41,21 +41,29 @@ export function getNodeCanonicalMetrics(node) {
     metrics.corruptionNorm
   );
 
-  let load = firstDefined(
-    metrics.load,
+  let loadPressure = firstDefined(
     metrics.loadPressure,
+    metrics.load,
     metrics.loadRatio
   );
 
   // Legacy energy → inverse load (kept for backward compatibility; same behavior as legacy compatibility layer)
-  if (load === undefined && typeof metrics.energy === 'number') {
-    load = 1 - metrics.energy;
+  if (loadPressure === undefined && typeof metrics.energy === 'number') {
+    loadPressure = 1 - metrics.energy;
   }
-  if (load === undefined && typeof metrics.energyNorm === 'number') {
-    load = 1 - metrics.energyNorm;
+  if (loadPressure === undefined && typeof metrics.energyNorm === 'number') {
+    loadPressure = 1 - metrics.energyNorm;
   }
 
-  return { synergy, harmony, stability, corruption, load };
+  // Return canonical name; keep legacy alias for compatibility with existing consumers.
+  return {
+    synergy,
+    harmony,
+    stability,
+    corruption,
+    loadPressure,
+    load: loadPressure
+  };
 }
 
 /**
@@ -66,7 +74,7 @@ export function aggregateNetworkCanonicalMetrics(nodes = []) {
   let sumHarmony = 0;
   let sumStability = 0;
   let sumCorruption = 0;
-  let sumLoad = 0;
+  let sumLoadPressure = 0;
   let sampleSize = 0;
 
   for (const node of nodes) {
@@ -76,7 +84,7 @@ export function aggregateNetworkCanonicalMetrics(nodes = []) {
       m.harmony !== undefined ||
       m.stability !== undefined ||
       m.corruption !== undefined ||
-      m.load !== undefined;
+      m.loadPressure !== undefined;
 
     if (!hasAny) continue;
 
@@ -84,7 +92,7 @@ export function aggregateNetworkCanonicalMetrics(nodes = []) {
     sumHarmony += m.harmony ?? 0;
     sumStability += m.stability ?? 0;
     sumCorruption += m.corruption ?? 0;
-    sumLoad += m.load ?? 0;
+    sumLoadPressure += m.loadPressure ?? 0;
     sampleSize += 1;
   }
 
@@ -95,7 +103,7 @@ export function aggregateNetworkCanonicalMetrics(nodes = []) {
     harmonyFlow: sumHarmony / divisor,
     networkStress: sumStability / divisor,
     corruptionLevel: sumCorruption / divisor,
-    loadPressure: sumLoad / divisor,
+    loadPressure: sumLoadPressure / divisor,
     sampleSize
   };
 }
@@ -110,7 +118,7 @@ export function withGlobalMetricAliases(globalMetrics = {}) {
     harmonyFlow: firstDefined(globalMetrics.harmonyFlow, globalMetrics.harmony, globalMetrics.harmonyNorm),
     networkStress: firstDefined(globalMetrics.networkStress, globalMetrics.stability, globalMetrics.stabilityNorm, globalMetrics.stability),
     corruptionLevel: firstDefined(globalMetrics.corruptionLevel, globalMetrics.corruption, globalMetrics.corruptionNorm),
-    loadPressure: firstDefined(globalMetrics.loadPressure, globalMetrics.networkLoad, globalMetrics.energyNorm, globalMetrics.loadNorm),
+    loadPressure: firstDefined(globalMetrics.loadPressure, globalMetrics.networkLoad, globalMetrics.energyNorm, globalMetrics.loadNorm, globalMetrics.loadRatio),
     // Legacy norm aliases kept for compatibility with existing consumers
     harmonyNorm: firstDefined(globalMetrics.harmonyNorm, globalMetrics.harmonyFlow),
     stabilityNorm: firstDefined(globalMetrics.stabilityNorm, globalMetrics.networkStress),
@@ -131,6 +139,6 @@ export function projectHudMetrics(metrics = {}) {
     harmonyFlow: safeValue(metrics.harmonyFlow ?? metrics.harmony ?? metrics.harmonyNorm ?? metrics.harmony),
     networkStress: safeValue(metrics.networkStress ?? metrics.stability ?? metrics.stability ?? metrics.stabilityNorm),
     corruptionLevel: safeValue(metrics.corruptionLevel ?? metrics.corruption ?? metrics.corruptionNorm),
-    loadPressure: safeValue(metrics.loadPressure ?? metrics.networkLoad ?? metrics.loadNorm ?? metrics.loadRatio)
+    loadPressure: safeValue(metrics.loadPressure ?? metrics.networkLoad ?? metrics.loadNorm ?? metrics.loadRatio ?? metrics.load)
   };
 }

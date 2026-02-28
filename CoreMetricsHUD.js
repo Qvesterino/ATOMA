@@ -25,7 +25,7 @@ export class CoreMetricsHUD {
       harmony: null,
       stability: null,
       corruption: null,
-      networkLoad: null,
+      loadPressure: null,
       cycleTime: null,
       epochNumber: null,
       aeonNumber: null,
@@ -50,7 +50,7 @@ export class CoreMetricsHUD {
       harmony: '#00dd99',      // Green-teal
       stability: '#ffdd00',  // Amber
       corruption: '#dd0099',   // Magenta
-      networkLoad: '#aa00ff',  // Violet
+      loadPressure: '#aa00ff', // Violet
       text: '#00ffff',         // Bright cyan
       background: 'rgba(10, 10, 20, 0.8)',
       border: '#00ccdd'
@@ -95,7 +95,7 @@ export class CoreMetricsHUD {
       { key: 'harmony', label: 'HARMONY FLOW', color: this.colors.harmony },
       { key: 'stability', label: 'NETWORK STRESS', color: this.colors.stability },
       { key: 'corruption', label: 'CORRUPTION LEVEL', color: this.colors.corruption },
-      { key: 'networkLoad', label: 'LOAD PRESSURE', color: this.colors.networkLoad }
+      { key: 'loadPressure', label: 'LOAD PRESSURE', color: this.colors.loadPressure }
     ];
     
     metrics.forEach(metric => {
@@ -240,7 +240,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   this.updateMetricDisplay('harmony', harmony);
   this.updateMetricDisplay('stability', stress);
   this.updateMetricDisplay('corruption', corruption);
-  this.updateMetricDisplay('networkLoad', load);
+  this.updateMetricDisplay('loadPressure', load);
 
   // === NETWORK TIME PRESSURE ===
   this.updateNetworkTime(synergy, deltaTime);

@@ -67,7 +67,7 @@ export class LinkShaderMetricsIntegration {
    * Update internal metrics from CoreMetricsCalculator output
    * 
    * @param {Object} rawMetrics - Raw metrics from CoreMetricsCalculator
-   *   - networkLoad (0-100)
+   *   - loadPressure (0-1) or networkLoad (0-100 legacy)
    *   - instability (0-100)
    *   - corruption (0-100)
    *   - harmony (0-100)
@@ -83,7 +83,10 @@ export class LinkShaderMetricsIntegration {
     
     // Normalize metrics from 0-100 to 0-1
     const newMetrics = {
-      load: Math.max(0, Math.min(1, (rawMetrics.networkLoad ?? 30) / 100)),
+      load: Math.max(0, Math.min(1,
+        rawMetrics.loadPressure !== undefined
+          ? rawMetrics.loadPressure
+          : (rawMetrics.networkLoad ?? 30) / 100)),
       stress: Math.max(0, Math.min(1, (rawMetrics.instability ?? 0) / 100)),
       corruption: Math.max(0, Math.min(1, (rawMetrics.corruption ?? 0) / 100)),
       harmony: Math.max(0, Math.min(1, (rawMetrics.harmony ?? 100) / 100)),

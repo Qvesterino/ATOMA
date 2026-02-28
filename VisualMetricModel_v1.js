@@ -268,8 +268,8 @@ export class VisualMetricModel {
       result.stabilityNorm = this._clamp01(normalize(canonicalMetrics.stability, result.stabilityNorm));
       result.harmonyNorm = this._clamp01(normalize(canonicalMetrics.harmony, result.harmonyNorm));
       result.corruptionNorm = this._clamp01(normalize(canonicalMetrics.corruption, result.corruptionNorm));
-      result.loadNorm = this._clamp01(normalize(canonicalMetrics.load, result.loadNorm));
-      result.energyNorm = this._clamp01(normalize(canonicalMetrics.load, result.energyNorm));
+      result.loadNorm = this._clamp01(normalize(canonicalMetrics.loadPressure, result.loadNorm));
+      result.energyNorm = this._clamp01(normalize(canonicalMetrics.loadPressure, result.energyNorm));
     }
 
     // ========== SOURCE 2: NodeQualityCalculator ==========

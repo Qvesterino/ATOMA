@@ -80,7 +80,8 @@ export class ParticleEmissionScaler {
     this.cachedMetrics = {
       networkCorruption: 0,
       networkStress: 0,
-      networkLoad: 0,
+      loadPressure: 0,
+      networkLoad: 0, // legacy alias
       avgLinkDegradation: 0,
     };
     
@@ -164,12 +165,14 @@ export class ParticleEmissionScaler {
         }
       }
       
-      this.cachedMetrics.networkStress = nodeCount > 0 
+      const avgLoad = nodeCount > 0 
         ? Math.min(1.0, totalLoad / nodeCount)
         : 0;
-      
-      // Network load (same as stress for now)
-      this.cachedMetrics.networkLoad = this.cachedMetrics.networkStress;
+
+      this.cachedMetrics.networkStress = avgLoad;
+      this.cachedMetrics.loadPressure = avgLoad;
+      // Legacy alias
+      this.cachedMetrics.networkLoad = avgLoad;
     }
     
     // Average link degradation
@@ -223,7 +226,7 @@ export class ParticleEmissionScaler {
     // Apply load scaling
     if (this.config.useNetworkLoad) {
       const loadFactor = this._computeCurveFactor(
-        this.cachedMetrics.networkLoad,
+        this.cachedMetrics.loadPressure,
         this.config.loadThreshold,
         'linear'
       );

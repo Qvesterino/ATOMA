@@ -1927,6 +1927,13 @@ static _createInputNodeLegacy(group, index, color) {
   }
   
   return factory ? factory(group, color) : null;
+
+  // Copy nodeId from input group (if exists)
+  const result = factory ? factory(group, color) : null;
+  if (result && group.userData && group.userData.nodeId) {
+    result.userData.nodeId = group.userData.nodeId;
+  }
+  return result;
 }
 
   /**
@@ -2946,7 +2953,13 @@ static _createInputNodeLegacy(group, index, color) {
     const selected = pool[counter % pool.length];
     const factory = factoryMap[selected];
     if (!factory) return null;
-    return factory(group, color);
+
+    // Copy nodeId from input group (if exists)
+    const result = factory(group, color);
+    if (result && group.userData && group.userData.nodeId) {
+      result.userData.nodeId = group.userData.nodeId;
+    }
+    return result;
   }
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
@@ -4730,6 +4743,12 @@ static createControlNode0(group, color) {
   group.userData.visualTier = "CONTROL_V4";
   group.userData.hasAuthoritySpine = true;
 
+  // Copy nodeId from input group (if exists)
+  const inputNodeGroup = arguments[0];
+  if (inputNodeGroup && inputNodeGroup.userData && inputNodeGroup.userData.nodeId) {
+    group.userData.nodeId = inputNodeGroup.userData.nodeId;
+  }
+
   return group;
 }
 
@@ -4786,6 +4805,12 @@ static createControlNode0(group, color) {
     apex.position.set(0, 0.9, 0);
     apex.renderOrder = 2;
     group.add(apex);
+
+  // Copy nodeId from input group (if exists)
+  const inputNodeGroup = arguments[0];
+  if (inputNodeGroup && inputNodeGroup.userData && inputNodeGroup.userData.nodeId) {
+    group.userData.nodeId = inputNodeGroup.userData.nodeId;
+  }
 
     return group;
   }
@@ -4922,6 +4947,12 @@ static createControlNode0(group, color) {
     root.add(axis);
 
     group.add(root);
+  // Copy nodeId from input group (if exists)
+  const inputNodeGroup = arguments[0];
+  if (inputNodeGroup && inputNodeGroup.userData && inputNodeGroup.userData.nodeId) {
+    group.userData.nodeId = inputNodeGroup.userData.nodeId;
+  }
+
     return group;
   }
 
@@ -5110,7 +5141,13 @@ static createControlNode0(group, color) {
     const selected = pool[counter % pool.length];
     const factory = factoryMap[selected];
     if (!factory) return null;
-    return factory(group, color);
+
+    // Copy nodeId from input group (if exists)
+    const result = factory(group, color);
+    if (result && group.userData && group.userData.nodeId) {
+      result.userData.nodeId = group.userData.nodeId;
+    }
+    return result;
   }
 
   /**

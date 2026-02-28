@@ -1,7 +1,16 @@
 import * as THREE from 'three';
 import { withGlobalMetricAliases } from './SemanticMetricAdapter.js';
 
-const NODE_METRIC_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'load'];
+// Include legacy aliases so we can read and fold them into canonical loadPressure.
+const NODE_METRIC_KEYS = [
+  'synergy',
+  'harmony',
+  'stability',
+  'corruption',
+  'loadPressure',
+  'load',
+  'loadRatio'
+];
 
 /**
  * CORE METRICS CALCULATOR
@@ -29,6 +38,8 @@ export class CoreMetricsCalculator {
       harmony: 0,
       stability: 0,
       corruption: 0,
+      loadPressure: 0,
+      // Legacy alias for consumers not yet migrated
       networkLoad: 0
     };
     
@@ -124,7 +135,11 @@ export class CoreMetricsCalculator {
         if (!metrics) return;
 
         NODE_METRIC_KEYS.forEach(metricKey => {
-          this.accumulateNodeMetric(metricKey, metrics[metricKey]);
+          const value =
+            metricKey === 'loadPressure'
+              ? (metrics.loadPressure ?? metrics.load ?? metrics.loadRatio)
+              : metrics[metricKey];
+          this.accumulateNodeMetric(metricKey, value);
         });
       });
     } catch (error) {
@@ -179,7 +194,9 @@ export class CoreMetricsCalculator {
     this.metrics.harmony = this.calculateHarmony();
     this.metrics.stability = this.calculateStability();
     this.metrics.corruption = this.calculateCorruption();
-    this.metrics.networkLoad = this.calculateNetworkLoad();
+    const loadPressure = this.calculateNetworkLoad();
+    this.metrics.loadPressure = loadPressure;
+    this.metrics.networkLoad = loadPressure; // alias for compatibility
   }
   
   /**
@@ -215,7 +232,15 @@ export class CoreMetricsCalculator {
    * NETWORK LOAD %: Average traffic in the network
    */
   calculateNetworkLoad() {
-    return this.clamp01(this.getAverageMetric('load'));
+    const avgLoadPressure = this.getAverageMetric('loadPressure');
+    if (avgLoadPressure > 0) return this.clamp01(avgLoadPressure);
+
+    // Fallbacks for legacy fields if canonical is absent
+    const avgLoad = this.getAverageMetric('load');
+    if (avgLoad > 0) return this.clamp01(avgLoad);
+
+    const avgLoadRatio = this.getAverageMetric('loadRatio');
+    return this.clamp01(avgLoadRatio);
   }
 
   resetNodeMetricAggregates() {
@@ -282,7 +307,8 @@ export class CoreMetricsCalculator {
       harmony: this.getFormattedMetric('harmony'),
       stability: this.getFormattedMetric('stability'),
       corruption: this.getFormattedMetric('corruption'),
-      networkLoad: this.getFormattedMetric('networkLoad')
+      loadPressure: this.getFormattedMetric('loadPressure'),
+      networkLoad: this.getFormattedMetric('loadPressure') // legacy label
     };
   }
 }

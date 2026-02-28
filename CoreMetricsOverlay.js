@@ -48,6 +48,7 @@ export class CoreMetricsOverlay {
       harmony: 0,
       stability: 0,
       corruption: 0,
+      loadPressure: 0,
       networkLoad: 0
     };
     

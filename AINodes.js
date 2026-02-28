@@ -3345,6 +3345,23 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Minimal identity + category guarantees
     const rootUserData = ensureUserDataObject(node);
 
+    // HARD LOCK with self-heal: ensure nodeId exists before lock
+    if (!rootUserData.nodeId) {
+      rootUserData.nodeId = rootUserData.id || `node-${Date.now()}-${Math.random()}`;
+    }
+    if (!rootUserData.nodeId) {
+      throw new Error('[IdentityLock] Node missing canonical identity (nodeId)');
+    }
+
+    // DEBUG: Log what's on userData BEFORE processing
+    console.log('[DEBUG_FINALIZE] BEFORE userData:', {
+      id: rootUserData.id,
+      nodeId: rootUserData.nodeId,
+      uuid: rootUserData.uuid,
+      category: rootUserData.category,
+      rawData: rootUserData
+    });
+
     // Mirror nodeId to id (legacy compatibility)
     if (!rootUserData.id && rootUserData.nodeId) {
       rootUserData.id = rootUserData.nodeId;
@@ -3820,9 +3837,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this._fallbackNode = newNode;
     }
     
-    // Primary category assignment (GUARANTEED before HUD/LinkRegistry reads)
-
-    // HARD LOCK: nodeId is canonical - throw if missing
+    // Primary identity assignment (GUARANTEED before HUD/LinkRegistry reads)
+    if (!newNode.userData.nodeId) {
+      newNode.userData.nodeId = newNode.userData.id || `node-${Date.now()}-${Math.random()}`;
+    }
+    // HARD LOCK: nodeId is canonical - throw if still missing
     if (!newNode.userData.nodeId) {
       throw new Error('[IdentityLock] Node missing canonical identity (nodeId)');
     }

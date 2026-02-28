@@ -218,22 +218,22 @@ export class AtomaUIUpdate3_0 {
     }
     
     let sumSynergy = 0, sumStability = 0, sumClarity = 0;
-    let sumHarmony = 0, sumCorruption = 0, sumStability = 0;
+    let sumHarmony = 0, sumCorruption = 0;
     
     for (const node of nodes) {
       const metrics = node.userData?.metrics || {};
-      sumSynergy += metrics.energy || 0;
+      const synergy = metrics.synergy ?? metrics.energy ?? 0;
+      sumSynergy += synergy;
       sumStability += metrics.stability || 0;
       sumClarity += metrics.clarity || 0;
       sumHarmony += metrics.harmony || 0;
       sumCorruption += metrics.corruption || 0;
-      sumStability += metrics.stability || 0;
     }
     
     const count = nodes.length;
     return {
       totalNodes: count,
-      avgEnergy: Math.round(sumEnergy / count),
+      avgSynergy: Math.round(sumSynergy / count),
       avgStability: Math.round(sumStability / count),
       avgClarity: Math.round(sumClarity / count),
       avgHarmony: Math.round(sumHarmony / count),
