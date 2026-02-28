@@ -970,12 +970,20 @@ export class GlyphLayer4_MultiFusion {
   
   createGlyphFusionsForNodes(nodes) {
     if (!nodes || nodes.length === 0) return;
+    const missing = nodes.filter(n => !n?.userData?.nodeId);
+    if (missing.length > 0) {
+      console.error('[GlyphLayer4] Missing nodeId on nodes; fusion skipped for these entries:', missing);
+    }
     
     const startTime = performance.now();
     
     nodes.forEach((node, index) => {
       if (!node) return;
-      const nodeId = node.uuid || `node-${index}`;
+    if (!node.userData?.nodeId) {
+      console.error('[GlyphLayer4] Missing canonical nodeId on node; fusion skipped', node);
+      return;
+    }
+    const nodeId = node.userData.nodeId;
       this.createGlyphFusion(node, nodeId);
     });
     

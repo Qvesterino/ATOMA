@@ -3342,6 +3342,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       rootUserData.id = rootUserData.nodeId || `node-${Date.now()}-${Math.random()}`;
     }
     if (rootUserData && !rootUserData.nodeId) {
+      // ENFORCEMENT: Mirror id to nodeId (canonical identity for glyph fusion)
       rootUserData.nodeId = rootUserData.id;
     }
     if (rootUserData && !rootUserData.category && category) {

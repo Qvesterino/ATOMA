@@ -5236,10 +5236,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.worldRoot,
             this.compositeResonanceFeedback || null
         );
-        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
-            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
-        }
-        this.setupSemanticGlyphAI();
+        // NOTE: Glyph fusion creation moved to AFTER createAINodes to ensure nodes exist
+        // See: https://github.com/openclaw/atoma/issues/XXX (Fix: GlyphLayer4 fusionRegistry empty)
 
         if (this.worldPersonalityController?.root) {
             this.worldPersonalityController.root.parent?.remove(this.worldPersonalityController.root);
@@ -5346,6 +5344,42 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
+
+        // ====================================================================
+        // GLYPH LAYER FUSION: Create fusions after nodes are initialized
+        // ====================================================================
+        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
+            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+        }
+        this.setupSemanticGlyphAI();
+
+        // ====================================================================
+        // DEV-ONLY INTEGRITY CHECK: Verify fusion registry coverage
+        // ====================================================================
+        if (window.ATOMA_DEBUG_GLYPH_FUSION_INTEGRITY === true) {
+            setTimeout(() => {
+                const nodeCount = this.aiNodes?.nodes?.length || 0;
+                const fusionCount = this.glyphLayer4?.fusionRegistry?.size || 0;
+                if (nodeCount !== fusionCount) {
+                    console.error('[GlyphLayer4] Integrity mismatch:', {
+                        totalNodes: nodeCount,
+                        fusedNodes: fusionCount,
+                        missing: nodeCount - fusionCount
+                    });
+                    // Log missing nodeIds
+                    const missingNodes = this.aiNodes?.nodes?.filter(n => !n?.userData?.nodeId || !this.glyphLayer4?.fusionRegistry?.has(n.userData.nodeId));
+                    if (missingNodes?.length > 0) {
+                        console.warn('[GlyphLayer4] Missing fusions for nodes:', missingNodes.map(n => ({
+                            nodeId: n.userData?.nodeId,
+                            hasNodeId: !!n.userData?.nodeId,
+                            category: n.userData?.category
+                        })));
+                    }
+                } else {
+                    console.log('[GlyphLayer4] Integrity check passed: all nodes fused');
+                }
+            }, 2000); // Check after 2 seconds to allow async spawn to complete
+        }
 
         // ====================================================================
         // CONTROLLED UNFREEZE SYSTEM: Safe reactivation of visual systems
@@ -9391,6 +9425,25 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.worldRoot,
                 this.glyphLayer4
             );
+
+            // Register post-spawn observer for late-fusing newly spawned nodes
+            // This ensures nodes spawned after initial world creation also get glyph fusions
+            if (this.aiNodes?.registerPostSpawnObserver) {
+                this.aiNodes.registerPostSpawnObserver(
+                    'glyph-layer-fusion',
+                    (newNode) => {
+                        if (!newNode || !this.glyphLayer4) return;
+                        const nodeId = newNode.userData?.nodeId;
+                        if (!nodeId) {
+                            console.warn('[GlyphLayer4] Late-fusion: missing nodeId on spawned node', newNode);
+                            return;
+                        }
+                        // Create fusion for this single node (idempotent)
+                        this.glyphLayer4.createGlyphFusion(newNode, nodeId);
+                    },
+                    60 // High order to ensure it runs after all other observers
+                );
+            }
         } catch (error) {
             console.error('[SemanticGlyphAI] Initialization failed:', error);
             this.semanticGlyphAI = null;

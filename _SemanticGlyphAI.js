@@ -94,8 +94,19 @@ export class SemanticGlyphAI {
     // Phase B pilot: low-frequency semantic interpretation gating (visual interpolation remains per-frame)
     this.interpretationInterval = 0.25; // ~4 Hz for semantic decisions
     this.interpretationAccumulator = 0;
-    
+
+    // Reusable color objects (avoid per-frame allocations)
+    this._colorCache = {
+      stressedStart: new THREE.Color(0xFF8800),
+      stressedEnd: new THREE.Color(0xFF3333),
+      clusterSync: new THREE.Color(0x84FFE6),
+      temp: new THREE.Color() // Temp lerp target
+    };
+
     this.initializeHelperMeshPools();
+
+    // Runtime integrity check: single-fire mismatch log
+    this._integrityLogged = false;
   }
   
   /**
@@ -142,8 +153,9 @@ export class SemanticGlyphAI {
       ring.userData.isSemanticHelper = true;
       ring.visible = false;
       this.helperMeshes.crownRings.push(ring);
+      this.helperContainer.add(ring); // CRITICAL: Attach to scene graph
     }
-    
+
     // Scan lines (vertical swooping lines for focused effect)
     for (let i = 0; i < 6; i++) {
       const lineGeom = new THREE.PlaneGeometry(0.02, 0.3);
@@ -157,8 +169,9 @@ export class SemanticGlyphAI {
       line.userData.isSemanticHelper = true;
       line.visible = false;
       this.helperMeshes.scanLines.push(line);
+      this.helperContainer.add(line); // CRITICAL: Attach to scene graph
     }
-    
+
     // Flicker dots (tiny orbiting particles for exploring effect)
     for (let i = 0; i < 16; i++) {
       const dotGeom = new THREE.SphereGeometry(0.01, 6, 6);
@@ -172,8 +185,9 @@ export class SemanticGlyphAI {
       dot.userData.isSemanticHelper = true;
       dot.visible = false;
       this.helperMeshes.flickerDots.push(dot);
+      this.helperContainer.add(dot); // CRITICAL: Attach to scene graph
     }
-    
+
     // Link lines (thin connectors to link directions)
     for (let i = 0; i < 8; i++) {
       const lineGeom = new THREE.BufferGeometry();
@@ -193,8 +207,9 @@ export class SemanticGlyphAI {
       line.userData.isSemanticHelper = true;
       line.visible = false;
       this.helperMeshes.linkLines.push(line);
+      this.helperContainer.add(line); // CRITICAL: Attach to scene graph
     }
-    
+
     // Split dividers (center line for duality effect)
     for (let i = 0; i < 4; i++) {
       const lineGeom = new THREE.BufferGeometry();
@@ -214,6 +229,7 @@ export class SemanticGlyphAI {
       line.userData.isSemanticHelper = true;
       line.visible = false;
       this.helperMeshes.splitDividers.push(line);
+      this.helperContainer.add(line); // CRITICAL: Attach to scene graph
     }
   }
   
@@ -226,25 +242,27 @@ export class SemanticGlyphAI {
     if (!this.enabled) return;
     const targetNodes = this.hoverTarget ? [this.hoverTarget] : nodes;
     if (!targetNodes || targetNodes.length === 0) return;
-    
+
     const startTime = performance.now();
-    
+
     // Phase B pilot: accumulate time for semantic interpretation (visual interpolation remains per-frame)
     this.interpretationAccumulator += dt;
     const shouldInterpret = this.interpretationAccumulator >= this.interpretationInterval;
-    
+
     // Decay event history
     this.decayEventHistory(dt);
-    
+
     // Process each node
     this.stats.nodesProcessed = targetNodes.length;
     let statesApplied = 0;
-    
+
     for (const node of targetNodes) {
       if (!node || !node.userData) continue;
+      if (!node.userData.nodeId) {
+        continue; // Skip nodes without canonical nodeId (silent)
+      }
       
-      // Get node ID (use position-based hash if no explicit ID)
-      const nodeId = node.userData.index !== undefined ? node.userData.index : this.hashNodePosition(node.position);
+      const nodeId = node.userData.nodeId;
       
       // Read semantic context from node
       const context = this.readSemanticContext(node);
@@ -268,9 +286,23 @@ export class SemanticGlyphAI {
     if (shouldInterpret) {
       this.interpretationAccumulator = 0;
     }
-    
+
     this.stats.statesApplied = statesApplied;
     this.stats.frameTime = performance.now() - startTime;
+
+    // Lightweight runtime integrity check (single-fire log on mismatch)
+    if (!this._integrityLogged && this.glyphLayer4?.fusionRegistry) {
+      const fusionCount = this.glyphLayer4.fusionRegistry.size;
+      const nodeCount = window.game?.aiNodes?.nodes?.length || 0;
+      if (fusionCount !== nodeCount) {
+        this._integrityLogged = true;
+        console.error('[SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length', {
+          fusionCount,
+          nodeCount,
+          missing: nodeCount - fusionCount
+        });
+      }
+    }
   }
   
   /**
@@ -549,9 +581,13 @@ export class SemanticGlyphAI {
       const pulseAmount = 0.5 + Math.sin(core.userData.pulsePhase) * 0.3;
       if (core.material) {
         core.material.opacity = THREE.MathUtils.lerp(core.material.opacity, pulseAmount, 0.15);
-        
-        // Shift color toward orange/red
-        const targetColor = new THREE.Color(0xFF8800).lerp(new THREE.Color(0xFF3333), stressLevel);
+
+        // Shift color toward orange/red (reuse cached colors, no allocation)
+        const targetColor = this._colorCache.temp;
+        targetColor.copy(this._colorCache.stressedStart).lerp(
+          this._colorCache.stressedEnd,
+          stressLevel
+        );
         if (core.material.color) {
           core.material.color.lerp(targetColor, stressLevel * 0.05);
         }
@@ -654,12 +690,11 @@ export class SemanticGlyphAI {
       if (core.scale) {
         core.scale.setScalar(pulseAmount);
       }
-      
-      // Flash color (cluster color typically mint/cyan)
+
+      // Flash color (cluster color typically mint/cyan, reuse cached color)
       if (core.material) {
-        const syncColor = new THREE.Color(0x84FFE6);
         if (core.material.color) {
-          core.material.color.lerp(syncColor, syncAmount * 0.1);
+          core.material.color.lerp(this._colorCache.clusterSync, syncAmount * 0.1);
         }
         core.material.opacity = THREE.MathUtils.lerp(
           core.material.opacity,
@@ -819,59 +854,8 @@ export class SemanticGlyphAI {
     }
     this.interpretationAccumulator = this.interpretationInterval; // Phase B pilot: force immediate semantic refresh
   }
-  
-  /**
-   * Simple hash for node positions (fallback node ID)
-   */
-  hashNodePosition(position) {
-    return Math.abs(
-      Math.sin(position.x * 12.9898) * 43758.5453 +
-      Math.sin(position.y * 78.233) * 43758.5453 +
-      Math.sin(position.z * 45.164) * 43758.5453
-    ) % 10000;
-  }
-  
-  /**
-   * Debug: Log semantic state for a specific node
-   */
-  debugSemanticGlyph(nodeId) {
-    const state = this.semanticState.get(nodeId);
-    const events = this.eventHistory.get(nodeId);
-    
-    console.log(`=== SEMANTIC GLYPH DEBUG: Node ${nodeId} ===`);
-    if (state) {
-      console.log(`State Type: ${state.type}`);
-      console.log(`Parameters:`, state.parameters);
-      console.log(`Context:`, state.context);
-    } else {
-      console.log('No semantic state recorded');
-    }
-    
-    if (events) {
-      console.log(`Recent Events:`, events);
-    } else {
-      console.log('No recent events');
-    }
-  }
-  
-  /**
-   * Debug: Show semantic system stats
-   */
-  debugSemanticStats() {
-    console.log('=== SEMANTIC GLYPH AI STATS ===');
-    console.log(`Nodes Processed: ${this.stats.nodesProcessed}`);
-    console.log(`States Applied: ${this.stats.statesApplied}`);
-    console.log(`Frame Time: ${this.stats.frameTime.toFixed(2)}ms`);
-    console.log(`Tracked States: ${this.semanticState.size}`);
-    console.log(`Active Events: ${this.eventHistory.size}`);
-    
-    // Show state distribution
-    const stateDistribution = {};
-    for (const state of this.semanticState.values()) {
-      stateDistribution[state.type] = (stateDistribution[state.type] || 0) + 1;
-    }
-    console.log('State Distribution:', stateDistribution);
-  }
+
+  // hashNodePosition no longer used; canonical nodeId required
   
   /**
    * Disable semantic updates

@@ -38,20 +38,11 @@ export class SafeEvolutionManager {
   
   /**
    * Get a safe, unique node identifier
-   * READS ONLY: node.uuid or creates one in userData
-   */
+  * READS ONLY: node.uuid or creates one in userData
+  */
   getNodeId(node) {
-    // Use Three.js native UUID
-    if (node.uuid) return node.uuid;
-    
-    // Fallback: store in userData (read-only reference)
-    if (!node.userData.nodeId) {
-      if (node.userData.id) {
-        console.warn('[SafeEvolutionManager:getNodeId] nodeId missing; mirroring existing id to prevent dual identity');
-        node.userData.nodeId = node.userData.id;
-      } else {
-        node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
-      }
+    if (!node?.userData?.nodeId) {
+      throw new Error('[SafeEvolutionManager:getNodeId] Missing canonical nodeId; aborting.');
     }
     return node.userData.nodeId;
   }

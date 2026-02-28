@@ -138,16 +138,10 @@ export class SafeNodePersonalityFX {
   
   /**
    * Get safe node identifier
-   */
+  */
   getNodeId(node) {
-    if (node.uuid) return node.uuid;
-    if (!node.userData.nodeId) {
-      if (node.userData.id) {
-        console.warn('[SafeNodePersonalityFX:getNodeId] nodeId missing; mirroring existing id to prevent dual identity');
-        node.userData.nodeId = node.userData.id;
-      } else {
-        node.userData.nodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
-      }
+    if (!node?.userData?.nodeId) {
+      throw new Error('[SafeNodePersonalityFX:getNodeId] Missing canonical nodeId; aborting.');
     }
     return node.userData.nodeId;
   }
