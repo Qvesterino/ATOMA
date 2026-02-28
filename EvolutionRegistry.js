@@ -22,7 +22,7 @@ export class EvolutionRegistry {
   constructor(scene) {
     this.scene = scene;
     
-    // Evolution state per node (indexed by node.userData.id or node.uuid)
+    // Evolution state per node (indexed by node.userData.nodeId)
     this.registry = {};
     
     // VFX overlays per node (completely separate from node meshes)
@@ -110,17 +110,14 @@ export class EvolutionRegistry {
   }
   
   /**
-   * Get safe node identifier (use uuid if available, else use index)
+   * Get safe node identifier (use canonical nodeId)
    */
   getNodeId(node) {
-    // Use node's UUID if it has one
-    if (node.uuid) return node.uuid;
-    
-    // Otherwise create a consistent ID from userData
-    if (!node.userData.id) {
-      node.userData.id = `node_${Math.random().toString(36).substr(2, 9)}`;
+    // Use canonical nodeId
+    if (!node.userData.nodeId) {
+      throw new Error('[IdentityLock] Node missing canonical identity (nodeId)');
     }
-    return node.userData.id;
+    return node.userData.nodeId;
   }
   
   /**

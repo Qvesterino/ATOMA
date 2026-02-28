@@ -1584,6 +1584,11 @@ export class EnhancedNodeModels {
     rootGroup.userData.factoryName = def.factoryName;
     rootGroup.userData.category = cat;
 
+    // Generate canonical nodeId (factory-level identity)
+    if (!rootGroup.userData.nodeId) {
+      rootGroup.userData.nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+
     return rootGroup;
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====

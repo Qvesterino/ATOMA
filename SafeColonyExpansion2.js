@@ -180,12 +180,12 @@ export class SafeColonyExpansion2 {
         // Find nearby linked nodes
         for (const link of this.links) {
           let otherNodeId = null;
-          
-          // Check link endpoints
-          if (link.from && link.from.userData && link.from.userData.id === currentId) {
-            otherNodeId = link.to.userData.id;
-          } else if (link.to && link.to.userData && link.to.userData.id === currentId) {
-            otherNodeId = link.from.userData.id;
+
+          // Check link endpoints (use canonical nodeId)
+          if (link.from && link.from.userData && link.from.userData.nodeId === currentId) {
+            otherNodeId = link.to.userData.nodeId;
+          } else if (link.to && link.to.userData && link.to.userData.nodeId === currentId) {
+            otherNodeId = link.from.userData.nodeId;
           }
           
           if (!otherNodeId) continue;

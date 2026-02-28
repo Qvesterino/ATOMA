@@ -5469,7 +5469,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             // Emit network.node.created event for event-driven systems
             if (this.semanticBus && node) {
                 this.semanticBus.emit('network.node.created', {
-                    nodeId: node.userData.id,
+                    nodeId: node.userData.nodeId,
                     category: node.userData.category,
                     timestamp: performance.now()
                 }, { priority: this.semanticBus.priority.INTERACTIVE });
@@ -5661,8 +5661,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             // Emit network.link.created event for event-driven systems
             if (this.semanticBus && result) {
                 this.semanticBus.emit('network.link.created', {
-                    sourceNodeId: sourceNode.userData.id,
-                    targetNodeId: targetNode.userData.id,
+                    sourceNodeId: sourceNode.userData.nodeId,
+                    targetNodeId: targetNode.userData.nodeId,
                     linkId: result.userData.id,
                     timestamp: performance.now()
                 }, { priority: this.semanticBus.priority.INTERACTIVE });

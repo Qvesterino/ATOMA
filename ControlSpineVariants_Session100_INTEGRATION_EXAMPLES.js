@@ -16,7 +16,7 @@ import * as THREE from 'three';
 export function createControlNodeWithSpine(nodeId, spineType = 'segmented', color = 0xff0080) {
   try {
     const controlNode = new THREE.Group();
-    controlNode.userData.id = nodeId;
+    controlNode.userData.nodeId = nodeId;
     controlNode.userData.type = 'control';
     controlNode.userData.spineVariant = spineType;
     
@@ -50,7 +50,7 @@ export function replaceControlNodeVisualWithSpine(existingNode, spineType = 'seg
 
     // Preserve important metadata
     const preservedData = {
-      id: existingNode.userData.id,
+      id: existingNode.userData.nodeId,
       type: existingNode.userData.type,
       position: existingNode.position.clone(),
       rotation: existingNode.rotation.clone(),
@@ -85,7 +85,7 @@ export function replaceControlNodeVisualWithSpine(existingNode, spineType = 'seg
     existingNode.userData.previousChildCount = originalChildCount;
     existingNode.userData.replacedAt = Date.now();
 
-    console.log(`[Integration] Replaced node ${preservedData.id} with ${spineType} spine variant`);
+    console.log(`[Integration] Replaced node ${preservedData.nodeId} with ${spineType} spine variant`);
     return true;
   } catch (err) {
     console.error('[Integration] Failed to replace visual:', err);
@@ -233,7 +233,7 @@ export function batchCreateSpineVariants(count = 100, variant = 'segmented') {
     
     for (let i = 0; i < count; i++) {
       const node = new THREE.Group();
-      node.userData.id = `batch-${variant}-${i}`;
+      node.userData.nodeId = `batch-${variant}-${i}`;
       
       EnhancedNodeModels.createControlSpineVariant(variant, node, 0xff0080);
       

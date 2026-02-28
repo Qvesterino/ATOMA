@@ -46,7 +46,7 @@ const getNodeIdentity = typeof window !== 'undefined' && window.getNodeIdentity
   : function(node) {
       if (!node) return null;
       const ud = node.userData || {};
-      return ud.id || ud.nodeId || node.uuid || null;
+      return ud.nodeId || null;  // Canonical nodeId only (Phase 2: Removed OR-chain fallback)
     };
 
 // ============================================================================
@@ -274,11 +274,11 @@ class HitProxyController {
    * Create and attach proxy to a specific node
    */
   attachProxyToNode(node, proxyRadius = 0.7) {
-    // [SESSION 62B] FIX: Check userData.id (not nodeId)
-    // AINodes uses userData.id, not userData.nodeId
+    // [PHASE 2] AINodes uses userData.nodeId (canonical), not userData.id
+    // Fallback generation below is legacy for non-canonical nodes
     let nodeId = getNodeIdentity(node);
-    
-    // If still no ID, generate one
+
+    // If still no ID, generate one (legacy fallback - should not happen with canonical nodes)
     if (!nodeId) {
       nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       if (!node.userData) node.userData = {};

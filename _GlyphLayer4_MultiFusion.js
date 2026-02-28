@@ -804,7 +804,7 @@ export class GlyphLayer4_MultiFusion {
     
     // Create enforcement request for this glyph layer
     const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId: node.userData.id || node.uuid,
+      nodeId: node.userData.nodeId,
       nodeCategory: node.userData.category || 'unknown',
       layerType: layerType,
       geometryType: 'Rings',  // Most glyphs use geometric shapes

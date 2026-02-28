@@ -1480,6 +1480,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
         copySpawnIdentity(nodeModel, nodeModel);
+
+        // HARD LOCK: nodeId is canonical - throw if missing
+        if (!nodeModel.userData.nodeId) {
+          throw new Error('[IdentityLock] EnhancedNodeModels.create() did not set canonical nodeId');
+        }
+
         const visualCodeLog = nodeModel.userData?.visualCode ?? 'UNKNOWN';
         const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
         const childCount = nodeModel.children?.length ?? 0;
@@ -3338,14 +3344,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     // Minimal identity + category guarantees
     const rootUserData = ensureUserDataObject(node);
-    if (rootUserData && !rootUserData.id) {
-      rootUserData.id = rootUserData.nodeId || `node-${Date.now()}-${Math.random()}`;
+
+    // Mirror nodeId to id (legacy compatibility)
+    if (!rootUserData.id && rootUserData.nodeId) {
+      rootUserData.id = rootUserData.nodeId;
     }
-    if (rootUserData && !rootUserData.nodeId) {
-      // ENFORCEMENT: Mirror id to nodeId (canonical identity for glyph fusion)
-      rootUserData.nodeId = rootUserData.id;
-    }
-    if (rootUserData && !rootUserData.category && category) {
+
+    if (!rootUserData.category && category) {
       rootUserData.category = category;
     }
 
@@ -3816,11 +3821,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     
     // Primary category assignment (GUARANTEED before HUD/LinkRegistry reads)
-    newNode.userData.id = newNode.userData.id || `node-${Date.now()}-${Math.random()}`;
-    if (newNode.userData.nodeId && newNode.userData.nodeId !== newNode.userData.id) {
-      console.warn('[SpawnIdentity] nodeId diverged; mirroring id');
+
+    // HARD LOCK: nodeId is canonical - throw if missing
+    if (!newNode.userData.nodeId) {
+      throw new Error('[IdentityLock] Node missing canonical identity (nodeId)');
     }
-    newNode.userData.nodeId = newNode.userData.id;
+
+    // Mirror nodeId to id (legacy compatibility)
+    newNode.userData.id = newNode.userData.nodeId;
+
     newNode.userData.category = category;  // <- PRIMARY SOURCE
     newNode.userData.archetype = forceArchetype || category || 'default';
     newNode.userData.archetypeKey = archetypeKey || category;
