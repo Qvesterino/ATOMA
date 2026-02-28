@@ -305,27 +305,59 @@ export class SemanticGlyphAI {
   }
   
   /**
-   * Read semantic context from node
-   * Returns object with all relevant data for state computation
+   * Adapt canonical metrics (0-1 or 0-100) to the 0-100 semantic scale
+   */
+  adaptCanonicalToSemantic(canonical = {}) {
+    const values = {
+      synergy: canonical.synergy ?? 0,
+      harmony: canonical.harmony ?? 0,
+      stability: canonical.stability ?? 0,
+      corruption: canonical.corruption ?? 0,
+      load: canonical.loadPressure ?? 0
+    };
+
+    // Detect scale: if any above 1 → assume already 0-100
+    const maxVal = Math.max(...Object.values(values));
+    const scaleFactor = maxVal > 1 ? 1 : 100;
+
+    return {
+      synergy: values.synergy * scaleFactor,
+      harmony: values.harmony * scaleFactor,
+      stability: values.stability * scaleFactor,
+      corruption: values.corruption * scaleFactor,
+      load: values.load * scaleFactor
+    };
+  }
+
+  /**
+   * Read semantic context from node using canonical metrics only
    */
   readSemanticContext(node) {
     const userData = node.userData || {};
-    const metrics = userData.metrics || {};
+
+    // Canonical per-node metrics: prefer top-level canonical fields
+    const canonical = {
+      synergy: userData.synergy,
+      harmony: userData.harmony,
+      stability: userData.stability,
+      corruption: userData.corruption,
+      loadPressure: userData.loadPressure
+    };
+
+    const metrics = this.adaptCanonicalToSemantic(canonical);
     
-    // Extract all relevant fields (gracefully handle missing data)
     const context = {
       category: userData.category || 'unknown',
       role: userData.role || 'generic',
       tags: userData.tags || [],
       isSpecial: userData.isSpecial || false,
       
-      // Metrics (0-100 scale typically)
-      synergy: metrics.synergy ?? 50,
-      harmony: metrics.harmony ?? 50,
-      corruption: metrics.corruption ?? 0,
-      stability: metrics.stability ?? 0,
-      clarity: metrics.clarity ?? 50,
-      load: metrics.load ?? 0,
+      // Metrics (0-100 scale)
+      synergy: metrics.synergy,
+      harmony: metrics.harmony,
+      corruption: metrics.corruption,
+      stability: metrics.stability,
+      load: metrics.load,
       
       // Network state
       linkDegree: userData.linkDegree ?? 0,
@@ -378,7 +410,7 @@ export class SemanticGlyphAI {
     }
     else if (this.isFocused(context)) {
       stateType = 'focused';
-      parameters.focusStrength = Math.min(1, context.clarity / 100);
+      parameters.focusStrength = Math.min(1, context.synergy / 100);
     }
     else if (this.isCalm(context)) {
       stateType = 'calm';
@@ -400,7 +432,7 @@ export class SemanticGlyphAI {
    * State detection predicates
    */
   isFocused(context) {
-    return context.clarity > 75 && context.corruption < 25 && 
+    return context.synergy > 75 && context.corruption < 25 && 
            (context.tags.includes('analytics') || context.role === 'analyzer');
   }
   
