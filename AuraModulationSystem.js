@@ -13,19 +13,19 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
 
 export class AuraModulationSystem {
-  constructor(enforcementGate = null) {
+  constructor() {
     // Track baseline values (never modified, just decayed back to)
     this.baselineMap = new WeakMap();
-    
+
     // Active modulations per node (uses Map for iteration compatibility)
     // Note: Not WeakMap because we need .forEach() iteration in update loop
     this.modulations = new Map();
-    
-    // Session 97: Visual Layer Enforcement Integration
-    this.enforcementGate = enforcementGate;  // Optional enforcement gate
+
+    // VisualLayerEnforcementGate removed in Phase B cleanup
+    // this.enforcementGate = enforcementGate;  // Optional enforcement gate
     
     // Event type → modulation type mapping
     this.eventTypeMapping = new Map([
@@ -192,32 +192,7 @@ export class AuraModulationSystem {
       this.modulations.delete(aura);
     });
   }
-  
-  /**
-   * Session 97: Check if modulation is allowed by enforcement gate
-   * Validates opacity against AURA_LAYER bounds before applying
-   */
-  _canApplyModulation(aura, modulation, baseline, targetOpacity) {
-    if (!this.enforcementGate || !aura) return true;  // No gate or missing aura - allow
-    
-    // Get node context if available
-    const nodeId = aura.userData?.nodeId || aura.uuid;
-    const nodeCategory = aura.userData?.nodeCategory || 'unknown';
-    
-    // Create validation request
-    const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId,
-      nodeCategory,
-      layerType: 'AURA_LAYER',
-      geometryType: 'Spheres',
-      opacity: targetOpacity,
-      sourceSystem: 'AuraModulationSystem',
-      description: `Aura modulation: ${modulation.type}`
-    });
-    
-    return this.enforcementGate.canAttach(request);
-  }
-  
+
   /**
    * Apply individual modulation to aura
    */
@@ -255,12 +230,8 @@ export class AuraModulationSystem {
     const curve = this.animationCurves.opacity_pulse;
     const breathe = Math.sin(progress * Math.PI * curve.speed) * 0.5 + 0.5;
     const targetOpacity = curve.min + (curve.max - curve.min) * breathe * modulation.intensity;
-    
-    // Check enforcement before modifying material
-    if (!this._canApplyModulation(aura, modulation, baseline, targetOpacity)) {
-      return;  // Modulation blocked by enforcement gate
-    }
-    
+
+    // VisualLayerEnforcementGate removed in Phase B cleanup — always apply
     aura.material.opacity = baseline.opacity * targetOpacity;
   }
   
@@ -299,12 +270,8 @@ export class AuraModulationSystem {
     
     // Glow intensity affects emissive brightness - estimate opacity impact
     const estimatedOpacityImpact = targetIntensity * 0.3;
-    
-    // Check enforcement before modifying material
-    if (!this._canApplyModulation(aura, modulation, baseline, estimatedOpacityImpact)) {
-      return;  // Modulation blocked by enforcement gate
-    }
-    
+
+    // VisualLayerEnforcementGate removed in Phase B cleanup — always apply
     if (aura.material.emissive) {
       aura.material.emissive.copy(baseline.emissive).multiplyScalar(targetIntensity);
     }

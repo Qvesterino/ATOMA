@@ -29,6 +29,36 @@ const remap = (v, in0, in1, out0, out1) => {
     return out0 + (out1 - out0) * t;
 };
 
+// Merge and apply material patch in deterministic order
+function applyMaterialPatch(material, patch = {}) {
+    if (!material) return;
+    const ownerTag = patch.owner || 'conduit';
+    const ensureOwner = (prop) => {
+        material.userData = material.userData || {};
+        material.userData._propOwner = material.userData._propOwner || {};
+        const current = material.userData._propOwner[prop];
+        if (current && current !== ownerTag) {
+            if (typeof window !== 'undefined' && window.__DEBUG_LINK_MATERIAL_OWNER__ === true) {
+                console.warn('[LinkMaterialOwner]', prop, 'current:', current, 'new:', ownerTag, material.uuid);
+            }
+        }
+        material.userData._propOwner[prop] = material.userData._propOwner[prop] || ownerTag;
+    };
+
+    if (patch.color instanceof THREE.Color && material.color) {
+        ensureOwner('color');
+        material.color.copy(patch.color);
+    }
+    if (typeof patch.opacity === 'number' && material.opacity !== patch.opacity) {
+        ensureOwner('opacity');
+        material.opacity = patch.opacity;
+    }
+    if (typeof patch.linewidth === 'number' && material.linewidth !== undefined) {
+        ensureOwner('linewidth');
+        material.linewidth = patch.linewidth;
+    }
+}
+
 // Safe userData helper (avoids reassigning potentially frozen descriptor)
 const ensureUserData = (obj) => {
     if (!obj) return {};
@@ -670,12 +700,17 @@ export class LinkRendererConduit {
     /**
      * Update the geometry and materials of the link
      */
-    update(link, deltaTime, time) {
+    update(link, deltaTime, time, frameStateOverride = null) {
         if (!link.group || !link.group.userData.conduitState) return;
         
         // Canonical RAF time source (behavior-preserving Phase 2A)
-        const visualTime = VisualTime.now;
-        const visualDelta = VisualTime.delta;
+        const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
+        const visualDelta = frameStateOverride?.time?.visualDelta ?? VisualTime.delta;
+        const metrics = frameStateOverride?.metrics ?? this._readLinkMetrics(link);
+        const frameState = frameStateOverride || {
+            time: { visualTime, visualDelta, deltaTime, time },
+            metrics
+        };
 
         const state = link.group.userData.conduitState;
         if (!state) {
@@ -700,6 +735,7 @@ export class LinkRendererConduit {
         // Compute direction vector from source to target
         const linkDir = new THREE.Vector3().subVectors(targetPos, sourcePos);
         const linkDist = linkDir.length();
+        frameState.geometry = { start: null, end: null, linkDir: linkDir.clone(), linkDist };
         
         // Normalize and apply surface offset WITH LINK EXTENSION PENETRATION
         let start, end;
@@ -718,6 +754,8 @@ export class LinkRendererConduit {
           start = sourcePos.clone();
           end = targetPos.clone();
         }
+        frameState.geometry.start = start.clone();
+        frameState.geometry.end = end.clone();
         
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
@@ -731,19 +769,27 @@ export class LinkRendererConduit {
         const mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
         
         link.curve = mainCurve;
+        frameState.geometry.curve = mainCurve;
         
         // Store link direction for aura modulation later
         const linkUD = ensureUserData(link);
         linkUD.linkDirection = linkDir.clone(); 
         
         const frames = mainCurve.computeFrenetFrames(this.config.segments, false);
+        frameState.geometry.frames = frames;
 
         // --- 2. Dynamic Parameters ---
-        const synergy = link.synergyScore ?? 0.5;
-        const trafficLoad = link.traffic ? link.traffic.load : 0;
+        const synergy = metrics.synergy;
+        const trafficLoad = metrics.loadPressure ?? metrics.traffic ?? 0;
+
+        // Collect per-link material patches to apply once per frame
+        const materialPatches = {
+            skin: {},
+            strands: new Map() // mesh -> patch
+        };
 
         // Compute normalized VFX inputs (always on; no gating)
-        const vfx = this.computeLinkVfxInput(link, synergy, trafficLoad);
+        const vfx = this.computeLinkVfxInput(frameState);
         
         const breathing = Math.sin(visualTime * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
         const twistPhase = visualTime * this.config.twistSpeed;
@@ -765,7 +811,9 @@ export class LinkRendererConduit {
             if (mesh.material && mesh.material.emissiveMap) {
                 mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
                 const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
-                mesh.material.emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
+                const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
+                mesh.material.emissiveIntensity = emissiveIntensity;
+                materialPatches.strands.set(mesh, { opacity: mesh.material.opacity });
             }
 
             // Generate helical path
@@ -837,8 +885,8 @@ export class LinkRendererConduit {
                  }
                  
                  // Harmony/corruption influence (from link or global state)
-                 const linkHarmony = link.harmonyLevel ?? 0.5;
-                 const linkCorruption = link.corruptionLevel ?? 0.2;
+                const linkHarmony = metrics.harmony ?? 0.5;
+                const linkCorruption = metrics.corruption ?? 0.2;
                  material.uniforms.uHarmony.value = linkHarmony;
                  material.uniforms.uCorruption.value = linkCorruption;
                  
@@ -868,6 +916,9 @@ export class LinkRendererConduit {
                      const currentRemoval = material.uniforms.uLinkRemovalIntensity.value || 0.0;
                      material.uniforms.uLinkRemovalIntensity.value = Math.max(0.0, currentRemoval - visualDelta * 3.0);
                  }
+
+                // Stage opacity patch (deterministic write once)
+                materialPatches.skin.opacity = material.opacity;
              }
         }
 
@@ -888,8 +939,8 @@ export class LinkRendererConduit {
         if (this.trailParticles && this.trailEmitters && link.id) {
             const emitter = this.trailEmitters.get(link.id);
             if (emitter) {
-                const linkHarmony = link.harmonyLevel ?? 0.5;
-                const linkCorruption = link.corruptionLevel ?? 0.2;
+                const linkHarmony = metrics.harmony ?? 0.5;
+                const linkCorruption = metrics.corruption ?? 0.2;
                 
                 emitter.update(
                     visualDelta,
@@ -907,8 +958,8 @@ export class LinkRendererConduit {
         if (this.healingParticles && this.healingEmitters && link.id) {
             const emitter = this.healingEmitters.get(link.id);
             if (emitter) {
-                const linkHarmony = link.harmonyLevel ?? 0.5;
-                const linkCorruption = link.corruptionLevel ?? 0.2;
+                const linkHarmony = metrics.harmony ?? 0.5;
+                const linkCorruption = metrics.corruption ?? 0.2;
                 
                 emitter.update(
                     visualDelta,
@@ -995,18 +1046,18 @@ export class LinkRendererConduit {
                 trafficLoad,
                 visualDelta,
                 ringColor,
-                ringScale
+                ringScale,
+                frameState
             );
         }
 
         // --- 8. Visual State Adaptation (Harmony/Corruption/Instability/Synergy Bridge) ---
         if (state.visualStateAdapter) {
-            // Extract harmony/corruption/instability/synergy from link state
-            // These properties are expected to exist on the link object
-            const harmonyLevel = link.harmonyLevel ?? link.harmony ?? 1.0;
-            const corruptionLevel = link.corruptionLevel ?? link.corruption ?? 0.0;
-            const instability = link.instability ?? link.instabilityLevel ?? 0.0;
-            const synergyLevel = link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5;
+            // Extract harmony/corruption/instability/synergy from pre-read metrics
+            const harmonyLevel = metrics.harmony;
+            const corruptionLevel = metrics.corruption;
+            const instability = metrics.instability;
+            const synergyLevel = metrics.synergy;
 
             state.visualStateAdapter.update(
                 link.group,
@@ -1014,7 +1065,8 @@ export class LinkRendererConduit {
                 corruptionLevel,
                 instability,
                 visualDelta,
-                synergyLevel
+                synergyLevel,
+                frameState
             );
         }
 
@@ -1033,10 +1085,10 @@ export class LinkRendererConduit {
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
         if (state.directionalStreaks && this.directionalStreaks) {
-            const harmonyLevel = link.harmonyLevel ?? link.harmony ?? 1.0;
-            const corruptionLevel = link.corruptionLevel ?? link.corruption ?? 0.0;
-            const instability = link.instability ?? link.instabilityLevel ?? 0.0;
-            const synergyLevel = link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5;
+            const harmonyLevel = metrics.harmony;
+            const corruptionLevel = metrics.corruption;
+            const instability = metrics.instability;
+            const synergyLevel = metrics.synergy;
 
             const sourceColor = new THREE.Color(state.baseColor);
             const targetCat = link.target.userData?.category || 'input';
@@ -1054,7 +1106,8 @@ export class LinkRendererConduit {
                     sourceColor,
                     targetColor,
                     link,
-                    visualTime  // Time source: VisualTime (canonical)
+                    visualTime,  // Time source: VisualTime (canonical)
+                    frameState
                 );
                 if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
                     console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'instability:', instability);
@@ -1069,7 +1122,7 @@ export class LinkRendererConduit {
                 console.warn('[DirectionalStreaks] NOT UPDATING - state:', !!state.directionalStreaks, 'manager:', !!this.directionalStreaks, 'link:', link.id);
             }
         }
-        
+
         // Debug hook: log one sample link per second when enabled
         if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
             if (!this._lastVfxDebugTime || (visualTime - this._lastVfxDebugTime) > 1.0) {
@@ -1088,15 +1141,25 @@ export class LinkRendererConduit {
         }
         
         this.updateImpacts(state, visualDelta);
+
+        // Apply accumulated material patches deterministically (once per frame)
+        if (state.skinMesh?.material) {
+            applyMaterialPatch(state.skinMesh.material, materialPatches.skin);
+        }
+        for (const [strandMesh, patch] of materialPatches.strands.entries()) {
+            applyMaterialPatch(strandMesh.material, patch);
+        }
     }
 
     /**
      * Compute normalized VFX inputs with baseline minimums (no gating)
      */
-    computeLinkVfxInput(link, synergy = 0.5, traffic = 0) {
-        const harmony = link.harmonyLevel ?? link.harmony ?? 0.5;
-        const corruption = link.corruptionLevel ?? link.corruption ?? 0.0;
-        const load = traffic ?? link.loadPressure ?? 0.0;
+    computeLinkVfxInput(frameState) {
+        const metrics = frameState?.metrics || {};
+        const synergy = metrics.synergy ?? 0.5;
+        const harmony = metrics.harmony ?? 0.5;
+        const corruption = metrics.corruption ?? 0.0;
+        const load = metrics.loadPressure ?? metrics.traffic ?? 0.0;
 
         const out = this._vfxInput;
         // Raise baselines so VFX stay visible even at low activity
@@ -1122,6 +1185,24 @@ export class LinkRendererConduit {
         out.colorBias = clamp01(corruption * 0.8);
 
         return out;
+    }
+
+    /**
+     * Read link metrics once per frame into a canonical structure.
+     * Returns safe defaults if fields are missing.
+     */
+    _readLinkMetrics(link) {
+        const traffic = link.traffic?.load ?? 0;
+        const loadPressure = link.loadPressure ?? traffic ?? 0;
+        return {
+            synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
+            harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
+            corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
+            instability: link.instability ?? link.instabilityLevel ?? 0.0,
+            traffic,
+            loadPressure,
+            quality: link.quality ?? link.userData?.quality?.score
+        };
     }
 
     getCategoryColor(category) {

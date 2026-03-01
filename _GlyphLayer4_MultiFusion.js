@@ -23,7 +23,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
 import VisualTime from './src/time/VisualTime.js';
 
 export class GlyphLayer4_MultiFusion {
@@ -801,31 +801,8 @@ export class GlyphLayer4_MultiFusion {
   
   _safeAttachGlyph(glyphGroup, layerType, targetContainer, node) {
     if (!glyphGroup) return false;
-    
-    // Create enforcement request for this glyph layer
-    const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId: node.userData.nodeId,
-      nodeCategory: node.userData.category || 'unknown',
-      layerType: layerType,
-      geometryType: 'Rings',  // Most glyphs use geometric shapes
-      opacity: this._estimateGlyphOpacity(glyphGroup),
-      sourceSystem: 'GlyphLayer4_MultiFusion',
-      description: `Glyph: ${layerType}`
-    });
-    
-    // Check approval before attaching
-    if (this.enforcementGate) {
-      if (typeof this.enforcementGate.canAttach === 'function') {
-        if (!this.enforcementGate.canAttach(request)) {
-          return false;
-        }
-      } else {
-        // Invalid gate type — treat as no gate
-        console.warn('[GlyphLayer4] enforcementGate missing canAttach; skipping gate check');
-      }
-    }
-    
-    // Safe to attach
+
+    // Safe to attach (VisualLayerEnforcementGate removed in Phase B cleanup)
     targetContainer.add(glyphGroup);
     return true;
   }

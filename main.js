@@ -69,25 +69,52 @@ import { sanitizeTransmission, findTransmissionMaterials } from './src/render/Tr
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 
 if (typeof window !== 'undefined') {
-    window.ATOMA_DEBUG = window.ATOMA_DEBUG ?? false;
-    window.ATOMA_DEBUG_FRAME = window.ATOMA_DEBUG_FRAME ?? false;
-    window.ATOMA_DEBUG_SHADER = window.ATOMA_DEBUG_SHADER ?? false;
-    window.ATOMA_DEBUG_LINK = window.ATOMA_DEBUG_LINK ?? false;
-    window.ATOMA_DEBUG_WORLD = window.ATOMA_DEBUG_WORLD ?? false;
-    window.ATOMA_DEBUG_CADENCE = window.ATOMA_DEBUG_CADENCE ?? false;
-    window.ATOMA_DEBUG_MATERIAL_MUTATIONS = window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false;
-    window.ATOMA_VISUAL_BASELINE = false;
-    window.ATOMA_PROBE_SPAWN = window.ATOMA_PROBE_SPAWN ?? false;
-    window.ATOMA_WORLD_PROBE = window.ATOMA_WORLD_PROBE ?? false;
+    // ====================================================================
+    // ATOMA FLAGS — CONSOLIDATED FLAG SYSTEM (Phase C)
+    // ====================================================================
+    window.ATOMA_FLAGS = {
+      debug: {
+        logLevel: window.ATOMA_LOG_LEVEL ?? 'error',
+        enabled: window.ATOMA_DEBUG ?? false,
+        frame: window.ATOMA_DEBUG_FRAME ?? false,
+        shader: window.ATOMA_DEBUG_SHADER ?? false,
+        link: window.ATOMA_DEBUG_LINK ?? false,
+        world: window.ATOMA_DEBUG_WORLD ?? false,
+        cadence: window.ATOMA_DEBUG_CADENCE ?? false,
+        materialMutations: window.ATOMA_DEBUG_MATERIAL_MUTATIONS ?? false,
+        spawn: window.ATOMA_DEBUG_SPAWN ?? false,
+        visual: window.ATOMA_DEBUG_VISUAL ?? false,
+        policy: window.ATOMA_DEBUG_POLICY ?? false,
+        visualBuild: window.ATOMA_DEBUG_VISUAL_BUILD ?? false,
+        spawnLogs: window.ATOMA_DEBUG_SPAWN_LOGS ?? false,
+        linkSpawn: window.ATOMA_DEBUG_LINK_SPAWN ?? false,
+        visualKill: window.ATOMA_DEBUG_VISUAL_KILL ?? false,
+        glyphFusionIntegrity: window.ATOMA_DEBUG_GLYPH_FUSION_INTEGRITY ?? false,
+        probeSpawn: window.ATOMA_PROBE_SPAWN ?? false,
+        worldProbe: window.ATOMA_WORLD_PROBE ?? false,
+        strictNodeGeometry: window.ATOMA_STRICT_NODE_GEOMETRY_MODE ?? false,
+        devGuards: window.ATOMA_DEV_GUARDS ?? false,
+        silentWarnings: window.ATOMA_SILENT_WARNINGS ?? false,
+        visualBaseline: window.ATOMA_VISUAL_BASELINE ?? false
+      },
+      
+      runtime: {
+        linkSpawnEnabled: window.ATOMA_LINK_SPAWN_ENABLED ?? true,
+        noFallbackSpheres: window.ATOMA_NO_FALLBACK_SPHERES ?? false
+      },
+      
+      safety: {
+        disableParasiticHUDs: window.ATOMA_DISABLE_PARASITIC_HUDS ?? true,
+        hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? true,
+        hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? true,
+        disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? true
+      }
+    };
     
-    // PHASE: LOG-STORM-CUT - Default debug flags to OFF
-    window.ATOMA_DEBUG_SPAWN = window.ATOMA_DEBUG_SPAWN ?? false;
-    window.ATOMA_DEBUG_VISUAL = window.ATOMA_DEBUG_VISUAL ?? false;
-    window.ATOMA_DEBUG_POLICY = window.ATOMA_DEBUG_POLICY ?? false;
-    window.ATOMA_DEBUG_VISUAL_BUILD = window.ATOMA_DEBUG_VISUAL_BUILD ?? false;
-    window.ATOMA_DEBUG_VISUAL_BUILD = window.ATOMA_DEBUG_VISUAL_BUILD ?? false;
+    // Debug Log Level (separate for backward compatibility)
+    window.ATOMA_LOG_LEVEL = window.ATOMA_FLAGS.debug.logLevel;
     
-    debugLog(window.ATOMA_DEBUG, '[ATOMA] Visual Baseline Mode:', window.ATOMA_VISUAL_BASELINE);
+    debugLog(window.ATOMA_FLAGS.debug.enabled, '[ATOMA] Flags initialized:', window.ATOMA_FLAGS);
 }
 
 debugLog(window.ATOMA_DEBUG, '[BOOT] main.js loaded');
@@ -117,6 +144,7 @@ import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
 import { setupSimulationAuditHelpers } from './_TASK_AUDIT_DEBUG_HELPERS.js';
 import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
+import { activateNuclearLockEverywhere } from './ACTIVATE_NUCLEAR_LOCK.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
 import { SessionVariantEngine } from './SessionVariantEngine.js';
@@ -193,9 +221,10 @@ const ENABLE_SELECTED_NODE_BADGE = false;
 // Global camera authority flag: default to first-person only
 if (typeof window !== 'undefined') {
     window.CAMERA_AUTHORITY_MODE = window.CAMERA_AUTHORITY_MODE || 'fp_only';
-    window.ATOMA_DISABLE_PARASITIC_HUDS = true;
-    window.ATOMA_HARD_KILL_PARASITIC_DOM = true;
-    window.ATOMA_HARD_OFF_LANGUAGE_ENGINE = true;
+    // Safety flags are now in ATOMA_FLAGS.safety (for backward compatibility, set global aliases)
+    window.ATOMA_DISABLE_PARASITIC_HUDS = window.ATOMA_FLAGS?.safety?.disableParasiticHUDs ?? true;
+    window.ATOMA_HARD_KILL_PARASITIC_DOM = window.ATOMA_FLAGS?.safety?.hardKillParasiticDOM ?? true;
+    window.ATOMA_HARD_OFF_LANGUAGE_ENGINE = window.ATOMA_FLAGS?.safety?.hardOffLanguageEngine ?? true;
 }
 
 // Optional logging for program-count checkpoints
@@ -220,9 +249,9 @@ import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 
 // Lightweight parasitic HUD guard: remove unused fullscreen overlays if present
 document.addEventListener('DOMContentLoaded', () => {
-    const softGate = Boolean(window.ATOMA_DISABLE_PARASITIC_HUDS);
-    const hardGate = Boolean(window.ATOMA_HARD_KILL_PARASITIC_DOM);
-    const hardOffLanguage = Boolean(window.ATOMA_HARD_OFF_LANGUAGE_ENGINE);
+    const softGate = Boolean(window.ATOMA_FLAGS?.safety?.disableParasiticHUDs);
+    const hardGate = Boolean(window.ATOMA_FLAGS?.safety?.hardKillParasiticDOM);
+    const hardOffLanguage = Boolean(window.ATOMA_FLAGS?.safety?.hardOffLanguageEngine);
     if (!softGate && !hardGate && !hardOffLanguage) return;
 
     const targetIds = new Set([
@@ -291,10 +320,7 @@ import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLang
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
 import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_AtomaLanguageEngine3_0.js';
 import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
-import { CoreVisualAuthoritySystem } from './CoreVisualAuthoritySystem.js';
-import { VisualOverlayAuditSystem } from './VisualOverlayAuditSystem.js';
-import { VisualLayerDebugger } from './VisualLayerDebugger.js';
-import { VisualLayerEnforcementGate } from './VisualLayerEnforcementGate.js';
+
 import { HologramShellAuthoritySystem } from './HologramShellAuthoritySystem.js';
 import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
 import { VisualAudit } from './VisualAudit.js';
@@ -2994,13 +3020,13 @@ class AtomaGame {
         }
         document.documentElement.classList.add('atoma-no-blur');
         document.documentElement.classList.add('atoma-no-animated-glow');
-        if (window?.ATOMA_DISABLE_PARASITIC_HUDS) {
+        if (window?.ATOMA_FLAGS?.safety?.disableParasiticHUDs) {
             document.documentElement.classList.add('atoma-disable-parasitic-huds');
         }
-        if (window?.ATOMA_HARD_KILL_PARASITIC_DOM) {
+        if (window?.ATOMA_FLAGS?.safety?.hardKillParasiticDOM) {
             document.documentElement.classList.add('atoma-hard-kill-parasitic-dom');
         }
-        if (window?.ATOMA_HARD_OFF_LANGUAGE_ENGINE) {
+        if (window?.ATOMA_FLAGS?.safety?.hardOffLanguageEngine) {
             document.documentElement.classList.add('atoma-hard-off-language-engine');
         }
         
@@ -3011,11 +3037,11 @@ class AtomaGame {
         console.log('🔒 [AtomaGame] VISUAL_AUTHORITY_LOCK ENABLED - Hard interaction authority engaged');
 
         document.addEventListener("contextmenu", e => e.preventDefault());
-        
+
         // ================================
-        //   🔥 DISABLE MYTHIC RITUALS 
+        //   🔥 DISABLE MYTHIC RITUALS
         // ================================
-        window.ATOMA_DISABLE_MYTHIC_RITUALS = true;
+        window.ATOMA_DISABLE_MYTHIC_RITUALS = window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? true;
         console.log('🔥 [AtomaGame] Mythic Rituals globally disabled');
         
         this.clock = new THREE.Clock();
@@ -3028,7 +3054,7 @@ class AtomaGame {
         // Diagnostic-only system for detecting runtime material mutations
         // ========================================================================
         installMaterialMutationDetector(THREE);
-        console.log('[MMD] Material Mutation Detector installed (use window.ATOMA_DEBUG_MATERIAL_MUTATIONS = true to enable)');
+        console.log('[MMD] Material Mutation Detector installed (use window.ATOMA_FLAGS.debug.materialMutations = true to enable)');
         
         this.frameClock = new FrameClock();
         this.lastRenderFrame = -1;
@@ -3468,6 +3494,11 @@ class AtomaGame {
                 this.particleEmissionScaler.update(dt);
             }
         }, 'visual.particleEmissionScaler');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadeAccelSetup) {
+                this.cascadeAccelSetup.update(dt);
+            }
+        }, 'visual.cascadeAcceleration');
         this.frameScheduler.register('visual', (dt) => {
             if (this.particleSemanticDensity) {
                 this.particleSemanticDensity.update(dt, this.time);
@@ -5326,7 +5357,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.activeWorld = this.chamber;
         }
 
-        if (window.ATOMA_WORLD_PROBE) {
+        if (window.ATOMA_FLAGS?.debug?.worldProbe) {
             const bounds = new THREE.Box3().setFromObject(this.worldRoot);
             const size = bounds.getSize(new THREE.Vector3());
             const center = bounds.getCenter(new THREE.Vector3()); 
@@ -5356,7 +5387,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         // DEV-ONLY INTEGRITY CHECK: Verify fusion registry coverage
         // ====================================================================
-        if (window.ATOMA_DEBUG_GLYPH_FUSION_INTEGRITY === true) {
+        if (window.ATOMA_FLAGS?.debug?.glyphFusionIntegrity === true) {
             setTimeout(() => {
                 const nodeCount = this.aiNodes?.nodes?.length || 0;
                 const fusionCount = this.glyphLayer4?.fusionRegistry?.size || 0;
@@ -5550,7 +5581,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         const nodeCount = this.currentMode === 'chamber' ? 12 : 15;
         this.aiNodes.createNodes(this.currentMode, nodeCount);
-        if (window.ATOMA_PROBE_SPAWN) {
+        if (window.ATOMA_FLAGS?.debug?.probeSpawn) {
             console.log('[SPAWN_PROBE] mode=', this.currentMode,
                 'requested=', nodeCount,
                 'created=', this.aiNodes?.nodes?.length);
@@ -5900,70 +5931,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
-        // VISUAL LOCK DISABLED - REMOVED FOR SYNTAX RECOVERY 
+        // NUCLEAR LOCK SYSTEM — FINAL AUTHORITY (Phase B)
         // ====================================================================
-        // CORE VISUAL AUTHORITY SYSTEM v1.0 (SESSION 46)
-        // Guarantees node cores are ALWAYS rendered on top of visual overlays
+        // Property-level freezing — physically impossible to mutate protected layers
+        // Final authority: CONFIG → Mode → NuclearLock → System enabled
         // ====================================================================
         try {
-            // Session 92: Visual Overlay Audit System for opaque overlay detection
-            this.visualOverlayAudit = new VisualOverlayAuditSystem(this.scene);
-            this.visualLayerDebugger = new VisualLayerDebugger(this.scene);
-            
-            // Session 93: Visual Layer Enforcement Gate (runtime prevention)
-            this.visualLayerGate = new VisualLayerEnforcementGate();
-            this.visualLayerGate.setMode('DEV'); // Start in DEV for safety during development
-            
-            this.coreVisualAuthority = new CoreVisualAuthoritySystem({
-                scene: this.scene,
-                enabled: true,
-                debugMode: false,
-                coreRenderOrder: 1000,
-                visualOnlyRenderOrder: -1000,
-                rimRenderOrder: 500
-            });
-            
-            // Process all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.coreVisualAuthority.processNode(node);
-                }
-            }
-            
-            // Register post-spawn observer (single ordered pipeline)
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'core-visual-authority',
-                    (newNode) => {
-                        if (newNode && this.coreVisualAuthority) {
-                            this.coreVisualAuthority.processNode(newNode);
-                        }
-                    },
-                    20
-                );
-            }
-            
-            // Setup debug API
-            if (window.CoreVisualAuthorityDebug) {
-                window.CoreVisualAuthorityDebug.init(this.coreVisualAuthority);
-            }
-            
-            // Session 92: Setup Visual Overlay Audit console API
-            if (this.visualOverlayAudit) {
-                window.setupVisualOverlayAuditAPI(this.visualOverlayAudit);
-            }
-            if (this.visualLayerDebugger) {
-                window.setupVisualLayerDebuggerAPI(this.visualLayerDebugger);
-            }
-            
-            // Session 93: Setup Visual Layer Enforcement Gate console API
-            if (this.visualLayerGate) {
-                window.setupVisualLayerEnforcementGateAPI(this.visualLayerGate);
-            }
-            
-            console.log('[main.js] Core Visual Authority System initialized ✓');
+            activateNuclearLockEverywhere(this.renderer, this.scene, this.camera);
+            console.log('[main.js] Nuclear Lock activated ✓ — Final authority established');
         } catch (err) {
-            console.warn('[main.js] Core Visual Authority System initialization failed:', err.message);
+            console.warn('[main.js] Nuclear Lock activation failed:', err.message);
         }
         
         // ====================================================================
@@ -8182,6 +8159,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
         reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
+        reg('recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
+        reg('recursiveGlyphSignalSystem', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt));
         reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         reg('hitProxySystem', (dt) => this.hitProxySystem?.update?.(dt));
         reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
@@ -8338,7 +8317,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Optional debug: Print FrameClock stats every ~120 frames (~2 seconds at 60fps)
             // Uses FrameClock's internal frame counter to avoid conflict with engine frameCount
             if (this.frameClock.frame % 120 === 0) {
-                debugLog(window.ATOMA_DEBUG_FRAME, '[FrameClock]', this.frameClock.getStats());
+                debugLog(window.ATOMA_FLAGS?.debug?.frame, '[FrameClock]', this.frameClock.getStats());
             }
         }
 
@@ -8372,7 +8351,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (runVisualSemantic && !this._runVisualSemanticPending) {
             this.semanticVisualAcc -= this.semanticVisualInterval;
             if (performance.now() - this.semanticCadenceLastLog >= this.semanticCadenceLogMs) {
-                debugLog(window.ATOMA_DEBUG_CADENCE, '[Cadence] semantic/UI @30Hz tick');
+                debugLog(window.ATOMA_FLAGS?.debug?.cadence, '[Cadence] semantic/UI @30Hz tick');
                 this.semanticCadenceLastLog = performance.now();
             }
             this._pendingVisualSemanticDt = deltaTime;
@@ -8396,7 +8375,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (runSlowSemantic && !this._runSlowSemanticPending) {
             this.semanticSlowAcc -= this.semanticSlowInterval;
             if (performance.now() - this.semanticSlowCadenceLastLog >= this.semanticCadenceLogMs) {
-                debugLog(window.ATOMA_DEBUG_CADENCE, '[Cadence] semantic background @10Hz tick');
+                debugLog(window.ATOMA_FLAGS?.debug?.cadence, '[Cadence] semantic background @10Hz tick');
                 this.semanticSlowCadenceLastLog = performance.now();
             }
             this._pendingSlowSemanticDt = deltaTime;

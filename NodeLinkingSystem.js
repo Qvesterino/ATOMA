@@ -4504,23 +4504,7 @@ getLinksForNode(node) {
       this.categoryTransitionSystem.update(deltaTime);
     }
 
-    // [Braided Conduit] Per-frame update for all link visuals (strands + beads + sparks)
-    if (this.conduitRenderer && this.links) {
-      try {
-        // If visualState not ready, build immediately (safety)
-        for (const link of this.links) {
-          if (!link.group || !link.group.userData?.conduitState) {
-            this.conduitRenderer.createLinkVisuals(link);
-          }
-        }
-        this.conduitRenderer.updateAll(this.links, deltaTime, time);
-        // Tick conduit-managed particle systems (trail + healing) so emitted particles animate
-        this.conduitRenderer.updateTrailParticles(deltaTime, time);
-        this.conduitRenderer.updateHealingParticles(deltaTime, time);
-      } catch (err) {
-        console.error('[ConduitUpdate][EXCEPTION]', err);
-      }
-    }
+    // Conduit visuals are updated per-link below using frameState (single entry point)
     
     // [Patch 3.2 HYBRID] Periodic sync: validate index ↔ runtime consistency
     // Run every 500ms to detect and heal corruption
@@ -4600,6 +4584,12 @@ getLinksForNode(node) {
       
       // Update curve to follow node positions (smooth anchoring)
       this.updateLinkCurve(link);
+
+      // Build per-link frameState once and drive conduit visuals (single entry)
+      if (this.conduitRenderer) {
+        const frameState = this._buildLinkFrameState(link, deltaTime, time);
+        this.conduitRenderer.update(link, deltaTime, time, frameState);
+      }
       
       // [Phase 2] Apply Category Transition State (if active)
       // This overrides base colors during the creation animation
@@ -4653,6 +4643,12 @@ getLinksForNode(node) {
         visualMutationGuards.setMaterialOpacity(link.target.material, targetInitialOpacity);
       }
     });
+
+    // Tick conduit-managed particle systems (trail + healing) so emitted particles animate
+    if (this.conduitRenderer) {
+      this.conduitRenderer.updateTrailParticles(deltaTime, time);
+      this.conduitRenderer.updateHealingParticles(deltaTime, time);
+    }
     
     // [Dynamic Thickness v1.0] Animate all links toward target thickness values
     if (this.thicknessSystem) {

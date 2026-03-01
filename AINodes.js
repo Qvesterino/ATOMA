@@ -5,7 +5,7 @@ import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
 
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
-  return window.ATOMA_LINK_SPAWN_ENABLED === true; // OPT-IN only
+  return window.ATOMA_FLAGS?.runtime?.linkSpawnEnabled === true;
 }
 
 if (typeof window !== "undefined") {
@@ -14,8 +14,14 @@ if (typeof window !== "undefined") {
   // Registry now initializes lazily inside runtime paths (create(), factory calls)
 }
 // Debug/guard flag: disable all visual fallbacks (legacy simple spheres, etc.)
-if (typeof window !== 'undefined' && window.ATOMA_NO_FALLBACK_SPHERES === undefined) {
-  window.ATOMA_NO_FALLBACK_SPHERES = false;
+if (typeof window !== 'undefined') {
+  window.ATOMA_FLAGS = window.ATOMA_FLAGS || { runtime: {} };
+  if (window.ATOMA_FLAGS.runtime.noFallbackSpheres === undefined) {
+    window.ATOMA_FLAGS.runtime.noFallbackSpheres = false;
+  }
+  if (window.ATOMA_FLAGS.runtime.linkSpawnEnabled === undefined) {
+    window.ATOMA_FLAGS.runtime.linkSpawnEnabled = true;
+  }
 }
 
 const ALLOWED_GEOMETRIES = new Set([
@@ -91,7 +97,6 @@ function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
 }
-import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js';
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
@@ -123,7 +128,7 @@ const __diagOnce = (key, msg) => {
 };
 
 // Debug flag helper for spawn logging
-const shouldLogSpawn = () => (typeof window !== 'undefined' && window.ATOMA_DEBUG_SPAWN_LOGS === true);
+const shouldLogSpawn = () => (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.spawnLogs === true);
 
 function findSpawnIdentity(node){
   let src = null;
@@ -186,7 +191,7 @@ function validateNodeVisualIntegrity(root) {
 function purgeForbiddenNodePrimitives(visualRoot) {
   if (!visualRoot) return { removed: 0 };
   let removed = 0;
-  const strictMode = typeof window !== 'undefined' && window.ATOMA_STRICT_NODE_GEOMETRY_MODE === true;
+  const strictMode = typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.strictNodeGeometry === true;
   const toRemove = [];
 
   visualRoot.traverse(obj => {
@@ -196,7 +201,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const strictBlocked = strictMode && !ALLOWED_GEOMETRIES.has(g);
     if (!geometryForbidden && !strictBlocked) return;
     // BYPASSED FOR VISUAL-REJECTION-BYPASS PHASE - allow all primitives
-    if (window.ATOMA_DEBUG_VISUAL_KILL === true) {
+    if (window.ATOMA_FLAGS?.debug?.visualKill === true) {
       console.warn('[NODE_VISUAL_KILL] Primitive bypassed (would be removed):', g || 'unknown');
     }
     // toRemove.push(obj); // DISABLED
@@ -485,8 +490,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this._spawnPauseLogged = false;
     if (typeof window !== 'undefined') {
       window.ATOMA_DEBUG = window.ATOMA_DEBUG || {};
-      if (window.ATOMA_DEBUG_SPAWN_LOGS === undefined) {
-        window.ATOMA_DEBUG_SPAWN_LOGS = false;
+      if (window.ATOMA_FLAGS?.debug?.spawnLogs === undefined) {
+        window.ATOMA_FLAGS.debug.spawnLogs = false;
       }
       window.ATOMA_DEBUG.getNodeCount = () => this.getNodeCount();
       window.ATOMA_DEBUG.getSpawnStats = () => this.getSpawnStats();
@@ -954,7 +959,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   createNodes(environment, count = 15) {
     const __diag = __ensureSpawnDiag();
     if (__diag) __diag.createNodesEnter++;
-    if (typeof window !== 'undefined' && window.ATOMA_PROBE_SPAWN) {
+    if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.probeSpawn) {
       console.log('[SPAWN_PROBE] createNodes enter mode=', this.spawnMode);
     }
     if (this.spawnMode !== 'INIT') {
@@ -1047,7 +1052,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         return;
       }
       if (node.userData?.visualFailed === true) {
-        if (!window.ATOMA_SILENT_WARNINGS) {
+        if (!window.ATOMA_FLAGS?.debug?.silentWarnings) {
           console.warn('[NodeSpawnSkipped] Visual build failed, skipping node');
         }
         return;
@@ -1269,7 +1274,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
       console.warn('[LINK-SPAWN] createNode called', {
         category,
         canonicalCategory,
@@ -1282,47 +1287,25 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     // ========================================================================
-    // [SPAWN AUTHORITY] VALIDATE AGAINST EnhancedNodeModel
-    // Enforce that ONLY EnhancedNodeModel-supported categories can spawn
+    // [SPAWN AUTHORITY] Keep LegacyNodeModelFilter for visual safety
+    // Removed redundant SUPPORTED_CATEGORIES, validateCategory, and ensureFactoriesReady checks
+    // Category validation is done in spawnNode(), createNode() trusts that input
     // ========================================================================
-    const requestedCategory = canonicalCategory;
-    let resolvedCategory = requestedCategory;
+    let safeCategory = canonicalCategory;
 
-    // Check if this category has an EnhancedNodeModel.create() implementation
-    // CONSOLIDATED CATEGORY LIST (Fix 1): Use single source of truth
-    if (!this.SUPPORTED_CATEGORIES.includes(requestedCategory)) {
-      // Unknown category - use hard fallback to first available EnhancedNodeModel category
-      resolvedCategory = 'input';
-    }
-    
     // ========== LEGACY NODE MODEL FILTER v1.0 ==========
     // Block legacy models that use aura-as-body visuals
-    const legacyCheck = LegacyNodeModelFilter.validateSpawn(resolvedCategory, true);
-    let filteredCategory = resolvedCategory;
-    
-    if (legacyCheck.redirected) {
-      // Legacy model with safe replacement - use replacement
-      filteredCategory = legacyCheck.category;
-    } else if (legacyCheck.blocked) {
+    const legacyCheck = LegacyNodeModelFilter.validateSpawn(safeCategory, true);
+    const validation = legacyCheck; // preserve validation info for userData/debug
+    if (legacyCheck.blocked) {
       // Unstable model - fallback to input
-      filteredCategory = 'input';
+      safeCategory = 'input';
+    } else if (legacyCheck.redirected) {
+      // Legacy model with safe replacement - use replacement
+      safeCategory = legacyCheck.category;
     }
 
-    // ========== SPAWN-TIME CATEGORY VALIDATION ==========
-    // Validate category against whitelist before proceeding
-    const validation = this.validateCategory(filteredCategory);
-    
-    if (!validation.valid) {
-      // Fallback applied - use it silently
-      filteredCategory = 'input';
-    }
-    
-    // Use validated category (may be redirected from unsafe)
-    const safeCategory = validation.valid ? validation.category : 'input';
     this._poolGuardLog = this._poolGuardLog || new Set();
-    if (!this.ensureFactoriesReady()) {
-      return null;
-    }
     EnhancedNodeModels.ensureRegistryReady();
     const coreColor = EnhancedNodeModels.getCategoryColor(safeCategory);
     
@@ -2928,7 +2911,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     // DEV-ONLY GUARD: Detect writes to nextTimeSpawn outside updateSpawning()
     // ============================================================
-    const DEV_GUARDS_ENABLED = (typeof window !== 'undefined') && (window.ATOMA_DEV_GUARDS === true);
+    const DEV_GUARDS_ENABLED = (typeof window !== 'undefined') && (window.ATOMA_FLAGS?.debug?.devGuards === true);
     
     // Token to allow writes - only set within updateSpawning()
     let allowWriteToken = false;
@@ -3436,7 +3419,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const req = this.spawnRequestQueue.shift();
       // Acquire token to allow spawnNode() to execute
       this._spawnUpdateToken = true;
-      this.spawnNode(req.category, null, req.archetype);
+      this.#spawnNode(req.category, null, req.archetype);
       this._spawnUpdateToken = false;
       processed++;
     }
@@ -3446,35 +3429,18 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * SPAWN REPAIR 2.0 (SAFE EDITION): Spawn a single new node with materialize animation
    * 100% SYNCHRONOUS - No queueMicrotask, no setTimeout, no async delays
    * userData.category is guaranteed set BEFORE any HUD or LinkRegistry reads it
-   * 
+   *
    * [SPAWN AUTHORITY FIX] ENFORCE ENHANCED NODE MODEL AS SINGLE SOURCE OF TRUTH
+   * [SINGLE ENTRY POINT] Private method - only accessible through requestSpawn() queue
    */
-  spawnNode(category = null, position = null, forceArchetype = null) {
+  #spawnNode(category = null, position = null, forceArchetype = null) {
   const __diag = __ensureSpawnDiag();
   if (__diag) __diag.spawnNodeEnter++;
   if (!this.__spawnTraceCounter) this.__spawnTraceCounter = 0;
   this.__spawnTraceCounter++;
   this._lastSpawnResult = { ok: false, reason: 'START', category };
-  const allowDirect =
-    (typeof window === 'undefined') ? true : window.ATOMA_ALLOW_DIRECT_SPAWN === true;
-  if (!allowDirect) {
-    console.error('[SPAWN DIRECT CALL BLOCKED]', { stack: new Error().stack });
-    if (typeof window !== 'undefined') {
-      window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-      const key = category || 'unknown';
-      window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-    }
-    return null;
-  }
-  if (this.spawnMode !== 'RUNTIME') {
-    console.warn('[SPAWN BLOCKED – direct call]', { caller: new Error().stack });
-    if (typeof window !== 'undefined') {
-      window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-      const key = category || 'unknown';
-      window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-    }
-    return null;
-  }
+  // SPAWN AUTHORITY: Token guard - only _processSpawnRequests can spawn
+  // Removed ATOMA_ALLOW_DIRECT_SPAWN and spawnMode checks - redundant with token guard
   // SPAWN AUTHORITY LOCKDOWN: Token guard - only _processSpawnRequests can spawn
   if (!this._spawnUpdateToken) {
     console.error('[ILLEGAL SPAWN CALL] spawnNode invoked without update token', { caller: new Error().stack });
@@ -3496,7 +3462,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true) {
+    if (window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
       console.warn('[LINK-SPAWN] spawnNode called', {
         category,
         position,
@@ -3533,26 +3499,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Legacy nodeRegistry duplicate gate removed; unified service handles uniqueness.
 
     // ========================================================================
-    // [SPAWN AUTHORITY] COMPLIANCE GATE: Validate spawn request FIRST
+    // [SPAWN AUTHORITY] COMPLIANCE GATE REMOVED (Phase B cleanup)
     // ========================================================================
-    const spawnPos = position || this.findSafeSpawnLocation();
-    const validatedCategory = spawnAuthorityComplianceGate.validateSpawnRequest(category, spawnPos);
-    
-    // HARD ABORT if validation failed (returns null only on critical errors)
-    if (validatedCategory === null) {
-      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
-      this._spawnAbortCounters["COMPLIANCE_BLOCK"] = (this._spawnAbortCounters["COMPLIANCE_BLOCK"] || 0) + 1;
-      this._pendingCyclicCandidate = null;
-      if (typeof window !== 'undefined') {
-        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-        const key = category || 'unknown';
-        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-      }
-      return null;  // Clean abort, no node added to scene
-    }
-    
-    // Use validated category (may have been auto-fallback to 'input')
-    category = validatedCategory;
+    // SpawnAuthorityComplianceGate was audit-only, never blocked spawns
+    // NuclearLock now provides final authority
+    // category remains as-is, validated later in SUPPORTED_CATEGORIES check
     if (requestedCategoryRaw && category !== requestedCategoryRaw && category === 'input') {
       fallbackReason = 'invalid-category';
     }
@@ -3810,15 +3761,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         console.warn('[NodeSpawnSkipped] Visual build failed, skipping node', newNode.userData?.nodeId || newNode.uuid || null);
         return null;
       }
-    }
-    
-    // ========================================================================
-    // [SPAWN AUTHORITY] POST-SPAWN VALIDATION: Node must be compliant
-    // ========================================================================
-    const complianceCheck = spawnAuthorityComplianceGate.validateSpawnedNode(newNode, category);
-    if (!complianceCheck.compliant) {
-      // Node has violations - log them but continue (some may be auto-fixable)
-      // This is advisory rather than fatal
     }
     
     // ========== STEP 4: BASIC USERDATA - SYNC! ==========
@@ -4186,7 +4128,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   onLinkCreated() {
     if (this.spawnMode !== 'RUNTIME') return;
     if (!isLinkSpawnEnabled()) {
-      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_LINK_SPAWN === true) {
+      if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
         console.warn('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
       }
       return;
@@ -4194,7 +4136,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
+    if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
       console.warn('[LINK-SPAWN] onLinkCreated called (link -> spawn trigger)', {
         currentTime: Date.now(),
         lastLinkTime: this.spawningConfig.lastLinkTime,
@@ -4235,7 +4177,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
-    if (window.ATOMA_DEBUG_LINK_SPAWN === true && shouldLogSpawn()) {
+    if (window.ATOMA_FLAGS?.debug?.linkSpawn === true && shouldLogSpawn()) {
       console.warn('[LINK-SPAWN] checkNetworkDensityAndSpawn called', {
         currentNodeCount: this.nodes.length,
         stack: new Error().stack

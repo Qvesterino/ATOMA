@@ -81,7 +81,7 @@
  *   this.archetypeAuraFX.dispose();
  */
 
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
 
 // Private symbol to track patched materials - prevents repeated shader compilation
 const AURA_ENHANCEMENT_PATCHED = Symbol('auraEnhancementPatched');
@@ -150,9 +150,9 @@ class ArchetypeAuraEnhancement_v1 {
     this.linkAura = config.linkAura;
     this.archetypeCurves = config.archetypeCurves;
     this.debugEnabled = config.debugEnabled ?? false;
-    
-    // Session 97: Visual Layer Enforcement Integration
-    this.enforcementGate = config.enforcementGate || null;
+
+    // Visual Layer Enforcement removed in Phase B cleanup
+    // this.enforcementGate = config.enforcementGate || null;
 
     // Per-node enhancement state
     this.nodeEnhancements = new WeakMap();
@@ -385,19 +385,9 @@ class ArchetypeAuraEnhancement_v1 {
     // Get node context
     const nodeId = nodeOrLink.userData?.id || nodeOrLink.uuid;
     const nodeCategory = nodeOrLink.userData?.category || 'unknown';
-    
-    // Create validation request
-    const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId,
-      nodeCategory,
-      layerType: 'AURA_LAYER',
-      geometryType: 'Spheres',
-      opacity: estimatedOpacity,
-      sourceSystem: 'ArchetypeAuraEnhancement_v1',
-      description: `Archetype enhancement (${type}) - intensity: ${enhancement.currentIntensity.toFixed(2)}`
-    });
-    
-    return this.enforcementGate.canAttach(request);
+
+    // VisualLayerEnforcementGate removed in Phase B cleanup — always allow
+    return true;
   }
   
   /**
@@ -406,11 +396,8 @@ class ArchetypeAuraEnhancement_v1 {
    */
   _applyEnhancementToMaterial(material, enhancement, type, nodeOrLink = null) {
     if (!material) return;
-    
-    // Session 97: Check enforcement before applying
-    if (nodeOrLink && !this._canApplyEnhancement(nodeOrLink, enhancement, type)) {
-      return;  // Rejected by enforcement gate
-    }
+
+    // VisualLayerEnforcementGate removed in Phase B cleanup — always allow
 
     // Safely access or create uniforms
     if (!material.uniforms) {

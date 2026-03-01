@@ -30,7 +30,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
 
 export class SemanticGlyphAI {
   constructor(scene, worldRoot, glyphLayer4System, enforcementGate = null) {
@@ -114,24 +114,8 @@ export class SemanticGlyphAI {
    */
   _safeAttachHelperMesh(helperMesh, node, layerType) {
     if (!helperMesh) return false;
-    
-    // Create enforcement request
-    const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId: node.userData?.id || node.uuid,
-      nodeCategory: node.userData?.category || 'unknown',
-      layerType: layerType,
-      geometryType: 'Lines',  // Most helper meshes are lines or particles
-      opacity: helperMesh.material?.opacity || 0.5,
-      sourceSystem: 'SemanticGlyphAI',
-      description: `Semantic helper: ${layerType}`
-    });
-    
-    // Check approval before attaching
-    if (this.enforcementGate && !this.enforcementGate.canAttach(request)) {
-      return false;
-    }
-    
-    // Make visible (was pooled and hidden)
+
+    // Make visible (was pooled and hidden) — VisualLayerEnforcementGate removed in Phase B cleanup
     helperMesh.visible = true;
     return true;
   }

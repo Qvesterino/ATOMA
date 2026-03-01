@@ -25,7 +25,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
 
 /**
  * Desaturation curves (corruption → saturation multiplier)
@@ -199,10 +199,11 @@ export function desaturateColor(color, saturation) {
  * Tracks corruption and applies desaturation to aura
  */
 export class CorruptionDesaturationController {
-  constructor(auraMesh, node = null, enforcementGate = null, options = {}) {
+  constructor(auraMesh, node = null, options = {}) {
     this.auraMesh = auraMesh;
     this.node = node;
-    this.enforcementGate = enforcementGate;  // Session 95: Enforcement gate
+    // Session 95: Enforcement gate removed in Phase B cleanup
+    // this.enforcementGate = enforcementGate;
     this.options = {
       desaturationCurve: DesaturationCurves.SMOOTHSTEP,
       enableGraynessOverlay: true,
@@ -259,17 +260,15 @@ export class CorruptionDesaturationController {
       this.displayColor.copy(this.desaturatedColor);
     }
 
-    // Session 95: Check enforcement gate before applying color modifications
+    // Session 95: Check enforcement gate removed in Phase B cleanup — always apply
     // Corruption affects opacity implicitly through color saturation
     // Verify final color state is within layer bounds
-    if (!this._canApplyDesaturation()) {
-      return {
-        corruption: this.currentCorruption,
-        saturation: saturationMultiplier,
-        color: this.displayColor.clone(),
-        rejected: true
-      };
-    }
+    return {
+      corruption: this.currentCorruption,
+      saturation: saturationMultiplier,
+      color: this.displayColor.clone(),
+      rejected: false  // Always allowed
+    };
 
     // Apply to shader if available
     if (this.auraMesh?.material?.uniforms?.uAuraColor) {
@@ -294,27 +293,7 @@ export class CorruptionDesaturationController {
     };
   }
   
-  /**
-   * Session 95: Check if desaturation modification is allowed
-   * Corruption-driven desaturation affects visual intensity
-   */
-  _canApplyDesaturation() {
-    if (!this.enforcementGate || !this.node) return true;  // No gate - allow
-    
-    // Estimate effective opacity based on saturation
-    // Lower saturation = lower visual impact, but still check bounds
-    const request = IntegrationHelpers.createVisualAttachmentRequest({
-      nodeId: this.node.userData?.id || this.node.uuid,
-      nodeCategory: this.node.userData?.category || 'unknown',
-      layerType: 'AURA_LAYER',
-      geometryType: 'Spheres',
-      opacity: 0.5,  // Corruption desaturation uses base aura opacity
-      sourceSystem: 'CorruptionDrivenAuraDesaturationSystem',
-      description: 'Corruption-driven aura desaturation'
-    });
-    
-    return this.enforcementGate.canAttach(request);
-  }
+  
 
   /**
    * Get current desaturation state
@@ -361,10 +340,11 @@ export class CorruptionDesaturationController {
  * Optimized for 100+ node updates per frame
  */
 export class BatchCorruptionDesaturationController {
-  constructor(options = {}, enforcementGate = null) {
+  constructor(options = {}) {
     this.controllers = new Map();  // nodeId → CorruptionDesaturationController
     this.options = options;
-    this.enforcementGate = enforcementGate;  // Session 95: Store enforcement gate
+    // Session 95: Enforcement gate removed in Phase B cleanup
+    // this.enforcementGate = enforcementGate;
     this.lastBatchUpdateTime = 0;
     this.updateCount = 0;
   }
