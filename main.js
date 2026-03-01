@@ -61,7 +61,8 @@ import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.j
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
-import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
+// REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
+// import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
 // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
 // import { ensureSpherePolicyInstalled, installSpherePolicy } from './VisualSpherePolicy.js';
 import { RenderCostProfile } from './RenderCostProfile.js';
@@ -205,7 +206,8 @@ import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThought
 import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js';
 import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
-import { LinkMetricsSanityGuard_v1 } from './LinkMetricsSanityGuard_v1.js';
+// REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
+// import { LinkMetricsSanityGuard_v1 } from './LinkMetricsSanityGuard_v1.js';
 import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
@@ -319,7 +321,8 @@ import { LinkHistoryTracker1_0 } from './LinkHistoryTracker1_0.js';
 import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLanguageEngine2_0.js';
 import { NodeInspectLinguisticOverlay, setupLinguisticOverlayConsoleAPI } from './_NodeInspectLinguisticOverlay.js';
 import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_AtomaLanguageEngine3_0.js';
-import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
+// REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
+// import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
 
 import { HologramShellAuthoritySystem } from './HologramShellAuthoritySystem.js';
 import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
@@ -4468,9 +4471,10 @@ document.addEventListener('keydown', () => {
             console.warn('⚠ Hard Interaction Authority System initialization error:', err);
         }
         
-        if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true)) {
-            installShaderFreezeGuard(this.renderer);
-        }
+        // REMOVED (2026-03-01): ShaderFreezeGuard initialization disabled for new visual modules
+        // if (typeof window !== 'undefined' && (window.DEBUG_VISUAL_MODE === true || window.__ATOMA_SHADER_FREEZE === true)) {
+        //     installShaderFreezeGuard(this.renderer);
+        // }
 
         this.configureSystemRegistry();
         this.animate();
@@ -6597,15 +6601,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] LinkSemanticMetricsBridge_v1 init failed:', err?.message || err);
             this.linkSemanticMetricsBridge = null;
         }
-        this.linkMetricsSanityGuard = null;
-        try {
-            if (this.linkingSystem) {
-                this.linkMetricsSanityGuard = new LinkMetricsSanityGuard_v1(this.linkingSystem);
-            }
-        } catch (err) {
-            console.warn('[main.js] LinkMetricsSanityGuard_v1 init failed:', err?.message || err);
-            this.linkMetricsSanityGuard = null;
-        }
+        // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
+        // this.linkMetricsSanityGuard = null;
+        // try {
+        //     if (this.linkingSystem) {
+        //         this.linkMetricsSanityGuard = new LinkMetricsSanityGuard_v1(this.linkingSystem);
+        //     }
+        // } catch (err) {
+        //     console.warn('[main.js] LinkMetricsSanityGuard_v1 init failed:', err?.message || err);
+        //     this.linkMetricsSanityGuard = null;
+        // }
         this.semanticActivityFilter = null;
         try {
             if (this.linkingSystem) {
@@ -7954,9 +7959,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.linkSemanticMetricsBridge) {
             this.linkSemanticMetricsBridge.update(deltaTime);
         }
-        if (this.linkMetricsSanityGuard) {
-            this.linkMetricsSanityGuard.update();
-        }
+        // REMOVED (2026-03-01): LinkMetricsSanityGuard.update() disabled
+        // if (this.linkMetricsSanityGuard) {
+        //     this.linkMetricsSanityGuard.update();
+        // }
         if (this.semanticActivityFilter) {
             this.semanticActivityFilter.update();
         }
@@ -7980,12 +7986,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         fs.register('visual', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'linkedGlyphMessaging');
         fs.register('visual', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'recursiveGlyphMessaging');
         fs.register('visual', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt), 'recursiveGlyphSignalSystem');
+        fs.register('visual', (dt) => {
+            const pictos = this.linkPictogramSystem ?? this.linkSemanticPictograms;
+            pictos?.update?.(dt, this.time, this.aiNodes?.nodes);
+        }, 'linkPictogramSystem');
 
         // Prevent double-running in SystemRegistry loop
         systemRegistry.disable('linkGlyphFlow');
         systemRegistry.disable('linkedGlyphMessaging');
         systemRegistry.disable('recursiveGlyphMessaging');
         systemRegistry.disable('recursiveGlyphSignalSystem');
+        systemRegistry.disable('linkPictogramSystem');
     }
 
     configureSystemRegistry() {
@@ -8194,6 +8205,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('recursiveGlyphSignalSystem', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt));
+        reg('linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
         reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         reg('hitProxySystem', (dt) => this.hitProxySystem?.update?.(dt));
         reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
@@ -9602,6 +9614,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         console.log('  - Uses dynamic tick registration (no idle global glyph loop)');
     }
 
+
     /**
      * Setup Emergent Thought Storms 5.0 (SAFE EDITION)
      * Chain collision phenomena with spectacular visual effects
@@ -10310,9 +10323,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkingSystem,
                 this.camera
             );
-            console.log('[main.js] LinkSemanticPictogramSystem_WithFusion initialized ✓');
-            console.log('[main.js] Features: 3-layer stack, morphing, depth/parallax, flow intelligence, glyph fusion');
-            console.log('[main.js] Fusion enabled by default — disable with: game.disableFusion()');
+            // Alias for scheduler hooks
+            this.linkPictogramSystem = this.linkSemanticPictograms;
+            // High-priority log (console.error not filtered by log level)
+            console.error('[main.js] LinkSemanticPictogramSystem_WithFusion initialized ✓ (Enhanced+Fusion pictograms)');
+            console.error('[main.js] Features: 3-layer stack, morphing, parallax, flow intelligence, fusion zones');
         } catch (err) {
             console.warn('[main.js] LinkSemanticPictogramSystem init error:', err);
         }

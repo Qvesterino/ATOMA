@@ -2341,12 +2341,19 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     }
     
-    // Update hologram shell materials
-    node.traverse((child) => {
-      if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
-        updateHologramShellMaterial(child.material, deltaTime);
-      }
-    });
+    // Update hologram shell materials (OPTIMIZED - 2026-03-01: Throttled to 10Hz)
+    // Shell material updates are subtle - 10Hz (every 100ms) is sufficient
+    data.__shellUpdateAccumulator = data.__shellUpdateAccumulator || 0;
+    data.__shellUpdateAccumulator += deltaTime;
+    const SHELL_UPDATE_INTERVAL = 0.1; // 10Hz = 100ms
+    if (data.__shellUpdateAccumulator >= SHELL_UPDATE_INTERVAL) {
+      data.__shellUpdateAccumulator %= SHELL_UPDATE_INTERVAL;
+      node.traverse((child) => {
+        if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
+          updateHologramShellMaterial(child.material, deltaTime);
+        }
+      });
+    }
     
     // Atmosphere: keep glow/halo at their configured static opacity (breathing disabled)
     if (data.vfxGlow && !data.vfxGlow.userData?.neutralized) {
@@ -2364,8 +2371,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Core meshes removed (interaction-only proxy). Skip core-specific animation.
     // ========== ULTRA EDITION: DYNAMIC ORBIT RINGS ==========
     // Rings rotation speed depends on synergy/traffic (via activation)
+    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth rotation
     if (data.vfxRings && data.vfxRings.length > 0) {
-      data.vfxRings.forEach((ring, ringIdx) => {
+      data.__ringUpdateAccumulator = data.__ringUpdateAccumulator || 0;
+      data.__ringUpdateAccumulator += deltaTime;
+      const RING_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
+      if (data.__ringUpdateAccumulator >= RING_UPDATE_INTERVAL) {
+        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
+        data.vfxRings.forEach((ring, ringIdx) => {
         if (ring.userData?.neutralized) return;
         const ringData = ring.userData;
         
@@ -2375,7 +2388,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         
         // Rotate around individual axis
         const axis = ringData.rotationAxis;
-        const rotAmount = rotSpeed * deltaTime;
+        const rotAmount = rotSpeed * RING_UPDATE_INTERVAL; // OPTIMIZED: Use fixed interval (2026-03-01)
         
         // Apply quaternion rotation
         const quaternion = new THREE.Quaternion();
@@ -2385,13 +2398,21 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         // Interaction-only opacity modulation (no time component)
         const ringOpacityBase = ringData.baseOpacity;
         ring.material.opacity = ringOpacityBase + activation * 0.1;
-      });
+        });
+        data.__ringUpdateAccumulator %= RING_UPDATE_INTERVAL;
+      }
     }
     
     // ========== ULTRA EDITION: ENERGY SPARK PARTICLES (increased activity) ==========
+    // OPTIMIZED (2026-03-01): Throttled to 30Hz (every 33ms) for smooth motion
     if (data.particles && data.particles.length > 0) {
-      data.particles.forEach((particle, idx) => {
-        if (particle.userData?.neutralized) return;
+      data.__particleUpdateAccumulator = data.__particleUpdateAccumulator || 0;
+      data.__particleUpdateAccumulator += deltaTime;
+      const PARTICLE_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms
+      if (data.__particleUpdateAccumulator >= PARTICLE_UPDATE_INTERVAL) {
+        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
+        data.particles.forEach((particle, idx) => {
+          if (particle.userData?.neutralized) return;
         const pData = particle.userData;
         
         // Faster orbit speed based on activity
@@ -2415,7 +2436,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         // Particle size tracks activation only (no time component)
         const particleScale = 0.08 * (0.8 + activation * 0.3);
         particle.scale.setScalar(particleScale);
-      });
+        });
+        data.__particleUpdateAccumulator %= PARTICLE_UPDATE_INTERVAL;
+      }
     }
     
     // ========== ULTRA EDITION: FRACTAL HOLOGRAM LAYER ==========
@@ -2447,11 +2470,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         data.vfxGlow.material.opacity = Math.min(0.9, data.originalGlowOpacity + data.hoverBoost * 0.5);
       }
       if (data.vfxRings && data.vfxRings.length > 0) {
-        data.vfxRings.forEach(ring => {
-          if (ring.userData?.neutralized) return;
-          const baseOpacity = ring.userData?.baseOpacity ?? ring.material.opacity;
-          ring.material.opacity = Math.min(1, baseOpacity + data.hoverBoost * 0.3);
-        });
+        data.__ringUpdateAccumulator = data.__ringUpdateAccumulator || 0;
+        data.__ringUpdateAccumulator += deltaTime;
+        const RING_UPDATE_INTERVAL = 0.033; // 30Hz = 33ms (OPTIMIZED 2026-03-01)
+        if (data.__ringUpdateAccumulator >= RING_UPDATE_INTERVAL) {
+          data.__ringUpdateAccumulator = 0;
+          data.vfxRings.forEach(ring => {
+            if (ring.userData?.neutralized) return;
+            const baseOpacity = ring.userData?.baseOpacity ?? ring.material.opacity;
+            ring.material.opacity = Math.min(1, baseOpacity + data.hoverBoost * 0.3);
+          });
+        }
       }
     }
     
