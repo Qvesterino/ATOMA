@@ -8,28 +8,44 @@
 import { getAbsoluteLinkTarget, isProtectedMesh, blockIllegalMutation } from './AbsoluteLinkStateNuclearLock.js';
 
 /**
- * 🛑 GLOBAL MUTATION INTERCEPTOR: Catch all material mutations
+ * 🛑 PROTECTED MATERIAL MUTATION INTERCEPTOR (OPTIMIZED - 2026-03-01)
+ *
+ * ⚠️  OPTIMIZATION: Changed from global Material.prototype wrapping to protected-only
+ * Previously: Wrapped ALL materials (global overhead)
+ * Now: Only wraps protected materials (minimal overhead)
+ *
+ * This reduces overhead from ALL materials to only protected meshes
  */
 export function installGlobalMutationInterceptor() {
-  // Save original setters
-  const MaterialProto = THREE.Material.prototype;
-  const originalDescriptors = {};
+  // ⚠️  OPTIMIZATION: No longer wrapping Material.prototype globally
+  // This caused overhead on ALL materials, even non-protected ones
+  // Now we apply interceptor only to protected materials via installProtectedInterceptor()
   
   const criticalProps = ['opacity', 'transparent', 'color', 'emissive'];
   
+  // Save original descriptors (for protected-only wrapping)
+  const originalDescriptors = {};
   for (const prop of criticalProps) {
-    originalDescriptors[prop] = Object.getOwnPropertyDescriptor(MaterialProto, prop);
+    originalDescriptors[prop] = Object.getOwnPropertyDescriptor(THREE.Material.prototype, prop);
   }
   
-  // ✅ Intercept material mutations
+  // ✅ Intercept mutations on SPECIFIC protected materials only
   const interceptor = {
+    /**
+     * Install interceptor on a specific material (protected-only approach)
+     * This is much more efficient than global wrapping
+     */
     installOn(material, meshName = 'unknown') {
       if (!material) return;
       
-      // Track which mesh this material belongs to
+      // Skip if already protected
+      if (material.__isProtected) return;
+      
+      // Mark as protected
+      material.__isProtected = true;
       material.__meshDebugName = meshName;
       
-      // For each critical property, wrap the setter
+      // For each critical property, wrap the setter on THIS material only
       for (const prop of criticalProps) {
         const origDescriptor = originalDescriptors[prop];
         const originalSetter = origDescriptor?.set;
@@ -39,8 +55,8 @@ export function installGlobalMutationInterceptor() {
             return this[`_${prop}`] !== undefined ? this[`_${prop}`] : null;
           },
           set: function(value) {
-            // INTERVENTION: Check if this is a protected mesh
-            if (material.__isProtected) {
+            // BLOCK mutation on protected materials
+            if (this.__isProtected) {
               console.warn('[LEGACY SHUTDOWN] ⚠️  Attempted mutation of PROTECTED material', {
                 property: prop,
                 value: value,
@@ -50,7 +66,7 @@ export function installGlobalMutationInterceptor() {
               return; // BLOCK mutation
             }
             
-            // Allow mutation on non-protected meshes
+            // Allow mutation on non-protected materials (should not happen, but safe)
             if (originalSetter) {
               originalSetter.call(this, value);
             } else {
@@ -60,15 +76,32 @@ export function installGlobalMutationInterceptor() {
           configurable: true
         });
       }
+    },
+    
+    /**
+     * Install interceptor on a protected mesh (main entry point)
+     * This is called during node initialization for protected meshes only
+     */
+    installProtectedInterceptor: function(mesh) {
+      if (!mesh || !mesh.material) return;
+      
+      // Check if this is a protected mesh
+      if (!isProtectedMesh(mesh)) return;
+      
+      // Install interceptor on this mesh's material
+      this.installOn(mesh.material, mesh.userData?.visualLayer || 'protected');
     }
   };
   
   window.__materialMutationInterceptor = interceptor;
-  console.log('✅ Global mutation interceptor installed');
+  console.log('✅ Protected material mutation interceptor installed (protected-only, optimized)');
 }
 
 /**
- * 🛑 TAG PROTECTED MESHES: Mark them as immutable
+ * 🛑 TAG PROTECTED MESHES: Mark them as immutable (OPTIMIZED - 2026-03-01)
+ * 
+ * ⚠️  OPTIMIZATION: Now uses protected-only interceptor instead of global wrapping
+ * This applies mutation blocking ONLY to protected materials, not all materials
  * 
  * @param {THREE.Object3D} node - Node to tag
  */
@@ -79,12 +112,13 @@ export function tagProtectedMeshes(node) {
     if (!child.isMesh) return;
     
     if (isProtectedMesh(child)) {
+      // Mark material as protected
       child.material.__isProtected = true;
       child.material.__meshDebugName = child.userData?.visualLayer || 'protected';
       
-      // Install interceptor
-      if (window.__materialMutationInterceptor) {
-        window.__materialMutationInterceptor.installOn(child.material, child.userData?.visualLayer || 'unknown');
+      // Install protected-only interceptor (NOT global wrapper)
+      if (window.__materialMutationInterceptor?.installProtectedInterceptor) {
+        window.__materialMutationInterceptor.installProtectedInterceptor(child);
       }
     }
   });
@@ -259,8 +293,11 @@ export function generateShutdownReport() {
   const report = {
     timestamp: Date.now(),
     status: 'ACTIVE',
+    optimizations: {
+      protectedOnlyInterceptor: true,  // 2026-03-01: Protected-only instead of global
+    },
     protections: {
-      globalInterceptor: !!window.__materialMutationInterceptor,
+      protectedInterceptor: !!window.__materialMutationInterceptor,
       auraProtection: !!window.__AuraModulationSystem,
       contractEnforcement: !!window.__verifyContractUsage,
       legacyFunctionsDisabled: true
@@ -269,8 +306,8 @@ export function generateShutdownReport() {
     recommendations: []
   };
   
-  if (!report.protections.globalInterceptor) {
-    report.recommendations.push('Global mutation interceptor not installed');
+  if (!report.protections.protectedInterceptor) {
+    report.recommendations.push('Protected mutation interceptor not installed');
   }
   
   if (!report.protections.contractEnforcement) {
@@ -281,15 +318,15 @@ export function generateShutdownReport() {
 }
 
 /**
- * 🚀 ACTIVATE: Full legacy shutdown and protection
+ * 🚀 ACTIVATE: Full legacy shutdown and protection (OPTIMIZED - 2026-03-01)
  * 
  * @param {THREE.Scene} scene - Scene to protect
  */
 export function activateLegacyShutdown(scene) {
-  console.group('[LEGACY SHUTDOWN] Activating full protection...');
+  console.group('[LEGACY SHUTDOWN] Activating full protection (optimized)...');
   
-  // Step 1: Install global mutation interceptor
-  installGlobalMutationInterceptor();
+  // Step 1: Install protected-only mutation interceptor (NOT global wrapping)
+  installGlobalMutationInterceptor();  // Now protected-only instead of global
   
   // Step 2: Tag all protected meshes
   if (scene) {

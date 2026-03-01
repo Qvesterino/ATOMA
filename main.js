@@ -4192,6 +4192,7 @@ document.addEventListener('keydown', () => {
         this.setupLinkedGlyphMessaging();
         this.setupRecursiveGlyphMessaging();
         this.setupRecursiveGlyphSignalSystem();
+        this.registerVisualGlyphSchedulers(); // move glyph/link language systems to FrameScheduler visual (30Hz)
         this.setupEmergentThoughtStorms();
         this.setupAINarrativePatterns();
         this.setupModeSwitch();
@@ -7965,6 +7966,28 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         systemRegistry.register(name, { update: updaterFn }, { priority });
     }
 
+    /**
+     * Register glyph/link language systems to FrameScheduler (visual layer, 30 Hz)
+     * and disable their SystemRegistry tick to avoid double updates.
+     */
+    registerVisualGlyphSchedulers() {
+        if (!this.frameScheduler) return;
+
+        // Visual cadence ~30 Hz
+        const fs = this.frameScheduler;
+
+        fs.register('visual', (dt) => this.linkGlyphFlow?.update?.(dt), 'linkGlyphFlow');
+        fs.register('visual', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'linkedGlyphMessaging');
+        fs.register('visual', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'recursiveGlyphMessaging');
+        fs.register('visual', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt), 'recursiveGlyphSignalSystem');
+
+        // Prevent double-running in SystemRegistry loop
+        systemRegistry.disable('linkGlyphFlow');
+        systemRegistry.disable('linkedGlyphMessaging');
+        systemRegistry.disable('recursiveGlyphMessaging');
+        systemRegistry.disable('recursiveGlyphSignalSystem');
+    }
+
     configureSystemRegistry() {
         let priority = 10;
         const reg = (name, fn) => {
@@ -8167,6 +8190,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
         reg('linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
         reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
+        // Moved to FrameScheduler visual layer (30 Hz)
         reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('recursiveGlyphSignalSystem', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt));

@@ -2,35 +2,41 @@
  * CORE VISUAL AUTHORITY SYSTEM v1.1 — VALIDATION ONLY (SHADER VARIANT CLEAN)
  * 
  * PHASE SHADER-VARIANT-CLEAN: Disabled runtime mutations
- * 
+ *
+ * ⚠️  OPTIMIZED (2026-03-01): SPAWN-TIME ONLY
+ * This system processes nodes at creation time, NOT per-frame.
+ * Validation only - does not run in render loop.
+ *
  * Guarantees that node cores are ALWAYS visually rendered on top of all
  * visual-only elements (auras, shells, influence spheres).
- * 
+ *
  * ARCHITECTURE:
  * - Node core: ONLY solid mesh that defines node presence
  * - Visual-only layers: auras, shells, influence volumes with depthWrite=false
  * - Render hierarchy: Aura/Shell < Core
- * 
- * IMPLEMENTATION (VALIDATION ONLY):
- * 1. Mark each node with a single CORE mesh (canonical)
- * 2. Validate renderOrder is correct (do not mutate variant props)
- * 3. Validate depthTest/depthWrite are correct (do not mutate)
+ *
+ * IMPLEMENTATION (VALIDATION ONLY, SPAWN-TIME):
+ * 1. Mark each node with a single CORE mesh (canonical) - at spawn time
+ * 2. Validate renderOrder is correct (do not mutate variant props) - at spawn time
+ * 3. Validate depthTest/depthWrite are correct (do not mutate) - at spawn time
  * 4. Materials MUST be created with correct flags at creation time
  * 5. This system validates, never mutates variant properties
- * 
+ *
  * SAFETY:
  * ✅ Non-breaking: only validates renderOrder and depth properties
  * ✅ No mesh removal or addition
  * ✅ No interaction logic changes
  * ✅ No metric or link changes
  * ✅ Fully reversible
- * 
+ * ✅ Per-frame overhead removed (optimization 2026-03-01)
+ *
  * SUCCESS CRITERIA:
  * ✅ Node cores NEVER visually hidden
  * ✅ Auras can overlap but not obscure cores
  * ✅ No node visually disappears
  * ✅ Stable across all node types
  * ✅ ZERO runtime shader variant mutations
+ * ✅ Spawn-time validation only (no per-frame overhead)
  */
 
 import * as THREE from 'three';
@@ -216,15 +222,21 @@ export class CoreVisualAuthoritySystem {
     this.coreMeshMap = new Map();  // nodeId -> coreMesh
 
     if (this.enabled) {
-      console.log('[CoreVisualAuthoritySystem] Initialized');
+      console.log('[CoreVisualAuthoritySystem] Initialized (spawn-time only)');
       console.log(`  Core renderOrder: ${this.CORE_RENDER_ORDER}`);
       console.log(`  Visual-only renderOrder: ${this.VISUAL_ONLY_RENDER_ORDER}`);
+      console.log(`  ⚠️  Optimization: Per-frame processing disabled (2026-03-01)`);
     }
   }
 
   /**
-   * Process a single node to enforce visual authority
-   * Call this after node creation
+   * Process a single node to enforce visual authority (SPAWN-TIME ONLY)
+   *
+   * ⚠️  OPTIMIZATION (2026-03-01): Call this only at node creation, NOT in render loop!
+   * This system is designed for spawn-time validation only.
+   * Calling this per-frame will add unnecessary overhead.
+   *
+   * @param {THREE.Object3D} nodeGroup - Node to process
    */
   processNode(nodeGroup) {
     if (!this.enabled || !nodeGroup) return;
@@ -239,10 +251,16 @@ export class CoreVisualAuthoritySystem {
     }
 
     const nodeId = nodeGroup.id || nodeGroup.uuid;
-    // Always re-process to ensure continued enforcement
-    // if (this.processedNodes.has(nodeId)) {
-    //   return;  // Already processed
-    // }
+    
+    // ⚠️  CHECK: Warn if called multiple times on same node (potential per-frame call)
+    if (this.processedNodes.has(nodeId)) {
+      // Allow re-processing for debugging, but warn in debug mode
+      if (this.debugMode) {
+        console.warn('[CoreVisualAuthoritySystem] Re-processing node (should be spawn-time only):', nodeId);
+      }
+      // Return early to prevent per-frame overhead
+      return;
+    }
 
     try {
       // Find canonical core mesh
@@ -273,7 +291,7 @@ export class CoreVisualAuthoritySystem {
       this.processedNodes.add(nodeId);
 
       if (this.debugMode) {
-        console.log(`[CoreVisualAuthoritySystem] ✓ Node ${nodeId} authority enforced`);
+        console.log(`[CoreVisualAuthoritySystem] ✓ Node ${nodeId} authority enforced (spawn-time)`);
       }
     } catch (err) {
       console.warn('[CoreVisualAuthoritySystem] Error processing node:', err.message);

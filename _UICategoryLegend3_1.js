@@ -1,7 +1,8 @@
 /**
- * UI CATEGORY LEGEND 3.1 - UPDATED (Session 28)
+ * UI CATEGORY LEGEND 3.1 - UPDATED (Session 28 + Node Count Visualization)
  * 
- * Left-upper fixed panel showing all current node categories with color dots.
+ * Left-upper fixed panel showing all current node categories with color dots
+ * and real-time node count indicators.
  * 
  * Categories (14 total):
  * Input, Process, Integration, Analytics, Storage, Control,
@@ -11,7 +12,7 @@
  * ✓ Pure display layer (read-only)
  * ✓ No DOM modifications beyond UI styling
  * ✓ Reversible - single element cleanup
- * ✓ Performance: <0.02ms/frame
+ * ✓ Performance: <0.02ms/frame (updates only on spawn/dispose)
  * ✓ No gameplay impact
  */
 
@@ -20,24 +21,35 @@ export class UICategoryLegend3_1 {
     this.element = null;
     this.isVisible = true;
     
+    // Node count tracking
+    this.categoryCounts = new Map();
+    this.labelElements = new Map(); // Cache label DOM elements for efficient updates
+    
+    // Calculate max category name length for padding
+    this.maxCategoryNameLength = 0;
+    
     // Category definitions: name -> hex color (updated for Session 28)
     // Full list per ATOMA category registry
     this.categories = {
-      'Input': '#FF6B9D',      // Hot pink
-      'Process': '#00D9FF',    // Cyan
-      'Integration': '#00FF88', // Harmony green
-      'Analytics': '#FFD700',  // Gold
-      'Storage': '#9D4EDD',    // Purple
-      'Control': '#FF006E',    // Red
-      'Sigma': '#0FFF50',      // Neon green
-      'Emotional': '#FF4500',  // Orange-red
-      'Quantum': '#00FFFF',    // Bright cyan
-      'Mythic': '#DDA0DD',     // Plum
-      'Prime': '#FFE135',      // Golden yellow
-      'External': '#B8B8FF',   // Lavender
-      'Extreme': '#FF1493',    // Deep pink
-      'Special': '#FFFFFF'     // White
+      'INPUT': '#FF6B9D',      // Hot pink
+      'PROCESS': '#00D9FF',    // Cyan
+      'INTEGRATION': '#00FF88', // Harmony green
+      'ANALYTICS': '#FFD700',  // Gold
+      'STORAGE': '#9D4EDD',    // Purple
+      'CONTROL': '#FF006E',    // Red
+      'SIGMA': '#0FFF50',      // Neon green
+      'EMOTIONAL': '#FF4500',  // Orange-red
+      'QUANTUM': '#00FFFF',    // Bright cyan
+      'MYTHIC': '#DDA0DD',     // Plum
+      'PRIME': '#FFE135',      // Golden yellow
+      'ERROR': '#FFFFFF'     // White
     };
+    
+    // Initialize counts for all categories
+    for (const name of Object.keys(this.categories)) {
+      this.categoryCounts.set(name, 0);
+      this.maxCategoryNameLength = Math.max(this.maxCategoryNameLength, name.length);
+    }
     
     this._initializeDOM();
   }
@@ -95,12 +107,15 @@ export class UICategoryLegend3_1 {
       const label = document.createElement('span');
       label.style.cssText = `
         flex: 1;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: pre;
         font-size: 9px;
+        font-family: 'Courier New', monospace;
       `;
-      label.textContent = name;
+      // Initial label with no count
+      label.textContent = this._formatLabelText(name, 0);
+      
+      // Cache label element reference
+      this.labelElements.set(name, label);
       
       item.appendChild(dot);
       item.appendChild(label);
@@ -137,6 +152,70 @@ export class UICategoryLegend3_1 {
     document.head.appendChild(style);
     
     document.body.appendChild(this.element);
+  }
+  
+  /**
+   * Format label text with category name and signal bar
+   * @param {string} name - Category name
+   * @param {number} count - Node count for this category
+   * @returns {string} Formatted label text
+   */
+  _formatLabelText(name, count) {
+    const padding = ' '.repeat(this.maxCategoryNameLength - name.length + 2);
+    const signalBar = count > 0 ? 'I'.repeat(count) : '';
+    return `${name}${padding}${signalBar}`;
+  }
+  
+  /**
+   * Update category counts based on current nodes
+   * Call this method after nodes are spawned or disposed
+   * @param {Array} nodesArray - Array of node objects from AINodes
+   */
+  updateCategoryCounts(nodesArray) {
+    // Reset all counts
+    for (const category of Object.keys(this.categories)) {
+      this.categoryCounts.set(category, 0);
+    }
+    
+    // Count nodes by category
+    if (Array.isArray(nodesArray)) {
+      for (const node of nodesArray) {
+        const category = node?.userData?.category;
+        if (category && this.categoryCounts.has(category)) {
+          const currentCount = this.categoryCounts.get(category) || 0;
+          this.categoryCounts.set(category, currentCount + 1);
+        }
+      }
+    }
+    
+    // Update label text efficiently (no DOM rebuilding)
+    for (const [category, count] of this.categoryCounts.entries()) {
+      const labelElement = this.labelElements.get(category);
+      if (labelElement) {
+        labelElement.textContent = this._formatLabelText(category, count);
+      }
+    }
+  }
+  
+  /**
+   * Get current count for a specific category
+   * @param {string} category - Category name
+   * @returns {number} Node count for category
+   */
+  getCategoryCount(category) {
+    return this.categoryCounts.get(category) || 0;
+  }
+  
+  /**
+   * Get all category counts
+   * @returns {Object} Object with category names as keys and counts as values
+   */
+  getAllCategoryCounts() {
+    const counts = {};
+    for (const [category, count] of this.categoryCounts.entries()) {
+      counts[category] = count;
+    }
+    return counts;
   }
   
   /**
@@ -189,5 +268,7 @@ export class UICategoryLegend3_1 {
       this.element.remove();
     }
     this.element = null;
+    this.categoryCounts.clear();
+    this.labelElements.clear();
   }
 }

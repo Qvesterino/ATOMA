@@ -116,10 +116,17 @@ export function freezeProtectedMesh(mesh) {
 }
 
 /**
- * 🛡️ ENFORCE RENDER HIERARCHY (Every Frame)
- * 
- * Call this in render loop to FORCE override any mutations to renderOrder/depth
- * 
+ * 🛡️ ENFORCE RENDER HIERARCHY (SPAWN-TIME ONLY)
+ *
+ * ⚠️  OPTIMIZED (2026-03-01): Moved to spawn-time only
+ * Previously called every frame → now called only once at node creation
+ *
+ * Use this at:
+ * - Node spawn time (after all meshes created)
+ * - Link creation time (for new link visuals)
+ *
+ * DO NOT call this in render loop!
+ *
  * @param {THREE.Object3D} node - Node to enforce hierarchy on
  */
 export function enforceRenderHierarchy(node) {
@@ -393,6 +400,10 @@ export function activateNuclearLock(scene) {
       return results;
     },
     
+    /**
+     * Enforce hierarchy on all existing nodes (SPAWN-TIME ONLY)
+     * ⚠️  DO NOT call this in render loop - spawn-time only
+     */
     enforceAllNodes: () => {
       let count = 0;
       scene.traverse((obj) => {
@@ -400,6 +411,7 @@ export function activateNuclearLock(scene) {
         enforceRenderHierarchy(obj);
         count++;
       });
+      console.warn('[NUCLEAR LOCK] enforceAllNodes() called - should only be used at spawn-time');
       return count;
     },
     

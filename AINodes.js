@@ -3954,6 +3954,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     nodeSpawnRegistry.registerSpawn(newNode, 'AINodes.spawnNode');
     
+    // ========== UI CATEGORY LEGEND UPDATE ==========
+    // Update node count display in HUD after successful spawn
+    if (typeof window !== 'undefined' && window.game?.categoryLegend) {
+      try {
+        window.game.categoryLegend.updateCategoryCounts(this.nodes);
+      } catch (e) {
+        // Silent fail - HUD update is non-critical
+      }
+    }
+    
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
     const archetypeToUse = newNode.userData.archetype || category;
@@ -4244,6 +4254,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.nodes.forEach(node => {
       this.releaseUniqueSpawn(node);
       this.scene.remove(node);
+      
+      // ========== UI CATEGORY LEGEND UPDATE ==========
+      // Update node count display in HUD after node disposal
+      if (typeof window !== 'undefined' && window.game?.categoryLegend) {
+        try {
+          window.game.categoryLegend.updateCategoryCounts(this.nodes);
+        } catch (e) {
+          // Silent fail - HUD update is non-critical
+        }
+      }
       node.children.forEach(child => {
         if (child.geometry) child.geometry.dispose();
         // DISPOSE SAFETY: Skip shared materials (marked with userData.isShared = true)

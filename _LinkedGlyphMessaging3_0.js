@@ -76,6 +76,10 @@ export class LinkedGlyphMessaging3_0 {
     this.messageContainer.name = 'LinkedGlyphMessaging_Messages';
     attachRoot.add(this.messageContainer);
     this.root = this.messageContainer;
+
+    // Frame throttling (visual layer) — default 30 Hz
+    this.updateInterval = 1 / 30;
+    this._updateAccum = 0;
     
     // Link tracking
     this.trackedLinks = new Map();  // linkId → { sourceNode, targetNode, lastMessageTime }
@@ -648,6 +652,13 @@ export class LinkedGlyphMessaging3_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes || !linkingSystem) return;
+
+    // Throttle to ~30 Hz on the visual layer
+    this._updateAccum += deltaTime;
+    if (this._updateAccum < this.updateInterval) return;
+    // Use accumulated time but clamp to avoid giant steps
+    deltaTime = Math.min(this._updateAccum, this.updateInterval * 2);
+    this._updateAccum = 0;
     
     const startTime = performance.now();
     
