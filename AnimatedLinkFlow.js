@@ -279,6 +279,19 @@ export class AnimatedLinkFlow {
     this.activeFlows = this.activeFlows.filter(f => f.linkId !== linkId);
     this.flowsByLink.delete(linkId);
   }
+
+  /**
+   * Fallback removal by link reference (handles id mismatches).
+   */
+  removeLinkFlowByLink(link) {
+    if (!link) return;
+    for (const [id, state] of this.flowsByLink.entries()) {
+      if (state.link === link) {
+        this.removeLinkFlow(id);
+        return;
+      }
+    }
+  }
   
   /**
    * Animate all active flows

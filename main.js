@@ -5707,6 +5707,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playLinkBroken();
             }
+            // Proactively clear memory trails so ghosts don't linger when visual update is paused
+            if (this.memoryTrails && link?.userData?.id !== undefined) {
+                this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
+            }
             // Emit network.link.destroyed event for event-driven systems
             if (this.semanticBus && result) {
                 this.semanticBus.emit('network.link.destroyed', {

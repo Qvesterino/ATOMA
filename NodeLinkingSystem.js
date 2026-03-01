@@ -65,6 +65,41 @@ function ensureUserData(obj) {
   catch (e) { try { return obj.userData || {}; } catch (e2) { return {}; } }
 }
 
+// Local material patch helper (soft owner tagging for debugging)
+function applyMaterialPatch(material, patch = {}) {
+  if (!material) return;
+  material.userData = material.userData || {};
+  const owners = material.userData._propOwner || (material.userData._propOwner = {});
+  const owner = patch.owner || 'nls';
+  const ensureOwner = (prop) => {
+    const current = owners[prop];
+    if (current && current !== owner && typeof window !== 'undefined' && window.__DEBUG_LINK_MATERIAL_OWNER__ === true) {
+      console.warn('[LinkMaterialOwner]', prop, 'current:', current, 'new:', owner, material.uuid);
+    }
+    owners[prop] = owners[prop] || owner;
+  };
+  if (patch.color instanceof THREE.Color && material.color) {
+    ensureOwner('color');
+    material.color.copy(patch.color);
+  }
+  if (typeof patch.opacity === 'number' && material.opacity !== undefined) {
+    ensureOwner('opacity');
+    material.opacity = patch.opacity;
+  }
+  if (typeof patch.linewidth === 'number' && material.linewidth !== undefined) {
+    ensureOwner('linewidth');
+    material.linewidth = patch.linewidth;
+  }
+  if (patch.emissive instanceof THREE.Color && material.emissive) {
+    ensureOwner('emissive');
+    material.emissive.copy(patch.emissive);
+  }
+  if (typeof patch.emissiveIntensity === 'number' && material.emissiveIntensity !== undefined) {
+    ensureOwner('emissiveIntensity');
+    material.emissiveIntensity = patch.emissiveIntensity;
+  }
+}
+
 const _binderWarned = { invalid: false, noId: false, nonRenderable: false };
 function _validateBinderNode(node) {
   // Validate: must be THREE.Object3D with userData and nodeId
@@ -348,6 +383,9 @@ export class NodeLinkingSystem {
     };
     
     this.links = [];
+    // Per-frame link metrics cache
+    this._linkMetricsCache = new Map();
+    this._linkMetricsFrame = 0;
     this.ghostLinks = [];  // Predicted connections
     this.activeLink = null;
     this.selectedNode = null;  // Node A for click-to-link (now "Primary Node")
@@ -437,6 +475,17 @@ export class NodeLinkingSystem {
 
     // [Dynamic Thickness v1.0] Real-time traffic-based link thickness
     this.thicknessSystem = new DynamicLinkThicknessSystem(scene, this.visuals);
+    this.visualModules = {
+      thickness: true,
+      flow: true,
+      beads: true,
+      sparks: true,
+      trails: true,
+      corruptionFX: true,
+      healingFX: true,
+      streaks: true,
+      aura: true
+    };
     
     // [Session 112] Animated Link Flow - Data visualization between nodes
     this.flowSystem = new AnimatedLinkFlow(scene, camera);
@@ -843,6 +892,8 @@ export class NodeLinkingSystem {
         }
       } else {
         this.rmbState.holdThresholdMet = false;
+        // Short RMB click: just deselect primary/selection
+        this.deselectNode();
       }
       
       // Reset RMB state (delay to allow contextmenu event to check holdThresholdMet)
@@ -3431,6 +3482,7 @@ getLinksForNode(node) {
       return link;
     }
     // 1. Construct Link Object first (so conduit gets real reference)
+    const linkId = `link-${this._linkIdCounter++}`;
     const link = {
       source: sourceNode,
       target: targetNode,
@@ -3450,7 +3502,7 @@ getLinksForNode(node) {
         pulsePhase: Math.random() * Math.PI * 2
       },
       // Identity
-      id: `link-${this._linkIdCounter++}`,
+      id: linkId,
       // Compatibility flags
       vfxEnabled: true,
       extremeMode: false, // Disables legacy extreme visual updates
@@ -3955,11 +4007,10 @@ getLinksForNode(node) {
     
     // [Session 112] Initialize animated link flow visualization
     if (this.flowSystem) {
-      this.flowSystem.initializeLinkFlow(link, `link-${this._linkIdCounter}`);
+      this.flowSystem.initializeLinkFlow(link, linkId);
     }
     
-    // [Metrics Integration v1.0] Generate unique link ID and register with visuals
-    link.id = `link-${this._linkIdCounter++}`;
+    // [Metrics Integration v1.0] Register with visuals
     this.visuals.registerLink(link.id, link.group);
     
     // [Dynamic Thickness v1.0] Register link for real-time thickness updates
@@ -4564,6 +4615,9 @@ getLinksForNode(node) {
     const deadLinks = [];
     
     // Update real links
+    this._frameIndex = (this._frameIndex || 0) + 1;
+    this._linkMetricsFrame = (this._linkMetricsFrame || 0) + 1;
+    this._linkMetricsCache.clear();
     this.links.forEach(link => {
       if (!link.active) return;
       
@@ -4602,8 +4656,11 @@ getLinksForNode(node) {
              if (strands) {
                strands.forEach(strand => {
                  if (strand.material) {
-                   strand.material.color.copy(transitionState.color);
-                   strand.material.opacity = transitionState.opacity;
+                   applyMaterialPatch(strand.material, {
+                     color: transitionState.color,
+                     opacity: transitionState.opacity,
+                     owner: 'colorStage'
+                   });
                    strand.material.emissiveIntensity = transitionState.glowIntensity;
                  }
                });
@@ -4628,8 +4685,9 @@ getLinksForNode(node) {
       updateParticleColorTransition(link, deltaTime);
       
       // [Dynamic Thickness v1.0] Update link thickness based on traffic load
-      if (link.traffic && this.thicknessSystem) {
-        this.thicknessSystem.updateLinkThickness(link.id, link.traffic.load);
+      if (this.thicknessSystem && this.visualModules.thickness) {
+        const metrics = this.getLinkMetricsSnapshot(link);
+        this.thicknessSystem.updateLinkThickness(link.id, metrics.loadPressure ?? metrics.traffic ?? 0);
       }
       
       // ===== POST-UPDATE NODE PROTECTION: RESTORE NODE VISUALS =====
@@ -4651,7 +4709,7 @@ getLinksForNode(node) {
     }
     
     // [Dynamic Thickness v1.0] Animate all links toward target thickness values
-    if (this.thicknessSystem) {
+    if (this.thicknessSystem && this.visualModules.thickness) {
       this.thicknessSystem.animateAllLinks(deltaTime);
     }
     
@@ -4699,23 +4757,68 @@ getLinksForNode(node) {
    * Build per-link frame state for visual systems (single source of metrics/time).
    */
   _buildLinkFrameState(link, deltaTime, time) {
+    const seed = (link.userData && link.userData.ditherSeed !== undefined)
+      ? link.userData.ditherSeed
+      : (link.userData ? (link.userData.ditherSeed = Math.random()) : Math.random());
+
+    const metrics = this.getLinkMetricsSnapshot(link);
+
+    // Geometry snapshot (relies on updateLinkCurve just run)
+    const curve = link.curve;
+    const start = curve?.getPoint ? curve.getPoint(0).clone() : link.source?.position?.clone();
+    const end = curve?.getPoint ? curve.getPoint(1).clone() : link.target?.position?.clone();
+    const tangent = curve?.getTangent ? curve.getTangent(0.5).clone() : null;
+    const length = curve?.getLength ? curve.getLength() : (start && end ? start.distanceTo(end) : 0);
+
+    const frameIndex = this._frameIndex || 0;
     return {
       time: {
         visualTime: time ?? 0,
         visualDelta: deltaTime ?? 0,
         deltaTime,
-        time
+        time,
+        frameIndex,
+        seed
       },
-      metrics: {
-        synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
-        harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
-        corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
-        instability: link.instability ?? link.instabilityLevel ?? 0.0,
-        traffic: link.traffic?.load ?? 0,
-        loadPressure: link.loadPressure ?? link.traffic?.load ?? 0,
-        quality: link.quality ?? link.userData?.quality?.score
+      metrics,
+      geometry: {
+        start,
+        end,
+        tangent,
+        length,
+        curve
+      },
+      cadence: {
+        burst8: frameIndex % 8 === 0,
+        burst16: frameIndex % 16 === 0,
+        burst32: frameIndex % 32 === 0
       }
     };
+  }
+
+  /**
+   * Per-frame metrics snapshot for a link (cache by frame).
+   */
+  getLinkMetricsSnapshot(link) {
+    const linkId = link.id || link.uuid;
+    const cached = this._linkMetricsCache.get(linkId);
+    if (cached && cached.frame === this._linkMetricsFrame) {
+      return cached.metrics;
+    }
+
+    const metrics = {
+      synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
+      harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
+      corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
+      instability: link.instability ?? link.instabilityLevel ?? 0.0,
+      stability: link.stability ?? link.stabilityLevel ?? 0.5,
+      traffic: link.traffic?.load ?? 0,
+      loadPressure: link.loadPressure ?? link.traffic?.load ?? 0,
+      quality: link.quality ?? link.userData?.quality?.score
+    };
+
+    this._linkMetricsCache.set(linkId, { frame: this._linkMetricsFrame, metrics });
+    return metrics;
   }
   
   /**
@@ -6065,6 +6168,9 @@ getLinksForNode(node) {
     link.active = false;
     this._markLinksDirty();
     this._markNodesDirty();
+    // Drop cached metrics for this link
+    const _lid = link.id || link.uuid;
+    if (this._linkMetricsCache && _lid) this._linkMetricsCache.delete(_lid);
     
     // Canonical metrics: link removal hook
     if (link.source && link.target) {
@@ -6093,8 +6199,14 @@ getLinksForNode(node) {
     }
     
     // [Session 112] Remove animated link flow visualization
-    if (link.id && this.flowSystem) {
-      this.flowSystem.removeLinkFlow(link.id);
+    if (this.flowSystem) {
+      if (link.id) {
+        this.flowSystem.removeLinkFlow(link.id);
+      }
+      // Fallback: handle legacy links lacking stable id or id mismatch
+      if (typeof this.flowSystem.removeLinkFlowByLink === 'function') {
+        this.flowSystem.removeLinkFlowByLink(link);
+      }
     }
     
     // [Metrics Integration v1.0] Unregister link from visual metrics system
@@ -6137,12 +6249,12 @@ getLinksForNode(node) {
       }
     }
     
-    // [Bead System] Dispose bead visualizer and resources
+    // Unified visual dispose (conduit + particles)
     if (this.conduitRenderer && link.group && link.group.userData.conduitState) {
-      this.conduitRenderer.disposeLinkVisuals(link.group);
+      this.conduitRenderer.disposeLinkVisuals(link.group, link);
     }
 
-    // Dispose group and all children
+    // Dispose group and all children (defensive pass after conduit disposal)
     if (link.group) {
       this.scene.remove(link.group);
       
