@@ -4694,6 +4694,29 @@ getLinksForNode(node) {
   processRaycast() {
     return this.processNodeTargeting();
   }
+
+  /**
+   * Build per-link frame state for visual systems (single source of metrics/time).
+   */
+  _buildLinkFrameState(link, deltaTime, time) {
+    return {
+      time: {
+        visualTime: time ?? 0,
+        visualDelta: deltaTime ?? 0,
+        deltaTime,
+        time
+      },
+      metrics: {
+        synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
+        harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
+        corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
+        instability: link.instability ?? link.instabilityLevel ?? 0.0,
+        traffic: link.traffic?.load ?? 0,
+        loadPressure: link.loadPressure ?? link.traffic?.load ?? 0,
+        quality: link.quality ?? link.userData?.quality?.score
+      }
+    };
+  }
   
   /**
    * Update crosshair targeting state (node targeting via raycast implementation)

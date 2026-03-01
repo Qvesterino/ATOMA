@@ -5937,8 +5937,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Final authority: CONFIG → Mode → NuclearLock → System enabled
         // ====================================================================
         try {
-            activateNuclearLockEverywhere(this.renderer, this.scene, this.camera);
-            console.log('[main.js] Nuclear Lock activated ✓ — Final authority established');
+            const disableNuclearLock = (typeof window !== 'undefined') && window.ATOMA_FLAGS?.disableNuclearLock === true;
+            if (!disableNuclearLock) {
+                activateNuclearLockEverywhere(this.renderer, this.scene, this.camera);
+                console.log('[main.js] Nuclear Lock activated ✓ — Final authority established');
+            } else {
+                console.log('[main.js] Nuclear Lock skipped (ATOMA_FLAGS.disableNuclearLock=true)');
+            }
         } catch (err) {
             console.warn('[main.js] Nuclear Lock activation failed:', err.message);
         }
