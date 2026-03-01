@@ -1,0 +1,137 @@
+🧭 ATOMA – ULTRA-PRECÍZNA PRIORITIZATION MAP
+
+Cieľ:
+Minimalizovať psychologický chaos + maximalizovať architektonickú čistotu
+Bez veľkého hero refactoru.
+
+🥇 TIER 1 – STABILIZAČNÉ BODY (NEDOTKNUTEĽNÉ)
+1️⃣ Spawn Chain Reduction
+
+Prečo prvé?
+
+Má 9 guard vrstiev
+
+Je vstupný bod reality
+
+Ovláda rast systému
+
+Je mentálne najťažší
+
+Cieľ:
+Zredukovať spawn guard stack z 9 → 4 vrstvy.
+
+Zachovať:
+
+Queue system (requestSpawn)
+
+Uniqueness
+
+Factory readiness
+
+Final integrity check
+
+Zrušiť / zlúčiť:
+
+Dvojité category validation
+
+Direct spawn block ak už existuje queue
+
+Redundant mode checks
+
+🟢 Výsledok: Spawn sa stane čitateľný.
+
+🥈 TIER 2 – DEAD-BY-DEFAULT SYSTEMY
+2️⃣ Link Growth Activation
+
+Momentálne:
+
+ATOMA_LINK_SPAWN_ENABLED === false
+
+To znamená:
+Link-based evolúcia je mŕtva bez vedomia.
+
+To je architektonicky nesprávne.
+
+Cieľ:
+
+Default = true
+
+Ale s cap + cooldown
+
+🟢 Výsledok:
+Ekosystém dýcha prirodzene.
+
+🥉 TIER 3 – SINGLE SOURCE OF TRUTH
+3️⃣ Authority Consolidation (bez refactoru!)
+
+Nie zrušiť locks.
+Len definovať:
+
+Ktorý layer má posledné slovo?
+
+Navrhujem:
+
+L1 CONFIG
+L2 Mode
+L3 NuclearLock (final physical authority)
+L4 System enabled
+
+VisualAuthorityLock by sa mal stať iba helper, nie ďalší layer.
+
+🟢 Výsledok:
+Mentálny model sa zjednoduší.
+
+🟡 TIER 4 – FLAG SATURATION CLEANUP
+
+Až po tom.
+
+Nie hneď.
+
+Rozdeliť flagy na:
+
+Debug-only
+
+Runtime feature flags
+
+Safety flags
+
+Zjednotiť window.ATOMA_* do jedného objektu.
+
+Ale toto je až fáza 4.
+
+🟣 TIER 5 – WRAPPER DEPTH REDUCTION
+
+Až keď spawn je čistý.
+
+Zamerať sa na:
+
+Early return consolidation
+
+Logging unify
+
+Observer-based validation namiesto inline guards
+
+🎯 Poradie v čase
+FÁZA A (1–2 dni)
+
+✔ Spawn simplification
+✔ Link growth enable
+
+FÁZA B
+
+✔ Authority hierarchy clarification
+✔ Odstrániť 1–2 redundant locks
+
+FÁZA C
+
+✔ Flag consolidation
+
+
+🧠 Realita
+
+ATOMA nie je nestabilná.
+
+Je prepoistená.
+
+A prepoistenie sa rieši systematicky,
+nie explóziou.

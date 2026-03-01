@@ -9,7 +9,7 @@ Nature: Long-term systemic engine (not a typical game)
 
 ATOMA is governed by:
 
-- ATOMA_CONSTITUTION_v2.md
+
 - CORE_PRINCIPLES.md
 - ATOMA_OVERVIEW.md
 - ATOMA_CORE_CONTEXT.md
