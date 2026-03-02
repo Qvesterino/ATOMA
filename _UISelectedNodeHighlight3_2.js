@@ -73,11 +73,7 @@ export class UISelectedNodeHighlight3_2 {
     const geometry = new THREE.IcosahedronGeometry(shellRadius, 4);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(node.position);
-    try {
-      mesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('SELECTED') ?? 0.5;
-    } catch (e) {
-      mesh.renderOrder = 0.5;
-    }
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('SELECTED');
     mesh.userData.isHighlight = true;
     mesh.userData.parentNode = node;
     mesh.userData.auraLayer = 'AURA_SELECTED';

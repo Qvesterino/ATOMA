@@ -91,14 +91,17 @@ export class VisualHierarchyRegistry {
   // ========================================================================
   
   static LAYER_AURA_BACKGROUND = 'AURA_BACKGROUND';
-  static LAYER_AURA = 'AURA';
+  static LAYER_BASELINE_AURA = 'BASELINE_AURA';
+  static LAYER_AURA = 'AURA'; // alias to BASELINE_AURA
   static LAYER_SELECTED = 'SELECTED';
   static LAYER_PRIMARY_UI = 'PRIMARY_UI';
   static LAYER_CORE = 'CORE';
   static LAYER_ARCHETYPE = 'ARCHETYPE';
+  static LAYER_NODE_LINKED = 'NODE_LINKED';
+  static LAYER_NODE_LINK_GLOW = 'NODE_LINK_GLOW';
   static LAYER_EVOLUTION = 'EVOLUTION';
   static LAYER_FX = 'FX';
-  static LAYER_DEBUG = 'DEBUG';
+  static LAYER_DEBUG_NODE = 'DEBUG_NODE';
 
   // ========================================================================
   // LINK LAYER IDENTIFIERS (Immutable constants)
@@ -107,6 +110,7 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_SKIN = 'LINK_SKIN';
   static LAYER_LINK_STRANDS = 'LINK_STRANDS';
   static LAYER_LINK_DIRECTIONAL = 'LINK_DIRECTIONAL';
+  static LAYER_LINK_GLOW = 'LINK_GLOW';
   static LAYER_LINK_PULSE = 'LINK_PULSE';
   static LAYER_LINK_ARCS = 'LINK_ARCS';
   static LAYER_LINK_SPARKS = 'LINK_SPARKS';
@@ -115,19 +119,33 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_PARTICLES = 'LINK_PARTICLES';
 
   // ========================================================================
+  // WORLD / UI / DEBUG IDENTIFIERS
+  // ========================================================================
+  static LAYER_WORLD_BACKGROUND = 'WORLD_BACKGROUND';
+  static LAYER_WORLD_OVERLAY = 'WORLD_OVERLAY';
+  static LAYER_UI_PRIMARY = 'UI_PRIMARY';
+  static LAYER_UI_OVERLAY = 'UI_OVERLAY';
+  static LAYER_DEBUG_GLOBAL = 'DEBUG_GLOBAL';
+  static LAYER_DEBUG_OVERLAY = 'DEBUG_OVERLAY';
+
+  // ========================================================================
   // NODE RENDER ORDER VALUES (Immutable)
   // ========================================================================
 
   static NODE_LAYER_ORDER = {
     AURA_BACKGROUND: -100,
-    AURA: -1,
-    SELECTED: 0.5,
-    PRIMARY_UI: 0.8,
+    BASELINE_AURA: -10,
+    AURA: -10, // alias
     CORE: 0,
     ARCHETYPE: 1,
-    EVOLUTION: 50,
-    FX: 100,
-    DEBUG: 200
+    SELECTED: 10,
+    NODE_LINKED: 15,
+    NODE_LINK_GLOW: 18,
+    PRIMARY_UI: 80,
+    UI_PRIMARY: 80, // alias for consistency
+    EVOLUTION: 90,
+    FX: 95,
+    DEBUG_NODE: 100
   };
 
   // ========================================================================
@@ -136,15 +154,34 @@ export class VisualHierarchyRegistry {
   // ========================================================================
 
   static LINK_LAYER_ORDER = {
-    SKIN: 7,
-    STRANDS: 9,
-    DIRECTIONAL: 10,
-    PULSE: 11,
-    ARCS: 12,
-    SPARKS: 13,
-    BEADS: 14,
-    IMPACTS: 15,
-    PARTICLES: 20
+    SKIN: 200,
+    STRANDS: 210,
+    DIRECTIONAL: 215,
+    GLOW: 220,
+    PULSE: 230,
+    ARCS: 235,
+    SPARKS: 240,
+    BEADS: 245,
+    IMPACTS: 250,
+    PARTICLES: 260
+  };
+
+  // ========================================================================
+  // WORLD / UI / DEBUG RENDER ORDER VALUES
+  // ========================================================================
+  static WORLD_LAYER_ORDER = {
+    WORLD_BACKGROUND: 400,
+    WORLD_OVERLAY: 450
+  };
+
+  static UI_LAYER_ORDER = {
+    UI_PRIMARY: 800,
+    UI_OVERLAY: 820
+  };
+
+  static DEBUG_LAYER_ORDER = {
+    DEBUG_GLOBAL: 1000,
+    DEBUG_OVERLAY: 1010
   };
 
   // ========================================================================
@@ -170,15 +207,30 @@ export class VisualHierarchyRegistry {
    *   mesh.renderOrder = strandOrder;
    */
   static getRenderOrder(layerId) {
-    // Check node layers first
+    // Node layers
     if (this.NODE_LAYER_ORDER[layerId] !== undefined) {
       return this.NODE_LAYER_ORDER[layerId];
     }
     
-    // Check link layers (map LAYER_LINK_SKIN → SKIN)
+    // Link layers (map LAYER_LINK_SKIN → SKIN)
     const linkLayerName = layerId.replace('LINK_', '');
     if (this.LINK_LAYER_ORDER[linkLayerName] !== undefined) {
       return this.LINK_LAYER_ORDER[linkLayerName];
+    }
+
+    // World layers
+    if (this.WORLD_LAYER_ORDER[layerId] !== undefined) {
+      return this.WORLD_LAYER_ORDER[layerId];
+    }
+
+    // UI layers
+    if (this.UI_LAYER_ORDER[layerId] !== undefined) {
+      return this.UI_LAYER_ORDER[layerId];
+    }
+
+    // Debug layers
+    if (this.DEBUG_LAYER_ORDER[layerId] !== undefined) {
+      return this.DEBUG_LAYER_ORDER[layerId];
     }
     
     // Unknown layer - log and return safe default
@@ -209,11 +261,32 @@ export class VisualHierarchyRegistry {
         renderOrder, 
         type: 'link' 
       }));
+
+    const worldLayers = Object.entries(this.WORLD_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({ id, renderOrder, type: 'world' }));
+
+    const uiLayers = Object.entries(this.UI_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({ id, renderOrder, type: 'ui' }));
+
+    const debugLayers = Object.entries(this.DEBUG_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({ id, renderOrder, type: 'debug' }));
     
     return {
       node: nodeLayers,
       link: linkLayers,
-      all: [...nodeLayers, ...linkLayers].sort((a, b) => a.renderOrder - b.renderOrder)
+      world: worldLayers,
+      ui: uiLayers,
+      debug: debugLayers,
+      all: [
+        ...nodeLayers,
+        ...linkLayers,
+        ...worldLayers,
+        ...uiLayers,
+        ...debugLayers
+      ].sort((a, b) => a.renderOrder - b.renderOrder)
     };
   }
 

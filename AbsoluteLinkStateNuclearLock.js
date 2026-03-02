@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * ✅ SINGLE SOURCE OF TRUTH: Get absolute link target
@@ -249,10 +250,11 @@ export function assertNodeContractCompliance(node) {
     throw new Error(`[NUCLEAR LOCK] linkTarget itself is protected`);
   }
   
-  // Check 3: Core has correct renderOrder
-  if (target.renderOrder !== 0) {
-    throw new Error(`[NUCLEAR LOCK] Core renderOrder is ${target.renderOrder}, expected 0`);
-  }
+// Check 3: Core has correct renderOrder
+const expectedCoreRO = VisualHierarchyRegistry.getRenderOrder('CORE');
+if (target.renderOrder !== expectedCoreRO) {
+  throw new Error(`[NUCLEAR LOCK] Core renderOrder is ${target.renderOrder}, expected ${expectedCoreRO}`);
+}
   
   // Check 4: Core has depth settings
   if (target.material && target.material.depthTest !== false) {

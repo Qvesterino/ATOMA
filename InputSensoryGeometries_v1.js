@@ -49,19 +49,11 @@ export class InputSensoryGeometries {
    * @private
    */
   static _getCoreRenderOrder() {
-    try {
-      return VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
-    } catch (err) {
-      return 0;
-    }
+    return VisualHierarchyRegistry.getRenderOrder('CORE');
   }
 
   static _getArchetypeRenderOrder() {
-    try {
-      return VisualHierarchyRegistry?.getRenderOrder('ARCHETYPE', 1) ?? 1;
-    } catch (err) {
-      return 1;
-    }
+    return VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -149,8 +141,9 @@ export class InputSensoryGeometries {
         opacity: 0.0 // Invisible marker
       })
     );
+    // PHASE 3A: replacing relative renderOrder (core - 1) → BASELINE_AURA
     voidMarker.userData.visualLayer = 'CORE';
-    voidMarker.renderOrder = coreRenderOrder - 1;
+    voidMarker.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     voidMarker.frustumCulled = false;
     nodeRoot.add(voidMarker);
 
@@ -280,7 +273,8 @@ export class InputSensoryGeometries {
 
     const core = new THREE.Mesh(coreGeom, coreMat);
     core.userData.visualLayer = 'CORE';
-    core.renderOrder = coreRenderOrder - 1;
+    // PHASE 3A: replacing relative renderOrder (core - 1) → BASELINE_AURA
+    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     core.frustumCulled = false;
     nodeRoot.add(core);
 
@@ -400,7 +394,8 @@ export class InputSensoryGeometries {
 
     const core = new THREE.Mesh(coreGeom, coreMat);
     core.userData.visualLayer = 'CORE';
-    core.renderOrder = coreRenderOrder - 1;
+    // PHASE 3A: replacing relative renderOrder (core - 1) → BASELINE_AURA
+    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     core.frustumCulled = false;
     nodeRoot.add(core);
 

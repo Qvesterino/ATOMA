@@ -35,6 +35,8 @@
  * ============================================================================
  */
 
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+
 export class NodeVisualIntegrityFix {
   
   /**
@@ -354,8 +356,9 @@ export class NodeVisualIntegrityFix {
       }
       
       // Check render order
-      if (obj.userData?.isHolographic && obj.renderOrder < 40) {
-        issues.push(`Holographic layer renderOrder < 40 (is ${obj.renderOrder})`);
+      const expectedHoloRO = VisualHierarchyRegistry.getRenderOrder('FX');
+      if (obj.userData?.isHolographic && obj.renderOrder < expectedHoloRO) {
+        issues.push(`Holographic layer renderOrder < ${expectedHoloRO} (is ${obj.renderOrder})`);
         isConsistent = false;
       }
       

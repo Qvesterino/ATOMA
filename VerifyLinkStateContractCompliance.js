@@ -11,6 +11,7 @@
 
 import { hasValidLinkTarget, getLinkTarget } from './LinkStateVisualLock.js';
 import { isProtectedFromLinkState } from './LinkTargetContract.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class VerifyLinkStateContractCompliance {
   /**
@@ -93,29 +94,32 @@ export class VerifyLinkStateContractCompliance {
       obj.traverse((child) => {
         if (!child.isMesh) return;
 
-        // Core should have renderOrder 0
-        if (child.userData?.visualLayer === 'CORE' && child.renderOrder !== 0) {
+        // Core should have canonical renderOrder
+        const expectedCoreRO = VisualHierarchyRegistry.getRenderOrder('CORE');
+        if (child.userData?.visualLayer === 'CORE' && child.renderOrder !== expectedCoreRO) {
           report.renderOrderIssues.push({
             nodeId: obj.uuid,
-            issue: `Core has renderOrder ${child.renderOrder}, expected 0`,
+            issue: `Core has renderOrder ${child.renderOrder}, expected ${expectedCoreRO}`,
             childId: child.uuid
           });
         }
 
-        // Shells should have renderOrder 5
-        if (child.userData?.visualLayer === 'CORE_SHELL' && child.renderOrder !== 5) {
+        // Shells should have canonical renderOrder
+        const expectedShellRO = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+        if (child.userData?.visualLayer === 'CORE_SHELL' && child.renderOrder !== expectedShellRO) {
           report.renderOrderIssues.push({
             nodeId: obj.uuid,
-            issue: `Shell has renderOrder ${child.renderOrder}, expected 5`,
+            issue: `Shell has renderOrder ${child.renderOrder}, expected ${expectedShellRO}`,
             childId: child.uuid
           });
         }
 
-        // Auras should have renderOrder 10
-        if (child.userData?.visualLayer === 'AURA' && child.renderOrder !== 10) {
+        // Auras should have canonical renderOrder
+        const expectedAuraRO = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
+        if (child.userData?.visualLayer === 'AURA' && child.renderOrder !== expectedAuraRO) {
           report.renderOrderIssues.push({
             nodeId: obj.uuid,
-            issue: `Aura has renderOrder ${child.renderOrder}, expected 10`,
+            issue: `Aura has renderOrder ${child.renderOrder}, expected ${expectedAuraRO}`,
             childId: child.uuid
           });
         }

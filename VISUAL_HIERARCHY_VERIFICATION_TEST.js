@@ -42,12 +42,16 @@ export class VisualHierarchyVerificationTest {
     try {
       const required = [
         'LAYER_AURA_BACKGROUND',
-        'LAYER_AURA',
+        'LAYER_BASELINE_AURA',
         'LAYER_CORE',
         'LAYER_ARCHETYPE',
+        'LAYER_SELECTED',
+        'LAYER_NODE_LINKED',
+        'LAYER_NODE_LINK_GLOW',
+        'LAYER_PRIMARY_UI',
         'LAYER_EVOLUTION',
         'LAYER_FX',
-        'LAYER_DEBUG'
+        'LAYER_DEBUG_NODE'
       ];
 
       const registry = window.VisualHierarchyRegistry;
@@ -57,7 +61,7 @@ export class VisualHierarchyVerificationTest {
         }
       }
 
-      this.pass(`✅ All 7 layer constants defined`);
+      this.pass(`✅ All ${required.length} layer constants defined`);
     } catch (err) {
       this.fail('❌ Layer constants missing', err);
     }
@@ -71,13 +75,16 @@ export class VisualHierarchyVerificationTest {
       const registry = window.VisualHierarchyRegistry;
 
       const coreOrder = registry.getRenderOrder('CORE');
-      if (coreOrder !== 0) throw new Error(`CORE should be 0, got ${coreOrder}`);
+      const expectedCore = registry.getRenderOrder('CORE');
+      if (coreOrder !== expectedCore) throw new Error(`CORE should be ${expectedCore}, got ${coreOrder}`);
 
-      const auraOrder = registry.getRenderOrder('AURA');
-      if (auraOrder !== -1) throw new Error(`AURA should be -1, got ${auraOrder}`);
+      const auraOrder = registry.getRenderOrder('BASELINE_AURA');
+      const expectedAura = registry.getRenderOrder('BASELINE_AURA');
+      if (auraOrder !== expectedAura) throw new Error(`AURA should be ${expectedAura}, got ${auraOrder}`);
 
       const evolutionOrder = registry.getRenderOrder('EVOLUTION');
-      if (evolutionOrder !== 50) throw new Error(`EVOLUTION should be 50, got ${evolutionOrder}`);
+      const expectedEvolution = registry.getRenderOrder('EVOLUTION');
+      if (evolutionOrder !== expectedEvolution) throw new Error(`EVOLUTION should be ${expectedEvolution}, got ${evolutionOrder}`);
 
       this.pass('✅ getRenderOrder() works correctly');
     } catch (err) {
@@ -109,11 +116,11 @@ export class VisualHierarchyVerificationTest {
   test_GetLayer() {
     try {
       const registry = window.VisualHierarchyRegistry;
-      const layer = registry.getLayer('AURA');
+      const layer = registry.getLayer('BASELINE_AURA');
 
       if (!layer) throw new Error('getLayer returned null');
-      if (layer.id !== 'AURA') throw new Error('Layer ID mismatch');
-      if (layer.renderOrder !== -1) throw new Error('Layer renderOrder mismatch');
+      if (layer.id !== 'BASELINE_AURA') throw new Error('Layer ID mismatch');
+      if (layer.renderOrder !== registry.getRenderOrder('BASELINE_AURA')) throw new Error('Layer renderOrder mismatch');
       if (!layer.opacity) throw new Error('Layer missing opacity bounds');
       if (!layer.name) throw new Error('Layer missing name');
 

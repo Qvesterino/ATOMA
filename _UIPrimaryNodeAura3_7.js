@@ -106,7 +106,7 @@ export class UIPrimaryNodeAura3_7 {
     ring.userData.isPrimaryAuraRing = true;
     ring.userData.auraLayer = 'AURA_UI';
     // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder from registry)
-    ring.renderOrder = VisualHierarchyRegistry?.getRenderOrder('PRIMARY_UI') ?? 0.8;
+    ring.renderOrder = VisualHierarchyRegistry.getRenderOrder('PRIMARY_UI');
     
     // Inner pulse layer (slightly smaller torus)
     // [AURA VISUAL AUDIT] Reduced opacity from 0.3 to 0.10 (67% reduction)
@@ -125,7 +125,7 @@ export class UIPrimaryNodeAura3_7 {
     pulse.userData.isPrimaryAuraPulse = true;
     pulse.userData.auraLayer = 'AURA_UI';
     // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder from registry)
-    pulse.renderOrder = VisualHierarchyRegistry?.getRenderOrder('PRIMARY_UI') ?? 0.8;
+    pulse.renderOrder = VisualHierarchyRegistry.getRenderOrder('PRIMARY_UI');
     
     // Position at node
     ring.position.copy(node.position);

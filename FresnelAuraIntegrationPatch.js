@@ -18,6 +18,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import {
   createFresnelRimLightAuraMaterial,
   createFresnelRimLightAuraMaterialWithDistance,
@@ -307,8 +308,9 @@ export function verifyFresnelAuraIntegration(auraMesh) {
     report.warnings.push('Aura userData.isAura not set');
   }
 
-  if (auraMesh.renderOrder !== -1) {
-    report.warnings.push(`Aura renderOrder is ${auraMesh.renderOrder} (expected -1)`);
+  const expectedAuraRO = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
+  if (auraMesh.renderOrder !== expectedAuraRO) {
+    report.warnings.push(`Aura renderOrder is ${auraMesh.renderOrder} (expected ${expectedAuraRO})`);
   }
 
   return report;

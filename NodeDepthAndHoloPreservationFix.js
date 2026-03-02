@@ -19,6 +19,7 @@
  * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // Render-order lockdown flag
 const RENDER_AUTHORITY_LOCKDOWN = true;
@@ -282,8 +283,9 @@ export class NodeDepthAndHoloPreservationFix {
         if (obj.material.depthWrite === true) {
           violations.push(`Link ${obj.name} has depthWrite=true`);
         }
-        if (obj.renderOrder !== 10) {
-          violations.push(`Link ${obj.name} has renderOrder=${obj.renderOrder} (expected 10)`);
+        const expectedLinkRO = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
+        if (obj.renderOrder !== expectedLinkRO) {
+          violations.push(`Link ${obj.name} has renderOrder=${obj.renderOrder} (expected ${expectedLinkRO})`);
         }
       }
       
@@ -291,14 +293,16 @@ export class NodeDepthAndHoloPreservationFix {
         if (obj.material.depthWrite === true) {
           violations.push(`Aura ${obj.name} has depthWrite=true`);
         }
-        if (obj.renderOrder !== 20) {
-          violations.push(`Aura ${obj.name} has renderOrder=${obj.renderOrder} (expected 20)`);
+        const expectedAuraRO = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
+        if (obj.renderOrder !== expectedAuraRO) {
+          violations.push(`Aura ${obj.name} has renderOrder=${obj.renderOrder} (expected ${expectedAuraRO})`);
         }
       }
       
       if (userData.isHolographicLayer || userData.visualLayer === 'HOLOGRAM') {
-        if (obj.renderOrder !== 40) {
-          violations.push(`Holographic ${obj.name} has renderOrder=${obj.renderOrder} (expected 40)`);
+        const expectedHoloRO = VisualHierarchyRegistry.getRenderOrder('FX');
+        if (obj.renderOrder !== expectedHoloRO) {
+          violations.push(`Holographic ${obj.name} has renderOrder=${obj.renderOrder} (expected ${expectedHoloRO})`);
         }
       }
     });

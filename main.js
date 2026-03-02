@@ -439,6 +439,18 @@ import { HarmonicAudioReactivitySystem_Session135 } from './HarmonicAudioReactiv
 import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Session136.js';
 
 // ============================================================================
+// LINK TRAIL PARTICLE SYSTEM
+// Organic particle trails that flow along links
+// ============================================================================
+import { LinkTrailParticleSystem } from './LinkTrailParticleSystem.js';
+
+// ============================================================================
+// LINK SPARK SYSTEM
+// GPU-driven spark particles for micro-friction and tension
+// ============================================================================
+import { LinkSparkSystem } from './LinkSparkSystem.js';
+
+// ============================================================================
 // REGIONAL EQUILIBRIUM FIELD SYSTEM
 // Visualizes long-term power balance and territorial equilibrium shifts
 // via subtle ambient volumetric fields for each network region
@@ -3534,6 +3546,31 @@ class AtomaGame {
             }
         }, 'visual.cascadeParticleSystem');
         this.frameScheduler.register('visual', (dt) => {
+            if (this.healingParticles) {
+                this.healingParticles.update(dt, this.time, this.networkState || {}, this.camera);
+            }
+        }, 'visual.healingParticles');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.linkTrailParticles) {
+                this.linkTrailParticles.update(dt, this.time);
+            }
+        }, 'visual.linkTrailParticles');
+        this.frameScheduler.register('visual', (dt) => {
+            // Update all LinkSparkSystems
+            if (this.linkSparkSystems && this.linkingSystem?.links) {
+                for (const link of this.linkingSystem.links) {
+                    const sparkSystem = this.linkSparkSystems.get(link.userData?.id);
+                    if (sparkSystem && link.curve) {
+                        // Get curve from link (QuadraticBezierCurve3 stored on link.curve)
+                        const curve = link.curve;
+                        const stats = link.userData?.stats || { synergy: 0, traffic: 0, intensity: 0.25 };
+                        const color = link.material?.color || new THREE.Color(0xffffff);
+                        sparkSystem.update(this.time, dt, curve, stats, color);
+                    }
+                }
+            }
+        }, 'visual.linkSparkSystems');
+        this.frameScheduler.register('visual', (dt) => {
             if (this.memoryTrails) {
                 this.memoryTrails.update(dt);
             }
@@ -5711,6 +5748,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playLinkCreated();
             }
+            // Create LinkSparkSystem for each link
+            if (result && !this.linkSparkSystems) {
+                this.linkSparkSystems = new Map();
+            }
+            if (result && this.linkSparkSystems) {
+                const sparkSystem = new LinkSparkSystem(this.scene, 60);
+                const mesh = sparkSystem.getMesh();
+                this.scene.add(mesh);
+                this.linkSparkSystems.set(result.userData.id, sparkSystem);
+                console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
+            }
             // Emit network.link.created event for event-driven systems
             if (this.semanticBus && result) {
                 this.semanticBus.emit('network.link.created', {
@@ -5732,6 +5780,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             // Proactively clear memory trails so ghosts don't linger when visual update is paused
             if (this.memoryTrails && link?.userData?.id !== undefined) {
                 this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
+            }
+            // Cleanup LinkSparkSystem
+            if (this.linkSparkSystems && link?.userData?.id !== undefined) {
+                const sparkSystem = this.linkSparkSystems.get(link.userData.id);
+                if (sparkSystem) {
+                    sparkSystem.dispose();
+                    this.linkSparkSystems.delete(link.userData.id);
+                }
             }
             // Emit network.link.destroyed event for event-driven systems
             if (this.semanticBus && result) {
@@ -10260,7 +10316,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.log('[main.js] HealingParticleSystem initialized ✓');
             }
 
-            // 3. Harmonic Healing Visual System (Session 134 - The Logic)
+            // 3. Link Trail Particle System
+            if (!this.linkTrailParticles) {
+                this.linkTrailParticles = new LinkTrailParticleSystem(
+                    this.scene,
+                    200 // poolSize
+                );
+                console.log('[main.js] LinkTrailParticleSystem initialized ✓');
+            }
+
+            // 4. Harmonic Healing Visual System (Session 134 - The Logic)
             if (!this.harmonicHealing) {
                 this.harmonicHealing = new HarmonicHealingVisualSystem_Session134(
                     this.scene,

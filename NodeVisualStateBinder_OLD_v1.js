@@ -265,7 +265,7 @@ function ensureFinalGeometry(node, options = {}) {
     const coreMat = createCoreIdentityMaterial(options.color || 0x00ffff);
     const coreMesh = new THREE.Mesh(coreGeom, coreMat);
     coreMesh.userData.visualLayer = 'CORE';
-    coreMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
+    coreMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
     nodeRoot.add(coreMesh);
   }
 
@@ -273,7 +273,7 @@ function ensureFinalGeometry(node, options = {}) {
   // But ensure any shell has correct settings
   for (const child of nodeRoot.children) {
     if (child.userData?.isHologramShell || child.userData?.visualLayer === 'SHELL') {
-      child.renderOrder = VisualHierarchyRegistry?.getRenderOrder('SHELL', -1) ?? -1;
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
       child.material.depthWrite = false;
       child.material.depthTest = false;
     }
@@ -314,7 +314,7 @@ function applyFinalMaterials(node, options = {}) {
       child.material.depthTest = true;
       child.material.transparent = false;
       child.material.opacity = 1.0;
-      child.renderOrder = VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
     }
 
     // Correct SHELL materials
@@ -323,7 +323,7 @@ function applyFinalMaterials(node, options = {}) {
       child.material.depthTest = false;
       child.material.transparent = true;
       child.material.opacity = Math.min(child.material.opacity, 0.4);
-      child.renderOrder = VisualHierarchyRegistry?.getRenderOrder('SHELL', -1) ?? -1;
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     }
 
     // Correct AURA materials
@@ -332,7 +332,7 @@ function applyFinalMaterials(node, options = {}) {
       child.material.depthTest = true;
       child.material.transparent = true;
       child.material.opacity = Math.min(child.material.opacity, 0.06); // CRITICAL: Max 6%
-      child.renderOrder = VisualHierarchyRegistry?.getRenderOrder('AURA', -2) ?? -2;
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     }
   }
 }
@@ -374,7 +374,8 @@ function correctAuraPositioning(node) {
   // Ensure aura renderOrder < core renderOrder
   if (auraMesh && coreMesh) {
     if (auraMesh.renderOrder >= coreMesh.renderOrder) {
-      auraMesh.renderOrder = coreMesh.renderOrder - 1;
+      // PHASE 3A: replacing relative renderOrder (core - 1) → BASELINE_AURA
+      auraMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     }
   }
 }
@@ -396,19 +397,19 @@ function enforceVisualHierarchy(node) {
 
       // Apply layer-specific settings
       if (layer === 'CORE') {
-        obj.renderOrder = VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
+        obj.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
         obj.material.depthWrite = true;
         obj.material.depthTest = true;
       } else if (layer === 'SHELL') {
-        obj.renderOrder = VisualHierarchyRegistry?.getRenderOrder('SHELL', -1) ?? -1;
+        obj.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
         obj.material.depthWrite = false;
         obj.material.depthTest = false;
       } else if (layer === 'AURA') {
-        obj.renderOrder = VisualHierarchyRegistry?.getRenderOrder('AURA', -2) ?? -2;
+        obj.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
         obj.material.depthWrite = false;
         obj.material.depthTest = true;
       } else if (layer === 'FX' || layer === 'EFFECT') {
-        obj.renderOrder = VisualHierarchyRegistry?.getRenderOrder('FX', -3) ?? -3;
+        obj.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
         obj.material.depthWrite = false;
         obj.material.depthTest = true;
       }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * ============================================================================
@@ -290,7 +291,7 @@ export class RegionalHarmonyZones {
     mesh.userData.globalHarmony = globalHarmony;
     mesh.userData.radius = radius;
     mesh.userData.center = center.clone();
-    mesh.renderOrder = 1.5; // Between global harmony (1) and synergy halos (2)
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     
     return mesh;
   }

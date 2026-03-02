@@ -74,6 +74,7 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { CONFIG } from './config.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * Simple aura configuration per state archetype
@@ -363,7 +364,7 @@ export class NodeAuraRefactor_ElegantRim {
     auraMesh.position.copy(node.position);
     
     // Ensure aura is behind core visually (lower renderOrder)
-    auraMesh.renderOrder = (node.renderOrder ?? 0) - 1;
+    auraMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     
     // Store reference to node for updates
     auraMesh.userData.linkedNode = node;

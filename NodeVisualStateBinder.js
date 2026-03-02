@@ -385,7 +385,7 @@ function ensureCoreVisualIntegrity(node) {
   if (!coreMesh) return;
 
   // Ensure core renderOrder is HIGH (visible)
-  coreMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('CORE', 0) ?? 0;
+  coreMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
 
   // TASK 2: Enforce HARD CORE VISUAL AUTHORITY
   // Use the Guard to enforce opacity and depth writing
@@ -467,7 +467,7 @@ export function isolateAndConstrainAura(node) {
   }
 
   // Aura MUST be BELOW core in render order
-  auraMesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('AURA', -1) ?? -1;
+  auraMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
 
   // Aura must be transparent and not write to depth
   try {

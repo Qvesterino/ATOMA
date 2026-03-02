@@ -259,9 +259,9 @@ export class NodeLinkedAuraSystem {
     
     this.scene.add(mesh);
     try {
-      mesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('LINK_SKIN') ?? 7;
+      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
     } catch (e) {
-      mesh.renderOrder = 7;
+      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
     }
     console.log("Aura added to scene");
     

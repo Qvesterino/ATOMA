@@ -527,9 +527,9 @@ export class NodeAuraSystem_v1 {
     // [Session 21] Get renderOrder from VisualHierarchyRegistry
     // Falls back to -1 if registry unavailable
     try {
-      mesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('AURA', -1) ?? -1;
+      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     } catch (err) {
-      mesh.renderOrder = -1; // Safe fallback
+      mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');
     }
     mesh.userData.visualLayer = 'AURA';
 
