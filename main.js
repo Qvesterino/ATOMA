@@ -70,6 +70,12 @@ import { sanitizeTransmission, findTransmissionMaterials } from './src/render/Tr
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 
 if (typeof window !== 'undefined') {
+    // Link growth reactivation defaults
+    window.ATOMA_LINK_SPAWN_ENABLED = true;
+    // Enable diagnostics for first tests; can be turned off in console
+    window.__SPAWN_DIAG = window.__SPAWN_DIAG ?? true;
+    window.ATOMA_DEBUG_LINK_SPAWN = window.ATOMA_DEBUG_LINK_SPAWN ?? true;
+
     // ====================================================================
     // ATOMA FLAGS — CONSOLIDATED FLAG SYSTEM (Phase C)
     // ====================================================================

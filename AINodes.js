@@ -485,6 +485,21 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       skippedCap: 0,
       lastSpawnAt: 0
     };
+    this.spawnCategoryCounts = {
+      INPUT: 0,
+      PROCESS: 0,
+      INTEGRATION: 0,
+      ANALYTICS: 0,
+      STORAGE: 0,
+      CONTROL: 0,
+      SIGMA: 0,
+      EMOTIONAL: 0,
+      QUANTUM: 0,
+      MYTHIC: 0,
+      PRIME: 0,
+      ERROR: 0
+    };
+    this.spawnEventListeners = new Set();
     this.spawnHealth = {
       successRate: 1,
       avgAttemptsPerSuccess: 1,
@@ -495,7 +510,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.spawnState = {
       phase: 'INIT', // INIT | RUNTIME | LOCKED
       lastSpawnTime: 0,
-      cooldownMs: 1000
+      cooldownMs: 1000,
+      seed: 0
     };
     this.pendingLinkJobs = [];
     this._linkJobStats = { pending: 0, processed: 0, created: 0 };
@@ -674,6 +690,64 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       'visual-authority-runtime',
       (node, context) => this.visualAuthorityRuntime.applyBaseline(node, context),
       10
+    );
+    this.registerPostSpawnObserver(
+      'metrics-and-init',
+      (node) => {
+        // Canonical metrics: deterministic single-writer path
+        SafeMetricsDNAIntegration1_0.attachMetrics(node, node.userData.archetype);
+        applyMetricCompatibility([node]);
+        if (!node.userData.metrics) {
+          initNodeMetrics(node);
+        }
+        if (!node.userData?.metrics?._isMetricSnapshot) {
+          onNodeSpawn(node);
+        }
+      },
+      20
+    );
+    this.registerPostSpawnObserver(
+      'link-jobs',
+      (node) => {
+        if (!this.pendingLinkJobs) this.pendingLinkJobs = [];
+        this.pendingLinkJobs.push({
+          newNodeId: node.userData?.nodeId || node.userData?.id || node.uuid,
+          startIndex: 0,
+          linksCreated: 0
+        });
+      },
+      30
+    );
+    this.registerPostSpawnObserver(
+      'wave-engine-debug',
+      (node) => {
+        if (window.CONFIG?.debug?.DEBUG_WAVE_ENGINE && this.waveInterferenceEngine) {
+          this.waveInterferenceEngine.requestUpdate('NODE_SPAWN', {
+            nodeId: node.userData.nodeId,
+            nodePosition: node.position.clone()
+          });
+        }
+      },
+      40
+    );
+    this.registerPostSpawnObserver(
+      'spawn-category-counter',
+      (node) => {
+        const cat = (node?.userData?.category || 'input').toUpperCase();
+        if (this.spawnCategoryCounts[cat] !== undefined) {
+          this.spawnCategoryCounts[cat] += 1;
+        }
+        const totalGlobal = this.getNodeCount();
+        const totalForCategory = this.spawnCategoryCounts[cat] || 0;
+        const payload = {
+          category: cat,
+          totalForCategory,
+          totalGlobal,
+          stats: { ...this.spawnStats }
+        };
+        this._emitSpawnEvent(payload);
+      },
+      60
     );
   }
 
@@ -1004,12 +1078,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    */
   createNodes(environment, count = 15) {
     const __diag = __ensureSpawnDiag();
-    if (__diag) __diag.createNodesEnter++;
+    if (__diag && typeof __diag === 'object') __diag.createNodesEnter++;
     if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.probeSpawn) {
       console.log('[SPAWN_PROBE] createNodes enter phase=', this.spawnState.phase);
     }
     if (this.spawnState.phase !== 'INIT') {
-      if (__diag) __diag.createNodesSkip++;
+      if (__diag && typeof __diag === 'object') __diag.createNodesSkip++;
       __diagOnce('createNodesSkip', `[SpawnPhase] createNodes skipped; phase=${this.spawnState.phase}\n${new Error().stack}`);
       console.warn(`[SpawnPhase] createNodes skipped; phase=${this.spawnState.phase}`);
       return;
@@ -1341,14 +1415,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     // ========== LEGACY NODE MODEL FILTER v1.0 ==========
     // Block legacy models that use aura-as-body visuals
-    const legacyCheck = LegacyNodeModelFilter.validateSpawn(safeCategory, true);
-    if (legacyCheck.blocked) {
-      // Unstable model - fallback to input
-      safeCategory = 'input';
-    } else if (legacyCheck.redirected) {
-      // Legacy model with safe replacement - use replacement
-      safeCategory = legacyCheck.category;
-    }
+    LegacyNodeModelFilter.validateSpawn(safeCategory, true); // warn-only; no remap
 
     this._poolGuardLog = this._poolGuardLog || new Set();
     EnhancedNodeModels.ensureRegistryReady();
@@ -1393,7 +1460,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     const counterKey = String(poolCategory || canonicalCategory || 'input');
     if (this._variantCounterByCategory[counterKey] === undefined) {
-      this._variantCounterByCategory[counterKey] = 0;
+      this._variantCounterByCategory[counterKey] = this.spawnState.seed || 0;
     }
     const counter = this._variantCounterByCategory[counterKey];
 
@@ -1948,10 +2015,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       // Assigned explicitly at spawn time, NEVER inferred or derived
       linkTarget: linkTargetMesh
     };
-    
-    // ========== SAFE METRICS DNA INTEGRATION 1.0: Attach read-only metrics ==========
-    // Pure metadata storage - zero gameplay impact
-    SafeMetricsDNAIntegration1_0.attachMetrics(nodeModel, safeCategory);
     
     // ========== EXTREME SYSTEMS ACTIVATION v1.0 - STEP 1: Profile Attachment ==========
     // If node is marked as EXTREME, attach its profile from ExtremeAINodePack
@@ -3867,20 +3930,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       newNode.userData.isNodeRoot = true;
     }
 
-    // Canonical metrics: deterministic single-writer path
-    // 1) DNA snapshot (authoritative, full overwrite)
-    SafeMetricsDNAIntegration1_0.attachMetrics(newNode, newNode.userData.archetype);
-    // 2) Legacy compatibility (fill-only)
-    applyMetricCompatibility([newNode]);
-    // 3) Allocate defaults only if still missing
-    if (!newNode.userData.metrics) {
-      initNodeMetrics(newNode);
-    }
-    // 4) Spawn nudge only for non-DNA cases
-    if (!newNode.userData?.metrics?._isMetricSnapshot) {
-      onNodeSpawn(newNode);
-    }
-
     // ========== STEP 4.5: EXTREME SPAWN SYSTEM v1.0 - RUNTIME SPAWNING ==========
     // 15% chance to spawn as EXTREME node during runtime
     const EXTREME_SPAWN_CHANCE = 0.15;
@@ -3890,11 +3939,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       newNode.userData.extremeTier = 1;
     }
     
-    // ========== STEP 5: SAFE METRICS DNA (PURE METADATA, SYNC) ==========
-    // Attach read-only metrics - NO gameplay side effects
-    SafeMetricsDNAIntegration1_0.attachMetrics(newNode, newNode.userData.archetype);
-    
-    // ========== STEP 6: VISUAL BOOTSTRAP (QUEUED) ==========
+    // ========== STEP 5: VISUAL BOOTSTRAP (QUEUED) ==========
     // Queue heavy visual work to spread across frames
     if (this.visualBootstrap && newNode.userData?.__nonRenderable !== true) {
       this._queueSpawnVisual(
@@ -3995,16 +4040,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     nodeSpawnRegistry.registerSpawn(newNode, 'AINodes.spawnNode');
     
-    // ========== UI CATEGORY LEGEND UPDATE ==========
-    // Update node count display in HUD after successful spawn
-    if (typeof window !== 'undefined' && window.game?.categoryLegend) {
-      try {
-        window.game.categoryLegend.updateCategoryCounts(this.nodes);
-      } catch (e) {
-        // Silent fail - HUD update is non-critical
-      }
-    }
-    
     // ========== STEP 8: ACTIVATION LOGIC (SYNC) ==========
     // ATOMA NAMING ENGINE 1.0: Assign naming code
     const archetypeToUse = newNode.userData.archetype || category;
@@ -4016,22 +4051,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this.materializeNode(newNode);
     }
     
-    // ========== STEP 10: DEFERRED CONNECTIONS ==========
-    if (!this.pendingLinkJobs) this.pendingLinkJobs = [];
-    this.pendingLinkJobs.push({
-      newNodeId: newNode.userData?.nodeId || newNode.userData?.id || newNode.uuid,
-      startIndex: 0,
-      linksCreated: 0
-    });
-    
-    // Phase D.4: Notify WaveInterferenceEngine of NODE_SPAWN event (DEBUG-gated)
-    if (window.CONFIG?.debug?.DEBUG_WAVE_ENGINE && this.waveInterferenceEngine) {
-      this.waveInterferenceEngine.requestUpdate('NODE_SPAWN', {
-        nodeId: newNode.userData.nodeId,
-        nodePosition: newNode.position.clone()
-      });
-    }
-
     // ========== STEP 11: DEBUG LOG (OPTIONAL) ==========
     if (this.debugMode) {
       console.log('[AINodes] Spawned node', {
@@ -4138,6 +4157,43 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   // Backward compatibility alias
   setSpawnMode(mode) {
     this.setSpawnPhase(mode);
+  }
+
+  // Deterministic replay helper: set seed for variant counters
+  setSpawnSeed(seed = 0) {
+    const s = Number(seed);
+    this.spawnState.seed = Number.isFinite(s) ? s : 0;
+    this._variantCounterByCategory = {};
+  }
+
+  getSpawnDeterminismState() {
+    return {
+      seed: this.spawnState.seed || 0,
+      counters: { ...this._variantCounterByCategory }
+    };
+  }
+
+  addSpawnListener(fn) {
+    if (typeof fn === 'function') this.spawnEventListeners.add(fn);
+  }
+
+  removeSpawnListener(fn) {
+    if (fn && this.spawnEventListeners.has(fn)) this.spawnEventListeners.delete(fn);
+  }
+
+  getSpawnCategoryCounts() {
+    return { ...this.spawnCategoryCounts };
+  }
+
+  _emitSpawnEvent(payload) {
+    if (!this.spawnEventListeners || this.spawnEventListeners.size === 0) return;
+    for (const fn of this.spawnEventListeners) {
+      try {
+        fn(payload);
+      } catch (e) {
+        console.warn('[SpawnEventListenerError]', e?.message || e);
+      }
+    }
   }
 
   ensureFactoriesReady() {

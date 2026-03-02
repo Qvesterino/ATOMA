@@ -17,9 +17,10 @@
  */
 
 export class UICategoryLegend3_1 {
-  constructor() {
+  constructor(aiNodes = null) {
     this.element = null;
     this.isVisible = true;
+    this.unsubscribe = null;
     
     // Node count tracking
     this.categoryCounts = new Map();
@@ -52,6 +53,9 @@ export class UICategoryLegend3_1 {
     }
     
     this._initializeDOM();
+    if (aiNodes) {
+      this.bind(aiNodes);
+    }
   }
   
   /**
@@ -189,6 +193,45 @@ export class UICategoryLegend3_1 {
     }
     
     // Update label text efficiently (no DOM rebuilding)
+    for (const [category, count] of this.categoryCounts.entries()) {
+      const labelElement = this.labelElements.get(category);
+      if (labelElement) {
+        labelElement.textContent = this._formatLabelText(category, count);
+      }
+    }
+  }
+
+  bind(aiNodes) {
+    if (!aiNodes) return;
+    // seed initial counts from AINodes spawn counters if available
+    if (typeof aiNodes.getSpawnCategoryCounts === 'function') {
+      const counts = aiNodes.getSpawnCategoryCounts();
+      for (const [k, v] of Object.entries(counts)) {
+        if (this.categoryCounts.has(k)) {
+          this.categoryCounts.set(k, v);
+        }
+      }
+      this._refreshLabels();
+    }
+    const listener = (evt) => {
+      if (!evt || !evt.category) return;
+      const cat = evt.category;
+      if (!this.categoryCounts.has(cat)) return;
+      this.categoryCounts.set(cat, evt.totalForCategory ?? (this.categoryCounts.get(cat) + 1));
+      this._refreshLabels();
+    };
+    aiNodes.addSpawnListener(listener);
+    this.unsubscribe = () => aiNodes.removeSpawnListener(listener);
+  }
+
+  unbind() {
+    if (this.unsubscribe) {
+      try { this.unsubscribe(); } catch (e) { /* ignore */ }
+      this.unsubscribe = null;
+    }
+  }
+
+  _refreshLabels() {
     for (const [category, count] of this.categoryCounts.entries()) {
       const labelElement = this.labelElements.get(category);
       if (labelElement) {

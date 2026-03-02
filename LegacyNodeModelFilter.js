@@ -92,20 +92,6 @@ export class LegacyNodeModelFilter {
     const check = this.checkLegacyModel(category);
 
     if (check.isLegacy) {
-      if (check.redirect) {
-        if (verbose) {
-          console.log(
-            `[LegacyNodeModelFilter] ✓ ${check.reason}`
-          );
-        }
-        return {
-          valid: true,
-          redirected: true,
-          category: check.redirect,
-          reason: check.reason
-        };
-      }
-
       if (check.blocked) {
         if (verbose) {
           console.warn(
@@ -121,11 +107,17 @@ export class LegacyNodeModelFilter {
       }
     }
 
-    // Not legacy, safe to use
+    // Warning-only mode: do not remap or block, just return original category
+    if (check.isLegacy && verbose && check.redirect) {
+      console.warn(`[LegacyNodeModelFilter] (warn-only) ${check.reason}`);
+    }
+
     return {
       valid: true,
       category: category,
-      reason: 'Standard model'
+      redirected: false,
+      blocked: false,
+      reason: check.reason || 'Standard model'
     };
   }
 

@@ -1,5 +1,6 @@
 /**
- * VISUAL HIERARCHY REGISTRY v1.0
+ * VISUAL HIERARCHY REGISTRY v2.0
+ * MINIMALISTA VERZIA - iba layer id + renderOrder
  * 
  * ============================================================================
  * Single authority for canonical renderOrder values across all visual layers.
@@ -8,32 +9,44 @@
  * - Define visual layer priority in one authoritative place
  * - Eliminate hardcoded renderOrder values scattered across codebase
  * - Provide consistent layering for all visual systems
- * - Enable fallback to safe defaults if registry unavailable
+ * - Support both Node and Link layers
  * 
- * DESIGN PRINCIPLES:
+ * DESIGN PRINCIPLES (v2.0):
  * ✅ Registry is READ-ONLY (no state management)
- * ✅ Registry is OPTIONAL (systems work without it, with fallback)
- * ✅ Registry provides VALUES ONLY (does not create/manage/own meshes)
+ * ✅ Registry provides ONLY id + renderOrder (no opacity/blending/logic)
  * ✅ Registry is ZERO-CONFIG (constants are immutable)
- * ✅ Registry includes FALLBACK LOGIC (safe degradation)
+ * ✅ Unified interface for Node and Link layers
  * 
  * USAGE:
  *   import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  *   
- *   // Query for layer renderOrder
+ *   // Query for layer renderOrder (Node)
  *   const coreOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
  *   mesh.renderOrder = coreOrder;
  *   
- *   // Or use layer descriptor object
- *   const layer = VisualHierarchyRegistry.getLayer('AURA');
- *   mesh.renderOrder = layer.renderOrder;
- *   mesh.userData.visualLayer = layer.id;
+ *   // Query for layer renderOrder (Link)
+ *   const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
+ *   mesh.renderOrder = strandOrder;
  * 
  * LAYER STACK (Bottom to Top):
+ *   NODE LAYERS:
  *   AURA_BACKGROUND    (-100)  — Reserved for future background effects
  *   AURA               (-1)    — Halos, ambient fields (behind everything)
  *   CORE               (0)     — Primary node geometry (EnhancedNodeModels)
  *   ARCHETYPE          (1)     — Extreme/archetype geometry (in EnhancedNodeModels)
+ *   
+ *   LINK LAYERS (between ARCHETYPE=1 and EVOLUTION=50):
+ *   LINK_SKIN          (2)     — Link atmosphere aura behind rope
+ *   LINK_STRANDS        (3)     — Braided rope geometry - main link structure
+ *   LINK_DIRECTIONAL    (10)    — Flow visualization along links
+ *   LINK_PULSE          (11)    — Energy carrier ring traveling along link
+ *   LINK_ARCS           (12)    — Electric sparks triggered by pulse ring
+ *   LINK_SPARKS         (13)    — Micro-friction and tension indicators
+ *   LINK_BEADS          (14)    — Traveling particles along links
+ *   LINK_IMPACTS        (15)    — Transient hit effects at nodes
+ *   LINK_PARTICLES      (20)    — Ambient particle effects (trail/healing/corruption)
+ *   
+ *   NODE LAYERS (continued):
  *   EVOLUTION          (50)    — Evolution visuals, personality overlays
  *   FX                 (100)   — Particles, pulses, transient effects
  *   DEBUG              (200)   — Legacy debug overlays (only if enabled)
@@ -41,13 +54,11 @@
  * INTEGRATION CHECKLIST:
  * ✅ EnhancedNodeModels — use registry for core/archetype renderOrder
  * ✅ NodeAuraSystem_v1 — use registry for aura renderOrder
- * ⚠️  EvolutionRegistry / visual evolution — use registry for evolution renderOrder
- * ⚠️  Ritual/event systems — use registry for FX renderOrder
- * ⚠️  Link aura systems — use registry for appropriate layer
+ * ✅ LinkRendererConduit — use registry for link layers
+ * ✅ All Link subsystems — use registry for link renderOrder
  * 
  * SAFETY:
- * - If registry unavailable, systems fall back to hardcoded values
- * - All queries have sensible defaults
+ * - If layer not found, systems get safe default (0)
  * - No breaking changes to existing code
  * - Systems can opt-in to using registry gradually
  * 
@@ -56,10 +67,9 @@
 
 export class VisualHierarchyRegistry {
   // ========================================================================
-  // CANONICAL VISUAL LAYERS (Immutable)
+  // NODE LAYER IDENTIFIERS (Immutable constants)
   // ========================================================================
   
-  // Layer constants — use these as keys for all registry queries
   static LAYER_AURA_BACKGROUND = 'AURA_BACKGROUND';
   static LAYER_AURA = 'AURA';
   static LAYER_CORE = 'CORE';
@@ -68,155 +78,136 @@ export class VisualHierarchyRegistry {
   static LAYER_FX = 'FX';
   static LAYER_DEBUG = 'DEBUG';
 
-  // Layer definitions — canonical source of truth
-  static LAYERS = {
-    AURA_BACKGROUND: {
-      id: 'AURA_BACKGROUND',
-      name: 'Aura Background',
-      renderOrder: -100,
-      description: 'Reserved for future background effects behind auras',
-      opacity: { min: 0.0, max: 0.3 },
-      blending: 'normal'
-    },
-    AURA: {
-      id: 'AURA',
-      name: 'Aura / Halo',
-      renderOrder: -1,
-      description: 'Halos, rings, ambient fields — always behind core',
-      opacity: { min: 0.2, max: 0.65 },
-      blending: 'additive'
-    },
-    CORE: {
-      id: 'CORE',
-      name: 'Core Geometry',
-      renderOrder: 0,
-      description: 'Primary node geometry from EnhancedNodeModels',
-      opacity: { min: 1.0, max: 1.0 },
-      blending: 'normal'
-    },
-    ARCHETYPE: {
-      id: 'ARCHETYPE',
-      name: 'Archetype / Extreme',
-      renderOrder: 1,
-      description: 'Extreme/archetype geometry embedded in EnhancedNodeModels',
-      opacity: { min: 0.4, max: 0.9 },
-      blending: 'normal'
-    },
-    EVOLUTION: {
-      id: 'EVOLUTION',
-      name: 'Evolution Visual',
-      renderOrder: 50,
-      description: 'Evolution state, personality, emotional overlays',
-      opacity: { min: 0.3, max: 0.8 },
-      blending: 'normal'
-    },
-    FX: {
-      id: 'FX',
-      name: 'Effects',
-      renderOrder: 100,
-      description: 'Particles, pulses, transient visual effects',
-      opacity: { min: 0.2, max: 1.0 },
-      blending: 'additive'
-    },
-    DEBUG: {
-      id: 'DEBUG',
-      name: 'Debug / Legacy',
-      renderOrder: 200,
-      description: 'Debug visuals, legacy overlays (only if debug enabled)',
-      opacity: { min: 0.2, max: 0.5 },
-      blending: 'normal'
-    }
+  // ========================================================================
+  // LINK LAYER IDENTIFIERS (Immutable constants)
+  // ========================================================================
+  
+  static LAYER_LINK_SKIN = 'LINK_SKIN';
+  static LAYER_LINK_STRANDS = 'LINK_STRANDS';
+  static LAYER_LINK_DIRECTIONAL = 'LINK_DIRECTIONAL';
+  static LAYER_LINK_PULSE = 'LINK_PULSE';
+  static LAYER_LINK_ARCS = 'LINK_ARCS';
+  static LAYER_LINK_SPARKS = 'LINK_SPARKS';
+  static LAYER_LINK_BEADS = 'LINK_BEADS';
+  static LAYER_LINK_IMPACTS = 'LINK_IMPACTS';
+  static LAYER_LINK_PARTICLES = 'LINK_PARTICLES';
+
+  // ========================================================================
+  // NODE RENDER ORDER VALUES (Immutable)
+  // ========================================================================
+
+  static NODE_LAYER_ORDER = {
+    AURA_BACKGROUND: -100,
+    AURA: -1,
+    CORE: 0,
+    ARCHETYPE: 1,
+    EVOLUTION: 50,
+    FX: 100,
+    DEBUG: 200
   };
 
   // ========================================================================
-  // QUERY INTERFACE
+  // LINK RENDER ORDER VALUES (Immutable)
+  // Range: 2-20 (between ARCHETYPE=1 and EVOLUTION=50)
+  // ========================================================================
+
+  static LINK_LAYER_ORDER = {
+    SKIN: 2,
+    STRANDS: 3,
+    DIRECTIONAL: 10,
+    PULSE: 11,
+    ARCS: 12,
+    SPARKS: 13,
+    BEADS: 14,
+    IMPACTS: 15,
+    PARTICLES: 20
+  };
+
+  // ========================================================================
+  // UNIFIED QUERY INTERFACE
   // ========================================================================
 
   /**
-   * Get renderOrder value for a visual layer
-   * @param {string} layerId - Layer ID (e.g., 'CORE', 'AURA', 'EVOLUTION')
-   * @param {number} fallback - Value to return if layer not found (default: 0)
+   * Get renderOrder value for a visual layer (Node or Link)
+   * 
+   * Node layers: use layerId directly (e.g., 'CORE', 'AURA')
+   * Link layers: use 'LINK_*' format (e.g., 'LINK_STRANDS', 'LINK_PULSE')
+   * 
+   * @param {string} layerId - Layer ID (e.g., 'CORE', 'LINK_STRANDS')
    * @returns {number} renderOrder value
    * 
    * @example
-   *   const order = VisualHierarchyRegistry.getRenderOrder('AURA');  // Returns -1
-   *   const order = VisualHierarchyRegistry.getRenderOrder('CORE');  // Returns 0
+   *   // Node layer
+   *   const coreOrder = VisualHierarchyRegistry.getRenderOrder('CORE');  // Returns 0
+   *   mesh.renderOrder = coreOrder;
+   *   
+   *   // Link layer
+   *   const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');  // Returns 3
+   *   mesh.renderOrder = strandOrder;
    */
-  static getRenderOrder(layerId, fallback = 0) {
-    try {
-      const layer = this.LAYERS[layerId];
-      if (!layer) {
-        console.warn(
-          `[VisualHierarchyRegistry] Unknown layer: ${layerId}, using fallback: ${fallback}`
-        );
-        return fallback;
-      }
-      return layer.renderOrder;
-    } catch (err) {
-      console.warn(`[VisualHierarchyRegistry] Query error:`, err.message);
-      return fallback;
+  static getRenderOrder(layerId) {
+    // Check node layers first
+    if (this.NODE_LAYER_ORDER[layerId] !== undefined) {
+      return this.NODE_LAYER_ORDER[layerId];
     }
+    
+    // Check link layers (map LAYER_LINK_SKIN → SKIN)
+    const linkLayerName = layerId.replace('LINK_', '');
+    if (this.LINK_LAYER_ORDER[linkLayerName] !== undefined) {
+      return this.LINK_LAYER_ORDER[linkLayerName];
+    }
+    
+    // Unknown layer - log and return safe default
+    console.warn(
+      `[VisualHierarchyRegistry] Unknown layer: ${layerId}, returning default: 0`
+    );
+    return 0;
   }
 
   /**
-   * Get full layer definition object
-   * @param {string} layerId - Layer ID
-   * @returns {Object|null} Layer definition or null if not found
+   * Get all layers in priority order (bottom to top)
+   * @returns {Object} { node: Array, link: Array } sorted by renderOrder
    * 
    * @example
-   *   const layer = VisualHierarchyRegistry.getLayer('AURA');
-   *   mesh.renderOrder = layer.renderOrder;
-   *   mesh.userData.visualLayer = layer.id;
+   *   const layers = VisualHierarchyRegistry.getAllLayers();
+   *   console.log('Node layers:', layers.node);
+   *   console.log('Link layers:', layers.link);
    */
-  static getLayer(layerId) {
-    try {
-      const layer = this.LAYERS[layerId];
-      if (!layer) {
-        console.warn(`[VisualHierarchyRegistry] Layer not found: ${layerId}`);
-        return null;
-      }
-      return { ...layer }; // Return copy to prevent accidental mutation
-    } catch (err) {
-      console.warn(`[VisualHierarchyRegistry] Query error:`, err.message);
-      return null;
-    }
-  }
-
-  /**
-   * Get opacity constraints for a layer
-   * @param {string} layerId - Layer ID
-   * @returns {Object} { min, max } opacity bounds
-   * 
-   * @example
-   *   const opacity = VisualHierarchyRegistry.getOpacityBounds('AURA');
-   *   mesh.material.opacity = Math.max(opacity.min, Math.min(opacity.max, targetOpacity));
-   */
-  static getOpacityBounds(layerId) {
-    try {
-      const layer = this.LAYERS[layerId];
-      if (!layer || !layer.opacity) {
-        return { min: 0.0, max: 1.0 };
-      }
-      return { ...layer.opacity };
-    } catch (err) {
-      console.warn(`[VisualHierarchyRegistry] Opacity query error:`, err.message);
-      return { min: 0.0, max: 1.0 };
-    }
+  static getAllLayers() {
+    const nodeLayers = Object.entries(this.NODE_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({ id, renderOrder, type: 'node' }));
+    
+    const linkLayers = Object.entries(this.LINK_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({ 
+        id: `LINK_${id}`, 
+        renderOrder, 
+        type: 'link' 
+      }));
+    
+    return {
+      node: nodeLayers,
+      link: linkLayers,
+      all: [...nodeLayers, ...linkLayers].sort((a, b) => a.renderOrder - b.renderOrder)
+    };
   }
 
   /**
    * Verify renderOrder hierarchy (for debugging/validation)
-   * @param {string} layer1 - First layer ID
-   * @param {string} layer2 - Second layer ID
+   * 
+   * @param {string} layerId1 - First layer ID
+   * @param {string} layerId2 - Second layer ID
    * @returns {number} -1 if layer1 < layer2, 0 if equal, 1 if layer1 > layer2
    * 
    * @example
    *   VisualHierarchyRegistry.compareOrder('CORE', 'EVOLUTION');  // Returns -1 (core is lower)
+   *   VisualHierarchyRegistry.compareOrder('LINK_STRANDS', 'LINK_PULSE');  // Returns -1 (strands lower)
    */
-  static compareOrder(layer1, layer2) {
+  static compareOrder(layerId1, layerId2) {
     try {
-      const order1 = this.getRenderOrder(layer1);
-      const order2 = this.getRenderOrder(layer2);
+      const order1 = this.getRenderOrder(layerId1);
+      const order2 = this.getRenderOrder(layerId2);
       
       if (order1 < order2) return -1;
       if (order1 > order2) return 1;
@@ -228,27 +219,9 @@ export class VisualHierarchyRegistry {
   }
 
   /**
-   * Get all layers in priority order (bottom to top)
-   * @returns {Array} Array of layer definitions, sorted by renderOrder
-   * 
-   * @example
-   *   const layers = VisualHierarchyRegistry.getAllLayers();
-   *   layers.forEach(layer => console.log(layer.id, layer.renderOrder));
-   */
-  static getAllLayers() {
-    try {
-      return Object.values(this.LAYERS)
-        .sort((a, b) => a.renderOrder - b.renderOrder)
-        .map(layer => ({ ...layer })); // Return copies
-    } catch (err) {
-      console.warn(`[VisualHierarchyRegistry] List error:`, err.message);
-      return [];
-    }
-  }
-
-  /**
    * Print visual hierarchy to console (for debugging)
-   * @param {boolean} verbose - If true, include opacity and blending info
+   * 
+   * @param {boolean} verbose - If true, print node and link separately
    * 
    * @example
    *   VisualHierarchyRegistry.printHierarchy(true);
@@ -257,55 +230,37 @@ export class VisualHierarchyRegistry {
     console.group('[VisualHierarchyRegistry] Visual Layer Hierarchy');
     
     const layers = this.getAllLayers();
-    layers.forEach((layer, index) => {
-      const prefix = `  ${index + 1}. [RO=${layer.renderOrder}]`;
-      if (verbose) {
-        console.log(
-          `${prefix} ${layer.id.padEnd(20)} — ${layer.name}`,
-          `(opacity: ${layer.opacity.min}–${layer.opacity.max})`
-        );
-      } else {
-        console.log(`${prefix} ${layer.id.padEnd(20)} — ${layer.name}`);
-      }
-    });
+    
+    if (verbose) {
+      // Print node and link layers separately
+      console.group('Node Layers:');
+      layers.node.forEach((layer, index) => {
+        console.log(`  ${index + 1}. [RO=${layer.renderOrder}] ${layer.id}`);
+      });
+      console.groupEnd();
+      
+      console.group('Link Layers:');
+      layers.link.forEach((layer, index) => {
+        console.log(`  ${index + 1}. [RO=${layer.renderOrder}] ${layer.id}`);
+      });
+      console.groupEnd();
+    } else {
+      // Print all layers combined
+      layers.all.forEach((layer, index) => {
+        const prefix = layer.type === 'link' ? '[LINK] ' : '[NODE] ';
+        console.log(`  ${index + 1}. [RO=${layer.renderOrder}] ${prefix}${layer.id}`);
+      });
+    }
     
     console.groupEnd();
   }
-
-  // ========================================================================
-  // UTILITY METHODS
-  // ========================================================================
-
-  /**
-   * Check if renderOrder is valid for a layer (helper)
-   * @param {string} layerId - Layer ID
-   * @param {number} value - RenderOrder value to check
-   * @returns {boolean} True if value matches canonical renderOrder
-   */
-  static isValidRenderOrder(layerId, value) {
-    try {
-      const canonical = this.getRenderOrder(layerId);
-      return value === canonical;
-    } catch (err) {
-      return false;
-    }
-  }
-
-  /**
-   * Get safe opacity clamped to layer bounds
-   * @param {string} layerId - Layer ID
-   * @param {number} targetOpacity - Desired opacity
-   * @returns {number} Opacity clamped to layer bounds
-   */
-  static clampOpacity(layerId, targetOpacity) {
-    try {
-      const bounds = this.getOpacityBounds(layerId);
-      return Math.max(bounds.min, Math.min(bounds.max, targetOpacity));
-    } catch (err) {
-      return Math.max(0, Math.min(1, targetOpacity));
-    }
-  }
 }
+
+// ============================================================================
+// DEFAULT EXPORT
+// ============================================================================
+
+export default VisualHierarchyRegistry;
 
 // ============================================================================
 // GLOBAL ATTACHMENT (for console debugging)
@@ -326,22 +281,27 @@ if (typeof window !== 'undefined') {
 
 try {
   const layers = VisualHierarchyRegistry.getAllLayers();
-  if (layers.length === 0) {
+  if (layers.all.length === 0) {
     throw new Error('No layers defined!');
   }
   
   // Verify renderOrder values are monotonically increasing
-  for (let i = 1; i < layers.length; i++) {
-    if (layers[i].renderOrder <= layers[i - 1].renderOrder) {
+  for (let i = 1; i < layers.all.length; i++) {
+    if (layers.all[i].renderOrder <= layers.all[i - 1].renderOrder) {
       console.warn(
         `[VisualHierarchyRegistry] WARNING: renderOrder not strictly increasing ` +
-        `at index ${i} (${layers[i-1].id} = ${layers[i-1].renderOrder}, ` +
-        `${layers[i].id} = ${layers[i].renderOrder})`
+        `at index ${i} (${layers.all[i-1].id} = ${layers.all[i-1].renderOrder}, ` +
+        `${layers.all[i].id} = ${layers.all[i].renderOrder})`
       );
     }
   }
   
-  console.log('[VisualHierarchyRegistry] ✅ Initialized with', layers.length, 'canonical layers');
+  console.log(
+    '[VisualHierarchyRegistry] ✅ Initialized v2.0 with',
+    layers.node.length, 'node layers +',
+    layers.link.length, 'link layers =',
+    layers.all.length, 'total layers'
+  );
 } catch (err) {
   console.error('[VisualHierarchyRegistry] ❌ Initialization failed:', err.message);
 }
