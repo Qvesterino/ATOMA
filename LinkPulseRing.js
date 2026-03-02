@@ -341,7 +341,7 @@ export class LinkPulseRing {
             
             // OPACITY: Decay + Pulse + Lifetime variation
             const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
-            const trailOpacityDecay = 1.0 - (i + 1) / this.trailMeshes.length;
+            const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1); // Výraznejšie: 0.8, 0.6, 0.4, 0.2
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
             trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
             

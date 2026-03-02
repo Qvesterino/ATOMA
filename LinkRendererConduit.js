@@ -22,6 +22,13 @@ import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import VisualTime from './src/time/VisualTime.js';
 
+function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
+    if (!curve?.getLength) return minSeg;
+    const length = curve.getLength();
+    const segments = Math.floor(length * density);
+    return Math.max(minSeg, Math.min(maxSeg, segments));
+}
+
 // Utility helpers (no allocations)
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const remap = (v, in0, in1, out0, out1) => {
@@ -166,8 +173,9 @@ export class LinkRendererConduit {
         this.config = {
             baseRadius: 0.06,
             strandRadius: 0.025,
-            twists: 3.0,
+            twistSpacing: 2.0, // Units per full twist (normalized to link length)
             segments: 45,
+ // +++++++ REPLACE
             radialSegments: 5,
             colorVariation: 0.15,
             breathingSpeed: 0.8,
@@ -177,6 +185,7 @@ export class LinkRendererConduit {
             skinOpacity: 0.05,
             skinRadiusScale: 1.5
         };
+ // +++++++ REPLACE
 
         // Central toggles for visual modules
         this.modules = {
@@ -820,7 +829,8 @@ export class LinkRendererConduit {
         const linkUD = ensureUserData(link);
         linkUD.linkDirection = linkDir.clone(); 
         
-        const frames = mainCurve.computeFrenetFrames(this.config.segments, false);
+        const segments = computeSegmentsFromLength(mainCurve);
+        const frames = mainCurve.computeFrenetFrames(segments, false);
         frameState.geometry.frames = frames;
 
         // --- 2. Dynamic Parameters ---
@@ -864,14 +874,18 @@ export class LinkRendererConduit {
             const points = [];
             const angleOffset = (i / state.strandCount) * Math.PI * 2;
             
-            for (let j = 0; j <= this.config.segments; j++) {
-                const t = j / this.config.segments;
+            for (let j = 0; j <= segments; j++) {
+                const t = j / segments;
                 const pointOnMain = mainCurve.getPointAt(t);
                 const N = frames.normals[j];
                 const B = frames.binormals[j];
                 
-                const currentTwist = t * Math.PI * 2 * this.config.twists + twistPhase;
+                // Calculate normalized twists based on link length
+                const linkLength = linkDist || 10.0;
+                const twists = linkLength / this.config.twistSpacing;
+                const currentTwist = t * Math.PI * 2 * twists + twistPhase;
                 const angle = angleOffset + currentTwist;
+  // +++++++ REPLACE
                 
                 const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
                 const noise = Math.sin(t * 40 + i * 10) * noiseBase;
@@ -892,7 +906,7 @@ export class LinkRendererConduit {
             if (mesh.geometry) mesh.geometry.dispose();
             mesh.geometry = new THREE.TubeGeometry(
                 new THREE.CatmullRomCurve3(points),
-                this.config.segments,
+                segments,
                 this.config.strandRadius,
                 this.config.radialSegments,
                 false
@@ -920,7 +934,7 @@ export class LinkRendererConduit {
              if (skin.geometry) skin.geometry.dispose();
              skin.geometry = new THREE.TubeGeometry(
                  mainCurve,
-                 this.config.segments, 
+                 segments, 
                  activeRadius * this.config.skinRadiusScale,
                  8,                    
                  false

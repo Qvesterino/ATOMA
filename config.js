@@ -88,12 +88,12 @@ export const CONFIG = {
   // Benefit: Ensures node cores and shells are always fully readable
   // Impact: Visual only, gameplay unaffected, reversible
   features: {
-    ENABLE_NODE_AURAS: true,  // ← DISABLED for visual stabilization (Session 99)
+    ENABLE_NODE_AURAS: true,  // DISABLED for visual stabilization (Session 99)
     
     // FEATURE: Node Spawn Validation (Session 99 Task 2)
     // When true: Only nodes defined in enhancedNodeModel can spawn
     // When false: Spawn validation is permissive (legacy behavior)
-    ENFORCE_NODE_MODEL_SOURCE: true  // ← ENABLED for source-of-truth enforcement
+    ENFORCE_NODE_MODEL_SOURCE: true  // ENABLED for source-of-truth enforcement
   },
   
   debug: {
@@ -102,25 +102,26 @@ export const CONFIG = {
     // ============================================================================
     // When true: WaveInterferenceEngine receives NODE_SPAWN events
     // When false: Engine is 100% dormant (zero impact)
-    // This is a pilot trigger for testing the wave interference system
+    // This is a pilot trigger for testing wave interference system
     DEBUG_WAVE_ENGINE: false
   },
   
   // ============================================================================
   // CRITICAL STABILIZATION: VISUAL AUTHORITY LOCKS (node-only)
   // ============================================================================
+  
   visuals: {
     // NODE VISUAL AUTHORITY LOCK
     // - Prevents linking, events, personality, metrics, automation from modifying node appearance
     // - Blocks: opacity, scale, color, emissive, visibility mutations
     // - Effect: Stable node appearance before/after linking
-    LOCK_NODE_VISUALS: false ,
+    LOCK_NODE_VISUALS: false,
     
     // NODE INTERACTION AUTHORITY
     // - Raycasting targets invisible interaction meshes ONLY
     // - Visual meshes never participate in raycasts
     // - Effect: Reliable clicking on all nodes, all categories
-    LOCK_INTERACTION: true,
+    LOCK_INTERACTION: false, // CHANGED FROM true TO FALSE - UNBLOCK INTERACTION
     
     // PARTICLE SANITY MODE
     PARTICLE_BOUNDS_CHECK: false,
@@ -130,5 +131,5 @@ export const CONFIG = {
     // - No hiding meshes, no opacity changes, no visibility changes
     // - Effect: Safe freeze/unfreeze without visual artifacts
     FREEZE_MODE_SAFE: false
-  }
+  },
 };

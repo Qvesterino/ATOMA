@@ -141,6 +141,7 @@ export class SemanticGlyphAI {
     }
 
     // Scan lines (vertical swooping lines for focused effect)
+    const SCANLINE_ORDER = 25; // ABOVE LINK_PARTICLES (20) but below EVOLUTION (50)
     for (let i = 0; i < 6; i++) {
       const lineGeom = new THREE.PlaneGeometry(0.02, 0.3);
       const lineMat = new THREE.MeshBasicMaterial({
@@ -151,6 +152,7 @@ export class SemanticGlyphAI {
       });
       const line = new THREE.Mesh(lineGeom, lineMat);
       line.userData.isSemanticHelper = true;
+      line.renderOrder = SCANLINE_ORDER; // FIX: Add renderOrder to ensure scanline is visible
       line.visible = false;
       this.helperMeshes.scanLines.push(line);
       this.helperContainer.add(line); // CRITICAL: Attach to scene graph
@@ -395,6 +397,20 @@ export class SemanticGlyphAI {
    * Returns state object with type and parameters
    */
   computeSemanticState(context, nodeId) {
+    // HOVER PATCH: Force hovered state if hoverTarget matches this node
+    // This overrides semantic metrics and ensures UX hover indicator is always visible
+    if (this.hoverTarget && this.hoverTarget === node) {
+      const hoveredState = {
+        type: 'hovered',
+        parameters: {
+          hoverIntensity: 1.0  // Full intensity for hovered node
+        },
+        context: context,
+        eventFlags: this.eventHistory.get(nodeId) || {}
+      };
+      return hoveredState;
+    }
+    
     // Check for recent events
     const events = this.eventHistory.get(nodeId) || {};
     
@@ -503,9 +519,24 @@ export class SemanticGlyphAI {
       case 'cluster-sync':
         this.applyClusterSyncEffect(fusion, parameters, nodeId, dt);
         break;
+      case 'hovered':
+        this.applyHoveredEffect(fusion, parameters, nodeId, dt);
+        break;
       default:
         this.applyNeutralEffect(fusion, parameters, nodeId, dt);
     }
+  }
+  
+  /**
+   * HOVERED PATCH - Always show scanline on hover
+   * This is a UX indicator that should always be visible regardless of semantic metrics
+   */
+  applyHoveredEffect(fusion, parameters, nodeId, dt) {
+    const { hoverIntensity } = parameters;
+    
+    // Add scan-line sweep effect (same as focused but at full intensity)
+    // This ensures the cyan scanline appears immediately on hover
+    this.addScanLineEffect(fusion, nodeId, hoverIntensity);
   }
   
   /**
