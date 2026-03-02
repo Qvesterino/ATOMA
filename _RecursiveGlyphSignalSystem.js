@@ -43,6 +43,7 @@ export class RecursiveGlyphSignalSystem {
     this._boundTick = this.update.bind(this);
 
     this.time = 0;
+    this.lastHoverNode = null;
     this.stats = {
       emitted: 0,
       suppressed: 0,
@@ -79,6 +80,8 @@ export class RecursiveGlyphSignalSystem {
     this.frameScheduler = frameScheduler;
     if (!frameScheduler) {
       this._unregisterTick();
+    } else {
+      this._ensureTickRegistered(true);
     }
   }
 
@@ -113,18 +116,6 @@ export class RecursiveGlyphSignalSystem {
     this.linkingSystem = linkingSystem;
     this.attachedLinkingSystems.add(linkingSystem);
 
-    if (typeof linkingSystem.onNodeHoverStart === 'function') {
-      linkingSystem.onNodeHoverStart((node) => {
-        this.triggerAttentionSignal(node, 'hover');
-      });
-    }
-
-    if (typeof linkingSystem.onNodeHoverEnd === 'function') {
-      linkingSystem.onNodeHoverEnd((node) => {
-        this.requestSilenceForNode(node);
-      });
-    }
-
     if (typeof linkingSystem.onLinkCreated === 'function') {
       linkingSystem.onLinkCreated((source, target) => {
         this.triggerResidueSignal(source, target, 'resonance');
@@ -156,6 +147,7 @@ export class RecursiveGlyphSignalSystem {
   }
 
   triggerAttentionSignal(node, reason = 'selection') {
+    console.log('ATTENTION SIGNAL', reason, node?.uuid);
     if (!this.enabled || !node?.position) return false;
 
     const contextKey = `node:${this._getNodeId(node)}`;
@@ -255,10 +247,19 @@ export class RecursiveGlyphSignalSystem {
   }
 
   update(deltaTime) {
+    console.log('RGS UPDATE');
     if (!this.enabled) return;
-    if (!this.activeSignals.size) {
-      this._unregisterTick();
-      return;
+
+    // Poll hover from crosshair state (canonical hover source)
+    const hoverNode = (typeof window !== 'undefined' && window.__crosshairRaycastState)?.node || null;
+    if (hoverNode !== this.lastHoverNode) {
+      if (this.lastHoverNode) {
+        this.requestSilenceForNode(this.lastHoverNode);
+      }
+      if (hoverNode) {
+        this.triggerAttentionSignal(hoverNode, 'hover');
+      }
+      this.lastHoverNode = hoverNode;
     }
 
     const dt = Math.max(0, Number(deltaTime) || 0);
@@ -282,9 +283,6 @@ export class RecursiveGlyphSignalSystem {
     }
 
     this.stats.active = this.activeSignals.size;
-    if (!this.activeSignals.size) {
-      this._unregisterTick();
-    }
   }
 
   clearAllSignals() {
@@ -317,7 +315,7 @@ export class RecursiveGlyphSignalSystem {
     };
   }
 
-  _ensureTickRegistered() {
+  _ensureTickRegistered(force = false) {
     if (!this.frameScheduler || this.tickRegistered) return;
     const registered = this.frameScheduler.register('visual', this._boundTick, this.schedulerJobId);
     this.tickRegistered = Boolean(registered);
@@ -335,7 +333,8 @@ export class RecursiveGlyphSignalSystem {
   }
 
   _getNodeId(node) {
-    return node?.userData?.index ?? node?.userData?.id ?? node?.uuid ?? 'unknown';
+    // Canonical identity: userData.nodeId; fallback to id, then uuid
+    return node?.userData?.nodeId ?? node?.userData?.id ?? node?.uuid ?? 'unknown';
   }
 
   _getSemanticState(node) {

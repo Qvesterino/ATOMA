@@ -454,6 +454,9 @@ export class NodeLinkingSystem {
     this.onLinkRemovedCallbacks = [];
     
     this.raycaster = new THREE.Raycaster();
+    // Align raycaster layer with hit-proxy interaction layer (default 10)
+    this.proxyLayer = (typeof window !== 'undefined' && window.hitProxySystem?.layer?.interactionLayer) || 10;
+    this.raycaster.layers.set(this.proxyLayer);
     this.mouse = new THREE.Vector2();
     
     // [SESSION 110] Camera Motion Gating for Smoothness
@@ -4734,15 +4737,13 @@ getLinksForNode(node) {
   // Phase B.5 – FrameScheduler-driven node targeting tick (visual tier)
   processNodeTargeting() {
     if (!this.worldReady) return;
-    const shouldRunLinkRaycasts = this.linksDirty || this.nodesDirty || this.cameraDirty;
-    if (!shouldRunLinkRaycasts) return;
-
     this.updateCrosshairNodeTargeting();
     this.updateNodeHoverStates();
 
     // Debug-only: emit aggregated raycast cost stats on interval
     logRaycastCostSummary(this.renderer, this.aiNodes);
 
+    // Dirty flags are no longer required for hover updates; keep them false to avoid stale gating
     this.linksDirty = false;
     this.nodesDirty = false;
     this.cameraDirty = false;

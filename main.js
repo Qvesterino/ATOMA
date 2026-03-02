@@ -457,7 +457,7 @@ import { setupCascadeSystemConsoleAPI } from './CascadeSystemConsoleAPI.js';
 // LINK SEMANTIC PICTOGRAM SYSTEM — ENHANCED WITH FUSION (Session 139+)
 // Multi-layer semantic visual language with morphing, depth, flow intelligence, and glyph fusion
 // ============================================================================
-import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
+import { LinkSemanticPictogramSystem_Enhanced } from './LinkSemanticPictogramSystem_Enhanced.js';
 
 // ============================================================================
 // HARMONIC RESONANCE FEEDBACK SYSTEM (Session 140+)
@@ -5557,6 +5557,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         );
         this.linkingSystem.isReady = true;
         console.log('[main.js] NodeLinkingSystem created');
+        // Initialize recursive glyph signal system once linking system is available
+        this.setupRecursiveGlyphSignalSystem();
+        // Initialize semantic pictograms once linking system exists
+        if (!this.linkSemanticPictograms) {
+            this.setupLinkSemanticPictograms();
+        }
         if (this.frameScheduler) {
             this.frameScheduler.register(
                 'visual',
@@ -8012,7 +8018,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         fs.register('visual', (dt) => this.linkGlyphFlow?.update?.(dt), 'linkGlyphFlow');
         fs.register('visual', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'linkedGlyphMessaging');
         fs.register('visual', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem), 'recursiveGlyphMessaging');
-        fs.register('visual', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt), 'recursiveGlyphSignalSystem');
         fs.register('visual', (dt) => {
             const pictos = this.linkPictogramSystem ?? this.linkSemanticPictograms;
             pictos?.update?.(dt, this.time, this.aiNodes?.nodes);
@@ -8231,7 +8236,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Moved to FrameScheduler visual layer (30 Hz)
         reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
-        reg('recursiveGlyphSignalSystem', (dt) => this.recursiveGlyphSignalSystem?.update?.(dt));
         reg('linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
         reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         reg('hitProxySystem', (dt) => this.hitProxySystem?.update?.(dt));
@@ -10343,18 +10347,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Multi-layer semantic visual language with morphing, depth, flow intelligence, and glyph fusion
      */
     setupLinkSemanticPictograms() {
+        if (!this.linkingSystem) return;
+        if (this.linkSemanticPictograms) return;
         try {
-            this.linkSemanticPictograms = new LinkSemanticPictogramSystem_WithFusion(
+            this.linkSemanticPictograms = new LinkSemanticPictogramSystem_Enhanced(
                 this.scene,
-                this.worldRoot,
                 this.linkingSystem,
                 this.camera
             );
             // Alias for scheduler hooks
             this.linkPictogramSystem = this.linkSemanticPictograms;
-            // High-priority log (console.error not filtered by log level)
-            console.error('[main.js] LinkSemanticPictogramSystem_WithFusion initialized ✓ (Enhanced+Fusion pictograms)');
-            console.error('[main.js] Features: 3-layer stack, morphing, parallax, flow intelligence, fusion zones');
+            // Expose for console debugging
+            if (typeof window !== 'undefined') {
+                window.linkSemanticPictograms = this.linkSemanticPictograms;
+                window.linkingSystem = this.linkingSystem;
+            }
+            console.error('[main.js] LinkSemanticPictogramSystem_Enhanced initialized ✓ (semantic pictograms active)');
         } catch (err) {
             console.warn('[main.js] LinkSemanticPictogramSystem init error:', err);
         }

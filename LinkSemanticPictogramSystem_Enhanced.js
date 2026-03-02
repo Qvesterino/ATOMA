@@ -642,21 +642,21 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     calculateLinkImportance(link) {
-        if (!link.userData) return 0.5;
-
         let score = 0.5; // Base importance
 
+        const u = link.userData || {};
+
         // High synergy increases importance
-        const synergy = link.userData.synergy || 0;
+        const synergy = u.synergy ?? link.synergyScore ?? link.synergy ?? link.glowData?.synergy ?? 0.5;
         score += synergy * 0.3;
 
         // High quality increases importance
-        const quality = link.userData.quality || 0.5;
+        const quality = u.quality ?? 0.5;
         score += (quality - 0.5) * 0.2;
 
         // Critical state increases importance
-        const nodeA = link.userData.nodeA;
-        const nodeB = link.userData.nodeB;
+        const nodeA = u.nodeA || link.source;
+        const nodeB = u.nodeB || link.target;
         if (nodeA && nodeB) {
             const avgStability = ((nodeA.userData?.stability || 1) + (nodeB.userData?.stability || 1)) / 2;
             if (avgStability < 0.3) {
@@ -846,24 +846,35 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // ========================================================================
 
     analyzeLinkContext(link) {
-        if (!link || !link.userData) {
-            return this.getEmptyContext();
-        }
+        if (!link) return this.getEmptyContext();
 
-        const nodeA = link.userData.nodeA;
-        const nodeB = link.userData.nodeB;
+        const u = link.userData || {};
 
-        const avgHarmony = ((nodeA?.userData?.harmony || 0) + (nodeB?.userData?.harmony || 0)) / 2;
-        const avgCorruption = ((nodeA?.userData?.corruption || 0) + (nodeB?.userData?.corruption || 0)) / 2;
-        const avgStability = ((nodeA?.userData?.stability || 1) + (nodeB?.userData?.stability || 1)) / 2;
-        
-        const synergy = link.userData.synergy || 0;
+        // Prefer explicit node references, fall back to link endpoints
+        const nodeA = u.nodeA || link.source || link.startNode || null;
+        const nodeB = u.nodeB || link.target || link.endNode || null;
+
+        // Metrics fallbacks: userData → link fields → safe defaults
+        const avgHarmony = ((nodeA?.userData?.harmony ?? u.harmony ?? 0) +
+                            (nodeB?.userData?.harmony ?? u.harmony ?? 0)) / 2;
+        const avgCorruption = ((nodeA?.userData?.corruption ?? u.corruption ?? 0) +
+                               (nodeB?.userData?.corruption ?? u.corruption ?? 0)) / 2;
+        const avgStability = ((nodeA?.userData?.stability ?? 1) +
+                              (nodeB?.userData?.stability ?? 1)) / 2;
+
+        const synergy = (u.synergy ??
+                         link.synergyScore ??
+                         link.synergy ??
+                         link.glowData?.synergy ??
+                         0.5);
+
         const instability = 1.0 - avgStability;
-        const isHealing = (nodeA?.userData?.isHealing || false) || (nodeB?.userData?.isHealing || false);
+        const isHealing = (nodeA?.userData?.isHealing ?? u.isHealing ?? false) ||
+                          (nodeB?.userData?.isHealing ?? false);
         const healingIntensity = isHealing ? 0.7 : 0;
 
         // Standing wave detection
-        const hasStandingWave = link.userData.hasStandingWave || false;
+        const hasStandingWave = u.hasStandingWave ?? link.hasStandingWave ?? false;
         const standingWaveIntensity = hasStandingWave ? 0.6 : 0;
 
         // Resistance detection (high corruption + low synergy)
@@ -875,8 +886,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const ruptureImminent = ruptureRisk > 0.6;
 
         // Historical context
-        const hasHistoricalRupture = link.userData.hasHistoricalRupture || false;
-        const hasHistoricalHealing = link.userData.hasHistoricalHealing || false;
+        const hasHistoricalRupture = u.hasHistoricalRupture ?? false;
+        const hasHistoricalHealing = u.hasHistoricalHealing ?? false;
 
         return {
             harmony: avgHarmony,
