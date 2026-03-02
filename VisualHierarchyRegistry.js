@@ -92,6 +92,8 @@ export class VisualHierarchyRegistry {
   
   static LAYER_AURA_BACKGROUND = 'AURA_BACKGROUND';
   static LAYER_AURA = 'AURA';
+  static LAYER_SELECTED = 'SELECTED';
+  static LAYER_PRIMARY_UI = 'PRIMARY_UI';
   static LAYER_CORE = 'CORE';
   static LAYER_ARCHETYPE = 'ARCHETYPE';
   static LAYER_EVOLUTION = 'EVOLUTION';
@@ -119,6 +121,8 @@ export class VisualHierarchyRegistry {
   static NODE_LAYER_ORDER = {
     AURA_BACKGROUND: -100,
     AURA: -1,
+    SELECTED: 0.5,
+    PRIMARY_UI: 0.8,
     CORE: 0,
     ARCHETYPE: 1,
     EVOLUTION: 50,
@@ -132,8 +136,8 @@ export class VisualHierarchyRegistry {
   // ========================================================================
 
   static LINK_LAYER_ORDER = {
-    SKIN: 2,
-    STRANDS: 3,
+    SKIN: 7,
+    STRANDS: 9,
     DIRECTIONAL: 10,
     PULSE: 11,
     ARCS: 12,

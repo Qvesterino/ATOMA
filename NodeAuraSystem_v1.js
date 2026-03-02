@@ -294,7 +294,8 @@ export class NodeAuraSystem_v1 {
 
     const uniforms = {
       uTime: { value: 0 },
-      uAuraIntensity: { value: 0.5 },
+      // Reduced by ~40% to eliminate solid-disk look
+      uAuraIntensity: { value: 0.3 },
       uAuraRadius: { value: 1.0 },
       uAuraColor: { value: profile.baseColor },
       uClarity: { value: 0 },
@@ -441,12 +442,14 @@ export class NodeAuraSystem_v1 {
       vertexShader,
       fragmentShader,
       transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthTest: false,   // ⚠️ CRITICAL: Aura does NOT read depth buffer
+      blending: THREE.NormalBlending,
+      depthTest: true,    // Aura now respects depth to avoid full-disk overlay
       depthWrite: false,  // ⚠️ CRITICAL: Aura does NOT write to depth buffer
       fog: false,
       side: THREE.FrontSide
     });
+    material.userData = material.userData || {};
+    material.userData.auraLayer = 'AURA_BASELINE';
 
     const shared = { material, uniforms };
     this.sharedMaterials.set(profileId, shared);
@@ -509,6 +512,8 @@ export class NodeAuraSystem_v1 {
     const shared = this._buildAuraMaterial(profileId);
     const perNodeUniforms = cloneUniformSet(shared.uniforms);
     const mesh = new THREE.Mesh(this.auraGeometry, shared.material);
+    mesh.userData = mesh.userData || {};
+    mesh.userData.auraLayer = 'AURA_BASELINE';
     mesh.userData.auraUniforms = perNodeUniforms;
     mesh.onBeforeRender = function(renderer, scene, camera, geometry, material) {
       applyUniformSet(material.uniforms, this.userData?.auraUniforms || {});

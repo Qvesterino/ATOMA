@@ -163,6 +163,8 @@ export class GlobalAuraOpacityClamp {
    */
   clampAuraOpacity(aura, node = null) {
     if (!aura || !aura.material) return false;
+    // Scope: only baseline auras are eligible
+    if (aura.userData?.auraLayer && aura.userData.auraLayer !== 'AURA_BASELINE') return false;
     
     // Skip if already clamped
     if (this.clampedAuras.has(aura)) return false;

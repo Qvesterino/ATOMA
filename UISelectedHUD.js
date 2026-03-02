@@ -27,8 +27,10 @@
  * - UISelectedHUD.clear() - Clear the HUD to "SELECTED: NONE"
  * - UISelectedHUD.show() / hide() / toggleVisibility() - Control visibility
  * 
- * Example Output:
- * "SELECTED: SIG-DM0-OSC (Node Name) [PROCESS] → LINKED: ANALYTICS, INPUT, STORAGE (HIGH)"
+ * Example Output (simplified format):
+ * - Select: [CONTROL]
+ * - Select + 1 link: [CONTROL] → {EMOTIONAL}
+ * - Select + 2+ links: [CONTROL] → {EMOTIONAL + INPUT}
  * 
  * v3.0 Changes:
  * ✅ Added _getCategoryFromNode(node) with proper fallback chain
@@ -216,7 +218,12 @@ export class UISelectedHUD {
     }
     
     /**
-     * Update HUD display with selected node info + linked categories + priority
+     * Update HUD display with selected node category + linked categories
+     * 
+     * Simplified format:
+     * - Select: [CATEGORY]
+     * - Select + 1 link: [CATEGORY] → {LINKED}
+     * - Select + 2+ links: [CATEGORY] → {LINKED1 + LINKED2}
      * 
      * @param {Object} node - The node to display
      */
@@ -226,47 +233,21 @@ export class UISelectedHUD {
             return;
         }
         
-        // Extract node information
-        const namingCode = node.userData.namingCode || '';
-        const nodeName = node.userData.nodeName || node.userData.name || 'NODE';
-        // Use the proper category extraction method for consistency
+        // Use the proper category extraction method
         const nodeType = this._getCategoryFromNode(node);
         
-        // Format display text
-        let displayText = 'SELECTED: ';
+        // Format display text - simplified format as requested
+        let displayText = '';
         
-        if (namingCode) {
-            displayText += `${namingCode}`;
-            if (nodeName) {
-                displayText += ` (${nodeName})`;
-            }
-        } else if (nodeName) {
-            displayText += nodeName;
-        } else {
-            displayText += 'NODE';
-        }
-        
-        // Add type info if available
+        // Show category in square brackets
         if (nodeType && nodeType !== 'unknown') {
-            displayText += ` [${nodeType.toUpperCase()}]`;
+            displayText += `[${nodeType.toUpperCase()}]`;
         }
         
-        // Add linked categories if available
+        // Add linked categories if available - use " + " separator, enclosed in {}
         if (this.linkedCategories && this.linkedCategories.length > 0) {
-            const linkedText = this.linkedCategories.join(', ').toUpperCase();
-            displayText += ` → LINKED: ${linkedText}`;
-            
-            // [LinkPriority v1.0] Append priority tier indicator
-            try {
-                const priorityLabel = LinkPrioritySystem.getPriorityLabel(this.maxLinkedPriorityTier);
-                if (priorityLabel && priorityLabel !== 'UNKNOWN' && this.maxLinkedPriorityTier > 0) {
-                    displayText += ` (${priorityLabel})`;
-                }
-            } catch (err) {
-                console.debug('[SelectedHUD] Error appending priority label:', err);
-            }
-        } else {
-            displayText += ` → LINKED: NONE`;
+            const linkedText = this.linkedCategories.join(' + ').toUpperCase();
+            displayText += ` → {${linkedText}}`;
         }
         
         // Update HUD element

@@ -16,18 +16,17 @@
  */
 
 import * as THREE from 'three';
+import {
+  createFresnelRimLightAuraMaterial,
+} from './FresnelRimLightAuraShader.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class UISelectedNodeHighlight3_2 {
   constructor(scene) {
     this.scene = scene;
     this.selectedNode = null;
-    this.highlightMeshes = new Map(); // Map of node -> [ringMesh, glowMesh]
-    this.pulseTime = 0;
-    
-    // Pulse animation config
-    this.pulseCycleDuration = 1.5; // seconds
-    this.pulseMinScale = 0.98;
-    this.pulseMaxScale = 1.25; // +25% for thicker appearance
+    this.highlightMeshes = new Map(); // node -> { mesh, material, geometry, emissiveBase }
+    this.time = 0;
   }
   
   /**
@@ -43,64 +42,55 @@ export class UISelectedNodeHighlight3_2 {
     
     this.selectedNode = node;
     
-    // Check if highlight already exists
-    if (this.highlightMeshes.has(node)) {
-      return; // Already highlighted
+    if (this.highlightMeshes.has(node)) return; // Already highlighted
+
+    const baseRadius = node.geometry?.boundingSphere?.radius || 2.0;
+    const shellRadius = baseRadius * 1.08;
+
+    // Color blend: 70% inner tone, 30% edge tone
+    const innerTone = new THREE.Color('#36F2FF');
+    const edgeTone = new THREE.Color('#00E5FF');
+    const blendedColor = innerTone.clone().lerp(edgeTone, 0.3);
+
+    const material = createFresnelRimLightAuraMaterial({
+      auraColor: blendedColor,
+      rimPower: 2.35,
+      rimScale: 1.15,
+      fresnelMin: 0.18,
+      fresnelMax: 0.72,
+    });
+
+    // Precise uniform tuning
+    if (material.uniforms.uAuraOpacity) material.uniforms.uAuraOpacity.value = 0.24;
+    if (material.uniforms.uAuraRadius) material.uniforms.uAuraRadius.value = 1.08;
+    if (material.uniforms.uRimBreathingIntensity) material.uniforms.uRimBreathingIntensity.value = 0.08;
+    if (material.uniforms.uAuraStrength) material.uniforms.uAuraStrength.value = 1.0;
+
+    material.transparent = true;
+    material.depthWrite = false;
+    material.depthTest = true;
+
+    const geometry = new THREE.IcosahedronGeometry(shellRadius, 4);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(node.position);
+    try {
+      mesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('SELECTED') ?? 0.5;
+    } catch (e) {
+      mesh.renderOrder = 0.5;
     }
-    
-    // Get category color
-    const categoryColor = this._getCategoryColor(node.userData.category);
-    
-    // Create outer ring mesh (thicker - 1.45 vs 1.35)
-    const ringGeometry = new THREE.IcosahedronGeometry(
-      node.geometry?.boundingSphere?.radius * 1.45 || 2.8,
-      8
-    );
-    
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: categoryColor,
-      wireframe: true,
-      emissive: categoryColor,
-      emissiveIntensity: 0.9,
-      transparent: true,
-      opacity: 0.75, // Increased for more visibility
-      depthWrite: false,
-      renderOrder: 1
-    });
-    
-    const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-    ringMesh.position.copy(node.position);
-    ringMesh.userData.isHighlight = true;
-    ringMesh.userData.parentNode = node;
-    this.scene.add(ringMesh);
-    
-    // Create inner glow mesh (more prominent)
-    const glowGeometry = new THREE.IcosahedronGeometry(
-      node.geometry?.boundingSphere?.radius * 1.25 || 2.0,
-      6
-    );
-    
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: categoryColor,
-      emissive: categoryColor,
-      emissiveIntensity: 0.5,
-      transparent: true,
-      opacity: 0.4, // Increased for more visibility
-      depthWrite: false,
-      renderOrder: 0
-    });
-    
-    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-    glowMesh.position.copy(node.position);
-    glowMesh.userData.isHighlight = true;
-    glowMesh.userData.parentNode = node;
-    this.scene.add(glowMesh);
-    
-    // Store references
+    mesh.userData.isHighlight = true;
+    mesh.userData.parentNode = node;
+    mesh.userData.auraLayer = 'AURA_SELECTED';
+    this.scene.add(mesh);
+
+    // Store emissive baseline for subtle singularity boost
+    const emissiveBase = node.material?.emissiveIntensity ?? 0;
+
     this.highlightMeshes.set(node, {
-      ring: ringMesh,
-      glow: glowMesh,
-      categoryColor: categoryColor
+      mesh,
+      material,
+      geometry,
+      emissiveBase,
     });
   }
   
@@ -111,16 +101,16 @@ export class UISelectedNodeHighlight3_2 {
     if (!node || !this.highlightMeshes.has(node)) return;
     
     const meshData = this.highlightMeshes.get(node);
-    
-    // Remove meshes from scene
-    this.scene.remove(meshData.ring);
-    this.scene.remove(meshData.glow);
-    
-    // Clean up geometries and materials
-    meshData.ring.geometry?.dispose();
-    meshData.ring.material?.dispose();
-    meshData.glow.geometry?.dispose();
-    meshData.glow.material?.dispose();
+
+    // Restore emissive intensity
+    if (node.material && typeof meshData.emissiveBase === 'number') {
+      node.material.emissiveIntensity = meshData.emissiveBase;
+    }
+
+    // Remove mesh
+    this.scene.remove(meshData.mesh);
+    meshData.geometry?.dispose();
+    meshData.material?.dispose();
     
     // Remove from map
     this.highlightMeshes.delete(node);
@@ -133,68 +123,40 @@ export class UISelectedNodeHighlight3_2 {
   /**
    * Get category color
    */
-  _getCategoryColor(category) {
-    const colors = {
-      'input': '#00ddff',
-      'process': '#ffaa00',
-      'integration': '#00ff88',
-      'analytics': '#aa00ff',
-      'storage': '#88ccff',
-      'control': '#ff0088',
-      'sigma': '#ff6633',
-      'quantum': '#00ffcc',
-      'emotional': '#ff4db8',
-      'extreme': '#ff3333',
-      'outer': '#ffcc00',
-      'legendary': '#ffb500',
-      'mythic': '#ffa0ff',
-      'prime': '#88ff00',
-      'error': '#ff4444'
-    };
-    
-    const lowerCat = (category || '').toLowerCase();
-    const colorHex = colors[lowerCat] || '#36F2FF';
-    
-    // Convert hex to THREE.Color
-    return new THREE.Color(colorHex);
-  }
-  
   /**
    * Update pulse animation
    */
   update(deltaTime) {
-    this.pulseTime += deltaTime;
-    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
-    if (this.pulseTime > this.pulseCycleDuration) {
-      this.pulseTime -= this.pulseCycleDuration;
-    }
-    
-    // Calculate pulse factor (0-1 sine wave)
-    const pulsePhase = (this.pulseTime / this.pulseCycleDuration) * Math.PI * 2;
-    const pulseFactor = Math.sin(pulsePhase) * 0.5 + 0.5; // 0 to 1
-    
-    // Update all active highlight meshes
+    this.time += deltaTime;
+    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+
+    const breath = 1 + Math.sin(this.time * 0.6) * 0.03; // amplitude ~0.03 (<=0.05)
+
     for (const [node, meshData] of this.highlightMeshes.entries()) {
-      if (!node || !this.scene.children.includes(meshData.ring)) {
-        // Node was removed, clean up
+      if (!node || !this.scene.children.includes(meshData.mesh)) {
         this.removeHighlight(node);
         continue;
       }
-      
-      // Sync position with node
-      meshData.ring.position.copy(node.position);
-      meshData.glow.position.copy(node.position);
-      
-      // Update ring scale with pulse
-      const scale = this.pulseMinScale + (this.pulseMaxScale - this.pulseMinScale) * pulseFactor;
-      meshData.ring.scale.setScalar(scale);
-      
-      // Pulse glow opacity
-      if (meshData.glow.material) {
-        meshData.glow.material.emissiveIntensity = 0.3 + pulseFactor * 0.3;
+
+      // Keep shell centered on node
+      meshData.mesh.position.copy(node.position);
+
+      // Animate fresnel shader
+      if (meshData.material?.uniforms) {
+        if (meshData.material.uniforms.uTime) {
+          meshData.material.uniforms.uTime.value = this.time;
+        }
+        if (meshData.material.uniforms.uAuraPulse) {
+          meshData.material.uniforms.uAuraPulse.value = breath;
+        }
       }
-      if (meshData.ring.material) {
-        meshData.ring.material.emissiveIntensity = 0.6 + pulseFactor * 0.2;
+
+      // Inner singularity: gentle emissive lift on the node itself
+      if (node.material && typeof meshData.emissiveBase === 'number') {
+        const base = meshData.emissiveBase;
+        const boosted = base * 1.12 * breath;
+        const clamped = base + Math.min((boosted - base), base * 0.05 + 0.05); // cap extra at ~0.05
+        node.material.emissiveIntensity = clamped;
       }
     }
   }

@@ -82,6 +82,7 @@ export class NodeCorruptionAuraDegradation {
    */
   updateNodeCorruption(node, corruptionLevel, deltaTime, auraMaterial) {
     if (!auraMaterial || !auraMaterial.uniforms) return null;
+    if (auraMaterial.userData?.auraLayer && auraMaterial.userData.auraLayer !== 'AURA_BASELINE') return null;
     
     const nodeId = node.userData?.id || node.id || node.uuid;
     if (!nodeId) return null;

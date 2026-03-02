@@ -76,6 +76,10 @@ export class AuraModulationSystem {
       },
     };
   }
+
+  _isBaselineAura(aura) {
+    return aura?.userData?.auraLayer === 'AURA_BASELINE';
+  }
   
   /**
    * Capture baseline aura state (called once per node)
@@ -115,6 +119,7 @@ export class AuraModulationSystem {
    */
   pushModulation(aura, modulationType, intensity = 1.0, duration = 1.0) {
     if (!aura || !aura.material) return;
+    if (!this._isBaselineAura(aura)) return;
     
     // Ensure baseline is captured
     if (!this.baselineMap.has(aura)) {
@@ -154,6 +159,7 @@ export class AuraModulationSystem {
     
     this.modulations.forEach((state, aura) => {
       if (!aura || !aura.material) return;
+      if (!this._isBaselineAura(aura)) return;
       
       const baseline = this.baselineMap.get(aura);
       if (!baseline) return;

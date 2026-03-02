@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -252,10 +253,16 @@ export class NodeLinkedAuraSystem {
     mesh.scale.setScalar(this.visualParams.baseScale * node.scale.x);
     mesh.userData = {
       isNodeAura: true,
-      nodeRef: node
+      nodeRef: node,
+      auraLayer: 'AURA_LINKED'
     };
     
     this.scene.add(mesh);
+    try {
+      mesh.renderOrder = VisualHierarchyRegistry?.getRenderOrder('LINK_SKIN') ?? 7;
+    } catch (e) {
+      mesh.renderOrder = 7;
+    }
     console.log("Aura added to scene");
     
     // Store aura data

@@ -20,6 +20,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const CATEGORY_COLORS = {
   'cognition': 0x00FF88,    // Bright green
@@ -98,13 +99,14 @@ export class UIPrimaryNodeAura3_7 {
       opacity: 0.18,   // [AURA AUDIT] Reduced from 0.6 - atmospheric range
       fog: false,
       wireframe: false,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false
     });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.userData.isPrimaryAuraRing = true;
-    // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder -1)
-    ring.renderOrder = -1;
+    ring.userData.auraLayer = 'AURA_UI';
+    // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder from registry)
+    ring.renderOrder = VisualHierarchyRegistry?.getRenderOrder('PRIMARY_UI') ?? 0.8;
     
     // Inner pulse layer (slightly smaller torus)
     // [AURA VISUAL AUDIT] Reduced opacity from 0.3 to 0.10 (67% reduction)
@@ -116,13 +118,14 @@ export class UIPrimaryNodeAura3_7 {
       opacity: 0.10,   // [AURA AUDIT] Reduced from 0.3 - subtle feedback
       fog: false,
       wireframe: false,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false
     });
     const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
     pulse.userData.isPrimaryAuraPulse = true;
-    // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder -1)
-    pulse.renderOrder = -1;
+    pulse.userData.auraLayer = 'AURA_UI';
+    // [AURA VISUAL AUDIT] Render UI aura behind core (renderOrder from registry)
+    pulse.renderOrder = VisualHierarchyRegistry?.getRenderOrder('PRIMARY_UI') ?? 0.8;
     
     // Position at node
     ring.position.copy(node.position);
