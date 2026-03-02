@@ -442,7 +442,7 @@ import { HealingParticleSystem_Session136 } from './HealingParticleSystem_Sessio
 // LINK TRAIL PARTICLE SYSTEM
 // Organic particle trails that flow along links
 // ============================================================================
-import { LinkTrailParticleSystem } from './LinkTrailParticleSystem.js';
+import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 
 // ============================================================================
 // LINK SPARK SYSTEM
@@ -3563,13 +3563,50 @@ class AtomaGame {
                     if (sparkSystem && link.curve) {
                         // Get curve from link (QuadraticBezierCurve3 stored on link.curve)
                         const curve = link.curve;
-                        const stats = link.userData?.stats || { synergy: 0, traffic: 0, intensity: 0.25 };
+
+                        // Get link state from NeonLinkVisuals (has synergy)
+                        const linkState = this.linkingSystem?.visuals?.linkStates?.get(link.userData?.id);
+
+                        const stats = {
+                            synergy: linkState?.synergy ?? 0.5,
+                            traffic: link.traffic?.throughput ?? 0,
+                            intensity: (linkState?.synergy ?? 0.25) * 0.7 + (link.traffic?.throughput ?? 0) * 0.3
+                        };
+
                         const color = link.material?.color || new THREE.Color(0xffffff);
                         sparkSystem.update(this.time, dt, curve, stats, color);
                     }
                 }
             }
         }, 'visual.linkSparkSystems');
+        this.frameScheduler.register('visual', (dt) => {
+            // Update all LinkTrailEmitters
+            if (this.linkTrailEmitters && this.linkingSystem?.links) {
+                for (const link of this.linkingSystem.links) {
+                    const trailEmitter = this.linkTrailEmitters.get(link.userData?.id);
+                    if (trailEmitter && link.curve && link.source && link.target) {
+                        // Get curve from link
+                        const curve = link.curve;
+
+                        // Get link state from NeonLinkVisuals (has harmony, corruption)
+                        const linkState = this.linkingSystem?.visuals?.linkStates?.get(link.userData?.id);
+
+                        const stats = {
+                            harmony: linkState?.harmony ?? 0.5,
+                            corruption: linkState?.corruption ?? 0.2
+                        };
+
+                        // Calculate link direction (normalized vector from source to target)
+                        const linkDirection = new THREE.Vector3()
+                            .subVectors(link.target.position, link.source.position)
+                            .normalize();
+
+                        // Update emitter (calls emitAlongLink internally)
+                        trailEmitter.update(dt, this.time, curve, linkDirection, stats.harmony, stats.corruption);
+                    }
+                }
+            }
+        }, 'visual.linkTrailEmitters');
         this.frameScheduler.register('visual', (dt) => {
             if (this.memoryTrails) {
                 this.memoryTrails.update(dt);
@@ -5759,6 +5796,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.linkSparkSystems.set(result.userData.id, sparkSystem);
                 console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
             }
+
+            // Create LinkTrailEmitter for each link
+            if (result && !this.linkTrailEmitters) {
+                this.linkTrailEmitters = new Map();
+            }
+            if (result && this.linkTrailEmitters && this.linkTrailParticles) {
+                const trailEmitter = new LinkTrailEmitter(result, this.linkTrailParticles);
+                this.linkTrailEmitters.set(result.userData.id, trailEmitter);
+                console.log('[main.js] LinkTrailEmitter created for link:', result.userData.id);
+            }
+
             // Emit network.link.created event for event-driven systems
             if (this.semanticBus && result) {
                 this.semanticBus.emit('network.link.created', {
@@ -5787,6 +5835,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 if (sparkSystem) {
                     sparkSystem.dispose();
                     this.linkSparkSystems.delete(link.userData.id);
+                }
+            }
+            // Cleanup LinkTrailEmitter
+            if (this.linkTrailEmitters && link?.userData?.id !== undefined) {
+                const trailEmitter = this.linkTrailEmitters.get(link.userData.id);
+                if (trailEmitter) {
+                    trailEmitter.disable();
+                    this.linkTrailEmitters.delete(link.userData.id);
                 }
             }
             // Emit network.link.destroyed event for event-driven systems

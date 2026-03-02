@@ -4771,7 +4771,8 @@ static createControlNode0(group, color) {
       emissiveIntensity: 0.5
     });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    core.renderOrder = 0;
+    // PHASE 3C.1 remap → CORE
+    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
     group.add(core);
 
     // Framing ring rotated off-axis for silhouette change
@@ -4784,7 +4785,8 @@ static createControlNode0(group, color) {
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.rotation.x = Math.PI / 3;
     ring.rotation.y = Math.PI / 6;
-    ring.renderOrder = 1;
+    // PHASE 3C.1 remap → ARCHETYPE
+    ring.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(ring);
 
     // Floating apex crystal
@@ -4803,7 +4805,8 @@ static createControlNode0(group, color) {
     });
     const apex = new THREE.Mesh(apexGeometry, apexMaterial);
     apex.position.set(0, 0.9, 0);
-    apex.renderOrder = 2;
+    // PHASE 3C.1 remap → ARCHETYPE
+    apex.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(apex);
 
   // Copy nodeId from input group (if exists)

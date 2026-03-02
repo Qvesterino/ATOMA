@@ -24,6 +24,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class AtomaGlyphSystem4_0 {
   constructor(scene, camera) {
@@ -1339,9 +1340,11 @@ export class AtomaGlyphSystem4_0 {
     glyphGroup.position.y = yOffset;
     
     // Render order (glyphs render on top: +2)
-    glyphGroup.renderOrder = 2;
+    // PHASE 3C.1 remap → ARCHETYPE
+    glyphGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     glyphGroup.traverse(child => {
-      child.renderOrder = 2;
+      // PHASE 3C.1 remap → ARCHETYPE
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     });
     
     // Mark as hierarchy-constrained

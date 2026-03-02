@@ -17,6 +17,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class NodeSurfaceProtection_DepthAnchor {
   constructor(config = {}) {
@@ -66,7 +67,8 @@ export class NodeSurfaceProtection_DepthAnchor {
       anchor.name = 'depthAnchor';
       
       // Render at same order as core (prevents aura occlusion)
-      anchor.renderOrder = 100;
+      // PHASE 3C.1 remap → DEBUG_NODE
+      anchor.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_NODE');
       
       // Scale slightly larger than core to catch all aura overlap
       anchor.scale.multiplyScalar(this.config.anchorScale);

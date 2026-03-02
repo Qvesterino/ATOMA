@@ -494,10 +494,10 @@ export class LinkTrailEmitter {
   constructor(link, particleSystem) {
     this.link = link;
     this.particleSystem = particleSystem;
-    
-    this.emissionRate = 20; // Particles per second
+
+    this.emissionRate = 40; // Particles per second (increased from 20 for better visibility)
     this.enabled = true;
-    
+
     // Emission modulation
     this.harmonyInfluence = 0.5; // Higher = more emission at high harmony
     this.corruptionInfluence = 1.0; // Higher = more emission at high corruption

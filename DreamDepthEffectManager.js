@@ -25,8 +25,8 @@ export class DreamDepthEffectManager {
     // Container for all layers
     this.layerContainer = new THREE.Group();
     this.layerContainer.name = 'dream-depth-layers';
-    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
-    this.layerContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
+    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
+    this.layerContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     this.scene.add(this.layerContainer);
     
     this.layerContainer.add(this.vignetteLayer.mesh);
@@ -88,8 +88,8 @@ export class DreamDepthEffectManager {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = 0.05;
-    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
-    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
+    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     
     return {
       mesh: mesh,
@@ -137,8 +137,8 @@ export class DreamDepthEffectManager {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = 0.06;
-    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
-    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
+    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     
     return {
       mesh: mesh,
@@ -185,8 +185,8 @@ export class DreamDepthEffectManager {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = 0.07;
-    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
-    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
+    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     
     return {
       mesh: mesh,
@@ -228,8 +228,8 @@ export class DreamDepthEffectManager {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.z = 0.08;
-    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
-    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
+    // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
     
     return {
       mesh: mesh,

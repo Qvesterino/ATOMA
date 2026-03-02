@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
@@ -1737,7 +1738,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         visualLayer: 'AURA',
         pulsePhase: Math.random() * Math.PI * 2
       };
-      outerGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+      // PHASE 3C.1 remap → BASELINE_AURA
+      outerGlow.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');  // ✅ Aura renders last (behind core)
       outerGlow.visible = false; // Neutralize decorative glow
       outerGlow.userData.neutralized = true;
       // Guard: Only add outer glow if not already present
@@ -1765,7 +1767,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         isAura: true,  // ✅ PROTECTED: Cannot be mutated by link-state
         visualLayer: 'AURA'
       };
-      haloGlow.renderOrder = 10;  // ✅ Aura renders last (behind core)
+      // PHASE 3C.1 remap → BASELINE_AURA
+      haloGlow.renderOrder = VisualHierarchyRegistry.getRenderOrder('BASELINE_AURA');  // ✅ Aura renders last (behind core)
       haloGlow.visible = false; // Neutralize decorative halo
       haloGlow.userData.neutralized = true;
       // Guard: Only add halo glow if not already present
@@ -2117,8 +2120,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         const isCore = name.includes('core') || name.includes('body');
         
         if (isCore) {
+          // PHASE 3C.1 remap → DEBUG_NODE
           // Core meshes render at highest priority
-          child.renderOrder = 100;
+          child.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_NODE');
           
           // Lock material depth properties
           if (child.material) {
@@ -2932,7 +2936,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             child.isMesh && child.userData.isHologramShell === true
           );
           if (holoShell) {
-            holoShell.renderOrder = 5;
+            // PHASE 3C.1 remap → ARCHETYPE
+            holoShell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
             fixed = true;
           }
         }

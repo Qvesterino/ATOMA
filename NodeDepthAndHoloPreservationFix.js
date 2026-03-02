@@ -175,8 +175,8 @@ export class NodeDepthAndHoloPreservationFix {
           userData.isHologramShell ||
           userData.visualLayer === 'HOLOGRAM') {
         
-        // Holographic layers MUST render last (renderOrder = 40)
-        child.renderOrder = 40;
+        // PHASE 3C.1 remap → FX (holographic highest)
+        child.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
         child.visible = true;
         
         // Preserve material properties
@@ -188,10 +188,11 @@ export class NodeDepthAndHoloPreservationFix {
       }
       
       // ================================================================
-      // CORE MESH: Middle priority (renderOrder = 30)
+      // CORE MESH: Middle priority
       // ================================================================
       else if (userData.isNodeCore || userData.isCoreMesh) {
-        child.renderOrder = 30;
+        // PHASE 3C.1 remap → CORE
+        child.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
         child.visible = true;
       }
     });

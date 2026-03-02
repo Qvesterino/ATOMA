@@ -198,11 +198,13 @@ export class NodeVisualIntegrityFix {
         obj.visible = true;
         
         // Ensure always renders
-        obj.renderOrder = 40;  // Above all other layers
+        // PHASE 3C.1 remap → FX
+        obj.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');  // Above all other layers
         
         // Lock visibility
         obj.userData._holoPreservation = {
-          renderOrder: 40,
+          // PHASE 3C.1 remap → FX
+          renderOrder: VisualHierarchyRegistry.getRenderOrder('FX'),
           forced: true,
         };
         
@@ -210,7 +212,7 @@ export class NodeVisualIntegrityFix {
       }
     });
     
-    console.log(`✓ Preserved ${holoCount} holographic layers (renderOrder=40)`);
+    console.log(`✓ Preserved ${holoCount} holographic layers (renderOrder=${VisualHierarchyRegistry.getRenderOrder('FX')})`);
   }
 
   /**

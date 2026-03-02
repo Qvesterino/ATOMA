@@ -116,51 +116,12 @@ export class CoreMetricsHUD {
       this.hudContainer.appendChild(row);
     });
     
-    // Separator
-    const separator = document.createElement('div');
-    separator.style.cssText = `
-      border-top: 1px solid ${this.colors.border};
-      margin: 8px 0;
-      opacity: 0.3;
-    `;
-    this.hudContainer.appendChild(separator);
-    
-    // Temporal display
-    const temporalContainer = document.createElement('div');
-    temporalContainer.style.cssText = `
-      font-size: 11px;
-      letter-spacing: 0.05em;
-    `;
-    
-    // Network Time (NEW: Network Time Pressure mechanic)
+    // Network Time (Network Time Pressure mechanic)
     const networkTimeRow = document.createElement('div');
-    networkTimeRow.style.cssText = 'margin: 4px 0; font-weight: bold;';
+    networkTimeRow.style.cssText = 'margin: 8px 0 0 0; font-weight: bold;';
     networkTimeRow.innerHTML = `<span style="color: #00ffff;">NETWORK TIME:</span> <span id="network-time" style="color: #00ffff;">00000</span>`;
-    temporalContainer.appendChild(networkTimeRow);
+    this.hudContainer.appendChild(networkTimeRow);
     this.hudElements.networkTime = networkTimeRow.querySelector('#network-time');
-    
-    // Cycle time
-    const cycleRow = document.createElement('div');
-    cycleRow.style.cssText = 'margin: 4px 0;';
-    cycleRow.innerHTML = `<span style="color: #00dd99;">CYCLE:</span> <span id="cycle-time">00:00</span>`;
-    temporalContainer.appendChild(cycleRow);
-    this.hudElements.cycleTime = cycleRow.querySelector('#cycle-time');
-    
-    // Phase (renamed from EPOCH)
-    const epochRow = document.createElement('div');
-    epochRow.style.cssText = 'margin: 4px 0;';
-    epochRow.innerHTML = `<span style="color: #aa00ff;">PHASE:</span> <span id="epoch-number">00</span>`;
-    temporalContainer.appendChild(epochRow);
-    this.hudElements.epochNumber = epochRow.querySelector('#epoch-number');
-    
-    // Run (renamed from AEON)
-    const aeonRow = document.createElement('div');
-    aeonRow.style.cssText = 'margin: 4px 0;';
-    aeonRow.innerHTML = `<span style="color: #ffdd00;">RUN:</span> <span id="aeon-number">00</span>`;
-    temporalContainer.appendChild(aeonRow);
-    this.hudElements.aeonNumber = aeonRow.querySelector('#aeon-number');
-    
-    this.hudContainer.appendChild(temporalContainer);
     document.body.appendChild(this.hudContainer);
   }
   
@@ -170,33 +131,31 @@ export class CoreMetricsHUD {
   createMetricRow(label, key, color) {
     const row = document.createElement('div');
     row.style.cssText = `
-      margin: 8px 0;
-      font-size: 11px;
+      margin: 4px 0;
+      font-size: 10px;
     `;
     
-    // Label and percentage
+    // Label and percentage - single line
     const labelSpan = document.createElement('span');
     labelSpan.style.cssText = `
       display: inline-block;
-      width: 140px;
       color: ${color};
       font-weight: bold;
-      font-size: 12px;
+      font-size: 10px;
     `;
-    labelSpan.textContent = `${label}: `;
+    labelSpan.textContent = `${label}:`;
     
     const percentSpan = document.createElement('span');
     percentSpan.id = `${key}-percent`;
     percentSpan.style.cssText = `
       display: inline-block;
-      width: 90px;
-      text-align: right;
+      margin-left: 8px;
       color: ${this.colors.text};
       font-family: 'Courier New', monospace;
       font-weight: bold;
-      font-size: 13px;
+      font-size: 10px;
     `;
-    percentSpan.textContent = '00%';
+    percentSpan.textContent = '0.000000';
     
     row.appendChild(labelSpan);
     row.appendChild(percentSpan);

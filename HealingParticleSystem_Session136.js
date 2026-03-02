@@ -90,7 +90,7 @@ export class HealingParticleSystem_Session136 {
         
         this.config = {
             maxParticles: 5000,
-            sparkleRate: 0.5,      // Sparkles per scar per second (low)
+            sparkleRate: 1.5,      // Sparkles per scar per second (increased from 0.5 for better visibility)
             baseLifetime: 2.0,
             baseSize: 0.15,
             trailDensity: 5,       // Particles per unit distance

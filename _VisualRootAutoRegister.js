@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class VisualRootAutoRegister {
   constructor(visualAuthority) {
@@ -265,7 +266,8 @@ export class VisualRootAutoRegister {
     }
     
     // Enforce render order for core
-    visualRoot.renderOrder = 0;
+    // PHASE 3C.1 remap → CORE
+    visualRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
   }
   
   /**

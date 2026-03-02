@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
@@ -230,7 +231,8 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
   const shell = new THREE.Mesh(geometry, material);
   
   // RENDER ORDER LOCK - GLOBAL
-  shell.renderOrder = 5;
+  // PHASE 3C.1 remap → ARCHETYPE
+  shell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
   
   // FRUSTUM CULL DISABLE
   shell.frustumCulled = false;

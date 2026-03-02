@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial, createNodeHologramShell, updateHologramShellMaterial } from './CoreHologramShader.js';
 import { CONFIG } from './config.js';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
@@ -65,7 +66,7 @@ export class AINodeModel {
     mainBody.frustumCulled = false;
     mainBody.userData.visualLayer = 'CORE';
     mainBody.userData.isNodeCore = true; // EXPLICIT MARKING
-    mainBody.renderOrder = 0; // CORE renders first
+    mainBody.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE'); // CORE renders first
     
     // === NODE INTERACTION AUTHORITY ===
     // Designate this mesh as the ONLY valid interaction target
@@ -80,7 +81,7 @@ export class AINodeModel {
     if (holoShell) {
       holoShell.userData.visualLayer = 'AURA';
       holoShell.userData.isAura = true; // MARK AS AURA (allowed to be transparent)
-      holoShell.renderOrder = 1; // AURA renders after core
+      holoShell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE'); // AURA renders after core
       
       nodeRoot.add(holoShell);
       
@@ -115,7 +116,7 @@ export class AINodeModel {
     const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     edges.userData.visualLayer = 'EFFECT';
     edges.userData.isEffect = true;
-    edges.renderOrder = 2;
+    edges.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     
     // === HARD RAYCAST GATE: Edges ===
     edges.userData.nonInteractive = true;
@@ -140,7 +141,7 @@ export class AINodeModel {
       ring.rotation.z = i * 0.3;
       ring.userData.visualLayer = 'EFFECT';
       ring.userData.isEffect = true;
-      ring.renderOrder = 2;
+      ring.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
       
       // === HARD RAYCAST GATE: Rings ===
       ring.userData.nonInteractive = true;
@@ -211,7 +212,7 @@ export class AINodeModel {
     mainBody.frustumCulled = false;
     mainBody.userData.visualLayer = 'CORE';
     mainBody.userData.isNodeCore = true;
-    mainBody.renderOrder = 0;
+    mainBody.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
     nodeRoot.add(mainBody);
     
     // HOLOGRAM SHELL - SEPARATE AURA LAYER
@@ -219,7 +220,7 @@ export class AINodeModel {
     if (holoShell) {
       holoShell.userData.visualLayer = 'AURA';
       holoShell.userData.isAura = true;
-      holoShell.renderOrder = 1;
+      holoShell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
       nodeRoot.add(holoShell);
     }
     
@@ -242,7 +243,7 @@ export class AINodeModel {
     const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     edges.userData.visualLayer = 'EFFECT';
     edges.userData.isEffect = true;
-    edges.renderOrder = 2;
+    edges.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(edges);
     
     // Accent panel insets on 4 faces - EFFECTS LAYER
@@ -262,7 +263,7 @@ export class AINodeModel {
       panel.lookAt(0, 0, 0);
       panel.userData.visualLayer = 'EFFECT';
       panel.userData.isEffect = true;
-      panel.renderOrder = 2;
+      panel.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
       group.add(panel);
     }
     
@@ -304,7 +305,7 @@ export class AINodeModel {
     mainBody.frustumCulled = false;
     mainBody.userData.visualLayer = 'CORE';
     mainBody.userData.isNodeCore = true;
-    mainBody.renderOrder = 0;
+    mainBody.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
     nodeRoot.add(mainBody);
     
     // HOLOGRAM SHELL - SEPARATE AURA LAYER
@@ -312,7 +313,7 @@ export class AINodeModel {
     if (holoShell) {
       holoShell.userData.visualLayer = 'AURA';
       holoShell.userData.isAura = true;
-      holoShell.renderOrder = 1;
+      holoShell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
       nodeRoot.add(holoShell);
     }
     
@@ -335,7 +336,7 @@ export class AINodeModel {
     const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
     edges.userData.visualLayer = 'EFFECT';
     edges.userData.isEffect = true;
-    edges.renderOrder = 2;
+    edges.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(edges);
     
     // Holographic wireframe cube slightly larger - EFFECTS LAYER
@@ -349,7 +350,7 @@ export class AINodeModel {
     const frame = new THREE.Mesh(frameGeometry, frameMaterial);
     frame.userData.visualLayer = 'EFFECT';
     frame.userData.isEffect = true;
-    frame.renderOrder = 2;
+    frame.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(frame);
     
     // Corner accent spheres - EFFECTS LAYER
@@ -372,7 +373,7 @@ export class AINodeModel {
       corner.position.set(pos[0], pos[1], pos[2]);
       corner.userData.visualLayer = 'EFFECT';
       corner.userData.isEffect = true;
-      corner.renderOrder = 2;
+      corner.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
       group.add(corner);
     });
     

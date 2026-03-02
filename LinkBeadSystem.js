@@ -489,7 +489,7 @@ export class BeadRenderer {
     material.opacity = BEAD_CONFIG.opacity;
     material.transparent = true;
     material.depthWrite = false;
-    material.depthTest = false;
+    material.depthTest = true;
     material.blending = THREE.AdditiveBlending;
     material.needsUpdate = true;
     
@@ -640,6 +640,8 @@ export class LinkBeadVisualizer {
    * Force render state each frame to undo global depth/opacity clamps.
    */
   forceRenderState() {
+    // PHASE 4A: temporarily disabled to avoid overriding renderOrder into DEBUG space
+    return;
     this.group?.traverse((child) => {
       if (!child.isMesh || !child.material) return;
       // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
