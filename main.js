@@ -7624,6 +7624,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
+     * Debug helper: prints pictogram system status (uses console.error to bypass log level)
+     */
+    debugPictograms() {
+        const pictos = this.linkPictogramSystem ?? this.linkSemanticPictograms;
+        if (!pictos) {
+            console.error('[Pictograms] System NOT initialized');
+            return;
+        }
+        const poolSize = pictos.pictogramSystem?.pictograms?.length ?? 'n/a';
+        const active = pictos.pictogramSystem?.pictograms?.filter?.(p => p.active)?.length ?? 'n/a';
+        const fusionEnabled = pictos.fusionZoneManager?.enabled ?? false;
+        const fusionActive = pictos.fusionZoneManager?.zones?.filter?.(z => z.active)?.length ?? 0;
+        console.error('[Pictograms] enabled=', pictos.enabled, 'pool=', poolSize, 'active=', active, 'fusionEnabled=', fusionEnabled, 'activeFusionZones=', fusionActive);
+    }
+
+    /**
      * Setup performance mode hotkey (F7 key)
      * Toggle LowFX mode for instant quality switching
      * Notifies adaptive monitor of manual override

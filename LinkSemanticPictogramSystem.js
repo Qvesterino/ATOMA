@@ -72,12 +72,13 @@ const CONFIG = {
     UPDATE_INTERVAL: 1 / 30, // Update 30 times per second
     
     // Semantic thresholds
-    HARMONY_THRESHOLD: 0.6,
-    CORRUPTION_THRESHOLD: 0.6,
-    SYNERGY_THRESHOLD: 0.5,
-    STABILITY_THRESHOLD: 0.4,
-    HEALING_THRESHOLD: 0.3,
-    STANDING_WAVE_THRESHOLD: 0.3
+    // Base version: no gating — always allow pictograms
+    HARMONY_THRESHOLD: 0.0,
+    CORRUPTION_THRESHOLD: 0.0,
+    SYNERGY_THRESHOLD: 0.0,
+    STABILITY_THRESHOLD: 1.0, // stability <= 1 still passes (inverse check)
+    HEALING_THRESHOLD: 0.0,
+    STANDING_WAVE_THRESHOLD: 0.0
 };
 
 // ============================================================================

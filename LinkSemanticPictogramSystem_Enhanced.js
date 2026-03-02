@@ -103,13 +103,14 @@ const CONFIG = {
     BASE_COLOR: 0xb0b0b0,    // Neutral grey base
     
     // Semantic thresholds
-    HARMONY_THRESHOLD: 0.55,
-    CORRUPTION_THRESHOLD: 0.55,
-    SYNERGY_THRESHOLD: 0.45,
-    INSTABILITY_THRESHOLD: 0.45,
-    HEALING_THRESHOLD: 0.35,
-    STANDING_WAVE_THRESHOLD: 0.3,
-    RESISTANCE_THRESHOLD: 0.4
+    // Slightly relaxed to ensure visibility without flooding
+    HARMONY_THRESHOLD: 0.25,
+    CORRUPTION_THRESHOLD: 0.25,
+    SYNERGY_THRESHOLD: 0.2,
+    INSTABILITY_THRESHOLD: 0.2,
+    HEALING_THRESHOLD: 0.15,
+    STANDING_WAVE_THRESHOLD: 0.15,
+    RESISTANCE_THRESHOLD: 0.2
 };
 
 // ============================================================================

@@ -3435,6 +3435,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Called from updateSpawning() - single authority for spawn execution
    */
   _processSpawnRequests() {
+    if (this.spawnMode !== 'RUNTIME') return;
     if (!this.spawnRequestQueue.length) return;
 
     // Sort by priority (higher priority first)
@@ -3452,6 +3453,95 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this._spawnUpdateToken = false;
       processed++;
     }
+  }
+
+  /**
+   * Consolidated spawn validation layer.
+   * Merges category validation, uniqueness, and legacy compliance gate into a single pass.
+   */
+  validateSpawnRequest({ category, forceArchetype } = {}) {
+    const requestedCategoryRaw = category;
+    const requested = (category || '').toLowerCase().trim();
+    const validation = this.validateCategory(requested || 'input');
+
+    let finalCategory = validation?.category || 'input';
+    let fallbackReason = null;
+    if (!validation?.valid) {
+      fallbackReason = validation?.reason || 'invalid-category';
+    }
+
+    const isFallbackSpawn = finalCategory === 'input' && requested && requested !== 'input';
+    const archetypeKey = forceArchetype || finalCategory;
+    const fallbackNodeId = (isFallbackSpawn && this._fallbackNode && this._fallbackNode.parent)
+      ? (this._fallbackNode.userData?.nodeId || this._fallbackNode.userData?.id || this._fallbackNode.uuid)
+      : null;
+
+    const unifiedUniqueKey = uniqueSpawnService.makeKey({
+      category: finalCategory,
+      archetype: archetypeKey || finalCategory,
+      forceArchetype,
+      registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
+    });
+
+    const decision = uniqueSpawnService.check({
+      key: unifiedUniqueKey,
+      nodes: this.nodes,
+      fallbackNodeId,
+    });
+
+    if (!decision.allowed) {
+      this._spawnAbortCounters["UNIQUE_BLOCK"] = (this._spawnAbortCounters["UNIQUE_BLOCK"] || 0) + 1;
+      const existingNode =
+        (decision.existingNodeId &&
+          (this.nodesMap?.get(decision.existingNodeId) ||
+            this.nodes.find(
+              n =>
+                (n.userData?.nodeId || n.userData?.id || n.uuid) === decision.existingNodeId
+            ))) ||
+        (isFallbackSpawn ? this._fallbackNode : null);
+
+      this._pendingCyclicCandidate = null;
+      if (typeof window !== 'undefined') {
+        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
+        const key = finalCategory || 'unknown';
+        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
+      }
+      return {
+        ok: false,
+        existingNode,
+        category: finalCategory,
+        requestedCategoryRaw,
+        fallbackReason,
+        isFallbackSpawn
+      };
+    }
+
+    // Canonical category enforcement (Phase 1)
+    const CANONICAL_ENFORCE_SET = ['process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
+    const canUseCategory = (cat) => {
+      const res = this.validateCategory(cat);
+      return res?.valid === true && res.category === cat;
+    };
+    if (finalCategory === 'input' && requestedCategoryRaw && requestedCategoryRaw.toLowerCase() !== 'input' && !isFallbackSpawn) {
+      const alternatives = CANONICAL_ENFORCE_SET.filter(canUseCategory);
+      if (alternatives.length > 0) {
+        const pick = alternatives[Math.floor(Math.random() * alternatives.length)];
+        finalCategory = pick;
+        if (this._inputBypassLogged === undefined) this._inputBypassLogged = false;
+        if (!this._inputBypassLogged) {
+          console.info('[CanonicalCategory] INPUT bypassed; using canonical category:', pick);
+          this._inputBypassLogged = true;
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      category: finalCategory,
+      requestedCategoryRaw,
+      fallbackReason,
+      isFallbackSpawn
+    };
   }
 
   /**
@@ -3499,156 +3589,29 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         stack: new Error().stack
       });
     }
-    if (!this.ensureFactoriesReady()) {
-      if (typeof window !== 'undefined') {
-        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-        const key = category || 'unknown';
-        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-      }
-      return null;
+    const validation = this.validateSpawnRequest({ category, forceArchetype });
+    if (!validation.ok) {
+      return validation.existingNode || null;
     }
 
     // Local trackers for fallback detection (no behavioral change to visuals/logic)
-    const requestedCategoryRaw = category;
+    const requestedCategoryRaw = validation.requestedCategoryRaw;
     if (this._fallbackLogged === undefined) this._fallbackLogged = false;
     if (this.fallbackNode === undefined) this.fallbackNode = null;
     if (this._fallbackNode === undefined) this._fallbackNode = null; // single-instance fallback sink
     if (this._fallbackWarned === undefined) this._fallbackWarned = false;
-    let fallbackReason = null;
+    let fallbackReason = validation.fallbackReason || null;
 
+    category = validation.category;
+    const isFallbackSpawn = validation.isFallbackSpawn;
     const archetypeKey = forceArchetype || category;
-    // Legacy array guard removed; uniqueness enforced centrally via UniqueSpawnService.
 
-    // ========================================================================
-    // [SESSION 110] SINGLE INSTANCE ENFORCEMENT (Registry Check)
-    // Prevents duplicate spawning of unique archetypes (Mythic, Prime, Extreme)
-    // ========================================================================
-    const registryKey = this._getRegistryKey(category, forceArchetype);
-    
-    // Legacy nodeRegistry duplicate gate removed; unified service handles uniqueness.
-
-    // ========================================================================
-    // [SPAWN AUTHORITY] COMPLIANCE GATE REMOVED (Phase B cleanup)
-    // ========================================================================
-    // SpawnAuthorityComplianceGate was audit-only, never blocked spawns
-    // NuclearLock now provides final authority
-    // category remains as-is, validated later in SUPPORTED_CATEGORIES check
-    if (requestedCategoryRaw && category !== requestedCategoryRaw && category === 'input') {
-      fallbackReason = 'invalid-category';
-    }
-    
-    // ========================================================================
-    // [SPAWN AUTHORITY] PRE-VALIDATION: Is this category in EnhancedNodeModel?
-    // ========================================================================
-    // CONSOLIDATED CATEGORY LIST (Fix 1): Use single source of truth
-    const requestedCategory = (category || '').toLowerCase().trim();
-    if (requestedCategory && !this.SUPPORTED_CATEGORIES.includes(requestedCategory)) {
-      // Unknown or unsupported category - apply hard fallback to 'input'
-      category = 'input';
-      if (!fallbackReason && requestedCategoryRaw && requestedCategoryRaw !== 'input') {
-        fallbackReason = 'invalid-category';
-      }
-    }
-    
-    // ========== STEP 1: RESOLVE CATEGORY (SYNC) ==========
-    // Default category or weighted random
-    if (!category) {
-      category = this.getWeightedRandomCategory();
-    }
-    
-    // Ensure category has fallback
-    if (!category) {
-      category = "input";
-      if (!fallbackReason && requestedCategoryRaw && requestedCategoryRaw !== 'input') {
-        fallbackReason = 'unknown';
-      }
-    }
-
-    // Guard: only one fallback INPUT node may exist; reuse existing if present
-    const isFallbackSpawn = category === 'input' && requestedCategoryRaw && requestedCategoryRaw !== 'input';
-    const fallbackNodeId = (this._fallbackNode && this._fallbackNode.parent)
-      ? (this._fallbackNode.userData?.nodeId || this._fallbackNode.userData?.id || this._fallbackNode.uuid)
-      : null;
     if (isFallbackSpawn && !this._fallbackWarned) {
       console.warn('[CanonicalCategory] Fallback INPUT node created for unsupported category:', requestedCategoryRaw);
       this._fallbackWarned = true;
     }
 
-    // Single-instance enforcement is centralized in UniqueSpawnService.
-    const unifiedUniqueKey = uniqueSpawnService.makeKey({
-      category,
-      archetype: archetypeKey || category,
-      forceArchetype,
-      registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
-    });
-
-    // DUPLICATE REGISTRY CHECK REMOVED (Fix 4): nodeRegistry parameter removed
-    // UniqueSpawnService already handles uniqueness via nodes array and internal registry
-    const decision = uniqueSpawnService.check({
-      key: unifiedUniqueKey,
-      nodes: this.nodes,
-      fallbackNodeId: isFallbackSpawn ? fallbackNodeId : null,
-    });
-
-    if (!decision.allowed) {
-      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
-      this._spawnAbortCounters["UNIQUE_BLOCK"] = (this._spawnAbortCounters["UNIQUE_BLOCK"] || 0) + 1;
-      const existingNode =
-        (decision.existingNodeId &&
-          (this.nodesMap?.get(decision.existingNodeId) ||
-            this.nodes.find(
-              n =>
-                (n.userData?.nodeId || n.userData?.id || n.uuid) === decision.existingNodeId
-            ))) ||
-        (isFallbackSpawn ? this._fallbackNode : null);
-
-      this._pendingCyclicCandidate = null;
-      if (existingNode) return existingNode;
-      if (typeof window !== 'undefined') {
-        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-        const key = category || 'unknown';
-        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-      }
-      return null;
-    }
-    
-    // Canonical category enforcement (Phase 1): prevent INPUT domination when other canonical options exist.
-    // Apply only after remap/fallback resolution and only when caller did not explicitly request INPUT.
-    const CANONICAL_ENFORCE_SET = ['process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
-    const canUseCategory = (cat) => {
-      const res = this.validateCategory(cat);
-      return res?.valid === true && res.category === cat;
-    };
-    if (category === 'input' && requestedCategoryRaw && requestedCategoryRaw.toLowerCase() !== 'input' && !isFallbackSpawn) {
-      const alternatives = CANONICAL_ENFORCE_SET.filter(canUseCategory);
-      if (alternatives.length > 0) {
-        const pick = alternatives[Math.floor(Math.random() * alternatives.length)];
-        category = pick;
-        if (this._inputBypassLogged === undefined) this._inputBypassLogged = false;
-        if (!this._inputBypassLogged) {
-          console.info('[CanonicalCategory] INPUT bypassed; using canonical category:', pick);
-          this._inputBypassLogged = true;
-        }
-      }
-    }
-
-    // ========================================================================
-    // [VISUAL HARD GATE] Abort if no canonical visual is registered
-    // ========================================================================
-    EnhancedNodeModels.ensureRegistryReady?.();
-    const registryEntry = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
-    const hasCanonicalVisual = Array.isArray(registryEntry) && registryEntry.length > 0;
-    if (!hasCanonicalVisual) {
-      if (shouldLogSpawn() && !this._missingFactoryLogged.has(category)) {
-        console.error('[NodeSpawnBlocked]', {
-          category,
-          reason: 'No canonical visual registered'
-        });
-        this._missingFactoryLogged.add(category);
-      }
-      // UNIFIED ABORT COUNTERS (Fix 3): Removed duplicate __diag.spawnNodeAbort reference
-      this._spawnAbortCounters["INVALID_CATEGORY"] = (this._spawnAbortCounters["INVALID_CATEGORY"] || 0) + 1;
-      this._pendingCyclicCandidate = null;
+    if (!this.ensureFactoryReadyAndVisual(category)) {
       if (typeof window !== 'undefined') {
         window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
         const key = category || 'unknown';
@@ -4141,6 +4104,28 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     if (!this._factoryReadyLogged) {
       console.log('[SPAWN] factories ready', { totalFactories });
       this._factoryReadyLogged = true;
+    }
+    return true;
+  }
+
+  ensureFactoryReadyAndVisual(category) {
+    if (!this.ensureFactoriesReady()) {
+      return false;
+    }
+    EnhancedNodeModels.ensureRegistryReady?.();
+    const registryEntry = EnhancedNodeModels._ALL_NODE_FACTORIES?.[category];
+    const hasCanonicalVisual = Array.isArray(registryEntry) && registryEntry.length > 0;
+    if (!hasCanonicalVisual) {
+      if (shouldLogSpawn() && !this._missingFactoryLogged.has(category)) {
+        console.error('[NodeSpawnBlocked]', {
+          category,
+          reason: 'No canonical visual registered'
+        });
+        this._missingFactoryLogged.add(category);
+      }
+      this._spawnAbortCounters["INVALID_CATEGORY"] = (this._spawnAbortCounters["INVALID_CATEGORY"] || 0) + 1;
+      this._pendingCyclicCandidate = null;
+      return false;
     }
     return true;
   }
