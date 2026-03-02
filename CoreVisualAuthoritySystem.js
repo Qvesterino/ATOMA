@@ -43,6 +43,9 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
 
+// Render-order lockdown flag
+const RENDER_AUTHORITY_LOCKDOWN = true;
+
 /**
  * Fast type gate: ensure object is a valid THREE.Object3D before userData writes
  * Prevents errors when receiving DOM/WebComponents or non-THREE objects
@@ -280,7 +283,9 @@ export class CoreVisualAuthoritySystem {
 
       // Enforce core render authority using the Guard
       CoreVisualAuthorityGuard.enforce(coreMesh);
-      coreMesh.renderOrder = this.CORE_RENDER_ORDER;
+      if (!RENDER_AUTHORITY_LOCKDOWN) {
+        coreMesh.renderOrder = this.CORE_RENDER_ORDER;
+      }
 
       // Store core mesh reference
       this.coreMeshMap.set(nodeId, coreMesh);
@@ -328,7 +333,9 @@ export class CoreVisualAuthoritySystem {
           this._enforceVisualOnlyMaterial(obj);
 
           // Set low render order
-          obj.renderOrder = this.VISUAL_ONLY_RENDER_ORDER;
+          if (!RENDER_AUTHORITY_LOCKDOWN) {
+            obj.renderOrder = this.VISUAL_ONLY_RENDER_ORDER;
+          }
         } else if (obj.material) {
           // For rim/edge meshes (neither core nor visual-only)
           // Check if it's a rim or edge visualization
@@ -339,7 +346,9 @@ export class CoreVisualAuthoritySystem {
 
           if (isRim) {
             // Intermediate render order for rims
-            obj.renderOrder = this.RIM_RENDER_ORDER;
+            if (!RENDER_AUTHORITY_LOCKDOWN) {
+              obj.renderOrder = this.RIM_RENDER_ORDER;
+            }
             // Validate only - materials must be created with correct flags
             if (obj.material.depthWrite !== false || !obj.material.depthTest) {
               if (this.debugMode) {

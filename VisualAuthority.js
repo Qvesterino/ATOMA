@@ -15,6 +15,9 @@
 
 import * as THREE from 'three';
 
+// Global feature flag for render-order lockdown
+const RENDER_AUTHORITY_LOCKDOWN = true;
+
 /**
  * 🔒 VISUAL AUTHORITY: Central enforcement
  */
@@ -248,6 +251,18 @@ export class VisualAuthority {
    */
   enforceFrame(scene) {
     if (!this.enabled || !scene) return null;
+    // Lockdown: disable per-frame renderOrder repairs to let VisualHierarchyRegistry be sole authority
+    if (RENDER_AUTHORITY_LOCKDOWN) {
+      return {
+        timestamp: Date.now(),
+        nodesChecked: 0,
+        nodesValid: 0,
+        nodesRepaired: 0,
+        violations: [],
+        repairs: [],
+        lockdownActive: true
+      };
+    }
     
     const report = {
       timestamp: Date.now(),

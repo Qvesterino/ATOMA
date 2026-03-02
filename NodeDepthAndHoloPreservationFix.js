@@ -20,12 +20,16 @@
  */
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 
+// Render-order lockdown flag
+const RENDER_AUTHORITY_LOCKDOWN = true;
+
 export class NodeDepthAndHoloPreservationFix {
   /**
    * Initialize depth authority for entire scene
    * Call once after scene setup
    */
   static initializeDepthAuthority(scene) {
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     console.group('%c[NODE DEPTH PRESERVATION]', 'color: #00ff88; font-weight: bold');
     
     let linkCount = 0;
@@ -113,6 +117,7 @@ export class NodeDepthAndHoloPreservationFix {
    */
   static enforceLinkDepthAuthority(linkGroup) {
     if (!linkGroup || !linkGroup.isMesh === false) return;
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     
     linkGroup.traverse((child) => {
       if (!child.isMesh || !child.material) return;
@@ -133,6 +138,7 @@ export class NodeDepthAndHoloPreservationFix {
    */
   static enforceAuraDepthAuthority(auraMesh) {
     if (!auraMesh || !auraMesh.isMesh === false) return;
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     
     auraMesh.traverse((child) => {
       if (!child.isMesh || !child.material) return;
@@ -153,6 +159,7 @@ export class NodeDepthAndHoloPreservationFix {
    */
   static enforceHolographicPreservation(node) {
     if (!node || !node.traverse) return;
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     
     node.traverse((child) => {
       if (!child.isMesh) return;
@@ -195,6 +202,7 @@ export class NodeDepthAndHoloPreservationFix {
    */
   static enforceDepthAuthorityEveryFrame(scene) {
     if (!scene || !scene.traverse) return;
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     
     scene.traverse((obj) => {
       if (!obj.isMesh || !obj.material) return;

@@ -33,6 +33,9 @@
 
 import * as THREE from 'three';
 
+// Render-order lockdown flag
+const RENDER_AUTHORITY_LOCKDOWN = true;
+
 // [B.3-M1] Frame-level cap for shader-invalidating updates
 let __B3_SURFACE_NEEDSUPDATE_THIS_FRAME = 0;
 let __B3_SURFACE_RAF_SCHEDULED = false;
@@ -141,8 +144,10 @@ export class NodeSurfaceProtectionRule_v2 {
                 lastUpdate: Date.now()
             });
             
-            // Apply initial renderOrder hierarchy
-            this._applyRenderOrderHierarchy(node);
+            // Apply initial renderOrder hierarchy (disabled during lockdown)
+            if (!RENDER_AUTHORITY_LOCKDOWN) {
+                this._applyRenderOrderHierarchy(node);
+            }
             
             if (this.debugEnabled) {
                 console.log(`[NodeSurfaceProtectionRule_v2] Node registered: ${node.name || 'unnamed'}`);
@@ -158,6 +163,7 @@ export class NodeSurfaceProtectionRule_v2 {
      * @private
      */
     _applyRenderOrderHierarchy(node) {
+        if (RENDER_AUTHORITY_LOCKDOWN) return;
         try {
             if (!node.children) return;
             

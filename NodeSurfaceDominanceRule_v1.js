@@ -30,6 +30,8 @@
 
 import * as THREE from 'three';
 
+// Render-order lockdown flag
+const RENDER_AUTHORITY_LOCKDOWN = true;
 export class NodeSurfaceDominanceRule_v1 {
   constructor() {
     // Dominance rules (tunable)
@@ -66,6 +68,7 @@ export class NodeSurfaceDominanceRule_v1 {
    */
   enforceNodeDominance(node, linkEventNode) {
     if (!node || !node.isMesh) return;
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     
     const nodeId = node.id || node.uuid || Math.random();
     
@@ -95,6 +98,7 @@ export class NodeSurfaceDominanceRule_v1 {
    * @private
    */
   _applyDominance(node) {
+    if (RENDER_AUTHORITY_LOCKDOWN) return;
     if (!node || !node.material) return;
     
     // Rule 1: RenderOrder - Ensure node is rendered after aura
