@@ -25,6 +25,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -494,7 +495,8 @@ export class BeadRenderer {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 120; // draw over rope strands, below sparks
+    const beadsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEADS');
+    mesh.renderOrder = beadsOrder;
     const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
     Object.assign(ud, { bead: bead, isBead: true });
     

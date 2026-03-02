@@ -18,6 +18,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 export class LinkCorruptionParticleSystem {
@@ -216,7 +217,8 @@ export class LinkCorruptionParticleSystem {
     tagAllowedSphere(mesh, { role: 'vfx', source: 'LinkCorruptionParticleSystem._createNewParticle' });
     clampSphere(mesh);
     mesh.castShadow = true;
-    mesh.renderOrder = 20;
+    const particlesOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+    mesh.renderOrder = particlesOrder;
     
     return {
       mesh: mesh,

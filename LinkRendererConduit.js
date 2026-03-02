@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -567,7 +568,8 @@ export class LinkRendererConduit {
             mesh.frustumCulled = false;
             geometry.computeBoundingSphere();
             geometry.computeBoundingBox();
-            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: 10, depthWrite: false, depthTest: true });
+            const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
+            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
             ensureUserData(mesh);
@@ -604,7 +606,8 @@ export class LinkRendererConduit {
         skinMaterial.userData.__domain = 'link';
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
-        TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: 9, depthWrite: false });
+        const skinOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
+        TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: skinOrder, depthWrite: false });
         ensureUserData(skinMesh);
         skinMesh.userData.__depthAuthorityLocked = true;
         group.add(skinMesh);
@@ -667,7 +670,9 @@ export class LinkRendererConduit {
             if (LinkDirectionalStreaks && this.directionalStreaks) {
                 directionalStreaks = this.directionalStreaks;
                 // Initialize streaks with deterministic randomization based on link ID
-                const linkIdHash = (link.id || 'default').split('').reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
+                const linkIdHash = (link.id || link.uuid || `link-unknown`)
+                    .split('')
+                    .reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
 
                 // Get harmonic hub controller if this link is connected to a hub
                 const sourceController = this.nodeHarmonicManager?.nodeControllers.get(link.source);
@@ -1409,7 +1414,8 @@ export class LinkRendererConduit {
         mesh.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: 40 });
+        const impactOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
+        TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: impactOrder });
         ensureUserData(mesh);
         mesh.userData.__depthAuthorityLocked = true;
         

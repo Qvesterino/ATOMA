@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPulseWaveInjector } from './LinkPulseWaveInjector.js';
 import { LinkPulsePhaseSync } from './LinkPulsePhaseSync.js';
 import LinkStreakColorDynamics from './LinkStreakColorDynamics_Session115.js';
@@ -109,7 +110,8 @@ export class LinkDirectionalStreaks {
         mesh.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        mesh.renderOrder = 11; // Slightly above strands
+        const directionalOrder = VisualHierarchyRegistry.getRenderOrder('LINK_DIRECTIONAL');
+        mesh.renderOrder = directionalOrder;
         linkGroup.add(mesh);
         
         // Streak state arrays (allocated once, reused)

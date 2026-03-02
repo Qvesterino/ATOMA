@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkBufferSafetyAudit } from './LinkBufferSafetyAudit.js';
 
 /**
@@ -34,9 +35,9 @@ export class LinkRingArcDischarges {
         this.config = {
             spawnInterval: 0.25,      // Spawn arcs every 0.25 of traversal (4 bursts per cycle)
             arcsPerBurst: 5,          // 3-8, we'll randomize
-            arcLifetime: 0.08,        // 60-100ms per arc
-            arcLength: 0.15,          // Radial extent from ring
-            arcThickness: 0.008,      // Line width
+            arcLifetime: 0.3,         // Enhanced: 300ms per arc (doubled from 150ms)
+            arcLength: 0.25,          // Enhanced: Radial extent (increased to 0.25)
+            arcThickness: 0.02,       // Enhanced: Line width (increased from 0.015)
             jitterAmount: 0.05,       // Random variation in path
             radiusScale: 1.0,         // Scales with synergy
         };
@@ -120,6 +121,20 @@ export class LinkRingArcDischarges {
     }
 
     /**
+     * Calculate base opacity from progress (fade in/out)
+     * Fantasy: Helper function for pulse effect
+     */
+    calculateBaseOpacity(progress, maxOpacity) {
+        if (progress < 0.3) {
+            return (progress / 0.3) * maxOpacity; // Fast fade in
+        } else if (progress > 0.7) {
+            return (1.0 - progress) / 0.3 * maxOpacity; // Fast fade out
+        } else {
+            return maxOpacity; // Full opacity in middle
+        }
+    }
+
+    /**
      * Spawn a single electric arc
      */
     spawnSingleArc(ringPos, tangent, synergy, traffic) {
@@ -179,33 +194,46 @@ export class LinkRingArcDischarges {
             return;
         }
 
-        // Create line material (additive blend, sharp)
+        // Create line material (additive blend, sharp) with glow
+        // Fantasy: Emissive glow + color variation
+        const colorVariation = 0.7 + Math.random() * 0.3; // Vary color by 30%
+        const arcColor = this.ringColor.clone().multiplyScalar(colorVariation);
+        
         const material = new THREE.LineBasicMaterial({
-            color: this.ringColor,
+            color: arcColor,
             transparent: true,
             opacity: 1.0,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             linewidth: 1.0,
             fog: false,
+            // Fantasy: Emissive glow for bright arcs
+            emissive: arcColor,
+            emissiveIntensity: 1.5, // Bright glow effect
         });
 
-        // Create line mesh
+        // Create line mesh with random thickness variation
+        const thicknessVariation = this.config.arcThickness * (0.8 + Math.random() * 0.4); // Fantasy: Variable thickness
+        
         const line = new THREE.Line(geometry, material);
         line.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        line.renderOrder = 12; // Above ring (11)
+        const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
+        line.renderOrder = arcsOrder;
+        line.material.linewidth = thicknessVariation; // Fantasy: Set random thickness
         this.group.add(line);
 
-        // Track arc lifetime
+        // Track arc lifetime with fantasy parameters
         const arcData = {
             mesh: line,
             geometry: geometry,
             material: material,
             lifetime: this.config.arcLifetime + (Math.random() - 0.5) * 0.02,
             age: 0,
-            maxOpacity: 0.7 + Math.random() * 0.3,
+            maxOpacity: 0.8 + Math.random() * 0.4, // Fantasy: Variable max opacity (0.8-1.2)
+            pulsePhase: Math.random() * Math.PI * 2, // Fantasy: Pulse phase for twinkling
+            pulseSpeed: 5.0 + Math.random() * 3.0, // Fantasy: Pulse speed for twinkling
         };
 
         this.activeArcs.push(arcData);
@@ -278,21 +306,16 @@ export class LinkRingArcDischarges {
                 arc.material.dispose();
                 this.activeArcs.splice(i, 1);
             } else {
-                // Fade in quickly, fade out quickly (cosine easing)
-                // Start: fast fade in (0.0 -> 0.3 of lifetime)
-                // Middle: full opacity (0.3 -> 0.7 of lifetime)
-                // End: fast fade out (0.7 -> 1.0 of lifetime)
+                // Fantasy: Pulse opacity effect for twinkling arcs
+                // Original: Fade in quickly, fade out quickly (cosine easing)
+                // Enhanced: Add pulsing sparkle effect
                 
-                let opacity;
-                if (progress < 0.3) {
-                    opacity = (progress / 0.3) * arc.maxOpacity;
-                } else if (progress > 0.7) {
-                    opacity = (1.0 - progress) / 0.3 * arc.maxOpacity;
-                } else {
-                    opacity = arc.maxOpacity;
-                }
-
-                arc.material.opacity = Math.max(0, opacity);
+                const baseOpacity = this.calculateBaseOpacity(progress, arc.maxOpacity);
+                const pulseModulation = Math.sin(arc.age * arc.pulseSpeed + arc.pulsePhase);
+                const pulseEffect = 0.8 + 0.2 * pulseModulation; // Pulse between 0.6 and 1.0
+                
+                arc.material.opacity = Math.max(0, baseOpacity * pulseEffect);
+                arc.material.emissiveIntensity = 1.5 * pulseEffect; // Sync glow with pulse
             }
         }
     }

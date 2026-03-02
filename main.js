@@ -5597,6 +5597,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 'requested=', nodeCount,
                 'created=', this.aiNodes?.nodes?.length);
         }
+        // Rebind category legend to fresh aiNodes instance and sync counts
+        if (this.categoryLegend) {
+            this.categoryLegend.unbind?.();
+            this.categoryLegend.bind(this.aiNodes);
+        }
         // Enable runtime spawning after init batch
         this.aiNodes.spawnMode = 'RUNTIME';
 
@@ -9793,7 +9798,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      *             Sigma, Emotional, Quantum, Mythic, Prime, External, Extreme, Special
      */
     setupCategoryLegend() {
-        this.categoryLegend = new UICategoryLegend3_1();
+        this.categoryLegend = new UICategoryLegend3_1(this.aiNodes);
 
         console.log('✓ Category Legend 3.1 initialized (14 categories - passive display)');
     }

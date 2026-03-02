@@ -9,82 +9,40 @@
  */
 
 export class SafeMetricsDNAIntegration1_0 {
+  static _ALLOWED_WRITERS = [
+    'SafeMetricsDNAIntegration1_0.js',
+    'NodeMetricEngine.js',
+    'MetricsRuntime_v1.js',
+  ];
+
+  static _wrapMetricsWithGuard(metricsObj) {
+    if (!metricsObj || metricsObj.__guarded) return metricsObj;
+    const warnedProps = new Set();
+    const proxy = new Proxy(metricsObj, {
+      set(target, prop, value) {
+        const stack = new Error().stack || '';
+        const isAllowed = SafeMetricsDNAIntegration1_0._ALLOWED_WRITERS.some(marker => stack.includes(marker));
+        if (!isAllowed) {
+          const key = String(prop);
+          if (!warnedProps.has(key)) {
+            console.warn('[MetricAuthorityGuard] external metrics write detected', { prop: key, stack });
+            warnedProps.add(key);
+          }
+        }
+        target[prop] = value;
+        return true;
+      }
+    });
+    metricsObj.__guarded = true;
+    return proxy;
+  }
+
   /**
    * Complete metrics table by archetype
    * Values from official Node Archetype DNA System
    */
   static METRICS_TABLE = {
-    'crystal': {
-      synergy: 65,
-      harmony: 80,
-      stability: 85,
-      corruption: 95,
-      load: 5,
-    },
-    'harmonic': {
-      synergy: 50,
-      harmony: 95,
-      stability: 60,
-      corruption: 70,
-      load: 6,
-    },
-    'fractal': {
-      synergy: 80,
-      harmony: 20,
-      stability: 40,
-      corruption: 30,
-      load: 2,
-    },
-    'quantum': {
-      synergy: 95,
-      harmony: 5,
-      stability: 15,
-      corruption: 20,
-      load: 4,
-    },
-    'umbra': {
-      synergy: 40,
-      harmony: 10,
-      stability: 80,
-      corruption: 25,
-      load: 5,
-    },
-    'solar': {
-      synergy: 100,
-      harmony: 50,
-      stability: 50,
-      corruption: 60,
-      load: 3,
-    },
-    'glyph': {
-      synergy: 70,
-      harmony: 65,
-      stability: 70,
-      corruption: 90,
-      load: 3,
-    },
-    'echo': {
-      synergy: 45,
-      harmony: 40,
-      stability: 30,
-      corruption: 50,
-      load: 6,
-    },
-    'convergence': {
-      synergy: 85,
-      harmony: 35,
-      stability: 55,
-      corruption: 40,
-      load: 5,
-    },
-  //  'ascended': {
-  //    synergy: 120,
-  //    stability: 120,
-  //    clarity: 120,
-  //    harmony: 120,
-  //    instability: 0,
-  //  },
-    // Functional archetypes (inferred from functional role descriptions)
+    // Core categories
     'input': {
       synergy: 50,
       harmony: 40,
@@ -127,9 +85,52 @@ export class SafeMetricsDNAIntegration1_0 {
       corruption: 70,
       load: 5,
     },
+    // New canonical categories
+    'prime': {
+      synergy: 70,
+      harmony: 70,
+      stability: 90,
+      corruption: 10,
+      load: 3,
+    },
+    'error': {
+      synergy: 40,
+      harmony: 20,
+      stability: 30,
+      corruption: 95,
+      load: 4,
+    },
+    'mythic': {
+      synergy: 95,
+      harmony: 85,
+      stability: 60,
+      corruption: 25,
+      load: 2,
+    },
+    'sigma': {
+      synergy: 60,
+      harmony: 50,
+      stability: 85,
+      corruption: 15,
+      load: 3,
+    },
+    'quantum': {
+      synergy: 65,
+      harmony: 15,
+      stability: 15,
+      corruption: 20,
+      load: 4,
+    },
+    'emotional': {
+      synergy: 75,
+      harmony: 85,
+      stability: 40,
+      corruption: 45,
+      load: 4,
+    },
     // Fallback for unlabeled nodes
     'default': {
-      synergy: 65,  
+      synergy: 65,
       harmony: 65,
       stability: 65,
       corruption: 65,
@@ -195,6 +196,9 @@ static attachMetrics(node, archetype) {
     archetype: archetypeKey,
     _isMetricSnapshot: true,
   };
+
+  // Attach authority guard (logging only, no behavior change)
+  node.userData.metrics = this._wrapMetricsWithGuard(node.userData.metrics);
 }
 
   /**

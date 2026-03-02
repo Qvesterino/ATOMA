@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // Shared geometry to minimize allocations
 // Radius 1.0, Tube 0.08 (8% thickness)
@@ -32,7 +33,8 @@ export class LinkPulseRing {
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
-        this.mesh.renderOrder = 11; // Render on top of strands (10)
+        const pulseOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
+        this.mesh.renderOrder = pulseOrder;
 
         // State
         this.progress = Math.random(); // Random start pos
@@ -62,9 +64,9 @@ export class LinkPulseRing {
         this.mesh.visible = true;
 
         // 1. Motion Logic
-        // Speed scales with traffic and synergy
-        // Baseline: 0.4, Max: ~1.2
-        const speed = 0.4 + (traffic * 0.5) + (synergy * 0.3);
+        // Speed scales with traffic and synergy (slower, more visible)
+        // Baseline: 0.3, Max: ~1.0
+        const speed = 0.3 + (traffic * 0.4) + (synergy * 0.2);
         this.progress += speed * dt;
         
         if (this.progress >= 1.0) {
@@ -84,11 +86,11 @@ export class LinkPulseRing {
         this.mesh.lookAt(point.clone().add(tangent));
 
         // 3. Visual Scaling & Oscillation
-        // Base size scales with synergy
+        // Base size scales with synergy (enhanced visibility)
         // Add oscillation (breathing) based on progress and time
-        const baseScale = 0.08 + (synergy * 0.06);
-        // Oscillate width slightly along the path (wavy motion match)
-        const oscillation = Math.sin(this.progress * Math.PI * 4) * 0.15 + 1.0; 
+        const baseScale = 0.12 + (synergy * 0.08); // Increased from 0.08+0.06 to 0.12+0.08
+        // Oscillate width slightly along the path (wavy motion match) - enhanced breathing
+        const oscillation = Math.sin(this.progress * Math.PI * 4) * 0.20 + 1.0; // Increased from 0.15 to 0.20
         
         this.mesh.scale.setScalar(baseScale * oscillation);
 

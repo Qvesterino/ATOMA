@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * GPU-Driven Spark Particle System for Links
@@ -191,7 +192,8 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render if link is visible
-        this.points.renderOrder = 12; // Above strands (10) and directional streaks (11)
+        const sparksOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+        this.points.renderOrder = sparksOrder;
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
     }

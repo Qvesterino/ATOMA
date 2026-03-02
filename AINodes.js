@@ -1230,6 +1230,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     });
     
+    // After initial batch, sync category counts for HUD
+    this.recomputeSpawnCategoryCountsFromNodes(this.nodes, true);
+
     // Transition to runtime (or disabled) after batch init completes.
     if (this.spawnState.phase === 'INIT') {
       this.setSpawnPhase('RUNTIME');
@@ -4183,6 +4186,33 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
   getSpawnCategoryCounts() {
     return { ...this.spawnCategoryCounts };
+  }
+
+  recomputeSpawnCategoryCountsFromNodes(nodesArray = this.nodes, emit = false) {
+    // reset
+    for (const key of Object.keys(this.spawnCategoryCounts)) {
+      this.spawnCategoryCounts[key] = 0;
+    }
+    let totalGlobal = 0;
+    if (Array.isArray(nodesArray)) {
+      for (const node of nodesArray) {
+        const cat = (node?.userData?.category || '').toUpperCase();
+        if (this.spawnCategoryCounts[cat] !== undefined) {
+          this.spawnCategoryCounts[cat] += 1;
+        }
+        totalGlobal += 1;
+      }
+    }
+    if (emit) {
+      for (const [cat, count] of Object.entries(this.spawnCategoryCounts)) {
+        this._emitSpawnEvent({
+          category: cat,
+          totalForCategory: count,
+          totalGlobal,
+          stats: { ...this.spawnStats }
+        });
+      }
+    }
   }
 
   _emitSpawnEvent(payload) {

@@ -22,6 +22,34 @@ const STEP = {
   relaxRate: 0.1 // per second toward defaults
 };
 
+const ALLOWED_WRITERS = [
+  'SafeMetricsDNAIntegration1_0.js',
+  'NodeMetricEngine.js',
+  'MetricsRuntime_v1.js',
+];
+
+function wrapMetricsWithGuard(metricsObj) {
+  if (!metricsObj || metricsObj.__guarded) return metricsObj;
+  const warnedProps = new Set();
+  const proxy = new Proxy(metricsObj, {
+    set(target, prop, value) {
+      const stack = new Error().stack || '';
+      const isAllowed = ALLOWED_WRITERS.some(marker => stack.includes(marker));
+      if (!isAllowed) {
+        const key = String(prop);
+        if (!warnedProps.has(key)) {
+          console.warn('[MetricAuthorityGuard] external metrics write detected', { prop: key, stack });
+          warnedProps.add(key);
+        }
+      }
+      target[prop] = value;
+      return true;
+    }
+  });
+  metricsObj.__guarded = true;
+  return proxy;
+}
+
 function clamp01(v) {
   if (v < 0) return 0;
   if (v > 1) return 1;
@@ -48,13 +76,15 @@ function applyArchetypeClamp(node) {
 function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   if (node.userData.metrics) {
+    node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
     return node.userData.metrics;
   }
   const metrics = (node.userData.metrics = {});
   for (const key of Object.keys(DEFAULT_METRICS)) {
     metrics[key] = DEFAULT_METRICS[key];
   }
-  return metrics;
+  node.userData.metrics = wrapMetricsWithGuard(metrics);
+  return node.userData.metrics;
 }
 
 function adjust(metrics, key, delta) {

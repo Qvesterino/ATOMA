@@ -26,6 +26,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * Shared noise function (identical to LinkAuraShader)
@@ -344,6 +345,8 @@ export class LinkTrailParticleSystem {
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
+    const particlesOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+    this.poolGroup.renderOrder = particlesOrder;
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
     Object.assign(udPool, { isTrailParticles: true });
     this.scene.add(this.poolGroup);

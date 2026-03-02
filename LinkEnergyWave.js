@@ -26,10 +26,10 @@ export class LinkEnergyWave {
         this.config = {
             baseWaveSpeed: 1.5,      // Full traversal per N seconds
             waveFrequency: 3.0,       // Oscillations per traversal
-            baseIntensity: 0.6,       // Base emissive modulation (0-1)
-            peakIntensity: 1.4,       // Peak emissive intensity multiplier
-            trafficBoost: 1.2,        // Multiplier per traffic unit
-            synergyBoost: 0.8,        // Multiplier per synergy unit
+            baseIntensity: 1.0,       // Enhanced base emissive modulation (increased from 0.6)
+            peakIntensity: 2.0,       // Enhanced peak emissive intensity (increased from 1.4)
+            trafficBoost: 1.4,        // Enhanced multiplier per traffic unit (increased from 1.2)
+            synergyBoost: 1.0,        // Enhanced multiplier per synergy unit (increased from 0.8)
         };
         
         // Math cache
@@ -57,8 +57,8 @@ export class LinkEnergyWave {
         // Normalized wave position (0 -> 1 over one cycle)
         const wavePosition = (this.flowTime / waveSpeed) % 1.0;
 
-        // Modulation intensity increases with synergy and traffic
-        const intensityMult = this.config.baseIntensity + (synergy * 0.3) + (traffic * 0.2);
+        // Modulation intensity increases with synergy and traffic (enhanced impact)
+        const intensityMult = this.config.baseIntensity + (synergy * 0.6) + (traffic * 0.4);
 
         // Apply wave to each strand with phase offset
         strands.forEach((strand, strandIndex) => {

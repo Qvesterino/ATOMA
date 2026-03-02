@@ -17,6 +17,26 @@
  * ✅ Registry is ZERO-CONFIG (constants are immutable)
  * ✅ Unified interface for Node and Link layers
  * 
+ * CORE CONSTRAINT: NODE < 2 < LINKS
+ * ==========================================
+ * 
+ * PRINCÍP:
+ *   Node vizuály (nad ARCHETYPE=1) MUSIA byť renderOrder < 2
+ *   Link vizuálmi sú vyhradený rozsah 2-20
+ *   Node vysoko-level efekty používajú renderOrder >= 50 (EVOLUTION)
+ * 
+ * DÔVOD:
+ *   - Bezpečnosť: Oddelený priestor pre Node a Link vizuály
+ *   - Deterministika: Žiadne prekrytie → stabilné poradie
+ *   - Budúcnosť: Linky môžu expandovať v rámci 2-20
+ * 
+ * VÝNIMKY (NEPOVOLENÉ):
+ *   - Link vizuály NEMÔŽU používať < 2
+ *   - Node vizuály (nad ARCHETYPE) NEMÔŽU používať 2-20
+ * 
+ * VIAC: docs/LINK_NODE_RENDER_ORDER_GUIDELINES.md
+ * ==========================================
+ * 
  * USAGE:
  *   import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  *   
@@ -29,13 +49,13 @@
  *   mesh.renderOrder = strandOrder;
  * 
  * LAYER STACK (Bottom to Top):
- *   NODE LAYERS:
+ *   NODE LAYERS (< 2):
  *   AURA_BACKGROUND    (-100)  — Reserved for future background effects
  *   AURA               (-1)    — Halos, ambient fields (behind everything)
  *   CORE               (0)     — Primary node geometry (EnhancedNodeModels)
  *   ARCHETYPE          (1)     — Extreme/archetype geometry (in EnhancedNodeModels)
  *   
- *   LINK LAYERS (between ARCHETYPE=1 and EVOLUTION=50):
+ *   LINK LAYERS (2-20) [RESERVED]:
  *   LINK_SKIN          (2)     — Link atmosphere aura behind rope
  *   LINK_STRANDS        (3)     — Braided rope geometry - main link structure
  *   LINK_DIRECTIONAL    (10)    — Flow visualization along links
@@ -46,7 +66,7 @@
  *   LINK_IMPACTS        (15)    — Transient hit effects at nodes
  *   LINK_PARTICLES      (20)    — Ambient particle effects (trail/healing/corruption)
  *   
- *   NODE LAYERS (continued):
+ *   NODE LAYERS (>= 50):
  *   EVOLUTION          (50)    — Evolution visuals, personality overlays
  *   FX                 (100)   — Particles, pulses, transient effects
  *   DEBUG              (200)   — Legacy debug overlays (only if enabled)
