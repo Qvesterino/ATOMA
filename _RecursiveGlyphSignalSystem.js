@@ -54,12 +54,14 @@ export class RecursiveGlyphSignalSystem {
     this.config = {
       globalCap: 9,
       signalCooldownSec: 1.0,
+      hoverCooldownSec: 0.3,
       clutterCap: 7,
+      hoverClutterBonus: 2,
       baseSize: 0.24,
       emergenceSec: 0.22,
-      sustainSec: 0.55,
-      decaySec: 0.42,
-      shortSustainSec: 0.32,
+      sustainSec: 0.55 * 1.5,
+      decaySec: 0.42 * 1.5,
+      shortSustainSec: 0.32 * 1.5,
       burstDecayMultiplier: 2.2,
       hoverLiftY: 0.82,
       selectLiftY: 1.02,
@@ -165,7 +167,7 @@ export class RecursiveGlyphSignalSystem {
       return false;
     }
 
-    if (this._isCluttered(node)) {
+    if (this._isCluttered(node, reason)) {
       this.stats.culledByClutter++;
       return false;
     }
@@ -177,11 +179,14 @@ export class RecursiveGlyphSignalSystem {
     }
 
     const meaning = this._deriveMeaning(semantic, reason, null);
-    const anchorOffset = new THREE.Vector3(
-      0,
-      reason === 'selection' ? this.config.selectLiftY : this.config.hoverLiftY,
-      0
-    );
+    const radius =
+      node.geometry?.boundingSphere?.radius ??
+      node.userData?.boundingSphere?.radius ??
+      0.6;
+    const lift =
+      (reason === 'selection' ? this.config.selectLiftY : this.config.hoverLiftY) +
+      radius * 0.35;
+    const anchorOffset = new THREE.Vector3(0, lift, 0);
 
     const signal = this._spawnSignal({
       contextKey,
@@ -192,6 +197,7 @@ export class RecursiveGlyphSignalSystem {
     });
 
     if (!signal) return false;
+    signal.reason = reason;
     this.activeSignals.set(contextKey, signal);
     this.stats.emitted++;
     this._ensureTickRegistered();
@@ -279,7 +285,11 @@ export class RecursiveGlyphSignalSystem {
       const signal = this.activeSignals.get(key);
       this._despawnSignal(signal);
       this.activeSignals.delete(key);
-      this.cooldowns.set(key, this.time + this.config.signalCooldownSec);
+      const cooldown =
+        signal.reason === 'hover'
+          ? this.config.hoverCooldownSec
+          : this.config.signalCooldownSec;
+      this.cooldowns.set(key, this.time + cooldown);
     }
 
     this.stats.active = this.activeSignals.size;
@@ -350,7 +360,7 @@ export class RecursiveGlyphSignalSystem {
     return semanticState.type !== 'neutral';
   }
 
-  _isCluttered(node) {
+  _isCluttered(node, reason = 'hover') {
     const root = node?.visualGroup || node;
     if (!root || typeof root.traverse !== 'function') return false;
 
@@ -368,7 +378,11 @@ export class RecursiveGlyphSignalSystem {
       }
     });
 
-    return overlayCount >= this.config.clutterCap;
+    const cap =
+      reason === 'hover'
+        ? this.config.clutterCap + this.config.hoverClutterBonus
+        : this.config.clutterCap;
+    return overlayCount >= cap;
   }
 
   _deriveMeaning(semanticState, reason, residueKind) {
