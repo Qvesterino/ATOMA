@@ -345,7 +345,7 @@ export class RecursiveGlyphSignalSystem {
   }
 
   _isReadyToCommunicate(semanticState, reason) {
-    if (reason === 'selection') return true;
+    if (reason === 'selection' || reason === 'hover') return true;
     if (!semanticState || !semanticState.type) return false;
     return semanticState.type !== 'neutral';
   }
