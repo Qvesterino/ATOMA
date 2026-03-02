@@ -347,7 +347,7 @@
         console.log('\nDebugging aids:');
         console.log('- Add scanLine.material.emissive = new THREE.Color(0x00F2FF)');
         console.log('- Set scanLine.material.emissiveIntensity = 1.0');
-        console.log('- Set scanLine.renderOrder = 9999');
+        console.log(`- Set scanLine.renderOrder = ${VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY')}`);
         console.log('- Set scanLine.material.depthTest = false');
 
         // Return validation result for programmatic use

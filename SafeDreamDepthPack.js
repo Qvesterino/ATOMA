@@ -123,7 +123,8 @@ export class SafeDreamDepthPack {
     
     this.overlayQuad = new THREE.Mesh(geometry, material);
     this.overlayQuad.position.z = 0.1; // In front of everything
-    this.overlayQuad.renderOrder = 9999; // Render last
+    // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
+    this.overlayQuad.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY'); // Render last
     
     this.overlayQuad.userData = {
       type: 'dream-depth-overlay',

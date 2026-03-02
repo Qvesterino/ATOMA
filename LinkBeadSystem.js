@@ -642,7 +642,8 @@ export class LinkBeadVisualizer {
   forceRenderState() {
     this.group?.traverse((child) => {
       if (!child.isMesh || !child.material) return;
-      child.renderOrder = 500;
+      // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
+      child.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY');
       child.visible = true;
       const mat = child.material;
       mat.transparent = true;

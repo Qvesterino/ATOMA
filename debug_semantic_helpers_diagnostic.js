@@ -175,10 +175,11 @@
         if (!helper.userData._originalRenderOrder) {
             helper.userData._originalRenderOrder = helper.renderOrder;
         }
-        helper.renderOrder = 9999; // Render last, on top
+        // PHASE 3B: normalized extreme renderOrder → DEBUG_OVERLAY
+        helper.renderOrder = VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY'); // Render last, on top
     });
 
-    console.log('Forced renderOrder = 9999 on all helpers');
+    console.log(`Forced renderOrder = ${VisualHierarchyRegistry.getRenderOrder('DEBUG_OVERLAY')} on all helpers`);
     console.log('Helpers should now render on top of all other objects');
 
     // ========================================================================

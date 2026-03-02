@@ -44,6 +44,19 @@ export class CoreMetricsHUD {
     this.networkTimePulseActive = false;
     this.networkTimePulseElapsed = 0;
     
+    // Update throttling (2Hz = 500ms)
+    this.lastUpdateTime = 0;
+    this.updateInterval = 500; // 2 updates per second
+    
+    // Previous values for color indication
+    this.previousValues = {
+      synergy: null,
+      harmony: null,
+      stability: null,
+      corruption: null,
+      loadPressure: null
+    };
+    
     // Color palette (ATOMA-themed)
     this.colors = {
       synergy: '#00ccdd',      // Cyan
@@ -85,7 +98,7 @@ export class CoreMetricsHUD {
       padding: 12px;
       z-index: 1145;
       text-shadow: 0 0 10px ${this.colors.border};
-      max-width: 250px;
+      max-width: 400px;
       box-shadow: 0 0 20px rgba(0, 200, 220, 0.3);
     `;
     
@@ -157,7 +170,7 @@ export class CoreMetricsHUD {
   createMetricRow(label, key, color) {
     const row = document.createElement('div');
     row.style.cssText = `
-      margin: 4px 0;
+      margin: 8px 0;
       font-size: 11px;
     `;
     
@@ -165,9 +178,10 @@ export class CoreMetricsHUD {
     const labelSpan = document.createElement('span');
     labelSpan.style.cssText = `
       display: inline-block;
-      width: 85px;
+      width: 140px;
       color: ${color};
       font-weight: bold;
+      font-size: 12px;
     `;
     labelSpan.textContent = `${label}: `;
     
@@ -175,25 +189,29 @@ export class CoreMetricsHUD {
     percentSpan.id = `${key}-percent`;
     percentSpan.style.cssText = `
       display: inline-block;
-      width: 30px;
+      width: 90px;
       text-align: right;
       color: ${this.colors.text};
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      font-size: 13px;
     `;
     percentSpan.textContent = '00%';
     
     row.appendChild(labelSpan);
     row.appendChild(percentSpan);
     
-    // Bar
+    // Bar container
     const barContainer = document.createElement('div');
     barContainer.style.cssText = `
-      width: 120px;
-      height: 2px;
-      background: rgba(0, 0, 0, 0.5);
-      margin-top: 2px;
-      border: 0.5px solid ${color};
-      border-radius: 1px;
+      width: 100%;
+      height: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      margin-top: 3px;
+      border: 1px solid ${color};
+      border-radius: 2px;
       overflow: hidden;
+      box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.8);
     `;
     
     const barFill = document.createElement('div');
@@ -226,6 +244,16 @@ export class CoreMetricsHUD {
 update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   if (!this.enabled || !this.hudContainer) return;
 
+  // === UPDATE THROTTLING (2Hz) ===
+  const now = performance.now();
+  if (now - this.lastUpdateTime < this.updateInterval) {
+    // Still update temporal elements and glow animations every frame
+    this.updateTemporalElements(temporalDisplay);
+    this.updateGlow(deltaTime);
+    return;
+  }
+  this.lastUpdateTime = now;
+
   // === READ LIVE METRICS FROM RUNTIME ===
   // Priority: Runtime live metrics � Fallback to parameter metrics
   const liveMetrics = window.__ATOMA_LIVE_METRICS__;
@@ -245,17 +273,6 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   // === NETWORK TIME PRESSURE ===
   this.updateNetworkTime(synergy, deltaTime);
 
-  // === TEMPORAL DISPLAY ===
-  if (this.hudElements.cycleTime) {
-    this.hudElements.cycleTime.textContent = temporalDisplay.cycle;
-  }
-  if (this.hudElements.epochNumber) {
-    this.hudElements.epochNumber.textContent = temporalDisplay.epoch;
-  }
-  if (this.hudElements.aeonNumber) {
-    this.hudElements.aeonNumber.textContent = temporalDisplay.aeon;
-  }
-
   // === EVENT GLOW ===
   if (newEventFlags?.newCycle) {
     this.triggerGlow();
@@ -266,20 +283,60 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   if (snap) {
     this.setValue('nodeCount', snap.nodeCount);
   }
+  
+  // === UPDATE TEMPORAL ELEMENTS ===
+  this.updateTemporalElements(temporalDisplay);
 }
 
-
+  /**
+   * Update temporal display elements (cycle, epoch, aeon)
+   * Called every frame for smooth updates
+   */
+  updateTemporalElements(temporalDisplay) {
+    if (!temporalDisplay) return;
+    
+    if (this.hudElements.cycleTime) {
+      this.hudElements.cycleTime.textContent = temporalDisplay.cycle;
+    }
+    if (this.hudElements.epochNumber) {
+      this.hudElements.epochNumber.textContent = temporalDisplay.epoch;
+    }
+    if (this.hudElements.aeonNumber) {
+      this.hudElements.aeonNumber.textContent = temporalDisplay.aeon;
+    }
+  }
 
   /**
-   * Update a single metric display
+   * Update a single metric display with color indication
+   * Green when value increases, red when decreases
    */
   updateMetricDisplay(key, value) {
     const element = this.hudElements[key];
     if (!element) return;
- if (window.DEBUG_HUD) {
-  console.log('[HUD] updateMetricDisplay', key, value);
-}
+    
+    if (window.DEBUG_HUD) {
+      console.log('[HUD] updateMetricDisplay', key, value);
+    }
+    
     const clamped = this.clamp01(value);
+    const previousValue = this.previousValues[key];
+    
+    // Determine color based on value direction
+    if (previousValue !== null) {
+      if (clamped > previousValue) {
+        // Value increased - green
+        element.percent.style.color = '#00ff00';
+      } else if (clamped < previousValue) {
+        // Value decreased - red
+        element.percent.style.color = '#ff0000';
+      } else {
+        // Value unchanged - default color
+        element.percent.style.color = this.colors.text;
+      }
+    } else {
+      // First update - default color
+      element.percent.style.color = this.colors.text;
+    }
     
     // Update float text (0..1 with six decimals)
     element.percent.textContent = this.formatFloat(clamped);
@@ -287,6 +344,9 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     // Update bar width
     const widthPercent = (clamped * 100).toFixed(2);
     element.bar.style.width = `${widthPercent}%`;
+    
+    // Store current value for next comparison
+    this.previousValues[key] = clamped;
   }
 
   /**
