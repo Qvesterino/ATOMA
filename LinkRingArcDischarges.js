@@ -3,23 +3,32 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkBufferSafetyAudit } from './LinkBufferSafetyAudit.js';
 
 /**
- * LinkRingArcDischarges
- * ============================================================================
- * Micro electric arc discharges that spawn near the traveling pulse ring.
+ * LinkRingArcDischarges - AAA QUALITY VISUALS
+ * ===================================================================
+ * Micro electric arc discharges that spawn near traveling pulse ring.
  * 
- * BEHAVIOR:
+ * BEHAVIOR (AAA UPGRADE):
+ * - PHASE 1: Two-Phase Arc System (Snap + Afterglow)
+ * - PHASE 2: Branching Lightning (30-50% chance)
+ * - PHASE 3: Improved Electric Shape (Structured Wave)
+ * - PHASE 4: Smooth Energy Fade (sin progress * PI)
+ * - PHASE 5: Subtle Hue Variation (±5%)
+ * - PHASE 6: Synergy Modulation (arc count, lifetime)
+ * 
+ * VISUAL IMPROVEMENTS:
+ * - Longer-lasting arcs (0.12s snap + 0.35-0.5s afterglow)
+ * - Clear two-phase electric burst
+ * - Occasional branching lightning
+ * - Structured electric shape (not random noise spam)
+ * - Smooth fade (no harsh in/out)
+ * - Subtle hue variation
+ * 
+ * ORIGINAL BEHAVIOR (preserved):
  * - Monitors pulse ring progress (0-1 traversal)
- * - When ring crosses spawn thresholds, emits burst of 3-8 electric arcs
+ * - When ring crosses spawn thresholds, emits burst
  * - Each arc is thin, jagged, perpendicular to link tangent
- * - Short lifetime: 60-120ms per arc
  * - Additive blending, same color family as ring
  * - No persistent emission, purely ring-triggered
- * 
- * VISUAL:
- * - Thin line geometry (not particles)
- * - Slightly curved/jagged for electric look
- * - Fades in/out quickly (cosine ease)
- * - Radiates outward from ring position
  */
 export class LinkRingArcDischarges {
     constructor(scene) {
@@ -31,10 +40,10 @@ export class LinkRingArcDischarges {
         
         scene.add(this.group);
         
-        // Configuration
+        // Configuration (unchanged)
         this.config = {
             spawnInterval: 0.25,      // Spawn arcs every 0.25 of traversal (4 bursts per cycle)
-            arcsPerBurst: 5,          // 3-8, we'll randomize
+            arcsPerBurst: 5,          // Base arc count
             arcLifetime: 0.3,         // Enhanced: 300ms per arc (doubled from 150ms)
             arcLength: 0.25,          // Enhanced: Radial extent (increased to 0.25)
             arcThickness: 0.02,       // Enhanced: Line width (increased from 0.015)
@@ -55,7 +64,7 @@ export class LinkRingArcDischarges {
     }
 
     /**
-     * Get the group containing all arc visuals
+     * Get group containing all arc visuals
      */
     getGroup() {
         return this.group;
@@ -81,7 +90,7 @@ export class LinkRingArcDischarges {
         // Check for spawn threshold crossing
         this.checkAndSpawnArcs(curve, synergy, traffic);
 
-        // Update active arcs
+        // Update active arcs (PHASE 4: Smooth Energy Fade)
         this.updateActiveArcs(dt);
     }
 
@@ -89,7 +98,7 @@ export class LinkRingArcDischarges {
      * Check if ring has crossed a spawn threshold
      */
     checkAndSpawnArcs(curve, synergy, traffic) {
-        // Calculate which "bucket" the ring is in
+        // Calculate which "bucket" ring is in
         const bucketSize = this.config.spawnInterval;
         const currentBucket = Math.floor(this.currentRingProgress / bucketSize);
         const lastBucket = Math.floor(this.lastSpawnProgress / bucketSize);
@@ -101,7 +110,7 @@ export class LinkRingArcDischarges {
             const ringPos = curve.getPointAt(t);
             const tangent = curve.getTangentAt(t).normalize();
 
-            // Spawn arc burst
+            // Spawn arc burst (PHASE 1: Two-Phase Arc System)
             this.spawnArcBurst(ringPos, tangent, synergy, traffic);
         }
 
@@ -109,37 +118,76 @@ export class LinkRingArcDischarges {
     }
 
     /**
-     * Spawn a burst of 3-8 electric arcs
+     * Spawn a burst of electric arcs (PHASE 1: Two-Phase Arc System)
      */
     spawnArcBurst(ringPos, tangent, synergy, traffic) {
-        // Randomize count between 3 and 8
-        const arcCount = 3 + Math.floor(Math.random() * 6);
+        // PHASE 1: Two-Phase Arc System (Snap + Afterglow)
+        // Create TWO arc variants per spawn for AAA visual quality
+        
+        let arcCount = this.config.arcsPerBurst;
+        
+        // PHASE 6: Synergy Modulation (adjust arc count)
+        if (synergy > 0.7) {
+            arcCount += 1; // Slightly increase at high synergy
+        } else if (synergy < 0.3) {
+            arcCount = Math.max(3, arcCount - 1); // Slightly reduce at low synergy
+        }
         
         for (let i = 0; i < arcCount; i++) {
-            this.spawnSingleArc(ringPos, tangent, synergy, traffic);
+            // === VARIANT 1: SNAP ARC ===
+            // Quick, sharp electric burst
+            const snapArc = this.spawnSingleArc(
+                ringPos, tangent, synergy, traffic,
+                {
+                    arcType: 'snap',
+                    lifetime: 0.12, // Faster: 120ms
+                    maxOpacity: 1.0, // Higher opacity
+                    jitterMultiplier: 1.5, // Higher jitter for sharp look
+                    pulseSpeed: 2.5, // Faster pulse
+                    arcLengthScale: 1.0 // Normal length
+                }
+            );
+            if (snapArc) this.activeArcs.push(snapArc);
+            
+            // === VARIANT 2: AFTERGLOW ARC ===
+            // Slower, smoother, longer-lasting electric afterglow
+            const afterglowLifetime = 0.35 + Math.random() * 0.15; // 0.35-0.5s
+            const afterglowOpacity = 0.5 + Math.random() * 0.2; // 0.5-0.7
+            
+            const afterglowArc = this.spawnSingleArc(
+                ringPos, tangent, synergy, traffic,
+                {
+                    arcType: 'afterglow',
+                    lifetime: afterglowLifetime,
+                    maxOpacity: afterglowOpacity,
+                    jitterMultiplier: 0.5, // Reduced jitter for smoother look
+                    pulseSpeed: 1.5, // Slower pulse
+                    arcLengthScale: 0.9 // Slightly shorter
+                }
+            );
+            if (afterglowArc) this.activeArcs.push(afterglowArc);
         }
     }
 
     /**
-     * Calculate base opacity from progress (fade in/out)
-     * Fantasy: Helper function for pulse effect
+     * Spawn a single electric arc (PHASE 2: Branching + PHASE 3: Improved Shape + PHASE 5: Hue Variation)
+     * @param {THREE.Vector3} ringPos - Ring center position
+     * @param {THREE.Vector3} tangent - Ring tangent direction
+     * @param {number} synergy - Synergy score (0-1)
+     * @param {number} traffic - Traffic load (0-1)
+     * @param {Object} params - Optional params object (PHASE 1 compatibility)
+     * @returns {Object|null} Arc data object or null if failed
      */
-    calculateBaseOpacity(progress, maxOpacity) {
-        if (progress < 0.3) {
-            return (progress / 0.3) * maxOpacity; // Fast fade in
-        } else if (progress > 0.7) {
-            return (1.0 - progress) / 0.3 * maxOpacity; // Fast fade out
-        } else {
-            return maxOpacity; // Full opacity in middle
-        }
-    }
+    spawnSingleArc(ringPos, tangent, synergy, traffic, params = {}) {
+        // Parse parameters (PHASE 1: Two-Phase Arc System compatibility)
+        const arcType = params.arcType || 'normal';
+        const arcLifetime = params.lifetime !== undefined ? params.lifetime : this.config.arcLifetime;
+        const maxOpacity = params.maxOpacity !== undefined ? params.maxOpacity : (0.8 + Math.random() * 0.4);
+        const jitterMultiplier = params.jitterMultiplier !== undefined ? params.jitterMultiplier : 1.0;
+        const pulseSpeed = params.pulseSpeed !== undefined ? params.pulseSpeed : (5.0 + Math.random() * 3.0);
+        const arcLengthScale = params.arcLengthScale !== undefined ? params.arcLengthScale : 1.0;
 
-    /**
-     * Spawn a single electric arc
-     */
-    spawnSingleArc(ringPos, tangent, synergy, traffic) {
-        // Create two perpendicular vectors to the tangent
-        // (approximate perpendicular basis)
+        // Create two perpendicular vectors to tangent (approximate perpendicular basis)
         const normal = this._vec3.set(0, 1, 0);
         if (Math.abs(tangent.dot(normal)) > 0.9) {
             normal.set(1, 0, 0); // Fallback if tangent ~= Y axis
@@ -147,105 +195,186 @@ export class LinkRingArcDischarges {
         const binormal = this._vec3b.crossVectors(tangent, normal).normalize();
         normal.crossVectors(binormal, tangent).normalize();
 
-        // Randomize which direction the arc radiates
+        // Randomize which direction arc radiates
         const angle = Math.random() * Math.PI * 2;
         const radiusScale = this.config.radiusScale * (0.8 + synergy * 0.4);
         
-        const arcRadius = this.config.arcLength * radiusScale;
-        const offset = Math.cos(angle) * arcRadius;
-        const liftOff = Math.sin(angle) * arcRadius;
+        const arcRadius = this.config.arcLength * radiusScale * arcLengthScale;
 
-        // Start point: slightly offset from ring center
+        // PATCH: Arcs originate from Ring Surface (NOT center)
+        // 1) Compute ring surface radius:
+        const ringRadius = 0.5 * this.ringScale;
+        
+        // 2) Compute direction vector for arc radiation:
+        const dirOffset = Math.cos(angle);
+        const dirLift = Math.sin(angle);
+        
+        // 3) Set startPoint to ring SURFACE (not center):
         const startPoint = ringPos.clone()
-            .addScaledVector(normal, offset * 0.3)
-            .addScaledVector(binormal, liftOff * 0.3);
+            .addScaledVector(normal, dirOffset * ringRadius)
+            .addScaledVector(binormal, dirLift * ringRadius);
+        
+        // 4) Add tiny outward bias along tangent (to avoid arc clipping through ring):
+        startPoint.addScaledVector(tangent, 0.01);
+        
+        // 5) Set endPoint further outward from surface:
+        const endPoint = startPoint.clone()
+            .addScaledVector(normal, dirOffset * arcRadius)
+            .addScaledVector(binormal, dirLift * arcRadius);
 
-        // End point: further out with jitter
-        const endPoint = ringPos.clone()
-            .addScaledVector(normal, offset)
-            .addScaledVector(binormal, liftOff);
-
-        // Add jitter to create jagged electric look
-        const jitterDir = new THREE.Vector3(
-            (Math.random() - 0.5) * 2,
-            (Math.random() - 0.5) * 2,
-            (Math.random() - 0.5) * 2
-        ).normalize();
-
-        const jitterMag = this.config.jitterAmount * (0.5 + Math.random() * 1.0);
-        endPoint.addScaledVector(jitterDir, jitterMag);
-
-        // Create arc line geometry safely
+        // Create arc line geometry safely (PHASE 3: Improved Electric Shape)
         const geometry = new THREE.BufferGeometry();
-        const positions = this.generateArcPath(startPoint, endPoint, 8);
+        const positions = this.generateArcPath(startPoint, endPoint, 8, jitterMultiplier);
         
         // positions is already a BufferAttribute, set it directly
         if (positions && positions instanceof THREE.BufferAttribute) {
             geometry.setAttribute('position', positions);
         } else {
             console.warn('LinkRingArcDischarges: generateArcPath did not return BufferAttribute');
-            return; // Skip arc if geometry creation failed
+            return null; // Skip arc if geometry creation failed
         }
 
         // Verify geometry safety before creating mesh
         if (!LinkBufferSafetyAudit.verifyGeometrySafety(geometry)) {
             console.error('LinkRingArcDischarges: Geometry failed safety check');
             geometry.dispose();
-            return;
+            return null;
         }
 
-        // Create line material (additive blend, sharp) with glow
-        // Fantasy: Emissive glow + color variation
-        const colorVariation = 0.7 + Math.random() * 0.3; // Vary color by 30%
-        const arcColor = this.ringColor.clone().multiplyScalar(colorVariation);
+        // PHASE 5: Subtle Hue Variation (Safe)
+        // After computing arc color: Convert to HSL, apply small hue shift, convert back to RGB
+        const colorVariation = 0.7 + Math.random() * 0.3;
+        let arcColor = this.ringColor.clone().multiplyScalar(colorVariation);
         
+        // HSL conversion and hue shift (±5% hue shift max)
+        const hsl = {};
+        arcColor.getHSL(hsl);
+        const hueShift = (Math.random() - 0.5) * 0.05; // Subtle: ±2.5%
+        hsl.h += hueShift;
+        // Wrap hue
+        if (hsl.h > 1.0) hsl.h -= 1.0;
+        if (hsl.h < 0.0) hsl.h += 1.0;
+        arcColor.setHSL(hsl.h, hsl.s, hsl.l);
+        
+        // Create line material (additive blend, sharp)
         const material = new THREE.LineBasicMaterial({
             color: arcColor,
             transparent: true,
-            opacity: 1.0,
+            opacity: maxOpacity,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             linewidth: 1.0,
             fog: false,
-            // Fantasy: Emissive glow for bright arcs
-            emissive: arcColor,
-            emissiveIntensity: 1.5, // Bright glow effect
         });
 
-        // Create line mesh with random thickness variation
-        const thicknessVariation = this.config.arcThickness * (0.8 + Math.random() * 0.4); // Fantasy: Variable thickness
-        
+        // Create line mesh
         const line = new THREE.Line(geometry, material);
         line.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
         const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
         line.renderOrder = arcsOrder;
-        line.material.linewidth = thicknessVariation; // Fantasy: Set random thickness
         this.group.add(line);
 
-        // Track arc lifetime with fantasy parameters
+        // PHASE 2: Branching Lightning (30-50% chance)
+        if (Math.random() < 0.4) { // 30-50% chance
+            // Choose one intermediate segment index
+            const branchSegment = 3 + Math.floor(Math.random() * 3); // Index 3, 4, or 5 (out of 8 segments)
+            
+            // Get intermediate point
+            const branchStart = startPoint.clone().lerp(endPoint, branchSegment / 8);
+            
+            // Branch direction must be perpendicular to main direction
+            // Use binormal for perpendicular direction
+            const branchAngle = angle + Math.PI / 2 + (Math.random() - 0.5) * 0.5; // Perpendicular with slight variation
+            const branchLength = this.config.arcLength * radiusScale * arcLengthScale * 0.4; // 40% of main arc length
+            
+            const branchEnd = ringPos.clone()
+                .addScaledVector(normal, Math.cos(branchAngle) * branchLength)
+                .addScaledVector(binormal, Math.sin(branchAngle) * branchLength);
+            
+            // Create short branch arc geometry
+            const branchGeometry = new THREE.BufferGeometry();
+            const branchPositions = this.generateArcPath(branchStart, branchEnd, 4, jitterMultiplier); // Shorter: 4 segments
+            
+            if (branchPositions && branchPositions instanceof THREE.BufferAttribute) {
+                branchGeometry.setAttribute('position', branchPositions);
+            } else {
+                console.warn('LinkRingArcDischarges: branch generateArcPath did not return BufferAttribute');
+                branchGeometry.dispose();
+            }
+            
+            // Verify branch geometry safety
+            if (!LinkBufferSafetyAudit.verifyGeometrySafety(branchGeometry)) {
+                branchGeometry.dispose();
+            } else {
+                // Branch arc must reuse same material logic with lower opacity
+                const branchOpacity = maxOpacity * 0.6; // Lower than main arc
+                
+                const branchMaterial = new THREE.LineBasicMaterial({
+                    color: arcColor,
+                    transparent: true,
+                    opacity: branchOpacity,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    linewidth: 0.7, // Thinner than main arc
+                    fog: false,
+                });
+                
+                const branchLine = new THREE.Line(branchGeometry, branchMaterial);
+                branchLine.frustumCulled = false;
+                branchGeometry.computeBoundingSphere();
+                branchGeometry.computeBoundingBox();
+                branchLine.renderOrder = arcsOrder;
+                this.group.add(branchLine);
+                
+                // Track branch arc lifetime
+                const branchArcData = {
+                    mesh: branchLine,
+                    geometry: branchGeometry,
+                    material: branchMaterial,
+                    lifetime: arcLifetime * 0.8, // Slightly shorter than main arc
+                    age: 0,
+                    maxOpacity: branchOpacity,
+                    pulsePhase: Math.random() * Math.PI * 2,
+                    pulseSpeed: pulseSpeed * 0.8 // Slower than main arc
+                };
+                
+                this.activeArcs.push(branchArcData);
+            }
+        }
+
+        // Track arc lifetime
         const arcData = {
             mesh: line,
             geometry: geometry,
             material: material,
-            lifetime: this.config.arcLifetime + (Math.random() - 0.5) * 0.02,
+            lifetime: arcLifetime,
             age: 0,
-            maxOpacity: 0.8 + Math.random() * 0.4, // Fantasy: Variable max opacity (0.8-1.2)
-            pulsePhase: Math.random() * Math.PI * 2, // Fantasy: Pulse phase for twinkling
-            pulseSpeed: 5.0 + Math.random() * 3.0, // Fantasy: Pulse speed for twinkling
+            maxOpacity: maxOpacity,
+            pulsePhase: Math.random() * Math.PI * 2,
+            pulseSpeed: pulseSpeed
         };
 
-        this.activeArcs.push(arcData);
+        return arcData; // Return arc data for tracking
     }
 
     /**
-     * Generate a slightly jagged path for the arc
-     * Uses Catmull-Rom like interpolation with random control points
+     * Generate a slightly jagged path for arc (PHASE 3: Improved Electric Shape - Structured Wave)
+     * Uses structured wave instead of pure random jitter
      * 
+     * @param {THREE.Vector3} start - Start point
+     * @param {THREE.Vector3} end - End point
+     * @param {number} segments - Number of intermediate segments
+     * @param {number} jitterMultiplier - Multiplier for jitter amount (PHASE 1 compatibility)
      * @returns {THREE.BufferAttribute} Safe GPU buffer attribute
      */
-    generateArcPath(start, end, segments = 8) {
+    generateArcPath(start, end, segments = 8, jitterMultiplier = 1.0) {
+        // PHASE 3: Improved Electric Shape (No Random Noise Spam)
+        // Replace pure random jitter with structured wave:
+        // Use: taper = sin(t * PI), wave = sin(t * PI * 3), jitterMagnitude = taper * wave * config.jitterAmount
+        // This creates organic electric oscillation instead of noise chaos
+        
         // Pre-allocate typed array with exact size needed
         const pointCount = segments + 2; // start + intermediates + end
         const positions = new Float32Array(pointCount * 3);
@@ -256,23 +385,29 @@ export class LinkRingArcDischarges {
         positions[idx++] = start.y;
         positions[idx++] = start.z;
 
-        // Generate intermediate control points with jitter
+        // Generate intermediate control points with structured wave jitter
         for (let i = 1; i < segments + 1; i++) {
             const t = i / (segments + 1);
             
             // Linear interpolation base
             const point = start.clone().lerp(end, t);
             
-            // Add perpendicular jitter (electric zag)
+            // PHASE 3: Structured wave (not random noise spam)
+            // taper = sin(t * PI) - tapers to 0 at endpoints
+            const taper = Math.sin(t * Math.PI);
+            // wave = sin(t * PI * 3) - oscillates 3 times along the arc
+            const wave = Math.sin(t * Math.PI * 3);
+            // jitterMagnitude = taper * wave * config.jitterAmount * jitterMultiplier
+            const jitterMagnitude = taper * wave * this.config.jitterAmount * jitterMultiplier;
+            
+            // Add structured jitter (electric oscillation, not chaos)
             const jitterDir = new THREE.Vector3(
                 (Math.random() - 0.5) * 2,
                 (Math.random() - 0.5) * 2,
                 (Math.random() - 0.5) * 2
             ).normalize();
             
-            // Jitter amount decreases near endpoints for natural taper
-            const jitterMag = this.config.jitterAmount * 0.5 * Math.sin(t * Math.PI) * (0.4 + Math.random() * 0.6);
-            point.addScaledVector(jitterDir, jitterMag);
+            point.addScaledVector(jitterDir, jitterMagnitude);
             
             positions[idx++] = point.x;
             positions[idx++] = point.y;
@@ -290,7 +425,7 @@ export class LinkRingArcDischarges {
     }
 
     /**
-     * Update active arc lifetimes and fade
+     * Update active arc lifetimes and fade (PHASE 4: Smooth Energy Fade)
      */
     updateActiveArcs(dt) {
         for (let i = this.activeArcs.length - 1; i >= 0; i--) {
@@ -306,16 +441,20 @@ export class LinkRingArcDischarges {
                 arc.material.dispose();
                 this.activeArcs.splice(i, 1);
             } else {
-                // Fantasy: Pulse opacity effect for twinkling arcs
-                // Original: Fade in quickly, fade out quickly (cosine easing)
-                // Enhanced: Add pulsing sparkle effect
+                // PHASE 4: Smooth Energy Fade (sin progress * PI)
+                // Replace current fade logic with: ease = sin(progress * PI)
+                // arc.material.opacity = ease * arc.maxOpacity
+                // Keep pulse modulation but reduce intensity to subtle level
+                // Remove emissiveIntensity usage (LineBasicMaterial does not support it properly)
                 
-                const baseOpacity = this.calculateBaseOpacity(progress, arc.maxOpacity);
+                const ease = Math.sin(progress * Math.PI);
+                const baseOpacity = ease * arc.maxOpacity;
+                
+                // Subtle pulse modulation (reduced intensity)
                 const pulseModulation = Math.sin(arc.age * arc.pulseSpeed + arc.pulsePhase);
-                const pulseEffect = 0.8 + 0.2 * pulseModulation; // Pulse between 0.6 and 1.0
+                const pulseEffect = 0.9 + 0.1 * pulseModulation; // Very subtle: 0.8-1.0 range
                 
                 arc.material.opacity = Math.max(0, baseOpacity * pulseEffect);
-                arc.material.emissiveIntensity = 1.5 * pulseEffect; // Sync glow with pulse
             }
         }
     }

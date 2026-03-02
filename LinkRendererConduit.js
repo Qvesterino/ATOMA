@@ -636,6 +636,13 @@ export class LinkRendererConduit {
             if (LinkPulseRing) {
                 pulseRing = new LinkPulseRing(this.scene);
                 group.add(pulseRing.getMesh());
+                // Pridať trail meshy do group po pulseRing.getMesh()
+                if (pulseRing.getTrailMeshes) {
+                    const trailMeshes = pulseRing.getTrailMeshes();
+                    if (Array.isArray(trailMeshes)) {
+                        trailMeshes.forEach(mesh => group.add(mesh));
+                    }
+                }
             }
         } catch (e) { throw e; }
 

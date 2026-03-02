@@ -145,12 +145,24 @@ export class SafeMetricsDNAIntegration1_0 {
    * @param {THREE.Object3D} node - The node to attach metrics to
    * @param {string} archetype - The archetype name (category from AINodes)
    */
-static attachMetrics(node, archetype) {
-  if (!node) return;
-  if (!node.userData) node.userData = {};
+  static attachMetrics(node, archetype) {
+    if (!node) return;
+    if (!node.userData) node.userData = {};
 
-  const archetypeKey = (archetype || 'default').toLowerCase().trim();
-  const raw = this.METRICS_TABLE[archetypeKey] || this.METRICS_TABLE['default'];
+    // Prefer category (canonical), fall back to archetype for legacy callers
+    const rawKey = (node.userData.category || archetype || 'default').toLowerCase().trim();
+    // Lightweight alias map if categories come with suffixes/prefixes
+    const ALIASES = {
+      'prime-node': 'prime',
+      'mythic-core': 'mythic',
+      'quantum-lab': 'quantum',
+    };
+    const archetypeKey = ALIASES[rawKey] || rawKey;
+
+    const raw = this.METRICS_TABLE[archetypeKey] || this.METRICS_TABLE['default'];
+    if (!this.METRICS_TABLE[archetypeKey]) {
+      console.warn('[DNA] missing metrics key, using default', { key: archetypeKey, category: node.userData.category, archetype });
+    }
 
   // --- Normalization helpers (safe, deterministic) ---
   const clamp01 = (n) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
