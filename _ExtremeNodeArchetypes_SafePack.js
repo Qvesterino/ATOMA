@@ -70,53 +70,96 @@ export class ExtremeNodeArchetypes_SafePack {
     group.userData = {
       archetypal: 'quantum-lotus',
       pulsePhase: Math.random() * Math.PI * 2,
-      rotationSpeed: 0.3,
-      rotationAxis: new THREE.Vector3(0, 1, 0.3).normalize()
+      rotationSpeed: 0.32,
+      rotationAxis: new THREE.Vector3(0, 1, 0.25).normalize()
     };
 
     const petalColors = [0x00ffff, 0x00ddff, 0x00bbff];
-    const petalCount = 6;
 
-    // Create petals with fractal scale reduction
-    for (let p = 0; p < petalCount; p++) {
-      const angle = (p / petalCount) * Math.PI * 2;
-      const petalScale = 1.0 - (p % 2) * 0.2;
-      
-      // Combine icosahedron + sphere for organic petal shape
-      const petalGeo = new THREE.IcosahedronGeometry(0.3, 2);
-      petalGeo.scale(1.5 * petalScale, 0.6, 0.8);
-      
+    // Base ring
+    const baseGeo = new THREE.TorusGeometry(0.72, 0.05, 8, 20, Math.PI * 1.8);
+    const baseMat = materialRegistry.getBasicMaterial({
+      color: 0x00bbff,
+      transparent: true,
+      opacity: 0.4,
+      emissive: 0x0099ff,
+      emissiveIntensity: 0.4,
+      depthWrite: false
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.rotation.x = Math.PI * 0.5;
+    base.rotation.y = Math.PI * 0.12;
+    base.userData = { isArchetypeVFX: true };
+    base.raycast = () => false;
+    group.add(base);
+
+    // Spine
+    const spineGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 10, 1);
+    const spineMat = materialRegistry.getBasicMaterial({
+      color: 0x00e0ff,
+      emissive: 0x00e0ff,
+      emissiveIntensity: 0.6,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.8
+    });
+    const spine = new THREE.Mesh(spineGeo, spineMat);
+    spine.position.y = 0.05;
+    spine.userData = { isArchetypeVFX: true };
+    spine.raycast = () => false;
+    group.add(spine);
+
+    // Petal ring (6 petals)
+    const petalGeo = new THREE.BoxGeometry(0.18, 0.6, 0.12);
+    for (let p = 0; p < 6; p++) {
+      const angle = (p / 6) * Math.PI * 2;
       const petalMat = materialRegistry.getBasicMaterial({
         color: petalColors[p % petalColors.length],
-        transparent: true,
-        opacity: 0.65 - p * 0.05,
         emissive: petalColors[p % petalColors.length],
-        emissiveIntensity: 0.45,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.6,
         depthWrite: false,
         side: THREE.DoubleSide
       });
-
       const petal = new THREE.Mesh(petalGeo, petalMat);
-      petal.position.x = Math.cos(angle) * 0.5;
-      petal.position.z = Math.sin(angle) * 0.5;
-      petal.rotation.y = angle;
+      petal.position.set(Math.cos(angle) * 0.55, 0.12, Math.sin(angle) * 0.55);
+      petal.rotation.y = angle + Math.PI * 0.2;
+      petal.rotation.z = Math.PI * 0.18;
       petal.userData = { isArchetypeVFX: true, petalIndex: p };
       petal.raycast = () => false;
-
       group.add(petal);
     }
 
-    // Central golden core with subdued glow
-    const centerGeo = new THREE.OctahedronGeometry(0.2, 1);
+    // Inner halo ring
+    const haloGeo = new THREE.TorusGeometry(0.32, 0.025, 8, 18);
+    const haloMat = materialRegistry.getBasicMaterial({
+      color: 0x66ffff,
+      emissive: 0x33ccff,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.y = 0.28;
+    halo.rotation.x = Math.PI * 0.5;
+    halo.userData = { isArchetypeVFX: true };
+    halo.raycast = () => false;
+    group.add(halo);
+
+    // Core
+    const centerGeo = new THREE.OctahedronGeometry(0.22, 1);
     const centerMat = materialRegistry.getBasicMaterial({
       color: 0xffaa00,
-      transparent: true,
-      opacity: 0.75,
       emissive: 0xffaa00,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.55,
+      transparent: true,
+      opacity: 0.8,
       depthWrite: false
     });
     const center = new THREE.Mesh(centerGeo, centerMat);
+    center.position.y = 0.34;
     center.userData = { isArchetypeVFX: true };
     center.raycast = () => false;
     group.add(center);

@@ -488,38 +488,58 @@ export class RareNodeSpawner {
    * Create Quantum Bloom Node (petal-like photon trails)
    */
   createQuantumBloomNode(group, color) {
-    // Central bloom core
-    const coreGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const coreMaterial = new THREE.MeshBasicMaterial({
-      color: color,
-      transparent: true,
-      opacity: 0.8
-    });
-    
-    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    // Reuse one material instance per node
+    const mat = this.getMaterial(
+      `quantum-bloom-${color}`,
+      () => new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.6,
+        metalness: 0.65,
+        roughness: 0.25
+      })
+    );
+
+    // Base disk
+    const baseGeo = new THREE.CylinderGeometry(0.9, 1.0, 0.12, 10, 1);
+    const base = new THREE.Mesh(baseGeo, mat);
+    base.position.y = -0.3;
+    base.rotation.y = Math.PI * 0.1;
+    group.add(base);
+
+    // Spine
+    const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 10, 1);
+    const spine = new THREE.Mesh(spineGeo, mat);
+    spine.position.y = 0.1;
+    group.add(spine);
+
+    // Core gem
+    const coreGeo = new THREE.DodecahedronGeometry(0.35, 0);
+    const core = new THREE.Mesh(coreGeo, mat);
+    core.position.y = 0.45;
+    core.rotation.y = Math.PI * 0.2;
+    core.userData.isCore = true;
     group.add(core);
-    
-    // Petal trails
-    for (let i = 0; i < 8; i++) {
-      const petalGeometry = new THREE.SphereGeometry(0.12, 8, 8);
-      const petalMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.6
-      });
-      
-      const petal = new THREE.Mesh(petalGeometry, petalMaterial);
-      const angle = (i / 8) * Math.PI * 2;
-      const distance = 1.0;
-      
-      petal.position.set(
-        Math.cos(angle) * distance,
-        Math.sin(angle) * distance * 0.5,
-        Math.sin(angle) * distance
-      );
+
+    // Petal fins (4) sweeping upward
+    const petalGeo = new THREE.BoxGeometry(0.18, 0.6, 0.08);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const petal = new THREE.Mesh(petalGeo, mat);
+      petal.position.set(Math.cos(angle) * 0.75, 0.05 + i * 0.05, Math.sin(angle) * 0.75);
+      petal.rotation.y = angle + Math.PI * 0.25;
+      petal.rotation.z = Math.PI * 0.18;
       group.add(petal);
     }
-    
+
+    // Inner halo ring
+    const ringGeo = new THREE.TorusGeometry(0.42, 0.03, 8, 18);
+    const ring = new THREE.Mesh(ringGeo, mat);
+    ring.position.y = 0.28;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.18;
+    group.add(ring);
+
     group.userData.orbitSpeed = 0.015;
   }
   

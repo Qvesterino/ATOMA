@@ -202,55 +202,88 @@ export class ExtremeAINodePack {
     const group = new THREE.Group();
     group.userData = { archetypeName: 'QuantumLattice', animations: [] };
 
-    const latticeSize = 3;
-    const spacing = 0.25;
-    const points = [];
     const geometries = [];
+    const materials = [];
 
-    // Create point lattice
-    for (let x = -1; x <= 1; x++) {
-      for (let y = -1; y <= 1; y++) {
-        for (let z = -1; z <= 1; z++) {
-          const px = x * spacing;
-          const py = y * spacing;
-          const pz = z * spacing;
+    const matCore = new THREE.MeshPhongMaterial({
+      color: 0x00ffff,
+      emissive: 0x00ffff,
+      emissiveIntensity: 0.55,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide
+    });
+    materials.push(matCore);
 
-          points.push(new THREE.Vector3(px, py, pz));
+    // Base disk
+    const baseGeo = new THREE.CylinderGeometry(0.8, 0.85, 0.14, 10, 1);
+    geometries.push(baseGeo);
+    const base = new THREE.Mesh(baseGeo, matCore);
+    base.position.y = -0.35;
+    base.rotation.y = Math.PI * 0.1;
+    group.add(base);
 
-          // Small sphere at each point
-          const pointGeo = new THREE.SphereGeometry(0.04, 8, 8);
-          const pointMat = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.6
-          });
+    // Spine
+    const spineGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.9, 12, 1);
+    geometries.push(spineGeo);
+    const spine = new THREE.Mesh(spineGeo, matCore);
+    spine.position.y = 0.05;
+    group.add(spine);
 
-          const pointMesh = new THREE.Mesh(pointGeo, pointMat);
-          pointMesh.position.set(px, py, pz);
-          pointMesh.userData = { isExtremVFX: true };
+    // Core sphere
+    const coreGeo = new THREE.SphereGeometry(0.28, 12, 12);
+    geometries.push(coreGeo);
+    const core = new THREE.Mesh(coreGeo, matCore);
+    core.position.y = 0.36;
+    core.userData.isExtremVFX = true;
+    core.userData.isPulseCore = true;
+    group.add(core);
 
-          group.add(pointMesh);
-          geometries.push(pointGeo);
-        }
-      }
-    }
+    // Floating lattice nodes (3)
+    const nodeGeo = new THREE.IcosahedronGeometry(0.16, 0);
+    geometries.push(nodeGeo);
+    const nodeOffsets = [
+      [0.55, 0.2, 0.0],
+      [-0.35, 0.55, -0.25],
+      [0.2, 0.4, 0.55]
+    ];
+    nodeOffsets.forEach(offset => {
+      const nodeMesh = new THREE.Mesh(nodeGeo, matCore);
+      nodeMesh.position.set(offset[0], offset[1], offset[2]);
+      nodeMesh.userData.isExtremVFX = true;
+      group.add(nodeMesh);
+    });
 
-    // Connect lattice points with lines
-    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+    // Frame: rectangular torus
+    const frameGeo = new THREE.TorusGeometry(0.7, 0.05, 10, 22, Math.PI * 2);
+    geometries.push(frameGeo);
+    const frame = new THREE.Mesh(frameGeo, matCore);
+    frame.scale.set(1.1, 0.75, 1);
+    frame.position.y = 0.25;
+    frame.rotation.y = Math.PI * 0.28;
+    frame.rotation.x = Math.PI * 0.12;
+    group.add(frame);
+
+    // Connectors (lines)
+    const connectorPoints = [];
+    nodeOffsets.forEach(o => {
+      connectorPoints.push(new THREE.Vector3(0, 0.36, 0));
+      connectorPoints.push(new THREE.Vector3(o[0], o[1], o[2]));
+    });
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(connectorPoints);
+    geometries.push(lineGeo);
     const lineMat = new THREE.LineBasicMaterial({
       color: 0x00ffaa,
       transparent: true,
       opacity: 0.5
     });
+    materials.push(lineMat);
+    const connectors = new THREE.LineSegments(lineGeo, lineMat);
+    connectors.userData.isExtremVFX = true;
+    group.add(connectors);
 
-    const lines = new THREE.LineSegments(lineGeo, lineMat);
-    lines.userData = { isExtremVFX: true };
-    group.add(lines);
-
-    geometries.push(lineGeo);
     group.userData.geometries = geometries;
-    group.userData.materials = [lineMat];
-
+    group.userData.materials = materials;
     group.userData.glitchPhase = Math.random() * Math.PI * 2;
     group.userData.glitchIntensity = 0.02;
 

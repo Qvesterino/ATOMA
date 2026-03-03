@@ -94,6 +94,9 @@ export const NODE_VISUAL_REGISTRY = {
   621: { category: 'control', factoryName: 'createExtremeControl1' },
 
   // Quantum (7xx)
+  701: { category: 'quantum', factoryName: 'createQuantumBloomNode' },
+  702: { category: 'quantum', factoryName: 'createQuantumLattice' },
+  703: { category: 'quantum', factoryName: 'createQuantumLotus' },
   705: { category: 'quantum', factoryName: 'createQuantumNodeStyled_v2' },
 
   // Sigma (8xx) reuses quantum visuals
