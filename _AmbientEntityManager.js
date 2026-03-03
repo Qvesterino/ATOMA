@@ -15,8 +15,9 @@ import { canEmissive, safeSetEmissive } from './_EmissiveUtils.js';
  */
 
 export class AmbientEntityManager {
-  constructor(scene, camera) {
+  constructor(scene, environmentRoot, camera) {
     this.scene = scene;
+    this.root = environmentRoot || scene; // fallback to scene for backward compatibility
     this.camera = camera;
     
     // Registry for all entities
@@ -25,7 +26,7 @@ export class AmbientEntityManager {
     // Entity VFX container
     this.vfxContainer = new THREE.Group();
     this.vfxContainer.name = 'AmbientEntities';
-    this.scene.add(this.vfxContainer);
+    this.root.add(this.vfxContainer);
     
     // Entity meshes and particles
     this.entityMeshes = {}; // id -> mesh/group

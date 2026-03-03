@@ -50,8 +50,9 @@
 import * as THREE from 'three';
 
 export class EmergentThoughtStorms5_0 {
-  constructor(scene, recursiveGlyphMessaging, semanticGlyphAI) {
+  constructor(scene, environmentRoot, recursiveGlyphMessaging, semanticGlyphAI) {
     this.scene = scene;
+    this.root = environmentRoot || scene;
     this.recursiveGlyphMessaging = recursiveGlyphMessaging;
     this.semanticGlyphAI = semanticGlyphAI;
     
@@ -73,7 +74,7 @@ export class EmergentThoughtStorms5_0 {
     this.stormContainer = new THREE.Group();
     this.stormContainer.userData.isThoughtStorm = true;
     this.stormContainer.name = 'EmergentThoughtStorms_Container';
-    this.scene.add(this.stormContainer);
+    this.root.add(this.stormContainer);
     
     // Configuration
     this.config = {

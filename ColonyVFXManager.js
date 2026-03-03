@@ -10,13 +10,14 @@ import * as THREE from 'three';
  */
 
 export class ColonyVFXManager {
-  constructor(scene) {
+  constructor(scene, environmentRoot) {
     this.scene = scene;
+    this.root = environmentRoot || scene;
     
     // Container for all colony VFX (for easy cleanup)
     this.vfxContainer = new THREE.Group();
     this.vfxContainer.name = 'colony-vfx-container';
-    this.scene.add(this.vfxContainer);
+    this.root.add(this.vfxContainer);
     
     // Texture for particles
     this.particleTexture = this.createParticleTexture();

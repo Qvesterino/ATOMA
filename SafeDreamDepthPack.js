@@ -15,15 +15,16 @@ import VisualTime from './src/time/VisualTime.js';
  */
 
 export class SafeDreamDepthPack {
-  constructor(scene, camera, renderer) {
+  constructor(scene, environmentRoot, camera, renderer) {
     this.scene = scene;
+    this.root = environmentRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
     
     // VFX container for all DOF effects
     this.vfxContainer = new THREE.Group();
     this.vfxContainer.name = 'dream-depth-vfx';
-    this.scene.add(this.vfxContainer);
+    this.root.add(this.vfxContainer);
     
     // Screen-space overlay quad (for all effects)
     this.overlayQuad = null;

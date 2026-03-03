@@ -5416,11 +5416,49 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         this.activeWorld = null;
 
+        // Environment FX lifecycle: dispose + unregister before clearing root
+        const unregister = (id) => this.frameScheduler?.unregister?.(id);
+
+        if (this.quantumIllusions?.dispose) this.quantumIllusions.dispose();
+        unregister('visual.quantumIllusions');
+        this.quantumIllusions = null;
+
+        if (this.ambientEntityManager?.dispose) this.ambientEntityManager.dispose();
+        unregister('ambientEntityManager');
+        this.ambientEntityManager = null;
+
+        if (this.emergentThoughtStorms?.clearAllStorms) this.emergentThoughtStorms.clearAllStorms();
+        unregister('emergentThoughtStorms');
+        this.emergentThoughtStorms = null;
+
+        unregister('worldFXPack');
+        this.worldFXPack = null;
+
+        if (this.weatherPack?.dispose) this.weatherPack.dispose();
+        unregister('weatherPack');
+        this.weatherPack = null;
+
         // Clear environment-layer content before rebuilding world
         if (this.environmentRoot) {
             while (this.environmentRoot.children.length > 0) {
                 this.environmentRoot.remove(this.environmentRoot.children[0]);
             }
+        }
+
+        // Recreate environment FX systems for the new world instance
+        this.setupWorldFXPack();
+        this.setupWeatherPack();
+        this.setupAmbientEntities();
+        this.setupQuantumIllusions();
+        this.setupEmergentThoughtStorms();
+
+        // Re-register FrameScheduler hooks for environment FX
+        if (this.frameScheduler) {
+            this.frameScheduler.register('visual', (dt) => {
+                if (this.quantumIllusions) {
+                    this.quantumIllusions.update(dt);
+                }
+            }, 'visual.quantumIllusions');
         }
 
         if (this.currentMode === 'sigma') {
@@ -8392,6 +8430,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
         reg('worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
         reg('ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
+        reg('emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         reg('colonyManager', (dt) => this.colonyManager?.update?.(dt));
         reg('dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
         reg('dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
@@ -9125,7 +9164,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * SAFE: Zero modifications to core systems, VFX overlays only
      */
     setupWeatherPack() {
-        this.weatherPack = new SafeAIWeatherPack(this.scene, this.worldRoot, this.camera);
+        this.weatherPack = new SafeAIWeatherPack(this.scene, this.worldRoot, this.environmentRoot, this.camera);
 
         // Auto-generates dynamic weather, no invasive setup needed
     }
@@ -9146,7 +9185,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * SAFE: Zero shader/material modifications, VFX overlays only
      */
     setupWorldFXPack() {
-        this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.camera);
+        this.worldFXPack = new SafeWorldFXPack(this.scene, this.worldRoot, this.environmentRoot, this.camera);
 
         // Auto-generates environmental effects, no setup needed
     }
@@ -9156,7 +9195,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Ghost orbs, spectres, swarms, phantoms, wisps
      */
     setupAmbientEntities() {
-        this.ambientEntityManager = new AmbientEntityManager(this.scene, this.camera);
+        this.ambientEntityManager = new AmbientEntityManager(this.scene, this.environmentRoot, this.camera);
 
         // Register world systems (read-only)
         if (this.legendaryPack && this.worldEvents && this.weatherPack && this.linkingSystem) {
@@ -9202,6 +9241,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupQuantumIllusions() {
         this.quantumIllusions = new SafeQuantumIllusionsPack1(
             this.scene,
+            this.environmentRoot,
             this.camera,
             this.aiNodes,
             this.linkingSystem,
@@ -9247,7 +9287,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * SAFE: Pure VFX DOF simulation, no camera modifications
      */
     setupDreamDepthPack() {
-        this.dreamDepthPack = new SafeDreamDepthPack(this.scene, this.camera, this.renderer);
+        this.dreamDepthPack = new SafeDreamDepthPack(this.scene, this.scene, this.camera, this.renderer);
         this.dreamDepthEffects = new DreamDepthEffectManager(this.scene, this.camera, this.renderer);
 
         // Initialize with world systems (read-only)
@@ -9798,6 +9838,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         this.emergentThoughtStorms = new EmergentThoughtStorms5_0(
             this.scene,
+            this.environmentRoot,
             this.recursiveGlyphMessaging,
             this.semanticGlyphAI
         );

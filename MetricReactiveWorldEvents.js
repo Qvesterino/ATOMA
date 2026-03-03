@@ -20,11 +20,12 @@ import { projectHudMetrics } from './SemanticMetricAdapter.js';
  */
 
 export class MetricReactiveWorldEvents {
-  constructor(scene, worldRoot, renderer, coreMetricsOverlay) {
+  constructor(scene, worldRoot, environmentRoot, renderer, coreMetricsOverlay) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
+    this.environmentRoot = environmentRoot || this.worldRoot;
     this.root = new THREE.Group();
-    this.worldRoot.add(this.root);
+    this.environmentRoot.add(this.root);
     this.renderer = renderer;
     this.coreMetricsOverlay = coreMetricsOverlay;
     

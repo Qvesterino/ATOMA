@@ -31,8 +31,9 @@ import * as THREE from 'three';
 import { QuantumIllusionRegistry } from './QuantumIllusionRegistry.js';
 
 export class SafeQuantumIllusionsPack1 {
-  constructor(scene, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack) {
+  constructor(scene, environmentRoot, camera, aiNodes, linkingSystem, worldEvents, weatherPack, legendaryPack) {
     this.scene = scene;
+    this.root = environmentRoot || scene; // default to scene if environmentRoot not provided
     this.camera = camera;
     this.aiNodes = aiNodes;
     this.linkingSystem = linkingSystem;
@@ -53,7 +54,7 @@ export class SafeQuantumIllusionsPack1 {
     // Screen-space effects container
     this.screenSpaceContainer = new THREE.Group();
     this.screenSpaceContainer.name = 'QuantumIllusions_ScreenSpace';
-    this.scene.add(this.screenSpaceContainer);
+    this.root.add(this.screenSpaceContainer);
     if (typeof window !== 'undefined') {
       window.__ATOMA_SPHERE_POLICY__?.registerRoot?.(this.screenSpaceContainer, 'quantum-illusions-screenspace');
     }
@@ -236,7 +237,7 @@ export class SafeQuantumIllusionsPack1 {
     const ghostMesh = new THREE.Mesh(geometry, material);
     ghostMesh.position.copy(ghostPos);
     ghostMesh.scale.multiplyScalar(0.8);
-    this.scene.add(ghostMesh);
+    this.root.add(ghostMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.echoes.lifetime[0], this.config.echoes.lifetime[1]);
     
@@ -303,7 +304,7 @@ export class SafeQuantumIllusionsPack1 {
     const shardMesh = new THREE.LineSegments(shardGeometry, material);
     shardMesh.position.copy(spawnPos);
     shardMesh.scale.multiplyScalar(THREE.MathUtils.randFloat(1, 3));
-    this.scene.add(shardMesh);
+    this.root.add(shardMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.shards.lifetime[0], this.config.shards.lifetime[1]);
     
@@ -359,7 +360,7 @@ export class SafeQuantumIllusionsPack1 {
     driftMesh.position.copy(spawnPos);
     driftMesh.rotation.x = Math.random() * Math.PI;
     driftMesh.rotation.y = Math.random() * Math.PI;
-    this.scene.add(driftMesh);
+    this.root.add(driftMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.drifts.lifetime[0], this.config.drifts.lifetime[1]);
     
@@ -412,7 +413,7 @@ export class SafeQuantumIllusionsPack1 {
     
     const pathMesh = new THREE.Mesh(geometry, material);
     pathMesh.position.copy(spawnPos);
-    this.scene.add(pathMesh);
+    this.root.add(pathMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.afterPaths.lifetime[0], this.config.afterPaths.lifetime[1]);
     
@@ -466,7 +467,7 @@ export class SafeQuantumIllusionsPack1 {
     const symbolMesh = new THREE.Mesh(symbolGeometry, material);
     symbolMesh.position.copy(spawnPos);
     symbolMesh.scale.multiplyScalar(0.3);
-    this.scene.add(symbolMesh);
+    this.root.add(symbolMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.symbols.lifetime[0], this.config.symbols.lifetime[1]);
     
@@ -544,7 +545,7 @@ export class SafeQuantumIllusionsPack1 {
     
     const markerMesh = new THREE.Mesh(geometry, material);
     markerMesh.position.copy(spawnPos);
-    this.scene.add(markerMesh);
+    this.root.add(markerMesh);
     
     const lifetime = THREE.MathUtils.randFloat(this.config.ghostMarkers.lifetime[0], this.config.ghostMarkers.lifetime[1]);
     
@@ -611,7 +612,7 @@ export class SafeQuantumIllusionsPack1 {
       this.camera.position.z + (Math.random() - 0.5) * 15
     );
     
-    this.scene.add(phantomMesh);
+    this.root.add(phantomMesh);
     
     this.registry.registerIllusion('hallucinations', {
       mesh: phantomMesh,
@@ -879,7 +880,7 @@ export class SafeQuantumIllusionsPack1 {
   dispose() {
     this.clearAll();
     if (this.screenSpaceContainer) {
-      this.scene.remove(this.screenSpaceContainer);
+      this.root.remove(this.screenSpaceContainer);
     }
   }
 }

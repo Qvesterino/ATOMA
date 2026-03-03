@@ -11,8 +11,9 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  */
 
 export class DreamDepthEffectManager {
-  constructor(scene, camera, renderer) {
+  constructor(scene, environmentRoot, camera, renderer) {
     this.scene = scene;
+    this.root = environmentRoot || scene;
     this.camera = camera;
     this.renderer = renderer;
     
@@ -27,7 +28,7 @@ export class DreamDepthEffectManager {
     this.layerContainer.name = 'dream-depth-layers';
     // PHASE 3B→4: move overlay into world space (WORLD_OVERLAY)
     this.layerContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('WORLD_OVERLAY');
-    this.scene.add(this.layerContainer);
+    this.root.add(this.layerContainer);
     
     this.layerContainer.add(this.vignetteLayer.mesh);
     this.layerContainer.add(this.focusLayer.mesh);

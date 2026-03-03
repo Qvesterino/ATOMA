@@ -23,12 +23,13 @@ function areWorldFXEnabled() {
 }
 
 export class SafeWorldFXPack {
-  constructor(scene, worldRoot, camera) {
+  constructor(scene, worldRoot, environmentRoot, camera) {
     this.scene = scene;
     this.worldRoot = worldRoot || scene;
+    this.environmentRoot = environmentRoot || this.worldRoot;
     this.camera = camera;
     this.root = new THREE.Group();
-    this.worldRoot.add(this.root);
+    this.environmentRoot.add(this.root);
     
     // VFX Containers
     this.vfxLayers = {

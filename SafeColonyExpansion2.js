@@ -14,12 +14,13 @@ import { ColonyVFXManager } from './ColonyVFXManager.js';
  */
 
 export class SafeColonyExpansion2 {
-  constructor(scene) {
+  constructor(scene, environmentRoot) {
     this.scene = scene;
+    this.environmentRoot = environmentRoot || scene;
     
     // Initialize subsystems
-    this.registry = new ColonyRegistry(scene);
-    this.vfxManager = new ColonyVFXManager(scene);
+    this.registry = new ColonyRegistry(this.environmentRoot);
+    this.vfxManager = new ColonyVFXManager(this.environmentRoot);
     
     // Cached references to world systems
     this.nodes = {};           // nodeId → node object
