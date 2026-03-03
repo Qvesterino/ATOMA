@@ -1091,17 +1091,39 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     const positions = this.getNodePositions(environment, count);
     
-    positions.forEach((pos, index) => {
-      // 10% chance of special multi-output node
-      let category;
-      let isSpecial = false;
-      
-      if (Math.random() < 0.1 && index > 0) {
-        category = this.specialNodeTypes[Math.floor(Math.random() * this.specialNodeTypes.length)];
-        isSpecial = true;
-      } else {
-        category = this.nodeCategories[Math.floor(Math.random() * this.nodeCategories.length)];
+    // INIT cycle: unique category per batch, based on CATEGORY_POOLS (non-empty only)
+    const baseDeck = Object.keys(CATEGORY_POOLS || {})
+      .map(k => (k || '').trim().toLowerCase())
+      .filter(k => k.length > 0 && Array.isArray(CATEGORY_POOLS[k]) && CATEGORY_POOLS[k].length > 0);
+    const uniqueBaseDeck = Array.from(new Set(baseDeck));
+
+    const shuffleDeck = (arr) => {
+      const deck = arr.slice();
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
       }
+      return deck;
+    };
+
+    let deck = shuffleDeck(uniqueBaseDeck);
+    let deckIndex = 0;
+    const nextInitCategory = () => {
+      if (deck.length === 0) {
+        console.warn('[SpawnInit] CATEGORY_POOLS empty; cannot select category');
+        return null;
+      }
+      if (deckIndex >= deck.length) {
+        deck = shuffleDeck(uniqueBaseDeck);
+        deckIndex = 0;
+      }
+      return deck[deckIndex++];
+    };
+
+    positions.forEach((pos, index) => {
+      const category = nextInitCategory();
+      if (!category) return;
+      const isSpecial = false; // special rule disabled during INIT to preserve unique categories
       
       // ========== EXTREME SPAWN SYSTEM v1.0 (HOISTED) ==========
       // Determine Extreme status BEFORE creation to check uniqueness
