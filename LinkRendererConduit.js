@@ -17,6 +17,7 @@ import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js'
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
+import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './shaders/LinkStateVisualLanguage.js';
 import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
@@ -529,7 +530,10 @@ export class LinkRendererConduit {
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
 
         const sourceCat = link.source.userData.category || 'input';
+        const targetCat = link.target.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
+        const colorA = new THREE.Color(this.getCategoryColor(sourceCat));
+        const colorB = new THREE.Color(this.getCategoryColor(targetCat));
 
         // 1. Determine Structure (Stable Randomization)
         // Ensure 3-5 strands based on ID to maintain consistency per link
@@ -539,15 +543,7 @@ export class LinkRendererConduit {
         // 2. Create Strands (The Rope)
         const strands = [];
         for (let i = 0; i < strandCount; i++) {
-            const color = new THREE.Color(baseColor);
-            const hsl = {};
-            color.getHSL(hsl);
-            
-            // Visual Separation
-            hsl.h += (Math.random() - 0.5) * 0.08;
-            hsl.l += (Math.random() - 0.5) * this.config.colorVariation;
-            hsl.l = Math.min(0.9, Math.max(0.4, hsl.l));
-            color.setHSL(hsl.h, hsl.s, hsl.l);
+            const categoryColor = (i % 2 === 0) ? colorA : colorB;
 
             const flowMap = this.flowTexture ? this.flowTexture.clone() : null;
             if (flowMap) {
@@ -556,19 +552,20 @@ export class LinkRendererConduit {
                 flowMap.offset.x = Math.random();
             }
 
-            const material = new THREE.MeshStandardMaterial({
-                color: color,
-                emissive: color,
-                emissiveMap: flowMap,
-                emissiveIntensity: 1.2,
-                roughness: 0.3,
-                metalness: 0.8,
-                opacity: 0.95,
-                side: THREE.DoubleSide,
-                transparent: false,
-                depthWrite: true,
+            const material = new THREE.ShaderMaterial({
+                vertexShader: linkStateVertexShaderSimple,
+                fragmentShader: linkStateFragmentShaderSimple,
+                transparent: true,
+                depthWrite: false,
                 depthTest: true,
-                blending: THREE.NormalBlending
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uNetworkStress: { value: 0.0 },
+                    uLocalLoad: { value: 0.0 },
+                    uCorruption: { value: 0.0 },
+                    uTime: { value: 0.0 },
+                    uBaseColor: { value: categoryColor.clone() }
+                }
             });
             ensureUserData(material);
             material.userData.__owner = 'LinkRenderer';
@@ -582,6 +579,7 @@ export class LinkRendererConduit {
             geometry.computeBoundingSphere();
             geometry.computeBoundingBox();
             const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
+            mesh.renderOrder = strandOrder;
             TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
@@ -866,6 +864,14 @@ export class LinkRendererConduit {
                 // Do NOT modify core node material
                 return;
             }
+            // Shader uniforms (simple link state shader)
+            const mat = mesh.material;
+            if (mat?.uniforms) {
+                mat.uniforms.uTime.value = visualTime;
+                mat.uniforms.uNetworkStress.value = metrics.loadPressure ?? 0;
+                mat.uniforms.uLocalLoad.value = metrics.traffic ?? 0;
+                mat.uniforms.uCorruption.value = metrics.corruption ?? 0;
+            }
             // Flow texture
             if (mesh.material && mesh.material.emissiveMap) {
                 mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
@@ -1069,7 +1075,8 @@ export class LinkRendererConduit {
         if (state.rings) state.rings.update(visualTime);
 
         if (state.sparks && this.modules.sparks) {
-            const currentColor = (state.strands[0]?.material?.color) || state.baseColor;
+            const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
+            const currentColor = baseCol.isColor ? baseCol : new THREE.Color(baseCol);
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
             
             // [DEBUG] Log sparks update for visibility debugging

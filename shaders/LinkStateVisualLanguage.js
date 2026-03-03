@@ -221,16 +221,21 @@ export const linkStateVertexShaderSimple = `
   uniform float uLocalLoad;
   uniform float uCorruption;
   uniform float uTime;
+  uniform vec3 uBaseColor;
   
   varying float vNetworkStress;
   varying float vLocalLoad;
   varying float vCorruption;
   varying float vPulsePhase;
+  varying vec3 vBaseColor;
+  varying vec3 vNormal;
   
   void main() {
     vNetworkStress = uNetworkStress;
     vLocalLoad = uLocalLoad;
     vCorruption = uCorruption;
+    vBaseColor = uBaseColor;
+    vNormal = normalize(normalMatrix * normal);
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
@@ -245,6 +250,8 @@ export const linkStateFragmentShaderSimple = `
   varying float vLocalLoad;
   varying float vCorruption;
   varying float vPulsePhase;
+  varying vec3 vBaseColor;
+  varying vec3 vNormal;
   
   vec3 getStressColor(float stress) {
     vec3 cool = vec3(0.2, 0.5, 0.8);
@@ -259,7 +266,13 @@ export const linkStateFragmentShaderSimple = `
   }
   
   void main() {
-    vec3 color = getStressColor(vNetworkStress);
+    float effectiveStress = max(vNetworkStress, 0.08);
+    vec3 color = vBaseColor * 0.8 + getStressColor(effectiveStress) * 0.2;
+    
+    // Fake light shading
+    float lightFactor = dot(normalize(vNormal), normalize(vec3(0.2, 0.6, 1.0)));
+    lightFactor = clamp(lightFactor, 0.3, 1.0);
+    color *= lightFactor;
     
     // Add pulse glow from load
     color += vec3(vPulsePhase * vLocalLoad * 0.3);
