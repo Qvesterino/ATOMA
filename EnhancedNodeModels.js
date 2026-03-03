@@ -36,9 +36,6 @@ const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
   'TorusGeometry'
 ]);
 
-// PRIME visual toggle (v2 pipeline)
-const USE_PRIME_V2 = true;
-
 // PRIME v2 shared caches (geometries/materials/positions)
 const PRIME_V2_CACHE = {
   coreGeometry: null,
@@ -48,9 +45,6 @@ const PRIME_V2_CACHE = {
   latticePositions: null
 };
 const PRIME_V2_MATERIALS = new Map(); // keyed by color hex
-
-// MYTHIC visual toggle (v2 pipeline)
-const USE_MYTHIC_V2 = true;
 
 // MYTHIC v2 caches
 const MYTHIC_V2_CACHE = {
@@ -64,9 +58,6 @@ const MYTHIC_V2_CACHE = {
 };
 const MYTHIC_V2_MATERIALS = new Map(); // keyed by color hex
 
-// ERROR visual toggle (v2 pipeline)
-const USE_ERROR_V2 = true;
-
 // ERROR v2 caches
 const ERROR_V2_CACHE = {
   coreGeometry: null,
@@ -78,9 +69,6 @@ const ERROR_V2_CACHE = {
   haloGeometry: null
 };
 const ERROR_V2_MATERIALS = new Map(); // keyed by color hex
-
-// STORAGE visual toggle (v2 pipeline)
-const USE_STORAGE_V2 = true;
 
 // STORAGE v2 caches
 const STORAGE_V2_CACHE = {
@@ -94,9 +82,6 @@ const STORAGE_V2_CACHE = {
 };
 const STORAGE_V2_MATERIALS = new Map(); // keyed by color hex
 
-// INPUT visual toggle (v2 pipeline)
-const USE_INPUT_V2 = true;
-
 // INPUT v2 caches
 const INPUT_V2_CACHE = {
   coreGeometry: null,
@@ -109,10 +94,6 @@ const INPUT_V2_CACHE = {
   vectorGeometry: null
 };
 const INPUT_V2_MATERIALS = new Map(); // keyed by color hex
-
-// CONTROL visual toggle (v2 pipeline)
-const USE_CONTROL_V2 = true;
-const USE_CONTROL_V2_LEGACY = false;
 
 // Shared core material cache: key = `${category}|${colorHex.toString(16)}`
 const CORE_MATERIAL_CACHE = new Map();
@@ -165,9 +146,6 @@ const CONTROL_V2_LEGACY_CACHE = {
 };
 const CONTROL_V2_LEGACY_MATERIALS = new Map(); // keyed by color hex
 
-// ANALYTICS visual toggle (v2 pipeline)
-const USE_ANALYTICS_V2 = true;
-
 // ANALYTICS v2 caches
 const ANALYTICS_V2_CACHE = {
   coreGeometry: null,
@@ -180,10 +158,6 @@ const ANALYTICS_V2_CACHE = {
   particlesGeometry: null
 };
 const ANALYTICS_V2_MATERIALS = new Map(); // keyed by color hex
-
-  // QUANTUM visual toggle (v2 pipeline) - HARD LOCKED TO V2
-  const USE_QUANTUM_V2 = true;
-  const USE_SIGMA_V2 = true;
 
 // QUANTUM v2 caches
 const QUANTUM_V2_CACHE = {
@@ -202,9 +176,6 @@ const SIGMA_V2_CACHE = {
   ringGeometry: null
 };
 const SIGMA_V2_MATERIALS = new Map(); // keyed by color hex
-
-// EMOTIONAL visual toggle (v2 pipeline)
-const USE_EMOTIONAL_V2 = true;
 
 // EMOTIONAL v2 caches
 const EMO_V2_CACHE = {
@@ -1765,26 +1736,10 @@ export class EnhancedNodeModels {
    * - SignalReceptor (NEW - Session 63)
    * - DataGateway (NEW - Session 63)
    * - IncomingFunnel (NEW - Session 63)
-   * - SensorArray (NEW - Session 84)
-   * - PerceptionVortex (NEW - Session 84)
-   * - ResonanceChamber (NEW - Session 84)
-   */
-  static createInputNode(group, index, color) {
-    if (USE_INPUT_V2) {
-      const v2 = this.createInputNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createInputNodeLegacy(group, index, color);
-  }
-
-  /**
-   * INPUT v2: Data Singularity Intake
-   * Hierarchy:
-   * INPUT_NODE
-   *   - CORE_GROUP (SignalCore + CoreEdges)
-   *   - FLOW_GROUP (InflowArrows + OrbitBands + VectorLines + DataStreams)
-   *   - EMISSION_GROUP (PulseHalo + EntryParticles)
-   */
+  * - SensorArray (NEW - Session 84)
+  * - PerceptionVortex (NEW - Session 84)
+  * - ResonanceChamber (NEW - Session 84)
+  */
   static createInputNodeStyled_v2(group, index, color) {
     try {
       const geometries = _getInputV2Geometries();
@@ -3222,14 +3177,6 @@ static createAnalyticsNode2(group, color) {
    * - InterpretiveSpine (NEW - Session 81)
    * - SignalDrift (NEW - Session 81)
    */
-  static createAnalyticsNode(group, index, color) {
-    if (USE_ANALYTICS_V2) {
-      const v2 = this.createAnalyticsNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createAnalyticsNodeLegacy(group, index, color);
-  }
-
   /**
    * ANALYTICS v2: Predictive Computation Engine
    * Hierarchy:
@@ -4134,27 +4081,11 @@ static createAnalyticsNode2(group, color) {
    * - MemoryReef (Session 63)
    * - ArchiveNexus (NEW - Session 81)
    * - MemoryCrypts (NEW - Session 81)
-   * - DepthLayers (NEW - Session 81)
-   * - ObeliskCache (NEW - Session 116)
-   * - FractalReservoir (NEW - Session 116)
-   * - ArchiveDrum (NEW - Session 116)
-   */
-  static createStorageNode(group, index, color) {
-    if (USE_STORAGE_V2) {
-      const v2 = this.createStorageNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createStorageNodeLegacy(group, index, color);
-  }
-
-  /**
-   * STORAGE v2: Memory Monolith
-   * Hierarchy:
-   * STORAGE_NODE
-   *   - CORE_GROUP (MemoryCoreColumn + DataSpine)
-   *   - LAYER_GROUP (MemoryRings + CompressionBands + DataSlices)
-   *   - ARCHIVE_GROUP (ArchiveHalo + TimelineParticles)
-   */
+  * - DepthLayers (NEW - Session 81)
+  * - ObeliskCache (NEW - Session 116)
+  * - FractalReservoir (NEW - Session 116)
+  * - ArchiveDrum (NEW - Session 116)
+  */
   static createStorageNodeStyled_v2(group, index, color) {
     try {
       const geometries = _getStorageV2Geometries();
@@ -5114,53 +5045,6 @@ static createControlNode0(group, color) {
    * - TwistedSpine (NEW - optional)
    * - HollowSpine (NEW - optional)
    */
-  static createControlNode(group, index, color) {
-    if (USE_CONTROL_V2_LEGACY) {
-      const legacy = this.createControlNodeStyled_v2_Legacy(group, index, color);
-      if (legacy) return legacy;
-    }
-    if (USE_CONTROL_V2) {
-      const v2 = this.createControlNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    if (!this.__controlLegacyRedirectWarned) {
-      console.warn('[ControlLegacyRedirect] Falling back to CONTROL_V2 visual builder.');
-      this.__controlLegacyRedirectWarned = true;
-    }
-    const redirected = this.createControlNodeStyled_v2(group, index, color);
-    if (redirected) return redirected;
-
-    // Safety fallback only if CONTROL_V2 fails unexpectedly.
-    const pool = CATEGORY_POOLS.control || [];
-    const factoryMap = {
-      601: this.createAxiomCrystalNode.bind(this),
-      602: this.createControlNode0.bind(this),
-      603: this.createControlNode2.bind(this),
-      604: this.createControlNode1.bind(this),
-      605: this.createControlCommandPyramid.bind(this),
-      606: this.createControlHierarchyTower.bind(this),
-      607: this.createControlSymmetryCore.bind(this),
-      608: this.createExtremeControl0.bind(this),
-      609: ControlEnhancedVariants.createControlEnhanced_DecisionFork.bind(ControlEnhancedVariants),
-      610: ControlEnhancedVariants.createControlEnhanced_AuthorityHelix.bind(ControlEnhancedVariants),
-      611: ControlEnhancedVariants.createControlEnhanced_CommandMatrix.bind(ControlEnhancedVariants),
-      612: ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
-      613: ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
-      614: ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors)
-    };
-    const counter = Number.isFinite(index) ? index : 0;
-    const selected = pool[counter % pool.length];
-    const factory = factoryMap[selected];
-    if (!factory) return null;
-
-    // Copy nodeId from input group (if exists)
-    const result = factory(group, color);
-    if (result && group.userData && group.userData.nodeId) {
-      result.userData.nodeId = group.userData.nodeId;
-    }
-    return result;
-  }
-
   /**
    * CONTROL v2: Authority Column Core
    * Hierarchy:
@@ -5807,15 +5691,6 @@ static createControlNode0(group, color) {
    * - HyperbolicNeuralPrism
    * - ChaoticHeart
   */
-  static createQuantumNode(group, index, color) {
-    const v2 = this.createQuantumNodeStyled_v2(group, index, color);
-    console.log('BUILDER CALLED: createQuantumNode (dispatch to v2)', { variant: 'QUANTUM_V2' });
-    if (!v2) {
-      throw new Error('QUANTUM v2 builder failed');
-    }
-    return v2;
-  }
-
   /**
    * QUANTUM v2: Superposition Fracture Engine
    * Hierarchy:
@@ -5989,16 +5864,7 @@ static createControlNode0(group, color) {
   }
 
 
-  // ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
-  static createSigmaNode(group, index, color) {
-    if (USE_SIGMA_V2) {
-      const v2 = this.createSigmaNodeStyled_v2(group, index, color);
-      console.log('BUILDER CALLED: createSigmaNode (dispatch to v2)', { variant: 'SIGMA_V2' });
-      if (v2) return v2;
-    }
-    return this.createQuantumNode(group, index, color);
-  }
-
+// ===== LEGACY SIGMA ALIAS (for backward compatibility) =====
   static createSigmaNode2(group, color) {
     const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
     const seedValue = hashString(nodeKey);
@@ -6174,55 +6040,12 @@ static createControlNode0(group, color) {
     }
   }
 
-  /**
-   * Sigma Node 0: Soft elliptical form [LEGACY - QUARANTINED]
-   * This legacy builder should never be called.
-   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
-   */
-  static createSigmaNode0(group, color) {
-    const v2 = this.createQuantumNodeStyled_v2(group, 0, color);
-    if (!v2) {
-      throw new Error('SIGMA node0 v2 builder failed');
-    }
-    return v2;
-  }
-
-  /**
-   * Sigma Node 1: Rotating dimensional rings [LEGACY - QUARANTINED]
-   * This legacy builder should never be called.
-   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
-   */
-  static createSigmaNode1(group, color) {
-    const v2 = this.createQuantumNodeStyled_v2(group, 1, color);
-    if (!v2) {
-      throw new Error('SIGMA node1 v2 builder failed');
-    }
-    return v2;
-  }
-
-  /**
-   * Sigma Node 3: Twisted anomaly [LEGACY - QUARANTINED]
-   * This legacy builder should never be called.
-   * SIGMA nodes now use QUANTUM v2 builder via hard redirect.
-   */
-  static createSigmaNode3(group, color) {
-    const v2 = this.createQuantumNodeStyled_v2(group, 3, color);
-    if (!v2) {
-      throw new Error('SIGMA node3 v2 builder failed');
-    }
-    return v2;
-  }
-
   // ===== MYTHIC NODES (Ancient Fractured Relics - 6 variants) =====
 
   /**
    * Main mythic node creator
    * Legacy shared entry is no longer used by registry (strict 1:1 mapping).
    */
-  static createMythicNode(group, index, color) {
-    throw new Error('createMythicNode is deprecated; use visualCode-specific mythic factories.');
-  }
-
   static _createMythicGeometry(group, builderFn, label) {
     const mesh = builderFn?.(1.0);
     if (!mesh) throw new Error(`Mythic builder failed: ${label}`);
@@ -6364,15 +6187,11 @@ static createControlNode0(group, color) {
   // ===== PRIME NODES (Perfect Axioms - 6 variants) =====
 
   /**
-   * Main prime node creator
-   * CANONICAL CATEGORY: PRIME
-   * - NestedIcosahedron, PerfectDodecahedron, StellaOctangula
-   * - PrecisionLattice, TesseractProjection, SymmetryLockedCore
-   */
-  static createPrimeNode(group, index, color) {
-    throw new Error('createPrimeNode is deprecated; use visualCode-specific prime factories.');
-  }
-
+  * Main prime node creator
+  * CANONICAL CATEGORY: PRIME
+  * - NestedIcosahedron, PerfectDodecahedron, StellaOctangula
+  * - PrecisionLattice, TesseractProjection, SymmetryLockedCore
+  */
   /**
    * PRIME v2 visual pipeline (structure-only, no spawn changes)
    * Hierarchy:
@@ -6513,15 +6332,11 @@ static createControlNode0(group, color) {
   // ===== ERROR NODES (Frozen Corruption - 6 variants) =====
 
   /**
-   * Main error node creator
-   * CANONICAL CATEGORY: ERROR
-   * - IntersectingSolids, InvertedNormals, SelfClipping
-   * - FoldedImpossible, TopologyTear, CorruptedManifold
-   */
-  static createErrorNode(group, index, color) {
-    throw new Error('createErrorNode is deprecated; use visualCode-specific error factories.');
-  }
-
+  * Main error node creator
+  * CANONICAL CATEGORY: ERROR
+  * - IntersectingSolids, InvertedNormals, SelfClipping
+  * - FoldedImpossible, TopologyTear, CorruptedManifold
+  */
   /**
    * ERROR v2: Impossible Geometry (restored)
    * Hierarchy:
@@ -6655,27 +6470,11 @@ static createControlNode0(group, color) {
   // ===== EMOTIONAL NODES (Crystalline Organics - 6 variants) =====
 
   /**
-   * Main emotional node creator
-   * CANONICAL CATEGORY: EMOTIONAL
-   * - HeartCrystal, NeuralLobe, BloomingGem
-   * - TearShaped, Folded, SymmetricSeed
-   */
-  static createEmotionalNode(group, index, color) {
-    if (USE_EMOTIONAL_V2) {
-      const v2 = this.createEmotionalNodeStyled_v2(group, index, color);
-      if (v2) return v2;
-    }
-    return this._createEmotionalNodeLegacy(group, index, color);
-  }
-
-  /**
-   * EMOTIONAL v2: Affective Distortion Core
-   * Hierarchy:
-   * EMOTIONAL_NODE
-   *   - CORE_GROUP (DistortedCore + CoreEdges + InnerGlowLayer)
-   *   - AURA_GROUP (EmotionShell_A + EmotionShell_B + EmotionMist)
-   *   - TENDRIL_GROUP (EmotionalTendrils + MicroFragments)
-   */
+  * Main emotional node creator
+  * CANONICAL CATEGORY: EMOTIONAL
+  * - HeartCrystal, NeuralLobe, BloomingGem
+  * - TearShaped, Folded, SymmetricSeed
+  */
   static createEmotionalNodeStyled_v2(group, index, color) {
     try {
       const geometries = _getEmotionalV2Geometries();

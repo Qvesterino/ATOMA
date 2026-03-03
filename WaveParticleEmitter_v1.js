@@ -18,6 +18,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class WaveParticleEmitter_v1 {
   constructor(config = {}) {
@@ -155,6 +156,7 @@ export class WaveParticleEmitter_v1 {
     });
 
     const points = new THREE.Points(geometry, material);
+    points.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
     this.systems.constructiveBurst = { points, geometry, maxParticles };
     this.scene.add(points);
   }
@@ -203,6 +205,7 @@ export class WaveParticleEmitter_v1 {
     });
 
     const points = new THREE.Points(geometry, material);
+    points.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
     this.systems.destructiveChaos = { points, geometry, maxParticles };
     this.scene.add(points);
   }
@@ -255,6 +258,7 @@ export class WaveParticleEmitter_v1 {
     });
 
     const points = new THREE.Points(geometry, material);
+    points.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
     this.systems.standingWaveRipple = { points, geometry, maxParticles };
     this.scene.add(points);
   }

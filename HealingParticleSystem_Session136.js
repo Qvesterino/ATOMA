@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * ============================================================================
@@ -148,7 +149,7 @@ export class HealingParticleSystem_Session136 {
         
         this.mesh = new THREE.Points(this.geometry, this.material);
         this.mesh.frustumCulled = false; // Always update (particles move)
-        this.mesh.renderOrder = 20; // Render on top of scars
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
         
         this.scene.add(this.mesh);
     }

@@ -7,9 +7,8 @@ export const NODE_VISUAL_REGISTRY = {
   104: { category: 'input', factoryName: 'createInputSensory_TactileSensor' },
   105: { category: 'input', factoryName: 'createInputSensory_EchoDetector' },
   106: { category: 'input', factoryName: 'createInputSensory_NeuralReceptor' },
-  107: { category: 'input', factoryName: 'createInputNode' },
+  107: { category: 'input', factoryName: 'createInputNodeStyled_v2' },
   108: { category: 'input', factoryName: 'createInputNode3' },
-  109: { category: 'input', factoryName: 'createInputNodeStyled_v2' },
   110: { category: 'input', factoryName: 'createExtremeInput0' },
   111: { category: 'input', factoryName: 'createExtremeInput1' },
 
@@ -51,8 +50,7 @@ export const NODE_VISUAL_REGISTRY = {
   406: { category: 'analytics', factoryName: 'createAnalyticsEnhanced_SignalStratifier' },
   407: { category: 'analytics', factoryName: 'createAnalyticsEnhanced_TrendExcavator' },
   408: { category: 'analytics', factoryName: 'createAnalyticsEnhanced_AnomalyLedger' },
-  409: { category: 'analytics', factoryName: 'createAnalyticsNode' },
-  410: { category: 'analytics', factoryName: 'createAnalyticsNodeStyled_v2' },
+  409: { category: 'analytics', factoryName: 'createAnalyticsNodeStyled_v2' },
   411: { category: 'analytics', factoryName: 'createExtremeAnalytics0' },
   412: { category: 'analytics', factoryName: 'createExtremeAnalytics1' },
 
@@ -70,7 +68,6 @@ export const NODE_VISUAL_REGISTRY = {
   511: { category: 'storage', factoryName: 'createFractalReservoir' },
   512: { category: 'storage', factoryName: 'createArchiveDrum' },
   513: { category: 'storage', factoryName: 'createStorageNodeStyled_v2' },
-  514: { category: 'storage', factoryName: 'createStorageNode' },
   515: { category: 'storage', factoryName: 'createExtremeStorage0' },
   516: { category: 'storage', factoryName: 'createExtremeStorage1' },
 
@@ -90,25 +87,19 @@ export const NODE_VISUAL_REGISTRY = {
   613: { category: 'control', factoryName: 'createCrucisSuppressionGovernor' },
   614: { category: 'control', factoryName: 'createVertexTemporalGate' },
   615: { category: 'control', factoryName: 'createControlNode3' },
-  616: { category: 'control', factoryName: 'createControlNode' },
-  617: { category: 'control', factoryName: 'createControlNodeStyled_v2' },
+  616: { category: 'control', factoryName: 'createControlNodeStyled_v2' },
   618: { category: 'control', factoryName: 'createControlNodeStyled_v2_Legacy' },
   619: { category: 'control', factoryName: 'createControlSpecialGovernor' },
   620: { category: 'control', factoryName: 'createControlSpineVariant' },
   621: { category: 'control', factoryName: 'createExtremeControl1' },
 
   // Quantum (7xx)
-  705: { category: 'quantum', factoryName: 'createQuantumNode' },
-  706: { category: 'quantum', factoryName: 'createQuantumNodeStyled_v2' },
+  705: { category: 'quantum', factoryName: 'createQuantumNodeStyled_v2' },
 
   // Sigma (8xx) reuses quantum visuals
-  801: { category: 'sigma', factoryName: 'createSigmaNode0' },
-  802: { category: 'sigma', factoryName: 'createSigmaNode1' },
-  803: { category: 'sigma', factoryName: 'createSigmaNode3' },
   804: { category: 'sigma', factoryName: 'createExtremeIntegration1' },
   805: { category: 'sigma', factoryName: 'createSigmaNode2' },
-  806: { category: 'sigma', factoryName: 'createSigmaNode' },
-  807: { category: 'sigma', factoryName: 'createSigmaNodeStyled_v2' },
+  806: { category: 'sigma', factoryName: 'createSigmaNodeStyled_v2' },
 
   // Mythic / Prime / Error / Emotional (9xx+)
   901: { category: 'mythic', factoryName: 'createMythicShardClusterNode' },
@@ -117,7 +108,6 @@ export const NODE_VISUAL_REGISTRY = {
   904: { category: 'mythic', factoryName: 'createMythicCrackedPrismNode' },
   905: { category: 'mythic', factoryName: 'createMythicAncientCoreWithMissingNode' },
   906: { category: 'mythic', factoryName: 'createMythicCollapsedCrownNode' },
-  907: { category: 'mythic', factoryName: 'createMythicNode' },
   908: { category: 'mythic', factoryName: 'createMythicNodeStyled_v2' },
 
   1001:{ category: 'prime',  factoryName: 'createPrimeNestedIcosahedronNode' },
@@ -126,7 +116,6 @@ export const NODE_VISUAL_REGISTRY = {
   1004:{ category: 'prime',  factoryName: 'createPrimePrecisionLatticeNode' },
   1005:{ category: 'prime',  factoryName: 'createPrimeTesseractProjectionNode' },
   1006:{ category: 'prime',  factoryName: 'createPrimeSymmetryLockedCoreNode' },
-  1007:{ category: 'prime',  factoryName: 'createPrimeNode' },
   1008:{ category: 'prime',  factoryName: 'createPrimeNodeStyled_v2' },
 
   1101:{ category: 'error',  factoryName: 'createErrorIntersectingSolidsNode' },
@@ -135,7 +124,6 @@ export const NODE_VISUAL_REGISTRY = {
   1104:{ category: 'error',  factoryName: 'createErrorFoldedImpossibleNode' },
   1105:{ category: 'error',  factoryName: 'createErrorTopologyTearNode' },
   1106:{ category: 'error',  factoryName: 'createErrorCorruptedManifoldNode' },
-  1107:{ category: 'error',  factoryName: 'createErrorNode' },
   1108:{ category: 'error',  factoryName: 'createErrorNodeStyled_v2' },
 
   1201:{ category: 'emotional', factoryName: 'createEmotionalHeartCrystal' },

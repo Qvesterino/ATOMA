@@ -26,6 +26,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyBeadEffects, updateBeadEffects, removeBeadEffects } from './LinkBeadVisualEffects.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -500,6 +501,9 @@ export class BeadRenderer {
     const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
     Object.assign(ud, { bead: bead, isBead: true });
     
+    // Apply optional visual effects (disabled by default)
+    applyBeadEffects(mesh);
+    
     return mesh;
   }
   
@@ -696,6 +700,7 @@ export class LinkBeadVisualizer {
     if (!this.link.curve) {
       // Remove any existing meshes when curve is absent
       for (const [, mesh] of this.beadToMesh) {
+        removeBeadEffects(mesh);
         this.group.remove(mesh);
         if (mesh.material) mesh.material.dispose();
       }
@@ -722,6 +727,9 @@ export class LinkBeadVisualizer {
         this.group.remove(mesh);
         this.beadToMesh.delete(bead);
         
+        // Remove visual effects (trails, etc.)
+        removeBeadEffects(mesh);
+        
         // Clean up material
         if (mesh.material) mesh.material.dispose();
       } else {
@@ -733,6 +741,9 @@ export class LinkBeadVisualizer {
           this.sourceColor, 
           this.targetColor
         );
+        
+        // Update visual effects (trails, pulsing, etc.)
+        updateBeadEffects(mesh, deltaTime);
       }
     }
     
@@ -792,6 +803,8 @@ export class LinkBeadVisualizer {
    */
   dispose() {
     for (const [bead, mesh] of this.beadToMesh) {
+      // Remove visual effects first
+      removeBeadEffects(mesh);
       mesh.geometry.dispose();
       mesh.material.dispose();
       this.group.remove(mesh);

@@ -31,6 +31,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
@@ -156,6 +157,7 @@ export class CascadeParticleSystem_Session120 {
     // 4. Create Mesh
     this.mesh = new THREE.Points(this.geometry, this.material);
     this.mesh.frustumCulled = false; // Always render if active
+    this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     this.scene.add(this.mesh);
     
     // 5. Initialize Pool
