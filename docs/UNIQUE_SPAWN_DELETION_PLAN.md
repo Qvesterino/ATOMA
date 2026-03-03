@@ -6,21 +6,26 @@
 
 **Rationale**: These systems no longer serve their original purpose. They provide redundant uniqueness enforcement that duplicates functionality already handled by `AINodes.nodeRegistry` and the spawn pipeline's inherent logic.
 
-**Status**: ANALYSIS COMPLETE - AWAITING APPROVAL
+**Status**: DELETED - ALL SYSTEMS REMOVED (2026-03-03)
 
 ---
 
 ## System Architecture Analysis
 
-### Current Components
+### Deleted Components
 
-1. **UniqueSpawnRegistry.js** (92 lines)
+1. ~~**UniqueSpawnRegistry.js**~~ (DELETED 2026-03-03)
    - Low-level storage for archetype uniqueness tracking
    - Maps: `activeByArchetypeKey`, `archetypeByNodeId`, `metadataByArchetypeKey`
    - Methods: register, release, query, clear, snapshot
 
-2. **UniqueSpawnService.js** (115 lines)
+2. ~~**UniqueSpawnService.js**~~ (DELETED 2026-03-03)
    - High-level API layer wrapping UniqueSpawnRegistry
+
+3. ~~**NodeSpawnRegistry.js**~~ (DELETED 2026-03-03)
+   - Convenience wrapper around UniqueSpawnService
+   - Adds spawn counting (allowed/denied)
+   - Logging functionality
    - Adds `metaByNodeId` Map (duplicate storage)
    - Key generation logic (`makeKey()`)
    - Decision engine (`check()` with reasons)

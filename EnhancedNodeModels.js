@@ -6184,6 +6184,150 @@ static createControlNode0(group, color) {
     return group;
   }
 
+  // ===== QUANTUM CUSTOM VARIANTS (registry 701-703) =====
+
+  /**
+   * QUANTUM: Bloom (rare crown-like bloom)
+   */
+  static createQuantumBloomNode(group, color) {
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.55,
+      metalness: 0.6,
+      roughness: 0.25
+    });
+
+    const baseGeo = new THREE.CylinderGeometry(0.9, 1.0, 0.12, 10, 1);
+    const base = new THREE.Mesh(baseGeo, mat);
+    base.position.y = -0.3;
+    base.rotation.y = Math.PI * 0.1;
+    validateMeshGeometry(base, 'createQuantumBloomNode:base');
+    group.add(base);
+
+    const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 10, 1);
+    const spine = new THREE.Mesh(spineGeo, mat);
+    spine.position.y = 0.1;
+    validateMeshGeometry(spine, 'createQuantumBloomNode:spine');
+    group.add(spine);
+
+    const coreGeo = new THREE.DodecahedronGeometry(0.35, 0);
+    const core = new THREE.Mesh(coreGeo, mat);
+    core.position.y = 0.45;
+    core.rotation.y = Math.PI * 0.2;
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createQuantumBloomNode:core');
+    group.add(core);
+
+    const petalGeo = new THREE.BoxGeometry(0.18, 0.6, 0.08);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const petal = new THREE.Mesh(petalGeo, mat);
+      petal.position.set(Math.cos(angle) * 0.75, 0.05 + i * 0.05, Math.sin(angle) * 0.75);
+      petal.rotation.y = angle + Math.PI * 0.25;
+      petal.rotation.z = Math.PI * 0.18;
+      validateMeshGeometry(petal, `createQuantumBloomNode:petal${i}`);
+      group.add(petal);
+    }
+
+    const ringGeo = new THREE.TorusGeometry(0.42, 0.03, 8, 18);
+    const ring = new THREE.Mesh(ringGeo, mat);
+    ring.position.y = 0.28;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.18;
+    validateMeshGeometry(ring, 'createQuantumBloomNode:ring');
+    group.add(ring);
+
+    group.userData.visualReady = true;
+    return group;
+  }
+
+  /**
+   * QUANTUM: Lattice (reuses extreme lattice archetype)
+   */
+  static createQuantumLattice(group, color) {
+    try {
+      const tempNode = new THREE.Group();
+      tempNode.visualGroup = new THREE.Group();
+
+      const extremeGroup = this.extremeNodePack.createQuantumLattice(tempNode, null);
+      if (!extremeGroup) {
+        if (window.ATOMA_DEBUG_VISUAL_BUILD === true) {
+          console.error('[VisualBuildFail]', { archetype: 'quantum-lattice', category: 'quantum', reason: 'NoMesh' });
+        }
+        return group;
+      }
+
+      group.add(extremeGroup);
+      tempNode.userData.extremeArchetype = 2;
+      group.userData.visualReady = true;
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createQuantumLattice',
+        category: 'quantum',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
+  }
+
+  /**
+   * QUANTUM: Lotus (petal crown)
+   */
+  static createQuantumLotus(group, color) {
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.5,
+      metalness: 0.55,
+      roughness: 0.3
+    });
+
+    const baseGeo = new THREE.TorusGeometry(0.72, 0.05, 8, 20, Math.PI * 1.8);
+    const base = new THREE.Mesh(baseGeo, mat);
+    base.rotation.x = Math.PI * 0.5;
+    base.rotation.y = Math.PI * 0.12;
+    base.position.y = -0.28;
+    validateMeshGeometry(base, 'createQuantumLotus:base');
+    group.add(base);
+
+    const spineGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 10, 1);
+    const spine = new THREE.Mesh(spineGeo, mat);
+    spine.position.y = 0.05;
+    validateMeshGeometry(spine, 'createQuantumLotus:spine');
+    group.add(spine);
+
+    const petalGeo = new THREE.BoxGeometry(0.18, 0.6, 0.12);
+    for (let p = 0; p < 6; p++) {
+      const angle = (p / 6) * Math.PI * 2;
+      const petal = new THREE.Mesh(petalGeo, mat);
+      petal.position.set(Math.cos(angle) * 0.55, 0.12, Math.sin(angle) * 0.55);
+      petal.rotation.y = angle + Math.PI * 0.2;
+      petal.rotation.z = Math.PI * 0.18;
+      validateMeshGeometry(petal, `createQuantumLotus:petal${p}`);
+      group.add(petal);
+    }
+
+    const haloGeo = new THREE.TorusGeometry(0.32, 0.025, 8, 18);
+    const halo = new THREE.Mesh(haloGeo, mat);
+    halo.position.y = 0.28;
+    halo.rotation.x = Math.PI * 0.5;
+    validateMeshGeometry(halo, 'createQuantumLotus:halo');
+    group.add(halo);
+
+    const coreGeo = new THREE.OctahedronGeometry(0.22, 1);
+    const core = new THREE.Mesh(coreGeo, mat);
+    core.position.y = 0.34;
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createQuantumLotus:core');
+    group.add(core);
+
+    group.userData.visualReady = true;
+    return group;
+  }
+
   // ===== MYTHIC NODES (Ancient Fractured Relics - 6 variants) =====
 
   /**

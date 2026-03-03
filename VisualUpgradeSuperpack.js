@@ -115,6 +115,7 @@ function safeEdgesGeometry(geometry, ctx = {}) {
 export class VisualUpgradeSuperpack {
     constructor(scene, camera, renderer) {
         this.scene = scene;
+        this.root = scene;
         this.camera = camera;
         this.renderer = renderer;
 
@@ -222,7 +223,7 @@ export class VisualUpgradeSuperpack {
                 baseColor: config.color
             };
 
-            this.scene.add(cone);
+            this.root.add(cone);
             this.volumetricLights.push(cone);
 
             // Add subtle light rays effect
@@ -241,7 +242,7 @@ export class VisualUpgradeSuperpack {
             rays.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z, "XYZ");
             rays.rotation.x -= Math.PI / 6;
 
-            this.scene.add(rays);
+            this.root.add(rays);
             this.volumetricLights.push(rays);
         });
     }
@@ -306,7 +307,7 @@ export class VisualUpgradeSuperpack {
                 phase: Math.random() * Math.PI * 2
             };
 
-            this.scene.add(plane);
+            this.root.add(plane);
             this.atmosphericLayers.push(plane);
         });
     }
@@ -353,7 +354,7 @@ export class VisualUpgradeSuperpack {
                         fresnel: true
                     };
 
-                    this.scene.add(wireframe);
+                    this.root.add(wireframe);
                     this.edgeGlowObjects.push(wireframe);
                 } catch (e) {
                     // Skip geometries that can't be converted to edges
@@ -450,7 +451,7 @@ export class VisualUpgradeSuperpack {
                 type: 'distortionZone'
             };
 
-            this.scene.add(distortionMesh);
+            this.root.add(distortionMesh);
             this.distortionZones.push(distortionMesh);
         });
     }
@@ -496,7 +497,7 @@ export class VisualUpgradeSuperpack {
                 type: 'sigmaRift'
             };
 
-            this.scene.add(rift);
+            this.root.add(rift);
             this.rifts.push(rift);
 
             // Add glow field around rift
@@ -521,7 +522,7 @@ export class VisualUpgradeSuperpack {
                 type: 'riftGlow'
             };
 
-            this.scene.add(glowField);
+            this.root.add(glowField);
             this.rifts.push(glowField);
         });
     }
@@ -589,7 +590,7 @@ export class VisualUpgradeSuperpack {
                 system: system
             };
 
-            this.scene.add(points);
+            this.root.add(points);
             this.particles.push(points);
         });
     }

@@ -50,11 +50,14 @@ import { DreamDesert } from './DreamDesert.js';
 import { QuantumIsland } from './QuantumIsland.js';
 import { FractalValley } from './FractalValley.js';
 import { MemoryLane } from './MemoryLane.js';
+import { EnvironmentDomainController } from './EnvironmentDomainController.js';
+import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { AINodes } from './AINodes.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
+import { NodeLinking2_3 } from './_NodeLinking2_3.js';
 // import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 // import { AtomaAudioModulation } from './AtomaAudioModulation.js';
 import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
@@ -565,7 +568,9 @@ import { CompetitionDominanceAdapter_v1, setupCompetitionDominanceIntegration } 
 // ============================================================================
 // SESSION 99: EMERGENCY VISUAL STABILIZATION HOTFIX (Critical Opaque Enforcement)
 // ============================================================================
-import { setupEmergencyVisualStabilization } from './HOTFIX_EmergencyVisualStabilization_v1.js';
+// REMOVED: setupEmergencyVisualStabilization from './HOTFIX_EmergencyVisualStabilization_v1.js'
+// Legacy spawner consolidation moved to LEGACY folder (2026-03-03)
+// Legacy rare node spawner moved to LEGACY folder (2026-03-03)
 import { installNodeVisualFreezeBlockers } from './NodeVisualFreezeBlockers_v1.js';
 import { NodeLinkedAuraSystem } from './NodeLinkedAuraSystem.js';
 import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
@@ -975,7 +980,6 @@ import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
- import { NodeLinking2_3 } from './_NodeLinking2_3.js';
 import { UIPrimaryNodeAura3_7 } from './_UIPrimaryNodeAura3_7.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
@@ -3602,11 +3606,6 @@ class AtomaGame {
             }
         }, 'visual.memoryTrails');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.quantumIllusions) {
-                this.quantumIllusions.update(dt);
-            }
-        }, 'visual.quantumIllusions');
-        this.frameScheduler.register('visual', (dt) => {
             if (this.visualSuperpack) {
                 this.visualSuperpack.update(dt);
             }
@@ -4251,12 +4250,30 @@ document.addEventListener('keydown', () => {
         this.setupLegendaryPack();
         this.setupLegendaryLinkFX();
         this.setupWorldEvents();
-        this.setupWeatherPack();
+        this.environmentDomain = new EnvironmentDomainController(
+            this.scene,
+            this.worldRoot,
+            this.environmentRoot,
+            this.frameScheduler,
+            {
+                SafeWorldFXPack,
+                SafeAIWeatherPack,
+                SafeQuantumIllusionsPack1,
+                AmbientEntityManager,
+                EmergentThoughtStorms5_0,
+                EnvironmentalHazards,
+                camera: this.camera,
+                aiNodes: this.aiNodes,
+                linkingSystem: this.linkingSystem,
+                worldEvents: this.worldEvents,
+                legendaryPack: this.legendaryPack,
+                recursiveGlyphMessaging: this.recursiveGlyphMessaging,
+                semanticGlyphAI: this.semanticGlyphAI
+            }
+        );
+        this.environmentDomain.init();
         this.setupPersonalityFX();
-        this.setupWorldFXPack();
-        this.setupAmbientEntities();
         this.setupMemoryTrails();
-        this.setupQuantumIllusions();
         this.setupColonyManager();
         this.setupDreamDepthPack();
         this.setupMobilityPack();
@@ -5416,27 +5433,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         this.activeWorld = null;
 
-        // Environment FX lifecycle: dispose + unregister before clearing root
-        const unregister = (id) => this.frameScheduler?.unregister?.(id);
-
-        if (this.quantumIllusions?.dispose) this.quantumIllusions.dispose();
-        unregister('visual.quantumIllusions');
-        this.quantumIllusions = null;
-
-        if (this.ambientEntityManager?.dispose) this.ambientEntityManager.dispose();
-        unregister('ambientEntityManager');
-        this.ambientEntityManager = null;
-
-        if (this.emergentThoughtStorms?.clearAllStorms) this.emergentThoughtStorms.clearAllStorms();
-        unregister('emergentThoughtStorms');
-        this.emergentThoughtStorms = null;
-
-        unregister('worldFXPack');
-        this.worldFXPack = null;
-
-        if (this.weatherPack?.dispose) this.weatherPack.dispose();
-        unregister('weatherPack');
-        this.weatherPack = null;
+        // Environment FX lifecycle: dispose controller before clearing root
+        if (this.environmentDomain) {
+            this.environmentDomain.dispose();
+            this.environmentDomain = null;
+        }
 
         // Clear environment-layer content before rebuilding world
         if (this.environmentRoot) {
@@ -5445,20 +5446,33 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         }
 
-        // Recreate environment FX systems for the new world instance
-        this.setupWorldFXPack();
-        this.setupWeatherPack();
-        this.setupAmbientEntities();
-        this.setupQuantumIllusions();
-        this.setupEmergentThoughtStorms();
-
-        // Re-register FrameScheduler hooks for environment FX
-        if (this.frameScheduler) {
-            this.frameScheduler.register('visual', (dt) => {
-                if (this.quantumIllusions) {
-                    this.quantumIllusions.update(dt);
-                }
-            }, 'visual.quantumIllusions');
+        // Recreate environment FX controller for the new world instance
+        this.environmentDomain = new EnvironmentDomainController(
+            this.scene,
+            this.worldRoot,
+            this.environmentRoot,
+            this.frameScheduler,
+            {
+                SafeWorldFXPack,
+                SafeAIWeatherPack,
+                SafeQuantumIllusionsPack1,
+                AmbientEntityManager,
+                EmergentThoughtStorms5_0,
+                EnvironmentalHazards,
+                camera: this.camera,
+                aiNodes: this.aiNodes,
+                linkingSystem: this.linkingSystem,
+                worldEvents: this.worldEvents,
+                legendaryPack: this.legendaryPack,
+                recursiveGlyphMessaging: this.recursiveGlyphMessaging,
+                semanticGlyphAI: this.semanticGlyphAI
+            }
+        );
+        this.environmentDomain.init();
+        this.hazards = this.environmentDomain?.instances?.environmentalHazards || null;
+        if (this.hazards && this.currentMode === 'fractal') {
+            this.hazards.createElectricalStorm(new THREE.Vector3(40, 15, 40), 25, 0.8);
+            this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
 
         if (this.currentMode === 'sigma') {

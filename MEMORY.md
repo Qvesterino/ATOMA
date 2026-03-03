@@ -55,6 +55,32 @@ Analysis → Proposal → Approval → Execution
 
 ---
 
+## 🗂️ Legacy Code Removal (2026-03-03)
+
+### Removed Systems
+
+**Unique Spawn Systems (Removed 2026-03-03):**
+- `UniqueSpawnService.js` - Redundant uniqueness enforcement (replaced by AINodes.nodeRegistry)
+- `UniqueSpawnRegistry.js` - Duplicate uniqueness tracking
+- `NodeSpawnRegistry.js` - Convenience wrapper (spawn counting, logging)
+- **Rationale:** Uniqueness enforcement no longer needed - ATOMA allows duplicate spawns freely
+
+**Legacy Spawner Systems (Moved to LEGACY folder 2026-03-03):**
+- `_NodeLinking2_3.js` - Old/legacy linking system (superseded by NodeLinking2_3)
+- `_RareNodeSpawner.js` - Rare node spawner system (no longer needed)
+- `SpawnerConsolidationDetector_v1.js` - Spawner consolidation detector (still in use via HOTFIX)
+- **Rationale:** NodeLinking2_3.js is active system; rare node spawner functionality not required
+
+**Main.js Cleanup:**
+- Removed imports for legacy linking systems (`_NodeLinking2_3`)
+- Removed legacy comments referencing old systems
+- **Impact:** Simplified imports, removed redundant legacy code references
+
+**Documentation Updates:**
+- `UNIQUE_SPAWN_DELETION_PLAN.md` - Status updated to "DELETED - ALL SYSTEMS REMOVED"
+
+---
+
 ## 5️⃣ Long-Term Direction
 
 ATOMA is evolving slowly.
