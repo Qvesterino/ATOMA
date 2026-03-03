@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * Energy Ring Expansion System
@@ -40,6 +41,7 @@ export class LinkEnergyRingSystem {
         });
 
         const mesh = new THREE.Mesh(this.baseGeometry, material);
+        mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
         mesh.frustumCulled = false;
         mesh.position.copy(position);
         

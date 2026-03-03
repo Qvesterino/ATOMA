@@ -130,6 +130,7 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_ARCS = 'LINK_ARCS';
   static LAYER_LINK_SPARKS = 'LINK_SPARKS';
   static LAYER_LINK_BEADS = 'LINK_BEADS';
+  static LAYER_LINK_BEAD_TRAILS = 'LINK_BEAD_TRAILS';
   static LAYER_LINK_IMPACTS = 'LINK_IMPACTS';
   static LAYER_LINK_PARTICLES = 'LINK_PARTICLES';
 
@@ -177,6 +178,7 @@ export class VisualHierarchyRegistry {
     ARCS: 235,
     SPARKS: 240,
     BEADS: 245,
+    BEAD_TRAILS: 255,
     IMPACTS: 250,
     PARTICLES: 260
   };
