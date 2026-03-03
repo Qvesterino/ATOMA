@@ -91,14 +91,11 @@ import { assignLinkTarget } from './LinkTargetContract.js';
 import { AuraLODCulling } from './AuraLODCulling.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
 import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
-import { uniqueSpawnRegistry } from './UniqueSpawnRegistry.js';
-import { uniqueSpawnService } from './UniqueSpawnService.js';
 
 function vfxFlag(name, def = true) {
   const v = (typeof window !== 'undefined') ? window[name] : undefined;
   return (v === undefined) ? def : !!v;
 }
-import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationFix.js';
 import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js';
 // import { validateObject3D as validateSpherePolicyObject3D } from './VisualSpherePolicy.js';
@@ -678,9 +675,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     };
     this._pendingCyclicCandidate = null;
 
-    // Unique-spawn registry (archetype-level single instance)
-    this.uniqueSpawnRegistry = uniqueSpawnRegistry;
-
     // Single post-spawn observer pipeline (ordered)
     this.postSpawnObservers = new Map();
     this.visualAuthorityRuntime = new NodeVisualAuthorityRuntime({
@@ -1017,21 +1011,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     return true;
   }
 
-  releaseUniqueSpawn(node) {
-    if (!node) return false;
-    const nodeId = node.userData?.nodeId || node.userData?.id || node.uuid;
-    if (!nodeId) return false;
-    return uniqueSpawnService.releaseByNodeId(nodeId);
-  }
-
-  isUniqueSpawnAllowed(archetypeKey) {
-    return this.uniqueSpawnRegistry.isUniqueSpawnAllowed(archetypeKey);
-  }
-
-  registerUniqueSpawn(nodeId, archetypeKey, metadata = {}) {
-    return this.uniqueSpawnRegistry.registerUniqueSpawn(nodeId, archetypeKey, metadata);
-  }
-
   requestVisualRepair(nodeId, reason = 'manual') {
     if (!this.visualAuthorityRuntime) return false;
     const node =
@@ -1145,37 +1124,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         // So we'll use "EXTREME-" + ID for the key.
         archetypeKey = `EXTREME-${extremeArchetype}`;
       } else {
-        // For non-extreme, archetype is usually the category or generic
-        archetypeKey = category; 
-      }
-
-      // ========== SPAWN AUTHORITY: UNIQUENESS CHECK ==========
-      // Single-instance enforcement is centralized in UniqueSpawnService.
-      const unifiedKey = uniqueSpawnService.makeKey({
-          category: isExtreme ? 'extreme' : category,
-          archetype: archetypeKey,
-          forceArchetype: archetypeKey,
-          registryKeyMode: 'createNodes',
-      });
-
-      const decision = uniqueSpawnService.check({ key: unifiedKey });
-
-      if (!decision.allowed) {
-          // DUPLICATE DETECTED: Upgrade existing instead
-          const existingNodeId = decision.existingNodeId;
-          // UNIFIED ABORT COUNTERS (Fix 3): Use this._spawnAbortCounters instead of __diag.spawnNodeAbort
-          if (__diag && this._spawnAbortCounters) {
-            this._spawnAbortCounters.UNIQUE_BLOCK = (this._spawnAbortCounters.UNIQUE_BLOCK || 0) + 1;
-          }
-          
-          if (existingNodeId) {
-             const existingNode = this.nodes.find(n => n.userData.nodeId === existingNodeId || n.uuid === existingNodeId);
-             if (existingNode) {
-                 this.triggerUpgradePulse(existingNode);
-                 console.log(`[SpawnAuthority] Denied duplicate spawn ${archetypeKey}. Upgraded existing node.`);
-             }
-          }
-          return; // SKIP CREATION
+        // For non-extreme, archetype is usually the category
+        archetypeKey = category;
       }
 
       const options = {
@@ -1215,17 +1165,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             archetype: archetypeKey,
           });
 
-          // Register the unique spawn
-          const registerId = finalizedNode.userData.nodeId || finalizedNode.uuid;
-          const registerKey = unifiedKey || this._getUniqueArchetypeKey(category, archetypeKey);
-          if (registerKey) {
-            uniqueSpawnService.register({
-              key: registerKey,
-              nodeId: registerId,
-              meta: { category, source: 'createNodes' }
-            });
-          }
-
           // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
           const ud = finalizedNode.userData || {};
           const visualCodeSelected = ud.visualCode;
@@ -1245,11 +1184,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             source: 'AINodes.createNodes'
           });
           if (__diag) __diag.logged++;
-
-          // === REGISTRY TRACE (createNodes path) ===
-          if (finalizedNode) {
-            nodeSpawnRegistry.registerSpawn(finalizedNode, 'AINodes.createNodes');
-          }
       }
     });
     
@@ -4040,17 +3974,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       registryKey,
       uniqueArchetypeKey: finalizedNode.userData.uniqueArchetypeKey,
     });
-    if (finalizedNode.userData.uniqueArchetypeKey) {
-      const registerNodeId = finalizedNode.userData.nodeId || finalizedNode.userData.id || finalizedNode.uuid;
-      uniqueSpawnService.register({
-        key: finalizedNode.userData.uniqueArchetypeKey,
-        nodeId: registerNodeId,
-        meta: {
-          category: finalizedNode.userData.category,
-          source: 'spawnNode',
-        },
-      });
-    }
     this._commitSpawnCycleSuccess(category);
     
     // NODE SPAWN LOGGER v4.0: Log spawn with visualCode and factoryName

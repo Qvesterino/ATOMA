@@ -266,14 +266,15 @@ export class EnergyOrb {
  * Spawns and manages orbs throughout environments
  */
 export class EnergyOrbManager {
-  constructor(scene, player) {
+  constructor(scene, environmentRoot, player) {
     this.scene = scene;
+    this.root = environmentRoot || scene;
     this.player = player;
     this.orbs = [];
     this.collectedOrbsCount = 0;
     this.totalEnergyCollected = 0;
     this.orbGroup = new THREE.Group();
-    this.scene.add(this.orbGroup);
+    this.root.add(this.orbGroup);
 
     // Audio system (optional)
     this.audioSystem = null;
