@@ -22,7 +22,7 @@
  * 
  * PRINCÍP:
  *   Node vizuály (nad ARCHETYPE=1) MUSIA byť renderOrder < 2
- *   Link vizuálmi sú vyhradený rozsah 2-20
+ *   Link vizuálmi sú vyhradený rozsah 200-300
  *   Node vysoko-level efekty používajú renderOrder >= 50 (EVOLUTION)
  * 
  * DÔVOD:

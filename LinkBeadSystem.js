@@ -99,9 +99,9 @@ function freezeMaterialFlags(material, owner = 'LinkBeadSystem') {
 export const BEAD_CONFIG = {
   // Bead sizes (radius)
   sizes: {
-    small: 0.04,    // Background flow
-    medium: 0.06,   // Active flow
-    large: 0.08     // Major impulses
+    small: 0.03,    // Background flow
+    medium: 0.05,   // Active flow
+    large: 0.07     // Major impulses
   },
   
   // Base Size distribution (probability)
@@ -553,7 +553,9 @@ export class BeadRenderer {
     pos.addScaledVector(binormal, offsetY);
     
     mesh.position.copy(pos);
-    // Keep native size; no extra scale
+    // Subtle pulsation for flow intelligence
+    const pulse = 1.0 + Math.sin(bead.age * 8.0) * 0.15;
+    mesh.scale.setScalar(pulse);
     
     // Calculate base opacity with synergy coupling
     let baseOpacity = BEAD_CONFIG.opacity;

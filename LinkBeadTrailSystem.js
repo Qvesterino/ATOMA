@@ -98,9 +98,9 @@ export class LinkBeadTrailSystem {
         
         // Configuration
         this.config = {
-            emissionRate: 60, // particles per second per bead
-            lifetime: 0.5,    // seconds
-            sizeMultiplier: 1.0
+            emissionRate: 120, // particles per second per bead (2x for richer flow)
+            lifetime: 0.7,     // seconds
+            sizeMultiplier: 1.4
         };
         
         this.initSystem();
@@ -205,13 +205,15 @@ export class LinkBeadTrailSystem {
                 // Info: BirthTime, Duration, Size
                 this.infos[i3] = time;
                 
-                // Duration varies by size
-                const duration = (bead.size === 'large') ? 0.8 : 0.4;
+                // Duration varies by size (scaled by config lifetime)
+                const duration = (bead.size === 'large')
+                  ? this.config.lifetime * 1.1
+                  : this.config.lifetime * 0.7;
                 this.infos[i3+1] = duration;
                 
-                // Size
+                // Size (scaled by config multiplier)
                 const baseSize = (bead.size === 'large') ? 5.0 : 3.0;
-                this.infos[i3+2] = baseSize;
+                this.infos[i3+2] = baseSize * this.config.sizeMultiplier;
                 
                 // Update range tracking
                 if (updateStart === -1 || idx < updateStart) updateStart = idx;

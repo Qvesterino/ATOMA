@@ -1539,6 +1539,14 @@ export class EnhancedNodeModels {
       createPhrixFlowArbiter: ControlNodeSpecialGovernors.createPhrixFlowArbiter.bind(ControlNodeSpecialGovernors),
       createCrucisSuppressionGovernor: ControlNodeSpecialGovernors.createCrucisSuppressionGovernor.bind(ControlNodeSpecialGovernors),
       createVertexTemporalGate: ControlNodeSpecialGovernors.createVertexTemporalGate.bind(ControlNodeSpecialGovernors),
+      createStorageNodeStyled_v2: this.createStorageNodeStyled_v2.bind(this),
+      // Emotional (canonical geometries)
+      createEmotionalHeartCrystal: CanonicalGeometryFamilies.createEmotionalHeartCrystal.bind(CanonicalGeometryFamilies),
+      createEmotionalNeuralLobe: CanonicalGeometryFamilies.createEmotionalNeuralLobe.bind(CanonicalGeometryFamilies),
+      createEmotionalBloomingGem: CanonicalGeometryFamilies.createEmotionalBloomingGem.bind(CanonicalGeometryFamilies),
+      createEmotionalTearShaped: CanonicalGeometryFamilies.createEmotionalTearShaped.bind(CanonicalGeometryFamilies),
+      createEmotionalFolded: CanonicalGeometryFamilies.createEmotionalFolded.bind(CanonicalGeometryFamilies),
+      createEmotionalSymmetricSeed: CanonicalGeometryFamilies.createEmotionalSymmetricSeed.bind(CanonicalGeometryFamilies),
     };
 
     return external[name] || null;
