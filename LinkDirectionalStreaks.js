@@ -39,7 +39,7 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.04,      // Thin ribbon (0.04-0.08 units)
+            streakWidthBase: 0.02,      // Thinner ribbon to sit inside strands
             streakLengthMin: 0.08,      // Min visible length on curve (0-1)
             streakLengthMax: 0.25,      // Max visible length on curve (0-1)
             streakCountMin: 3,          // Min active streaks
@@ -98,7 +98,7 @@ export class LinkDirectionalStreaks {
             transparent: true,
             opacity: 0.7,
             blending: THREE.AdditiveBlending,
-            depthWrite: false,
+            depthWrite: true,
             depthTest: true,
             side: THREE.DoubleSide,
             fog: false
@@ -175,6 +175,9 @@ export class LinkDirectionalStreaks {
         const streaks = state.directionalStreaks;
         
         if (!streaks || !streaks.ages || !streaks.geometry || !streaks.material) return; // Not initialized or arrays not ready
+        
+        const frameSegments = state.strandSegments || Math.max(20, Math.floor((curve.getLength?.() || 10) * 8));
+        const frames = curve.computeFrenetFrames(frameSegments, false);
         
         // Store link reference for pulse injection
         if (link) {
@@ -300,16 +303,22 @@ export class LinkDirectionalStreaks {
                 // Create ribbon width variation (thinner at edges, thicker in middle)
                 const ribbonProgress = j / segmentsInStreak;
                 let widthFactor = Math.sin(ribbonProgress * Math.PI); // Bell curve: 0→1→0
-                widthFactor = Math.max(0.3, widthFactor); // Never too thin
+                widthFactor = Math.max(0.35, widthFactor); // Never too thin, but narrower
                 
-                // Perpendicular to tangent (camera-facing billboard is simpler; use camera-relative normal)
-                // For simplicity, use Y-axis as "up" and create perpendicular
-                const perpendicular = this._vec3.set(-tangent.z, 0, tangent.x).normalize();
+                // Align streak to braid twist (use Frenet frames + shared twist)
+                const idx = Math.min(frameSegments, Math.max(0, Math.round(t * frameSegments)));
+                const N = frames.normals[idx];
+                const B = frames.binormals[idx];
+                const linkLength = state.linkLength || curve.getLength() || 10.0;
+                const twists = state.linkTwists !== undefined ? state.linkTwists : (linkLength / 2.0);
+                const twistPhase = state.twistPhase !== undefined ? state.twistPhase : 0.0;
+                const angle = t * Math.PI * 2.0 * twists + twistPhase;
+                const r = (state.activeRadius || 0.2) * 0.15; // small radius to stay inside strands
                 
-                // Add jitter from corruption (subtle lateral displacement)
-                const jitter = jitterAmount * Math.sin(streaks.jitterPhases[i] + t * 10);
-                perpendicular.addScaledVector(tangent, jitter);
-                perpendicular.normalize();
+                const offsetX = Math.cos(angle) * r;
+                const offsetY = Math.sin(angle) * r;
+                
+                const perpendicular = this._vec3.copy(N).multiplyScalar(offsetX).addScaledVector(B, offsetY).normalize();
                 
                 // --- PULSE WAVE EFFECTS ---
                 // Check if any pulse waves affect this streak position
@@ -322,18 +331,18 @@ export class LinkDirectionalStreaks {
                     link  // For cascade pulse effects
                 );
                 
-                // Build quad (two vertices per curve point)
-                let ribbonWidth = (this.config.streakWidthBase * widthFactor);
-                ribbonWidth *= pulseEffect.thickness; // Apply pulse thickness boost
-                
-                // Top edge
-                const v1 = pointOnCurve.clone().addScaledVector(perpendicular, ribbonWidth * 0.5);
-                ribbonVertices.push(v1);
-                
-                // Bottom edge
-                const v2 = pointOnCurve.clone().addScaledVector(perpendicular, -ribbonWidth * 0.5);
-                ribbonVertices.push(v2);
-            }
+        // Build quad (two vertices per curve point)
+        let ribbonWidth = (this.config.streakWidthBase * widthFactor);
+        ribbonWidth *= pulseEffect.thickness; // Apply pulse thickness boost
+        
+        // Top edge
+        const v1 = pointOnCurve.clone().addScaledVector(perpendicular, ribbonWidth * 0.5);
+        ribbonVertices.push(v1);
+        
+        // Bottom edge
+        const v2 = pointOnCurve.clone().addScaledVector(perpendicular, -ribbonWidth * 0.5);
+        ribbonVertices.push(v2);
+        }
             
             // Add vertices to global list (with color/opacity encoded)
             for (const v of ribbonVertices) {

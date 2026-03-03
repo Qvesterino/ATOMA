@@ -853,6 +853,13 @@ export class LinkRendererConduit {
         
         const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2) * vfx.widthMul;
 
+        // Cache geometry params for downstream systems (directional streaks)
+        state.linkLength = linkDist || 10.0;
+        state.linkTwists = state.linkLength / this.config.twistSpacing;
+        state.twistPhase = twistPhase;
+        state.strandSegments = segments;
+        state.activeRadius = activeRadius;
+
         // --- 3. Strand Update (The Braid) ---
         // Optimization: Pre-calculate loop invariants
         const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
