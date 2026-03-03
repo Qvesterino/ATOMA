@@ -13,7 +13,7 @@
  * ✅ All removals are logged (no silent failures)
  * 
  * INTEGRATION:
- * 1. Create guard: this.linkGuard = new NodeLinkingInvariantGuard(this.aiNodes, this.scene);
+ * 1. Create guard: this.linkGuard = new NodeLinkingInvariantGuard(this.aiNodes, this.nodesRoot, this.scene);
  * 2. Verify nodes before link: linkGuard.verifyNodesBeforeLink(source, target);
  * 3. Verify after link: linkGuard.verifyNodesAfterLink(source, target);
  * 4. Detect broken nodes: linkGuard.detectBrokenNodes();
@@ -21,12 +21,16 @@
  */
 
 export class NodeLinkingInvariantGuard {
-  constructor(aiNodes, scene) {
+  constructor(aiNodes, nodesRoot, scene) {
     this.aiNodes = aiNodes;
+    this.nodesRoot = nodesRoot;
     this.scene = scene;
     this.nodeStates = new Map(); // node → pre-link state snapshot
     this.brokenNodes = new Set();
     this.repairLog = [];
+    if (!this.nodesRoot) {
+      console.error('[NodeLinkingInvariantGuard] nodesRoot missing during initialization');
+    }
     
     console.log('[NodeLinkingInvariantGuard] Initialized - protecting node linking integrity');
   }
@@ -194,11 +198,13 @@ export class NodeLinkingInvariantGuard {
     const nodeId = node.userData?.nodeId || node.uuid;
     const repairs = [];
     
-    // REPAIR 1: If node is detached, reattach to scene
-    if (!node.parent && this.scene) {
-      console.warn(`[NodeLinkingInvariantGuard] 🔧 Reattaching detached node ${nodeId} to scene`);
-      this.scene.add(node);
-      repairs.push('REATTACHED_TO_SCENE');
+    // REPAIR 1: If node is detached, reattach to nodesRoot
+    if (!node.parent && this.nodesRoot) {
+      console.warn(`[NodeLinkingInvariantGuard] 🔧 Reattaching detached node ${nodeId} to nodesRoot`);
+      this.nodesRoot.add(node);
+      repairs.push('REATTACHED_TO_NODESROOT');
+    } else if (!node.parent && !this.nodesRoot) {
+      console.error('[NodeLinkingInvariantGuard] nodesRoot missing - cannot reattach node', { nodeId });
     }
     
     // REPAIR 2: If hologram is missing, try to restore it

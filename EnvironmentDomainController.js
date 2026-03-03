@@ -7,7 +7,9 @@ const ENVIRONMENT_SYSTEMS = [
   'SafeDreamDepthPack',
   'DreamDepthEffectManager',
   'SafeColonyExpansion2',
-  'EnergyOrbManager'
+  'EnergyOrbManager',
+  'EnvironmentalHazard',
+
 ];
 
 export class EnvironmentDomainController {

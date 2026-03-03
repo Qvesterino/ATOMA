@@ -333,8 +333,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     'quantum','sigma','mythic','prime','error','emotional'
   ];
 
-  constructor(scene, player, variantEngine = null) {
+  constructor(scene, nodesRoot, player, variantEngine = null) {
+    if (!nodesRoot) {
+      throw new Error('[AINodes] nodesRoot is required');
+    }
     this.scene = scene;
+    this.nodesRoot = nodesRoot;
     this.player = player;
     this.variantEngine = variantEngine || (typeof window !== 'undefined' ? window.sessionVariantEngine : null);
     this.nodes = [];
@@ -3400,9 +3404,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   //    return null;
  //   }
 
+    if (!this.nodesRoot) {
+      console.error('[SpawnFinalize] nodesRoot missing - aborting node attach');
+      if (__diag) __diag.finalizeNull.missing_nodesRoot = (__diag.finalizeNull.missing_nodesRoot || 0) + 1;
+      return null;
+    }
+
     let sceneAdded = false;
-    if (!node.parent && this.scene) {
-      this.scene.add(node);
+    if (!node.parent) {
+      this.nodesRoot.add(node);
       sceneAdded = true;
     }
 
@@ -3535,47 +3545,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const fallbackNodeId = (isFallbackSpawn && this._fallbackNode && this._fallbackNode.parent)
       ? (this._fallbackNode.userData?.nodeId || this._fallbackNode.userData?.id || this._fallbackNode.uuid)
       : null;
-
-    const unifiedUniqueKey = uniqueSpawnService.makeKey({
-      category: finalCategory,
-      archetype: archetypeKey || finalCategory,
-      forceArchetype,
-      registryKeyMode: isFallbackSpawn ? 'fallback' : 'spawnNode',
-    });
-
-    const decision = uniqueSpawnService.check({
-      key: unifiedUniqueKey,
-      nodes: this.nodes,
-      fallbackNodeId,
-    });
-
-    if (!decision.allowed) {
-      this._spawnAbortCounters["UNIQUE_BLOCK"] = (this._spawnAbortCounters["UNIQUE_BLOCK"] || 0) + 1;
-      const existingNode =
-        (decision.existingNodeId &&
-          (this.nodesMap?.get(decision.existingNodeId) ||
-            this.nodes.find(
-              n =>
-                (n.userData?.nodeId || n.userData?.id || n.uuid) === decision.existingNodeId
-            ))) ||
-        (isFallbackSpawn ? this._fallbackNode : null);
-
-      this._pendingCyclicCandidate = null;
-      if (typeof window !== 'undefined') {
-        window.__SPAWN_FAILS = window.__SPAWN_FAILS || {};
-        const key = finalCategory || 'unknown';
-        window.__SPAWN_FAILS[key] = (window.__SPAWN_FAILS[key] || 0) + 1;
-      }
-      return {
-        allowed: false,
-        reason: 'unique-block',
-        existingNode,
-        category: finalCategory,
-        requestedCategoryRaw,
-        fallbackReason,
-        isFallbackSpawn
-      };
-    }
 
     // Canonical category enforcement (Phase 1)
     const CANONICAL_ENFORCE_SET = ['process', 'integration', 'analytics', 'storage', 'control', 'quantum'];
@@ -3938,6 +3907,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return false;
     }
     const finalizedNode = finalized.node;
+    if (finalizedNode?.userData?.isNodeRoot === true && finalizedNode.parent !== this.nodesRoot) {
+      console.error('[NodeRootInvariant] Node root attached outside nodesRoot', {
+        nodeId: finalizedNode.userData?.nodeId || finalizedNode.uuid,
+        parentName: finalizedNode.parent?.name,
+        expectedParent: this.nodesRoot?.name
+      });
+    }
     if (window.ATOMA_DEBUG_SPAWN_LOGS) {
       let meshCount = 0;
       let geometryCount = 0;
@@ -4364,7 +4340,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   
   dispose() {
     this.nodes.forEach(node => {
-      this.releaseUniqueSpawn(node);
       this.scene.remove(node);
       
       // ========== UI CATEGORY LEGEND UPDATE ==========
@@ -4400,8 +4375,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();
-    this.uniqueSpawnRegistry.clear();
-    uniqueSpawnService.metaByNodeId?.clear?.();
     this.postSpawnObservers.clear();
   }
   

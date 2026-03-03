@@ -45,7 +45,6 @@ export class AINodeModel {
     // STABLE NODE ROOT - Single source of truth for all visual systems
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -191,7 +190,6 @@ export class AINodeModel {
     // STABLE NODE ROOT - Single source of truth for all visual systems
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -284,7 +282,6 @@ export class AINodeModel {
     // STABLE NODE ROOT - Single source of truth for all visual systems
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -395,7 +392,6 @@ export class AINodeModel {
     // STABLE NODE ROOT - Single source of truth for all visual systems
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -491,7 +487,6 @@ export class AINodeModel {
     // STABLE NODE ROOT - Single source of truth for all visual systems
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -671,7 +666,6 @@ export class AINodeModel {
     let nodeRoot = nodeGroup.userData.nodeRoot;
     if (!nodeRoot) {
       nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       nodeGroup.add(nodeRoot);
       nodeGroup.userData.nodeRoot = nodeRoot;
     }

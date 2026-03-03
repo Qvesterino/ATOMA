@@ -10,8 +10,8 @@
  */
 
 import * as THREE from 'three';
-import { printBeadPerformanceReport, getBeadPerformanceGrade } from './BeadPerformanceMonitor.js';
-import { printDiagnostics } from './BeadEdgeCaseHandler.js';
+import { printBeadPerformanceReport, getBeadPerformanceGrade } from '../../BeadPerformanceMonitor.js';
+import { printDiagnostics } from '../../BeadEdgeCaseHandler.js';
 
 /**
  * Bead debug controller
@@ -126,7 +126,7 @@ export class BeadDebugController {
    * Print current config
    */
   printConfig() {
-    const { BEAD_CONFIG } = require('./LinkBeadSystem.js');
+    const { BEAD_CONFIG } = require('../../LinkBeadSystem.js');
     console.log('Current Bead Configuration:');
     console.log(JSON.stringify(BEAD_CONFIG, null, 2));
   }

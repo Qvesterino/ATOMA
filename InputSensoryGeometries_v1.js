@@ -78,7 +78,6 @@ export class InputSensoryGeometries {
   static createSensoryGate(group, color) {
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -194,7 +193,6 @@ export class InputSensoryGeometries {
   static createListeningCrown(group, color) {
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }
@@ -324,7 +322,6 @@ export class InputSensoryGeometries {
   static createPerceptionBloom(group, color) {
     if (!group.userData.nodeRoot) {
       const nodeRoot = new THREE.Group();
-      nodeRoot.userData.isNodeRoot = true;
       group.add(nodeRoot);
       group.userData.nodeRoot = nodeRoot;
     }

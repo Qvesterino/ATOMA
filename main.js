@@ -51,7 +51,6 @@ import { QuantumIsland } from './QuantumIsland.js';
 import { FractalValley } from './FractalValley.js';
 import { MemoryLane } from './MemoryLane.js';
 import { EnvironmentDomainController } from './EnvironmentDomainController.js';
-import { EnvironmentalHazards } from './EnvironmentalHazards.js';
 import { AINodes } from './AINodes.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
@@ -5343,6 +5342,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             // ATOMA: visual layer prune/reset on world switch
             this.frameScheduler?.resetLayer?.('visual');
 
+            // Dispose existing AI nodes before tearing down roots
+            if (this.aiNodes && typeof this.aiNodes.dispose === 'function') {
+                this.aiNodes.dispose();
+            }
+
+            // Remove previous nodesRoot (node domain only)
+            if (this.nodesRoot) {
+                this.nodesRoot.clear();
+                this.scene.remove(this.nodesRoot);
+                this.nodesRoot = null;
+            }
+
             if (this.worldRoot) {
                 this.scene.remove(this.worldRoot);
             }
@@ -5366,6 +5377,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.environmentRoot = new THREE.Group();
         this.environmentRoot.name = 'ATOMA_EnvironmentRoot';
         this.worldRoot.add(this.environmentRoot);
+        this.nodesRoot = new THREE.Group();
+        this.nodesRoot.name = 'ATOMA_NodesRoot';
+        this.scene.add(this.nodesRoot);
         this.worldLightingRoot = new THREE.Group();
         this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
         this.worldRoot.add(this.worldLightingRoot);
@@ -5617,11 +5631,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         if (this.aiNodes) {
-            systemRegistry.unregister('aiNodes');
-            this.aiNodes.dispose();
+            console.error('[AINodes] Instance already exists');
+            return this.aiNodes;
         }
 
-        this.aiNodes = new AINodes(this.scene, this.player, sessionVariantEngine);
+        if (!this.nodesRoot) {
+            throw new Error('[AINodesInit] nodesRoot is missing during AINodes creation');
+        }
+
+        this.aiNodes = new AINodes(this.scene, this.nodesRoot, this.player, sessionVariantEngine);
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         systemRegistry.register('aiNodes', this.aiNodes);
