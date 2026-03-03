@@ -1,18 +1,22 @@
 /**
  * LINK STATE VISUAL LANGUAGE INTEGRATION
- * 
+ *
  * Wires runtime metrics to link shaders:
  * - Network stress → global color shift
  * - Load pressure → thickness + pulse
  * - Corruption → edge noise
  * - Synergy → smoothness
  * - Harmony → damping
- * 
+ *
  * Read-only consumer of existing metrics.
  * No gameplay modifications, no stat mutations.
  */
 
 import * as THREE from 'three';
+import {
+  linkStateVertexShader,
+  linkStateFragmentShader
+} from './shaders/LinkStateVisualLanguage.js';
 
 export class LinkStateVisualLanguageIntegration {
   /**
@@ -208,8 +212,7 @@ const __linkStateOverrides = new WeakMap(); // link(object) -> state
 function getCanonicalLinkStateMaterial() {
   if (__linkStateMaterial) return __linkStateMaterial;
 
-  const { linkStateVertexShader, linkStateFragmentShader } =
-    require('./shaders/LinkStateVisualLanguage.js');
+  // Shaders imported at module level (ES6)
 
   __linkStateMaterial = new THREE.ShaderMaterial({
     uniforms: {

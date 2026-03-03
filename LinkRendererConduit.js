@@ -16,6 +16,7 @@ import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
+import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
@@ -257,6 +258,9 @@ export class LinkRendererConduit {
         // Impact material pool (colorHex -> stack of materials)
         this._impactMaterialPool = new Map();
         this._impactPoolMaxSize = 20;
+
+        // Link State Visual Language Integration
+        this.linkStateVisualLanguage = null;
     }
 
     /**
@@ -1067,6 +1071,17 @@ export class LinkRendererConduit {
         if (state.sparks && this.modules.sparks) {
             const currentColor = (state.strands[0]?.material?.color) || state.baseColor;
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
+            
+            // [DEBUG] Log sparks update for visibility debugging
+            if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                console.log('[LinkRendererConduit] Sparks update:', {
+                    linkId: link.id,
+                    sparksIntensity: vfx.sparksIntensity,
+                    synergy,
+                    trafficLoad
+                });
+            }
+            
             state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
         }
@@ -1250,7 +1265,7 @@ export class LinkRendererConduit {
         const corrLoad = Math.max(corruption, load);
         out.sparksIntensity = Math.max(0.3,
             0.4 * corrLoad +
-            0.2 * synergy);
+            0.2 * (synergy || 0.15)); // [FIX] Minimum 0.15 synergy for new links to show sparks
 
         out.widthMul = remap(out.baseIntensity, 0.15, 1.0, 0.9, 1.3);
         out.speedMul = remap(out.baseIntensity, 0.15, 1.0, 0.8, 1.4);

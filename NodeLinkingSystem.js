@@ -18,6 +18,7 @@ import { safeComputeBounds, getSafeBoundingSphere } from './src/three/GeometryBo
 const USE_LEGACY_NODE_BOUNDS = true;
 
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
+import { createNeonEdgeGlowMaterial, updateNeonEdgeGlowTime } from './shaders/NeonEdgeGlowShader.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
@@ -44,6 +45,7 @@ import { NodeDepthAndHoloPreservationFix } from './NodeDepthAndHoloPreservationF
 import { AnimatedLinkFlow, setupAnimatedLinkFlowConsoleAPI } from './AnimatedLinkFlow.js';
 import { LinkRendererConduit } from './LinkRendererConduit.js';
 import { LinkEmissionPulsingSystem } from './LinkEmissionPulsingSystem.js';
+import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { LinkEventVisualCoordinator_v1 } from './LinkEventVisualCoordinator_v1.js';
 import { LinkCategoryTransitionSystem } from './LinkCategoryTransitionSystem.js';
 import { 
@@ -472,9 +474,44 @@ export class NodeLinkingSystem {
     
     // Visual system
     this.visuals = new NeonLinkVisuals(scene, camera);
-    
+
     // [BRAIDED CONDUIT SYSTEM]
     this.conduitRenderer = new LinkRendererConduit(scene);
+
+    // [LINK STATE VISUAL LANGUAGE]
+    this.linkStateVisualLanguage = new LinkStateVisualLanguageIntegration(this, { debugMode: false });
+
+    // Register callback for new link creation
+    if (this.onLinkCreatedCallbacks) {
+      this.onLinkCreatedCallbacks.push((link) => {
+        if (this.linkStateVisualLanguage) {
+          this.linkStateVisualLanguage.registerLink(link);
+        }
+      });
+    }
+
+    // Register callback for link removal
+    if (this.onLinkRemovedCallbacks) {
+      this.onLinkRemovedCallbacks.push((link) => {
+        if (this.linkStateVisualLanguage) {
+          this.linkStateVisualLanguage.unregisterLink(link);
+        }
+      });
+    }
+
+    // Initialize auras for existing links (if links already exist)
+    if (this.links && this.linkStateVisualLanguage) {
+      setTimeout(() => {
+        for (const link of this.links) {
+          if (this.linkStateVisualLanguage) {
+            this.linkStateVisualLanguage.registerLink(link);
+          }
+        }
+        if (this.linkStateVisualLanguage.debugMode) {
+          console.log('[NodeLinkingSystem] LinkStateVisualLanguage initialized for', this.links.length, 'existing links');
+        }
+      }, 100); // Small delay to ensure linking system is fully initialized
+    }
 
     // [Dynamic Thickness v1.0] Real-time traffic-based link thickness
     this.thicknessSystem = new DynamicLinkThicknessSystem(scene, this.visuals);
@@ -1109,16 +1146,16 @@ export class NodeLinkingSystem {
   
   /**
    * Create visual highlight for Primary Node
+   * Uses NeonEdgeGlowShader for futuristic edge highlighting
    */
   createPrimaryNodeHighlight(node) {
     const highlightGeometry = new THREE.SphereGeometry(1.0, 32, 32);
-    const highlightMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ddff,
-      transparent: true,
-      opacity: 0.3,
-      emissive: 0x00ddff,
-      emissiveIntensity: 0.5,
-      side: THREE.BackSide
+    const highlightMaterial = createNeonEdgeGlowMaterial({
+      glowColor: 0x00ddff,
+      glowIntensity: 1.5,
+      edgeWidth: 0.15,
+      pulseSpeed: 2.0,
+      pulseAmount: 0.3
     });
     
     this.selectedNodeHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
@@ -1218,17 +1255,15 @@ export class NodeLinkingSystem {
     // Add node to selection
     this.selectedNodes.add(node);
     this.multiSelectMode = true;
-    
-    // Create multi-select highlight (yellow/orange)
+
+    // Create multi-select highlight (orange neon glow)
     const highlightGeometry = new THREE.SphereGeometry(1.0, 32, 32);
-    const highlightMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffaa00,  // Orange for multi-select
-      transparent: true,
-      opacity: 0.3,
-      emissive: 0xffaa00,
-      emissiveIntensity: 0.6,
-      side: THREE.BackSide,
-      wireframe: false
+    const highlightMaterial = createNeonEdgeGlowMaterial({
+      glowColor: 0xffaa00,  // Orange for multi-select
+      glowIntensity: 1.6,
+      edgeWidth: 0.18,
+      pulseSpeed: 2.5,
+      pulseAmount: 0.35
     });
     
     const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
@@ -1355,22 +1390,22 @@ export class NodeLinkingSystem {
       // Update highlight scale
       if (highlight && this.selectedNodes.has(node)) {
         highlight.scale.copy(node.scale).multiplyScalar(currentScale);
-        
-        // Fade in the highlight during pulse
-        if (highlight.material) {
-          const opacity = 0.3 + 0.3 * Math.sin(easeProgress * Math.PI);
-          highlight.material.opacity = opacity;
+
+        // Pulse glow intensity for neon edge glow shader
+        if (highlight.material && highlight.material.uniforms?.glowIntensity) {
+          const intensityPulse = 1.0 + 0.5 * Math.sin(easeProgress * Math.PI);
+          highlight.material.uniforms.glowIntensity.value = 1.5 * intensityPulse;
         }
       }
-      
+
       if (progress < 1) {
         requestAnimationFrame(animateFrame);
       } else {
         // Reset to normal state
         if (highlight && this.selectedNodes.has(node)) {
           highlight.scale.copy(node.scale);
-          if (highlight.material) {
-            highlight.material.opacity = 0.3;
+          if (highlight.material && highlight.material.uniforms?.glowIntensity) {
+            highlight.material.uniforms.glowIntensity.value = 1.5;  // Reset to base intensity
           }
         }
         this.selectionPulseAnimations.delete(node);
@@ -4491,6 +4526,21 @@ getLinksForNode(node) {
     // [Audit 6.2] Skip update if world not ready (during world transitions)
     if (!this.worldReady) {
       return;
+    }
+
+    // Update neon edge glow time for selection highlights
+    if (this.selectedNodeHighlight?.material) {
+      updateNeonEdgeGlowTime(this.selectedNodeHighlight.material, deltaTime);
+    }
+    for (const highlight of this.multiSelectHighlights.values()) {
+      if (highlight?.material) {
+        updateNeonEdgeGlowTime(highlight.material, deltaTime);
+      }
+    }
+
+    // Update link state visual language time
+    if (this.linkStateVisualLanguage) {
+      this.linkStateVisualLanguage.updateAnimationTime(time);
     }
 
     // [LinkAudit] Aggregate link/curve/bead/spark state (throttled 1s) when enabled

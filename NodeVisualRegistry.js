@@ -100,9 +100,10 @@ export const NODE_VISUAL_REGISTRY = {
   705: { category: 'quantum', factoryName: 'createQuantumNodeStyled_v2' },
 
   // Sigma (8xx) reuses quantum visuals
-  804: { category: 'sigma', factoryName: 'createExtremeIntegration1' },
+  804: { category: 'sigma', factoryName: 'createSigmaLatticeConductor' },
   805: { category: 'sigma', factoryName: 'createSigmaNode2' },
   806: { category: 'sigma', factoryName: 'createSigmaNodeStyled_v2' },
+  807: { category: 'sigma', factoryName: 'createSigmaBloomCrown' },
 
   // Mythic / Prime / Error / Emotional (9xx+)
   901: { category: 'mythic', factoryName: 'createMythicShardClusterNode' },

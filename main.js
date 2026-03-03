@@ -114,7 +114,8 @@ if (typeof window !== 'undefined') {
         disableParasiticHUDs: window.ATOMA_DISABLE_PARASITIC_HUDS ?? true,
         hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? true,
         hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? true,
-        disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? true
+        disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? true,
+        disableNuclearLock: true
       }
     };
     
@@ -406,6 +407,18 @@ import { StandingWaveOscillationTrapSystem_Session130 } from './StandingWaveOsci
 // Renders standing wave patterns, antinode glows, and trap zone visuals
 // ============================================================================
 import { StandingWaveVisualRenderer_Session131 } from './StandingWaveVisualRenderer_Session131.js';
+
+// ============================================================================
+// SESSION 146: NODE LINKED AURA RENDERER
+// Noise-driven aura meshes that react to harmony/corruption state
+// ============================================================================
+import { NodeLinkedAuraRenderer_Session146 } from './NodeLinkedAuraRenderer_Session146.js';
+
+// ============================================================================
+// PHASE 3C WEEK 10: LINK AURA SYSTEM
+// GPU-driven cylindrical halo system around links
+// ============================================================================
+import { LinkAuraSystem_v1 } from './shaders/LinkAuraSystem_v1.js';
 
 // ============================================================================
 // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
@@ -3516,11 +3529,6 @@ class AtomaGame {
             }
         }, 'visual.particleEmissionScaler');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadeAccelSetup) {
-                this.cascadeAccelSetup.update(dt);
-            }
-        }, 'visual.cascadeAcceleration');
-        this.frameScheduler.register('visual', (dt) => {
             if (this.particleSemanticDensity) {
                 this.particleSemanticDensity.update(dt, this.time);
             }
@@ -3555,29 +3563,10 @@ class AtomaGame {
                 this.linkTrailParticles.update(dt, this.time);
             }
         }, 'visual.linkTrailParticles');
+        // [DEPRECATED] LinkSparkSystem update is now handled by LinkRendererConduit
+        // Sparks are updated inside NodeLinkingSystem.conduitRenderer.update()
         this.frameScheduler.register('visual', (dt) => {
-            // Update all LinkSparkSystems
-            if (this.linkSparkSystems && this.linkingSystem?.links) {
-                for (const link of this.linkingSystem.links) {
-                    const sparkSystem = this.linkSparkSystems.get(link.userData?.id);
-                    if (sparkSystem && link.curve) {
-                        // Get curve from link (QuadraticBezierCurve3 stored on link.curve)
-                        const curve = link.curve;
-
-                        // Get link state from NeonLinkVisuals (has synergy)
-                        const linkState = this.linkingSystem?.visuals?.linkStates?.get(link.userData?.id);
-
-                        const stats = {
-                            synergy: linkState?.synergy ?? 0.5,
-                            traffic: link.traffic?.throughput ?? 0,
-                            intensity: (linkState?.synergy ?? 0.25) * 0.7 + (link.traffic?.throughput ?? 0) * 0.3
-                        };
-
-                        const color = link.material?.color || new THREE.Color(0xffffff);
-                        sparkSystem.update(this.time, dt, curve, stats, color);
-                    }
-                }
-            }
+            // Empty - kept for backward compatibility reference
         }, 'visual.linkSparkSystems');
         this.frameScheduler.register('visual', (dt) => {
             // Update all LinkTrailEmitters
@@ -3984,6 +3973,18 @@ document.addEventListener('keydown', () => {
         this.standingWaveRenderer = null;
 
         // ====================================================================
+        // SESSION 146: NODE LINKED AURA RENDERER
+        // Noise-driven aura meshes around nodes
+        // ====================================================================
+        this.nodeAuraRenderer = null;
+
+        // ====================================================================
+        // PHASE 3C WEEK 10: LINK AURA SYSTEM
+        // GPU-driven cylindrical halo system around links
+        // ====================================================================
+        this.linkAuraSystem = null;
+
+        // ====================================================================
         // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
         // Visualizes constructive/destructive wave collision patterns
         // ====================================================================
@@ -4380,6 +4381,18 @@ document.addEventListener('keydown', () => {
         // Renders mesh visuals for standing wave patterns
         // ========================================================================
         this.setupStandingWaveRenderer();
+
+        // ========================================================================
+        // SESSION 146: NODE LINKED AURA RENDERER
+        // Noise-driven aura meshes around nodes
+        // ========================================================================
+        this.setupNodeAuraRenderer();
+
+        // ========================================================================
+        // PHASE 3C WEEK 10: LINK AURA SYSTEM
+        // GPU-driven cylindrical halo system around links
+        // ========================================================================
+        this.setupLinkAuraSystem();
 
         // ========================================================================
         // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
@@ -5333,6 +5346,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.worldRoot = new THREE.Group();
         this.worldRoot.name = "ATOMA_WorldRoot";
         this.scene.add(this.worldRoot);
+        this.environmentRoot = new THREE.Group();
+        this.environmentRoot.name = 'ATOMA_EnvironmentRoot';
+        this.worldRoot.add(this.environmentRoot);
         this.worldLightingRoot = new THREE.Group();
         this.worldLightingRoot.name = "ATOMA_WorldLightingRoot";
         this.worldRoot.add(this.worldLightingRoot);
@@ -5399,6 +5415,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         }
         this.activeWorld = null;
+
+        // Clear environment-layer content before rebuilding world
+        if (this.environmentRoot) {
+            while (this.environmentRoot.children.length > 0) {
+                this.environmentRoot.remove(this.environmentRoot.children[0]);
+            }
+        }
 
         if (this.currentMode === 'sigma') {
             this.sigmaRift = new SigmaRiftChamber(
@@ -5596,19 +5619,21 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ========================================================================
         // SESSION 20: VISUAL HIERARCHY CORRECTION SYSTEM v1.0
         // Enforces visual dominance of core node geometry over auxiliary layers
+        // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
         // ========================================================================
-        this.visualHierarchyCorrection = new VisualHierarchyCorrectionSystem_v1({
-          enableAutoEnforcement: true,
-          enableDebug: false, // Set to true for debug logging
-          enforcementMode: 'constrain', // 'constrain' | 'suppress' | 'relocate'
-          radiusScaleFactor: 1.8,
-          suppressLegacyExtremes: true
-        });
-        
+        // this.visualHierarchyCorrection = new VisualHierarchyCorrectionSystem_v1({
+        //   enableAutoEnforcement: true,
+        //   enableDebug: false, // Set to true for debug logging
+        //   enforcementMode: 'constrain', // 'constrain' | 'suppress' | 'relocate'
+        //   radiusScaleFactor: 1.8,
+        //   suppressLegacyExtremes: true
+        // });
+
         // Register all created nodes with hierarchy system
-        for (const node of this.aiNodes.nodes) {
-          this.visualHierarchyCorrection.registerNode(node, node.userData?.category || 'input');
-        }
+        // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
+        // for (const node of this.aiNodes.nodes) {
+        //   this.visualHierarchyCorrection.registerNode(node, node.userData?.category || 'input');
+        // }
         console.log('[main.js] Visual Hierarchy Correction System v1.0 initialized ✓');
 
         // Initialize dynamic node spawning system
@@ -8184,7 +8209,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
 
 
-        reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
+        // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
+        // reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
         reg('auraModulationIntegration', (dt) => this.auraModulationIntegration?.update?.(dt));
         reg('dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
         reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
@@ -8325,6 +8351,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
         reg('standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
+        reg('nodeAuraRenderer', (dt) => this.nodeAuraRenderer?.update?.(dt));
+        reg('linkAuraSystem', (dt) => this.linkAuraSystem?.update?.(dt));
         reg('waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
 
 
@@ -10183,6 +10211,122 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('  - Handles resolution animations (damping, breakthrough, collapse)');
         } catch (err) {
             console.warn('[main.js] StandingWaveVisualRenderer init error:', err);
+        }
+    }
+
+    /**
+     * Setup Node Linked Aura Renderer (Session 146)
+     * Creates noise-driven aura meshes that react to harmony/corruption state
+     */
+    setupNodeAuraRenderer() {
+        try {
+            // Initialize aura renderer with scene and node references
+            this.nodeAuraRenderer = new NodeLinkedAuraRenderer_Session146(
+                this.scene,
+                this.aiNodes,
+                {
+                    // Aura visuals
+                    baseRadius: 1.2,
+                    baseDisplacement: 0.3,
+                    baseOpacity: 0.25,
+
+                    // Behavior
+                    linkBoostDuration: 0.7,
+                    linkBoostIntensity: 1.8,
+
+                    // Performance & safety
+                    enabled: false, // Disabled by default (opt-in)
+                    debugMode: false,
+                    maxAurasPerFrame: 100,
+                    meshSubdivisions: 2
+                }
+            );
+
+            this.nodeAuraRenderer.init();
+            this.nodeAuraRenderer.frameScheduler = this.frameScheduler;
+
+            // Setup console API for debugging
+            this.nodeAuraRenderer.setupConsoleAPI(window);
+
+            console.log('[main.js] NodeLinkedAuraRenderer initialized ✓');
+            console.log('  - Renders noise-driven aura meshes around nodes');
+            console.log('  - Reacts to harmony/corruption state');
+            console.log('  - Disabled by default (enable via enableNodeAuras())');
+        } catch (err) {
+            console.warn('[main.js] NodeLinkedAuraRenderer init error:', err);
+        }
+    }
+
+    /**
+     * Setup Link Aura System (Phase 3C Week 10)
+     * Creates GPU-driven cylindrical halo system around links
+     */
+    setupLinkAuraSystem() {
+        try {
+            // Initialize link aura system with scene and linking system references
+            this.linkAuraSystem = new LinkAuraSystem_v1({
+                scene: this.scene,
+                linkManager: this.linkingSystem,
+                fxPerformance: this.fxPerformance,
+                profileResolver: null, // Use default 'stability_aura' profile
+                debugEnabled: false
+            });
+
+            // Register callback for new link creation
+            if (this.linkingSystem && this.linkingSystem.onLinkCreatedCallbacks) {
+                this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
+                    if (this.linkAuraSystem) {
+                        this.linkAuraSystem.registerLink(link);
+                    }
+                });
+            }
+
+            // Register callback for link removal
+            if (this.linkingSystem && this.linkingSystem.onLinkRemovedCallbacks) {
+                this.linkingSystem.onLinkRemovedCallbacks.push((link) => {
+                    if (this.linkAuraSystem) {
+                        this.linkAuraSystem.unregisterLink(link);
+                    }
+                });
+            }
+
+            // Initialize auras for existing links
+            if (this.linkingSystem && this.linkingSystem.links) {
+                for (const link of this.linkingSystem.links) {
+                    if (this.linkAuraSystem) {
+                        this.linkAuraSystem.registerLink(link);
+                    }
+                }
+            }
+
+            console.log('[main.js] LinkAuraSystem initialized ✓');
+            console.log('  - Renders cylindrical glowing auras around links');
+            console.log('  - 6 aura profiles (synergy, stability, corruption, chaos, resonance, mythic)');
+            console.log('  - Reacts to link quality, synergy, corruption, and entropy');
+            console.log('  - GPU-driven additive blending for soft glow');
+
+            // Setup console API for LinkStateVisualLanguage (debugging)
+            window.linkStateVisualDebug = {
+                debugPrintLinkStates: () => {
+                    if (this.linkingSystem?.linkStateVisualLanguage) {
+                        this.linkingSystem.linkStateVisualLanguage.debugPrintLinkStates();
+                    }
+                },
+                getLinkVisualState: (link) => {
+                    if (this.linkingSystem?.linkStateVisualLanguage) {
+                        return this.linkingSystem.linkStateVisualLanguage.getLinkVisualState(link);
+                    }
+                },
+                updateNetworkStress: (stress) => {
+                    if (this.linkingSystem?.linkStateVisualLanguage) {
+                        this.linkingSystem.linkStateVisualLanguage.updateNetworkStress(stress);
+                    }
+                }
+            };
+
+            console.log('[main.js] LinkStateVisualLanguage console API ready ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkAuraSystem init error:', err);
         }
     }
 

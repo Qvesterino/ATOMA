@@ -5871,109 +5871,90 @@ static createControlNode0(group, color) {
     const seed = Math.abs(seedValue) || 1;
     const rng = _mythicSeededRng(seed);
     const sigmaRoot = new THREE.Group();
-    sigmaRoot.name = 'SIGMA_ENTROPY_COLLAPSE';
+    sigmaRoot.name = 'SIGMA_ENTROPY_CROWN';
     sigmaRoot.userData.isSigmaLayer = true;
 
-    const perturb = (geom, magnitude = 0.1) => {
-      const attr = geom.attributes.position;
-      for (let i = 0; i < attr.count; i++) {
-        attr.setXYZ(
-          i,
-          attr.getX(i) + (rng() - 0.5) * magnitude,
-          attr.getY(i) + (rng() - 0.5) * magnitude * 0.6,
-          attr.getZ(i) + (rng() - 0.5) * magnitude
-        );
-      }
-      geom.computeVertexNormals();
-    };
+    const matBase = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.2,
+      metalness: 0.55,
+      roughness: 0.35,
+      transparent: true,
+      opacity: 0.9
+    });
 
-    // Layer A: fractured torus skeleton (wireframe)
-    const torusGeo = new THREE.TorusGeometry(0.75, 0.1, 64, 32);
-    perturb(torusGeo, 0.08);
-    const edgesGeom = new THREE.EdgesGeometry(torusGeo);
-    const filtered = [];
-    const posArray = edgesGeom.attributes.position.array;
-    for (let i = 0; i < posArray.length; i += 6) {
-      if (rng() < 0.3) continue; // remove some segments
-      filtered.push(
-        posArray[i], posArray[i + 1], posArray[i + 2],
-        posArray[i + 3], posArray[i + 4], posArray[i + 5]
-      );
-    }
-    const torusWire = new THREE.LineSegments(
-      filtered.length
-        ? new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(filtered, 3))
-        : edgesGeom,
-      new THREE.LineBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.7
-      })
-    );
-    torusWire.scale.set(1.1, 0.95, 0.85);
-    torusWire.userData.isSigmaLayer = true;
-    sigmaRoot.add(torusWire);
+    // Base pedestal
+    const baseGeo = new THREE.CylinderGeometry(0.95, 1.0, 0.16, 6, 1);
+    const base = new THREE.Mesh(baseGeo, matBase);
+    base.position.y = -0.45;
+    base.rotation.y = Math.PI * 0.08;
+    sigmaRoot.add(base);
 
-    // Layer B: ruptured icosa core
-    const coreGeo = new THREE.IcosahedronGeometry(0.6, 2);
-    perturb(coreGeo, 0.18);
+    // Spine
+    const spineGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.9, 12, 1);
+    const spine = new THREE.Mesh(spineGeo, matBase);
+    spine.position.y = 0.0;
+    spine.rotation.z = -Math.PI * 0.06;
+    sigmaRoot.add(spine);
+
+    // Core (collapse material)
+    const coreGeo = new THREE.IcosahedronGeometry(0.55, 1);
     const coreMat = createSigmaCollapseMaterial(seed, color);
     const coreMesh = new THREE.Mesh(coreGeo, coreMat);
     coreMesh.userData.isSigmaCore = true;
     coreMesh.userData.collapseUniforms = coreMat.uniforms;
+    coreMesh.position.y = 0.32;
+    coreMesh.rotation.y = Math.PI * 0.12;
     sigmaRoot.add(coreMesh);
 
-    // Layer C: vertical dislocation rings
-    const layersGroup = new THREE.Group();
-    layersGroup.name = 'SigmaDislocationLayers';
-    const layerCount = 3 + Math.floor(rng() * 3);
-    for (let i = 0; i < layerCount; i++) {
-      const ringGeo = new THREE.TorusGeometry(0.5 + i * 0.12, 0.05 + rng() * 0.03, 16, 40);
-      perturb(ringGeo, 0.02);
-      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.25 + rng() * 0.2,
-        blending: THREE.AdditiveBlending
-      }));
-      ring.position.y = -0.2 + i * 0.12 + (rng() - 0.5) * 0.08;
-      ring.rotation.z = rng() * 0.4 - 0.2;
-      ring.userData.isSigmaLayer = true;
-      ring.userData.ringSpeed = 0.02 + rng() * 0.05;
-      layersGroup.add(ring);
-    }
-    sigmaRoot.add(layersGroup);
+    // Crossed fractured rings
+    const ringGeo = new THREE.TorusGeometry(0.95, 0.06, 10, 26, Math.PI * 1.6);
+    const ringA = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.45
+    }));
+    ringA.position.y = 0.1;
+    ringA.rotation.set(Math.PI * 0.08, Math.PI * 0.25, Math.PI * 0.2);
+    ringA.userData.isSigmaLayer = true;
+    sigmaRoot.add(ringA);
 
-    // Layer D: entropy shards
+    const ringB = ringA.clone();
+    ringB.rotation.set(Math.PI * 0.5, Math.PI * 0.12, -Math.PI * 0.18);
+    ringB.position.y = 0.18;
+    sigmaRoot.add(ringB);
+
+    // Floating entropy shards (minimal, spiral)
     const shardGroup = new THREE.Group();
     shardGroup.name = 'SigmaEntropyShards';
-    const shardCount = 10 + Math.floor(rng() * 9);
-    for (let i = 0; i < shardCount; i++) {
-      const shardGeo = new THREE.TetrahedronGeometry(0.1 + rng() * 0.05, 0);
-      perturb(shardGeo, 0.06);
+    const shardGeo = new THREE.TetrahedronGeometry(0.12, 0);
+    for (let i = 0; i < 6; i++) {
       const shardMat = new THREE.MeshStandardMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 0.25,
+        emissiveIntensity: 0.3,
         transparent: true,
-        opacity: 0.45 + rng() * 0.15,
-        metalness: 0.3,
-        roughness: 0.5
+        opacity: 0.5,
+        metalness: 0.4,
+        roughness: 0.4
       });
       const shard = new THREE.Mesh(shardGeo, shardMat);
-      const dist = 1.0 + rng() * 0.8;
-      const angle = rng() * Math.PI * 2;
-      shard.position.set(
-        Math.cos(angle) * dist,
-        (rng() - 0.5) * 0.4,
-        Math.sin(angle) * dist
-      );
-      shard.scale.setScalar(0.2 + rng() * 0.3);
+      const angle = (i / 6) * Math.PI * 2;
+      const dist = 0.9 + rng() * 0.3;
+      shard.position.set(Math.cos(angle) * dist, -0.05 + i * 0.1, Math.sin(angle) * dist);
       shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
       shard.userData.isSigmaShard = true;
       shardGroup.add(shard);
     }
     sigmaRoot.add(shardGroup);
+
+    // Shadow duplicate behind core
+    const shadow = coreMesh.clone();
+    shadow.position.z -= 0.08;
+    shadow.scale.set(1.03, 1.03, 1.03);
+    shadow.material = coreMat;
+    sigmaRoot.add(shadow);
 
     group.add(sigmaRoot);
     return group;
@@ -6038,6 +6019,169 @@ static createControlNode0(group, color) {
       console.error('[SigmaV2Abort]', { reason: err?.message || err });
       return null;
     }
+  }
+
+  /**
+   * SIGMA: Lattice Conductor (authority lattice)
+   */
+  static createSigmaLatticeConductor(group, color) {
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const seedValue = hashString(nodeKey);
+    const seed = Math.abs(seedValue) || 1;
+    const rng = _mythicSeededRng(seed);
+
+    const sigmaRoot = new THREE.Group();
+    sigmaRoot.name = 'SIGMA_LATTICE_CONDUCTOR';
+    sigmaRoot.userData.isSigmaLayer = true;
+
+    const matBase = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.22,
+      metalness: 0.55,
+      roughness: 0.35,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    // Base square plinth
+    const baseGeo = new THREE.BoxGeometry(1.0, 0.16, 1.0);
+    const base = new THREE.Mesh(baseGeo, matBase);
+    base.position.y = -0.44;
+    base.rotation.y = Math.PI * 0.08;
+    sigmaRoot.add(base);
+
+    // V-spine
+    const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.85, 12, 1);
+    const spineLeft = new THREE.Mesh(spineGeo, matBase);
+    spineLeft.position.set(-0.15, -0.02, 0);
+    spineLeft.rotation.z = Math.PI * 0.18;
+    sigmaRoot.add(spineLeft);
+
+    const spineRight = new THREE.Mesh(spineGeo, matBase);
+    spineRight.position.set(0.15, -0.02, 0);
+    spineRight.rotation.z = -Math.PI * 0.18;
+    sigmaRoot.add(spineRight);
+
+    // Core cube (collapse material)
+    const coreGeo = new THREE.BoxGeometry(0.38, 0.38, 0.38);
+    const coreMat = createSigmaCollapseMaterial(seed, color);
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.position.y = 0.32;
+    core.rotation.y = Math.PI * 0.15;
+    core.userData.isSigmaCore = true;
+    core.userData.collapseUniforms = coreMat.uniforms;
+    sigmaRoot.add(core);
+
+    // Wireframe cube (slightly larger)
+    const frameGeo = new THREE.BoxGeometry(0.68, 0.52, 0.68);
+    const frameEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(frameGeo),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 })
+    );
+    frameEdges.position.y = 0.32;
+    frameEdges.rotation.y = Math.PI * 0.26;
+    sigmaRoot.add(frameEdges);
+
+    // Open arc frame
+    const arcGeo = new THREE.TorusGeometry(0.82, 0.05, 10, 24, Math.PI * 1.4);
+    const arc = new THREE.Mesh(arcGeo, matBase);
+    arc.position.y = 0.12;
+    arc.rotation.set(Math.PI * 0.48, Math.PI * 0.2, Math.PI * 0.12);
+    arc.userData.isSigmaLayer = true;
+    sigmaRoot.add(arc);
+
+    // Anchor studs
+    const studGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.16, 8, 1);
+    const studs = [
+      [-0.42, -0.36, 0.42],
+      [0.42, -0.36, -0.42],
+      [0.42, -0.36, 0.42]
+    ];
+    studs.forEach(pos => {
+      const stud = new THREE.Mesh(studGeo, matBase);
+      stud.position.set(pos[0], pos[1], pos[2]);
+      stud.rotation.y = Math.PI * 0.12;
+      sigmaRoot.add(stud);
+    });
+
+    group.add(sigmaRoot);
+    return group;
+  }
+
+  /**
+   * SIGMA: Bloom Crown (rare crown form)
+   */
+  static createSigmaBloomCrown(group, color) {
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const seedValue = hashString(nodeKey);
+    const seed = Math.abs(seedValue) || 1;
+    const rng = _mythicSeededRng(seed);
+
+    const sigmaRoot = new THREE.Group();
+    sigmaRoot.name = 'SIGMA_BLOOM_CROWN';
+    sigmaRoot.userData.isSigmaLayer = true;
+
+    const matBase = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.24,
+      metalness: 0.5,
+      roughness: 0.3,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    // Base ring
+    const baseGeo = new THREE.TorusGeometry(0.9, 0.06, 10, 22, Math.PI * 1.7);
+    const base = new THREE.Mesh(baseGeo, matBase);
+    base.position.y = -0.4;
+    base.rotation.x = Math.PI * 0.5;
+    base.rotation.y = Math.PI * 0.1;
+    sigmaRoot.add(base);
+
+    // Spine
+    const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.75, 12, 1);
+    const spine = new THREE.Mesh(spineGeo, matBase);
+    spine.position.y = -0.02;
+    sigmaRoot.add(spine);
+
+    // Core sphere (collapse material)
+    const coreGeo = new THREE.SphereGeometry(0.26, 12, 12);
+    const coreMat = createSigmaCollapseMaterial(seed, color);
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.position.y = 0.3;
+    core.userData.isSigmaCore = true;
+    core.userData.collapseUniforms = coreMat.uniforms;
+    sigmaRoot.add(core);
+
+    // Petal fins (6)
+    const petalGeo = new THREE.BoxGeometry(0.16, 0.55, 0.08);
+    for (let i = 0; i < 6; i++) {
+      const petal = new THREE.Mesh(petalGeo, matBase);
+      const angle = (i / 6) * Math.PI * 2;
+      petal.position.set(Math.cos(angle) * 0.7, 0.0 + i * 0.02, Math.sin(angle) * 0.7);
+      petal.rotation.y = angle + Math.PI * 0.22;
+      petal.rotation.z = Math.PI * 0.18;
+      sigmaRoot.add(petal);
+    }
+
+    // Inner halo ring
+    const haloGeo = new THREE.TorusGeometry(0.45, 0.03, 8, 18);
+    const halo = new THREE.Mesh(haloGeo, matBase);
+    halo.position.y = 0.18;
+    halo.rotation.x = Math.PI * 0.5;
+    halo.rotation.y = Math.PI * 0.18;
+    sigmaRoot.add(halo);
+
+    // Top beacon
+    const beaconGeo = new THREE.ConeGeometry(0.14, 0.18, 10, 1);
+    const beacon = new THREE.Mesh(beaconGeo, matBase);
+    beacon.position.y = 0.65;
+    sigmaRoot.add(beacon);
+
+    group.add(sigmaRoot);
+    return group;
   }
 
   // ===== MYTHIC NODES (Ancient Fractured Relics - 6 variants) =====

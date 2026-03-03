@@ -242,6 +242,20 @@ export class LinkSparkSystem {
         // Probability increases with activity (baseline always on)
         const spawnProb = Math.min(1, Math.max(0, activity)) * 0.8 * deltaTime;
 
+        // [DEBUG] Log spawn probability for debugging
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+            if (spawnProb > 0.001) {
+                console.log('[LinkSparkSystem] Spawn check:', {
+                    activity: activity.toFixed(3),
+                    spawnProb: spawnProb.toFixed(4),
+                    deltaTime: deltaTime.toFixed(4),
+                    synergy,
+                    traffic,
+                    intensity
+                });
+            }
+        }
+
         // Burst check (Echo wave or bead arrival simulation)
         // We'll simulate bursts via random chance for now to keep it decoupled
         if (Math.random() < spawnProb) {
