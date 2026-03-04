@@ -568,10 +568,11 @@ export function createPictogramMaterial(color = 0xffffff, opacity = 1.0) {
         opacity: 1.0,
         side: THREE.DoubleSide,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         blending: THREE.AdditiveBlending,
         polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2
+        // Push pictograms slightly behind link depth so strands/beads occlude them
+        polygonOffsetFactor: 2,
+        polygonOffsetUnits: 2
     });
 }

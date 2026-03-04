@@ -69,8 +69,9 @@
    *   LINK_GLOW          (220)   — Link glow effects
    *   LINK_PULSE         (230)   — Energy carrier ring traveling along link
    *   LINK_ARCS          (235)   — Electric sparks triggered by pulse ring
- *   LINK_SPARKS        (240)   — Micro-friction and tension indicators
- *   LINK_BEADS         (245)   — Traveling particles along links
+   *   LINK_PICTO         (238)   — Semantic pictogram overlays on links
+   *   LINK_SPARKS        (240)   — Micro-friction and tension indicators
+   *   LINK_BEADS         (245)   — Traveling particles along links
  *   LINK_IMPACTS       (250)   — Transient hit effects at nodes
  *   LINK_PARTICLES     (260)   — Ambient particle effects (trail/healing/corruption)
  *   
@@ -128,6 +129,7 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_GLOW = 'LINK_GLOW';
   static LAYER_LINK_PULSE = 'LINK_PULSE';
   static LAYER_LINK_ARCS = 'LINK_ARCS';
+  static LAYER_LINK_PICTO = 'LINK_PICTO';
   static LAYER_LINK_SPARKS = 'LINK_SPARKS';
   static LAYER_LINK_BEADS = 'LINK_BEADS';
   static LAYER_LINK_BEAD_TRAILS = 'LINK_BEAD_TRAILS';
@@ -180,6 +182,7 @@ export class VisualHierarchyRegistry {
     BEADS: 245,
     BEAD_TRAILS: 255,
     IMPACTS: 250,
+    PICTO: 258,
     PARTICLES: 260
   };
 
