@@ -3272,6 +3272,27 @@ class AtomaGame {
                 this.metricsRuntime_v1.runNetworkMetricsAggregator();
             }
         }, 'background.networkMetricsAggregator');
+        this.frameScheduler.register('background', (dt) => {
+            this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {});
+        }, 'background.narrativePatterns');
+        this.frameScheduler.register('background', (dt) => {
+            this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer);
+        }, 'background.worldEvents');
+        this.frameScheduler.register('background', (dt) => {
+            this.weatherPack?.update?.(dt, this.scene, this.camera);
+        }, 'background.weatherPack');
+        this.frameScheduler.register('background', (dt) => {
+            this.ambientEntityManager?.update?.(dt);
+        }, 'background.ambientEntityManager');
+        this.frameScheduler.register('background', (dt) => {
+            this.consciousnessLayer?.update?.(dt);
+        }, 'background.consciousnessLayer');
+        this.frameScheduler.register('background', (dt) => {
+            this.poetryEngine?.update?.(dt);
+        }, 'background.poetryEngine');
+        this.frameScheduler.register('background', (dt) => {
+            this.emotionalFeed?.update?.(dt);
+        }, 'background.emotionalFeed');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.fxPerformanceScaler) {
                 this.fxPerformanceScaler.update(dt);
@@ -3367,6 +3388,42 @@ class AtomaGame {
                 this.primaryNodeTopBar.update();
             }
         }, 'simulation.primaryNodeTopBar');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.worldRuntime_v1?.update?.(dt);
+        }, 'simulation.worldRuntime_v1');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.nodeEditorRuntime_v1?.update?.(dt);
+        }, 'simulation.nodeEditorRuntime_v1');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.metricsRuntime_v1?.update?.(dt);
+        }, 'simulation.metricsRuntime_v1');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.personalityRuntime_v1?.update?.(dt);
+        }, 'simulation.personalityRuntime_v1');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);
+        }, 'simulation.nodePersonalitySystem');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes);
+        }, 'simulation.worldPersonalityController');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.phase5MultiNetworkOrchestrator?.update?.(dt);
+        }, 'simulation.phase5MultiNetworkOrchestrator');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
+        }, 'simulation.emergentThoughtStorms');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.colonyManager?.update?.(dt);
+        }, 'simulation.colonyManager');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.nodeEvolution?.update?.(dt, {}, this.linkingSystem);
+        }, 'simulation.nodeEvolution');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.nodePersonality?.update?.(dt, this.time);
+        }, 'simulation.nodePersonality');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.tier4GameplayIntegration?.update?.(dt);
+        }, 'simulation.tier4GameplayIntegration');
 
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
@@ -8267,16 +8324,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         });
-        reg('worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
+        regGuard('worldRuntime_v1', 'simulation.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
         reg('fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
-        reg('nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
+        regGuard('nodeEditorRuntime_v1', 'simulation.nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
         regGuard('inputRuntime', 'InputRuntime_v1', (dt) => {
             const runtime = this.inputRuntime ?? this.inputRuntime_v1;
             runtime?.update?.(dt);
         });
         reg('nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
-        reg('metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
-        reg('personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
+        regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
+        regGuard('personalityRuntime_v1', 'simulation.personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
         reg('personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
 
         reg('personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
@@ -8349,9 +8406,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
         reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
-        reg('nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
         reg('nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
-        reg('worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('worldPersonalityController', 'simulation.worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
         reg('mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
         reg('phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
         reg('mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
@@ -8369,41 +8426,41 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkedGlyphMessaging', 'linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('recursiveGlyphMessaging', 'recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('linkPictogramSystem', 'linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
-        reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
+        regGuard('narrativePatterns', 'background.narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         reg('hitProxy', (dt) => {
             if (this.frameScheduler?.isRegistered?.('HitProxySystem_v1')) return;
             this.hitProxySystem?.update?.(dt);
         });
         reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
-        reg('tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
-        reg('phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
+        regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
+        regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         reg('phase5CascadePropagationVisuals', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt));
         reg('phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
-        reg('nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
+        regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         reg('legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         reg('legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
-        reg('worldEvents', (dt) => this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer));
-        reg('weatherPack', (dt) => this.weatherPack?.update?.(dt, this.scene, this.camera));
+        regGuard('worldEvents', 'background.worldEvents', (dt) => this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer));
+        regGuard('weatherPack', 'background.weatherPack', (dt) => this.weatherPack?.update?.(dt, this.scene, this.camera));
         reg('personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
         reg('worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
-        reg('ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
-        reg('emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
-        reg('colonyManager', (dt) => this.colonyManager?.update?.(dt));
+        regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
+        regGuard('emergentThoughtStorms', 'simulation.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
+        regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
         reg('dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
         reg('dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
         reg('mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
         reg('nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
-        reg('nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
+        regGuard('nodeEvolution', 'simulation.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
         reg('evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
-        reg('nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
+        regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
         reg('extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
         reg('newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
         reg('extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
         reg('extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
         reg('linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
-        reg('consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
-        reg('poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
-        reg('emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
+        regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
+        regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
+        regGuard('emotionalFeed', 'background.emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
         reg('nodeLinking', (dt) => {
             const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking;
             const scheduledInFrameScheduler =
