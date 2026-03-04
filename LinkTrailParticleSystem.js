@@ -187,6 +187,10 @@ class TrailParticle {
     this.progress = 0;
     this.lastProgress = -0.1;
     this.impactTriggered = false;
+    if (this.mesh) {
+      this.mesh.visible = false;       // Hide frozen particle
+      this.mesh.scale.setScalar(0);    // Collapse geometry to avoid lingering dots
+    }
   }
 
   /**
@@ -329,6 +333,10 @@ class TrailParticle {
     this.position.copy(startPos);
     this.opacity = 0;
     this.scale = 0.08;
+    if (this.mesh) {
+      this.mesh.visible = true;        // Restore visibility when re-used
+      this.mesh.scale.setScalar(this.scale);
+    }
   }
 }
 

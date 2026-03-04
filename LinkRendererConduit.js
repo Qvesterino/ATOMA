@@ -301,6 +301,21 @@ export class LinkRendererConduit {
             || this.links
             || [];
 
+        // Garbage collect orphaned trail emitters (links removed without dispose)
+        if (this.trailEmitters?.size && this.trailParticles) {
+            const liveIds = new Set();
+            for (const l of list) {
+                if (l?.id !== undefined) liveIds.add(l.id);
+            }
+            for (const [id, emitter] of this.trailEmitters) {
+                if (!liveIds.has(id)) {
+                    emitter?.disable?.();
+                    this.trailEmitters.delete(id);
+                    this.trailParticles.clearLink?.(id);
+                }
+            }
+        }
+
         if (!list.length && typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
             console.warn('[LinkRendererConduit] updateAll called with empty link list');
         }
@@ -1622,6 +1637,10 @@ export class LinkRendererConduit {
             }
             this.trailEmitters.delete(link.id);
         }
+        // Clear trail particles still in the shared system
+        if (link && this.trailParticles && link.id) {
+            this.trailParticles.clearLink(link.id);
+        }
         
         // Dispose healing particle emitter for this link
         if (link && this.healingEmitters && link.id) {
@@ -1661,6 +1680,18 @@ export class LinkRendererConduit {
             g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) this._returnImpactMaterial(o.material); });
         });
         state.impacts = [];
+
+        // Final cleanup: remove the link group from scene graph and dispose remaining geometries/materials
+        if (linkGroup?.parent) {
+            linkGroup.parent.remove(linkGroup);
+        }
+        linkGroup.traverse(obj => {
+            if (obj.geometry) { obj.geometry.dispose?.(); }
+            if (obj.material) {
+                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose?.());
+                else obj.material.dispose?.();
+            }
+        });
     }
 
     /**

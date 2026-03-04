@@ -47,7 +47,6 @@ import { LinkRendererConduit } from './LinkRendererConduit.js';
 import { LinkEmissionPulsingSystem } from './LinkEmissionPulsingSystem.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { LinkEventVisualCoordinator_v1 } from './LinkEventVisualCoordinator_v1.js';
-import { LinkCategoryTransitionSystem } from './LinkCategoryTransitionSystem.js';
 import { 
   UndoRedoSystem, 
   CreateLinkCommand, 
@@ -554,7 +553,6 @@ export class NodeLinkingSystem {
     this.eventCoordinator = new LinkEventVisualCoordinator_v1();
     
     // [Phase 2] Link Category Transition System - Handles creation animations
-    this.categoryTransitionSystem = new LinkCategoryTransitionSystem(scene);
     
     // Effects tracking
     this.activeEffects = [];
@@ -3578,16 +3576,7 @@ getLinksForNode(node) {
       this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
     }
     
-    // [Phase 2] Start Category Transition
-    if (this.categoryTransitionSystem) {
-      this.categoryTransitionSystem.startTransition(
-        link.id,
-        sourceNode.position,
-        targetNode.position,
-        sourceNode.userData.category || 'input',
-        targetNode.userData.category || 'input'
-      );
-    }
+    // categoryTransitionSystem removed (unused)
     
     // 5. Initial Visual Update
     this.conduitRenderer.update(link, 0, 0);
@@ -3661,15 +3650,7 @@ getLinksForNode(node) {
       if (this.eventCoordinator) {
         this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
       }
-      if (this.categoryTransitionSystem) {
-        this.categoryTransitionSystem.startTransition(
-          link.id,
-          sourceNode.position,
-          targetNode.position,
-          sourceNode.userData.category || 'input',
-          targetNode.userData.category || 'input'
-        );
-      }
+      // categoryTransitionSystem removed (unused)
 
       this.conduitRenderer.update(link, 0, 0);
       sourceNode.justLinked = true;
@@ -4578,10 +4559,7 @@ getLinksForNode(node) {
     // Process corruption contagion (every frame)
     this._updateCorruptionContagion(deltaTime);
     
-    // [Phase 2] Update Category Transitions
-    if (this.categoryTransitionSystem) {
-      this.categoryTransitionSystem.update(deltaTime);
-    }
+    // categoryTransitionSystem removed (unused)
 
     // Conduit visuals are updated per-link below using frameState (single entry point)
     
@@ -4673,30 +4651,7 @@ getLinksForNode(node) {
         this.conduitRenderer.update(link, deltaTime, time, frameState);
       }
       
-      // [Phase 2] Apply Category Transition State (if active)
-      // This overrides base colors during the creation animation
-      if (this.categoryTransitionSystem) {
-        const transitionState = this.categoryTransitionSystem.getVisualState(link.id);
-        if (transitionState) {
-          // Apply to Braided Conduit
-          if (link.group && link.group.userData.conduitState) {
-             const strands = link.group.userData.conduitState.strands;
-             if (strands) {
-               strands.forEach(strand => {
-                 if (strand.material) {
-                   applyMaterialPatch(strand.material, {
-                     color: transitionState.color,
-                     opacity: transitionState.opacity,
-                     owner: 'colorStage'
-                   });
-                   strand.material.emissiveIntensity = transitionState.glowIntensity;
-                 }
-               });
-             }
-          }
-          // Legacy support handled implicitly by color update
-        }
-      }
+      // categoryTransitionSystem removed (unused)
       
       // Traffic simulation
       this.updateTrafficSimulation(link, deltaTime);
@@ -6291,6 +6246,25 @@ getLinksForNode(node) {
     // Unified visual dispose (conduit + particles)
     if (this.conduitRenderer && link.group && link.group.userData.conduitState) {
       this.conduitRenderer.disposeLinkVisuals(link.group, link);
+    }
+    // Forced trail cleanup even if group/conduitState is missing
+    const conduit = this.conduitRenderer;
+    if (conduit?.trailParticles && link?.id) {
+      conduit.trailParticles.clearLink(link.id);
+    }
+    if (conduit?.trailEmitters?.has?.(link?.id)) {
+      const emitter = conduit.trailEmitters.get(link.id);
+      emitter?.disable?.();
+      conduit.trailEmitters.delete(link.id);
+    }
+    // Ensure memory ghost trails are cleared for all unlink call paths
+    if (this.memoryTrails?.linkTrails?.removeLinkTrail && link?.id !== undefined) {
+      this.memoryTrails.linkTrails.removeLinkTrail(link.id);
+    }
+    if (this.memoryTrails?.linkTrails?.removeLinkTrail &&
+        link?.userData?.id !== undefined &&
+        link.userData.id !== link?.id) {
+      this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
     }
 
     // Dispose group and all children (defensive pass after conduit disposal)

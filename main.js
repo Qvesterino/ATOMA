@@ -324,7 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // Approved infrastructure recovery: LOW + MEDIUM risk systems
 // ============================================================================
 import { LinkCorrelationEngine1_0 } from './LinkCorrelationEngine1_0.js';
-import { hardenNodeLinkingSystem } from './LinkingSystemHardening.js';
 import { LinkHistoryTracker1_0 } from './LinkHistoryTracker1_0.js';
 
 import { AtomaLanguageEngine2_0, setupAtomaNamingConsoleAPI } from './_AtomaLanguageEngine2_0.js';
@@ -6005,23 +6004,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] LinkCorrelationEngine1_0 initialization failed:', err.message);
             this.linkCorrelationEngine = null;
-        }
-
-        // === System 3: Linking System Hardening (MEDIUM RISK) ===
-        try {
-            if (this.linkingSystem && this.linkGuard) {
-                hardenNodeLinkingSystem(
-                    this.linkingSystem,
-                    this.aiNodes,
-                    this.scene,
-                    this.linkGuard
-                );
-                console.log('[main.js] Linking System Hardening applied ✓');
-            } else {
-                console.warn('[main.js] Skipping hardening: linkingSystem or linkGuard not ready');
-            }
-        } catch (err) {
-            console.warn('[main.js] Linking System Hardening failed:', err.message);
         }
 
         // ====================================================================
