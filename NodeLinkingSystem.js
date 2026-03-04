@@ -411,7 +411,6 @@ export class NodeLinkingSystem {
     this.multiSelectHighlights = new Map();  // node → highlight mesh
     this.selectionPulseAnimations = new Map();  // Track pulse animations by node
     this.deferLinkVisuals = false; // Build link visuals immediately (avoid missed conduit init)
-    this.pendingLinkVisualsQueue = []; // FIFO queue for deferred link visuals
     
     // [Box Selection System] Drag-to-select area-based multi-selection
     this.boxSelectState = {
@@ -3496,50 +3495,6 @@ getLinksForNode(node) {
     captureNodeCoreState(sourceNode);
     captureNodeCoreState(targetNode);
     try {
-    if (this.deferLinkVisuals) {
-      const link = {
-        source: sourceNode,
-        target: targetNode,
-        sourceNodeId: this.getNodeId(sourceNode),
-        targetNodeId: this.getNodeId(targetNode),
-        group: null,
-        active: true,
-        traffic: {
-          load: this.trafficSimulation.baseTraffic + Math.random() * 0.2,
-          throughput: 0.5 + Math.random() * 0.5,
-          priority: Math.random(),
-          bottleneck: false
-        },
-        animation: { pulsePhase: Math.random() * Math.PI * 2 },
-        id: `link-${this._linkIdCounter++}`,
-        vfxEnabled: true,
-        extremeMode: false,
-        createdAt: performance.now(),
-        visualState: 'pending'
-      };
-
-      this.links.push(link);
-      LinkPrioritySystem.initializeLinkPriority(link);
-      this._addLinkToIndex(link);
-      this._markLinksDirty();
-      this._markNodesDirty();
-
-      const srcId = link.sourceNodeId;
-      const tgtId = link.targetNodeId;
-      if (srcId) {
-        if (!this.nodeIdToLinks.has(srcId)) this.nodeIdToLinks.set(srcId, []);
-        this.nodeIdToLinks.get(srcId).push(link);
-      }
-      if (tgtId) {
-        if (!this.nodeIdToLinks.has(tgtId)) this.nodeIdToLinks.set(tgtId, []);
-        this.nodeIdToLinks.get(tgtId).push(link);
-      }
-
-      onLinkCreated(sourceNode, targetNode);
-
-      this.pendingLinkVisualsQueue.push({ link, sourceNode, targetNode });
-      return link;
-    }
     // 1. Construct Link Object first (so conduit gets real reference)
     const linkId = `link-${this._linkIdCounter++}`;
     const link = {
@@ -4603,12 +4558,7 @@ getLinksForNode(node) {
       }
     }
 
-    // Phase 3B: process at most 1 pending link visual per frame
-    if (this.pendingLinkVisualsQueue.length > 0) {
-      const pending = this.pendingLinkVisualsQueue.shift();
-      this._realizeLinkVisuals(pending);
-      this._markLinksDirty();
-    }
+    // (pending visuals removed — visuals are created synchronously)
     
     // [Session 20 FIX] Initialize synergy update counter
     if (!this._synergyUpdateCounter) this._synergyUpdateCounter = 0;
@@ -7053,7 +7003,6 @@ getLinksForNode(node) {
     }
 
     // Preserve link objects; rebuild visuals on next update
-    this.pendingLinkVisualsQueue = Array.isArray(this.links) ? [...this.links] : [];
     this.ghostLinks = this.ghostLinks || [];
     this.activeLink = null;
     this.linksDirty = true;

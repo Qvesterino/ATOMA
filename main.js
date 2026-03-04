@@ -8244,6 +8244,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             priority += 10;
         };
 
+        // Helper: skip SystemRegistry execution when FrameScheduler already owns the system
+        const regGuard = (name, schedulerKey, fn) => {
+            reg(name, (dt) => {
+                if (this.frameScheduler?.isRegistered?.(schedulerKey)) return;
+                fn(dt);
+            });
+        };
+
         reg('activeWorld', (dt) => {
             if (this.activeWorld) this.activeWorld.update(dt, this.time);
         });
@@ -8364,7 +8372,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
         reg('fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
         reg('nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
-        reg('inputRuntime_v1', (dt) => this.inputRuntime_v1?.update?.(dt));
+        regGuard('inputRuntime', 'InputRuntime_v1', (dt) => {
+            const runtime = this.inputRuntime ?? this.inputRuntime_v1;
+            runtime?.update?.(dt);
+        });
+        reg('nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         reg('metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         reg('personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
         reg('personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
@@ -8406,23 +8418,36 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-        reg('waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
+        regGuard('waveShaderBridge', 'visual.waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
             links: this.nodeLinking?.links || [],
             nodes: this.aiNodes?.nodes || [],
             time: this.time,
             visualTime: window.VISUAL_TIME ?? this.time,
             nodeDynamicMetrics: this.nodeDynamicMetrics
         }));
-        reg('waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
-        reg('waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
+        regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
+        regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
 
 
 
 
-        reg('standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
-        reg('nodeAuraRenderer', (dt) => this.nodeAuraRenderer?.update?.(dt));
-        reg('linkAuraSystem', (dt) => this.linkAuraSystem?.update?.(dt));
-        reg('waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
+        regGuard('standingWaveRenderer', 'visual.standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
+        regGuard('nodeAuraRenderer', 'visual.nodeAuraRenderer', (dt) => {
+            this.nodeAuraRenderer?.update?.(dt);
+        });
+        regGuard('nodeAuraSystem', 'visual.nodeAuraSystem', (dt) => {
+            this.nodeAuraSystem?.update?.(dt, this.aiNodes?.nodes);
+        });
+        regGuard('linkAuraSystem', 'visual.linkAuraSystem', (dt) => {
+            this.linkAuraSystem?.update?.(dt);
+        });
+        regGuard('linkBeadSystem', 'visual.linkBeadSystem', (dt) => {
+            this.linkBeadSystem?.update?.(dt);
+        });
+        regGuard('linkTrailParticles', 'visual.linkTrailParticles', (dt) => {
+            this.linkTrailParticles?.update?.(dt, this.time);
+        });
+        regGuard('waveInterference', 'visual.waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
 
 
         reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
@@ -8440,14 +8465,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
         reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
         reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
-        reg('linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
+        regGuard('linkGlyphFlow', 'linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
         reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
         // Moved to FrameScheduler visual layer (30 Hz)
-        reg('linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
-        reg('recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
-        reg('linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
+        regGuard('linkedGlyphMessaging', 'linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
+        regGuard('recursiveGlyphMessaging', 'recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
+        regGuard('linkPictogramSystem', 'linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
         reg('narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
-        reg('hitProxySystem', (dt) => this.hitProxySystem?.update?.(dt));
+        reg('hitProxy', (dt) => {
+            if (this.frameScheduler?.isRegistered?.('HitProxySystem_v1')) return;
+            this.hitProxySystem?.update?.(dt);
+        });
         reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
         reg('tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         reg('phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
@@ -8478,7 +8506,25 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         reg('poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
         reg('emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
-        reg('nodeLinking', (dt) => this.nodeLinking?.update?.(dt));
+        reg('nodeLinking', (dt) => {
+            const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking;
+            const scheduledInFrameScheduler =
+                this.frameScheduler?.isRegistered?.('visual.linkingSystem') === true &&
+                linkingSystem === this.linkingSystem;
+            if (scheduledInFrameScheduler) return;
+            linkingSystem?.update?.(dt);
+        });
+        reg('cameraController', (dt) => {
+            if (this.frameScheduler?.isRegistered?.('realtime.cameraController')) return;
+            const start = performance?.now?.();
+            this.cameraController?.update?.(dt);
+            if (start !== undefined) {
+                this.updateValidator?.markSystemUpdate(
+                    'cameraController.update',
+                    performance.now() - start
+                );
+            }
+        });
         reg('primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
 
         reg('linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });

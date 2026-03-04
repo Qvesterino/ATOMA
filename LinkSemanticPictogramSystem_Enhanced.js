@@ -218,6 +218,7 @@ class EnhancedPictogramInstance {
         this.frames = null;
         this.frameSegments = 0;
         this.spiralRadius = 0.25;
+        this.extraLift = 0.0;
         // Cached vectors to reduce allocations
         this._tmpPos = new THREE.Vector3();
         this._tmpTan = new THREE.Vector3();
@@ -226,6 +227,7 @@ class EnhancedPictogramInstance {
         this._tmpOffset = new THREE.Vector3();
         this._up = new THREE.Vector3(0, 1, 0);
         this._altUp = new THREE.Vector3(1, 0, 0);
+        this._warnedMissingCurve = false;
 
         // Visual
         this.size = CONFIG.SIZE_MEDIUM;
@@ -243,6 +245,7 @@ class EnhancedPictogramInstance {
         this.isOscillating = false;
         this.isAlignedByHealing = false;
         this.isTenseFromRupture = false;
+        this._warnedMissingCurve = false;
     }
 
     spawn(link, layer, state, size, depthOffset) {
@@ -262,8 +265,14 @@ class EnhancedPictogramInstance {
                            link?.userData?.length ||
                            null;
         this.prepareFrames(link);
-        const envelope = link?.visualEnvelopeRadius ?? link?.userData?.visualEnvelopeRadius ?? link?.userData?.activeRadius ?? link?.userData?.visualRadius ?? this.size;
-        this.spiralRadius = envelope * 1.8;
+        const envelope = link?.visualEnvelopeRadius ??
+                         link?.userData?.visualEnvelopeRadius ??
+                         link?.userData?.activeRadius ??
+                         link?.userData?.visualRadius ??
+                         this.size ??
+                         0.25;
+        this.spiralRadius = envelope * 2.6;
+        this.extraLift = envelope * 0.35;
         
         this.age = 0.0;
         this.lifetime = THREE.MathUtils.lerp(
@@ -291,6 +300,9 @@ class EnhancedPictogramInstance {
     }
 
     update(deltaTime, linkContext, cameraPosition) {
+        // Always attempt spatial update first so position is available immediately
+        this.updatePositionAlongLink(linkContext, cameraPosition);
+
         if (!this.active || !this.link) return;
 
         this.age += deltaTime;
@@ -340,9 +352,6 @@ class EnhancedPictogramInstance {
         this.lateralPhase += deltaTime * 0.4;
         this.verticalPhase += deltaTime * 0.3;
         this.microRotationPhase += deltaTime * CONFIG.MICRO_ROTATION_SPEED;
-
-        // Update position along link
-        this.updatePositionAlongLink(linkContext, cameraPosition);
 
         // Face the camera (billboard) to keep glyphs readable in screen space
         if (cameraPosition) {
@@ -416,21 +425,30 @@ class EnhancedPictogramInstance {
     }
 
     updatePositionAlongLink(linkContext, cameraPosition) {
+        if (!this.link) return;
         const curve = this.link?.curve;
+        const hasCurve = curve && typeof curve.getPointAt === 'function' && typeof curve.getTangentAt === 'function';
         const t = this.linkProgress % 1;
 
         // Base position & tangent
         const basePos = this._tmpPos;
         const tangent = this._tmpTan;
-        if (curve?.getPointAt && curve?.getTangentAt) {
+        if (hasCurve) {
             curve.getPointAt(t, basePos);
             curve.getTangentAt(t, tangent).normalize();
         } else {
             const nodeA = this.link.userData?.nodeA;
             const nodeB = this.link.userData?.nodeB;
-            if (!nodeA || !nodeB) return;
-            basePos.lerpVectors(nodeA.position, nodeB.position, t);
-            tangent.subVectors(nodeB.position, nodeA.position).normalize();
+            if (nodeA && nodeB) {
+                basePos.lerpVectors(nodeA.position, nodeB.position, t);
+                tangent.subVectors(nodeB.position, nodeA.position).normalize();
+            } else {
+                if (!this._warnedMissingCurve) {
+                    console.warn('[PicDiag] NO CURVE OR NODES', this.link?.id || this.link?.uuid);
+                    this._warnedMissingCurve = true;
+                }
+                return;
+            }
         }
 
         // Frenet frame sampling (prefer precomputed frames)
@@ -454,6 +472,7 @@ class EnhancedPictogramInstance {
             .addScaledVector(binormal, Math.sin(angle) * helixRadius);
 
         basePos.add(offset);
+        basePos.addScaledVector(normal, this.extraLift || 0);
 
         // Gentle bob & parallax
         basePos.addScaledVector(binormal, Math.sin(this.verticalPhase) * 0.05);
@@ -487,7 +506,8 @@ class EnhancedPictogramInstance {
     }
 
     updateOpacity() {
-        const fadeInEnd = CONFIG.FADE_IN_DURATION;
+        const debugVis = (typeof window !== 'undefined' && window.__PIC_DEBUG_VIS__ === true);
+        const fadeInEnd = debugVis ? Math.min(CONFIG.FADE_IN_DURATION, 0.2) : CONFIG.FADE_IN_DURATION;
         const fadeOutStart = this.lifetime - CONFIG.FADE_OUT_DURATION;
         
         let opacity = this.baseOpacity;
@@ -511,6 +531,10 @@ class EnhancedPictogramInstance {
         // Healing subtle glow stabilization (not brightness boost)
         if (this.isAlignedByHealing) {
             opacity = Math.min(opacity * 1.1, this.baseOpacity);
+        }
+
+        if (debugVis) {
+            opacity = Math.max(opacity, 0.25);
         }
 
         if (this.mesh.material) {
@@ -630,6 +654,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         console.info('[PicDiag] Pictogram system constructed');
         this._diagLogged = false;
         this._diagForcedSpawned = false;
+        this._debugSpawnLogged = false;
     }
 
     // ========================================================================
@@ -651,6 +676,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.visible = false;
             mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+            // Never block node raycasts
+            mesh.raycast = () => {};
+            mesh.userData.ignoreRaycast = true;
             
             container.add(mesh);
 
@@ -673,7 +701,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // ========================================================================
 
     update(deltaTime, time) {
-        console.error('[PicDiag] pictogram update entered', deltaTime);
         if (!this.enabled) return;
 
         this.updateTimer += deltaTime;
@@ -697,21 +724,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Log when links become available
         const linkCount = this.linkingSystem?.links?.length || 0;
-        if (!this._picDiagLinksLogged && linkCount > 0) {
-            console.error('[PicDiag] links detected in pictogram system', linkCount);
-            this._picDiagLinksLogged = true;
-        }
-
-        if (!this._diagLogged) {
-            const active = this.pictograms.filter(p => p.active).length;
-            console.info('[PicDiag] tick', {
-                links: linkCount,
-                pool: this.pictograms.length,
-                active,
-                containerChildren: this.container?.children?.length || 0
-            });
-            this._diagLogged = true;
-        }
 
         // Safety: force one spawn if nothing is active after first tick
         if (!this._diagForcedSpawned && this.pictograms.every(p => !p.active)) {
@@ -724,7 +736,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
                     CONFIG.SIZE_LARGE,
                     CONFIG.LAYER_A_DEPTH_OFFSET
                 );
-                console.info('[PicDiag] forced spawn on first link');
                 this._diagForcedSpawned = true;
             } else {
                 console.warn('[PicDiag] no links available for forced spawn yet');
@@ -923,35 +934,26 @@ export class LinkSemanticPictogramSystem_Enhanced {
         }
     }
 
-    updateActivePictograms(deltaTime, cameraPos) {
-        let firstActive = null;
-        this.pictograms.forEach(pictogram => {
-            if (!pictogram.active) return;
-            if (!firstActive) firstActive = pictogram;
+updateActivePictograms(deltaTime, cameraPos) {
+    this.pictograms.forEach(pictogram => {
+        if (!pictogram.active) return;
 
-            const linkContext = this.analyzeLinkContext(pictogram.link);
-            pictogram.update(deltaTime, linkContext, cameraPos);
-
-            // If deactivated, update count
-            if (!pictogram.active && pictogram.link) {
-                const linkId = pictogram.link.uuid;
-                const count = this.linkPictogramCounts.get(linkId) || 0;
-                this.linkPictogramCounts.set(linkId, Math.max(0, count - 1));
-            }
-        });
-
-        if (firstActive && !this._picDiagActiveLogged) {
-            console.error('[PicDiag] first active pictogram', {
-                pos: firstActive.mesh.position.toArray(),
-                scale: firstActive.mesh.scale.x,
-                renderOrder: firstActive.mesh.renderOrder,
-                opacity: firstActive.mesh.material?.opacity,
-                visible: firstActive.mesh.visible
-            });
-            this._picDiagActiveLogged = true;
+        // link už nemusí existovať po world switchi
+        if (!pictogram.link || !this.linkingSystem?.links?.includes(pictogram.link)) {
+            pictogram.reset();
+            return;
         }
-    }
 
+        const linkContext = this.analyzeLinkContext(pictogram.link);
+        pictogram.update(deltaTime, linkContext, cameraPos);
+
+        if (!pictogram.active && pictogram.link) {
+            const linkId = pictogram.link.uuid;
+            const count = this.linkPictogramCounts.get(linkId) || 0;
+            this.linkPictogramCounts.set(linkId, Math.max(0, count - 1));
+        }
+    });
+}
     // ========================================================================
     // LINK CONTEXT ANALYSIS
     // ========================================================================
@@ -1059,7 +1061,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
         pictogram.mesh.material.color.setHex(color);
 
         pictogram.spawn(link, layer, state, size, depthOffset);
-        console.error('[PicDiag] spawn pictogram', { state, linkId: link?.id, renderOrder: pictogram.mesh.renderOrder, pos: pictogram.mesh.position.toArray() });
+        const debugVis = (typeof window !== 'undefined' && window.__PIC_DEBUG_VIS__ === true);
+        if (debugVis && !this._debugSpawnLogged) {
+            console.warn('PICTOGRAM SPAWN', state, link?.id);
+            this._debugSpawnLogged = true;
+        }
     }
 
     getCategoryColorRestrained(category) {
