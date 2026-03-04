@@ -70,6 +70,7 @@ const CONFIG = {
         corruption: 2,
         default: 2
     },
+    DETERMINISTIC_GLYPHS: true,
     ORBIT_RADII: {
         harmony: 0.35,
         stability: 0.45,
@@ -89,7 +90,7 @@ const CONFIG = {
     // Motion
     BASE_DRIFT_SPEED: 0.25,
     SYNERGY_SPEED_MULTIPLIER: 1.8,
-    ORBITAL_SCALE_FACTOR: 0.25,  // Global scalar for orbital glyph groups
+    ORBITAL_SCALE_FACTOR: 1.0,   // Global scalar for orbital glyph groups
     
     // Context-aware flow
     RESISTANCE_SLOW_FACTOR: 0.3,       // Slow to 30% near resistant nodes
@@ -411,12 +412,25 @@ class EnhancedPictogramInstance {
             const pulse = 1 + Math.sin(this.age * 6) * 0.12;
             const rotSpeed = 2.5;
             this.mesh.userData.synergyArrows.forEach((cluster, idx) => {
-                cluster.rotation.x += deltaTime * rotSpeed * 0.5 * (idx === 0 ? 1 : -1);
-                cluster.rotation.z += deltaTime * rotSpeed * 0.25;
+                cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * deltaTime;
                 const synergyBoost = (this.linkContextCache?.synergy || 0);
                 const s = cluster.userData.baseScale * pulse * (1 + synergyBoost * 0.5);
                 cluster.scale.setScalar(s);
             });
+        }
+
+        // Animate loadPressure spark along torus path
+        if (this.mesh?.userData?.spark) {
+            const glyph = this.mesh;
+            const spark = glyph.userData.spark;
+            const orbitGeom = glyph.userData.orbit1?.geometry;
+            const baseR = orbitGeom?.parameters?.radius ?? glyph.userData.sparkOrbitRadius ?? 0.38;
+            const scale = glyph.scale?.x ?? 1;
+            const R = baseR * scale;
+            const angle = this.age * 2.0;
+            spark.position.set(Math.cos(angle) * R, Math.sin(angle) * R, 0);
+            const pulse = 1 + Math.sin(this.age * 4) * 0.15;
+            spark.scale.setScalar(pulse);
         }
     }
 
@@ -801,6 +815,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Spawn new pictograms
         this.spawnPictograms(actualDelta, time);
+        this.ensureMetricMinimums();
 
         // Update active pictograms
         const cameraPos = this.camera ? this.camera.position : null;
@@ -825,7 +840,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                     'CIRCLE_RING',
                     CONFIG.SIZE_MEDIUM,
                     CONFIG.LAYER_A_DEPTH_OFFSET,
-                    this.getLinkKey(firstLink)
+                    this.getLinkKey(firstLink),
+                    'loadPressure'
                 );
                 this._diagImmediateForced = true;
                 console.warn('[PicDiag] forced single spawn recovery (immediate)', {
@@ -899,6 +915,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     spawnPictograms(deltaTime = 0, time) {
+        if (CONFIG.DETERMINISTIC_GLYPHS) return;
         const links = this._getLinks();
         if (!links.length) return;
 
@@ -1306,12 +1323,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // SPAWNING
     // ========================================================================
 
-    spawnPictogram(link, layer, state, size, depthOffset, linkKey) {
+    spawnPictogram(link, layer, state, size, depthOffset, linkKey, metricType = 'loadPressure') {
         const pictogram = this.pictograms.find(p => !p.active);
         if (!pictogram) return;
 
         // Replace placeholder mesh with orbital glyph group
-        const metricType = getMetricForState(state);
         const glyph = this.buildOrbitalGlyph(size, metricType);
         // Ensure container owns the glyph
         if (pictogram.mesh && pictogram.mesh.parent) {
@@ -1332,24 +1348,95 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     buildOrbitalGlyph(size, metricType = 'loadPressure') {
-        const group = new THREE.Group();
-        // Base scale stays neutral; final size is applied in spawn() via ORBITAL_SCALE_FACTOR
-        group.scale.setScalar(1.0);
         const pictoRO = (VisualHierarchyRegistry.getRenderOrder && VisualHierarchyRegistry.getRenderOrder('LINK_PICTO')) || 246;
-        group.renderOrder = pictoRO;
-        group.frustumCulled = false;
+        const container = new THREE.Group();
+        container.scale.setScalar(1.0);
+        container.renderOrder = pictoRO;
+        container.frustumCulled = false;
 
-        const metricColorMap = {
-            loadPressure: 0x5a2ea6,
-            harmony: 0x8ad8ff,
-            stability: 0xffffff,
-            synergy: 0x4ff0ff,
-            corruption: 0xff6655
+        // Dispatch to metric-specific visual builder
+        let glyph = null;
+        switch (metricType) {
+            case 'synergy':
+                glyph = this.buildSynergyArrowCluster(pictoRO);
+                break;
+            case 'harmony':
+                glyph = this.buildHarmonyGlyph(size);
+                break;
+            case 'stability':
+                glyph = this.buildStabilityGlyph(size);
+                break;
+            case 'corruption':
+                glyph = this.buildCorruptionGlyph(size);
+                break;
+            case 'loadPressure':
+            default:
+                glyph = this.buildLoadPressureGlyph(size, pictoRO);
+                break;
+        }
+
+        if (glyph) {
+            glyph.renderOrder = pictoRO;
+            container.add(glyph);
+            // Preserve userData helpers if present
+            if (glyph.userData) {
+                container.userData = { ...container.userData, ...glyph.userData };
+            }
+        }
+
+        return container;
+    }
+
+    ensureMetricMinimums() {
+        const GLYPH_TYPES = ['harmony', 'stability', 'synergy', 'loadPressure', 'corruption'];
+        const defaultStateByMetric = {
+            harmony: 'CIRCLE_RING',
+            stability: 'OFFSET_DOTS',
+            synergy: 'CHEVRON',
+            loadPressure: 'CIRCLE_RING',
+            corruption: 'BROKEN_CIRCLE'
         };
-        const coreColor = metricColorMap[metricType] ?? 0x5a2ea6;
+        const size = CONFIG.SIZE_MEDIUM || 0.4;
+        const depthOffset = CONFIG.LAYER_A_DEPTH_OFFSET;
 
+        const links = this._getLinks();
+        if (!links.length) return;
+
+        links.forEach(link => {
+            const linkId = this.getLinkKey(link);
+            if (!linkId) return;
+
+            const metricCounts = this.linkMetricCounts.get(linkId) || new Map();
+
+            GLYPH_TYPES.forEach(metric => {
+                const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[metric]) ??
+                            CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 2;
+                const current = metricCounts.get(metric) || 0;
+                if (current >= cap) return;
+                const state = defaultStateByMetric[metric] || 'CIRCLE_RING';
+                const needed = cap - current;
+                for (let i = 0; i < needed; i++) {
+                    this.spawnPictogram(link, 'A', state, size, depthOffset, linkId, metric);
+                    const mc = metricCounts.get(metric) || 0;
+                    metricCounts.set(metric, mc + 1);
+                    const stateCounts = this.linkStateCounts.get(linkId) || new Map();
+                    const sc = stateCounts.get(state) || 0;
+                    stateCounts.set(state, sc + 1);
+                    this.linkStateCounts.set(linkId, stateCounts);
+                    const total = this.linkPictogramCounts.get(linkId) || 0;
+                    this.linkPictogramCounts.set(linkId, total + 1);
+                }
+            });
+
+            this.linkMetricCounts.set(linkId, metricCounts);
+        });
+    }
+
+    // Load pressure torus-based glyph (existing visual)
+    buildLoadPressureGlyph(size = 1.0, renderOrder = 246) {
+        const group = new THREE.Group();
         const coreMat = new THREE.MeshBasicMaterial({
-            color: coreColor,
+            color: 0x5a2ea6,
             transparent: true,
             opacity: 1.0,
             depthTest: true,
@@ -1357,18 +1444,18 @@ export class LinkSemanticPictogramSystem_Enhanced {
             blending: THREE.AdditiveBlending
         });
 
-        const core = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.05, 8, 24), coreMat);
-        core.renderOrder = pictoRO;
+        const core = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.05, 8, 24), coreMat);
+        core.renderOrder = renderOrder;
         group.add(core);
 
         const orbitMat = coreMat.clone();
-        const orbit1 = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 24), orbitMat);
-        orbit1.renderOrder = pictoRO;
+        const orbit1 = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.02, 8, 24), orbitMat);
+        orbit1.renderOrder = renderOrder;
         group.add(orbit1);
 
-        const orbit2 = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 24), orbitMat);
+        const orbit2 = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.02, 8, 24), orbitMat);
         orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
-        orbit2.renderOrder = pictoRO;
+        orbit2.renderOrder = renderOrder;
         group.add(orbit2);
 
         const sparkMat = new THREE.MeshBasicMaterial({
@@ -1379,39 +1466,21 @@ export class LinkSemanticPictogramSystem_Enhanced {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
-        const spark = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), sparkMat);
-        spark.renderOrder = pictoRO;
+        const spark = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), sparkMat);
+        spark.renderOrder = renderOrder;
         group.add(spark);
-
-        // Synergy-specific arrow clusters (only for synergy metric)
-        const synergyClusters = [];
-        if (metricType === 'synergy') {
-            const normal = new THREE.Vector3(1, 0, 0);
-            const binormal = new THREE.Vector3(0, 0, 1);
-            const clusterA = this.buildSynergyArrowCluster(pictoRO);
-            clusterA.position.copy(normal).multiplyScalar(0.18).addScaledVector(binormal, 0.05);
-            synergyClusters.push(clusterA);
-            group.add(clusterA);
-
-            const clusterB = this.buildSynergyArrowCluster(pictoRO);
-            clusterB.position.copy(normal).multiplyScalar(-0.18).addScaledVector(binormal, -0.05);
-            clusterB.rotation.z = Math.PI * 0.15;
-            synergyClusters.push(clusterB);
-            group.add(clusterB);
-        }
 
         group.userData.orbit1 = orbit1;
         group.userData.orbit2 = orbit2;
         group.userData.spark = spark;
-        group.userData.synergyArrows = synergyClusters;
-
+        group.userData.sparkOrbitRadius = orbit1.geometry.parameters.radius * size; // parametric torus orbit radius
         return group;
     }
 
     buildSynergyArrowCluster(renderOrder) {
         const cluster = new THREE.Group();
-        const arrowMat = new THREE.MeshBasicMaterial({
-            color: 0x4ff0ff,
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x66ffff,
             transparent: true,
             opacity: 1.0,
             depthTest: true,
@@ -1420,26 +1489,142 @@ export class LinkSemanticPictogramSystem_Enhanced {
             side: THREE.DoubleSide
         });
 
-        const arrowGeo = new THREE.PlaneGeometry(0.25, 0.22);
-        // Staggered triple-arrow layout: slight forward + lateral offset to form ">>>"
-        const offsets = [
-            { x: 0.00, z: 0.00, rot: -0.04 },
-            { x: 0.18, z: 0.05, rot: 0.02 },
-            { x: 0.36, z: 0.10, rot: 0.06 }
-        ];
+        // Infinity loop made from two small rings
+        const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 12, 24), mat.clone());
+        ringA.position.x = -0.12;
+        ringA.rotation.y = Math.PI / 2;
+        ringA.renderOrder = renderOrder;
 
-        offsets.forEach((o, idx) => {
-            const m = new THREE.Mesh(arrowGeo, arrowMat.clone());
-            m.renderOrder = renderOrder;
-            m.position.set(o.x, 0, o.z);
-            m.rotation.y = -Math.PI / 2; // face forward along +X in local frame
-            m.rotation.z = o.rot;
-            cluster.add(m);
-        });
+        const ringB = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 12, 24), mat.clone());
+        ringB.position.x = 0.12;
+        ringB.rotation.y = Math.PI / 2;
+        ringB.renderOrder = renderOrder;
 
+        cluster.add(ringA);
+        cluster.add(ringB);
+
+        cluster.userData.arrows = [ringA, ringB];
         cluster.userData.baseScale = 1.0;
         cluster.userData.phase = Math.random() * Math.PI * 2;
+        cluster.userData.spinSpeed = 0.8; // radians per second around Z
         return cluster;
+    }
+
+    // Harmony glyph: two interlocking cyan rings
+    buildHarmonyGlyph(size = 1.0) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: false,
+            depthWrite: false
+        });
+
+        const ringA = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat);
+        ringA.position.set(-size * 0.15, 0, 0);
+
+        const ringB = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat.clone());
+        ringB.position.set(size * 0.15, 0, 0);
+        ringB.rotation.y = Math.PI / 2;
+
+        group.add(ringA);
+        group.add(ringB);
+
+        group.userData.rotors = [ringA, ringB];
+        return group;
+    }
+
+    // Stability glyph: square frame + inner rotated square
+    buildStabilityGlyph(size = 1.0) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.95,
+            depthTest: false,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+
+        // Outer square frame via shape with hole (hollow square)
+        const outer = size * 0.6;
+        const inner = size * 0.42;
+        const shape = new THREE.Shape();
+        shape.moveTo(-outer, -outer);
+        shape.lineTo(outer, -outer);
+        shape.lineTo(outer, outer);
+        shape.lineTo(-outer, outer);
+        shape.lineTo(-outer, -outer);
+        const hole = new THREE.Path();
+        hole.moveTo(-inner, -inner);
+        hole.lineTo(inner, -inner);
+        hole.lineTo(inner, inner);
+        hole.lineTo(-inner, inner);
+        hole.lineTo(-inner, -inner);
+        shape.holes.push(hole);
+
+        const frameGeom = new THREE.ExtrudeGeometry(shape, {
+            depth: size * 0.02,
+            bevelEnabled: false
+        });
+        frameGeom.rotateX(-Math.PI / 2);
+        const frame = new THREE.Mesh(frameGeom, mat);
+        group.add(frame);
+
+        // Inner diamond (rotated square)
+        const innerGeom = new THREE.PlaneGeometry(size * 0.55, size * 0.55);
+        const innerMesh = new THREE.Mesh(innerGeom, mat.clone());
+        innerMesh.rotation.z = Math.PI / 4;
+        innerMesh.position.set(0, 0, size * 0.015);
+        group.add(innerMesh);
+
+        group.userData.rotor = innerMesh;
+        return group;
+    }
+
+    // Corruption glyph: fractured ring of arc segments
+    buildCorruptionGlyph(size = 1.0) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0xff0044,
+            transparent: true,
+            opacity: 1.0,
+            depthTest: false,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+
+        const segCount = 5;
+        const outerRadius = 0.35 * size;
+        const tube = 0.04 * size;
+        const arc = Math.PI * 0.35;
+
+        const segments = [];
+
+        // Inner fractured ring
+        for (let i = 0; i < segCount; i++) {
+            const segGeom = new THREE.TorusGeometry(outerRadius, tube, 8, 32, arc);
+            const seg = new THREE.Mesh(segGeom, mat.clone());
+            seg.rotation.z = i * 1.2;
+            seg.position.x += Math.sin(i) * 0.05 * size;
+            group.add(seg);
+            segments.push(seg);
+        }
+
+        // Outer fractured ring (opposite rotation direction)
+        for (let i = 0; i < segCount; i++) {
+            const segGeom = new THREE.TorusGeometry(outerRadius * 1.12, tube, 8, 32, arc);
+            const seg = new THREE.Mesh(segGeom, mat.clone());
+            seg.rotation.z = -i * 1.2;
+            seg.position.x += Math.sin(i + 0.5) * 0.05 * size;
+            group.add(seg);
+            segments.push(seg);
+        }
+
+        group.userData.rotors = segments;
+        group.userData.spinSpeed = 0.25; // radians per second around Z
+        return group;
     }
 
     getCategoryColorRestrained(category) {
