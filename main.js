@@ -3430,6 +3430,84 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         this.frameScheduler.register('visual', this.synergyChainReactionTick.bind(this), 'visual.synergyChainReaction');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
+                this.metricsVisualFX.update(dt, this.aiNodes.nodes);
+            }
+        }, 'visual.metricsVisualFX');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.synergyBonusVisualization && this.nodeLinking) {
+                this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
+            }
+        }, 'visual.synergyBonusVisualization');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.synergyBonusFXLayer && this.nodeLinking) {
+                this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
+            }
+        }, 'visual.synergyBonusFXLayer');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.synergyResonanceShaderPack && this.nodeLinking) {
+                this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
+            }
+        }, 'visual.synergyResonanceShaderPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
+                this.synergyCascadeFXBridge.update(
+                    dt,
+                    this.aiNodes.nodes || [],
+                    this.nodeLinking.links || []
+                );
+            }
+        }, 'visual.synergyCascadeFXBridge');
+        this.frameScheduler.register('visual', (dt) => this.fxRuntime_v1?.update?.(dt), 'visual.fxRuntime_v1');
+        this.frameScheduler.register('visual', (dt) => this.personalityVisualAdapter?.update?.(dt), 'visual.personalityVisualAdapter');
+        this.frameScheduler.register('visual', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime), 'visual.personalityVFXLayer');
+        this.frameScheduler.register('visual', (dt) => this.personalityShaderBridge?.update?.(dt), 'visual.personalityShaderBridge');
+        this.frameScheduler.register('visual', (dt) => this.advancedShaderFX?.update?.(dt), 'visual.advancedShaderFX');
+        this.frameScheduler.register('visual', (dt) => this.archetypeCurves?.update?.(dt), 'visual.archetypeCurves');
+        this.frameScheduler.register('visual', (dt) => this.archetypeAuraFX?.update?.(dt), 'visual.archetypeAuraFX');
+        this.frameScheduler.register('visual', (dt) => this.archetypeColorFX?.update?.(dt), 'visual.archetypeColorFX');
+        this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
+        this.frameScheduler.register('visual', (dt) => this.nodeShaderActivation?.update?.(dt), 'visual.nodeShaderActivation');
+        this.frameScheduler.register('visual', (dt) => this.glyphLayer4?.update?.(dt), 'visual.glyphLayer4');
+        this.frameScheduler.register('visual', () => this.updateHoverGlyphTarget?.(), 'visual.semanticHoverGlyph');
+        this.frameScheduler.register('visual', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes), 'visual.semanticGlyphAI');
+        this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
+        this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
+        this.frameScheduler.register('visual', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt), 'visual.phase5CascadePropagationVisuals');
+        this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
+        this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
+        this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
+        this.frameScheduler.register('visual', (dt) => this.primaryNodeAura?.update?.(dt), 'visual.primaryNodeAura');
+        this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
+        this.frameScheduler.register('visual', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryPack');
+        this.frameScheduler.register('visual', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryLinkFX');
+        this.frameScheduler.register('visual', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera), 'visual.personalityFX');
+        this.frameScheduler.register('visual', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera), 'visual.worldFXPack');
+        this.frameScheduler.register('visual', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems), 'visual.dreamDepthPack');
+        this.frameScheduler.register('visual', (dt) => this.dreamDepthEffects?.update?.(dt), 'visual.dreamDepthEffects');
+        this.frameScheduler.register('visual', (dt) => this.mobilityPack?.update?.(dt), 'visual.mobilityPack');
+        this.frameScheduler.register('visual', (dt) => this.nodeVisuals4?.update?.(dt), 'visual.nodeVisuals4');
+        this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
+        this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
+        this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
+        this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
+        this.frameScheduler.register('visual', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes), 'visual.mythicRitualController');
+        this.frameScheduler.register('visual', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'visual.phase8RitualOrchestration');
+        this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');
+        // Infra/diagnostic: keep in visual for now to avoid sim cadence mismatch
+        this.frameScheduler.register('visual', () => this.microImpulseAdapter?.update?.(), 'visual.microImpulseAdapter');
+        // Safety net – low frequency; leave in visual until dedicated infra layer exists
+        this.frameScheduler.register('visual', () => {
+            if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
+                this.hardInteractionAuthority.safetyNet();
+            }
+        }, 'visual.hardInteractionAuthority');
+        this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
+        this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
+        // Realtime systems
+        this.frameScheduler.register('realtime', (dt) => this.nodeInteractionEngine?.update?.(dt), 'realtime.nodeInteraction');
+        this.frameScheduler.register('realtime', (dt) => this.hitProxySystem?.update?.(dt), 'realtime.hitProxy');
         this.frameScheduler.register('realtime', () => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
@@ -8319,49 +8397,49 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
         });
-        reg('metricsVisualFX', (dt) => {
+        regGuard('metricsVisualFX', 'visual.metricsVisualFX', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         });
         regGuard('worldRuntime_v1', 'simulation.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
-        reg('fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
+        regGuard('fxRuntime_v1', 'visual.fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
         regGuard('nodeEditorRuntime_v1', 'simulation.nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
         regGuard('inputRuntime', 'InputRuntime_v1', (dt) => {
             const runtime = this.inputRuntime ?? this.inputRuntime_v1;
             runtime?.update?.(dt);
         });
-        reg('nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
+        regGuard('nodeInteraction', 'realtime.nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
         regGuard('personalityRuntime_v1', 'simulation.personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
-        reg('personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
+        regGuard('personalityVisualAdapter', 'visual.personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
 
-        reg('personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
-        reg('personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
-        reg('advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
-        reg('archetypeCurves', (dt) => this.archetypeCurves?.update?.(dt));
-        reg('archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
-        reg('archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
-        reg('archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
-        reg('nodeShaderActivation', (dt) => this.nodeShaderActivation?.update?.(dt));
+        regGuard('personalityVFXLayer', 'visual.personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
+        regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
+        regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
+        regGuard('archetypeCurves', 'visual.archetypeCurves', (dt) => this.archetypeCurves?.update?.(dt));
+        regGuard('archetypeAuraFX', 'visual.archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
+        regGuard('archetypeColorFX', 'visual.archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
+        regGuard('archetypeShaderModes', 'visual.archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
+        regGuard('nodeShaderActivation', 'visual.nodeShaderActivation', (dt) => this.nodeShaderActivation?.update?.(dt));
 
-        reg('synergyBonusVisualization', (dt) => {
+        regGuard('synergyBonusVisualization', 'visual.synergyBonusVisualization', (dt) => {
             if (this.synergyBonusVisualization && this.nodeLinking) {
                 this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
             }
         });
-        reg('synergyBonusFXLayer', (dt) => {
+        regGuard('synergyBonusFXLayer', 'visual.synergyBonusFXLayer', (dt) => {
             if (this.synergyBonusFXLayer && this.nodeLinking) {
                 this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
             }
         });
-        reg('synergyResonanceShaderPack', (dt) => {
+        regGuard('synergyResonanceShaderPack', 'visual.synergyResonanceShaderPack', (dt) => {
             if (this.synergyResonanceShaderPack && this.nodeLinking) {
                 this.synergyResonanceShaderPack.update(dt, this.nodeLinking.links || []);
             }
         });
 
-        reg('synergyCascadeFXBridge', (dt) => {
+        regGuard('synergyCascadeFXBridge', 'visual.synergyCascadeFXBridge', (dt) => {
             if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
                 this.synergyCascadeFXBridge.update(
                     dt,
@@ -8405,58 +8483,52 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('waveInterference', 'visual.waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
 
 
-        reg('microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
+        regGuard('microImpulseAdapter', 'visual.microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
         regGuard('nodePersonalitySystem', 'simulation.nodePersonalitySystem', (dt) => this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes));
-        reg('nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('nodeMicroEvents', 'visual.nodeMicroEvents', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes));
         regGuard('worldPersonalityController', 'simulation.worldPersonalityController', (dt) => this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes));
-        reg('mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
-        reg('phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
-        reg('mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
-        reg('glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
-        reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
-        reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
-        reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
+        regGuard('mythicRitualController', 'visual.mythicRitualController', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('phase8RitualOrchestration', 'visual.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
+        regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
+        regGuard('glyphLayer4', 'visual.glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
+        regGuard('semanticHoverGlyph', 'visual.semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
+        regGuard('semanticGlyphAI', 'visual.semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
+        regGuard('glyphFusionOverlay', 'visual.glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
 
-        reg('semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
-        reg('semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
-        reg('glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
         regGuard('linkGlyphFlow', 'linkGlyphFlow', (dt) => this.linkGlyphFlow?.update?.(dt));
-        reg('linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
+        regGuard('linkedGlyphSync', 'visual.linkedGlyphSync', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem));
         // Moved to FrameScheduler visual layer (30 Hz)
         regGuard('linkedGlyphMessaging', 'linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('recursiveGlyphMessaging', 'recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('linkPictogramSystem', 'linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
         regGuard('narrativePatterns', 'background.narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
-        reg('hitProxy', (dt) => {
-            if (this.frameScheduler?.isRegistered?.('HitProxySystem_v1')) return;
-            this.hitProxySystem?.update?.(dt);
-        });
-        reg('t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
+        regGuard('hitProxy', 'realtime.hitProxy', (dt) => this.hitProxySystem?.update?.(dt));
+        regGuard('t2CorruptionVisualIntegration', 'visual.t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
-        reg('phase5CascadePropagationVisuals', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt));
-        reg('phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
+        regGuard('phase5CascadePropagationVisuals', 'visual.phase5CascadePropagationVisuals', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt));
+        regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
-        reg('legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
-        reg('legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
+        regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
+        regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('worldEvents', 'background.worldEvents', (dt) => this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('weatherPack', 'background.weatherPack', (dt) => this.weatherPack?.update?.(dt, this.scene, this.camera));
-        reg('personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
-        reg('worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
+        regGuard('personalityFX', 'visual.personalityFX', (dt) => this.personalityFX?.update?.(dt, this.scene, this.camera));
+        regGuard('worldFXPack', 'visual.worldFXPack', (dt) => this.worldFXPack?.update?.(dt, this.scene, this.camera));
         regGuard('ambientEntityManager', 'background.ambientEntityManager', (dt) => this.ambientEntityManager?.update?.(dt));
         regGuard('emergentThoughtStorms', 'simulation.emergentThoughtStorms', (dt) => this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('colonyManager', 'simulation.colonyManager', (dt) => this.colonyManager?.update?.(dt));
-        reg('dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
-        reg('dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
-        reg('mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
-        reg('nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
+        regGuard('dreamDepthPack', 'visual.dreamDepthPack', (dt) => this.dreamDepthPack?.update?.(dt, this.dreamDepthWorldSystems));
+        regGuard('dreamDepthEffects', 'visual.dreamDepthEffects', (dt) => this.dreamDepthEffects?.update?.(dt));
+        regGuard('mobilityPack', 'visual.mobilityPack', (dt) => this.mobilityPack?.update?.(dt));
+        regGuard('nodeVisuals4', 'visual.nodeVisuals4', (dt) => this.nodeVisuals4?.update?.(dt));
         regGuard('nodeEvolution', 'simulation.nodeEvolution', (dt) => this.nodeEvolution?.update?.(dt, {}, this.linkingSystem));
-        reg('evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
+        regGuard('evolvingLinkFX', 'visual.evolvingLinkFX', (dt) => this.evolvingLinkFX?.update?.(dt, null, null));
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
-        reg('extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
-        reg('newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
-        reg('extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
-        reg('extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
+        regGuard('extremeShaderTestSuite', 'visual.extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
+        regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
+        regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
+        regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
         reg('linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
         regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
@@ -8480,10 +8552,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        reg('primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
+        regGuard('primaryNodeAura', 'visual.primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
 
-        reg('linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });
-        reg('hardInteractionAuthority', () => {
+        regGuard('linkDebugMode', 'visual.linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });
+        regGuard('hardInteractionAuthority', 'visual.hardInteractionAuthority', () => {
             if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
                 this.hardInteractionAuthority.safetyNet();
             }
