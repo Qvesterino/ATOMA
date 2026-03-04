@@ -25,6 +25,15 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+// Fallback when BufferGeometryUtils is unavailable in runtime/bundle
+const mergeSafe = (geometries) => {
+    if (BufferGeometryUtils && typeof BufferGeometryUtils.mergeGeometries === 'function') {
+        return BufferGeometryUtils.mergeGeometries(geometries);
+    }
+    const first = geometries?.[0];
+    return first?.clone ? first.clone() : first || null;
+};
+
 // ============================================================================
 // PICTOGRAM GEOMETRY GENERATORS
 // ============================================================================
@@ -77,11 +86,6 @@ function createWavePictogram(size = 1.0) {
  * Generate interlocking arcs (harmony connection)
  */
 function createInterlockingArcsPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
-    
     const group = new THREE.Group();
     
     // Create two partial circles that interlock
@@ -109,18 +113,13 @@ function createInterlockingArcsPictogram(size = 1.0) {
         }
     });
     
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
  * Generate broken circle (corruption symbol)
  */
 function createBrokenCirclePictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
-    
     const group = new THREE.Group();
     
     // Create 3 arc segments with gaps
@@ -141,17 +140,13 @@ function createBrokenCirclePictogram(size = 1.0) {
     });
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
  * Generate offset shards (corruption fragments)
  */
 function createOffsetShardsPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -179,17 +174,13 @@ function createOffsetShardsPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
  * Generate fractured triangle (corruption instability)
  */
 function createFracturedTrianglePictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -219,7 +210,7 @@ function createFracturedTrianglePictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
@@ -247,10 +238,6 @@ function createChevronPictogram(size = 1.0) {
  * Generate triple line arrows (synergy momentum)
  */
 function createTripleArrowPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -270,7 +257,7 @@ function createTripleArrowPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
@@ -301,10 +288,6 @@ function createBraidedLinePictogram(size = 1.0) {
  * Generate offset dots (instability marker)
  */
 function createOffsetDotsPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -327,17 +310,13 @@ function createOffsetDotsPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
  * Generate phase-shifted bars (instability rhythm)
  */
 function createPhaseShiftedBarsPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -361,7 +340,7 @@ function createPhaseShiftedBarsPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
@@ -388,10 +367,6 @@ function createIncompleteSymbolPictogram(size = 1.0) {
  * Generate re-forming ring (healing symbol)
  */
 function createReformingRingPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -409,17 +384,13 @@ function createReformingRingPictogram(size = 1.0) {
     const geometry2 = new THREE.ShapeGeometry(completingShape);
     geometry2.rotateX(-Math.PI / 2);
     
-    return BufferGeometryUtils.mergeGeometries([geometry1, geometry2]);
+    return mergeSafe([geometry1, geometry2]);
 }
 
 /**
  * Generate closing gap symbol (healing progression)
  */
 function createClosingGapPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -440,7 +411,7 @@ function createClosingGapPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
@@ -499,10 +470,6 @@ function createOscillationPictogram(size = 1.0) {
  * Generate back-and-forth arrows (standing wave trap)
  */
 function createBackForthArrowsPictogram(size = 1.0) {
-    if (!BufferGeometryUtils) {
-        console.warn("Pictogram disabled: BufferGeometryUtils missing");
-        return null;
-    }
     
     const group = new THREE.Group();
     
@@ -528,7 +495,7 @@ function createBackForthArrowsPictogram(size = 1.0) {
     }
     
     const geometries = group.children.map(c => c.geometry);
-    return BufferGeometryUtils.mergeGeometries(geometries);
+    return mergeSafe(geometries);
 }
 
 /**
@@ -594,13 +561,14 @@ export const PictogramLibrary = {
 /**
  * Create material for pictograms
  */
-export function createPictogramMaterial(color = 0xaaaaaa, opacity = 0.6) {
+export function createPictogramMaterial(color = 0xffffff, opacity = 1.0) {
+    // Debug/high-visibility material: fully opaque, no depth conflicts
     return new THREE.MeshBasicMaterial({
         color: color,
-        transparent: true,
+        transparent: false,
         opacity: opacity,
         side: THREE.DoubleSide,
         depthWrite: false,
-        depthTest: true
+        depthTest: false
     });
 }

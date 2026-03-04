@@ -154,7 +154,6 @@ import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
 import { setupSimulationAuditHelpers } from './_TASK_AUDIT_DEBUG_HELPERS.js';
 import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
-import { activateNuclearLockEverywhere } from './ACTIVATE_NUCLEAR_LOCK.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
 import { SessionVariantEngine } from './SessionVariantEngine.js';
@@ -220,7 +219,6 @@ import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js'
 import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
-import { LinkCollapseSystem } from './LinkCollapseSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
@@ -945,9 +943,7 @@ import { SelectedHUDSyncPatch1_0 } from './SelectedHUDSyncPatch1_0.js';
 // LINK PRIORITY DECAY ENGINE 1.0 (Session 27 Extended)
 // ============================================================================
 import { LinkQualityFeedbackLoop1_0 } from './LinkQualityFeedbackLoop1_0.js';
-import { LinkMLRecommendationEngine1_0 } from './LinkMLRecommendationEngine1_0.js';
 import { UserAcceptanceTracker1_0 } from './UserAcceptanceTracker1_0.js';
-import { NodeLinker2_RepairLayer1_0 } from './NodeLinker2_RepairLayer1_0.js';
 
 // ============================================================================
 // SYNERGY RECOMMENDATION DEBUG HUD 1.0 (Session 19 Extended)
@@ -3276,11 +3272,6 @@ class AtomaGame {
                 this.metricsRuntime_v1.runNetworkMetricsAggregator();
             }
         }, 'background.networkMetricsAggregator');
-        this.frameScheduler.register('simulation', (dt) => {
-            if (this.linkCollapseSystem) {
-                this.linkCollapseSystem.update(dt);
-            }
-        }, 'simulation.linkCollapseSystem');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.fxPerformanceScaler) {
                 this.fxPerformanceScaler.update(dt);
@@ -5724,6 +5715,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         );
         this.linkingSystem.isReady = true;
         console.log('[main.js] NodeLinkingSystem created');
+        // PicDiag: expose pictogram system globally for inspection
+        if (typeof window !== 'undefined') {
+            window.__PIC_SYSTEM__ = this.linkingSystem?.conduitRenderer?.pictogramSystem;
+            console.warn('[PicDiag] __PIC_SYSTEM__ set from main.js:', !!window.__PIC_SYSTEM__);
+        }
         // Initialize recursive glyph signal system once linking system is available
         this.setupRecursiveGlyphSignalSystem();
         if (this.frameScheduler) {
@@ -6145,23 +6141,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
-        // NUCLEAR LOCK SYSTEM — FINAL AUTHORITY (Phase B)
-        // ====================================================================
-        // Property-level freezing — physically impossible to mutate protected layers
-        // Final authority: CONFIG → Mode → NuclearLock → System enabled
-        // ====================================================================
-        try {
-            const disableNuclearLock = (typeof window !== 'undefined') && window.ATOMA_FLAGS?.disableNuclearLock === true;
-            if (!disableNuclearLock) {
-                activateNuclearLockEverywhere(this.renderer, this.scene, this.camera);
-                console.log('[main.js] Nuclear Lock activated ✓ — Final authority established');
-            } else {
-                console.log('[main.js] Nuclear Lock skipped (ATOMA_FLAGS.disableNuclearLock=true)');
-            }
-        } catch (err) {
-            console.warn('[main.js] Nuclear Lock activation failed:', err.message);
-        }
-        
         // ====================================================================
         // HOLOGRAM SHELL AUTHORITY SYSTEM v1.0 (SESSION 46)
         // Ensures shells never obscure node cores
@@ -6726,37 +6705,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         console.log('[main.js] LinkDegradationSystem initialized ✓');
         
         // ===================================================================
-        // [SESSION 89] LINK COLLAPSE SYSTEM - Conditional failure under extreme stress
-        // ===================================================================
-        this.linkCollapseSystem = new LinkCollapseSystem(
-            this.linkingSystem,
-            this.linkQualityCalculator,
-            this.linkDegradationSystem,
-            {
-                // Collapse eligibility thresholds
-                corruptionThreshold: 0.8,           // 80% corruption
-                criticalLoadThreshold: 1.0,         // 100% node capacity
-                
-                // Temporal requirements
-                minStressAccumulation: 3000,        // 3 seconds minimum
-                maxStressWindow: 10000,             // 10 second tracking window
-                
-                // Collapse progression (0.0 - 1.0 scale)
-                warningThreshold: 0.3,              // 30% → warning state
-                criticalThreshold: 0.7,             // 70% → critical state
-                collapseThreshold: 1.0,             // 100% → collapse
-                
-                // Stress dynamics
-                stressAccumulationRate: 0.15,       // +0.15 per second under extreme conditions
-                stressRecoveryRate: 0.05,           // -0.05 per second when improving
-                
-                // Visual feedback integration
-                enableVisualFeedback: true,         // Feed collapse state to visual systems
-            }
-        );
-        console.log('[main.js] LinkCollapseSystem initialized ✓');
-        
-        // ===================================================================
         // [SESSION 91] PARTICLE EMISSION SCALER - Network corruption/stress driven
         // ===================================================================
         this.particleEmissionScaler = new ParticleEmissionScaler(
@@ -6840,23 +6788,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkMetricsToVisualBridge = null;
             
             // Initialize after animate loop starts (when all systems are ready)
-            setTimeout(() => {
-                if (!this.linkMetricsToVisualBridge && this.linkDegradationSystem && this.linkCollapseSystem) {
-                    try {
-                        this.linkMetricsToVisualBridge = new LinkMetricsToVisualBridge(
-                            this.linkDegradationSystem,
-                            this.linkCollapseSystem,
-                            null,  // CorruptionSystem not directly available; can be wired later
-                            this.linkingSystem?.visuals  // NeonLinkVisuals instance
-                        );
-                        // Setup console debug API for metrics bridge
-                        setupLinkMetricsBridgeConsoleAPI(this.linkMetricsToVisualBridge);
-                        console.log('[main.js] LinkMetricsToVisualBridge deferred initialization ✓');
-                    } catch (err) {
-                        console.error('[main.js] LinkMetricsToVisualBridge init error:', err);
-                    }
-                }
-            }, 100);
+            // LinkMetricsToVisualBridge skipped (LinkCollapseSystem removed)
         } catch (err) {
             console.warn('[main.js] LinkMetricsToVisualBridge initialization deferred:', err.message);
             this.linkMetricsToVisualBridge = null;
@@ -6912,23 +6844,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.userAcceptanceTracker = new UserAcceptanceTracker1_0();
         console.log('[main.js] UserAcceptanceTracker1_0 initialized ✓');
         
-        // 3. Link ML Recommendation Engine 1.0 - ML-based learning (depends on feedback loop)
-        this.linkMLRecommendationEngine = LinkMLRecommendationEngine1_0;
-        if (this.linkMLRecommendationEngine?.setFeedbackLoop && this.linkQualityFeedbackLoop) {
-            this.linkMLRecommendationEngine.setFeedbackLoop(this.linkQualityFeedbackLoop);
-        }
-        if (this.linkMLRecommendationEngine?.setUserAcceptanceTracker && this.userAcceptanceTracker) {
-            this.linkMLRecommendationEngine.setUserAcceptanceTracker(this.userAcceptanceTracker);
-        }
-        console.log('[main.js] LinkMLRecommendationEngine1_0 initialized ✓');
-        
-        // 4. Node Linker Repair Layer 1.0 - Self-healing validation (depends on quality feedback)
-        this.nodeLinkerRepairLayer = new NodeLinker2_RepairLayer1_0(this.linkingSystem, this.aiNodes);
-        if (this.nodeLinkerRepairLayer?.init) {
-            this.nodeLinkerRepairLayer.init();
-        }
-        console.log('[main.js] NodeLinker2_RepairLayer1_0 initialized ✓');
-        
+        // Link ML Recommendation Engine removed (unused)
         // ====================================================================
         // TIER 1 INTEGRATION: Core Active Systems (Phase A)
         // Corruption Transmission + Harmony Stabilization
