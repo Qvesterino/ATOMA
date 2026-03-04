@@ -1361,13 +1361,13 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 glyph = this.buildSynergyArrowCluster(pictoRO);
                 break;
             case 'harmony':
-                glyph = this.buildHarmonyGlyph(size);
+                glyph = this.buildHarmonyGlyph(size, pictoRO);
                 break;
             case 'stability':
-                glyph = this.buildStabilityGlyph(size);
+                glyph = this.buildStabilityGlyph(size, pictoRO);
                 break;
             case 'corruption':
-                glyph = this.buildCorruptionGlyph(size);
+                glyph = this.buildCorruptionGlyph(size, pictoRO);
                 break;
             case 'loadPressure':
             default:
@@ -1511,22 +1511,25 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     // Harmony glyph: two interlocking cyan rings
-    buildHarmonyGlyph(size = 1.0) {
+    buildHarmonyGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = new THREE.MeshBasicMaterial({
             color: 0x00ffff,
             transparent: true,
-            opacity: 0.9,
-            depthTest: false,
-            depthWrite: false
+            opacity: 1.0,
+            depthTest: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
 
         const ringA = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat);
         ringA.position.set(-size * 0.15, 0, 0);
+        ringA.renderOrder = renderOrder;
 
         const ringB = new THREE.Mesh(new THREE.TorusGeometry(size * 0.5, size * 0.08, 12, 32), mat.clone());
         ringB.position.set(size * 0.15, 0, 0);
         ringB.rotation.y = Math.PI / 2;
+        ringB.renderOrder = renderOrder;
 
         group.add(ringA);
         group.add(ringB);
@@ -1536,15 +1539,16 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     // Stability glyph: square frame + inner rotated square
-    buildStabilityGlyph(size = 1.0) {
+    buildStabilityGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
-            opacity: 0.95,
-            depthTest: false,
+            opacity: 1.0,
+            depthTest: true,
             depthWrite: false,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
         });
 
         // Outer square frame via shape with hole (hollow square)
@@ -1570,6 +1574,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         });
         frameGeom.rotateX(-Math.PI / 2);
         const frame = new THREE.Mesh(frameGeom, mat);
+        frame.renderOrder = renderOrder;
         group.add(frame);
 
         // Inner diamond (rotated square)
@@ -1577,6 +1582,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const innerMesh = new THREE.Mesh(innerGeom, mat.clone());
         innerMesh.rotation.z = Math.PI / 4;
         innerMesh.position.set(0, 0, size * 0.015);
+        innerMesh.renderOrder = renderOrder;
         group.add(innerMesh);
 
         group.userData.rotor = innerMesh;
@@ -1584,15 +1590,16 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     // Corruption glyph: fractured ring of arc segments
-    buildCorruptionGlyph(size = 1.0) {
+    buildCorruptionGlyph(size = 1.0, renderOrder = 246) {
         const group = new THREE.Group();
         const mat = new THREE.MeshBasicMaterial({
             color: 0xff0044,
             transparent: true,
             opacity: 1.0,
-            depthTest: false,
+            depthTest: true,
             depthWrite: false,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
         });
 
         const segCount = 5;
@@ -1608,6 +1615,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const seg = new THREE.Mesh(segGeom, mat.clone());
             seg.rotation.z = i * 1.2;
             seg.position.x += Math.sin(i) * 0.05 * size;
+            seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
         }
@@ -1618,6 +1626,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const seg = new THREE.Mesh(segGeom, mat.clone());
             seg.rotation.z = -i * 1.2;
             seg.position.x += Math.sin(i + 0.5) * 0.05 * size;
+            seg.renderOrder = renderOrder;
             group.add(seg);
             segments.push(seg);
         }
