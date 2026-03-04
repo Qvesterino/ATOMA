@@ -4434,7 +4434,6 @@ document.addEventListener('keydown', () => {
         // ========================================================================
         this.setupRegionalEquilibrium();
         this.setupCascadingRuptureAndFailure();
-        this.setupLinkSemanticPictograms();
         this.setupHarmonicResonanceFeedback();
         this.setupResonanceEchoTrails();
         this.setupHarmonicTopologyLearning();
@@ -5728,15 +5727,15 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         console.log('[main.js] NodeLinkingSystem created');
         // Initialize recursive glyph signal system once linking system is available
         this.setupRecursiveGlyphSignalSystem();
-        // Initialize semantic pictograms once linking system exists
-        if (!this.linkSemanticPictograms) {
-            this.setupLinkSemanticPictograms();
-        }
         if (this.frameScheduler) {
             this.frameScheduler.register(
                 'visual',
                 (dt) => {
                     if (this.linkingSystem && this.linkingSystem.isReady === true) {
+                        if (!this._picDiagFSLogged) {
+                            console.error('[PicDiag] frameScheduler visual.linkingSystem tick');
+                            this._picDiagFSLogged = true;
+                        }
                         this.linkingSystem.update(dt, this.time);
                     }
                 },
@@ -8521,15 +8520,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.criticalNodeFailure.update(dt, this.time);
             }
         });
-        reg('linkSemanticPictograms', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.linkSemanticPictograms?.enabled) {
-                this.linkSemanticPictograms.update(dt, this.time, this.aiNodes);
-            }
-        });
-
-
-
         reg('topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {

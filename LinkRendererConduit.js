@@ -23,6 +23,12 @@ import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingPart
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import VisualTime from './src/time/VisualTime.js';
+import { LinkSemanticPictogramSystem_Enhanced } from './LinkSemanticPictogramSystem_Enhanced.js';
+
+if (typeof window !== 'undefined' && !window.__PicDiagConduitModuleLoaded__) {
+    console.info('[PicDiag] LinkRendererConduit module loaded');
+    window.__PicDiagConduitModuleLoaded__ = true;
+}
 
 function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
     if (!curve?.getLength) return minSeg;
@@ -169,8 +175,18 @@ function freezeMaterialFlags(material, owner = 'LinkRenderer') {
  * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 export class LinkRendererConduit {
-    constructor(scene) {
+    constructor(scene, linkingSystem = null, camera = null, parentGroup = null) {
         this.scene = scene;
+        this.linkSystem = linkingSystem;
+        this.camera = camera;
+        this.conduitRoot = new THREE.Group();
+        this.conduitRoot.name = 'LinkRendererConduitRoot';
+        (parentGroup || this.scene)?.add(this.conduitRoot);
+        this._picDiagCount = 0;
+        if (typeof window !== 'undefined') {
+            console.info('[PicDiag] Conduit constructed');
+            window.__ConduitRenderer__ = this;
+        }
 
         this.config = {
             baseRadius: 0.06,
@@ -239,6 +255,14 @@ export class LinkRendererConduit {
         // Particle impact manager (for visual feedback when particles reach nodes)
         this.impactManager = new ImpactManagerCollection();
 
+        // Semantic pictograms (global pool, attached to conduit root)
+        this.pictogramSystem = new LinkSemanticPictogramSystem_Enhanced(
+            scene,
+            this.linkSystem,
+            this.camera,
+            this.conduitRoot
+        );
+
         // Dissolve effects (link removal bursts)
         this._dissolveEffects = [];
         
@@ -268,6 +292,10 @@ export class LinkRendererConduit {
      * Update all links (canonical list) - ensures beads/sparks tick every frame
      */
     updateAll(links, deltaTime, time) {
+        if (this._picDiagCount < 3) {
+            console.log('[PicDiag] updateAll tick', this._picDiagCount + 1);
+            this._picDiagCount += 1;
+        }
         const list = links
             || this.linkSystem?.links
             || this.links
@@ -288,6 +316,32 @@ export class LinkRendererConduit {
 
         for (const link of list) {
             this.update(link, deltaTime, time);
+        }
+
+        if (!this._picDiagLogged) {
+            if (!this.pictogramSystem) {
+                console.warn('[PicDiag] pictogramSystem missing');
+                this._picDiagLogged = true;
+            } else if (!this.pictogramSystem.enabled) {
+                console.warn('[PicDiag] pictogramSystem disabled');
+                this._picDiagLogged = true;
+            }
+        }
+        if (this.pictogramSystem?.enabled) {
+            if (!this._picDiagLogged) {
+                const ps = this.pictogramSystem;
+                const pictos = ps?.pictograms || [];
+                const active = pictos.filter(p => p.active).length;
+                const firstActive = pictos.find(p => p.active);
+                console.log('[PicDiag] links:', list.length,
+                    'pool:', pictos.length,
+                    'active:', active,
+                    'containerChildren:', ps?.container?.children?.length,
+                    'spiralRadius:', firstActive?.spiralRadius,
+                    'envelope:', firstActive?.link?.visualEnvelopeRadius);
+                this._picDiagLogged = true;
+            }
+            this.pictogramSystem.update(deltaTime, time, this.camera);
         }
     }
 
@@ -885,6 +939,7 @@ export class LinkRendererConduit {
         state.twistPhase = twistPhase;
         state.strandSegments = segments;
         state.activeRadius = activeRadius;
+        linkUD.visualEnvelopeRadius = activeRadius;
 
         // --- 3. Strand Update (The Braid) ---
         // Optimization: Pre-calculate loop invariants
@@ -1365,7 +1420,7 @@ export class LinkRendererConduit {
             maxAge: 0.6
         };
 
-        this.scene.add(points);
+        this.conduitRoot.add(points);
         this._dissolveEffects.push(points);
     }
 
@@ -1506,7 +1561,7 @@ export class LinkRendererConduit {
         
         Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh });
         
-        this.scene.add(group);
+        this.conduitRoot.add(group);
         state.impacts.push(group);
     }
 
@@ -1519,7 +1574,7 @@ export class LinkRendererConduit {
             const p = data.age / data.duration;
             
             if (p >= 1) {
-                this.scene.remove(grp);
+                if (grp.parent) grp.parent.remove(grp);
                 grp.traverse(o => { 
                     if(o.geometry) o.geometry.dispose(); 
                     if(o.material) this._returnImpactMaterial(o.material); 
@@ -1602,10 +1657,27 @@ export class LinkRendererConduit {
         }
         
         state.impacts.forEach(g => {
-            this.scene.remove(g);
-            g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+            if (g.parent) g.parent.remove(g);
+            g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) this._returnImpactMaterial(o.material); });
         });
         state.impacts = [];
+    }
+
+    /**
+     * Global pictogram tick (once per frame, outside per-link loop)
+     */
+    updatePictograms(deltaTime, time) {
+        if (this.pictogramSystem?.enabled) {
+            if (!this._picDiagTicked) {
+                console.error('[PicDiag] updatePictograms entry');
+                this._picDiagTicked = true;
+            }
+            try {
+                this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), this.camera);
+            } catch (err) {
+                console.error('[PicDiag] pictogram update error', err);
+            }
+        }
     }
 
     /**
@@ -1638,6 +1710,12 @@ export class LinkRendererConduit {
         }
         if (this.flowTexture) {
             this.flowTexture.dispose();
+        }
+        if (this.pictogramSystem) {
+            this.pictogramSystem.dispose?.();
+        }
+        if (this.conduitRoot?.parent) {
+            this.conduitRoot.parent.remove(this.conduitRoot);
         }
     }
 }

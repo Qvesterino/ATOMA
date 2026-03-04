@@ -30,7 +30,7 @@ export class GlyphPurityMode5_1 {
     this.scene = scene;
     
     // Purity enforcement level
-    this.purityLevel = 3; // PURE mode by default
+    this.purityLevel = 1; // PURE mode by default
     
     // Purity flags
     this.enabled = true;

@@ -202,7 +202,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const hexMarker = new THREE.LineSegments(hexGeometry, hexMaterial);
-    hexMarker.userData = { component: 'hexOutline', isLegacyHex: true };
+    hexMarker.userData = { glyphComponent: 'hexOutline', isLegacyHex: true };
     glyphGroup.add(hexMarker);
     
     // Inner pulsing core
@@ -217,7 +217,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const core = new THREE.Mesh(coreGeo, coreMat);
-    core.userData = { component: 'corePoint', isLegacyHex: true };
+    core.userData = { glyphComponent: 'corePoint', isLegacyHex: true };
     glyphGroup.add(core);
     
     // Animation state
@@ -262,7 +262,7 @@ export class AtomaGlyphSystem4_0 {
       tri.position.z = Math.sin((i / 3) * Math.PI * 2) * 0.35;
       tri.rotation.x = Math.PI / 2;
       
-      tri.userData = { component: 'orbitTri', orbitIndex: i };
+      tri.userData = { glyphComponent: 'orbitTri', orbitIndex: i };
       glyphGroup.add(tri);
     }
     
@@ -278,7 +278,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const seed = new THREE.Mesh(seedGeo, seedMat);
-    seed.userData = { component: 'seedCore' };
+    seed.userData = { glyphComponent: 'seedCore' };
     glyphGroup.add(seed);
     
     // Animation state
@@ -324,7 +324,7 @@ export class AtomaGlyphSystem4_0 {
         new THREE.BufferAttribute(new Uint16Array(torus.getIndex().array), 1)
       );
       halo.material = mat;
-      halo.userData = { component: 'haloRing', haloIndex: idx };
+      halo.userData = { glyphComponent: 'haloRing', haloIndex: idx };
       
       glyphGroup.add(halo);
     });
@@ -365,7 +365,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const diamond = new THREE.Mesh(diamondGeo, diamondMat);
-    diamond.userData = { component: 'diamond' };
+    diamond.userData = { glyphComponent: 'diamond' };
     glyphGroup.add(diamond);
     
     // Animation state
@@ -416,7 +416,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const square = new THREE.LineSegments(squareGeo, squareMat);
-    square.userData = { component: 'squareLoop' };
+    square.userData = { glyphComponent: 'squareLoop' };
     glyphGroup.add(square);
     
     // Animation state
@@ -455,7 +455,7 @@ export class AtomaGlyphSystem4_0 {
     });
     
     const prism = new THREE.Mesh(prismGeo, prismMat);
-    prism.userData = { component: 'prism' };
+    prism.userData = { glyphComponent: 'prism' };
     glyphGroup.add(prism);
     
     // Animation state
@@ -857,7 +857,7 @@ export class AtomaGlyphSystem4_0 {
     const intensity = 0.5 + (context.synergy * 0.3) + (Math.sin(animState.intensityPhase) * 0.1);
     
     glyphGroup.children.forEach(child => {
-      if (child.material && child.userData.component === 'corePoint') {
+      if (child.material && child.userData.glyphComponent === 'corePoint') {
         child.material.opacity = Math.min(intensity, 0.9);
         child.material.emissiveIntensity = intensity * 0.7;
       }

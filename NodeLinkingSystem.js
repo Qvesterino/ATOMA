@@ -476,7 +476,28 @@ export class NodeLinkingSystem {
     this.visuals = new NeonLinkVisuals(scene, camera);
 
     // [BRAIDED CONDUIT SYSTEM]
-    this.conduitRenderer = new LinkRendererConduit(scene);
+    this.conduitRenderer = new LinkRendererConduit(scene, this, camera);
+    if (typeof window !== 'undefined') {
+      window.linkingSystem = this;
+    }
+    console.error('[PicDiag] NodeLinkingSystem constructed');
+
+    // PicDiag heartbeat: log once after init and attempt a pictogram tick
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        console.info('[PicDiag] heartbeat', {
+          worldReady: this.worldReady,
+          links: this.links?.length || 0,
+          conduit: !!this.conduitRenderer,
+          pictogramSystem: !!this.conduitRenderer?.pictogramSystem
+        });
+        try {
+          this.conduitRenderer?.updatePictograms?.(0, performance.now());
+        } catch (err) {
+          console.error('[PicDiag] heartbeat pictogram tick error', err);
+        }
+      }, 1500);
+    }
 
     // [LINK STATE VISUAL LANGUAGE]
     this.linkStateVisualLanguage = new LinkStateVisualLanguageIntegration(this, { debugMode: false });
@@ -4523,6 +4544,10 @@ getLinksForNode(node) {
    * Update all links - positions, animations, and traffic simulation
    */
   update(deltaTime, time) {
+    if (!this._picDiagUpdateLogged) {
+      console.error('[PicDiag] NodeLinkingSystem.update entered', { worldReady: this.worldReady, links: this.links?.length || 0 });
+      this._picDiagUpdateLogged = true;
+    }
     // [Audit 6.2] Skip update if world not ready (during world transitions)
     if (!this.worldReady) {
       return;
@@ -4754,6 +4779,19 @@ getLinksForNode(node) {
         visualMutationGuards.setMaterialOpacity(link.target.material, targetInitialOpacity);
       }
     });
+
+    // Global pictogram tick (once per frame)
+    if (this.conduitRenderer) {
+      console.info('[PicDiag] pictogram tick requested', deltaTime);
+      try {
+        this.conduitRenderer.updatePictograms(deltaTime, time);
+      } catch (err) {
+        if (!this._picDiagErrorLogged) {
+          console.error('[PicDiag] pictogram tick error', err);
+          this._picDiagErrorLogged = true;
+        }
+      }
+    }
 
     // Tick conduit-managed particle systems (trail + healing) so emitted particles animate
     if (this.conduitRenderer) {
