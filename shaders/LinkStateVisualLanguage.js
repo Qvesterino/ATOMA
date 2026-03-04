@@ -269,10 +269,13 @@ export const linkStateFragmentShaderSimple = `
     float effectiveStress = max(vNetworkStress, 0.08);
     vec3 color = vBaseColor * 0.8 + getStressColor(effectiveStress) * 0.2;
     
-    // Fake light shading
-    float lightFactor = dot(normalize(vNormal), normalize(vec3(0.2, 0.6, 1.0)));
-    lightFactor = clamp(lightFactor, 0.3, 1.0);
-    color *= lightFactor;
+    // Simple Lambert + rim for plasticity
+    vec3 n = normalize(vNormal);
+    vec3 lightDir = normalize(vec3(0.3, 0.7, 0.6));
+    float lambert = clamp(dot(n, lightDir), 0.2, 1.0);
+    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.4;
+    float lighting = lambert * 0.85 + rim * 0.35;
+    color *= lighting;
     
     // Add pulse glow from load
     color += vec3(vPulsePhase * vLocalLoad * 0.3);

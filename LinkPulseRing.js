@@ -40,14 +40,14 @@ export class LinkPulseRing {
             transparent: true,
             depthWrite: false,
             depthTest: true,
-            blending: THREE.AdditiveBlending,
+            blending: THREE.NormalBlending,
             side: THREE.DoubleSide,
             
             uniforms: {
                 uColor: { value: new THREE.Color(0xffffff) },
                 uOpacity: { value: 0.5 },
-                uFresnelPower: { value: 2.5 },        // Širší glow
-                uFresnelIntensity: { value: 1.8 }   // Ostrý rim
+                uFresnelPower: { value: 2.5 },
+                uFresnelIntensity: { value: 1.8 }
             },
             
             vertexShader: `
@@ -73,13 +73,13 @@ export class LinkPulseRing {
                 
                 void main() {
                     vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-                    float fresnel = pow(1.0 - dot(vNormal, viewDir), uFresnelPower);
+                    float ndotv = max(dot(normalize(vNormal), viewDir), 0.0);
+                    float fresnel = pow(1.0 - ndotv, uFresnelPower);
+                    fresnel = clamp(fresnel, 0.0, 1.0);
                     fresnel *= uFresnelIntensity;
                     
-                    vec3 finalColor = uColor * fresnel;
-                    
-                    // Jemný glow term (signature feeling)
-                    finalColor += uColor * 0.2;
+                    vec3 base = uColor * 0.15;
+                    vec3 finalColor = base + uColor * fresnel;
                     
                     gl_FragColor = vec4(finalColor, uOpacity * fresnel);
                 }
@@ -91,8 +91,21 @@ export class LinkPulseRing {
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
-        const pulseOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
+        const pulseOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS') + 1;
         this.mesh.renderOrder = pulseOrder;
+
+        // Outer additive aura
+        this.auraMaterial = this.material.clone();
+        this.auraMaterial.depthWrite = false;
+        this.auraMaterial.depthTest = true;
+        this.auraMaterial.transparent = true;
+        this.auraMaterial.blending = THREE.NormalBlending;
+        const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
+        aura.frustumCulled = false;
+        aura.renderOrder = pulseOrder;
+        const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
+        Object.assign(auraUd, { isPulseRingAura: true });
+        this.auraMesh = aura;
 
         // === LAYER 1: SPIN (Internal rotation) ===
         this.spin = 0; // Spin angle
@@ -110,6 +123,8 @@ export class LinkPulseRing {
         
         // Trail initialization
         this._initTrails();
+        // Attach aura after trails init
+        this.mesh.add(this.auraMesh);
     }
 
     /**
@@ -120,6 +135,7 @@ export class LinkPulseRing {
             const mat = this.material.clone();
             const mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, mat);
             mesh.frustumCulled = false;
+            mesh.renderOrder = this.mesh.renderOrder;
             
             // TRAIL VARIATIONS - Každý trail má inú charakteristiku
             const trailVariation = this._getTrailVariation(i);

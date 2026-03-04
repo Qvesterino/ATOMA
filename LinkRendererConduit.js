@@ -528,6 +528,7 @@ export class LinkRendererConduit {
         const group = new THREE.Group();
         Object.assign(ensureUserData(group), { isLinkVisual: true });
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
+        const state = conduitState;
 
         const sourceCat = link.source.userData.category || 'input';
         const targetCat = link.target.userData.category || 'input';
@@ -542,6 +543,7 @@ export class LinkRendererConduit {
 
         // 2. Create Strands (The Rope)
         const strands = [];
+        const strandOverlays = [];
         for (let i = 0; i < strandCount; i++) {
             const categoryColor = (i % 2 === 0) ? colorA : colorB;
 
@@ -580,15 +582,39 @@ export class LinkRendererConduit {
             geometry.computeBoundingBox();
             const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
             mesh.renderOrder = strandOrder;
-            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true });
+            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: true, depthTest: true, blending: THREE.NormalBlending });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
             ensureUserData(mesh);
             mesh.userData.__depthAuthorityLocked = true;
+            mesh.raycast = () => null; // prevent blocking node raycasts
             
             group.add(mesh);
             strands.push(mesh);
+
+            // Overlay (glow/detail) shares uniforms, but does not write depth
+            const overlayMat = material.clone();
+            overlayMat.transparent = true;
+            overlayMat.depthWrite = true;
+            overlayMat.depthTest = true;
+            overlayMat.blending = THREE.AdditiveBlending;
+            overlayMat.opacity = 0.02;
+            overlayMat.side = THREE.DoubleSide;
+            overlayMat.uniforms = material.uniforms; // share uniforms so updates propagate
+            // Dim the base color contribution on overlay
+            if (overlayMat.uniforms?.uBaseColor?.value) {
+                overlayMat.uniforms.uBaseColor.value = overlayMat.uniforms.uBaseColor.value.clone().multiplyScalar(0.5);
+            }
+            const overlayMesh = new THREE.Mesh(geometry, overlayMat);
+            overlayMesh.frustumCulled = false;
+            overlayMesh.renderOrder = strandOrder;
+            TransparentStateAuthority.apply(overlayMesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true, blending: THREE.NormalBlending });
+            ensureUserData(overlayMesh);
+            overlayMesh.userData.strandOverlay = true;
+            group.add(overlayMesh);
+            strandOverlays.push(overlayMesh);
         }
+        state.strandOverlays = strandOverlays;
 
         // 3. Create Aura Skin (Unified with Node Aura - Shader-based)
         // PHASE S-5: Variant properties set at creation time, then frozen
@@ -928,6 +954,9 @@ export class LinkRendererConduit {
                 this.config.radialSegments,
                 false
             );
+            if (state.strandOverlays && state.strandOverlays[i]) {
+                state.strandOverlays[i].geometry = mesh.geometry;
+            }
 
             // Color/tint patch (synergy-based)
             if (mesh.material?.color) {

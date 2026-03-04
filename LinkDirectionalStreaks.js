@@ -39,7 +39,7 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.02,      // Thinner ribbon to sit inside strands
+            streakWidthBase: 0.08,      // Thinner ribbon to sit inside strands
             streakLengthMin: 0.08,      // Min visible length on curve (0-1)
             streakLengthMax: 0.25,      // Max visible length on curve (0-1)
             streakCountMin: 3,          // Min active streaks
@@ -308,17 +308,8 @@ export class LinkDirectionalStreaks {
                 // Align streak to braid twist (use Frenet frames + shared twist)
                 const idx = Math.min(frameSegments, Math.max(0, Math.round(t * frameSegments)));
                 const N = frames.normals[idx];
-                const B = frames.binormals[idx];
-                const linkLength = state.linkLength || curve.getLength() || 10.0;
-                const twists = state.linkTwists !== undefined ? state.linkTwists : (linkLength / 2.0);
-                const twistPhase = state.twistPhase !== undefined ? state.twistPhase : 0.0;
-                const angle = t * Math.PI * 2.0 * twists + twistPhase;
-                const r = (state.activeRadius || 0.2) * 0.15; // small radius to stay inside strands
-                
-                const offsetX = Math.cos(angle) * r;
-                const offsetY = Math.sin(angle) * r;
-                
-                const perpendicular = this._vec3.copy(N).multiplyScalar(offsetX).addScaledVector(B, offsetY).normalize();
+                // Keep streak centered on the main spline (no radial offset), use normal as width direction
+                const perpendicular = this._vec3.copy(N).normalize();
                 
                 // --- PULSE WAVE EFFECTS ---
                 // Check if any pulse waves affect this streak position
