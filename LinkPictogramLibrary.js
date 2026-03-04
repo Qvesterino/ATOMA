@@ -562,13 +562,16 @@ export const PictogramLibrary = {
  * Create material for pictograms
  */
 export function createPictogramMaterial(color = 0xffffff, opacity = 1.0) {
-    // Debug/high-visibility material: fully opaque, no depth conflicts
     return new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: false,
-        opacity: opacity,
+        color: 0xff3300,              // vivid warm red-orange for max contrast
+        transparent: true,
+        opacity: 1.0,
         side: THREE.DoubleSide,
         depthWrite: false,
-        depthTest: false
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2
     });
 }

@@ -21,7 +21,7 @@
  */
 
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as BufferGeometryUtils from './src/utils/BufferGeometryUtils.js';
 
 // ============================================================================
 // COMPOSITE GEOMETRY BUILDER

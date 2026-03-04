@@ -50,9 +50,9 @@ const CONFIG = {
     LAYER_B_OPACITY: 0.5,
     LAYER_C_OPACITY: 0.25,
     
-    LAYER_A_DEPTH_OFFSET: 0.8,  // Height above link
-    LAYER_B_DEPTH_OFFSET: 1.0,
-    LAYER_C_DEPTH_OFFSET: 1.2,
+    LAYER_A_DEPTH_OFFSET: 1.0,  // Height above link
+    LAYER_B_DEPTH_OFFSET: 1.2,
+    LAYER_C_DEPTH_OFFSET: 1.4,
     
     // Spawn density (semantic priority)
     MAX_GLYPHS_PER_LINK_CRITICAL: 2,   // Critical links: fewer, larger
@@ -63,10 +63,10 @@ const CONFIG = {
     SPAWN_INTERVAL_BASE: 2.5,
     
     // Size tiers (adjusted for hierarchy)
-    SIZE_ANCHOR: 0.5,      // Rare, critical markers
-    SIZE_LARGE: 0.35,      // Important signals
-    SIZE_MEDIUM: 0.2,      // Standard glyphs
-    SIZE_SMALL: 0.12,      // Minor/modulator marks
+    SIZE_ANCHOR: 0.8,      // Rare, critical markers
+    SIZE_LARGE: 0.6,       // Important signals
+    SIZE_MEDIUM: 0.4,      // Standard glyphs
+    SIZE_SMALL: 0.25,      // Minor/modulator marks
     
     // Motion
     BASE_DRIFT_SPEED: 0.25,
@@ -89,6 +89,8 @@ const CONFIG = {
     PARALLAX_STRENGTH: 0.15,
     MICRO_ROTATION_AMOUNT: 0.05,  // Radians
     MICRO_ROTATION_SPEED: 0.3,
+    SPIRAL_TURNS: 1.5,            // How many wraps around link per traversal
+    SPIRAL_ROTATION_SPEED: 0.6,   // Revolutions per second around link axis
     
     // Lifetime
     LIFETIME_MIN: 10.0,
@@ -118,6 +120,13 @@ const CONFIG = {
     STANDING_WAVE_THRESHOLD: 0.15,
     RESISTANCE_THRESHOLD: 0.2
 };
+
+// Guarantee at least a small number of visible pictograms when links exist
+const MIN_ACTIVE_GLOBAL = 8;
+const VISIBILITY_SCALE = 2.0; // stronger visibility boost
+
+const getGlobalLinkSystem = () =>
+    (typeof window !== 'undefined' && (window.game?.linkingSystem || window.linkingSystem)) || null;
 
 // ============================================================================
 // PICTOGRAM STATE MACHINE (for morphing)
@@ -219,6 +228,8 @@ class EnhancedPictogramInstance {
         this.frameSegments = 0;
         this.spiralRadius = 0.25;
         this.extraLift = 0.0;
+        this.spiralPhase = Math.random() * Math.PI * 2;
+        this.orbitSpeed = CONFIG.SPIRAL_ROTATION_SPEED * (0.8 + Math.random() * 0.4);
         // Cached vectors to reduce allocations
         this._tmpPos = new THREE.Vector3();
         this._tmpTan = new THREE.Vector3();
@@ -271,8 +282,8 @@ class EnhancedPictogramInstance {
                          link?.userData?.visualRadius ??
                          this.size ??
                          0.25;
-        this.spiralRadius = envelope * 2.6;
-        this.extraLift = envelope * 0.35;
+        this.spiralRadius = Math.max(envelope * 2.0, 0.8); // clear offset from braid
+        this.extraLift = Math.max(envelope * 0.9, 0.6);    // lift above links
         
         this.age = 0.0;
         this.lifetime = THREE.MathUtils.lerp(
@@ -293,7 +304,7 @@ class EnhancedPictogramInstance {
                           (layer === 'B' ? CONFIG.LAYER_B_OPACITY : CONFIG.LAYER_C_OPACITY);
         
         this.mesh.visible = true;
-        this.mesh.scale.setScalar(size);
+        this.mesh.scale.setScalar(size * VISIBILITY_SCALE);
         
         // Update geometry
         this.updateGeometry();
@@ -352,6 +363,7 @@ class EnhancedPictogramInstance {
         this.lateralPhase += deltaTime * 0.4;
         this.verticalPhase += deltaTime * 0.3;
         this.microRotationPhase += deltaTime * CONFIG.MICRO_ROTATION_SPEED;
+        this.spiralPhase += deltaTime * this.orbitSpeed * Math.PI * 2;
 
         // Face the camera (billboard) to keep glyphs readable in screen space
         if (cameraPosition) {
@@ -466,8 +478,7 @@ class EnhancedPictogramInstance {
 
         // Helical offset around link centerline
         const helixRadius = Math.max(0.12, this.spiralRadius || this.size * 0.6);
-        const helixTurns = 1.5;
-        const angle = this.microRotationPhase + (t * helixTurns * Math.PI * 2);
+        const angle = this.spiralPhase + (t * CONFIG.SPIRAL_TURNS * Math.PI * 2);
         const offset = this._tmpOffset.copy(normal).multiplyScalar(Math.cos(angle) * helixRadius)
             .addScaledVector(binormal, Math.sin(angle) * helixRadius);
 
@@ -514,11 +525,11 @@ class EnhancedPictogramInstance {
 
         // Fade in
         if (this.age < fadeInEnd) {
-            opacity *= this.age / fadeInEnd;
+            opacity = this.baseOpacity; // no fade, keep bright
         }
         // Fade out
         else if (this.age > fadeOutStart) {
-            opacity *= (this.lifetime - this.age) / CONFIG.FADE_OUT_DURATION;
+            opacity = this.baseOpacity; // no fade
         }
 
         // Morphing fade
@@ -538,7 +549,7 @@ class EnhancedPictogramInstance {
         }
 
         if (this.mesh.material) {
-            this.mesh.material.opacity = opacity;
+            this.mesh.material.opacity = Math.max(opacity, 0.95);
         }
     }
 
@@ -653,8 +664,26 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         console.info('[PicDiag] Pictogram system constructed');
         this._diagLogged = false;
-        this._diagForcedSpawned = false;
         this._debugSpawnLogged = false;
+        this._diagOnceLinks = false;
+        this._spawnDiagLast = 0;
+        this._inactiveTimer = 0;
+        this._lastRecoveryTime = 0;
+    }
+
+    // Stable link identifier (uuid → id → userData.id/linkId → generated token)
+    getLinkKey(link) {
+        if (!link) return null;
+        const explicit =
+            link.uuid ||
+            link.id ||
+            link.userData?.id ||
+            link.userData?.linkId;
+        if (explicit) return explicit;
+        if (!link.__pictoId) {
+            link.__pictoId = `picto-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        return link.__pictoId;
     }
 
     // ========================================================================
@@ -662,20 +691,24 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // ========================================================================
 
     initializePictogramPool() {
+        const pictoRenderOrder =
+            (VisualHierarchyRegistry.getRenderOrder && VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES'))
+            || 9000;
         const container = new THREE.Group();
         container.name = 'EnhancedPictogramContainer';
         const parent = this.parentGroup ||
                        this.scene;
         if (parent) parent.add(container);
         this.container = container;
-        container.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+        container.renderOrder = pictoRenderOrder + 400; // push well above link particles
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
             const geometry = new THREE.PlaneGeometry(1, 1);
             const material = createPictogramMaterial(CONFIG.BASE_COLOR, 0.7);
             const mesh = new THREE.Mesh(geometry, material);
             mesh.visible = false;
-            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
+            mesh.frustumCulled = false;
+            mesh.renderOrder = pictoRenderOrder + 400;
             // Never block node raycasts
             mesh.raycast = () => {};
             mesh.userData.ignoreRaycast = true;
@@ -703,6 +736,22 @@ export class LinkSemanticPictogramSystem_Enhanced {
     update(deltaTime, time) {
         if (!this.enabled) return;
 
+        // Auto-rebind to live linkingSystem if ours is missing or stale (no links) but global has links
+        const globalLS = getGlobalLinkSystem();
+        if (
+            globalLS &&
+            (this.linkingSystem == null || this.linkingSystem !== globalLS) &&
+            (this.linkingSystem?.links?.length || 0) === 0 &&
+            (globalLS.links?.length || 0) > 0
+        ) {
+            console.warn('[PicDiag] rebind pictogram linkingSystem to live instance', {
+                from: this.linkingSystem?.__debugId,
+                to: globalLS.__debugId
+            });
+            this.linkingSystem = globalLS;
+            this.__debugId = this.__debugId || `pictos-${Date.now().toString(36)}`;
+        }
+
         this.updateTimer += deltaTime;
         if (this.updateTimer < CONFIG.UPDATE_INTERVAL) return;
         
@@ -716,39 +765,49 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.updateSpawnTimers(actualDelta);
 
         // Spawn new pictograms
-        this.spawnPictograms(time);
+        this.spawnPictograms(actualDelta, time);
 
         // Update active pictograms
         const cameraPos = this.camera ? this.camera.position : null;
         this.updateActivePictograms(actualDelta, cameraPos);
 
         // Log when links become available
-        const linkCount = this.linkingSystem?.links?.length || 0;
+        const linkCount = this._getLinks().length;
+        const worldReady = this.linkingSystem?.worldReady === true;
+        const activeCount = this.pictograms.filter(p => p.active).length;
+        if (!this._diagOnceLinks && linkCount > 0) {
+            console.info('[PicDiag] links available', { sys: this.__debugId, links: linkCount });
+            this._diagOnceLinks = true;
+        }
 
-        // Safety: force one spawn if nothing is active after first tick
-        if (!this._diagForcedSpawned && this.pictograms.every(p => !p.active)) {
-            const firstLink = this.linkingSystem?.links?.[0];
+        // Emergency: if links exist but nothing active, force one spawn immediately (once)
+        if (worldReady && linkCount > 0 && activeCount === 0 && !this._diagImmediateForced) {
+            const firstLink = this.linkingSystem.links[0];
             if (firstLink) {
                 this.spawnPictogram(
                     firstLink,
                     'A',
                     'CIRCLE_RING',
-                    CONFIG.SIZE_LARGE,
+                    CONFIG.SIZE_MEDIUM,
                     CONFIG.LAYER_A_DEPTH_OFFSET
                 );
-                this._diagForcedSpawned = true;
-            } else {
-                console.warn('[PicDiag] no links available for forced spawn yet');
+                this._diagImmediateForced = true;
+                console.warn('[PicDiag] forced single spawn recovery (immediate)', {
+                    sysId: this.__debugId,
+                    linkId: firstLink.uuid || firstLink.id
+                });
             }
         }
     }
 
     updateLinkImportanceScores() {
-        if (!this.linkingSystem || !this.linkingSystem.links) return;
+        const links = this._getLinks();
+        if (!links.length) return;
 
-        this.linkingSystem.links.forEach(link => {
+        links.forEach(link => {
             const importance = this.calculateLinkImportance(link);
-            this.linkImportanceScores.set(link.uuid, importance);
+            const key = this.getLinkKey(link);
+            if (key) this.linkImportanceScores.set(key, importance);
         });
     }
 
@@ -792,20 +851,27 @@ export class LinkSemanticPictogramSystem_Enhanced {
     }
 
     updateSpawnTimers(deltaTime) {
-        if (!this.linkingSystem || !this.linkingSystem.links) return;
+        const links = this._getLinks();
+        if (!links.length) return;
 
-        this.linkingSystem.links.forEach(link => {
-            const linkId = link.uuid;
+        links.forEach(link => {
+            const linkId = this.getLinkKey(link);
+            if (!linkId) return;
             const timer = this.linkSpawnTimers.get(linkId) || 0;
             this.linkSpawnTimers.set(linkId, timer + deltaTime);
         });
     }
 
-    spawnPictograms(time) {
-        if (!this.linkingSystem || !this.linkingSystem.links) return;
+    spawnPictograms(deltaTime = 0, time) {
+        const links = this._getLinks();
+        if (!links.length) return;
 
-        this.linkingSystem.links.forEach(link => {
-            const linkId = link.uuid;
+        const nowMs = typeof time === 'number' ? time : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        let spawnedThisTick = 0;
+
+        links.forEach(link => {
+            const linkId = this.getLinkKey(link);
+            if (!linkId) return;
             const importance = this.linkImportanceScores.get(linkId) || 0.5;
             
             // Check spawn timer (adjusted by importance)
@@ -836,6 +902,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
             // Spawn glyph
             this.spawnPictogram(link, layer, state, size, depthOffset);
+            spawnedThisTick += 1;
 
             // Reset timer
             this.linkSpawnTimers.set(linkId, 0);
@@ -843,6 +910,90 @@ export class LinkSemanticPictogramSystem_Enhanced {
             // Update count
             this.linkPictogramCounts.set(linkId, currentCount + 1);
         });
+
+        const linkCount = this.linkingSystem?.links?.length || 0;
+        const activeCount = this.pictograms.filter(p => p.active).length;
+        const worldReady = this.linkingSystem?.worldReady === true;
+
+        if (worldReady && linkCount > 0 && activeCount === 0) {
+            this._inactiveTimer = (this._inactiveTimer || 0) + deltaTime;
+        } else {
+            this._inactiveTimer = 0;
+        }
+
+        if (
+            worldReady &&
+            linkCount > 0 &&
+            activeCount === 0 &&
+            (this._inactiveTimer || 0) >= 2.0 &&
+            (!this._lastRecoveryTime || nowMs - this._lastRecoveryTime >= 2000)
+        ) {
+            const firstLink = this.linkingSystem.links[0];
+            if (firstLink) {
+                this.spawnPictogram(
+                    firstLink,
+                    'A',
+                    'CIRCLE_RING',
+                    CONFIG.SIZE_MEDIUM,
+                    CONFIG.LAYER_A_DEPTH_OFFSET
+                );
+                this._lastRecoveryTime = nowMs;
+                this._inactiveTimer = 0;
+                spawnedThisTick += 1;
+                console.warn('[PicDiag] forced single spawn recovery', {
+                    sysId: this.__debugId,
+                    linkId: firstLink.uuid || firstLink.id
+                });
+            }
+        }
+
+        if (!this._spawnDiagLast || nowMs - this._spawnDiagLast >= 1000) {
+            console.info('[PicDiag] spawn tick', {
+                sysId: this.__debugId,
+                worldReady,
+                linkCount,
+                spawnedThisTick,
+                activeCount
+            });
+            this._spawnDiagLast = nowMs;
+        }
+
+        // Maintain minimum global active pictograms while links exist
+        if (worldReady && linkCount > 0 && activeCount < MIN_ACTIVE_GLOBAL) {
+            const links = this.linkingSystem.links;
+            let needed = MIN_ACTIVE_GLOBAL - activeCount;
+            for (let i = 0; i < links.length && needed > 0; i++) {
+                this.spawnPictogram(
+                    links[i],
+                    'A',
+                    'CIRCLE_RING',
+                    CONFIG.SIZE_MEDIUM,
+                    CONFIG.LAYER_A_DEPTH_OFFSET
+                );
+                needed -= 1;
+            }
+        }
+
+        // Throttled diagnostics (1x/s) to trace visibility issues
+        const nowDiag = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (!this._diagLast || nowDiag - this._diagLast > 1000) {
+            console.info('[PicDiag] state', {
+                sys: this.__debugId,
+                linkSys: this.linkingSystem?.__debugId,
+                links: linkCount,
+                worldReady,
+                active: activeCount,
+                pool: this.pictograms.length,
+                containerVisible: this.container?.visible,
+                containerRO: this.container?.renderOrder
+            });
+            this._diagLast = nowDiag;
+        }
+
+        // Safety: keep container visible
+        if (this.container && this.container.visible === false) {
+            this.container.visible = true;
+        }
     }
 
     selectLayer(linkContext, currentCount) {
@@ -934,25 +1085,47 @@ export class LinkSemanticPictogramSystem_Enhanced {
         }
     }
 
-updateActivePictograms(deltaTime, cameraPos) {
-    this.pictograms.forEach(pictogram => {
-        if (!pictogram.active) return;
+    updateActivePictograms(deltaTime, cameraPos) {
+        const liveLinks = this._getLinks();
+        this.pictograms.forEach(pictogram => {
+            if (!pictogram.active) return;
 
-        // link už nemusí existovať po world switchi
-        if (!pictogram.link || !this.linkingSystem?.links?.includes(pictogram.link)) {
-            pictogram.reset();
-            return;
-        }
+            // If stored link instance is gone, try to rebind by uuid/id instead of dropping immediately
+            if (!pictogram.link || !liveLinks.includes(pictogram.link)) {
+                const linkId = this.getLinkKey(pictogram.link);
+                const replacement = linkId ? liveLinks.find(l => this.getLinkKey(l) === linkId) : null;
+                if (replacement) {
+                    pictogram.link = replacement;
+                } else {
+                    pictogram.reset();
+                    return;
+                }
+            }
 
-        const linkContext = this.analyzeLinkContext(pictogram.link);
-        pictogram.update(deltaTime, linkContext, cameraPos);
+            const linkContext = this.analyzeLinkContext(pictogram.link);
+            pictogram.update(deltaTime, linkContext, cameraPos);
 
-        if (!pictogram.active && pictogram.link) {
-            const linkId = pictogram.link.uuid;
-            const count = this.linkPictogramCounts.get(linkId) || 0;
-            this.linkPictogramCounts.set(linkId, Math.max(0, count - 1));
-        }
-    });
+            // Animate orbital glyph layers
+            if (pictogram._orbit1) pictogram._orbit1.rotation.x += deltaTime * 1.8;
+            if (pictogram._orbit2) pictogram._orbit2.rotation.z += deltaTime * 1.5;
+            if (pictogram.mesh) pictogram.mesh.rotation.y += deltaTime * 1.2;
+            if (pictogram._spark && pictogram.mesh) {
+                const r = 0.45;
+                const t = (pictogram.age % 1);
+                const ang = t * Math.PI * 2;
+                pictogram._spark.position.set(
+                    Math.cos(ang) * r,
+                    Math.sin(ang) * r * 0.3,
+                    Math.sin(ang) * r
+                );
+            }
+
+            if (!pictogram.active && pictogram.link) {
+                const linkId = this.getLinkKey(pictogram.link);
+                const count = this.linkPictogramCounts.get(linkId) || 0;
+                this.linkPictogramCounts.set(linkId, Math.max(0, count - 1));
+            }
+        });
 }
     // ========================================================================
     // LINK CONTEXT ANALYSIS
@@ -1039,6 +1212,18 @@ updateActivePictograms(deltaTime, cameraPos) {
         };
     }
 
+    _getLinks() {
+        if (Array.isArray(this._externalLinks) && this._externalLinks.length) {
+            return this._externalLinks;
+        }
+        // Prefer current linkingSystem links; fallback to global live system
+        const local = this.linkingSystem?.links;
+        if (Array.isArray(local) && local.length) return local;
+        const globalLS = getGlobalLinkSystem();
+        if (globalLS?.links) return globalLS.links;
+        return [];
+    }
+
     // ========================================================================
     // SPAWNING
     // ========================================================================
@@ -1047,18 +1232,17 @@ updateActivePictograms(deltaTime, cameraPos) {
         const pictogram = this.pictograms.find(p => !p.active);
         if (!pictogram) return;
 
-        const geometry = this.geometryCache.get(state);
-        if (!geometry) {
-            console.warn('[Enhanced] Geometry not found:', state);
-            return;
+        // Replace placeholder mesh with orbital glyph group
+        const glyph = this.buildOrbitalGlyph(size);
+        // Ensure container owns the glyph
+        if (pictogram.mesh && pictogram.mesh.parent) {
+            pictogram.mesh.parent.remove(pictogram.mesh);
         }
-
-        pictogram.mesh.geometry = geometry;
-
-        // Set color with very low saturation (neutral tones)
-        const category = PictogramLibrary[state]?.category;
-        const color = this.getCategoryColorRestrained(category);
-        pictogram.mesh.material.color.setHex(color);
+        this.container.add(glyph);
+        pictogram.mesh = glyph;
+        pictogram._orbit1 = glyph.userData.orbit1;
+        pictogram._orbit2 = glyph.userData.orbit2;
+        pictogram._spark = glyph.userData.spark;
 
         pictogram.spawn(link, layer, state, size, depthOffset);
         const debugVis = (typeof window !== 'undefined' && window.__PIC_DEBUG_VIS__ === true);
@@ -1066,6 +1250,54 @@ updateActivePictograms(deltaTime, cameraPos) {
             console.warn('PICTOGRAM SPAWN', state, link?.id);
             this._debugSpawnLogged = true;
         }
+    }
+
+    buildOrbitalGlyph(size) {
+        const group = new THREE.Group();
+        group.scale.setScalar(size * VISIBILITY_SCALE * 1.5);
+        group.renderOrder = 5000;
+        group.frustumCulled = false;
+
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 1.0,
+            depthTest: false,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const core = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.05, 8, 24), coreMat);
+        core.renderOrder = 5000;
+        group.add(core);
+
+        const orbitMat = coreMat.clone();
+        const orbit1 = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 24), orbitMat);
+        orbit1.renderOrder = 5000;
+        group.add(orbit1);
+
+        const orbit2 = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.02, 8, 24), orbitMat);
+        orbit2.rotation.set(Math.PI / 4, 0, Math.PI / 6);
+        orbit2.renderOrder = 5000;
+        group.add(orbit2);
+
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: 0xffaa33,
+            transparent: true,
+            opacity: 1.0,
+            depthTest: false,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const spark = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), sparkMat);
+        spark.renderOrder = 5000;
+        group.add(spark);
+
+        group.userData.orbit1 = orbit1;
+        group.userData.orbit2 = orbit2;
+        group.userData.spark = spark;
+
+        return group;
     }
 
     getCategoryColorRestrained(category) {

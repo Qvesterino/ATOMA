@@ -580,8 +580,37 @@ export class NodeLinking2_3 {
    * Get raycast node at current mouse position
    */
   _getRaycastNode() {
-    this.raycaster.setFromCamera(this.mouse, this.camera);
+    // Prefer hardened hit-proxy path (visuals have raycast disabled)
+    const proxiesReady =
+      typeof window !== 'undefined' &&
+      window.HITPROXY_READY === true &&
+      window.hitProxySystem?.registry?.getAllProxies()?.length > 0 &&
+      window.safeProxyRaycaster;
 
+    if (proxiesReady) {
+      window.safeProxyRaycaster.setFromCamera(this.mouse, this.camera);
+      const hits = window.hitProxySystem.raycast(
+        window.safeProxyRaycaster,
+        this.camera,
+        null,
+        { callsite: 'NodeLinking2_3' }
+      );
+      if (hits?.length) {
+        const nodeId = hits[0].nodeId || hits[0].object?.userData?.targetNodeId;
+        if (nodeId) {
+          const node = this.allNodes.find(
+            (n) =>
+              n?.userData?.nodeId === nodeId ||
+              n?.userData?.id === nodeId ||
+              n?.uuid === nodeId
+          );
+          if (node) return node;
+        }
+      }
+    }
+
+    // Fallback: direct visual raycast (legacy)
+    this.raycaster.setFromCamera(this.mouse, this.camera);
     const nodes = [];
     this.scene.traverse((obj) => {
       if (obj.userData && obj.userData.isNode) {

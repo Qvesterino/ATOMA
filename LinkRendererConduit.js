@@ -45,6 +45,12 @@ const remap = (v, in0, in1, out0, out1) => {
     return out0 + (out1 - out0) * t;
 };
 
+const makeDebugId = (prefix = 'pic') => {
+    const rand = Math.random().toString(36).slice(2, 6);
+    const ts = Date.now().toString(36);
+    return `${prefix}-${rand}-${ts}`;
+};
+
 // Merge and apply material patch in deterministic order
 function applyMaterialPatch(material, patch = {}) {
     if (!material) return;
@@ -262,6 +268,20 @@ export class LinkRendererConduit {
             this.camera,
             this.conduitRoot
         );
+        this.pictogramSystem.__debugId = this.pictogramSystem.__debugId || makeDebugId('pictos');
+        // Ensure pictogram system always uses live linkSystem (in case linkSystem is swapped later)
+        this.pictogramSystem.linkingSystem = this.linkSystem;
+
+        if (typeof window !== 'undefined') {
+            if (window.__PIC_SYSTEM__ && window.__PIC_SYSTEM__ !== this.pictogramSystem) {
+                if (!window.__PIC_SYSTEM_OVERWRITE_WARNED__) {
+                    console.warn('[PicDiag] __PIC_SYSTEM__ overwritten (new conduit instance)');
+                    window.__PIC_SYSTEM_OVERWRITE_WARNED__ = true;
+                }
+            }
+            window.__PIC_SYSTEM__ = this.pictogramSystem;
+            window.__CONDUIT__ = this;
+        }
 
         // Dissolve effects (link removal bursts)
         this._dissolveEffects = [];
@@ -318,6 +338,11 @@ export class LinkRendererConduit {
 
         if (!list.length && typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
             console.warn('[LinkRendererConduit] updateAll called with empty link list');
+        }
+
+        // Feed pictogram system with the actual list we render (even if linkSystem.links is empty)
+        if (this.pictogramSystem) {
+            this.pictogramSystem._externalLinks = list;
         }
 
         // Debug heartbeat: log once per second to confirm animator runs
