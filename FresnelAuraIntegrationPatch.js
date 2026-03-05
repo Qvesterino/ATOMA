@@ -135,6 +135,8 @@ export function createFresnelAura(nodeData, options = {}) {
 
   // Create mesh
   const aura = new THREE.Mesh(geometry, material);
+  // TEMP DEBUG: disable halo sphere to identify visual artifact source.
+  aura.visible = true;
 
   // Configuration matching existing system
   aura.userData = {

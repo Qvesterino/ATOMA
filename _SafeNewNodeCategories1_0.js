@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { canEmissive, safeSetEmissive } from './_EmissiveUtils.js';
 
+// Legacy aura overlays kill-switch
+const ENABLE_LEGACY_AURAS = false;
+
 /**
  * SAFE NEW NODE CATEGORIES 1.0 - ATOMA Edition
  * 
@@ -142,77 +145,85 @@ export class SafeNewNodeCategories1_0 {
       mythicGroup.name = 'mythic-vfx';
       node.add(mythicGroup);
       
-      // ===== TRIPLE AURA =====
-      // Aura 1: Golden glow (largest)
-      const aura1Geo = new THREE.SphereGeometry(0.8, 24, 24);
-      const aura1Mat = new THREE.MeshBasicMaterial({
-        color: colors.primary,
-        transparent: true,
-        opacity: 0.15,
-        side: THREE.BackSide,
-        fog: false,
-        depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
-        depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
-      });
-      const aura1 = new THREE.Mesh(aura1Geo, aura1Mat);
-      aura1.userData = { isMythicVFX: true, auraType: 'gold' };
-      mythicGroup.add(aura1);
-      
-      // Aura 2: Purple glow (medium)
-      const aura2Geo = new THREE.SphereGeometry(0.6, 20, 20);
-      const aura2Mat = new THREE.MeshBasicMaterial({
-        color: colors.secondary,
-        transparent: true,
-        opacity: 0.12,
-        side: THREE.BackSide,
-        fog: false,
-        depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
-        depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
-      });
-      const aura2 = new THREE.Mesh(aura2Geo, aura2Mat);
-      aura2.userData = { isMythicVFX: true, auraType: 'purple' };
-      mythicGroup.add(aura2);
-      
-      // Aura 3: Cyan glow (inner)
-      const aura3Geo = new THREE.SphereGeometry(0.4, 16, 16);
-      const aura3Mat = new THREE.MeshBasicMaterial({
-        color: colors.tertiary,
-        transparent: true,
-        opacity: 0.1,
-        side: THREE.BackSide,
-        fog: false,
-        depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
-        depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
-      });
-      const aura3 = new THREE.Mesh(aura3Geo, aura3Mat);
-      aura3.userData = { isMythicVFX: true, auraType: 'cyan' };
-      mythicGroup.add(aura3);
-      
-      // ===== ORBITING RINGS =====
-      for (let i = 0; i < 3; i++) {
-        const ringGeo = new THREE.TorusGeometry(0.5 + i * 0.15, 0.05, 16, 128);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: [colors.primary, colors.secondary, colors.tertiary][i],
+      // LEGACY_AURA_DISABLED
+      // This aura system is disabled to prevent visual stack conflicts.
+      // Core aura stack is:
+      // - hover (NodeAuraSystem_v1)
+      // - selected (_UISelectedNodeHighlight)
+      // - linked (NodeLinkedAuraSystem)
+      if (false && ENABLE_LEGACY_AURAS) {
+        // ===== TRIPLE AURA =====
+        // Aura 1: Golden glow (largest)
+        const aura1Geo = new THREE.SphereGeometry(0.8, 24, 24);
+        const aura1Mat = new THREE.MeshBasicMaterial({
+          color: colors.primary,
           transparent: true,
-          opacity: 0.4 - i * 0.1,
+          opacity: 0.15,
+          side: THREE.BackSide,
           fog: false,
           depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
           depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = Math.PI * 0.3 * (i - 1);
-        ring.rotation.y = (i * Math.PI * 2) / 3;
-        ring.userData = {
-          isMythicVFX: true,
-          ringIndex: i,
-          rotationSpeed: 0.3 + i * 0.1,
-          rotationAxis: new THREE.Vector3(
-            Math.sin(i),
-            Math.cos(i),
-            0.5
-          ).normalize()
-        };
-        mythicGroup.add(ring);
+        const aura1 = new THREE.Mesh(aura1Geo, aura1Mat);
+        aura1.userData = { isMythicVFX: true, auraType: 'gold' };
+        mythicGroup.add(aura1);
+        
+        // Aura 2: Purple glow (medium)
+        const aura2Geo = new THREE.SphereGeometry(0.6, 20, 20);
+        const aura2Mat = new THREE.MeshBasicMaterial({
+          color: colors.secondary,
+          transparent: true,
+          opacity: 0.12,
+          side: THREE.BackSide,
+          fog: false,
+          depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
+          depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
+        });
+        const aura2 = new THREE.Mesh(aura2Geo, aura2Mat);
+        aura2.userData = { isMythicVFX: true, auraType: 'purple' };
+        mythicGroup.add(aura2);
+        
+        // Aura 3: Cyan glow (inner)
+        const aura3Geo = new THREE.SphereGeometry(0.4, 16, 16);
+        const aura3Mat = new THREE.MeshBasicMaterial({
+          color: colors.tertiary,
+          transparent: true,
+          opacity: 0.1,
+          side: THREE.BackSide,
+          fog: false,
+          depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
+          depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
+        });
+        const aura3 = new THREE.Mesh(aura3Geo, aura3Mat);
+        aura3.userData = { isMythicVFX: true, auraType: 'cyan' };
+        mythicGroup.add(aura3);
+        
+        // ===== ORBITING RINGS =====
+        for (let i = 0; i < 3; i++) {
+          const ringGeo = new THREE.TorusGeometry(0.5 + i * 0.15, 0.05, 16, 128);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: [colors.primary, colors.secondary, colors.tertiary][i],
+            transparent: true,
+            opacity: 0.4 - i * 0.1,
+            fog: false,
+            depthTest: false,   // ⚠️ CRITICAL: Aura overlay does NOT read depth
+            depthWrite: false   // ⚠️ CRITICAL: Aura overlay does NOT write depth
+          });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x = Math.PI * 0.3 * (i - 1);
+          ring.rotation.y = (i * Math.PI * 2) / 3;
+          ring.userData = {
+            isMythicVFX: true,
+            ringIndex: i,
+            rotationSpeed: 0.3 + i * 0.1,
+            rotationAxis: new THREE.Vector3(
+              Math.sin(i),
+              Math.cos(i),
+              0.5
+            ).normalize()
+          };
+          mythicGroup.add(ring);
+        }
       }
       
       // ===== SINGULARITY DISTORTION =====

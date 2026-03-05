@@ -3,6 +3,9 @@ import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 import { safeSetEmissive } from './_EmissiveUtils.js';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
 
+// Legacy aura overlays kill-switch
+const ENABLE_LEGACY_AURAS = false;
+
 /**
  * SAFE LEGENDARY NODE PACK 2.0
  * 
@@ -496,35 +499,43 @@ export class SafeLegendaryNodePack {
   updateSingularityVFX(node, state, vfx, intensity, deltaTime) {
     const params = this.legendaryTypes.SINGULARITY;
     
-    // Create core sphere if needed
-    if (!vfx.aura) {
-      const geo = new THREE.IcosahedronGeometry(0.8, 4);
-      const mat = this.getMaterial(
-        `singularity-core-${params.coreColor}`,
-        () => new THREE.MeshStandardMaterial({
-          color: params.coreColor,
-          transparent: true,
-          emissive: params.coreColor,
-          emissiveIntensity: 0.8,
-          fog: false
-        })
-      );
+    // LEGACY_AURA_DISABLED
+    // This aura system is disabled to prevent visual stack conflicts.
+    // Core aura stack is:
+    // - hover (NodeAuraSystem_v1)
+    // - selected (_UISelectedNodeHighlight)
+    // - linked (NodeLinkedAuraSystem)
+    if (false && ENABLE_LEGACY_AURAS) {
+      // Create core sphere if needed
+      if (!vfx.aura) {
+        const geo = new THREE.IcosahedronGeometry(0.8, 4);
+        const mat = this.getMaterial(
+          `singularity-core-${params.coreColor}`,
+          () => new THREE.MeshStandardMaterial({
+            color: params.coreColor,
+            transparent: true,
+            emissive: params.coreColor,
+            emissiveIntensity: 0.8,
+            fog: false
+          })
+        );
+        
+        vfx.aura = new THREE.Mesh(geo, mat);
+        vfx.aura.userData = { isLegendaryVFX: true, type: 'singularity_core' };
+        this.scene.add(vfx.aura);
+      }
       
-      vfx.aura = new THREE.Mesh(geo, mat);
-      vfx.aura.userData = { isLegendaryVFX: true, type: 'singularity_core' };
-      this.scene.add(vfx.aura);
+      // Update core
+      vfx.aura.position.copy(node.position);
+      vfx.aura.material.opacity = 0.4 + intensity * 0.6;
+      if (this.ensureEmissiveSafe(vfx.aura.material)) {
+        vfx.aura.material.emissiveIntensity = 0.6 + intensity * 0.4;
+      }
+      
+      // Pulse effect
+      const pulseScale = 1.0 + Math.sin(vfx.animationTime * params.pulseFrequency) * 0.3 * intensity;
+      vfx.aura.scale.setScalar(pulseScale);
     }
-    
-    // Update core
-    vfx.aura.position.copy(node.position);
-    vfx.aura.material.opacity = 0.4 + intensity * 0.6;
-    if (this.ensureEmissiveSafe(vfx.aura.material)) {
-      vfx.aura.material.emissiveIntensity = 0.6 + intensity * 0.4;
-    }
-    
-    // Pulse effect
-    const pulseScale = 1.0 + Math.sin(vfx.animationTime * params.pulseFrequency) * 0.3 * intensity;
-    vfx.aura.scale.setScalar(pulseScale);
     
     // Create distortion rings if needed
     while (vfx.rings.length < 2) {

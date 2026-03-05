@@ -404,6 +404,31 @@ export class NodeInteractionEngine {
 
     if (nodeId !== null) {
       this.onHoverStart?.(nodeId);
+
+      // TEMP DEBUG: scan hovered hitbox/node for sphere geometries
+      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_HOVER_SPHERE_SCAN === true) {
+        const hitbox = this.hitboxes.get(nodeId);
+        const root = hitbox?.mesh || null;
+        if (root && typeof (root as any).traverse === 'function') {
+          (root as any).traverse((o: any) => {
+            if (o?.geometry && o.geometry.type === 'SphereGeometry') {
+              console.log('HOVER SPHERE', {
+                name: o.name,
+                parent: o.parent?.name || o.parent?.uuid,
+                material: {
+                  transparent: o.material?.transparent,
+                  opacity: o.material?.opacity,
+                  depthWrite: o.material?.depthWrite,
+                  depthTest: o.material?.depthTest,
+                  visible: o.visible
+                },
+                radius: o.geometry.parameters?.radius,
+                nodeId
+              });
+            }
+          });
+        }
+      }
     }
   }
 

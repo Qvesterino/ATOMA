@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
+// Legacy aura overlays kill-switch
+const ENABLE_LEGACY_AURAS = false;
+
 /**
  * SAFE LEGENDARY WORLD EVENTS PACK
  * 
@@ -655,29 +658,37 @@ export class SafeLegendaryWorldEvents {
    * AURORA STATE - Global light ribbon event
    */
   createAuroraStateVFX(eventDef) {
-    // Create aurora ribbon meshes at horizon
-    for (let i = 0; i < 3; i++) {
-      const auraGeo = new THREE.PlaneGeometry(200, 30);
-      const auraMat = new THREE.MeshBasicMaterial({
-        color: [0xff0000, 0x00ff00, 0x0000ff][i],
-        transparent: true,
-        opacity: 0,
-        emissive: [0xff0000, 0x00ff00, 0x0000ff][i],
-        emissiveIntensity: 0.7,
-        fog: false
-      });
-      
-      const aurora = new THREE.Mesh(auraGeo, auraMat);
-      aurora.position.set(0, 30 + i * 20, -99);
-      aurora.userData = {
-        isLegendaryWorldVFX: true,
-        type: 'aurora_ribbon',
-        index: i,
-        baseColor: [0xff0000, 0x00ff00, 0x0000ff][i]
-      };
-      
-      this.root.add(aurora);
-      this.vfxContainer.overlays.push(aurora);
+    // LEGACY_AURA_DISABLED
+    // This aura system is disabled to prevent visual stack conflicts.
+    // Core aura stack is:
+    // - hover (NodeAuraSystem_v1)
+    // - selected (_UISelectedNodeHighlight)
+    // - linked (NodeLinkedAuraSystem)
+    if (false && ENABLE_LEGACY_AURAS) {
+      // Create aurora ribbon meshes at horizon
+      for (let i = 0; i < 3; i++) {
+        const auraGeo = new THREE.PlaneGeometry(200, 30);
+        const auraMat = new THREE.MeshBasicMaterial({
+          color: [0xff0000, 0x00ff00, 0x0000ff][i],
+          transparent: true,
+          opacity: 0,
+          emissive: [0xff0000, 0x00ff00, 0x0000ff][i],
+          emissiveIntensity: 0.7,
+          fog: false
+        });
+        
+        const aurora = new THREE.Mesh(auraGeo, auraMat);
+        aurora.position.set(0, 30 + i * 20, -99);
+        aurora.userData = {
+          isLegendaryWorldVFX: true,
+          type: 'aurora_ribbon',
+          index: i,
+          baseColor: [0xff0000, 0x00ff00, 0x0000ff][i]
+        };
+        
+        this.root.add(aurora);
+        this.vfxContainer.overlays.push(aurora);
+      }
     }
     
     // Create trail particles

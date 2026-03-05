@@ -36,7 +36,16 @@
  * 
  * VIAC: docs/LINK_NODE_RENDER_ORDER_GUIDELINES.md
  * ==========================================
- * 
+ * // ============================================================
+// CANONICAL AURA STACK
+//
+// hover aura     → NodeAuraSystem_v1
+// selected aura  → _UISelectedNodeHighlight3_2
+// linked aura    → NodeLinkedAuraSystem
+//
+// All other halo / glow systems are considered LEGACY_AURA
+// and must be explicitly enabled.
+// ============================================================
  * USAGE:
  *   import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
  *   
@@ -109,6 +118,7 @@ export class VisualHierarchyRegistry {
   static LAYER_AURA_BACKGROUND = 'AURA_BACKGROUND';
   static LAYER_BASELINE_AURA = 'BASELINE_AURA';
   static LAYER_AURA = 'AURA'; // alias to BASELINE_AURA
+  static LAYER_NODE_HOVER = 'NODE_HOVER';
   static LAYER_SELECTED = 'SELECTED';
   static LAYER_PRIMARY_UI = 'PRIMARY_UI';
   static LAYER_CORE = 'CORE';
@@ -154,6 +164,7 @@ export class VisualHierarchyRegistry {
     AURA_BACKGROUND: -100,
     BASELINE_AURA: -10,
     AURA: -10, // alias
+    NODE_HOVER: 8,
     CORE: 0,
     ARCHETYPE: 1,
     SELECTED: 10,

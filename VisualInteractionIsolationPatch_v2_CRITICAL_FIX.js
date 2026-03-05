@@ -127,6 +127,7 @@ class InteractionCoreIdentifier {
     });
 
     const proxyMesh = new THREE.Mesh(proxyGeometry, proxyMaterial);
+    proxyMesh.visible = false; // TEMP TEST: disable visual of auto-generated interaction proxy
     tagAllowedSphere(proxyMesh, {
       role: 'interactionProxy',
       source: 'VisualInteractionIsolationPatch_v2.findOrCreateCore',

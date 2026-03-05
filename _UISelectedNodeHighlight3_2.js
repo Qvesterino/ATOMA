@@ -27,12 +27,14 @@ export class UISelectedNodeHighlight3_2 {
     this.selectedNode = null;
     this.highlightMeshes = new Map(); // node -> { mesh, material, geometry, emissiveBase }
     this.time = 0;
+    this.enabled = false; // Disable selected highlight aura (temporary)
   }
   
   /**
    * Apply highlight to selected node
    */
   applyHighlight(node) {
+    if (!this.enabled) return;
     if (!node || !node.userData || !node.userData.isNode) return;
     
     // Remove old highlight if exists
@@ -123,6 +125,7 @@ export class UISelectedNodeHighlight3_2 {
    * Update pulse animation
    */
   update(deltaTime) {
+    if (!this.enabled) return;
     this.time += deltaTime;
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
 

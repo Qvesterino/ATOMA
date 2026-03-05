@@ -3388,9 +3388,9 @@ class AtomaGame {
                 this.primaryNodeTopBar.update();
             }
         }, 'simulation.primaryNodeTopBar');
-        this.frameScheduler.register('simulation', (dt) => {
+        this.frameScheduler.register('realtime', (dt) => {
             this.worldRuntime_v1?.update?.(dt);
-        }, 'simulation.worldRuntime_v1');
+        }, 'realtime.worldRuntime_v1');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodeEditorRuntime_v1?.update?.(dt);
         }, 'simulation.nodeEditorRuntime_v1');
@@ -8402,7 +8402,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         });
-        regGuard('worldRuntime_v1', 'simulation.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
+        regGuard('worldRuntime_v1', 'realtime.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
         regGuard('fxRuntime_v1', 'visual.fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
         regGuard('nodeEditorRuntime_v1', 'simulation.nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
         regGuard('inputRuntime', 'InputRuntime_v1', (dt) => {

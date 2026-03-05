@@ -9,6 +9,7 @@
 // Phase B.6 – NodeTargeting rename (no behavior change)
 
 import * as THREE from 'three';
+import { CONFIG } from './config.js';
 import { safeComputeBounds, getSafeBoundingSphere } from './src/three/GeometryBoundsSafe.js';
 
 // SAFE SOFT REVERT: Use legacy bounds path to restore original visual behavior
@@ -572,6 +573,7 @@ export class NodeLinkingSystem {
     // Node hover tracking for selection glow
     this.hoveredNodeForSelection = null;
     this.nodeSelectionGlows = new Map(); // Track selection glow meshes per node
+    this.hoverGlowEnabled = CONFIG.visuals?.enableNodeHoverGlow === true;
     
     // [SESSION 51] Visual State Binder - Ensures nodes apply final visuals after linking
     this.visualStateBinder = new NodeVisualStateBinder({ autoRepair: true, verbose: false });
@@ -1177,6 +1179,7 @@ export class NodeLinkingSystem {
     });
     
     this.selectedNodeHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+    this.selectedNodeHighlight.visible = false; // TEMP TEST: disable selection sphere
     tagAllowedSphere(this.selectedNodeHighlight, { role: 'highlight', source: 'NodeLinkingSystem.createPrimaryNodeHighlight', owner: this.getNodeId(node) });
     clampSphere(this.selectedNodeHighlight);
     Object.assign(ensureUserData(this.selectedNodeHighlight), { isSelectionHighlight: true, isActive: true, isPrimaryNode: true });
@@ -1702,6 +1705,8 @@ export class NodeLinkingSystem {
    * Add soft hover selection glow to a node (selectable indicator)
    */
   addNodeSelectionGlow(node) {
+    if (!CONFIG.visuals?.enableNodeHoverGlow) return; // config-gated hover glow
+    if (!this.hoverGlowEnabled) return;
     if (this.nodeSelectionGlows.has(node)) return;
     
     // Create subtle hover glow (smaller and less opaque than active selection)

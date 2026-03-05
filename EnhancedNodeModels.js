@@ -2927,117 +2927,76 @@ static _createInputNodeLegacy(group, index, color) {
 
   // ===== ANALYTICS NODES (Violet - 4 variants) =====
 
-  /**
-   * Analytics Node 2: Hexagonal disc with fractal patterns
-   */
+/**
+ * Analytics Node 2: Hexagonal disc with fractal patterns
+ */
 static createAnalyticsNode2(group, color) {
-
-  // ===== BASE PLATFORM (stacked hex layers) =====
-  const baseMaterial = new THREE.MeshStandardMaterial({
+  const mat = new THREE.MeshStandardMaterial({
     color,
+    emissive: color,
+    emissiveIntensity: 0.28,
     metalness: 0.6,
-    roughness: 0.3,
-    emissive: color,
-    emissiveIntensity: 0.15
+    roughness: 0.25
   });
 
-  for (let i = 0; i < 3; i++) {
-    const geo = new THREE.CylinderGeometry(
-      1 - i * 0.15,
-      1 - i * 0.15,
-      0.25,
-      6
-    );
-    const mesh = new THREE.Mesh(geo, baseMaterial);
-    mesh.position.y = i * 0.2;
-    group.add(mesh);
-  }
+  // Base: stepped hex plinth
+  const baseGeoA = new THREE.CylinderGeometry(1.0, 1.05, 0.18, 6, 1);
+  const baseA = new THREE.Mesh(baseGeoA, mat);
+  baseA.position.y = -0.25;
+  validateMeshGeometry(baseA, 'createAnalyticsNode2:baseA');
+  group.add(baseA);
 
-  // ===== ENERGY BEAM =====
-  const beamGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.5, 12);
-  const beamMat = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.35
-  });
+  const baseGeoB = new THREE.CylinderGeometry(0.8, 0.9, 0.12, 6, 1);
+  const baseB = new THREE.Mesh(baseGeoB, mat);
+  baseB.position.y = -0.05;
+  validateMeshGeometry(baseB, 'createAnalyticsNode2:baseB');
+  group.add(baseB);
 
-  const beam = new THREE.Mesh(beamGeo, beamMat);
-  beam.position.y = 1.4;
-  group.add(beam);
+  // Spine
+  const spineGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.4, 12, 1);
+  const spine = new THREE.Mesh(spineGeo, mat);
+  spine.position.y = 0.65;
+  spine.userData.isAnalyticsSpine = true;
+  validateMeshGeometry(spine, 'createAnalyticsNode2:spine');
+  group.add(spine);
 
-  // ===== FLOATING CORE POLYHEDRON =====
-  const coreGeo = new THREE.IcosahedronGeometry(0.6, 1);
-  const coreMat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.5,
-    metalness: 0.4,
-    roughness: 0.2
-  });
-
-  const core = new THREE.Mesh(coreGeo, coreMat);
-  core.position.y = 2.4;
+  // Core: dodeca + wire overlay
+  const coreGeo = new THREE.DodecahedronGeometry(0.45, 0);
+  const core = new THREE.Mesh(coreGeo, mat);
+  core.position.y = 1.2;
+  core.userData.isCore = true;
+  validateMeshGeometry(core, 'createAnalyticsNode2:core');
   group.add(core);
 
-  // Wireframe overlay
-  const wireGeo = new THREE.IcosahedronGeometry(0.65, 1);
-  const wireMat = new THREE.MeshBasicMaterial({
-    color,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.7
-  });
-
-  const wire = new THREE.Mesh(wireGeo, wireMat);
-  wire.position.y = 2.4;
+  const wire = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.DodecahedronGeometry(0.48, 0)),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
+  );
+  wire.position.y = 1.2;
   group.add(wire);
 
-  // ===== ORBIT RING =====
-  const ringGeo = new THREE.TorusGeometry(1.1, 0.05, 16, 64);
-  const ringMat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.3,
-    metalness: 0.8,
-    roughness: 0.2
-  });
-
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.rotation.x = Math.PI / 2;
-  ring.position.y = 2.4;
+  // Orbit frame
+  const ringGeo = new THREE.TorusGeometry(0.9, 0.05, 10, 32, Math.PI * 2);
+  const ring = new THREE.Mesh(ringGeo, mat);
+  ring.position.y = 1.2;
+  ring.rotation.x = Math.PI * 0.5;
+  validateMeshGeometry(ring, 'createAnalyticsNode2:ring');
   group.add(ring);
 
-  // ===== CRYSTAL PILLARS =====
-  const crystalGeo = new THREE.ConeGeometry(0.2, 1.2, 4);
-  const crystalMat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.4,
-    metalness: 0.3,
-    roughness: 0.1
-  });
-
-  const crystalCount = 6;
-  const radius = 1.4;
-
-  for (let i = 0; i < crystalCount; i++) {
-    const angle = (i / crystalCount) * Math.PI * 2;
-    const crystal = new THREE.Mesh(crystalGeo, crystalMat);
-
-    crystal.position.set(
-      Math.cos(angle) * radius,
-      0.6,
-      Math.sin(angle) * radius
-    );
-
-    crystal.lookAt(0, 2.4, 0);
-    group.add(crystal);
+  // Fins (4) angled upward
+  const finGeo = new THREE.BoxGeometry(0.16, 0.6, 0.08);
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2;
+    const fin = new THREE.Mesh(finGeo, mat);
+    fin.position.set(Math.cos(angle) * 0.7, 0.25, Math.sin(angle) * 0.7);
+    fin.rotation.y = angle + Math.PI * 0.25;
+    fin.rotation.z = Math.PI * 0.2;
+    validateMeshGeometry(fin, `createAnalyticsNode2:fin${i}`);
+    group.add(fin);
   }
 
-  // ===== Metadata =====
   group.userData.visualTier = "ANALYTICS_V3";
   group.userData.hasEnergyCore = true;
-
   return group;
 }
 
@@ -3045,121 +3004,69 @@ static createAnalyticsNode2(group, color) {
    * Analytics Node 3: Recursive Insight Engine
    */
   static createAnalyticsNode3(group, color) {
-    // Layered ring stack with subtle imperfections.
-    const stackGroup = new THREE.Group();
-    const ringConfigs = [
-      { radius: 0.34, tube: 0.055, y: -0.28, rotX: 0.12, rotZ: -0.08, sx: 1.02, sz: 0.98, arc: Math.PI * 2 },
-      { radius: 0.47, tube: 0.06, y: 0.00, rotX: -0.06, rotZ: 0.11, sx: 0.98, sz: 1.02, arc: Math.PI * 2 },
-      { radius: 0.62, tube: 0.05, y: 0.31, rotX: 0.09, rotZ: 0.05, sx: 1.02, sz: 0.98, arc: Math.PI * 1.72 }
-    ];
-
-    ringConfigs.forEach((cfg, i) => {
-      const ringMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.55,
-        roughness: 0.35,
-        emissive: color,
-        emissiveIntensity: i === 1 ? 0.24 : 0.18
-      });
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(cfg.radius, cfg.tube, 12, 48, cfg.arc),
-        ringMaterial
-      );
-      ring.position.y = cfg.y;
-      ring.rotation.x = cfg.rotX;
-      ring.rotation.z = cfg.rotZ;
-      ring.scale.set(cfg.sx, 1, cfg.sz);
-      stackGroup.add(ring);
-
-      if (i === 1) {
-        const glowRing = new THREE.Mesh(
-          new THREE.TorusGeometry(cfg.radius * 0.97, cfg.tube * 0.75, 10, 48),
-          new THREE.MeshBasicMaterial({
-            color: color,
-            transparent: true,
-            opacity: 0.35,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-          })
-        );
-        glowRing.position.copy(ring.position);
-        glowRing.rotation.copy(ring.rotation);
-        stackGroup.add(glowRing);
-      }
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.24,
+      metalness: 0.55,
+      roughness: 0.28
     });
 
-    // Vertical data axis with transform-only pulse in animate().
-    const spine = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6),
-      new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.25,
-        roughness: 0.2,
-        emissive: color,
-        emissiveIntensity: 0.38
-      })
-    );
+    // Base disk
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.95, 0.14, 10, 1), mat);
+    base.position.y = -0.3;
+    validateMeshGeometry(base, 'createAnalyticsNode3:base');
+    group.add(base);
+
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 8, 1), mat);
+    spine.position.y = 0.4;
     spine.userData.isAnalyticsSpine = true;
     spine.userData.pulseBaseScale = 1;
-    stackGroup.add(spine);
+    validateMeshGeometry(spine, 'createAnalyticsNode3:spine');
+    group.add(spine);
 
-    group.add(stackGroup);
+    // Core: offset cube
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), mat);
+    core.position.y = 0.95;
+    core.rotation.set(Math.PI * 0.12, Math.PI * 0.18, 0);
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createAnalyticsNode3:core');
+    group.add(core);
 
-    // Overthinking echo: wireframe clone of the stack with slight offset.
-    const echo = stackGroup.clone(true);
-    echo.scale.setScalar(1.04);
-    echo.rotation.y = 0.05;
-    echo.traverse(obj => {
-      if (obj.isMesh) {
-        obj.material = new THREE.MeshBasicMaterial({
-          color: color,
-          wireframe: true,
-          transparent: true,
-          opacity: 0.25,
-          depthWrite: false
-        });
-      }
-    });
-    group.add(echo);
+    // Wireframe echo
+    const wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.48, 0.48, 0.48)),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 })
+    );
+    wire.position.y = 0.95;
+    wire.rotation.y = Math.PI * 0.1;
+    group.add(wire);
 
-    // Floating data shards with slow orbital movement + bob.
-    const shardGroup = new THREE.Group();
-    shardGroup.userData.isAnalyticsShardGroup = true;
-    const shardCount = 6;
-    for (let i = 0; i < shardCount; i++) {
-      const shard = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.05, 0),
-        new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.75
-        })
-      );
-      const angle = (i / shardCount) * Math.PI * 2;
-      const radius = 0.5 + (i % 2 === 0 ? 0.04 : -0.03);
-      shard.position.set(
-        Math.cos(angle) * radius,
-        -0.18 + i * 0.07,
-        Math.sin(angle) * radius
-      );
-      shard.userData.bobPhase = i * 0.9;
-      shard.userData.ignoreRaycast = true;
-      shardGroup.add(shard);
-    }
-    group.add(shardGroup);
-    group.userData.nodeGeometryName = 'ANALYTICS_RECURSIVE_INSIGHT_ENGINE';
+    // Orbit frame (rect torus)
+    const frame = new THREE.Mesh(
+      new THREE.TorusGeometry(0.78, 0.05, 10, 28, Math.PI * 2),
+      mat
+    );
+    frame.scale.set(1.15, 0.75, 1);
+    frame.position.y = 0.95;
+    frame.rotation.set(Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.1);
+    validateMeshGeometry(frame, 'createAnalyticsNode3:frame');
+    group.add(frame);
 
-    // --- Analytics Factory Trace ---
-    let meshCount = 0;
-    group.traverse(o => { if (o.isMesh) meshCount++; });
-    if (meshCount === 0) {
-      console.error('[AnalyticsFactoryEmpty]', {
-        factory: 'createAnalyticsNode3',
-        visualCode: '3',
-        group
-      });
+    // Data petals (4)
+    const petalGeo = new THREE.BoxGeometry(0.14, 0.55, 0.08);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const petal = new THREE.Mesh(petalGeo, mat);
+      petal.position.set(Math.cos(angle) * 0.65, 0.35, Math.sin(angle) * 0.65);
+      petal.rotation.y = angle + Math.PI * 0.25;
+      petal.rotation.z = Math.PI * 0.18;
+      validateMeshGeometry(petal, `createAnalyticsNode3:petal${i}`);
+      group.add(petal);
     }
 
+    group.userData.nodeGeometryName = 'ANALYTICS_RECURSIVE_INSIGHT_ENGINE_V3';
     return group;
   }
 
@@ -3436,80 +3343,66 @@ static createAnalyticsNode2(group, color) {
    */
   static createAnalyticsObserverLens(group, color) {
     try {
-      const lensCount = 5;
-      const lensMaterial = new THREE.MeshStandardMaterial({
-        color: color,
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.18,
         metalness: 0.6,
         roughness: 0.3,
-        emissive: color,
-        emissiveIntensity: 0.15,
         transparent: true,
-        opacity: 0.45
+        opacity: 0.5
       });
 
-      // Create layered optical plates (non-parallel, slightly offset and tilted)
-      for (let i = 0; i < lensCount; i++) {
-        // Create annular ring/plate geometry (disc with hole)
-        const outerRadius = 0.65 - i * 0.08;
-        const innerRadius = 0.2;
-        
-        const plateGeometry = new THREE.CylinderGeometry(
-          outerRadius,
-          outerRadius,
-          0.06,
-          32,
-          4,
-          true
-        );
+      // Base
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, 0.12, 12, 1), mat);
+      base.position.y = -0.32;
+      validateMeshGeometry(base, 'createAnalyticsObserverLens:base');
+      group.add(base);
 
-        const plate = new THREE.Mesh(plateGeometry, lensMaterial);
-        
-        // Position vertically with slight stagger
-        const yPos = (i - lensCount / 2) * 0.12;
-        plate.position.y = yPos;
-        
-        // Progressive tilt for optical lens effect
-        const tiltAngle = (i / lensCount) * Math.PI * 0.15;
-        plate.rotation.x = tiltAngle;
-        plate.rotation.z = Math.sin(i * 0.7) * 0.1;
-        
+      // Spine
+      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 10, 1), mat);
+      spine.position.y = 0.1;
+      spine.userData.isAnalyticsSpine = true;
+      validateMeshGeometry(spine, 'createAnalyticsObserverLens:spine');
+      group.add(spine);
+
+      // Layered plates (3)
+      const plateCount = 3;
+      for (let i = 0; i < plateCount; i++) {
+        const outerRadius = 0.68 - i * 0.1;
+        const plateGeometry = new THREE.CylinderGeometry(outerRadius, outerRadius, 0.06, 28, 2, true);
+        const plate = new THREE.Mesh(plateGeometry, mat);
+        plate.position.y = -0.12 + i * 0.24;
+        plate.rotation.x = (i - 1) * 0.12;
+        plate.rotation.z = (i - 1) * 0.08;
         plate.userData.isLensPlate = true;
-        plate.userData.plateIndex = i;
         plate.userData.visualCoreImmutable = true;
+        validateMeshGeometry(plate, `createAnalyticsObserverLens:plate${i}`);
         group.add(plate);
       }
 
-      // Create central void aperture (visual focus)
-      const apertureGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.4, 16);
-      const apertureMaterial = new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 0.3,
-        wireframe: false
-      });
-      const aperture = new THREE.Mesh(apertureGeometry, apertureMaterial);
+      // Central void aperture
+      const aperture = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16),
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
+      );
       aperture.userData.isAperture = true;
       aperture.userData.visualCoreImmutable = true;
       group.add(aperture);
 
-      // Store animation metadata (very slow rotation + subtle wobble)
-      group.userData.lensRotationSpeed = 0.05; // Very slow
-      group.userData.lensWobbleAmplitude = 0.04; // Subtle axial tilt
+      // Orbit ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.04, 10, 32), mat);
+      ring.position.y = 0.15;
+      ring.rotation.x = Math.PI * 0.5;
+      validateMeshGeometry(ring, 'createAnalyticsObserverLens:ring');
+      group.add(ring);
+
+      // Animation metadata
+      group.userData.lensRotationSpeed = 0.05;
+      group.userData.lensWobbleAmplitude = 0.04;
       group.userData.lensWobbleSpeed = 0.3;
-
       group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'ANALYTICS_OBSERVER_LENS';
-
-      // --- Analytics Factory Trace ---
-      let meshCount = 0;
-      group.traverse(o => { if (o.isMesh) meshCount++; });
-      if (meshCount === 0) {
-        console.error('[AnalyticsFactoryEmpty]', {
-          factory: 'createAnalyticsObserverLens',
-          visualCode: '3',
-          group
-        });
-      }
+      group.userData.nodeGeometryName = 'ANALYTICS_OBSERVER_LENS_V3';
 
       return group;
     } catch (err) {
@@ -3538,91 +3431,78 @@ static createAnalyticsNode2(group, color) {
    */
   static createAnalyticsFractalEcho(group, color) {
     try {
-      // Create central seed geometry (asymmetric icosahedron)
-      const seedGeometry = new THREE.IcosahedronGeometry(0.35, 3);
-      seedGeometry.scale(1.1, 0.85, 1.0); // Asymmetric elongation
-      
-      const seedMaterial = new THREE.MeshPhysicalMaterial({
-        color: color,
-        metalness: 0.75,
-        roughness: 0.15,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.4,
-        ior: 1.48,
+      const mat = new THREE.MeshStandardMaterial({
+        color,
         emissive: color,
-        emissiveIntensity: 0.25
+        emissiveIntensity: 0.22,
+        metalness: 0.6,
+        roughness: 0.25,
+        transparent: true,
+        opacity: 0.9
       });
 
-      const seed = new THREE.Mesh(seedGeometry, seedMaterial);
-      seed.rotation.set(Math.PI / 8, Math.PI / 6, Math.PI / 12);
+      // Base
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.9, 0.12, 10, 1), mat);
+      base.position.y = -0.3;
+      validateMeshGeometry(base, 'createAnalyticsFractalEcho:base');
+      group.add(base);
+
+      // Spine
+      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 8, 1), mat);
+      spine.position.y = 0.2;
+      spine.userData.isAnalyticsSpine = true;
+      validateMeshGeometry(spine, 'createAnalyticsFractalEcho:spine');
+      group.add(spine);
+
+      // Seed core
+      const seedGeo = new THREE.IcosahedronGeometry(0.32, 1);
+      const seed = new THREE.Mesh(seedGeo, mat);
+      seed.position.y = 0.7;
+      seed.rotation.set(Math.PI * 0.12, Math.PI * 0.16, Math.PI * 0.08);
       seed.userData.isSeedCore = true;
       seed.userData.visualCoreImmutable = true;
+      validateMeshGeometry(seed, 'createAnalyticsFractalEcho:seed');
       group.add(seed);
 
-      // Create 4 scaled-down echoes (fractal copies)
-      const echoCount = 4;
-      const echoMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.65,
-        roughness: 0.25,
-        emissive: color,
-        emissiveIntensity: 0.2,
-        transparent: true,
-        opacity: 0.65
-      });
+      // Orbit ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.04, 10, 28, Math.PI * 2), mat);
+      ring.position.y = 0.7;
+      ring.rotation.x = Math.PI * 0.5;
+      validateMeshGeometry(ring, 'createAnalyticsFractalEcho:ring');
+      group.add(ring);
 
-      for (let i = 0; i < echoCount; i++) {
-        // Create echo geometry (scaled tetrahedron, different from seed)
-        const echoGeometry = new THREE.TetrahedronGeometry(0.18, 2);
-        echoGeometry.scale(0.9 + i * 0.05, 1.1 - i * 0.08, 0.95);
-        
-        const echo = new THREE.Mesh(echoGeometry, echoMaterial);
-        
-        // Position radially around center
-        const angle = (i / echoCount) * Math.PI * 2;
-        const radius = 0.55;
-        const height = Math.sin(i * 0.8) * 0.15;
-        
-        echo.position.set(
-          Math.cos(angle) * radius,
-          height,
-          Math.sin(angle) * radius
-        );
-        
-        // Each echo rotated differently
+      // Echo fragments (4)
+      const echoMat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.18,
+        transparent: true,
+        opacity: 0.7,
+        metalness: 0.45,
+        roughness: 0.3
+      });
+      const echoGeo = new THREE.TetrahedronGeometry(0.18, 0);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const echo = new THREE.Mesh(echoGeo, echoMat);
+        echo.position.set(Math.cos(angle) * 0.65, 0.35 + (i % 2) * 0.08, Math.sin(angle) * 0.65);
         echo.rotation.set(
-          (i * Math.PI / 3) + Math.PI / 4,
-          (i * Math.PI / 2.5) + Math.PI / 6,
-          (i * Math.PI / 4)
+          Math.PI * 0.18 + i * 0.4,
+          Math.PI * 0.22 + i * 0.3,
+          Math.PI * 0.12 * i
         );
-        
         echo.userData.isEcho = true;
-        echo.userData.echoIndex = i;
-        echo.userData.baseAngle = angle;
-        echo.userData.baseRadius = radius;
-        echo.userData.baseHeight = height;
         echo.userData.visualCoreImmutable = true;
+        validateMeshGeometry(echo, `createAnalyticsFractalEcho:echo${i}`);
         group.add(echo);
       }
 
-      // Store animation metadata (counter-rotation)
+      // Animation metadata
       group.userData.fractalSeedRotationSpeed = 0.12;
-      group.userData.fractalEchoRotationSpeed = -0.09; // Counter-rotation
-      group.userData.fractalBreathingAmplitude = 0.015; // ±1.5% subtle breathing
-
+      group.userData.fractalEchoRotationSpeed = -0.09;
+      group.userData.fractalBreathingAmplitude = 0.015;
       group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'ANALYTICS_FRACTAL_ECHO';
-
-      // --- Analytics Factory Trace ---
-      let meshCount = 0;
-      group.traverse(o => { if (o.isMesh) meshCount++; });
-      if (meshCount === 0) {
-        console.error('[AnalyticsFactoryEmpty]', {
-          factory: 'createAnalyticsFractalEcho',
-          visualCode: '4',
-          group
-        });
-      }
+      group.userData.nodeGeometryName = 'ANALYTICS_FRACTAL_ECHO_V3';
 
       return group;
     } catch (err) {
@@ -3750,202 +3630,105 @@ static createAnalyticsNode2(group, color) {
    * UPGRADED: Enforced segment spacing, per-segment micro-rotation, optional vertical core light
    * VISUAL HIERARCHY: Core light opacity reduced to 0.08 (was 0.15, subtle background)
    */
- static createStorageNode0(group, color) {
-
-  const sliceCount = 6;
-  const sliceHeight = 0.18;
-  const sliceSpacing = 0.34;
-
-  // === FRACTURED MEMORY SLABS ===
-  for (let i = 0; i < sliceCount; i++) {
-
-    // Slight bevel look via slightly thinner geometry
-    const sliceGeometry = new THREE.BoxGeometry(0.55, sliceHeight, 0.55);
-
-    const sliceMaterial = new THREE.MeshStandardMaterial({
-      color: color,
-      metalness: 0.9,
-      roughness: 0.15,
+static createStorageNode0(group, color) {
+    const mat = new THREE.MeshStandardMaterial({
+      color,
       emissive: color,
-      emissiveIntensity: 0.35
+      emissiveIntensity: 0.2,
+      metalness: 0.7,
+      roughness: 0.25
     });
 
-    const slice = new THREE.Mesh(sliceGeometry, sliceMaterial);
+    // Base pedestal
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.22, 10, 1), mat);
+    base.position.y = -0.5;
+    validateMeshGeometry(base, 'createStorageNode0:base');
+    group.add(base);
 
-    slice.position.y = (i - sliceCount / 2) * sliceSpacing;
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 1.6, 10, 1), mat);
+    spine.position.y = 0.3;
+    validateMeshGeometry(spine, 'createStorageNode0:spine');
+    group.add(spine);
 
-    // Intentional asymmetry
-    slice.rotation.y = (i % 2 === 0 ? 0.12 : -0.12);
-    slice.rotation.z = Math.sin(i * 0.8) * 0.06;
+    // Core prism
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), mat);
+    core.position.y = 0.95;
+    core.rotation.y = Math.PI * 0.18;
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createStorageNode0:core');
+    group.add(core);
 
-    // One segment slightly offset (write pulse illusion)
-    if (i === 3) {
-      slice.position.x += 0.05;
-      slice.scale.set(1.05, 1, 1.05);
-    }
+    // Frame ring
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.06, 10, 32), mat);
+    ring.position.y = 0.95;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.12;
+    validateMeshGeometry(ring, 'createStorageNode0:ring');
+    group.add(ring);
 
-    slice.userData = { segmentIndex: i };
-    group.add(slice);
+    // Crown cap
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.28, 10, 1), mat);
+    cap.position.y = 1.45;
+    validateMeshGeometry(cap, 'createStorageNode0:cap');
+    group.add(cap);
+
+    group.userData.visualTier = 'STORAGE_V3';
+    return group;
   }
-
-  // === CENTRAL DATA BEAM ===
-  const beamGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.4, 12);
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: color,
-    transparent: true,
-    opacity: 0.18
-  });
-
-  const beam = new THREE.Mesh(beamGeo, beamMat);
-  beam.userData = { isCoreLightVFX: true };
-  group.add(beam);
-
-  // === BASE ANCHOR (heavy stability feel) ===
-  const baseGeo = new THREE.CylinderGeometry(0.4, 0.45, 0.15, 16);
-  const baseMat = new THREE.MeshStandardMaterial({
-    color: color,
-    metalness: 1,
-    roughness: 0.3,
-    emissive: color,
-    emissiveIntensity: 0.15
-  });
-
-  const base = new THREE.Mesh(baseGeo, baseMat);
-  base.position.y = -1.2;
-  group.add(base);
-
-  group.userData.segmentCount = sliceCount;
-  group.userData.segmentMicroRotationEnabled = true;
-
-  return group;
-}
   /**
    * Storage Node 1: Capsule with inner bands
    */
   static createStorageNode1(group, color) {
-    group.userData = group.userData || {};
-    const colorHex = new THREE.Color(color).getHex();
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.22,
+      metalness: 0.65,
+      roughness: 0.22
+    });
 
-    if (!this.__storageCapsuleV2Cache) {
-      const outerGeometry = new THREE.CapsuleGeometry(0.35, 1.0, 8, 16);
-      const lineCount = 8;
-      const lineRadius = 0.17;
-      const halfHeight = 0.48;
-      const flowPositions = new Float32Array(lineCount * 2 * 3);
-      for (let i = 0; i < lineCount; i++) {
-        const angle = (i / lineCount) * Math.PI * 2;
-        const x = Math.cos(angle) * lineRadius;
-        const z = Math.sin(angle) * lineRadius;
-        const idx = i * 6;
-        flowPositions[idx] = x;
-        flowPositions[idx + 1] = -halfHeight;
-        flowPositions[idx + 2] = z;
-        flowPositions[idx + 3] = x;
-        flowPositions[idx + 4] = halfHeight;
-        flowPositions[idx + 5] = z;
-      }
-      const flowGeometry = new THREE.BufferGeometry();
-      flowGeometry.setAttribute('position', new THREE.BufferAttribute(flowPositions, 3));
+    // Base ring
+    const base = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 12, 32), mat);
+    base.position.y = -0.35;
+    base.rotation.x = Math.PI * 0.5;
+    validateMeshGeometry(base, 'createStorageNode1:base');
+    group.add(base);
 
-      this.__storageCapsuleV2Cache = {
-        geometries: {
-          outerGeometry,
-          innerGeometry: new THREE.CapsuleGeometry(0.31, 0.86, 8, 16),
-          edgeGeometry: new THREE.EdgesGeometry(outerGeometry),
-          flowGeometry,
-          ringGeometryA: new THREE.TorusGeometry(0.43, 0.02, 8, 48),
-          ringGeometryB: new THREE.TorusGeometry(0.33, 0.018, 8, 40),
-          pulseBandGeometry: new THREE.TorusGeometry(0.36, 0.014, 8, 48)
-        },
-        materials: new Map()
-      };
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.6, 10, 1), mat);
+    spine.position.y = 0.3;
+    validateMeshGeometry(spine, 'createStorageNode1:spine');
+    group.add(spine);
+
+    // Core prism
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.95, 0.55), mat);
+    core.position.y = 0.8;
+    core.rotation.y = Math.PI * 0.18;
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createStorageNode1:core');
+    group.add(core);
+
+    // Frame ring
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.05, 10, 28), mat);
+    ring.position.y = 0.8;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.14;
+    validateMeshGeometry(ring, 'createStorageNode1:ring');
+    group.add(ring);
+
+    // Fins (4)
+    const finGeo = new THREE.BoxGeometry(0.12, 0.5, 0.08);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const fin = new THREE.Mesh(finGeo, mat);
+      fin.position.set(Math.cos(angle) * 0.65, 0.4, Math.sin(angle) * 0.65);
+      fin.rotation.y = angle + Math.PI * 0.22;
+      fin.rotation.z = Math.PI * 0.18;
+      validateMeshGeometry(fin, `createStorageNode1:fin${i}`);
+      group.add(fin);
     }
 
-    const cache = this.__storageCapsuleV2Cache;
-    let mats = cache.materials.get(colorHex);
-    if (!mats) {
-      mats = {
-        outerMat: new THREE.MeshStandardMaterial({
-          color: colorHex,
-          metalness: 0.65,
-          roughness: 0.28,
-          emissive: colorHex,
-          emissiveIntensity: 0.08,
-          transparent: true,
-          opacity: 0.25
-        }),
-        innerMat: new THREE.MeshStandardMaterial({
-          color: colorHex,
-          metalness: 0.72,
-          roughness: 0.18,
-          emissive: colorHex,
-          emissiveIntensity: 0.42
-        }),
-        edgeMat: new THREE.LineBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.35
-        }),
-        flowMat: new THREE.LineBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.5
-        }),
-        ringMat: new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.3,
-          depthWrite: false
-        }),
-        pulseMat: new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.45,
-          depthWrite: false
-        })
-      };
-      cache.materials.set(colorHex, mats);
-    }
-
-    const outerShell = new THREE.Mesh(cache.geometries.outerGeometry, mats.outerMat);
-    group.add(outerShell);
-
-    const innerShell = new THREE.Mesh(cache.geometries.innerGeometry, mats.innerMat);
-    group.add(innerShell);
-
-    const edgeOverlay = new THREE.LineSegments(cache.geometries.edgeGeometry, mats.edgeMat);
-    group.add(edgeOverlay);
-
-    const flowLines = new THREE.LineSegments(cache.geometries.flowGeometry, mats.flowMat);
-    flowLines.userData.isStorageFlow = true;
-    group.add(flowLines);
-
-    const ringA = new THREE.Mesh(cache.geometries.ringGeometryA, mats.ringMat);
-    ringA.rotation.x = Math.PI * 0.5;
-    ringA.rotation.z = 0.22;
-    ringA.position.y = 0.2;
-    group.add(ringA);
-
-    const ringB = new THREE.Mesh(cache.geometries.ringGeometryB, mats.ringMat);
-    ringB.rotation.x = Math.PI * 0.5;
-    ringB.rotation.z = -0.2;
-    ringB.position.y = -0.22;
-    group.add(ringB);
-
-    const pulseBand = new THREE.Mesh(cache.geometries.pulseBandGeometry, mats.pulseMat);
-    pulseBand.rotation.x = Math.PI * 0.5;
-    group.add(pulseBand);
-
-    // Localized animation hook for this capsule variant only.
-    innerShell.onBeforeRender = () => {
-      const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
-      ringA.rotation.y = t * 0.22;
-      ringB.rotation.y = -t * 0.18;
-      const pulse = 1 + Math.sin(t * 1.4) * 0.04;
-      pulseBand.scale.set(pulse, 1, pulse);
-    };
-
-    group.userData.visualVariant = 'STORAGE_CAPSULE_V2';
     return group;
   }
 
@@ -3953,118 +3736,54 @@ static createAnalyticsNode2(group, color) {
    * Storage Node 3: Cluster of crystal shards
    */
   static createStorageNode3(group, color) {
-    group.userData = group.userData || {};
-    const colorHex = new THREE.Color(color).getHex();
-    const shardRadius = 0.35;
-    const orbitRadius = 0.58;
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.22,
+      metalness: 0.65,
+      roughness: 0.25
+    });
 
-    if (!this.__storageShardV2Cache) {
-      this.__storageShardV2Cache = {
-        geometries: {
-          shardGeometry: new THREE.TetrahedronGeometry(shardRadius, 1),
-          coreGeometry: new THREE.SphereGeometry(shardRadius, 16, 16),
-          ringGeometry: new THREE.TorusGeometry(orbitRadius + 0.08, 0.03, 10, 48),
-          particleGeometry: new THREE.BoxGeometry(0.06, 0.06, 0.06)
-        },
-        materials: new Map()
-      };
-    }
+    // Base
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.05, 0.2, 10, 1), mat);
+    base.position.y = -0.4;
+    validateMeshGeometry(base, 'createStorageNode3:base');
+    group.add(base);
 
-    const cache = this.__storageShardV2Cache;
-    let mats = cache.materials.get(colorHex);
-    if (!mats) {
-      mats = {
-        shardMat: new THREE.MeshStandardMaterial({
-          transparent: false,
-          opacity: 1,
-          depthWrite: true,
-          depthTest: true,
-          side: THREE.FrontSide,
-          color: colorHex,
-          metalness: 0.8,
-          roughness: 0.25,
-          emissive: colorHex,
-          emissiveIntensity: 0.22
-        }),
-        coreMat: new THREE.MeshStandardMaterial({
-          color: colorHex,
-          metalness: 0.35,
-          roughness: 0.15,
-          emissive: colorHex,
-          emissiveIntensity: 0.62
-        }),
-        ringMat: new THREE.MeshBasicMaterial({
-          color: colorHex,
-          transparent: true,
-          opacity: 0.25,
-          depthWrite: false
-        }),
-        particleMat: new THREE.MeshStandardMaterial({
-          color: colorHex,
-          metalness: 0.45,
-          roughness: 0.35,
-          emissive: colorHex,
-          emissiveIntensity: 0.3
-        })
-      };
-      cache.materials.set(colorHex, mats);
-    }
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.4, 10, 1), mat);
+    spine.position.y = 0.35;
+    validateMeshGeometry(spine, 'createStorageNode3:spine');
+    group.add(spine);
 
-    const shardOrbit = new THREE.Group();
-    const shardCount = 4;
-    for (let i = 0; i < shardCount; i++) {
-      const angle = (i / shardCount) * Math.PI * 2;
-      const shard = new THREE.Mesh(cache.geometries.shardGeometry, mats.shardMat);
-      shard.position.set(
-        Math.cos(angle) * orbitRadius,
-        0,
-        Math.sin(angle) * orbitRadius
-      );
-      shard.rotation.set(0.2, angle + Math.PI * 0.25, -0.15);
-      shard.userData.isStorageShard = true;
-      shard.userData.orbitAngle = angle;
-      shard.userData.orbitRadius = orbitRadius;
-      shardOrbit.add(shard);
-    }
-    group.add(shardOrbit);
-
-    const core = new THREE.Mesh(cache.geometries.coreGeometry, mats.coreMat);
-    core.scale.setScalar(0.4); // 40% of shard radius basis geometry
+    // Core sphere
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 12), mat);
+    core.position.y = 0.95;
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createStorageNode3:core');
     group.add(core);
 
-    const containmentRing = new THREE.Mesh(cache.geometries.ringGeometry, mats.ringMat);
-    containmentRing.rotation.x = Math.PI * 0.5;
-    group.add(containmentRing);
+    // Orbit frame
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 28), mat);
+    ring.position.y = 0.95;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.18;
+    validateMeshGeometry(ring, 'createStorageNode3:ring');
+    group.add(ring);
 
-    const particleGroup = new THREE.Group();
-    const particleCount = 6;
-    for (let i = 0; i < particleCount; i++) {
-      const p = new THREE.Mesh(cache.geometries.particleGeometry, mats.particleMat);
-      const angle = (i / particleCount) * Math.PI * 2;
-      const r = 0.2 + (i % 2 === 0 ? 0.04 : -0.02);
-      p.position.set(Math.cos(angle) * r, (i % 3 - 1) * 0.08, Math.sin(angle) * r);
-      p.userData.isStorageParticle = true;
-      p.userData.baseY = p.position.y;
-      p.userData.phase = i * 0.9;
-      particleGroup.add(p);
+    // Shards (4)
+    const shardGeo = new THREE.TetrahedronGeometry(0.25, 0);
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const shard = new THREE.Mesh(shardGeo, mat);
+      shard.position.set(Math.cos(angle) * 0.8, 0.1 + i * 0.05, Math.sin(angle) * 0.8);
+      shard.rotation.y = angle + Math.PI * 0.2;
+      shard.userData.isStorageShard = true;
+      validateMeshGeometry(shard, `createStorageNode3:shard${i}`);
+      group.add(shard);
     }
-    group.add(particleGroup);
 
-    // Localized animation hook for this shard variant only.
-    core.onBeforeRender = () => {
-      const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
-      shardOrbit.rotation.y = t * 0.18;
-      shardOrbit.children.forEach((shard, idx) => {
-        const phase = t * 0.75 + idx * 0.6;
-        shard.position.y = Math.sin(phase) * 0.03;
-      });
-      particleGroup.rotation.y = -t * 0.22;
-      particleGroup.children.forEach((p, idx) => {
-        p.position.y = (p.userData.baseY || 0) + Math.sin(t * 1.2 + (p.userData.phase || idx)) * 0.02;
-      });
-    };
-
-    group.userData.visualVariant = 'STORAGE_SHARD_V2';
+    group.userData.visualVariant = 'STORAGE_SHARD_V3';
     return group;
   }
 
@@ -4602,92 +4321,52 @@ static createAnalyticsNode2(group, color) {
    * VISUAL HIERARCHY: Central core remains visible but not dominant (no opacity change—opaque by design)
    */
 static createControlNode0(group, color) {
-
-  // ===== BASE PLATFORM (grounded authority) =====
-  const baseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.25, 8);
-  const baseMat = new THREE.MeshStandardMaterial({
+  const mat = new THREE.MeshStandardMaterial({
     color,
-    metalness: 0.6,
-    roughness: 0.35,
     emissive: color,
-    emissiveIntensity: 0.1
+    emissiveIntensity: 0.25,
+    metalness: 0.65,
+    roughness: 0.28
   });
 
-  const base = new THREE.Mesh(baseGeo, baseMat);
+  // Base
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.2, 8, 1), mat);
+  base.position.y = -0.3;
+  validateMeshGeometry(base, 'createControlNode0:base');
   group.add(base);
 
+  // Spine
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.8, 8, 1), mat);
+  spine.position.y = 0.7;
+  validateMeshGeometry(spine, 'createControlNode0:spine');
+  group.add(spine);
 
-  // ===== CENTRAL OBELISK (true control spine) =====
-  const obeliskGeo = new THREE.CylinderGeometry(0.2, 0.35, 2.6, 6);
-  const obeliskMat = new THREE.MeshStandardMaterial({
-    color,
-    metalness: 0.9,
-    roughness: 0.1,
-    emissive: color,
-    emissiveIntensity: 0.4
-  });
-
-  const obelisk = new THREE.Mesh(obeliskGeo, obeliskMat);
-  obelisk.position.y = 1.3;
-  group.add(obelisk);
-
-
-  // ===== FLOATING CORE =====
-  const coreGeo = new THREE.IcosahedronGeometry(0.45, 0);
-  const coreMat = new THREE.MeshStandardMaterial({
-    color,
-    metalness: 0.95,
-    roughness: 0.05,
-    emissive: color,
-    emissiveIntensity: 0.8
-  });
-
-  const core = new THREE.Mesh(coreGeo, coreMat);
-  core.position.y = 2.9;
+  // Core
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), mat);
+  core.position.y = 1.6;
+  core.rotation.y = Math.PI * 0.18;
+  core.userData.isCore = true;
+  validateMeshGeometry(core, 'createControlNode0:core');
   group.add(core);
 
-
-  // ===== STABILIZATION FRAME (angular cage) =====
-  const frameGeo = new THREE.OctahedronGeometry(0.8, 0);
-  const frameMat = new THREE.MeshBasicMaterial({
-    color,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.5
-  });
-
-  const frame = new THREE.Mesh(frameGeo, frameMat);
-  frame.position.y = 2.9;
+  // Frame
+  const frame = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.OctahedronGeometry(0.62, 0)),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
+  );
+  frame.position.y = 1.6;
   group.add(frame);
 
-
-  // ===== TILTED ORBIT RING =====
-  const ringGeo = new THREE.TorusGeometry(1.0, 0.04, 16, 64);
-  const ringMat = new THREE.MeshStandardMaterial({
-    color,
-    emissive: color,
-    emissiveIntensity: 0.35,
-    metalness: 0.8,
-    roughness: 0.2
-  });
-
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.y = 2.9;
-  ring.rotation.x = Math.PI / 2.3;
-  ring.rotation.z = 0.6;
+  // Orbit ring
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 32), mat);
+  ring.position.y = 1.6;
+  ring.rotation.x = Math.PI * 0.5;
+  ring.rotation.z = Math.PI * 0.25;
+  validateMeshGeometry(ring, 'createControlNode0:ring');
   group.add(ring);
 
-
-  // ===== Metadata =====
   group.userData.visualTier = "CONTROL_V4";
   group.userData.hasAuthoritySpine = true;
-
-  // Copy nodeId from input group (if exists)
-  const inputNodeGroup = arguments[0];
-  if (inputNodeGroup && inputNodeGroup.userData && inputNodeGroup.userData.nodeId) {
-    group.userData.nodeId = inputNodeGroup.userData.nodeId;
-  }
-
   return group;
 }
 
@@ -4695,64 +4374,47 @@ static createControlNode0(group, color) {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    // Base pyramid core
-    const coreGeometry = new THREE.TetrahedronGeometry(0.9, 1);
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
+    const mat = new THREE.MeshStandardMaterial({
       color,
-      metalness: 0.9,
-      roughness: 0.15,
       emissive: color,
-      emissiveIntensity: 0.5
+      emissiveIntensity: 0.3,
+      metalness: 0.8,
+      roughness: 0.2
     });
-    const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    // PHASE 3C.1 remap → CORE
-    core.renderOrder = VisualHierarchyRegistry.getRenderOrder('CORE');
+
+    // Base
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 0.18, 6, 1), mat);
+    base.position.y = -0.28;
+    validateMeshGeometry(base, 'createControlNode1:base');
+    group.add(base);
+
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.1, 8, 1), mat);
+    spine.position.y = 0.28;
+    validateMeshGeometry(spine, 'createControlNode1:spine');
+    group.add(spine);
+
+    // Core pyramid (tetra)
+    const core = new THREE.Mesh(new THREE.TetrahedronGeometry(0.65, 0), mat);
+    core.position.y = 0.9;
+    core.rotation.set(Math.PI * 0.05, Math.PI * 0.15, 0);
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createControlNode1:core');
     group.add(core);
 
-    // Framing ring rotated off-axis for silhouette change
-    const ringGeometry = new THREE.TorusGeometry(1.05, 0.08, 10, 40);
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.45
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.rotation.x = Math.PI / 3;
-    ring.rotation.y = Math.PI / 6;
-    // PHASE 3C.1 remap → ARCHETYPE
-    ring.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+    // Orbit ring
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 10, 32), mat);
+    ring.position.y = 0.9;
+    ring.rotation.x = Math.PI * 0.5;
+    ring.rotation.y = Math.PI * 0.18;
+    validateMeshGeometry(ring, 'createControlNode1:ring');
     group.add(ring);
 
-    // Floating apex crystal
-    const apexGeometry = new THREE.OctahedronGeometry(0.25, 0);
-    const apexMaterial = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color,
-      metalness: 0.85,
-      roughness: 0.25,
-      emissive: color,
-      emissiveIntensity: 0.4
-    });
-    const apex = new THREE.Mesh(apexGeometry, apexMaterial);
-    apex.position.set(0, 0.9, 0);
-    // PHASE 3C.1 remap → ARCHETYPE
-    apex.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
-    group.add(apex);
-
-  // Copy nodeId from input group (if exists)
-  const inputNodeGroup = arguments[0];
-  if (inputNodeGroup && inputNodeGroup.userData && inputNodeGroup.userData.nodeId) {
-    group.userData.nodeId = inputNodeGroup.userData.nodeId;
-  }
+    // Top beacon
+    const beacon = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.26, 8, 1), mat);
+    beacon.position.y = 1.4;
+    validateMeshGeometry(beacon, 'createControlNode1:beacon');
+    group.add(beacon);
 
     return group;
   }
@@ -4762,28 +4424,49 @@ static createControlNode0(group, color) {
    * Control Node 2: Ring-within-ring hierarchy structure
    */
   static createControlNode2(group, color) {
-    const material = new THREE.MeshStandardMaterial({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.FrontSide,
-      color: color,
-      metalness: 0.8,
-      roughness: 0.2,
+    const mat = new THREE.MeshStandardMaterial({
+      color,
       emissive: color,
-      emissiveIntensity: 0.3
-
+      emissiveIntensity: 0.28,
+      metalness: 0.75,
+      roughness: 0.25
     });
 
-    // Three concentric rings
-    for (let i = 0; i < 3; i++) {
-      const ringGeometry = new THREE.TorusGeometry(0.5 + i * 0.35, 0.12, 16, 100);
-      const ring = new THREE.Mesh(ringGeometry, material);
-      ring.rotation.x = (i % 2) * Math.PI / 2;
-      ring.rotation.z = (i === 1) * Math.PI / 3;
-      group.add(ring);
-    }
+    // Base square
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.18, 1.1), mat);
+    base.position.y = -0.3;
+    validateMeshGeometry(base, 'createControlNode2:base');
+    group.add(base);
+
+    // Spine
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12, 1), mat);
+    spine.position.y = 0.3;
+    validateMeshGeometry(spine, 'createControlNode2:spine');
+    group.add(spine);
+
+    // Core cube
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), mat);
+    core.position.y = 0.9;
+    core.rotation.set(Math.PI * 0.1, Math.PI * 0.18, 0);
+    core.userData.isCore = true;
+    validateMeshGeometry(core, 'createControlNode2:core');
+    group.add(core);
+
+    // Wireframe cube
+    const frame = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.7, 0.7, 0.7)),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
+    );
+    frame.position.y = 0.9;
+    frame.rotation.y = Math.PI * 0.2;
+    group.add(frame);
+
+    // Tilted orbit ring
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 28), mat);
+    ring.position.y = 0.9;
+    ring.rotation.set(Math.PI * 0.5, Math.PI * 0.24, Math.PI * 0.12);
+    validateMeshGeometry(ring, 'createControlNode2:ring');
+    group.add(ring);
 
     return group;
   }
@@ -5229,6 +4912,7 @@ static createControlNode0(group, color) {
       overrideGroup.name = 'OVERRIDE_GROUP';
 
       const barrier = new THREE.Mesh(geometries.barrierGeometry, materials.barrierMat);
+      barrier.visible = false; // TEMP TEST disable legacy shell
       barrier.name = 'EnergyBarrier';
       barrier.scale.setScalar(1.05);
       overrideGroup.add(barrier);
@@ -5571,101 +5255,66 @@ static createControlNode0(group, color) {
    */
   static createControlSymmetryCore(group, color) {
     try {
-      // Create central symmetric core (dodecahedron - perfect symmetry)
-      const coreGeometry = new THREE.DodecahedronGeometry(0.3, 0);
-      const coreMaterial = new THREE.MeshPhysicalMaterial({
-        color: color,
-        metalness: 0.9,
-        roughness: 0.1,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.3,
-        ior: 1.45,
+      const mat = new THREE.MeshStandardMaterial({
+        color,
         emissive: color,
-        emissiveIntensity: 0.4
+        emissiveIntensity: 0.3,
+        metalness: 0.78,
+        roughness: 0.2
       });
 
-      const core = new THREE.Mesh(coreGeometry, coreMaterial);
+      // Base
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 0.16, 12, 1), mat);
+      base.position.y = -0.25;
+      validateMeshGeometry(base, 'createControlSymmetryCore:base');
+      group.add(base);
+
+      // Spine
+      const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.0, 10, 1), mat);
+      spine.position.y = 0.25;
+      validateMeshGeometry(spine, 'createControlSymmetryCore:spine');
+      group.add(spine);
+
+      // Core
+      const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), mat);
+      core.position.y = 0.65;
       core.userData.isSymmetryCore = true;
-      core.userData.visualCoreImmutable = true;
+      validateMeshGeometry(core, 'createControlSymmetryCore:core');
       group.add(core);
 
-      // Create 4 cardinal arm structures (N/S/E/W symmetry)
-      const armCount = 4;
-      const armLength = 0.6;
-      const armMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.8,
-        roughness: 0.15,
-        emissive: color,
-        emissiveIntensity: 0.3
-
+      // Arms (4)
+      const armGeo = new THREE.BoxGeometry(0.14, 0.14, 0.7);
+      const dirs = [
+        [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]
+      ];
+      dirs.forEach((d, i) => {
+        const arm = new THREE.Mesh(armGeo, mat);
+        arm.position.set(d[0] * 0.55, 0.65, d[2] * 0.55);
+        arm.rotation.y = i * Math.PI * 0.5;
+        arm.userData.isSymmetryArm = true;
+        validateMeshGeometry(arm, `createControlSymmetryCore:arm${i}`);
+        group.add(arm);
       });
 
-      const armDirections = [
-        [1, 0, 0],    // +X (East)
-        [-1, 0, 0],   // -X (West)
-        [0, 0, 1],    // +Z (North)
-        [0, 0, -1]    // -Z (South)
-      ];
+      // Orbit ring
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.045, 10, 28), mat);
+      ring.position.y = 0.65;
+      ring.rotation.x = Math.PI * 0.5;
+      ring.rotation.y = Math.PI * 0.12;
+      validateMeshGeometry(ring, 'createControlSymmetryCore:ring');
+      group.add(ring);
 
-      for (let i = 0; i < armCount; i++) {
-        // Create arm structure (box-like for orderly structure)
-        const armGeometry = new THREE.BoxGeometry(0.12, 0.15, armLength);
-        const arm = new THREE.Mesh(armGeometry, armMaterial);
-        
-        const [dx, dz] = [armDirections[i][0], armDirections[i][2]];
-        arm.position.set(
-          dx * (armLength / 2 + 0.15),
-          0,
-          dz * (armLength / 2 + 0.15)
-        );
-        
-        // Arm points outward along its axis
-        if (dx !== 0) {
-          arm.rotation.z = Math.PI / 2;
-        } else {
-          arm.rotation.x = Math.PI / 2;
-        }
-        
-        arm.userData.isSymmetryArm = true;
-        arm.userData.armIndex = i;
-        arm.userData.armDirection = armDirections[i];
-        arm.userData.visualCoreImmutable = true;
-        group.add(arm);
+      // Crown cap
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 8, 1), mat);
+      cap.position.y = 1.05;
+      validateMeshGeometry(cap, 'createControlSymmetryCore:cap');
+      group.add(cap);
 
-        // Add small terminal nodes at arm ends (symmetry markers)
-        const markerGeometry = new THREE.OctahedronGeometry(0.1, 1);
-        const markerMaterial = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.6
-        });
-        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        
-        marker.position.set(
-          dx * (armLength + 0.25),
-          0,
-          dz * (armLength + 0.25)
-        );
-        
-        marker.userData.isSymmetryMarker = true;
-        marker.userData.markerIndex = i;
-        marker.userData.visualCoreImmutable = true;
-        group.add(marker);
-      }
-
-      // Store animation metadata (counter-rotating core + arms)
-      group.userData.symCoreRotationSpeed = 0.2;
-      group.userData.symArmRotationSpeed = -0.15; // Counter-rotation
-      group.userData.symArmCount = armCount;
-
+      group.userData.symCoreRotationSpeed = 0.08;
+      group.userData.symArmRotationSpeed = -0.05;
+      group.userData.symmetryBalanceOscillation = 0.02;
       group.userData.visualCoreImmutable = true;
-      group.userData.nodeGeometryName = 'CONTROL_SYMMETRY_CORE';
+      group.userData.nodeGeometryName = 'CONTROL_SYMMETRY_CORE_V3';
 
       return group;
     } catch (err) {

@@ -147,6 +147,7 @@ export class NodeAuraSystem_v1 {
     this.enforcementGate = options.enforcementGate || null;  // Optional enforcement gate
     this.profileResolver = options.profileResolver || this._defaultProfileResolver.bind(this);
     this.enabled = options.enabled !== false;
+    this.enableBaselineAura = options.enableBaselineAura === true; // Default OFF to allow hover ring system
     
     // [Distance Modulation v1.0] Camera reference for distance-based intensity
     this.camera = options.camera || null;
@@ -498,6 +499,12 @@ export class NodeAuraSystem_v1 {
 
     if (this.auras.has(node.id || node)) {
       console.warn('[NodeAuraSystem_v1] Node already has aura');
+      return;
+    }
+
+    // BASELINE AURA DISABLED
+    // Legacy sphere aura removed to allow segmented hover ring system.
+    if (!this.enableBaselineAura) {
       return;
     }
 

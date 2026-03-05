@@ -81,6 +81,7 @@ export function enforceNodeInteractionCore(node) {
         side: THREE.DoubleSide
     });
     activeCore = new THREE.Mesh(geometry, material);
+    activeCore.visible = false; // TEMP TEST: disable interaction proxy visual
     tagAllowedSphere(activeCore, {
       role: 'interactionProxy',
       source: 'HARD_INTERACTION_AUTHORITY_SYSTEM.enforceNodeInteractionCore',

@@ -21,6 +21,9 @@ let THREE = null;
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualTransitionEngine_v2 } from './ArchetypeVisualTransitionEngine_v2.js';
 
+// Legacy aura overlays kill-switch
+const ENABLE_LEGACY_AURAS = false;
+
 export class ArchetypeVisualDifferentiationSystem_v1 {
   constructor(debugMode = false) {
     this.debugMode = debugMode;
@@ -369,32 +372,40 @@ export class ArchetypeVisualDifferentiationSystem_v1 {
     const baseColor = this.readBaseColor(nodeModel);
     const targetColor = this.shiftHSL(new THREE.Color(baseColor), profile.colorShift || { hueRotation:0, saturation:1, luminance:1 });
 
-    // Glow sphere
-    const glowGeom = new THREE.SphereGeometry(1.0, 24, 24);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: targetColor,
-      transparent: true,
-      opacity: profile.glow?.intensity ?? 0.25,
-      side: THREE.BackSide
-    });
-    const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-    glowMesh.userData.type = 'archetypeGlow';
-    overlayGroup.add(glowMesh);
-    overlayGroup.userData.glowMesh = glowMesh;
+    // LEGACY_AURA_DISABLED
+    // This aura system is disabled to prevent visual stack conflicts.
+    // Core aura stack is:
+    // - hover (NodeAuraSystem_v1)
+    // - selected (_UISelectedNodeHighlight)
+    // - linked (NodeLinkedAuraSystem)
+    if (false && ENABLE_LEGACY_AURAS) {
+      // Glow sphere
+      const glowGeom = new THREE.SphereGeometry(1.0, 24, 24);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: targetColor,
+        transparent: true,
+        opacity: profile.glow?.intensity ?? 0.25,
+        side: THREE.BackSide
+      });
+      const glowMesh = new THREE.Mesh(glowGeom, glowMat);
+      glowMesh.userData.type = 'archetypeGlow';
+      overlayGroup.add(glowMesh);
+      overlayGroup.userData.glowMesh = glowMesh;
 
-    // Rim/halo torus
-    const rimGeom = new THREE.TorusGeometry(1.2, 0.05, 12, 64);
-    const rimMat = new THREE.MeshBasicMaterial({
-      color: targetColor,
-      transparent: true,
-      opacity: (profile.glow?.opacity ?? 0.25),
-      emissive: targetColor,
-      emissiveIntensity: profile.glow?.intensity ?? 0.25
-    });
-    const rim = new THREE.Mesh(rimGeom, rimMat);
-    rim.rotation.x = Math.PI / 2;
-    rim.userData.type = 'archetypeRim';
-    overlayGroup.add(rim);
+      // Rim/halo torus
+      const rimGeom = new THREE.TorusGeometry(1.2, 0.05, 12, 64);
+      const rimMat = new THREE.MeshBasicMaterial({
+        color: targetColor,
+        transparent: true,
+        opacity: (profile.glow?.opacity ?? 0.25),
+        emissive: targetColor,
+        emissiveIntensity: profile.glow?.intensity ?? 0.25
+      });
+      const rim = new THREE.Mesh(rimGeom, rimMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.userData.type = 'archetypeRim';
+      overlayGroup.add(rim);
+    }
 
     // Particles (lightweight)
     const particles = [];

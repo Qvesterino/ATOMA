@@ -4,6 +4,9 @@ import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+// Legacy aura overlays kill-switch
+const ENABLE_LEGACY_AURAS = false;
+
 function isLinkSpawnEnabled() {
   if (typeof window === 'undefined') return false;
   return window.ATOMA_FLAGS?.runtime?.linkSpawnEnabled === true;
@@ -357,6 +360,26 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // [INTERACTION AUTHORITY] Disable raycasting on visual-only meshes
     // This ensures visual meshes NEVER block node selection raycasts
     this._disableRaycastOnVisualMeshes();
+
+    // TEMP DEBUG: scan scene for sphere geometries to identify visible artifact source
+    if (this.scene && typeof window !== 'undefined' && window.ATOMA_DEBUG_SPHERE_SCAN === true) {
+      this.scene.traverse((o) => {
+        if (o?.geometry && o.geometry.type === 'SphereGeometry') {
+          console.log('SPHERE IN SCENE', {
+            name: o.name,
+            parent: o.parent?.name || o.parent?.uuid,
+            material: {
+              transparent: o.material?.transparent,
+              opacity: o.material?.opacity,
+              depthWrite: o.material?.depthWrite,
+              depthTest: o.material?.depthTest,
+              visible: o.visible
+            },
+            radius: o.geometry.parameters?.radius
+          });
+        }
+      });
+    }
     
     // VISUAL BOOTSTRAP 3.0: Synchronous visual initialization on spawn
     this.visualBootstrap = new NodeVisualBootstrap3_0({ debugMode: false });
@@ -1516,6 +1539,25 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
       if (nodeModel) {
         copySpawnIdentity(nodeModel, nodeModel);
+        // TEMP DEBUG: log any sphere/icosa shells attached to the node
+        nodeModel.traverse((o) => {
+          if (o?.geometry && (o.geometry.type === 'SphereGeometry' || o.geometry.type === 'IcosahedronGeometry')) {
+            console.log('SPHERE FOUND', {
+              name: o.name,
+              type: o.geometry.type,
+              params: o.geometry.parameters,
+              material: {
+                transparent: o.material?.transparent,
+                opacity: o.material?.opacity,
+                depthWrite: o.material?.depthWrite,
+                depthTest: o.material?.depthTest,
+                visible: o.visible
+              },
+              parent: o.parent?.name || o.parent?.uuid,
+              nodeId: nodeModel.userData?.nodeId
+            });
+          }
+        });
 
         // HARD LOCK: nodeId is canonical - throw if missing
         if (!nodeModel.userData.nodeId) {
@@ -1681,7 +1723,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // ========== ULTRA EDITION: INTENSE OUTER GLOW (200% boost) ==========
     // Primary glow (2× larger and brighter)
     let outerGlow = null;
-    if (false && vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
+    // LEGACY_AURA_DISABLED
+    // This aura system is disabled to prevent visual stack conflicts.
+    // Core aura stack is:
+    // - hover (NodeAuraSystem_v1)
+    // - selected (_UISelectedNodeHighlight)
+    // - linked (NodeLinkedAuraSystem)
+    if (false && ENABLE_LEGACY_AURAS && vfxFlag('ATOMA_VFX_ENABLE_NODE_GLOW', true)) {
       const outerGlowGeometry = new THREE.IcosahedronGeometry(1.2, 4);
       const outerGlowMaterial = new THREE.MeshBasicMaterial({
         color: layerColors.primary,
@@ -1712,7 +1760,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Secondary halo (even larger, very soft)
     // [Halo Cleanup v1.0] Reduced scale from 1.5→1.15 and opacity from 0.15→0.22 for better readability
     let haloGlow = null;
-    if (false && vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
+    // LEGACY_AURA_DISABLED
+    // This aura system is disabled to prevent visual stack conflicts.
+    // Core aura stack is:
+    // - hover (NodeAuraSystem_v1)
+    // - selected (_UISelectedNodeHighlight)
+    // - linked (NodeLinkedAuraSystem)
+    if (false && ENABLE_LEGACY_AURAS && vfxFlag('ATOMA_VFX_ENABLE_NODE_HALO', true)) {
       const haloGeometry = new THREE.IcosahedronGeometry(1.15, 3);
       const haloMaterial = new THREE.MeshBasicMaterial({
         color: layerColors.secondary,
