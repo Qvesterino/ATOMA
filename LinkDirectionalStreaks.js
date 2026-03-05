@@ -223,9 +223,10 @@ export class LinkDirectionalStreaks {
         const jitterAmount = corruption * 0.15; // Subtle lateral jitter
         const desaturation = corruption * this.config.corruptionDesaturation;
         
-        // Instability shortens lifetimes and may suppress streaks
-        const instabilityFactor = Math.max(0.3, 1.0 - (instability * 0.5)); // Min 0.3x lifetime
-        const suppressionThreshold = instability * 0.3; // Chance to skip rendering
+        // Instability effects - DISABLED per user request
+        // Opacity multipliers and suppressed flags removed
+        const instabilityFactor = 1.0; // Full lifetime (no shortening)
+        const suppressionThreshold = 0; // No suppression
         
         // --- UPDATE EACH STREAK ---
         const vertices = [];
@@ -274,12 +275,12 @@ export class LinkDirectionalStreaks {
                 opacity = (1.0 - phase) / 0.15;
             }
             
-            // Apply instability suppression
-            streaks.suppressed[i] = (Math.random() < suppressionThreshold) ? 1 : 0;
-            if (streaks.suppressed[i]) opacity = 0;
+            // Instability suppression - DISABLED per user request
+            // streaks.suppressed[i] remains 0 (no suppression)
+            // No instability damping applied
             
-            // Apply overall instability damping
-            opacity *= (1.0 - (instability * this.config.instabilityDampen));
+            // Apply overall instability damping - DISABLED
+            // opacity *= (1.0 - (instability * this.config.instabilityDampen));
             
             // --- BUILD RIBBON GEOMETRY ---
             // Sample curve at streak offset ± length

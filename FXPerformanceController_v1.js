@@ -26,8 +26,8 @@
  * - corruptionSignal: 1.0 → 0.5 (50% reduction)
  * 
  * VFX/SHADER EFFECTS (when LowFX ON):
- * - vfxIntensity:     1.0 → 0.3 (70% reduction)
- * - shaderIntensity:  1.0 → 0.25 (75% reduction)
+ * - vfxIntensity:     1.0 → 1.0 (NO reduction - particle rendering unaffected)
+ * - shaderIntensity:  1.0 → 1.0 (NO reduction - particle rendering unaffected)
  * 
  * INTEGRATION:
  * const perfCtrl = new FXPerformanceController_v1(options);
@@ -74,14 +74,15 @@ export class FXPerformanceController_v1 {
 
     // Reduced values for Performance Mode (LowFX ON)
     // These are the target multipliers when low FX mode is activated
+    // NOTE: vfxIntensity and shaderIntensity remain at 1.0 to preserve particle rendering
     this.lowFXMultipliers = {
       clarity: options.clarityLowFX ?? 0.4,          // 60% reduction
       resonance: options.resonanceLowFX ?? 0.4,      // 60% reduction
       entropy: options.entropyLowFX ?? 0.2,          // 80% reduction
       focus: options.focusLowFX ?? 0.3,              // 70% reduction
       corruption: options.corruptionLowFX ?? 0.5,    // 50% reduction
-      vfxIntensity: options.vfxIntensityLowFX ?? 0.3,  // 70% reduction
-      shaderIntensity: options.shaderIntensityLowFX ?? 0.25, // 75% reduction
+      vfxIntensity: 1.0,  // NO reduction - particle rendering unaffected
+      shaderIntensity: 1.0, // NO reduction - particle rendering unaffected
     };
 
     // Full quality multipliers (all 1.0)
@@ -205,8 +206,8 @@ export class FXPerformanceController_v1 {
       entropy: 0.2,
       focus: 0.3,
       corruption: 0.5,
-      vfxIntensity: 0.3,
-      shaderIntensity: 0.25,
+      vfxIntensity: 1.0,
+      shaderIntensity: 1.0,
     };
 
     if (this.lowFX) {

@@ -63,6 +63,9 @@ import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.j
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
+import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
+import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
 // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
@@ -3388,9 +3391,9 @@ class AtomaGame {
                 this.primaryNodeTopBar.update();
             }
         }, 'simulation.primaryNodeTopBar');
-        this.frameScheduler.register('realtime', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             this.worldRuntime_v1?.update?.(dt);
-        }, 'realtime.worldRuntime_v1');
+        }, 'visual.worldRuntime_v1');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodeEditorRuntime_v1?.update?.(dt);
         }, 'simulation.nodeEditorRuntime_v1');
@@ -4832,6 +4835,9 @@ hudP05Observer.observe(document.body, {
         
         // Scene
         this.scene = new THREE.Scene();
+        this.vfxRoot = new THREE.Group();
+        this.vfxRoot.name = 'VFX_ROOT';
+        this.scene.add(this.vfxRoot);
         // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
         // ensureSpherePolicyInstalled({ sweepIntervalMs: 100 });
         // this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
@@ -5465,6 +5471,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this._pendingCreateWorldReason = null;
             // ATOMA: visual layer prune/reset on world switch
             this.frameScheduler?.resetLayer?.('visual');
+            if (this.vfxLoader) {
+                this.vfxLoader.onWorldSwitch(reasonForCreate);
+            }
 
             // Dispose existing AI nodes before tearing down roots
             if (this.aiNodes && typeof this.aiNodes.dispose === 'function') {
@@ -5480,6 +5489,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
             if (this.worldRoot) {
                 this.scene.remove(this.worldRoot);
+            }
+            if (this.vfxRoot) {
+                this.vfxRoot.clear();
+                this.vfxRoot.parent?.remove(this.vfxRoot);
             }
 
             // FrameScheduler Stale State Reset (clear simulation/background layer state after old world disposal)
@@ -5501,6 +5514,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.environmentRoot = new THREE.Group();
         this.environmentRoot.name = 'ATOMA_EnvironmentRoot';
         this.worldRoot.add(this.environmentRoot);
+        if (this.vfxRoot) {
+            this.worldRoot.add(this.vfxRoot);
+            if (this.vfxLoader) {
+                this.vfxLoader.world = this.worldRoot;
+                this.vfxLoader.vfxRoot = this.vfxRoot;
+            }
+        }
         this.nodesRoot = new THREE.Group();
         this.nodesRoot.name = 'ATOMA_NodesRoot';
         this.scene.add(this.nodesRoot);
@@ -5764,6 +5784,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         this.aiNodes = new AINodes(this.scene, this.nodesRoot, this.player, sessionVariantEngine);
+        if (this.vfxLoader) {
+            this.vfxLoader.aiNodes = this.aiNodes;
+        }
         window.__ATOMA_AINODES__ = this.aiNodes;
         this.aiNodes.waveInterferenceEngine = this.waveInterferenceEngine || null;
         systemRegistry.register('aiNodes', this.aiNodes);
@@ -5878,6 +5901,25 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (this.recursiveGlyphSignalSystem) {
             this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
+        // VFX runtime loader (opt-in)
+        this.vfxLoader = new VFXRuntimeLoader({
+            frameScheduler: this.frameScheduler,
+            scene: this.scene,
+            vfxRoot: this.vfxRoot,
+            world: this.worldRoot,
+            aiNodes: this.aiNodes,
+            linkingSystem: this.linkingSystem,
+            camera: this.camera,
+            renderer: this.renderer,
+            config: {
+                disableOnWorldSwitch: true,
+                maxEnabled: 12,
+                minEnableIntervalMs: 200
+            }
+        });
+        VFX_SYSTEMS.forEach((def) => this.vfxLoader.register(def));
+        this.vfxLoader.attachToScheduler();
+        installVFXConsoleAPI(this.vfxLoader);
 
         // One-time shader warm-up for archetype visuals to avoid first-spawn GPU stalls
         if (
@@ -6458,48 +6500,25 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         
         // ====================================================================
-        // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26)
-        // Prevents event visual effects from diluting or occluding cores
+        // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26) - DEACTIVATED
+        // Suppression disabled per user request - opacity multipliers and suppressed flags removed
         // ====================================================================
         try {
-            this.eventVisualSuppression = new EventVisualSuppression_v1({
-                debugEnabled: false,
-                enableLogging: false,
-                suppressionStrength: 0.8,    // Aggressive suppression
-                suppressCoreEmissive: false,
-                suppressCoreOpacity: false,
-                suppressCoreOverlays: true,
-                suppressCoreMaterial: false,
-                redirectToAura: true
-            });
+            // DISABLED: No longer suppressing event visual effects
+            // All suppression flags set to false to allow full opacity and visual fidelity
+            this.eventVisualSuppression = null;
             
-            // Register common event sources for monitoring
-            // These will be used to track which systems are applying effects
+            // Register common event sources for monitoring - DISABLED
+            // Suppress VFX effects for all nodes - DISABLED
             
-            // Suppress VFX effects for all nodes
-            if (this.aiNodes?.nodes) {
-                this.eventVisualSuppression.suppressVFXEventEffects(this.aiNodes.nodes);
-            }
+            // Register post-spawn observer - DISABLED
             
-            // Register post-spawn observer (single ordered pipeline)
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'event-visual-suppression',
-                    (newNode) => {
-                        if (newNode && this.eventVisualSuppression) {
-                            this.eventVisualSuppression.suppressVFXEventEffects([newNode]);
-                        }
-                    },
-                    45
-                );
-            }
+            // Setup console API for debugging - DISABLED
+            // window.debugEventSuppression = setupEventSuppressionConsoleAPI(this.eventVisualSuppression);
             
-            // Setup console API for debugging
-            window.debugEventSuppression = setupEventSuppressionConsoleAPI(this.eventVisualSuppression);
-            
-            console.log('[main.js] EventVisualSuppression initialized ✓');
+            console.log('[main.js] EventVisualSuppression DEACTIVATED ✓');
         } catch (err) {
-            console.warn('[main.js] EventVisualSuppression initialization failed:', err);
+            console.warn('[main.js] EventVisualSuppression deactivation handled:', err);
         }
         
         // ====================================================================
@@ -7948,6 +7967,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.scene.children
                 .filter(o =>
                     o !== this.worldRoot &&
+                    o !== this.vfxRoot &&
                     o !== this.player &&
                     !(o instanceof THREE.Light)
                 )
@@ -8402,7 +8422,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         });
-        regGuard('worldRuntime_v1', 'realtime.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
+        regGuard('worldRuntime_v1', 'visual.worldRuntime_v1', (dt) => this.worldRuntime_v1?.update?.(dt));
         regGuard('fxRuntime_v1', 'visual.fxRuntime_v1', (dt) => this.fxRuntime_v1?.update?.(dt));
         regGuard('nodeEditorRuntime_v1', 'simulation.nodeEditorRuntime_v1', (dt) => this.nodeEditorRuntime_v1?.update?.(dt));
         regGuard('inputRuntime', 'InputRuntime_v1', (dt) => {

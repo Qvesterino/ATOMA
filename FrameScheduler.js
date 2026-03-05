@@ -198,6 +198,14 @@ class FrameScheduler {
     }
 
     /**
+     * Visual gate for particle systems - always returns true.
+     * Particle rendering must never be blocked by frame scheduling.
+     */
+    shouldRunVisual() {
+        return true;
+    }
+
+    /**
      * Main tick - called every frame with deltaTime
      * Executes registered functions when their layer's interval is reached
      * 

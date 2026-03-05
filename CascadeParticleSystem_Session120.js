@@ -306,8 +306,6 @@ export class CascadeParticleSystem_Session120 {
    * Update Loop
    */
   update(deltaTime, links) {
-    if (!this.config.enabled) return;
-
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
     }

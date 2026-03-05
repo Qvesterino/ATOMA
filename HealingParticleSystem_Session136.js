@@ -184,7 +184,7 @@ export class HealingParticleSystem_Session136 {
      * Update loop
      */
     update(deltaTime, time, networkState, camera) {
-        if (!this.enabled || !this.mesh) return;
+        if (!this.mesh) return;
         
         // Update uniforms
         this.material.uniforms.uTime.value = time;
@@ -214,12 +214,6 @@ export class HealingParticleSystem_Session136 {
         const emissionRate = this.config.sparkleRate * (1.0 + harmony * 0.5) * (1.0 - corruption);
         
         scars.forEach(scar => {
-            if (!scar.mesh || !scar.mesh.mesh.visible) return;
-            
-            // LOD check
-            const dist = camera.position.distanceTo(scar.mesh.mesh.position);
-            if (dist > this.config.lodDistance) return;
-            
             const scarId = scar.linkId;
             let acc = this.scarEmissions.get(scarId) || 0;
             acc += emissionRate * deltaTime * scar.intensity; // Scale by scar intensity

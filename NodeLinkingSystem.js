@@ -32,6 +32,8 @@ import {
   applyCoreSynergyGlowScaling,
   removeCoreSynergyGlow
 } from './NodeVisualStateBinder.js';
+import { createFresnelAura } from './FresnelAuraIntegrationPatch.js';
+import { SelectedRingSystem } from './src/visual/SelectedRingSystem_v1.js';
 import {
   initializeLinkSynergyColor,
   updateLinkSynergyColor,
@@ -574,6 +576,10 @@ export class NodeLinkingSystem {
     this.hoveredNodeForSelection = null;
     this.nodeSelectionGlows = new Map(); // Track selection glow meshes per node
     this.hoverGlowEnabled = CONFIG.visuals?.enableNodeHoverGlow === true;
+
+    // Selected ring system (30 Hz visual layer)
+    const frameScheduler = (typeof window !== 'undefined' && window.frameScheduler) ? window.frameScheduler : null;
+    this.selectedRingSystem = new SelectedRingSystem(this.scene, frameScheduler, VisualHierarchyRegistry);
     
     // [SESSION 51] Visual State Binder - Ensures nodes apply final visuals after linking
     this.visualStateBinder = new NodeVisualStateBinder({ autoRepair: true, verbose: false });
@@ -1148,6 +1154,7 @@ export class NodeLinkingSystem {
     // Clear previous Primary Node highlight
     if (this.primaryNode) {
       this.clearPrimaryNodeHighlight();
+      this.selectedRingSystem?.setSelectedNode(null);
     }
     
     // Set new Primary Node
@@ -1157,6 +1164,8 @@ export class NodeLinkingSystem {
     
     // Create Primary Node highlight
     this.createPrimaryNodeHighlight(node);
+    this.selectedRingSystem?.setSelectedNode(node);
+    this.selectedRingSystem?.onNodeClicked(node);
     
     console.log(`[Primary Node] Set: ${node.userData.category} (ID: ${this.getNodeId(node)})`);
     
@@ -1169,24 +1178,14 @@ export class NodeLinkingSystem {
    * Uses NeonEdgeGlowShader for futuristic edge highlighting
    */
   createPrimaryNodeHighlight(node) {
-    const highlightGeometry = new THREE.SphereGeometry(1.0, 32, 32);
-    const highlightMaterial = createNeonEdgeGlowMaterial({
-      glowColor: 0x00ddff,
-      glowIntensity: 1.5,
-      edgeWidth: 0.15,
-      pulseSpeed: 2.0,
-      pulseAmount: 0.3
-    });
-    
-    this.selectedNodeHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    this.selectedNodeHighlight.visible = false; // TEMP TEST: disable selection sphere
-    tagAllowedSphere(this.selectedNodeHighlight, { role: 'highlight', source: 'NodeLinkingSystem.createPrimaryNodeHighlight', owner: this.getNodeId(node) });
-    clampSphere(this.selectedNodeHighlight);
-    Object.assign(ensureUserData(this.selectedNodeHighlight), { isSelectionHighlight: true, isActive: true, isPrimaryNode: true });
-    this.selectedNodeHighlight.scale.copy(node.scale);
-    this.selectedNodeHighlight.position.copy(node.position);
-    this.selectedNodeHighlight.renderOrder = -1;
-    
+    const auraMesh = createFresnelAura(node.userData || { id: this.getNodeId(node) });
+    if (!auraMesh) return;
+    auraMesh.scale.copy(node.scale);
+    auraMesh.position.copy(node.position);
+    auraMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('SELECTED');
+    auraMesh.visible = true;
+
+    this.selectedNodeHighlight = auraMesh;
     this.scene.add(this.selectedNodeHighlight);
   }
   
@@ -1613,6 +1612,7 @@ export class NodeLinkingSystem {
     
     // Remove highlight
     this.clearPrimaryNodeHighlight();
+    this.selectedRingSystem?.setSelectedNode(null);
     
     // Fire deselection callbacks
     this._fireDeselectCallbacks();

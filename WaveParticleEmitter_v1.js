@@ -26,10 +26,10 @@ export class WaveParticleEmitter_v1 {
     this.config = {
       maxParticlesPerFamily: config.maxParticlesPerFamily ?? 2000,
       emissionRate: config.emissionRate ?? 1.0, // Multiplier on base emission
-      constructiveThreshold: config.constructiveThreshold ?? 0.7,
-      destructiveThreshold: config.destructiveThreshold ?? 0.7,
-      standingWaveThreshold: config.standingWaveThreshold ?? 0.65,
-      amplitudeSpikeThreshold: config.amplitudeSpikeThreshold ?? 0.12,
+      constructiveThreshold: 0,
+      destructiveThreshold: 0,
+      standingWaveThreshold: 0,
+      amplitudeSpikeThreshold: 0,
       amplitudeEMAAlpha: config.amplitudeEMAAlpha ?? 0.15,
       debugMode: config.debugMode ?? false,
     };
@@ -66,9 +66,9 @@ export class WaveParticleEmitter_v1 {
     };
 
     this.gateDelays = {
-      constructiveBurst: 0.08, // Minimum 80ms between bursts per node
-      destructiveChaos: 0.06,
-      standingWaveRipple: 0.12,
+      constructiveBurst: 0,
+      destructiveChaos: 0,
+      standingWaveRipple: 0,
     };
 
     // EMA tracking for amplitude spikes (per node)
@@ -344,8 +344,8 @@ export class WaveParticleEmitter_v1 {
 
       const waveField =
         waveEngine?.getNodeWaveField?.(nodeId, node) ??
-        node?.userData?.waveField;
-      if (!waveField) return;
+        node?.userData?.waveField ??
+        {};
 
       const constructive = waveField.constructive ?? waveField.constructivePower ?? 0;
       const destructive = waveField.destructive ?? waveField.destructivePower ?? 0;
@@ -353,19 +353,13 @@ export class WaveParticleEmitter_v1 {
       const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
 
       // **Event 1: Constructive Burst** (high constructive interference)
-      if (constructive > this.config.constructiveThreshold) {
-        this._emitConstructiveBurst(node);
-      }
+      this._emitConstructiveBurst(node);
 
       // **Event 2: Destructive Chaos** (high destructive interference)
-      if (destructive > this.config.destructiveThreshold) {
-        this._emitDestructiveChaos(node);
-      }
+      this._emitDestructiveChaos(node);
 
       // **Event 3: Standing Wave Ripples** (high standing wave energy)
-      if (standing > this.config.standingWaveThreshold) {
-        this._emitStandingWaveRipple(node);
-      }
+      this._emitStandingWaveRipple(node);
 
       // **Event 4: Amplitude Spike** (significant increase in amplitude)
       this._processAmplitudeSpike(nodeId, amplitude);

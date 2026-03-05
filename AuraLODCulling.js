@@ -112,26 +112,13 @@ export class AuraLODCulling {
   }
   
   /**
-   * Compute aura visibility with hysteresis.
-   * Uses state tracking in userData to prevent flickering.
+   * Compute aura visibility - LOD DISABLED.
+   * Auras are always visible regardless of distance.
+   * Kept for API compatibility.
    */
   _computeVisibility(distance, threshold, hysteresis, userData) {
-    // Initialize cull state
-    if (userData._auraIsCulled === undefined) {
-      userData._auraIsCulled = distance > threshold;
-    }
-    
-    // Apply hysteresis
-    const showThreshold = threshold - hysteresis;
-    const hideThreshold = threshold + hysteresis;
-    
-    if (userData._auraIsCulled && distance < showThreshold) {
-      userData._auraIsCulled = false;
-    } else if (!userData._auraIsCulled && distance > hideThreshold) {
-      userData._auraIsCulled = true;
-    }
-    
-    return !userData._auraIsCulled;
+    // LOD DISABLED: Always return true to prevent distance-based culling
+    return true;
   }
   
   /**

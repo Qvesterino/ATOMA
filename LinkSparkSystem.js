@@ -1,17 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
-/**
- * GPU-Driven Spark Particle System for Links
- * 
- * DESIGN:
- * - Tertiary visual layer (very subtle)
- * - Represents micro-friction and tension
- * - Spawns only during high activity (Synergy/Traffic)
- * - GPU-based animation (Vertex Shader) for performance
- * - Zero allocation during runtime (pre-allocated buffers)
- */
-
 const SPARK_VS = `
 attribute float aSpawnTime;
 attribute float aLifeTime;
@@ -25,6 +14,7 @@ uniform vec3 uStart;
 uniform vec3 uMid;
 uniform vec3 uEnd;
 uniform float uThickness;      // Radius of the rope
+uniform float uPulse;
 
 varying float vAlpha;
 varying float vLifeProgress;
@@ -85,7 +75,7 @@ void main() {
     gl_Position = projectionMatrix * mvPosition;
 
     // Size attenuation (smaller as it fades)
-    gl_PointSize = aSize * (1.0 - vLifeProgress * 0.5) * (30.0 / -mvPosition.z);
+    gl_PointSize = 40.0; // TEMP visibility boost
 
     // Alpha Fade: Quick in, Slow out
     float fadeIn = smoothstep(0.0, 0.2, vLifeProgress);
@@ -102,23 +92,13 @@ varying float vAlpha;
 varying float vLifeProgress;
 
 void main() {
-    if (vAlpha <= 0.01) discard;
-
-    // Soft circular particle
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
-    
-    if (dist > 0.5) discard;
-
-    // Soft glow falloff
-    float glow = 1.0 - (dist * 2.0);
-    glow = pow(glow, 1.5); // Sharpen slightly
-
-    gl_FragColor = vec4(uColor, uOpacity * vAlpha * glow);
+    gl_FragColor = vec4(uColor, vAlpha * uOpacity);
 }
 `;
 
 let __sparkMaterialBase;
+const DEBUG_SPARKS = false;
+
 function getSparkMaterialBase() {
     if (!__sparkMaterialBase) {
         __sparkMaterialBase = new THREE.ShaderMaterial({
@@ -137,6 +117,7 @@ function getSparkMaterialBase() {
 
 export class LinkSparkSystem {
     constructor(scene, maxSparks = 60) {
+        if (DEBUG_SPARKS) console.log("SPARK SYSTEM CONSTRUCTED");
         this.scene = scene;
         this.maxSparks = maxSparks;
         this.spawnIndex = 0;
@@ -168,12 +149,19 @@ export class LinkSparkSystem {
         }
 
         const geometry = new THREE.BufferGeometry();
+        // REQUIRED: position attribute for Three.js to render anything
+        const positions = new Float32Array(this.maxSparks * 3); // x, y, z for each spark
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
         geometry.setAttribute('aSpawnTime', new THREE.BufferAttribute(spawnTimes, 1));
         geometry.setAttribute('aLifeTime', new THREE.BufferAttribute(lifeTimes, 1));
         geometry.setAttribute('aT', new THREE.BufferAttribute(tValues, 1));
         geometry.setAttribute('aAngle', new THREE.BufferAttribute(angles, 1));
         geometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
         geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        this.geometry = geometry;
+        
+        if (DEBUG_SPARKS) console.log("SPARK GEOM", geometry.attributes.position.count);
 
         // Uniforms
         this.uniforms = {
@@ -181,21 +169,26 @@ export class LinkSparkSystem {
             uStart: { value: new THREE.Vector3() },
             uMid: { value: new THREE.Vector3() },
             uEnd: { value: new THREE.Vector3() },
-            uThickness: { value: 0.05 },
-            uColor: { value: new THREE.Color(0xffffff) },
-            uOpacity: { value: 0.8 }
+            uThickness: { value: 0.6 },
+            uPulse: { value: 0 },
+            uColor: { value: new THREE.Color(0xff00ff) },
+            uOpacity: { value: 2.5 }
         };
 
+        // Restore shader material for sparks
         const material = getSparkMaterialBase().clone();
-        // Ensure per-instance uniforms (do not share uniform object)
         material.uniforms = this.uniforms;
 
         this.points = new THREE.Points(geometry, material);
-        this.points.frustumCulled = false; // Always render if link is visible
+        this.points.frustumCulled = false; // Always render
         const sparksOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
-        this.points.renderOrder = sparksOrder;
+        this.points.renderOrder = 9999;
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
+        console.log('SPARK MESH', this.points);
+        
+        // Add to scene
+        this.scene.add(this.points);
     }
 
     getMesh() {
@@ -211,7 +204,30 @@ export class LinkSparkSystem {
      * @param {THREE.Color} color - Base link color
      */
     update(time, deltaTime, curve, stats, color) {
-        if (!this.points.visible) return;
+        // Active particle estimate for debugging
+        const geo = this.points?.geometry || this.geometry;
+        if (!geo || !geo.attributes?.aSpawnTime || !geo.attributes?.aLifeTime) {
+            console.warn('SPARK UPDATE skipped: geometry missing');
+            return;
+        }
+        const posAttr = geo.attributes.position;
+        if (DEBUG_SPARKS && posAttr?.array) {
+            console.log('SPARK POS SAMPLE', Array.from(posAttr.array.slice(0, 12)));
+        }
+        const spawnTimes = geo.attributes.aSpawnTime.array;
+        const lifeTimes = geo.attributes.aLifeTime.array;
+        let active = 0;
+        for (let i = 0; i < this.maxSparks; i++) {
+            if (time - spawnTimes[i] < lifeTimes[i] && spawnTimes[i] >= 0) {
+                active++;
+            }
+        }
+        this.activeCount = active;
+        this._logAccum = (this._logAccum || 0) + deltaTime;
+        if (DEBUG_SPARKS && this._logAccum >= 10) {
+            console.log('SPARK UPDATE', this.activeCount);
+            this._logAccum = 0;
+        }
 
         // 1. Update Uniforms
         this.uniforms.uTime.value = time;
@@ -240,7 +256,13 @@ export class LinkSparkSystem {
         const activity = Math.max(intensity, synergy, traffic);
 
         // Probability increases with activity (baseline always on)
-        const spawnProb = Math.min(1, Math.max(0, activity)) * 0.8 * deltaTime;
+        // Force-enable spawning for visibility debug
+        const spawnProb = 1;
+        this._condAccum = (this._condAccum || 0) + deltaTime;
+        if (DEBUG_SPARKS && this._condAccum >= 10) {
+            console.log('SPARK CONDITION', { activity, synergy, traffic, spawnProb, deltaTime });
+            this._condAccum = 0;
+        }
 
         // [DEBUG] Log spawn probability for debugging
         if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
@@ -258,14 +280,12 @@ export class LinkSparkSystem {
 
         // Burst check (Echo wave or bead arrival simulation)
         // We'll simulate bursts via random chance for now to keep it decoupled
-        if (Math.random() < spawnProb) {
-            // Spawn a small burst (1-3 particles)
-            const count = Math.floor(Math.random() * 2) + 1;
-            this.spawnBurst(count, time, activity);
-        }
+        // Always spawn to verify visuals
+        const count = 5; // TEMP more particles for visibility
+        this.spawnBurst(count, time, activity);
 
         // Opacity scales with activity but never zero
-        this.uniforms.uOpacity.value = 0.15 + 0.6 * Math.min(1, Math.max(0, activity));
+        this.uniforms.uOpacity.value = 1.5; // TEMP visibility boost
         this.points.visible = true;
 
         if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
@@ -282,6 +302,11 @@ export class LinkSparkSystem {
      * Spawn a burst of particles
      */
     spawnBurst(count, time, intensity) {
+        this._spawnAccum = (this._spawnAccum || 0) + (1/60); // approximate per-call
+        if (DEBUG_SPARKS && this._spawnAccum >= 10) {
+            console.log('SPARK SPAWN', { count, time, intensity });
+            this._spawnAccum = 0;
+        }
         const geo = this.points.geometry;
         const aSpawnTime = geo.attributes.aSpawnTime;
         const aLifeTime = geo.attributes.aLifeTime;
@@ -296,8 +321,8 @@ export class LinkSparkSystem {
             // Activate
             aSpawnTime.setX(idx, time);
             
-            // Random Lifetime (0.4s - 1.2s)
-            aLifeTime.setX(idx, 0.4 + Math.random() * 0.8);
+            // TEMP: longer lifetime for visibility
+            aLifeTime.setX(idx, 1.5 + Math.random() * 0.5);
 
             // Random Position on Curve
             // Bias towards ends slightly? No, random is fine for "friction"
@@ -308,17 +333,28 @@ export class LinkSparkSystem {
 
             // Speed (scaled by intensity)
             // Higher intensity = faster sparks
-            aSpeed.setX(idx, 0.2 + Math.random() * 0.5 * intensity);
+            // Minimal drift to stay near rope for visibility
+            aSpeed.setX(idx, 0.0);
 
             // Size (Small, very subtle)
-            // 2.0 to 4.0 pixel base size
-            aSize.setX(idx, (2.0 + Math.random() * 3.0) * (0.6 + 0.8 * Math.min(1, Math.max(0, intensity))));
+            // TEMP: huge for debug
+            aSize.setX(idx, 2.0);
+
+            // DEBUG: approximate position on curve to verify non-zero coords
+            const t = aT.getX(idx);
+            const p0 = this.uniforms.uStart.value;
+            const p1 = this.uniforms.uMid.value;
+            const p2 = this.uniforms.uEnd.value;
+            const oneMinusT = 1 - t;
+            const curvePos = new THREE.Vector3()
+                .addScaledVector(p0, oneMinusT * oneMinusT)
+                .addScaledVector(p1, 2 * oneMinusT * t)
+                .addScaledVector(p2, t * t);
+            if (DEBUG_SPARKS) console.log('SPARK POS', idx, curvePos.x, curvePos.y, curvePos.z);
 
             // Cycle index
             this.spawnIndex = (this.spawnIndex + 1) % this.maxSparks;
         }
-
-        // Mark attributes as needing update
         // We update the whole buffer because we're writing round-robin
         // Optimization: utilize addUpdateRange if performance becomes an issue
         // For 60 particles, full update is negligible
@@ -328,6 +364,9 @@ export class LinkSparkSystem {
         aAngle.needsUpdate = true;
         aSpeed.needsUpdate = true;
         aSize.needsUpdate = true;
+        
+        // Force GPU upload of position buffer
+        geo.attributes.position.needsUpdate = true;
 
         // Debug spawn counter
         this._debugSpawned = (this._debugSpawned || 0) + count;

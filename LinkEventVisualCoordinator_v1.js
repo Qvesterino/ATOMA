@@ -42,12 +42,13 @@ export class LinkEventVisualCoordinator_v1 {
     // Priority order (higher index = higher priority = full-scale)
     this.priorityOrder = ['linkAura', 'aura', 'evolution'];
     
-    // Suppression rules
+    // Suppression rules - DISABLED per user request
+    // Opacity multipliers and suppressed flags removed
     this.suppressionRules = {
       secondary: {
-        scaleMax: 0.35,        // Max scale for secondary visuals
-        opacityMax: 0.25,      // Max opacity for secondary visuals
-        offsetFromOrigin: 0.3  // Minimum distance from node center (units)
+        scaleMax: 1.0,        // DISABLED: Full scale for secondary visuals
+        opacityMax: 1.0,      // DISABLED: Full opacity for secondary visuals
+        offsetFromOrigin: 0.0  // DISABLED: No offset required
       }
     };
   }

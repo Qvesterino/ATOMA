@@ -754,6 +754,11 @@ export class LinkRendererConduit {
         let sparkSystem = new LinkSparkSystem(this.scene);
         group.add(sparkSystem.getMesh());
 
+        // AUDIT: Verify spark mesh is added to scene
+        const sparkMesh = sparkSystem.getMesh();
+        this.scene.add(sparkMesh);
+        console.log("SPARK MESH ADDED", sparkMesh);
+
         let trailSystem = null;
         try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){ throw e; }
         if(trailSystem) group.add(trailSystem.getMesh());
