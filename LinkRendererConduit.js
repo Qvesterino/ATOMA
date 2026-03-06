@@ -932,41 +932,76 @@ export class LinkRendererConduit {
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
 
         // --- Dock ring pulse (visual cue when link reaches node surface) ---
-        const dockPos = targetCenter.clone().addScaledVector(
-            linkDir,
-            -targetRadius * 0.9
-        );
+        const dockPos = end.clone();
         const distToTarget = dockPos.distanceTo(targetCenter);
         const dockThreshold = targetRadius * 1.1;
 
         if (distToTarget < dockThreshold) {
-            const dockOffset = targetCenter.clone().addScaledVector(linkDir, -targetRadius * 0.8);
+            const dockOffset = end.clone();
             if (!state.dockRing) {
-                const ringGeo = new THREE.RingGeometry(
-                    targetRadius * 0.35,
-                    targetRadius * 0.45,
-                    32
-                );
                 const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
                 const targetColor = new THREE.Color(this.getCategoryColor(link.target.userData?.category));
                 const ringColor = sourceColor.lerp(targetColor, 0.5);
-                const mat = new THREE.MeshBasicMaterial({
-                    color: ringColor,
-                    transparent: true,
-                    opacity: 0.5,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    side: THREE.DoubleSide
-                });
-                const ring = new THREE.Mesh(ringGeo, mat);
+                const ring = new THREE.Group();
                 ring.position.copy(dockOffset);
                 const forward = new THREE.Vector3(0, 0, 1);
                 const dir = linkDir.clone().normalize();
                 if (dir.lengthSq() === 0) dir.set(0, 0, 1);
                 ring.quaternion.setFromUnitVectors(forward, dir);
                 ring.scale.setScalar(0.8);
+                const linkThickness = Math.max(
+                    link.userData?.visualThickness ??
+                    frameState?.linkThickness ??
+                    0.12,
+                    0.02
+                );
+                const baseRadius = linkThickness * 2.2;
+                const radiusStep = linkThickness * 0.9;
+                const layerRadii = [
+                    baseRadius + radiusStep * 2,
+                    baseRadius + radiusStep,
+                    baseRadius
+                ];
+                const layerSpeed = [0.45, -0.30, 0.20];
+                const layerGroups = [];
+
+                for (let layerIndex = 0; layerIndex < layerRadii.length; layerIndex++) {
+                    const layerGroup = new THREE.Group();
+                    const layerRadius = layerRadii[layerIndex];
+                    const segmentCount = 7;
+                    layerGroup.position.set(0, 0, 0);
+                    const mat = new THREE.MeshBasicMaterial({
+                        color: ringColor,
+                        transparent: true,
+                        opacity: 0.5,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        side: THREE.DoubleSide
+                    });
+
+                    for (let i = 0; i < segmentCount; i++) {
+                        const startAngle = (i / segmentCount) * Math.PI * 2;
+                        const arcLength = (Math.PI * 2) / segmentCount * 0.75;
+                        const geo = new THREE.TorusGeometry(
+                            layerRadius,
+                            linkThickness * 0.7,
+                            8,
+                            24,
+                            arcLength
+                        );
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.rotation.z = startAngle;
+                        layerGroup.add(mesh);
+                    }
+
+                    ring.add(layerGroup);
+                    layerGroups.push(layerGroup);
+                }
+
+                ring.userData.layerGroups = layerGroups;
+                ring.userData.layerSpeed = layerSpeed;
                 ring.userData.life = 0;
-                ring.userData.duration = 0.7 + Math.random() * 0.2;
+                ring.userData.duration = 0.85;
                 this.scene?.add(ring);
                 state.dockRing = ring;
             }
@@ -974,7 +1009,6 @@ export class LinkRendererConduit {
 
         if (state.dockRing) {
             const ring = state.dockRing;
-            const mat = ring.material;
             const life = (ring.userData.life || 0) + visualDelta;
             const duration = ring.userData.duration || 0.9;
             ring.userData.life = life;
@@ -982,14 +1016,34 @@ export class LinkRendererConduit {
 
             const scale = 0.8 + t * 0.4;
             ring.scale.setScalar(scale);
-            if (mat) mat.opacity = Math.max(0, 0.5 * (1 - t));
-
-            ring.rotation.z += visualDelta * 0.8;
+            if (ring.userData.layerGroups && ring.userData.layerSpeed) {
+                for (let i = 0; i < ring.userData.layerGroups.length; i++) {
+                    const layerGroup = ring.userData.layerGroups[i];
+                    const speed = ring.userData.layerSpeed[i] || 0;
+                    layerGroup.rotation.z += visualDelta * speed;
+                }
+            }
+            if (ring.children?.length) {
+                for (const layerGroup of ring.children) {
+                    if (!layerGroup?.children?.length) continue;
+                    for (const segment of layerGroup.children) {
+                        if (segment.material) {
+                            segment.material.opacity = Math.max(0, 0.5 * (1 - t));
+                        }
+                    }
+                }
+            }
 
             if (t >= 1.0) {
                 this.scene?.remove(ring);
-                ring.geometry?.dispose?.();
-                ring.material?.dispose?.();
+                const geometrySet = new Set();
+                const materialSet = new Set();
+                ring.traverse((obj) => {
+                    if (obj?.geometry) geometrySet.add(obj.geometry);
+                    if (obj?.material) materialSet.add(obj.material);
+                });
+                geometrySet.forEach((geo) => geo?.dispose?.());
+                materialSet.forEach((material) => material?.dispose?.());
                 state.dockRing = null;
             }
         }
