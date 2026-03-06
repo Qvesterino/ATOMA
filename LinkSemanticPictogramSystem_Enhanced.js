@@ -90,7 +90,7 @@ const CONFIG = {
     // Motion
     BASE_DRIFT_SPEED: 0.25,
     SYNERGY_SPEED_MULTIPLIER: 1.8,
-    ORBITAL_SCALE_FACTOR: 1.0,   // Global scalar for orbital glyph groups
+    ORBITAL_SCALE_FACTOR: 0.5,   // Global scalar for orbital glyph groups
     
     // Context-aware flow
     RESISTANCE_SLOW_FACTOR: 0.3,       // Slow to 30% near resistant nodes

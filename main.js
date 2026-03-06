@@ -210,11 +210,11 @@ import { AINarrativePatterns6_0 } from './_AINarrativePatterns6_0.js';
 import { ExtremeAIShaderTestSuite } from './_ExtremeAIShaderTestSuite.js';
 import { SafeNewNodeCategories1_0 } from './_SafeNewNodeCategories1_0.js';
 import { NewNodeCategoryVisuals } from './_NewNodeCategoryVisuals.js';
-import { ExtremeLinkVisualPack3 } from './_ExtremeLinkVisualPack3.js';
-import { NeuralCurveLinkVisuals, setupNeuralCurveConsoleAPI } from './_NeuralCurveLinkVisuals.js';
+// import { ExtremeLinkVisualPack3 } from './_ExtremeLinkVisualPack3.js'; // LEGACY
+// import { NeuralCurveLinkVisuals, setupNeuralCurveConsoleAPI } from './_NeuralCurveLinkVisuals.js'; // LEGACY
 import { AIConsciousnessLayer, setupAIConsciousnessConsoleAPI } from './AIConsciousnessLayer.js';
 import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThoughtStorms2_0.js';
-import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js';
+// import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js'; // LEGACY
 import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
 // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
@@ -3493,8 +3493,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.nodeVisuals4?.update?.(dt), 'visual.nodeVisuals4');
         this.frameScheduler.register('visual', (dt) => this.extremeShaderTestSuite?.update?.(dt), 'visual.extremeShaderTestSuite');
         this.frameScheduler.register('visual', (dt) => this.newNodeCategories?.update?.(dt, this.time), 'visual.newNodeCategories');
-        this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
-        this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
+        // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals?.update?.(dt), 'visual.extremeLinkVisuals');
+        // this.frameScheduler.register('visual', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera), 'visual.extremeLinkVisuals4');
         this.frameScheduler.register('visual', (dt) => this.mythicRitualController?.update?.(dt, this.aiNodes?.nodes), 'visual.mythicRitualController');
         this.frameScheduler.register('visual', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000), 'visual.phase8RitualOrchestration');
         this.frameScheduler.register('visual', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera), 'visual.mythicSeedGlyph');
@@ -4429,9 +4429,9 @@ document.addEventListener('keydown', () => {
         this.setupExtremeShaderTestSuite();
         this.setupNewNodeCategories();
         this.setupNewNodeCategoryVisuals();
-        this.setupExtremeLinkVisuals();
-        this.setupNeuralCurveLinkVisuals();
-        this.setupExtremeLinkVisuals4();
+        // this.setupExtremeLinkVisuals();      // Temporarily disabled for overlay-free link diagnostics
+        // this.setupNeuralCurveLinkVisuals();  // Temporarily disabled for overlay-free link diagnostics
+        // this.setupExtremeLinkVisuals4();     // Temporarily disabled for overlay-free link diagnostics
         this.setupLinkVisualMoodSystem(); // Link visual mood system (calm, premium, intense, meditative)
         this.setupAIConsciousnessLayer();
         this.setupLanguageEngine();
@@ -8547,8 +8547,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodePersonality', 'simulation.nodePersonality', (dt) => this.nodePersonality?.update?.(dt, this.time));
         regGuard('extremeShaderTestSuite', 'visual.extremeShaderTestSuite', (dt) => this.extremeShaderTestSuite?.update?.(dt));
         regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
-        regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
-        regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
+        // regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
+        // regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
         reg('linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
         regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));

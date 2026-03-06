@@ -906,37 +906,93 @@ export class LinkRendererConduit {
         
         // --- LINK ANCHORING FIX ---
         // Compute anchored start/end points at node surfaces (not centers)
-        const sourcePos = link.source.position.clone();
-        const targetPos = link.target.position.clone();
-        
-        // Get visual radius (aura if available, else fallback to scale)
-        const sourceRadius = link.source.userData?.auraRadius ?? link.source.scale?.x ?? 1.0;
-        const targetRadius = link.target.userData?.auraRadius ?? link.target.scale?.x ?? 1.0;
-        
-        // Compute direction vector from source to target
-        const linkDir = new THREE.Vector3().subVectors(targetPos, sourcePos);
-        const linkDist = linkDir.length();
-        frameState.geometry = { start: null, end: null, linkDir: linkDir.clone(), linkDist };
-        
-        // Normalize and apply surface offset WITH LINK EXTENSION PENETRATION
-        let start, end;
-        if (linkDist > 0.001) {
-          linkDir.normalize();
-          
-          // Apply penetration: links extend deeper into aura field
-          // This makes links feel rooted, not just attached
-          const sourceOffset = sourceRadius * LinkExtensionConfig.sourceOffsetWithPenetration;
-          const targetOffset = targetRadius * LinkExtensionConfig.targetOffsetWithPenetration;
-          
-          start = sourcePos.clone().addScaledVector(linkDir, sourceOffset);
-          end = targetPos.clone().addScaledVector(linkDir, -targetOffset);
-        } else {
-          // Fallback if nodes are at same position
-          start = sourcePos.clone();
-          end = targetPos.clone();
+        const sourceCenter = link.source.position.clone();
+        const targetCenter = link.target.position.clone();
+
+        // Direction from source → target
+        const linkVec = new THREE.Vector3().subVectors(targetCenter, sourceCenter);
+        const linkDist = linkVec.length();
+        const linkDir = linkDist > 0.0001 ? linkVec.clone().normalize() : new THREE.Vector3(1, 0, 0);
+
+        // Surface radii (prefer cached boundingSphere)
+        const sourceRadius =
+          link.source.userData?.boundingSphere?.radius ??
+          link.source.geometry?.boundingSphere?.radius ??
+          1.0;
+        const targetRadius =
+          link.target.userData?.boundingSphere?.radius ??
+          link.target.geometry?.boundingSphere?.radius ??
+          1.0;
+
+        // Dock start/end on node surfaces with scaled radii (bounding spheres are often larger than visible mesh)
+        const RADIUS_SCALE = 0.26;
+        const start = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * RADIUS_SCALE);
+        const end = targetCenter.clone().addScaledVector(linkDir, -targetRadius * RADIUS_SCALE);
+
+        frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
+
+        // --- Dock ring pulse (visual cue when link reaches node surface) ---
+        const dockPos = targetCenter.clone().addScaledVector(
+            linkDir,
+            -targetRadius * 0.9
+        );
+        const distToTarget = dockPos.distanceTo(targetCenter);
+        const dockThreshold = targetRadius * 1.1;
+
+        if (distToTarget < dockThreshold) {
+            const dockOffset = targetCenter.clone().addScaledVector(linkDir, -targetRadius * 0.8);
+            if (!state.dockRing) {
+                const ringGeo = new THREE.RingGeometry(
+                    targetRadius * 0.35,
+                    targetRadius * 0.45,
+                    32
+                );
+                const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
+                const targetColor = new THREE.Color(this.getCategoryColor(link.target.userData?.category));
+                const ringColor = sourceColor.lerp(targetColor, 0.5);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: ringColor,
+                    transparent: true,
+                    opacity: 0.5,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    side: THREE.DoubleSide
+                });
+                const ring = new THREE.Mesh(ringGeo, mat);
+                ring.position.copy(dockOffset);
+                const forward = new THREE.Vector3(0, 0, 1);
+                const dir = linkDir.clone().normalize();
+                if (dir.lengthSq() === 0) dir.set(0, 0, 1);
+                ring.quaternion.setFromUnitVectors(forward, dir);
+                ring.scale.setScalar(0.8);
+                ring.userData.life = 0;
+                ring.userData.duration = 0.7 + Math.random() * 0.2;
+                this.scene?.add(ring);
+                state.dockRing = ring;
+            }
         }
-        frameState.geometry.start = start.clone();
-        frameState.geometry.end = end.clone();
+
+        if (state.dockRing) {
+            const ring = state.dockRing;
+            const mat = ring.material;
+            const life = (ring.userData.life || 0) + visualDelta;
+            const duration = ring.userData.duration || 0.9;
+            ring.userData.life = life;
+            const t = Math.min(1, life / duration);
+
+            const scale = 0.8 + t * 0.4;
+            ring.scale.setScalar(scale);
+            if (mat) mat.opacity = Math.max(0, 0.5 * (1 - t));
+
+            ring.rotation.z += visualDelta * 0.8;
+
+            if (t >= 1.0) {
+                this.scene?.remove(ring);
+                ring.geometry?.dispose?.();
+                ring.material?.dispose?.();
+                state.dockRing = null;
+            }
+        }
         
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
