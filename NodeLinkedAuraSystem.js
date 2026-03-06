@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { NodeSegmentedOrbitRings } from './shaders/NodeSegmentedOrbitRings.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -257,6 +258,23 @@ export class NodeLinkedAuraSystem {
       auraLayer: 'AURA_LINKED'
     };
     
+    // segmented orbit rings (reactor effect)
+    const orbit = new NodeSegmentedOrbitRings(
+        this.scene,
+        node.position,
+        {
+            radius: node.scale.x * 2.8,
+            segmentCount: 64
+        }
+    );
+    
+    // Add orbit as child of aura mesh (orbits automatically follow node)
+    mesh.add(orbit.mesh);
+    
+    // DEBUG
+    console.log("orbit mesh", orbit.mesh);
+    console.log("instances", orbit.mesh.instanceCount || orbit.mesh.count);
+    
     this.scene.add(mesh);
     try {
       mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
@@ -270,6 +288,7 @@ export class NodeLinkedAuraSystem {
       mesh,
       geometry,
       material,
+      orbit,
       originalPositions: geometry.attributes.position.array.slice(),  // Clone for reset
       linkCount: 0,
       
@@ -521,6 +540,16 @@ export class NodeLinkedAuraSystem {
       auraData.material.opacity = 0.3;
     } else {
       auraData.material.wireframe = false;
+    }
+    
+    // update orbit reactor ring
+    if (auraData.orbit) {
+        auraData.orbit.setCenter(
+            node.position.x,
+            node.position.y,
+            node.position.z
+        );
+        auraData.orbit.update();
     }
   }
   
@@ -824,6 +853,15 @@ export class NodeLinkedAuraSystem {
     // Dispose resources
     auraData.geometry.dispose();
     auraData.material.dispose();
+    
+    // Dispose orbit rings
+    if (auraData.orbit) {
+        // Remove from parent before disposing
+        if (auraData.orbit.mesh.parent) {
+            auraData.orbit.mesh.parent.remove(auraData.orbit.mesh);
+        }
+        auraData.orbit.dispose();
+    }
     
     // Remove from tracking
     this.nodeAuras.delete(node);

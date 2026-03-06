@@ -3404,7 +3404,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.worldRuntime_v1?.update?.(dt);
         }, 'visual.worldRuntime_v1');
-        // Node Segmented Orbit Rings - update all node orbit rings
+        // Node Segmented Orbit Rings - update all node orbit rings with synergy energy
         this.frameScheduler.register('visual', (dt) => {
             if (this.aiNodes?.nodes) {
                 for (const node of this.aiNodes.nodes) {
@@ -5918,11 +5918,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     category: node.userData.category,
                     timestamp: performance.now()
                 }, { priority: this.semanticBus.priority.INTERACTIVE });
-            }
-            // Create segmented orbit rings for the new node
-            if (node && node.position && this.scene) {
-                const orbitRings = new NodeSegmentedOrbitRings(this.scene, node.position);
-                node._orbitRings = orbitRings;
             }
             return node;
         };

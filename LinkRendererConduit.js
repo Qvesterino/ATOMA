@@ -45,6 +45,128 @@ const remap = (v, in0, in1, out0, out1) => {
     return out0 + (out1 - out0) * t;
 };
 
+// Lightweight dock spray system (per-link, instanced points)
+function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
+    const positions = new Float32Array(maxParticles * 3);
+    const velocities = new Float32Array(maxParticles * 3);
+    const life = new Float32Array(maxParticles * 2); // birth, duration
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
+    geometry.attributes.position.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aLife.usage = THREE.DynamicDrawUsage;
+
+    const vertexShader = `
+        attribute vec3 aVelocity;
+        attribute vec2 aLife;
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            float age = uTime - aLife.x;
+            if (age < 0.0 || age > aLife.y) {
+                vAlpha = 0.0;
+                gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+                return;
+            }
+            float t = age / aLife.y;
+            vec3 pos = position + aVelocity * age;
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_PointSize = 34.0 * (1.0 - t);
+            vColor = uColor;
+            vAlpha = 0.8 * (1.0 - t);
+        }
+    `;
+
+    const fragmentShader = `
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            if (vAlpha <= 0.01) discard;
+            vec2 c = gl_PointCoord - vec2(0.5);
+            float d = length(c);
+            if (d > 0.5) discard;
+            float glow = 1.0 - smoothstep(0.3, 0.5, d);
+            gl_FragColor = vec4(vColor, vAlpha * glow);
+        }
+    `;
+
+    const material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Color(0xffffff) }
+        }
+    });
+
+    const mesh = new THREE.Points(geometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = renderOrder;
+
+    const randRange = (min, max) => min + Math.random() * (max - min);
+    const randomUnit = () => {
+        const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+        if (v.lengthSq() < 1e-4) v.set(0, 0, 1);
+        return v.normalize();
+    };
+
+    let writeIndex = 0;
+
+    function spawnBurst(origin, surfaceDir, color, time = 0) {
+        // Sync time so freshly spawned particles start at age 0
+        material.uniforms.uTime.value = time;
+        const count = Math.min(40, maxParticles);
+        if (color) material.uniforms.uColor.value.copy(color);
+        for (let i = 0; i < count; i++) {
+            const idx = writeIndex;
+            const i3 = idx * 3;
+            // Spawn with slight positional jitter to widen spray footprint
+            const jitterDir = randomUnit();
+            const jitterMag = randRange(0, 0.12);
+            positions[i3] = origin.x + jitterDir.x * jitterMag;
+            positions[i3 + 1] = origin.y + jitterDir.y * jitterMag;
+            positions[i3 + 2] = origin.z + jitterDir.z * jitterMag;
+
+            const dir = randomUnit().lerp(surfaceDir, 0.6).normalize();
+            const speed = randRange(0.6, 1.4);
+            velocities[i3] = dir.x * speed;
+            velocities[i3 + 1] = dir.y * speed;
+            velocities[i3 + 2] = dir.z * speed;
+
+            const i2 = idx * 2;
+            life[i2] = material.uniforms.uTime.value;
+            life[i2 + 1] = 0.45;
+
+            writeIndex = (writeIndex + 1) % maxParticles;
+        }
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.aVelocity.needsUpdate = true;
+        geometry.attributes.aLife.needsUpdate = true;
+    }
+
+    function update(time) {
+        material.uniforms.uTime.value = time;
+    }
+
+    function dispose() {
+        if (mesh.parent) mesh.parent.remove(mesh);
+        geometry.dispose();
+        material.dispose();
+    }
+
+    return { mesh, spawnBurst, update, dispose };
+}
+
 const makeDebugId = (prefix = 'pic') => {
     const rand = Math.random().toString(36).slice(2, 6);
     const ts = Date.now().toString(36);
@@ -1028,22 +1150,104 @@ export class LinkRendererConduit {
                 ring.userData.layerGroups = layerGroups;
                 ring.userData.layerSpeed = layerSpeed;
                 ring.userData.life = 0;
-                ring.userData.duration = 0.85;
+                ring.userData.duration = 0.9;
+                ring.userData.scaleMul = 1.0;
+                ring.userData.opacityMul = 1.0;
                 this.scene?.add(ring);
                 state.dockRing = ring;
+                state.dockRingColor = ringColor.clone();
+                state.dockRingRadii = layerRadii.slice();
+                state.dockRingSpeeds = layerSpeed.slice();
+                state.dockRingThickness = linkThickness;
+                state.dockGhostPending = {
+                    time: visualTime + 0.08,
+                    color: ringColor.clone(),
+                    layerRadii: layerRadii.slice(),
+                    layerSpeed: layerSpeed.map(s => s * 0.8),
+                    thickness: linkThickness
+                };
+
+                // Spawn a light spray burst at dock point
+                if (!state.dockSpray) {
+                    const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
+                    state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
+                    this.scene?.add(state.dockSpray.mesh);
+                }
+                if (state.dockSpray) {
+                    // Spray now biased opposite the surface normal (away from node) for visibility
+                    state.dockSpray.spawnBurst(dockPos, surfaceDir.clone().negate(), ringColor, visualTime);
+                }
             }
         }
 
-        if (state.dockRing) {
-            const ring = state.dockRing;
+        // Spawn ghost ring when pending
+        if (state.dockGhostPending && visualTime >= state.dockGhostPending.time && !state.dockGhost) {
+            const pg = state.dockGhostPending;
+            const ringColor = pg.color.clone();
+            const ring = new THREE.Group();
+            ring.position.copy(dockPos);
+            const forward = new THREE.Vector3(0, 0, 1);
+            const dir = linkDir.clone().normalize();
+            if (dir.lengthSq() === 0) dir.set(0, 0, 1);
+            ring.quaternion.setFromUnitVectors(forward, dir);
+            const layerGroups = [];
+            for (let layerIndex = 0; layerIndex < pg.layerRadii.length; layerIndex++) {
+                const layerGroup = new THREE.Group();
+                const layerRadius = pg.layerRadii[layerIndex] * 1.15;
+                const segmentCount = 7;
+                const shellSpacing = pg.thickness * 1.2;
+                layerGroup.position.set(
+                    0,
+                    0,
+                    (pg.layerRadii.length - 1 - layerIndex) * shellSpacing
+                );
+                const mat = new THREE.MeshBasicMaterial({
+                    color: ringColor,
+                    transparent: true,
+                    opacity: 0.5 * 0.35,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    side: THREE.DoubleSide
+                });
+
+                for (let i = 0; i < segmentCount; i++) {
+                    const startAngle = (i / segmentCount) * Math.PI * 2;
+                    const arcLength = (Math.PI * 2) / segmentCount * 0.75;
+                    const geo = new THREE.TorusGeometry(
+                        layerRadius,
+                        layerRadius * 0.095,
+                        8,
+                        24,
+                        arcLength
+                    );
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.rotation.z = startAngle;
+                    layerGroup.add(mesh);
+                }
+
+                ring.add(layerGroup);
+                layerGroups.push(layerGroup);
+            }
+            ring.userData.layerGroups = layerGroups;
+            ring.userData.layerSpeed = pg.layerSpeed;
+            ring.userData.life = 0;
+            ring.userData.duration = 0.9 * 0.7;
+            ring.userData.scaleMul = 1.15;
+            ring.userData.opacityMul = 0.35;
+            this.scene?.add(ring);
+            state.dockGhost = ring;
+            state.dockGhostPending = null;
+        }
+
+        const updateDockRing = (ring) => {
+            if (!ring) return false;
             const life = (ring.userData.life || 0) + visualDelta;
             const duration = ring.userData.duration || 0.9;
             ring.userData.life = life;
             const t = Math.min(1, life / duration);
+            const fadeStart = duration * 0.45;
 
-            const scale = 0.8 + t * 0.4;
-            const pulse = 1.0 + t * 0.6;
-            ring.scale.setScalar(1.0);
+            const pulse = (1.0 + t * 0.6) * (ring.userData.scaleMul || 1.0);
             for (const layerGroup of ring.children || []) {
                 for (const segment of layerGroup.children || []) {
                     if (segment.geometry) {
@@ -1062,7 +1266,9 @@ export class LinkRendererConduit {
                 for (let layerIndex = 0; layerIndex < ring.children.length; layerIndex++) {
                     const layerGroup = ring.children[layerIndex];
                     if (!layerGroup?.children?.length) continue;
-                    const fadeBase = Math.max(0, 0.5 - t * (0.5 + layerIndex * 0.15));
+                    const fade = 1.0 - THREE.MathUtils.smoothstep(fadeStart, duration, life);
+                    const layerFactor = Math.max(0, 1 - layerIndex * 0.15);
+                    const fadeBase = Math.max(0, 0.5 * fade * layerFactor) * (ring.userData.opacityMul || 1.0);
                     for (const segment of layerGroup.children) {
                         if (segment.material) {
                             segment.material.opacity = fadeBase;
@@ -1070,18 +1276,42 @@ export class LinkRendererConduit {
                     }
                 }
             }
+            return t >= 1.0;
+        };
 
-            if (t >= 1.0) {
-                this.scene?.remove(ring);
-                const geometrySet = new Set();
-                const materialSet = new Set();
-                ring.traverse((obj) => {
-                    if (obj?.geometry) geometrySet.add(obj.geometry);
-                    if (obj?.material) materialSet.add(obj.material);
-                });
-                geometrySet.forEach((geo) => geo?.dispose?.());
-                materialSet.forEach((material) => material?.dispose?.());
-                state.dockRing = null;
+        const cleanupRing = (ringRefName) => {
+            const ring = state[ringRefName];
+            if (!ring) return;
+            this.scene?.remove(ring);
+            const geometrySet = new Set();
+            const materialSet = new Set();
+            ring.traverse((obj) => {
+                if (obj?.geometry) geometrySet.add(obj.geometry);
+                if (obj?.material) materialSet.add(obj.material);
+            });
+            geometrySet.forEach((geo) => geo?.dispose?.());
+            materialSet.forEach((material) => material?.dispose?.());
+            state[ringRefName] = null;
+        };
+
+        if (state.dockRing) {
+            const done = updateDockRing(state.dockRing);
+            if (state.dockSpray) {
+                state.dockSpray.update(visualTime);
+            }
+            if (done) {
+                cleanupRing('dockRing');
+                if (state.dockSpray) {
+                    state.dockSpray.dispose();
+                    state.dockSpray = null;
+                }
+            }
+        }
+
+        if (state.dockGhost) {
+            const doneGhost = updateDockRing(state.dockGhost);
+            if (doneGhost) {
+                cleanupRing('dockGhost');
             }
         }
 
@@ -1179,7 +1409,14 @@ export class LinkRendererConduit {
 
                 const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
                 const noise = Math.sin(t * 40 + i * 10) * noiseBase;
-                const r = (activeRadius * flare) + noise;
+                let r = (activeRadius * flare) + noise;
+
+                // Gentle taper near docking end
+                const taperStart = 0.95;
+                if (t > taperStart) {
+                    const fade = (t - taperStart) / (1 - taperStart);
+                    r *= (1.0 - fade * 0.6);
+                }
 
                 const offsetX = Math.cos(angle) * r;
                 const offsetY = Math.sin(angle) * r;
