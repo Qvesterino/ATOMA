@@ -223,6 +223,7 @@ export class NodeLinkedAuraSystem {
    * Create aura for a node
    */
   createAura(node) {
+    console.log("CREATE AURA", node);
     // Create torn, irregular mesh geometry
     const geometry = this.createTornAuraGeometry();
     console.log("Creating aura for node:", node.id || node.uuid || 'unknown');
@@ -362,6 +363,7 @@ export class NodeLinkedAuraSystem {
    * Update aura motion and appearance
    */
   updateAura(node, linkCount, deltaTime) {
+    console.log("UPDATE AURA", node.id);
     const auraData = this.nodeAuras.get(node);
     if (!auraData) return;
     
@@ -544,11 +546,6 @@ export class NodeLinkedAuraSystem {
     
     // update orbit reactor ring
     if (auraData.orbit) {
-        auraData.orbit.setCenter(
-            node.position.x,
-            node.position.y,
-            node.position.z
-        );
         auraData.orbit.update();
     }
   }

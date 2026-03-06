@@ -4,6 +4,8 @@ export class NodeSegmentedOrbitRings {
 
 constructor(scene, center, options={}){
 
+console.log("ORBIT CREATED");
+
 this.scene = scene;
 this.center = center;
 
