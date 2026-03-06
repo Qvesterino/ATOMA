@@ -993,7 +993,7 @@ export class LinkRendererConduit {
                         const arcLength = (Math.PI * 2) / segmentCount * 0.75;
                         const geo = new THREE.TorusGeometry(
                             layerRadius,
-                            layerRadius * 0.08,
+                            layerRadius * 0.095,
                             8,
                             24,
                             arcLength
@@ -1024,7 +1024,15 @@ export class LinkRendererConduit {
             const t = Math.min(1, life / duration);
 
             const scale = 0.8 + t * 0.4;
-            ring.scale.setScalar(scale);
+            const pulse = 1.0 + t * 0.6;
+            ring.scale.setScalar(1.0);
+            for (const layerGroup of ring.children || []) {
+                for (const segment of layerGroup.children || []) {
+                    if (segment.geometry) {
+                        segment.scale.setScalar(pulse);
+                    }
+                }
+            }
             if (ring.userData.layerGroups && ring.userData.layerSpeed) {
                 for (let i = 0; i < ring.userData.layerGroups.length; i++) {
                     const layerGroup = ring.userData.layerGroups[i];
@@ -1033,11 +1041,13 @@ export class LinkRendererConduit {
                 }
             }
             if (ring.children?.length) {
-                for (const layerGroup of ring.children) {
+                for (let layerIndex = 0; layerIndex < ring.children.length; layerIndex++) {
+                    const layerGroup = ring.children[layerIndex];
                     if (!layerGroup?.children?.length) continue;
+                    const fadeBase = Math.max(0, 0.5 - t * (0.5 + layerIndex * 0.15));
                     for (const segment of layerGroup.children) {
                         if (segment.material) {
-                            segment.material.opacity = Math.max(0, 0.5 * (1 - t));
+                            segment.material.opacity = fadeBase;
                         }
                     }
                 }
