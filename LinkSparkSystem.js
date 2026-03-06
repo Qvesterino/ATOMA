@@ -118,7 +118,7 @@ void main() {
 
     if (star <= 0.01) discard;
 
-    gl_FragColor = vec4(uColor, star * vAlpha * uOpacity);
+    gl_FragColor = vec4(uColor, star * vAlpha * uOpacity * (0.7 + vSpeed * 0.6));
 }
 `;
 
