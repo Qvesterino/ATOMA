@@ -18,6 +18,7 @@ uniform float uPulse;
 
 varying float vAlpha;
 varying float vLifeProgress;
+varying float vSpeed;
 
 // Quadratic Bezier Function
 vec3 getBezierPoint(vec3 p0, vec3 p1, vec3 p2, float t) {
@@ -44,6 +45,7 @@ void main() {
 
     // Normalized life progress (0.0 to 1.0)
     vLifeProgress = age / aLifeTime;
+    vSpeed = aSpeed;
 
     // 1. Calculate Base Position on Curve
     vec3 curvePos = getBezierPoint(uStart, uMid, uEnd, aT);
@@ -75,7 +77,8 @@ void main() {
     gl_Position = projectionMatrix * mvPosition;
 
     // Size attenuation (smaller as it fades)
-    gl_PointSize = 40.0; // TEMP visibility boost
+    // Distance attenuation (no velocity stretch)
+    gl_PointSize = aSize * (10.0 / -mvPosition.z);
 
     // Alpha Fade: Quick in, Slow out
     float fadeIn = smoothstep(0.0, 0.2, vLifeProgress);
@@ -83,16 +86,39 @@ void main() {
     vAlpha = fadeIn * fadeOut;
 }
 `;
-
 const SPARK_FS = `
 uniform vec3 uColor;
 uniform float uOpacity;
 
 varying float vAlpha;
 varying float vLifeProgress;
+varying float vSpeed;
 
 void main() {
-    gl_FragColor = vec4(uColor, vAlpha * uOpacity);
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+
+    // Rotate the star over its lifetime for subtle twinkle
+    float a = vLifeProgress * 6.2831853;
+    float s = sin(a);
+    float c = cos(a);
+    p = vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+
+    float r = length(p);
+
+    float armX = 1.0 - abs(p.x);
+    float armY = 1.0 - abs(p.y);
+
+    float star = max(armX, armY);
+    star = pow(star, 4.0);
+
+    float core = 1.0 - r;
+    star = max(star, core);
+
+    star = smoothstep(0.2, 0.8, star);
+
+    if (star <= 0.01) discard;
+
+    gl_FragColor = vec4(uColor, star * vAlpha * uOpacity);
 }
 `;
 
@@ -181,8 +207,8 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
-        const sparksOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SPARKS');
-        this.points.renderOrder = 9999;
+        const sparksOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+        this.points.renderOrder = sparksOrder;
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
         console.log('SPARK MESH', this.points);
@@ -246,6 +272,12 @@ export class LinkSparkSystem {
         const hsl = {};
         sparkColor.getHSL(hsl);
         sparkColor.setHSL(hsl.h, hsl.s * 0.7, Math.min(1.0, hsl.l * 1.5)); // Brighter, less saturated
+        // color jitter
+        sparkColor.offsetHSL(
+        (Math.random() - 0.5) * 0.08,
+         0,
+        (Math.random() - 0.5) * 0.1
+         );
         this.uniforms.uColor.value.copy(sparkColor);
 
         // 2. Spawn Logic
@@ -280,8 +312,8 @@ export class LinkSparkSystem {
 
         // Burst check (Echo wave or bead arrival simulation)
         // We'll simulate bursts via random chance for now to keep it decoupled
-        // Always spawn to verify visuals
-        const count = 5; // TEMP more particles for visibility
+        // Controlled spawn
+        const count = 1;
         this.spawnBurst(count, time, activity);
 
         // Opacity scales with activity but never zero
@@ -322,7 +354,7 @@ export class LinkSparkSystem {
             aSpawnTime.setX(idx, time);
             
             // TEMP: longer lifetime for visibility
-            aLifeTime.setX(idx, 1.5 + Math.random() * 0.5);
+            aLifeTime.setX(idx, 0.35 + Math.random() * 0.15);
 
             // Random Position on Curve
             // Bias towards ends slightly? No, random is fine for "friction"
@@ -331,14 +363,12 @@ export class LinkSparkSystem {
             // Random Angle
             aAngle.setX(idx, Math.random() * Math.PI * 2);
 
-            // Speed (scaled by intensity)
-            // Higher intensity = faster sparks
-            // Minimal drift to stay near rope for visibility
-            aSpeed.setX(idx, 0.0);
+            // Speed (scaled by activity/intensity) drives stretch & opacity in shader
+            const speed = 0.2 + Math.max(0, intensity) * 1.0;
+            aSpeed.setX(idx, speed);
 
-            // Size (Small, very subtle)
-            // TEMP: huge for debug
-            aSize.setX(idx, 2.0);
+            // Size
+            aSize.setX(idx, 1.2 + Math.random() * 2.2);
 
             // DEBUG: approximate position on curve to verify non-zero coords
             const t = aT.getX(idx);
