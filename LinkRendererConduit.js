@@ -969,7 +969,12 @@ export class LinkRendererConduit {
                     const layerGroup = new THREE.Group();
                     const layerRadius = layerRadii[layerIndex];
                     const segmentCount = 7;
-                    layerGroup.position.set(0, 0, 0);
+                    const shellSpacing = linkThickness * 1.2;
+                    layerGroup.position.set(
+                        0,
+                        0,
+                        (layerRadii.length - 1 - layerIndex) * shellSpacing
+                    );
                     const mat = new THREE.MeshBasicMaterial({
                         color: ringColor,
                         transparent: true,
