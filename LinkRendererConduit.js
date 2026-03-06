@@ -937,7 +937,11 @@ export class LinkRendererConduit {
         const dockThreshold = targetRadius * 1.1;
 
         if (distToTarget < dockThreshold) {
-            const dockOffset = end.clone();
+            const surfaceDir = end.clone().sub(targetCenter).normalize();
+            const dockOffset = targetCenter.clone().addScaledVector(
+                surfaceDir,
+                targetRadius * 0.35
+            );
             if (!state.dockRing) {
                 const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
                 const targetColor = new THREE.Color(this.getCategoryColor(link.target.userData?.category));
@@ -948,15 +952,15 @@ export class LinkRendererConduit {
                 const dir = linkDir.clone().normalize();
                 if (dir.lengthSq() === 0) dir.set(0, 0, 1);
                 ring.quaternion.setFromUnitVectors(forward, dir);
-                ring.scale.setScalar(0.8);
+               // ring.scale.setScalar(0.8);
                 const linkThickness = Math.max(
                     link.userData?.visualThickness ??
                     frameState?.linkThickness ??
                     0.12,
                     0.02
                 );
-                const baseRadius = linkThickness * 2.2;
-                const radiusStep = linkThickness * 0.9;
+                const baseRadius = THREE.MathUtils.clamp(linkThickness * 6.0, 0.25, 1.2) * 0.5;
+                const radiusStep = baseRadius * 0.25;
                 const layerRadii = [
                     baseRadius + radiusStep * 2,
                     baseRadius + radiusStep,
@@ -989,7 +993,7 @@ export class LinkRendererConduit {
                         const arcLength = (Math.PI * 2) / segmentCount * 0.75;
                         const geo = new THREE.TorusGeometry(
                             layerRadius,
-                            linkThickness * 0.7,
+                            layerRadius * 0.08,
                             8,
                             24,
                             arcLength
