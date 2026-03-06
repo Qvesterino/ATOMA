@@ -204,7 +204,7 @@ export class LinkRendererConduit {
             colorVariation: 0.15,
             breathingSpeed: 0.8,
             twistSpeed: 0.2,
-            
+
             // Glow Skin (Ghostly Envelope)
             skinOpacity: 0.05,
             skinRadiusScale: 1.5
@@ -224,40 +224,40 @@ export class LinkRendererConduit {
             aura: true,
             dissolve: true
         };
-        
+
         // Reusable texture
         this.flowTexture = this.generateFlowTexture();
-        
+
         // Math cache to reduce allocations
         this._vec3 = new THREE.Vector3();
-        
+
         // Node interference management (visual only)
         this.nodeInterferenceManager = new NodeInterferenceManager(scene);
-        
+
         // Harmonic synchronization management (visual only)
         this.nodeHarmonicManager = new NodeHarmonicManager(scene);
-        
+
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
-        
+
         // Corruption spread animation system (visual only)
         this.corruptionAnimator = new LinkCorruptionSpreadAnimator();
-        
+
         // Corruption particle system (visual only)
         this.corruptionParticles = new LinkCorruptionParticleSystem(scene);
-        
+
         // Trail particle system (visual only) - uses same noise as aura systems
         this.trailParticles = new LinkTrailParticleSystem(scene, 300);
-        
+
         // Trail emitters per link
         this.trailEmitters = new Map();
-        
+
         // Healing particle system (visual only) - reverse flow, harmony-driven
         this.healingParticles = new LinkHealingParticleSystem(scene, 250);
-        
+
         // Healing emitters per link
         this.healingEmitters = new Map();
-        
+
         // Particle impact manager (for visual feedback when particles reach nodes)
         this.impactManager = new ImpactManagerCollection();
 
@@ -285,7 +285,7 @@ export class LinkRendererConduit {
 
         // Dissolve effects (link removal bursts)
         this._dissolveEffects = [];
-        
+
         // Setup particle arrival callbacks
         this._setupParticleCallbacks();
 
@@ -393,13 +393,13 @@ export class LinkRendererConduit {
       this.trailParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.target?.userData?.nodeId !== undefined) {
           const targetNodeId = link.target.userData.nodeId;
-          
+
           // Calculate incoming direction (source → target)
           // This biases the aura deformation toward the incoming link
           const incomingDir = new THREE.Vector3()
             .subVectors(link.target.position, link.source.position)
             .normalize();
-          
+
           // Trigger corruption impact at target
           this.impactManager.triggerImpact(
             targetNodeId,
@@ -416,13 +416,13 @@ export class LinkRendererConduit {
       this.healingParticles.setArrivalCallback((particle, link, _time) => {
         if (link?.source?.userData?.nodeId !== undefined) {
           const sourceNodeId = link.source.userData.nodeId;
-          
+
           // Calculate incoming direction (target → source, reversed)
           // Healing flows backward, so reverse the direction
           const incomingDir = new THREE.Vector3()
             .subVectors(link.source.position, link.target.position)
             .normalize();
-          
+
           // Trigger harmony impact at source
           this.impactManager.triggerImpact(
             sourceNodeId,
@@ -439,7 +439,7 @@ export class LinkRendererConduit {
     /**
      * Emit a pulse wave from a node into all connected links
      * Called by application when a node should emit energy pulses
-     * 
+     *
      * @param {Object} sourceNode - Source node
      * @param {Array} connectedLinks - Links connected to this node
      * @param {number} time - Current time
@@ -448,7 +448,7 @@ export class LinkRendererConduit {
         if (this.directionalStreaks) {
             // Get hub controller if this node is a harmonic hub
             const hubController = this.nodeHarmonicManager?.nodeControllers.get(sourceNode);
-            
+
             this.directionalStreaks.pulseInjector.injectNodePulse(
                 sourceNode,
                 connectedLinks,
@@ -462,7 +462,7 @@ export class LinkRendererConduit {
     /**
      * Register a harmonic hub for pulse phase synchronization
      * Called when a node becomes a harmonic hub
-     * 
+     *
      * @param {Object} node - Hub node
      * @param {Object} hubController - NodeHarmonicSyncController
      * @param {Array} connectedLinks - Links connected to hub
@@ -476,7 +476,7 @@ export class LinkRendererConduit {
     /**
      * Unregister a harmonic hub
      * Called when a node stops being a harmonic hub
-     * 
+     *
      * @param {Object} node - Former hub node
      * @param {Array} connectedLinks - Links that were connected
      */
@@ -501,7 +501,7 @@ export class LinkRendererConduit {
     /**
      * Update cascade pulse propagation
      * Called from main update loop (after all link updates)
-     * 
+     *
      * @param {number} deltaTime - Frame delta
      * @param {number} time - Current time
      * @param {number} harmony - Harmony level (0-1)
@@ -588,30 +588,30 @@ export class LinkRendererConduit {
      */
     generateFlowTexture() {
         if (typeof document === 'undefined') return null;
-        
+
         const width = 256;
         const height = 1;
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        
-        ctx.fillStyle = '#666666'; 
+
+        ctx.fillStyle = '#666666';
         ctx.fillRect(0, 0, width, height);
-        
+
         const gradient = ctx.createLinearGradient(0, 0, width, 0);
         gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.0)');
         gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
         gradient.addColorStop(0.8, 'rgba(255, 255, 255, 0.8)');
         gradient.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
-        
+
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
-        
+
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
-        
+
         return texture;
     }
 
@@ -682,7 +682,7 @@ export class LinkRendererConduit {
             ensureUserData(mesh);
             mesh.userData.__depthAuthorityLocked = true;
             mesh.raycast = () => null; // prevent blocking node raycasts
-            
+
             group.add(mesh);
             strands.push(mesh);
 
@@ -762,6 +762,24 @@ export class LinkRendererConduit {
         let trailSystem = null;
         try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){ throw e; }
         if(trailSystem) group.add(trailSystem.getMesh());
+
+        let linkTrailEmitter = null;
+        try {
+            if (LinkTrailEmitter && window.game?.linkTrailParticles) {
+                linkTrailEmitter = new LinkTrailEmitter(link, window.game.linkTrailParticles);
+                console.log('[LinkRendererConduit] LinkTrailEmitter SUCCESSFULLY created for link:', link.id);
+                console.log('[LinkRendererConduit] LinkTrailParticles available:', !!window.game?.linkTrailParticles);
+                console.log('[LinkRendererConduit] LinkTrailEmitter stored in state.trails for link:', link.id);
+            }
+        } catch(e) {
+            console.warn('[LinkRendererConduit] LinkTrailEmitter creation failed:', e);
+        }
+
+        // Store LinkTrailEmitter in state for consistency with other subsystems
+        if (linkTrailEmitter) {
+            state.trails = linkTrailEmitter;
+            console.log('[LinkRendererConduit] LinkTrailEmitter stored in state.trails for link:', link.id);
+        }
 
         let ringSystem = null;
         try { if (LinkEnergyRingSystem) ringSystem = new LinkEnergyRingSystem(this.scene); } catch(e){ throw e; }
@@ -857,18 +875,18 @@ export class LinkRendererConduit {
             baseColor: baseColor,
             impacts: []
         });
-        
+
         // Initialize corruption animation state for this link
         if (this.corruptionAnimator && link.id) {
             this.corruptionAnimator.initializeLink(link);
         }
-        
+
         // Initialize trail particle emitter for this link
         if (this.trailParticles && link.id) {
             const emitter = new LinkTrailEmitter(link, this.trailParticles);
             this.trailEmitters.set(link.id, emitter);
         }
-        
+
         // Initialize healing particle emitter for this link
         if (this.healingParticles && link.id) {
             const emitter = new LinkHealingEmitter(link, this.healingParticles);
@@ -883,7 +901,7 @@ export class LinkRendererConduit {
      */
     update(link, deltaTime, time, frameStateOverride = null) {
         if (!link.group || !link.group.userData.conduitState) return;
-        
+
         // Canonical RAF time source (behavior-preserving Phase 2A)
         const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
         const visualDelta = frameStateOverride?.time?.visualDelta ?? VisualTime.delta;
@@ -903,7 +921,7 @@ export class LinkRendererConduit {
             }
             return;
         }
-        
+
         // --- LINK ANCHORING FIX ---
         // Compute anchored start/end points at node surfaces (not centers)
         const sourceCenter = link.source.position.clone();
@@ -1066,25 +1084,25 @@ export class LinkRendererConduit {
                 state.dockRing = null;
             }
         }
-        
+
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
-        
+
         // Slight arc for rope slack effect
-        const arcHeight = Math.min(1.5, dist * 0.1); 
+        const arcHeight = Math.min(1.5, dist * 0.1);
         const mid = this._vec3.lerpVectors(start, end, 0.5); // Use cache
         mid.y += arcHeight;
 
         // Reusing curve object would be ideal but QuadraticBezierCurve3 is light
         const mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
-        
+
         link.curve = mainCurve;
         frameState.geometry.curve = mainCurve;
-        
+
         // Store link direction for aura modulation later
         const linkUD = ensureUserData(link);
-        linkUD.linkDirection = linkDir.clone(); 
-        
+        linkUD.linkDirection = linkDir.clone();
+
         const segments = computeSegmentsFromLength(mainCurve);
         const frames = mainCurve.computeFrenetFrames(segments, false);
         frameState.geometry.frames = frames;
@@ -1101,10 +1119,10 @@ export class LinkRendererConduit {
 
         // Compute normalized VFX inputs (always on; no gating)
         const vfx = this.computeLinkVfxInput(frameState);
-        
+
         const breathing = Math.sin(visualTime * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
         const twistPhase = visualTime * this.config.twistSpeed;
-        
+
         const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2) * vfx.widthMul;
 
         // Cache geometry params for downstream systems (directional streaks)
@@ -1119,7 +1137,7 @@ export class LinkRendererConduit {
         // Optimization: Pre-calculate loop invariants
         const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
         const noiseBase = 0.005 * (1.0 - synergy);
-        
+
         state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
                 // Phase LRC-SAFE-CORE
@@ -1145,27 +1163,27 @@ export class LinkRendererConduit {
             // Generate helical path
             const points = [];
             const angleOffset = (i / state.strandCount) * Math.PI * 2;
-            
+
             for (let j = 0; j <= segments; j++) {
                 const t = j / segments;
                 const pointOnMain = mainCurve.getPointAt(t);
                 const N = frames.normals[j];
                 const B = frames.binormals[j];
-                
+
                 // Calculate normalized twists based on link length
                 const linkLength = linkDist || 10.0;
                 const twists = linkLength / this.config.twistSpacing;
                 const currentTwist = t * Math.PI * 2 * twists + twistPhase;
                 const angle = angleOffset + currentTwist;
   // +++++++ REPLACE
-                
+
                 const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
                 const noise = Math.sin(t * 40 + i * 10) * noiseBase;
                 const r = (activeRadius * flare) + noise;
 
                 const offsetX = Math.cos(angle) * r;
                 const offsetY = Math.sin(angle) * r;
-                
+
                 const pos = pointOnMain.clone(); // Clone to avoid mutation issues in curve gen
                 pos.addScaledVector(N, offsetX);
                 pos.addScaledVector(B, offsetY);
@@ -1173,7 +1191,7 @@ export class LinkRendererConduit {
             }
 
             // Dispose & Recreate Geometry
-            // Note: Efficient buffer updates for TubeGeometry are complex. 
+            // Note: Efficient buffer updates for TubeGeometry are complex.
             // We accept reallocation to ensure visual correctness of the braid.
             if (mesh.geometry) mesh.geometry.dispose();
             mesh.geometry = new THREE.TubeGeometry(
@@ -1209,34 +1227,34 @@ export class LinkRendererConduit {
              if (skin.geometry) skin.geometry.dispose();
              skin.geometry = new THREE.TubeGeometry(
                  mainCurve,
-                 segments, 
+                 segments,
                  activeRadius * this.config.skinRadiusScale,
-                 8,                    
+                 8,
                  false
              );
-             
+
              // Update shader material uniforms for node state
              if (skin.material && skin.material.uniforms) {
         const material = skin.material;
-                 
+
                  // Time-sync with node aura
                  material.uniforms.uTime.value = visualTime;
-                 
+
                  // Link direction for directional noise bias
                  if (linkDir) {
                      material.uniforms.uLinkDirection.value = linkDir.clone();
                  }
-                 
+
                  // Harmony/corruption influence (from link or global state)
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
                 material.uniforms.uHarmony.value = linkHarmony;
                 material.uniforms.uCorruption.value = linkCorruption;
-                 
+
                  // Desaturation (if link is corrupted)
                  const desaturation = Math.min(1.0, linkCorruption * 1.2);
                  material.uniforms.uDesaturation.value = desaturation;
-                 
+
                  // Link birth/removal effects (synced with node aura)
                  // Birth: ramp up to 1.0, then decay over ~400ms
                  if (link.justLinked) {
@@ -1248,7 +1266,7 @@ export class LinkRendererConduit {
                      const currentBirth = material.uniforms.uLinkBirthIntensity.value || 0.0;
                      material.uniforms.uLinkBirthIntensity.value = Math.max(0.0, currentBirth - visualDelta * 3.0);
                  }
-                 
+
                  // Removal: similar to birth but opposite effect
                  if (link.justUnlinked) {
                      const currentRemoval = material.uniforms.uLinkRemovalIntensity.value || 0.0;
@@ -1271,13 +1289,13 @@ export class LinkRendererConduit {
         if (this.corruptionAnimator && state.strands && this.modules.corruptionFX) {
             this.corruptionAnimator.update(link, visualDelta, state.strands);
         }
-        
+
         // --- 4.6. CORRUPTION PARTICLE EFFECTS ---
         // Emit particles that flow along link from source to target
         if (this.corruptionParticles && this.modules.corruptionFX) {
             this.corruptionParticles.updateLinkParticles(link, visualDelta);
         }
-        
+
         // --- 4.7. TRAIL PARTICLE EFFECTS ---
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
@@ -1285,7 +1303,7 @@ export class LinkRendererConduit {
             if (emitter) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
-                
+
                 emitter.update(
                     visualDelta,
                     visualTime,
@@ -1296,7 +1314,7 @@ export class LinkRendererConduit {
                 );
             }
         }
-        
+
         // --- 4.8. HEALING PARTICLE EFFECTS ---
         // Emit healing particles flowing backwards (target → source) when harmony is high
         if (this.healingParticles && this.healingEmitters && link.id && this.modules.healingFX) {
@@ -1304,7 +1322,7 @@ export class LinkRendererConduit {
             if (emitter) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
-                
+
                 emitter.update(
                     visualDelta,
                     visualTime,
@@ -1336,14 +1354,14 @@ export class LinkRendererConduit {
             });
             if (state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
         }
-        
+
         if (state.rings) state.rings.update(visualTime);
 
         if (state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
             const currentColor = baseCol.isColor ? baseCol : new THREE.Color(baseCol);
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
-            
+
             // [DEBUG] Log sparks update for visibility debugging
             if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
                 console.log('[LinkRendererConduit] Sparks update:', {
@@ -1353,11 +1371,19 @@ export class LinkRendererConduit {
                     trafficLoad
                 });
             }
-            
+
             state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
         }
-        
+
+// Update LinkTrailEmitter (if available)
+if (state.trails && state.beads && state.beads.beadToMesh) {
+    state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
+    console.log('[LinkRendererConduit] state.trails.update called for link:', link.id);
+} else if (state.trails) {
+    console.warn('[LinkRendererConduit] state.trails.update SKIPPED - beadToMesh missing for link:', link.id);
+}
+
         if (state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
@@ -1391,7 +1417,7 @@ export class LinkRendererConduit {
                 const targetCat = link.target.userData?.category || 'input';
                 const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
                 const ringColor = new THREE.Color(state.baseColor).lerp(targetColor, state.pulseRing.progress);
-            
+
             // Ring scale from pulse ring oscillation
             const ringScale = state.pulseRing.mesh.scale.x;
 
@@ -1495,7 +1521,7 @@ export class LinkRendererConduit {
                 this._lastVfxDebugTime = visualTime;
             }
         }
-        
+
         this.updateImpacts(state, visualDelta);
 
         // Update dissolve particles (if any)
@@ -1703,11 +1729,11 @@ export class LinkRendererConduit {
         const category = node.userData?.category || 'input';
         const color = this.getCategoryColor(category);
         const beadSize = bead?.size || 'medium';
-        
+
         // Create impact geometry based on category
         const group = new THREE.Group();
         let geometry;
-        
+
         switch (category) {
             case 'input': geometry = new THREE.TorusGeometry(0.5, 0.05, 8, 16); break;
             case 'process': geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8); break;
@@ -1726,15 +1752,15 @@ export class LinkRendererConduit {
         TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: impactOrder });
         ensureUserData(mesh);
         mesh.userData.__depthAuthorityLocked = true;
-        
+
         group.add(mesh);
         group.position.copy(node.position);
-        
+
         const scaleMult = beadSize === 'large' ? 1.5 : (beadSize === 'small' ? 0.5 : 1.0);
         group.scale.setScalar(0.1); // Start small
-        
+
         Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh });
-        
+
         this.conduitRoot.add(group);
         state.impacts.push(group);
     }
@@ -1746,12 +1772,12 @@ export class LinkRendererConduit {
             const data = grp.userData;
             data.age += dt;
             const p = data.age / data.duration;
-            
+
             if (p >= 1) {
                 if (grp.parent) grp.parent.remove(grp);
-                grp.traverse(o => { 
-                    if(o.geometry) o.geometry.dispose(); 
-                    if(o.material) this._returnImpactMaterial(o.material); 
+                grp.traverse(o => {
+                    if(o.geometry) o.geometry.dispose();
+                    if(o.material) this._returnImpactMaterial(o.material);
                 });
                 state.impacts.splice(i, 1);
             } else {
@@ -1772,22 +1798,22 @@ export class LinkRendererConduit {
         if (this.modules.dissolve && link && link.curve) {
             this._spawnDissolveEffect(link, state);
         }
-        
+
         // Unregister from interference manager if link provided
         if (link && this.nodeInterferenceManager) {
             this.nodeInterferenceManager.unregisterLinkFromNodes(link, link.source, link.target);
         }
-        
+
         // Dispose corruption animation state
         if (link && this.corruptionAnimator && link.id) {
             this.corruptionAnimator.disposeLinkAnimation(link.id);
         }
-        
+
         // Clear corruption particles for this link
         if (link && this.corruptionParticles && link.id) {
             this.corruptionParticles.clearLinkParticles(link.id);
         }
-        
+
         // Dispose trail particle emitter for this link
         if (link && this.trailEmitters && link.id) {
             const emitter = this.trailEmitters.get(link.id);
@@ -1800,7 +1826,7 @@ export class LinkRendererConduit {
         if (link && this.trailParticles && link.id) {
             this.trailParticles.clearLink(link.id);
         }
-        
+
         // Dispose healing particle emitter for this link
         if (link && this.healingEmitters && link.id) {
             const emitter = this.healingEmitters.get(link.id);
@@ -1809,31 +1835,31 @@ export class LinkRendererConduit {
             }
             this.healingEmitters.delete(link.id);
         }
-        
-        state.strands.forEach(m => { 
-            if(m.geometry) m.geometry.dispose(); 
-            if(m.material) m.material.dispose(); 
+
+        state.strands.forEach(m => {
+            if(m.geometry) m.geometry.dispose();
+            if(m.material) m.material.dispose();
         });
-        
+
         if (state.skinMesh) {
             if(state.skinMesh.geometry) state.skinMesh.geometry.dispose();
             if(state.skinMesh.material) state.skinMesh.material.dispose();
         }
-        
+
         if (state.beads) state.beads.dispose();
         if (state.sparks) state.sparks.dispose();
         if (state.trails) state.trails.dispose();
         if (state.rings) state.rings.dispose();
-        
+
         if (state.pulseRing) state.pulseRing.dispose();
         if (state.energyWave) state.energyWave = null;
         if (state.arcDischarges) state.arcDischarges.dispose();
         if (state.visualStateAdapter) state.visualStateAdapter.dispose();
-        
+
         if (state.directionalStreaks && this.directionalStreaks) {
             this.directionalStreaks.dispose(state.directionalStreaks);
         }
-        
+
         state.impacts.forEach(g => {
             if (g.parent) g.parent.remove(g);
             g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) this._returnImpactMaterial(o.material); });

@@ -3506,6 +3506,7 @@ getLinksForNode(node) {
       sourceNodeId: this.getNodeId(sourceNode),
       targetNodeId: this.getNodeId(targetNode),
       group: null,
+      curve: null,
       active: true,
       // Traffic data (required for logic simulation)
       traffic: {

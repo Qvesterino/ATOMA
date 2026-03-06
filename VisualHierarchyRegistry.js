@@ -145,6 +145,9 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_BEAD_TRAILS = 'LINK_BEAD_TRAILS';
   static LAYER_LINK_IMPACTS = 'LINK_IMPACTS';
   static LAYER_LINK_PARTICLES = 'LINK_PARTICLES';
+  static LAYER_LINK_WAVES = 'LINK_WAVES';
+  static LAYER_LINK_CASCADE = 'LINK_CASCADE';
+  static LAYER_LINK_RESONANCE = 'LINK_RESONANCE';
 
   // ========================================================================
   // WORLD / UI / DEBUG IDENTIFIERS
@@ -194,7 +197,10 @@ export class VisualHierarchyRegistry {
     BEAD_TRAILS: 255,
     IMPACTS: 250,
     PICTO: 258,
-    PARTICLES: 260
+    PARTICLES: 260,
+    WAVES: 262,
+    CASCADE: 264,
+    RESONANCE: 266
   };
 
   // ========================================================================

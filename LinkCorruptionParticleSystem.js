@@ -88,6 +88,7 @@ export class LinkCorruptionParticleSystem {
       opacity: 0.8,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: true,
       toneMapped: false
     });
   }

@@ -66,6 +66,7 @@ import { FrameScheduler } from './FrameScheduler.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
 import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
+import './FXDebugSandbox.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
 // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
@@ -379,6 +380,9 @@ import { setupCascadeParticleColorTinting } from './CascadeParticleColorTinting_
 // Encodes conflict type (shape) and propagation (velocity) into particles
 // ============================================================================
 import { setupCascadeParticleSystem } from './CascadeParticleSystem_Session120.js';
+import { setupParticleTrailSystem, updateParticleTrailSystem, cleanupParticleTrailSystem } from './ParticleTrailIntegrationPatch_Session122.js';
+import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
+import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
 
 // ============================================================================
 // SESSION 121: PARTICLE SEMANTIC DENSITY (Clustering & Density as Meaning)
@@ -464,6 +468,12 @@ import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSy
 // GPU-driven spark particles for micro-friction and tension
 // ============================================================================
 import { LinkSparkSystem } from './LinkSparkSystem.js';
+
+// ============================================================================
+// NODE SEGMENTED ORBIT RINGS
+// Segmented orbital ring visualization around nodes
+// ============================================================================
+import { NodeSegmentedOrbitRings } from './shaders/NodeSegmentedOrbitRings.js';
 
 // ============================================================================
 // REGIONAL EQUILIBRIUM FIELD SYSTEM
@@ -3394,6 +3404,16 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.worldRuntime_v1?.update?.(dt);
         }, 'visual.worldRuntime_v1');
+        // Node Segmented Orbit Rings - update all node orbit rings
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.aiNodes?.nodes) {
+                for (const node of this.aiNodes.nodes) {
+                    if (node._orbitRings) {
+                        node._orbitRings.update();
+                    }
+                }
+            }
+        }, 'visual.nodeOrbitRings');
         this.frameScheduler.register('simulation', (dt) => {
             this.nodeEditorRuntime_v1?.update?.(dt);
         }, 'simulation.nodeEditorRuntime_v1');
@@ -3684,6 +3704,39 @@ class AtomaGame {
                 this.cascadeParticleSystem.update(dt, this.time);
             }
         }, 'visual.cascadeParticleSystem');
+        
+        // NEW: Update particle trail system (SESSION 122)
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadeParticles) {
+                updateParticleTrailSystem(
+                    dt,
+                    this,
+                    this.cascadeParticles
+                );
+            }
+        }, 'visual.particleTrailSystem');
+        
+        // NEW: Update cascading rupture system
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadingRuptureSystem && this.cascadingRuptureSystem.config.enabled) {
+                this.cascadingRuptureSystem.update(dt, this.time, this.ruptureSystem, this.harmonySystem);
+            }
+        }, 'visual.cascadingRuptureSystem');
+        
+        // NEW: Update cascade resonance wave visualization
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.cascadeResonanceWave && this.cascadeResonanceWave.config.enabled) {
+                this.cascadeResonanceWave.update(dt, this.time);
+            }
+        }, 'visual.cascadeResonanceWave');
+        
+        // NEW: Update resonance cascade visualization
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.resonanceCascade && this.resonanceCascade.config.enabled) {
+                this.resonanceCascade.update(dt, this.time);
+            }
+        }, 'visual.resonanceCascade');
+        
         this.frameScheduler.register('visual', (dt) => {
             if (this.healingParticles) {
                 this.healingParticles.update(dt, this.time, this.networkState || {}, this.camera);
@@ -3699,34 +3752,10 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             // Empty - kept for backward compatibility reference
         }, 'visual.linkSparkSystems');
-        this.frameScheduler.register('visual', (dt) => {
-            // Update all LinkTrailEmitters
-            if (this.linkTrailEmitters && this.linkingSystem?.links) {
-                for (const link of this.linkingSystem.links) {
-                    const trailEmitter = this.linkTrailEmitters.get(link.userData?.id);
-                    if (trailEmitter && link.curve && link.source && link.target) {
-                        // Get curve from link
-                        const curve = link.curve;
+        // LinkTrailEmitter update moved to LinkRendererConduit
+        // See: LinkRendererConduit.update()
+        // Eliminates race condition - conduit has direct curve access
 
-                        // Get link state from NeonLinkVisuals (has harmony, corruption)
-                        const linkState = this.linkingSystem?.visuals?.linkStates?.get(link.userData?.id);
-
-                        const stats = {
-                            harmony: linkState?.harmony ?? 0.5,
-                            corruption: linkState?.corruption ?? 0.2
-                        };
-
-                        // Calculate link direction (normalized vector from source to target)
-                        const linkDirection = new THREE.Vector3()
-                            .subVectors(link.target.position, link.source.position)
-                            .normalize();
-
-                        // Update emitter (calls emitAlongLink internally)
-                        trailEmitter.update(dt, this.time, curve, linkDirection, stats.harmony, stats.corruption);
-                    }
-                }
-            }
-        }, 'visual.linkTrailEmitters');
         this.frameScheduler.register('visual', (dt) => {
             if (this.memoryTrails) {
                 this.memoryTrails.update(dt);
@@ -4497,6 +4526,24 @@ document.addEventListener('keydown', () => {
         this.setupCascadeParticleSystem();
 
         // ========================================================================
+        // SESSION 117B: RESONANCE CASCADE VISUALIZATION
+        // Visualizes resonance cascades from conflict zones
+        // ========================================================================
+        this.setupResonanceCascadeVisualization();
+
+        // ========================================================================
+        // SESSION 146: CASCADE RESONANCE WAVE VISUALIZATION
+        // Visualizes subtle wave propagation between synchronized hubs
+        // ========================================================================
+        this.setupCascadeResonanceWaveVisualization();
+
+        // ========================================================================
+        // CASCADING RUPTURE SYSTEM
+        // Visualizes rupture cascades across regions
+        // ========================================================================
+        this.setupCascadingRuptureSystem();
+
+        // ========================================================================
         // SESSION 121: PARTICLE SEMANTIC DENSITY
         // Clustering and density encoding intensity and urgency
         // ========================================================================
@@ -4838,6 +4885,13 @@ hudP05Observer.observe(document.body, {
         this.vfxRoot = new THREE.Group();
         this.vfxRoot.name = 'VFX_ROOT';
         this.scene.add(this.vfxRoot);
+        
+        // FX Debug Sandbox - Initialize with scene and renderer
+        if (typeof window !== 'undefined' && window.FX) {
+          window.FX.init(this.scene, this.renderer);
+          console.log('[FXDebugSandbox] Initialized. Use FX.harmony(), FX.cascade(), FX.wave(), FX.trail(), FX.spark(), FX.halo()');
+        }
+        
         // TEMP DISABLED: VisualSpherePolicy blocking spawn pipeline (Object3D.add)
         // ensureSpherePolicyInstalled({ sweepIntervalMs: 100 });
         // this.spherePolicy = installSpherePolicy(this.scene, { sweepIntervalMs: 100 });
@@ -5099,6 +5153,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         );
         if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
             this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+            // DEBUG: Print glyph layer status after creation
+            console.log('? GlyphLayer4 initial fusions created for', this.aiNodes.nodes.length, 'nodes');
+            this.glyphLayer4.printStatus();
         }
         this.setupSemanticGlyphAI();
         this._lastHoverGlyphTarget = null;
@@ -5108,10 +5165,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Initialize Glyph Purity Mode 5.1 (after scene ready)
         // Enforces minimal atmospheric visual identity - ONLY designed glyphs
+        // DISABLED: Blocking GlyphLayer4 and node mutations
         this.glyphPurityMode = new GlyphPurityMode5_1(this.scene);
-        this.glyphPurityMode.setPurityLevel(3); // PURE mode (strictest)
-        this.glyphPurityMode.purifyScene();     // First cleanup pass
-        this.glyphPurityMode.printPurityReport();
+        this.glyphPurityMode.setPurityEnabled(false);  // DISABLED - allow all glyphs
+        // this.glyphPurityMode.setPurityLevel(3); // PURE mode (strictest)
+        // this.glyphPurityMode.purifyScene();     // First cleanup pass
+        // this.glyphPurityMode.printPurityReport();
 
         // Initialize Adaptive Glyph Rendering 1.0 (after scene ready)
         // Makes glyphs respond to node metrics in real-time
@@ -5475,6 +5534,33 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.vfxLoader.onWorldSwitch(reasonForCreate);
             }
 
+            // NEW: Dispose particle trail system (SESSION 122)
+            if (this._particleTrailSystem && typeof cleanupParticleTrailSystem === 'function') {
+                cleanupParticleTrailSystem();
+                console.log('[main.js] ParticleTrailSystem disposed');
+            }
+
+            // NEW: Dispose cascade particle systems
+            if (this.cascadeParticles && typeof this.cascadeParticles.dispose === 'function') {
+                this.cascadeParticles.dispose();
+                console.log('[main.js] CascadeParticleSystem disposed');
+            }
+            
+            if (this.cascadingRuptureSystem && typeof this.cascadingRuptureSystem.dispose === 'function') {
+                this.cascadingRuptureSystem.dispose();
+                console.log('[main.js] CascadingRuptureSystem disposed');
+            }
+            
+            if (this.cascadeResonanceWave && typeof this.cascadeResonanceWave.dispose === 'function') {
+                this.cascadeResonanceWave.dispose();
+                console.log('[main.js] CascadeResonanceWaveVisualization disposed');
+            }
+            
+            if (this.resonanceCascade && typeof this.resonanceCascade.dispose === 'function') {
+                this.resonanceCascade.dispose();
+                console.log('[main.js] ResonanceCascadeVisualization disposed');
+            }
+
             // Dispose existing AI nodes before tearing down roots
             if (this.aiNodes && typeof this.aiNodes.dispose === 'function') {
                 this.aiNodes.dispose();
@@ -5699,6 +5785,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
             this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+            // DEBUG: Print glyph layer status after creation
+            console.log('? GlyphLayer4 fusions created for', this.aiNodes.nodes.length, 'nodes');
+            this.glyphLayer4.printStatus();
         }
         this.setupSemanticGlyphAI();
 
@@ -5829,6 +5918,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     category: node.userData.category,
                     timestamp: performance.now()
                 }, { priority: this.semanticBus.priority.INTERACTIVE });
+            }
+            // Create segmented orbit rings for the new node
+            if (node && node.position && this.scene) {
+                const orbitRings = new NodeSegmentedOrbitRings(this.scene, node.position);
+                node._orbitRings = orbitRings;
             }
             return node;
         };
@@ -6063,15 +6157,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
             }
 
-            // Create LinkTrailEmitter for each link
-            if (result && !this.linkTrailEmitters) {
-                this.linkTrailEmitters = new Map();
-            }
-            if (result && this.linkTrailEmitters && this.linkTrailParticles) {
-                const trailEmitter = new LinkTrailEmitter(result, this.linkTrailParticles);
-                this.linkTrailEmitters.set(result.userData.id, trailEmitter);
-                console.log('[main.js] LinkTrailEmitter created for link:', result.userData.id);
-            }
+            // LinkTrailEmitter creation moved to LinkRendererConduit (eliminates race condition)
+            // See: LinkRendererConduit.createLinkVisuals()
+
 
             // Emit network.link.created event for event-driven systems
             if (this.semanticBus && result) {
@@ -6103,14 +6191,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     this.linkSparkSystems.delete(link.userData.id);
                 }
             }
-            // Cleanup LinkTrailEmitter
-            if (this.linkTrailEmitters && link?.userData?.id !== undefined) {
-                const trailEmitter = this.linkTrailEmitters.get(link.userData.id);
-                if (trailEmitter) {
-                    trailEmitter.disable();
-                    this.linkTrailEmitters.delete(link.userData.id);
-                }
-            }
+            // LinkTrailEmitter cleanup moved to LinkRendererConduit
+            // See: LinkRendererConduit.disposeLinkVisuals()
             // Emit network.link.destroyed event for event-driven systems
             if (this.semanticBus && result) {
                 this.semanticBus.emit('network.link.destroyed', {
@@ -8131,6 +8213,123 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] CascadeParticleSystem initialized ✓');
         } catch (err) {
             console.warn('[main.js] CascadeParticleSystem initialization failed:', err);
+        }
+
+        // ========================================================================
+        // ATOMA SAFE PATCH: PARTICLE TRAIL SYSTEM (SESSION 122)
+        // Activates ParticleTrailSystem_Session122 for trail rendering
+        // ========================================================================
+        try {
+            this._particleTrailSystem = setupParticleTrailSystem(
+                this.scene,
+                this.cascadeParticles,
+                this
+            );
+            
+            if (this._particleTrailSystem) {
+                console.log('[main.js] ParticleTrailSystem_Session122 initialized ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] ParticleTrailSystem initialization failed:', err);
+        }
+    }
+
+    /**
+     * Setup CASCADING RUPTURE SYSTEM
+     * Visualizes rupture cascades across regions
+     */
+    setupCascadingRuptureSystem() {
+        try {
+            this.cascadingRuptureSystem = new CascadingRuptureSystem({
+                scene: this.scene,
+                linkingSystem: this.linkingSystem,
+                nodes: this.nodes,
+                enabled: true,
+                debugMode: false
+            });
+            
+            console.log('[main.js] CascadingRuptureSystem initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CascadingRuptureSystem initialization failed:', err);
+        }
+    }
+
+    /**
+     * Setup CASCADE RESONANCE WAVE VISUALIZATION
+     * Visualizes subtle wave propagation between synchronized hubs
+     */
+    setupCascadeResonanceWaveVisualization() {
+        try {
+            // Create stubs if systems don't exist
+            if (!this.harmonicCascadeAmplification) {
+                this.harmonicCascadeAmplification = {
+                    getCascadeAmplification: (nodeId) => ({ intensity: 0, active: false })
+                };
+                console.warn('[main.js] HarmonicCascadeAmplification stub created');
+            }
+            
+            if (!this.harmonicHubAuraSystem) {
+                this.harmonicHubAuraSystem = {
+                    getHarmonicHubs: () => []
+                };
+                console.warn('[main.js] HarmonicHubAuraSystem stub created');
+            }
+            
+            if (!this.linkResonanceSystem) {
+                this.linkResonanceSystem = {
+                    getLinkResonance: () => ({ intensity: 0, active: false })
+                };
+                console.warn('[main.js] LinkResonanceSystem stub created');
+            }
+            
+            this.cascadeResonanceWave = new CascadeResonanceWaveVisualization_Session146(
+                this.harmonicCascadeAmplification,
+                this.harmonicHubAuraSystem,
+                this.linkResonanceSystem,
+                {
+                    enabled: true,
+                    debugMode: false
+                }
+            );
+            
+            console.log('[main.js] CascadeResonanceWaveVisualization initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CascadeResonanceWaveVisualization initialization failed:', err);
+        }
+    }
+
+    /**
+     * Setup RESONANCE CASCADE VISUALIZATION
+     * Visualizes resonance cascades from conflict zones
+     */
+    setupResonanceCascadeVisualization() {
+        try {
+            // Create stubs if systems don't exist
+            if (!this.conflictSystem) {
+                this.conflictSystem = {
+                    getConflictState: () => ({ intensity: 0, active: false })
+                };
+                console.warn('[main.js] ConflictSystem stub created');
+            }
+            
+            if (!this.resonanceSystem) {
+                this.resonanceSystem = {
+                    getResonanceState: () => ({ intensity: 0, active: false })
+                };
+                console.warn('[main.js] ResonanceSystem stub created');
+            }
+            
+            this.resonanceCascade = new ResonanceCascadeVisualization_Session117B({
+                conflictSystem: this.conflictSystem,
+                resonanceSystem: this.resonanceSystem,
+                linkingSystem: this.linkingSystem,
+                enabled: true,
+                debugMode: false
+            });
+            
+            console.log('[main.js] ResonanceCascadeVisualization initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] ResonanceCascadeVisualization initialization failed:', err);
         }
     }
 

@@ -155,6 +155,11 @@ export class LinkBeadTrailSystem {
     update(time, deltaTime, beadToMesh) {
         this.mesh.material.uniforms.uTime.value = time;
         
+        // Guard: ensure beadToMesh is valid and iterable
+        if (!beadToMesh || typeof beadToMesh[Symbol.iterator] !== 'function') {
+            return;
+        }
+        
         // Accumulate emission count
         // We want constant emission density regardless of framerate
         // particles_to_spawn = emissionRate * dt
@@ -246,6 +251,14 @@ export class LinkBeadTrailSystem {
     
     dispose() {
         if (this.mesh) {
+            // Remove from scene if attached
+            if (this.mesh.parent) {
+                this.mesh.parent.remove(this.mesh);
+            } else if (this.scene) {
+                this.scene.remove(this.mesh);
+            }
+            
+            // Dispose resources
             this.mesh.geometry.dispose();
             this.mesh.material.dispose();
         }

@@ -108,9 +108,9 @@ export const BEAD_CONFIG = {
   // Base Size distribution (probability)
   // Adjusted dynamically based on activity
   sizeDistribution: {
-    small: 0.70,
-    medium: 0.25,
-    large: 0.05
+    small: 0.0,
+    medium: 0.75,
+    large: 0.25
   },
   
   // Speed range (units per second)
@@ -145,7 +145,7 @@ export const BEAD_CONFIG = {
   fadeDistance: 0.1,
   
   // Pool size (max beads per link)
-  maxBeadsPerLink: 10,
+  maxBeadsPerLink: 6,
   
   // Scale opacity with synergy (higher synergy = more visible beads)
   synergyCoupling: {
@@ -297,7 +297,7 @@ export class LinkBeadPool {
         // Higher activity -> higher chance of Medium/Large
         
         const rand = Math.random();
-        let size = 'small';
+        let size;
         
         // Boost probabilities based on activity
         // Base: Small 0.7, Medium 0.25, Large 0.05
@@ -318,25 +318,17 @@ export class LinkBeadPool {
           size = 'large';
           // Trigger Echo Wave on Large Bead
           this.triggerEchoWave();
-        } else if (rand < pLarge + pMedium) {
-          size = 'medium';
         } else {
-          size = 'small';
+          size = 'medium';
         }
-        
+
         bead.size = size;
         bead.radius = BEAD_CONFIG.sizes[size];
-        
-        // Speed varies by size (Large is slower/deliberate)
-        // Small: Fast/Variable
-        // Medium: Consistent
-        // Large: Slower/Heavy
+
         if (size === 'large') {
           bead.speed = BEAD_CONFIG.speedMin * 1.2; 
-        } else if (size === 'medium') {
-          bead.speed = (BEAD_CONFIG.speedMin + BEAD_CONFIG.speedMax) * 0.5;
         } else {
-          bead.speed = BEAD_CONFIG.speedMin + Math.random() * (BEAD_CONFIG.speedMax - BEAD_CONFIG.speedMin);
+          bead.speed = (BEAD_CONFIG.speedMin + BEAD_CONFIG.speedMax) * 0.5;
         }
         
         bead.t = 0;

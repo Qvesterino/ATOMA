@@ -369,7 +369,7 @@ export class LinkTrailParticleSystem {
       opacity: 0.6,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.NormalBlending
+      blending: THREE.AdditiveBlending
     });
     
     // Particle geometry (simple sphere)

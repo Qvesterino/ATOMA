@@ -82,7 +82,7 @@ export function updateParticleTrailSystem(deltaTime, world, cascadeParticleSyste
  * Call on world reset or application exit
  */
 export function cleanupParticleTrailSystem(world) {
-  if (!world._particleTrailSystem) return;
+  if (!world || !world._particleTrailSystem) return;
   
   world._particleTrailSystem.dispose();
   world._particleTrailSystem = null;
@@ -94,7 +94,7 @@ export function cleanupParticleTrailSystem(world) {
  * Get trail system statistics
  */
 export function getParticleTrailStats(world) {
-  if (!world._particleTrailSystem) return null;
+  if (!world || !world._particleTrailSystem) return null;
   
   return world._particleTrailSystem.getStats();
 }

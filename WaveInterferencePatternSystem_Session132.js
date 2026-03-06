@@ -38,6 +38,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class WaveInterferencePatternSystem_Session132 {
     constructor(scene, reflectionSystem, standingWaveTrapSystem, linkingSystem, aiNodes, config = {}) {
@@ -72,7 +73,7 @@ export class WaveInterferencePatternSystem_Session132 {
             // Interference mesh rendering
             interferenceResolution: 16,       // Segments for interference mesh
             maxInterferenceMeshes: 50,        // Pool size
-            interferenceRenderOrder: 8,       // Between links (5) and antinodes (10)
+            interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder('LINK_WAVES'),
             
             // Beat frequency patterns
             beatFrequencyRange: [0.5, 4.0],   // Min-max Hz from frequency differences

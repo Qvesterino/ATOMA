@@ -25,6 +25,7 @@
 import * as THREE from 'three';
 
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class GlyphLayer4_MultiFusion {
   constructor(scene, enforcementGate = null, resonanceFeedback = null) {
@@ -42,6 +43,7 @@ export class GlyphLayer4_MultiFusion {
     this.fusionContainer = new THREE.Group();
     this.fusionContainer.userData.isGlyphLayer4 = true;
     this.fusionContainer.name = 'GlyphLayer4_MultiFusion';
+    this.fusionContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype (0/1), before links (200+)
     this.scene.add(this.fusionContainer);
     
     // Registry: nodeId → { node, layers: { core, evolution, personality, state } }
@@ -123,6 +125,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     coreGroup.name = `glyph_core_${nodeId}`;
+    coreGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Category color mapping
     const categoryColors = {
@@ -192,6 +195,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     evoGroup.name = `glyph_evo_${nodeId}`;
+    evoGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Stage-specific visuals
     if (stage === 1) {
@@ -314,6 +318,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     persGroup.name = `glyph_pers_${nodeId}`;
+    persGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Personality-specific visuals
     const personalityConfigs = {
@@ -439,6 +444,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     stateGroup.name = `glyph_state_consciousness_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Cyan fractal hexagon (3 nested rings)
     const hexGeometry = this.createHexagonGeometry(0.18, 0.12, 0.06);
@@ -485,6 +491,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     stateGroup.name = `glyph_state_ascended_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // 3 concentric orbital rings
     const radii = [0.16, 0.22, 0.28];
@@ -530,6 +537,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     stateGroup.name = `glyph_state_mythic_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // 3 orbiting triangles (crystalline)
     for (let i = 0; i < 3; i++) {
@@ -574,6 +582,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     stateGroup.name = `glyph_state_ritual_${nodeId}`;
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Rotating eclipse glyph (overlapping circles)
     const geometry = new THREE.BufferGeometry();
@@ -620,6 +629,7 @@ export class GlyphLayer4_MultiFusion {
       noEvolve: true,
       noCleanup: true
     };
+    stateGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     stateGroup.name = `glyph_state_cluster_${nodeId}`;
     
     // Fractal web sphere (simplified)
@@ -724,6 +734,7 @@ export class GlyphLayer4_MultiFusion {
       noCleanup: true
     };
     fallbackGroup.name = `glyph_fallback_${nodeId}`;
+    fallbackGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
     
     // Tiny neural point dot
     const dotGeo = new THREE.SphereGeometry(0.04, 4, 4);
@@ -851,6 +862,7 @@ export class GlyphLayer4_MultiFusion {
       isFusion: true
     };
     fusionGroup.name = `fusion_${nodeId}`;
+    fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype (0/1), before links (200+)
     visualGroup.add(fusionGroup);
     
     // Layer 1: Core Glyph (always present)

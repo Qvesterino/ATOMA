@@ -157,7 +157,7 @@ export class CascadeParticleSystem_Session120 {
     // 4. Create Mesh
     this.mesh = new THREE.Points(this.geometry, this.material);
     this.mesh.frustumCulled = false; // Always render if active
-    this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+    this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE');
     this.scene.add(this.mesh);
     
     // 5. Initialize Pool
