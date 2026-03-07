@@ -7,6 +7,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.16, 6, 24);
 SHARED_RING_GEOMETRY.computeBoundingSphere();
 SHARED_RING_GEOMETRY.computeBoundingBox();
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 /**
  * LinkPulseRing - ARCHITEKTÚRA V3 + FRESNEL SHADER
@@ -36,7 +37,7 @@ export class LinkPulseRing {
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
-        const TORUS_TUBE = 0.16;
+        const TORUS_TUBE = 0.30;
         
         // === FRESNEL SHADER MATERIAL ===
         // NIE MeshBasicMaterial, ALE ShaderMaterial s vlastným shaderom
@@ -51,7 +52,7 @@ export class LinkPulseRing {
                 uColor: { value: new THREE.Color(0xffffff) },
                 uOpacity: { value: 0.5 },
                 uFresnelPower: { value: 2.5 },
-                uFresnelIntensity: { value: 1.8 }
+                uFresnelIntensity: { value: 2.4 }
             },
             
             vertexShader: `
@@ -105,7 +106,6 @@ export class LinkPulseRing {
                 32,
                 SEGMENT_ANGLE * 0.85
             );
-            geo.rotateX(Math.PI * 0.5);
             geo.rotateZ(i * SEGMENT_ANGLE);
 
             const mat = this.material.clone();
@@ -145,7 +145,7 @@ export class LinkPulseRing {
         this.auraMesh = aura;
 
         // === LAYER 1: SPIN (Internal rotation) ===
-        this.spin = 0; // Spin angle
+        this.spin = 0; // Disabled during verification
         
         // === SEGMENTED RING STATE ===
         this.lastPulse = 0; // For snap detection
@@ -161,7 +161,6 @@ export class LinkPulseRing {
         
         // === HUE DRIFT: Jemná živá farba ===
         this._tempColor = new THREE.Color(); // Pomocná farba pre HSL operácie
-        this._lookTarget = new THREE.Vector3();
         this._worldDirection = new THREE.Vector3();
         this._trailPoint = new THREE.Vector3();
         this._trailTangent = new THREE.Vector3();
@@ -287,8 +286,8 @@ export class LinkPulseRing {
         // === 4. LAYER 4: SIGNATURE IMPACT (Scale spike on reset) ===
         if (this.progress >= 1.0) {
             this.progress = 0.0; // Loop
-            // Impact moment: brief scale spike
-            this.mesh.scale.multiplyScalar(1.3);
+            // Verification mode: no impact reset scale spike
+            // this.mesh.scale.multiplyScalar(1.3);
         }
         
         // === 2. Position & Orientation ===
@@ -300,9 +299,10 @@ export class LinkPulseRing {
         const tangent = curve.getTangentAt(t);
 
         this.mesh.position.copy(point);
-        // Align ring normal (Z-axis of Torus) to curve tangent
-        this._lookTarget.copy(point).add(tangent);
-        this.mesh.lookAt(this._lookTarget);
+        this.mesh.quaternion.setFromUnitVectors(
+            Z_AXIS,
+            tangent.clone().normalize()
+        );
         
         // === 3. Visual Scaling & Oscillation (EPIC GLOW LAYER + SECOND HARMONIC PULSE) ===
         // Base size scales with synergy (enhanced visibility)
@@ -322,7 +322,7 @@ export class LinkPulseRing {
         const combinedPulse = 1.0 + primary * 0.15 + harmonic * 0.08;
         
         // Apply epic glow scale s harmonickým pulzom
-        this.mesh.scale.setScalar(baseScale * combinedPulse);
+        this.mesh.scale.set(baseScale * 1.1, baseScale, baseScale * 1.1);
         
         // === FADE IN/OUT LOGIKA ===
         let alpha = 1.0;
@@ -369,8 +369,6 @@ export class LinkPulseRing {
         this._pulseCycle = (this._pulseCycle + dt * this._pulseFrequency * pulseSpeed) % 1.0;
         const pulseState = this._evaluateMechanicalPulse(this._pulseCycle);
         const gap = pulseState.gap * (0.9 + synergy * 0.25 + traffic * 0.15);
-        const gapFade = 1.0 - Math.min(1.0, gap / (this._pulseAmplitude * 1.3));
-
         this._applyRingVisuals(this.material, this._tempColor, finalOpacity);
         // DEBUG ISOLATION: aura disabled because it visually bridges the segment gap.
         // this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.45 * gapFade, 1.2);
