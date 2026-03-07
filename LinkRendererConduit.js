@@ -7,6 +7,7 @@ import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
 import { LinkEnergyRingSystem } from './LinkEnergyRingSystem.js';
 import { LinkPulseRing } from './LinkPulseRing.js';
+import { LinkPulseDustEmitter } from './LinkPulseDustEmitter.js';
 import { LinkEnergyWave } from './LinkEnergyWave.js';
 import { LinkRingArcDischarges } from './LinkRingArcDischarges.js';
 import { LinkVisualStateAdapter } from './LinkVisualStateAdapter.js';
@@ -77,7 +78,8 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
             vec3 pos = position + aVelocity * age;
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
-            gl_PointSize = 34.0 * (1.0 - t);
+            // True perspective attenuation: no minimum screen-space floor.
+            gl_PointSize = clamp(0.0, 34.0 * (1.0 - t) * (40.0 / max(1.0, -mvPosition.z)), 18.0);
             vColor = uColor;
             vAlpha = 0.8 * (1.0 - t);
         }
@@ -352,6 +354,7 @@ export class LinkRendererConduit {
 
         // Math cache to reduce allocations
         this._vec3 = new THREE.Vector3();
+        this._pulseDustWorldPos = new THREE.Vector3();
 
         // Node interference management (visual only)
         this.nodeInterferenceManager = new NodeInterferenceManager(scene);
@@ -908,6 +911,7 @@ export class LinkRendererConduit {
 
         // 5. Flow Carrier (Mandatory)
         let pulseRing = null;
+        let pulseDust = null;
         try {
             if (LinkPulseRing) {
                 pulseRing = new LinkPulseRing(this.scene);
@@ -918,6 +922,10 @@ export class LinkRendererConduit {
                     if (Array.isArray(trailMeshes)) {
                         trailMeshes.forEach(mesh => group.add(mesh));
                     }
+                }
+                if (LinkPulseDustEmitter) {
+                    pulseDust = new LinkPulseDustEmitter(160);
+                    this.conduitRoot.add(pulseDust.getObject3D());
                 }
             }
         } catch (e) { throw e; }
@@ -988,6 +996,7 @@ export class LinkRendererConduit {
             trails: trailSystem,
             rings: ringSystem,
             pulseRing: pulseRing,
+            pulseDust: pulseDust,
             energyWave: energyWave,
             arcDischarges: arcDischarges,
             visualStateAdapter: visualStateAdapter,
@@ -1689,6 +1698,21 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
                 sourceColor,
                 targetColor
             );
+
+            if (state.pulseDust) {
+                state.pulseRing.mesh.getWorldPosition(this._pulseDustWorldPos);
+                state.pulseDust.update({
+                    position: this._pulseDustWorldPos,
+                    tangent: state.pulseRing.currentTangent,
+                    ringScale: state.pulseRing.mesh.scale.x,
+                    splitGap: state.pulseRing.currentSplitGap,
+                    pulsePhase: state.pulseRing.currentPulsePhase,
+                    progress: state.pulseRing.progress,
+                    dt: visualDelta,
+                    sourceColor,
+                    targetColor
+                });
+            }
         }
 
         // --- 6. Energy Wave Update (Unified Wave Through Strands) ---
@@ -2144,6 +2168,7 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         if (state.rings) state.rings.dispose();
 
         if (state.pulseRing) state.pulseRing.dispose();
+        if (state.pulseDust) state.pulseDust.dispose();
         if (state.energyWave) state.energyWave = null;
         if (state.arcDischarges) state.arcDischarges.dispose();
         if (state.visualStateAdapter) state.visualStateAdapter.dispose();

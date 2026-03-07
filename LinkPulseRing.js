@@ -160,6 +160,9 @@ export class LinkPulseRing {
         
         // === HUE DRIFT: Jemná živá farba ===
         this._tempColor = new THREE.Color(); // Pomocná farba pre HSL operácie
+        this.currentTangent = new THREE.Vector3(0, 0, 1);
+        this.currentSplitGap = 0;
+        this.currentPulsePhase = 0;
         this._worldDirection = new THREE.Vector3();
         this._trailPoint = new THREE.Vector3();
         this._trailTangent = new THREE.Vector3();
@@ -298,9 +301,10 @@ export class LinkPulseRing {
         const tangent = curve.getTangentAt(t);
 
         this.mesh.position.copy(point);
+        this.currentTangent.copy(tangent).normalize();
         this.mesh.quaternion.setFromUnitVectors(
             Z_AXIS,
-            tangent.clone().normalize()
+            this.currentTangent
         );
         
         // === 3. Visual Scaling & Oscillation (EPIC GLOW LAYER + SECOND HARMONIC PULSE) ===
@@ -368,6 +372,8 @@ export class LinkPulseRing {
         this._pulseCycle = (this._pulseCycle + dt * this._pulseFrequency * pulseSpeed) % 1.0;
         const pulseState = this._evaluateMechanicalPulse(this._pulseCycle);
         const gap = pulseState.gap * (0.9 + synergy * 0.25 + traffic * 0.15);
+        this.currentSplitGap = gap;
+        this.currentPulsePhase = Math.min(1.0, Math.max(0.0, gap / Math.max(0.0001, this._pulseAmplitude)));
         this._applyRingVisuals(this.material, this._tempColor, finalOpacity);
         // DEBUG ISOLATION: aura disabled because it visually bridges the segment gap.
         // this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.45 * gapFade, 1.2);
@@ -414,6 +420,9 @@ export class LinkPulseRing {
             const trailPoint = curve.getPointAt(trailT, this._trailPoint);
             const trailTan = curve.getTangentAt(trailT, this._trailTangent);
             trail.position.copy(trailPoint);
+            trail.position.x += (Math.random() - 0.5) * 0.05;
+            trail.position.y += (Math.random() - 0.5) * 0.05;
+            trail.position.z += (Math.random() - 0.5) * 0.05;
             trail.position.addScaledVector(trailTan, variation.lagOffset);
             this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
             trail.quaternion.copy(this._trailQuaternion);
@@ -432,6 +441,7 @@ export class LinkPulseRing {
             const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
             trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
+            trail.material.uniforms.uOpacity.value *= 0.6;
             const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
             this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
             this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
@@ -447,27 +457,10 @@ export class LinkPulseRing {
     }
 
     _evaluateMechanicalPulse(cycle) {
-        const openEnd = this._pulseOpenRatio;
-        const holdEnd = openEnd + this._pulseHoldRatio;
-        const closeEnd = holdEnd + this._pulseCloseRatio;
-
-        let gap = 0;
-        let atPeak = false;
-        let resetArc = false;
-
-        if (cycle < openEnd) {
-            const t = cycle / openEnd;
-            gap = this._pulseAmplitude * this._easeOutCubic(t);
-        } else if (cycle < holdEnd) {
-            gap = this._pulseAmplitude;
-            atPeak = true;
-        } else if (cycle < closeEnd) {
-            const t = (cycle - holdEnd) / this._pulseCloseRatio;
-            gap = this._pulseAmplitude * (1.0 - this._easeInCubic(t));
-        } else {
-            resetArc = true;
-        }
-
+        const wave = Math.sin(cycle * Math.PI) ** 1.5;
+        const gap = this._pulseAmplitude * wave;
+        const atPeak = wave > 0.98;
+        const resetArc = wave < 0.02;
         return { gap, atPeak, resetArc };
     }
 

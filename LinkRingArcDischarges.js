@@ -42,7 +42,7 @@ export class LinkRingArcDischarges {
         
         // Configuration (unchanged)
         this.config = {
-            spawnInterval: 0.25,      // Spawn arcs every 0.25 of traversal (4 bursts per cycle)
+            spawnInterval: 0.28 + Math.random() * 0.04,      // Spawn arcs every 0.25 of traversal (4 bursts per cycle)
             arcsPerBurst: 5,          // Base arc count
             arcLifetime: 0.3,         // Enhanced: 300ms per arc (doubled from 150ms)
             arcLength: 0.25,          // Enhanced: Radial extent (increased to 0.25)
@@ -111,7 +111,13 @@ export class LinkRingArcDischarges {
             const tangent = curve.getTangentAt(t).normalize();
 
             // Spawn arc burst (PHASE 1: Two-Phase Arc System)
-            this.spawnArcBurst(ringPos, tangent, synergy, traffic);
+            const isPeakPulse = this.ringScale > 0.9;
+
+            if (isPeakPulse) {
+                this.spawnArcBurst(ringPos, tangent, synergy * 1.5, traffic);
+            } else {
+                this.spawnArcBurst(ringPos, tangent, synergy * 0.5, traffic);
+            }
         }
 
         this.lastSpawnProgress = this.currentRingProgress;
@@ -184,7 +190,7 @@ export class LinkRingArcDischarges {
         const arcLifetime = params.lifetime !== undefined ? params.lifetime : this.config.arcLifetime;
         const maxOpacity = params.maxOpacity !== undefined ? params.maxOpacity : (0.8 + Math.random() * 0.4);
         const jitterMultiplier = params.jitterMultiplier !== undefined ? params.jitterMultiplier : 1.0;
-        const pulseSpeed = params.pulseSpeed !== undefined ? params.pulseSpeed : (5.0 + Math.random() * 3.0);
+        const pulseSpeed = params.pulseSpeed !== undefined ? params.pulseSpeed : (4.0 + Math.random() * 6.0);
         const arcLengthScale = params.arcLengthScale !== undefined ? params.arcLengthScale : 1.0;
 
         // Create two perpendicular vectors to tangent (approximate perpendicular basis)
@@ -199,7 +205,7 @@ export class LinkRingArcDischarges {
         const angle = Math.random() * Math.PI * 2;
         const radiusScale = this.config.radiusScale * (0.8 + synergy * 0.4);
         
-        const arcRadius = this.config.arcLength * radiusScale * arcLengthScale;
+        const arcRadius = this.config.arcLength * radiusScale * arcLengthScale * (0.85 + Math.random() * 0.3);
 
         // PATCH: Arcs originate from Ring Surface (NOT center)
         // 1) Compute ring surface radius:
@@ -224,7 +230,7 @@ export class LinkRingArcDischarges {
 
         // Create arc line geometry safely (PHASE 3: Improved Electric Shape)
         const geometry = new THREE.BufferGeometry();
-        const positions = this.generateArcPath(startPoint, endPoint, 8, jitterMultiplier);
+        const positions = this.generateArcPath(startPoint, endPoint, 8, jitterMultiplier, normal, binormal);
         
         // positions is already a BufferAttribute, set it directly
         if (positions && positions instanceof THREE.BufferAttribute) {
@@ -260,7 +266,7 @@ export class LinkRingArcDischarges {
         const material = new THREE.LineBasicMaterial({
             color: arcColor,
             transparent: true,
-            opacity: maxOpacity,
+            opacity: maxOpacity * 2.0,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             linewidth: 1.0,
@@ -295,7 +301,7 @@ export class LinkRingArcDischarges {
             
             // Create short branch arc geometry
             const branchGeometry = new THREE.BufferGeometry();
-            const branchPositions = this.generateArcPath(branchStart, branchEnd, 4, jitterMultiplier); // Shorter: 4 segments
+            const branchPositions = this.generateArcPath(branchStart, branchEnd, 4, jitterMultiplier, normal, binormal); // Shorter: 4 segments
             
             if (branchPositions && branchPositions instanceof THREE.BufferAttribute) {
                 branchGeometry.setAttribute('position', branchPositions);
@@ -367,14 +373,26 @@ export class LinkRingArcDischarges {
      * @param {THREE.Vector3} end - End point
      * @param {number} segments - Number of intermediate segments
      * @param {number} jitterMultiplier - Multiplier for jitter amount (PHASE 1 compatibility)
+     * @param {THREE.Vector3} normal - Normal vector for planar jitter
+     * @param {THREE.Vector3} binormal - Binormal vector for planar jitter
      * @returns {THREE.BufferAttribute} Safe GPU buffer attribute
      */
-    generateArcPath(start, end, segments = 8, jitterMultiplier = 1.0) {
+    generateArcPath(start, end, segments = 8, jitterMultiplier = 1.0, normal, binormal) {
         // PHASE 3: Improved Electric Shape (No Random Noise Spam)
         // Replace pure random jitter with structured wave:
         // Use: taper = sin(t * PI), wave = sin(t * PI * 3), jitterMagnitude = taper * wave * config.jitterAmount
         // This creates organic electric oscillation instead of noise chaos
         
+        // Defensive fallback: if basis vectors are missing, derive a stable local frame
+        const safeNormal = normal?.isVector3 ? normal : this._vec3.set(0, 1, 0);
+        if (Math.abs(end.clone().sub(start).normalize().dot(safeNormal)) > 0.9) {
+            safeNormal.set(1, 0, 0);
+        }
+        const safeBinormal = binormal?.isVector3
+            ? binormal
+            : this._vec3b.crossVectors(end.clone().sub(start).normalize(), safeNormal).normalize();
+        safeNormal.crossVectors(safeBinormal, end.clone().sub(start).normalize()).normalize();
+
         // Pre-allocate typed array with exact size needed
         const pointCount = segments + 2; // start + intermediates + end
         const positions = new Float32Array(pointCount * 3);
@@ -401,11 +419,7 @@ export class LinkRingArcDischarges {
             const jitterMagnitude = taper * wave * this.config.jitterAmount * jitterMultiplier;
             
             // Add structured jitter (electric oscillation, not chaos)
-            const jitterDir = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize();
+            const jitterDir = safeNormal.clone().add(safeBinormal).normalize();
             
             point.addScaledVector(jitterDir, jitterMagnitude);
             
