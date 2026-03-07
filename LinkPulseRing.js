@@ -144,7 +144,7 @@ export class LinkPulseRing {
         this.auraMesh = aura;
 
         // === LAYER 1: SPIN (Internal rotation) ===
-        this.spin = 0; // Disabled during verification
+        this.spin = 0;
         
         // === SEGMENTED RING STATE ===
         this.lastPulse = 0; // For snap detection
@@ -152,7 +152,7 @@ export class LinkPulseRing {
         
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
-        this.TRAIL_COUNT = 6; // 6 echo rings
+        this.TRAIL_COUNT = 2;
         
         // State
         this.progress = Math.random(); // Random start pos
@@ -163,11 +163,15 @@ export class LinkPulseRing {
         this.currentTangent = new THREE.Vector3(0, 0, 1);
         this.currentSplitGap = 0;
         this.currentPulsePhase = 0;
+        this.currentSpinAngle = 0;
         this._worldDirection = new THREE.Vector3();
         this._trailPoint = new THREE.Vector3();
         this._trailTangent = new THREE.Vector3();
-        this._trailJitter = new THREE.Vector3();
+        this._trailNormal = new THREE.Vector3();
+        this._trailBinormal = new THREE.Vector3();
+        this._trailOffset = new THREE.Vector3();
         this._trailQuaternion = new THREE.Quaternion();
+        this._trailSpinQuaternion = new THREE.Quaternion();
         this._ringAxis = new THREE.Vector3(0, 0, 1);
         this._hsl = { h: 0, s: 0, l: 0 };
         this._time = Math.random() * 10.0;
@@ -214,25 +218,25 @@ export class LinkPulseRing {
         
         return {
             // Lifetime variácia (dlhšie traily vytrvajú dlhšie)
-            lifetimeMultiplier: 0.8 + index * 0.1, // 0.8, 0.9, 1.0, 1.1
+            lifetimeMultiplier: 0.95 + index * 0.08,
             
-            // Spin rýchlosť variácia (rôzne rýchlosti)
-            spinSpeedMultiplier: 0.7 + Math.random() * 0.4, // 0.7-1.1 random
+            // Motor drift speed multiplier
+            spinSpeedMultiplier: 0.82 + index * 0.14,
             
-            // Scale pulse variácia (rôzne pulse frekvencie)
-            pulseFrequencyMultiplier: 0.8 + Math.random() * 0.4, // 0.8-1.2 random
+            // Secondary pulse frequency per trail
+            pulseFrequencyMultiplier: 0.9 + index * 0.12,
             
-            // Jitter magnitude (náhodné posuny ako LinkBeadTrail)
-            jitterMagnitude: baseVariation,
+            // Orbital drift radius
+            jitterMagnitude: baseVariation * 0.5,
             
             // Position lag (trail nie je presne na tej istej pozícii)
-            lagOffset: 0.002 + index * 0.001, // 0.002, 0.003, 0.004, 0.005
+            lagOffset: 0.008 + index * 0.006,
             
             // Hue offset (už existuje ale môžeme zvýšiť pre rozmanitosť)
-            hueOffset: (index + 1) * 0.01, // 0.01, 0.02, 0.03, 0.04
+            hueOffset: (index + 1) * 0.006,
             
             // Base scale decay (postupne menší)
-            scaleDecayBase: 1.0 - (index + 1) / this.TRAIL_COUNT // 0.75, 0.5, 0.25, 0.0
+            scaleDecayBase: 0.82 - index * 0.18
         };
     }
 
@@ -374,6 +378,9 @@ export class LinkPulseRing {
         const gap = pulseState.gap * (0.9 + synergy * 0.25 + traffic * 0.15);
         this.currentSplitGap = gap;
         this.currentPulsePhase = Math.min(1.0, Math.max(0.0, gap / Math.max(0.0001, this._pulseAmplitude)));
+        const spinRate = 2.0 + traffic * 2.2 + synergy * 1.4;
+        this.currentSpinAngle = (this.currentSpinAngle + dt * spinRate) % (Math.PI * 2);
+        this.segmentGroup.rotation.z = this.currentSpinAngle;
         this._applyRingVisuals(this.material, this._tempColor, finalOpacity);
         // DEBUG ISOLATION: aura disabled because it visually bridges the segment gap.
         // this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.45 * gapFade, 1.2);
@@ -407,7 +414,7 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)
         
-        const spacing = 0.012;
+        const spacing = 0.03;
         this.trailMeshes.forEach((trail, i) => {
             const variation = trail.userData.trailVariation;
             const trailProgress = this.progress - spacing * (i + 1);
@@ -420,32 +427,38 @@ export class LinkPulseRing {
             const trailPoint = curve.getPointAt(trailT, this._trailPoint);
             const trailTan = curve.getTangentAt(trailT, this._trailTangent);
             trail.position.copy(trailPoint);
-            trail.position.x += (Math.random() - 0.5) * 0.05;
-            trail.position.y += (Math.random() - 0.5) * 0.05;
-            trail.position.z += (Math.random() - 0.5) * 0.05;
             trail.position.addScaledVector(trailTan, variation.lagOffset);
             this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
+            this._buildTrailFrame(trailTan, this._trailNormal, this._trailBinormal);
+            const orbitAngle = this.currentSpinAngle * variation.spinSpeedMultiplier + i * Math.PI;
+            const orbitRadius = (variation.jitterMagnitude + gap * 0.12) * this.mesh.scale.x * 0.6;
+            this._trailOffset.copy(this._trailNormal).multiplyScalar(Math.cos(orbitAngle) * orbitRadius);
+            this._trailOffset.addScaledVector(this._trailBinormal, Math.sin(orbitAngle) * orbitRadius);
+            trail.position.add(this._trailOffset);
             trail.quaternion.copy(this._trailQuaternion);
-            this._trailJitter.set(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize();
-            const jitterMagnitude = variation.jitterMagnitude * this.mesh.scale.x;
-            trail.position.addScaledVector(this._trailJitter, jitterMagnitude);
+            this._trailSpinQuaternion.setFromAxisAngle(this._ringAxis, orbitAngle);
+            trail.quaternion.multiply(this._trailSpinQuaternion);
             const baseScale = this.mesh.scale.x;
             const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
-            const dynamicScale = baseScale * (variation.scaleDecayBase * 1.2);
-            trail.scale.setScalar(dynamicScale * 1.08);
+            const dynamicScale = baseScale * (variation.scaleDecayBase + trailScalePulse);
+            trail.scale.setScalar(dynamicScale);
             const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
             const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
-            trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
-            trail.material.uniforms.uOpacity.value *= 0.6;
+            trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.72 + trailOpacityPulse);
             const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
             this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
             this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
         });
+    }
+
+    _buildTrailFrame(direction, normal, binormal) {
+        normal.set(0, 1, 0);
+        if (Math.abs(direction.dot(normal)) > 0.92) {
+            normal.set(1, 0, 0);
+        }
+        binormal.crossVectors(direction, normal).normalize();
+        normal.crossVectors(binormal, direction).normalize();
     }
 
     _applyRingVisuals(material, color, opacity, intensityMultiplier = 1.0) {

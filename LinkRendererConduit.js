@@ -79,7 +79,7 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
             // True perspective attenuation: no minimum screen-space floor.
-            gl_PointSize = clamp(0.0, 34.0 * (1.0 - t) * (40.0 / max(1.0, -mvPosition.z)), 18.0);
+            gl_PointSize = clamp(80.0 * (1.0 - t) / -mvPosition.z, 1.0, 20.0);
             vColor = uColor;
             vAlpha = 0.8 * (1.0 - t);
         }
@@ -105,6 +105,7 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         depthTest: true,
+        sizeAttenuation: true,
         uniforms: {
             uTime: { value: 0 },
             uColor: { value: new THREE.Color(0xffffff) }
@@ -1707,6 +1708,7 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
                     ringScale: state.pulseRing.mesh.scale.x,
                     splitGap: state.pulseRing.currentSplitGap,
                     pulsePhase: state.pulseRing.currentPulsePhase,
+                    spinAngle: state.pulseRing.currentSpinAngle,
                     progress: state.pulseRing.progress,
                     dt: visualDelta,
                     sourceColor,

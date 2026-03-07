@@ -159,6 +159,7 @@ export class LinkPulseDustEmitter {
         ringScale = 0.14,
         splitGap = 0.0,
         pulsePhase = 0.0,
+        spinAngle = 0.0,
         progress = 0.0,
         dt = 0.016,
         sourceColor,
@@ -194,6 +195,7 @@ export class LinkPulseDustEmitter {
                 TMP_BINORMAL,
                 ringScale,
                 splitGap,
+                spinAngle,
                 progress,
                 sourceColor,
                 targetColor
@@ -209,12 +211,12 @@ export class LinkPulseDustEmitter {
         }
     }
 
-    _spawnParticle(position, tangent, normal, binormal, ringScale, splitGap, progress, sourceColor, targetColor) {
+    _spawnParticle(position, tangent, normal, binormal, ringScale, splitGap, spinAngle, progress, sourceColor, targetColor) {
         const idx = this.writeIndex;
         const i3 = idx * 3;
 
         const segmentIndex = Math.floor(Math.random() * SEGMENT_ANGLES.length);
-        const angle = SEGMENT_ANGLES[segmentIndex];
+        const angle = SEGMENT_ANGLES[segmentIndex] + spinAngle;
         const ringRadius = Math.max(0.06, ringScale * 0.8);
         const gapRadius = splitGap * 0.32;
         const radialRadius = ringRadius + gapRadius;
