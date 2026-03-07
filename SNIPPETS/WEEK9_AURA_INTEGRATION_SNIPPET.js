@@ -11,7 +11,7 @@
 // SNIPPET 1: IMPORT (Add to top of main.js or initialization file)
 // ============================================================================
 
-import { NodeAuraSystem_v1 } from './NodeAuraSystem_v1.js';
+import { NodeAuraSystem_v1 } from './LEGACY/aura/NodeAuraSystem_v1.js';
 
 // ============================================================================
 // SNIPPET 2: INITIALIZE (Add in constructor or setup function)

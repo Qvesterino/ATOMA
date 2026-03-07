@@ -424,7 +424,6 @@ import { NodeLinkedAuraRenderer_Session146 } from './NodeLinkedAuraRenderer_Sess
 // PHASE 3C WEEK 10: LINK AURA SYSTEM
 // GPU-driven cylindrical halo system around links
 // ============================================================================
-import { LinkAuraSystem_v1 } from './shaders/LinkAuraSystem_v1.js';
 
 // ============================================================================
 // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
@@ -685,8 +684,6 @@ import { EventVisualSuppression_v1, setupEventSuppressionConsoleAPI } from './Ev
 // AURA MODULATION SYSTEM v1.0 (Session 27)
 // Receives redirected event intensity and modulates aura visually
 // ============================================================================
-import { AuraModulationSystem, setupAuraModulationConsoleAPI } from './AuraModulationSystem.js';
-import { AuraModulationIntegration_v1, setupAuraModulationRedirection, setupAuraModulationIntegrationConsoleAPI } from './AuraModulationIntegration_v1.js';
 
 // ============================================================================
 // ENHANCED NODE MODEL LINK STATE v1.0 (Session 28)
@@ -987,7 +984,6 @@ import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
 // ATOMA UI 3.4–3.7 - ACTIVE SYSTEMS (Core Selection + Primary Node Linking)
 // ============================================================================
 import { NodeSelectionCore3_4 } from './_NodeSelectionCore3_4.js';
-import { UIPrimaryNodeAura3_7 } from './_UIPrimaryNodeAura3_7.js';
 import { UIPrimaryNodeTopBar3_7 } from './_UIPrimaryNodeTopBar3_7.js';
 import { getSelectedHUD } from './UISelectedHUD.js';
 import { WorldSelectorHUD } from './WorldSelectorHUD.js';
@@ -3491,7 +3487,6 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
-        this.frameScheduler.register('visual', (dt) => this.primaryNodeAura?.update?.(dt), 'visual.primaryNodeAura');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
         this.frameScheduler.register('visual', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryPack');
         this.frameScheduler.register('visual', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer), 'visual.legendaryLinkFX');
@@ -4127,7 +4122,6 @@ document.addEventListener('keydown', () => {
         // PHASE 3C WEEK 10: LINK AURA SYSTEM
         // GPU-driven cylindrical halo system around links
         // ====================================================================
-        this.linkAuraSystem = null;
 
         // ====================================================================
         // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
@@ -4373,7 +4367,6 @@ document.addEventListener('keydown', () => {
 
         // ATOMA UI 3.7 - Double-Click Primary Node System
         // ========================================================================
-        this.primaryNodeAura = null;      // Visual aura for primary (linking source)
         this.primaryNodeTopBar = null;    // HUD bar showing primary node info
 
         // OLD UI 3.0 - To be disabled
@@ -4568,12 +4561,6 @@ document.addEventListener('keydown', () => {
         // Noise-driven aura meshes around nodes
         // ========================================================================
         this.setupNodeAuraRenderer();
-
-        // ========================================================================
-        // PHASE 3C WEEK 10: LINK AURA SYSTEM
-        // GPU-driven cylindrical halo system around links
-        // ========================================================================
-        this.setupLinkAuraSystem();
 
         // ========================================================================
         // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
@@ -6592,31 +6579,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // AURA MODULATION SYSTEM v1.0 (Session 27)
         // Receives redirected event intensity and applies modulation to auras
         // ====================================================================
-        try {
-            this.auraModulationSystem = new AuraModulationSystem();
-            setupAuraModulationConsoleAPI(this.auraModulationSystem);
-            
-            // Initialize integration with EventVisualSuppression
-            this.auraModulationIntegration = new AuraModulationIntegration_v1(
-                this.auraModulationSystem,
-                this.eventVisualSuppression,
-                this.scene
-            );
-            this.auraModulationIntegration.initialize();
-            setupAuraModulationIntegrationConsoleAPI(this.auraModulationIntegration);
-            
-            // Setup redirection in EventVisualSuppression
-            setupAuraModulationRedirection(this.auraModulationIntegration);
-            
-            // Hook existing nodes
-            this.auraModulationIntegration.hookExistingNodes();
-            
-            console.log('[main.js] AuraModulationSystem v1.0 initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] AuraModulationSystem initialization failed:', err);
-        }
-        
-        // ====================================================================
         // ENHANCED NODE MODEL LINK STATE v1.0 (Session 28) — DISABLED
         // Reason: Violates visual authority lock. Linking is a relationship,
         // not a visual mutation. BaseVisualState is immutable authority.
@@ -7415,7 +7377,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 aiNodes: this.aiNodes,
                 archetypeCurves: this.archetypeCurves,
                 nodeAuraSystem: this.nodeAuraSystem || null,  // If available (Week 9)
-                linkAuraSystem: this.linkAuraSystem || null,  // If available (Week 10)
             });
             console.log('[main.js] ArchetypeAuraEnhancement_v1 initialized ✓');
         } catch (err) {
@@ -7915,9 +7876,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
                 if (this.nodeAuraSystem) {
                     this.synergyCascadeFXBridge.registerTargetSystem('nodeAuraSystem', this.nodeAuraSystem);
-                }
-                if (this.linkAuraSystem) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('linkAuraSystem', this.linkAuraSystem);
                 }
                 if (this.nodeShaderActivation) {
                     this.synergyCascadeFXBridge.registerTargetSystem('nodeShaderActivation', this.nodeShaderActivation);
@@ -8525,7 +8483,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
         // reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
-        reg('auraModulationIntegration', (dt) => this.auraModulationIntegration?.update?.(dt));
         reg('dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
         reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
         reg('linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
@@ -8675,9 +8632,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeAuraSystem', 'visual.nodeAuraSystem', (dt) => {
             this.nodeAuraSystem?.update?.(dt, this.aiNodes?.nodes);
         });
-        regGuard('linkAuraSystem', 'visual.linkAuraSystem', (dt) => {
-            this.linkAuraSystem?.update?.(dt);
-        });
         regGuard('linkBeadSystem', 'visual.linkBeadSystem', (dt) => {
             this.linkBeadSystem?.update?.(dt);
         });
@@ -8756,8 +8710,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        regGuard('primaryNodeAura', 'visual.primaryNodeAura', (dt) => this.primaryNodeAura?.update?.(dt));
-
         regGuard('linkDebugMode', 'visual.linkDebugMode', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); });
         regGuard('hardInteractionAuthority', 'visual.hardInteractionAuthority', () => {
             if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
@@ -10602,72 +10554,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Creates GPU-driven cylindrical halo system around links
      */
     setupLinkAuraSystem() {
-        try {
-            // Initialize link aura system with scene and linking system references
-            this.linkAuraSystem = new LinkAuraSystem_v1({
-                scene: this.scene,
-                linkManager: this.linkingSystem,
-                fxPerformance: this.fxPerformance,
-                profileResolver: null, // Use default 'stability_aura' profile
-                debugEnabled: false
-            });
-
-            // Register callback for new link creation
-            if (this.linkingSystem && this.linkingSystem.onLinkCreatedCallbacks) {
-                this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
-                    if (this.linkAuraSystem) {
-                        this.linkAuraSystem.registerLink(link);
-                    }
-                });
-            }
-
-            // Register callback for link removal
-            if (this.linkingSystem && this.linkingSystem.onLinkRemovedCallbacks) {
-                this.linkingSystem.onLinkRemovedCallbacks.push((link) => {
-                    if (this.linkAuraSystem) {
-                        this.linkAuraSystem.unregisterLink(link);
-                    }
-                });
-            }
-
-            // Initialize auras for existing links
-            if (this.linkingSystem && this.linkingSystem.links) {
-                for (const link of this.linkingSystem.links) {
-                    if (this.linkAuraSystem) {
-                        this.linkAuraSystem.registerLink(link);
-                    }
-                }
-            }
-
-            console.log('[main.js] LinkAuraSystem initialized ✓');
-            console.log('  - Renders cylindrical glowing auras around links');
-            console.log('  - 6 aura profiles (synergy, stability, corruption, chaos, resonance, mythic)');
-            console.log('  - Reacts to link quality, synergy, corruption, and entropy');
-            console.log('  - GPU-driven additive blending for soft glow');
-
-            // Setup console API for LinkStateVisualLanguage (debugging)
-            window.linkStateVisualDebug = {
-                debugPrintLinkStates: () => {
-                    if (this.linkingSystem?.linkStateVisualLanguage) {
-                        this.linkingSystem.linkStateVisualLanguage.debugPrintLinkStates();
-                    }
-                },
-                getLinkVisualState: (link) => {
-                    if (this.linkingSystem?.linkStateVisualLanguage) {
-                        return this.linkingSystem.linkStateVisualLanguage.getLinkVisualState(link);
-                    }
-                },
-                updateNetworkStress: (stress) => {
-                    if (this.linkingSystem?.linkStateVisualLanguage) {
-                        this.linkingSystem.linkStateVisualLanguage.updateNetworkStress(stress);
-                    }
-                }
-            };
-
-            console.log('[main.js] LinkStateVisualLanguage console API ready ✓');
-        } catch (err) {
-            console.warn('[main.js] LinkAuraSystem init error:', err);
-        }
+        // Legacy link aura system retired (no-op)
     }
 
     /**
@@ -11274,9 +11161,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Double-click primary node selection + visual aura + linking source
      */
     setupPrimaryNodeSystem() {
-        // Create primary node aura (visual feedback)
-        this.primaryNodeAura = new UIPrimaryNodeAura3_7(this.scene, this.selectionCore);
-
         // Create primary node top bar (HUD display)
         this.primaryNodeTopBar = new UIPrimaryNodeTopBar3_7(this.selectionCore);
 
@@ -11284,16 +11168,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.selectionCore) {
             this.selectionCore.onPrimaryNodeChanged((oldPrimary, newPrimary) => {
                 if (newPrimary) {
-                    if (this.primaryNodeAura) {
-                        this.primaryNodeAura.showAura(newPrimary);
-                    }
                     if (this.primaryNodeTopBar) {
                         this.primaryNodeTopBar.show(newPrimary);
                     }
                 } else {
-                    if (this.primaryNodeAura) {
-                        this.primaryNodeAura.hideAura();
-                    }
                     if (this.primaryNodeTopBar) {
                         this.primaryNodeTopBar.hide();
                     }
@@ -11357,7 +11235,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.selectedNodeBadge,
                 this.selectedNodeHighlight,
                 this.selectedNodeLabel,
-                this.primaryNodeAura,
                 this.primaryNodeTopBar
             );
             this.nodeLinking.setSelectionCore(this.selectionCore);

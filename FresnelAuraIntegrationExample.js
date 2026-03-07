@@ -11,7 +11,7 @@
  */
 
 import * as THREE from 'three';
-import { patchAINodesToUseFresnelAuras, updateFresnelAuraUniforms } from './FresnelAuraIntegrationPatch.js';
+import { patchAINodesToUseFresnelAuras, updateFresnelAuraUniforms } from './LEGACY/aura/FresnelAuraIntegrationPatch.js';
 
 // ==============================================================================
 // PATTERN 1: MINIMAL INTEGRATION (Recommended for most cases)
@@ -454,7 +454,7 @@ export const fresnelAuraConsole = {
  * Copy and adapt to your specific setup
  */
 export const QUICKSTART_TEMPLATE = `
-import { patchAINodesToUseFresnelAuras, updateFresnelAuraUniforms } from './FresnelAuraIntegrationPatch.js';
+import { patchAINodesToUseFresnelAuras, updateFresnelAuraUniforms } from './LEGACY/aura/FresnelAuraIntegrationPatch.js';
 
 // Initialize (call once at startup)
 function initWorld() {

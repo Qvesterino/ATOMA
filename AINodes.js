@@ -91,7 +91,6 @@ import { spawnCycleValidator } from './SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
-import { AuraLODCulling } from './AuraLODCulling.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
 import { NodeVisualAuthorityRuntime } from './NodeVisualAuthorityRuntime.js';
 
@@ -468,15 +467,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * @private
    */
   _finishConstructorInit() {
-    // ========== AURA LOD CULLING v2.0 (Session 74) ==========
-    // Distance-based aura visibility gating (rendering only, not logic)
-    this.auraLOD = new AuraLODCulling({
-      distanceThreshold: 30,
-      hysteresis: 3,
-      updateInterval: 100,
-      keepVisibleWhenSelected: true,
-    });
-    
     // ========== EXTREME SYSTEMS ACTIVATION v1.0 ==========
     // Initialize EXTREME node packs (visual + archetype definitions)
     // LEGACY SPAWN MODULE REMOVED – HARD DISABLED
@@ -2394,12 +2384,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     profileEnd('perNodeLoop', perNodeStart);
     
     // AURA LOD CULLING: Update aura visibility based on distance
-    const auraStart = profileStart('auraLOD');
-    if (this.auraLOD && this.camera) {
-      this.auraLOD.updateCulling(this.nodes, this.camera, deltaTime);
-    }
-    profileEnd('auraLOD', auraStart);
-    
     // Update connections
     const connStart = profileStart('updateConnections');
     this.updateConnections();

@@ -501,7 +501,7 @@ export class SynergyColorDebugVisualizer {
 // ==============================================================================
 
 export const COMPLETE_MAIN_JS_EXAMPLE = `
-import { patchAINodesToUseFresnelAuras } from './FresnelAuraIntegrationPatch.js';
+import { patchAINodesToUseFresnelAuras } from './LEGACY/aura/FresnelAuraIntegrationPatch.js';
 import { initializeSynergyAuraColors, updateAuraColorsFromNodes, autoWireAllNodeAuras } from './SynergyAuraColorIntegrationPatch.js';
 import { initializeSynergyAuraColorsMinimal, updateSynergyAuraColorsMinimal } from './SynergyAuraColorIntegrationExample.js';
 

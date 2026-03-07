@@ -24,7 +24,7 @@
  *   stabilization.update();
  */
 
-import { EmergencyAuraKillSwitch_v1 } from './EmergencyAuraKillSwitch_v1.js';
+import { EmergencyAuraKillSwitch_v1 } from '../aura/EmergencyAuraKillSwitch_v1.js';
 import { ForceNodeOpaqueBodySystem_v1 } from './ForceNodeOpaqueBodySystem_v1.js';
 import { SpawnerConsolidationDetector_v1 } from './SpawnerConsolidationDetector_v1.js';
 

@@ -22,7 +22,7 @@ import {
   BatchCorruptionDesaturationController,
   desaturateColor,
   DesaturationCurves,
-} from './CorruptionDrivenAuraDesaturationSystem.js';
+} from './LEGACY/aura/CorruptionDrivenAuraDesaturationSystem.js';
 
 /**
  * Global integration state

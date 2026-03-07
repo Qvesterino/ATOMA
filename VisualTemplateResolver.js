@@ -35,39 +35,6 @@
  */
 
 const TEMPLATE_SPECS = {
-  SYNERGY_GLOW: {
-    id: 'SYNERGY_GLOW',
-    name: 'Synergy Glow',
-    authority: 'CanonicalVisualTemplateLibrary.md #TEMPLATE_1',
-    status: 'LOCKED',
-
-    // Lazy-loaded (imported on first use)
-    controllerClassName: 'SynergyGlowController',
-    controllerModule: './SynergyGlowController.js',
-    materialFactory: 'createSynergyGlowMaterial',
-    materialModule: './SynergyGlowShaderMaterial.js',
-
-    // Schema (for validation + documentation)
-    schema: {
-      inputSignal: 'visualSynergy', // from userData
-      signalRange: [0, 1],
-      uniforms: {
-        uTime: 'float',
-        uGlowIntensity: 'float',
-        uGlowBrightness: 'float',
-        uGlowPulse: 'float',
-        uGlowColor: 'vec3',
-      },
-      canonical: {
-        opacityFormula: '0.3 + (visualSynergy * 0.7)',
-        brightnessFormula: 'visualSynergy * 2.0',
-        breathingFrequency: '1.2 Hz',
-        breathingDepth: '±5%',
-        color: '#00d4ff',
-      },
-    },
-  },
-
   HARMONY_AURA: {
     id: 'HARMONY_AURA',
     name: 'Harmony Aura',

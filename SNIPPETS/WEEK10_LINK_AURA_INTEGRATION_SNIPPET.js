@@ -14,7 +14,7 @@
 // SNIPPET 1: IMPORTS (Add to top of your main game file)
 // ============================================================================
 
-import { LinkAuraSystem_v1 } from './LinkAuraSystem_v1.js';
+import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 
 
 // ============================================================================

@@ -243,6 +243,12 @@ export class NodeLinkedAuraSystem {
       blending: THREE.NormalBlending
     });
     
+    // DEBUG: Force white color to identify this aura system
+    if (material && material.color) {
+      material.color.set(0xffffff);
+      console.log("AURA DEBUG: forcing white aura", node.id);
+    }
+    
     // Freeze variant properties immediately after material creation
     material.userData = material.userData || {};
     material.userData.__owner = 'NodeLinkedAuraSystem';
@@ -366,6 +372,23 @@ export class NodeLinkedAuraSystem {
     console.log("UPDATE AURA", node.id);
     const auraData = this.nodeAuras.get(node);
     if (!auraData) return;
+    
+    // Lazy create orbit rings if aura already exists but orbit was not created
+    if (!auraData.orbit) {
+      const orbit = new NodeSegmentedOrbitRings(
+        this.scene,
+        node.position,
+        {
+          radius: node.scale?.x ? node.scale.x * 2.8 : 3.0,
+          segmentCount: 64
+        }
+      );
+      
+      auraData.mesh.add(orbit.mesh);
+      auraData.orbit = orbit;
+      
+      console.log("ORBIT LAZY INIT", node.id);
+    }
     
     // Update link count
     const linkCountChanged = auraData.linkCount !== linkCount;

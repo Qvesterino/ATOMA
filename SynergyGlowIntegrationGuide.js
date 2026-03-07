@@ -10,8 +10,8 @@
  * 4. Safe chaining patterns
  */
 
-import { createSynergyGlowMaterial, assertSynergyGlowMaterialConformance } from './SynergyGlowShaderMaterial.js';
-import { SynergyGlowController, SynergyGlowControllerBatch } from './SynergyGlowController.js';
+import { createSynergyGlowMaterial, assertSynergyGlowMaterialConformance } from './LEGACY/aura/SynergyGlowShaderMaterial.js';
+import { SynergyGlowController, SynergyGlowControllerBatch } from './LEGACY/aura/SynergyGlowController.js';
 
 // =============================================================================
 // INTEGRATION SNIPPET #1: PER-LINK INSTANTIATION (LinkRenderer-style)
