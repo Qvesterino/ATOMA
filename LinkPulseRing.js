@@ -92,6 +92,7 @@ export class LinkPulseRing {
 
         // === SEGMENTED RING INITIALIZATION ===
         this.segments = [];
+        this.segmentDirections = [];
         this.segmentGroup = new THREE.Group();
         const SEGMENTS = 4;
         const SEGMENT_ANGLE = Math.PI / 2;
@@ -102,18 +103,23 @@ export class LinkPulseRing {
                 TORUS_TUBE,
                 8,
                 32,
-                i * SEGMENT_ANGLE,
-                SEGMENT_ANGLE * 0.9   // malá medzera
+                SEGMENT_ANGLE * 0.85
             );
+            geo.rotateX(Math.PI * 0.5);
+            geo.rotateZ(i * SEGMENT_ANGLE);
 
             const mat = this.material.clone();
 
             const seg = new THREE.Mesh(geo, mat);
-            seg.rotation.x = Math.PI * 0.5;   // FIX ORIENTATION
             seg.frustumCulled = false;
 
             this.segmentGroup.add(seg);
             this.segments.push(seg);
+            this.segmentDirections.push(new THREE.Vector3(
+                Math.cos(i * SEGMENT_ANGLE),
+                Math.sin(i * SEGMENT_ANGLE),
+                0
+            ));
         }
 
         // Main ring container (holds segmentGroup)
@@ -155,11 +161,27 @@ export class LinkPulseRing {
         
         // === HUE DRIFT: Jemná živá farba ===
         this._tempColor = new THREE.Color(); // Pomocná farba pre HSL operácie
+        this._lookTarget = new THREE.Vector3();
+        this._worldDirection = new THREE.Vector3();
+        this._trailPoint = new THREE.Vector3();
+        this._trailTangent = new THREE.Vector3();
+        this._trailJitter = new THREE.Vector3();
+        this._trailQuaternion = new THREE.Quaternion();
+        this._ringAxis = new THREE.Vector3(0, 0, 1);
+        this._hsl = { h: 0, s: 0, l: 0 };
+        this._time = Math.random() * 10.0;
+        this._pulseCycle = Math.random();
+        this._pulseFrequency = 1.15;
+        this._pulseOpenRatio = 0.38;
+        this._pulseHoldRatio = 0.08;
+        this._pulseCloseRatio = 0.22;
+        this._pulseAmplitude = 0.8;
+        this._arcTriggeredThisPulse = false;
         
         // Trail initialization
         this._initTrails();
-        // Attach aura after trails init
-        this.mesh.add(this.auraMesh);
+        // DEBUG ISOLATION: aura layer disabled so segment split stays readable.
+        // this.mesh.add(this.auraMesh);
     }
 
     /**
@@ -247,17 +269,19 @@ export class LinkPulseRing {
     update(curve, synergy, traffic, dt, sourceColor, targetColor) {
         if (!curve || !this.active) {
             this.mesh.visible = false;
+            this.auraMesh.visible = false;
             // Hide all trails
             this.trailMeshes.forEach(trail => trail.visible = false);
             return;
         }
         this.mesh.visible = true;
+        this.auraMesh.visible = false;
+        this._time += dt;
 
         // === 1. Motion Logic ===
         // Speed scales with traffic and synergy (slower, more visible)
         // Baseline: 0.3, Max: ~1.0
-        const speed = 0.3 + (traffic * 0.4) + (synergy * 0.2);
-        const oldProgress = this.progress;
+        const speed = (0.3 + (traffic * 0.4) + (synergy * 0.2)) * 0.5;
         this.progress += speed * dt;
         
         // === 4. LAYER 4: SIGNATURE IMPACT (Scale spike on reset) ===
@@ -277,7 +301,8 @@ export class LinkPulseRing {
 
         this.mesh.position.copy(point);
         // Align ring normal (Z-axis of Torus) to curve tangent
-        this.mesh.lookAt(point.clone().add(tangent));
+        this._lookTarget.copy(point).add(tangent);
+        this.mesh.lookAt(this._lookTarget);
         
         // === 3. Visual Scaling & Oscillation (EPIC GLOW LAYER + SECOND HARMONIC PULSE) ===
         // Base size scales with synergy (enhanced visibility)
@@ -285,16 +310,16 @@ export class LinkPulseRing {
         
         // === SECOND HARMONIC PULSE: Dvojfrekvenčný pulz ===
         // Primary oscilátor
-        const primary = Math.sin(this.progress * Math.PI * 6);
+        // DEBUG ISOLATION: suppress scale pulse so only segment split communicates motion.
+        // const primary = Math.sin(this.progress * Math.PI * 6);
+        const primary = 0;
         
         // Harmonic oscilátor (dvojnásobná frekvencia, 40% amplitúda)
-        const harmonic = Math.sin(this.progress * Math.PI * 12) * 0.4;
+        // const harmonic = Math.sin(this.progress * Math.PI * 12) * 0.4;
+        const harmonic = 0;
         
         // Kombinovaný pulz (nie jeden tep, ale komplexný pulz)
         const combinedPulse = 1.0 + primary * 0.15 + harmonic * 0.08;
-        
-        // Epic Glow: Epic boost from synergy
-        const epicBoost = 0.6 + synergy * 0.8;
         
         // Apply epic glow scale s harmonickým pulzom
         this.mesh.scale.setScalar(baseScale * combinedPulse);
@@ -321,15 +346,16 @@ export class LinkPulseRing {
         this._tempColor.copy(sourceColor).lerp(targetColor, this.progress);
         
         // Prechod do HSL
-        const hsl = {};
+        const hsl = this._hsl;
         this._tempColor.getHSL(hsl);
         
         // Drift rýchlosť podľa synergy
         const driftSpeed = 0.2 + synergy * 0.8;
         
         // Jemný posun hue (menší než 0.02 aby to nebolo cirkus!)
-        const hueDrift = Math.sin(performance.now() * 0.001 * driftSpeed) * 0.015;
-        hsl.h += hueDrift;
+        // DEBUG ISOLATION: disable hue drift to keep the ring visually stable while testing split.
+        // const hueDrift = Math.sin(this._time * driftSpeed) * 0.015;
+        // hsl.h += hueDrift;
         
         // Wrap hue (0-1)
         if (hsl.h > 1.0) hsl.h -= 1.0;
@@ -338,45 +364,39 @@ export class LinkPulseRing {
         // Nastaviť HSL
         this._tempColor.setHSL(hsl.h, hsl.s, hsl.l);
         
-        // Poslať do shader uniformu
-        this.material.uniforms.uColor.value.copy(this._tempColor);
-        
-        // Nastaviť opacity shader-uOpacity
-        this.material.uniforms.uOpacity.value = finalOpacity;
-        
-        // === SEGMENTED RING: PULSE SPLIT LOGIC ===
-        const pulse = Math.sin(this.progress * Math.PI * 2);
-        const gap = Math.abs(pulse) * 0.25;
-        
-        // === SEGMENTED RING: POSITION SEGMENTS ===
-         this.segments.forEach((seg, i) => {
+        // === SEGMENTED RING: MECHANICAL SPLIT LOGIC ===
+        const pulseSpeed = 0.85 + traffic * 0.45 + synergy * 0.35;
+        this._pulseCycle = (this._pulseCycle + dt * this._pulseFrequency * pulseSpeed) % 1.0;
+        const pulseState = this._evaluateMechanicalPulse(this._pulseCycle);
+        const gap = pulseState.gap * (0.9 + synergy * 0.25 + traffic * 0.15);
+        const gapFade = 1.0 - Math.min(1.0, gap / (this._pulseAmplitude * 1.3));
 
-            const angle = i * Math.PI / 2;
+        this._applyRingVisuals(this.material, this._tempColor, finalOpacity);
+        // DEBUG ISOLATION: aura disabled because it visually bridges the segment gap.
+        // this._applyRingVisuals(this.auraMaterial, this._tempColor, finalOpacity * 0.45 * gapFade, 1.2);
+        // this.auraMesh.scale.setScalar(1.0 + gap * 0.35);
 
-            const dir = new THREE.Vector3(
-                Math.cos(angle),
-                Math.sin(angle),
-                0
-            );
-
-            seg.position.copy(dir.multiplyScalar(gap));
-
+        this.segments.forEach((seg, i) => {
+            seg.position.copy(this.segmentDirections[i]).multiplyScalar(gap);
+            this._applyRingVisuals(seg.material, this._tempColor, finalOpacity);
         });
-        
-        // === SEGMENTED RING: SPIN (dramatic effect) ===
 
-        // === SEGMENTED RING: SNAP MOMENT (trigger arcs) ===
-        if (pulse > 0.95 && this.lastPulse < 0.95) {
-            if (this.arcSystem) {
-                this.arcSystem.spawnArcBurst(
-                    this.mesh.position,
-                    this.mesh.getWorldDirection(new THREE.Vector3()),
-                    synergy,
-                    traffic
-                );
-            }
+        // DEBUG ISOLATION: arc burst disabled while validating mechanical split readability.
+        // if (pulseState.atPeak && !this._arcTriggeredThisPulse && this.arcSystem) {
+        //     this.mesh.getWorldDirection(this._worldDirection);
+        //     this.arcSystem.spawnArcBurst(
+        //         this.mesh.position,
+        //         this._worldDirection,
+        //         synergy,
+        //         traffic
+        //     );
+        //     this._arcTriggeredThisPulse = true;
+        // }
+
+        if (pulseState.resetArc) {
+            this._arcTriggeredThisPulse = false;
         }
-        this.lastPulse = pulse;
+        this.lastPulse = gap;
         
         // === LAYER 1: SPIN (Internal rotation - Gyroscope effect) ===
         // spin disabled – pulse ring should stay stable
@@ -384,67 +404,87 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)
         
-        const spacing = 0.03; // Delay between trail segments
-        
-        this.trailMeshes.forEach((trail, i) => {
-            // Get trail variation parameters
-            const variation = trail.userData.trailVariation;
-            const trailProgress = this.progress - spacing * (i + 1);
-            
-            // Hide if behind start
-            if (trailProgress <= 0) {
-                trail.visible = false;
-                return;
-            }
-            
-            trail.visible = true;
-            
-            // Position on curve
-            const trailT = Math.min(0.999, Math.max(0.001, trailProgress));
-            const trailPoint = curve.getPointAt(trailT);
-            const trailTan = curve.getTangentAt(trailT);
-            
-            // Apply position lag (trail nie je presne na tej istej pozícii)
-            const trailPosLagged = trailPoint.clone();
-            trailPosLagged.addScaledVector(trailTan, variation.lagOffset);
-            trail.position.copy(trailPosLagged);
-            
-            // Orientation
-            const trailQuat = new THREE.Quaternion();
-            trailQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), trailTan.normalize());
-            trail.quaternion.copy(trailQuat);
-            
-            // ORGANIC: Jitter (náhodné posuny ako LinkBeadTrail)
-            const jitter = new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2
-            ).normalize();
-            
-            const jitterMagnitude = variation.jitterMagnitude * this.mesh.scale.x;
-            trail.position.addScaledVector(jitter, jitterMagnitude);
-            
-            // SCALE: Decay + Pulse (nielen decay, ale aj pulse)
-            const baseScale = this.mesh.scale.x;
-            const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
-            const dynamicScale = baseScale * (variation.scaleDecayBase + trailScalePulse);
-            trail.scale.setScalar(dynamicScale);
-            
-            // OPACITY: Decay + Pulse + Lifetime variation
-            const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
-            const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1); // Výraznejšie: 0.8, 0.6, 0.4, 0.2
-            const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
-            trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
-            
-            // HUE: Offset (variabilnejší)
-            const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
-            this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
-            trail.material.uniforms.uColor.value.copy(this._tempColor);
-            
-            // SPIN: Unique spin speed per trail
-            const trailSpin = this.spin * variation.spinSpeedMultiplier;
-            trail.rotateOnAxis(new THREE.Vector3(0, 0, 1), trailSpin);
+        // DEBUG ISOLATION: trail layer disabled because it obscures the split silhouette.
+        // const spacing = 0.03;
+        // this.trailMeshes.forEach((trail, i) => {
+        //     const variation = trail.userData.trailVariation;
+        //     const trailProgress = this.progress - spacing * (i + 1);
+        //     if (trailProgress <= 0) {
+        //         trail.visible = false;
+        //         return;
+        //     }
+        //     trail.visible = true;
+        //     const trailT = Math.min(0.999, Math.max(0.001, trailProgress));
+        //     const trailPoint = curve.getPointAt(trailT, this._trailPoint);
+        //     const trailTan = curve.getTangentAt(trailT, this._trailTangent);
+        //     trail.position.copy(trailPoint);
+        //     trail.position.addScaledVector(trailTan, variation.lagOffset);
+        //     this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
+        //     trail.quaternion.copy(this._trailQuaternion);
+        //     this._trailJitter.set(
+        //         (Math.random() - 0.5) * 2,
+        //         (Math.random() - 0.5) * 2,
+        //         (Math.random() - 0.5) * 2
+        //     ).normalize();
+        //     const jitterMagnitude = variation.jitterMagnitude * this.mesh.scale.x;
+        //     trail.position.addScaledVector(this._trailJitter, jitterMagnitude);
+        //     const baseScale = this.mesh.scale.x;
+        //     const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
+        //     const dynamicScale = baseScale * (variation.scaleDecayBase + trailScalePulse);
+        //     trail.scale.setScalar(dynamicScale);
+        //     const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
+        //     const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
+        //     const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
+        //     trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
+        //     const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
+        //     this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
+        //     this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
+        // });
+        this.trailMeshes.forEach(trail => {
+            trail.visible = false;
         });
+    }
+
+    _applyRingVisuals(material, color, opacity, intensityMultiplier = 1.0) {
+        if (!material?.uniforms) return;
+        material.uniforms.uColor.value.copy(color);
+        material.uniforms.uOpacity.value = opacity;
+        material.uniforms.uFresnelPower.value = 2.2;
+        material.uniforms.uFresnelIntensity.value = 1.6 * intensityMultiplier;
+    }
+
+    _evaluateMechanicalPulse(cycle) {
+        const openEnd = this._pulseOpenRatio;
+        const holdEnd = openEnd + this._pulseHoldRatio;
+        const closeEnd = holdEnd + this._pulseCloseRatio;
+
+        let gap = 0;
+        let atPeak = false;
+        let resetArc = false;
+
+        if (cycle < openEnd) {
+            const t = cycle / openEnd;
+            gap = this._pulseAmplitude * this._easeOutCubic(t);
+        } else if (cycle < holdEnd) {
+            gap = this._pulseAmplitude;
+            atPeak = true;
+        } else if (cycle < closeEnd) {
+            const t = (cycle - holdEnd) / this._pulseCloseRatio;
+            gap = this._pulseAmplitude * (1.0 - this._easeInCubic(t));
+        } else {
+            resetArc = true;
+        }
+
+        return { gap, atPeak, resetArc };
+    }
+
+    _easeOutCubic(t) {
+        const x = 1.0 - t;
+        return 1.0 - x * x * x;
+    }
+
+    _easeInCubic(t) {
+        return t * t * t;
     }
 
     /**
@@ -459,6 +499,7 @@ export class LinkPulseRing {
         
         // Dispose main material (shader material)
         if (this.material) this.material.dispose();
+        if (this.auraMaterial) this.auraMaterial.dispose();
         
         // Dispose all trail materials
         this.trailMeshes.forEach(trail => {
