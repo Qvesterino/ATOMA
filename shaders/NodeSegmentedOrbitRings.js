@@ -9,7 +9,7 @@ console.log("ORBIT CREATED");
 this.scene = scene;
 this.center = center;
 
-this.segmentCount = options.segmentCount || 64;
+this.segmentCount = options.segmentCount || 96;
 this.radius = options.radius || 1.7;
 
 this.clock = new THREE.Clock();
@@ -20,13 +20,14 @@ const geometry = new THREE.PlaneGeometry(0.35,0.12);
 const material = new THREE.ShaderMaterial({
 transparent:true,
 depthWrite:false,
-depthTest:false,
+depthTest:true,
+side: THREE.DoubleSide,
 blending:THREE.AdditiveBlending,
 uniforms:{
 time:{value:0},
 color:{value:new THREE.Color(0x7fdcff)},
 speedMult:{value:1.0},
-center:{value:center.clone()}
+radius:{value:this.radius}
 },
 vertexShader:`
 
@@ -36,7 +37,7 @@ attribute float seed;
 
 uniform float time;
 uniform float speedMult;
-uniform vec3 center;
+uniform float radius;
 
 varying float vSeed;
 varying vec2 vUv;
@@ -52,16 +53,27 @@ float speed = baseSpeed * speedMult;
 
 float a = angle + time * speed;
 
-float r = 2.2;
+float r = radius;
 
-vec3 pos = vec3(
+vec3 orbitCenter = vec3(
 cos(a)*r,
 sin(a*0.6)*0.12,
 sin(a)*r
 );
 
-// Use center uniform for position
-pos += center;
+vec3 radial = normalize(vec3(cos(a), 0.0, sin(a)));
+vec3 tangent = normalize(vec3(-sin(a), 0.0, cos(a)));
+vec3 vertical = vec3(0.0, 1.0, 0.0);
+
+// Use the plane's local quad vertices so each segment has real area.
+vec3 localOffset =
+    tangent * position.x +
+    vertical * position.y;
+
+// Alternate rings with a subtle radial separation.
+localOffset += radial * ((ring * 2.0 - 1.0) * 0.06);
+
+vec3 pos = orbitCenter + localOffset;
 
 vec4 mv = modelViewMatrix * vec4(pos,1.0);
 
@@ -79,9 +91,7 @@ varying float vSeed;
 
 void main(){
 
-    // DEBUG: Red test
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    return;
+
     
     vec2 uv = vUv - vec2(0.5);
 
@@ -176,7 +186,7 @@ setEnergy(energyLevel){
  * Update center position (call when node moves)
  */
 setCenter(x, y, z){
-    this.mesh.material.uniforms.center.value.set(x, y, z);
+    this.mesh.position.set(x, y, z);
 }
 
 dispose(){

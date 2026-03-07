@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeSegmentedOrbitRings } from './shaders/NodeSegmentedOrbitRings.js';
+import { createMultiBandFresnelRimAura } from './FresnelRimLightAuraShader.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -230,17 +231,10 @@ export class NodeLinkedAuraSystem {
     
     // PHASE S-5: Variant properties set at creation time, then frozen
     // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
-    const material = new THREE.MeshStandardMaterial({
-      color: this.visualParams.color,
-      opacity: this.visualParams.baseOpacity,
-      roughness: this.visualParams.roughness,
-      metalness: this.visualParams.metalness,
-      // Variant properties (frozen after creation):
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.NormalBlending
+    const material = createMultiBandFresnelRimAura({
+      auraColor: new THREE.Color(0x7fffd4),
+      rimPower1: 0.9,
+      rimPower2: 1.6
     });
     
     // DEBUG: Force white color to identify this aura system
@@ -270,7 +264,7 @@ export class NodeLinkedAuraSystem {
         this.scene,
         node.position,
         {
-            radius: node.scale.x * 2.8,
+            radius: node.scale.x * 1.8,
             segmentCount: 64
         }
     );
@@ -379,7 +373,7 @@ export class NodeLinkedAuraSystem {
         this.scene,
         node.position,
         {
-          radius: node.scale?.x ? node.scale.x * 2.8 : 3.0,
+          radius: node.scale.x * 1.8,
           segmentCount: 64
         }
       );

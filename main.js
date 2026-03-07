@@ -3437,8 +3437,8 @@ class AtomaGame {
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
-        this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         this.frameScheduler.register('visual', this.synergyChainReactionTick.bind(this), 'visual.synergyChainReaction');
+        this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -10517,6 +10517,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.scene,
                 this.aiNodes,
                 {
+                    enabled: false,
                     // Aura visuals
                     baseRadius: 1.2,
                     baseDisplacement: 0.3,
