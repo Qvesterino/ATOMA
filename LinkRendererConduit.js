@@ -1071,7 +1071,7 @@ export class LinkRendererConduit {
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
 
-        // --- Dock ring pulse (visual cue when link reaches node surface) ---
+         // --- Dock ring pulse (visual cue when link reaches node surface) ---
         const dockPos = end.clone();
         const distToTarget = dockPos.distanceTo(targetCenter);
         const dockThreshold = targetRadius * 1.1;
@@ -1104,9 +1104,11 @@ export class LinkRendererConduit {
                 const layerRadii = [
                     baseRadius + radiusStep * 2,
                     baseRadius + radiusStep,
-                    baseRadius
+                    baseRadius * 0.7
                 ];
-                const layerSpeed = [0.45, -0.30, 0.20];
+                const layerSpeed = [0.20, -0.30, 0.20];
+                const layerOpacity = [0.14, 0.17, 0.2];
+                const baseTubeRadius = Math.max(linkThickness * 0.28, 0.028);
                 const layerGroups = [];
 
                 for (let layerIndex = 0; layerIndex < layerRadii.length; layerIndex++) {
@@ -1119,28 +1121,60 @@ export class LinkRendererConduit {
                         0,
                         (layerRadii.length - 1 - layerIndex) * shellSpacing
                     );
+                    layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
+                    layerGroup.userData.pulseAmpY = shellSpacing * (0.08 + layerIndex * 0.02);
+                    layerGroup.userData.pulseAmpZ = shellSpacing * (0.14 + layerIndex * 0.03);
+                    layerGroup.userData.pulsePhase = layerIndex * 0.9;
+                    layerGroup.userData.baseRotationZ = layerIndex * 0.08;
                     const mat = new THREE.MeshBasicMaterial({
                         color: ringColor,
                         transparent: true,
-                        opacity: 0.5,
+                        opacity: layerOpacity[layerIndex] ?? 0.5,
                         blending: THREE.AdditiveBlending,
                         depthWrite: false,
                         side: THREE.DoubleSide
                     });
+                    layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? 0.5;
 
                     for (let i = 0; i < segmentCount; i++) {
                         const startAngle = (i / segmentCount) * Math.PI * 2;
                         const arcLength = (Math.PI * 2) / segmentCount * 0.75;
                         const geo = new THREE.TorusGeometry(
                             layerRadius,
-                            layerRadius * 0.095,
+                            baseTubeRadius,
                             8,
                             24,
                             arcLength
                         );
                         const mesh = new THREE.Mesh(geo, mat);
                         mesh.rotation.z = startAngle;
+                        const flowDir = layerSpeed[layerIndex] >= 0 ? 1 : -1;
+                        mesh.userData.segmentSpeed = flowDir * (0.08 + layerIndex * 0.015);
+                        mesh.scale.set(1.6, 1.6, 0.35);
                         layerGroup.add(mesh);
+                    }
+
+                    const trailMat = new THREE.MeshBasicMaterial({
+                        color: ringColor,
+                        transparent: true,
+                        opacity: (layerOpacity[layerIndex] ?? 0.5) * 0.32,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        side: THREE.DoubleSide
+                    });
+                    const trailGeo = new THREE.TorusGeometry(
+                        layerRadius * (1.0 + layerIndex * 0.015),
+                        baseTubeRadius * 0.42,
+                        6,
+                        20,
+                        Math.PI * 0.68
+                    );
+                    for (let i = 0; i < 3; i++) {
+                        const trail = new THREE.Mesh(trailGeo, trailMat);
+                        trail.rotation.z = (i / 3) * Math.PI * 2 + layerIndex * 0.18;
+                        trail.scale.set(1.35, 1.35, 0.45);
+                        trail.userData.isDockTrailPath = true;
+                        layerGroup.add(trail);
                     }
 
                     ring.add(layerGroup);
@@ -1150,9 +1184,14 @@ export class LinkRendererConduit {
                 ring.userData.layerGroups = layerGroups;
                 ring.userData.layerSpeed = layerSpeed;
                 ring.userData.life = 0;
-                ring.userData.duration = 0.9;
-                ring.userData.scaleMul = 1.0;
-                ring.userData.opacityMul = 1.0;
+                ring.userData.sprayTriggerT = 0.18;
+                ring.userData.sprayTriggerAt = visualTime + ring.userData.sprayTriggerT;
+                ring.userData.sprayTriggered = false;
+                ring.userData.sprayPayload = {
+                    origin: dockPos.clone().lerp(dockOffset, 0.24),
+                    direction: surfaceDir.clone().negate(),
+                    color: ringColor.clone()
+                };
                 this.scene?.add(ring);
                 state.dockRing = ring;
                 state.dockRingColor = ringColor.clone();
@@ -1173,10 +1212,6 @@ export class LinkRendererConduit {
                     state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
                     this.scene?.add(state.dockSpray.mesh);
                 }
-                if (state.dockSpray) {
-                    // Spray now biased opposite the surface normal (away from node) for visibility
-                    state.dockSpray.spawnBurst(dockPos, surfaceDir.clone().negate(), ringColor, visualTime);
-                }
             }
         }
 
@@ -1191,6 +1226,8 @@ export class LinkRendererConduit {
             if (dir.lengthSq() === 0) dir.set(0, 0, 1);
             ring.quaternion.setFromUnitVectors(forward, dir);
             const layerGroups = [];
+            const layerOpacity = [0.05, 0.07, 0.09];
+            const baseTubeRadius = Math.max(pg.thickness * 0.28, 0.024);
             for (let layerIndex = 0; layerIndex < pg.layerRadii.length; layerIndex++) {
                 const layerGroup = new THREE.Group();
                 const layerRadius = pg.layerRadii[layerIndex] * 1.15;
@@ -1201,28 +1238,60 @@ export class LinkRendererConduit {
                     0,
                     (pg.layerRadii.length - 1 - layerIndex) * shellSpacing
                 );
+                layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
+                layerGroup.userData.pulseAmpY = shellSpacing * (0.05 + layerIndex * 0.015);
+                layerGroup.userData.pulseAmpZ = shellSpacing * (0.10 + layerIndex * 0.02);
+                layerGroup.userData.pulsePhase = layerIndex * 0.9;
+                layerGroup.userData.baseRotationZ = layerIndex * 0.08;
                 const mat = new THREE.MeshBasicMaterial({
                     color: ringColor,
                     transparent: true,
-                    opacity: 0.5 * 0.35,
+                    opacity: layerOpacity[layerIndex] ?? (0.5 * 0.35),
                     blending: THREE.AdditiveBlending,
                     depthWrite: false,
                     side: THREE.DoubleSide
                 });
+                layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? (0.5 * 0.35);
 
                 for (let i = 0; i < segmentCount; i++) {
                     const startAngle = (i / segmentCount) * Math.PI * 2;
                     const arcLength = (Math.PI * 2) / segmentCount * 0.75;
                     const geo = new THREE.TorusGeometry(
                         layerRadius,
-                        layerRadius * 0.095,
+                        baseTubeRadius,
                         8,
                         24,
                         arcLength
                     );
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.rotation.z = startAngle;
+                    const flowDir = pg.layerSpeed[layerIndex] >= 0 ? 1 : -1;
+                    mesh.userData.segmentSpeed = flowDir * (0.06 + layerIndex * 0.01);
+                    mesh.scale.set(1.35, 1.35, 0.45);
                     layerGroup.add(mesh);
+                }
+
+                const trailMat = new THREE.MeshBasicMaterial({
+                    color: ringColor,
+                    transparent: true,
+                    opacity: (layerOpacity[layerIndex] ?? 0.12) * 0.22,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    side: THREE.DoubleSide
+                });
+                const trailGeo = new THREE.TorusGeometry(
+                    layerRadius * 1.02,
+                    baseTubeRadius * 0.36,
+                    6,
+                    16,
+                    Math.PI * 0.58
+                );
+                for (let i = 0; i < 2; i++) {
+                    const trail = new THREE.Mesh(trailGeo, trailMat);
+                    trail.rotation.z = (i * Math.PI) + layerIndex * 0.24;
+                    trail.scale.set(1.35, 1.35, 0.45);
+                    trail.userData.isDockTrailPath = true;
+                    layerGroup.add(trail);
                 }
 
                 ring.add(layerGroup);
@@ -1231,9 +1300,6 @@ export class LinkRendererConduit {
             ring.userData.layerGroups = layerGroups;
             ring.userData.layerSpeed = pg.layerSpeed;
             ring.userData.life = 0;
-            ring.userData.duration = 0.9 * 0.7;
-            ring.userData.scaleMul = 1.15;
-            ring.userData.opacityMul = 0.35;
             this.scene?.add(ring);
             state.dockGhost = ring;
             state.dockGhostPending = null;
@@ -1242,16 +1308,11 @@ export class LinkRendererConduit {
         const updateDockRing = (ring) => {
             if (!ring) return false;
             const life = (ring.userData.life || 0) + visualDelta;
-            const duration = ring.userData.duration || 0.9;
             ring.userData.life = life;
-            const t = Math.min(1, life / duration);
-            const fadeStart = duration * 0.45;
-
-            const pulse = (1.0 + t * 0.6) * (ring.userData.scaleMul || 1.0);
             for (const layerGroup of ring.children || []) {
                 for (const segment of layerGroup.children || []) {
-                    if (segment.geometry) {
-                        segment.scale.setScalar(pulse);
+                    if (segment.geometry && segment.userData?.segmentSpeed) {
+                        segment.rotation.z += segment.userData.segmentSpeed * visualDelta;
                     }
                 }
             }
@@ -1259,24 +1320,20 @@ export class LinkRendererConduit {
                 for (let i = 0; i < ring.userData.layerGroups.length; i++) {
                     const layerGroup = ring.userData.layerGroups[i];
                     const speed = ring.userData.layerSpeed[i] || 0;
-                    layerGroup.rotation.z += visualDelta * speed;
+                    const baseZ = layerGroup.userData?.baseZ ?? 0;
+                    const pulseAmpY = layerGroup.userData?.pulseAmpY ?? 0;
+                    const pulseAmpZ = layerGroup.userData?.pulseAmpZ ?? 0;
+                    const pulsePhase = layerGroup.userData?.pulsePhase ?? 0;
+                    const baseRotationZ = layerGroup.userData?.baseRotationZ ?? 0;
+                    layerGroup.rotation.z = baseRotationZ + life * speed;
+                    layerGroup.position.set(
+                        0,
+                        Math.sin(visualTime * 1.7 + pulsePhase) * pulseAmpY,
+                        baseZ + Math.cos(visualTime * 1.35 + pulsePhase) * pulseAmpZ
+                    );
                 }
             }
-            if (ring.children?.length) {
-                for (let layerIndex = 0; layerIndex < ring.children.length; layerIndex++) {
-                    const layerGroup = ring.children[layerIndex];
-                    if (!layerGroup?.children?.length) continue;
-                    const fade = 1.0 - THREE.MathUtils.smoothstep(fadeStart, duration, life);
-                    const layerFactor = Math.max(0, 1 - layerIndex * 0.15);
-                    const fadeBase = Math.max(0, 0.5 * fade * layerFactor) * (ring.userData.opacityMul || 1.0);
-                    for (const segment of layerGroup.children) {
-                        if (segment.material) {
-                            segment.material.opacity = fadeBase;
-                        }
-                    }
-                }
-            }
-            return t >= 1.0;
+            return false;
         };
 
         const cleanupRing = (ringRefName) => {
@@ -1294,27 +1351,34 @@ export class LinkRendererConduit {
             state[ringRefName] = null;
         };
 
+        if (distToTarget >= dockThreshold) {
+            cleanupRing('dockRing');
+            cleanupRing('dockGhost');
+            state.dockGhostPending = null;
+            if (state.dockSpray) {
+                state.dockSpray.dispose();
+                state.dockSpray = null;
+            }
+        }
+
         if (state.dockRing) {
-            const done = updateDockRing(state.dockRing);
+            updateDockRing(state.dockRing);
             if (state.dockSpray) {
                 state.dockSpray.update(visualTime);
-            }
-            if (done) {
-                cleanupRing('dockRing');
-                if (state.dockSpray) {
-                    state.dockSpray.dispose();
-                    state.dockSpray = null;
+                const triggerAt = state.dockRing.userData.sprayTriggerAt ?? (visualTime + 0.18);
+                if (!state.dockRing.userData.sprayTriggered && visualTime >= triggerAt) {
+                    const payload = state.dockRing.userData.sprayPayload;
+                    if (payload) {
+                        state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
+                    }
+                    state.dockRing.userData.sprayTriggered = true;
                 }
             }
         }
 
         if (state.dockGhost) {
-            const doneGhost = updateDockRing(state.dockGhost);
-            if (doneGhost) {
-                cleanupRing('dockGhost');
-            }
+            updateDockRing(state.dockGhost);
         }
-
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
 

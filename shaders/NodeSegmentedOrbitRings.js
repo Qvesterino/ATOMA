@@ -43,6 +43,7 @@ varying float vSeed;
 varying vec2 vUv;
 varying float vHot;
 varying float vArcPhase;
+varying float vTrailDir;
 
 mat3 rotateX(float angle) {
     float s = sin(angle);
@@ -73,6 +74,7 @@ vHot = step(0.84, seed);
 // Base speed modulated by energy (low=0.3, high=2.5)
 float baseSpeed = ring < 0.5 ? 0.9 : -0.6;
 float speed = baseSpeed * speedMult;
+vTrailDir = sign(speed == 0.0 ? 1.0 : speed);
 
 float a = angle + time * speed;
 float ringMix = step(0.5, ring);
@@ -80,7 +82,7 @@ float ringSign = mix(-1.0, 1.0, ringMix);
 float tilt = mix(0.82, -0.82, ringMix);
 float precession = time * 0.14 + seed * 1.7 + ringSign * 0.6;
 float wobble = sin(time * 1.1 + seed * 9.0 + angle * 2.3) * 0.022;
-float r = radius + ringSign * 0.08 + wobble;
+float r = radius + ringSign * 0.035 + wobble;
 vArcPhase = a;
 
 vec3 orbitCenter = vec3(
@@ -93,7 +95,7 @@ vec3 radial = normalize(vec3(cos(a), 0.0, sin(a)));
 vec3 tangent = normalize(vec3(-sin(a), 0.0, cos(a)));
 vec3 vertical = vec3(0.0, 1.0, 0.0);
 
-mat3 ringRotation = rotateY(ringSign * 0.35 + sin(precession * 0.7) * 0.08) * rotateX(tilt + cos(precession) * 0.06);
+mat3 ringRotation = rotateY(ringSign * 0.22 + sin(precession * 0.7) * 0.08) * rotateX(tilt + cos(precession) * 0.06);
 orbitCenter = ringRotation * orbitCenter;
 radial = normalize(ringRotation * radial);
 tangent = normalize(ringRotation * tangent);
@@ -108,7 +110,7 @@ vec3 localOffset =
     vertical * (position.y * widthScale);
 
 // Broaden the segment silhouette and separate the two ring lanes.
-localOffset += radial * (ringSign * 0.07);
+localOffset += radial * (ringSign * 0.03);
 localOffset += vertical * (sin(a * 3.0 + vSeed * 9.0 + time * 1.2) * (0.007 + vHot * 0.004));
 localOffset += vertical * (sin(time * 1.9 + angle * 1.7 + seed * 15.0) * 0.008 * smoothstep(0.15, 0.85, abs(position.x)));
 
@@ -130,6 +132,7 @@ uniform float time;
 varying float vSeed;
 varying float vHot;
 varying float vArcPhase;
+varying float vTrailDir;
 
 float roundedBoxSDF(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + r;
@@ -144,17 +147,24 @@ void main(){
     float asymmetry = mix(0.88, 1.12, fract(vSeed * 31.7));
     float phasePulse = 0.7 + 0.3 * sin(vArcPhase * 2.0 + time * 0.9 + vSeed * 19.0);
     float segmentMask = edgeTrim * phasePulse;
+    float baseRing = pow(max(0.0, 1.0 - abs(uv.y) * 7.5), 2.8);
+    float baseTrail = baseRing * (0.2 + 0.8 * smoothstep(0.98, 0.15, abs(uv.x)));
 
     float segmentCore = 1.0 - smoothstep(-0.03, 0.07, roundedBoxSDF(uv, vec2(0.52, 0.18), 0.15));
     float segmentGlow = 1.0 - smoothstep(0.12, 0.85, roundedBoxSDF(uv, vec2(0.72, 0.33), 0.28));
+    float trailCoord = -uv.x * vTrailDir;
+    float trailLength = mix(0.55, 1.05, gapJitter) + vHot * 0.2;
+    float trailBody = smoothstep(-0.08, 0.24, trailCoord) * (1.0 - smoothstep(trailLength, trailLength + 0.36, trailCoord));
+    float trailSoft = pow(max(0.0, 1.0 - abs(uv.y) * 3.8), 1.6);
+    float capsuleTrail = trailBody * trailSoft * (0.45 + segmentGlow * 0.55);
 
     float spine = pow(max(0.0, 1.0 - abs(uv.y) * 5.5), 2.4);
     float sideFilamentA = pow(max(0.0, 1.0 - abs(uv.y - 0.34) * 18.0), 1.7);
     float sideFilamentB = pow(max(0.0, 1.0 - abs(uv.y + 0.34) * 18.0), 1.7);
 
     float scanA = pow(max(0.0, sin(vUv.x * (18.0 + gapJitter * 8.0) - time * 8.0 + vSeed * 13.0)), 8.0);
-    float scanB = pow(max(0.0, sin(vUv.x * (25.0 + asymmetry * 6.0) + time * 11.0 + vSeed * 7.0)), 10.0);
-    float movingEnergy = (scanA * 0.35 + scanB * 0.22) * (spine + sideFilamentA * 0.35 + sideFilamentB * 0.35);
+    float scanB = pow(max(0.0, sin(vUv.x * (25.0 + asymmetry * 6.0) + time * 11.0 + vSeed * 7.0)), 7.0);
+    float movingEnergy = (scanA * 0.22 + scanB * 0.12) * (spine + sideFilamentA * 0.2 + sideFilamentB * 0.2);
 
     float endBloom = pow(max(0.0, 1.0 - abs(abs(uv.x) - 0.92) * 7.0), 2.2) * (0.35 + spine * 0.65);
     float flicker = 0.84 + 0.16 * sin(time * 7.0 + vSeed * 41.0);
@@ -165,11 +175,15 @@ void main(){
     vec3 glowColor = mix(color, vec3(0.78, 0.9, 1.0), 0.5);
 
     vec3 finalColor =
+        glowColor * baseTrail * 0.22 +
+        glowColor * capsuleTrail * 0.18 +
         glowColor * segmentGlow * 0.45 * segmentMask +
         coreColor * segmentCore * segmentMask * (1.1 + movingEnergy + endBloom * 0.8) * hotBoost +
-        vec3(0.95, 0.98, 1.0) * movingEnergy * 0.9 * hotBoost;
+        vec3(0.95, 0.98, 1.0) * movingEnergy * 0.35 * hotBoost;
 
     float alpha =
+        baseTrail * 0.18 +
+        capsuleTrail * 0.14 +
         segmentGlow * 0.22 * segmentMask +
         segmentCore * 0.72 * segmentMask +
         movingEnergy * 0.45 * segmentMask +

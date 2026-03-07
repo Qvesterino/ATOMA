@@ -4,7 +4,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // Shared geometry to minimize allocations
 // Radius 1.0, Tube 0.08 (8% thickness)
 // RadialSegments 6 (Low poly), TubularSegments 24 (Smooth enough ring)
-const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.08, 6, 24);
+const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.12, 6, 24);
 SHARED_RING_GEOMETRY.computeBoundingSphere();
 SHARED_RING_GEOMETRY.computeBoundingBox();
 
@@ -33,6 +33,10 @@ SHARED_RING_GEOMETRY.computeBoundingBox();
 export class LinkPulseRing {
     constructor(scene) {
         this.scene = scene;
+        
+        // === SEGMENTED RING CONSTANTS ===
+        const TORUS_RADIUS = 1.0;
+        const TORUS_TUBE = 0.12;
         
         // === FRESNEL SHADER MATERIAL ===
         // NIE MeshBasicMaterial, ALE ShaderMaterial s vlastným shaderom
@@ -86,8 +90,34 @@ export class LinkPulseRing {
             `
         });
 
-        // Main ring mesh
-        this.mesh = new THREE.Mesh(SHARED_RING_GEOMETRY, this.material);
+        // === SEGMENTED RING INITIALIZATION ===
+        this.segments = [];
+        this.segmentGroup = new THREE.Group();
+        const SEGMENTS = 4;
+        const SEGMENT_ANGLE = Math.PI / 2;
+
+        for (let i = 0; i < SEGMENTS; i++) {
+            const geo = new THREE.TorusGeometry(
+                TORUS_RADIUS,
+                TORUS_TUBE,
+                8,
+                32,
+                i * SEGMENT_ANGLE,
+                SEGMENT_ANGLE * 0.9   // malá medzera
+            );
+
+            const mat = this.material.clone();
+
+            const seg = new THREE.Mesh(geo, mat);
+            seg.frustumCulled = false;
+
+            this.segmentGroup.add(seg);
+            this.segments.push(seg);
+        }
+
+        // Main ring container (holds segmentGroup)
+        this.mesh = new THREE.Group();
+        this.mesh.add(this.segmentGroup);
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
@@ -109,6 +139,10 @@ export class LinkPulseRing {
 
         // === LAYER 1: SPIN (Internal rotation) ===
         this.spin = 0; // Spin angle
+        
+        // === SEGMENTED RING STATE ===
+        this.lastPulse = 0; // For snap detection
+        this.arcSystem = null; // Arc discharge system reference
         
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
@@ -190,6 +224,14 @@ export class LinkPulseRing {
      */
     getTrailMeshes() {
         return this.trailMeshes;
+    }
+
+    /**
+     * Set arc discharge system reference
+     * @param {LinkRingArcDischarges} arcSystem - The arc discharge system
+     */
+    setArcSystem(arcSystem) {
+        this.arcSystem = arcSystem;
     }
 
     /**
@@ -301,6 +343,43 @@ export class LinkPulseRing {
         // Nastaviť opacity shader-uOpacity
         this.material.uniforms.uOpacity.value = finalOpacity;
         
+        // === SEGMENTED RING: PULSE SPLIT LOGIC ===
+        const pulse = Math.sin(this.progress * Math.PI * 2);
+        const gap = Math.max(0, pulse) * 0.25;
+        
+        // === SEGMENTED RING: POSITION SEGMENTS ===
+        this.segments.forEach((seg, i) => {
+            const angle = i * Math.PI / 2;
+            
+            const dir = new THREE.Vector3(
+                Math.cos(angle),
+                0,
+                Math.sin(angle)
+            );
+            
+            seg.position.copy(dir.multiplyScalar(gap));
+            
+            // OPTIONAL: Tilt for broken gyroscope effect
+            seg.rotation.x = pulse * 0.4;
+        });
+        
+        // === SEGMENTED RING: SPIN (dramatic effect) ===
+        const segmentSpinSpeed = 2.0 + synergy * 4.0;
+        this.segmentGroup.rotation.z += dt * segmentSpinSpeed;
+        
+        // === SEGMENTED RING: SNAP MOMENT (trigger arcs) ===
+        if (pulse > 0.95 && this.lastPulse < 0.95) {
+            if (this.arcSystem) {
+                this.arcSystem.spawnArcBurst(
+                    this.mesh.position,
+                    this.mesh.getWorldDirection(new THREE.Vector3()),
+                    synergy,
+                    traffic
+                );
+            }
+        }
+        this.lastPulse = pulse;
+        
         // === LAYER 1: SPIN (Internal rotation - Gyroscope effect) ===
         const spinSpeed = 4.0 + synergy * 6.0;
         this.spin += spinSpeed * dt;
@@ -376,6 +455,12 @@ export class LinkPulseRing {
      * Dispose all meshes and cleanup
      */
     dispose() {
+        // Dispose segment geometries (not shared)
+        this.segments.forEach(seg => {
+            if (seg.geometry) seg.geometry.dispose();
+            if (seg.material) seg.material.dispose();
+        });
+        
         // Dispose main material (shader material)
         if (this.material) this.material.dispose();
         
