@@ -346,14 +346,20 @@ export class LinkPulseRing {
         
         // === SEGMENTED RING: PULSE SPLIT LOGIC ===
         const pulse = Math.sin(this.progress * Math.PI * 2);
-        const gap = Math.max(0, pulse) * 0.18;
+        const gap = Math.abs(pulse) * 0.25;
         
-        // === SEGMENTED RING: ROTATIONAL SEGMENTS ===
+        // === SEGMENTED RING: POSITION SEGMENTS ===
          this.segments.forEach((seg, i) => {
 
-            const baseAngle = i * Math.PI / 2;
+            const angle = i * Math.PI / 2;
 
-            seg.rotation.z = baseAngle + gap;
+            const dir = new THREE.Vector3(
+                Math.cos(angle),
+                Math.sin(angle),
+                0
+            );
+
+            seg.position.copy(dir.multiplyScalar(gap));
 
         });
         
@@ -373,9 +379,7 @@ export class LinkPulseRing {
         this.lastPulse = pulse;
         
         // === LAYER 1: SPIN (Internal rotation - Gyroscope effect) ===
-        const spinSpeed = 4.0 + synergy * 6.0;
-        this.spin += spinSpeed * dt;
-        this.mesh.rotation.z = this.spin;
+        // spin disabled – pulse ring should stay stable
         
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)

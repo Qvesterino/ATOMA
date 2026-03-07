@@ -1132,6 +1132,8 @@ export class LinkRendererConduit {
                         side: THREE.DoubleSide
                     });
                     layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? 0.5;
+                    const shellTilt = 0.16 + layerIndex * 0.06;
+                    const shellLift = baseTubeRadius * (0.7 + layerIndex * 0.2);
 
                     for (let i = 0; i < segmentCount; i++) {
                         const startAngle = (i / segmentCount) * Math.PI * 2;
@@ -1143,10 +1145,14 @@ export class LinkRendererConduit {
                             24,
                             arcLength
                         );
+                        const segmentPivot = new THREE.Group();
+                        segmentPivot.rotation.z = startAngle;
                         const mesh = new THREE.Mesh(geo, mat);
-                        mesh.rotation.z = startAngle;
+                        mesh.position.y = shellLift;
+                        mesh.rotation.x = shellTilt;
                         mesh.scale.set(1.6, 1.6, 0.35);
-                        layerGroup.add(mesh);
+                        segmentPivot.add(mesh);
+                        layerGroup.add(segmentPivot);
                     }
 
                     const trailMat = new THREE.MeshBasicMaterial({
@@ -1165,11 +1171,15 @@ export class LinkRendererConduit {
                         Math.PI * 0.68
                     );
                     for (let i = 0; i < 3; i++) {
+                        const trailPivot = new THREE.Group();
+                        trailPivot.rotation.z = (i / 3) * Math.PI * 2 + layerIndex * 0.18;
                         const trail = new THREE.Mesh(trailGeo, trailMat);
-                        trail.rotation.set(0, 0, (i / 3) * Math.PI * 2 + layerIndex * 0.18);
+                        trail.position.y = shellLift * 0.72;
+                        trail.rotation.x = shellTilt * 0.85;
                         trail.scale.set(1.35, 1.35, 0.45);
                         trail.userData.isDockTrailPath = true;
-                        layerGroup.add(trail);
+                        trailPivot.add(trail);
+                        layerGroup.add(trailPivot);
                     }
 
                     ring.add(layerGroup);
@@ -1242,6 +1252,8 @@ export class LinkRendererConduit {
                     side: THREE.DoubleSide
                 });
                 layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? (0.5 * 0.35);
+                const shellTilt = 0.16 + layerIndex * 0.06;
+                const shellLift = baseTubeRadius * (0.65 + layerIndex * 0.18);
 
                 for (let i = 0; i < segmentCount; i++) {
                     const startAngle = (i / segmentCount) * Math.PI * 2;
@@ -1253,10 +1265,14 @@ export class LinkRendererConduit {
                         24,
                         arcLength
                     );
+                    const segmentPivot = new THREE.Group();
+                    segmentPivot.rotation.z = startAngle;
                     const mesh = new THREE.Mesh(geo, mat);
-                    mesh.rotation.z = startAngle;
+                    mesh.position.y = shellLift;
+                    mesh.rotation.x = shellTilt;
                     mesh.scale.set(1.35, 1.35, 0.45);
-                    layerGroup.add(mesh);
+                    segmentPivot.add(mesh);
+                    layerGroup.add(segmentPivot);
                 }
 
                 const trailMat = new THREE.MeshBasicMaterial({
@@ -1275,11 +1291,15 @@ export class LinkRendererConduit {
                     Math.PI * 0.58
                 );
                 for (let i = 0; i < 2; i++) {
+                    const trailPivot = new THREE.Group();
+                    trailPivot.rotation.z = (i * Math.PI) + layerIndex * 0.24;
                     const trail = new THREE.Mesh(trailGeo, trailMat);
-                    trail.rotation.set(0, 0, (i * Math.PI) + layerIndex * 0.24);
+                    trail.position.y = shellLift * 0.72;
+                    trail.rotation.x = shellTilt * 0.85;
                     trail.scale.set(1.35, 1.35, 0.45);
                     trail.userData.isDockTrailPath = true;
-                    layerGroup.add(trail);
+                    trailPivot.add(trail);
+                    layerGroup.add(trailPivot);
                 }
 
                 ring.add(layerGroup);
