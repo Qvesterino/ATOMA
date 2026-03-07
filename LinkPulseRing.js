@@ -4,7 +4,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // Shared geometry to minimize allocations
 // Radius 1.0, Tube 0.08 (8% thickness)
 // RadialSegments 6 (Low poly), TubularSegments 24 (Smooth enough ring)
-const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.12, 6, 24);
+const SHARED_RING_GEOMETRY = new THREE.TorusGeometry(1.0, 0.16, 6, 24);
 SHARED_RING_GEOMETRY.computeBoundingSphere();
 SHARED_RING_GEOMETRY.computeBoundingBox();
 
@@ -109,6 +109,7 @@ export class LinkPulseRing {
             const mat = this.material.clone();
 
             const seg = new THREE.Mesh(geo, mat);
+            seg.rotation.x = Math.PI * 0.5;   // FIX ORIENTATION
             seg.frustumCulled = false;
 
             this.segmentGroup.add(seg);
@@ -345,28 +346,26 @@ export class LinkPulseRing {
         
         // === SEGMENTED RING: PULSE SPLIT LOGIC ===
         const pulse = Math.sin(this.progress * Math.PI * 2);
-        const gap = Math.max(0, pulse) * 0.25;
+        const gap = Math.max(0, pulse) * 0.18;
         
         // === SEGMENTED RING: POSITION SEGMENTS ===
-        this.segments.forEach((seg, i) => {
+         this.segments.forEach((seg, i) => {
+
             const angle = i * Math.PI / 2;
-            
+
             const dir = new THREE.Vector3(
-                Math.cos(angle),
-                0,
-                Math.sin(angle)
-            );
-            
+            Math.cos(angle),
+            Math.sin(angle),
+            0
+           );
+
             seg.position.copy(dir.multiplyScalar(gap));
             
-            // OPTIONAL: Tilt for broken gyroscope effect
-            seg.rotation.x = pulse * 0.4;
+
         });
         
         // === SEGMENTED RING: SPIN (dramatic effect) ===
-        const segmentSpinSpeed = 2.0 + synergy * 4.0;
-        this.segmentGroup.rotation.z += dt * segmentSpinSpeed;
-        
+
         // === SEGMENTED RING: SNAP MOMENT (trigger arcs) ===
         if (pulse > 0.95 && this.lastPulse < 0.95) {
             if (this.arcSystem) {

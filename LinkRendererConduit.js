@@ -1106,7 +1106,7 @@ export class LinkRendererConduit {
                     baseRadius + radiusStep,
                     baseRadius * 0.7
                 ];
-                const layerSpeed = [0.20, -0.30, 0.20];
+                const layerSpeed = [0.20, -0.30, 0.45];
                 const layerOpacity = [0.14, 0.17, 0.2];
                 const baseTubeRadius = Math.max(linkThickness * 0.28, 0.028);
                 const layerGroups = [];
@@ -1122,9 +1122,6 @@ export class LinkRendererConduit {
                         (layerRadii.length - 1 - layerIndex) * shellSpacing
                     );
                     layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
-                    layerGroup.userData.pulseAmpY = shellSpacing * (0.08 + layerIndex * 0.02);
-                    layerGroup.userData.pulseAmpZ = shellSpacing * (0.14 + layerIndex * 0.03);
-                    layerGroup.userData.pulsePhase = layerIndex * 0.9;
                     layerGroup.userData.baseRotationZ = layerIndex * 0.08;
                     const mat = new THREE.MeshBasicMaterial({
                         color: ringColor,
@@ -1148,8 +1145,6 @@ export class LinkRendererConduit {
                         );
                         const mesh = new THREE.Mesh(geo, mat);
                         mesh.rotation.z = startAngle;
-                        const flowDir = layerSpeed[layerIndex] >= 0 ? 1 : -1;
-                        mesh.userData.segmentSpeed = flowDir * (0.08 + layerIndex * 0.015);
                         mesh.scale.set(1.6, 1.6, 0.35);
                         layerGroup.add(mesh);
                     }
@@ -1183,10 +1178,8 @@ export class LinkRendererConduit {
 
                 ring.userData.layerGroups = layerGroups;
                 ring.userData.layerSpeed = layerSpeed;
-                ring.userData.life = 0;
-                ring.userData.sprayTriggerT = 0.18;
-                ring.userData.sprayTriggerAt = visualTime + ring.userData.sprayTriggerT;
-                ring.userData.sprayTriggered = false;
+                ring.userData.sprayInterval = 0.12;
+                ring.userData.nextSprayAt = visualTime;
                 ring.userData.sprayPayload = {
                     origin: dockPos.clone().lerp(dockOffset, 0.24),
                     direction: surfaceDir.clone().negate(),
@@ -1239,9 +1232,6 @@ export class LinkRendererConduit {
                     (pg.layerRadii.length - 1 - layerIndex) * shellSpacing
                 );
                 layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
-                layerGroup.userData.pulseAmpY = shellSpacing * (0.05 + layerIndex * 0.015);
-                layerGroup.userData.pulseAmpZ = shellSpacing * (0.10 + layerIndex * 0.02);
-                layerGroup.userData.pulsePhase = layerIndex * 0.9;
                 layerGroup.userData.baseRotationZ = layerIndex * 0.08;
                 const mat = new THREE.MeshBasicMaterial({
                     color: ringColor,
@@ -1265,8 +1255,6 @@ export class LinkRendererConduit {
                     );
                     const mesh = new THREE.Mesh(geo, mat);
                     mesh.rotation.z = startAngle;
-                    const flowDir = pg.layerSpeed[layerIndex] >= 0 ? 1 : -1;
-                    mesh.userData.segmentSpeed = flowDir * (0.06 + layerIndex * 0.01);
                     mesh.scale.set(1.35, 1.35, 0.45);
                     layerGroup.add(mesh);
                 }
@@ -1299,7 +1287,6 @@ export class LinkRendererConduit {
             }
             ring.userData.layerGroups = layerGroups;
             ring.userData.layerSpeed = pg.layerSpeed;
-            ring.userData.life = 0;
             this.scene?.add(ring);
             state.dockGhost = ring;
             state.dockGhostPending = null;
@@ -1307,30 +1294,14 @@ export class LinkRendererConduit {
 
         const updateDockRing = (ring) => {
             if (!ring) return false;
-            const life = (ring.userData.life || 0) + visualDelta;
-            ring.userData.life = life;
-            for (const layerGroup of ring.children || []) {
-                for (const segment of layerGroup.children || []) {
-                    if (segment.geometry && segment.userData?.segmentSpeed) {
-                        segment.rotation.z += segment.userData.segmentSpeed * visualDelta;
-                    }
-                }
-            }
             if (ring.userData.layerGroups && ring.userData.layerSpeed) {
                 for (let i = 0; i < ring.userData.layerGroups.length; i++) {
                     const layerGroup = ring.userData.layerGroups[i];
                     const speed = ring.userData.layerSpeed[i] || 0;
                     const baseZ = layerGroup.userData?.baseZ ?? 0;
-                    const pulseAmpY = layerGroup.userData?.pulseAmpY ?? 0;
-                    const pulseAmpZ = layerGroup.userData?.pulseAmpZ ?? 0;
-                    const pulsePhase = layerGroup.userData?.pulsePhase ?? 0;
                     const baseRotationZ = layerGroup.userData?.baseRotationZ ?? 0;
-                    layerGroup.rotation.z = baseRotationZ + life * speed;
-                    layerGroup.position.set(
-                        0,
-                        Math.sin(visualTime * 1.7 + pulsePhase) * pulseAmpY,
-                        baseZ + Math.cos(visualTime * 1.35 + pulsePhase) * pulseAmpZ
-                    );
+                    layerGroup.rotation.z = baseRotationZ + visualTime * speed;
+                    layerGroup.position.set(0, 0, baseZ);
                 }
             }
             return false;
@@ -1365,13 +1336,14 @@ export class LinkRendererConduit {
             updateDockRing(state.dockRing);
             if (state.dockSpray) {
                 state.dockSpray.update(visualTime);
-                const triggerAt = state.dockRing.userData.sprayTriggerAt ?? (visualTime + 0.18);
-                if (!state.dockRing.userData.sprayTriggered && visualTime >= triggerAt) {
+                const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
+                const nextSprayAt = state.dockRing.userData.nextSprayAt ?? visualTime;
+                if (visualTime >= nextSprayAt) {
                     const payload = state.dockRing.userData.sprayPayload;
                     if (payload) {
                         state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
                     }
-                    state.dockRing.userData.sprayTriggered = true;
+                    state.dockRing.userData.nextSprayAt = visualTime + sprayInterval;
                 }
             }
         }
