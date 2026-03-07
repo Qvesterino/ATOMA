@@ -36,7 +36,7 @@ export class LinkPulseRing {
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
-        const TORUS_TUBE = 0.12;
+        const TORUS_TUBE = 0.16;
         
         // === FRESNEL SHADER MATERIAL ===
         // NIE MeshBasicMaterial, ALE ShaderMaterial s vlastným shaderom
@@ -348,19 +348,12 @@ export class LinkPulseRing {
         const pulse = Math.sin(this.progress * Math.PI * 2);
         const gap = Math.max(0, pulse) * 0.18;
         
-        // === SEGMENTED RING: POSITION SEGMENTS ===
+        // === SEGMENTED RING: ROTATIONAL SEGMENTS ===
          this.segments.forEach((seg, i) => {
 
-            const angle = i * Math.PI / 2;
+            const baseAngle = i * Math.PI / 2;
 
-            const dir = new THREE.Vector3(
-            Math.cos(angle),
-            Math.sin(angle),
-            0
-           );
-
-            seg.position.copy(dir.multiplyScalar(gap));
-            
+            seg.rotation.z = baseAngle + gap;
 
         });
         
@@ -382,7 +375,7 @@ export class LinkPulseRing {
         // === LAYER 1: SPIN (Internal rotation - Gyroscope effect) ===
         const spinSpeed = 4.0 + synergy * 6.0;
         this.spin += spinSpeed * dt;
-        this.mesh.rotateOnAxis(new THREE.Vector3(0, 0, 1), this.spin);
+        this.mesh.rotation.z = this.spin;
         
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)

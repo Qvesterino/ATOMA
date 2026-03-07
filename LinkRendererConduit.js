@@ -1122,7 +1122,7 @@ export class LinkRendererConduit {
                         (layerRadii.length - 1 - layerIndex) * shellSpacing
                     );
                     layerGroup.userData.baseZ = (layerRadii.length - 1 - layerIndex) * shellSpacing;
-                    layerGroup.userData.baseRotationZ = layerIndex * 0.08;
+                    layerGroup.rotation.z = layerIndex * 0.08;
                     const mat = new THREE.MeshBasicMaterial({
                         color: ringColor,
                         transparent: true,
@@ -1166,7 +1166,7 @@ export class LinkRendererConduit {
                     );
                     for (let i = 0; i < 3; i++) {
                         const trail = new THREE.Mesh(trailGeo, trailMat);
-                        trail.rotation.z = (i / 3) * Math.PI * 2 + layerIndex * 0.18;
+                        trail.rotation.set(0, 0, (i / 3) * Math.PI * 2 + layerIndex * 0.18);
                         trail.scale.set(1.35, 1.35, 0.45);
                         trail.userData.isDockTrailPath = true;
                         layerGroup.add(trail);
@@ -1179,7 +1179,7 @@ export class LinkRendererConduit {
                 ring.userData.layerGroups = layerGroups;
                 ring.userData.layerSpeed = layerSpeed;
                 ring.userData.sprayInterval = 0.12;
-                ring.userData.nextSprayAt = visualTime;
+                ring.userData.nextSprayTime = visualTime;
                 ring.userData.sprayPayload = {
                     origin: dockPos.clone().lerp(dockOffset, 0.24),
                     direction: surfaceDir.clone().negate(),
@@ -1232,7 +1232,7 @@ export class LinkRendererConduit {
                     (pg.layerRadii.length - 1 - layerIndex) * shellSpacing
                 );
                 layerGroup.userData.baseZ = (pg.layerRadii.length - 1 - layerIndex) * shellSpacing;
-                layerGroup.userData.baseRotationZ = layerIndex * 0.08;
+                layerGroup.rotation.z = layerIndex * 0.08;
                 const mat = new THREE.MeshBasicMaterial({
                     color: ringColor,
                     transparent: true,
@@ -1276,7 +1276,7 @@ export class LinkRendererConduit {
                 );
                 for (let i = 0; i < 2; i++) {
                     const trail = new THREE.Mesh(trailGeo, trailMat);
-                    trail.rotation.z = (i * Math.PI) + layerIndex * 0.24;
+                    trail.rotation.set(0, 0, (i * Math.PI) + layerIndex * 0.24);
                     trail.scale.set(1.35, 1.35, 0.45);
                     trail.userData.isDockTrailPath = true;
                     layerGroup.add(trail);
@@ -1299,8 +1299,7 @@ export class LinkRendererConduit {
                     const layerGroup = ring.userData.layerGroups[i];
                     const speed = ring.userData.layerSpeed[i] || 0;
                     const baseZ = layerGroup.userData?.baseZ ?? 0;
-                    const baseRotationZ = layerGroup.userData?.baseRotationZ ?? 0;
-                    layerGroup.rotation.z = baseRotationZ + visualTime * speed;
+                    layerGroup.rotation.z += speed * visualDelta;
                     layerGroup.position.set(0, 0, baseZ);
                 }
             }
@@ -1337,13 +1336,13 @@ export class LinkRendererConduit {
             if (state.dockSpray) {
                 state.dockSpray.update(visualTime);
                 const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
-                const nextSprayAt = state.dockRing.userData.nextSprayAt ?? visualTime;
-                if (visualTime >= nextSprayAt) {
+                const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
+                if (visualTime >= nextSprayTime) {
                     const payload = state.dockRing.userData.sprayPayload;
                     if (payload) {
                         state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
                     }
-                    state.dockRing.userData.nextSprayAt = visualTime + sprayInterval;
+                    state.dockRing.userData.nextSprayTime = visualTime + sprayInterval;
                 }
             }
         }
