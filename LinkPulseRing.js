@@ -128,8 +128,7 @@ export class LinkPulseRing {
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
-        const pulseOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS') + 1;
-        this.mesh.renderOrder = pulseOrder;
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
 
         // Outer additive aura
         this.auraMaterial = this.material.clone();
@@ -139,7 +138,7 @@ export class LinkPulseRing {
         this.auraMaterial.blending = THREE.NormalBlending;
         const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
         aura.frustumCulled = false;
-        aura.renderOrder = pulseOrder;
+        aura.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
         const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
         Object.assign(auraUd, { isPulseRingAura: true });
         this.auraMesh = aura;
@@ -153,7 +152,7 @@ export class LinkPulseRing {
         
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
-        this.TRAIL_COUNT = 4; // 3-5 echo rings
+        this.TRAIL_COUNT = 6; // 6 echo rings
         
         // State
         this.progress = Math.random(); // Random start pos
@@ -402,44 +401,40 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)
         
-        // DEBUG ISOLATION: trail layer disabled because it obscures the split silhouette.
-        // const spacing = 0.03;
-        // this.trailMeshes.forEach((trail, i) => {
-        //     const variation = trail.userData.trailVariation;
-        //     const trailProgress = this.progress - spacing * (i + 1);
-        //     if (trailProgress <= 0) {
-        //         trail.visible = false;
-        //         return;
-        //     }
-        //     trail.visible = true;
-        //     const trailT = Math.min(0.999, Math.max(0.001, trailProgress));
-        //     const trailPoint = curve.getPointAt(trailT, this._trailPoint);
-        //     const trailTan = curve.getTangentAt(trailT, this._trailTangent);
-        //     trail.position.copy(trailPoint);
-        //     trail.position.addScaledVector(trailTan, variation.lagOffset);
-        //     this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
-        //     trail.quaternion.copy(this._trailQuaternion);
-        //     this._trailJitter.set(
-        //         (Math.random() - 0.5) * 2,
-        //         (Math.random() - 0.5) * 2,
-        //         (Math.random() - 0.5) * 2
-        //     ).normalize();
-        //     const jitterMagnitude = variation.jitterMagnitude * this.mesh.scale.x;
-        //     trail.position.addScaledVector(this._trailJitter, jitterMagnitude);
-        //     const baseScale = this.mesh.scale.x;
-        //     const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
-        //     const dynamicScale = baseScale * (variation.scaleDecayBase + trailScalePulse);
-        //     trail.scale.setScalar(dynamicScale);
-        //     const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
-        //     const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
-        //     const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
-        //     trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
-        //     const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
-        //     this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
-        //     this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
-        // });
-        this.trailMeshes.forEach(trail => {
-            trail.visible = false;
+        const spacing = 0.012;
+        this.trailMeshes.forEach((trail, i) => {
+            const variation = trail.userData.trailVariation;
+            const trailProgress = this.progress - spacing * (i + 1);
+            if (trailProgress <= 0) {
+                trail.visible = false;
+                return;
+            }
+            trail.visible = true;
+            const trailT = Math.min(0.999, Math.max(0.001, trailProgress));
+            const trailPoint = curve.getPointAt(trailT, this._trailPoint);
+            const trailTan = curve.getTangentAt(trailT, this._trailTangent);
+            trail.position.copy(trailPoint);
+            trail.position.addScaledVector(trailTan, variation.lagOffset);
+            this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
+            trail.quaternion.copy(this._trailQuaternion);
+            this._trailJitter.set(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+            const jitterMagnitude = variation.jitterMagnitude * this.mesh.scale.x;
+            trail.position.addScaledVector(this._trailJitter, jitterMagnitude);
+            const baseScale = this.mesh.scale.x;
+            const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
+            const dynamicScale = baseScale * (variation.scaleDecayBase * 1.2);
+            trail.scale.setScalar(dynamicScale * 1.08);
+            const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
+            const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
+            const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
+            trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.9 + trailOpacityPulse);
+            const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
+            this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
+            this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
         });
     }
 
