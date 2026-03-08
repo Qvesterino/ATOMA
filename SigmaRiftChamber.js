@@ -3,6 +3,7 @@ import { CONFIG } from './config.js';
 import { initMapReferencePlane } from './MapReferencePlaneFactory.js';
 import { getMapConfig } from './MapConfigBase.js';
 import { materialRegistry } from './src/metrics/rendering/MaterialRegistry_v1.js';
+import { createSigmaRift, updateRiftEnergyTime } from './shaders/RiftEnergyShader.js';
 
 /**
  * Sigma Rift Chamber - Boss-level arena
@@ -334,35 +335,32 @@ export class SigmaRiftChamber {
   
   createCentralRift() {
     const riftRadius = 8;
-    this.createRiftCore(riftRadius);
+    this.createSigmaRiftCore(riftRadius);
     this.createRiftEdges(riftRadius);
     this.createRiftParticleStream(riftRadius);
     this.createRiftDistortionField(riftRadius);
   }
-  
-  createRiftCore(radius) {
+
+  createSigmaRiftCore(radius) {
+    // Use RiftEnergyShader for Sigma rift
     const geometry = new THREE.CylinderGeometry(radius, radius, this.riftHeight, 32, 32, true);
-    
-    const vertShader = 'varying vec3 vPos; varying float vHeight; void main() { vPos = position; vHeight = (position.y + 9.0) / 18.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-    
-    const fragShader = 'uniform float time; uniform vec3 color; varying vec3 vPos; varying float vHeight; float fractal(vec3 p) { float f = 0.0; float amp = 1.0; float freq = 1.0; for(int i = 0; i < 4; i++) { f += amp * sin(p.x * freq + time) * cos(p.z * freq + time); amp *= 0.5; freq *= 2.0; } return f; } void main() { float f = fractal(vPos * 3.0); float pattern = sin(vPos.x * 5.0 + time) * cos(vPos.z * 5.0 + time); vec3 finalColor = mix(vec3(0.0, 0.3, 0.2), color * 0.8, (pattern + 1.0) * 0.5 + f * 0.3); float intensity = 0.4 + vHeight * 0.6; gl_FragColor = vec4(finalColor * intensity, 0.8); }';
-    
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0 },
-        color: { value: new THREE.Color(0x00ffaa) }
-      },
-      vertexShader: vertShader,
-      fragmentShader: fragShader,
-      transparent: true,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending
+
+    // Create Sigma rift material using the shader
+    const material = createSigmaRift(geometry, {
+      riftColor: 0x00ff88,
+      edgeColor: 0x00ddff,
+      riftPosition: 0.5,
+      riftWidth: 0.15,
+      swirl: 0.3,
+      voidDensity: 0.6,
+      particleThreads: 5,
+      scale: 1.0
     });
-    
+
     this.riftCore = new THREE.Mesh(geometry, material);
     this.riftCore.position.y = this.riftHeight / 2;
     this.worldRoot.add(this.riftCore);
-    
+
     this.animatedObjects.push({
       object: this.riftCore,
       type: 'riftCore',
@@ -715,7 +713,8 @@ export class SigmaRiftChamber {
     
     this.animatedObjects.forEach(obj => {
       if (obj.type === 'riftCore' && obj.object.material.uniforms) {
-        obj.object.material.uniforms.time.value = time;
+        // Use RiftEnergyShader update function
+        updateRiftEnergyTime(obj.object.material, deltaTime);
       }
       
       if (obj.type === 'distortionRing' && obj.object.material.uniforms) {

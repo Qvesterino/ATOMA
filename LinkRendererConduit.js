@@ -170,6 +170,193 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
     return { mesh, spawnBurst, update, dispose };
 }
 
+function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) {
+    const positions = new Float32Array(maxParticles * 3);
+    const velocities = new Float32Array(maxParticles * 3);
+    const life = new Float32Array(maxParticles * 2); // birth, duration
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
+    geometry.attributes.position.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aLife.usage = THREE.DynamicDrawUsage;
+
+    const vertexShader = `
+        attribute vec3 aVelocity;
+        attribute vec2 aLife;
+        uniform float uTime;
+        uniform vec3 uColor;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            float age = uTime - aLife.x;
+            if (age < 0.0 || age > aLife.y) {
+                vAlpha = 0.0;
+                gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+                return;
+            }
+            float t = age / aLife.y;
+            vec3 pos = position + aVelocity * age;
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_PointSize = clamp(72.0 * (1.0 - t * 0.58) / -mvPosition.z, 1.2, 14.0);
+            vColor = uColor;
+            vAlpha = 0.65 * (1.0 - t);
+        }
+    `;
+
+    const fragmentShader = `
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            if (vAlpha <= 0.01) discard;
+            vec2 c = gl_PointCoord - vec2(0.5);
+            float d = length(c);
+            if (d > 0.5) discard;
+            float glow = 1.0 - smoothstep(0.12, 0.5, d);
+            gl_FragColor = vec4(vColor, vAlpha * glow);
+        }
+    `;
+
+    const material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        uniforms: {
+            uTime: { value: 0 },
+            uColor: { value: new THREE.Color(0xffffff) }
+        }
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.renderOrder = renderOrder;
+
+    const vortex = new THREE.Group();
+    vortex.renderOrder = renderOrder;
+    const vortexMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const vortexGeo = new THREE.TorusGeometry(0.28, 0.018, 8, 22, Math.PI * 0.62);
+    for (let i = 0; i < 3; i++) {
+        const pivot = new THREE.Group();
+        pivot.rotation.z = (i / 3) * Math.PI * 2;
+        pivot.rotation.y = 0.28 + i * 0.16;
+        const mesh = new THREE.Mesh(vortexGeo, vortexMaterial);
+        mesh.position.y = 0.065 + i * 0.026;
+        mesh.rotation.x = 0.92 + i * 0.10;
+        mesh.scale.setScalar(1.18 - i * 0.10);
+        pivot.add(mesh);
+        vortex.add(pivot);
+    }
+
+    const randRange = (min, max) => min + Math.random() * (max - min);
+    const randomUnit = () => {
+        const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+        if (v.lengthSq() < 1e-4) v.set(0, 1, 0);
+        return v.normalize();
+    };
+
+    const tangent = new THREE.Vector3();
+    const bitangent = new THREE.Vector3();
+    let writeIndex = 0;
+
+    function spawnBurst(origin, forward, color, time = 0) {
+        material.uniforms.uTime.value = time;
+        if (color) {
+            material.uniforms.uColor.value.copy(color);
+            vortexMaterial.color.copy(color);
+        }
+
+        const dir = forward.clone().normalize();
+        const upSeed = Math.abs(dir.y) < 0.92 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        tangent.crossVectors(dir, upSeed).normalize();
+        bitangent.crossVectors(dir, tangent).normalize();
+
+        const count = Math.min(18, maxParticles);
+        for (let i = 0; i < count; i++) {
+            const idx = writeIndex;
+            const i3 = idx * 3;
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.35, 0.35);
+            const radial = randRange(0.035, 0.16);
+            const pullIn = randRange(-0.08, 0.02);
+            const swirlX = Math.cos(angle) * radial;
+            const swirlY = Math.sin(angle) * radial;
+
+            positions[i3] = origin.x + tangent.x * swirlX + bitangent.x * swirlY + dir.x * pullIn;
+            positions[i3 + 1] = origin.y + tangent.y * swirlX + bitangent.y * swirlY + dir.y * pullIn;
+            positions[i3 + 2] = origin.z + tangent.z * swirlX + bitangent.z * swirlY + dir.z * pullIn;
+
+            const swirlStrength = randRange(0.18, 0.42);
+            const chaos = randomUnit().multiplyScalar(randRange(0.05, 0.13));
+            const forwardSpeed = randRange(0.85, 1.55);
+            const orbitX = Math.cos(angle + Math.PI * 0.5) * swirlStrength;
+            const orbitY = Math.sin(angle + Math.PI * 0.5) * swirlStrength;
+            velocities[i3] =
+                dir.x * forwardSpeed +
+                tangent.x * orbitX +
+                bitangent.x * orbitY +
+                chaos.x;
+            velocities[i3 + 1] =
+                dir.y * forwardSpeed +
+                tangent.y * orbitX +
+                bitangent.y * orbitY +
+                chaos.y;
+            velocities[i3 + 2] =
+                dir.z * forwardSpeed +
+                tangent.z * orbitX +
+                bitangent.z * orbitY +
+                chaos.z;
+
+            const i2 = idx * 2;
+            life[i2] = time;
+            life[i2 + 1] = randRange(0.22, 0.36);
+
+            writeIndex = (writeIndex + 1) % maxParticles;
+        }
+
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.aVelocity.needsUpdate = true;
+        geometry.attributes.aLife.needsUpdate = true;
+    }
+
+    function update(time, origin = null, forward = null) {
+        material.uniforms.uTime.value = time;
+        const pulse = 1.02 + Math.sin(time * 7.0) * 0.12;
+        vortex.scale.setScalar(pulse);
+        vortex.rotation.z += 0.02;
+        vortex.rotation.y -= 0.015;
+        if (origin) vortex.position.copy(origin);
+        if (forward) {
+            const dir = forward.clone().normalize();
+            if (dir.lengthSq() > 0) {
+                vortex.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+            }
+        }
+    }
+
+    function dispose() {
+        if (points.parent) points.parent.remove(points);
+        if (vortex.parent) vortex.parent.remove(vortex);
+        geometry.dispose();
+        material.dispose();
+        vortexGeo.dispose();
+        vortexMaterial.dispose();
+    }
+
+    return { points, vortex, spawnBurst, update, dispose };
+}
+
 const makeDebugId = (prefix = 'pic') => {
     const rand = Math.random().toString(36).slice(2, 6);
     const ts = Date.now().toString(36);
@@ -1076,6 +1263,8 @@ export class LinkRendererConduit {
         const RADIUS_SCALE = 0.26;
         const start = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * RADIUS_SCALE);
         const end = targetCenter.clone().addScaledVector(linkDir, -targetRadius * RADIUS_SCALE);
+        const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.66);
+        const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.38);
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
 
@@ -1359,6 +1548,15 @@ export class LinkRendererConduit {
             }
         }
 
+        if (!state.sourceInjection) {
+            const sourceOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
+            state.sourceInjection = createSourceInjectionSystem(this.scene, sourceOrder, 28);
+            this.scene?.add(state.sourceInjection.points);
+            this.scene?.add(state.sourceInjection.vortex);
+            state.sourceInjectionNextTime = visualTime;
+            state.sourceInjectionInterval = 0.075;
+        }
+
         if (state.dockRing) {
             updateDockRing(state.dockRing);
             if (state.dockSpray) {
@@ -1377,6 +1575,19 @@ export class LinkRendererConduit {
 
         if (state.dockGhost) {
             updateDockRing(state.dockGhost);
+        }
+
+        if (state.sourceInjection) {
+            const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
+            const injectionAnchor = start.clone().lerp(sourcePortPos, 0.72);
+            const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.32);
+            state.sourceInjection.update(visualTime, injectionAnchor, linkDir);
+            const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
+            const injectionInterval = state.sourceInjectionInterval ?? 0.075;
+            if (visualTime >= nextInjectionTime) {
+                state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
+                state.sourceInjectionNextTime = visualTime + injectionInterval;
+            }
         }
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
@@ -1477,10 +1688,11 @@ export class LinkRendererConduit {
                 const noise = Math.sin(t * 40 + i * 10) * noiseBase;
                 let r = (activeRadius * flare) + noise;
 
-                // Gentle taper near docking end
+                // Gentle symmetric taper near both docking ends
                 const taperStart = 0.95;
-                if (t > taperStart) {
-                    const fade = (t - taperStart) / (1 - taperStart);
+                const edgeDistance = Math.min(t, 1 - t);
+                if (edgeDistance < (1 - taperStart)) {
+                    const fade = 1.0 - (edgeDistance / (1 - taperStart));
                     r *= (1.0 - fade * 0.6);
                 }
 
@@ -2176,6 +2388,8 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         if (state.energyWave) state.energyWave = null;
         if (state.arcDischarges) state.arcDischarges.dispose();
         if (state.visualStateAdapter) state.visualStateAdapter.dispose();
+        if (state.dockSpray) state.dockSpray.dispose();
+        if (state.sourceInjection) state.sourceInjection.dispose();
 
         if (state.directionalStreaks && this.directionalStreaks) {
             this.directionalStreaks.dispose(state.directionalStreaks);

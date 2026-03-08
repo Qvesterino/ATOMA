@@ -1,0 +1,325 @@
+[
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.worldEvents",
+    "body": "this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.weatherPack",
+    "body": "this.weatherPack?.update?.(dt, this.scene, this.camera);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.ambientEntityManager",
+    "body": "this.ambientEntityManager?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.consciousnessLayer",
+    "body": "this.consciousnessLayer?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.poetryEngine",
+    "body": "this.poetryEngine?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "background.emotionalFeed",
+    "body": "this.emotionalFeed?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "visual",
+    "params": "dt",
+    "id": "visual.worldRuntime_v1",
+    "body": "this.worldRuntime_v1?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.nodeEditorRuntime_v1",
+    "body": "this.nodeEditorRuntime_v1?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.metricsRuntime_v1",
+    "body": "this.metricsRuntime_v1?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.personalityRuntime_v1",
+    "body": "this.personalityRuntime_v1?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.nodePersonalitySystem",
+    "body": "this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.worldPersonalityController",
+    "body": "this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.phase5MultiNetworkOrchestrator",
+    "body": "this.phase5MultiNetworkOrchestrator?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.emergentThoughtStorms",
+    "body": "this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.colonyManager",
+    "body": "this.colonyManager?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.nodePersonality",
+    "body": "this.nodePersonality?.update?.(dt, this.time);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "simulation.tier4GameplayIntegration",
+    "body": "this.tier4GameplayIntegration?.update?.(dt);",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "visual",
+    "params": "",
+    "id": "visual.linkDebugMode",
+    "body": "if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals();",
+    "isEmpty": false,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": true,
+    "calls": [
+      "this",
+      "linkDebugMode"
+    ],
+    "reasons": []
+  },
+  {
+    "layer": "visual",
+    "params": "dt",
+    "id": "visual.linkSparkSystems",
+    "body": "// Empty - kept for backward compatibility reference",
+    "isEmpty": true,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": false,
+    "calls": [],
+    "reasons": [
+      "Empty body (only comments/whitespace)"
+    ]
+  },
+  {
+    "layer": "realtime",
+    "params": "dt",
+    "id": "test-camera",
+    "body": "// Example: camera update",
+    "isEmpty": true,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": false,
+    "calls": [],
+    "reasons": [
+      "Empty body (only comments/whitespace)"
+    ]
+  },
+  {
+    "layer": "visual",
+    "params": "dt",
+    "id": "test-visuals",
+    "body": "// Example: visual effects update",
+    "isEmpty": true,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": false,
+    "calls": [],
+    "reasons": [
+      "Empty body (only comments/whitespace)"
+    ]
+  },
+  {
+    "layer": "simulation",
+    "params": "dt",
+    "id": "test-ai",
+    "body": "// Example: AI processing",
+    "isEmpty": true,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": false,
+    "calls": [],
+    "reasons": [
+      "Empty body (only comments/whitespace)"
+    ]
+  },
+  {
+    "layer": "background",
+    "params": "dt",
+    "id": "test-narrative",
+    "body": "// Example: narrative system",
+    "isEmpty": true,
+    "isLogOnly": false,
+    "isConditionalOnly": false,
+    "hasSideEffects": false,
+    "calls": [],
+    "reasons": [
+      "Empty body (only comments/whitespace)"
+    ]
+  }
+]

@@ -1,0 +1,25 @@
+background|this.worldEvents?.update?.(dt, this.scene, this.camera, this.renderer);|background.worldEvents
+background|this.weatherPack?.update?.(dt, this.scene, this.camera);|background.weatherPack
+background|this.ambientEntityManager?.update?.(dt);|background.ambientEntityManager
+background|this.consciousnessLayer?.update?.(dt);|background.consciousnessLayer
+background|this.poetryEngine?.update?.(dt);|background.poetryEngine
+background|this.emotionalFeed?.update?.(dt);|background.emotionalFeed
+visual|this.worldRuntime_v1?.update?.(dt);|visual.worldRuntime_v1
+simulation|this.nodeEditorRuntime_v1?.update?.(dt);|simulation.nodeEditorRuntime_v1
+simulation|this.metricsRuntime_v1?.update?.(dt);|simulation.metricsRuntime_v1
+simulation|this.personalityRuntime_v1?.update?.(dt);|simulation.personalityRuntime_v1
+simulation|this.nodePersonalitySystem?.update?.(dt, this.aiNodes?.nodes);|simulation.nodePersonalitySystem
+simulation|this.worldPersonalityController?.update?.(dt, this.aiNodes?.nodes);|simulation.worldPersonalityController
+simulation|this.phase5MultiNetworkOrchestrator?.update?.(dt);|simulation.phase5MultiNetworkOrchestrator
+simulation|this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);|simulation.emergentThoughtStorms
+simulation|this.colonyManager?.update?.(dt);|simulation.colonyManager
+simulation|this.nodePersonality?.update?.(dt, this.time);|simulation.nodePersonality
+simulation|this.tier4GameplayIntegration?.update?.(dt);|simulation.tier4GameplayIntegration
+visual|if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals();|visual.linkDebugMode
+visual|// Empty - kept for backward compatibility reference|visual.linkSparkSystems
+realtime|// Example: camera update|test-camera
+visual|// Example: visual effects update|test-visuals
+simulation|// Example: AI processing|test-ai
+background|// Example: narrative system|test-narrative
+visual|const pictos = this.linkPictogramSystem ?? this.linkSemanticPictograms;
+            pictos?.update?.(dt, this.time, this.aiNodes?.nodes);|linkPictogramSystem

@@ -3731,11 +3731,6 @@ class AtomaGame {
                 this.linkTrailParticles.update(dt, this.time);
             }
         }, 'visual.linkTrailParticles');
-        // [DEPRECATED] LinkSparkSystem update is now handled by LinkRendererConduit
-        // Sparks are updated inside NodeLinkingSystem.conduitRenderer.update()
-        this.frameScheduler.register('visual', (dt) => {
-            // Empty - kept for backward compatibility reference
-        }, 'visual.linkSparkSystems');
         // LinkTrailEmitter update moved to LinkRendererConduit
         // See: LinkRendererConduit.update()
         // Eliminates race condition - conduit has direct curve access
@@ -3828,34 +3823,8 @@ this.setHudDirty('nodeInspect');
             // Test registration (example system for Phase B verification)
             registerTestSystems: () => {
                 console.group('%c[FrameScheduler] PHASE B TEST REGISTRATION', 'color: #00ff00; font-weight: bold;');
-                console.log('Registering example test systems...');
-                
-                // Realtime layer (60Hz)
-                this.frameScheduler.register('realtime', (dt) => {
-                    // Example: camera update
-                }, 'test-camera');
-                
-                // Visual layer (30Hz)
-                this.frameScheduler.register('visual', (dt) => {
-                    // Example: visual effects update
-                }, 'test-visuals');
-                
-                // Simulation layer (10Hz)
-                this.frameScheduler.register('simulation', (dt) => {
-                    // Example: AI processing
-                }, 'test-ai');
-                
-                // Background layer (2Hz)
-                this.frameScheduler.register('background', (dt) => {
-                    // Example: narrative system
-                }, 'test-narrative');
-                
-                console.log('✓ Registered 4 test systems (one per layer)');
-                console.log('  - test-camera → realtime (60Hz)');
-                console.log('  - test-visuals → visual (30Hz)');
-                console.log('  - test-ai → simulation (10Hz)');
-                console.log('  - test-narrative → background (2Hz)');
-                console.log('Run for ~5 seconds, then call scheduler.stats() to verify execution');
+                console.log('No test systems currently registered.');
+                console.log('To add test systems, register them via frameScheduler.register()');
                 console.groupEnd();
             }
         };
@@ -3872,6 +3841,7 @@ this.setHudDirty('nodeInspect');
             fractal: () => this.initFractalWorld(),
             quantum: () => this.initQuantumWorld(),
             desert: () => this.initDesertWorld(),
+            desert2: () => this.initDreamDesert2World(),
             chamber: () => this.initChamberWorld(),
             sigma: () => this.initSigmaWorld()
         };
@@ -5232,6 +5202,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         lightParent?.add(hemisphereLight);
     }
 
+
+
     /**
      * Setup Node-Space Chamber environment
      */
@@ -5466,6 +5438,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.createWorld('MAP_SWITCH');
         this.setupDreamDesertEnvironment();
     }
+
 
     initQuantumWorld() {
         this.currentMode = 'quantum';
