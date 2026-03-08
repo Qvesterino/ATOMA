@@ -173,18 +173,30 @@ function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
 function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) {
     const positions = new Float32Array(maxParticles * 3);
     const velocities = new Float32Array(maxParticles * 3);
+    const radialBasis = new Float32Array(maxParticles * 3);
+    const swirlBasis = new Float32Array(maxParticles * 3);
+    const params = new Float32Array(maxParticles * 4); // startRadius, endRadius, angularSpeed, phase
     const life = new Float32Array(maxParticles * 2); // birth, duration
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    geometry.setAttribute('aRadialBasis', new THREE.BufferAttribute(radialBasis, 3));
+    geometry.setAttribute('aSwirlBasis', new THREE.BufferAttribute(swirlBasis, 3));
+    geometry.setAttribute('aParams', new THREE.BufferAttribute(params, 4));
     geometry.setAttribute('aLife', new THREE.BufferAttribute(life, 2));
     geometry.attributes.position.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aRadialBasis.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aSwirlBasis.usage = THREE.DynamicDrawUsage;
+    geometry.attributes.aParams.usage = THREE.DynamicDrawUsage;
     geometry.attributes.aLife.usage = THREE.DynamicDrawUsage;
 
     const vertexShader = `
         attribute vec3 aVelocity;
+        attribute vec3 aRadialBasis;
+        attribute vec3 aSwirlBasis;
+        attribute vec4 aParams;
         attribute vec2 aLife;
         uniform float uTime;
         uniform vec3 uColor;
@@ -198,7 +210,13 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
                 return;
             }
             float t = age / aLife.y;
-            vec3 pos = position + aVelocity * age;
+            float radius = mix(aParams.x, aParams.y, t);
+            float theta = aParams.w + aParams.z * age;
+            vec3 orbitDir = normalize(
+                aRadialBasis * cos(theta) +
+                aSwirlBasis * sin(theta)
+            );
+            vec3 pos = position + aVelocity * age + orbitDir * radius;
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             gl_Position = projectionMatrix * mvPosition;
             gl_PointSize = clamp(72.0 * (1.0 - t * 0.58) / -mvPosition.z, 1.2, 14.0);
@@ -264,6 +282,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     const tangent = new THREE.Vector3();
     const bitangent = new THREE.Vector3();
     const radialDir = new THREE.Vector3();
+    const swirlDir = new THREE.Vector3();
     let writeIndex = 0;
 
     function spawnBurst(origin, forward, color, time = 0) {
@@ -278,42 +297,43 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         tangent.crossVectors(dir, upSeed).normalize();
         bitangent.crossVectors(dir, tangent).normalize();
 
-        const endRadius = 0.018;
+        const endRadius = 0.014;
         const count = Math.min(18, maxParticles);
         for (let i = 0; i < count; i++) {
             const idx = writeIndex;
             const i3 = idx * 3;
+            const i4 = idx * 4;
             const angle = (i / count) * Math.PI * 2 + randRange(-0.26, 0.26);
             const startRadius = randRange(0.11, 0.24);
             const axialOffset = randRange(-0.12, 0.02);
             const lifetime = randRange(0.22, 0.34);
-            const collapseSpeed = (endRadius - startRadius) / lifetime;
             const forwardSpeed = randRange(1.0, 1.75);
-            const swirlDrift = randRange(0.03, 0.09);
-            const tangentialSpeed = randRange(-0.08, 0.08);
+            const angularSpeed = randRange(10.0, 18.0) * (Math.random() < 0.5 ? -1 : 1);
 
             radialDir.copy(tangent).multiplyScalar(Math.cos(angle));
             radialDir.addScaledVector(bitangent, Math.sin(angle)).normalize();
+            swirlDir.crossVectors(dir, radialDir).normalize();
 
-            positions[i3] = origin.x + radialDir.x * startRadius + dir.x * axialOffset;
-            positions[i3 + 1] = origin.y + radialDir.y * startRadius + dir.y * axialOffset;
-            positions[i3 + 2] = origin.z + radialDir.z * startRadius + dir.z * axialOffset;
+            positions[i3] = origin.x + dir.x * axialOffset;
+            positions[i3 + 1] = origin.y + dir.y * axialOffset;
+            positions[i3 + 2] = origin.z + dir.z * axialOffset;
 
-            velocities[i3] =
-                dir.x * forwardSpeed +
-                radialDir.x * collapseSpeed +
-                tangent.x * tangentialSpeed +
-                bitangent.x * swirlDrift;
-            velocities[i3 + 1] =
-                dir.y * forwardSpeed +
-                radialDir.y * collapseSpeed +
-                tangent.y * tangentialSpeed +
-                bitangent.y * swirlDrift;
-            velocities[i3 + 2] =
-                dir.z * forwardSpeed +
-                radialDir.z * collapseSpeed +
-                tangent.z * tangentialSpeed +
-                bitangent.z * swirlDrift;
+            velocities[i3] = dir.x * forwardSpeed;
+            velocities[i3 + 1] = dir.y * forwardSpeed;
+            velocities[i3 + 2] = dir.z * forwardSpeed;
+
+            radialBasis[i3] = radialDir.x;
+            radialBasis[i3 + 1] = radialDir.y;
+            radialBasis[i3 + 2] = radialDir.z;
+
+            swirlBasis[i3] = swirlDir.x;
+            swirlBasis[i3 + 1] = swirlDir.y;
+            swirlBasis[i3 + 2] = swirlDir.z;
+
+            params[i4] = startRadius;
+            params[i4 + 1] = endRadius;
+            params[i4 + 2] = angularSpeed;
+            params[i4 + 3] = angle;
 
             const i2 = idx * 2;
             life[i2] = time;
@@ -324,6 +344,9 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
 
         geometry.attributes.position.needsUpdate = true;
         geometry.attributes.aVelocity.needsUpdate = true;
+        geometry.attributes.aRadialBasis.needsUpdate = true;
+        geometry.attributes.aSwirlBasis.needsUpdate = true;
+        geometry.attributes.aParams.needsUpdate = true;
         geometry.attributes.aLife.needsUpdate = true;
     }
 
