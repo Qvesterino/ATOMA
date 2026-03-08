@@ -7105,6 +7105,10 @@ export function warmUpArchetypeShaders(renderer, patchers = {}) {
     }
   }
 
+NodeLinkingSystem.prototype.setUIReferences = function() {};
+NodeLinkingSystem.prototype.setAllNodes = function() {};
+NodeLinkingSystem.prototype.setSelectionCore = function() {};
+
 
 export default NodeLinkingSystem;
 

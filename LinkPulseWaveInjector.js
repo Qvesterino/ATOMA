@@ -75,6 +75,7 @@ export class LinkPulseWaveInjector {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
         
         const state = linkGroup.userData.conduitState;
+        state.link = link;
         
         // Per-link pulse state
         state.pulseWaves = state.pulseWaves || {

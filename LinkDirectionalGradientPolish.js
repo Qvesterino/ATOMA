@@ -143,11 +143,7 @@
  * ============================================================================
  */
 
-let THREE_SAFE = null;
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
+const THREE_SAFE = THREE;
 
 export class LinkDirectionalGradientPolish {
   constructor(network = null) {
@@ -192,6 +188,9 @@ export class LinkDirectionalGradientPolish {
    */
   _computeLinkGradient(link) {
     if (!link) return null;
+    if (this.linkGradients.has(link.id)) {
+      return this.linkGradients.get(link.id);
+    }
 
     // Get link state
     const synergy = link.synergy || (link.a?.synergy || 0) + (link.b?.synergy || 0) * 0.5;
@@ -322,9 +321,7 @@ export class LinkDirectionalGradientPolish {
       brightness,
       saturation,
       emissiveBoost,
-      colorMultiplier: new (THREE_SAFE?.Color || class {
-        multiplyScalar(x) { return this; }
-      })().setHSL(0, 0, brightness)
+      colorMultiplier: new THREE_SAFE.Color().setHSL(0, 0, brightness)
     };
   }
 
@@ -573,3 +570,4 @@ export function setupLinkGradientPolishConsoleAPI(gradientSystem) {
   window.LinkGradientAPI = api;
   console.log('[LinkDirectionalGradientPolish] Console API ready: window.LinkGradientAPI');
 }
+import * as THREE from 'three';

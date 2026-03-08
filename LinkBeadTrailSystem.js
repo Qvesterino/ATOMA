@@ -40,6 +40,13 @@ void main() {
     // Add slight gravity/drag? No, just linear drift is cleaner for space look.
     vec3 currentPos = position + aVelocity * age;
     
+    // Temporal turbulence (very subtle)
+    float n = sin(currentPos.x * 6.0 + uTime * 2.0) *
+              sin(currentPos.y * 6.0 + uTime * 1.7) *
+              sin(currentPos.z * 6.0 + uTime * 1.3);
+    
+    currentPos += normalize(aVelocity + vec3(0.01)) * n * 0.015;
+    
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPulseWaveInjector } from './LinkPulseWaveInjector.js';
-import { LinkPulsePhaseSync } from './LinkPulsePhaseSync.js';
 import LinkStreakColorDynamics from './LinkStreakColorDynamics_Session115.js';
+import { LinkDirectionalGradientPolish } from './LinkDirectionalGradientPolish.js';
 
 /**
  * LinkDirectionalStreaks
@@ -67,6 +67,8 @@ export class LinkDirectionalStreaks {
             enabled: true,
             debugMode: false
         });
+
+        this.gradientPolish = new LinkDirectionalGradientPolish();
     }
 
     /**
@@ -120,6 +122,7 @@ export class LinkDirectionalStreaks {
             mesh: mesh,
             material: material,
             geometry: geometry,
+            linkId: link?.id ?? null,
             count: baseStreakCount,
             offsets: new Float32Array(baseStreakCount),      // Position on curve (0-1)
             speeds: new Float32Array(baseStreakCount),       // Units per second
@@ -182,6 +185,7 @@ export class LinkDirectionalStreaks {
         
         // Store link reference for pulse injection
         if (link) {
+            state.link = link;
             state.linkReference = link;
         }
         
@@ -211,6 +215,19 @@ export class LinkDirectionalStreaks {
         }
         
         // --- COMPUTE STATE-DRIVEN PARAMETERS ---
+        let gradientSample = null;
+        if (this.gradientPolish && link?.id) {
+            this.gradientPolish._computeLinkGradient({
+                id: link.id,
+                synergy,
+                harmony,
+                corruption,
+                instability,
+                active: true,
+                mesh: streaks.mesh
+            });
+            gradientSample = this.gradientPolish.getGradientAtT(link.id, 0.35);
+        }
         
         // Synergy controls speed and count
         const synergyVisual = Math.max(0.7, synergy);
@@ -420,7 +437,7 @@ export class LinkDirectionalStreaks {
         }
         
         // --- UPDATE GEOMETRY BUFFER ---
-        this._updateGeometryBuffer(streaks, positions, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, specialization);
+        this._updateGeometryBuffer(streaks, positions, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, specialization, gradientSample);
         
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
@@ -431,6 +448,9 @@ export class LinkDirectionalStreaks {
             if (pulseEffectData && pulseEffectData.hasPulse) {
                 baseBrightness += pulseEffectData.intensityBoost;
                 baseOpacity *= pulseEffectData.alphaBoost;
+            }
+            if (gradientSample) {
+                baseBrightness += gradientSample.emissiveBoost || 0;
             }
 
             streaks.material.emissiveIntensity = baseBrightness;
@@ -488,7 +508,7 @@ export class LinkDirectionalStreaks {
      * Applies color dynamics based on harmony and specialization
      * @private
      */
-    _updateGeometryBuffer(streaks, vertices, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0) {
+    _updateGeometryBuffer(streaks, vertices, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0, gradientSample = null) {
         if (!streaks || !streaks.geometry || !Array.isArray(vertices) || !Array.isArray(indices)) return;
         if (vertices.length === 0 || indices.length === 0) {
             this._clearGeometryBuffer(streaks.geometry);
@@ -555,6 +575,13 @@ export class LinkDirectionalStreaks {
                 synergy            // 0-1
             );
             color.copy(dynamicColor);
+
+            if (gradientSample) {
+                color.multiplyScalar(gradientSample.brightness || 1.0);
+                color.getHSL(this._hsl);
+                this._hsl.s = THREE.MathUtils.clamp(this._hsl.s * (gradientSample.saturation || 1.0), 0, 1);
+                color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
+            }
 
             // Apply pulse saturation boost (on top of color dynamics)
             if (pulseEffectData && pulseEffectData.hasPulse && pulseEffectData.saturation > 0) {
@@ -640,6 +667,10 @@ export class LinkDirectionalStreaks {
      */
     dispose(streaks) {
         if (!streaks) return;
+
+        if (this.gradientPolish && streaks.linkId) {
+            this.gradientPolish.linkGradients.delete(streaks.linkId);
+        }
         
         if (streaks.geometry) {
             streaks.geometry.dispose();

@@ -56,7 +56,6 @@ import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
-import { NodeLinking2_3 } from './_NodeLinking2_3.js';
 // import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 // import { AtomaAudioModulation } from './AtomaAudioModulation.js';
 import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
@@ -11188,14 +11187,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
 
-        this.nodeLinking = new NodeLinking2_3(
-            this.scene,
-            this.camera,
-            this.renderer,
-            this.selectionCore,
-            this.linkingSystem,
-            allNodes
-        );
+        this.nodeLinking = this.linkingSystem;
 
         console.log("✓ NodeLinking2_3 confirmed active");
         console.log('✓ Primary Node System 3.7 initialized (double-click + aura + 2.3 linking)');
