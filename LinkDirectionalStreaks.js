@@ -39,11 +39,11 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.05,      // Thicker ribbon for reliable readability
+            streakWidthBase: 0.10,      // Thicker ribbon for reliable readability
             streakLengthMin: 0.12,      // Min visible length on curve (0-1)
-            streakLengthMax: 0.35,      // Max visible length on curve (0-1)
-            streakCountMin: 3,          // Min active streaks
-            streakCountMax: 7,          // Max active streaks
+            streakLengthMax: 0.55,      // Max visible length on curve (0-1)
+            streakCountMin: 5,          // Min active streaks
+            streakCountMax: 10,          // Max active streaks
             speedBaseMin: 0.6,          // Synergy multiplier range (min)
             speedBaseMax: 1.6,          // Synergy multiplier range (max)
             segmentsPerStreak: 12,      // Ribbon resolution (low for perf)
@@ -137,7 +137,7 @@ export class LinkDirectionalStreaks {
         for (let i = 0; i < baseStreakCount; i++) {
             const rng = Math.sin(linkIdHash * 12.9898 + i * 78.233) * 43758.5453; // Deterministic hash
             const rng01 = rng - Math.floor(rng);
-            streaks.offsets[i] = ((i / baseStreakCount) + (rng01 * 0.18)) % 1.0; // Distributed coverage along the full link
+            streaks.offsets[i] = THREE.MathUtils.clamp(0.2 + ((i / baseStreakCount) * 0.6) + (rng01 * 0.05), 0.2, 0.8);
             streaks.phases[i] = streaks.offsets[i];
             streaks.speeds[i] = 0.8;           // Default, will scale with synergy
             streaks.lengths[i] = 0.15;         // Default, will scale with harmony
@@ -218,11 +218,11 @@ export class LinkDirectionalStreaks {
         const activeStreakCount = Math.ceil(this.config.streakCountMin + (synergyVisual * (this.config.streakCountMax - this.config.streakCountMin)));
         
         // Harmony controls length and brightness
-        const baseLength =
-            this.config.streakLengthMin +
-            (harmony * (this.config.streakLengthMax - this.config.streakLengthMin));
+        const curveLength = curve.getLength ? curve.getLength() : 10;
 
-        const lengthScale = THREE.MathUtils.clamp(baseLength, 0.12, 0.22);// Cap streak span to prevent visual detachment
+        const physicalLength = THREE.MathUtils.clamp(curveLength * 0.08, 0.8, 3.0);
+
+        const lengthScale = physicalLength / curveLength;// Cap streak span to prevent visual detachment
         const harmonyBrightness = 0.6 + (harmony * this.config.harmonyBoost);
         
         // Corruption adds phase jitter but not speed randomness
@@ -263,7 +263,7 @@ export class LinkDirectionalStreaks {
             streaks.phases[i] = streaks.ages[i] / scaledLifetime;
             
             // Update speed (no randomness, clean synergy-driven motion)
-            streaks.speeds[i] = speedMultiplier * 0.8; // 0.8 is base speed factor
+            streaks.speeds[i] = speedMultiplier * 0.45; // 0.8 is base speed factor
             
             // Advance offset along curve
             streaks.offsets[i] += (streaks.speeds[i] * deltaTime);
@@ -294,8 +294,11 @@ export class LinkDirectionalStreaks {
             
             // --- BUILD RIBBON GEOMETRY ---
             // Sample curve at streak offset ± length
-            const streakStart = Math.max(0, streaks.offsets[i] - lengthScale);
-            const streakEnd = Math.min(1.0, streaks.offsets[i] + lengthScale);
+            let streakStart = streaks.offsets[i] - lengthScale;
+            let streakEnd = streaks.offsets[i] + lengthScale;
+
+            if (streakStart < 0) streakStart += 1.0;
+            if (streakEnd > 1.0) streakEnd -= 1.0;
             
             const segmentsInStreak = Math.max(
             6,
