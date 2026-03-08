@@ -261,14 +261,9 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
     }
 
     const randRange = (min, max) => min + Math.random() * (max - min);
-    const randomUnit = () => {
-        const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
-        if (v.lengthSq() < 1e-4) v.set(0, 1, 0);
-        return v.normalize();
-    };
-
     const tangent = new THREE.Vector3();
     const bitangent = new THREE.Vector3();
+    const radialDir = new THREE.Vector3();
     let writeIndex = 0;
 
     function spawnBurst(origin, forward, color, time = 0) {
@@ -283,44 +278,46 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         tangent.crossVectors(dir, upSeed).normalize();
         bitangent.crossVectors(dir, tangent).normalize();
 
+        const endRadius = 0.018;
         const count = Math.min(18, maxParticles);
         for (let i = 0; i < count; i++) {
             const idx = writeIndex;
             const i3 = idx * 3;
-            const angle = (i / count) * Math.PI * 2 + randRange(-0.35, 0.35);
-            const radial = randRange(0.035, 0.16);
-            const pullIn = randRange(-0.08, 0.02);
-            const swirlX = Math.cos(angle) * radial;
-            const swirlY = Math.sin(angle) * radial;
+            const angle = (i / count) * Math.PI * 2 + randRange(-0.26, 0.26);
+            const startRadius = randRange(0.11, 0.24);
+            const axialOffset = randRange(-0.12, 0.02);
+            const lifetime = randRange(0.22, 0.34);
+            const collapseSpeed = (endRadius - startRadius) / lifetime;
+            const forwardSpeed = randRange(1.0, 1.75);
+            const swirlDrift = randRange(0.03, 0.09);
+            const tangentialSpeed = randRange(-0.08, 0.08);
 
-            positions[i3] = origin.x + tangent.x * swirlX + bitangent.x * swirlY + dir.x * pullIn;
-            positions[i3 + 1] = origin.y + tangent.y * swirlX + bitangent.y * swirlY + dir.y * pullIn;
-            positions[i3 + 2] = origin.z + tangent.z * swirlX + bitangent.z * swirlY + dir.z * pullIn;
+            radialDir.copy(tangent).multiplyScalar(Math.cos(angle));
+            radialDir.addScaledVector(bitangent, Math.sin(angle)).normalize();
 
-            const swirlStrength = randRange(0.18, 0.42);
-            const chaos = randomUnit().multiplyScalar(randRange(0.05, 0.13));
-            const forwardSpeed = randRange(0.85, 1.55);
-            const orbitX = Math.cos(angle + Math.PI * 0.5) * swirlStrength;
-            const orbitY = Math.sin(angle + Math.PI * 0.5) * swirlStrength;
+            positions[i3] = origin.x + radialDir.x * startRadius + dir.x * axialOffset;
+            positions[i3 + 1] = origin.y + radialDir.y * startRadius + dir.y * axialOffset;
+            positions[i3 + 2] = origin.z + radialDir.z * startRadius + dir.z * axialOffset;
+
             velocities[i3] =
                 dir.x * forwardSpeed +
-                tangent.x * orbitX +
-                bitangent.x * orbitY +
-                chaos.x;
+                radialDir.x * collapseSpeed +
+                tangent.x * tangentialSpeed +
+                bitangent.x * swirlDrift;
             velocities[i3 + 1] =
                 dir.y * forwardSpeed +
-                tangent.y * orbitX +
-                bitangent.y * orbitY +
-                chaos.y;
+                radialDir.y * collapseSpeed +
+                tangent.y * tangentialSpeed +
+                bitangent.y * swirlDrift;
             velocities[i3 + 2] =
                 dir.z * forwardSpeed +
-                tangent.z * orbitX +
-                bitangent.z * orbitY +
-                chaos.z;
+                radialDir.z * collapseSpeed +
+                tangent.z * tangentialSpeed +
+                bitangent.z * swirlDrift;
 
             const i2 = idx * 2;
             life[i2] = time;
-            life[i2 + 1] = randRange(0.22, 0.36);
+            life[i2 + 1] = lifetime;
 
             writeIndex = (writeIndex + 1) % maxParticles;
         }
@@ -1263,8 +1260,8 @@ export class LinkRendererConduit {
         const RADIUS_SCALE = 0.26;
         const start = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * RADIUS_SCALE);
         const end = targetCenter.clone().addScaledVector(linkDir, -targetRadius * RADIUS_SCALE);
-        const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.66);
-        const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.38);
+        const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
+        const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
 
@@ -1579,8 +1576,8 @@ export class LinkRendererConduit {
 
         if (state.sourceInjection) {
             const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
-            const injectionAnchor = start.clone().lerp(sourcePortPos, 0.72);
-            const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.32);
+            const injectionAnchor = sourcePortPos.clone();
+            const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
             state.sourceInjection.update(visualTime, injectionAnchor, linkDir);
             const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
             const injectionInterval = state.sourceInjectionInterval ?? 0.075;
