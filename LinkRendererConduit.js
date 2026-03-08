@@ -321,7 +321,7 @@ export class LinkRendererConduit {
 
         this.config = {
             baseRadius: 0.06,
-            strandRadius: 0.025,
+            strandRadius: 0.034,
             twistSpacing: 2.0, // Units per full twist (normalized to link length)
             segments: 45,
  // +++++++ REPLACE
@@ -880,10 +880,8 @@ export class LinkRendererConduit {
         let sparkSystem = new LinkSparkSystem(this.scene);
         group.add(sparkSystem.getMesh());
 
-        // AUDIT: Verify spark mesh is added to scene
-        const sparkMesh = sparkSystem.getMesh();
-        this.scene.add(sparkMesh);
-        console.log("SPARK MESH ADDED", sparkMesh);
+        // AUDIT: Verify spark mesh is added to group
+        // (sparkSystem.getMesh() is already added to group at line 881)
 
         let trailSystem = null;
         try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){ throw e; }
@@ -1462,8 +1460,11 @@ export class LinkRendererConduit {
             for (let j = 0; j <= segments; j++) {
                 const t = j / segments;
                 const pointOnMain = mainCurve.getPointAt(t);
-                const N = frames.normals[j];
-                const B = frames.binormals[j];
+                const N = frames.normals[j] || frames.normals[frames.normals.length - 1];
+                const B = frames.binormals[j] || frames.binormals[frames.binormals.length - 1];
+
+                // Guard against invalid Frenet frames
+                if (!N || !B) continue;
 
                 // Calculate normalized twists based on link length
                 const linkLength = linkDist || 10.0;
@@ -1489,6 +1490,12 @@ export class LinkRendererConduit {
                 const pos = pointOnMain.clone(); // Clone to avoid mutation issues in curve gen
                 pos.addScaledVector(N, offsetX);
                 pos.addScaledVector(B, offsetY);
+
+                // Guard against NaN/Infinity in position
+                if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) {
+                    continue;
+                }
+
                 points.push(pos);
             }
 
@@ -1507,11 +1514,6 @@ export class LinkRendererConduit {
                 state.strandOverlays[i].geometry = mesh.geometry;
             }
 
-            // Color/tint patch (synergy-based)
-            if (mesh.material?.color) {
-                const colorPatch = new THREE.Color(state.baseColor).lerp(new THREE.Color(state.targetColor || state.baseColor), 0.0);
-                mergePatch(materialPatches.strands, mesh, { color: colorPatch, owner: 'colorStage' });
-            }
             // Linewidth (if supported by material type)
             if (mesh.material && mesh.material.linewidth !== undefined) {
                 mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });

@@ -39,9 +39,9 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.08,      // Thinner ribbon to sit inside strands
-            streakLengthMin: 0.08,      // Min visible length on curve (0-1)
-            streakLengthMax: 0.25,      // Max visible length on curve (0-1)
+            streakWidthBase: 0.05,      // Thicker ribbon for reliable readability
+            streakLengthMin: 0.12,      // Min visible length on curve (0-1)
+            streakLengthMax: 0.35,      // Max visible length on curve (0-1)
             streakCountMin: 3,          // Min active streaks
             streakCountMax: 7,          // Max active streaks
             speedBaseMin: 0.6,          // Synergy multiplier range (min)
@@ -115,7 +115,7 @@ export class LinkDirectionalStreaks {
         linkGroup.add(mesh);
         
         // Streak state arrays (allocated once, reused)
-        const baseStreakCount = 3 + (linkIdHash % 4); // 3-7 streaks
+        const baseStreakCount = this.config.streakCountMax;
         const streaks = {
             mesh: mesh,
             material: material,
@@ -136,7 +136,8 @@ export class LinkDirectionalStreaks {
         // Initialize per-streak parameters (deterministic based on hash)
         for (let i = 0; i < baseStreakCount; i++) {
             const rng = Math.sin(linkIdHash * 12.9898 + i * 78.233) * 43758.5453; // Deterministic hash
-            streaks.offsets[i] = (rng % 1.0); // Random start position
+            const rng01 = rng - Math.floor(rng);
+            streaks.offsets[i] = ((i / baseStreakCount) + (rng01 * 0.18)) % 1.0; // Distributed coverage along the full link
             streaks.phases[i] = streaks.offsets[i];
             streaks.speeds[i] = 0.8;           // Default, will scale with synergy
             streaks.lengths[i] = 0.15;         // Default, will scale with harmony
@@ -212,11 +213,16 @@ export class LinkDirectionalStreaks {
         // --- COMPUTE STATE-DRIVEN PARAMETERS ---
         
         // Synergy controls speed and count
-        const speedMultiplier = this.config.speedBaseMin + (synergy * (this.config.speedBaseMax - this.config.speedBaseMin));
-        const activeStreakCount = Math.ceil(this.config.streakCountMin + (synergy * (this.config.streakCountMax - this.config.streakCountMin)));
+        const synergyVisual = Math.max(0.7, synergy);
+        const speedMultiplier = this.config.speedBaseMin + (synergyVisual * (this.config.speedBaseMax - this.config.speedBaseMin));
+        const activeStreakCount = Math.ceil(this.config.streakCountMin + (synergyVisual * (this.config.streakCountMax - this.config.streakCountMin)));
         
         // Harmony controls length and brightness
-        const lengthScale = this.config.streakLengthMin + (harmony * 0.3 * (this.config.streakLengthMax - this.config.streakLengthMin));
+        const baseLength =
+            this.config.streakLengthMin +
+            (harmony * (this.config.streakLengthMax - this.config.streakLengthMin));
+
+        const lengthScale = THREE.MathUtils.clamp(baseLength, 0.12, 0.22);// Cap streak span to prevent visual detachment
         const harmonyBrightness = 0.6 + (harmony * this.config.harmonyBoost);
         
         // Corruption adds phase jitter but not speed randomness
@@ -229,7 +235,12 @@ export class LinkDirectionalStreaks {
         const suppressionThreshold = 0; // No suppression
         
         // --- UPDATE EACH STREAK ---
-        const vertices = [];
+        const positions = [];
+        const indices = [];
+        let vertexCursor = 0;
+        const corridorRadius = this._computeCorridorRadius(state);
+        const maxCenterStep = Math.max(0.6, corridorRadius * 3.0);
+        const maxEdgeStep = Math.max(0.8, corridorRadius * 3.5);
         
         // Cap at actual streak count
         const streakCountToProcess = Math.min(activeStreakCount, streaks.count);
@@ -245,7 +256,7 @@ export class LinkDirectionalStreaks {
             // Restart if expired
             if (streaks.ages[i] >= scaledLifetime) {
                 streaks.ages[i] = 0;
-                // Randomize next start position (simple: just restart, more complex could space them)
+                streaks.offsets[i] = (streaks.offsets[i] + (0.22 + (i / Math.max(1, streakCountToProcess)) * 0.18)) % 1.0;
             }
             
             // Compute life phase (0-1)
@@ -260,7 +271,6 @@ export class LinkDirectionalStreaks {
             // Wrap if exceeded curve
             if (streaks.offsets[i] > 1.0) {
                 streaks.offsets[i] -= 1.0;
-                streaks.ages[i] = 0; // Restart
             }
             
             // Compute visibility (fade-in, stay, fade-out)
@@ -287,30 +297,55 @@ export class LinkDirectionalStreaks {
             const streakStart = Math.max(0, streaks.offsets[i] - lengthScale);
             const streakEnd = Math.min(1.0, streaks.offsets[i] + lengthScale);
             
-            const segmentsInStreak = Math.max(2, Math.floor(this.config.segmentsPerStreak * (streakEnd - streakStart)));
+            const segmentsInStreak = Math.max(
+            6,
+            Math.floor(this.config.segmentsPerStreak * (streakEnd - streakStart))
+            );
             
-            // Build ribbon vertices (quad strips)
-            const ribbonVertices = [];
+            let previousPairStart = -1;
+            let previousCenter = null;
+            let previousTop = null;
+            let previousBottom = null;
             
             for (let j = 0; j <= segmentsInStreak; j++) {
                 const t = streakStart + ((j / segmentsInStreak) * (streakEnd - streakStart));
                 
                 // Sample curve point
                 const pointOnCurve = curve.getPointAt(Math.max(0, Math.min(1, t)));
+                if (!this._isFiniteVector(pointOnCurve)) {
+                    previousPairStart = -1;
+                    previousCenter = null;
+                    previousTop = null;
+                    previousBottom = null;
+                    continue;
+                }
                 
+                const idx = Math.min(frameSegments, Math.max(0, Math.round(t * frameSegments)));
+
                 // Tangent for orientation (approximate via nearby points)
-                const tangent = this._sampleCurveTangent(curve, t);
+                const tangent = this._sampleCurveTangent(curve, t, frames.tangents?.[idx]);
+                if (!this._isFiniteVector(tangent)) {
+                    previousPairStart = -1;
+                    previousCenter = null;
+                    previousTop = null;
+                    previousBottom = null;
+                    continue;
+                }
                 
                 // Create ribbon width variation (thinner at edges, thicker in middle)
                 const ribbonProgress = j / segmentsInStreak;
-                let widthFactor = Math.sin(ribbonProgress * Math.PI); // Bell curve: 0→1→0
+                let widthFactor = Math.pow(Math.sin(ribbonProgress * Math.PI), 1.6);
                 widthFactor = Math.max(0.35, widthFactor); // Never too thin, but narrower
                 
-                // Align streak to braid twist (use Frenet frames + shared twist)
-                const idx = Math.min(frameSegments, Math.max(0, Math.round(t * frameSegments)));
-                const N = frames.normals[idx];
-                // Keep streak centered on the main spline (no radial offset), use normal as width direction
-                const perpendicular = this._vec3.copy(N).normalize();
+                // Keep streak centered on the main spline, but require a stable width axis.
+                const perpendicular = this._getStableRibbonNormal(frames, idx, tangent);
+                if (!perpendicular) {
+                    previousPairStart = -1;
+                    previousCenter = null;
+                    previousTop = null;
+                    previousBottom = null;
+                    continue;
+                }
                 
                 // --- PULSE WAVE EFFECTS ---
                 // Check if any pulse waves affect this streak position
@@ -326,29 +361,68 @@ export class LinkDirectionalStreaks {
         // Build quad (two vertices per curve point)
         let ribbonWidth = (this.config.streakWidthBase * widthFactor);
         ribbonWidth *= pulseEffect.thickness; // Apply pulse thickness boost
+        ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.01, corridorRadius * 0.85);
         
         // Top edge
-        const v1 = pointOnCurve.clone().addScaledVector(perpendicular, ribbonWidth * 0.5);
-        ribbonVertices.push(v1);
+        const v1 = this._clampVertexToCorridor(
+            pointOnCurve.clone().addScaledVector(perpendicular, ribbonWidth * 0.5),
+            pointOnCurve,
+            corridorRadius
+        );
+        
+        // --- GUARD: Skip invalid v1 vertices ---
+        if (!Number.isFinite(v1.x) || !Number.isFinite(v1.y) || !Number.isFinite(v1.z)) {
+            continue;
+        }
         
         // Bottom edge
-        const v2 = pointOnCurve.clone().addScaledVector(perpendicular, -ribbonWidth * 0.5);
-        ribbonVertices.push(v2);
+        const v2 = this._clampVertexToCorridor(
+            pointOnCurve.clone().addScaledVector(perpendicular, -ribbonWidth * 0.5),
+            pointOnCurve,
+            corridorRadius
+        );
+        
+        // --- GUARD: Skip invalid v2 vertices ---
+        if (!Number.isFinite(v2.x) || !Number.isFinite(v2.y) || !Number.isFinite(v2.z)) {
+            continue;
         }
-            
-            // Add vertices to global list (with color/opacity encoded)
-            for (const v of ribbonVertices) {
-                vertices.push(v.x, v.y, v.z);
-            }
+        
+        const pairStart = vertexCursor;
+        positions.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
+        vertexCursor += 2;
+
+        if (
+            previousPairStart >= 0 &&
+            previousCenter &&
+            previousTop &&
+            previousBottom &&
+            pointOnCurve.distanceTo(previousCenter) <= maxCenterStep &&
+            v1.distanceTo(previousTop) <= maxEdgeStep &&
+            v2.distanceTo(previousBottom) <= maxEdgeStep
+        ) {
+            const a = previousPairStart;
+            const b = previousPairStart + 1;
+            const c = pairStart;
+            const d = pairStart + 1;
+
+            indices.push(a, b, c);
+            indices.push(b, d, c);
+        }
+
+        previousPairStart = pairStart;
+        previousCenter = pointOnCurve.clone();
+        previousTop = v1.clone();
+        previousBottom = v2.clone();
+        }
         }
         
         // --- UPDATE GEOMETRY BUFFER ---
-        this._updateGeometryBuffer(streaks, vertices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, specialization);
+        this._updateGeometryBuffer(streaks, positions, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, specialization);
         
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
             let baseBrightness = harmonyBrightness;
-            let baseOpacity = 0.7 * (1.0 - (instability * 0.3));
+            let baseOpacity = 0.92 * (1.0 - (instability * 0.15));
 
             // Apply pulse effects to material
             if (pulseEffectData && pulseEffectData.hasPulse) {
@@ -392,11 +466,18 @@ export class LinkDirectionalStreaks {
      * Compute curve tangent at parameter t (approximate)
      * @private
      */
-    _sampleCurveTangent(curve, t) {
+    _sampleCurveTangent(curve, t, fallbackTangent = null) {
         const delta = 0.001;
         const p1 = curve.getPointAt(Math.max(0, t - delta));
         const p2 = curve.getPointAt(Math.min(1, t + delta));
-        return p2.clone().sub(p1).normalize();
+        const tangent = p2.clone().sub(p1);
+        if (tangent.lengthSq() > 1e-8) {
+            return tangent.normalize();
+        }
+        if (fallbackTangent && this._isFiniteVector(fallbackTangent) && fallbackTangent.lengthSq() > 1e-8) {
+            return fallbackTangent.clone().normalize();
+        }
+        return null;
     }
 
     /**
@@ -404,9 +485,12 @@ export class LinkDirectionalStreaks {
      * Applies color dynamics based on harmony and specialization
      * @private
      */
-    _updateGeometryBuffer(streaks, vertices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0) {
-        if (!streaks || !streaks.geometry || !Array.isArray(vertices)) return;
-        if (vertices.length === 0) return;
+    _updateGeometryBuffer(streaks, vertices, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0) {
+        if (!streaks || !streaks.geometry || !Array.isArray(vertices) || !Array.isArray(indices)) return;
+        if (vertices.length === 0 || indices.length === 0) {
+            this._clearGeometryBuffer(streaks.geometry);
+            return;
+        }
 
         // Log vertex count for debugging (throttled)
         if (typeof window !== 'undefined') {
@@ -432,37 +516,17 @@ export class LinkDirectionalStreaks {
         // Add position buffer
         streaks.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-        // Compute indices for quad rendering
-        const indices = [];
-        let vertexCount = 0;
-
-        for (let i = 0; i < activeStreakCount; i++) {
-            const segmentsInStreak = Math.max(2, Math.floor(this.config.segmentsPerStreak * 0.5)); // Approx
-            const verticesInStreak = (segmentsInStreak + 1) * 2;
-
-            for (let j = 0; j < segmentsInStreak; j++) {
-                const a = vertexCount + j * 2;
-                const b = vertexCount + j * 2 + 1;
-                const c = vertexCount + (j + 1) * 2;
-                const d = vertexCount + (j + 1) * 2 + 1;
-
-                // Two triangles per quad
-                indices.push(a, b, c);
-                indices.push(b, d, c);
-            }
-
-            vertexCount += verticesInStreak;
-        }
-
         // Remove old indices if exist
         if (streaks.geometry.getIndex()) {
-            streaks.geometry.deleteAttribute('index');
+            streaks.geometry.setIndex(null);
         }
 
         // Add index buffer
         if (indices.length > 0) {
             streaks.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
         }
+        streaks.geometry.computeBoundingSphere();
+        streaks.geometry.computeBoundingBox();
 
         // Update material color with state (ENHANCED: Session 115 color dynamics)
         if (streaks.material) {
@@ -499,6 +563,72 @@ export class LinkDirectionalStreaks {
             streaks.material.color.copy(color);
             streaks.material.emissive.copy(color);
         }
+    }
+
+    _computeCorridorRadius(state) {
+        const activeRadius = Number.isFinite(state?.activeRadius) ? state.activeRadius : 0.12;
+        return THREE.MathUtils.clamp((activeRadius * 2.25) + 0.08, 0.18, 0.55);
+    }
+
+    _getStableRibbonNormal(frames, idx, tangent) {
+        const candidates = [
+            frames?.normals?.[idx],
+            frames?.normals?.[idx - 1],
+            frames?.normals?.[idx + 1],
+            frames?.binormals?.[idx],
+            frames?.binormals?.[idx - 1],
+            frames?.binormals?.[idx + 1]
+        ];
+
+        for (const candidate of candidates) {
+            if (!this._isFiniteVector(candidate) || candidate.lengthSq() <= 1e-8) {
+                continue;
+            }
+
+            const axis = candidate.clone().addScaledVector(tangent, -candidate.dot(tangent));
+            if (axis.lengthSq() > 1e-8) {
+                return axis.normalize();
+            }
+        }
+
+        const fallbackUp = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        const axis = fallbackUp.addScaledVector(tangent, -fallbackUp.dot(tangent));
+        if (axis.lengthSq() > 1e-8) {
+            return axis.normalize();
+        }
+
+        return null;
+    }
+
+    _clampVertexToCorridor(vertex, center, corridorRadius) {
+        const drift = this._vec3.copy(vertex).sub(center);
+        const driftLength = drift.length();
+
+        if (driftLength > corridorRadius && driftLength > 1e-8) {
+            drift.multiplyScalar(corridorRadius / driftLength);
+            vertex.copy(center).add(drift);
+        }
+
+        return vertex;
+    }
+
+    _isFiniteVector(vec) {
+        return !!vec &&
+            Number.isFinite(vec.x) &&
+            Number.isFinite(vec.y) &&
+            Number.isFinite(vec.z);
+    }
+
+    _clearGeometryBuffer(geometry) {
+        if (!geometry) return;
+        if (geometry.getAttribute('position')) {
+            geometry.deleteAttribute('position');
+        }
+        if (geometry.getIndex()) {
+            geometry.setIndex(null);
+        }
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
     }
 
     /**

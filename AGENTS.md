@@ -5,15 +5,6 @@ Treat it as a long-term engineering system.
 
 ---
 
-## First Run
-
-If `BOOTSTRAP.md` exists:
-
-- Read it carefully
-- Align with its instructions
-- After successful alignment, it may be removed
-
----
 
 ## Every Session (Startup Sequence)
 

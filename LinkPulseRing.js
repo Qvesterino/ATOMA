@@ -431,12 +431,21 @@ export class LinkPulseRing {
             this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
             this._buildTrailFrame(trailTan, this._trailNormal, this._trailBinormal);
             const orbitAngle = this.currentSpinAngle * variation.spinSpeedMultiplier + i * Math.PI;
+            
+            // Motor vibration - subtle turbine-like oscillation around the ring axis
+            const motorVibration =
+            Math.sin(this._time * 28.0 + i * 2.1) * 0.35 +
+            Math.sin(this._time * 51.0 + i * 1.3) * 0.18;
+            
             const orbitRadius = (variation.jitterMagnitude + gap * 0.12) * this.mesh.scale.x * 0.6;
             this._trailOffset.copy(this._trailNormal).multiplyScalar(Math.cos(orbitAngle) * orbitRadius);
             this._trailOffset.addScaledVector(this._trailBinormal, Math.sin(orbitAngle) * orbitRadius);
             trail.position.add(this._trailOffset);
             trail.quaternion.copy(this._trailQuaternion);
-            this._trailSpinQuaternion.setFromAxisAngle(this._ringAxis, orbitAngle);
+            this._trailSpinQuaternion.setFromAxisAngle(
+            this._ringAxis,
+            orbitAngle + motorVibration
+            );
             trail.quaternion.multiply(this._trailSpinQuaternion);
             const baseScale = this.mesh.scale.x;
             const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;

@@ -182,7 +182,7 @@ export class LinkPulseDustEmitter {
 
         const openAmount = clamp01(splitGap / 0.8);
         const pulseBoost = 0.25 + openAmount * 0.95 + clamp01(pulsePhase) * 0.2;
-        const emissionRate = lerp(18, 54, pulseBoost);
+        const emissionRate = lerp(28, 82, pulseBoost);
         this.spawnAccumulator += emissionRate * dt;
 
         let touched = false;
@@ -258,8 +258,8 @@ export class LinkPulseDustEmitter {
         this.colors[i3 + 2] = TMP_COLOR.b;
 
         this.infos[i3] = this.time;
-        this.infos[i3 + 1] = 0.48 + Math.random() * 0.22;
-        this.infos[i3 + 2] = 4.0 + Math.random() * 3.0;
+        this.infos[i3 + 1] = 0.9 + Math.random() * 0.4;
+        this.infos[i3 + 2] = 5.0 + Math.random() * 4.0;
 
         this.writeIndex = (this.writeIndex + 1) % this.maxParticles;
     }

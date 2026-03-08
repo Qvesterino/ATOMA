@@ -272,10 +272,11 @@ export const linkStateFragmentShaderSimple = `
     // Simple Lambert + rim for plasticity
     vec3 n = normalize(vNormal);
     vec3 lightDir = normalize(vec3(0.3, 0.7, 0.6));
-    float lambert = clamp(dot(n, lightDir), 0.2, 1.0);
-    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.4;
-    float lighting = lambert * 0.85 + rim * 0.35;
+    float lambert = clamp(dot(n, lightDir), 0.45, 1.0);
+    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.55;
+    float lighting = lambert * 0.95 + rim * 0.45;
     color *= lighting;
+    color += vBaseColor * 0.12;
     
     // Add pulse glow from load
     color += vec3(vPulsePhase * vLocalLoad * 0.3);
@@ -284,7 +285,7 @@ export const linkStateFragmentShaderSimple = `
     color *= (1.0 - vCorruption * 0.3);
     
     // Alpha based on coherence (1 - corruption)
-    float alpha = mix(0.6, 1.0, 1.0 - vCorruption);
+    float alpha = mix(0.82, 1.0, 1.0 - vCorruption);
     
     gl_FragColor = vec4(color, alpha);
   }
