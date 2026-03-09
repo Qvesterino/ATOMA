@@ -15,6 +15,7 @@ const DEFAULT_METRICS = {
 };
 
 const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+const MAX_IMPULSE = 0.25;
 
 // TODO: Replace placeholder step sizes with design-approved values.
 const STEP = {
@@ -123,8 +124,9 @@ function ensureMetrics(node) {
 
 function adjust(metrics, key, delta, targetId = 'unknown-node') {
   assertMetricAuthority('NodeMetricEngine', key);
+  const clampedDelta = Math.max(-MAX_IMPULSE, Math.min(MAX_IMPULSE, delta));
   const before = metrics[key];
-  const after = clamp01(before + delta);
+  const after = clamp01(before + clampedDelta);
   metrics[key] = after;
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
 }
@@ -138,6 +140,9 @@ export function applyMetricImpulse(node, deltas = {}) {
   if (!node) return;
   const m = ensureMetrics(node);
   if (!m) return;
+  if (node.userData) {
+    node.userData.metricsCooldown = 3;
+  }
   const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
   const keys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
   for (const key of keys) {

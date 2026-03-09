@@ -16,6 +16,13 @@ export class NetworkMetricsAggregator {
   // SIMPLE MODE (with link influence)
   // ============================================================
   compute() {
+    const totalLinks = this._countTotalLinks();
+    console.log("ATOMA AUDIT");
+    console.log("totalLinks:", totalLinks);
+    if (totalLinks === 0) {
+      return this._emptyMetrics();
+    }
+
     const networks = this.networkResolver.getNetworks();
     if (!networks || networks.size === 0) {
       return this._emptyMetrics();
@@ -30,11 +37,15 @@ export class NetworkMetricsAggregator {
       for (const nodeId of nodes) {
         const node = this._getNode(nodeId);
         if (!node || !node.userData?.metrics) continue;
+        const links = this._getLinksForNode(nodeId);
+        const degree = links?.length || 0;
+        if (degree === 0) continue;
 
         this._accumulateNodeMetrics(totals, node.userData.metrics, 1);
         contributingNodes++;
       }
     }
+    console.log("contributingNodes:", contributingNodes);
 
     // Add link influence to totals
     for (const nodes of networks.values()) {
@@ -79,6 +90,13 @@ export class NetworkMetricsAggregator {
   // WEIGHTED MODE (link quality + link influence)
   // ============================================================
   computeWeighted() {
+    const totalLinks = this._countTotalLinks();
+    console.log("ATOMA AUDIT");
+    console.log("totalLinks:", totalLinks);
+    if (totalLinks === 0) {
+      return this._emptyMetrics();
+    }
+
     const networks = this.networkResolver.getNetworks();
     if (!networks || networks.size === 0) {
       return this._emptyMetrics();
@@ -86,6 +104,7 @@ export class NetworkMetricsAggregator {
 
     let totals = this._createTotals();
     let totalWeight = 0;
+    let contributingNodes = 0;
     const processedLinks = new Set(); // Track links to avoid double-counting
 
     for (const nodes of networks.values()) {
@@ -93,8 +112,9 @@ export class NetworkMetricsAggregator {
         const node = this._getNode(nodeId);
         if (!node || !node.userData?.metrics) continue;
 
-        const links = this.networkResolver.linkSystem?.getLinksForNode(nodeId);
-        if (!links || links.length === 0) continue;
+        const links = this._getLinksForNode(nodeId);
+        const degree = links?.length || 0;
+        if (degree === 0) continue;
 
         const nodeWeight = links.reduce((sum, l) => sum + (l.quality ?? 0.5), 0) / links.length;
 
@@ -105,6 +125,7 @@ export class NetworkMetricsAggregator {
         );
 
         totalWeight += nodeWeight;
+        contributingNodes++;
 
         // Add link influence (weighted by link quality)
         for (const link of links) {
@@ -135,6 +156,7 @@ export class NetworkMetricsAggregator {
     if (totalWeight === 0) {
       return this._emptyMetrics();
     }
+    console.log("contributingNodes:", contributingNodes);
 
     const result = this._finalizeMetrics(
       totals,
@@ -188,9 +210,34 @@ export class NetworkMetricsAggregator {
     return this.networkResolver.nodeMap.get(nodeId);
   }
 
+  _getLinksForNode(nodeId) {
+    return this.networkResolver.linkSystem?.getLinksForNode(nodeId) || [];
+  }
+
   _getNodeId(node) {
     if (!node || !node.userData) return undefined;
     return node.userData.id || node.id;
+  }
+
+  _countTotalLinks() {
+    // direct list if available
+    if (Array.isArray(this.networkResolver?.linkSystem?.links)) {
+      return this.networkResolver.linkSystem.links.length;
+    }
+    const getLinksForNode = this.networkResolver?.linkSystem?.getLinksForNode;
+    const nodeMap = this.networkResolver?.nodeMap;
+    if (typeof getLinksForNode === 'function' && nodeMap instanceof Map) {
+      const seen = new Set();
+      for (const nodeId of nodeMap.keys()) {
+        const links = getLinksForNode(nodeId) || [];
+        for (const l of links) {
+          const id = l?.id || `${l?.nodeA ?? l?.source ?? 'a'}-${l?.nodeB ?? l?.target ?? 'b'}`;
+          if (id) seen.add(id);
+        }
+      }
+      return seen.size;
+    }
+    return 0;
   }
 
   _createTotals() {

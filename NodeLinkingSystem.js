@@ -3551,6 +3551,21 @@ getLinksForNode(node) {
     this.links.push(link);
     this._markLinksDirty();
     this._markNodesDirty();
+
+    // Trigger global metrics aggregation immediately on link creation
+    if (this.metricsRuntime?.runNetworkMetricsAggregator) {
+      try {
+        this.metricsRuntime.runNetworkMetricsAggregator();
+      } catch (e) {
+        console.warn('[NodeLinkingSystem] metrics aggregation trigger failed', e);
+      }
+    } else if (typeof window !== 'undefined' && window.metricsRuntime?.runNetworkMetricsAggregator) {
+      try {
+        window.metricsRuntime.runNetworkMetricsAggregator();
+      } catch (e) {
+        console.warn('[NodeLinkingSystem] window.metricsRuntime aggregation trigger failed', e);
+      }
+    }
     
     // 4. Register with sub-systems
       this.visuals.registerLink(link.id, link.group);

@@ -59,6 +59,14 @@ const CANONICAL_METRIC_FIELDS = [
     'loadPressure'
 ];
 
+const RELAXATION = {
+    synergy: 0.06,
+    harmony: 0.05,
+    stability: 0.04,
+    corruption: 0.03,
+    loadPressure: 0.07
+};
+
 export class MetricsRuntime_v1 {
     /**
      * Initialize metrics runtime orchestration
@@ -215,18 +223,35 @@ export class MetricsRuntime_v1 {
                 const base = node?.userData?.archetypeMetrics;
                 if (!m || !base) continue;
                 const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
-                const relaxSpeed = 0.02; // gentle return per 10 Hz step
+                this._sanitizeMetrics(m, id);
+
+                // Cooldown: skip relax if metrics were recently impulsed
+                if (node?.userData) {
+                    const cd = Number(node.userData.metricsCooldown ?? 0);
+                    if (cd > 0) {
+                        node.userData.metricsCooldown = cd - 1;
+                        continue;
+                    }
+                }
+
                 const beforeSynergy = m.synergy;
                 const beforeHarmony = m.harmony;
                 const beforeStability = m.stability;
                 const beforeCorruption = m.corruption;
                 const beforeLoad = m.loadPressure;
 
-                m.synergy      += (base.synergy      - m.synergy)      * relaxSpeed;
-                m.harmony      += (base.harmony      - m.harmony)      * relaxSpeed;
-                m.stability    += (base.stability    - m.stability)    * relaxSpeed;
-                m.corruption   += (base.corruption   - m.corruption)   * relaxSpeed;
-                m.loadPressure += (base.loadPressure - m.loadPressure) * relaxSpeed;
+                m.synergy      += (base.synergy      - m.synergy)      * (RELAXATION.synergy      ?? 0.05);
+                m.harmony      += (base.harmony      - m.harmony)      * (RELAXATION.harmony      ?? 0.05);
+                m.stability    += (base.stability    - m.stability)    * (RELAXATION.stability    ?? 0.05);
+
+                // Corruption decay model: decay toward 0, then relax toward archetype if needed
+                const corruptionDecay = 0.04;
+                m.corruption -= m.corruption * corruptionDecay;
+                if ((base.corruption ?? 0) > 0) {
+                    m.corruption += (base.corruption - m.corruption) * (RELAXATION.corruption ?? 0.05);
+                }
+
+                m.loadPressure += (base.loadPressure - m.loadPressure) * (RELAXATION.loadPressure ?? 0.05);
 
                 m.synergy = this._clamp01(m.synergy);
                 m.harmony = this._clamp01(m.harmony);
@@ -242,7 +267,7 @@ export class MetricsRuntime_v1 {
             }
 
             // 3. InteractionKernel Phase 1: flow equalization across links
-            const equalizeRate = 0.05;
+            const equalizeRate = 0.02;
             const linkList = this.linkSystem?.links || this.links || [];
             for (const link of linkList) {
                 const a = link?.source;
@@ -254,6 +279,8 @@ export class MetricsRuntime_v1 {
                 const idB = b?.userData?.nodeId || b?.uuid || b?.id || 'unknown-node';
 
                 if (ma.synergy !== undefined && mb.synergy !== undefined) {
+                    this._sanitizeMetrics(ma, idA);
+                    this._sanitizeMetrics(mb, idB);
                     const beforeA = ma.synergy;
                     const beforeB = mb.synergy;
                     const dS = (mb.synergy - ma.synergy) * equalizeRate;
@@ -264,6 +291,8 @@ export class MetricsRuntime_v1 {
                 }
 
                 if (ma.harmony !== undefined && mb.harmony !== undefined) {
+                    this._sanitizeMetrics(ma, idA);
+                    this._sanitizeMetrics(mb, idB);
                     const beforeA = ma.harmony;
                     const beforeB = mb.harmony;
                     const dH = (mb.harmony - ma.harmony) * equalizeRate;
@@ -271,6 +300,19 @@ export class MetricsRuntime_v1 {
                     mb.harmony = this._clamp01(mb.harmony - dH);
                     traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeA, ma.harmony, idA);
                     traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeB, mb.harmony, idB);
+                }
+
+                // Stability equalization (weaker than synergy/harmony)
+                if (ma.stability !== undefined && mb.stability !== undefined) {
+                    this._sanitizeMetrics(ma, idA);
+                    this._sanitizeMetrics(mb, idB);
+                    const beforeA = ma.stability;
+                    const beforeB = mb.stability;
+                    const dSt = (mb.stability - ma.stability) * 0.015;
+                    ma.stability = this._clamp01(ma.stability + dSt);
+                    mb.stability = this._clamp01(mb.stability - dSt);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeA, ma.stability, idA);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeB, mb.stability, idB);
                 }
             }
 
@@ -308,6 +350,19 @@ export class MetricsRuntime_v1 {
         if (v < 0) return 0;
         if (v > 1) return 1;
         return v;
+    }
+
+    _sanitizeMetrics(metricsObj, nodeId = 'unknown-node') {
+        if (!metricsObj) return;
+        const keys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+        for (const key of keys) {
+            const val = metricsObj[key];
+            const clamped = this._clamp01(val);
+            if (!Number.isFinite(val) || val !== clamped) {
+                metricsObj[key] = clamped;
+                console.warn('Metric drift corrected', { nodeId, key, value: val, corrected: clamped });
+            }
+        }
     }
 
     _captureSimulationSnapshot(nodeList) {
@@ -411,6 +466,7 @@ const adapter = this._createLinkSystemAdapter(
      * Used by FrameScheduler.background layer for 2Hz execution
      */
     runNetworkMetricsAggregator() {
+        console.log("ATOMA METRICS AGGREGATOR RUNNING");
         if (!this.useNetworkMetricsAggregator) return;
         try {
             this._runNetworkMetricsAggregator();
@@ -513,6 +569,21 @@ const adapter = this._createLinkSystemAdapter(
         let nodeCount = 0;
         let linkCount = 0;
 
+        // Guard: if no links exist, zero all global metrics
+        const totalLinks = this._countLinks();
+        if (totalLinks === 0) {
+            scope.__ATOMA_LIVE_METRICS__ = {
+                networkSynergy: 0,
+                harmonyFlow: 0,
+                networkStress: 0,
+                corruptionLevel: 0,
+                loadPressure: 0,
+                nodeCount: 0,
+                linkCount: 0
+            };
+            return;
+        }
+
         // Always compute baseline (node-only aggregation)
         const baseline = this._aggregateNodeMetrics();
         this._baselineMetrics = {
@@ -585,6 +656,17 @@ const adapter = this._createLinkSystemAdapter(
 
         // Temporal saturation flag (true when time is being slowed)
         const temporalSaturation = smoothedNetworkSynergy >= 0.85;
+
+        console.log("ATOMA METRICS PUBLISHED", {
+            networkSynergy: smoothedNetworkSynergy,
+            harmonyFlow: smoothedHarmonyFlow,
+            networkStress: smoothedNetworkStress,
+            corruptionLevel: smoothedCorruptionLevel,
+            loadPressure: smoothedLoadPressure,
+            nodeCount,
+            linkCount,
+            isUsingAggregator
+        });
 
         // Always publish with safe merge strategy (exposes smoothed values)
         this._safePublishLiveMetrics({
@@ -716,6 +798,31 @@ const adapter = this._createLinkSystemAdapter(
     _clamp01(value) {
         const num = Number.isFinite(value) ? value : 0;
         return Math.max(0, Math.min(1, num));
+    }
+
+    _countLinks() {
+        // Prefer direct link system if available
+        if (Array.isArray(this.linkSystem?.links)) {
+            return this.linkSystem.links.length;
+        }
+        if (Array.isArray(this.networkResolver?.linkSystem?.links)) {
+            return this.networkResolver.linkSystem.links.length;
+        }
+        // Fallback: count unique links via getLinksForNode
+        const getLinksForNode = this.networkResolver?.linkSystem?.getLinksForNode;
+        const nodeMap = this.networkResolver?.nodeMap;
+        if (typeof getLinksForNode === 'function' && nodeMap instanceof Map) {
+            const seen = new Set();
+            for (const nodeId of nodeMap.keys()) {
+                const links = getLinksForNode(nodeId) || [];
+                for (const l of links) {
+                    const id = l?.id || `${l?.nodeA ?? l?.source ?? 'a'}-${l?.nodeB ?? l?.target ?? 'b'}`;
+                    if (id) seen.add(id);
+                }
+            }
+            return seen.size;
+        }
+        return 0;
     }
 
     /**
