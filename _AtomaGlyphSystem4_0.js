@@ -151,7 +151,7 @@ export class AtomaGlyphSystem4_0 {
     
     const context = {
       synergy: node.userData.synergy || 0,
-      stability: node.userData.stability || 0,
+      stability: node.userData?.metrics?.stability ?? 0,
       harmony: node.userData.harmony || 0,
       corruption: node.userData.corruption || 0,
       load: node.userData.load || 0,

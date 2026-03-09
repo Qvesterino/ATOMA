@@ -4084,29 +4084,46 @@ getLinksForNode(node) {
       link.sigmaEffects = this.createSigmaLinkEffects(link);
     }
     
-    // [Session 20 FIX] Compute and store initial synergy score
-    if (window.ComputeSynergyScore2_0) {
-      try {
-        const synergyResult = window.ComputeSynergyScore2_0(link, {
+    // [Synergy Canonical Writer] Compute and store initial synergy object
+    try {
+      let synergyResult = null;
+      if (window.ComputeSynergyScore2_1) {
+        // Prefer Phase 3b calculator; supports synergyNorm
+        const calc = window.ComputeSynergyScore2_1;
+        synergyResult =
+          typeof calc === 'function'
+            ? calc(link, { linkingSystem: this })
+            : typeof calc?.compute === 'function'
+              ? calc.compute(link, { linkingSystem: this })
+              : null;
+      }
+      if (!synergyResult && window.ComputeSynergyScore2_0) {
+        // Fallback to legacy 2.0
+        synergyResult = window.ComputeSynergyScore2_0(link, {
           linkingSystem: this,
           config: { weights: { type: 0.35, priority: 0.25, traffic: 0.20, decay: 0.10, topology: 0.10 } }
         });
-        
-        link['synergyScore'] = synergyResult?.score || 0.5;
-        
-        console.debug(`[Synergy] Link created with score: ${link['synergyScore'].toFixed(3)}`);
-        
-        // Push to LinkHistoryTracker if active
-        if (window.linkHistoryTracker) {
-          const viability = window.linkQualityPredictor?.computeLinkQuality(link) || 50;
-          window.linkHistoryTracker.recordSample(link, link['synergyScore'], viability, 0.7);
-        }
-      } catch (err) {
-        console.warn('[Session 20] Synergy computation error:', err.message);
-        link['synergyScore'] = 0.5;  // Safe default
       }
-    } else {
-      link['synergyScore'] = 0.5;  // Fallback if ComputeSynergyScore2_0 not available
+
+      const score = synergyResult?.score ?? 0.5;
+      const synergyNorm = synergyResult?.synergyNorm ?? score ?? 0.5;
+
+      if (!link.userData) link.userData = {};
+      link.userData.synergy = { score, synergyNorm };
+      link['synergyScore'] = score; // Compatibility mirror
+
+      console.debug(`[Synergy] Link created with score: ${score.toFixed(3)} norm: ${synergyNorm.toFixed(3)}`);
+
+      // Push to LinkHistoryTracker if active
+      if (window.linkHistoryTracker) {
+        const viability = window.linkQualityPredictor?.computeLinkQuality(link) || 50;
+        window.linkHistoryTracker.recordSample(link, score, viability, 0.7);
+      }
+    } catch (err) {
+      console.warn('[Synergy] computation error:', err?.message || err);
+      link['synergyScore'] = 0.5;
+      if (!link.userData) link.userData = {};
+      link.userData.synergy = { score: 0.5, synergyNorm: 0.5 };
     }
     
     // [Metrics Integration v1.0] Initial metric wiring (read-only, no computation)
@@ -5540,13 +5557,13 @@ getLinksForNode(node) {
       if (isCorrupted) {
         if (!link.source.userData.corruptedState) {
           this._applyCorruptionToNode(link.source, normalized.corruption);
-        } else if (link.source.userData.corruptionLevel !== normalized.corruption) {
+        } else if ((link.source.userData.metrics?.corruption ?? 0) !== normalized.corruption) {
           this._applyCorruptionToNode(link.source, normalized.corruption);  // Update intensity
         }
         
         if (!link.target.userData.corruptedState) {
           this._applyCorruptionToNode(link.target, normalized.corruption);
-        } else if (link.target.userData.corruptionLevel !== normalized.corruption) {
+        } else if ((link.target.userData.metrics?.corruption ?? 0) !== normalized.corruption) {
           this._applyCorruptionToNode(link.target, normalized.corruption);  // Update intensity
         }
       } else {
@@ -5782,7 +5799,6 @@ getLinksForNode(node) {
         }
         
         node.userData.corruptedState = 'CORRUPTED';
-        node.userData.corruptionLevel = corruptionLevel;
       } else {
         // Restore to normal
         for (const child of node.children) {
@@ -5842,6 +5858,16 @@ getLinksForNode(node) {
       console.error('[NodeLinkingSystem] Corruption removal failed:', err.message);
     }
   }
+
+  _readNodeCorruption(node) {
+    return node?.userData?.metrics?.corruption ?? 0;
+  }
+
+  _writeNodeCorruption(node, value) {
+    if (!node || !node.userData) return;
+    if (!node.userData.metrics) node.userData.metrics = {};
+    node.userData.metrics.corruption = Math.max(0, Math.min(1, value ?? 0));
+  }
   
   /**
    * [CORRUPTION CONTAGION v1.0] Main update loop for corruption spread
@@ -5863,9 +5889,9 @@ getLinksForNode(node) {
     for (const link of this.links) {
       if (!link.active || !link.source || !link.target) continue;
       
-      // Get corruption levels from both nodes
-      const sourceCorruption = link.source.userData?.corruptionLevel ?? 0;
-      const targetCorruption = link.target.userData?.corruptionLevel ?? 0;
+      // Get corruption levels from both nodes (canonical metrics)
+      const sourceCorruption = this._readNodeCorruption(link.source);
+      const targetCorruption = this._readNodeCorruption(link.target);
       
       // Initialize link contagion state if needed
       if (!link.userData) link.userData = {};
@@ -5913,7 +5939,7 @@ getLinksForNode(node) {
           
           if (spreadAmount > 0) {
             const newTargetCorruption = Math.min(1.0, targetCorruption + spreadAmount);
-            link.target.userData.corruptionLevel = newTargetCorruption;
+            this._writeNodeCorruption(link.target, newTargetCorruption);
             link.userData.contagionState.infectionIntensity = spreadAmount / deltaTime;
             
             contagionEvents.push({
@@ -5938,7 +5964,7 @@ getLinksForNode(node) {
           
           if (spreadAmount > 0) {
             const newSourceCorruption = Math.min(1.0, sourceCorruption + spreadAmount);
-            link.source.userData.corruptionLevel = newSourceCorruption;
+            this._writeNodeCorruption(link.source, newSourceCorruption);
             link.userData.contagionState.infectionIntensity = spreadAmount / deltaTime;
             
             contagionEvents.push({

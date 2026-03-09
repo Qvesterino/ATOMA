@@ -10,6 +10,10 @@
  */
 export function applyMetricCompatibility(nodes = []) {
   for (const node of nodes) {
+    // Restrict to spawn-only path
+    const spawnPhase = node?.__spawnPhase ?? node?.__isSpawnInitialization;
+    if (!spawnPhase) continue;
+
     const ud = node?.userData;
     if (!ud) continue;
 

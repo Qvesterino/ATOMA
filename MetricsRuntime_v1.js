@@ -511,6 +511,7 @@ const adapter = this._createLinkSystemAdapter(
         let corruptionLevel = 0;
         let loadPressure = 0;
         let nodeCount = 0;
+        let linkCount = 0;
 
         // Always compute baseline (node-only aggregation)
         const baseline = this._aggregateNodeMetrics();
@@ -521,6 +522,10 @@ const adapter = this._createLinkSystemAdapter(
             corruptionLevel: baseline.corruptionLevel,
             loadPressure: baseline.loadPressure
         };
+
+        // Link-derived synergy (canonical link metric average)
+        const linkAgg = this._aggregateLinkSynergy();
+        linkCount = linkAgg.linkCount;
 
         // Priority 1: Use NetworkMetricsAggregator override if available
         const override = scope[this.networkMetricsOverrideKey];
@@ -545,7 +550,7 @@ const adapter = this._createLinkSystemAdapter(
             };
         } else {
             // Priority 2: Fallback to aggregating node metrics (no link influence)
-            networkSynergy = baseline.networkSynergy;
+            networkSynergy = linkAgg.avgSynergy;
             harmonyFlow = baseline.harmonyFlow;
             networkStress = baseline.networkStress;
             corruptionLevel = baseline.corruptionLevel;
@@ -589,6 +594,7 @@ const adapter = this._createLinkSystemAdapter(
             corruptionLevel: smoothedCorruptionLevel,
             loadPressure: smoothedLoadPressure,
             nodeCount,
+            linkCount,
             temporalSaturation
         });
     }
@@ -611,7 +617,8 @@ const adapter = this._createLinkSystemAdapter(
             networkStress: 0,
             corruptionLevel: 0,
             loadPressure: 0,
-            nodeCount: 0
+            nodeCount: 0,
+            linkCount: 0
         };
 
         // Get previous state to preserve values if partialMetrics is missing fields
@@ -623,6 +630,19 @@ const adapter = this._createLinkSystemAdapter(
             ...defaults,
             ...previous,
             ...partialMetrics
+        };
+
+        // Mirror into world.metrics.global for canonical consumers
+        scope.world = scope.world || {};
+        scope.world.metrics = scope.world.metrics || {};
+        scope.world.metrics.global = {
+            networkSynergy: scope.__ATOMA_LIVE_METRICS__.networkSynergy,
+            harmonyFlow: scope.__ATOMA_LIVE_METRICS__.harmonyFlow,
+            networkStress: scope.__ATOMA_LIVE_METRICS__.networkStress,
+            corruptionLevel: scope.__ATOMA_LIVE_METRICS__.corruptionLevel,
+            loadPressure: scope.__ATOMA_LIVE_METRICS__.loadPressure,
+            nodeCount: scope.__ATOMA_LIVE_METRICS__.nodeCount,
+            linkCount: scope.__ATOMA_LIVE_METRICS__.linkCount,
         };
     }
 
@@ -669,6 +689,25 @@ const adapter = this._createLinkSystemAdapter(
             loadPressure: avgLoadPressure,
             nodeCount
         };
+    }
+
+    /**
+     * Aggregate link synergy from canonical link.userData.synergy.score
+     */
+    _aggregateLinkSynergy() {
+        const linksList = Array.isArray(this.links) ? this.links : (this.linkSystem?.links || []);
+        let sumSynergy = 0;
+        let linkCount = 0;
+
+        for (const link of linksList) {
+            const score = link?.userData?.synergy?.score;
+            if (!Number.isFinite(score)) continue;
+            sumSynergy += this._clamp01(score);
+            linkCount++;
+        }
+
+        const avgSynergy = linkCount > 0 ? sumSynergy / linkCount : 0;
+        return { avgSynergy, linkCount };
     }
 
     /**

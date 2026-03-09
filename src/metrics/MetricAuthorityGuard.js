@@ -15,11 +15,11 @@
  * Guard never throws; it only warns once per (system, metric).
  */
 const ALLOWED = {
-  synergy: ['ComputeSynergyScore2_1', 'NodeMetricEngine'],
-  harmony: ['NodeMetricEngine', 'HarmonyStabilizationSystem'],
-  stability: ['NodeMetricEngine'],
-  corruption: ['LinkCorruptionTransmission', 'NodeMetricEngine'],
-  loadPressure: ['NodeMetricEngine'],
+  synergy: ['ComputeSynergyScore2_1', 'NodeMetricEngine', 'MetricCompatibilityLayer'],
+  harmony: ['NodeMetricEngine', 'HarmonyStabilizationSystem', 'MetricCompatibilityLayer'],
+  stability: ['NodeMetricEngine', 'MetricCompatibilityLayer'],
+  corruption: ['LinkCorruptionTransmission', 'NodeMetricEngine', 'MetricCompatibilityLayer'],
+  loadPressure: ['NodeMetricEngine', 'MetricCompatibilityLayer'],
 };
 
 const warned = new Set();

@@ -248,7 +248,7 @@ export class LinkedGlyphMessaging3_0 {
     // Extract semantic state from node
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const stability = node.userData.stability || 0;
+    const stability = node.userData?.metrics?.stability ?? 0;
     const harmony = node.userData.harmony || 0;
     const load = node.userData.load || 0;
     
@@ -289,7 +289,7 @@ export class LinkedGlyphMessaging3_0 {
   determineGlyphRole(node, messageType) {
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const stability = node.userData.stability || 0;
+    const stability = node.userData?.metrics?.stability ?? 0;
     const harmony = node.userData.harmony || 0;
     
     if (messageType === 'SUBJECT') {

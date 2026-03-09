@@ -284,8 +284,9 @@ export class LinkGlowSynergyEngine_v2 {
     if (!link) return 0.5;
     
     // Try canonical synergy object first
-    if (link.userData?.synergy?.score) {
-      return this._clamp01(link.userData.synergy.score);
+    const synergyScore = link.userData?.synergy?.score;
+    if (Number.isFinite(synergyScore)) {
+      return this._clamp01(synergyScore);
     }
     
     // Try direct property

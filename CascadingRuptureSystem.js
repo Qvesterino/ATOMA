@@ -326,7 +326,7 @@ export class CascadingRuptureSystem {
         if (corruption < CONFIG.CORRUPTION_THRESHOLD) return false;
 
         // Check stability threshold
-        const stability = node.userData.stability || 1.0;
+        const stability = node.userData?.metrics?.stability ?? 1.0;
         if (stability > CONFIG.STABILITY_THRESHOLD) return false;
 
         // Don't cascade too frequently from same node
@@ -509,7 +509,7 @@ export class CascadingRuptureSystem {
         if (!node.userData) return;
 
         const corruption = node.userData.corruption || 0;
-        const stability = node.userData.stability || 1.0;
+        const stability = node.userData?.metrics?.stability ?? 1.0;
 
         // High cascade energy + low stability + high corruption = critical
         if (cascadeEnergy > 0.5 && stability < 0.3 && corruption > 0.7) {

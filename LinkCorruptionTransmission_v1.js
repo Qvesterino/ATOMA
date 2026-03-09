@@ -2185,7 +2185,9 @@ export class LinkCorruptionTransmission_v1 {
 
     // Apply infection to target node
     if (targetNode && targetNode.userData) {
-      const targetCorruptionBefore = targetNode.userData.corruption || 0;
+      if (!targetNode.userData.metrics) targetNode.userData.metrics = {};
+      const targetMetrics = targetNode.userData.metrics;
+      const targetCorruptionBefore = targetMetrics.corruption || 0;
       
       // [Tier 4.75] Attenuate infection impulse by synergy stabilization
       // Base infection is 0.2, reduced up to ~30% at synergy = 1.0
@@ -2195,7 +2197,7 @@ export class LinkCorruptionTransmission_v1 {
       const computedCorruption = Math.min(1.0, targetCorruptionBefore + attenuatedDelta);
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
-        targetNode.userData.corruption = computedCorruption;
+        targetMetrics.corruption = computedCorruption;
       }
       
       // Mark as infected
@@ -2229,6 +2231,8 @@ export class LinkCorruptionTransmission_v1 {
     const targetNode = link.target || link.targetNode;
 
     if (targetNode && targetNode.userData) {
+      if (!targetNode.userData.metrics) targetNode.userData.metrics = {};
+      const targetMetrics = targetNode.userData.metrics;
       // [Tier 4.75] Attenuate immediate corruption surge by synergy stabilization
       // With max attenuation (~30%), surge reaches ~0.7 instead of 1.0
       const stabilization = stabilizationApplied ?? 0;
@@ -2236,7 +2240,7 @@ export class LinkCorruptionTransmission_v1 {
       const attenuatedSurge = baseSurge * (1 - stabilization * 0.75);
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
-        targetNode.userData.corruption = attenuatedSurge;
+        targetMetrics.corruption = attenuatedSurge;
         targetNode.userData.corruptionSurgeTime = Date.now();
       }
       

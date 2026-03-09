@@ -8,6 +8,7 @@
  * 
  * All future visual systems must conform to these templates.
  * Deviation requires architectural review.
+ * visual systems must never mutate metrics (read-only access only).
  */
 
 // ============================================================================
@@ -91,10 +92,7 @@ class SynergyGlowReference {
     if (synergy > threshold) { triggerEffect(); }
     
     // ✗ WRONG: Stat mutation
-    // Do not mutate canonical synergy (read-only)
-    
-    // ✗ WRONG: Feedback loop
-    if (glow.brightness > 0.8) { /* read-only: no mutation */ }
+    // visual systems must never mutate metrics
     `;
   }
 }
@@ -169,22 +167,22 @@ class HarmonyAuraReference {
   static examplesOfWrongPatterns() {
     return `
     // ✗ WRONG: Reading raw harmony
-    aura.opacity = node.userData.harmony * 1.5;
-    
+    const harmony = node.userData.metrics?.harmony ?? 0; // read-only
+  
     // ✗ WRONG: Mixing with corruption
-    if (harmony > 0.5 && corruption < 0.3) { aura.color = mixed; }
-    
+    // Use derived visual signals instead of raw metrics
+  
     // ✗ WRONG: Triggering healing
     if (aura.opacity > 0.7) { healNearbyLinks(); }
-    
+  
     // ✗ WRONG: Writing state
-    node.userData.harmonyVisualStrength = aura.strength;
-    
+    // visual systems must never mutate metrics or userData state
+  
     // ✗ WRONG: Over-smoothing (destroys breathing)
     const alpha = 0.5;  // Too much smoothing
     
     // ✗ WRONG: Feedback mutation
-    if (aura.strong) { node.userData.harmony += 0.01; }
+    // Never change metrics; use read-only harmony signal
     
     // ✗ WRONG: Threshold behavior
     aura.visible = harmony > 0.3;  // Creates pop
@@ -317,9 +315,7 @@ class NetworkStressTurbulenceReference {
     turbulenceVisible = stress > 0.5;  // Creates pop
     
     // ✗ WRONG: Stat mutation
-    nodes.forEach(n => {
-      n.userData.corruption += stress * 0.01;
-    });
+    // visual systems must never mutate metrics
     `;
   }
 }

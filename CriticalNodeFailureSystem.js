@@ -339,7 +339,7 @@ export class CriticalNodeFailureSystem {
         if (!node || !node.userData) return false;
 
         // Check thresholds
-        const stability = node.userData.stability ?? 1.0;
+        const stability = node.userData?.metrics?.stability ?? 1.0;
         const corruption = node.userData.corruption ?? 0.0;
 
         if (stability > CONFIG.STABILITY_CRITICAL) return false;
@@ -543,8 +543,9 @@ export class CriticalNodeFailureSystem {
             if (timeSinceIsolation < CONFIG.RECOVERY_ATTEMPT_DELAY) return;
 
             // Slow stability recovery
-            const currentStability = node.userData.stability || 0;
-            node.userData.stability = Math.min(
+            if (!node.userData.metrics) node.userData.metrics = {};
+            const currentStability = node.userData.metrics.stability || 0;
+            node.userData.metrics.stability = Math.min(
                 currentStability + CONFIG.RECOVERY_ATTEMPT_RATE * deltaTime,
                 0.5 // Cap at 50% (never fully recovers without healing)
             );

@@ -555,7 +555,7 @@ export class RecursiveGlyphMessaging4_0 {
       // Calculate segment spacing (varies with synergy)
       const spacingVariation = chain.userData.synergy > 0.6
         ? -this.config.synergySegmentCompression
-        : (1.0 - chain.userData.stability) * this.config.stabilitySegmentExpansion;
+        : (1.0 - (chain.userData.metrics?.stability ?? 0)) * this.config.stabilitySegmentExpansion;
       
       accumulatedOffset += this.config.segmentSpacingBase + spacingVariation;
     }
@@ -738,7 +738,7 @@ export class RecursiveGlyphMessaging4_0 {
       pos.add(chain.sourceNode.position);
       
       // Add jitter (from stability/corruption)
-      const jitterAmount = (1.0 - chain.userData.stability) * this.config.jitterAmplitude;
+      const jitterAmount = (1.0 - (chain.userData.metrics?.stability ?? 0)) * this.config.jitterAmplitude;
       pos.x += (Math.random() - 0.5) * jitterAmount;
       pos.y += (Math.random() - 0.5) * jitterAmount;
       pos.z += (Math.random() - 0.5) * jitterAmount;

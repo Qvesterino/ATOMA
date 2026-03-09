@@ -357,7 +357,7 @@ export class SemanticGlyphAI {
     const canonical = {
       synergy: userData.synergy,
       harmony: userData.harmony,
-      stability: userData.stability,
+      stability: userData.metrics?.stability ?? 0,
       corruption: userData.corruption,
       loadPressure: userData.loadPressure
     };

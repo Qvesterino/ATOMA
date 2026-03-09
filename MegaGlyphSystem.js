@@ -552,7 +552,7 @@ export class MegaGlyphSystem {
 
     const context = {
       synergy: node.userData.synergy || 0,
-      stability: node.userData.stability || 0,
+      stability: node.userData?.metrics?.stability ?? 0,
       harmony: node.userData.harmony || 0,
       corruption: node.userData.corruption || 0,
       load: node.userData.load || 0,
@@ -737,7 +737,7 @@ export class MegaGlyphSystem {
 
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const stability = node.userData.stability || 0;
+    const stability = node.userData?.metrics?.stability ?? 0;
     const harmony = node.userData.harmony || 0;
     const load = node.userData.load || 0;
 
@@ -772,7 +772,7 @@ export class MegaGlyphSystem {
   determineGlyphRole(node, messageType) {
     const synergy = node.userData.synergy || 0.5;
     const corruption = node.userData.corruption || 0;
-    const stability = node.userData.stability || 0;
+    const stability = node.userData?.metrics?.stability ?? 0;
     const harmony = node.userData.harmony || 0;
 
     if (messageType === 'SUBJECT') {
@@ -1528,7 +1528,7 @@ export class MegaGlyphSystem {
     const canonical = {
       synergy: userData.synergy,
       harmony: userData.harmony,
-      stability: userData.stability,
+      stability: userData.metrics?.stability ?? 0,
       corruption: userData.corruption,
       loadPressure: userData.loadPressure
     };
