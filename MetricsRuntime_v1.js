@@ -111,6 +111,14 @@ export class MetricsRuntime_v1 {
             corruptionLevel: 0,
             loadPressure: 0
         };
+        // Additional publish smoothing to prevent HUD jitter
+        this._publishedMetrics = {
+            networkSynergy: 0,
+            harmonyFlow: 0,
+            networkStress: 0,
+            corruptionLevel: 0,
+            loadPressure: 0
+        };
 
         // Internal baseline/influence tracking (not exposed to HUD)
         this._baselineMetrics = {
@@ -654,15 +662,40 @@ const adapter = this._createLinkSystemAdapter(
             loadPressure: smoothedLoadPressure
         };
 
+        // Final HUD-friendly smoothing
+        const publishFactor = 0.15;
+        const publishNetworkSynergy = this._lerp(this._publishedMetrics.networkSynergy, smoothedNetworkSynergy, publishFactor);
+        const publishHarmonyFlow = this._lerp(this._publishedMetrics.harmonyFlow, smoothedHarmonyFlow, publishFactor);
+        const publishNetworkStress = this._lerp(this._publishedMetrics.networkStress, smoothedNetworkStress, publishFactor);
+        const publishCorruptionLevel = this._lerp(this._publishedMetrics.corruptionLevel, smoothedCorruptionLevel, publishFactor);
+        const publishLoadPressure = this._lerp(this._publishedMetrics.loadPressure, smoothedLoadPressure, publishFactor);
+
+        // Clamp published values to [0,1]
+        const clampedPublish = {
+            networkSynergy: this._clamp01(publishNetworkSynergy),
+            harmonyFlow: this._clamp01(publishHarmonyFlow),
+            networkStress: this._clamp01(publishNetworkStress),
+            corruptionLevel: this._clamp01(publishCorruptionLevel),
+            loadPressure: this._clamp01(publishLoadPressure)
+        };
+
+        this._publishedMetrics = {
+            networkSynergy: clampedPublish.networkSynergy,
+            harmonyFlow: clampedPublish.harmonyFlow,
+            networkStress: clampedPublish.networkStress,
+            corruptionLevel: clampedPublish.corruptionLevel,
+            loadPressure: clampedPublish.loadPressure
+        };
+
         // Temporal saturation flag (true when time is being slowed)
         const temporalSaturation = smoothedNetworkSynergy >= 0.85;
 
         console.log("ATOMA METRICS PUBLISHED", {
-            networkSynergy: smoothedNetworkSynergy,
-            harmonyFlow: smoothedHarmonyFlow,
-            networkStress: smoothedNetworkStress,
-            corruptionLevel: smoothedCorruptionLevel,
-            loadPressure: smoothedLoadPressure,
+            networkSynergy: clampedPublish.networkSynergy,
+            harmonyFlow: clampedPublish.harmonyFlow,
+            networkStress: clampedPublish.networkStress,
+            corruptionLevel: clampedPublish.corruptionLevel,
+            loadPressure: clampedPublish.loadPressure,
             nodeCount,
             linkCount,
             isUsingAggregator
@@ -670,11 +703,11 @@ const adapter = this._createLinkSystemAdapter(
 
         // Always publish with safe merge strategy (exposes smoothed values)
         this._safePublishLiveMetrics({
-            networkSynergy: smoothedNetworkSynergy,
-            harmonyFlow: smoothedHarmonyFlow,
-            networkStress: smoothedNetworkStress,
-            corruptionLevel: smoothedCorruptionLevel,
-            loadPressure: smoothedLoadPressure,
+            networkSynergy: clampedPublish.networkSynergy,
+            harmonyFlow: clampedPublish.harmonyFlow,
+            networkStress: clampedPublish.networkStress,
+            corruptionLevel: clampedPublish.corruptionLevel,
+            loadPressure: clampedPublish.loadPressure,
             nodeCount,
             linkCount,
             temporalSaturation

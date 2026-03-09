@@ -288,41 +288,49 @@ export class LinkCorruptionMorphingSystem {
   }
 
   /**
-   * Update morphing for all links based on corruption state
+   * Update morphing for links based on corruption state.
+   * Accepts:
+   * - Map/Set (id -> link)
+   * - Array of links
+   * - Single link object (with .group)
    */
   update(deltaTime, linkRegistry) {
     if (!linkRegistry) return;
-    
+
     this.morphedLinkCount = 0;
-    const now = performance.now();
-    this.lastUpdateTime = now;
-    
-    // Update each link's morphing state
-    linkRegistry.forEach((link, linkId) => {
+    this.lastUpdateTime = performance.now();
+
+    const processLink = (link, linkIdHint = null) => {
       if (!link) return;
-      
+      const linkId = link.id ?? linkIdHint ?? link.group?.uuid ?? link.uuid;
+      if (linkId === undefined || linkId === null) return;
+
       const state = this.linkStates.get(linkId) || this.initializeLinkState(linkId, link);
       if (!state) return;
-      
-      // Get corruption value from link (LinkCorruptionTransmission_v1 sets this)
+
       const corruption = this.getCorruptionFromLink(link);
-      
-      // Update target profile based on corruption
+
       if (Math.abs(corruption - state.lastCorruption) > 0.01) {
         state.targetProfile = getProfileForCorruption(corruption);
         state.targetColor = getColorForCorruption(corruption);
         state.phase = getMorphingPhase(corruption);
         state.lastCorruption = corruption;
       }
-      
-      // Smooth interpolation toward target profile
+
       this.interpolateProfile(state, deltaTime);
-      
-      // Apply morphing to link visuals
-      this.applyMorphing(link, state);
-      
+
+      const group = link.group || link;
+      this.applyMorphing(group, state);
       this.morphedLinkCount++;
-    });
+    };
+
+    if (typeof linkRegistry.forEach === 'function' && !Array.isArray(linkRegistry)) {
+      linkRegistry.forEach((link, linkId) => processLink(link, linkId));
+    } else if (Array.isArray(linkRegistry)) {
+      linkRegistry.forEach((link) => processLink(link));
+    } else {
+      processLink(linkRegistry);
+    }
   }
 
   /**

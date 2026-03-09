@@ -3279,6 +3279,13 @@ class AtomaGame {
                 this.metricsRuntime_v1.runNetworkMetricsAggregator();
             }
         }, 'background.networkMetricsAggregator');
+        if (this.frameScheduler?.isRegistered?.('simulation.metricsAggregator') !== true) {
+            this.frameScheduler.register(
+                'simulation',
+                () => this.metricsRuntime_v1?.runNetworkMetricsAggregator?.(),
+                'simulation.metricsAggregator'
+            );
+        }
         this.frameScheduler.register('background', (dt) => {
             this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {});
         }, 'background.narrativePatterns');
@@ -5910,6 +5917,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         );
         this.linkingSystem.isReady = true;
         console.log('[main.js] NodeLinkingSystem created');
+
+        // Corruption transmission gameplay system (non-visual)
+        const corruptionTransmission = new LinkCorruptionTransmission_v1(
+            this.aiNodes,
+            this.linkingSystem
+        );
+        this.corruptionTransmission = corruptionTransmission;
+        this.aiNodes.linkCorruption = corruptionTransmission;
         // PicDiag: expose pictogram system globally for inspection
         if (typeof window !== 'undefined') {
             window.__PIC_SYSTEM__ = this.linkingSystem?.conduitRenderer?.pictogramSystem;
@@ -5936,6 +5951,19 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 (dt) => this.linkingSystem?.runSimulationMaintenance?.(dt),
                 'simulation.linkingSystem.metrics'
             );
+            // Corruption transmission (gameplay) — 10 Hz simulation lane
+            if (this.aiNodes?.linkCorruption) {
+                this.frameScheduler.register(
+                    'simulation',
+                    (dt) => {
+                        const sys = this.aiNodes?.linkCorruption;
+                        if (sys?.updateTransmission) {
+                            sys.updateTransmission(dt);
+                        }
+                    },
+                    'simulation.corruptionTransmission'
+                );
+            }
         }
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');

@@ -3573,6 +3573,15 @@ getLinksForNode(node) {
       if (this.thicknessSystem) {
         this.thicknessSystem.registerLinkCurve(link.group, link);
       }
+
+      // Register link with harmonic sync manager (if available)
+      if (this.conduitRenderer?.nodeHarmonicManager) {
+        this.conduitRenderer.nodeHarmonicManager.registerLinkWithNodes(
+          link,
+          link.source,
+          link.target
+        );
+      }
       
       LinkPrioritySystem.initializeLinkPriority(link);
       this._addLinkToIndex(link);
@@ -6263,6 +6272,14 @@ getLinksForNode(node) {
     // Unified visual dispose (conduit + particles)
     if (this.conduitRenderer && link.group && link.group.userData.conduitState) {
       this.conduitRenderer.disposeLinkVisuals(link.group, link);
+    }
+    // Unregister from harmonic sync manager
+    if (this.conduitRenderer?.nodeHarmonicManager) {
+      this.conduitRenderer.nodeHarmonicManager.unregisterLinkFromNodes(
+        link,
+        link.source,
+        link.target
+      );
     }
     // Forced trail cleanup even if group/conduitState is missing
     const conduit = this.conduitRenderer;

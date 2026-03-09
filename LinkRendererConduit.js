@@ -16,6 +16,7 @@ import { NodeHarmonicManager } from './NodeHarmonicManager.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
+import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './shaders/LinkStateVisualLanguage.js';
@@ -642,10 +643,15 @@ export class LinkRendererConduit {
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
 
         // Corruption spread animation system (visual only)
-        this.corruptionAnimator = new LinkCorruptionSpreadAnimator();
+        this.corruptionSpreadAnimator = new LinkCorruptionSpreadAnimator();
+        this.corruptionAnimator = this.corruptionSpreadAnimator; // backward compat
 
         // Corruption particle system (visual only)
-        this.corruptionParticles = new LinkCorruptionParticleSystem(scene);
+        this.corruptionParticleSystem = new LinkCorruptionParticleSystem(scene);
+        this.corruptionParticles = this.corruptionParticleSystem; // backward compat
+
+        // Corruption morphing system (visual deformation)
+        this.corruptionMorphing = new LinkCorruptionMorphingSystem();
 
         // Trail particle system (visual only) - uses same noise as aura systems
         this.trailParticles = new LinkTrailParticleSystem(scene, 300);
@@ -655,6 +661,7 @@ export class LinkRendererConduit {
 
         // Healing particle system (visual only) - reverse flow, harmony-driven
         this.healingParticles = new LinkHealingParticleSystem(scene, 250);
+        this.linkHealingParticles = this.healingParticles; // alias for clarity
 
         // Healing emitters per link
         this.healingEmitters = new Map();
@@ -755,6 +762,9 @@ export class LinkRendererConduit {
             }
         }
 
+        // Reset per-frame healing activity counter (for debug logging)
+        this._healingActiveCount = 0;
+
         for (const link of list) {
             this.update(link, deltaTime, time);
         }
@@ -783,6 +793,18 @@ export class LinkRendererConduit {
                 this._picDiagLogged = true;
             }
             this.pictogramSystem.update(deltaTime, time, this.camera);
+        }
+
+        // Shared healing particle system update
+        this.updateHealingParticles(deltaTime, time);
+
+        // Debug log (throttled) for healing activity
+        if (this._healingActiveCount > 0) {
+            const now = performance.now();
+            if (!this._healingDebugLast || now - this._healingDebugLast > 1000) {
+                console.log('[HealingParticles] active links:', this._healingActiveCount);
+                this._healingDebugLast = now;
+            }
         }
     }
 
@@ -1325,6 +1347,42 @@ export class LinkRendererConduit {
                 console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
             }
             return;
+        }
+
+        // Harmonic sync update (links + aggregated metrics)
+        if (this.nodeHarmonicManager) {
+            const instabilityMetric = metrics?.instability;
+            const stabilityMetric = metrics?.stability;
+            const instabilityValue = (typeof instabilityMetric === 'number')
+                ? instabilityMetric
+                : (typeof stabilityMetric === 'number' ? 1 - stabilityMetric : 0.0);
+            this.nodeHarmonicManager.update(
+                [link],
+                metrics?.harmony ?? 1.0,
+                metrics?.corruption ?? 0.0,
+                instabilityValue
+            );
+        }
+
+        // Corruption VFX updates (spread + particles)
+        if (this.modules.corruptionFX) {
+            if (this.corruptionSpreadAnimator && state.strands) {
+                this.corruptionSpreadAnimator.update(link, visualDelta, state.strands);
+            }
+            if (this.corruptionMorphing && state.strands) {
+                this.corruptionMorphing.update(
+                    link,
+                    visualDelta,
+                    state.strands
+                );
+            }
+            if (this.corruptionParticleSystem) {
+                // Prefer canonical updater; fall back if alias differs
+                const updater = this.corruptionParticleSystem.updateLinkParticles
+                    ? this.corruptionParticleSystem.updateLinkParticles.bind(this.corruptionParticleSystem)
+                    : this.corruptionParticleSystem.update?.bind(this.corruptionParticleSystem);
+                if (updater) updater(link, visualDelta);
+            }
         }
 
         // --- LINK ANCHORING FIX ---
@@ -1889,19 +1947,7 @@ export class LinkRendererConduit {
             }
        }
 
-        // --- 4.5. CORRUPTION SPREAD ANIMATION ---
-        // Animate color shift from source to target as corruption spreads
-        if (this.corruptionAnimator && state.strands && this.modules.corruptionFX) {
-            this.corruptionAnimator.update(link, visualDelta, state.strands);
-        }
-
-        // --- 4.6. CORRUPTION PARTICLE EFFECTS ---
-        // Emit particles that flow along link from source to target
-        if (this.corruptionParticles && this.modules.corruptionFX) {
-            this.corruptionParticles.updateLinkParticles(link, visualDelta);
-        }
-
-        // --- 4.7. TRAIL PARTICLE EFFECTS ---
+        // --- 4.5. TRAIL PARTICLE EFFECTS ---
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
@@ -1928,14 +1974,17 @@ export class LinkRendererConduit {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
 
-                emitter.update(
-                    visualDelta,
-                    visualTime,
-                    mainCurve,
-                    linkDir,
-                    linkHarmony,
-                    linkCorruption
-                );
+                if (linkHarmony > linkCorruption) {
+                    emitter.update(
+                        visualDelta,
+                        visualTime,
+                        mainCurve,
+                        linkDir,
+                        linkHarmony,
+                        linkCorruption
+                    );
+                    this._healingActiveCount = (this._healingActiveCount || 0) + 1;
+                }
             }
         }
 
@@ -2530,11 +2579,14 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         if (this.nodeHarmonicManager) {
             this.nodeHarmonicManager.dispose();
         }
-        if (this.corruptionAnimator) {
-            this.corruptionAnimator.dispose();
+        if (this.corruptionSpreadAnimator) {
+            this.corruptionSpreadAnimator.dispose();
         }
-        if (this.corruptionParticles) {
-            this.corruptionParticles.dispose();
+        if (this.corruptionParticleSystem) {
+            this.corruptionParticleSystem.dispose();
+        }
+        if (this.corruptionMorphing?.dispose) {
+            this.corruptionMorphing.dispose();
         }
         if (this.trailParticles) {
             this.trailParticles.dispose();
