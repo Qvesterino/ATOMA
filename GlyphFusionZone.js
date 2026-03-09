@@ -335,7 +335,7 @@ export class GlyphFusionZoneManager {
 
             const avgHarmony = ((nodeA?.userData?.harmony || 0) + (nodeB?.userData?.harmony || 0)) / 2;
             const avgCorruption = ((nodeA?.userData?.corruption || 0) + (nodeB?.userData?.corruption || 0)) / 2;
-            const synergy = link.userData.synergy || 0;
+            const synergy = link.userData?.synergy?.score ?? 0;
 
             harmonySum += avgHarmony;
             corruptionSum += avgCorruption;

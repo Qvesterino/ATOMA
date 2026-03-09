@@ -79,7 +79,7 @@ class SynergyGlowReference {
   static examplesOfWrongPatterns() {
     return `
     // ✗ WRONG: Reading raw stat
-    const intensity = link.userData.synergy * 2.0;
+    const intensity = (link.userData.synergy?.score ?? 0) * 2.0;
     
     // ✗ WRONG: Mixing signals
     const mixedColor = lerpColor(synergy, corruption, stress);
@@ -91,10 +91,10 @@ class SynergyGlowReference {
     if (synergy > threshold) { triggerEffect(); }
     
     // ✗ WRONG: Stat mutation
-    link.userData.synergy = glow.intensity;
+    // Do not mutate canonical synergy (read-only)
     
     // ✗ WRONG: Feedback loop
-    if (glow.brightness > 0.8) { link.userData.synergy += 0.01; }
+    if (glow.brightness > 0.8) { /* read-only: no mutation */ }
     `;
   }
 }

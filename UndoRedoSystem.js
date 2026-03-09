@@ -302,7 +302,7 @@ export class RemoveLinkCommand {
     this.linkData = {
       traffic: { ...link.traffic },
       category: link.category,
-      synergy: link.synergy
+      synergyScore: link.userData?.synergy?.score ?? link?.synergyScore ?? 0
     };
   }
   
@@ -331,7 +331,8 @@ export class RemoveLinkCommand {
     if (newLink && this.linkData) {
       Object.assign(newLink.traffic, this.linkData.traffic);
       newLink.category = this.linkData.category;
-      newLink.synergy = this.linkData.synergy;
+      if (!newLink.userData) newLink.userData = {};
+      const score = Math.max(0, Math.min(1, this.linkData.synergyScore));
     }
     
     this.link = newLink;
@@ -452,7 +453,7 @@ export class BulkRemoveLinksCommand {
             linkData: {
               traffic: { ...link.traffic },
               category: link.category,
-              synergy: link.synergy
+              synergyScore: link.userData?.synergy?.score ?? link?.synergyScore ?? 0
             }
           });
         }
@@ -484,7 +485,8 @@ export class BulkRemoveLinksCommand {
       if (newLink && linkInfo.linkData) {
         Object.assign(newLink.traffic, linkInfo.linkData.traffic);
         newLink.category = linkInfo.linkData.category;
-        newLink.synergy = linkInfo.linkData.synergy;
+        if (!newLink.userData) newLink.userData = {};
+        const score = Math.max(0, Math.min(1, linkInfo.linkData.synergyScore));
       }
     }
   }

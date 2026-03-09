@@ -184,9 +184,18 @@ export class HarmonicResonanceCoupling_v1 {
       }
     }
     
-    // Fallback to direct link property
-    if (link.synergy !== undefined) {
-      return link.synergy;
+    // Prefer canonical synergy object
+    const synergyObj = link.userData?.synergy;
+    if (synergyObj?.synergyNorm !== undefined) {
+      return synergyObj.synergyNorm;
+    }
+    if (synergyObj?.score !== undefined) {
+      return Math.max(0, Math.min(1, synergyObj.score));
+    }
+
+    // Fallback to normalized legacy score if present
+    if (link?.synergyScore !== undefined) {
+      return Math.max(0, Math.min(1, link?.synergyScore));
     }
     
     // Last resort: quality-based estimate

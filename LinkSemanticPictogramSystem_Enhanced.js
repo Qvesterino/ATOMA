@@ -869,8 +869,12 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const u = link.userData || {};
 
         // High synergy increases importance
-        const synergy = u.synergy ?? link.synergyScore ?? link.synergy ?? link.glowData?.synergy ?? 0.5;
-        score += synergy * 0.3;
+        const synergyObj = u.synergy;
+        const synergy = (typeof synergyObj?.score === 'number')
+            ? synergyObj.score
+            : (typeof synergyObj?.synergyNorm === 'number' ? synergyObj.synergyNorm : null);
+        const synergyValue = synergy ?? link['synergyScore'] ?? link.glowData?.synergy ?? 0.5;
+        score += synergyValue * 0.3;
 
         // High quality increases importance
         const quality = u.quality ?? 0.5;
@@ -1240,8 +1244,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                               (nodeB?.userData?.stability ?? 1)) / 2;
 
         const synergy = (u.synergy ??
-                         link.synergyScore ??
-                         link.synergy ??
+                         link?.synergyScore ??
                          link.glowData?.synergy ??
                          0.5);
 

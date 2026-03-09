@@ -212,6 +212,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
             float t = age / aLife.y;
             float radius = mix(aParams.x, aParams.y, t);
             float theta = aParams.w + aParams.z * age;
+            float intakeFade = smoothstep(aParams.y + 0.006, aParams.y + 0.065, radius);
             vec3 orbitDir = normalize(
                 aRadialBasis * cos(theta) +
                 aSwirlBasis * sin(theta)
@@ -221,7 +222,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
             gl_Position = projectionMatrix * mvPosition;
             gl_PointSize = clamp(72.0 * (1.0 - t * 0.58) / -mvPosition.z, 1.2, 14.0);
             vColor = uColor;
-            vAlpha = 0.65 * (1.0 - t);
+            vAlpha = 0.65 * (1.0 - t) * mix(0.12, 1.0, intakeFade);
         }
     `;
 
@@ -257,25 +258,79 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
 
     const vortex = new THREE.Group();
     vortex.renderOrder = renderOrder;
-    const vortexMaterial = new THREE.MeshBasicMaterial({
+    const fieldRoot = new THREE.Group();
+    vortex.add(fieldRoot);
+
+    const haloOuterMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.055,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide
     });
-    const vortexGeo = new THREE.TorusGeometry(0.28, 0.018, 8, 22, Math.PI * 0.62);
-    for (let i = 0; i < 3; i++) {
+    const haloInnerMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.095,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const vaneMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.075,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const fieldMaterials = [haloOuterMaterial, haloInnerMaterial, vaneMaterial];
+
+    const haloOuter = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11, 0.26, 0.30, 20, 1, true),
+        haloOuterMaterial
+    );
+    haloOuter.rotation.x = Math.PI * 0.5;
+    haloOuter.position.z = -0.025;
+    haloOuter.scale.set(1.0, 0.88, 1.0);
+    fieldRoot.add(haloOuter);
+
+    const haloInner = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.19, 0.22, 18, 1, true),
+        haloInnerMaterial
+    );
+    haloInner.rotation.x = Math.PI * 0.5;
+    haloInner.position.z = 0.02;
+    haloInner.scale.set(1.0, 0.82, 1.0);
+    fieldRoot.add(haloInner);
+
+    const haloRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.05, 0.19, 28),
+        haloOuterMaterial.clone()
+    );
+    haloRing.material.opacity = 0.032;
+    haloRing.position.z = -0.01;
+    fieldMaterials.push(haloRing.material);
+    fieldRoot.add(haloRing);
+
+    const vanePivots = [];
+    for (let i = 0; i < 4; i++) {
         const pivot = new THREE.Group();
-        pivot.rotation.z = (i / 3) * Math.PI * 2;
-        pivot.rotation.y = 0.28 + i * 0.16;
-        const mesh = new THREE.Mesh(vortexGeo, vortexMaterial);
-        mesh.position.y = 0.065 + i * 0.026;
-        mesh.rotation.x = 0.92 + i * 0.10;
-        mesh.scale.setScalar(1.18 - i * 0.10);
-        pivot.add(mesh);
-        vortex.add(pivot);
+        pivot.userData.baseAngle = (i / 4) * Math.PI * 2;
+        pivot.rotation.z = pivot.userData.baseAngle;
+        const vane = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.028, 0.18, 1, 1),
+            vaneMaterial
+        );
+        vane.position.x = 0.11;
+        vane.position.z = 0.03;
+        vane.rotation.y = Math.PI * 0.5;
+        vane.rotation.z = 0.22;
+        vane.scale.set(1.0, 1.0 - i * 0.08, 1.0);
+        pivot.add(vane);
+        vanePivots.push(pivot);
+        fieldRoot.add(pivot);
     }
 
     const randRange = (min, max) => min + Math.random() * (max - min);
@@ -289,7 +344,7 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         material.uniforms.uTime.value = time;
         if (color) {
             material.uniforms.uColor.value.copy(color);
-            vortexMaterial.color.copy(color);
+            fieldMaterials.forEach((mat) => mat.color.copy(color));
         }
 
         const dir = forward.clone().normalize();
@@ -350,12 +405,19 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         geometry.attributes.aLife.needsUpdate = true;
     }
 
-    function update(time, origin = null, forward = null) {
+    function update(time, origin = null, forward = null, flow = 0) {
         material.uniforms.uTime.value = time;
-        const pulse = 1.02 + Math.sin(time * 7.0) * 0.12;
-        vortex.scale.setScalar(pulse);
-        vortex.rotation.z += 0.02;
-        vortex.rotation.y -= 0.015;
+        const flowBoost = THREE.MathUtils.clamp(flow, 0, 1);
+        const pulse = 1.0 + Math.sin(time * 2.6) * 0.06 + flowBoost * 0.025;
+        fieldRoot.scale.setScalar(pulse);
+        fieldRoot.rotation.set(0, 0, time * (0.55 + flowBoost * 0.08));
+        const flowOpacity = 0.9 + flowBoost * 0.28;
+        haloOuter.material.opacity = (0.042 + (Math.sin(time * 2.1) * 0.5 + 0.5) * 0.022) * flowOpacity;
+        haloInner.material.opacity = (0.068 + (Math.sin(time * 2.8 + 0.9) * 0.5 + 0.5) * 0.03) * flowOpacity;
+        haloRing.material.opacity = (0.02 + (Math.sin(time * 2.3 + 1.4) * 0.5 + 0.5) * 0.014) * flowOpacity;
+        vanePivots.forEach((pivot, index) => {
+            pivot.rotation.z = pivot.userData.baseAngle + Math.sin(time * 1.8 + index * 0.7) * 0.07;
+        });
         if (origin) vortex.position.copy(origin);
         if (forward) {
             const dir = forward.clone().normalize();
@@ -370,8 +432,14 @@ function createSourceInjectionSystem(scene, renderOrder = 0, maxParticles = 28) 
         if (vortex.parent) vortex.parent.remove(vortex);
         geometry.dispose();
         material.dispose();
-        vortexGeo.dispose();
-        vortexMaterial.dispose();
+        const geoSet = new Set();
+        const materialSet = new Set();
+        vortex.traverse((obj) => {
+            if (obj?.geometry) geoSet.add(obj.geometry);
+            if (obj?.material) materialSet.add(obj.material);
+        });
+        geoSet.forEach((geo) => geo?.dispose?.());
+        materialSet.forEach((mat) => mat?.dispose?.());
     }
 
     return { points, vortex, spawnBurst, update, dispose };
@@ -1601,7 +1669,8 @@ export class LinkRendererConduit {
             const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
             const injectionAnchor = sourcePortPos.clone();
             const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
-            state.sourceInjection.update(visualTime, injectionAnchor, linkDir);
+            const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? metrics.traffic ?? 0, 0, 1);
+            state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
             const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
             const injectionInterval = state.sourceInjectionInterval ?? 0.075;
             if (visualTime >= nextInjectionTime) {
@@ -2217,7 +2286,7 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         const traffic = link.traffic?.load ?? 0;
         const loadPressure = link.loadPressure ?? traffic ?? 0;
         return {
-            synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
+            synergy: link.userData?.synergy?.score ?? link?.synergyScore ?? link?.synergyLevel ?? link.flow ?? 0.5,
             harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
             corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
             instability: link.instability ?? link.instabilityLevel ?? 0.0,

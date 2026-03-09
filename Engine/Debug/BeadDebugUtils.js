@@ -113,7 +113,7 @@ export class BeadDebugController {
           active,
           max,
           utilization: ((active / max) * 100).toFixed(1) + '%',
-          synergy: (link.synergyScore ?? 0.5).toFixed(2),
+          synergy: (link['synergyScore'] ?? 0.5).toFixed(2),
           traffic: (link.traffic?.load ?? 0).toFixed(2)
         });
       }
@@ -296,7 +296,7 @@ export function logBeadInfo(link) {
     const active = pool.getActiveBead();
     console.log(`Link: ${link.id?.substring(0, 8)}`);
     console.log(`  Active Beads: ${active.length}/${pool.maxBeads}`);
-    console.log(`  Synergy: ${(link.synergyScore ?? 0.5).toFixed(2)}`);
+    console.log(`  Synergy: ${(link['synergyScore'] ?? 0.5).toFixed(2)}`);
     console.log(`  Traffic: ${(link.traffic?.load ?? 0).toFixed(2)}`);
     console.log(`  Activity: ${pool.getActivityLevel().toFixed(2)}`);
   }

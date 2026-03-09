@@ -131,14 +131,14 @@ const LinkGlowSynergyEngine1_0 = (() => {
     }
     
     // Try different score locations
-    if (typeof link.synergyScore === 'number') {
-      return Math.max(0, Math.min(1, link.synergyScore));
+    if (typeof link['synergyScore'] === 'number') {
+      return Math.max(0, Math.min(1, link['synergyScore']));
     }
     if (link.linkData?.synergyScore) {
       return Math.max(0, Math.min(1, link.linkData.synergyScore));
     }
-    if (link.synergy?.score) {
-      return Math.max(0, Math.min(1, link.synergy.score));
+    if (link.userData?.synergy?.score) {
+      return Math.max(0, Math.min(1, link.userData.synergy.score));
     }
     
     // Fallback to traffic-based estimate

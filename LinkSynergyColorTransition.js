@@ -13,7 +13,7 @@
  * INTEGRATION POINTS:
  * - Applied on link creation in createLink()
  * - Updated dynamically when synergy changes
- * - Synergy values stored in link.synergyScore (0-1 normalized)
+ * - Synergy values stored in link['synergyScore'] (0-1 normalized)
  * 
  * TECHNICAL APPROACH:
  * - 3-point color gradient: cold → neutral → warm
@@ -140,7 +140,7 @@ export function applySynergyColorToLink(link, synergy) {
   }
   
   // Store for animations/updates
-  link.synergyColor = synergyColor;
+  link['synergyColor'] = synergyColor;
   link.lastSynergyValue = synergy;
   
   return synergyColor;
@@ -164,8 +164,8 @@ export function updateLinkSynergyColor(link, newSynergy, transitionDuration = 0)
   }
   
   // Smooth transition (store state for animation)
-  const oldSynergy = link.lastSynergyValue ?? link.synergyScore ?? 0.5;
-  const oldColor = link.synergyColor || computeSynergyColor(oldSynergy);
+  const oldSynergy = link.lastSynergyValue ?? link['synergyScore'] ?? 0.5;
+  const oldColor = link['synergyColor'] || computeSynergyColor(oldSynergy);
   
   link.colorTransition = {
     startSynergy: oldSynergy,
@@ -224,7 +224,7 @@ export function updateLinkColorTransition(link, deltaTime) {
   // Mark as complete when done
   if (progress >= 1) {
     link.colorTransition.active = false;
-    link.synergyColor = transition.targetColor;
+    link['synergyColor'] = transition.targetColor;
     link.lastSynergyValue = transition.targetSynergy;
   }
 }
@@ -308,7 +308,7 @@ export function initializeLinkSynergyColor(link) {
   if (!link) return;
   
   // Get synergy from link (default to 0.5 if not set)
-  const synergy = link.synergyScore ?? 0.5;
+  const synergy = link['synergyScore'] ?? 0.5;
   
   // Apply initial color
   applySynergyColorToLink(link, synergy);
@@ -410,7 +410,7 @@ export function initializeParticleSynergyColors(link) {
   if (!link) return;
   
   // Get synergy from link (default to 0.5)
-  const synergy = link.synergyScore ?? 0.5;
+  const synergy = link['synergyScore'] ?? 0.5;
   
   // Apply initial color to particles
   applySynergyColorToParticles(link, synergy);
@@ -623,7 +623,7 @@ export function verifyParticleColorInitialization(link) {
   
   const hasDirectParticles = link.particles && Array.isArray(link.particles) && link.particles.length > 0;
   const hasParticleStream = link.particleStream && link.particleStream.userData?.particles;
-  const hasAnySynergyColor = link.synergyColor !== undefined;
+  const hasAnySynergyColor = link['synergyColor'] !== undefined;
   
   const isValid = (hasDirectParticles || hasParticleStream) && hasAnySynergyColor;
   

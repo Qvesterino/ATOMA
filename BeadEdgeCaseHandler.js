@@ -187,7 +187,7 @@ export function handleCloseNodes(link) {
  * Handle zero activity (no synergy, no traffic)
  */
 export function handleZeroActivity(link) {
-  const synergy = link.synergyScore ?? 0.5;
+  const synergy = link['synergyScore'] ?? 0.5;
   const traffic = link.traffic?.load ?? 0;
   const activity = (synergy + traffic) / 2;
   

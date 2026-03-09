@@ -207,7 +207,7 @@ export class NodeLinkedAuraSystem_Session123 {
    */
   _updateAuraState(aura) {
     const node = aura.node;
-    const metrics = node.userData.metrics || {};
+    const metrics = node.userData.metrics;
     const state = node.userData.state || {};
     
     // Read network state
@@ -236,7 +236,10 @@ export class NodeLinkedAuraSystem_Session123 {
     for (const link of links) {
       if (!link || !link.userData) continue;
       
-      const synergy = link.userData.synergy ?? 0;
+      if (!link.userData?.synergy?.score) {
+        continue;
+      }
+      const synergy = link.userData?.synergy?.score ?? 0;
       if (synergy > 0) {
         activeLinks.push({ link, synergy });
       }

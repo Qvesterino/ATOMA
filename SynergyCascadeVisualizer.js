@@ -715,7 +715,7 @@ export class SynergyCascadeVisualizer {
     
     let totalSynergy = 0;
     for (const link of links) {
-      totalSynergy += link.synergyScore || 0;
+      totalSynergy += link?.synergyScore || 0;
     }
     
     return Math.max(0, Math.min(1, totalSynergy / links.length));

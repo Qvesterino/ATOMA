@@ -319,7 +319,7 @@ export class SystemStateOverlay {
         
         const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
         haloMesh.renderOrder = this.LAYER_SYNERGY;
-        haloMesh.userData.synergy = synergy;
+        haloMesh.userData.synergyValue = synergy;
         haloMesh.userData.centerPos = new THREE.Vector3(centerX, centerY, centerZ);
         
         this.scene.add(haloMesh);
@@ -361,7 +361,7 @@ export class SystemStateOverlay {
   updateSynergyLayers() {
     this.layers.synergyHalos.forEach(halo => {
       // Gentle pulsing based on synergy value
-      const synergy = halo.userData.synergy;
+      const synergy = halo.userData.synergyValue;
       const pulseFreq = 1 + synergy * 1.5; // Faster pulse at higher synergy
       const pulseFade = 0.4 + 0.6 * synergy; // More opaque at high synergy
       

@@ -222,7 +222,7 @@ export class LinkQualityFeedbackLoop1_0 {
             this.stats.linksCreated++;
             
             if (link.sourceNode && link.targetNode) {
-                const synergyScore = link.synergyScore ?? 50;
+                const synergyScore = link['synergyScore'] ?? 50;
                 const mlScore = link.mlPredictionScore ?? 50;
                 
                 this.evaluateLinkQuality(

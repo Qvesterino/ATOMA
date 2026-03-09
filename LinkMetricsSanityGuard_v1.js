@@ -45,7 +45,6 @@ export class LinkMetricsSanityGuard_v1 {
       const corruption = sanitize01(userData.corruption);
 
       if (userData.synergy !== synergy) {
-        userData.synergy = synergy;
         touched++;
       }
       if (userData.harmony !== harmony) {

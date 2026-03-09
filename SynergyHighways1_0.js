@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * highly synergistic node pairs.
  * 
  * Behavior:
- * - Visible only if link.synergyStrength > 0.7
+ * - Visible only if linkSynergyStrength > 0.7
  * - Rendered as wide Bézier arcs above the world
  * - Animated shimmer noise (speed = synergyStrength)
  * - Ribbon thickness 3 levels: Low (0.3), Medium (0.6), High (1.0)

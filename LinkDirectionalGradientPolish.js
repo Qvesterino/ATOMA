@@ -193,7 +193,7 @@ export class LinkDirectionalGradientPolish {
     }
 
     // Get link state
-    const synergy = link.synergy || (link.a?.synergy || 0) + (link.b?.synergy || 0) * 0.5;
+    const synergy = link.userData?.synergy?.score ?? link?.synergyScore ?? 0;
     const harmony = link.harmony || (link.a?.harmony || 0) + (link.b?.harmony || 0) * 0.5;
     const corruption = link.corruption || 0;
     const instability = link.instability || (link.a?.instability || 0) + (link.b?.instability || 0) * 0.5;

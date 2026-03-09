@@ -46,7 +46,7 @@
  * - No modifications to NodeLinkingSystem needed (read-only)
  * - Works with LinkHistoryTracker1_0 for trends/volatility
  * - Works with LinkGlowSynergyEngine1_0 for visual params
- * - Requires link.synergyScore to be set
+ * - Requires link synergy score to be set
  */
 
 const SynergyHighways2_0 = (() => {
@@ -144,8 +144,8 @@ const SynergyHighways2_0 = (() => {
    */
   function getLinkSynergy(link) {
     if (!link) return 0;
-    if (typeof link.synergyScore === 'number') {
-      return Math.max(0, Math.min(1, link.synergyScore));
+    if (typeof link?.synergyScore === 'number') {
+      return Math.max(0, Math.min(1, link?.synergyScore));
     }
     if (link.traffic?.load) {
       return Math.max(0, Math.min(1, link.traffic.load));

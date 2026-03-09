@@ -691,7 +691,7 @@ export class MegaGlyphSystem {
     const message = this.buildMessage(sourceNode, targetNode, {
       link,
       linkId,
-      synergy: link.synergy || 0.5,
+      synergy: link.userData?.synergy?.score ?? link?.synergyScore ?? 0.5,
       corruption: link.corruption || 0,
       stability: link.stability || 0,
       harmony: link.harmony || 0

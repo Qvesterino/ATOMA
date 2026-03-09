@@ -224,7 +224,7 @@ export class NodeInspectOverlay3_0 {
     // Get archetype info
     const archetype = userData.namingCode || userData.category || 'UNKNOWN';
     const category = userData.category || '?';
-    const metrics = userData.metrics || {};
+    const metrics = userData.metrics;
     
     // Get language meaning if available
     let meaning = 'Unknown archetype';

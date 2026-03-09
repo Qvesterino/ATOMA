@@ -48,6 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
+import { traceMetricMutation } from './src/metrics/MetricAuthorityGuard.js';
 
 const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';
 const CANONICAL_METRIC_FIELDS = [
@@ -213,7 +214,14 @@ export class MetricsRuntime_v1 {
                 const m = node?.userData?.metrics;
                 const base = node?.userData?.archetypeMetrics;
                 if (!m || !base) continue;
+                const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
                 const relaxSpeed = 0.02; // gentle return per 10 Hz step
+                const beforeSynergy = m.synergy;
+                const beforeHarmony = m.harmony;
+                const beforeStability = m.stability;
+                const beforeCorruption = m.corruption;
+                const beforeLoad = m.loadPressure;
+
                 m.synergy      += (base.synergy      - m.synergy)      * relaxSpeed;
                 m.harmony      += (base.harmony      - m.harmony)      * relaxSpeed;
                 m.stability    += (base.stability    - m.stability)    * relaxSpeed;
@@ -225,6 +233,12 @@ export class MetricsRuntime_v1 {
                 m.stability = this._clamp01(m.stability);
                 m.corruption = this._clamp01(m.corruption);
                 m.loadPressure = this._clamp01(m.loadPressure);
+
+                traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeSynergy, m.synergy, id);
+                traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeHarmony, m.harmony, id);
+                traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeStability, m.stability, id);
+                traceMetricMutation('MetricsRuntime_v1', 'node.corruption', beforeCorruption, m.corruption, id);
+                traceMetricMutation('MetricsRuntime_v1', 'node.loadPressure', beforeLoad, m.loadPressure, id);
             }
 
             // 3. InteractionKernel Phase 1: flow equalization across links
@@ -236,17 +250,27 @@ export class MetricsRuntime_v1 {
                 if (!a?.userData?.metrics || !b?.userData?.metrics) continue;
                 const ma = a.userData.metrics;
                 const mb = b.userData.metrics;
+                const idA = a?.userData?.nodeId || a?.uuid || a?.id || 'unknown-node';
+                const idB = b?.userData?.nodeId || b?.uuid || b?.id || 'unknown-node';
 
                 if (ma.synergy !== undefined && mb.synergy !== undefined) {
+                    const beforeA = ma.synergy;
+                    const beforeB = mb.synergy;
                     const dS = (mb.synergy - ma.synergy) * equalizeRate;
                     ma.synergy = this._clamp01(ma.synergy + dS);
                     mb.synergy = this._clamp01(mb.synergy - dS);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeA, ma.synergy, idA);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeB, mb.synergy, idB);
                 }
 
                 if (ma.harmony !== undefined && mb.harmony !== undefined) {
+                    const beforeA = ma.harmony;
+                    const beforeB = mb.harmony;
                     const dH = (mb.harmony - ma.harmony) * equalizeRate;
                     ma.harmony = this._clamp01(ma.harmony + dH);
                     mb.harmony = this._clamp01(mb.harmony - dH);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeA, ma.harmony, idA);
+                    traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeB, mb.harmony, idB);
                 }
             }
 
@@ -293,7 +317,7 @@ export class MetricsRuntime_v1 {
                 .filter(n => n?.userData)
                 .map(n => ({
                     id: n.userData.nodeId || n.userData.id || n.id,
-                    metrics: { ...(n.userData.metrics || {}) }
+                    metrics: { ...(n.userData.metrics) }
                 }))
         };
     }

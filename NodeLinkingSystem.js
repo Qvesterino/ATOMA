@@ -378,6 +378,9 @@ export class NodeLinkingSystem {
       ghostLinks: [],
       lastCleanTime: Date.now()
     };
+    // Simulation maintenance accumulators (10 Hz layer)
+    this._simulationSyncAccum = 0;
+    this._simulationSynergyAccum = 0;
 
     // Link curve/bead audit (throttled)
     this._linkCurveAuditLastLog = 0;
@@ -3526,7 +3529,14 @@ getLinksForNode(node) {
       extremeMode: false, // Disables legacy extreme visual updates
       // Creation timestamp
       createdAt: performance.now(),
-      visualState: 'pending'
+      visualState: 'pending',
+      // Canonical link metrics container (always present)
+      userData: {
+        synergy: {
+          score: 0,
+          synergyNorm: 0
+        }
+      }
     };
     
     // 2. Create visual group via new renderer using real link reference
@@ -3610,16 +3620,16 @@ getLinksForNode(node) {
     if (window.ComputeSynergyScore2_0) {
        try {
          const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
-         link.synergyScore = res?.score || 0.5;
-       } catch(e) { link.synergyScore = 0.5; }
+         link['synergyScore'] = res?.score || 0.5;
+       } catch(e) { link['synergyScore'] = 0.5; }
     } else {
-       link.synergyScore = 0.5;
+       link['synergyScore'] = 0.5;
     }
     
     if (link.id) {
         this.updateLinkMetrics(link, {
             corruption: link.corruptionLevel ?? 0,
-            synergy: link.synergyScore ?? 0.5,
+            synergy: link['synergyScore'] ?? 0.5,
             harmony: link.harmonyScore ?? 0
         });
     }
@@ -3677,15 +3687,15 @@ getLinksForNode(node) {
       if (window.ComputeSynergyScore2_0) {
         try {
           const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
-          link.synergyScore = res?.score || 0.5;
-        } catch (e) { link.synergyScore = 0.5; }
+          link['synergyScore'] = res?.score || 0.5;
+        } catch (e) { link['synergyScore'] = 0.5; }
       } else {
-        link.synergyScore = 0.5;
+        link['synergyScore'] = 0.5;
       }
       if (link.id) {
         this.updateLinkMetrics(link, {
           corruption: link.corruptionLevel ?? 0,
-          synergy: link.synergyScore ?? 0.5,
+          synergy: link['synergyScore'] ?? 0.5,
           harmony: link.harmonyScore ?? 0
         });
       }
@@ -3988,20 +3998,28 @@ getLinksForNode(node) {
       
       // 10. Environment reactivity (light projection)
       environmentLight: null,
-      
+
       // EXTREME ADDITIONS
       // 11. Energy vein animation
       veinAnimation: {
         active: true,
         speed: 2.0
       },
-      
+
       // 12. Neon edge blade
       edgeBladeActive: true,
-      
+
       // 13. Node impact effects
       lastNodeImpact: 0,
-      impactCooldown: 500
+      impactCooldown: 500,
+
+      // Canonical link metrics container (always present)
+      userData: {
+        synergy: {
+          score: 0,
+          synergyNorm: 0
+        }
+      }
     };
     
     this.links.push(link);
@@ -4074,21 +4092,21 @@ getLinksForNode(node) {
           config: { weights: { type: 0.35, priority: 0.25, traffic: 0.20, decay: 0.10, topology: 0.10 } }
         });
         
-        link.synergyScore = synergyResult?.score || 0.5;
+        link['synergyScore'] = synergyResult?.score || 0.5;
         
-        console.debug(`[Synergy] Link created with score: ${link.synergyScore.toFixed(3)}`);
+        console.debug(`[Synergy] Link created with score: ${link['synergyScore'].toFixed(3)}`);
         
         // Push to LinkHistoryTracker if active
         if (window.linkHistoryTracker) {
           const viability = window.linkQualityPredictor?.computeLinkQuality(link) || 50;
-          window.linkHistoryTracker.recordSample(link, link.synergyScore, viability, 0.7);
+          window.linkHistoryTracker.recordSample(link, link['synergyScore'], viability, 0.7);
         }
       } catch (err) {
         console.warn('[Session 20] Synergy computation error:', err.message);
-        link.synergyScore = 0.5;  // Safe default
+        link['synergyScore'] = 0.5;  // Safe default
       }
     } else {
-      link.synergyScore = 0.5;  // Fallback if ComputeSynergyScore2_0 not available
+      link['synergyScore'] = 0.5;  // Fallback if ComputeSynergyScore2_0 not available
     }
     
     // [Metrics Integration v1.0] Initial metric wiring (read-only, no computation)
@@ -4096,7 +4114,7 @@ getLinksForNode(node) {
     if (link.id) {
       const initialMetrics = {
         corruption: link.corruptionLevel ?? 0,
-        synergy: link.synergyScore ?? 0.5,
+        synergy: link['synergyScore'] ?? 0.5,
         harmony: link.harmonyScore ?? 0
       };
       this.updateLinkMetrics(link, initialMetrics);
@@ -4109,8 +4127,8 @@ getLinksForNode(node) {
     // [Session 78] Initialize particle stream color synchronization
     // Particles match link color and glow with synergy intensity
     initializeParticleSynergyColors(link);
-    updateParticleSynergyOpacity(link, link.synergyScore ?? 0.5);
-    updateParticleSynergyEmissive(link, link.synergyScore ?? 0.5);
+    updateParticleSynergyOpacity(link, link['synergyScore'] ?? 0.5);
+    updateParticleSynergyEmissive(link, link['synergyScore'] ?? 0.5);
     
     // [Session 79] Initialize particle speed corruption scaling
     // Particles move fast on healthy links, slow on corrupted links
@@ -4164,7 +4182,7 @@ getLinksForNode(node) {
       }
     });
     
-    console.log(`✓ Link created: ${sourceNode.userData.category} → ${targetNode.userData.category}${isSpecial ? ' [MULTI-OUTPUT]' : ''} [SAFE VFX PACK ACTIVE] [Synergy: ${(link.synergyScore || 0).toFixed(2)}]`);
+    console.log(`✓ Link created: ${sourceNode.userData.category} → ${targetNode.userData.category}${isSpecial ? ' [MULTI-OUTPUT]' : ''} [SAFE VFX PACK ACTIVE] [Synergy: ${(link['synergyScore'] || 0).toFixed(2)}]`);
   }
   
   /**
@@ -4547,9 +4565,6 @@ getLinksForNode(node) {
 
     // (pending visuals removed — visuals are created synchronously)
     
-    // [Session 20 FIX] Initialize synergy update counter
-    if (!this._synergyUpdateCounter) this._synergyUpdateCounter = 0;
-    
     // [CORRUPTION CONTAGION v1.0] Process corruption spread every frame
     if (!this._contagionInitialized) {
       this._contagionInitialized = true;
@@ -4568,55 +4583,6 @@ getLinksForNode(node) {
     // categoryTransitionSystem removed (unused)
 
     // Conduit visuals are updated per-link below using frameState (single entry point)
-    
-    // [Patch 3.2 HYBRID] Periodic sync: validate index ↔ runtime consistency
-    // Run every 500ms to detect and heal corruption
-    if (Date.now() - this._syncState.lastSyncTime > 500) {
-      const syncReport = this._syncIndexWithRuntime();
-      if (syncReport.mismatches > 0) {
-        console.debug(`[Hybrid] Sync detected and healed ${syncReport.healed}/${syncReport.mismatches} issues`);
-      }
-      
-      // [LinkPriority v1.0] Apply background traffic decay every 500ms
-      LinkPrioritySystem.applyTrafficDecay(this.links);
-      
-      // [Session 20 FIX] Periodically recalculate synergy scores (every 2 seconds)
-      this._synergyUpdateCounter++;
-      if (this._synergyUpdateCounter % 4 === 0 && window.ComputeSynergyScore2_0) {
-        this.links.forEach(link => {
-          if (!link.active) return;
-          
-          try {
-            const oldScore = link.synergyScore || 0;
-            const newResult = window.ComputeSynergyScore2_0(link, {
-              linkingSystem: this,
-            });
-            link.synergyScore = newResult?.score || 0.5;
-            
-            // [Session 77] Update link color when synergy changes significantly
-            // Smooth 0.3s transition for visual feedback
-            if (Math.abs(newResult.score - oldScore) > 0.05) {
-              updateLinkSynergyColor(link, link.synergyScore, 0.3);
-              
-              // [Session 78] Update particle properties with new synergy
-              // Opacity and emissive intensity scale with synergy magnitude
-              updateParticleSynergyOpacity(link, link.synergyScore);
-              updateParticleSynergyEmissive(link, link.synergyScore);
-              
-              console.debug(`[Synergy Update] ${link.sourceNodeId}: ${oldScore.toFixed(2)} → ${link.synergyScore.toFixed(2)} [Color: ${link.synergyColor?.getHexString?.() || 'N/A'}]`);
-            }
-            
-            // Push updated score to tracking systems
-            if (window.linkHistoryTracker) {
-              const viability = window.linkQualityPredictor?.computeLinkQuality(link) || 50;
-              window.linkHistoryTracker.recordSample(link, link.synergyScore, viability, 0.7);
-            }
-          } catch (err) {
-            console.warn(`[Synergy Update] Error for link ${link.sourceNodeId}:`, err.message);
-          }
-        });
-      }
-    }
     
     // [Session 112] Update animated link flow animations
     if (this.flowSystem) {
@@ -4807,7 +4773,7 @@ getLinksForNode(node) {
     }
 
     const metrics = {
-      synergy: link.synergyScore ?? link.synergy ?? link.synergyLevel ?? link.flow ?? 0.5,
+      synergy: link['synergyScore'] ?? link?.synergyLevel ?? link.flow ?? 0.5,
       harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
       corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
       instability: link.instability ?? link.instabilityLevel ?? 0.0,
@@ -5243,7 +5209,7 @@ getLinksForNode(node) {
         // Corruption from existing corruption state or transmission engine
         corruption: link.corruptionLevel ?? link.corruptionIntensity ?? 0,
         // Synergy from existing computation engine
-        synergy: link.synergyScore ?? 0,
+        synergy: link['synergyScore'] ?? 0,
         // Harmony from existing stabilization system
         harmony: link.harmonyScore ?? 0
       };

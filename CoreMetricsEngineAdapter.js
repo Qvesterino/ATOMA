@@ -19,7 +19,7 @@ export class CoreMetricsEngineAdapter {
     if (!link || !vm) return;
 
     const globalMetrics = withGlobalMetricAliases({
-      networkSynergy: vm.networkSynergy ?? vm.synergy ?? link.synergyScore,
+      networkSynergy: vm.networkSynergy ?? vm.synergy ?? link['synergyScore'],
       harmonyFlow: vm.harmonyFlow ?? vm.harmonyNorm ?? vm.harmony,
       networkStress: vm.networkStress ?? vm.stabilityNorm ?? vm.stability,
       corruptionLevel: vm.corruptionLevel ?? vm.corruptionNorm ?? vm.corruption,

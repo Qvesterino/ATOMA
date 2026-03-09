@@ -166,8 +166,9 @@ export class LinkedGlyphSynchronization1_0 {
     if (!link) return this.getDefaultSyncParams();
     
     // Extract metrics (safe fallbacks)
-    const linkStrength = (link.strength || link.synergy * 100) || 50;
-    const synergy = link.synergy || 0.5;
+    const synergyScore = link.userData?.synergy?.score ?? link?.synergyScore ?? 0.5;
+    const linkStrength = (link.strength || synergyScore * 100) || 50;
+    const synergy = synergyScore;
     const corruption = link.corruption || 0;
     const stability = link.stability || 0;
     const harmony = link.harmony || 0;

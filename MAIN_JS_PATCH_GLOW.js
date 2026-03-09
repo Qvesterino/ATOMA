@@ -51,7 +51,7 @@ LinkGlowSynergyEngine1_0.init(this);
 // Add: Right after, before any callbacks
 
 // [LinkGlowSynergyEngine] Initialize glow for new link
-if (link.synergyScore !== undefined && window.LinkGlowEngine) {
+if (link['synergyScore'] !== undefined && window.LinkGlowEngine) {
   window.LinkGlowEngine.updateLinkGlow(link);
 }
 
@@ -77,8 +77,8 @@ if (link.active !== false && window.LinkGlowEngine) {
 // Add: After synergy score update
 
 // [LinkGlowSynergyEngine] Trigger glow update on synergy change
-if (newScore !== link.synergyScore && window.LinkGlowEngine) {
-  link.synergyScore = newScore;
+if (newScore !== link['synergyScore'] && window.LinkGlowEngine) {
+  link['synergyScore'] = newScore;
   window.LinkGlowEngine.updateLinkGlow(link);
 }
 
@@ -143,15 +143,15 @@ if (window.LinkGlowEngine) {
 // These are common locations where synergy scores are computed:
 
 // 1. In createLink() after link creation:
-//    link.synergyScore = computeSynergyScore(link, systemsConfig);
+//    link['synergyScore'] = computeSynergyScore(link, systemsConfig);
 //    window.LinkGlowEngine?.updateLinkGlow(link);
 
 // 2. In update() loop - periodic recompute:
 //    if ((frameCount % 120) === 0) {
 //      for (const link of this.links) {
 //        const newScore = computeSynergyScore(link);
-//        if (newScore !== link.synergyScore) {
-//          link.synergyScore = newScore;
+//        if (newScore !== link['synergyScore']) {
+//          link['synergyScore'] = newScore;
 //          window.LinkGlowEngine?.updateLinkGlow(link);
 //        }
 //      }
@@ -160,7 +160,7 @@ if (window.LinkGlowEngine) {
 // 3. From external AI linking system:
 //    linkingSystem.createLink(source, target);
 //    const score = externalSystem.computeScore(link);
-//    link.synergyScore = score;
+//    link['synergyScore'] = score;
 //    window.LinkGlowEngine?.updateLinkGlow(link);
 
 // ═══════════════════════════════════════════════════════════════
@@ -206,7 +206,7 @@ function verifyGlowIntegration() {
     engineExists: !!window.LinkGlowEngine,
     initialized: !!window.LinkGlowEngine?.getConfig,
     linksPresent: linkingSystem?.links?.length > 0,
-    scoresPresent: linkingSystem?.links?.some(l => l.synergyScore !== undefined)
+    scoresPresent: linkingSystem?.links?.some(l => l['synergyScore'] !== undefined)
   };
   
   console.table(checks);
@@ -259,7 +259,7 @@ window.LinkGlowEngine.setDebug(false);
 /*
 ISSUE: Links not glowing
 SOLUTION:
-1. Verify link.synergyScore is set: console.log(linkingSystem.links[0].synergyScore)
+1. Verify link['synergyScore'] is set: console.log(linkingSystem.links[0]['synergyScore'])
 2. Check engine is initialized: console.log(window.LinkGlowEngine.getConfig())
 3. Call update manually: window.LinkGlowEngine.updateLinkGlow(linkingSystem.links[0])
 

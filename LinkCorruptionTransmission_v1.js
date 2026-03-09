@@ -716,6 +716,29 @@ export class LinkCorruptionTransmission_v1 {
   }
 
   /**
+   * Read canonical link synergy as 0–100 percentage.
+   * Falls back to 0 if missing.
+   * @private
+   */
+  _getLinkSynergyPct(link) {
+    const score =
+      Number.isFinite(link?.userData?.synergy?.score) ? link.userData.synergy.score : 0;
+    return Math.max(0, Math.min(100, score * 100));
+  }
+
+  /**
+   * Write canonical link synergy (percentage input 0–100).
+   * Updates both score and synergyNorm in canonical object.
+   * @private
+   */
+  _setLinkSynergyPct(link, value) {
+    if (!link) return 0;
+
+    const clamped = Math.max(0, Math.min(100, value));
+    return clamped;
+  }
+
+  /**
    * Initialize link if not already tracked
    */
   initializeLink(link) {
@@ -1022,7 +1045,7 @@ export class LinkCorruptionTransmission_v1 {
     }
 
     // Requirement 3: Check synergy level
-    const synergy = link.synergy ?? 0;
+    const synergy = this._getLinkSynergyPct(link);
     if (synergy < LINK_RECONSTRUCTION_THRESHOLDS.REBUILD_SYNERGY_REQUIREMENT) {
       return {
         canRebuild: false,
@@ -1126,7 +1149,8 @@ export class LinkCorruptionTransmission_v1 {
     const synergyCost = eligibility.costSynergy;
     
     sourceNode.userData.harmonyLevel = Math.max(0, (sourceNode.userData.harmonyLevel || 0) - harmonyCost);
-    link.synergy = Math.max(0, (link.synergy || 0) - synergyCost);
+    const synergyPct = this._getLinkSynergyPct(link);
+    // Read-only: no mutation of canonical synergy
     
     // Step 4: Apply cooldown
     this.linkRebuildCooldowns.set(linkId, Date.now());
@@ -1165,7 +1189,7 @@ export class LinkCorruptionTransmission_v1 {
         harmonyCost: harmonyCost.toFixed(2),
         synergyCost: synergyCost.toFixed(0),
         harmonyRemaining: sourceNode.userData.harmonyLevel.toFixed(2),
-        synergyRemaining: link.synergy.toFixed(0),
+        synergyRemaining: this._getLinkSynergyPct(link).toFixed(0),
         networkStress: eligibility.networkStress.toFixed(2)
       });
     }
@@ -1310,7 +1334,7 @@ export class LinkCorruptionTransmission_v1 {
     if (linkOrNode.synergy !== undefined) {
       linkOrNode.synergy = Math.max(0, linkOrNode.synergy - synergyCost);
     } else {
-      resourceNode.userData.synergy = Math.max(0, (resourceNode.userData.synergy ?? 0) - synergyCost);
+      // Legacy synergy writes removed (read-only enforcement)
     }
 
     // Initialize cost tracking
@@ -1824,7 +1848,7 @@ export class LinkCorruptionTransmission_v1 {
     // [T1-003] SYNERGY BLOCKING: High-synergy links block corruption spread
     // READ-ONLY: Read from existing synergy value (0-100 scale)
     // No computation, purely wiring existing metric
-    const synergy = link.synergy ?? 0; // Expected range: 0–100
+    const synergy = this._getLinkSynergyPct(link); // Expected range: 0–100
     
     // [T1-004] HARMONY → SYNERGY AMPLIFICATION: Temporary effectiveness boost
     // READ-ONLY: Read from harmony, apply ONLY to consumption logic
@@ -1899,10 +1923,10 @@ export class LinkCorruptionTransmission_v1 {
     baseRate *= harmonyBlockMultiplier;
 
     // Link synergy (if available) — OLD LOGIC (kept for compatibility)
-    if (link.userData?.synergy !== undefined) {
+    if (link.userData?.synergy?.score !== undefined) {
       // High synergy = easier transmission
       // Low synergy = resistance
-      baseRate *= (0.3 + link.userData.synergy * 0.7);
+      baseRate *= (0.3 + link.userData.synergy.score * 0.7);
     }
 
     // [Phase 5] RESONANCE AMPLIFICATION: Network coherence enhancement
@@ -2010,7 +2034,7 @@ export class LinkCorruptionTransmission_v1 {
 
     // [Tier 4.75] SYNERGY-DRIVEN STABILIZATION
     // Compute stabilization factor from link synergy
-    const synergy = link.synergy ?? 0;
+    const synergy = this._getLinkSynergyPct(link);
     const stabilization = Math.min(synergy * 0.4, 0.4);
 
     // Threshold progression
@@ -2272,7 +2296,7 @@ export class LinkCorruptionTransmission_v1 {
     // Check cooldown: prevent synergy gain spam
     // [Tier 4.9] SYNERGY-DRIVEN COOLDOWN ACCELERATION
     // Higher synergy reduces feedback cooldown, allowing faster synergy regeneration
-    const currentSynergy = link.synergy ?? 0;
+    const currentSynergy = this._getLinkSynergyPct(link);
     const recoveryBoost = 1.0 + Math.min(currentSynergy * 0.5, 0.5);
     const effectiveCooldownMS = SYNERGY_FEEDBACK_THRESHOLDS.FEEDBACK_COOLDOWN_MS / recoveryBoost;
     
@@ -2281,7 +2305,7 @@ export class LinkCorruptionTransmission_v1 {
       return; // Still in cooldown
     }
 
-    const synergyBefore = link.synergy ?? 0;
+    const synergyBefore = this._getLinkSynergyPct(link);
     const synergyMax = SYNERGY_FEEDBACK_THRESHOLDS.SYNERGY_MAX;
 
     // === T1-004: SATURATION DAMPENING ===
@@ -2318,8 +2342,6 @@ export class LinkCorruptionTransmission_v1 {
 
     // Apply synergy gain with hard cap
     const synergyAfter = Math.min(synergyMax, synergyBefore + categoryModifiedGain);
-
-    link.synergy = synergyAfter;
 
     // Record cooldown timestamp (prevent re-entry)
     this.synergyFeedbackLastTime.set(linkId, now);
@@ -2392,7 +2414,7 @@ export class LinkCorruptionTransmission_v1 {
     // Check cooldown: prevent harmony gain spam
     // [Tier 4.9] SYNERGY-DRIVEN COOLDOWN ACCELERATION
     // Higher synergy reduces feedback cooldown duration (faster harmony regeneration)
-    const synergy = link.synergy ?? 0;
+    const synergy = this._getLinkSynergyPct(link);
     const recoveryBoost = 1.0 + Math.min(synergy * 0.5, 0.5);
     const effectiveCooldownMS = HARMONY_FEEDBACK_THRESHOLDS.FEEDBACK_COOLDOWN_MS / recoveryBoost;
     
@@ -2545,7 +2567,7 @@ export class LinkCorruptionTransmission_v1 {
     // [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
     // Higher synergy accelerates post-cascade corruption decay
     // recoveryBoost = 1.0 + min(synergy * 0.5, 0.5) → 100% to 150% speed
-    const synergy = link.synergy ?? 0;
+    const synergy = this._getLinkSynergyPct(link);
     const recoveryBoost = 1.0 + Math.min(synergy * 0.5, 0.5);
     healingRate *= recoveryBoost; // Apply synergy-based acceleration to healing tempo
     
@@ -2972,11 +2994,11 @@ export class LinkCorruptionTransmission_v1 {
     }
 
     // === SYNERGY EVALUATION ===
-    let totalSynergy = link.synergy ?? 0;
+    let totalSynergy = this._getLinkSynergyPct(link);
     let synergyCount = 1; // Include self
 
     for (const neighborLink of neighborLinks) {
-      const neighborSynergy = neighborLink.synergy ?? 0;
+      const neighborSynergy = this._getLinkSynergyPct(neighborLink);
       totalSynergy += neighborSynergy;
       synergyCount++;
     }
@@ -3931,7 +3953,7 @@ export class LinkCorruptionTransmission_v1 {
 
       // [Phase 4-lite] Get detailed link synergy info
       linkSynergyInfo: (link) => {
-        const synergyLevel = link.synergy ?? 0;
+        const synergyLevel = this._getLinkSynergyPct(link);
         const lastGainTime = this.synergyFeedbackLastTime.get(link.id) || 0;
         const timeSinceLastGain = (Date.now() - lastGainTime) / 1000;
         const canGainSynergy = timeSinceLastGain >= (SYNERGY_FEEDBACK_THRESHOLDS.FEEDBACK_COOLDOWN_MS / 1000);
@@ -3982,11 +4004,11 @@ export class LinkCorruptionTransmission_v1 {
         const resonanceFactor = this.computeResonanceAmplification(link);
         
         // Calculate averages for display
-        let totalSynergy = link.synergy ?? 0;
+        let totalSynergy = this._getLinkSynergyPct(link);
         for (const n of neighbors) {
-          totalSynergy += n.synergy ?? 0;
+          totalSynergy += this._getLinkSynergyPct(n);
         }
-        const avgSynergy = neighbors.length > 0 ? totalSynergy / (neighbors.length + 1) : link.synergy ?? 0;
+        const avgSynergy = neighbors.length > 0 ? totalSynergy / (neighbors.length + 1) : this._getLinkSynergyPct(link);
         
         let totalHarmony = link.userData?.harmonyLevel ?? link.source?.userData?.harmonyLevel ?? 0;
         for (const n of neighbors) {
@@ -4027,7 +4049,7 @@ export class LinkCorruptionTransmission_v1 {
             resonanceData.push({
               linkId: link.id,
               resonance: ((resonanceFactor - 1.0) * 100).toFixed(1) + '%',
-              synergy: (link.synergy ?? 0).toFixed(0)
+              synergy: this._getLinkSynergyPct(link).toFixed(0)
             });
           }
         }
@@ -4107,13 +4129,13 @@ export class LinkCorruptionTransmission_v1 {
         
         for (const link of allLinks) {
           const neighbors = this.getLinkNeighbors(link);
-          const highSynergyNeighbors = neighbors.filter(n => (n.synergy ?? 0) >= ADJACENT_SYNERGY_THRESHOLDS.SYNERGY_ADJACENT_THRESHOLD);
+          const highSynergyNeighbors = neighbors.filter(n => this._getLinkSynergyPct(n) >= ADJACENT_SYNERGY_THRESHOLDS.SYNERGY_ADJACENT_THRESHOLD);
           
           if (highSynergyNeighbors.length >= 3) {
             const resonance = this.computeResonanceAmplification(link);
             clusters.push({
               linkId: link.id,
-              linkSynergy: (link.synergy ?? 0).toFixed(0),
+              linkSynergy: this._getLinkSynergyPct(link).toFixed(0),
               highSynergyNeighbors: highSynergyNeighbors.length,
               resonance: (resonance.toFixed(3))
             });

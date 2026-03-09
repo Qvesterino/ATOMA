@@ -96,6 +96,17 @@ export class HarmonyStabilizationSystem_v1 {
   }
 
   /**
+   * Read canonical link synergy as 0–100 percentage.
+   * Falls back to 0 when missing.
+   * @private
+   */
+  _getLinkSynergyPct(link) {
+    const score =
+      Number.isFinite(link?.userData?.synergy?.score) ? link.userData.synergy.score : 0;
+    return Math.max(0, Math.min(100, score * 100));
+  }
+
+  /**
    * Initialize node harmony if not already tracked
    */
   initializeNodeHarmony(node) {
@@ -195,7 +206,7 @@ export class HarmonyStabilizationSystem_v1 {
     let linkCount = 0;
     if (node.userData?.links && node.userData.links.length > 0) {
       for (const link of node.userData.links) {
-        avgSynergy += (link.synergy ?? 0);
+        avgSynergy += this._getLinkSynergyPct(link);
         linkCount++;
       }
       avgSynergy = linkCount > 0 ? avgSynergy / linkCount : 0;
@@ -255,7 +266,7 @@ export class HarmonyStabilizationSystem_v1 {
 
     // [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
     // Compute recovery boost from this link's synergy
-    const synergy = link.synergy ?? 0;
+    const synergy = this._getLinkSynergyPct(link);
     const recoveryBoost = 1.0 + Math.min(synergy * 0.5, 0.5); // 100% to 150% speed
 
     // Compute harmony flow rate (opposite of corruption flow)
@@ -379,7 +390,7 @@ export class HarmonyStabilizationSystem_v1 {
 
     // Link synergy improves harmony flow
     if (link.userData?.synergy !== undefined) {
-      baseRate *= (0.5 + link.userData.synergy * 0.5);
+      baseRate *= (0.5 + (link.userData.synergy.score ?? 0) * 0.5);
     }
 
     return Math.max(0.01, Math.min(2.0, baseRate));

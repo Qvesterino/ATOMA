@@ -190,7 +190,7 @@ export class LinkPrioritySystem {
    * Get synergy multiplier from link's recorded synergy
    * Safe extraction with NORMAL fallback
    * 
-   * @param {Object} link - Link object (may have link.synergy or link.synergyLabel)
+   * @param {Object} link - Link object (uses canonical link.userData.synergy or synergy labels)
    * @returns {number} Synergy multiplier (0.9–1.4)
    */
   static getSynergyMultiplier(link) {
@@ -199,11 +199,21 @@ export class LinkPrioritySystem {
     }
 
     try {
-      // Try multiple possible synergy field locations
-      let synergyValue = link.synergy 
-        || link.synergyLabel 
-        || link.userData?.synergy 
-        || link.userData?.synergyLabel;
+      // Try canonical synergy first (score → label)
+      let synergyValue = null;
+      if (typeof link.userData?.synergy?.score === 'number') {
+        const score = link.userData.synergy.score;
+        if (score >= 0.85) synergyValue = 'ULTRA';
+        else if (score >= 0.7) synergyValue = 'HIGH';
+        else if (score >= 0.5) synergyValue = 'NORMAL';
+        else synergyValue = 'LOW';
+      } else {
+        synergyValue = link.userData?.synergyLabel 
+          || link?.['synergyLabel'] 
+          || link.priority?.synergyLabel 
+          || link.priority?.synergy 
+          || null;
+      }
 
       if (!synergyValue) {
         return 1.0; // Default neutral

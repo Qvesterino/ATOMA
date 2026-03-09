@@ -139,8 +139,8 @@ export class DynamicLinkColorSystem {
    */
   getSynergyForLink(link) {
     // Primary: Pre-calculated synergy score
-    if (link.synergyScore !== undefined && link.synergyScore !== null) {
-      return Math.max(0, Math.min(1, link.synergyScore));
+    if (link['synergyScore'] !== undefined && link['synergyScore'] !== null) {
+      return Math.max(0, Math.min(1, link['synergyScore']));
     }
     
     // Fallback: Calculate from node types
@@ -196,7 +196,7 @@ export class DynamicLinkColorSystem {
     
     // Use smooth transition if configured
     if (this.config.transitionDuration > 0) {
-      const oldSynergy = link.lastSynergyValue ?? link.synergyScore ?? 0.5;
+      const oldSynergy = link.lastSynergyValue ?? link['synergyScore'] ?? 0.5;
       
       // Only transition if synergy changed significantly
       if (!this.compareSynergy(oldSynergy, synergy, 0.05)) {
@@ -204,7 +204,7 @@ export class DynamicLinkColorSystem {
         const transitionDuration = this.config.transitionDuration;
         
         // Set up transition state
-        const oldColor = link.synergyColor || computeSynergyColor(oldSynergy);
+        const oldColor = link['synergyColor'] || computeSynergyColor(oldSynergy);
         const newColor = computeSynergyColor(synergy);
         
         link.colorTransition = {

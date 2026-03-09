@@ -248,8 +248,8 @@ export class SynergyVFXEngine1_0 {
       // Get average synergy tier from connected links
       let maxSynergyTier = 0;
       for (const link of nodeLinks) {
-        if (link.synergyState?.tier && link.synergyState.tier > maxSynergyTier) {
-          maxSynergyTier = link.synergyState.tier;
+        if (link['synergyState']?.tier && link['synergyState'].tier > maxSynergyTier) {
+          maxSynergyTier = link['synergyState'].tier;
         }
       }
 
@@ -296,8 +296,8 @@ export class SynergyVFXEngine1_0 {
         // Add volatility wobble
         let volatility = 0;
         for (const link of nodeLinks) {
-          if (link.synergyState?.volatility && typeof link.synergyState.volatility === 'number') {
-            volatility = Math.max(volatility, link.synergyState.volatility);
+          if (link['synergyState']?.volatility && typeof link['synergyState'].volatility === 'number') {
+            volatility = Math.max(volatility, link['synergyState'].volatility);
           }
         }
 
@@ -475,8 +475,8 @@ export class SynergyVFXEngine1_0 {
 
       // Group links by synergy cluster ID
       for (const link of links) {
-        if (link.synergyState?.clusterId) {
-          const clusterId = link.synergyState.clusterId;
+        if (link['synergyState']?.clusterId) {
+          const clusterId = link['synergyState'].clusterId;
           if (!clusters.has(clusterId)) {
             clusters.set(clusterId, { links: [], nodes: new Set() });
           }
@@ -495,7 +495,7 @@ export class SynergyVFXEngine1_0 {
           // Calculate average tier
           let totalTier = 0;
           for (const link of cluster.links) {
-            totalTier += link.synergyState?.tier || 0;
+            totalTier += link['synergyState']?.tier || 0;
           }
           const avgTier = totalTier / cluster.links.length;
 
@@ -565,7 +565,7 @@ export class SynergyVFXEngine1_0 {
             const link2 = cluster.links[Math.floor(Math.random() * cluster.links.length)];
 
             if (link1 && link2 && link1 !== link2) {
-              const polarity = link1.synergyState?.polarity || 'neutral';
+              const polarity = link1['synergyState']?.polarity || 'neutral';
 
               this.synergyThreads.push({
                 clusterId: clusterId,
@@ -611,7 +611,7 @@ export class SynergyVFXEngine1_0 {
       const polarities = { positive: 0, neutral: 0, negative: 0 };
 
       for (const link of links) {
-        const polarity = link.synergyState?.polarity || 'neutral';
+        const polarity = link['synergyState']?.polarity || 'neutral';
         if (polarities[polarity] !== undefined) {
           polarities[polarity]++;
         }
@@ -642,7 +642,7 @@ export class SynergyVFXEngine1_0 {
       const trends = { rising: 0, stable: 0, falling: 0 };
 
       for (const link of links) {
-        const trend = link.synergyState?.trend || 'stable';
+        const trend = link['synergyState']?.trend || 'stable';
         if (trends[trend] !== undefined) {
           trends[trend]++;
         }

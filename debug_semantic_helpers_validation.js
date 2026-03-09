@@ -141,12 +141,12 @@
     });
 
     // Force focused state metrics
-    testNode.userData.synergy = 0.95;
+    const synergyValue = testNode.userData?.synergy?.score ?? 0.95;
     testNode.userData.corruption = 0.05;
     testNode.userData.tags = ['analytics'];
 
     console.log('Forced metrics:', {
-        synergy: testNode.userData.synergy,
+        synergy: synergyValue,
         corruption: testNode.userData.corruption,
         tags: testNode.userData.tags
     });

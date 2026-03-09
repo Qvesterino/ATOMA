@@ -73,9 +73,7 @@ export class SafeMetricsFX1_1 {
    * Extremely safe - checks everything before touching materials
    */
   applyNodeMetricsFX(node) {
-    if (!node || !node.userData || !node.userData.metrics) {
-      return;
-    }
+    if (!node || !node.userData) return;
 
     const metrics = node.userData.metrics;
     const nodeId = node.uuid;

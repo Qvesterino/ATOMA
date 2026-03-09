@@ -32,7 +32,7 @@
  * }
  * 
  * INTEGRATION POINTS:
- * - Reads from link.userData.synergy2_1 (ComputeSynergyScore2_1 output)
+ * - Reads from link.userData.synergy (ComputeSynergyScore2_1 output)
  * - Reads from node.userData.visualMetrics (VisualMetricModel output)
  * - Falls back to LinkGlowSynergyEngine1_0 logic (no modifications to 1.0)
  * - Prepares for Week 3 shader integration (no shader changes yet)
@@ -208,16 +208,11 @@ export class LinkGlowSynergyEngine_v2 {
    */
   _computeVisual(link, nodeA, nodeB) {
     try {
-      // Get synergy from ComputeSynergyScore2_1
-      const synergy2_1 = link.userData?.synergy2_1;
-      if (!synergy2_1) {
-        return null; // No visual metrics available
-      }
-      
-      const synergyNorm = synergy2_1.synergyNorm ?? synergy2_1.score ?? null;
-      if (synergyNorm === null) {
-        return null;
-      }
+      // Get synergy from ComputeSynergyScore2_1 (canonical object)
+      const synergy = link.userData?.synergy ?? { score: 0, synergyNorm: 0 };
+      const synergyNorm = this._clamp01(
+        synergy.synergyNorm ?? synergy.score ?? 0
+      );
       
       // ========== WEEK 2 FORMULA ==========
       
@@ -288,19 +283,14 @@ export class LinkGlowSynergyEngine_v2 {
   _getLegacySynergyScore(link) {
     if (!link) return 0.5;
     
-    // Try ComputeSynergyScore2_1 first
-    if (link.userData?.synergy2_1?.score) {
-      return this._clamp01(link.userData.synergy2_1.score);
-    }
-    
-    // Try ComputeSynergyScore2_0 style
+    // Try canonical synergy object first
     if (link.userData?.synergy?.score) {
       return this._clamp01(link.userData.synergy.score);
     }
     
     // Try direct property
-    if (typeof link.synergyScore === 'number') {
-      return this._clamp01(link.synergyScore);
+    if (typeof link['synergyScore'] === 'number') {
+      return this._clamp01(link['synergyScore']);
     }
     
     // Try traffic-based estimate

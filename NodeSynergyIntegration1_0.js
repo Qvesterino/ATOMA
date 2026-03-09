@@ -131,11 +131,9 @@ export class NodeSynergyIntegration1_0 {
           });
           
           // Store comprehensive synergy data on link
-          link.synergyScore = hybridScore;
-          
-          // Also update legacy synergy field for backward compatibility
-          link.synergy = hybridScore.score;
-          link.synergyTier = hybridScore.tier;
+          link['synergyScore'] = hybridScore;
+
+          link['synergyTier'] = hybridScore.tier;
           
           // Debug logging if enabled
           if (window.game?.synergyDebug?.enabled) {

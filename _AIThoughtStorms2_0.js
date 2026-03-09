@@ -110,7 +110,7 @@ export class AIThoughtStorms2_0 {
     let activeCount = 0;
     
     for (const link of links) {
-      const synergy = link.synergy || 0.5;
+      const synergy = link.userData?.synergy?.score ?? link?.synergyScore ?? 0.5;
       const harmony = link.harmony || 0.5;
       const stability = link.stability || 0;
       const corruption = link.corruption || 0;

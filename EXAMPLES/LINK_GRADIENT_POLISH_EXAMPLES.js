@@ -188,7 +188,7 @@ function exampleStateAwareLinkRenderingWithGradient(link, gradientPolish, time) 
     THREE.Color : class { setHex() {} })().setHex(0x00ccff);
   
   const harmony = link.harmony || 0.5;
-  const synergy = link.synergy || 0.5;
+  const synergy = link.userData?.synergy?.score ?? link?.synergyScore ?? 0.5;
   const corruption = link.corruption || 0;
 
   // Get gradient info
@@ -331,7 +331,7 @@ function exampleTuneGradientForNetworkState(gradientPolish, network) {
   let linkCount = 0;
 
   for (const link of network.links || []) {
-    avgSynergy += link.synergy || 0;
+    avgSynergy += link.userData?.synergy?.score ?? link?.synergyScore ?? 0;
     avgCorruption += link.corruption || 0;
     linkCount++;
   }

@@ -439,7 +439,7 @@ export class LinkSemanticPictogramSystem {
         // Calculate average node states
         const avgHarmony = ((nodeA?.userData?.harmony || 0) + (nodeB?.userData?.harmony || 0)) / 2;
         const avgCorruption = ((nodeA?.userData?.corruption || 0) + (nodeB?.userData?.corruption || 0)) / 2;
-        const avgSynergy = link.userData.synergy || 0;
+        const avgSynergy = link.userData?.synergy?.score ?? 0;
         const avgStability = ((nodeA?.userData?.stability || 1) + (nodeB?.userData?.stability || 1)) / 2;
         const stability = 1.0 - avgStability;
 

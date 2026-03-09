@@ -61,7 +61,7 @@ export class VisualDerivedMetrics {
     }
 
     const visual = node.userData.visualMetrics;
-    const base = node.userData.metrics || null; // READ-ONLY canonical metrics (0..1)
+    const base = node.userData.metrics; // READ-ONLY canonical metrics (0..1)
 
     // Structural/link metrics
     const linkData = this._computeLinkMetrics(node);

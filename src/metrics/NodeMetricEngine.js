@@ -4,12 +4,14 @@
  * Does not touch visuals or HUDs; intended as a lightweight, event-driven updater.
  */
 
+import { assertMetricAuthority, traceMetricMutation } from './MetricAuthorityGuard.js';
+
 const DEFAULT_METRICS = {
-  synergy: 0.5,
-  harmony: 0.5,
-  stability: 0.5,
-  corruption: 0.0,
-  loadPressure: 0.2
+  synergy: 0,
+  harmony: 0,
+  stability: 1,
+  corruption: 0,
+  loadPressure: 0
 };
 
 // TODO: Replace placeholder step sizes with design-approved values.
@@ -87,8 +89,12 @@ function ensureMetrics(node) {
   return node.userData.metrics;
 }
 
-function adjust(metrics, key, delta) {
-  metrics[key] = clamp01(metrics[key] + delta);
+function adjust(metrics, key, delta, targetId = 'unknown-node') {
+  assertMetricAuthority('NodeMetricEngine', key);
+  const before = metrics[key];
+  const after = clamp01(before + delta);
+  metrics[key] = after;
+  traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
 }
 
 /**
@@ -122,17 +128,20 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
   for (const node of nodes) {
     const m = ensureMetrics(node);
     if (!m) continue;
-    adjust(m, 'synergy', STEP.linkBoost);
-    adjust(m, 'harmony', STEP.linkBoost);
-    adjust(m, 'loadPressure', STEP.linkStress);
-    adjust(m, 'corruption', -STEP.linkBoost * 0.5);
+    const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+    adjust(m, 'synergy', STEP.linkBoost, id);
+    adjust(m, 'harmony', STEP.linkBoost, id);
+    adjust(m, 'loadPressure', STEP.linkStress, id);
+    adjust(m, 'corruption', -STEP.linkBoost * 0.5, id);
   }
 
   if (nodeA?.userData?.category && nodeB?.userData?.category && nodeA.userData.category !== nodeB.userData.category) {
     const mA = ensureMetrics(nodeA);
     const mB = ensureMetrics(nodeB);
-    if (mA) adjust(mA, 'corruption', 0.02);
-    if (mB) adjust(mB, 'corruption', 0.02);
+    const idA = nodeA?.userData?.nodeId || nodeA?.uuid || nodeA?.id || 'unknown-node';
+    const idB = nodeB?.userData?.nodeId || nodeB?.uuid || nodeB?.id || 'unknown-node';
+    if (mA) adjust(mA, 'corruption', 0.02, idA);
+    if (mB) adjust(mB, 'corruption', 0.02, idB);
   }
   
   applyArchetypeClamp(nodeA);
@@ -150,9 +159,10 @@ export function onLinkRemoved(nodeA, nodeB) {
   for (const node of nodes) {
     const m = ensureMetrics(node);
     if (!m) continue;
-    adjust(m, 'synergy', -STEP.linkBoost * 0.5);
-    adjust(m, 'harmony', -STEP.linkBoost * 0.5);
-    adjust(m, 'loadPressure', -STEP.linkStress * 1.5);
+    const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+    adjust(m, 'synergy', -STEP.linkBoost * 0.5, id);
+    adjust(m, 'harmony', -STEP.linkBoost * 0.5, id);
+    adjust(m, 'loadPressure', -STEP.linkStress * 1.5, id);
   }
   applyArchetypeClamp(nodeA);
   applyArchetypeClamp(nodeB);
@@ -166,8 +176,9 @@ export function onOverload(node, overloadAmount = 0) {
   const m = ensureMetrics(node);
   if (!m) return;
   const amt = clamp01(overloadAmount);
-  adjust(m, 'loadPressure', amt * STEP.overloadLoadScale);
-  adjust(m, 'corruption', amt * STEP.overloadCorruptionScale);
-  adjust(m, 'stability', -amt * STEP.overloadStabilityLoss);
+  const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  adjust(m, 'loadPressure', amt * STEP.overloadLoadScale, id);
+  adjust(m, 'corruption', amt * STEP.overloadCorruptionScale, id);
+  adjust(m, 'stability', -amt * STEP.overloadStabilityLoss, id);
   applyArchetypeClamp(node);
 }

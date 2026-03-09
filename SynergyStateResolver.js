@@ -286,16 +286,16 @@ export class SynergyStateResolver {
  * For Visual Systems (NeonLinkVisuals, _AtomaGlyphSystem4_0, etc):
  * 
  * OLD (Hard-coded, scattered):
- *   if (link.synergy >= 0.85) { applyAwakeningEffect(); }
- *   if (link.synergy >= 0.75) { applyRevealEffect(); }
+ *   if (link.userData.synergy.score >= 0.85) { applyAwakeningEffect(); }
+ *   if (link.userData.synergy.score >= 0.75) { applyRevealEffect(); }
  * 
  * NEW (Centralized, maintainable):
- *   const state = synergyResolver.resolve(link.synergy);
+ *   const state = synergyResolver.resolve(link.userData.synergy.score);
  *   if (state === SynergyState.AWAKENED) { applyAwakeningEffect(); }
  *   if (state === SynergyState.STRONG || state === SynergyState.AWAKENED) { applyRevealEffect(); }
  * 
  * Or more elegantly:
- *   if (synergyResolver.isAtLeast(link.synergy, SynergyState.STRONG)) { applyRevealEffect(); }
+ *   if (synergyResolver.isAtLeast(link.userData.synergy.score, SynergyState.STRONG)) { applyRevealEffect(); }
  * 
  * ================
  */

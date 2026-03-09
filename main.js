@@ -5932,6 +5932,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 },
                 'visual.linkingSystem'
             );
+            this.frameScheduler.register(
+                'simulation',
+                (dt) => this.linkingSystem?.runSimulationMaintenance?.(dt),
+                'simulation.linkingSystem.metrics'
+            );
         }
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
@@ -13200,8 +13205,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 const scores = allLinks
                     .map(link => ({
                         id: link.id || 'unknown',
-                        score: link.synergyScore?.score || 0,
-                        tier: link.synergyScore?.tier || 'unknown'
+                        score: link['synergyScore']?.score || 0,
+                        tier: link['synergyScore']?.tier || 'unknown'
                     }))
                     .sort((a, b) => b.score - a.score);
                 
@@ -13350,7 +13355,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (result.links.length > 0) {
                 console.log('Links Created:');
                 result.links.forEach(link => {
-                    console.log(`  → ${link.sourceCategory} → ${link.targetCategory} (${link.synergyScore.toFixed(3)})`);
+                    console.log(`  → ${link.sourceCategory} → ${link.targetCategory} (${link['synergyScore'].toFixed(3)})`);
                 });
             }
             if (result.reason !== 'ok') {

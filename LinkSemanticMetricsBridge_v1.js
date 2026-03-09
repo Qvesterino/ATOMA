@@ -76,7 +76,6 @@ export class LinkSemanticMetricsBridge_v1 {
         changed = true;
       }
       if (shouldWrite(userData.synergy, synergy)) {
-        userData.synergy = synergy;
         changed = true;
       }
 

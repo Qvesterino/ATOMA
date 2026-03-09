@@ -234,7 +234,7 @@ export class LinkBeadPool {
    * Calculate current activity level
    */
   getActivityLevel() {
-    const synergy = this.link.synergyScore ?? 0.5;
+    const synergy = this.link?.synergyScore ?? 0.5;
     const traffic = this.link.traffic?.load ?? 0;
     return (synergy + traffic) / 2;
   }
@@ -700,7 +700,7 @@ export class LinkBeadVisualizer {
       return;
     }
     
-    const synergy = this.link.synergyScore ?? 0.5;
+    const synergy = this.link?.synergyScore ?? 0.5;
     const activeBead = this.pool.getActiveBead();
 
     // Debug: emit bead counts once per second when debug flag is on

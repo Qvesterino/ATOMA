@@ -246,12 +246,13 @@ export class PersonalityVisualAdapter {
         }
         
         // Try to get synergyNorm
-        if (link.userData?.synergy2_1?.synergyNorm !== undefined) {
-          synergySum += link.userData.synergy2_1.synergyNorm;
-        } else if (link.userData?.synergy?.synergyNorm !== undefined) {
-          synergySum += link.userData.synergy.synergyNorm;
-        } else if (link.synergy !== undefined) {
-          synergySum += Math.max(0, Math.min(1, link.synergy / 100));  // Legacy fallback
+        const synergyObj = link.userData?.synergy;
+        if (synergyObj?.synergyNorm !== undefined) {
+          synergySum += synergyObj.synergyNorm;
+        } else if (synergyObj?.score !== undefined) {
+          synergySum += this._clamp01(synergyObj.score);
+        } else if (link?.synergyScore !== undefined) {
+          synergySum += this._clamp01(link?.synergyScore);
         }
         
         // Try to get glowIntensity
