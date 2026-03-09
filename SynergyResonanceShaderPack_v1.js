@@ -11,6 +11,7 @@ const RESONANCE_FX_PATCHED = Symbol('resonanceFXPatched');
  * - Multi-frequency pulse resonance (0.5–3.5 Hz layered waves)
  * - Chromatic ripple distortion (RGB channel separation)
  * - Coherence flow mapping (dynamic band patterns)
+ * Reads link.userData.visualMetrics.synergyBonus (derived visual metric, not gameplay).
  * 
  * Works alongside SynergyBonusFXLayer_v1 to create deeper, more expressive effects.
  * 
@@ -444,8 +445,9 @@ export class SynergyResonanceShaderPack_v1 {
     applyToAllLinks(allLinks = []) {
         try {
             for (const link of allLinks) {
-                if (!link?.userData?.synergyBonus) continue;
-                this.applyToLink(link, link.userData.synergyBonus);
+                const synergyBonus = link?.userData?.visualMetrics?.synergyBonus;
+                if (!synergyBonus) continue;
+                this.applyToLink(link, synergyBonus);
             }
         } catch (err) {
             console.error('[SynergyResonanceShaderPack_v1] applyToAllLinks failed:', err);

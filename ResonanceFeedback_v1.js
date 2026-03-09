@@ -23,9 +23,10 @@ import * as THREE from 'three';
  * - node.userData.shaderModeState (Week 16)
  * - node.userData.archetypeEvolution (Week 13)
  * - node.userData.auras (Week 14)
+ * Note: synergyBonus is a derived visual metric (not gameplay). Gameplay logic must use link.userData.synergy.{score, synergyNorm}.
  * - node.userData.quality (NodeQualityCalculator)
  * - node.userData.dynamicMetrics (NodeDynamicMetrics)
- * - link.userData.synergyBonus
+ * - link.userData.visualMetrics.synergyBonus
  * - link.userData.resonanceFeedback (for coherence tracking)
  * 
  * OUTPUT DATA:
@@ -358,7 +359,7 @@ export class ResonanceFeedback_v1 {
             if (!link?.userData) return;
             
             const state = this.getLinkState(link);
-            const synergyBonus = link.userData.synergyBonus ?? {};
+            const synergyBonus = link.userData?.visualMetrics?.synergyBonus ?? {};
             
             // Extract link metrics
             const resonanceLevel = Math.max(0, Math.min(1,

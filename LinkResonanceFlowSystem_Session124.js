@@ -203,9 +203,11 @@ export class LinkResonanceFlowSystem_Session124 {
       if (!link || !link.userData) continue;
       
       const linkId = link.id;
-      const synergy = Number.isFinite(link.userData?.synergy?.score)
-        ? link.userData.synergy.score
-        : 0;
+      const synergy = Number.isFinite(link.userData?.synergy?.synergyNorm)
+        ? link.userData.synergy.synergyNorm
+        : Number.isFinite(link.userData?.synergy?.score)
+          ? link.userData.synergy.score
+          : 0;
       
       // Skip inactive links
       if (synergy < 0.1) continue;
@@ -239,9 +241,11 @@ export class LinkResonanceFlowSystem_Session124 {
     if (this.globalPulses.length >= this.config.maxTotalPulses) return;
     
     const linkId = link.id;
-    const synergy = Number.isFinite(link.userData?.synergy?.score)
-      ? link.userData.synergy.score
-      : 0;
+    const synergy = Number.isFinite(link.userData?.synergy?.synergyNorm)
+      ? link.userData.synergy.synergyNorm
+      : Number.isFinite(link.userData?.synergy?.score)
+        ? link.userData.synergy.score
+        : 0;
     const quality = link.userData.quality ?? 0.5;
     
     // Get or create pulse pool for this link

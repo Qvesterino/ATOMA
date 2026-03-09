@@ -311,7 +311,7 @@ export class PHASE5_MultiNetworkManager {
         let totalHarmony = 0;
         
         for (const node of network.aiNodes.nodes) {
-          totalCorruption += node.userData?.corruption ?? 0;
+          totalCorruption += node.userData?.metrics?.corruption ?? 0;
           totalHarmony += node.userData?.harmonyLevel ?? 0;
         }
         

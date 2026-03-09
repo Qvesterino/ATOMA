@@ -8,7 +8,8 @@ const SYNERGY_FX_PATCHED = Symbol('synergyFXPatched');
  * SYNERGY BONUS FX LAYER v1.0
  * 
  * GPU-based visual effects layer that renders synergy flares on high-synergy links.
- * Reads from link.userData.synergyBonus and applies shader-based visual enhancements.
+ * Reads from link.userData.visualMetrics.synergyBonus and applies shader-based visual enhancements.
+ * derived visual metric (not gameplay); do not feed gameplay logic with synergyBonus.
  * 
  * CORE FEATURES:
  * ✓ 4 synergy tier visualization (NONE → MYTHIC_RESONANCE)
@@ -361,7 +362,7 @@ export class SynergyBonusFXLayer_v1 {
         try {
             if (!link?.userData) return;
             
-            const synergyBonus = link.userData.synergyBonus;
+            const synergyBonus = link.userData?.visualMetrics?.synergyBonus;
             if (!synergyBonus) return;  // No synergy data, skip
             
             // Get or create FX state
@@ -511,9 +512,8 @@ export class SynergyBonusFXLayer_v1 {
         let count = 0;
         
         for (const link of allLinks) {
-            if (!link?.userData?.synergyBonus) continue;
-            
-            const sb = link.userData.synergyBonus;
+            const sb = link?.userData?.visualMetrics?.synergyBonus;
+            if (!sb) continue;
             const tier = Math.floor(sb.tier ?? 0);
             
             stats.totalLinksWithSynergy++;

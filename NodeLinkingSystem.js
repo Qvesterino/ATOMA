@@ -57,7 +57,7 @@ import {
   BulkCreateLinksCommand, 
   BulkRemoveLinksCommand 
 } from './UndoRedoSystem.js';
-import { onLinkCreated, onLinkRemoved } from './src/metrics/NodeMetricEngine.js';
+import { onLinkCreated, onLinkRemoved, applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
@@ -5865,8 +5865,12 @@ getLinksForNode(node) {
 
   _writeNodeCorruption(node, value) {
     if (!node || !node.userData) return;
-    if (!node.userData.metrics) node.userData.metrics = {};
-    node.userData.metrics.corruption = Math.max(0, Math.min(1, value ?? 0));
+    const current = node.userData.metrics?.corruption ?? 0;
+    const clamped = Math.max(0, Math.min(1, value ?? 0));
+    const delta = clamped - current;
+    if (delta !== 0) {
+      applyMetricImpulse(node, { corruption: delta });
+    }
   }
   
   /**

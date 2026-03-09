@@ -14,6 +14,8 @@ const DEFAULT_METRICS = {
   loadPressure: 0
 };
 
+const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+
 // TODO: Replace placeholder step sizes with design-approved values.
 const STEP = {
   linkBoost: 0.02,
@@ -75,9 +77,38 @@ function applyArchetypeClamp(node) {
   m.loadPressure = clamp01(m.loadPressure);
 }
 
+function installLegacyFieldGuards(node) {
+  if (!node?.userData || node.userData.__legacyMetricGuardInstalled) return;
+  for (const key of LEGACY_KEYS) {
+    try {
+      const desc = Object.getOwnPropertyDescriptor(node.userData, key);
+      // Only wrap if writable/configurable to avoid breaking existing non-configurable props.
+      if (desc && desc.configurable === false) continue;
+      Object.defineProperty(node.userData, key, {
+        configurable: true,
+        enumerable: false,
+        get() {
+          return undefined;
+        },
+        set(v) {
+          console.warn('LEGACY METRIC WRITE BLOCKED', { key });
+          const metrics = this.metrics;
+          if (metrics) {
+            metrics[key] = clamp01(typeof v === 'number' ? v : DEFAULT_METRICS[key]);
+          }
+        }
+      });
+    } catch (_e) {
+      // Best-effort; skip if definition fails
+    }
+  }
+  node.userData.__legacyMetricGuardInstalled = true;
+}
+
 function ensureMetrics(node) {
   if (!node || !node.userData) return null;
   if (node.userData.metrics) {
+    installLegacyFieldGuards(node);
     node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
     return node.userData.metrics;
   }
@@ -86,6 +117,7 @@ function ensureMetrics(node) {
     metrics[key] = DEFAULT_METRICS[key];
   }
   node.userData.metrics = wrapMetricsWithGuard(metrics);
+  installLegacyFieldGuards(node);
   return node.userData.metrics;
 }
 
@@ -95,6 +127,45 @@ function adjust(metrics, key, delta, targetId = 'unknown-node') {
   const after = clamp01(before + delta);
   metrics[key] = after;
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
+}
+
+/**
+ * Apply a set of metric deltas to a node (authoritative impulse).
+ * @param {Object} node - target node
+ * @param {Object} deltas - { synergy?, harmony?, stability?, corruption?, loadPressure? }
+ */
+export function applyMetricImpulse(node, deltas = {}) {
+  if (!node) return;
+  const m = ensureMetrics(node);
+  if (!m) return;
+  const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  const keys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+  for (const key of keys) {
+    if (typeof deltas[key] === 'number' && Number.isFinite(deltas[key])) {
+      adjust(m, key, deltas[key], id);
+    }
+  }
+  applyArchetypeClamp(node);
+}
+
+/**
+ * Set a single metric value (absolute) on the canonical container.
+ * Blocks legacy field writes by warning when direct fields are present.
+ */
+export function setMetric(node, metric, value) {
+  if (!node || !metric) return;
+  if (!LEGACY_KEYS.includes(metric)) return;
+  const m = ensureMetrics(node);
+  if (!m) return;
+  const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  if (Object.prototype.hasOwnProperty.call(node.userData, metric) && node.userData[metric] !== undefined) {
+    console.warn('LEGACY METRIC WRITE BLOCKED', { key: metric, nodeId: id });
+  }
+  const before = m[metric];
+  const after = clamp01(typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric]);
+  m[metric] = after;
+  traceMetricMutation('NodeMetricEngine', `node.${metric}`, before, after, id);
+  applyArchetypeClamp(node);
 }
 
 /**

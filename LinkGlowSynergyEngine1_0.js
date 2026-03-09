@@ -131,6 +131,9 @@ const LinkGlowSynergyEngine1_0 = (() => {
     }
     
     // Try different score locations
+    if (typeof link.userData?.synergy?.synergyNorm === 'number') {
+      return Math.max(0, Math.min(1, link.userData.synergy.synergyNorm));
+    }
     if (typeof link['synergyScore'] === 'number') {
       return Math.max(0, Math.min(1, link['synergyScore']));
     }

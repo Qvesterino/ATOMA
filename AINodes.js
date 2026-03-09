@@ -78,7 +78,6 @@ if (typeof window !== 'undefined') {
 }
 
 import { SafeMetricsDNAIntegration1_0 } from './SafeMetricsDNAIntegration1_0.js';
-import { applyMetricCompatibility } from './MetricCompatibilityLayer.js';
 import { atomaNamingEngine } from './_AtomaNamingEngine.js';
 import { isEmissiveCapable, safeSetEmissive } from './_EmissiveUtils.js';
 import { NodeSpawnLogger } from './_NodeSpawnLogger4_0.js';
@@ -708,7 +707,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       (node) => {
         // Canonical metrics: deterministic single-writer path
         SafeMetricsDNAIntegration1_0.attachMetrics(node, node.userData.archetype);
-        applyMetricCompatibility([node]);
         if (!node.userData.metrics) {
           initNodeMetrics(node);
         }

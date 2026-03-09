@@ -306,14 +306,12 @@ export class PHASE5_NetworkSynchronization {
         }
       }
       
-      // Validate link corruption values
+      // Validate link corruption values (read-only; do not write)
       if (network.linkingSystem?.links) {
         for (const link of network.linkingSystem.links) {
           const corruption = link.userData?.corruptionLevel;
           if (typeof corruption === 'number') {
-            if (corruption < 0 || corruption > 1) {
-              link.userData.corruptionLevel = Math.max(0, Math.min(1, corruption));
-            }
+            // detection only; canonical writer is LinkCorruptionTransmission_v1
           }
         }
       }

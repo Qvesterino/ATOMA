@@ -543,12 +543,13 @@ export class CriticalNodeFailureSystem {
             if (timeSinceIsolation < CONFIG.RECOVERY_ATTEMPT_DELAY) return;
 
             // Slow stability recovery
-            if (!node.userData.metrics) node.userData.metrics = {};
-            const currentStability = node.userData.metrics.stability || 0;
-            node.userData.metrics.stability = Math.min(
+            const currentStability = node.userData.metrics?.stability || 0;
+            const targetStability = Math.min(
                 currentStability + CONFIG.RECOVERY_ATTEMPT_RATE * deltaTime,
                 0.5 // Cap at 50% (never fully recovers without healing)
             );
+            const delta = targetStability - currentStability;
+            if (delta !== 0) applyMetricImpulse(node, { stability: delta });
 
             // Gradually brighten core
             const targetBrightness = 0.7;
@@ -607,3 +608,4 @@ export class CriticalNodeFailureSystem {
         console.log('[CriticalNodeFailureSystem] Disposed');
     }
 }
+import { applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';

@@ -6,6 +6,8 @@ import VisualTime from './src/time/VisualTime.js';
  * 
  * GPU-ready visualization system highlighting high-synergy links with
  * special visual effects (brightness, pulsing, chroma waves, resonance ripples).
+ * derived visual metric (not gameplay): writes link.userData.visualMetrics.synergyBonus for FX only.
+ * gameplay must read link.userData.synergy.score/synergyNorm instead.
  * 
  * CORE FEATURES:
  * ✓ 4 synergy bonus tiers (none → mythic resonance)
@@ -238,8 +240,11 @@ export class SynergyBonusVisualization_v1 {
                 if (state) {
                     state.smooth(deltaTime);
                     
-                    // Write synergy bonus to link.userData for other systems to read
-                    link.userData.synergyBonus = {
+                    // Write synergy bonus to visualMetrics for other systems to read
+                    if (!link.userData.visualMetrics) {
+                        link.userData.visualMetrics = {};
+                    }
+                    link.userData.visualMetrics.synergyBonus = {
                         tier: state.tier,
                         tierName: state.tierName,
                         pulseStrength: state.currentPulseStrength,
@@ -319,9 +324,8 @@ export class SynergyBonusVisualization_v1 {
         let totalResonance = 0;
 
         for (const link of allLinks) {
-            if (!link?.userData?.synergyBonus) continue;
-
-            const sb = link.userData.synergyBonus;
+            const sb = link?.userData?.visualMetrics?.synergyBonus;
+            if (!sb) continue;
             stats.total++;
             stats.byTier[sb.tier]++;
             totalPulse += sb.pulseStrength;

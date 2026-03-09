@@ -218,7 +218,6 @@ import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThought
 import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
 // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
-// import { LinkMetricsSanityGuard_v1 } from './LinkMetricsSanityGuard_v1.js';
 import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
@@ -6915,15 +6914,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkSemanticMetricsBridge = null;
         }
         // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
-        // this.linkMetricsSanityGuard = null;
-        // try {
-        //     if (this.linkingSystem) {
-        //         this.linkMetricsSanityGuard = new LinkMetricsSanityGuard_v1(this.linkingSystem);
-        //     }
-        // } catch (err) {
-        //     console.warn('[main.js] LinkMetricsSanityGuard_v1 init failed:', err?.message || err);
-        //     this.linkMetricsSanityGuard = null;
-        // }
         this.semanticActivityFilter = null;
         try {
             if (this.linkingSystem) {
@@ -7446,7 +7436,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Initialize SynergyBonusVisualization_v1 (compute synergy bonuses for links)
         // This system highlights high-synergy links with dynamic visual effects
         // Evaluates 1500+ links in <1ms with multi-tier EMA smoothing
-        // Outputs: link.userData.synergyBonus (tier, pulseStrength, chromaShift, resonanceRipples)
+        // Outputs: link.userData.visualMetrics.synergyBonus (tier, pulseStrength, chromaShift, resonanceRipples)
         // Reads from: visualGlow (synergy score)
         try {
             this.synergyBonusVisualization = new SynergyBonusVisualization_v1({
@@ -7464,7 +7454,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // This system reads synergy bonus data and applies shader-based visual flares
         // Emissive boosting (10–90%), multi-frequency pulsing (0.5–3 Hz), chroma flares
         // Evaluates 1500+ links in <1ms with per-material shader patches
-        // Reads from: link.userData.synergyBonus (computed by SynergyBonusVisualization_v1)
+        // Reads from: link.userData.visualMetrics.synergyBonus (computed by SynergyBonusVisualization_v1)
         try {
             this.synergyBonusFXLayer = new SynergyBonusFXLayer_v1({
                 maxLinksPerFrame: null,  // No frame limit
@@ -7485,7 +7475,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // This system provides multi-frequency pulse, chromatic ripples, and flow mapping
         // Works alongside Week 19 FXLayer for layered, expressive synergy visuals
         // Per-material shader patching with dynamic uniform updates
-        // Reads from: link.userData.synergyBonus (populated by SynergyBonusVisualization_v1)
+        // Reads from: link.userData.visualMetrics.synergyBonus (populated by SynergyBonusVisualization_v1)
         try {
             this.synergyResonanceShaderPack = new SynergyResonanceShaderPack_v1({
                 debugEnabled: false,

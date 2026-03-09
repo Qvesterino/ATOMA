@@ -251,6 +251,9 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         
         // Fallback: estimate from link metrics if available
         if (link.intensity !== undefined) return link.intensity;
+        if (typeof link.userData?.synergy?.synergyNorm === 'number') {
+            return Math.max(0, Math.min(1, link.userData.synergy.synergyNorm));
+        }
         if (typeof link.userData?.synergy?.score === 'number') {
             return Math.max(0, Math.min(1, link.userData.synergy.score));
         }

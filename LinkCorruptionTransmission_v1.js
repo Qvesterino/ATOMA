@@ -2197,7 +2197,8 @@ export class LinkCorruptionTransmission_v1 {
       const computedCorruption = Math.min(1.0, targetCorruptionBefore + attenuatedDelta);
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
-        targetMetrics.corruption = computedCorruption;
+        const delta = computedCorruption - targetCorruptionBefore;
+        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta });
       }
       
       // Mark as infected
@@ -2240,7 +2241,8 @@ export class LinkCorruptionTransmission_v1 {
       const attenuatedSurge = baseSurge * (1 - stabilization * 0.75);
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
-        targetMetrics.corruption = attenuatedSurge;
+        const delta = attenuatedSurge - (targetMetrics.corruption || 0);
+        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta });
         targetNode.userData.corruptionSurgeTime = Date.now();
       }
       
@@ -5103,3 +5105,4 @@ export class LinkCorruptionTransmission_v1 {
 }
 
 export default LinkCorruptionTransmission_v1;
+import { applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';

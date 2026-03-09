@@ -80,7 +80,7 @@ class SynergyGlowReference {
   static examplesOfWrongPatterns() {
     return `
     // ✗ WRONG: Reading raw stat
-    const intensity = (link.userData.synergy?.score ?? 0) * 2.0;
+    const intensity = (link.userData.synergy?.synergyNorm ?? link.userData.synergy?.score ?? 0) * 2.0;
     
     // ✗ WRONG: Mixing signals
     const mixedColor = lerpColor(synergy, corruption, stress);
