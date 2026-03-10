@@ -44,9 +44,9 @@ export class LinkRingArcDischarges {
         this.config = {
             spawnInterval: 0.28 + Math.random() * 0.04,      // (legacy, unused in new logic)
             arcsPerBurst: 5,          // Base arc count
-            arcLifetime: 0.38,        // Longer visibility
-            arcLength: 0.7,           // Extended reach into space
-            arcThickness: 0.028,      // Slightly thicker arcs
+            arcLifetime: 0.45,        // Longer visibility (whip linger)
+            arcLength: 0.9,           // Extended reach into space
+            arcThickness: 0.03,       // Slightly thicker arcs
             jitterAmount: 0.07,       // Stronger jagged deviation
             radiusScale: 1.0,         // Scales with synergy
         };
@@ -290,11 +290,16 @@ export class LinkRingArcDischarges {
             if (Math.random() > 0.3) continue; // spawn chance per fragment
             const radialDir = dir.clone().normalize();
             const outward = mode === 'expansion';
-            const startOffset = this.config.arcLength * 0.25 * this.ringScale;
+            const startOffset = this.config.arcLength * 0.45 * this.ringScale + 0.02;
             const startPoint = ringPos.clone().addScaledVector(radialDir, startOffset);
+
+            // Tangent push (electric whip into space)
+            const tangentPush = (0.22 + Math.random() * 0.13) * this.ringScale * (Math.random() < 0.15 ? -1 : 1);
+            const radialReach = outward ? this.config.arcLength * 1.05 : -this.config.arcLength * 0.65;
+
             const endPoint = ringPos.clone()
-                .addScaledVector(radialDir, outward ? this.config.arcLength : -this.config.arcLength * 0.6)
-                .addScaledVector(tangent, 0.25 * this.ringScale);
+                .addScaledVector(radialDir, radialReach)
+                .addScaledVector(tangent, tangentPush);
 
             this.spawnArcDirectional(startPoint, endPoint, radialDir, tangent, synergy, traffic, outward);
             bursts++;
@@ -585,24 +590,36 @@ export class LinkRingArcDischarges {
         positions[idx++] = start.y;
         positions[idx++] = start.z;
 
-        // Generate intermediate control points with structured wave jitter
+        // Generate intermediate control points with whip-biased structured jitter
         for (let i = 1; i < segments + 1; i++) {
             const t = i / (segments + 1);
             
             // Linear interpolation base
             const point = start.clone().lerp(end, t);
             
-            // PHASE 3: Structured wave (not random noise spam)
-            // taper = sin(t * PI) - tapers to 0 at endpoints
-            const taper = Math.sin(t * Math.PI);
-            // wave = sin(t * PI * 3) - oscillates 3 times along the arc
+            // PHASE 3+: Structured wave with whip bias
+            const taper = Math.sin(t * Math.PI); // fades toward ends
             const wave = Math.sin(t * Math.PI * 3);
-            // jitterMagnitude = taper * wave * config.jitterAmount * jitterMultiplier
-            const jitterMagnitude = taper * wave * this.config.jitterAmount * jitterMultiplier;
+            let jitterMagnitude = taper * wave * this.config.jitterAmount * jitterMultiplier;
+
+            // Electric whip bias: stronger snap early, slight kink mid, taper late
+            const earlyWhip = t < 0.35 ? 1.4 : 1.0;
+            const midKink = (t > 0.4 && t < 0.65) ? 1.15 : 1.0;
+            const lateTaper = 1.0 - t * 0.35;
+            jitterMagnitude *= earlyWhip * midKink * lateTaper;
             
-            // Add structured jitter (electric oscillation, not chaos)
-            const jitterDir = safeNormal.clone().add(safeBinormal).normalize();
+            // Direction: biased normal/binormal with slight asymmetry per point
+            const biasSign = Math.random() < 0.5 ? -1 : 1;
+            const jitterDir = safeNormal.clone()
+                .multiplyScalar(0.7)
+                .addScaledVector(safeBinormal, 0.5 * biasSign)
+                .normalize();
             
+            // Extra kink in mid body to feel like a whip crack
+            if (t > 0.45 && t < 0.65) {
+                jitterDir.addScaledVector(safeBinormal, 0.35 * biasSign).normalize();
+            }
+
             point.addScaledVector(jitterDir, jitterMagnitude);
             
             positions[idx++] = point.x;

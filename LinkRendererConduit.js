@@ -2143,10 +2143,10 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         // --- 8. Visual State Adaptation (Harmony/Corruption/Instability/Synergy Bridge) ---
         if (state.visualStateAdapter) {
             // Extract harmony/corruption/instability/synergy from pre-read metrics
-            const harmonyLevel = metrics.harmony;
-            const corruptionLevel = metrics.corruption;
-            const instability = metrics.instability;
-            const synergyLevel = metrics.synergy;
+            const harmonyLevel = metrics.harmony ?? 0.5;
+            const corruptionLevel = metrics.corruption ?? 0.0;
+            const instability = metrics.instability ?? 0.0;
+            const synergyLevel = metrics.synergy ?? 0.5;
 
             state.visualStateAdapter.update(
                 link.group,
@@ -2174,10 +2174,10 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
         if (state.directionalStreaks && this.directionalStreaks && this.modules.streaks) {
-            const harmonyLevel = metrics.harmony;
-            const corruptionLevel = metrics.corruption;
-            const instability = metrics.instability;
-            const synergyLevel = metrics.synergy;
+            const harmonyLevel = metrics.harmony ?? 0.5;
+            const corruptionLevel = metrics.corruption ?? 0.0;
+            const instability = metrics.instability ?? 0.0;
+            const synergyLevel = metrics.synergy ?? 0.5;
 
             const sourceColor = new THREE.Color(state.baseColor);
             const targetCat = link.target.userData?.category || 'input';

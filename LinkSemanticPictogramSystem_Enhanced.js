@@ -267,6 +267,7 @@ class EnhancedPictogramInstance {
         this._tmpNormal = new THREE.Vector3();
         this._tmpBinormal = new THREE.Vector3();
         this._tmpOffset = new THREE.Vector3();
+        this._tmpMatrix = new THREE.Matrix4();
         this._up = new THREE.Vector3(0, 1, 0);
         this._altUp = new THREE.Vector3(1, 0, 0);
         this._warnedMissingCurve = false;
@@ -278,7 +279,7 @@ class EnhancedPictogramInstance {
 
     reset() {
         this.active = false;
-        this.mesh.visible = false;
+        this._setVisibleRecursive(this.mesh, false);
         this.link = null;
         this.currentState = null;
         this.targetState = null;
@@ -311,10 +312,16 @@ class EnhancedPictogramInstance {
                            link?.userData?.length ||
                            null;
         this.prepareFrames(link);
+        const envelope =
+            link?.visualEnvelopeRadius ??
+            link?.userData?.visualEnvelopeRadius ??
+            link?.userData?.activeRadius ??
+            link?.userData?.visualRadius ??
+            0;
         const orbitMap = CONFIG.ORBIT_RADII || {};
         const metricOrbit = orbitMap[this.metricType] ?? orbitMap.loadPressure ?? 0.6;
-        this.spiralRadius = metricOrbit;
-        this.extraLift = 0.05;
+        this.spiralRadius = Math.max(metricOrbit, envelope + (this.size * 0.6), 0.35);
+        this.extraLift = Math.max(0.05, envelope * 0.1);
         
         this.age = 0.0;
         this.lifetime = THREE.MathUtils.lerp(
@@ -334,7 +341,7 @@ class EnhancedPictogramInstance {
         this.baseOpacity = layer === 'A' ? CONFIG.LAYER_A_OPACITY :
                           (layer === 'B' ? CONFIG.LAYER_B_OPACITY : CONFIG.LAYER_C_OPACITY);
         
-        this.mesh.visible = true;
+        this._setVisibleRecursive(this.mesh, true);
         this.mesh.scale.setScalar(size * VISIBILITY_SCALE * CONFIG.ORBITAL_SCALE_FACTOR);
         
         // Update geometry
@@ -395,11 +402,6 @@ class EnhancedPictogramInstance {
         this.verticalPhase += deltaTime * 0.3;
         this.microRotationPhase += deltaTime * CONFIG.MICRO_ROTATION_SPEED;
         this.spiralPhase += deltaTime * this.orbitSpeed * Math.PI * 2;
-
-        // Face the camera (billboard) to keep glyphs readable in screen space
-        if (cameraPosition) {
-            this.mesh.lookAt(cameraPosition);
-        }
 
         // Update opacity
         this.updateOpacity();
@@ -543,10 +545,8 @@ class EnhancedPictogramInstance {
         }
 
         this.mesh.position.copy(basePos);
-        this.mesh.up.copy(binormal);
-        if (cameraPosition) {
-            this.mesh.lookAt(cameraPosition);
-        }
+        this._tmpMatrix.makeBasis(normal, binormal, tangent);
+        this.mesh.quaternion.setFromRotationMatrix(this._tmpMatrix);
     }
 
     prepareFrames(link) {
@@ -597,9 +597,7 @@ class EnhancedPictogramInstance {
             opacity = Math.max(opacity, 0.25);
         }
 
-        if (this.mesh.material) {
-            this.mesh.material.opacity = Math.max(opacity, 0.95);
-        }
+        this._setOpacityRecursive(this.mesh, Math.max(opacity, 0.95));
     }
 
     updateMicroRotation() {
@@ -680,6 +678,28 @@ class EnhancedPictogramInstance {
         // For now, just mark that geometry should be updated
         this.mesh.userData.geometryKey = geometryKey;
     }
+
+    _setVisibleRecursive(object, visible) {
+        if (!object) return;
+        object.visible = visible;
+        if (object.children?.length) {
+            object.children.forEach(child => this._setVisibleRecursive(child, visible));
+        }
+    }
+
+    _setOpacityRecursive(object, opacity) {
+        if (!object) return;
+        const materials = Array.isArray(object.material) ? object.material : (object.material ? [object.material] : []);
+        materials.forEach(material => {
+            if (material && typeof material.opacity === 'number') {
+                material.opacity = opacity;
+                material.needsUpdate = true;
+            }
+        });
+        if (object.children?.length) {
+            object.children.forEach(child => this._setOpacityRecursive(child, opacity));
+        }
+    }
 }
 
 // ============================================================================
@@ -705,6 +725,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkSpawnTimers = new Map();
         this.linkStateCounts = new Map(); // linkId -> Map(state -> count)
         this.linkMetricCounts = new Map(); // linkId -> Map(metric -> count)
+        this._initializedLinks = new Set();
+        this._lastLinks = [];
 
         // Update timer
         this.updateTimer = 0.0;
@@ -778,12 +800,46 @@ export class LinkSemanticPictogramSystem_Enhanced {
         console.log('[Enhanced] Geometry cache disabled for design focus');
     }
 
+    // Ensure renderOrder / frustum settings propagate to nested glyph meshes
+    _applyRenderSettings(object, fallbackRO) {
+        if (!object) return;
+        if (fallbackRO !== undefined && object.renderOrder === 0) {
+            object.renderOrder = fallbackRO;
+        }
+        object.frustumCulled = false;
+        if (object.children && object.children.length) {
+            object.children.forEach(child => this._applyRenderSettings(child, object.renderOrder ?? fallbackRO));
+        }
+    }
+
+    _findFirstMaterial(object) {
+        if (!object) return null;
+        if (object.material) {
+            return Array.isArray(object.material) ? (object.material[0] || null) : object.material;
+        }
+        if (object.children?.length) {
+            for (const child of object.children) {
+                const material = this._findFirstMaterial(child);
+                if (material) return material;
+            }
+        }
+        return null;
+    }
+
     // ========================================================================
     // UPDATE
     // ========================================================================
 
     update(deltaTime, time) {
         if (!this.enabled) return;
+        const linksAvailable = this._getLinks?.() || [];
+        if (!linksAvailable.length) {
+            // Try cached links from previous frame
+            if (!this._lastLinks?.length) return;
+        } else {
+            this._lastLinks = linksAvailable;
+        }
+        const links = linksAvailable.length ? linksAvailable : this._lastLinks;
 
         // Auto-rebind to live linkingSystem if ours is missing or stale (no links) but global has links
         const globalLS = getGlobalLinkSystem();
@@ -1186,16 +1242,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
             if (pictogram._orbit1) pictogram._orbit1.rotation.x += deltaTime * 1.8;
             if (pictogram._orbit2) pictogram._orbit2.rotation.z += deltaTime * 1.5;
             if (pictogram.mesh) pictogram.mesh.rotation.y += deltaTime * 1.2;
-            if (pictogram._spark && pictogram.mesh) {
-                const r = 0.45;
-                const t = (pictogram.age % 1);
-                const ang = t * Math.PI * 2;
-                pictogram._spark.position.set(
-                    Math.cos(ang) * r,
-                    Math.sin(ang) * r * 0.3,
-                    Math.sin(ang) * r
-                );
-            }
 
             if (!pictogram.active) {
                 const linkId = pictogram._linkKey || this.getLinkKey(pictogram.link);
@@ -1215,6 +1261,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                         const mc = metricCounts.get(metric) || 0;
                         metricCounts.set(metric, Math.max(0, mc - 1));
                         this.linkMetricCounts.set(linkId, metricCounts);
+                        this._initializedLinks.delete(linkId); // allow refill if a glyph disappears
                     }
                 }
                 pictogram._linkKey = null;
@@ -1314,6 +1361,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
         if (Array.isArray(this._externalLinks) && this._externalLinks.length) {
             return this._externalLinks;
         }
+        if (Array.isArray(this._lastLinks) && this._lastLinks.length) {
+            return this._lastLinks;
+        }
         // Prefer current linkingSystem links; fallback to global live system
         const local = this.linkingSystem?.links;
         if (Array.isArray(local) && local.length) return local;
@@ -1337,7 +1387,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
             pictogram.mesh.parent.remove(pictogram.mesh);
         }
         this.container.add(glyph);
+        if (!glyph.material) {
+            glyph.material = this._findFirstMaterial(glyph);
+        }
         pictogram.mesh = glyph;
+        this._applyRenderSettings(glyph, glyph.renderOrder);
         pictogram._orbit1 = glyph.userData.orbit1;
         pictogram._orbit2 = glyph.userData.orbit2;
         pictogram._spark = glyph.userData.spark;
@@ -1409,6 +1463,9 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const linkId = this.getLinkKey(link);
             if (!linkId) return;
 
+            // If link already fully initialized (caps satisfied), skip to avoid respawn loops
+            if (this._initializedLinks.has(linkId)) return;
+
             const metricCounts = this.linkMetricCounts.get(linkId) || new Map();
 
             GLYPH_TYPES.forEach(metric => {
@@ -1432,6 +1489,14 @@ export class LinkSemanticPictogramSystem_Enhanced {
             });
 
             this.linkMetricCounts.set(linkId, metricCounts);
+            // Mark as initialized only if all caps reached
+            const allSatisfied = GLYPH_TYPES.every(m => {
+                const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[m]) ??
+                            CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 2;
+                const count = metricCounts.get(m) || 0;
+                return count >= cap;
+            });
+            if (allSatisfied) this._initializedLinks.add(linkId);
         });
     }
 
