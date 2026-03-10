@@ -800,6 +800,137 @@ export class LinkSemanticPictogramSystem_Enhanced {
         console.log('[Enhanced] Geometry cache disabled for design focus');
     }
 
+    _readNumericMetric(...values) {
+        for (const value of values) {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                return value;
+            }
+        }
+        return undefined;
+    }
+
+    _readLinkMetric(link, key, fallback = 0) {
+        if (!link) return fallback;
+        const userData = link.userData || {};
+        const userMetrics = userData.metrics || {};
+        const linkMetrics = link.metrics || {};
+        const conduitMetrics = link.group?.userData?.conduitState?.metrics || {};
+
+        let value;
+        switch (key) {
+            case 'synergy':
+                value = this._readNumericMetric(
+                    userData.synergy?.score,
+                    userData.synergy?.synergyNorm,
+                    userData.synergy,
+                    userMetrics.synergy,
+                    linkMetrics.synergy,
+                    conduitMetrics.synergy,
+                    link.synergyScore,
+                    link.synergyLevel,
+                    link.flow
+                );
+                break;
+            case 'harmony':
+                value = this._readNumericMetric(
+                    userData.harmony,
+                    userData.harmonyLevel,
+                    userMetrics.harmony,
+                    linkMetrics.harmony,
+                    conduitMetrics.harmony,
+                    link.harmonyLevel,
+                    link.harmony
+                );
+                break;
+            case 'corruption':
+                value = this._readNumericMetric(
+                    userData.corruption,
+                    userData.corruptionLevel,
+                    userMetrics.corruption,
+                    linkMetrics.corruption,
+                    conduitMetrics.corruption,
+                    link.corruptionLevel,
+                    link.corruption
+                );
+                break;
+            case 'stability':
+                value = this._readNumericMetric(
+                    userData.stability,
+                    userData.stabilityLevel,
+                    userMetrics.stability,
+                    linkMetrics.stability,
+                    conduitMetrics.stability,
+                    link.stability,
+                    link.stabilityLevel
+                );
+                break;
+            case 'instability':
+                value = this._readNumericMetric(
+                    userData.instability,
+                    userData.instabilityLevel,
+                    userMetrics.instability,
+                    linkMetrics.instability,
+                    conduitMetrics.instability,
+                    link.instability,
+                    link.instabilityLevel
+                );
+                break;
+            case 'traffic':
+                value = this._readNumericMetric(
+                    link.traffic?.load,
+                    userData.traffic?.load,
+                    userData.traffic,
+                    userMetrics.traffic,
+                    linkMetrics.traffic,
+                    conduitMetrics.traffic
+                );
+                break;
+            case 'loadPressure':
+                value = this._readNumericMetric(
+                    link.loadPressure,
+                    userData.loadPressure,
+                    userMetrics.loadPressure,
+                    linkMetrics.loadPressure,
+                    conduitMetrics.loadPressure,
+                    this._readLinkMetric(link, 'traffic', undefined)
+                );
+                break;
+            case 'quality':
+                value = this._readNumericMetric(
+                    userData.quality?.score,
+                    userData.quality,
+                    userMetrics.quality,
+                    linkMetrics.quality,
+                    conduitMetrics.quality,
+                    link.quality
+                );
+                break;
+            default:
+                value = this._readNumericMetric(
+                    userData[key],
+                    userMetrics[key],
+                    linkMetrics[key],
+                    conduitMetrics[key],
+                    link[key]
+                );
+                break;
+        }
+
+        return value ?? fallback;
+    }
+
+    _readNodeMetric(node, key, fallback = 0) {
+        if (!node) return fallback;
+        const userData = node.userData || {};
+        const metrics = userData.metrics || {};
+        const value = this._readNumericMetric(
+            userData[key],
+            metrics[key],
+            node[key]
+        );
+        return value ?? fallback;
+    }
+
     // Ensure renderOrder / frustum settings propagate to nested glyph meshes
     _applyRenderSettings(object, fallbackRO) {
         if (!object) return;
@@ -925,22 +1056,19 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const u = link.userData || {};
 
         // High synergy increases importance
-        const synergyObj = u.synergy;
-        const synergy = (typeof synergyObj?.score === 'number')
-            ? synergyObj.score
-            : (typeof synergyObj?.synergyNorm === 'number' ? synergyObj.synergyNorm : null);
-        const synergyValue = synergy ?? link['synergyScore'] ?? link.glowData?.synergy ?? 0.5;
+        const synergyValue = this._readLinkMetric(link, 'synergy', link.glowData?.synergy ?? 0.5);
         score += synergyValue * 0.3;
 
         // High quality increases importance
-        const quality = u.quality ?? 0.5;
+        const quality = this._readLinkMetric(link, 'quality', 0.5);
         score += (quality - 0.5) * 0.2;
 
         // Critical state increases importance
         const nodeA = u.nodeA || link.source;
         const nodeB = u.nodeB || link.target;
         if (nodeA && nodeB) {
-            const avgStability = ((nodeA.userData?.stability || 1) + (nodeB.userData?.stability || 1)) / 2;
+            const avgStability =
+                (this._readNodeMetric(nodeA, 'stability', 1) + this._readNodeMetric(nodeB, 'stability', 1)) / 2;
             if (avgStability < 0.3) {
                 score += 0.3; // Critical link
             }
@@ -1283,19 +1411,21 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const nodeB = u.nodeB || link.target || link.endNode || null;
 
         // Metrics fallbacks: userData → link fields → safe defaults
-        const avgHarmony = ((nodeA?.userData?.harmony ?? u.harmony ?? 0) +
-                            (nodeB?.userData?.harmony ?? u.harmony ?? 0)) / 2;
-        const avgCorruption = ((nodeA?.userData?.corruption ?? u.corruption ?? 0) +
-                               (nodeB?.userData?.corruption ?? u.corruption ?? 0)) / 2;
-        const avgStability = ((nodeA?.userData?.stability ?? 1) +
-                              (nodeB?.userData?.stability ?? 1)) / 2;
+        const linkHarmony = this._readLinkMetric(link, 'harmony', 0);
+        const linkCorruption = this._readLinkMetric(link, 'corruption', 0);
+        const linkStability = this._readLinkMetric(link, 'stability', 1);
+        const avgHarmony =
+            (this._readNodeMetric(nodeA, 'harmony', linkHarmony) + this._readNodeMetric(nodeB, 'harmony', linkHarmony)) / 2;
+        const avgCorruption =
+            (this._readNodeMetric(nodeA, 'corruption', linkCorruption) + this._readNodeMetric(nodeB, 'corruption', linkCorruption)) / 2;
+        const avgStability =
+            (this._readNodeMetric(nodeA, 'stability', linkStability) + this._readNodeMetric(nodeB, 'stability', linkStability)) / 2;
 
-        const synergy = (u.synergy ??
-                         link?.synergyScore ??
-                         link.glowData?.synergy ??
-                         0.5);
+        const synergy = this._readLinkMetric(link, 'synergy', link.glowData?.synergy ?? 0.5);
+        const loadPressure = this._readLinkMetric(link, 'loadPressure', 0);
+        const traffic = this._readLinkMetric(link, 'traffic', 0);
 
-        const instability = 1.0 - avgStability;
+        const instability = this._readLinkMetric(link, 'instability', 1.0 - avgStability);
         const isHealing = (nodeA?.userData?.isHealing ?? u.isHealing ?? false) ||
                           (nodeB?.userData?.isHealing ?? false);
         const healingIntensity = isHealing ? 0.7 : 0;
@@ -1320,6 +1450,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
             harmony: avgHarmony,
             corruption: avgCorruption,
             synergy: synergy,
+            loadPressure: loadPressure,
+            traffic: traffic,
             instability: instability,
             isHealing: isHealing,
             healingIntensity: healingIntensity,
@@ -1343,6 +1475,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
             harmony: 0,
             corruption: 0,
             synergy: 0,
+            loadPressure: 0,
+            traffic: 0,
             instability: 0,
             isHealing: false,
             healingIntensity: 0,

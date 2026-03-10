@@ -48,6 +48,7 @@ export class LinkSemanticMetricsBridge_v1 {
 
       const userData = link.userData;
       if (!userData) continue;
+      const linkMetrics = userData.metrics || (userData.metrics = {});
 
       const nodeA = userData.nodeA || link.source || link.nodeA;
       const nodeB = userData.nodeB || link.target || link.nodeB;
@@ -76,6 +77,20 @@ export class LinkSemanticMetricsBridge_v1 {
         changed = true;
       }
       if (shouldWrite(userData.synergy, synergy)) {
+        userData.synergy = synergy;
+        changed = true;
+      }
+
+      if (shouldWrite(linkMetrics.harmony, harmony)) {
+        linkMetrics.harmony = harmony;
+        changed = true;
+      }
+      if (shouldWrite(linkMetrics.corruption, corruption)) {
+        linkMetrics.corruption = corruption;
+        changed = true;
+      }
+      if (shouldWrite(linkMetrics.synergy, synergy)) {
+        linkMetrics.synergy = synergy;
         changed = true;
       }
 

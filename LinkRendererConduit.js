@@ -1382,6 +1382,8 @@ export class LinkRendererConduit {
             return;
         }
 
+        state.metrics = metrics;
+
         // Harmonic sync update (links + aggregated metrics)
         if (this.nodeHarmonicManager) {
             const instabilityMetric = metrics?.instability;
@@ -2369,17 +2371,109 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
      * Returns safe defaults if fields are missing.
      */
     _readLinkMetrics(link) {
-        const traffic = link.traffic?.load ?? 0;
-        const loadPressure = link.loadPressure ?? traffic ?? 0;
-        console.debug("LINK HARMONY", link?.id, link?.userData?.harmonyLevel);
+        const userData = link?.userData || {};
+        const userMetrics = userData.metrics || {};
+        const linkMetrics = link?.metrics || {};
+        const conduitMetrics = link?.group?.userData?.conduitState?.metrics || {};
+
+        const readMetric = (...values) => {
+            for (const value of values) {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    return value;
+                }
+            }
+            return undefined;
+        };
+
+        const synergy = readMetric(
+            userData.synergy?.score,
+            userData.synergy?.synergyNorm,
+            userData.synergy,
+            userMetrics.synergy,
+            linkMetrics.synergy,
+            conduitMetrics.synergy,
+            link?.synergyScore,
+            link?.synergyLevel,
+            link?.flow
+        );
+
+        const harmony = readMetric(
+            userData.harmony,
+            userData.harmonyLevel,
+            userMetrics.harmony,
+            linkMetrics.harmony,
+            conduitMetrics.harmony,
+            link?.harmonyLevel,
+            link?.harmony
+        );
+
+        const corruption = readMetric(
+            userData.corruption,
+            userData.corruptionLevel,
+            userMetrics.corruption,
+            linkMetrics.corruption,
+            conduitMetrics.corruption,
+            link?.corruptionLevel,
+            link?.corruption
+        );
+
+        const stability = readMetric(
+            userData.stability,
+            userData.stabilityLevel,
+            userMetrics.stability,
+            linkMetrics.stability,
+            conduitMetrics.stability,
+            link?.stability,
+            link?.stabilityLevel
+        );
+
+        const instability = readMetric(
+            userData.instability,
+            userData.instabilityLevel,
+            userMetrics.instability,
+            linkMetrics.instability,
+            conduitMetrics.instability,
+            link?.instability,
+            link?.instabilityLevel,
+            (typeof stability === 'number') ? (1 - stability) : undefined
+        );
+
+        const traffic = readMetric(
+            link?.traffic?.load,
+            userData.traffic?.load,
+            userData.traffic,
+            userMetrics.traffic,
+            linkMetrics.traffic,
+            conduitMetrics.traffic
+        ) ?? 0;
+
+        const loadPressure = readMetric(
+            link?.loadPressure,
+            userData.loadPressure,
+            userMetrics.loadPressure,
+            linkMetrics.loadPressure,
+            conduitMetrics.loadPressure,
+            traffic
+        ) ?? 0;
+
+        const quality = readMetric(
+            userData.quality?.score,
+            userData.quality,
+            userMetrics.quality,
+            linkMetrics.quality,
+            conduitMetrics.quality,
+            link?.quality
+        );
+
         return {
-            synergy: link.userData?.synergy?.score ?? link?.synergyScore ?? link?.synergyLevel ?? link.flow ?? 0.5,
-            harmony: link.userData?.harmonyLevel ?? link.harmonyLevel ?? link.harmony ?? 1.0,
-            corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
-            instability: link.instability ?? link.instabilityLevel ?? 0.0,
+            synergy: synergy ?? 0.5,
+            harmony: harmony ?? 1.0,
+            corruption: corruption ?? 0.0,
+            instability: instability ?? 0.0,
+            stability: stability ?? 1.0,
             traffic,
             loadPressure,
-            quality: link.quality ?? link.userData?.quality?.score
+            quality: quality ?? 0.5
         };
     }
 
