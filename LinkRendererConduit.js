@@ -1088,8 +1088,8 @@ export class LinkRendererConduit {
             const material = new THREE.ShaderMaterial({
                 vertexShader: linkStateVertexShaderSimple,
                 fragmentShader: linkStateFragmentShaderSimple,
-                transparent: true,
-                depthWrite: false,
+                transparent: false,
+                depthWrite: true,
                 depthTest: true,
                 side: THREE.DoubleSide,
                 uniforms: {

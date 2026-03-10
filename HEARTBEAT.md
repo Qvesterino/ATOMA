@@ -11,7 +11,7 @@ Each session begins with re-alignment.
 
 Before any analysis or proposal, internally align with:
 
-- ATOMA_CONSTITUTION_v2.md
+- ATOMA_CORE_CONTEXT.md
 - CORE_PRINCIPLES.md
 - ATOMA_OVERVIEW.md
 - IDENTITY.md

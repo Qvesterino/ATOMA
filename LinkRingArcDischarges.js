@@ -44,11 +44,12 @@ export class LinkRingArcDischarges {
         this.config = {
             spawnInterval: 0.28 + Math.random() * 0.04,      // (legacy, unused in new logic)
             arcsPerBurst: 5,          // Base arc count
-            arcLifetime: 0.45,        // Longer visibility (whip linger)
-            arcLength: 0.9,           // Extended reach into space
-            arcThickness: 0.03,       // Slightly thicker arcs
+            arcLifetime: 0.6,         // Longer visibility (whip linger)
+            arcLength: 1.2,           // Extended reach into space
+            arcThickness: 0.06,       // Thicker arcs for readability
             jitterAmount: 0.07,       // Stronger jagged deviation
             radiusScale: 1.0,         // Scales with synergy
+            surfaceRadiusMul: 1.2     // How far from link core arcs originate
         };
         
         // State tracking
@@ -184,7 +185,7 @@ export class LinkRingArcDischarges {
             return null;
         }
 
-        const colorVariation = 0.7 + Math.random() * 0.3;
+        const colorVariation = 0.8 + Math.random() * 0.25;
         let arcColor = this.ringColor.clone().multiplyScalar(colorVariation);
         const hsl = {};
         arcColor.getHSL(hsl);
@@ -215,9 +216,9 @@ export class LinkRingArcDischarges {
             mesh: line,
             geometry: geometry,
             material: material,
-            lifetime: (impactPoint ? 0.12 : this.config.arcLifetime) + Math.random() * 0.04,
+            lifetime: (impactPoint ? 0.16 : this.config.arcLifetime) + Math.random() * 0.06,
             age: 0,
-            maxOpacity: 0.7 * 2.3,
+            maxOpacity: 0.9 * 2.3,
             pulsePhase: Math.random() * Math.PI * 2,
             pulseSpeed: 4.0 + Math.random() * 2.0,
             flashBoost: 1.1 + Math.random() * 0.2,
@@ -290,12 +291,12 @@ export class LinkRingArcDischarges {
             if (Math.random() > 0.3) continue; // spawn chance per fragment
             const radialDir = dir.clone().normalize();
             const outward = mode === 'expansion';
-            const startOffset = this.config.arcLength * 0.45 * this.ringScale + 0.02;
+            const startOffset = this.config.arcLength * 0.6 * this.ringScale + 0.03;
             const startPoint = ringPos.clone().addScaledVector(radialDir, startOffset);
 
             // Tangent push (electric whip into space)
             const tangentPush = (0.22 + Math.random() * 0.13) * this.ringScale * (Math.random() < 0.15 ? -1 : 1);
-            const radialReach = outward ? this.config.arcLength * 1.05 : -this.config.arcLength * 0.65;
+            const radialReach = outward ? this.config.arcLength * 1.25 : -this.config.arcLength * 0.75;
 
             const endPoint = ringPos.clone()
                 .addScaledVector(radialDir, radialReach)
@@ -330,8 +331,8 @@ export class LinkRingArcDischarges {
                 ringPos, tangent, synergy, traffic,
                 {
                     arcType: 'snap',
-                    lifetime: 0.12, // Faster: 120ms
-                    maxOpacity: 1.0, // Higher opacity
+                    lifetime: 0.16, // Longer snap flash
+                    maxOpacity: 1.15, // Higher opacity
                     jitterMultiplier: 1.5, // Higher jitter for sharp look
                     pulseSpeed: 2.5, // Faster pulse
                     arcLengthScale: 1.0 // Normal length
@@ -341,8 +342,8 @@ export class LinkRingArcDischarges {
             
             // === VARIANT 2: AFTERGLOW ARC ===
             // Slower, smoother, longer-lasting electric afterglow
-            const afterglowLifetime = 0.35 + Math.random() * 0.15; // 0.35-0.5s
-            const afterglowOpacity = 0.5 + Math.random() * 0.2; // 0.5-0.7
+            const afterglowLifetime = 0.65 + Math.random() * 0.1; // 0.65-0.75s
+            const afterglowOpacity = 0.7 + Math.random() * 0.15; // brighter afterglow
             
             const afterglowArc = this.spawnSingleArc(
                 ringPos, tangent, synergy, traffic,
@@ -372,7 +373,7 @@ export class LinkRingArcDischarges {
         // Parse parameters (PHASE 1: Two-Phase Arc System compatibility)
         const arcType = params.arcType || 'normal';
         const arcLifetime = params.lifetime !== undefined ? params.lifetime : this.config.arcLifetime;
-        const maxOpacity = params.maxOpacity !== undefined ? params.maxOpacity : (0.8 + Math.random() * 0.4);
+        const maxOpacity = params.maxOpacity !== undefined ? params.maxOpacity : (1.0 + Math.random() * 0.35);
         const jitterMultiplier = params.jitterMultiplier !== undefined ? params.jitterMultiplier : 1.0;
         const pulseSpeed = params.pulseSpeed !== undefined ? params.pulseSpeed : (4.0 + Math.random() * 6.0);
         const arcLengthScale = params.arcLengthScale !== undefined ? params.arcLengthScale : 1.0;
@@ -393,7 +394,7 @@ export class LinkRingArcDischarges {
 
         // PATCH: Arcs originate from Ring Surface (NOT center)
         // 1) Compute ring surface radius:
-        const ringRadius = 0.5 * this.ringScale;
+        const ringRadius = this.ringScale * this.config.surfaceRadiusMul;
         
         // 2) Compute direction vector for arc radiation:
         const dirOffset = Math.cos(angle);
@@ -409,8 +410,8 @@ export class LinkRingArcDischarges {
         
         // 5) Set endPoint further outward from surface:
         const endPoint = startPoint.clone()
-            .addScaledVector(normal, dirOffset * arcRadius)
-            .addScaledVector(binormal, dirLift * arcRadius);
+            .addScaledVector(normal, dirOffset * arcRadius * 1.1)
+            .addScaledVector(binormal, dirLift * arcRadius * 1.1);
 
         // Create arc line geometry safely (PHASE 3: Improved Electric Shape)
         const geometry = new THREE.BufferGeometry();

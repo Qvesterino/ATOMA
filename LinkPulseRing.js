@@ -248,6 +248,7 @@ export class LinkPulseRing {
         this._pulseCloseRatio = 0.22;
         this._pulseAmplitude = 0.8;
         this._arcTriggeredThisPulse = false;
+        this._arcTriggeredOnClose = false;
         
         // Trail initialization
         this._initTrails();
@@ -501,8 +502,23 @@ export class LinkPulseRing {
             this._arcTriggeredThisPulse = true;
         }
 
+        // Arc burst on closure (when segments collapse)
+        if (pulseState.resetArc && !this._arcTriggeredOnClose && this.arcSystem) {
+            this.mesh.getWorldDirection(this._worldDirection);
+            this.arcSystem.spawnArcBurst(
+                this.mesh.position,
+                this._worldDirection,
+                synergy,
+                traffic
+            );
+            this._arcTriggeredOnClose = true;
+        }
+
         if (pulseState.resetArc) {
             this._arcTriggeredThisPulse = false;
+        }
+        if (!pulseState.resetArc) {
+            this._arcTriggeredOnClose = false;
         }
         this.lastPulse = gap;
         

@@ -73,7 +73,7 @@
  *   
  *   LINK LAYERS (200-300):
    *   LINK_SKIN          (200)   — Link atmosphere aura behind rope
-   *   LINK_DIRECTIONAL   (205)   — Flow visualization along links
+ *   LINK_DIRECTIONAL   (202)   — Flow visualization along links
    *   LINK_STRANDS       (220)   — Braided rope geometry - main link structure
    *   LINK_GLOW          (220)   — Link glow effects
    *   LINK_PULSE         (230)   — Energy carrier ring traveling along link
@@ -188,8 +188,8 @@ export class VisualHierarchyRegistry {
   static LINK_LAYER_ORDER = {
     SKIN: 200,
     STRANDS: 220,
-    DIRECTIONAL: 205,
-    GLOW: 220,
+    DIRECTIONAL: 210,
+    GLOW: 225,
     PULSE: 230,
     ARCS: 235,
     SPARKS: 240,
