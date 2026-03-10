@@ -154,6 +154,71 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings) ===
         this.trailMeshes = [];
         this.TRAIL_COUNT = 2;
+
+        // Chain arcs between trail rings (small pool)
+        this._chainArcPool = [];
+        this._activeChainArcs = [];
+        this._chainDir = new THREE.Vector3();
+        this._chainNormal = new THREE.Vector3();
+        this._chainBinormal = new THREE.Vector3();
+        this._chainTmp = new THREE.Vector3();
+        this._initChainArcPool(2);
+
+        // Ribbon turbulence layer (between main ring and trails)
+        this.ribbonMaterial = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending,
+            uniforms: {
+                uColor: { value: new THREE.Color(0xffffff) },
+                uOpacity: { value: 0.25 },
+                uTime: { value: 0 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                uniform float uTime;
+                varying vec2 vUv;
+
+                float hash(float x) { return fract(sin(x) * 43758.5453); }
+
+                void main() {
+                    // Soft ribbon mask (fade on edges)
+                    float maskV = smoothstep(0.05, 0.25, vUv.y) * smoothstep(0.95, 0.75, vUv.y);
+                    float maskU = smoothstep(0.02, 0.15, vUv.x) * smoothstep(0.98, 0.85, vUv.x);
+                    float mask = maskU * maskV;
+
+                    // Layered fast turbulence
+                    float p = uTime * 20.0;
+                    float t1 = sin(vUv.x * 36.0 + p);
+                    float t2 = sin(vUv.x * 64.0 + vUv.y * 8.0 + p * 1.7 + 1.1);
+                    float t3 = sin((vUv.x + vUv.y) * 92.0 + p * 2.3 + 2.4);
+                    float turb = (t1 + t2 + t3) / 3.0;
+
+                    // Shimmer modulation
+                    float shimmer = 0.6 + 0.4 * abs(turb);
+                    float alpha = uOpacity * mask * shimmer;
+                    if (alpha < 0.01) discard;
+
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `
+        });
+
+        this.ribbonMesh = new THREE.Mesh(SHARED_RING_GEOMETRY, this.ribbonMaterial);
+        this.ribbonMesh.frustumCulled = false;
+        const ribbonOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 0.5;
+        this.ribbonMesh.renderOrder = ribbonOrder;
+        this.ribbonMesh.scale.set(0.9, 0.9, 0.9);
+        this.mesh.add(this.ribbonMesh);
         
         // State
         this.progress = Math.random(); // Random start pos
@@ -205,6 +270,38 @@ export class LinkPulseRing {
             mesh.userData.trailVariation = trailVariation; // Uložiť pre update
             
             this.trailMeshes.push(mesh);
+        }
+    }
+
+    _initChainArcPool(count) {
+        for (let i = 0; i < count; i++) {
+            const positions = new Float32Array((5 + 1) * 3); // 5 segments = 6 points
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.LineBasicMaterial({
+                color: new THREE.Color(0x9fe8ff),
+                transparent: true,
+                opacity: 0.5,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: true,
+                linewidth: 1.2,
+                fog: false,
+            });
+            const line = new THREE.Line(geometry, material);
+            line.frustumCulled = false;
+            line.visible = false;
+            line.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.1;
+            this.mesh.add(line);
+            this._chainArcPool.push({
+                mesh: line,
+                geometry,
+                material,
+                positions,
+                lifetime: 0.06,
+                age: 0,
+                baseOpacity: 0.5
+            });
         }
     }
 
@@ -431,27 +528,33 @@ export class LinkPulseRing {
             trail.position.addScaledVector(trailTan, variation.lagOffset);
             this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
             this._buildTrailFrame(trailTan, this._trailNormal, this._trailBinormal);
-            const orbitAngle = this.currentSpinAngle * variation.spinSpeedMultiplier + i * Math.PI;
-            
-            // Motor vibration - subtle turbine-like oscillation around the ring axis
-            const motorVibration =
-            Math.sin(this._time * 28.0 + i * 2.1) * 0.35 +
-            Math.sin(this._time * 51.0 + i * 1.3) * 0.18;
-            
-            const orbitRadius = (variation.jitterMagnitude + gap * 0.12) * this.mesh.scale.x * 0.6;
-            this._trailOffset.copy(this._trailNormal).multiplyScalar(Math.cos(orbitAngle) * orbitRadius);
-            this._trailOffset.addScaledVector(this._trailBinormal, Math.sin(orbitAngle) * orbitRadius);
-            trail.position.add(this._trailOffset);
-            trail.quaternion.copy(this._trailQuaternion);
-            this._trailSpinQuaternion.setFromAxisAngle(
-            this._ringAxis,
-            orbitAngle + motorVibration
-            );
-            trail.quaternion.multiply(this._trailSpinQuaternion);
+
+            // Propulsion-like thrust pulses along tangent
+            const phase = this._time * 18.0 + i * 1.2;
+            const osc1 = Math.sin(phase) * 0.05;
+            const osc2 = Math.sin(phase * 2.3 + 1.7) * 0.03;
+            const osc3 = Math.sin(phase * 4.1 + 0.4) * 0.015;
+            const burst = Math.max(0.0, Math.sin(this._time * 6.0 + i)) * 0.05;
+            const oscillation = osc1 + osc2 + osc3 + burst;
+            trail.position.addScaledVector(trailTan, oscillation);
+
+            // Optional scale pulse for added energy feel
+            const scalePulse = 1.0 + Math.sin(this._time * 16.0 + i * 1.3) * 0.05;
             const baseScale = this.mesh.scale.x;
-            const trailScalePulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.05;
-            const dynamicScale = baseScale * (variation.scaleDecayBase + trailScalePulse);
-            trail.scale.setScalar(dynamicScale);
+            const dynamicScale = baseScale * scalePulse;
+
+            // Energy compression along tangent
+            const compPhase = this._time * 14.0 + i * 0.9;
+            const compression = Math.pow(Math.max(0.0, Math.sin(compPhase)), 2.0);
+            const scaleForward = 1.0 - compression * 0.35;
+            const scaleSide = 1.0 + compression * 0.18;
+            trail.scale.set(
+                dynamicScale * scaleSide,
+                dynamicScale * scaleSide,
+                dynamicScale * scaleForward
+            );
+
+            trail.quaternion.copy(this._trailQuaternion);
             const trailOpacityPulse = Math.sin(this.progress * Math.PI * 6 * variation.pulseFrequencyMultiplier) * 0.1;
             const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
@@ -460,6 +563,47 @@ export class LinkPulseRing {
             this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
             this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
         });
+
+        // Chain arcs between adjacent trails
+        if (this.trailMeshes.length >= 2) {
+            for (let i = 0; i < this.trailMeshes.length - 1; i++) {
+                const a = this.trailMeshes[i];
+                const b = this.trailMeshes[i + 1];
+                const dist = a.position.distanceTo(b.position);
+                if (dist < 0.2 && Math.random() < 0.35 && this._activeChainArcs.length < 2) {
+                    this._spawnChainArc(a.position, b.position);
+                }
+            }
+        }
+
+        // Update active chain arcs
+        if (this._activeChainArcs.length > 0) {
+            const now = this._time;
+            for (let i = this._activeChainArcs.length - 1; i >= 0; i--) {
+                const arc = this._activeChainArcs[i];
+                arc.age += dt;
+                const t = arc.age / arc.lifetime;
+                if (t >= 1.0) {
+                    arc.mesh.visible = false;
+                    this._activeChainArcs.splice(i, 1);
+                    this._chainArcPool.push(arc);
+                } else {
+                    arc.material.opacity = arc.baseOpacity * (1.0 - t);
+                }
+            }
+        }
+
+        // Ribbon turbulence update
+        if (this.ribbonMesh && this.ribbonMaterial) {
+            const ribbonOpacity = 0.18 + Math.sin(this._time * 6.0 + this.progress * Math.PI * 4.0) * 0.08;
+            this.ribbonMaterial.uniforms.uOpacity.value = THREE.MathUtils.clamp(ribbonOpacity, 0.05, 0.35);
+            this.ribbonMaterial.uniforms.uColor.value.copy(this.material.uniforms.uColor.value);
+            this.ribbonMaterial.uniforms.uTime.value = this._time * 1.3;
+
+            // Keep ribbon size slightly below main ring
+            const ribbonScale = this.mesh.scale.x * 0.92;
+            this.ribbonMesh.scale.set(ribbonScale, ribbonScale, ribbonScale);
+        }
     }
 
     _buildTrailFrame(direction, normal, binormal) {
@@ -469,6 +613,40 @@ export class LinkPulseRing {
         }
         binormal.crossVectors(direction, normal).normalize();
         normal.crossVectors(binormal, direction).normalize();
+    }
+
+    _spawnChainArc(startPos, endPos) {
+        if (this._chainArcPool.length === 0) return;
+        const arc = this._chainArcPool.pop();
+        arc.age = 0;
+        arc.mesh.visible = true;
+
+        // build jagged positions between start and end
+        const segs = 5;
+        const dir = this._chainDir.subVectors(endPos, startPos);
+        const len = dir.length();
+        if (len < 1e-4) return;
+        dir.normalize();
+        const up = Math.abs(dir.y) < 0.9 ? this._chainNormal.set(0, 1, 0) : this._chainNormal.set(1, 0, 0);
+        this._chainBinormal.crossVectors(dir, up).normalize();
+        up.crossVectors(this._chainBinormal, dir).normalize();
+
+        const amp = 0.02 + Math.random() * 0.02;
+        let idx = 0;
+        for (let i = 0; i <= segs; i++) {
+            const t = i / segs;
+            this._chainTmp.copy(startPos).addScaledVector(dir, t * len);
+            const jitterN = (Math.random() - 0.5) * amp;
+            const jitterB = (Math.random() - 0.5) * amp;
+            this._chainTmp.addScaledVector(up, jitterN).addScaledVector(this._chainBinormal, jitterB);
+            arc.positions[idx++] = this._chainTmp.x;
+            arc.positions[idx++] = this._chainTmp.y;
+            arc.positions[idx++] = this._chainTmp.z;
+        }
+        arc.geometry.attributes.position.needsUpdate = true;
+        arc.material.opacity = arc.baseOpacity;
+
+        this._activeChainArcs.push(arc);
     }
 
     _applyRingVisuals(material, color, opacity, intensityMultiplier = 1.0) {

@@ -42,12 +42,12 @@ export class LinkRingArcDischarges {
         
         // Configuration (unchanged)
         this.config = {
-            spawnInterval: 0.28 + Math.random() * 0.04,      // Spawn arcs every 0.25 of traversal (4 bursts per cycle)
+            spawnInterval: 0.28 + Math.random() * 0.04,      // (legacy, unused in new logic)
             arcsPerBurst: 5,          // Base arc count
-            arcLifetime: 0.3,         // Enhanced: 300ms per arc (doubled from 150ms)
-            arcLength: 0.25,          // Enhanced: Radial extent (increased to 0.25)
-            arcThickness: 0.02,       // Enhanced: Line width (increased from 0.015)
-            jitterAmount: 0.05,       // Random variation in path
+            arcLifetime: 0.38,        // Longer visibility
+            arcLength: 0.7,           // Extended reach into space
+            arcThickness: 0.028,      // Slightly thicker arcs
+            jitterAmount: 0.07,       // Stronger jagged deviation
             radiusScale: 1.0,         // Scales with synergy
         };
         
@@ -56,6 +56,21 @@ export class LinkRingArcDischarges {
         this.currentRingProgress = 0;
         this.ringColor = new THREE.Color(0xffffff);
         this.ringScale = 1.0;
+        this.lastRingScale = 1.0;
+        this.arcsThisPulse = 0;
+        this.sparkPool = [];
+        this.activeSparks = [];
+        this._initImpactSparkPool(6);
+
+        // Ripple pool for surface ripples
+        this.ripplePool = [];
+        this.activeRipples = [];
+        this._initRipplePool(3);
+
+        // Energy packet pool (travel inside link core)
+        this.packetPool = [];
+        this.activePackets = [];
+        this._initPacketPool(3);
         
         // Math cache
         this._vec3 = new THREE.Vector3();
@@ -80,43 +95,69 @@ export class LinkRingArcDischarges {
      * @param {THREE.Color} ringColor - Ring color
      * @param {number} ringScale - Ring scale factor
      */
-    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale) {
+    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale, harmony = 1.0, corruption = 0.0) {
         if (!curve) return;
 
         this.currentRingProgress = ringProgress;
         this.ringColor.copy(ringColor);
         this.ringScale = ringScale;
+        this.currentHarmony = harmony;
+        this.currentCorruption = corruption;
 
-        // Check for spawn threshold crossing
         this.checkAndSpawnArcs(curve, synergy, traffic);
 
         // Update active arcs (PHASE 4: Smooth Energy Fade)
-        this.updateActiveArcs(dt);
+        this.updateActiveArcs(dt, curve);
+
+        // Track last scale/progress for phase detection
+        this.lastRingScale = this.ringScale;
+        // reset per-pulse when progress loops
+        if (ringProgress < this.lastSpawnProgress) {
+            this.arcsThisPulse = 0;
+        }
     }
 
     /**
      * Check if ring has crossed a spawn threshold
      */
     checkAndSpawnArcs(curve, synergy, traffic) {
-        // Calculate which "bucket" ring is in
-        const bucketSize = this.config.spawnInterval;
-        const currentBucket = Math.floor(this.currentRingProgress / bucketSize);
-        const lastBucket = Math.floor(this.lastSpawnProgress / bucketSize);
+        const t = Math.min(0.999, Math.max(0.001, this.currentRingProgress));
+        const ringPos = curve.getPointAt(t);
+        const tangent = curve.getTangentAt(t).normalize();
 
-        // Spawn only once per bucket crossing
-        if (currentBucket !== lastBucket) {
-            // Get ring position and tangent
-            const t = Math.min(0.999, Math.max(0.001, this.currentRingProgress));
-            const ringPos = curve.getPointAt(t);
-            const tangent = curve.getTangentAt(t).normalize();
+        // Build local frame for fragment offsets
+        const normal = this._vec3.set(0, 1, 0);
+        if (Math.abs(tangent.dot(normal)) > 0.9) normal.set(1, 0, 0);
+        const binormal = this._vec3b.crossVectors(tangent, normal).normalize();
+        normal.crossVectors(binormal, tangent).normalize();
 
-            // Spawn arc burst (PHASE 1: Two-Phase Arc System)
-            const isPeakPulse = this.ringScale > 0.9;
+        // Four fragment directions around ring
+        const fragments = [];
+        for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const dir = normal.clone().multiplyScalar(Math.cos(angle)).addScaledVector(binormal, Math.sin(angle)).normalize();
+            fragments.push(dir);
+        }
 
-            if (isPeakPulse) {
-                this.spawnArcBurst(ringPos, tangent, synergy * 1.5, traffic);
-            } else {
-                this.spawnArcBurst(ringPos, tangent, synergy * 0.5, traffic);
+        const expanding = this.ringScale > this.lastRingScale + 0.001;
+        const collapsing = this.ringScale < this.lastRingScale - 0.001;
+
+        if (this.arcsThisPulse >= 4) return;
+
+        if (expanding || collapsing) {
+            const mode = expanding ? 'expansion' : 'collapse';
+            this.spawnFromFragments(ringPos, tangent, fragments, synergy, traffic, mode);
+            // Occasionally spawn energy packet along core during pulse events
+            if (Math.random() < 0.35) {
+                this._spawnPacket(curve, ringPos, this._selectPacketColor(synergy, this.currentHarmony, this.currentCorruption));
+            }
+            // Impact arcs on collapse with low probability
+            if (collapsing && Math.random() < 0.35 && this.arcsThisPulse < 4) {
+                const dir = fragments[Math.floor(Math.random() * fragments.length)].clone().normalize();
+                const startPoint = ringPos.clone().addScaledVector(dir, this.config.arcLength * 0.25 * this.ringScale);
+                const impactPoint = ringPos.clone().addScaledVector(dir, -0.12 * this.ringScale);
+                this.spawnImpactArc(startPoint, impactPoint, dir, tangent, synergy, traffic);
+                this.arcsThisPulse++;
             }
         }
 
@@ -124,7 +165,145 @@ export class LinkRingArcDischarges {
     }
 
     /**
-     * Spawn a burst of electric arcs (PHASE 1: Two-Phase Arc System)
+     * Directional arc spawn from fragment
+     */
+    spawnArcDirectional(startPoint, endPoint, radialDir, tangent, synergy, traffic, outward = true, impactPoint = null) {
+        const geometry = new THREE.BufferGeometry();
+        const normal = radialDir.clone().normalize();
+        const binormal = this._vec3b.crossVectors(tangent, normal).normalize();
+        if (binormal.lengthSq() < 1e-4) {
+            binormal.set(0, 1, 0).cross(normal).normalize();
+        }
+        const segments = impactPoint ? 6 : 8;
+        const jitterMul = impactPoint ? 0.7 : 1.0;
+        const positions = this.generateArcPath(startPoint, endPoint, segments, jitterMul, normal, binormal);
+        if (!positions) return null;
+        geometry.setAttribute('position', positions);
+        if (!LinkBufferSafetyAudit.verifyGeometrySafety(geometry)) {
+            geometry.dispose();
+            return null;
+        }
+
+        const colorVariation = 0.7 + Math.random() * 0.3;
+        let arcColor = this.ringColor.clone().multiplyScalar(colorVariation);
+        const hsl = {};
+        arcColor.getHSL(hsl);
+        const hueShift = (Math.random() - 0.5) * 0.05;
+        hsl.h = (hsl.h + hueShift + 1.0) % 1.0;
+        arcColor.setHSL(hsl.h, hsl.s, hsl.l);
+
+        const material = new THREE.LineBasicMaterial({
+            color: arcColor,
+            transparent: true,
+            opacity: 0.7 * 2.3,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false,
+            linewidth: this.config.arcThickness * 100.0,
+            fog: false,
+        });
+
+        const line = new THREE.Line(geometry, material);
+        line.frustumCulled = false;
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
+        const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
+        line.renderOrder = arcsOrder;
+        this.group.add(line);
+
+        const arcData = {
+            mesh: line,
+            geometry: geometry,
+            material: material,
+            lifetime: (impactPoint ? 0.12 : this.config.arcLifetime) + Math.random() * 0.04,
+            age: 0,
+            maxOpacity: 0.7 * 2.3,
+            pulsePhase: Math.random() * Math.PI * 2,
+            pulseSpeed: 4.0 + Math.random() * 2.0,
+            flashBoost: 1.1 + Math.random() * 0.2,
+            impactPoint: impactPoint ? impactPoint.clone() : null,
+            hasImpact: !!impactPoint
+        };
+
+        // Optional tiny branch
+        if (Math.random() < 0.35) {
+            const branchGeometry = new THREE.BufferGeometry();
+            const mid = startPoint.clone().lerp(endPoint, 0.5);
+            const branchEnd = mid.clone().addScaledVector(binormal, 0.08 * (Math.random() - 0.5));
+            const bPositions = this.generateArcPath(mid, branchEnd, 4, 0.8, normal, binormal);
+            if (bPositions) {
+                branchGeometry.setAttribute('position', bPositions);
+                if (LinkBufferSafetyAudit.verifyGeometrySafety(branchGeometry)) {
+                    const branchMaterial = new THREE.LineBasicMaterial({
+                        color: arcColor,
+                        transparent: true,
+                        opacity: 0.6,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        depthTest: false,
+                        linewidth: 0.7,
+                        fog: false,
+                    });
+                    const branchLine = new THREE.Line(branchGeometry, branchMaterial);
+                    branchLine.frustumCulled = false;
+                    branchGeometry.computeBoundingSphere();
+                    branchGeometry.computeBoundingBox();
+                    branchLine.renderOrder = arcsOrder;
+                    this.group.add(branchLine);
+                    this.activeArcs.push({
+                        mesh: branchLine,
+                        geometry: branchGeometry,
+                        material: branchMaterial,
+                        lifetime: arcData.lifetime * 0.8,
+                        age: 0,
+                        maxOpacity: 0.6,
+                        pulsePhase: Math.random() * Math.PI * 2,
+                        pulseSpeed: arcData.pulseSpeed * 0.8,
+                        flashBoost: 1.0
+                    });
+                } else {
+                    branchGeometry.dispose();
+                }
+            } else {
+                branchGeometry.dispose();
+            }
+        }
+
+        this.activeArcs.push(arcData);
+        return arcData;
+    }
+
+    spawnImpactArc(startPoint, impactPoint, radialDir, tangent, synergy, traffic) {
+        this.spawnArcDirectional(startPoint, impactPoint, radialDir, tangent, synergy, traffic, false, impactPoint);
+    }
+
+    /**
+     * Spawn arcs from fragment directions based on ring phase
+     */
+    spawnFromFragments(ringPos, tangent, fragments, synergy, traffic, mode = 'expansion') {
+        const maxBursts = 4 - this.arcsThisPulse;
+        if (maxBursts <= 0) return;
+
+        let bursts = 0;
+        for (const dir of fragments) {
+            if (bursts >= maxBursts) break;
+            if (Math.random() > 0.3) continue; // spawn chance per fragment
+            const radialDir = dir.clone().normalize();
+            const outward = mode === 'expansion';
+            const startOffset = this.config.arcLength * 0.25 * this.ringScale;
+            const startPoint = ringPos.clone().addScaledVector(radialDir, startOffset);
+            const endPoint = ringPos.clone()
+                .addScaledVector(radialDir, outward ? this.config.arcLength : -this.config.arcLength * 0.6)
+                .addScaledVector(tangent, 0.25 * this.ringScale);
+
+            this.spawnArcDirectional(startPoint, endPoint, radialDir, tangent, synergy, traffic, outward);
+            bursts++;
+            this.arcsThisPulse++;
+        }
+    }
+
+    /**
+     * Spawn a burst of electric arcs (legacy API retained)
      */
     spawnArcBurst(ringPos, tangent, synergy, traffic) {
         // PHASE 1: Two-Phase Arc System (Snap + Afterglow)
@@ -444,7 +623,7 @@ export class LinkRingArcDischarges {
     /**
      * Update active arc lifetimes and fade (PHASE 4: Smooth Energy Fade)
      */
-    updateActiveArcs(dt) {
+    updateActiveArcs(dt, curve) {
         for (let i = this.activeArcs.length - 1; i >= 0; i--) {
             const arc = this.activeArcs[i];
             arc.age += dt;
@@ -456,6 +635,10 @@ export class LinkRingArcDischarges {
                 this.group.remove(arc.mesh);
                 arc.geometry.dispose();
                 arc.material.dispose();
+                if (arc.hasImpact && arc.impactPoint) {
+                    this._spawnImpactSparks(arc.impactPoint, arc.mesh?.material?.color || this.ringColor);
+                    this._spawnRipple(arc.impactPoint, arc.mesh?.material?.color || this.ringColor);
+                }
                 this.activeArcs.splice(i, 1);
             } else {
                 // PHASE 4: Smooth Energy Fade (sin progress * PI)
@@ -476,6 +659,55 @@ export class LinkRingArcDischarges {
                 const pulseEffect = 0.9 + 0.1 * pulseModulation; // Very subtle: 0.8-1.0 range
                 
                 arc.material.opacity = Math.max(0, baseOpacity * pulseEffect);
+            }
+        }
+
+        // Update impact sparks
+        for (let i = this.activeSparks.length - 1; i >= 0; i--) {
+            const s = this.activeSparks[i];
+            s.age += dt;
+            const t = s.age / s.lifetime;
+            if (t >= 1.0) {
+                s.mesh.visible = false;
+                this.activeSparks.splice(i, 1);
+                this.sparkPool.push(s);
+            } else {
+                s.material.opacity = s.baseOpacity * (1.0 - t);
+            }
+        }
+
+        // Update ripples
+        for (let i = this.activeRipples.length - 1; i >= 0; i--) {
+            const r = this.activeRipples[i];
+            r.age += dt;
+            const t = r.age / r.lifetime;
+            if (t >= 1.0) {
+                r.mesh.visible = false;
+                this.activeRipples.splice(i, 1);
+                this.ripplePool.push(r);
+            } else {
+                const scale = THREE.MathUtils.lerp(r.initialScale, r.finalScale, t);
+                r.mesh.scale.setScalar(scale);
+                r.material.opacity = r.baseOpacity * (1.0 - t);
+            }
+        }
+
+        // Update energy packets
+        if (curve) {
+            for (let i = this.activePackets.length - 1; i >= 0; i--) {
+                const p = this.activePackets[i];
+                p.age += dt;
+                const t = p.age / p.lifetime;
+                if (t >= 1.0) {
+                    p.mesh.visible = false;
+                    this.activePackets.splice(i, 1);
+                    this.packetPool.push(p);
+                } else {
+                    const pos = curve.getPointAt(p.t);
+                    p.mesh.position.copy(pos);
+                    p.t += p.speed * dt;
+                    p.material.opacity = p.baseOpacity * (1.0 - t);
+                }
             }
         }
     }
@@ -505,6 +737,179 @@ export class LinkRingArcDischarges {
         });
         this.activeArcs = [];
         
+        this.activeSparks.forEach((s) => {
+            this.group.remove(s.mesh);
+            s.geometry.dispose();
+            s.material.dispose();
+        });
+        this.activeSparks = [];
+        this.sparkPool = [];
+
+        this.activeRipples.forEach((r) => {
+            this.group.remove(r.mesh);
+            r.geometry.dispose();
+            r.material.dispose();
+        });
+        this.activeRipples = [];
+        this.ripplePool = [];
+
+        this.activePackets.forEach((p) => {
+            this.group.remove(p.mesh);
+            p.geometry.dispose();
+            p.material.dispose();
+        });
+        this.activePackets = [];
+        this.packetPool = [];
+        
         this.scene.remove(this.group);
+    }
+
+    _initImpactSparkPool(count) {
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(15); // 5 sparks
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7,
+                size: 0.05,
+                depthWrite: false,
+                depthTest: true,
+                blending: THREE.AdditiveBlending
+            });
+            const mesh = new THREE.Points(geo, mat);
+            mesh.visible = false;
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.2;
+            this.group.add(mesh);
+            this.sparkPool.push({
+                mesh,
+                geometry: geo,
+                material: mat,
+                positions,
+                lifetime: 0.12,
+                age: 0,
+                baseOpacity: 0.7
+            });
+        }
+    }
+
+    _spawnImpactSparks(point, color) {
+        if (this.sparkPool.length === 0) return;
+        const burst = this.sparkPool.pop();
+        burst.age = 0;
+        const count = 3 + Math.floor(Math.random() * 3); // 3-5
+        const positions = burst.positions;
+        const radius = 0.05;
+        let idx = 0;
+        for (let i = 0; i < count; i++) {
+            const dir = new THREE.Vector3(
+                (Math.random() - 0.5),
+                (Math.random() - 0.5),
+                (Math.random() - 0.5)
+            ).normalize().multiplyScalar(radius * (0.4 + Math.random() * 0.6));
+            positions[idx++] = point.x + dir.x;
+            positions[idx++] = point.y + dir.y;
+            positions[idx++] = point.z + dir.z;
+        }
+        // fill remaining positions if any
+        for (; idx < positions.length; idx++) positions[idx] = point.x;
+
+        burst.geometry.attributes.position.needsUpdate = true;
+        burst.material.color.copy(color);
+        burst.material.opacity = burst.baseOpacity;
+        burst.mesh.visible = true;
+        this.activeSparks.push(burst);
+    }
+
+    _initRipplePool(count) {
+        const rippleGeo = new THREE.RingGeometry(0.8, 1.0, 24);
+        for (let i = 0; i < count; i++) {
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.35,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: true,
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(rippleGeo.clone(), mat);
+            mesh.frustumCulled = false;
+            mesh.visible = false;
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.3;
+            this.group.add(mesh);
+            this.ripplePool.push({
+                mesh,
+                geometry: mesh.geometry,
+                material: mat,
+                lifetime: 0.15,
+                age: 0,
+                initialScale: 0.02,
+                finalScale: 0.25,
+                baseOpacity: 0.35
+            });
+        }
+    }
+
+    _spawnRipple(point, color) {
+        if (this.ripplePool.length === 0) return;
+        const r = this.ripplePool.pop();
+        r.age = 0;
+        r.material.color.copy(color);
+        r.material.opacity = r.baseOpacity;
+        r.mesh.visible = true;
+        r.mesh.position.copy(point);
+        r.mesh.scale.setScalar(r.initialScale);
+        this.activeRipples.push(r);
+    }
+
+    _initPacketPool(count) {
+        for (let i = 0; i < count; i++) {
+            const geo = new THREE.SphereGeometry(0.015, 6, 6);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8,
+                depthWrite: false,
+                depthTest: true,
+                blending: THREE.AdditiveBlending
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.visible = false;
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 0.9;
+            this.group.add(mesh);
+            this.packetPool.push({
+                mesh,
+                geometry: geo,
+                material: mat,
+                t: 0,
+                speed: 0.8,
+                lifetime: 0.25,
+                age: 0,
+                baseOpacity: 0.8
+            });
+        }
+    }
+
+    _spawnPacket(curve, startPos, color) {
+        if (this.packetPool.length === 0) return;
+        const p = this.packetPool.pop();
+        p.age = 0;
+        p.lifetime = 0.18 + Math.random() * 0.08;
+        p.t = Math.random() * 0.1; // start near origin
+        p.speed = 2.0 + Math.random() * 1.5;
+        p.material.color.copy(color);
+        p.material.opacity = p.baseOpacity;
+        const pos = curve.getPointAt(p.t);
+        p.mesh.position.copy(pos);
+        p.mesh.visible = true;
+        this.activePackets.push(p);
+    }
+
+    _selectPacketColor(synergy, harmony, corruption) {
+        if (corruption > synergy && corruption > harmony) return new THREE.Color(0xff2244);
+        if (harmony > synergy) return new THREE.Color(0x99ff99);
+        return new THREE.Color(0x66ddff);
     }
 }

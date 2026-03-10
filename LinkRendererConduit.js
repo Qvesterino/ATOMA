@@ -2134,7 +2134,9 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
                 visualDelta,
                 ringColor,
                 ringScale,
-                frameState
+                frameState,
+                metrics?.harmony ?? 1.0,
+                metrics?.corruption ?? 0.0
             );
         }
 
