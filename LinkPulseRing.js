@@ -45,7 +45,7 @@ export class LinkPulseRing {
             transparent: true,
             depthWrite: false,
             depthTest: true,
-            blending: THREE.NormalBlending,
+            blending: THREE.AdditiveBlending,
             side: THREE.DoubleSide,
             
             uniforms: {
@@ -112,6 +112,7 @@ export class LinkPulseRing {
 
             const seg = new THREE.Mesh(geo, mat);
             seg.frustumCulled = false;
+            seg.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
 
             this.segmentGroup.add(seg);
             this.segments.push(seg);
@@ -128,17 +129,17 @@ export class LinkPulseRing {
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
-        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
 
         // Outer additive aura
         this.auraMaterial = this.material.clone();
         this.auraMaterial.depthWrite = false;
         this.auraMaterial.depthTest = true;
         this.auraMaterial.transparent = true;
-        this.auraMaterial.blending = THREE.NormalBlending;
+        this.auraMaterial.blending = THREE.AdditiveBlending;
         const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
         aura.frustumCulled = false;
-        aura.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE');
+        aura.renderOrder = this.mesh.renderOrder;
         const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
         Object.assign(auraUd, { isPulseRingAura: true });
         this.auraMesh = aura;
@@ -391,17 +392,17 @@ export class LinkPulseRing {
             this._applyRingVisuals(seg.material, this._tempColor, finalOpacity);
         });
 
-        // DEBUG ISOLATION: arc burst disabled while validating mechanical split readability.
-        // if (pulseState.atPeak && !this._arcTriggeredThisPulse && this.arcSystem) {
-        //     this.mesh.getWorldDirection(this._worldDirection);
-        //     this.arcSystem.spawnArcBurst(
-        //         this.mesh.position,
-        //         this._worldDirection,
-        //         synergy,
-        //         traffic
-        //     );
-        //     this._arcTriggeredThisPulse = true;
-        // }
+        // Arc burst trigger (re-enabled)
+        if (pulseState.atPeak && !this._arcTriggeredThisPulse && this.arcSystem) {
+            this.mesh.getWorldDirection(this._worldDirection);
+            this.arcSystem.spawnArcBurst(
+                this.mesh.position,
+                this._worldDirection,
+                synergy,
+                traffic
+            );
+            this._arcTriggeredThisPulse = true;
+        }
 
         if (pulseState.resetArc) {
             this._arcTriggeredThisPulse = false;

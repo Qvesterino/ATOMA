@@ -605,6 +605,15 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     
     return camera.position.distanceTo(position);
   }
+
+  /**
+   * Read-only accessor for current link influence progress
+   */
+  getLinkInfluence(linkId) {
+    const flow = this.linkInfluenceState.get(linkId);
+    if (!flow) return 0;
+    return Math.max(0.05, flow.progress);
+  }
   
   /**
    * Get system statistics

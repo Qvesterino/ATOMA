@@ -262,13 +262,14 @@ export class LinkRingArcDischarges {
         if (hsl.h < 0.0) hsl.h += 1.0;
         arcColor.setHSL(hsl.h, hsl.s, hsl.l);
         
-        // Create line material (additive blend, sharp)
+        // Create line material (additive blend, sharp + halo via dual fresnel in fragment)
         const material = new THREE.LineBasicMaterial({
             color: arcColor,
             transparent: true,
-            opacity: maxOpacity * 2.0,
+            opacity: maxOpacity * 2.3, // slightly higher base opacity
             blending: THREE.AdditiveBlending,
             depthWrite: false,
+            depthTest: false,
             linewidth: 1.0,
             fog: false,
         });
@@ -323,6 +324,7 @@ export class LinkRingArcDischarges {
                     opacity: branchOpacity,
                     blending: THREE.AdditiveBlending,
                     depthWrite: false,
+                    depthTest: false,
                     linewidth: 0.7, // Thinner than main arc
                     fog: false,
                 });
@@ -359,7 +361,8 @@ export class LinkRingArcDischarges {
             age: 0,
             maxOpacity: maxOpacity,
             pulsePhase: Math.random() * Math.PI * 2,
-            pulseSpeed: pulseSpeed
+            pulseSpeed: pulseSpeed,
+            flashBoost: 1.0 + Math.random() * 0.3 // small brightness spike at start
         };
 
         return arcData; // Return arc data for tracking
@@ -462,7 +465,11 @@ export class LinkRingArcDischarges {
                 // Remove emissiveIntensity usage (LineBasicMaterial does not support it properly)
                 
                 const ease = Math.sin(progress * Math.PI);
-                const baseOpacity = ease * arc.maxOpacity;
+                // Early flash boost
+                const flashWindow = 0.12;
+                const flash = progress < flashWindow ? THREE.MathUtils.lerp(arc.flashBoost, 1.0, progress / flashWindow) : 1.0;
+
+                const baseOpacity = ease * arc.maxOpacity * flash;
                 
                 // Subtle pulse modulation (reduced intensity)
                 const pulseModulation = Math.sin(arc.age * arc.pulseSpeed + arc.pulsePhase);

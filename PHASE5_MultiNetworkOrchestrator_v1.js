@@ -56,6 +56,7 @@ export class PHASE5_MultiNetworkOrchestrator {
     // State
     this.isInitialized = false;
     this.lastUpdateTime = Date.now();
+    this.cascadeVisuals = null;
     
     // Synchronization timer
     this.syncTimer = null;
@@ -102,6 +103,13 @@ export class PHASE5_MultiNetworkOrchestrator {
    */
   registerNetwork(networkId, network, metadata = {}) {
     return this.multiNetworkManager.registerNetwork(networkId, network, metadata);
+  }
+
+  /**
+   * Attach cascade visuals system (visual-only consumer)
+   */
+  setCascadeVisuals(visualSystem) {
+    this.cascadeVisuals = visualSystem;
   }
   
   /**
@@ -209,6 +217,19 @@ export class PHASE5_MultiNetworkOrchestrator {
         case 'cascadePropagation':
           if (this.config.enableLogging) {
             console.log(`[PHASE5_MultiNetworkOrchestrator] Cascade propagation from ${event.networkId}`);
+          }
+          break;
+
+        case 'corruptionThresholdCrossed':
+          if (this.cascadeVisuals && event.node) {
+            this.cascadeVisuals.triggerCascade({
+              sourceNodeId: event.node.userData?.id,
+              sourcePosition: event.node.position,
+              cascadeType: 'corruption',
+              cascadeStrength: event.value ?? 1.0,
+              depth: 0,
+              targetNodes: []
+            });
           }
           break;
       }

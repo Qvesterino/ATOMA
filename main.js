@@ -3426,7 +3426,7 @@ class AtomaGame {
         }, 'simulation.worldPersonalityController');
         this.frameScheduler.register('simulation', (dt) => {
             this.phase5MultiNetworkOrchestrator?.update?.(dt);
-        }, 'simulation.phase5MultiNetworkOrchestrator');
+        }, 'simulation.phase5MultiNetwork');
         this.frameScheduler.register('simulation', (dt) => {
             this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
         }, 'simulation.emergentThoughtStorms');
@@ -3492,7 +3492,8 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes), 'visual.semanticGlyphAI');
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
-        this.frameScheduler.register('visual', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt), 'visual.phase5CascadePropagationVisuals');
+        this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
+        this.frameScheduler.register('visual', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'visual.phase5CascadeEventCheck');
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
@@ -3795,7 +3796,7 @@ class AtomaGame {
             if (this.waveInterference) {
                 this.waveInterference.update(dt, this.time);
             }
-        }, 'visual.waveInterference');
+        }, 'visual.waveInterferencePattern');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -4573,6 +4574,32 @@ document.addEventListener('keydown', () => {
         this.setupRegionalHarmonicCycles();
         this.setupGlyphAnimationModulator();
         this.setupCompositeGlyphResonanceFeedback();
+
+        // Debug probe: reflection → standing wave traps → resonance ruptures
+        if (typeof window !== 'undefined') {
+            window.atomaDebug = {
+                reflection: this.influenceReflection,
+                trap: this.standingWaveTrap || this.standingWaveTrapSystem,
+                rupture: this.resonanceRupture
+            };
+
+            if (!window._atomaPipelineProbe) {
+                window._atomaPipelineProbe = setInterval(() => {
+                    const dbg = window.atomaDebug || {};
+                    const reflectionActive =
+                        dbg.reflection?.reflectionPulsePool?.filter?.((p) => p?.active)?.length || 0;
+                    const traps = dbg.trap?.oscillationTraps?.length || 0;
+                    const ruptures = dbg.rupture?.activeRuptures?.length || 0;
+
+                    console.log(
+                        '[ATOMA PIPELINE]',
+                        'reflection:', reflectionActive,
+                        'traps:', traps,
+                        'ruptures:', ruptures
+                    );
+                }, 2000);
+            }
+        }
 
         // ========================================================================
         // ATOMA UI 3.4 - CORE SELECTION (Initialize FIRST - single source of truth)
@@ -6025,7 +6052,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.multiNetworkManager.on((event) => {
             if (event?.type === 'corruptionThresholdCrossed') {
                 const node = event.node;
-                if (!node) return;
+                if (!node || !node.position) return;
 
                 if (this.corruptionFeedback?.displayCascadeWarning) {
                     this.corruptionFeedback.displayCascadeWarning(node);
@@ -6033,6 +6060,17 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
                 if (this.corruptionFeedback?.displayCorruptionSeed) {
                     this.corruptionFeedback.displayCorruptionSeed(node);
+                }
+
+                if (this.cascadePropagationVisuals?.triggerCascade) {
+                    this.cascadePropagationVisuals.triggerCascade({
+                        sourceNodeId: node.id,
+                        sourcePosition: node.position,
+                        cascadeType: 'corruption',
+                        cascadeStrength: event.value ?? 1,
+                        depth: 0,
+                        targetNodes: []
+                    });
                 }
             }
         });
@@ -7271,12 +7309,21 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                         depthDecayFactor: 0.7
                     }
                 );
+                this.cascadePropagationVisuals = this.phase5CascadePropagationVisuals;
+                if (this.cascadePropagationVisuals) {
+                    this.cascadePropagationVisuals.frameScheduler = this.frameScheduler;
+                }
+                if (typeof window !== 'undefined') {
+                    window._cascadeVisuals = this.cascadePropagationVisuals;
+                }
                 console.log('[main.js] PHASE5_CascadePropagationVisuals initialized ✓');
             } catch (err) {
                 console.warn('[main.js] PHASE5_CascadePropagationVisuals initialization failed:', err);
+                this.cascadePropagationVisuals = null;
             }
         } else {
             this.phase5CascadePropagationVisuals = null;
+            this.cascadePropagationVisuals = null;
         }
         
         // Initialize cascade visualization bridge
@@ -7301,6 +7348,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         } else {
             this.phase5CascadeVisualizationBridge = null;
+        }
+
+        // Connect cascade visuals to multi-network orchestrator for event-driven cascades
+        if (this.phase5MultiNetworkOrchestrator?.setCascadeVisuals && this.cascadePropagationVisuals) {
+            this.phase5MultiNetworkOrchestrator.setCascadeVisuals(this.cascadePropagationVisuals);
+        }
+        if (typeof window !== 'undefined') {
+            window.PHASE5 = {
+                orchestrator: this.phase5MultiNetworkOrchestrator,
+                cascadeVisuals: this.cascadePropagationVisuals
+            };
+            console.log('[PHASE5] Systems activated');
         }
 
         // ====================================================================
@@ -8699,7 +8758,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkTrailParticles', 'visual.linkTrailParticles', (dt) => {
             this.linkTrailParticles?.update?.(dt, this.time);
         });
-        regGuard('waveInterference', 'visual.waveInterference', (dt) => this.waveInterference?.update?.(dt, this.time));
+        regGuard('waveInterference', 'visual.waveInterferencePattern', (dt) => this.waveInterference?.update?.(dt, this.time));
 
 
         regGuard('microImpulseAdapter', 'visual.microImpulseAdapter', () => this.microImpulseAdapter?.update?.());
@@ -8725,7 +8784,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('t2CorruptionVisualIntegration', 'visual.t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
-        regGuard('phase5CascadePropagationVisuals', 'visual.phase5CascadePropagationVisuals', (dt) => this.phase5CascadePropagationVisuals?.update?.(dt));
+        regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
@@ -10882,6 +10941,21 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     console.log(`[CascadingRupture] Node failure detected, ${linkIds.length} links severed`);
                 }
             };
+
+            // Connect cascade particle system to cascade events (visual-only)
+            if (this.cascadingRuptures && this.cascadeParticleSystem) {
+                this.cascadingRuptures.onCascade = (cascadeEvent) => {
+                    const node = cascadeEvent?.node;
+                    if (!node?.position) return;
+
+                    this.cascadeParticleSystem.trigger({
+                        position: node.position,
+                        strength: cascadeEvent.energy ?? 1.0,
+                        corruption: node.userData?.corruption ?? 0
+                    });
+                };
+                console.log('[CASCADE] Particle system connected to CascadingRuptureSystem');
+            }
 
             // Setup console API
             setupCascadeSystemConsoleAPI(this);

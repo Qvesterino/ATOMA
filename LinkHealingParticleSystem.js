@@ -1,534 +1,471 @@
 /**
  * LinkHealingParticleSystem.js
- * ============================================================================
- * HARMONY HEALING PARTICLE EFFECTS - REVERSE FLOW HEALING ENERGY
- * 
- * Emits healing particles that flow BACKWARDS along links (target → source)
- * when harmony levels are high. Uses the SAME noise function as trail/aura
- * systems for visual consistency.
- * 
- * Design Principles:
- * - Same Simplex-like noise for trajectory calculation
- * - Reverse directional flow (target → source) - opposite of corruption
- * - Pooled particles (reused, no allocation per frame)
- * - Color: cyan/blue/green (healing aesthetic, opposite of red corruption)
- * - Only emits when harmony > threshold
- * - Synchronized animation timing with aura systems
- * - Smooth, calming motion vs. chaotic corruption
- * 
- * Visual Intent:
- * - Corruption spreads corruption forward (red particles → source)
- * - Healing propagates harmony backward (blue particles → target)
- * - Network self-regulation visualization
- * - Organic energy balancing system
- * 
- * Performance:
- * - Particle pool: reused meshes (not created/destroyed)
- * - Noise calculation: CPU, ~microseconds per particle
- * - Memory: fixed allocation per system
- * - Update: <1ms for 100 particles
- * 
- * @author VFX Technical Director — ATOMA Project
- * @version 1.0.0
+ * ---------------------------------------------------------------------------
+ * Minimal GPU-friendly healing particle effect for links.
+ * Visual: tiny knot sprites (4-armed), harmony-green with cyan rim,
+ * micro-orbit → stabilizing → snap-into-link.
+ * Implementation: single THREE.Points pool, ShaderMaterial using gl_PointCoord.
+ *
+ * Behavior:
+ * - Spawns slightly off-link, orbits/helixes, spirals inward, flashes on absorb.
+ * - Size tapers down, brightness rises toward absorption.
+ * - Optional per-link arrival callback (read-only impact hook).
+ *
+ * No gameplay changes; visual-only.
  */
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
-/**
- * Shared noise function (identical to LinkAuraShader & LinkTrailParticleSystem)
- * Used for particle trajectory modulation
- */
-class NoiseGenerator {
-  constructor() {
-    // Pre-computed permutation table for Simplex noise
-    this.p = [
-      151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140,
-      36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120,
-      234, 75, 0, 26, 197, 62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33,
-      88, 237, 149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175, 74, 165, 71,
-      134, 139, 48, 27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133,
-      230, 206, 39, 142, 9, 103, 14, 28, 12, 231, 243, 97, 163, 130, 237, 174,
-      212, 39, 146, 210, 41, 10, 172, 32, 86, 153, 60, 154, 111, 151, 140, 151,
-      163, 130, 237, 70, 131, 249, 11, 133, 142, 32, 112, 106, 226, 14, 175, 17,
-      255, 215, 48, 89, 76, 75, 145, 47, 210, 192, 37, 93, 82, 132, 224, 103, 157,
-      63, 151, 140, 251, 38, 88, 104, 40, 166, 26, 224, 57, 216, 119, 228, 159, 28,
-      142, 79, 124, 221, 184, 179, 54, 192, 67, 82, 220, 133, 157, 63, 48, 89, 76,
-      75, 82, 50, 61, 59, 156, 23, 163, 130, 237, 174, 214, 21, 135, 161, 20, 125,
-      242, 156, 199, 234, 123, 160, 237, 174, 212, 39, 146, 210, 41, 10, 172, 32,
-      86, 153, 60, 154, 111, 151, 140, 151, 163, 130, 237, 170, 150, 180, 167, 237,
-      85, 173, 173, 95, 229, 122, 60, 211, 133, 230, 206, 39, 142, 9, 103, 14, 28,
-      12, 231, 243, 97, 163, 130, 237, 174, 212, 39, 146, 210, 41, 10, 172, 32
-    ];
+const DEFAULT_POOL = 320;
+const MIN_SIZE = 2.0;   // px
+const MAX_SIZE = 4.0;   // px
+const PER_LINK_CAP = 12;
+
+function ensureUserData(obj) {
+  if (!obj.userData) {
+    Object.defineProperty(obj, 'userData', { value: {}, writable: true });
+  }
+  return obj.userData;
+}
+
+// Lightweight per-particle storage (arrays for cache-friendly updates)
+class HealingPool {
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.active = new Array(capacity).fill(false);
+    this.startTime = new Float32Array(capacity);
+    this.life = new Float32Array(capacity);
+    this.progress = new Float32Array(capacity);
+    this.orbitPhase = new Float32Array(capacity);
+    this.orbitSpeed = new Float32Array(capacity);
+    this.orbitRadius = new Float32Array(capacity);
+    this.seed = new Float32Array(capacity);
+    this.arrived = new Array(capacity).fill(false);
+    this.link = new Array(capacity).fill(null);
+    this.curve = new Array(capacity).fill(null);
+    this.normal = new Array(capacity).fill(null); // THREE.Vector3 per particle (reused)
+    this.binormal = new Array(capacity).fill(null);
   }
 
-  /**
-   * 3D Simplex-like noise (approximation)
-   * Input: 3D point
-   * Output: [-1, 1] noise value
-   */
-  snoise(x, y, z) {
-    const t = [
-      x - Math.floor(x),
-      y - Math.floor(y),
-      z - Math.floor(z)
-    ];
-
-    const u = [
-      t[0] * t[0] * (3.0 - 2.0 * t[0]),
-      t[1] * t[1] * (3.0 - 2.0 * t[1]),
-      t[2] * t[2] * (3.0 - 2.0 * t[2])
-    ];
-
-    const i = [
-      Math.floor(x),
-      Math.floor(y),
-      Math.floor(z)
-    ];
-
-    const h = (ix, iy, iz) => {
-      let n = this.p[(this.p[(this.p[ix & 255] + iy) & 255] + iz) & 255];
-      return n & 15;
-    };
-
-    const grad = (hash, x, y, z) => {
-      const g = hash & 3;
-      const xx = (g & 1) ? x : -x;
-      const yy = (g & 2) ? y : -y;
-      return xx + yy;
-    };
-
-    let n0 = grad(h(i[0], i[1], i[2]), t[0], t[1], t[2]);
-    let n1 = grad(h(i[0] + 1, i[1], i[2]), t[0] - 1.0, t[1], t[2]);
-    let ix0 = this.lerp(n0, n1, u[0]);
-
-    let n2 = grad(h(i[0], i[1] + 1, i[2]), t[0], t[1] - 1.0, t[2]);
-    let n3 = grad(h(i[0] + 1, i[1] + 1, i[2]), t[0] - 1.0, t[1] - 1.0, t[2]);
-    let ix1 = this.lerp(n2, n3, u[0]);
-
-    let ixy0 = this.lerp(ix0, ix1, u[1]);
-
-    let n4 = grad(h(i[0], i[1], i[2] + 1), t[0], t[1], t[2] - 1.0);
-    let n5 = grad(h(i[0] + 1, i[1], i[2] + 1), t[0] - 1.0, t[1], t[2] - 1.0);
-    let ix2 = this.lerp(n4, n5, u[0]);
-
-    let n6 = grad(h(i[0], i[1] + 1, i[2] + 1), t[0], t[1] - 1.0, t[2] - 1.0);
-    let n7 = grad(h(i[0] + 1, i[1] + 1, i[2] + 1), t[0] - 1.0, t[1] - 1.0, t[2] - 1.0);
-    let ix3 = this.lerp(n6, n7, u[0]);
-
-    let ixy1 = this.lerp(ix2, ix3, u[0]);
-
-    return this.lerp(ixy0, ixy1, u[2]) * 0.5;
+  activate(index, opts) {
+    this.active[index] = true;
+    this.arrived[index] = false;
+    this.startTime[index] = opts.startTime;
+    this.life[index] = opts.life;
+    this.progress[index] = 1.0;
+    this.orbitPhase[index] = opts.orbitPhase;
+    this.orbitSpeed[index] = opts.orbitSpeed;
+    this.orbitRadius[index] = opts.orbitRadius;
+    this.seed[index] = opts.seed;
+    this.link[index] = opts.link;
+    this.curve[index] = opts.curve;
+    if (!this.normal[index]) this.normal[index] = new THREE.Vector3();
+    if (!this.binormal[index]) this.binormal[index] = new THREE.Vector3();
+    this.normal[index].copy(opts.normal);
+    this.binormal[index].copy(opts.binormal);
   }
 
-  lerp(a, b, t) {
-    return a + (b - a) * t;
-  }
-
-  /**
-   * Multi-octave noise (same as other systems)
-   * For organic, complex patterns
-   */
-  multiOctaveNoise(x, y, z, time) {
-    // Offset by time for smooth flow
-    x += time * 0.3;
-    y += time * 0.2;
-    z += time * 0.15;
-
-    const noise1 = this.snoise(x * 2.0, y * 2.0, z * 2.0);
-    const noise2 = this.snoise(x * 4.0, y * 4.0, z * 4.0) * 0.5;
-    const noise3 = this.snoise(x * 8.0, y * 8.0, z * 8.0) * 0.25;
-
-    return (noise1 + noise2 + noise3) / 1.75;
+  deactivate(index) {
+    this.active[index] = false;
+    this.link[index] = null;
+    this.curve[index] = null;
   }
 }
 
-/**
- * Single healing particle instance
- */
-class HealingParticle {
-  constructor(mesh) {
-    this.mesh = mesh;
-    this.active = false;
-    
-    this.position = new THREE.Vector3();
-    this.age = 0;
-    this.lifetime = 1.0;
-    this.progress = 0; // 0-1 along link (backwards: 1 -> 0)
-    
-    this.scale = 1.0;
-    this.opacity = 1.0;
-    this.color = new THREE.Color(0x66ddff);
-    
-    this.link = null;
-    this.curve = null;
-    
-    // Impact tracking (healing particles arrive at source)
-    this.lastProgress = 1.1;      // Start high (particles flow down from 1 -> 0)
-    this.impactTriggered = false; // Prevent duplicate impacts
-    
-    // Energy density modulation (for trail readability - harmonious version)
-    this.energyIntensity = 1.0;  // [0-1] brightness modulation
-    this.thicknessModulation = 1.0;  // [0-1] scale modulation
-    this.trailVisibility = 1.0;  // [0-1] combined visibility envelope
-  }
-
-  reset() {
-    this.active = false;
-    this.age = 0;
-    this.progress = 0;
-    this.lastProgress = 1.1;
-    this.impactTriggered = false;
-  }
-
-  /**
-   * Check if particle has arrived at destination (source node, progress < 0.05)
-   * Healing particles flow backward, so arrival is at low progress
-   * @returns {boolean} True if particle just crossed arrival threshold
-   */
-  checkArrival() {
-    const arrivalThreshold = 0.05;
-    const hasArrived = this.lastProgress > arrivalThreshold && this.progress <= arrivalThreshold;
-    this.lastProgress = this.progress;
-    return hasArrived && !this.impactTriggered;
-  }
-
-  update(deltaTime, time, noise) {
-    if (!this.active) return false;
-
-    this.age += deltaTime;
-    if (this.age >= this.lifetime) {
-      this.reset();
-      return false;
-    }
-
-    // Smooth fade in/out (healing is gentle)
-    const fadeIn = Math.min(1.0, this.age / 0.15); // Slightly slower fade in
-    const fadeOut = Math.max(0.0, 1.0 - (this.age - this.lifetime + 0.25) / 0.25); // Longer fade out
-    this.opacity = fadeIn * fadeOut;
-
-    // BACKWARDS progress: flows from target (1.0) to source (0.0)
-    const flowSpeed = 1.2; // Slightly slower than chaos (1.5)
-    this.progress = 1.0 - ((this.age * flowSpeed) % 1.0); // Inverted progress
-
-    // ========================================================================
-    // ENERGY INTENSITY & THICKNESS MODULATION - HARMONIOUS PARTICLE VERSION
-    // ========================================================================
-    // Same readability enhancement as corruption particles, but:
-    // - Harmonious flow (gentle, smoother modulation)
-    // - Inverted progress (travels backward along link)
-    // - Softer intensity variations (healing is calming)
-    
-    // 1. MOTION-SYNCHRONIZED PULSING (inverted for backward flow)
-    const motionPhase = (1.0 - this.progress) * Math.PI * 2.0;  // Inverted phase
-    const basePulse = Math.sin(motionPhase) * 0.4 + 0.6;  // [0.6, 1.0] - gentler range
-    
-    // 2. TEMPORAL INTENSITY VARIATION (reversed: decreases as particle progresses backward)
-    // Energy intensity starts high (harmony abundant at source) then diminishes (delivered to target)
-    const progressGlow = 1.0 - (this.progress * 0.3);  // [0.7, 1.0], reversed direction
-    
-    // 3. COMBINED ENERGY INTENSITY (harmonious blend)
-    this.energyIntensity = (basePulse * 0.5 + progressGlow * 0.5);
-    
-    // 4. THICKNESS MODULATION (softer wave for healing)
-    const thicknessWave = Math.sin(motionPhase + Math.PI / 6) * 0.15 + 1.0;  // [0.85, 1.15] - gentler
-    this.thicknessModulation = thicknessWave;
-    
-    // 5. TRAIL VISIBILITY ENVELOPE (peaks at mid-journey, gentle)
-    const midpointGlow = Math.sin(this.progress * Math.PI) * 0.15 + 1.0;  // Subtle peak at 0.5
-    this.trailVisibility = this.opacity * midpointGlow;
-
-    if (this.curve) {
-      // Get position on curve (reversed)
-      const curvePos = this.curve.getPointAt(Math.max(0, this.progress));
-      
-      // Add directional noise for organic healing trail
-      const noiseVal = noise.multiOctaveNoise(
-        curvePos.x * 0.5,
-        curvePos.y * 0.5,
-        curvePos.z * 0.5 + time
-      );
-
-      // Apply perpendicular offset based on noise (healing is smooth)
-      const frame = this._getFrameAtProgress(this.progress);
-      const offset = noiseVal * 0.08; // Slightly smaller offset than chaos
-      
-      this.position.copy(curvePos);
-      if (frame) {
-        this.position.addScaledVector(frame, offset);
-      }
-    }
-
-    // Update mesh with enhanced readability (harmonious version)
-    if (this.mesh) {
-      this.mesh.position.copy(this.position);
-      
-      // Apply both thickness modulation and visibility
-      // Healing particles use gentler modulation (less pronounced wave)
-      const combinedScale = this.scale * this.thicknessModulation * this.trailVisibility;
-      this.mesh.scale.setScalar(combinedScale);
-      
-      if (this.mesh.material) {
-        // Energy intensity applied through color (no bloom)
-        const brightened = new THREE.Color(this.color);
-        brightened.multiplyScalar(this.energyIntensity);
-        
-        this.mesh.material.color.copy(brightened);
-        
-        // Combined opacity: fade envelope + trail visibility
-        this.mesh.material.opacity = this.trailVisibility;
-      }
-    }
-
-    return true;
-  }
-
-  _getFrameAtProgress(t) {
-    if (!this.curve) return null;
-    
-    const delta = 0.001;
-    const p1 = this.curve.getPointAt(Math.max(0, t - delta));
-    const p2 = this.curve.getPointAt(Math.min(1, t + delta));
-    
-    return p2.clone().sub(p1).normalize();
-  }
-
-  emit(startPos, link, curve, lifetime = 1.3) {
-    this.active = true;
-    this.age = 0;
-    this.progress = 1.0; // Start at end (backwards flow)
-    this.lifetime = lifetime;
-    this.link = link;
-    this.curve = curve;
-    
-    this.position.copy(startPos);
-    this.opacity = 0;
-    this.scale = 0.07; // Slightly smaller than chaos trails
-  }
-}
-
-/**
- * Link Healing Particle System
- * Manages pooled healing particles that flow backwards along links
- */
 export class LinkHealingParticleSystem {
-  constructor(scene, poolSize = 200) {
+  constructor(scene, poolSize = DEFAULT_POOL) {
     this.scene = scene;
     this.poolSize = poolSize;
-    this.particles = [];
-    this.active = 0;
-    
-    this.noise = new NoiseGenerator();
-    this.poolGroup = new THREE.Group();
-    const particlesOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
-    this.poolGroup.renderOrder = particlesOrder;
-    const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
-    Object.assign(udPool, { isHealingParticles: true });
-    this.scene.add(this.poolGroup);
-    
-    // Impact callback (optional, called when particles arrive at source)
+    this.pool = new HealingPool(poolSize);
     this.onParticleArrival = null;
-    
-    // Healing particle material (shared, cyan/blue)
-    this.material = new THREE.MeshBasicMaterial({
-      color: 0x66ddff, // Cyan base
+    this.pendingRequests = [];
+
+    // Geometry
+    this.positions = new Float32Array(poolSize * 3);
+    this.sizes = new Float32Array(poolSize);
+    this.lifeAttr = new Float32Array(poolSize * 2); // start, life
+    this.seedAttr = new Float32Array(poolSize);
+    this.tints = new Float32Array(poolSize * 3);
+
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aSize', new THREE.BufferAttribute(this.sizes, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aLife', new THREE.BufferAttribute(this.lifeAttr, 2).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aSeed', new THREE.BufferAttribute(this.seedAttr, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('aTint', new THREE.BufferAttribute(this.tints, 3).setUsage(THREE.DynamicDrawUsage));
+
+    // Shader material (point sprite)
+    this.material = new THREE.ShaderMaterial({
       transparent: true,
-      opacity: 0.6,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending
-    });
-    
-    // Particle geometry (simple sphere, slightly larger than chaos)
-    this.geometry = new THREE.IcosahedronGeometry(0.06, 2);
-    
-    // Initialize particle pool
-    for (let i = 0; i < poolSize; i++) {
-      const mesh = new THREE.Mesh(this.geometry, this.material);
-      const udMesh = (mesh && typeof mesh.userData === 'object' && mesh.userData) ? mesh.userData : (() => { try { Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return mesh.userData || {}; })();
-      Object.assign(udMesh, { isHealingParticle: true });
-      this.poolGroup.add(mesh);
-      
-      const particle = new HealingParticle(mesh);
-      this.particles.push(particle);
-    }
-  }
-
-  /**
-   * Emit healing particles backwards along a link
-   * Called when link has high harmony
-   */
-  emitBackwardsAlongLink(link, curve, linkDirection, emissionRate, time, harmony = 0.8) {
-    if (!curve || emissionRate <= 0) return;
-
-    const emitCount = Math.floor(emissionRate * 0.016); // Per-frame calculation
-
-    for (let i = 0; i < emitCount && this.active < this.poolSize; i++) {
-      // Find inactive particle
-      let particle = null;
-      for (let p of this.particles) {
-        if (!p.active) {
-          particle = p;
-          break;
+      blending: THREE.AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseColor: { value: new THREE.Color(0x66ff99) }, // harmony green
+        uEdgeColor: { value: new THREE.Color(0x66e6ff) }, // cyan rim
+        uSizeRange: { value: new THREE.Vector2(MIN_SIZE, MAX_SIZE) },
+        uSofteningNear: { value: 0.3 },   // meters from camera to start fading
+        uSofteningRange: { value: 0.6 }   // fade span
+      },
+      vertexShader: `
+        attribute float aSize;
+        attribute vec2 aLife;
+        attribute float aSeed;
+        attribute vec3 aTint;
+        uniform float uTime;
+        uniform vec2 uSizeRange;
+        uniform float uSofteningNear;
+        uniform float uSofteningRange;
+        varying float vLifeT;
+        varying float vSeed;
+        varying vec3 vTint;
+        varying float vDepth;
+        void main() {
+          float age = uTime - aLife.x;
+          vLifeT = clamp(age / aLife.y, 0.0, 1.0);
+          // size shrinks slightly, brightens near end
+          float sizeFade = mix(1.0, 0.65, vLifeT);
+          float size = mix(uSizeRange.x, uSizeRange.y, 1.0 - vLifeT) * sizeFade;
+          vSeed = aSeed;
+          vTint = aTint;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vDepth = -mvPosition.z;
+          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
         }
-      }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying float vLifeT;
+        varying float vSeed;
+        varying vec3 vTint;
+        varying float vDepth;
+        uniform vec3 uBaseColor;
+        uniform vec3 uEdgeColor;
+        uniform float uSofteningNear;
+        uniform float uSofteningRange;
 
-      if (!particle) break;
+        float hash11(float p) {
+          p = fract(p * 0.1031);
+          p *= p + 33.33;
+          p *= p + p;
+          return fract(p);
+        }
 
-      // Random position along link (will flow backwards from target)
-      const randomProgress = Math.random();
-      const emitPos = curve.getPointAt(randomProgress);
+        // 4-armed knot mask using polar repetition
+        float knot(vec2 uv) {
+          vec2 p = uv * 2.0 - 1.0;
+          float r = length(p);
+          if (r > 1.0) return 0.0;
+          float ang = atan(p.y, p.x);
+          float arms = 4.0;
+          float m = abs(cos(arms * ang)) * pow(1.0 - r, 1.0);
+          float core = smoothstep(0.55, 0.2, r);
+          return clamp(core * (0.35 + 0.75 * m), 0.0, 1.0);
+        }
 
-      // Emit from current position
-      particle.emit(emitPos, link, curve, 1.3 + harmony * 0.2);
+        void main() {
+          vec2 uv = gl_PointCoord;
+          float shape = knot(uv);
 
-      // Color gradient based on harmony
-      particle.color = this._getHealingColor(harmony);
+          // Afterimage (cheap): offset seed-based jitter, scaled by life
+          float ghostLife = smoothstep(0.1, 0.6, vLifeT) * (1.0 - smoothstep(0.75, 1.0, vLifeT));
+          float ghost = knot(uv + (vSeed - 0.5) * 0.02) * 0.35 * ghostLife;
 
-      // Scale based on harmony (stronger harmony = larger particles)
-      particle.scale = 0.06 + harmony * 0.04;
+          float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.8, 1.0, vLifeT));
+          float depthFade = 1.0 - smoothstep(uSofteningNear, uSofteningNear + uSofteningRange, vDepth);
+          float flash = smoothstep(0.92, 1.0, vLifeT) * 1.1;
+          // Radial streak: angular jitter using seed, sharp near center
+          float angJitter = hash11(vSeed * 97.3 + vLifeT * 37.1) * 2.0 - 1.0;
+          float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
+          float streak = flash * radial * (0.6 + 0.4 * angJitter);
 
-      this.active++;
-    }
+          vec3 base = mix(uBaseColor, vTint, 0.35);
+          vec3 edge = mix(uEdgeColor, vTint, 0.2);
+          float randTint = hash11(vSeed * 151.7 + vLifeT * 11.3);
+          vec3 color = mix(base, edge, 0.35 + 0.25 * randTint);
+          color += (flash + streak) * 0.35;
+
+          float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade;
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `
+    });
+
+    this.points = new THREE.Points(this.geometry, this.material);
+    this.points.frustumCulled = false;
+    const order = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+    this.points.renderOrder = order;
+    ensureUserData(this.points).isHealingParticles = true;
+    this.scene.add(this.points);
   }
 
-  /**
-   * Update all active particles
-   */
-  /**
-   * Set particle arrival callback (called when particle reaches source node)
-   * @param {Function} callback (particle, link, time) => void
-   */
-  setArrivalCallback(callback) {
-    this.onParticleArrival = callback;
+  queueEmission(request) {
+    // request: {link, curve, linkDirection, count, time, harmony, corruption, burstPhase, tintColor}
+    if (!request?.link || !request?.curve || request.count <= 0) return;
+    this.pendingRequests.push(request);
+  }
+
+  setArrivalCallback(cb) {
+    this.onParticleArrival = cb;
+  }
+
+  emitBackwardsAlongLink(link, curve, linkDirection, emissionRate, time, harmony = 0.8, _corruption = 0, burstPhase = null, burstCount = 0, tintColor = null, countOverride = null) {
+    if (!curve || !link) return;
+    const dt = 0.016; // fallback frame step if countOverride not provided
+    let count = countOverride ?? Math.max(1, Math.floor(emissionRate * dt));
+    if (burstCount > 0) {
+      count += burstCount;
+    }
+
+    for (let n = 0; n < count; n++) {
+      const idx = this._acquireSlot();
+      if (idx === -1) break;
+
+      const progress = Math.random(); // start somewhere along link (will travel backward)
+      const pos = curve.getPointAt(progress);
+      const tan = curve.getTangentAt(progress).normalize();
+      const normal = this._makeNormal(tan, idx);
+      const binormal = new THREE.Vector3().crossVectors(tan, normal).normalize();
+
+      const orbitPhase = burstPhase !== null ? burstPhase : Math.random() * Math.PI * 2.0;
+      const orbitSpeed = 6.0 + Math.random() * 2.5; // stabilizes mid-life
+      const orbitRadius = 0.08 + Math.random() * 0.04;
+      const life = 0.55 + Math.random() * 0.25;
+      const seed = Math.random();
+
+      this.pool.activate(idx, {
+        startTime: time,
+        life,
+        orbitPhase,
+        orbitSpeed,
+        orbitRadius,
+        seed,
+        link,
+        curve,
+        normal,
+        binormal
+      });
+
+      // Set initial attributes
+      const i3 = idx * 3;
+      this.positions[i3] = pos.x;
+      this.positions[i3 + 1] = pos.y;
+      this.positions[i3 + 2] = pos.z;
+      this.sizes[idx] = MAX_SIZE;
+      this.lifeAttr[idx * 2] = time;
+      this.lifeAttr[idx * 2 + 1] = life;
+      this.seedAttr[idx] = seed;
+
+      const tint = tintColor || link?.userData?.baseColorObj || null;
+      if (tint && tint.isColor) {
+        this.tints[i3] = tint.r;
+        this.tints[i3 + 1] = tint.g;
+        this.tints[i3 + 2] = tint.b;
+      } else {
+        this.tints[i3] = this.material.uniforms.uBaseColor.value.r;
+        this.tints[i3 + 1] = this.material.uniforms.uBaseColor.value.g;
+        this.tints[i3 + 2] = this.material.uniforms.uBaseColor.value.b;
+      }
+    }
+
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.aSize.needsUpdate = true;
+    this.geometry.attributes.aLife.needsUpdate = true;
+    this.geometry.attributes.aSeed.needsUpdate = true;
+    this.geometry.attributes.aTint.needsUpdate = true;
   }
 
   update(deltaTime, time) {
-    this.active = 0;
-    
-    for (let particle of this.particles) {
-      if (particle.active) {
-        if (particle.update(deltaTime, time, this.noise)) {
-          this.active++;
-          
-          // Check for particle arrival at source (healing particles flow backward)
-          if (this.onParticleArrival && particle.checkArrival()) {
-            particle.impactTriggered = true;
-            this.onParticleArrival(particle, particle.link, time);
+    // Process queued emissions with per-link cap
+    if (this.pendingRequests.length) {
+      // Build current active per link
+      const activePerLink = new Map();
+      let freeSlots = 0;
+      for (let i = 0; i < this.poolSize; i++) {
+        if (this.pool.active[i]) {
+          const id = this.pool.link[i]?.id;
+          if (id !== undefined) {
+            activePerLink.set(id, (activePerLink.get(id) || 0) + 1);
           }
+        } else {
+          freeSlots++;
         }
       }
+
+      // Sort requests by harmony descending (higher surplus first)
+      this.pendingRequests.sort((a, b) => (b.harmony ?? 0) - (a.harmony ?? 0));
+
+      for (const req of this.pendingRequests) {
+        if (freeSlots <= 0) break;
+        const linkId = req.link.id;
+        const current = activePerLink.get(linkId) || 0;
+        const available = Math.max(0, PER_LINK_CAP - current);
+        if (available <= 0) continue;
+        const toEmit = Math.min(req.count, available, freeSlots);
+        if (toEmit <= 0) continue;
+
+        this.emitBackwardsAlongLink(
+          req.link,
+          req.curve,
+          req.linkDirection,
+          0,
+          req.time,
+          req.harmony,
+          req.corruption,
+          req.burstPhase,
+          req.burstPhase ? 0 : 0,
+          req.tintColor,
+          toEmit
+        );
+
+        activePerLink.set(linkId, current + toEmit);
+        freeSlots -= toEmit;
+      }
+      this.pendingRequests.length = 0;
+    }
+
+    this.material.uniforms.uTime.value = time;
+    let anyActive = false;
+
+    for (let i = 0; i < this.poolSize; i++) {
+      if (!this.pool.active[i]) continue;
+      anyActive = true;
+      const life = this.pool.life[i];
+      const age = time - this.pool.startTime[i];
+      if (age >= life) {
+        this.pool.deactivate(i);
+        continue;
+      }
+
+      const t = 1.0 - age / life; // 1 → 0 (toward source)
+      this.pool.progress[i] = t;
+
+      const curve = this.pool.curve[i];
+      if (!curve) {
+        this.pool.deactivate(i);
+        continue;
+      }
+
+      const posOnCurve = curve.getPointAt(Math.max(0, t));
+      const tan = curve.getTangentAt(Math.max(0, t)).normalize();
+      // refresh frame cheaply
+      this.pool.normal[i] = this._makeNormal(tan, i, this.pool.normal[i]);
+      this.pool.binormal[i].crossVectors(tan, this.pool.normal[i]).normalize();
+
+      const ang = this.pool.orbitPhase[i] + this.pool.orbitSpeed[i] * age;
+      const radius = this.pool.orbitRadius[i] * (0.4 + 0.6 * t); // shrink toward snap
+
+      const offset = new THREE.Vector3()
+        .copy(this.pool.normal[i]).multiplyScalar(Math.cos(ang) * radius)
+        .addScaledVector(this.pool.binormal[i], Math.sin(ang) * radius);
+
+      const i3 = i * 3;
+      this.positions[i3] = posOnCurve.x + offset.x;
+      this.positions[i3 + 1] = posOnCurve.y + offset.y;
+      this.positions[i3 + 2] = posOnCurve.z + offset.z;
+
+      // shrink size slightly
+      this.sizes[i] = THREE.MathUtils.lerp(MAX_SIZE, MIN_SIZE, 1.0 - t);
+
+      // arrival detection near source end
+      if (!this.pool.arrived[i] && t <= 0.05 && this.onParticleArrival) {
+        this.pool.arrived[i] = true;
+        this.onParticleArrival({ index: i }, this.pool.link[i], time);
+      }
+    }
+
+    if (anyActive) {
+      this.geometry.attributes.position.needsUpdate = true;
+      this.geometry.attributes.aSize.needsUpdate = true;
     }
   }
 
-  /**
-   * Calculate healing particle color based on harmony level
-   * Gradient: cyan → light blue → white as harmony increases
-   */
-  _getHealingColor(harmony) {
-    // Base: cyan (opposite of red corruption)
-    let color = new THREE.Color(0x66ddff);
-
-    // At low harmony (0.5): pure cyan
-    // At medium harmony (0.75): cyan → light blue
-    // At high harmony (1.0): light blue → white
-
-    if (harmony < 0.75) {
-      // Cyan → light blue
-      const t = (harmony - 0.5) / 0.25; // Map 0.5-0.75 to 0-1
-      color.lerp(new THREE.Color(0x88eeff), Math.max(0, t * 0.3));
-    } else {
-      // Light blue → white
-      const t = (harmony - 0.75) / 0.25; // Map 0.75-1.0 to 0-1
-      color.lerp(new THREE.Color(0xffffff), Math.max(0, t * 0.4));
-    }
-
-    return color;
-  }
-
-  /**
-   * Clear healing particles for a specific link
-   */
   clearLink(linkId) {
-    for (let particle of this.particles) {
-      if (particle.link?.id === linkId) {
-        particle.reset();
-        this.active--;
+    for (let i = 0; i < this.poolSize; i++) {
+      if (this.pool.active[i] && this.pool.link[i]?.id === linkId) {
+        this.pool.deactivate(i);
       }
     }
   }
 
-  /**
-   * Dispose all resources
-   */
   dispose() {
-    this.material.dispose();
+    this.scene.remove(this.points);
     this.geometry.dispose();
-    this.scene.remove(this.poolGroup);
+    this.material.dispose();
+  }
+
+  _acquireSlot() {
+    for (let i = 0; i < this.poolSize; i++) {
+      if (!this.pool.active[i]) return i;
+    }
+    return -1;
+  }
+
+  _makeNormal(tangent, idx, reuse) {
+    const n = reuse || new THREE.Vector3();
+    // Build any stable perpendicular
+    if (Math.abs(tangent.y) < 0.99) {
+      n.set(-tangent.z, 0, tangent.x).normalize();
+    } else {
+      n.set(0, tangent.z, -tangent.y).normalize();
+    }
+    return n;
   }
 }
 
 /**
- * Link Healing Emitter
- * Manages backward healing particle emission for a single link
+ * LinkHealingEmitter — remains compatible with existing conduit logic.
  */
 export class LinkHealingEmitter {
   constructor(link, particleSystem) {
     this.link = link;
     this.particleSystem = particleSystem;
-    
-    // Healing emission parameters
-    this.harmonyThreshold = 0.6; // Only emit when harmony > this
-    this.baseEmissionRate = 15; // Particles per second at high harmony
+    this.harmonyThreshold = 0.6;
+    this.baseEmissionRate = 18;
     this.enabled = true;
-    
-    // Modulation factors
-    this.harmonyInfluence = 1.2; // Higher = more responsive to harmony
-    this.corruptionInhibition = 1.0; // Corruption reduces healing emission
+    this.harmonyInfluence = 1.2;
+    this.corruptionInhibition = 1.0;
+
+    // Sync burst control
+    this.burstThreshold = 0.9;
+    this.burstCount = 8;
+    this.prevHarmony = 0;
   }
 
-  update(deltaTime, time, curve, linkDirection, harmony = 0.5, corruption = 0.2) {
-    if (!this.enabled || !curve || harmony < this.harmonyThreshold) {
-      return;
-    }
+  update(deltaTime, time, curve, linkDirection, harmony = 0.5, corruption = 0.2, tintColor = null) {
+    if (!this.enabled || !curve || harmony < this.harmonyThreshold) return;
 
-    // Modulate emission based on link state
     let rate = this.baseEmissionRate;
-
-    // High harmony → strong healing flow
-    rate *= Math.pow((harmony - this.harmonyThreshold) / (1.0 - this.harmonyThreshold), 1.5);
-
-    // Corruption inhibits healing (antagonistic relationship)
-    rate *= (1.0 - corruption * 0.6); // Corruption reduces healing by up to 60%
-
-    // Ensure non-negative
+    rate *= Math.pow((harmony - this.harmonyThreshold) / (1.0 - this.harmonyThreshold), 1.4);
+    rate *= (1.0 - corruption * 0.6);
     rate = Math.max(0, rate);
 
-    // Emit healing particles (backwards along link)
-    this.particleSystem.emitBackwardsAlongLink(
-      this.link,
+    const crossedBurst = this.prevHarmony < this.burstThreshold && harmony >= this.burstThreshold;
+    const burstPhase = crossedBurst ? Math.random() * Math.PI * 2.0 : null;
+    const burstCount = crossedBurst ? this.burstCount : 0;
+
+    // queue emission for central budgeting
+    const count = Math.max(1, Math.floor(rate * Math.max(0.001, deltaTime))) + burstCount;
+    this.particleSystem.queueEmission({
+      link: this.link,
       curve,
       linkDirection,
-      rate,
+      count,
       time,
-      harmony
-    );
+      harmony,
+      corruption,
+      burstPhase,
+      tintColor
+    });
+
+    this.prevHarmony = harmony;
   }
 
   setHarmonyThreshold(threshold) {
-    this.harmonyThreshold = Math.max(0, Math.min(1, threshold));
-  }
-
-  setEmissionRate(rate) {
-    this.baseEmissionRate = Math.max(0, rate);
-  }
-
-  disable() {
-    this.enabled = false;
-    this.particleSystem.clearLink(this.link.id);
-  }
-
-  enable() {
-    this.enabled = true;
+    this.harmonyThreshold = THREE.MathUtils.clamp(threshold, 0, 1);
   }
 }

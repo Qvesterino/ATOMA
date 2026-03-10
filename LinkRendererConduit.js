@@ -1063,6 +1063,7 @@ export class LinkRendererConduit {
         const sourceCat = link.source.userData.category || 'input';
         const targetCat = link.target.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
+        const baseColorObj = new THREE.Color(baseColor);
         const colorA = new THREE.Color(this.getCategoryColor(sourceCat));
         const colorB = new THREE.Color(this.getCategoryColor(targetCat));
 
@@ -1103,6 +1104,17 @@ export class LinkRendererConduit {
             material.userData.__owner = 'LinkRenderer';
             material.userData.__domain = 'link';
             material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+
+            // Wave shader integration (standing/traveling wave uniforms)
+            if (this.waveShaderBridge?.registerMaterial) {
+                this.waveShaderBridge.registerMaterial(material);
+            }
+            if (this.waveTravelShaderPack?.applyToMaterial) {
+                this.waveTravelShaderPack.applyToMaterial(material);
+            }
+            if (this.waveDynamicsShaderPack?.applyToMaterial) {
+                this.waveDynamicsShaderPack.applyToMaterial(material);
+            }
 
             const geometry = new THREE.BufferGeometry();
             const mesh = new THREE.Mesh(geometry, material);
@@ -1253,6 +1265,9 @@ export class LinkRendererConduit {
             if (LinkRingArcDischarges) {
                 arcDischarges = new LinkRingArcDischarges(this.scene);
                 group.add(arcDischarges.getGroup());
+                if (pulseRing?.setArcSystem) {
+                    pulseRing.setArcSystem(arcDischarges);
+                }
             }
         } catch (e) { throw e; }
 
@@ -1313,6 +1328,7 @@ export class LinkRendererConduit {
             directionalStreaksManager: directionalStreaks, // Manager reference
             phaseOffset: Math.random() * Math.PI * 2,
             baseColor: baseColor,
+            baseColorObj: baseColorObj,
             impacts: []
         });
 
@@ -1986,24 +2002,26 @@ export class LinkRendererConduit {
         // --- 4.8. HEALING PARTICLE EFFECTS ---
         // Emit healing particles flowing backwards (target → source) when harmony is high
         if (this.healingParticles && this.healingEmitters && link.id && this.modules.healingFX) {
-            const emitter = this.healingEmitters.get(link.id);
-            if (emitter) {
-                const linkHarmony = metrics.harmony ?? 0.5;
-                const linkCorruption = metrics.corruption ?? 0.2;
+                const emitter = this.healingEmitters.get(link.id);
+                if (emitter) {
+                    const linkHarmony = metrics.harmony ?? 0.5;
+                    const linkCorruption = metrics.corruption ?? 0.2;
+                    const tintColor = state.baseColorObj || (state.strands?.[0]?.material?.color);
 
-                if (linkHarmony > linkCorruption) {
-                    emitter.update(
-                        visualDelta,
-                        visualTime,
-                        mainCurve,
-                        linkDir,
-                        linkHarmony,
-                        linkCorruption
-                    );
-                    this._healingActiveCount = (this._healingActiveCount || 0) + 1;
+                    if (linkHarmony > linkCorruption) {
+                        emitter.update(
+                            visualDelta,
+                            visualTime,
+                            mainCurve,
+                            linkDir,
+                            linkHarmony,
+                            linkCorruption,
+                            tintColor
+                        );
+                        this._healingActiveCount = (this._healingActiveCount || 0) + 1;
+                    }
                 }
             }
-        }
 
         // --- 5. Subsystems Update ---
         this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + (state.beads ? 1 : 0);
