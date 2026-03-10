@@ -65,6 +65,10 @@ import { FrameScheduler } from './FrameScheduler.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
 import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
+import PHASE5_MultiNetworkManager from './PHASE5_MultiNetworkManager_v1.js';
+import PHASE5_CorruptionBridge from './PHASE5_CorruptionBridge_v1.js';
+import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
+import CorruptionVisualFX_v1 from './CorruptionVisualFX_v1.js';
 import './FXDebugSandbox.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
@@ -5964,6 +5968,34 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     'simulation.corruptionTransmission'
                 );
             }
+            this.frameScheduler.register(
+                'simulation',
+                (dt) => {
+                    this.multiNetworkManager?.update?.(dt);
+                    this.corruptionBridge?.update?.(dt);
+                },
+                'simulation.corruptionBridge'
+            );
+            this.frameScheduler.register(
+                'visual',
+                (dt) => this.corruptionFeedback?.update?.(dt),
+                'visual.corruptionFeedback'
+            );
+            this.frameScheduler.register(
+                'visual',
+                (dt) => {
+                    if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
+                    const time = this.time ?? performance.now();
+                    for (const node of this.aiNodes.nodes) {
+                        this.corruptionVisualFX.applyCorruptionEffects(
+                            node.mesh || node,
+                            dt,
+                            time
+                        );
+                    }
+                },
+                'visual.nodeCorruptionFX'
+            );
         }
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
@@ -5971,6 +6003,40 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (this.recursiveGlyphSignalSystem) {
             this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
+
+        // Minimal multi-network scaffolding (single-network registration)
+        this.multiNetworkManager = new PHASE5_MultiNetworkManager();
+        this.multiNetworkManager.frameScheduler = this.frameScheduler;
+        this.multiNetworkManager.registerNetwork(
+            'world',
+            { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
+            { name: 'PrimaryNetwork', metrics: {} }
+        );
+
+        this.corruptionBridge = new PHASE5_CorruptionBridge(this.multiNetworkManager);
+        this.corruptionBridge.frameScheduler = this.frameScheduler;
+
+        // Corruption feedback visuals (event-driven; idle until threshold events fire)
+        this.corruptionFeedback = new TIER4_CorruptionFeedbackVisuals(this.scene, { enableDebug: false });
+        this.corruptionFeedback.frameScheduler = this.frameScheduler;
+        this.corruptionVisualFX = new CorruptionVisualFX_v1(this.aiNodes, false);
+
+        // Listen for corruption threshold events
+        this.multiNetworkManager.on((event) => {
+            if (event?.type === 'corruptionThresholdCrossed') {
+                const node = event.node;
+                if (!node) return;
+
+                if (this.corruptionFeedback?.displayCascadeWarning) {
+                    this.corruptionFeedback.displayCascadeWarning(node);
+                }
+
+                if (this.corruptionFeedback?.displayCorruptionSeed) {
+                    this.corruptionFeedback.displayCorruptionSeed(node);
+                }
+            }
+        });
+
         // VFX runtime loader (opt-in)
         this.vfxLoader = new VFXRuntimeLoader({
             frameScheduler: this.frameScheduler,

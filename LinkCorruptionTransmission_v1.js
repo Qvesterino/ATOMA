@@ -708,6 +708,10 @@ export class LinkCorruptionTransmission_v1 {
     this.contentionHistory = []; // Track contention events for debugging
     this.contentionEnabled = HEALING_CONTENTION_THRESHOLDS.ENABLED;
     this.activeContentionPenalties = new Map(); // healingEventId -> contentionMultiplier (temporary)
+
+    // Safety guards to prevent traversal amplification
+    this.maxCascadeDepth = 8;
+    this._visitedLinks = new Set();
     
     if (this.debugMode) {
       console.log('%c[LinkCorruptionTransmission_v1] Initialized', 'color: #ff00ff; font-weight: bold;');
@@ -778,11 +782,22 @@ export class LinkCorruptionTransmission_v1 {
   updateTransmission(deltaTime = 1/60) {
     if (!this.aiNodes) return;
 
+    // Reset per-tick traversal guard
+    this._visitedLinks = new Set();
+
     // Update all links
     const allLinks = this.getAllLinks();
     if (!allLinks || allLinks.length === 0) return;
 
     for (const link of allLinks) {
+      const linkId = link?.id ?? link?.uuid;
+      if (linkId !== undefined && this._visitedLinks.has(linkId)) {
+        continue;
+      }
+      if (linkId !== undefined) {
+        this._visitedLinks.add(linkId);
+      }
+
       this.updateLinkCorruption(link, deltaTime);
       
       // [Phase 3] Apply healing cascade if enabled
@@ -811,6 +826,7 @@ export class LinkCorruptionTransmission_v1 {
     const targetNode = link.target || link.targetNode;
     
     if (!sourceNode || !targetNode) return;
+    if (targetNode && sourceNode && (targetNode.id ?? targetNode.uuid) === (sourceNode.id ?? sourceNode.uuid)) return;
 
     // Compute transmission rate based on:
     // 1. Source node corruption level
@@ -2656,6 +2672,7 @@ export class LinkCorruptionTransmission_v1 {
    */
   initiateHealingCascadeFromLink(sourceLink, cascadeStrength, depth) {
     if (!sourceLink || !this.linkSystem) return;
+    if (depth > this.maxCascadeDepth) return;
     
     const cascadeId = `cascade_${sourceLink.id}_${depth}`;
     if (this.activeHealingCascades.has(cascadeId)) {

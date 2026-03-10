@@ -17,6 +17,7 @@ import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
 import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js';
+import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
 import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './shaders/LinkStateVisualLanguage.js';
@@ -582,10 +583,11 @@ function freezeMaterialFlags(material, owner = 'LinkRenderer') {
  * // Phase B.2: render state delegated to TransparentStateAuthority
  */
 export class LinkRendererConduit {
-    constructor(scene, linkingSystem = null, camera = null, parentGroup = null) {
+    constructor(scene, linkingSystem = null, camera = null, parentGroup = null, frameScheduler = null) {
         this.scene = scene;
         this.linkSystem = linkingSystem;
         this.camera = camera;
+        this.frameScheduler = frameScheduler;
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
@@ -652,6 +654,12 @@ export class LinkRendererConduit {
 
         // Corruption morphing system (visual deformation)
         this.corruptionMorphing = new LinkCorruptionMorphingSystem();
+
+        // Tier 4 corruption feedback visuals (idle until events wired)
+        this.corruptionFeedbackVisuals = new TIER4_CorruptionFeedbackVisuals(scene, {
+            enableDebug: false
+        });
+        this.corruptionFeedbackVisuals.frameScheduler = this.frameScheduler;
 
         // Trail particle system (visual only) - uses same noise as aura systems
         this.trailParticles = new LinkTrailParticleSystem(scene, 300);
@@ -797,6 +805,11 @@ export class LinkRendererConduit {
 
         // Shared healing particle system update
         this.updateHealingParticles(deltaTime, time);
+
+        // Update corruption feedback visuals (idle until events are triggered)
+        if (this.corruptionFeedbackVisuals?.update) {
+            this.corruptionFeedbackVisuals.update(deltaTime);
+        }
 
         // Debug log (throttled) for healing activity
         if (this._healingActiveCount > 0) {
@@ -1338,6 +1351,10 @@ export class LinkRendererConduit {
             metrics
         };
 
+        // Corruption FX throttling (reduce heavy updates at high link counts)
+        this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1;
+        const runHeavyCorruptionUpdate = (this._corruptionFrameCounter % 2 === 0);
+
         const state = link.group.userData.conduitState;
         if (!state) {
             // If conduit state missing, rebuild visuals inline
@@ -1369,14 +1386,14 @@ export class LinkRendererConduit {
             if (this.corruptionSpreadAnimator && state.strands) {
                 this.corruptionSpreadAnimator.update(link, visualDelta, state.strands);
             }
-            if (this.corruptionMorphing && state.strands) {
+            if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
                 this.corruptionMorphing.update(
                     link,
                     visualDelta,
                     state.strands
                 );
             }
-            if (this.corruptionParticleSystem) {
+            if (runHeavyCorruptionUpdate && this.corruptionParticleSystem) {
                 // Prefer canonical updater; fall back if alias differs
                 const updater = this.corruptionParticleSystem.updateLinkParticles
                     ? this.corruptionParticleSystem.updateLinkParticles.bind(this.corruptionParticleSystem)
@@ -2334,9 +2351,10 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
     _readLinkMetrics(link) {
         const traffic = link.traffic?.load ?? 0;
         const loadPressure = link.loadPressure ?? traffic ?? 0;
+        console.debug("LINK HARMONY", link?.id, link?.userData?.harmonyLevel);
         return {
             synergy: link.userData?.synergy?.score ?? link?.synergyScore ?? link?.synergyLevel ?? link.flow ?? 0.5,
-            harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
+            harmony: link.userData?.harmonyLevel ?? link.harmonyLevel ?? link.harmony ?? 1.0,
             corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
             instability: link.instability ?? link.instabilityLevel ?? 0.0,
             traffic,

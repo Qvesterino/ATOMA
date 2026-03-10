@@ -109,7 +109,7 @@ export class CorruptionVisualFX_v1 {
   applyCorruptionEffects(nodeModel, deltaTime, time = 0) {
     if (!nodeModel || !nodeModel.userData) return;
 
-    const corruptionLevel = nodeModel.userData?.gameplay?.corruptionLevel || 0;
+    const corruptionLevel = (nodeModel.userData?.corruption ?? 0);
 
     // Phase 2A: use canonical RAF visual time (VisualTime) for all internal timing (behavior-preserving).
     const visualNow = this.visualTime.now;

@@ -480,7 +480,7 @@ export class NodeLinkingSystem {
     this.visuals = new NeonLinkVisuals(scene, camera);
 
     // [BRAIDED CONDUIT SYSTEM]
-    this.conduitRenderer = new LinkRendererConduit(scene, this, camera);
+    this.conduitRenderer = new LinkRendererConduit(scene, this, camera, this.frameScheduler || null);
     if (typeof window !== 'undefined') {
       window.linkingSystem = this;
     }

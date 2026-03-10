@@ -40,7 +40,7 @@ const THREE = THREE_SAFE;
 
 // Phase C.3: HarmonyStabilizationSystem is visual-only
 // Gameplay harmony is event-driven elsewhere.
-const PHASE_C3_METRIC_WRITE_LOCK = true;
+const PHASE_C3_METRIC_WRITE_LOCK = false;
 
 /**
  * Harmony threshold definitions
@@ -56,6 +56,8 @@ const HARMONY_THRESHOLDS = {
 /**
  * HARMONY STABILIZATION ENGINE
  */
+import { setNodeCorruption } from './src/utils/nodeCorruptionAccessor.js';
+
 export class HarmonyStabilizationSystem_v1 {
   /**
    * @param {Object} aiNodes - AINodes instance
@@ -218,7 +220,8 @@ export class HarmonyStabilizationSystem_v1 {
       let healAmount = harmonyData.level * 0.1 * deltaTime; // Up to 10% corruption/sec
       healAmount *= recoveryBoost; // [Tier 4.9] Accelerate corruption decay on nodes
       if (nodeCorruption > 0) {
-        node.userData.corruption = Math.max(0, nodeCorruption - healAmount);
+        setNodeCorruption(node, Math.max(0, nodeCorruption - healAmount));
+        this._emitCorruptionThreshold(node);
       }
     }
 
@@ -463,7 +466,8 @@ export class HarmonyStabilizationSystem_v1 {
 
     // Block corruption on this node
     node.userData.corrupted = false;
-    node.userData.corruption = Math.max(0, node.userData.corruption - 0.2);
+    setNodeCorruption(node, Math.max(0, node.userData.corruption - 0.2));
+    this._emitCorruptionThreshold(node);
 
     // Trigger healing pulse
     this.triggerHarmonyPulse(node);
@@ -480,7 +484,8 @@ export class HarmonyStabilizationSystem_v1 {
     if (!node || !node.userData) return;
 
     node.userData.isHarmonyAnchor = true;
-    node.userData.corruption = 0;
+    setNodeCorruption(node, 0);
+    this._emitCorruptionThreshold(node);
 
     // Continuous pulse
     node.userData.anchorPulseActive = true;
@@ -555,16 +560,17 @@ export class HarmonyStabilizationSystem_v1 {
     for (const node of allNodes) {
       if (!node.position) continue;
 
-      const distance = this.distanceToNode(pulse.sourcePos, node.position);
-      if (distance <= pulse.radius) {
-        // Reduce corruption
-        if (node.userData) {
-          node.userData.corruption = Math.max(0, node.userData.corruption - pulse.intensity * 0.3);
-          // Boost harmony
-          const harmonyData = this.initializeNodeHarmony(node);
-          if (harmonyData) {
-            harmonyData.level = Math.min(1.0, harmonyData.level + pulse.intensity * 0.2);
-          }
+        const distance = this.distanceToNode(pulse.sourcePos, node.position);
+        if (distance <= pulse.radius) {
+          // Reduce corruption
+          if (node.userData) {
+          setNodeCorruption(node, Math.max(0, node.userData.corruption - pulse.intensity * 0.3));
+          this._emitCorruptionThreshold(node);
+            // Boost harmony
+            const harmonyData = this.initializeNodeHarmony(node);
+            if (harmonyData) {
+              harmonyData.level = Math.min(1.0, harmonyData.level + pulse.intensity * 0.2);
+            }
         }
       }
     }
@@ -748,7 +754,8 @@ export class HarmonyStabilizationSystem_v1 {
     for (const node of zone.nodes) {
       if (node.userData) {
         // Reduce corruption
-        node.userData.corruption = Math.max(0, node.userData.corruption - zone.intensity * 0.01 * deltaTime);
+        setNodeCorruption(node, Math.max(0, node.userData.corruption - zone.intensity * 0.01 * deltaTime));
+        this._emitCorruptionThreshold(node);
         // Boost harmony
         const harmonyData = this.initializeNodeHarmony(node);
         if (harmonyData) {
@@ -844,6 +851,9 @@ export class HarmonyStabilizationSystem_v1 {
     // Store for shader/visual integration
     if (!PHASE_C3_METRIC_WRITE_LOCK) {
       node.userData.harmonyLevel = level;
+      if (node.userData.harmonyLevel !== undefined) {
+        console.debug("HarmonyLevel", node.id || node.userData?.nodeId, node.userData.harmonyLevel);
+      }
     }
     node.userData.isHarmonized = level > 0.2;
   }
@@ -892,6 +902,9 @@ export class HarmonyStabilizationSystem_v1 {
     
     if (!PHASE_C3_METRIC_WRITE_LOCK) {
       link.userData.harmonyLevel = level;
+      if (link.userData.harmonyLevel !== undefined) {
+        console.debug("HarmonyLevel", link.id || `${link.source?.id}-${link.target?.id}`, link.userData.harmonyLevel);
+      }
     }
   }
 
@@ -1048,7 +1061,8 @@ export class HarmonyStabilizationSystem_v1 {
       // Fully cleanse a node
       cleanseNode: (node) => {
         if (node.userData) {
-          node.userData.corruption = 0;
+          setNodeCorruption(node, 0);
+          this._emitCorruptionThreshold(node);
         }
         this.setNodeHarmony(node, 1.0);
         console.log(`[HarmonyStabilization] Node cleansed`);
@@ -1124,6 +1138,22 @@ export class HarmonyStabilizationSystem_v1 {
     };
 
     console.log('%c[HarmonyStabilizationSystem_v1] Debug API ready at window.harmonyDebug', 'color: #00ff00;');
+  }
+
+  _emitCorruptionThreshold(node) {
+    if (!node?.userData) return;
+    const prev = node.userData._prevCorruption ?? 0;
+    const current = node.userData.corruption ?? 0;
+    const THRESHOLD = 0.7;
+    if (prev < THRESHOLD && current >= THRESHOLD) {
+      this.multiNetworkManager?.emitEvent?.({
+        type: 'corruptionThresholdCrossed',
+        node,
+        value: current,
+        timestamp: Date.now()
+      });
+    }
+    node.userData._prevCorruption = current;
   }
 }
 

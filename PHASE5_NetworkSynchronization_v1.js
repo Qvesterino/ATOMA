@@ -12,6 +12,8 @@
  * Pure synchronization layer — zero gameplay logic modifications
  */
 
+import { setNodeCorruption } from './src/utils/nodeCorruptionAccessor.js';
+
 export class PHASE5_NetworkSynchronization {
   constructor(multiNetworkManager, config = {}) {
     this.multiNetworkManager = multiNetworkManager;
@@ -208,8 +210,10 @@ export class PHASE5_NetworkSynchronization {
         }
         
         // Apply resolved value to both
-        sourceNode.userData.corruption = resolvedValue;
-        targetNode.userData.corruption = resolvedValue;
+        setNodeCorruption(sourceNode, resolvedValue);
+        this._emitCorruptionThreshold(sourceNode);
+        setNodeCorruption(targetNode, resolvedValue);
+        this._emitCorruptionThreshold(targetNode);
         
         this.resolutions.push({
           conflict,
@@ -300,7 +304,8 @@ export class PHASE5_NetworkSynchronization {
           if (typeof corruption === 'number') {
             if (corruption < 0 || corruption > 1) {
               // Clamp to valid range
-              node.userData.corruption = Math.max(0, Math.min(1, corruption));
+              setNodeCorruption(node, Math.max(0, Math.min(1, corruption)));
+              this._emitCorruptionThreshold(node);
             }
           }
         }
@@ -355,6 +360,22 @@ export class PHASE5_NetworkSynchronization {
   setDebugMode(enabled) {
     this.config.enableDebug = enabled;
     this.config.enableLogging = enabled;
+  }
+
+  _emitCorruptionThreshold(node) {
+    if (!node?.userData) return;
+    const prev = node.userData._prevCorruption ?? 0;
+    const current = node.userData.corruption ?? 0;
+    const THRESHOLD = 0.7;
+    if (prev < THRESHOLD && current >= THRESHOLD) {
+      this.multiNetworkManager?.emitEvent?.({
+        type: 'corruptionThresholdCrossed',
+        node,
+        value: current,
+        timestamp: Date.now()
+      });
+    }
+    node.userData._prevCorruption = current;
   }
   
   /**
