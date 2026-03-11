@@ -12,7 +12,6 @@ export class SelectedRingSystem {
     this.time = 0;
     this.clickPulse = 0;
     this.scanPhase = 0;
-    this.scanPhase2 = 0.5; // second wave offset
 
     this._buildMeshes();
     if (this.scene) this.scene.add(this.group);
@@ -119,7 +118,6 @@ export class SelectedRingSystem {
       side: THREE.DoubleSide,
       uniforms: {
         uScan: { value: 0 },
-        uScan2: { value: 0.5 },
         uColor: { value: new THREE.Color(0x00f2ff) },
       },
       vertexShader: `
@@ -131,24 +129,19 @@ export class SelectedRingSystem {
       `,
       fragmentShader: `
         uniform float uScan;
-        uniform float uScan2;
         uniform vec3 uColor;
         varying vec2 vUv;
         void main() {
           float theta = atan(vUv.y - 0.5, vUv.x - 0.5);
           float angleN = fract((theta + 3.14159) / 6.28318); // 0..1
-          // Dual-sided sweep (primary)
-          float sweepA1 = smoothstep(uScan - 0.2, uScan, angleN);
-          float sweepB1 = smoothstep(uScan - 0.2 + 1.0, uScan + 1.0, angleN);
-          float sweep1 = clamp(sweepA1 + sweepB1, 0.0, 1.0);
-          // Second wave, phase-shifted
-          float sweepA2 = smoothstep(uScan2 - 0.2, uScan2, angleN);
-          float sweepB2 = smoothstep(uScan2 - 0.2 + 1.0, uScan2 + 1.0, angleN);
-          float sweep2 = clamp(sweepA2 + sweepB2, 0.0, 1.0);
-          // Crossfade so at least one wave is present, easing overlap with cosine
-          float mixWeight = 0.5 + 0.5 * cos((uScan - uScan2) * 6.28318);
-          float sweep = mix(sweep1, sweep2, mixWeight);
-          float alpha = sweep * 0.35;
+          // Circular distance avoids wrap seam
+          float dist = min(abs(angleN - uScan), 1.0 - abs(angleN - uScan));
+          // Head: sharp core (0..~0.18)
+          float head = smoothstep(0.18, 0.0, dist);
+          // Tail: longer fade to 0.6 around the circle
+          float tail = smoothstep(0.6, 0.0, dist);
+          tail = pow(tail, 1.4);
+          float alpha = head * 0.34 + tail * 0.18;
           gl_FragColor = vec4(uColor, alpha);
         }
       `
@@ -204,11 +197,9 @@ export class SelectedRingSystem {
     this.orbitB.material.uniforms.uClick.value = this.clickPulse;
 
     // Scan sweep
-    const scanSpeed = 0.8;
+    const scanSpeed = 0.56; // 30% slower
     this.scanPhase = (this.scanPhase + dt * scanSpeed) % 1.0;
-    this.scanPhase2 = (this.scanPhase2 + dt * scanSpeed) % 1.0;
     this.scanMesh.material.uniforms.uScan.value = this.scanPhase;
-    this.scanMesh.material.uniforms.uScan2.value = this.scanPhase2;
   }
 
   dispose() {

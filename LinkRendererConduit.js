@@ -2531,16 +2531,43 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         const category = node.userData?.category || 'input';
         const color = this.getCategoryColor(category);
         const beadSize = bead?.size || 'medium';
+        const variantRand = Math.random();
+        const jitterRand = Math.random();
 
         // Create impact geometry based on category
         const group = new THREE.Group();
         let geometry;
 
+        const chooseVariant = (variants, r) => variants[Math.floor(r * variants.length) % variants.length];
+
         switch (category) {
-            case 'input': geometry = new THREE.TorusGeometry(0.5, 0.05, 8, 16); break;
-            case 'process': geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8); break;
-            case 'control': geometry = new THREE.OctahedronGeometry(0.6, 0); break;
-            default: geometry = new THREE.IcosahedronGeometry(0.6, 1);
+            case 'input':
+                geometry = chooseVariant([
+                    new THREE.TorusGeometry(0.5, 0.05, 8, 16),
+                    new THREE.TorusGeometry(0.5, 0.03, 8, 24),
+                    new THREE.RingGeometry(0.35, 0.5, 24)
+                ], variantRand);
+                break;
+            case 'process':
+                geometry = chooseVariant([
+                    new THREE.BoxGeometry(0.8, 0.8, 0.8),
+                    new THREE.CylinderGeometry(0.45, 0.45, 0.5, 10, 1, true),
+                    new THREE.BoxGeometry(0.8, 0.5, 0.8)
+                ], variantRand);
+                break;
+            case 'control':
+                geometry = chooseVariant([
+                    new THREE.OctahedronGeometry(0.6, 0),
+                    new THREE.TetrahedronGeometry(0.65, 0),
+                    new THREE.DodecahedronGeometry(0.55, 0)
+                ], variantRand);
+                break;
+            default:
+                geometry = chooseVariant([
+                    new THREE.IcosahedronGeometry(0.6, 1),
+                    new THREE.SphereGeometry(0.55, 14, 10),
+                    new THREE.TorusKnotGeometry(0.32, 0.08, 48, 6)
+                ], variantRand);
         }
 
         // PHASE S-5: Variant properties set at creation time, then frozen
@@ -2559,7 +2586,15 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         group.position.copy(node.position);
 
         const scaleMult = beadSize === 'large' ? 1.5 : (beadSize === 'small' ? 0.5 : 1.0);
-        group.scale.setScalar(0.1); // Start small
+        const jitterScale = 0.9 + jitterRand * 0.2; // ±10%
+        group.scale.setScalar(0.1 * jitterScale); // Start small with jitter
+
+        // Subtle rotation jitter for variation
+        group.rotation.set(
+            (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.3
+        );
 
         Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh });
 
