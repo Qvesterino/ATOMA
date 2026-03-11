@@ -2539,27 +2539,165 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         let geometry;
 
         const chooseVariant = (variants, r) => variants[Math.floor(r * variants.length) % variants.length];
+        const makeCrateredSphere = () => {
+            const g = new THREE.IcosahedronGeometry(0.5, 1);
+            const pos = g.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const amp = 0.08 * (Math.random() - 0.5);
+                pos.setXYZ(
+                    i,
+                    pos.getX(i) * (1 + amp),
+                    pos.getY(i) * (1 + amp),
+                    pos.getZ(i) * (1 + amp)
+                );
+            }
+            pos.needsUpdate = true;
+            g.computeVertexNormals();
+            return g;
+        };
+        const makeSpikedHalo = () => {
+            const g = new THREE.IcosahedronGeometry(0.45, 1);
+            const pos = g.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const amp = 0.12 * (0.5 + Math.random());
+                pos.setXYZ(
+                    i,
+                    pos.getX(i) * (1 + amp),
+                    pos.getY(i) * (1 + amp),
+                    pos.getZ(i) * (1 + amp)
+                );
+            }
+            pos.needsUpdate = true;
+            g.computeVertexNormals();
+            return g;
+        };
+        const makeWaveSlice = () => {
+            const g = new THREE.PlaneGeometry(1.1, 1.1, 10, 4);
+            const pos = g.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const z = pos.getZ(i);
+                const y = Math.sin((x + z) * 4.0) * 0.08;
+                pos.setY(i, y);
+            }
+            pos.needsUpdate = true;
+            g.computeVertexNormals();
+            return g;
+        };
+        const makeLemniscate = () => {
+            const pts = [];
+            const a = 0.38;
+            for (let i = 0; i <= 40; i++) {
+                const t = (i / 40) * Math.PI * 2;
+                const x = a * Math.sin(t);
+                const z = a * Math.sin(t) * Math.cos(t);
+                pts.push(new THREE.Vector3(x, 0, z));
+            }
+            const curve = new THREE.CatmullRomCurve3(pts, true);
+            return new THREE.TubeGeometry(curve, 40, 0.045, 6, true);
+        };
+        const makeTwistedRibbon = () => {
+            const pts = [];
+            const r = 0.4;
+            for (let i = 0; i <= 32; i++) {
+                const t = (i / 32) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(t) * r, 0, Math.sin(t) * r));
+            }
+            const curve = new THREE.CatmullRomCurve3(pts, true);
+            return new THREE.TubeGeometry(curve, 32, 0.05, 5, true);
+        };
+        const makeStarPrism = () => {
+            const g = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 6, 1, true);
+            g.rotateY(Math.PI / 12);
+            return g;
+        };
+        const makeGyroideDisk = () => new THREE.CylinderGeometry(0.55, 0.35, 0.12, 12, 1, true);
+        const makeDoubleDiscs = () => new THREE.CylinderGeometry(0.55, 0.45, 0.1, 14, 1, true);
+        const makeHexFrame = () => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 6, 1, true);
 
         switch (category) {
             case 'input':
                 geometry = chooseVariant([
-                    new THREE.TorusGeometry(0.5, 0.05, 8, 16),
-                    new THREE.TorusGeometry(0.5, 0.03, 8, 24),
-                    new THREE.RingGeometry(0.35, 0.5, 24)
+                    new THREE.RingGeometry(0.35, 0.5, 24),
+                    new THREE.TorusKnotGeometry(0.34, 0.06, 46, 7, 3, 2), // triquetra/pretzel
+                    new THREE.DodecahedronGeometry(0.45, 0),
+                    makeWaveSlice()
                 ], variantRand);
                 break;
             case 'process':
                 geometry = chooseVariant([
-                    new THREE.BoxGeometry(0.8, 0.8, 0.8),
-                    new THREE.CylinderGeometry(0.45, 0.45, 0.5, 10, 1, true),
-                    new THREE.BoxGeometry(0.8, 0.5, 0.8)
+                    makeStarPrism(),
+                    makeWaveSlice(),
+                    new THREE.TorusKnotGeometry(0.32, 0.08, 40, 7)
                 ], variantRand);
                 break;
             case 'control':
                 geometry = chooseVariant([
                     new THREE.OctahedronGeometry(0.6, 0),
                     new THREE.TetrahedronGeometry(0.65, 0),
-                    new THREE.DodecahedronGeometry(0.55, 0)
+                    new THREE.DodecahedronGeometry(0.55, 0),
+                    makeLemniscate()
+                ], variantRand);
+                break;
+            case 'storage':
+                geometry = chooseVariant([
+                    makeGyroideDisk(),
+                    makeDoubleDiscs(),
+                    new THREE.CapsuleGeometry(0.32, 0.22, 6, 10)
+                ], variantRand);
+                break;
+            case 'analytics':
+                geometry = chooseVariant([
+                    new THREE.RingGeometry(0.32, 0.5, 18),
+                    new THREE.IcosahedronGeometry(0.5, 0),
+                    makeHexFrame()
+                ], variantRand);
+                break;
+            case 'integration':
+                geometry = chooseVariant([
+                    makeTwistedRibbon(),
+                    new THREE.TorusKnotGeometry(0.28, 0.07, 40, 6),
+                    new THREE.DodecahedronGeometry(0.5, 1)
+                ], variantRand);
+                break;
+            case 'emotional':
+                geometry = chooseVariant([
+                    new THREE.OctahedronGeometry(0.55, 1),
+                    makeLemniscate(),
+                    new THREE.TorusKnotGeometry(0.28, 0.08, 48, 6)
+                ], variantRand);
+                break;
+            case 'sigma':
+                geometry = chooseVariant([
+                    new THREE.OctahedronGeometry(0.55, 1),
+                    makeSpikedHalo(),
+                    new THREE.CapsuleGeometry(0.38, 0.18, 6, 8)
+                ], variantRand);
+                break;
+            case 'quantum':
+                geometry = chooseVariant([
+                    makeCrateredSphere(),
+                    new THREE.OctahedronGeometry(0.5, 1),
+                    new THREE.IcosahedronGeometry(0.45, 1)
+                ], variantRand);
+                break;
+            case 'prime':
+                geometry = chooseVariant([
+                    new THREE.DodecahedronGeometry(0.55, 0),
+                    new THREE.TorusKnotGeometry(0.32, 0.09, 40, 5)
+                ], variantRand);
+                break;
+            case 'error':
+                geometry = chooseVariant([
+                    new THREE.IcosahedronGeometry(0.55, 0),
+                    new THREE.TetrahedronGeometry(0.6, 1),
+                    makeCrateredSphere()
+                ], variantRand);
+                break;
+            case 'mythic':
+                geometry = chooseVariant([
+                    new THREE.TorusKnotGeometry(0.35, 0.08, 48, 6),
+                    new THREE.IcosahedronGeometry(0.6, 1)
                 ], variantRand);
                 break;
             default:
