@@ -684,6 +684,8 @@ export class LinkRendererConduit {
             this.camera,
             this.conduitRoot
         );
+        // Ensure pictograms stay enabled when driven by FrameScheduler
+        this.pictogramSystem.enable?.();
         this.pictogramSystem.__debugId = this.pictogramSystem.__debugId || makeDebugId('pictos');
         // Ensure pictogram system always uses live linkSystem (in case linkSystem is swapped later)
         this.pictogramSystem.linkingSystem = this.linkSystem;
@@ -736,6 +738,11 @@ export class LinkRendererConduit {
             || this.linkSystem?.links
             || this.links
             || [];
+
+        // Ensure pictograms stay enabled when we have links to render
+        if (this.pictogramSystem && !this.pictogramSystem.enabled && list.length > 0) {
+            this.pictogramSystem.enable?.();
+        }
 
         // Garbage collect orphaned trail emitters (links removed without dispose)
         if (this.trailEmitters?.size && this.trailParticles) {

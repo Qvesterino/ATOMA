@@ -849,11 +849,11 @@ export class HarmonyStabilizationSystem_v1 {
     vis.rotationStabilization = Math.max(0, Math.min(1, vis.rotationStabilization));
     
     // Store for shader/visual integration
-    if (!PHASE_C3_METRIC_WRITE_LOCK) {
-      node.userData.harmonyLevel = level;
-      if (node.userData.harmonyLevel !== undefined) {
-        console.debug("HarmonyLevel", node.id || node.userData?.nodeId, node.userData.harmonyLevel);
-      }
+    // Mirror canonical harmony -> userData for visual consumers
+    const canonicalHarmony = (typeof node?.harmony === 'number') ? node.harmony : level;
+    node.userData.harmonyLevel = canonicalHarmony;
+    if (!PHASE_C3_METRIC_WRITE_LOCK && node.userData.harmonyLevel !== undefined) {
+      console.debug("HarmonyLevel", node.id || node.userData?.nodeId, node.userData.harmonyLevel);
     }
     node.userData.isHarmonized = level > 0.2;
   }
@@ -900,11 +900,11 @@ export class HarmonyStabilizationSystem_v1 {
 
     vis.ribbonIntensity = Math.max(0, Math.min(1, vis.ribbonIntensity));
     
-    if (!PHASE_C3_METRIC_WRITE_LOCK) {
-      link.userData.harmonyLevel = level;
-      if (link.userData.harmonyLevel !== undefined) {
-        console.debug("HarmonyLevel", link.id || `${link.source?.id}-${link.target?.id}`, link.userData.harmonyLevel);
-      }
+    // Mirror canonical harmony -> userData for visual consumers
+    const canonicalHarmony = (typeof link?.harmony === 'number') ? link.harmony : level;
+    link.userData.harmonyLevel = canonicalHarmony;
+    if (!PHASE_C3_METRIC_WRITE_LOCK && link.userData.harmonyLevel !== undefined) {
+      console.debug("HarmonyLevel", link.id || `${link.source?.id}-${link.target?.id}`, link.userData.harmonyLevel);
     }
   }
 

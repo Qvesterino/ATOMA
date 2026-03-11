@@ -892,6 +892,11 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
 
 // ============================================================================
+// DEBUG: HARMONY OVERLAY (visual readability, gated)
+// ============================================================================
+import { HarmonyDebugOverlay } from './HarmonyDebugOverlay.js';
+
+// ============================================================================
 // WEEK 27: WAVE PARTICLE EMITTER (GPU-Reactive Particle FX)
 // ============================================================================
 import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
@@ -3352,6 +3357,28 @@ class AtomaGame {
             }
         }, 'simulation.linkCorruptionTransmission');
         this.frameScheduler.register('simulation', (dt) => {
+            // Lazy-init to avoid constructor when disabled
+            if (!this.harmonyCascade) {
+                this.harmonyCascade = new CascadingHarmonicResonanceAmplification();
+            }
+
+            // Build a fresh, lightweight view of the network each tick (10 Hz)
+            const nodesArray = this.aiNodes?.nodes || [];
+            const nodeMap = new Map();
+            for (const node of nodesArray) {
+                const id = node?.id ?? node?.userData?.nodeId;
+                if (id !== undefined) nodeMap.set(id, node);
+            }
+
+            this.harmonyCascade.network = {
+                nodes: nodeMap,
+                links: this.linkingSystem?.links || [],
+                _topologyGeneration: this.linkingSystem?._topologyGeneration || 0
+            };
+
+            this.harmonyCascade.update(dt);
+        }, 'simulation.harmonyCascade');
+        this.frameScheduler.register('simulation', (dt) => {
             if (this.harmonyStabilizationSystem) {
                 safeTick(this.harmonyStabilizationSystem, dt);
             }
@@ -3797,6 +3824,13 @@ class AtomaGame {
                 this.waveInterference.update(dt, this.time);
             }
         }, 'visual.waveInterferencePattern');
+        this.frameScheduler.register('visual', () => {
+            if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
+                const nodes = this.aiNodes?.nodes || [];
+                const links = this.nodeLinking?.links || [];
+                this.harmonyDebugOverlay.update(nodes, links);
+            }
+        }, 'visual.harmonyDebugOverlay');
         // --- HUD bootstrap (required for realtime overlays) ---
 this.wakeHud('coreMetrics');
 this.wakeHud('nodeInspect');
@@ -3913,12 +3947,14 @@ document.addEventListener('keydown', () => {
 
         // Safe Mobility Pack 4.0 (dash + double jump)
         this.mobilityPack = null;
+        this.harmonyDebugOverlay = null;
 
         // ====================================================================
         // TIER 1 INTEGRATION: Core Active Systems (Phase A)
         // ====================================================================
         this.linkCorruptionTransmission = null;
         this.harmonyStabilizationSystem = null;
+        this.harmonyCascade = null;
         
         // ====================================================================
         // TIER 2 VISUAL INTEGRATION: Visual System Wiring
@@ -5055,6 +5091,18 @@ window.__ATOMA_SCENE__ = this.scene;
             console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
+        }
+
+        // Harmony debug overlay (disabled by default, toggle via ATOMA_FLAGS.debug.harmonyOverlay)
+        try {
+            this.harmonyDebugOverlay = new HarmonyDebugOverlay();
+            if (window?.ATOMA_FLAGS?.debug?.harmonyOverlay === true) {
+                this.harmonyDebugOverlay.enable();
+                console.log('[main.js] HarmonyDebugOverlay enabled ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] HarmonyDebugOverlay init failed:', err);
+            this.harmonyDebugOverlay = null;
         }
 
         // Initialize Node Inspect Overlay (after scene/camera/renderer ready)
@@ -7760,6 +7808,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             });
             this.particleEmitter?.init?.(this.renderer, this.scene);
             console.log('[main.js] WaveParticleEmitter_v1 initialized ✓');
+
+            // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
+            this.frameScheduler?.register('visual', (dt) => {
+                this.particleEmitter?.update?.(
+                    dt,
+                    this.time,
+                    this.nodeLinking?.links || [],
+                    this.aiNodes || []
+                );
+            }, 'visual.harmony.waveParticleEmitter');
         } catch (err) {
             console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
         }
@@ -8762,6 +8820,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.linkTrailParticles?.update?.(dt, this.time);
         });
         regGuard('waveInterference', 'visual.waveInterferencePattern', (dt) => this.waveInterference?.update?.(dt, this.time));
+        regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
+            this.particleEmitter?.update?.(
+                dt,
+                this.time,
+                this.nodeLinking?.links || [],
+                this.aiNodes || []
+            );
+        });
 
 
         regGuard('microImpulseAdapter', 'visual.microImpulseAdapter', () => this.microImpulseAdapter?.update?.());

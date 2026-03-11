@@ -382,6 +382,10 @@ export class NodeLinkingSystem {
     this._simulationSyncAccum = 0;
     this._simulationSynergyAccum = 0;
 
+    // When true, conduit visuals are driven externally (FrameScheduler) and
+    // internal per-link conduit updates are skipped to avoid double-execution.
+    this.conduitManagedByFrameScheduler = false;
+
     // Link curve/bead audit (throttled)
     this._linkCurveAuditLastLog = 0;
     this._linkCurveAuditLastLog = 0;
@@ -4659,7 +4663,7 @@ getLinksForNode(node) {
       this.updateLinkCurve(link);
 
       // Build per-link frameState once and drive conduit visuals (single entry)
-      if (this.conduitRenderer) {
+      if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
         const frameState = this._buildLinkFrameState(link, deltaTime, time);
         this.conduitRenderer.update(link, deltaTime, time, frameState);
       }
@@ -4699,7 +4703,7 @@ getLinksForNode(node) {
     });
 
     // Global pictogram tick (once per frame)
-    if (this.conduitRenderer) {
+    if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
       console.info('[PicDiag] pictogram tick requested', deltaTime);
       try {
         this.conduitRenderer.updatePictograms(deltaTime, time);
@@ -4712,7 +4716,7 @@ getLinksForNode(node) {
     }
 
     // Tick conduit-managed particle systems (trail + healing) so emitted particles animate
-    if (this.conduitRenderer) {
+    if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
       this.conduitRenderer.updateTrailParticles(deltaTime, time);
       this.conduitRenderer.updateHealingParticles(deltaTime, time);
     }
