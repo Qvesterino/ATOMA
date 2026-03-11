@@ -839,7 +839,11 @@ export class LinkCorruptionTransmission_v1 {
     const adjustedTransmissionRate = transmissionRate * corruptionCategoryMultiplier;
 
     // Update link corruption level with smooth lerp
-    const sourceCorruption = sourceNode.userData?.corruption || 0;
+    const sourceCorruption =
+      sourceNode?.userData?.metrics?.corruption ??
+      sourceNode?.userData?.corruption ??
+      sourceNode?.corruption ??
+      0;
     const targetCorruption = targetNode.userData?.corruption || 0;
     
     // Corruption spreads from higher → lower

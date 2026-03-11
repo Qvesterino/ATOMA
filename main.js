@@ -3824,6 +3824,12 @@ class AtomaGame {
                 this.waveInterference.update(dt, this.time);
             }
         }, 'visual.waveInterferencePattern');
+        this.frameScheduler.register('visual', (dt) => {
+            // Harmonic resonance feedback fields (30 Hz visual cadence)
+            if (this.harmonicResonance) {
+                this.harmonicResonance.update?.(dt);
+            }
+        }, 'visual.harmonicResonanceFeedback');
         this.frameScheduler.register('visual', () => {
             if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
                 const nodes = this.aiNodes?.nodes || [];

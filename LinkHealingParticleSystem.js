@@ -18,9 +18,9 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const DEFAULT_POOL = 320;
-const MIN_SIZE = 2.0;   // px
-const MAX_SIZE = 4.0;   // px
-const PER_LINK_CAP = 12;
+const MIN_SIZE = 6.0;   // px
+const MAX_SIZE = 14.0;  // px
+const PER_LINK_CAP = 20;
 
 function ensureUserData(obj) {
   if (!obj.userData) {
@@ -40,6 +40,8 @@ class HealingPool {
     this.orbitPhase = new Float32Array(capacity);
     this.orbitSpeed = new Float32Array(capacity);
     this.orbitRadius = new Float32Array(capacity);
+    this.driftSpeed = new Float32Array(capacity);
+    this.anchorT = new Float32Array(capacity);
     this.seed = new Float32Array(capacity);
     this.arrived = new Array(capacity).fill(false);
     this.link = new Array(capacity).fill(null);
@@ -57,6 +59,8 @@ class HealingPool {
     this.orbitPhase[index] = opts.orbitPhase;
     this.orbitSpeed[index] = opts.orbitSpeed;
     this.orbitRadius[index] = opts.orbitRadius;
+    this.driftSpeed[index] = opts.driftSpeed;
+    this.anchorT[index] = opts.anchorT;
     this.seed[index] = opts.seed;
     this.link[index] = opts.link;
     this.curve[index] = opts.curve;
@@ -103,9 +107,10 @@ export class LinkHealingParticleSystem {
       blending: THREE.AdditiveBlending,
       uniforms: {
         uTime: { value: 0 },
-        uBaseColor: { value: new THREE.Color(0x66ff99) }, // harmony green
-        uEdgeColor: { value: new THREE.Color(0x66e6ff) }, // cyan rim
+        uBaseColor: { value: new THREE.Color(0x39ff14) }, // debug neon green
+        uEdgeColor: { value: new THREE.Color(0x7fff4d) }, // debug neon green edge
         uSizeRange: { value: new THREE.Vector2(MIN_SIZE, MAX_SIZE) },
+        uOpacity: { value: 2.5 },
         uSofteningNear: { value: 0.3 },   // meters from camera to start fading
         uSofteningRange: { value: 0.6 }   // fade span
       },
@@ -116,6 +121,7 @@ export class LinkHealingParticleSystem {
         attribute vec3 aTint;
         uniform float uTime;
         uniform vec2 uSizeRange;
+        uniform float uOpacity;
         uniform float uSofteningNear;
         uniform float uSofteningRange;
         varying float vLifeT;
@@ -132,7 +138,7 @@ export class LinkHealingParticleSystem {
           vTint = aTint;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           vDepth = -mvPosition.z;
-          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_PointSize = size * (10.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -144,6 +150,7 @@ export class LinkHealingParticleSystem {
         varying float vDepth;
         uniform vec3 uBaseColor;
         uniform vec3 uEdgeColor;
+        uniform float uOpacity;
         uniform float uSofteningNear;
         uniform float uSofteningRange;
 
@@ -154,16 +161,18 @@ export class LinkHealingParticleSystem {
           return fract(p);
         }
 
-        // 4-armed knot mask using polar repetition
+        // Sharper six-petal rosette for readability.
         float knot(vec2 uv) {
           vec2 p = uv * 2.0 - 1.0;
           float r = length(p);
           if (r > 1.0) return 0.0;
           float ang = atan(p.y, p.x);
-          float arms = 4.0;
-          float m = abs(cos(arms * ang)) * pow(1.0 - r, 1.0);
-          float core = smoothstep(0.55, 0.2, r);
-          return clamp(core * (0.35 + 0.75 * m), 0.0, 1.0);
+          float petals = abs(cos(3.0 * ang));
+          float petalRadius = 0.24 + 0.56 * pow(petals, 1.4);
+          float petalMask = 1.0 - smoothstep(petalRadius - 0.07, petalRadius + 0.03, r);
+          float centerCut = smoothstep(0.05, 0.18, r);
+          float core = 1.0 - smoothstep(0.0, 0.11, r);
+          return clamp(petalMask * centerCut + core * 0.55, 0.0, 1.0);
         }
 
         void main() {
@@ -174,21 +183,23 @@ export class LinkHealingParticleSystem {
           float ghostLife = smoothstep(0.1, 0.6, vLifeT) * (1.0 - smoothstep(0.75, 1.0, vLifeT));
           float ghost = knot(uv + (vSeed - 0.5) * 0.02) * 0.35 * ghostLife;
 
-          float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.8, 1.0, vLifeT));
-          float depthFade = 1.0 - smoothstep(uSofteningNear, uSofteningNear + uSofteningRange, vDepth);
+          float lifeFade = smoothstep(0.0, 0.08, vLifeT) * (1.0 - smoothstep(0.68, 1.0, vLifeT));
+          // Match spark-style visibility: only soften when particles get too close to the camera.
+          float depthFade = smoothstep(uSofteningNear, uSofteningNear + uSofteningRange, vDepth);
           float flash = smoothstep(0.92, 1.0, vLifeT) * 1.1;
           // Radial streak: angular jitter using seed, sharp near center
           float angJitter = hash11(vSeed * 97.3 + vLifeT * 37.1) * 2.0 - 1.0;
           float radial = clamp(1.0 - length(gl_PointCoord * 2.0 - 1.0), 0.0, 1.0);
           float streak = flash * radial * (0.6 + 0.4 * angJitter);
 
-          vec3 base = mix(uBaseColor, vTint, 0.35);
-          vec3 edge = mix(uEdgeColor, vTint, 0.2);
+          vec3 base = uBaseColor;
+          vec3 edge = uEdgeColor;
           float randTint = hash11(vSeed * 151.7 + vLifeT * 11.3);
           vec3 color = mix(base, edge, 0.35 + 0.25 * randTint);
           color += (flash + streak) * 0.35;
 
-          float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade;
+          float driftFade = 1.0 - smoothstep(0.65, 1.0, vLifeT);
+          float alpha = (shape + ghost) * (lifeFade + flash + streak) * depthFade * driftFade * uOpacity;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(color, alpha);
         }
@@ -197,6 +208,7 @@ export class LinkHealingParticleSystem {
 
     this.points = new THREE.Points(this.geometry, this.material);
     this.points.frustumCulled = false;
+    this.points.visible = true;
     const order = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     this.points.renderOrder = order;
     ensureUserData(this.points).isHealingParticles = true;
@@ -232,9 +244,10 @@ export class LinkHealingParticleSystem {
       const binormal = new THREE.Vector3().crossVectors(tan, normal).normalize();
 
       const orbitPhase = burstPhase !== null ? burstPhase : Math.random() * Math.PI * 2.0;
-      const orbitSpeed = 6.0 + Math.random() * 2.5; // stabilizes mid-life
-      const orbitRadius = 0.08 + Math.random() * 0.04;
-      const life = 0.55 + Math.random() * 0.25;
+      const orbitSpeed = 0.45 + Math.random() * 0.25;
+      const orbitRadius = 0.055 + Math.random() * 0.03;
+      const driftSpeed = 0.045 + Math.random() * 0.03;
+      const life = 0.75 + Math.random() * 0.22;
       const seed = Math.random();
 
       this.pool.activate(idx, {
@@ -243,6 +256,8 @@ export class LinkHealingParticleSystem {
         orbitPhase,
         orbitSpeed,
         orbitRadius,
+        driftSpeed,
+        anchorT: progress,
         seed,
         link,
         curve,
@@ -329,6 +344,8 @@ export class LinkHealingParticleSystem {
     }
 
     this.material.uniforms.uTime.value = time;
+    this.material.uniforms.uOpacity.value = 2.5;
+    this.points.visible = true;
     let anyActive = false;
 
     for (let i = 0; i < this.poolSize; i++) {
@@ -350,18 +367,25 @@ export class LinkHealingParticleSystem {
         continue;
       }
 
-      const posOnCurve = curve.getPointAt(Math.max(0, t));
-      const tan = curve.getTangentAt(Math.max(0, t)).normalize();
+      const anchorT = this.pool.anchorT[i];
+      const curveT = THREE.MathUtils.lerp(anchorT, Math.max(0, t), 0.12);
+      const posOnCurve = curve.getPointAt(curveT);
+      const tan = curve.getTangentAt(curveT).normalize();
       // refresh frame cheaply
       this.pool.normal[i] = this._makeNormal(tan, i, this.pool.normal[i]);
       this.pool.binormal[i].crossVectors(tan, this.pool.normal[i]).normalize();
 
       const ang = this.pool.orbitPhase[i] + this.pool.orbitSpeed[i] * age;
-      const radius = this.pool.orbitRadius[i] * (0.4 + 0.6 * t); // shrink toward snap
+      const radialDir = new THREE.Vector3()
+        .copy(this.pool.normal[i]).multiplyScalar(Math.cos(ang))
+        .addScaledVector(this.pool.binormal[i], Math.sin(ang))
+        .normalize();
+      const surfaceOffset = this.pool.orbitRadius[i];
+      const driftDistance = this.pool.driftSpeed[i] * age;
+      const liftDistance = age * age * 0.02;
 
-      const offset = new THREE.Vector3()
-        .copy(this.pool.normal[i]).multiplyScalar(Math.cos(ang) * radius)
-        .addScaledVector(this.pool.binormal[i], Math.sin(ang) * radius);
+      const offset = radialDir.multiplyScalar(surfaceOffset + driftDistance)
+        .addScaledVector(this.pool.binormal[i], liftDistance);
 
       const i3 = i * 3;
       this.positions[i3] = posOnCurve.x + offset.x;
@@ -424,7 +448,7 @@ export class LinkHealingEmitter {
   constructor(link, particleSystem) {
     this.link = link;
     this.particleSystem = particleSystem;
-    this.harmonyThreshold = 0.6;
+    this.harmonyThreshold = 0.05;
     this.baseEmissionRate = 18;
     this.enabled = true;
     this.harmonyInfluence = 1.2;
@@ -439,17 +463,15 @@ export class LinkHealingEmitter {
   update(deltaTime, time, curve, linkDirection, harmony = 0.5, corruption = 0.2, tintColor = null) {
     if (!this.enabled || !curve || harmony < this.harmonyThreshold) return;
 
-    let rate = this.baseEmissionRate;
-    rate *= Math.pow((harmony - this.harmonyThreshold) / (1.0 - this.harmonyThreshold), 1.4);
-    rate *= (1.0 - corruption * 0.6);
-    rate = Math.max(0, rate);
+    // Exact visual mapping: 0.1 -> 2, 0.2 -> 4, ... 1.0 -> 20
+    const countScaled = Math.max(0, Math.round(harmony * 20));
 
     const crossedBurst = this.prevHarmony < this.burstThreshold && harmony >= this.burstThreshold;
     const burstPhase = crossedBurst ? Math.random() * Math.PI * 2.0 : null;
     const burstCount = crossedBurst ? this.burstCount : 0;
 
     // queue emission for central budgeting
-    const count = Math.max(1, Math.floor(rate * Math.max(0.001, deltaTime))) + burstCount;
+    const count = Math.max(0, countScaled) + burstCount;
     this.particleSystem.queueEmission({
       link: this.link,
       curve,

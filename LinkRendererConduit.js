@@ -499,6 +499,82 @@ function mergePatch(map, mesh, patch) {
     map.set(mesh, merged);
 }
 
+const strandDetailOverlayVertexShader = `
+    uniform float uNetworkStress;
+    uniform float uLocalLoad;
+    uniform float uCorruption;
+    uniform float uTime;
+    uniform vec3 uBaseColor;
+
+    varying vec2 vUv;
+    varying float vPulsePhase;
+    varying float vCorruption;
+    varying float vLocalLoad;
+    varying vec3 vBaseColor;
+    varying vec3 vNormal;
+
+    void main() {
+        vUv = uv;
+        vCorruption = uCorruption;
+        vLocalLoad = uLocalLoad;
+        vBaseColor = uBaseColor;
+        vNormal = normalize(normalMatrix * normal);
+
+        float freq = 2.0 + uLocalLoad * 6.0;
+        vPulsePhase = sin(uTime * freq) * 0.5 + 0.5;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const strandDetailOverlayFragmentShader = `
+    precision highp float;
+
+    varying vec2 vUv;
+    varying float vPulsePhase;
+    varying float vCorruption;
+    varying float vLocalLoad;
+    varying vec3 vBaseColor;
+    varying vec3 vNormal;
+
+    float hash11(float p) {
+        p = fract(p * 0.1031);
+        p *= p + 33.33;
+        p *= p + p;
+        return fract(p);
+    }
+
+    void main() {
+        float cells = 14.0;
+        float x = vUv.x * cells;
+        float cellId = floor(x);
+        float localX = fract(x);
+
+        float seed = hash11(cellId + 7.13);
+        float center = mix(0.22, 0.78, seed);
+        float width = mix(0.08, 0.22, hash11(cellId + 17.91));
+        float core = 1.0 - smoothstep(width, width + 0.08, abs(localX - center));
+
+        float yCenter = mix(0.36, 0.64, hash11(cellId + 41.7));
+        float yWidth = mix(0.10, 0.22, hash11(cellId + 53.8));
+        float band = 1.0 - smoothstep(yWidth, yWidth + 0.12, abs(vUv.y - yCenter));
+
+        float notch = 1.0 - smoothstep(0.02, 0.11, abs((localX - center) * 1.7 + (vUv.y - yCenter) * 2.4));
+        float blotch = clamp(core * band + notch * 0.28, 0.0, 1.0);
+
+        float rim = pow(1.0 - abs(dot(normalize(vNormal), normalize(vec3(0.3, 0.7, 0.6)))), 2.0);
+        float pulse = 0.55 + vPulsePhase * 0.45;
+        float metricBoost = 0.45 + vLocalLoad * 0.35 + vCorruption * 0.25;
+        float alpha = blotch * pulse * metricBoost * (0.07 + rim * 0.08);
+
+        vec3 color = mix(vBaseColor * 0.8, vec3(1.0), 0.24 + vPulsePhase * 0.18);
+        color += vec3(rim * 0.10);
+
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
+
 // Safe userData helper (avoids reassigning potentially frozen descriptor)
 const ensureUserData = (obj) => {
     if (!obj) return {};
@@ -677,6 +753,12 @@ export class LinkRendererConduit {
         // Particle impact manager (for visual feedback when particles reach nodes)
         this.impactManager = new ImpactManagerCollection();
 
+        // Cadence accumulators and LOD settings
+        this._acc30 = 0; // ~30 Hz bucket
+        this._acc10 = 0; // ~10 Hz bucket
+        this.maxHeavyLinks = 8;
+        this.heavyDistance = 60;
+
         // Semantic pictograms (global pool, attached to conduit root)
         this.pictogramSystem = new LinkSemanticPictogramSystem_Enhanced(
             scene,
@@ -739,6 +821,18 @@ export class LinkRendererConduit {
             || this.links
             || [];
 
+        // Cadence gating
+        this._acc30 += deltaTime;
+        this._acc10 += deltaTime;
+        const run30 = this._acc30 >= (1 / 30);
+        if (run30) this._acc30 -= (1 / 30);
+        const run10 = this._acc10 >= 0.1;
+        if (run10) this._acc10 -= 0.1;
+
+        // Heavy link selection (LOD)
+        const heavyAllowed = this._selectHeavyLinks(list, this.camera, this.heavyDistance, this.maxHeavyLinks);
+        const heavyLinks = heavyAllowed ? list.filter(l => heavyAllowed.has(l?.id)) : list;
+
         // Ensure pictograms stay enabled when we have links to render
         if (this.pictogramSystem && !this.pictogramSystem.enabled && list.length > 0) {
             this.pictogramSystem.enable?.();
@@ -763,9 +857,9 @@ export class LinkRendererConduit {
             console.warn('[LinkRendererConduit] updateAll called with empty link list');
         }
 
-        // Feed pictogram system with the actual list we render (even if linkSystem.links is empty)
+        // Feed pictogram system with heavy/near links (LOD)
         if (this.pictogramSystem) {
-            this.pictogramSystem._externalLinks = list;
+            this.pictogramSystem._externalLinks = heavyLinks;
         }
 
         // Debug heartbeat: log once per second to confirm animator runs
@@ -780,8 +874,21 @@ export class LinkRendererConduit {
         // Reset per-frame healing activity counter (for debug logging)
         this._healingActiveCount = 0;
 
+        const frameTime = {
+            visualTime: VisualTime.now,
+            visualDelta: VisualTime.delta * (run30 ? 2 : 1), // keep travel speed when ticking slower
+            deltaTime
+        };
+        const runHeavyCorruptionUpdate = run30 && (((this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1), this._corruptionFrameCounter % 2 === 0));
+
         for (const link of list) {
-            this.update(link, deltaTime, time);
+            this.update(link, deltaTime, time, {
+                time: frameTime,
+                flags: {
+                    heavyTick: run30,
+                    runHeavyCorruptionUpdate
+                }
+            });
         }
 
         if (!this._picDiagLogged) {
@@ -793,7 +900,7 @@ export class LinkRendererConduit {
                 this._picDiagLogged = true;
             }
         }
-        if (this.pictogramSystem?.enabled) {
+        if (run30 && this.pictogramSystem?.enabled) {
             if (!this._picDiagLogged) {
                 const ps = this.pictogramSystem;
                 const pictos = ps?.pictograms || [];
@@ -811,18 +918,18 @@ export class LinkRendererConduit {
         }
 
         // Shared healing particle system update
-        this.updateHealingParticles(deltaTime, time);
+        if (run30) this.updateHealingParticles(deltaTime, time);
 
         // PATCH 2: Update corruption particle systems
-        if (this.corruptionParticleSystem?.update) {
+        if (run30 && this.corruptionParticleSystem?.update) {
             this.corruptionParticleSystem.update(deltaTime, time);
         }
-        if (this.corruptionSpreadAnimator?.update) {
+        if (run30 && this.corruptionSpreadAnimator?.update) {
             this.corruptionSpreadAnimator.update(deltaTime, time);
         }
 
         // Update corruption feedback visuals (idle until events are triggered)
-        if (this.corruptionFeedbackVisuals?.update) {
+        if (run10 && this.corruptionFeedbackVisuals?.update) {
             this.corruptionFeedbackVisuals.update(deltaTime);
         }
 
@@ -1103,8 +1210,8 @@ export class LinkRendererConduit {
             const material = new THREE.ShaderMaterial({
                 vertexShader: linkStateVertexShaderSimple,
                 fragmentShader: linkStateFragmentShaderSimple,
-                transparent: false,
-                depthWrite: true,
+                transparent: true,
+                depthWrite: false,
                 depthTest: true,
                 side: THREE.DoubleSide,
                 uniforms: {
@@ -1139,7 +1246,7 @@ export class LinkRendererConduit {
             geometry.computeBoundingBox();
             const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
             mesh.renderOrder = strandOrder;
-            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: true, depthTest: true, blending: THREE.NormalBlending });
+            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true, blending: THREE.NormalBlending });
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
             ensureUserData(mesh);
@@ -1149,23 +1256,27 @@ export class LinkRendererConduit {
             group.add(mesh);
             strands.push(mesh);
 
-            // Overlay (glow/detail) shares uniforms, but does not write depth
-            const overlayMat = material.clone();
-            overlayMat.transparent = true;
-            overlayMat.depthWrite = true;
-            overlayMat.depthTest = true;
-            overlayMat.blending = THREE.AdditiveBlending;
-            overlayMat.opacity = 0.02;
-            overlayMat.side = THREE.DoubleSide;
-            overlayMat.uniforms = material.uniforms; // share uniforms so updates propagate
-            // Dim the base color contribution on overlay
-            if (overlayMat.uniforms?.uBaseColor?.value) {
-                overlayMat.uniforms.uBaseColor.value = overlayMat.uniforms.uBaseColor.value.clone().multiplyScalar(0.5);
-            }
+            // Overlay-only detail pass: restores segmented blotches without touching base strand shading.
+            const overlayMat = new THREE.ShaderMaterial({
+                vertexShader: strandDetailOverlayVertexShader,
+                fragmentShader: strandDetailOverlayFragmentShader,
+                transparent: true,
+                depthWrite: false,
+                depthTest: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uNetworkStress: material.uniforms.uNetworkStress,
+                    uLocalLoad: material.uniforms.uLocalLoad,
+                    uCorruption: material.uniforms.uCorruption,
+                    uTime: material.uniforms.uTime,
+                    uBaseColor: { value: categoryColor.clone().multiplyScalar(0.72) }
+                }
+            });
             const overlayMesh = new THREE.Mesh(geometry, overlayMat);
             overlayMesh.frustumCulled = false;
-            overlayMesh.renderOrder = strandOrder;
-            TransparentStateAuthority.apply(overlayMesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true, blending: THREE.NormalBlending });
+            overlayMesh.renderOrder = strandOrder + 1;
+            TransparentStateAuthority.apply(overlayMesh, 'link', { renderOrder: strandOrder + 1, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending });
             ensureUserData(overlayMesh);
             overlayMesh.userData.strandOverlay = true;
             group.add(overlayMesh);
@@ -1376,15 +1487,16 @@ export class LinkRendererConduit {
         // Canonical RAF time source (behavior-preserving Phase 2A)
         const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
         const visualDelta = frameStateOverride?.time?.visualDelta ?? VisualTime.delta;
+        const heavyTick = frameStateOverride?.flags?.heavyTick ?? true;
         const metrics = frameStateOverride?.metrics ?? this._readLinkMetrics(link);
         const frameState = frameStateOverride || {
             time: { visualTime, visualDelta, deltaTime, time },
             metrics
         };
 
-        // Corruption FX throttling (reduce heavy updates at high link counts)
-        this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1;
-        const runHeavyCorruptionUpdate = (this._corruptionFrameCounter % 2 === 0);
+        // Corruption FX throttling is decided once per frame in updateAll(),
+        // otherwise per-link alternation creates odd/even link-count artifacts.
+        const runHeavyCorruptionUpdate = frameStateOverride?.flags?.runHeavyCorruptionUpdate ?? heavyTick;
 
         const state = link.group.userData.conduitState;
         if (!state) {
@@ -2042,7 +2154,7 @@ export class LinkRendererConduit {
 
         // --- 5. Subsystems Update ---
         this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + (state.beads ? 1 : 0);
-        if (state.beads && this.modules.beads) {
+        if (heavyTick && state.beads && this.modules.beads) {
             // Re-assert render state to bypass global depth clamps
             if (state.beads.forceRenderState) {
                 state.beads.forceRenderState();
@@ -2058,12 +2170,12 @@ export class LinkRendererConduit {
                     state.rings.emitRing(link.target.position, new THREE.Color(targetColor), visualTime);
                 }
             });
-            if (state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
+            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
         }
 
         if (state.rings) state.rings.update(visualTime);
 
-        if (state.sparks && this.modules.sparks) {
+        if (heavyTick && state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
             const currentColor = baseCol.isColor ? baseCol : new THREE.Color(baseCol);
             this._sparksUpdateCalls = (this._sparksUpdateCalls || 0) + 1;
@@ -2082,13 +2194,10 @@ export class LinkRendererConduit {
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
         }
 
-// Update LinkTrailEmitter (if available)
-if (state.trails && state.beads && state.beads.beadToMesh) {
-    state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
-    console.log('[LinkRendererConduit] state.trails.update called for link:', link.id);
-} else if (state.trails) {
-    console.warn('[LinkRendererConduit] state.trails.update SKIPPED - beadToMesh missing for link:', link.id);
-}
+        // Update LinkTrailEmitter (if available)
+        if (heavyTick && state.trails && state.beads && state.beads.beadToMesh) {
+            state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
+        }
 
         if (state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
@@ -2158,7 +2267,7 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         }
 
         // --- 8. Visual State Adaptation (Harmony/Corruption/Instability/Synergy Bridge) ---
-        if (state.visualStateAdapter) {
+        if (heavyTick && state.visualStateAdapter) {
             // Extract harmony/corruption/instability/synergy from pre-read metrics
             const harmonyLevel = metrics.harmony ?? 0.5;
             const corruptionLevel = metrics.corruption ?? 0.0;
@@ -2190,7 +2299,7 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
         }
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
-        if (state.directionalStreaks && this.directionalStreaks && this.modules.streaks) {
+        if (heavyTick && state.directionalStreaks && this.directionalStreaks && this.modules.streaks) {
             const harmonyLevel = metrics.harmony ?? 0.5;
             const corruptionLevel = metrics.corruption ?? 0.0;
             const instability = metrics.instability ?? 0.0;
@@ -2778,6 +2887,37 @@ if (state.trails && state.beads && state.beads.beadToMesh) {
                 grp.rotation.y += dt;
             }
         }
+    }
+
+    /**
+     * Select a limited set of links for heavy effects based on camera distance.
+     */
+    _selectHeavyLinks(links, camera, maxDist = 60, maxCount = 8) {
+        if (!Array.isArray(links) || links.length === 0) return null;
+        if (!camera?.position) return new Set(links.map(l => l?.id));
+        const camPos = camera.position;
+        const scored = [];
+        for (const link of links) {
+            if (!link) continue;
+            const gid = link.id ?? link.userData?.id;
+            if (gid === undefined) continue;
+            const pos = link.group?.position || link.target?.position || link.source?.position;
+            if (!pos) {
+                scored.push({ id: gid, dist: 0 });
+                continue;
+            }
+            const dist = pos.distanceTo(camPos);
+            scored.push({ id: gid, dist });
+        }
+        scored.sort((a, b) => a.dist - b.dist);
+        const allowed = new Set();
+        for (const s of scored) {
+            if (allowed.size >= maxCount) break;
+            if (s.dist <= maxDist) {
+                allowed.add(s.id);
+            }
+        }
+        return allowed.size ? allowed : new Set(scored.slice(0, maxCount).map(s => s.id));
     }
 
     disposeLinkVisuals(linkGroup, link = null) {
