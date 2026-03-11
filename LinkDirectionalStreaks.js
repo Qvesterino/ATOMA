@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { LinkPulseWaveInjector } from './LinkPulseWaveInjector.js';
 import LinkStreakColorDynamics from './LinkStreakColorDynamics_Session115.js';
 import { LinkDirectionalGradientPolish } from './LinkDirectionalGradientPolish.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 /**
  * LinkDirectionalStreaks
@@ -39,7 +39,7 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.10,      // Thicker ribbon for reliable readability
+            streakWidthBase: 0.038,     // Narrower, surface-locked streak ribbon
             streakLengthMin: 0.12,      // Min visible length on curve (0-1)
             streakLengthMax: 0.55,      // Max visible length on curve (0-1)
             streakCountMin: 5,          // Min active streaks
@@ -98,9 +98,9 @@ export class LinkDirectionalStreaks {
             emissive: 0x00ff88,           // Bright green glow
             emissiveIntensity: 1.0,
             transparent: true,
-            opacity: 0.7,
+            opacity: 0.42,
             blending: THREE.AdditiveBlending,
-            depthWrite: true,
+            depthWrite: false,
             depthTest: true,
             side: THREE.DoubleSide,
             fog: false
@@ -112,8 +112,7 @@ export class LinkDirectionalStreaks {
         mesh.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        const directionalOrder = VisualHierarchyRegistry.getRenderOrder('LINK_DIRECTIONAL');
-        mesh.renderOrder = directionalOrder;
+        applyLinkRenderLayer(mesh, 'LINK_DIRECTIONAL');
         linkGroup.add(mesh);
         
         // Streak state arrays (allocated once, reused)
@@ -381,7 +380,7 @@ export class LinkDirectionalStreaks {
         // Build quad (two vertices per curve point)
         let ribbonWidth = (this.config.streakWidthBase * widthFactor);
         ribbonWidth *= pulseEffect.thickness; // Apply pulse thickness boost
-        ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.01, corridorRadius * 0.85);
+        ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.006, corridorRadius * 0.34);
         
         // Top edge
         const v1 = this._clampVertexToCorridor(
@@ -597,7 +596,7 @@ export class LinkDirectionalStreaks {
 
     _computeCorridorRadius(state) {
         const activeRadius = Number.isFinite(state?.activeRadius) ? state.activeRadius : 0.12;
-        return THREE.MathUtils.clamp((activeRadius * 2.25) + 0.08, 0.18, 0.55);
+        return THREE.MathUtils.clamp((activeRadius * 0.72) + 0.018, 0.045, 0.095);
     }
 
     _getStableRibbonNormal(frames, idx, tangent) {

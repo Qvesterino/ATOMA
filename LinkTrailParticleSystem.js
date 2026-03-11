@@ -26,7 +26,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 /**
  * Shared noise function (identical to LinkAuraShader)
@@ -353,8 +353,7 @@ export class LinkTrailParticleSystem {
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
-    const particlesOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
-    this.poolGroup.renderOrder = particlesOrder;
+    applyLinkRenderLayer(this.poolGroup, 'LINK_PARTICLES');
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
     Object.assign(udPool, { isTrailParticles: true });
     this.scene.add(this.poolGroup);
@@ -371,6 +370,7 @@ export class LinkTrailParticleSystem {
       depthTest: true,
       blending: THREE.AdditiveBlending
     });
+    applyLinkRenderLayer(this.material, 'LINK_PARTICLES');
     
     // Particle geometry (simple sphere)
     this.geometry = new THREE.IcosahedronGeometry(0.05, 2);

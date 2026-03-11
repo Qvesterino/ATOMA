@@ -15,7 +15,7 @@
  */
 
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 const DEFAULT_POOL = 320;
 const MIN_SIZE = 6.0;   // px
@@ -209,8 +209,7 @@ export class LinkHealingParticleSystem {
     this.points = new THREE.Points(this.geometry, this.material);
     this.points.frustumCulled = false;
     this.points.visible = true;
-    const order = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
-    this.points.renderOrder = order;
+    applyLinkRenderLayer(this.points, 'LINK_PARTICLES');
     ensureUserData(this.points).isHealingParticles = true;
     this.scene.add(this.points);
   }

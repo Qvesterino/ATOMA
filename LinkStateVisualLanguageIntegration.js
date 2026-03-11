@@ -17,6 +17,7 @@ import {
   linkStateVertexShader,
   linkStateFragmentShader
 } from './shaders/LinkStateVisualLanguage.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 export class LinkStateVisualLanguageIntegration {
   /**
@@ -227,9 +228,12 @@ function getCanonicalLinkStateMaterial() {
     fragmentShader: linkStateFragmentShader,
     transparent: true,
     side: THREE.DoubleSide,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
     blending: THREE.NormalBlending
+  });
+  applyLinkRenderLayer(__linkStateMaterial, 'LINK_SKIN', {
+    materialOverrides: { blending: THREE.NormalBlending }
   });
 
   // Freeze program cache to a single entry for all links

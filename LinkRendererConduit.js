@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { debugWarn } from './Engine/Debug/DebugLog.js';
 import { TransparentStateAuthority } from './TransparentStateAuthority.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 import { LinkBeadVisualizer } from './LinkBeadSystem.js';
 import { LinkSparkSystem } from './LinkSparkSystem.js';
 import { LinkBeadTrailSystem } from './LinkBeadTrailSystem.js';
@@ -1196,6 +1197,7 @@ export class LinkRendererConduit {
 
         // 2. Create Strands (The Rope)
         const strands = [];
+        const strandDepthPasses = [];
         const strandOverlays = [];
         for (let i = 0; i < strandCount; i++) {
             const categoryColor = (i % 2 === 0) ? colorA : colorB;
@@ -1239,14 +1241,34 @@ export class LinkRendererConduit {
             }
 
             const geometry = new THREE.BufferGeometry();
+            const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
+
+            // Hidden depth prepass preserves strand occlusion for pulse/streak FX
+            // while the visible strand pass stays transparent enough to keep the blotches.
+            const depthMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: false,
+                depthWrite: true,
+                depthTest: true,
+                colorWrite: false,
+                side: THREE.DoubleSide
+            });
+            const depthMesh = new THREE.Mesh(geometry, depthMaterial);
+            Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
+            depthMesh.frustumCulled = false;
+            applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
+                materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
+            });
+            depthMesh.raycast = () => null;
+            group.add(depthMesh);
+            strandDepthPasses.push(depthMesh);
+
             const mesh = new THREE.Mesh(geometry, material);
             Object.assign(ensureUserData(mesh), { strandIndex: i });
             mesh.frustumCulled = false;
             geometry.computeBoundingSphere();
             geometry.computeBoundingBox();
-            const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
-            mesh.renderOrder = strandOrder;
-            TransparentStateAuthority.apply(mesh, 'link', { renderOrder: strandOrder, depthWrite: false, depthTest: true, blending: THREE.NormalBlending });
+            applyLinkRenderLayer(mesh, 'LINK_STRANDS');
             freezeMaterialFlags(material, 'LinkRenderer');
             material.userData.__flagsFrozen = true;
             ensureUserData(mesh);
@@ -1275,13 +1297,15 @@ export class LinkRendererConduit {
             });
             const overlayMesh = new THREE.Mesh(geometry, overlayMat);
             overlayMesh.frustumCulled = false;
-            overlayMesh.renderOrder = strandOrder + 1;
-            TransparentStateAuthority.apply(overlayMesh, 'link', { renderOrder: strandOrder + 1, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending });
+            applyLinkRenderLayer(overlayMesh, 'LINK_CORE_OVERLAY', {
+                materialOverrides: { blending: THREE.AdditiveBlending }
+            });
             ensureUserData(overlayMesh);
             overlayMesh.userData.strandOverlay = true;
             group.add(overlayMesh);
             strandOverlays.push(overlayMesh);
         }
+        state.strandDepthPasses = strandDepthPasses;
         state.strandOverlays = strandOverlays;
 
         // 3. Create Aura Skin (Unified with Node Aura - Shader-based)
@@ -1311,8 +1335,7 @@ export class LinkRendererConduit {
         skinMaterial.userData.__domain = 'link';
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
-        const skinOrder = VisualHierarchyRegistry.getRenderOrder('LINK_SKIN');
-        TransparentStateAuthority.apply(skinMesh, 'link', { renderOrder: skinOrder, depthWrite: false });
+        applyLinkRenderLayer(skinMesh, 'LINK_SKIN');
         ensureUserData(skinMesh);
         skinMesh.userData.__depthAuthorityLocked = true;
         group.add(skinMesh);

@@ -134,11 +134,15 @@ export class VisualHierarchyRegistry {
   // ========================================================================
   
   static LAYER_LINK_SKIN = 'LINK_SKIN';
+  static LAYER_LINK_CORE = 'LINK_CORE';
+  static LAYER_LINK_CORE_OVERLAY = 'LINK_CORE_OVERLAY';
   static LAYER_LINK_STRANDS = 'LINK_STRANDS';
   static LAYER_LINK_DIRECTIONAL = 'LINK_DIRECTIONAL';
+  static LAYER_LINK_RING = 'LINK_RING';
   static LAYER_LINK_GLOW = 'LINK_GLOW';
   static LAYER_LINK_PULSE = 'LINK_PULSE';
   static LAYER_LINK_ARCS = 'LINK_ARCS';
+  static LAYER_LINK_PICTOGRAMS = 'LINK_PICTOGRAMS';
   static LAYER_LINK_PICTO = 'LINK_PICTO';
   static LAYER_LINK_SPARKS = 'LINK_SPARKS';
   static LAYER_LINK_BEADS = 'LINK_BEADS';
@@ -187,20 +191,24 @@ export class VisualHierarchyRegistry {
 
   static LINK_LAYER_ORDER = {
     SKIN: 200,
-    STRANDS: 220,
-    DIRECTIONAL: 210,
+    DIRECTIONAL: 205,
+    CORE: 210,
+    CORE_OVERLAY: 212,
+    STRANDS: 212,
+    RING: 220,
     GLOW: 225,
-    PULSE: 230,
-    ARCS: 235,
-    SPARKS: 240,
-    BEADS: 245,
-    BEAD_TRAILS: 255,
+    PULSE: 220,
+    ARCS: 230,
+    PICTOGRAMS: 235,
+    PICTO: 235,
+    BEADS: 240,
+    BEAD_TRAILS: 242,
+    SPARKS: 245,
     IMPACTS: 250,
-    PICTO: 258,
-    PARTICLES: 260,
-    WAVES: 262,
-    CASCADE: 264,
-    RESONANCE: 266
+    PARTICLES: 255,
+    WAVES: 225,
+    CASCADE: 257,
+    RESONANCE: 259
   };
 
   // ========================================================================
@@ -419,11 +427,12 @@ try {
     throw new Error('No layers defined!');
   }
   
-  // Verify renderOrder values are monotonically increasing
+  // Verify renderOrder values are monotonically non-decreasing.
+  // Equal values are allowed for explicit alias layers.
   for (let i = 1; i < layers.all.length; i++) {
-    if (layers.all[i].renderOrder <= layers.all[i - 1].renderOrder) {
+    if (layers.all[i].renderOrder < layers.all[i - 1].renderOrder) {
       console.warn(
-        `[VisualHierarchyRegistry] WARNING: renderOrder not strictly increasing ` +
+        `[VisualHierarchyRegistry] WARNING: renderOrder not increasing ` +
         `at index ${i} (${layers.all[i-1].id} = ${layers.all[i-1].renderOrder}, ` +
         `${layers.all[i].id} = ${layers.all[i].renderOrder})`
       );

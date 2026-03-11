@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 // Shared geometry to minimize allocations
 // Radius 1.0, Tube 0.08 (8% thickness)
@@ -112,7 +112,7 @@ export class LinkPulseRing {
 
             const seg = new THREE.Mesh(geo, mat);
             seg.frustumCulled = false;
-            seg.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
+            applyLinkRenderLayer(seg, 'LINK_RING');
 
             this.segmentGroup.add(seg);
             this.segments.push(seg);
@@ -129,7 +129,7 @@ export class LinkPulseRing {
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isPulseRing: true });
-        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1;
+        applyLinkRenderLayer(this.mesh, 'LINK_RING');
 
         // Outer additive aura
         this.auraMaterial = this.material.clone();
@@ -139,7 +139,7 @@ export class LinkPulseRing {
         this.auraMaterial.blending = THREE.AdditiveBlending;
         const aura = new THREE.Mesh(SHARED_RING_GEOMETRY, this.auraMaterial);
         aura.frustumCulled = false;
-        aura.renderOrder = this.mesh.renderOrder;
+        applyLinkRenderLayer(aura, 'LINK_RING');
         const auraUd = (aura && typeof aura.userData === 'object' && aura.userData) ? aura.userData : (() => { try { Object.defineProperty(aura, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return aura.userData || {}; })();
         Object.assign(auraUd, { isPulseRingAura: true });
         this.auraMesh = aura;
@@ -215,8 +215,7 @@ export class LinkPulseRing {
 
         this.ribbonMesh = new THREE.Mesh(SHARED_RING_GEOMETRY, this.ribbonMaterial);
         this.ribbonMesh.frustumCulled = false;
-        const ribbonOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 0.5;
-        this.ribbonMesh.renderOrder = ribbonOrder;
+        applyLinkRenderLayer(this.ribbonMesh, 'LINK_RING');
         this.ribbonMesh.scale.set(0.9, 0.9, 0.9);
         this.mesh.add(this.ribbonMesh);
         
@@ -292,7 +291,7 @@ export class LinkPulseRing {
             const line = new THREE.Line(geometry, material);
             line.frustumCulled = false;
             line.visible = false;
-            line.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.1;
+            applyLinkRenderLayer(line, 'LINK_ARCS');
             this.mesh.add(line);
             this._chainArcPool.push({
                 mesh: line,

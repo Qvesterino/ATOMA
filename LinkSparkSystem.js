@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 const SPARK_VS = `
 attribute float aSpawnTime;
@@ -207,8 +207,7 @@ export class LinkSparkSystem {
 
         this.points = new THREE.Points(geometry, material);
         this.points.frustumCulled = false; // Always render
-        const sparksOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
-        this.points.renderOrder = sparksOrder;
+        applyLinkRenderLayer(this.points, 'LINK_SPARKS');
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
         console.log('SPARK MESH', this.points);
