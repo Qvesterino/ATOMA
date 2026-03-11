@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * GPU-Driven Particle Trail System for Beads
@@ -106,9 +106,9 @@ export class LinkBeadTrailSystem {
         
         // Configuration
         this.config = {
-            emissionRate: 120, // particles per second per bead (2x for richer flow)
-            lifetime: 0.7,     // seconds
-            sizeMultiplier: 1.4
+            emissionRate: 64,  // lower density to keep trails inside the strand volume
+            lifetime: 0.28,    // shorter life so trails do not branch into space
+            sizeMultiplier: 0.8
         };
         
         this.initSystem();
@@ -143,7 +143,7 @@ export class LinkBeadTrailSystem {
         material.uniforms = { uTime: { value: 0 } };
 
         this.mesh = new THREE.Points(geometry, material);
-        applyLinkRenderLayer(this.mesh, 'LINK_BEAD_TRAILS');
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEAD_TRAILS');
         this.mesh.frustumCulled = false;
         const ud = (this.mesh && typeof this.mesh.userData === 'object' && this.mesh.userData) ? this.mesh.userData : (() => { try { Object.defineProperty(this.mesh, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.mesh.userData || {}; })();
         Object.assign(ud, { isTrailSystem: true });
@@ -201,15 +201,15 @@ export class LinkBeadTrailSystem {
                 const i3 = idx * 3;
                 
                 // Position: Bead Position + Random jitter
-                const jitter = 0.02 * bead.radius; // Scale jitter with bead size
+                const jitter = 0.008 * bead.radius; // Keep trail origin tight to bead core
                 this.positions[i3] = beadPos.x + (Math.random()-0.5)*jitter;
                 this.positions[i3+1] = beadPos.y + (Math.random()-0.5)*jitter;
                 this.positions[i3+2] = beadPos.z + (Math.random()-0.5)*jitter;
                 
-                // Velocity: Small random drift (stationary relative to world = trail)
-                this.velocities[i3] = (Math.random()-0.5)*0.2;
-                this.velocities[i3+1] = (Math.random()-0.5)*0.2;
-                this.velocities[i3+2] = (Math.random()-0.5)*0.2;
+                // Velocity: tiny local drift only, so the trail stays inside the rope volume
+                this.velocities[i3] = (Math.random()-0.5)*0.035;
+                this.velocities[i3+1] = (Math.random()-0.5)*0.035;
+                this.velocities[i3+2] = (Math.random()-0.5)*0.035;
                 
                 // Color: Inherit from bead
                 this.colors[i3] = beadColor.r;

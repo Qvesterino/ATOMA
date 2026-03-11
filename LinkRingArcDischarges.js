@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { LinkBufferSafetyAudit } from './LinkBufferSafetyAudit.js';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 /**
  * LinkRingArcDischarges - AAA QUALITY VISUALS
@@ -208,7 +208,8 @@ export class LinkRingArcDischarges {
         line.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        applyLinkRenderLayer(line, 'LINK_ARCS');
+        const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
+        line.renderOrder = arcsOrder;
         this.group.add(line);
 
         const arcData = {
@@ -248,7 +249,7 @@ export class LinkRingArcDischarges {
                     branchLine.frustumCulled = false;
                     branchGeometry.computeBoundingSphere();
                     branchGeometry.computeBoundingBox();
-                    applyLinkRenderLayer(branchLine, 'LINK_ARCS');
+                    branchLine.renderOrder = arcsOrder;
                     this.group.add(branchLine);
                     this.activeArcs.push({
                         mesh: branchLine,
@@ -463,7 +464,8 @@ export class LinkRingArcDischarges {
         line.frustumCulled = false;
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
-        applyLinkRenderLayer(line, 'LINK_ARCS');
+        const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
+        line.renderOrder = arcsOrder;
         this.group.add(line);
 
         // PHASE 2: Branching Lightning (30-50% chance)
@@ -516,7 +518,7 @@ export class LinkRingArcDischarges {
                 branchLine.frustumCulled = false;
                 branchGeometry.computeBoundingSphere();
                 branchGeometry.computeBoundingBox();
-                applyLinkRenderLayer(branchLine, 'LINK_ARCS');
+                branchLine.renderOrder = arcsOrder;
                 this.group.add(branchLine);
                 
                 // Track branch arc lifetime
@@ -796,7 +798,7 @@ export class LinkRingArcDischarges {
             });
             const mesh = new THREE.Points(geo, mat);
             mesh.visible = false;
-            applyLinkRenderLayer(mesh, 'LINK_ARCS');
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.2;
             this.group.add(mesh);
             this.sparkPool.push({
                 mesh,
@@ -853,7 +855,7 @@ export class LinkRingArcDischarges {
             const mesh = new THREE.Mesh(rippleGeo.clone(), mat);
             mesh.frustumCulled = false;
             mesh.visible = false;
-            applyLinkRenderLayer(mesh, 'LINK_ARCS');
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 1.3;
             this.group.add(mesh);
             this.ripplePool.push({
                 mesh,
@@ -893,7 +895,7 @@ export class LinkRingArcDischarges {
             });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.visible = false;
-            applyLinkRenderLayer(mesh, 'LINK_ARCS');
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PULSE') + 0.9;
             this.group.add(mesh);
             this.packetPool.push({
                 mesh,

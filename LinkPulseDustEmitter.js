@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const TMP_COLOR = new THREE.Color();
 const TMP_DIRECTION = new THREE.Vector3();
@@ -123,7 +123,7 @@ export class LinkPulseDustEmitter {
 
         this.mesh = new THREE.Points(geometry, material);
         this.mesh.frustumCulled = false;
-        applyLinkRenderLayer(this.mesh, 'LINK_RING');
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
         Object.assign(this.mesh.userData || (this.mesh.userData = {}), {
             isLinkPulseDust: true
         });
