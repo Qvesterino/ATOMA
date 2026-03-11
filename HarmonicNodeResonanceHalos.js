@@ -363,6 +363,7 @@ export class HarmonicNodeResonanceHalos {
       activeLinkCount: 0,
       hubPhase: 0,
       hubSyncStrength: 0,
+      stability: 1.0,
       harmony: 0.5,
       synergy: 0.5,
       corruption: 0,
@@ -384,7 +385,8 @@ export class HarmonicNodeResonanceHalos {
         state.harmony = hubData.harmony || 0.5;
         state.synergy = hubData.synergy || 0.5;
         state.corruption = hubData.corruption || 0;
-        state.instability = hubData.instability || 0;
+        state.stability = hubData.stability ?? state.stability;
+        state.instability = hubData.instability ?? state.instability;
         state.resilience = hubData.resilience || 0;
         state.isRecovering = hubData.isRecovering || false;
         state.isCollapsed = hubData.isCollapsed || false;
@@ -397,10 +399,12 @@ export class HarmonicNodeResonanceHalos {
       state.activeLinkCount = node.userData.activeLinkCount || state.activeLinkCount;
       state.hubPhase = node.userData.hubPhase || state.hubPhase;
       state.hubSyncStrength = node.userData.hubSyncStrength || state.hubSyncStrength;
-      state.harmony = node.userData.harmony || state.harmony;
-      state.synergy = node.userData.synergy || state.synergy;
-      state.corruption = node.userData.corruption || state.corruption;
-      state.instability = node.userData.instability || state.instability;
+      const metrics = node.userData.metrics || {};
+      state.harmony = metrics.harmony ?? state.harmony;
+      state.synergy = metrics.synergy ?? state.synergy;
+      state.corruption = metrics.corruption ?? state.corruption;
+      state.stability = metrics.stability ?? state.stability;
+      state.instability = 1 - state.stability;
       state.resilience = node.userData.resilience || state.resilience;
       state.isRecovering = node.userData.isRecovering || state.isRecovering;
       state.isCollapsed = node.userData.isCollapsed || state.isCollapsed;

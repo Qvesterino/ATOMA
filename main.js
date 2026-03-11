@@ -6014,11 +6014,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
-                        this.corruptionVisualFX.applyCorruptionEffects(
-                            node.mesh || node,
-                            dt,
-                            time
-                        );
+                        // PATCH 3: Apply corruption VFX only if corruption > 0.35
+                        if (node.userData?.corruption > 0.35) {
+                            this.corruptionVisualFX.applyCorruptionEffects(
+                                node.mesh || node,
+                                dt,
+                                time
+                            );
+                        }
                     }
                 },
                 'visual.nodeCorruptionFX'
@@ -10795,9 +10798,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     lodDistance: 40
                 }
             );
-            
+
             this.resonanceRupture.setup();
-            
+
+            // PATCH 1: Connect resonance rupture to cascading rupture system
+            if (this.cascadingRuptures) {
+                this.resonanceRupture.cascadingRuptureSystem = this.cascadingRuptures;
+            }
+
             console.log('[main.js] ResonanceRuptureVisualSystem initialized ✓');
             console.log('  - Monitors standing wave stress accumulation');
             console.log('  - Pre-rupture stress zones with visual tension');

@@ -228,13 +228,13 @@ export class PHASE5_CorruptionBridge {
       const corruptionPerNode = amount / network.aiNodes.nodes.length;
       
       for (const node of network.aiNodes.nodes) {
-        const currentCorruption = node.userData?.corruption ?? 0;
+        const currentCorruption = node.userData?.metrics?.corruption ?? 0;
         const nextCorruption = Math.min(currentCorruption + corruptionPerNode, 1.0);
         setNodeCorruption(node, nextCorruption);
 
         // Threshold detection (visual-only event)
         const prev = node.userData?._prevCorruption ?? 0;
-        const current = node.userData?.metrics?.corruption ?? node.userData.corruption ?? 0;
+        const current = node.userData?.metrics?.corruption ?? 0;
         const THRESHOLD = 0.7;
         if (prev < THRESHOLD && current >= THRESHOLD) {
           this.multiNetworkManager?.emitEvent?.({
@@ -266,13 +266,13 @@ export class PHASE5_CorruptionBridge {
       const harmonyPerNode = amount / network.aiNodes.nodes.length;
       
       for (const node of network.aiNodes.nodes) {
-        const currentCorruption = node.userData?.corruption ?? 0;
+        const currentCorruption = node.userData?.metrics?.corruption ?? 0;
         const nextCorruption = Math.max(currentCorruption - harmonyPerNode, 0);
         setNodeCorruption(node, nextCorruption);
 
         // Update cached previous corruption for threshold tracking
         if (!node.userData) node.userData = {};
-        const current = node.userData?.metrics?.corruption ?? node.userData.corruption ?? 0;
+        const current = node.userData?.metrics?.corruption ?? 0;
         node.userData._prevCorruption = current;
       }
       

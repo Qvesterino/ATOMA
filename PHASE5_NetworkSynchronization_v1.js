@@ -365,7 +365,7 @@ export class PHASE5_NetworkSynchronization {
   _emitCorruptionThreshold(node) {
     if (!node?.userData) return;
     const prev = node.userData._prevCorruption ?? 0;
-    const current = node.userData.corruption ?? 0;
+    const current = node.userData?.metrics?.corruption ?? 0;
     const THRESHOLD = 0.7;
     if (prev < THRESHOLD && current >= THRESHOLD) {
       this.multiNetworkManager?.emitEvent?.({

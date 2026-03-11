@@ -150,11 +150,11 @@ export class AtomaGlyphSystem4_0 {
     }
     
     const context = {
-      synergy: node.userData.synergy || 0,
+      synergy: node.userData?.metrics?.synergy ?? 0,
       stability: node.userData?.metrics?.stability ?? 0,
-      harmony: node.userData.harmony || 0,
-      corruption: node.userData.corruption || 0,
-      load: node.userData.load || 0,
+      harmony: node.userData?.metrics?.harmony ?? 0,
+      corruption: node.userData?.metrics?.corruption ?? 0,
+      load: node.userData?.metrics?.loadPressure ?? 0,
       energy: node.userData.energy || 0.5,
       clarity: node.userData.clarity || 0.5,
       personality: node.userData.personality || { type: 'BALANCED', mood: 'CALM' },

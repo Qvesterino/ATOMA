@@ -25,6 +25,8 @@
 import * as THREE from 'three';
 
 import VisualTime from './src/time/VisualTime.js';
+
+const GLYPH_RENDER_ORDER = 15;
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class GlyphLayer4_MultiFusion {
@@ -817,6 +819,43 @@ export class GlyphLayer4_MultiFusion {
     targetContainer.add(glyphGroup);
     return true;
   }
+
+  /**
+   * Visibility tuning to keep glyphs readable around node cores
+   */
+  _tuneGlyphVisibility(group) {
+    if (!group) return;
+
+    const applyMaterialFlags = (mat) => {
+      if (!mat) return;
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.depthTest = true;
+    };
+
+    group.traverse((obj) => {
+      if (!(obj.isMesh || obj.isLine || obj.isPoints)) return;
+
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(applyMaterialFlags);
+        } else {
+          applyMaterialFlags(obj.material);
+        }
+      }
+
+      // Ensure glyphs draw after node cores
+      obj.renderOrder = GLYPH_RENDER_ORDER;
+
+      // Bring glyphs slightly outside the core and enlarge for readability
+      obj.scale.multiplyScalar(2.0);
+      if (obj.position.lengthSq() === 0) {
+        obj.position.set(0, 0.35, 0);
+      } else {
+        obj.position.multiplyScalar(1.2);
+      }
+    });
+  }
   
   /**
    * Estimate opacity from glyph materials for enforcement reporting
@@ -896,6 +935,9 @@ export class GlyphLayer4_MultiFusion {
         this._safeAttachGlyph(fallback, 'GLYPH_LAYER', fusionGroup, node);
       }
     }
+
+    // Visibility tuning: ensure glyphs sit outside cores and render above node bodies
+    this._tuneGlyphVisibility(fusionGroup);
     
     // Register fusion
     const fusionData = {

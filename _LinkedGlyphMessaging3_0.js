@@ -246,11 +246,11 @@ export class LinkedGlyphMessaging3_0 {
     if (!node || !node.userData) return null;
     
     // Extract semantic state from node
-    const synergy = node.userData.synergy || 0.5;
-    const corruption = node.userData.corruption || 0;
+    const synergy = node.userData?.metrics?.synergy ?? 0.5;
+    const corruption = node.userData?.metrics?.corruption ?? 0;
     const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData.harmony || 0;
-    const load = node.userData.load || 0;
+    const harmony = node.userData?.metrics?.harmony ?? 0;
+    const load = node.userData?.metrics?.loadPressure ?? 0;
     
     // Determine glyph count (more glyphs for complex states)
     const complexity = Math.abs(synergy - corruption) * 5;
@@ -287,10 +287,10 @@ export class LinkedGlyphMessaging3_0 {
    * Determine the role of a glyph based on context
    */
   determineGlyphRole(node, messageType) {
-    const synergy = node.userData.synergy || 0.5;
-    const corruption = node.userData.corruption || 0;
+    const synergy = node.userData?.metrics?.synergy ?? 0.5;
+    const corruption = node.userData?.metrics?.corruption ?? 0;
     const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData.harmony || 0;
+    const harmony = node.userData?.metrics?.harmony ?? 0;
     
     if (messageType === 'SUBJECT') {
       return 'SUBJECT'; // Identity

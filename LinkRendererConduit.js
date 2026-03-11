@@ -806,6 +806,14 @@ export class LinkRendererConduit {
         // Shared healing particle system update
         this.updateHealingParticles(deltaTime, time);
 
+        // PATCH 2: Update corruption particle systems
+        if (this.corruptionParticleSystem?.update) {
+            this.corruptionParticleSystem.update(deltaTime, time);
+        }
+        if (this.corruptionSpreadAnimator?.update) {
+            this.corruptionSpreadAnimator.update(deltaTime, time);
+        }
+
         // Update corruption feedback visuals (idle until events are triggered)
         if (this.corruptionFeedbackVisuals?.update) {
             this.corruptionFeedbackVisuals.update(deltaTime);

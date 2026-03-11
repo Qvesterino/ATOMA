@@ -19,10 +19,10 @@
  * 
  * DATA SOURCES (read-only):
  *   node.userData.fatigue
- *   node.userData.harmony
- *   node.userData.corruption
- *   node.userData.synergy
- *   node.userData.instability
+ *   node.userData.metrics.harmony
+ *   node.userData.metrics.corruption
+ *   node.userData.metrics.synergy
+ *   node.userData.metrics.stability (derive instability)
  *   node.userData.currentLinks / maxLinks
  *   node.userData.category
  * 
@@ -123,11 +123,18 @@ export class SoakTestLogging {
       b.count++;
       
       // Read-only access to all metrics
+      const metrics = node.userData?.metrics || {};
+      const harmony = metrics.harmony ?? 0;
+      const corruption = metrics.corruption ?? 0;
+      const synergy = metrics.synergy ?? 0;
+      const stability = metrics.stability ?? 1.0;
+      const instability = 1 - stability;
+
       b.fatigue += node.userData?.fatigue ?? 0;
-      b.harmony += node.userData?.harmony ?? 0;
-      b.corruption += node.userData?.corruption ?? 0;
-      b.synergy += node.userData?.synergy ?? 0;
-      b.instability += node.userData?.instability ?? 0;
+      b.harmony += harmony;
+      b.corruption += corruption;
+      b.synergy += synergy;
+      b.instability += instability;
       
       // Calculate load ratio
       const currentLinks = node.userData?.currentLinks ?? 0;

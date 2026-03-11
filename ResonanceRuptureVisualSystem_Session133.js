@@ -408,12 +408,26 @@ export class ResonanceRuptureVisualSystem_Session133 {
         // Trigger node reactions
         this._triggerNodeReactions(trap.nodeA, rupture.intensity);
         this._triggerNodeReactions(trap.nodeB, rupture.intensity);
-        
+
+        // PATCH 1: Trigger cascading rupture if available
+        if (this.cascadingRuptureSystem && trap.nodeA && this.cascadingRuptureSystem.enabled) {
+            this.cascadingRuptureSystem.initiateCascade(trap.nodeA, this.time);
+        }
+
         // Initiate propagation
         this._initiatePropagation(link, rupture.intensity);
         
         // Create resonance scar
         this._createResonanceScar(trapId, trap, rupture.intensity);
+
+        // PATCH 1: Trigger cascade
+        if (this.cascadingRuptureSystem) {
+            const originNode = trap.nodeA || trap.nodeB;
+            if (originNode) {
+                console.log("[CASCADE] triggered", originNode.uuid.slice(0, 8));
+                this.cascadingRuptureSystem.triggerCascade(originNode);
+            }
+        }
     }
 
     /**

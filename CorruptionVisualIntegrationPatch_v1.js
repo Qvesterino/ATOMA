@@ -161,6 +161,22 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
           if (node.userData?.gameplay?.corruptionLevel > 0) {
             corruptionFX.applyCorruptionEffects(node, deltaTime, time);
           }
+
+          // PATCH 4: Emit corruption threshold crossed event
+          const currentCorruption = node.userData?.gameplay?.corruptionLevel ?? 0;
+          const previousCorruption = node.userData?._lastCorruption ?? 0;
+
+          // Check if corruption crossed 0.35 threshold
+          if (previousCorruption < 0.35 && currentCorruption >= 0.35) {
+            if (this.multiNetworkManager && typeof this.multiNetworkManager.emit === 'function') {
+              this.multiNetworkManager.emit('corruptionThresholdCrossed', {
+                node: node,
+                value: currentCorruption
+              });
+            }
+          }
+
+          node.userData._lastCorruption = currentCorruption;
         });
       }
     };
@@ -180,10 +196,21 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
   aiNodesInstance.increaseCorruption = function(node, amount = 0.1) {
     if (node && node.userData) {
       if (!node.userData.gameplay) node.userData.gameplay = {};
+      const previousCorruption = node.userData.gameplay.corruptionLevel || 0;
       node.userData.gameplay.corruptionLevel = Math.min(1,
         (node.userData.gameplay.corruptionLevel || 0) + amount);
+
+      // PATCH 4: Emit event if threshold crossed
+      if (previousCorruption < 0.35 && node.userData.gameplay.corruptionLevel >= 0.35) {
+        if (this.multiNetworkManager && typeof this.multiNetworkManager.emit === 'function') {
+          this.multiNetworkManager.emit('corruptionThresholdCrossed', {
+            node: node,
+            value: node.userData.gameplay.corruptionLevel
+          });
+        }
+      }
     }
-  };
+  }.bind(aiNodesInstance);
 
   /**
    * Decrease corruption on a node

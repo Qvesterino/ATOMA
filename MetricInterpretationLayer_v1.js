@@ -73,10 +73,10 @@ class MetricInterpretationLayer_v1 {
       const nodeId = node.userData.id || `node_${Math.random()}`;
       
       const rawStats = {
-        corruption: node.userData.corruption || 0,
+        corruption: node.userData?.metrics?.corruption ?? 0,
         integrity: node.userData.integrity || 1,
-        harmony: node.userData.harmony || 0.5,
-        synergy: node.userData.synergy || 0,
+        harmony: node.userData?.metrics?.harmony ?? 0.5,
+        synergy: node.userData?.metrics?.synergy ?? 0,
         networkStress: this._computeNetworkStress(node)
       };
       

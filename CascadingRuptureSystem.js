@@ -322,7 +322,7 @@ export class CascadingRuptureSystem {
         if (!links || links.length === 0) return false;
 
         // Check corruption threshold
-        const corruption = node.userData.corruption || 0;
+        const corruption = node.userData?.metrics?.corruption ?? 0;
         if (corruption < CONFIG.CORRUPTION_THRESHOLD) return false;
 
         // Check stability threshold
@@ -340,7 +340,7 @@ export class CascadingRuptureSystem {
         let probability = CONFIG.BASE_CASCADE_CHANCE;
 
         // Factor 1: Corruption dominance
-        const corruption = node.userData.corruption || 0;
+        const corruption = node.userData?.metrics?.corruption ?? 0;
         const corruptionBonus = (corruption - CONFIG.CORRUPTION_THRESHOLD) * CONFIG.CORRUPTION_WEIGHT;
         probability += corruptionBonus;
 
@@ -390,7 +390,7 @@ export class CascadingRuptureSystem {
         }
 
         // Calculate initial energy based on node state
-        const corruption = originNode.userData.corruption || 0;
+        const corruption = originNode.userData?.metrics?.corruption ?? 0;
         const initialEnergy = Math.min(corruption * 1.5, 1.0);
 
         // Start cascade
@@ -407,7 +407,8 @@ export class CascadingRuptureSystem {
             this.onCascadeStart(originNode, initialEnergy);
         }
 
-        console.log(`[CascadingRuptureSystem] Cascade initiated from node ${originNode.uuid.slice(0, 8)}`);
+        // PATCH 6: Debug log
+        console.log("[CASCADE] triggered", originNode.id || originNode.uuid);
     }
 
     // ========================================================================
@@ -508,7 +509,7 @@ export class CascadingRuptureSystem {
     checkNodeCritical(node, cascadeEnergy) {
         if (!node.userData) return;
 
-        const corruption = node.userData.corruption || 0;
+        const corruption = node.userData?.metrics?.corruption ?? 0;
         const stability = node.userData?.metrics?.stability ?? 1.0;
 
         // High cascade energy + low stability + high corruption = critical

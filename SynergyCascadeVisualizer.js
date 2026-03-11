@@ -705,8 +705,8 @@ export class SynergyCascadeVisualizer {
     if (!node) return 0;
     
     // Check node userData for synergy score
-    if (node.userData && node.userData.synergy !== undefined) {
-      return Math.max(0, Math.min(1, node.userData.synergy));
+    if (node.userData && node.userData.metrics?.synergy !== undefined) {
+      return Math.max(0, Math.min(1, node.userData.metrics.synergy));
     }
     
     // Fallback: calculate from connected links

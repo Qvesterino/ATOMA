@@ -23,12 +23,11 @@
  * ✓ Respects Glyph Slot System 2.0
  * 
  * METRICS USED (read-only):
- * - node.userData.synergy (0-1)
- * - node.userData.harmony (0-1)
- * - node.userData.corruption (0-1)
- * - node.userData.stability (0-1)
-
- * - node.userData.load (0-1)
+ * - node.userData.metrics.synergy (0-1)
+ * - node.userData.metrics.harmony (0-1)
+ * - node.userData.metrics.corruption (0-1)
+ * - node.userData.metrics.stability (0-1)
+ * - node.userData.metrics.loadPressure (0-1)
  */
 
 import * as THREE from 'three';
@@ -121,11 +120,11 @@ export class AdaptiveGlyphRendering1_0 {
     }
     
     return {
-      synergy: Math.max(0, Math.min(1, node.userData.synergy || 0)),
-      harmony: Math.max(0, Math.min(1, node.userData.harmony || 0)),
-      corruption: Math.max(0, Math.min(1, node.userData.corruption || 0)),
+      synergy: Math.max(0, Math.min(1, node.userData?.metrics?.synergy ?? 0)),
+      harmony: Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0)),
+      corruption: Math.max(0, Math.min(1, node.userData?.metrics?.corruption ?? 0)),
       Stability: Math.max(0, Math.min(1, node.userData.Stability || 0)),
-      load: Math.max(0, Math.min(1, node.userData.load || 0))
+      load: Math.max(0, Math.min(1, node.userData?.metrics?.loadPressure ?? 0))
     };
   }
 

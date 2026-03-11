@@ -315,10 +315,10 @@ function exportArchetypeData() {
         tier: me.tier,
         tierName: me.tierName,
         clarity: node.userData.clarity ?? 0.5,
-        harmony: node.userData.harmony ?? 0.5,
+        harmony: node.userData?.metrics?.harmony ?? 0.5,
         resonance: node.userData.resonance ?? 0.5,
         energy: node.userData.energy ?? 0.5,
-        corruption: node.userData.corruption ?? 0.0,
+        corruption: node.userData?.metrics?.corruption ?? 0.0,
       });
     }
   }

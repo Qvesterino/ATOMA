@@ -545,17 +545,21 @@ export class MegaGlyphSystem {
     }
   }
 
+  getNodeMetric(node, key, fallback = 0) {
+    return node?.userData?.metrics?.[key] ?? fallback;
+  }
+
   analyzeContext(node, nodeId) {
     if (!node || !node.userData) {
       return null;
     }
 
     const context = {
-      synergy: node.userData.synergy || 0,
-      stability: node.userData?.metrics?.stability ?? 0,
-      harmony: node.userData.harmony || 0,
-      corruption: node.userData.corruption || 0,
-      load: node.userData.load || 0,
+      synergy: this.getNodeMetric(node, 'synergy', 0),
+      stability: this.getNodeMetric(node, 'stability', 0),
+      harmony: this.getNodeMetric(node, 'harmony', 0),
+      corruption: this.getNodeMetric(node, 'corruption', 0),
+      load: this.getNodeMetric(node, 'loadPressure', 0),
       energy: node.userData.energy || 0.5,
       clarity: node.userData.clarity || 0.5,
       personality: node.userData.personality || { type: 'BALANCED', mood: 'CALM' },
@@ -735,11 +739,11 @@ export class MegaGlyphSystem {
   generateMessageWord(node, messageType = 'STATE') {
     if (!node || !node.userData) return null;
 
-    const synergy = node.userData.synergy || 0.5;
-    const corruption = node.userData.corruption || 0;
-    const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData.harmony || 0;
-    const load = node.userData.load || 0;
+    const synergy = this.getNodeMetric(node, 'synergy', 0.5);
+    const corruption = this.getNodeMetric(node, 'corruption', 0);
+    const stability = this.getNodeMetric(node, 'stability', 0);
+    const harmony = this.getNodeMetric(node, 'harmony', 0);
+    const load = this.getNodeMetric(node, 'loadPressure', 0);
 
     const complexity = Math.abs(synergy - corruption) * 5;
     const glyphCount = Math.max(1, Math.min(5, Math.ceil(1 + complexity)));
@@ -770,10 +774,10 @@ export class MegaGlyphSystem {
   }
 
   determineGlyphRole(node, messageType) {
-    const synergy = node.userData.synergy || 0.5;
-    const corruption = node.userData.corruption || 0;
-    const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData.harmony || 0;
+    const synergy = this.getNodeMetric(node, 'synergy', 0.5);
+    const corruption = this.getNodeMetric(node, 'corruption', 0);
+    const stability = this.getNodeMetric(node, 'stability', 0);
+    const harmony = this.getNodeMetric(node, 'harmony', 0);
 
     if (messageType === 'SUBJECT') {
       return 'SUBJECT';
@@ -1526,11 +1530,11 @@ export class MegaGlyphSystem {
     const userData = node.userData || {};
 
     const canonical = {
-      synergy: userData.synergy,
-      harmony: userData.harmony,
+      synergy: userData.metrics?.synergy,
+      harmony: userData.metrics?.harmony,
       stability: userData.metrics?.stability ?? 0,
-      corruption: userData.corruption,
-      loadPressure: userData.loadPressure
+      corruption: userData.metrics?.corruption,
+      loadPressure: userData.metrics?.loadPressure
     };
 
     const metrics = this.adaptCanonicalToSemantic(canonical);
