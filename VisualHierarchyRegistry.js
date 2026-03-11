@@ -191,24 +191,24 @@ export class VisualHierarchyRegistry {
 
   static LINK_LAYER_ORDER = {
     SKIN: 200,
-    DIRECTIONAL: 205,
-    CORE: 210,
-    CORE_OVERLAY: 212,
-    STRANDS: 212,
-    RING: 220,
+    DIRECTIONAL: 210,
+    CORE: 220,
+    CORE_OVERLAY: 220,
+    STRANDS: 220,
+    RING: 230,
     GLOW: 225,
-    PULSE: 220,
+    PULSE: 230,
     ARCS: 230,
-    PICTOGRAMS: 235,
-    PICTO: 235,
+    PICTOGRAMS: 258,
+    PICTO: 258,
     BEADS: 240,
-    BEAD_TRAILS: 242,
-    SPARKS: 245,
+    BEAD_TRAILS: 255,
+    SPARKS: 240,
     IMPACTS: 250,
-    PARTICLES: 255,
-    WAVES: 225,
-    CASCADE: 257,
-    RESONANCE: 259
+    PARTICLES: 260,
+    WAVES: 262,
+    CASCADE: 264,
+    RESONANCE: 266
   };
 
   // ========================================================================

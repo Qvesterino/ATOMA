@@ -57,7 +57,7 @@ void main() {
     gl_PointSize = aInfo.z * (1.0 - lifeProgress) * (40.0 / -mvPosition.z);
     
     // Alpha fades out linearly
-    vAlpha = 0.6 * (1.0 - lifeProgress); // Max opacity 0.6
+    vAlpha = 0.82 * (1.0 - lifeProgress);
 }
 `;
 
@@ -106,9 +106,9 @@ export class LinkBeadTrailSystem {
         
         // Configuration
         this.config = {
-            emissionRate: 64,  // lower density to keep trails inside the strand volume
-            lifetime: 0.28,    // shorter life so trails do not branch into space
-            sizeMultiplier: 0.8
+            emissionRate: 96,  // bring trails back without turning them into a space plume
+            lifetime: 0.42,    // readable trail length while still staying near the rope body
+            sizeMultiplier: 1.15
         };
         
         this.initSystem();
@@ -201,15 +201,15 @@ export class LinkBeadTrailSystem {
                 const i3 = idx * 3;
                 
                 // Position: Bead Position + Random jitter
-                const jitter = 0.008 * bead.radius; // Keep trail origin tight to bead core
+                const jitter = 0.012 * bead.radius; // Slightly wider origin so the trail reads inside the braid
                 this.positions[i3] = beadPos.x + (Math.random()-0.5)*jitter;
                 this.positions[i3+1] = beadPos.y + (Math.random()-0.5)*jitter;
                 this.positions[i3+2] = beadPos.z + (Math.random()-0.5)*jitter;
                 
-                // Velocity: tiny local drift only, so the trail stays inside the rope volume
-                this.velocities[i3] = (Math.random()-0.5)*0.035;
-                this.velocities[i3+1] = (Math.random()-0.5)*0.035;
-                this.velocities[i3+2] = (Math.random()-0.5)*0.035;
+                // Velocity: modest local drift, still constrained enough to avoid branching into space
+                this.velocities[i3] = (Math.random()-0.5)*0.075;
+                this.velocities[i3+1] = (Math.random()-0.5)*0.075;
+                this.velocities[i3+2] = (Math.random()-0.5)*0.075;
                 
                 // Color: Inherit from bead
                 this.colors[i3] = beadColor.r;

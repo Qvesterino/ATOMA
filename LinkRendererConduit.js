@@ -566,7 +566,7 @@ const strandDetailOverlayFragmentShader = `
         float rim = pow(1.0 - abs(dot(normalize(vNormal), normalize(vec3(0.3, 0.7, 0.6)))), 2.0);
         float pulse = 0.55 + vPulsePhase * 0.45;
         float metricBoost = 0.45 + vLocalLoad * 0.35 + vCorruption * 0.25;
-        float alpha = blotch * pulse * metricBoost * (0.07 + rim * 0.08);
+          float alpha = blotch * pulse * metricBoost * (0.16 + rim * 0.12);
 
         vec3 color = mix(vBaseColor * 0.8, vec3(1.0), 0.24 + vPulsePhase * 0.18);
         color += vec3(rim * 0.10);
@@ -1212,8 +1212,8 @@ export class LinkRendererConduit {
             const material = new THREE.ShaderMaterial({
                 vertexShader: linkStateVertexShaderSimple,
                 fragmentShader: linkStateFragmentShaderSimple,
-                transparent: true,
-                depthWrite: false,
+                transparent: false,
+                depthWrite: true,
                 depthTest: true,
                 side: THREE.DoubleSide,
                 uniforms: {

@@ -27,7 +27,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { applyBeadEffects, updateBeadEffects, removeBeadEffects } from './LinkBeadVisualEffects.js';
-import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -460,9 +459,6 @@ export class BeadRenderer {
       depthTest: true,
       blending: THREE.AdditiveBlending
     });
-    applyLinkRenderLayer(this.material, 'LINK_BEADS', {
-      materialOverrides: { side: THREE.DoubleSide }
-    });
     // Freeze variant properties on the template material
     if (!this.material.userData) {
       Object.defineProperty(this.material, 'userData', { value: {}, writable: true, configurable: true });
@@ -484,14 +480,16 @@ export class BeadRenderer {
     material.emissive.copy(tint);
     material.emissiveIntensity = BEAD_CONFIG.emissiveIntensity;
     material.opacity = BEAD_CONFIG.opacity;
-    applyLinkRenderLayer(material, 'LINK_BEADS', {
-      materialOverrides: { side: THREE.DoubleSide }
-    });
+    material.transparent = true;
+    material.depthWrite = false;
+    material.depthTest = true;
+    material.blending = THREE.AdditiveBlending;
     material.needsUpdate = true;
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    applyLinkRenderLayer(mesh, 'LINK_BEADS');
+    const beadsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEADS');
+    mesh.renderOrder = beadsOrder;
     const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
     Object.assign(ud, { bead: bead, isBead: true });
     
@@ -650,7 +648,7 @@ export class LinkBeadVisualizer {
       const mat = child.material;
       mat.transparent = true;
       mat.depthWrite = false;
-      mat.depthTest = true;
+      mat.depthTest = false;
       mat.blending = THREE.AdditiveBlending;
       mat.opacity = BEAD_CONFIG.opacity;
       if (mat.emissive) mat.emissiveIntensity = BEAD_CONFIG.emissiveIntensity;

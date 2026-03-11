@@ -18,8 +18,8 @@ const LAYER_POLICY = {
   },
   LINK_STRANDS: {
     registryKey: 'LINK_STRANDS',
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending
   },
@@ -33,7 +33,7 @@ const LAYER_POLICY = {
   LINK_DIRECTIONAL: {
     registryKey: 'LINK_DIRECTIONAL',
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     depthTest: true,
     blending: THREE.AdditiveBlending
   },
@@ -42,7 +42,7 @@ const LAYER_POLICY = {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: THREE.NormalBlending
+    blending: THREE.AdditiveBlending
   },
   LINK_PULSE: {
     registryKey: 'LINK_PULSE',

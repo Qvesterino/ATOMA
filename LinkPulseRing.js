@@ -37,7 +37,7 @@ export class LinkPulseRing {
         
         // === SEGMENTED RING CONSTANTS ===
         const TORUS_RADIUS = 1.0;
-        const TORUS_TUBE = 0.22;
+        const TORUS_TUBE = 0.30;
         
         // === FRESNEL SHADER MATERIAL ===
         // NIE MeshBasicMaterial, ALE ShaderMaterial s vlastným shaderom
@@ -412,7 +412,7 @@ export class LinkPulseRing {
         
         // === 3. Visual Scaling & Oscillation (EPIC GLOW LAYER + SECOND HARMONIC PULSE) ===
         // Base size scales with synergy (enhanced visibility)
-        const baseScale = 0.085 + (synergy * 0.05);
+        const baseScale = 0.12 + (synergy * 0.08);
         
         // === SECOND HARMONIC PULSE: Dvojfrekvenčný pulz ===
         // Primary oscilátor

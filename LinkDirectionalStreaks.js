@@ -39,7 +39,7 @@ export class LinkDirectionalStreaks {
         this.scene = scene;
         
         this.config = {
-            streakWidthBase: 0.05,      // Keep streaks embedded inside the braid
+            streakWidthBase: 0.10,      // Thicker ribbon for reliable readability
             streakLengthMin: 0.12,      // Min visible length on curve (0-1)
             streakLengthMax: 0.55,      // Max visible length on curve (0-1)
             streakCountMin: 5,          // Min active streaks
@@ -98,9 +98,9 @@ export class LinkDirectionalStreaks {
             emissive: 0x00ff88,           // Bright green glow
             emissiveIntensity: 1.0,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.7,
             blending: THREE.AdditiveBlending,
-            depthWrite: false,
+            depthWrite: true,
             depthTest: true,
             side: THREE.DoubleSide,
             fog: false
@@ -381,7 +381,7 @@ export class LinkDirectionalStreaks {
         // Build quad (two vertices per curve point)
         let ribbonWidth = (this.config.streakWidthBase * widthFactor);
         ribbonWidth *= pulseEffect.thickness; // Apply pulse thickness boost
-        ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.006, corridorRadius * 0.45);
+        ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.01, corridorRadius * 0.85);
         
         // Top edge
         const v1 = this._clampVertexToCorridor(
@@ -597,7 +597,7 @@ export class LinkDirectionalStreaks {
 
     _computeCorridorRadius(state) {
         const activeRadius = Number.isFinite(state?.activeRadius) ? state.activeRadius : 0.12;
-        return THREE.MathUtils.clamp((activeRadius * 1.05) + 0.03, 0.08, 0.16);
+        return THREE.MathUtils.clamp((activeRadius * 2.25) + 0.08, 0.18, 0.55);
     }
 
     _getStableRibbonNormal(frames, idx, tangent) {
