@@ -611,6 +611,8 @@ import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Sessio
 import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluencePropagationSystem_Session127.js';
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
+import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
+import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
 import { VisualEchoTrails_v1 } from './VisualEchoTrails_v1_Shader.js';
 import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
 
@@ -891,6 +893,7 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 // WEEK 25 (BONUS): WAVE DYNAMICS SHADER PACK (Advanced FX Layers)
 // ============================================================================
 import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
+import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
 
 // ============================================================================
 // DEBUG: HARMONY OVERLAY (visual readability, gated)
@@ -3234,6 +3237,10 @@ class AtomaGame {
         this._pendingCascadeVisualizerDt = 0;
         this._runLinkResonanceFlowPending = false;
         this._pendingLinkResonanceFlowDt = 0;
+        this._runHarmonicPhaseSyncPending = false;
+        this._pendingHarmonicPhaseSyncDt = 0;
+        this._runHarmonicNodeHalosPending = false;
+        this._pendingHarmonicNodeHalosDt = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -4244,6 +4251,8 @@ document.addEventListener('keydown', () => {
         this.harmonicInfluencePropagation = null; // Harmonic influence propagation (Session 127)
         this.harmonicCascadeAmplification = null; // Hub-to-hub cascade amplification (Session 145)
         this.linkResonanceFlowSystem = null;      // Directional link resonance flow (Session 124)
+        this.harmonicPhaseSynchronization = null; // Hub phase alignment (Session 146)
+        this.harmonicNodeResonanceHalos = null;   // Node resonance halos for harmonic hubs
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
 
@@ -4695,6 +4704,8 @@ document.addEventListener('keydown', () => {
         this.setupHarmonicInfluencePropagation();
         this.setupHarmonicCascadeAmplification();
         this.setupLinkResonanceFlowSystem();
+        this.setupHarmonicPhaseSynchronization();
+        this.setupHarmonicNodeResonanceHalos();
         this.setupVisualEchoTrails();
 
         // ========================================================================
@@ -5112,6 +5123,15 @@ window.__ATOMA_SCENE__ = this.scene;
             console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
+        }
+
+        try {
+            this.synergyTravelingWaveFX = new SynergyTravelingWaveFX_v1({
+                debugEnabled: false
+            });
+            console.log('[main.js] SynergyTravelingWaveFX_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] SynergyTravelingWaveFX_v1 failed:', err);
         }
 
         // Harmony debug overlay (disabled by default, toggle via ATOMA_FLAGS.debug.harmonyOverlay)
@@ -6038,6 +6058,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.aiNodes
         );
         this.linkingSystem.isReady = true;
+        if (this.linkingSystem?.conduitRenderer) {
+            this.linkingSystem.conduitRenderer.waveShaderBridge = this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
+            this.linkingSystem.conduitRenderer.waveTravelShaderPack = this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack;
+            this.linkingSystem.conduitRenderer.waveDynamicsShaderPack = this.waveDynamicsShaderPack || this.linkingSystem.conduitRenderer.waveDynamicsShaderPack;
+            this.linkingSystem.conduitRenderer.setTravelingWaveFX?.(this.synergyTravelingWaveFX);
+        }
         console.log('[main.js] NodeLinkingSystem created');
 
         // Corruption transmission gameplay system (non-visual)
@@ -8101,6 +8127,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 if (this.nodeAuraSystem) {
                     this.synergyCascadeFXBridge.registerTargetSystem('nodeAuraSystem', this.nodeAuraSystem);
                 }
+                if (this.linkAuraSystem) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('linkAuraSystem', this.linkAuraSystem);
+                }
                 if (this.nodeShaderActivation) {
                     this.synergyCascadeFXBridge.registerTargetSystem('nodeShaderActivation', this.nodeShaderActivation);
                 }
@@ -8591,6 +8620,20 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
+    harmonicPhaseSynchronizationTick(deltaTime) {
+        if (this.harmonicPhaseSynchronization) {
+            this.harmonicPhaseSynchronization.update(deltaTime);
+        }
+    }
+
+    harmonicNodeResonanceHalosTick(deltaTime) {
+        if (this.harmonicNodeResonanceHalos && this.aiNodes) {
+            const nodeRegistry = this.aiNodes.nodes;
+            const hubSystemData = this.harmonicHubAuraSystem?.hubs || null;
+            this.harmonicNodeResonanceHalos.update(deltaTime, nodeRegistry, hubSystemData);
+        }
+    }
+
     updateHoverGlyphTarget() {
         const state = (typeof window !== 'undefined') ? window.__crosshairRaycastState : null;
         const node = state?.node || null;
@@ -8767,6 +8810,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkResonanceFlowSystemTick?.(this._pendingLinkResonanceFlowDt);
             }
         });
+        reg('harmonicPhaseSynchronization', (_dt) => {
+            if (this._runHarmonicPhaseSyncPending) {
+                this._runHarmonicPhaseSyncPending = false;
+                this.harmonicPhaseSynchronizationTick?.(this._pendingHarmonicPhaseSyncDt);
+            }
+        });
+        reg('harmonicNodeResonanceHalos', (_dt) => {
+            if (this._runHarmonicNodeHalosPending) {
+                this._runHarmonicNodeHalosPending = false;
+                this.harmonicNodeResonanceHalosTick?.(this._pendingHarmonicNodeHalosDt);
+            }
+        });
         reg('audioSynergyMonitor', () => {
             if (this.audioSystem && this.nodeDynamicMetrics) {
                 const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
@@ -8862,6 +8917,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }));
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
+        regGuard('synergyTravelingWaveFX', 'visual.synergyTravelingWaveFX', (dt) => this.synergyTravelingWaveFX?.update?.(dt, this.time || 0));
 
 
 
@@ -9126,6 +9182,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this._runCascadeVisualizerPending = true;
             this._pendingLinkResonanceFlowDt = deltaTime;
             this._runLinkResonanceFlowPending = true;
+            this._pendingHarmonicPhaseSyncDt = deltaTime;
+            this._runHarmonicPhaseSyncPending = true;
+            this._pendingHarmonicNodeHalosDt = deltaTime;
+            this._runHarmonicNodeHalosPending = true;
         }
         this.semanticSlowAcc += deltaTime;
         const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
@@ -11694,6 +11754,50 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('✓ Link Resonance Flow System (Session 124) initialized');
         } catch (err) {
             console.warn('⚠ Link Resonance Flow System initialization failed:', err);
+        }
+    }
+    
+    /**
+     * Setup Harmonic Phase Synchronization System (Session 146)
+     * Aligns harmonic phases of proximal hubs for coherent visual effects
+     */
+    setupHarmonicPhaseSynchronization() {
+        try {
+            this.harmonicPhaseSynchronization = new HarmonicPhaseSynchronization_Session146(
+                this.harmonicCascadeAmplification,
+                this.harmonicHubAuraSystem,
+                {
+                    syncStrength: 2.0,
+                    damping: 0.85,
+                    maxPhaseDelta: Math.PI,
+                    phaseVariance: 0.3,
+                    enabled: true,
+                    debugMode: false,
+                }
+            );
+            
+            // Initialize hub phases
+            this.harmonicPhaseSynchronization.init();
+            
+            // Setup console API
+            setupPhaseSyncConsoleAPI(window, this.harmonicPhaseSynchronization);
+            
+            console.log('✓ Harmonic Phase Synchronization (Session 146) initialized');
+        } catch (err) {
+            console.warn('⚠ Harmonic Phase Synchronization initialization failed:', err);
+        }
+    }
+    
+    /**
+     * Setup Harmonic Node Resonance Halos
+     * Visual halos around harmonic hub nodes
+     */
+    setupHarmonicNodeResonanceHalos() {
+        try {
+            this.harmonicNodeResonanceHalos = new HarmonicNodeResonanceHalos();
+            console.log('✓ Harmonic Node Resonance Halos initialized');
+        } catch (err) {
+            console.warn('⚠ Harmonic Node Resonance Halos initialization failed:', err);
         }
     }
     

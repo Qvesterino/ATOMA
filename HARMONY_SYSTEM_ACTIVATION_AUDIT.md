@@ -81,8 +81,8 @@ Date: 2026-03-12
 | HarmonicHubDebugger | HarmonicHubDebugger.js | tooling | DORMANT | not imported | – | – |
 | HarmonicInfluencePropagationIntegrationPatch_Session127 | HarmonicInfluencePropagationIntegrationPatch_Session127.js | patch | DORMANT | not applied | – | – |
 | HarmonicHubAuraIntegrationPatch_Session126 | HarmonicHubAuraIntegrationPatch_Session126.js | patch | DORMANT | not applied | – | – |
-| HarmonicNodeResonanceHalos | HarmonicNodeResonanceHalos.js | visual | DORMANT | not referenced in main | – | `metrics.harmony` |
-| HarmonicPhaseSynchronization_Session146 | HarmonicPhaseSynchronization_Session146.js | simulation | DORMANT | no imports | – | – |
+| HarmonicNodeResonanceHalos | HarmonicNodeResonanceHalos.js | visual | ACTIVE | FrameScheduler `harmonicNodeResonanceHalos` | – | `hubSystemData`, `node.userData.metrics.harmony` |
+| HarmonicPhaseSynchronization_Session146 | HarmonicPhaseSynchronization_Session146.js | simulation | ACTIVE | FrameScheduler `harmonicPhaseSynchronization` | `hub.harmonicPhase` | `cascadeSystem.getProximityPairs()` |
 | LinkResonanceFlowSystem_Session124 | LinkResonanceFlowSystem_Session124.js | simulation | ACTIVE | FrameScheduler `linkResonanceFlowSystem` | – | `link metrics.harmony` |
 | LinkResonanceFlowIntegrationPatch_Session124 | LinkResonanceFlowIntegrationPatch_Session124.js | patch | DORMANT | not applied | – | – |
 | T2_HarmonyVisualConsumer_v1 | T2_HarmonyVisualConsumer_v1.js | visual | DISABLED | commented in main.js | reads `node.userData.harmonyLevel` | – |
@@ -95,10 +95,10 @@ metrics.harmony (CoreMetricsCalculator)
 → Visual stack: HarmonicResonanceCoupling → HarmonicHubAuraSystem → HarmonicInfluencePropagation → HarmonicCascadeAmplification / CascadeResonanceWave / ResonanceCascadeVisualization → ResonanceEchoTrailSystem / HarmonicResonanceFeedbackSystem → SynergyResonanceShaderPack / ResonanceFeedback_v1 / CompositeGlyphResonanceFeedback → particles/shaders (HarmonicHealingVisualSystem, HarmonicAudioReactivitySystem, RegionalHarmonyZones).  
 
 ## 4) Highlights
-- ORPHAN SYSTEMS: HarmonyAuraController, HarmonyAuraIntegrationGuide, HarmonyStabilizationIntegrationPatch_v1, HarmonicHubResilienceController, HarmonicHubRecoveryController, HarmonicHubCollapseController, HarmonicHubDebugger, HarmonicNodeResonanceHalos, HarmonicPhaseSynchronization_Session146, T2_HarmonyVisualConsumer_v1 (explicitly disabled).  
+- ORPHAN SYSTEMS: HarmonyAuraController, HarmonyAuraIntegrationGuide, HarmonyStabilizationIntegrationPatch_v1, HarmonicHubResilienceController, HarmonicHubRecoveryController, HarmonicHubCollapseController, HarmonicHubDebugger, T2_HarmonyVisualConsumer_v1 (explicitly disabled).  
 - DUPLICATE WRITERS: HarmonyStabilizationSystem_v1 writes `node.userData.harmonyLevel`/`link.userData.harmonyLevel`; NetworkRituals_v1 also mutates `node.userData.harmonyLevel` (non-harmonic system) → potential contention if lock lifted.  
 - SHADOW METRICS: Several active systems still read legacy `node.userData.harmony` (HarmonicResonanceCoupling_v1, HarmonicInfluencePropagationSystem, RegionalHarmonyZones) instead of stabilized `node.userData.harmonyLevel`, risking divergence.  
 
 ## 5) Notes
-- FrameScheduler keys for harmonic group: `harmonicResonanceCoupling`, `harmonicHubAuraSystem`, `harmonicInfluencePropagation`, `harmonicCascadeAmplification`, `linkResonanceFlowSystem`, `visual.harmonicResonanceFeedback`, `visual.resonanceEchoTrails`, `visual.cascadeResonanceWave`, `visual.resonanceCascade`, `simulation.harmonyStabilizationSystem`, plus LinkRendererConduit-driven NodeHarmonicManager chain.  
+- FrameScheduler keys for harmonic group: `harmonicResonanceCoupling`, `harmonicHubAuraSystem`, `harmonicInfluencePropagation`, `harmonicCascadeAmplification`, `linkResonanceFlowSystem`, `harmonicPhaseSynchronization`, `visual.harmonicResonanceFeedback`, `visual.resonanceEchoTrails`, `visual.cascadeResonanceWave`, `visual.resonanceCascade`, `simulation.harmonyStabilizationSystem`, plus LinkRendererConduit-driven NodeHarmonicManager chain.  
 - HarmonyDebugOverlay remains off by default; enable via `ATOMA_FLAGS.debug.harmonyOverlay`.  

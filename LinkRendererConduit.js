@@ -657,6 +657,7 @@ export class LinkRendererConduit {
         this.linkSystem = linkingSystem;
         this.camera = camera;
         this.frameScheduler = frameScheduler;
+        this.travelingWaveFX = null; // optional synergy traveling-wave shader patcher
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
@@ -820,6 +821,9 @@ export class LinkRendererConduit {
         // Setup particle arrival callbacks
         this._setupParticleCallbacks();
 
+        // Optional synergy traveling-wave shader adapter (set externally)
+        this.travelingWaveFX = this.travelingWaveFX || null;
+
         // Cached VFX input (reused each frame)
         this._vfxInput = {
             baseIntensity: 0.2,
@@ -837,6 +841,10 @@ export class LinkRendererConduit {
 
         // Link State Visual Language Integration
         this.linkStateVisualLanguage = null;
+    }
+
+    setTravelingWaveFX(travelingWaveFX) {
+        this.travelingWaveFX = travelingWaveFX || null;
     }
 
     /**
@@ -1333,6 +1341,7 @@ export class LinkRendererConduit {
                     if (this.waveShaderBridge?.registerMaterial) this.waveShaderBridge.registerMaterial(material);
                     if (this.waveTravelShaderPack?.applyToMaterial) this.waveTravelShaderPack.applyToMaterial(material);
                     if (this.waveDynamicsShaderPack?.applyToMaterial) this.waveDynamicsShaderPack.applyToMaterial(material);
+                    if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
 
                     const geometry = new THREE.BufferGeometry();
                     const depthMaterial = new THREE.MeshBasicMaterial({

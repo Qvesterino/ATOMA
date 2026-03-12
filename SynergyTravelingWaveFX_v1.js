@@ -134,7 +134,7 @@ class WaveMaterialState {
                 ...shader.uniforms,
                 ...state.uniforms
             };
-            
+
             // ================================================================
             // VERTEX SHADER INJECTION
             // ================================================================
@@ -155,6 +155,15 @@ class WaveMaterialState {
                     vWaveUV = normalize(position);
                 }
             `;
+            
+            // Prepend varying + helper and call at start of main()
+            if (!shader.vertexShader.includes('vWaveDistance')) {
+                shader.vertexShader = `${vertexShaderPatch}\n${shader.vertexShader}`;
+            }
+            shader.vertexShader = shader.vertexShader.replace(
+                'void main() {',
+                'void main() {\n    setupWavePosition();'
+            );
             
             // ================================================================
             // FRAGMENT SHADER INJECTION
