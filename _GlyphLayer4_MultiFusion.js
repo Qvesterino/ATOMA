@@ -107,6 +107,8 @@ export class GlyphLayer4_MultiFusion {
     // Feature flags
     this.enabled = true;
     this.debugMode = false;
+    this.hoverOnlyMode = true;
+    this.hoverNodeId = null;
     
     console.log('✓ ATOMA Glyph Layer 4.0 - Multi-Glyph Fusion initialized');
   }
@@ -835,6 +837,7 @@ export class GlyphLayer4_MultiFusion {
   
   createGlyphFusion(node, nodeId) {
     if (!node || !node.parent) return;
+    if (this.hoverOnlyMode && (!this.hoverNodeId || nodeId !== this.hoverNodeId)) return;
     
     // Skip if already fused
     if (this.fusionRegistry.has(nodeId)) return;
@@ -862,28 +865,41 @@ export class GlyphLayer4_MultiFusion {
     fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype (0/1), before links (200+)
     visualGroup.add(fusionGroup);
     
-    // Layer 1: Core Glyph (always present)
-    const coreGlyph = this.createCoreGlyph(node, nodeId);
-    if (coreGlyph && this._safeAttachGlyph(coreGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
-      this.stats.byLayer.core++;
-    }
-    
-    // Layer 2: Evolution Glyph (if evolution stage exists)
-    const evoGlyph = this.createEvolutionGlyph(node, nodeId);
-    if (evoGlyph && this._safeAttachGlyph(evoGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
-      this.stats.byLayer.evolution++;
-    }
-    
-    // Layer 3: Personality Glyph (if personality exists)
-    const persGlyph = this.createPersonalityGlyph(node, nodeId);
-    if (persGlyph && this._safeAttachGlyph(persGlyph, 'STATE_GLYPH', fusionGroup, node)) {
-      this.stats.byLayer.personality++;
-    }
-    
-    // Layer 4: State Glyph (if state flags exist)
-    const stateGlyph = this.createStateGlyph(node, nodeId);
-    if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
-      this.stats.byLayer.state++;
+    let coreGlyph = null;
+    let evoGlyph = null;
+    let persGlyph = null;
+    let stateGlyph = null;
+
+    if (this.hoverOnlyMode) {
+      // Hover-only mode: render only the ascended ring marker for hovered node.
+      stateGlyph = this.createAscendedStateGlyph(node, nodeId);
+      if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+        this.stats.byLayer.state++;
+      }
+    } else {
+      // Layer 1: Core Glyph (always present)
+      coreGlyph = this.createCoreGlyph(node, nodeId);
+      if (coreGlyph && this._safeAttachGlyph(coreGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
+        this.stats.byLayer.core++;
+      }
+      
+      // Layer 2: Evolution Glyph (if evolution stage exists)
+      evoGlyph = this.createEvolutionGlyph(node, nodeId);
+      if (evoGlyph && this._safeAttachGlyph(evoGlyph, 'GLYPH_LAYER', fusionGroup, node)) {
+        this.stats.byLayer.evolution++;
+      }
+      
+      // Layer 3: Personality Glyph (if personality exists)
+      persGlyph = this.createPersonalityGlyph(node, nodeId);
+      if (persGlyph && this._safeAttachGlyph(persGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+        this.stats.byLayer.personality++;
+      }
+      
+      // Layer 4: State Glyph (if state flags exist)
+      stateGlyph = this.createStateGlyph(node, nodeId);
+      if (stateGlyph && this._safeAttachGlyph(stateGlyph, 'STATE_GLYPH', fusionGroup, node)) {
+        this.stats.byLayer.state++;
+      }
     }
     
     // Fallback if no glyphs
@@ -958,6 +974,7 @@ export class GlyphLayer4_MultiFusion {
   // ============================================================
   
   createGlyphFusionsForNodes(nodes) {
+    if (this.hoverOnlyMode) return;
     if (!nodes || nodes.length === 0) return;
     const missing = nodes.filter(n => !n?.userData?.nodeId);
     if (missing.length > 0) {
@@ -980,6 +997,20 @@ export class GlyphLayer4_MultiFusion {
     if (elapsed > 5) {
       console.warn(`⚠ Glyph Layer 4.0 fusion took ${elapsed.toFixed(2)}ms for ${nodes.length} nodes`);
     }
+  }
+
+  setHoverNode(node) {
+    const nextNodeId = node?.userData?.nodeId || null;
+    if (nextNodeId === this.hoverNodeId) return;
+
+    if (this.hoverNodeId) {
+      this.removeFusion(this.hoverNodeId);
+    }
+
+    this.hoverNodeId = nextNodeId;
+    if (!this.hoverNodeId || !node) return;
+
+    this.createGlyphFusion(node, this.hoverNodeId);
   }
   
   // ============================================================

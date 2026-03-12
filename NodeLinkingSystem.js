@@ -430,7 +430,16 @@ export class NodeLinkingSystem {
       currentY: 0,
       dragThreshold: 5,  // Minimum pixels to distinguish from click
       visualBox: null,   // DOM element for selection box
-      startedOnEmpty: false  // Track if drag started on empty space
+      startedOnEmpty: false,  // Track if drag started on empty space
+      suppressNextClick: false,  // Prevent post-drag click handler from overriding box select
+      lmbDown: false,
+      holdStartTime: 0,
+      holdDelayMs: 200,
+      pointerLockDrag: false
+    };
+    this._boxSelectCameraLookPause = {
+      active: false,
+      prevEnabled: null
     };
     
     // [Double-click Detection] Timing state for click discrimination
@@ -869,17 +878,43 @@ export class NodeLinkingSystem {
     
     // Track LMB for potential box selection (button 0)
     if (event.button === 0) {
-      const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY, 'mousedown');
-      
-      // Only start box selection if clicking on empty space
-      if (!clickedNode && !event.ctrlKey && !event.metaKey) {
-        this.boxSelectState.startX = event.clientX;
-        this.boxSelectState.startY = event.clientY;
-        this.boxSelectState.currentX = event.clientX;
-        this.boxSelectState.currentY = event.clientY;
+      if (event.ctrlKey || event.metaKey) {
+        this.boxSelectState.startedOnEmpty = false;
+        this.boxSelectState.lmbDown = false;
+        return;
+      }
+
+      const pointerLockActive =
+        document.pointerLockElement === this.renderer?.domElement ||
+        document.pointerLockElement === document.body;
+
+      this.boxSelectState.lmbDown = true;
+      this.boxSelectState.holdStartTime = Date.now();
+      this.boxSelectState.isActive = false;
+      this.boxSelectState.pointerLockDrag = pointerLockActive;
+
+      if (pointerLockActive) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const crosshairX = rect.left + rect.width * 0.5;
+        const crosshairY = rect.top + rect.height * 0.5;
+        this.boxSelectState.startX = crosshairX;
+        this.boxSelectState.startY = crosshairY;
+        this.boxSelectState.currentX = crosshairX;
+        this.boxSelectState.currentY = crosshairY;
         this.boxSelectState.startedOnEmpty = true;
       } else {
-        this.boxSelectState.startedOnEmpty = false;
+        const clickedNode = this.getNodeAtPosition(event.clientX, event.clientY, 'mousedown');
+        
+        // Only start box selection if clicking on empty space
+        if (!clickedNode) {
+          this.boxSelectState.startX = event.clientX;
+          this.boxSelectState.startY = event.clientY;
+          this.boxSelectState.currentX = event.clientX;
+          this.boxSelectState.currentY = event.clientY;
+          this.boxSelectState.startedOnEmpty = true;
+        } else {
+          this.boxSelectState.startedOnEmpty = false;
+        }
       }
     }
   }
@@ -889,13 +924,28 @@ export class NodeLinkingSystem {
    */
   handleMouseMove(event) {
     // Only process if we started on empty space
-    if (!this.boxSelectState.startedOnEmpty) {
+    if (!this.boxSelectState.startedOnEmpty || !this.boxSelectState.lmbDown) {
       return;
     }
-    
-    // Update current position
-    this.boxSelectState.currentX = event.clientX;
-    this.boxSelectState.currentY = event.clientY;
+
+    // In pointer-lock mode, move selection cursor by relative deltas from crosshair anchor
+    if (this.boxSelectState.pointerLockDrag) {
+      this.boxSelectState.currentX += event.movementX || 0;
+      this.boxSelectState.currentY += event.movementY || 0;
+
+      const maxX = window.innerWidth;
+      const maxY = window.innerHeight;
+      this.boxSelectState.currentX = Math.max(0, Math.min(maxX, this.boxSelectState.currentX));
+      this.boxSelectState.currentY = Math.max(0, Math.min(maxY, this.boxSelectState.currentY));
+    } else {
+      this.boxSelectState.currentX = event.clientX;
+      this.boxSelectState.currentY = event.clientY;
+    }
+
+    const holdElapsed = Date.now() - this.boxSelectState.holdStartTime;
+    if (holdElapsed < this.boxSelectState.holdDelayMs) {
+      return;
+    }
     
     // Calculate drag distance
     const deltaX = this.boxSelectState.currentX - this.boxSelectState.startX;
@@ -905,6 +955,7 @@ export class NodeLinkingSystem {
     // Activate box selection if drag threshold exceeded
     if (dragDistance > this.boxSelectState.dragThreshold && !this.boxSelectState.isActive) {
       this.boxSelectState.isActive = true;
+      this.setCameraLookPausedForBoxSelect(true);
       console.log('[Box Select] Started');
       
       // Clear any pending single-click timer (this is a drag, not a click)
@@ -982,16 +1033,58 @@ export class NodeLinkingSystem {
     // Handle LMB (button 0) - Complete box selection if active
     if (event.button === 0 && this.boxSelectState.isActive) {
       this.completeBoxSelection(event.shiftKey);
+      this.boxSelectState.suppressNextClick = true;
+      this.setCameraLookPausedForBoxSelect(false);
       
       // Reset box selection state
       this.boxSelectState.isActive = false;
       this.boxSelectState.startedOnEmpty = false;
+      this.boxSelectState.lmbDown = false;
+      this.boxSelectState.pointerLockDrag = false;
       
       // Hide visual box
       if (this.boxSelectState.visualBox) {
         this.boxSelectState.visualBox.style.display = 'none';
       }
+      return;
     }
+
+    // Reset pending drag start if LMB released before threshold
+    if (event.button === 0) {
+      this.setCameraLookPausedForBoxSelect(false);
+      this.boxSelectState.startedOnEmpty = false;
+      this.boxSelectState.lmbDown = false;
+      this.boxSelectState.pointerLockDrag = false;
+    }
+  }
+
+  /**
+   * Temporarily pause camera mouse-look while doing box selection in-game.
+   * Restores previous camera controller enabled state on release.
+   */
+  setCameraLookPausedForBoxSelect(paused) {
+    if (typeof window === 'undefined') return;
+    const cameraController =
+      window.game?.cameraController ||
+      window.atoma?.cameraController ||
+      null;
+    if (!cameraController || typeof cameraController.enabled !== 'boolean') {
+      return;
+    }
+
+    if (paused) {
+      if (this._boxSelectCameraLookPause.active) return;
+      this._boxSelectCameraLookPause.active = true;
+      this._boxSelectCameraLookPause.prevEnabled = cameraController.enabled;
+      cameraController.enabled = false;
+      return;
+    }
+
+    if (!this._boxSelectCameraLookPause.active) return;
+    const prevEnabled = this._boxSelectCameraLookPause.prevEnabled;
+    cameraController.enabled = (typeof prevEnabled === 'boolean') ? prevEnabled : true;
+    this._boxSelectCameraLookPause.active = false;
+    this._boxSelectCameraLookPause.prevEnabled = null;
   }
   
   /**
@@ -999,6 +1092,12 @@ export class NodeLinkingSystem {
    * Implements Primary Node system with double-click detection and Ctrl+Click multi-select
    */
   handleClick(event) {
+    // Ignore synthetic click that fires right after a completed box drag selection
+    if (this.boxSelectState.suppressNextClick) {
+      this.boxSelectState.suppressNextClick = false;
+      return;
+    }
+
     // Block LMB actions if RMB is being held
     if (this.rmbState.isHolding) {
       return;
@@ -1241,6 +1340,7 @@ export class NodeLinkingSystem {
    */
   handleKeyDown(event) {
     if (event.key === 'Escape') {
+      this.setCameraLookPausedForBoxSelect(false);
       if (this.multiSelectMode) {
         this.clearMultiSelect();
       } else if (this.primaryNode) {

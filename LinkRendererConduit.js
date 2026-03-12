@@ -2603,7 +2603,8 @@ export class LinkRendererConduit {
         const colors = {
             'input': 0x00ddff, 'process': 0xffaa00, 'integration': 0x00ff88,
             'analytics': 0xaa00ff, 'storage': 0x88ccff, 'control': 0xff0088,
-            'quantum': 0x00ffff, 'sigma': 0x00ff00, 'emotional': 0xff8800
+            'quantum': 0x00ffff, 'sigma': 0x00ff00, 'emotional': 0xff8800,
+            'mythic': 0x9933ff, 'prime': 0xffd700, 'error': 0xffffff
         };
         return colors[category] || 0xcccccc;
     }

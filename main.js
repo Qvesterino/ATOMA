@@ -5217,12 +5217,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.worldRoot,
                 this.compositeResonanceFeedback || null
             );
-            if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
-                this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
-                // DEBUG: Print glyph layer status after creation
-                console.log('? GlyphLayer4 initial fusions created for', this.aiNodes.length, 'nodes');
-                this.glyphLayer4.printStatus();
-            }
         } else {
             this.glyphLayer4?.dispose?.();
             this.glyphLayer4 = null;
@@ -5865,15 +5859,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
 
-        // ====================================================================
-        // GLYPH LAYER FUSION: Create fusions after nodes are initialized
-        // ====================================================================
-        if (this.enableGlyphLayer4 && this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
-            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
-            // DEBUG: Print glyph layer status after creation
-            console.log('? GlyphLayer4 fusions created for', this.aiNodes.nodes.length, 'nodes');
-            this.glyphLayer4.printStatus();
-        }
+        // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
 
         // ====================================================================
@@ -5881,6 +5867,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         if (window.ATOMA_FLAGS?.debug?.glyphFusionIntegrity === true) {
             setTimeout(() => {
+                if (this.glyphLayer4?.hoverOnlyMode) return;
                 const nodeCount = this.aiNodes?.nodes?.length || 0;
                 const fusionCount = this.glyphLayer4?.fusionRegistry?.size || 0;
                 if (nodeCount !== fusionCount) {
@@ -8599,6 +8586,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.semanticGlyphAI?.setHoverTarget) {
             this.semanticGlyphAI.setHoverTarget(node);
         }
+        if (this.glyphLayer4?.setHoverNode) {
+            this.glyphLayer4.setHoverNode(node);
+        }
     }
 
     cascadeVisualizerTick(deltaTime) {
@@ -10152,24 +10142,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.glyphLayer4
             );
 
-            // Register post-spawn observer for late-fusing newly spawned nodes
-            // This ensures nodes spawned after initial world creation also get glyph fusions
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'glyph-layer-fusion',
-                    (newNode) => {
-                        if (!newNode || !this.glyphLayer4) return;
-                        const nodeId = newNode.userData?.nodeId;
-                        if (!nodeId) {
-                            console.warn('[GlyphLayer4] Late-fusion: missing nodeId on spawned node', newNode);
-                            return;
-                        }
-                        // Create fusion for this single node (idempotent)
-                        this.glyphLayer4.createGlyphFusion(newNode, nodeId);
-                    },
-                    60 // High order to ensure it runs after all other observers
-                );
-            }
+            // Hover-only mode: no post-spawn global fusion registration.
         } catch (error) {
             console.error('[SemanticGlyphAI] Initialization failed:', error);
             this.semanticGlyphAI = null;
@@ -10182,6 +10155,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupGlyphFusionOverlay() {
         if (!this.semanticGlyphAI) {
             console.warn('Semantic Glyph AI not initialized, deferring Glyph Fusion Overlay setup');
+            return;
+        }
+        if (this.glyphLayer4?.hoverOnlyMode) {
+            this.glyphFusionOverlay?.dispose?.();
+            this.glyphFusionOverlay = null;
             return;
         }
 
@@ -10206,6 +10184,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupProceduralMeaningEngine() {
         if (!this.semanticGlyphAI) {
             console.warn('Semantic Glyph AI not initialized, deferring Procedural Meaning Engine setup');
+            return;
+        }
+        if (this.glyphLayer4?.hoverOnlyMode) {
+            this.proceduralMeaningEngine?.dispose?.();
+            this.proceduralMeaningEngine = null;
             return;
         }
 

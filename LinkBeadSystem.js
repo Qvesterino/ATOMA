@@ -572,6 +572,9 @@ export class BeadRenderer {
     pos.addScaledVector(binormal, Math.sin(helixAngle) * laneRadius);
     
     mesh.position.copy(pos);
+    
+    // Align bead orientation with curve tangent direction
+    mesh.quaternion.setFromUnitVectors(this._frameForward, tangent);
     // Subtle pulsation for flow intelligence
     const pulse = 1.0 + Math.sin(bead.age * 8.0) * 0.15;
     mesh.scale.setScalar(pulse);
