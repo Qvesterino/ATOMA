@@ -4267,6 +4267,16 @@ document.addEventListener('keydown', () => {
 
         // ATOMA Glyph Layer 4.0 (multi-glyph fusion)
         this.glyphLayer4 = null; // Initialized after scene ready
+        // Glyph stack policy:
+        // - Keep Layer4 (hover/semantic pipeline)
+        // - Disable legacy/full marker stacks (GlyphSystem3 + GlyphSystem4)
+        this.enableGlyphSystem3 = false;
+        this.enableGlyphSystem4 = false;
+        this.enableGlyphLayer4 = true;
+        if (this.enableGlyphLayer4) {
+            this.enableGlyphSystem3 = false;
+            this.enableGlyphSystem4 = false;
+        }
 
         // Semantic Glyph AI 5.0 (intelligent visual node communication)
         this.semanticGlyphAI = null; // Initialized after Glyph Layer 4.0 ready
@@ -5175,24 +5185,47 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // DISABLED: Fractal Hex Marker System (legacy debug system - replaced by Glyph Slot System 2.0)
         // this.fractalHexMarker = new FractalHexMarker(this.scene);
 
-        // Initialize ATOMA Glyph System 3.0 (after scene ready)
-        this.glyphSystem = new AtomaGlyphSystem3_0(this.scene);
+        // Enforce single marker stack authority: purge stale legacy glyph roots before init.
+        const staleGlyphRoots = [];
+        this.scene?.traverse?.((obj) => {
+            if (!obj?.isGroup) return;
+            if (obj.userData?.isAtomaGlyphContainer || obj.userData?.isAtomaGlyph4Container || obj.name === 'AtomaGlyphSystem' || obj.name === 'AtomaGlyphSystem4') {
+                staleGlyphRoots.push(obj);
+            }
+        });
+        staleGlyphRoots.forEach((root) => root.parent?.remove(root));
 
-        // Initialize ATOMA Glyph System 4.0 (Animated Meaning Edition)
-        this.glyphSystem4 = new AtomaGlyphSystem4_0(this.scene, this.camera);
+        if (this.enableGlyphSystem3) {
+            this.glyphSystem = new AtomaGlyphSystem3_0(this.scene);
+        } else {
+            this.glyphSystem?.dispose?.();
+            this.glyphSystem = null;
+        }
 
-        // Initialize ATOMA Glyph Layer 4.0 (Multi-Glyph Fusion)
-        // Pass resonance feedback system for composite glyph registration
-        this.glyphLayer4 = new GlyphLayer4_MultiFusion(
-            this.scene,
-            this.worldRoot,
-            this.compositeResonanceFeedback || null
-        );
-        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
-            this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
-            // DEBUG: Print glyph layer status after creation
-            console.log('? GlyphLayer4 initial fusions created for', this.aiNodes.nodes.length, 'nodes');
-            this.glyphLayer4.printStatus();
+        if (this.enableGlyphSystem4) {
+            this.glyphSystem4 = new AtomaGlyphSystem4_0(this.scene, this.camera);
+        } else {
+            this.glyphSystem4?.dispose?.();
+            this.glyphSystem4 = null;
+        }
+
+        if (this.enableGlyphLayer4) {
+            // Initialize ATOMA Glyph Layer 4.0 (Multi-Glyph Fusion)
+            // Pass resonance feedback system for composite glyph registration
+            this.glyphLayer4 = new GlyphLayer4_MultiFusion(
+                this.scene,
+                this.worldRoot,
+                this.compositeResonanceFeedback || null
+            );
+            if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
+                this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+                // DEBUG: Print glyph layer status after creation
+                console.log('? GlyphLayer4 initial fusions created for', this.aiNodes.length, 'nodes');
+                this.glyphLayer4.printStatus();
+            }
+        } else {
+            this.glyphLayer4?.dispose?.();
+            this.glyphLayer4 = null;
         }
         this.setupSemanticGlyphAI();
         this._lastHoverGlyphTarget = null;
@@ -5664,11 +5697,23 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (this.glyphLayer4?.dispose) {
             this.glyphLayer4.dispose();
         }
-        this.glyphLayer4 = new GlyphLayer4_MultiFusion(
-            this.scene,
-            this.worldRoot,
-            this.compositeResonanceFeedback || null
-        );
+        const staleGlyphRoots = [];
+        this.scene?.traverse?.((obj) => {
+            if (!obj?.isGroup) return;
+            if (obj.userData?.isAtomaGlyphContainer || obj.userData?.isAtomaGlyph4Container || obj.name === 'AtomaGlyphSystem' || obj.name === 'AtomaGlyphSystem4') {
+                staleGlyphRoots.push(obj);
+            }
+        });
+        staleGlyphRoots.forEach((root) => root.parent?.remove(root));
+        if (this.enableGlyphLayer4) {
+            this.glyphLayer4 = new GlyphLayer4_MultiFusion(
+                this.scene,
+                this.worldRoot,
+                this.compositeResonanceFeedback || null
+            );
+        } else {
+            this.glyphLayer4 = null;
+        }
         // NOTE: Glyph fusion creation moved to AFTER createAINodes to ensure nodes exist
         // See: https://github.com/openclaw/atoma/issues/XXX (Fix: GlyphLayer4 fusionRegistry empty)
 
@@ -5823,7 +5868,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         // GLYPH LAYER FUSION: Create fusions after nodes are initialized
         // ====================================================================
-        if (this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
+        if (this.enableGlyphLayer4 && this.glyphLayer4 && this.aiNodes?.nodes?.length > 0) {
             this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
             // DEBUG: Print glyph layer status after creation
             console.log('? GlyphLayer4 fusions created for', this.aiNodes.nodes.length, 'nodes');

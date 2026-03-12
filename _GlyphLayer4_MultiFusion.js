@@ -116,55 +116,9 @@ export class GlyphLayer4_MultiFusion {
   // ============================================================
   
   createCoreGlyph(node, nodeId) {
-    const category = node.userData?.category || 'unknown';
-    
-    const coreGroup = new THREE.Group();
-    coreGroup.userData = {
-      glyphLayer: 'core',
-      category,
-      isVFX: true,
-      noEvolve: true,
-      noCleanup: true
-    };
-    coreGroup.name = `glyph_core_${nodeId}`;
-    coreGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');  // Render after core/archetype, before links
-    
-    // Category color mapping
-    const categoryColors = {
-      'input': this.colors.mint,
-      'process': this.colors.blue,
-      'integration': this.colors.cyan,
-      'analytics': this.colors.red,
-      'storage': this.colors.gold,
-      'control': this.colors.magenta,
-      'consciousness': this.colors.cyan,
-      'mythic': this.colors.violet,
-      'ascended': this.colors.white,
-      'unknown': this.colors.white
-    };
-    
-    const color = categoryColors[category] || this.colors.white;
-    
-    // Create small rotating core marker (simple octahedron)
-    const geo = new THREE.OctahedronGeometry(0.08, 1);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.6,
-      emissive: color,
-      emissiveIntensity: 0.3,
-      fog: false
-    });
-    
-    const core = new THREE.Mesh(geo, mat);
-    core.userData = { glyphComponent: 'coreMarker' };
-    coreGroup.add(core);
-    
-    // Animation state
-    coreGroup.userData.rotationSpeed = 0.8;
-    coreGroup.userData.bobPhase = Math.random() * Math.PI * 2;
-    
-    return coreGroup;
+    // Core glyph intentionally disabled:
+    // keep node centers clean; hover glyph pipeline remains active via SemanticGlyphAI.
+    return null;
   }
   
   updateCoreGlyph(coreGroup, deltaTime) {
@@ -177,7 +131,7 @@ export class GlyphLayer4_MultiFusion {
     // Subtle bob
     coreGroup.userData.bobPhase += deltaTime * 2;
     const bob = Math.sin(coreGroup.userData.bobPhase) * 0.02;
-    coreGroup.position.y = 0.5 + bob;
+    coreGroup.position.y = 0.08 + bob;
   }
   
   // ============================================================
@@ -325,21 +279,21 @@ export class GlyphLayer4_MultiFusion {
     // Personality-specific visuals
     const personalityConfigs = {
       'synergy': {
-        geometry: () => new THREE.IcosahedronGeometry(0.1, 2),
+        geometry: () => new THREE.TorusGeometry(0.105, 0.012, 8, 28),
         color: this.colors.cyan,
         emissive: this.colors.cyan,
         emissiveIntensity: 0.3,
         opacity: 0.45
       },
       'harmony': {
-        geometry: () => new THREE.SphereGeometry(0.11, 6, 6),
+        geometry: () => new THREE.TorusGeometry(0.11, 0.01, 8, 28),
         color: this.colors.green,
         emissive: this.colors.green,
         emissiveIntensity: 0.25,
         opacity: 0.4
       },
       'stability': {
-        geometry: () => new THREE.TetrahedronGeometry(0.09),
+        geometry: () => new THREE.TorusGeometry(0.095, 0.013, 8, 24),
         color: this.colors.red,
         emissive: this.colors.red,
         emissiveIntensity: 0.3,
@@ -353,7 +307,7 @@ export class GlyphLayer4_MultiFusion {
         opacity: 0.45
       },
       'clarity': {
-        geometry: () => new THREE.OctahedronGeometry(0.1, 2),
+        geometry: () => new THREE.TorusGeometry(0.1, 0.01, 8, 30),
         color: this.colors.white,
         emissive: this.colors.white,
         emissiveIntensity: 0.2,
@@ -848,11 +802,15 @@ export class GlyphLayer4_MultiFusion {
       obj.renderOrder = GLYPH_RENDER_ORDER;
 
       // Bring glyphs slightly outside the core and enlarge for readability
-      obj.scale.multiplyScalar(2.0);
-      if (obj.position.lengthSq() === 0) {
-        obj.position.set(0, 0.35, 0);
-      } else {
-        obj.position.multiplyScalar(1.2);
+      if (!obj.userData?.lockGlyphScale) {
+        obj.scale.multiplyScalar(2.0);
+      }
+      if (!obj.userData?.lockGlyphPosition) {
+        if (obj.position.lengthSq() === 0) {
+          obj.position.set(0, 0.35, 0);
+        } else {
+          obj.position.multiplyScalar(1.2);
+        }
       }
     });
   }

@@ -478,6 +478,7 @@ export class BeadRenderer {
     freezeMaterialFlags(this.material, 'LinkBeadSystem');
 
     this._frameUp = new THREE.Vector3(0, 1, 0);
+    this._frameForward = new THREE.Vector3(0, 0, 1);
     this._frameFallback = new THREE.Vector3(1, 0, 0);
     this._frameNormal = new THREE.Vector3();
     this._frameBinormal = new THREE.Vector3();
