@@ -394,54 +394,14 @@ export class EvolutionRegistry {
    * VISUAL HIERARCHY: Capped to 0.25 max opacity (background layer, subtle)
    */
   updateCoreVFX(overlayGroup, overlays, state, intensity, deltaTime) {
-    const node = state.node;
-    const nodeId = this.getNodeId(node);
-    const secondaryColor = this.getNodeSecondaryColor(node);
-    
-    // Create core mesh if it doesn't exist
-    if (!overlays.coreMesh) {
-      const coreGeometry = new THREE.IcosahedronGeometry(0.35, 3);
-      const coreMaterial = new THREE.MeshBasicMaterial({
-        color: secondaryColor,
-        transparent: true,
-        emissive: secondaryColor,
-        emissiveIntensity: 0.3,
-        fog: false
-      });
-      
-      overlays.coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
-      overlays.coreMesh.userData = {
-        isEvolutionVFX: true,
-        nodeId: nodeId,
-        vfxType: 'core',
-        rotationAxis: new THREE.Vector3(
-          Math.random() - 0.5,
-          Math.random() - 0.5,
-          Math.random() - 0.5
-        ).normalize(),
-        rotationSpeed: 0.8 + Math.random() * 0.4
-      };
-      
-      // VISUAL HIERARCHY: Render as background layer
-      overlays.coreMesh.renderOrder = -1;
-      
-      overlayGroup.add(overlays.coreMesh);
+    // Disabled: center polyhedron ("core" evolution overlay) should not render.
+    if (overlays.coreMesh) {
+      if (overlays.coreMesh.parent) {
+        overlays.coreMesh.parent.remove(overlays.coreMesh);
+      }
+      this.disposeObject(overlays.coreMesh);
+      overlays.coreMesh = null;
     }
-    
-    // Position and animate core (local to overlay)
-    overlays.coreMesh.position.set(0, 0, 0);
-    // VISUAL HIERARCHY: Cap opacity to 0.25 (was 0.0–0.6)
-    overlays.coreMesh.material.opacity = Math.min(
-      this.opacityCaps.coreMesh,
-      intensity * 0.25
-    );
-    
-    // Rotation
-    const axis = overlays.coreMesh.userData.rotationAxis;
-    const speed = overlays.coreMesh.userData.rotationSpeed * deltaTime * 0.5;
-    const quaternion = new THREE.Quaternion();
-    quaternion.setFromAxisAngle(axis, speed);
-    overlays.coreMesh.quaternion.multiplyQuaternions(quaternion, overlays.coreMesh.quaternion);
   }
   
   /**

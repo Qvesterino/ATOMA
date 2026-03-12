@@ -18,11 +18,14 @@ const TRAIL_VS = `
 attribute vec3 aVelocity; // Drift velocity
 attribute vec3 aColor;    // Particle color
 attribute vec3 aInfo;     // x: birthTime, y: duration, z: baseSize
+attribute vec3 aDir;      // forward direction (source -> target)
 
 uniform float uTime;
 
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLife;
+varying vec2 vDir;
 
 void main() {
     float age = uTime - aInfo.x;
@@ -35,6 +38,7 @@ void main() {
     }
     
     float lifeProgress = age / aInfo.y;
+    vLife = lifeProgress;
     
     // Physics: Position = Start (position attr) + Velocity * Age
     // Add slight gravity/drag? No, just linear drift is cleaner for space look.
@@ -48,7 +52,8 @@ void main() {
     currentPos += normalize(aVelocity + vec3(0.01)) * n * 0.015;
     
     vec4 mvPosition = modelViewMatrix * vec4(currentPos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
+    vec4 clipPosition = projectionMatrix * mvPosition;
+    gl_Position = clipPosition;
     
     vColor = aColor;
     
@@ -57,28 +62,50 @@ void main() {
     gl_PointSize = aInfo.z * (1.0 - lifeProgress) * (40.0 / -mvPosition.z);
     
     // Alpha fades out linearly
-    vAlpha = 0.82 * (1.0 - lifeProgress);
+    vAlpha = 0.76 * (1.0 - lifeProgress);
+    vec4 mvForward = modelViewMatrix * vec4(currentPos + aDir * 0.14, 1.0);
+    vec4 clipForward = projectionMatrix * mvForward;
+    vec2 ndcA = clipPosition.xy / max(clipPosition.w, 1e-4);
+    vec2 ndcB = clipForward.xy / max(clipForward.w, 1e-4);
+    vec2 screenDir = ndcB - ndcA;
+    float dirLen = length(screenDir);
+    if (dirLen <= 1e-5) {
+        vec2 fallbackDir = (modelViewMatrix * vec4(aDir, 0.0)).xy;
+        float fallbackLen = length(fallbackDir);
+        vDir = (fallbackLen > 1e-5) ? (fallbackDir / fallbackLen) : vec2(0.0, 1.0);
+    } else {
+        vDir = screenDir / dirLen;
+    }
 }
 `;
 
 const TRAIL_FS = `
 varying vec3 vColor;
 varying float vAlpha;
+varying float vLife;
+varying vec2 vDir;
 
 void main() {
     if (vAlpha <= 0.01) discard;
     
-    // Soft particle texture (procedural)
-    vec2 coord = gl_PointCoord - vec2(0.5);
-    float dist = length(coord);
-    
-    if (dist > 0.5) discard;
-    
-    // Soft edge
-    float glow = 1.0 - (dist * 2.0);
-    glow = pow(glow, 2.0);
-    
-    gl_FragColor = vec4(vColor, vAlpha * glow);
+    // Teardrop sprite aligned to travel direction:
+    // +Y points to target (head), -Y points to source (tail).
+    vec2 raw = gl_PointCoord * 2.0 - 1.0;
+    vec2 perp = vec2(-vDir.y, vDir.x);
+    vec2 p = vec2(dot(raw, perp), dot(raw, vDir));
+    p.y *= 1.05;
+
+    float head = 1.0 - smoothstep(0.26, 0.86, length(vec2(p.x * 1.15, (p.y - 0.34) * 0.92)));
+    float tailWidth = mix(0.14, 0.55, clamp((p.y + 1.0) * 0.5, 0.0, 1.0));
+    float tail = 1.0 - smoothstep(0.0, 1.0, max(abs(p.x) / max(tailWidth, 0.001), -(p.y + 0.86)));
+    tail *= 1.0 - smoothstep(0.08, 1.0, vLife);
+
+    float shape = max(head, tail * 0.84);
+    shape = smoothstep(0.02, 0.9, shape);
+    if (shape < 0.01) discard;
+
+    float glow = 0.58 + (1.0 - abs(p.y)) * 0.26;
+    gl_FragColor = vec4(vColor, vAlpha * shape * glow);
 }
 `;
 
@@ -103,6 +130,7 @@ export class LinkBeadTrailSystem {
         this.scene = scene;
         this.maxParticles = maxParticles;
         this.writeIndex = 0;
+        this._prevBeadPos = new WeakMap();
         
         // Configuration
         this.config = {
@@ -118,6 +146,7 @@ export class LinkBeadTrailSystem {
         // Buffers
         this.positions = new Float32Array(this.maxParticles * 3);
         this.velocities = new Float32Array(this.maxParticles * 3);
+        this.directions = new Float32Array(this.maxParticles * 3);
         this.colors = new Float32Array(this.maxParticles * 3);
         this.infos = new Float32Array(this.maxParticles * 3); // birth, duration, size
         
@@ -129,12 +158,14 @@ export class LinkBeadTrailSystem {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
         geometry.setAttribute('aVelocity', new THREE.BufferAttribute(this.velocities, 3));
+        geometry.setAttribute('aDir', new THREE.BufferAttribute(this.directions, 3));
         geometry.setAttribute('aColor', new THREE.BufferAttribute(this.colors, 3));
         geometry.setAttribute('aInfo', new THREE.BufferAttribute(this.infos, 3));
         
         // Dynamic draw usage for frequent updates
         geometry.attributes.position.usage = THREE.DynamicDrawUsage;
         geometry.attributes.aVelocity.usage = THREE.DynamicDrawUsage;
+        geometry.attributes.aDir.usage = THREE.DynamicDrawUsage;
         geometry.attributes.aColor.usage = THREE.DynamicDrawUsage;
         geometry.attributes.aInfo.usage = THREE.DynamicDrawUsage;
         
@@ -159,7 +190,7 @@ export class LinkBeadTrailSystem {
      * @param {number} deltaTime - Frame delta
      * @param {Map} beadToMesh - Map of active beads to meshes
      */
-    update(time, deltaTime, beadToMesh) {
+    update(time, deltaTime, beadToMesh, curve = null) {
         this.mesh.material.uniforms.uTime.value = time;
         
         // Guard: ensure beadToMesh is valid and iterable
@@ -194,6 +225,16 @@ export class LinkBeadTrailSystem {
             // Get bead position (world space)
             const beadPos = mesh.position;
             const beadColor = mesh.material.color;
+            const previous = this._prevBeadPos.get(bead) || beadPos.clone();
+            const dir = new THREE.Vector3();
+            if (curve && typeof bead?.t === 'number' && curve.getTangentAt) {
+                dir.copy(curve.getTangentAt(Math.max(0.0, Math.min(1.0, bead.t))));
+            } else {
+                dir.copy(beadPos).sub(previous);
+            }
+            if (dir.lengthSq() < 1e-8) dir.set(0, 0, 1);
+            dir.normalize();
+            this._prevBeadPos.set(bead, beadPos.clone());
             
             // Spawn particles
             for (let k = 0; k < count; k++) {
@@ -206,10 +247,17 @@ export class LinkBeadTrailSystem {
                 this.positions[i3+1] = beadPos.y + (Math.random()-0.5)*jitter;
                 this.positions[i3+2] = beadPos.z + (Math.random()-0.5)*jitter;
                 
-                // Velocity: modest local drift, still constrained enough to avoid branching into space
-                this.velocities[i3] = (Math.random()-0.5)*0.075;
-                this.velocities[i3+1] = (Math.random()-0.5)*0.075;
-                this.velocities[i3+2] = (Math.random()-0.5)*0.075;
+                // Tail drifts backward (toward source) while head points toward target direction.
+                const backSpeed = (bead.size === 'large')
+                  ? (0.090 + Math.random() * 0.035)
+                  : (0.070 + Math.random() * 0.025);
+                const driftJitter = (bead.size === 'large') ? 0.010 : 0.006;
+                this.velocities[i3] = -dir.x * backSpeed + (Math.random()-0.5)*driftJitter;
+                this.velocities[i3+1] = -dir.y * backSpeed + (Math.random()-0.5)*driftJitter;
+                this.velocities[i3+2] = -dir.z * backSpeed + (Math.random()-0.5)*driftJitter;
+                this.directions[i3] = dir.x;
+                this.directions[i3+1] = dir.y;
+                this.directions[i3+2] = dir.z;
                 
                 // Color: Inherit from bead
                 this.colors[i3] = beadColor.r;
@@ -221,8 +269,8 @@ export class LinkBeadTrailSystem {
                 
                 // Duration varies by size (scaled by config lifetime)
                 const duration = (bead.size === 'large')
-                  ? this.config.lifetime * 1.1
-                  : this.config.lifetime * 0.7;
+                  ? this.config.lifetime * 1.35
+                  : this.config.lifetime * 1.15;
                 this.infos[i3+1] = duration;
                 
                 // Size (scaled by config multiplier)
@@ -251,6 +299,7 @@ export class LinkBeadTrailSystem {
         if (updateStart !== -1) {
             this.mesh.geometry.attributes.position.needsUpdate = true;
             this.mesh.geometry.attributes.aVelocity.needsUpdate = true;
+            this.mesh.geometry.attributes.aDir.needsUpdate = true;
             this.mesh.geometry.attributes.aColor.needsUpdate = true;
             this.mesh.geometry.attributes.aInfo.needsUpdate = true;
         }

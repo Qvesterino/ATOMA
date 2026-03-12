@@ -77,11 +77,14 @@ export function enforceNodeInteractionCore(node) {
         visible: true, 
         transparent: true, 
         opacity: 0.0,
+        colorWrite: false,
         depthWrite: false,
+        depthTest: false,
         side: THREE.DoubleSide
     });
     activeCore = new THREE.Mesh(geometry, material);
-    activeCore.visible = false; // TEMP TEST: disable interaction proxy visual
+    // Keep object raycastable but non-rendering (colorWrite=false).
+    activeCore.visible = true;
     tagAllowedSphere(activeCore, {
       role: 'interactionProxy',
       source: 'HARD_INTERACTION_AUTHORITY_SYSTEM.enforceNodeInteractionCore',
@@ -319,8 +322,16 @@ export function enforceNodeVisualSafetyNet(scene) {
     if (obj.userData?.isInteractionCore === true) {
       // SKIP PROXIES from visual enforcement (they should remain invisible)
       if (obj.userData.isProxy) {
-          // Ensure object is visible for raycasting, but do NOT force material opacity
-          if (!obj.visible) obj.visible = true;
+          // Keep interaction proxies raycastable but never rendered.
+          obj.visible = true;
+          if (obj.material) {
+            obj.material.visible = true;
+            obj.material.colorWrite = false;
+            obj.material.transparent = true;
+            obj.material.opacity = 0;
+            obj.material.depthWrite = false;
+            obj.material.depthTest = false;
+          }
           return;
       }
 

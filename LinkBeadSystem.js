@@ -168,6 +168,9 @@ export class Bead {
     this.age = 0; // Time since spawn
     this.isActive = false;
     this.spawnTime = 0; // Absolute time of spawn for offset variety
+    this.laneIndex = 0;
+    this.laneJitter = 0;
+    this.laneCount = 4;
   }
   
   /**
@@ -199,6 +202,9 @@ export class Bead {
     this.age = 0;
     this.isActive = false;
     this.spawnTime = 0;
+    this.laneIndex = 0;
+    this.laneJitter = 0;
+    this.laneCount = 4;
   }
 }
 
@@ -335,6 +341,10 @@ export class LinkBeadPool {
         bead.age = 0;
         bead.spawnTime = Date.now() / 1000;
         bead.isActive = true;
+        const laneCount = Math.max(3, Math.min(5, this.link?.group?.userData?.conduitState?.strandCount || 4));
+        bead.laneCount = laneCount;
+        bead.laneIndex = Math.floor(Math.random() * laneCount); // follow one braid lane
+        bead.laneJitter = (Math.random() - 0.5) * 0.12;         // low jitter, avoid side drift
         
         return true;
       }
@@ -466,6 +476,20 @@ export class BeadRenderer {
     this.material.userData.__owner = 'LinkBeadSystem';
     this.material.userData.__domain = 'bead';
     freezeMaterialFlags(this.material, 'LinkBeadSystem');
+
+    this._frameUp = new THREE.Vector3(0, 1, 0);
+    this._frameFallback = new THREE.Vector3(1, 0, 0);
+    this._frameNormal = new THREE.Vector3();
+    this._frameBinormal = new THREE.Vector3();
+  }
+
+  _buildLaneFrame(direction, normal, binormal) {
+    normal.copy(this._frameUp);
+    if (Math.abs(direction.dot(normal)) > 0.92) {
+      normal.copy(this._frameFallback);
+    }
+    binormal.crossVectors(direction, normal).normalize();
+    normal.crossVectors(binormal, direction).normalize();
   }
   
   /**
@@ -526,27 +550,25 @@ export class BeadRenderer {
       mesh.material.emissive.lerpColors(sourceColor, targetColor, t);
     }
     
-    // Offset bead slightly perpendicular to rope (embedded appearance)
-    // Use pseudo-random offset based on bead properties
-    const offsetAmount = bead.radius * 0.3;
-    const offsetSeed = (bead.speed * 13.37 + bead.age * 2.71) % 1.0;
-    const offsetAngle = offsetSeed * Math.PI * 2;
-    
-    // Get tangent for perpendicular offset
-    const tangent = curve.getTangentAt(t);
-    const axis = new THREE.Vector3(0, 1, 0);
-    let normal = new THREE.Vector3().crossVectors(tangent, axis).normalize();
-    if (normal.lengthSq() < 0.01) {
-      axis.set(1, 0, 0);
-      normal.crossVectors(tangent, axis).normalize();
-    }
-    const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
-    
-    // Apply offset
-    const offsetX = Math.cos(offsetAngle) * offsetAmount;
-    const offsetY = Math.sin(offsetAngle) * offsetAmount;
-    pos.addScaledVector(normal, offsetX);
-    pos.addScaledVector(binormal, offsetY);
+    // Follow a stable helical lane so beads visually copy the braid instead of drifting.
+    const tangent = curve.getTangentAt(t).normalize();
+    const normal = this._frameNormal;
+    const binormal = this._frameBinormal;
+    this._buildLaneFrame(tangent, normal, binormal);
+
+    const linkLength = curve.getLength ? curve.getLength() : 10.0;
+    const twistSpacing = 4.2;
+    const twists = Math.max(1.5, linkLength / twistSpacing);
+    const laneCount = Math.max(3.0, bead.laneCount || 4.0);
+    const lanePhase = (bead.laneIndex / laneCount) * Math.PI * 2.0 + bead.laneJitter + Math.PI * 0.5;
+    const helixAngle = t * Math.PI * 2.0 * twists + lanePhase;
+    const envelope = this.link?.userData?.visualEnvelopeRadius ?? 0.14;
+    const laneRadius = (bead.size === 'medium')
+      ? Math.max(bead.radius * 0.34, envelope * 0.28)
+      : Math.max(bead.radius * 0.40, envelope * 0.34);
+
+    pos.addScaledVector(normal, Math.cos(helixAngle) * laneRadius);
+    pos.addScaledVector(binormal, Math.sin(helixAngle) * laneRadius);
     
     mesh.position.copy(pos);
     // Subtle pulsation for flow intelligence

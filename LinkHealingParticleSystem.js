@@ -128,6 +128,7 @@ export class LinkHealingParticleSystem {
         varying float vSeed;
         varying vec3 vTint;
         varying float vDepth;
+        varying float vRot;
         void main() {
           float age = uTime - aLife.x;
           vLifeT = clamp(age / aLife.y, 0.0, 1.0);
@@ -136,6 +137,8 @@ export class LinkHealingParticleSystem {
           float size = mix(uSizeRange.x, uSizeRange.y, 1.0 - vLifeT) * sizeFade;
           vSeed = aSeed;
           vTint = aTint;
+          // Medium-speed rotation over flight, stable per particle by seed.
+          vRot = age * 2.4 + aSeed * 6.2831853;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           vDepth = -mvPosition.z;
           gl_PointSize = size * (10.0 / -mvPosition.z);
@@ -148,6 +151,7 @@ export class LinkHealingParticleSystem {
         varying float vSeed;
         varying vec3 vTint;
         varying float vDepth;
+        varying float vRot;
         uniform vec3 uBaseColor;
         uniform vec3 uEdgeColor;
         uniform float uOpacity;
@@ -177,6 +181,11 @@ export class LinkHealingParticleSystem {
 
         void main() {
           vec2 uv = gl_PointCoord;
+          vec2 p = uv - vec2(0.5);
+          float cs = cos(vRot);
+          float sn = sin(vRot);
+          p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
+          uv = p + vec2(0.5);
           float shape = knot(uv);
 
           // Afterimage (cheap): offset seed-based jitter, scaled by life

@@ -33,7 +33,7 @@ const LAYER_POLICY = {
   LINK_DIRECTIONAL: {
     registryKey: 'LINK_DIRECTIONAL',
     transparent: true,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
     blending: THREE.AdditiveBlending
   },

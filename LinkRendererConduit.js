@@ -537,39 +537,31 @@ const strandDetailOverlayFragmentShader = `
     varying float vLocalLoad;
     varying vec3 vBaseColor;
     varying vec3 vNormal;
-
-    float hash11(float p) {
-        p = fract(p * 0.1031);
-        p *= p + 33.33;
-        p *= p + p;
-        return fract(p);
-    }
+    uniform float uSegmentCount;
 
     void main() {
-        float cells = 14.0;
-        float x = vUv.x * cells;
-        float cellId = floor(x);
-        float localX = fract(x);
+        float segmentCount = max(1.0, uSegmentCount);
+        float seg = fract(vUv.x * segmentCount);
+        float body = smoothstep(0.25, 0.45, seg) - smoothstep(0.55, 0.75, seg);
+        float edgeGlow = smoothstep(0.20, 0.25, seg) - smoothstep(0.75, 0.80, seg);
+        float capsule = body + edgeGlow * 0.6;
 
-        float seed = hash11(cellId + 7.13);
-        float center = mix(0.22, 0.78, seed);
-        float width = mix(0.08, 0.22, hash11(cellId + 17.91));
-        float core = 1.0 - smoothstep(width, width + 0.08, abs(localX - center));
-
-        float yCenter = mix(0.36, 0.64, hash11(cellId + 41.7));
-        float yWidth = mix(0.10, 0.22, hash11(cellId + 53.8));
-        float band = 1.0 - smoothstep(yWidth, yWidth + 0.12, abs(vUv.y - yCenter));
-
-        float notch = 1.0 - smoothstep(0.02, 0.11, abs((localX - center) * 1.7 + (vUv.y - yCenter) * 2.4));
-        float blotch = clamp(core * band + notch * 0.28, 0.0, 1.0);
+        // Keep capsules narrow and rounded across strand circumference.
+        float y = abs(vUv.y - 0.5);
+        float laneMask = 1.0 - smoothstep(0.16, 0.34, y);
+        float rounded = 1.0 - smoothstep(0.10, 0.34, length(vec2((seg - 0.5) * 1.9, (vUv.y - 0.5) * 1.45)));
+        capsule = clamp(capsule * laneMask + edgeGlow * rounded * 0.35, 0.0, 1.0);
 
         float rim = pow(1.0 - abs(dot(normalize(vNormal), normalize(vec3(0.3, 0.7, 0.6)))), 2.0);
         float pulse = 0.55 + vPulsePhase * 0.45;
         float metricBoost = 0.45 + vLocalLoad * 0.35 + vCorruption * 0.25;
-          float alpha = blotch * pulse * metricBoost * (0.16 + rim * 0.12);
+        float overlayIntensity = pulse * metricBoost * (0.15 + rim * 0.10);
+        float alpha = capsule * overlayIntensity;
 
-        vec3 color = mix(vBaseColor * 0.8, vec3(1.0), 0.24 + vPulsePhase * 0.18);
-        color += vec3(rim * 0.10);
+        vec3 segColor = vec3(1.0);
+        vec3 color = mix(vBaseColor * 0.78, segColor, 0.20 + vPulsePhase * 0.16);
+        color += segColor * edgeGlow * 0.18;
+        color += vec3(rim * 0.08);
 
         if (alpha < 0.01) discard;
         gl_FragColor = vec4(color, alpha);
@@ -1278,32 +1270,7 @@ export class LinkRendererConduit {
             group.add(mesh);
             strands.push(mesh);
 
-            // Overlay-only detail pass: restores segmented blotches without touching base strand shading.
-            const overlayMat = new THREE.ShaderMaterial({
-                vertexShader: strandDetailOverlayVertexShader,
-                fragmentShader: strandDetailOverlayFragmentShader,
-                transparent: true,
-                depthWrite: false,
-                depthTest: true,
-                blending: THREE.AdditiveBlending,
-                side: THREE.DoubleSide,
-                uniforms: {
-                    uNetworkStress: material.uniforms.uNetworkStress,
-                    uLocalLoad: material.uniforms.uLocalLoad,
-                    uCorruption: material.uniforms.uCorruption,
-                    uTime: material.uniforms.uTime,
-                    uBaseColor: { value: categoryColor.clone().multiplyScalar(0.72) }
-                }
-            });
-            const overlayMesh = new THREE.Mesh(geometry, overlayMat);
-            overlayMesh.frustumCulled = false;
-            applyLinkRenderLayer(overlayMesh, 'LINK_CORE_OVERLAY', {
-                materialOverrides: { blending: THREE.AdditiveBlending }
-            });
-            ensureUserData(overlayMesh);
-            overlayMesh.userData.strandOverlay = true;
-            group.add(overlayMesh);
-            strandOverlays.push(overlayMesh);
+            // Blotch detail is now baked directly into the base strand shader.
         }
         state.strandDepthPasses = strandDepthPasses;
         state.strandOverlays = strandOverlays;
@@ -1973,6 +1940,7 @@ export class LinkRendererConduit {
         // Optimization: Pre-calculate loop invariants
         const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
         const noiseBase = 0.005 * (1.0 - synergy);
+        const overlaySegmentCount = remap(linkDist, 3.0, 40.0, 18.0, 28.0);
 
         state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
@@ -1987,6 +1955,9 @@ export class LinkRendererConduit {
                 mat.uniforms.uNetworkStress.value = metrics.loadPressure ?? 0;
                 mat.uniforms.uLocalLoad.value = metrics.traffic ?? 0;
                 mat.uniforms.uCorruption.value = metrics.corruption ?? 0;
+                if (mat.uniforms.uSegmentCount) {
+                    mat.uniforms.uSegmentCount.value = overlaySegmentCount;
+                }
             }
             // Flow texture
             if (mesh.material && mesh.material.emissiveMap) {
@@ -2056,6 +2027,10 @@ export class LinkRendererConduit {
             );
             if (state.strandOverlays && state.strandOverlays[i]) {
                 state.strandOverlays[i].geometry = mesh.geometry;
+                const overlayMat = state.strandOverlays[i].material;
+                if (overlayMat?.uniforms?.uSegmentCount) {
+                    overlayMat.uniforms.uSegmentCount.value = overlaySegmentCount;
+                }
             }
 
             // Linewidth (if supported by material type)
@@ -2193,7 +2168,7 @@ export class LinkRendererConduit {
                     state.rings.emitRing(link.target.position, new THREE.Color(targetColor), visualTime);
                 }
             });
-            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
+            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve);
         }
 
         if (state.rings) state.rings.update(visualTime);
@@ -2219,7 +2194,7 @@ export class LinkRendererConduit {
 
         // Update LinkTrailEmitter (if available)
         if (heavyTick && state.trails && state.beads && state.beads.beadToMesh) {
-            state.trails.update(visualTime, visualDelta, state.beads.beadToMesh);
+            state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve);
         }
 
         if (state.pulseRing && this.modules.flow) {
@@ -2638,13 +2613,13 @@ export class LinkRendererConduit {
         const stack = this._impactMaterialPool.get(key);
         if (stack && stack.length > 0) {
             const mat = stack.pop();
-            mat.opacity = 0.6; // reset to default
+            mat.opacity = 0.0; // start fully transparent; animated in updateImpacts
             return mat;
         }
 
         const mat = new THREE.MeshBasicMaterial({
             color: key,
-            opacity: 0.6,
+            opacity: 0.0,
             wireframe: true,
             transparent: true,
             depthWrite: false,
@@ -2666,7 +2641,7 @@ export class LinkRendererConduit {
         }
         const stack = this._impactMaterialPool.get(key);
         if (stack.length < this._impactPoolMaxSize) {
-            mat.opacity = 0.6;
+            mat.opacity = 0.0;
             stack.push(mat);
         } else {
             mat.dispose();
@@ -2872,7 +2847,7 @@ export class LinkRendererConduit {
 
         const scaleMult = beadSize === 'large' ? 1.5 : (beadSize === 'small' ? 0.5 : 1.0);
         const jitterScale = 0.9 + jitterRand * 0.2; // ±10%
-        group.scale.setScalar(0.1 * jitterScale); // Start small with jitter
+        group.scale.setScalar(0.01 * jitterScale); // Start near-zero so center stays visually quiet at spawn
 
         // Subtle rotation jitter for variation
         group.rotation.set(
@@ -2905,7 +2880,11 @@ export class LinkRendererConduit {
             } else {
                 const ease = 1 - Math.pow(1 - p, 3);
                 grp.scale.setScalar(data.maxScale * ease);
-                if (data.mesh) data.mesh.material.opacity = 0.6 * (1 - ease);
+                if (data.mesh) {
+                    // Fade-in then fade-out: transparent at start/end, visible only during active pulse
+                    const pulseAlpha = Math.sin(Math.PI * Math.min(1, Math.max(0, p)));
+                    data.mesh.material.opacity = 0.55 * pulseAlpha;
+                }
                 grp.rotation.z += dt * 2;
                 grp.rotation.y += dt;
             }

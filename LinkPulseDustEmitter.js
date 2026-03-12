@@ -38,12 +38,12 @@ void main() {
 
     float fadeIn = min(1.0, age / 0.08);
     float fadeOut = 1.0 - lifeProgress;
-    float size = aInfo.z * mix(1.0, 2.2, lifeProgress);
+    float size = aInfo.z * mix(1.15, 2.7, lifeProgress);
 
-    gl_PointSize = min(16.0, size * (70.0 / max(1.0, -mvPosition.z)));
+    gl_PointSize = min(24.0, size * (88.0 / max(1.0, -mvPosition.z)));
 
     vColor = aColor;
-    vAlpha = 0.42 * fadeIn * fadeOut;
+    vAlpha = 0.68 * fadeIn * fadeOut;
 }
 `;
 
@@ -182,7 +182,7 @@ export class LinkPulseDustEmitter {
 
         const openAmount = clamp01(splitGap / 0.8);
         const pulseBoost = 0.25 + openAmount * 0.95 + clamp01(pulsePhase) * 0.2;
-        const emissionRate = lerp(28, 82, pulseBoost);
+        const emissionRate = lerp(52, 132, pulseBoost);
         this.spawnAccumulator += emissionRate * dt;
 
         let touched = false;
@@ -230,9 +230,9 @@ export class LinkPulseDustEmitter {
         this.positions[i3 + 1] = TMP_EMIT_POS.y;
         this.positions[i3 + 2] = TMP_EMIT_POS.z;
 
-        const backwardSpeed = 0.18 + Math.random() * 0.16;
-        const outwardSpeed = 0.03 + Math.random() * 0.06;
-        const swirl = (Math.random() - 0.5) * 0.04;
+        const backwardSpeed = 0.14 + Math.random() * 0.14;
+        const outwardSpeed = 0.05 + Math.random() * 0.09;
+        const swirl = (Math.random() - 0.5) * 0.06;
 
         this.velocities[i3] =
             -tangent.x * backwardSpeed +
@@ -258,8 +258,8 @@ export class LinkPulseDustEmitter {
         this.colors[i3 + 2] = TMP_COLOR.b;
 
         this.infos[i3] = this.time;
-        this.infos[i3 + 1] = 0.9 + Math.random() * 0.4;
-        this.infos[i3 + 2] = 5.0 + Math.random() * 4.0;
+        this.infos[i3 + 1] = 1.1 + Math.random() * 0.45;
+        this.infos[i3 + 2] = 6.8 + Math.random() * 5.2;
 
         this.writeIndex = (this.writeIndex + 1) % this.maxParticles;
     }

@@ -47,7 +47,7 @@ export class LinkDirectionalStreaks {
             speedBaseMin: 0.6,          // Synergy multiplier range (min)
             speedBaseMax: 1.6,          // Synergy multiplier range (max)
             segmentsPerStreak: 12,      // Ribbon resolution (low for perf)
-            harmonyBoost: 0.15,         // Emissive intensity from harmony
+            harmonyBoost: 0.08,         // Keep harmony modulation subtle to avoid white blowout
             corruptionDesaturation: 0.4, // Color desaturation from corruption
             instabilityDampen: 0.7,     // Opacity scaling from instability
             activationThreshold: 2,     // Min active links for streak visibility (was 3, now 2)
@@ -100,7 +100,7 @@ export class LinkDirectionalStreaks {
             transparent: true,
             opacity: 0.7,
             blending: THREE.AdditiveBlending,
-            depthWrite: true,
+            depthWrite: false,
             depthTest: true,
             side: THREE.DoubleSide,
             fog: false
@@ -366,6 +366,14 @@ export class LinkDirectionalStreaks {
                     previousBottom = null;
                     continue;
                 }
+                const crossAxis = new THREE.Vector3().crossVectors(tangent, perpendicular).normalize();
+                if (!this._isFiniteVector(crossAxis) || crossAxis.lengthSq() <= 1e-8) {
+                    previousPairStart = -1;
+                    previousCenter = null;
+                    previousTop = null;
+                    previousBottom = null;
+                    continue;
+                }
                 
                 // --- PULSE WAVE EFFECTS ---
                 // Check if any pulse waves affect this streak position
@@ -407,9 +415,23 @@ export class LinkDirectionalStreaks {
             continue;
         }
         
+        const v3 = this._clampVertexToCorridor(
+            pointOnCurve.clone().addScaledVector(crossAxis, ribbonWidth * 0.36),
+            pointOnCurve,
+            corridorRadius
+        );
+        const v4 = this._clampVertexToCorridor(
+            pointOnCurve.clone().addScaledVector(crossAxis, -ribbonWidth * 0.36),
+            pointOnCurve,
+            corridorRadius
+        );
+
         const pairStart = vertexCursor;
-        positions.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
-        vertexCursor += 2;
+        positions.push(
+            v1.x, v1.y, v1.z, v2.x, v2.y, v2.z,
+            v3.x, v3.y, v3.z, v4.x, v4.y, v4.z
+        );
+        vertexCursor += 4;
 
         if (
             previousPairStart >= 0 &&
@@ -424,9 +446,15 @@ export class LinkDirectionalStreaks {
             const b = previousPairStart + 1;
             const c = pairStart;
             const d = pairStart + 1;
+            const a2 = previousPairStart + 2;
+            const b2 = previousPairStart + 3;
+            const c2 = pairStart + 2;
+            const d2 = pairStart + 3;
 
             indices.push(a, b, c);
             indices.push(b, d, c);
+            indices.push(a2, b2, c2);
+            indices.push(b2, d2, c2);
         }
 
         previousPairStart = pairStart;
@@ -442,7 +470,7 @@ export class LinkDirectionalStreaks {
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
             let baseBrightness = harmonyBrightness;
-            let baseOpacity = 0.92 * (1.0 - (instability * 0.15));
+            let baseOpacity = 0.22 * (1.0 - (instability * 0.15));
 
             // Apply pulse effects to material
             if (pulseEffectData && pulseEffectData.hasPulse) {

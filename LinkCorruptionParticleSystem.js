@@ -60,7 +60,7 @@ export class LinkCorruptionParticleSystem {
         uBaseColor: { value: new THREE.Color(0xff1744) }, // debug neon red
         uEdgeColor: { value: new THREE.Color(0xff5a36) }, // debug neon red edge
         uOpacity: { value: 2.2 },
-        uSizeRange: { value: new THREE.Vector2(6.0, 14.0) },
+        uSizeRange: { value: new THREE.Vector2(4.5, 10.5) },
         uSoftNear: { value: 0.28 },
         uSoftRange: { value: 0.55 }
       },
@@ -197,13 +197,12 @@ export class LinkCorruptionParticleSystem {
       endpointCorruption ??
       0
     );
-    const visualCorruption = THREE.MathUtils.clamp(corruption * 12.0, 0, 1);
+    const visualCorruption = THREE.MathUtils.clamp(corruption * 4.0, 0, 1);
 
     // Spawn
     if (corruption > 0.005) {
-      // Visual-only amplification so low runtime corruption remains visible.
-      // Exact visual mapping: 0.1 -> 2, 0.2 -> 4, ... 1.0 -> 20
-      const desired = Math.max(0, Math.round(corruption * 20));
+      // Quantized mapping: 0.1 -> 2, 0.2 -> 4, ... 1.0 -> 20
+      const desired = THREE.MathUtils.clamp(Math.floor(corruption * 10.0) * 2, 0, 20);
       if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
         const nowMs = performance.now();
         if (!this._debugLastLog || nowMs - this._debugLastLog > 1000) {
@@ -379,7 +378,7 @@ export class LinkCorruptionParticleSystem {
 
     this.material.uniforms.uTime.value = now;
     this.material.uniforms.uOpacity.value = 2.2;
-    this.material.uniforms.uSizeRange.value.set(6.0, 14.0);
+    this.material.uniforms.uSizeRange.value.set(4.5, 10.5);
     this.points.visible = true;
   }
 

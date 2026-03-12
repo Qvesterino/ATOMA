@@ -229,6 +229,7 @@ export const linkStateVertexShaderSimple = `
   varying float vPulsePhase;
   varying vec3 vBaseColor;
   varying vec3 vNormal;
+  varying vec2 vUv;
   
   void main() {
     vNetworkStress = uNetworkStress;
@@ -236,6 +237,7 @@ export const linkStateVertexShaderSimple = `
     vCorruption = uCorruption;
     vBaseColor = uBaseColor;
     vNormal = normalize(normalMatrix * normal);
+    vUv = uv;
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
@@ -252,7 +254,15 @@ export const linkStateFragmentShaderSimple = `
   varying float vPulsePhase;
   varying vec3 vBaseColor;
   varying vec3 vNormal;
-  
+  varying vec2 vUv;
+
+  float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+  }
+
   vec3 getStressColor(float stress) {
     vec3 cool = vec3(0.2, 0.5, 0.8);
     vec3 warm = vec3(0.9, 0.6, 0.2);
@@ -280,6 +290,31 @@ export const linkStateFragmentShaderSimple = `
     
     // Add pulse glow from load
     color += vec3(vPulsePhase * vLocalLoad * 0.3);
+
+    // Thin slash-like segment mask (static in UV, low-cost).
+    float cells = 44.0;
+    float x = vUv.x * cells;
+    float cellId = floor(x);
+    float localX = fract(x);
+
+    float seed = hash11(cellId + 7.13);
+    float seedB = hash11(cellId + 17.91);
+    // Two narrow opposite lanes so slashes are visible from both view sides.
+    float laneDist = min(abs(vUv.y - 0.25), abs(vUv.y - 0.75));
+    float laneMask = 1.0 - smoothstep(0.070, 0.180, laneDist);
+
+    // Narrow diagonal slash per segment cell.
+    float skew = mix(2.6, 3.4, seedB);
+    float slashCoord = fract(localX + (vUv.y - 0.5) * skew + seed * 0.22);
+    float slash = 1.0 - smoothstep(0.032, 0.145, abs(slashCoord - 0.5));
+
+    // Small width/phase variance without morphing feel.
+    float slashTrim = 1.0 - smoothstep(0.24, 0.48, abs(localX - 0.5 + (seed - 0.5) * 0.12));
+    float segmentMask = clamp(slash * slashTrim * laneMask, 0.0, 1.0);
+    segmentMask = smoothstep(0.38, 0.88, segmentMask);
+
+    float darken = segmentMask * (0.18 + vCorruption * 0.05 + vLocalLoad * 0.02);
+    color *= (1.0 - darken);
     
     // Dim from corruption
     color *= (1.0 - vCorruption * 0.3);
