@@ -729,9 +729,47 @@ export class LinkRendererConduit {
             enableDebug: false
         });
         this.corruptionFeedbackVisuals.frameScheduler = this.frameScheduler;
+        // 10 Hz threshold-trigger state (link + node crossings)
+        this._corruptionFeedbackLinkState = new Map();
+        this._corruptionFeedbackNodeState = new Map();
+        this._corruptionFeedbackThresholds = {
+            linkSeed: 0.22,
+            linkSeedReset: 0.14,
+            linkCascade: 0.5,
+            linkCascadeReset: 0.36,
+            linkRecovery: 0.12,
+            linkRecoveryFrom: 0.24,
+            nodeSeed: 0.35,
+            nodeSeedReset: 0.24,
+            nodeCascade: 0.62,
+            nodeCascadeReset: 0.45,
+            nodeRecovery: 0.2,
+            nodeRecoveryFrom: 0.32,
+            pulseCooldownMs: 900
+        };
 
         // Trail particle system (visual only) - uses same noise as aura systems
         this.trailParticles = new LinkTrailParticleSystem(scene, 300);
+        this.trailParticles.registerTrailSource?.('corruption', {
+            emissionScale: 1.0,
+            lifetime: 1.25,
+            maxActive: 170
+        });
+        this.trailParticles.registerTrailSource?.('healing', {
+            emissionScale: 0.8,
+            lifetime: 1.05,
+            maxActive: 95
+        });
+        this.trailParticles.registerTrailSource?.('spark', {
+            emissionScale: 0.55,
+            lifetime: 0.75,
+            maxActive: 70
+        });
+        this.sharedTrailRates = {
+            corruption: 22,
+            healing: 16,
+            spark: 14
+        };
 
         // Trail emitters per link
         this.trailEmitters = new Map();
@@ -879,7 +917,8 @@ export class LinkRendererConduit {
                 time: frameTime,
                 flags: {
                     heavyTick: run30,
-                    runHeavyCorruptionUpdate
+                    runHeavyCorruptionUpdate,
+                    geometryTick: run10
                 }
             });
         }
@@ -917,13 +956,15 @@ export class LinkRendererConduit {
         if (run30 && this.corruptionParticleSystem?.update) {
             this.corruptionParticleSystem.update(deltaTime, time);
         }
-        if (run30 && this.corruptionSpreadAnimator?.update) {
-            this.corruptionSpreadAnimator.update(deltaTime, time);
-        }
+        // Spread animator is updated per-link in update(); global call removed
+        // because its signature is link-based and this call path was a no-op.
 
-        // Update corruption feedback visuals (idle until events are triggered)
-        if (run10 && this.corruptionFeedbackVisuals?.update) {
-            this.corruptionFeedbackVisuals.update(deltaTime);
+        // Local corruption threshold detector (10 Hz cadence)
+        if (run10) {
+            this._updateCorruptionFeedbackTriggers(list);
+            if (this.corruptionFeedbackVisuals?.update) {
+                this.corruptionFeedbackVisuals.update(deltaTime);
+            }
         }
 
         // Debug log (throttled) for healing activity
@@ -1173,8 +1214,6 @@ export class LinkRendererConduit {
         const group = new THREE.Group();
         Object.assign(ensureUserData(group), { isLinkVisual: true });
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
-        const state = conduitState;
-
         const sourceCat = link.source.userData.category || 'input';
         const targetCat = link.target.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
@@ -1182,110 +1221,18 @@ export class LinkRendererConduit {
         const colorA = new THREE.Color(this.getCategoryColor(sourceCat));
         const colorB = new THREE.Color(this.getCategoryColor(targetCat));
 
-        // 1. Determine Structure (Stable Randomization)
-        // Ensure 3-5 strands based on ID to maintain consistency per link
+        // Determine structure (stable randomization): 3-5 strands per link.
         const linkIdChar = (link.id || 'a').charCodeAt(0);
-        const strandCount = 3 + (linkIdChar % 3); // 3, 4, or 5 strands
+        const strandCount = 3 + (linkIdChar % 3);
 
-        // 2. Create Strands (The Rope)
-        const strands = [];
-        const strandDepthPasses = [];
-        const strandOverlays = [];
-        for (let i = 0; i < strandCount; i++) {
-            const categoryColor = (i % 2 === 0) ? colorA : colorB;
-
-            const flowMap = this.flowTexture ? this.flowTexture.clone() : null;
-            if (flowMap) {
-                flowMap.wrapS = THREE.RepeatWrapping;
-                flowMap.needsUpdate = true;
-                flowMap.offset.x = Math.random();
-            }
-
-            const material = new THREE.ShaderMaterial({
-                vertexShader: linkStateVertexShaderSimple,
-                fragmentShader: linkStateFragmentShaderSimple,
-                transparent: false,
-                depthWrite: true,
-                depthTest: true,
-                side: THREE.DoubleSide,
-                uniforms: {
-                    uNetworkStress: { value: 0.0 },
-                    uLocalLoad: { value: 0.0 },
-                    uCorruption: { value: 0.0 },
-                    uTime: { value: 0.0 },
-                    uBaseColor: { value: categoryColor.clone() }
-                }
-            });
-            ensureUserData(material);
-            material.userData.__owner = 'LinkRenderer';
-            material.userData.__domain = 'link';
-            material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
-
-            // Wave shader integration (standing/traveling wave uniforms)
-            if (this.waveShaderBridge?.registerMaterial) {
-                this.waveShaderBridge.registerMaterial(material);
-            }
-            if (this.waveTravelShaderPack?.applyToMaterial) {
-                this.waveTravelShaderPack.applyToMaterial(material);
-            }
-            if (this.waveDynamicsShaderPack?.applyToMaterial) {
-                this.waveDynamicsShaderPack.applyToMaterial(material);
-            }
-
-            const geometry = new THREE.BufferGeometry();
-            const strandOrder = VisualHierarchyRegistry.getRenderOrder('LINK_STRANDS');
-
-            // Hidden depth prepass preserves strand occlusion for pulse/streak FX
-            // while the visible strand pass stays transparent enough to keep the blotches.
-            const depthMaterial = new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                transparent: false,
-                depthWrite: true,
-                depthTest: true,
-                colorWrite: false,
-                side: THREE.DoubleSide
-            });
-            const depthMesh = new THREE.Mesh(geometry, depthMaterial);
-            Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
-            depthMesh.frustumCulled = false;
-            applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
-                materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
-            });
-            depthMesh.raycast = () => null;
-            group.add(depthMesh);
-            strandDepthPasses.push(depthMesh);
-
-            const mesh = new THREE.Mesh(geometry, material);
-            Object.assign(ensureUserData(mesh), { strandIndex: i });
-            mesh.frustumCulled = false;
-            geometry.computeBoundingSphere();
-            geometry.computeBoundingBox();
-            applyLinkRenderLayer(mesh, 'LINK_STRANDS');
-            freezeMaterialFlags(material, 'LinkRenderer');
-            material.userData.__flagsFrozen = true;
-            ensureUserData(mesh);
-            mesh.userData.__depthAuthorityLocked = true;
-            mesh.raycast = () => null; // prevent blocking node raycasts
-
-            group.add(mesh);
-            strands.push(mesh);
-
-            // Blotch detail is now baked directly into the base strand shader.
-        }
-        state.strandDepthPasses = strandDepthPasses;
-        state.strandOverlays = strandOverlays;
-
-        // 3. Create Aura Skin (Unified with Node Aura - Shader-based)
-        // PHASE S-5: Variant properties set at creation time, then frozen
-        // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
+        // Frame 0: core shell + skin mesh (requested bootstrap ordering).
         const skinMaterial = createLinkAuraMaterial({
-            baseDisplacement: 0.15,     // 60% of node aura
-            noiseScale: 2.0,            // Same scale as node
-            timeScale: 0.5,             // Same rhythm as node
-            baseOpacity: 0.12,          // Lower than node (node ≈ 0.25)
-            harmonyInfluence: 0.8,      // Identical harmony response
-            corruptionInfluence: 0.9,   // Slightly less than node (1.2)
-            // Variant properties (frozen after creation):
+            baseDisplacement: 0.15,
+            noiseScale: 2.0,
+            timeScale: 0.5,
+            baseOpacity: 0.12,
+            harmonyInfluence: 0.8,
+            corruptionInfluence: 0.9,
             transparent: true,
             depthWrite: false,
             depthTest: true,
@@ -1307,165 +1254,205 @@ export class LinkRendererConduit {
         skinMesh.userData.__depthAuthorityLocked = true;
         group.add(skinMesh);
 
-        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-            console.log('[LinkRendererConduit] LINK GROUP PARENT:', group.parent);
-        }
-
-        // 4. Initialize Subsystems (Defensive)
-        let beadVisualizer = new LinkBeadVisualizer(link, this.scene);
-        group.add(beadVisualizer.getGroup());
-
-        let sparkSystem = new LinkSparkSystem(this.scene);
-        group.add(sparkSystem.getMesh());
-
-        // AUDIT: Verify spark mesh is added to group
-        // (sparkSystem.getMesh() is already added to group at line 881)
-
-        let trailSystem = null;
-        try { if (LinkBeadTrailSystem) trailSystem = new LinkBeadTrailSystem(this.scene); } catch(e){ throw e; }
-        if(trailSystem) group.add(trailSystem.getMesh());
-
-        let linkTrailEmitter = null;
-        try {
-            if (LinkTrailEmitter && window.game?.linkTrailParticles) {
-                linkTrailEmitter = new LinkTrailEmitter(link, window.game.linkTrailParticles);
-                console.log('[LinkRendererConduit] LinkTrailEmitter SUCCESSFULLY created for link:', link.id);
-                console.log('[LinkRendererConduit] LinkTrailParticles available:', !!window.game?.linkTrailParticles);
-                console.log('[LinkRendererConduit] LinkTrailEmitter stored in state.trails for link:', link.id);
-            }
-        } catch(e) {
-            console.warn('[LinkRendererConduit] LinkTrailEmitter creation failed:', e);
-        }
-
-        // Store LinkTrailEmitter in state for consistency with other subsystems
-        if (linkTrailEmitter) {
-            state.trails = linkTrailEmitter;
-            console.log('[LinkRendererConduit] LinkTrailEmitter stored in state.trails for link:', link.id);
-        }
-
-        let ringSystem = null;
-        try { if (LinkEnergyRingSystem) ringSystem = new LinkEnergyRingSystem(this.scene); } catch(e){ throw e; }
-
-        // 5. Flow Carrier (Mandatory)
-        let pulseRing = null;
-        let pulseDust = null;
-        try {
-            if (LinkPulseRing) {
-                pulseRing = new LinkPulseRing(this.scene);
-                group.add(pulseRing.getMesh());
-                // Pridať trail meshy do group po pulseRing.getMesh()
-                if (pulseRing.getTrailMeshes) {
-                    const trailMeshes = pulseRing.getTrailMeshes();
-                    if (Array.isArray(trailMeshes)) {
-                        trailMeshes.forEach(mesh => group.add(mesh));
-                    }
-                }
-                if (LinkPulseDustEmitter) {
-                    pulseDust = new LinkPulseDustEmitter(160);
-                    this.conduitRoot.add(pulseDust.getObject3D());
-                }
-            }
-        } catch (e) { throw e; }
-
-        // 6. Energy Wave System (Mandatory)
-        let energyWave = null;
-        try {
-            if (LinkEnergyWave) {
-                energyWave = new LinkEnergyWave();
-            }
-        } catch (e) { throw e; }
-
-        // 7. Arc Discharge System (Ring Enhancement)
-        let arcDischarges = null;
-        try {
-            if (LinkRingArcDischarges) {
-                arcDischarges = new LinkRingArcDischarges(this.scene);
-                group.add(arcDischarges.getGroup());
-                if (pulseRing?.setArcSystem) {
-                    pulseRing.setArcSystem(arcDischarges);
-                }
-            }
-        } catch (e) { throw e; }
-
-        // 8. Visual State Adapter (Harmony/Corruption Bridge)
-        let visualStateAdapter = null;
-        try {
-            if (LinkVisualStateAdapter) {
-                visualStateAdapter = new LinkVisualStateAdapter();
-            }
-        } catch (e) { throw e; }
-
-        // 9. Directional Energy Streaks (Adapter-only flow visualization)
-        let directionalStreaks = null;
-        try {
-            if (LinkDirectionalStreaks && this.directionalStreaks) {
-                directionalStreaks = this.directionalStreaks;
-                // Initialize streaks with deterministic randomization based on link ID
-                const linkIdHash = (link.id || link.uuid || `link-unknown`)
-                    .split('')
-                    .reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
-
-                // Get harmonic hub controller if this link is connected to a hub
-                const sourceController = this.nodeHarmonicManager?.nodeControllers.get(link.source);
-                const hubController = sourceController?.isActive ? sourceController : null;
-
-                directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
-                conduitState.__streaksInit = true;
-
-                // ALWAYS log initialization (for debugging visibility issues)
-                if (typeof window !== 'undefined') {
-                    console.log('[DirectionalStreaks] INITIALIZED for link:', link.id, 'hash:', linkIdHash);
-                }
-            } else {
-                if (typeof window !== 'undefined') {
-                    console.warn('[DirectionalStreaks] NOT INITIALIZED - missing LinkDirectionalStreaks or this.directionalStreaks');
-                }
-            }
-        } catch (e) {
-            console.error('[DirectionalStreaks] INITIALIZATION FAILED:', e);
-            debugWarn(window.ATOMA_DEBUG_LINK, 'LinkRenderer: Failed to init directional streaks', e);
-        }
-
-        // Store unified state
         Object.assign(conduitState, {
-            strands: strands,
-            strandCount: strandCount, // Store for update loop
+            strands: [],
+            strandCount: strandCount,
+            strandDepthPasses: [],
+            strandOverlays: [],
             skinMesh: skinMesh,
-            beads: beadVisualizer,
-            sparks: sparkSystem,
-            trails: trailSystem,
-            rings: ringSystem,
-            pulseRing: pulseRing,
-            pulseDust: pulseDust,
-            energyWave: energyWave,
-            arcDischarges: arcDischarges,
-            visualStateAdapter: visualStateAdapter,
-            directionalStreaks: conduitState.directionalStreaks || null, // Per-link streak state
-            directionalStreaksManager: directionalStreaks, // Manager reference
+            beads: null,
+            sparks: null,
+            trails: null,
+            rings: null,
+            pulseRing: null,
+            pulseDust: null,
+            energyWave: null,
+            arcDischarges: null,
+            visualStateAdapter: null,
+            directionalStreaks: null,
+            directionalStreaksManager: null,
             phaseOffset: Math.random() * Math.PI * 2,
             baseColor: baseColor,
             baseColorObj: baseColorObj,
-            impacts: []
+            colorA,
+            colorB,
+            impacts: [],
+            __dynamicGeometryInitialized: false,
+            bootstrap: {
+                phase: 0,
+                maxPhase: 9,
+                complete: false
+            }
         });
 
-        // Initialize corruption animation state for this link
-        if (this.corruptionAnimator && link.id) {
-            this.corruptionAnimator.initializeLink(link);
-        }
-
-        // Initialize trail particle emitter for this link
-        if (this.trailParticles && link.id) {
-            const emitter = new LinkTrailEmitter(link, this.trailParticles);
-            this.trailEmitters.set(link.id, emitter);
-        }
-
-        // Initialize healing particle emitter for this link
-        if (this.healingParticles && link.id) {
-            const emitter = new LinkHealingEmitter(link, this.healingParticles);
-            this.healingEmitters.set(link.id, emitter);
-        }
-
         return group;
+    }
+
+    _advanceLinkBootstrap(link, state) {
+        const bootstrap = state?.bootstrap;
+        if (!bootstrap || bootstrap.complete) return;
+        const nextPhase = bootstrap.phase + 1;
+        this._runBootstrapPhase(link, state, nextPhase);
+        bootstrap.phase = nextPhase;
+        if (nextPhase >= bootstrap.maxPhase) {
+            bootstrap.complete = true;
+        }
+    }
+
+    _runBootstrapPhase(link, state, phase) {
+        const group = link?.group;
+        if (!group || !state) return;
+
+        switch (phase) {
+            case 1: { // Frame 1: strand geometry + strand shader
+                if (state.strands?.length) break;
+                const strandCount = state.strandCount || 3;
+                for (let i = 0; i < strandCount; i++) {
+                    const categoryColor = (i % 2 === 0) ? state.colorA : state.colorB;
+                    const material = new THREE.ShaderMaterial({
+                        vertexShader: linkStateVertexShaderSimple,
+                        fragmentShader: linkStateFragmentShaderSimple,
+                        transparent: false,
+                        depthWrite: true,
+                        depthTest: true,
+                        side: THREE.DoubleSide,
+                        uniforms: {
+                            uNetworkStress: { value: 0.0 },
+                            uLocalLoad: { value: 0.0 },
+                            uCorruption: { value: 0.0 },
+                            uTime: { value: 0.0 },
+                            uSegmentCount: { value: 44.0 },
+                            uBaseColor: { value: categoryColor.clone() }
+                        }
+                    });
+                    ensureUserData(material);
+                    material.userData.__owner = 'LinkRenderer';
+                    material.userData.__domain = 'link';
+                    material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+
+                    if (this.waveShaderBridge?.registerMaterial) this.waveShaderBridge.registerMaterial(material);
+                    if (this.waveTravelShaderPack?.applyToMaterial) this.waveTravelShaderPack.applyToMaterial(material);
+                    if (this.waveDynamicsShaderPack?.applyToMaterial) this.waveDynamicsShaderPack.applyToMaterial(material);
+
+                    const geometry = new THREE.BufferGeometry();
+                    const depthMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x000000,
+                        transparent: false,
+                        depthWrite: true,
+                        depthTest: true,
+                        colorWrite: false,
+                        side: THREE.DoubleSide
+                    });
+                    const depthMesh = new THREE.Mesh(geometry, depthMaterial);
+                    Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
+                    depthMesh.frustumCulled = false;
+                    applyLinkRenderLayer(depthMesh, 'LINK_CORE', {
+                        materialOverrides: { colorWrite: false, side: THREE.DoubleSide }
+                    });
+                    depthMesh.raycast = () => null;
+                    group.add(depthMesh);
+                    state.strandDepthPasses.push(depthMesh);
+
+                    const mesh = new THREE.Mesh(geometry, material);
+                    Object.assign(ensureUserData(mesh), { strandIndex: i });
+                    mesh.frustumCulled = false;
+                    geometry.computeBoundingSphere();
+                    geometry.computeBoundingBox();
+                    applyLinkRenderLayer(mesh, 'LINK_STRANDS');
+                    freezeMaterialFlags(material, 'LinkRenderer');
+                    material.userData.__flagsFrozen = true;
+                    ensureUserData(mesh);
+                    mesh.userData.__depthAuthorityLocked = true;
+                    mesh.raycast = () => null;
+                    group.add(mesh);
+                    state.strands.push(mesh);
+                }
+                state.__dynamicGeometryInitialized = false;
+                break;
+            }
+            case 2: { // Frame 2: pulseRing + ring trails
+                if (state.pulseRing) break;
+                if (LinkPulseRing) {
+                    state.pulseRing = new LinkPulseRing(this.scene);
+                    group.add(state.pulseRing.getMesh());
+                    if (state.pulseRing.getTrailMeshes) {
+                        const trailMeshes = state.pulseRing.getTrailMeshes();
+                        if (Array.isArray(trailMeshes)) {
+                            trailMeshes.forEach(mesh => group.add(mesh));
+                        }
+                    }
+                }
+                break;
+            }
+            case 3: { // Frame 3: energyWave + pulseDustEmitter
+                if (!state.energyWave && LinkEnergyWave) state.energyWave = new LinkEnergyWave();
+                if (!state.pulseDust && LinkPulseDustEmitter) {
+                    state.pulseDust = new LinkPulseDustEmitter(160);
+                    this.conduitRoot.add(state.pulseDust.getObject3D());
+                }
+                break;
+            }
+            case 4: { // Frame 4: directionalStreaks
+                if (state.directionalStreaks || !LinkDirectionalStreaks || !this.directionalStreaks) break;
+                const linkIdHash = (link.id || link.uuid || 'link-unknown')
+                    .split('')
+                    .reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
+                const sourceController = this.nodeHarmonicManager?.nodeControllers.get(link.source);
+                const hubController = sourceController?.isActive ? sourceController : null;
+                this.directionalStreaks.initialize(group, linkIdHash, link, link.source, link.target, hubController);
+                state.directionalStreaks = group.userData?.conduitState?.directionalStreaks || null;
+                state.directionalStreaksManager = this.directionalStreaks;
+                break;
+            }
+            case 5: { // Frame 5: arcDischarges
+                if (state.arcDischarges || !LinkRingArcDischarges) break;
+                state.arcDischarges = new LinkRingArcDischarges(this.scene);
+                group.add(state.arcDischarges.getGroup());
+                if (state.pulseRing?.setArcSystem) state.pulseRing.setArcSystem(state.arcDischarges);
+                break;
+            }
+            case 6: { // Frame 6: beads
+                if (!state.rings && LinkEnergyRingSystem) state.rings = new LinkEnergyRingSystem(this.scene);
+                if (!state.beads && LinkBeadVisualizer) {
+                    state.beads = new LinkBeadVisualizer(link, this.scene);
+                    group.add(state.beads.getGroup());
+                }
+                break;
+            }
+            case 7: { // Frame 7: bead trails
+                if (!state.trails && LinkBeadTrailSystem) {
+                    state.trails = new LinkBeadTrailSystem(this.scene);
+                    group.add(state.trails.getMesh());
+                }
+                break;
+            }
+            case 8: { // Frame 8: sparks
+                if (!state.sparks && LinkSparkSystem) {
+                    state.sparks = new LinkSparkSystem(this.scene);
+                    group.add(state.sparks.getMesh());
+                }
+                break;
+            }
+            case 9: { // Frame 9: corruption/healing emitters + adapters
+                if (!state.visualStateAdapter && LinkVisualStateAdapter) {
+                    state.visualStateAdapter = new LinkVisualStateAdapter();
+                }
+                if (this.corruptionAnimator && link.id) {
+                    this.corruptionAnimator.initializeLink(link);
+                }
+                if (this.trailParticles && link.id && !this.trailEmitters.has(link.id)) {
+                    const emitter = new LinkTrailEmitter(link, this.trailParticles, 'corruption');
+                    this.trailEmitters.set(link.id, emitter);
+                }
+                if (this.healingParticles && link.id && !this.healingEmitters.has(link.id)) {
+                    const emitter = new LinkHealingEmitter(link, this.healingParticles);
+                    this.healingEmitters.set(link.id, emitter);
+                }
+                break;
+            }
+            default:
+                break;
+        }
     }
 
     /**
@@ -1499,6 +1486,7 @@ export class LinkRendererConduit {
             return;
         }
 
+        this._advanceLinkBootstrap(link, state);
         state.metrics = metrics;
 
         // Harmonic sync update (links + aggregated metrics)
@@ -1519,7 +1507,10 @@ export class LinkRendererConduit {
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
             if (this.corruptionSpreadAnimator && state.strands) {
-                this.corruptionSpreadAnimator.update(link, visualDelta, state.strands);
+                this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
+                    corruptionLevel: metrics?.corruption,
+                    nowMs: performance.now()
+                });
             }
             if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
                 this.corruptionMorphing.update(
@@ -1906,8 +1897,11 @@ export class LinkRendererConduit {
         const linkUD = ensureUserData(link);
         linkUD.linkDirection = linkDir.clone();
 
-        const segments = computeSegmentsFromLength(mainCurve);
-        const frames = mainCurve.computeFrenetFrames(segments, false);
+        const geometryTick = (frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true;
+        const segments = geometryTick
+            ? computeSegmentsFromLength(mainCurve)
+            : (state.strandSegments || computeSegmentsFromLength(mainCurve));
+        const frames = geometryTick ? mainCurve.computeFrenetFrames(segments, false) : null;
         frameState.geometry.frames = frames;
 
         // --- 2. Dynamic Parameters ---
@@ -1940,7 +1934,8 @@ export class LinkRendererConduit {
         // Optimization: Pre-calculate loop invariants
         const flowSpeed = (0.2 + (synergy * 1.2)) * vfx.speedMul;
         const noiseBase = 0.005 * (1.0 - synergy);
-        const overlaySegmentCount = remap(linkDist, 3.0, 40.0, 18.0, 28.0);
+        // Denser strand marks with length-scaled count to avoid sparse long links.
+        const overlaySegmentCount = THREE.MathUtils.clamp(24.0 + (linkDist * 1.2), 28.0, 88.0);
 
         state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
@@ -1965,6 +1960,14 @@ export class LinkRendererConduit {
                 const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
                 const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
                 mergePatch(materialPatches.strands, mesh, { opacity: mesh.material.opacity, emissiveIntensity, owner: 'opacityStage' });
+            }
+
+            if (!geometryTick) {
+                // Runtime cost guard: avoid per-frame TubeGeometry rebuild churn.
+                if (mesh.material && mesh.material.linewidth !== undefined) {
+                    mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
+                }
+                return;
             }
 
             // Generate helical path
@@ -2047,14 +2050,16 @@ export class LinkRendererConduit {
                  return;
              }
              const skin = state.skinMesh;
-             if (skin.geometry) skin.geometry.dispose();
-             skin.geometry = new THREE.TubeGeometry(
-                 mainCurve,
-                 segments,
-                 activeRadius * this.config.skinRadiusScale,
-                 8,
-                 false
-             );
+             if (geometryTick) {
+                 if (skin.geometry) skin.geometry.dispose();
+                 skin.geometry = new THREE.TubeGeometry(
+                     mainCurve,
+                     segments,
+                     activeRadius * this.config.skinRadiusScale,
+                     8,
+                     false
+                 );
+             }
 
              // Update shader material uniforms for node state
              if (skin.material && skin.material.uniforms) {
@@ -2106,6 +2111,9 @@ export class LinkRendererConduit {
                 materialPatches.skin.owner = 'opacityStage';
             }
        }
+        if (geometryTick) {
+            state.__dynamicGeometryInitialized = true;
+        }
 
         // --- 4.5. TRAIL PARTICLE EFFECTS ---
         // Emit organic trail particles using same noise as aura systems
@@ -2123,6 +2131,23 @@ export class LinkRendererConduit {
                     linkHarmony,
                     linkCorruption
                 );
+            }
+
+            // Shared pool mapping: LinkCorruptionParticleSystem -> corruption trail source.
+            if (this.modules.corruptionFX && this.corruptionParticleSystem && runHeavyCorruptionUpdate) {
+                const corruptionLevel = Math.max(0, Math.min(1, metrics.corruption ?? 0));
+                if (corruptionLevel > 0.08) {
+                    this.trailParticles.emitFromSource?.({
+                        type: 'corruption',
+                        link,
+                        curve: mainCurve,
+                        linkDirection: linkDir,
+                        emissionRate: this.sharedTrailRates.corruption * (0.35 + corruptionLevel * 1.05),
+                        time: visualTime,
+                        harmony: metrics.harmony ?? 0.5,
+                        corruption: corruptionLevel
+                    });
+                }
             }
         }
 
@@ -2145,6 +2170,17 @@ export class LinkRendererConduit {
                             linkCorruption,
                             tintColor
                         );
+                        // Shared pool mapping: LinkHealingParticleSystem -> healing trail source.
+                        this.trailParticles?.emitFromSource?.({
+                            type: 'healing',
+                            link,
+                            curve: mainCurve,
+                            linkDirection: linkDir.clone().negate(),
+                            emissionRate: this.sharedTrailRates.healing * (0.4 + (linkHarmony - linkCorruption)),
+                            time: visualTime,
+                            harmony: linkHarmony,
+                            corruption: linkCorruption
+                        });
                         this._healingActiveCount = (this._healingActiveCount || 0) + 1;
                     }
                 }
@@ -2190,6 +2226,19 @@ export class LinkRendererConduit {
 
             state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
+
+            // Shared pool mapping: LinkSparkSystem -> spark trail source.
+            this.trailParticles?.emitFromSource?.({
+                type: 'spark',
+                link,
+                curve: mainCurve,
+                linkDirection: linkDir,
+                emissionRate: this.sharedTrailRates.spark * (0.45 + vfx.sparksIntensity),
+                time: visualTime,
+                harmony: metrics.harmony ?? 0.5,
+                corruption: metrics.corruption ?? 0,
+                color: currentColor
+            });
         }
 
         // Update LinkTrailEmitter (if available)
@@ -2229,17 +2278,9 @@ export class LinkRendererConduit {
         }
 
         // --- 6. Energy Wave Update (Unified Wave Through Strands) ---
-        if (state.energyWave && this.modules.flow) {
-            // Pass base emissive intensity from strand material
-            const baseEmissiveIntensity = state.strands[0]?.material?.emissiveIntensity || 1.2;
-            state.energyWave.update(
-                state.strands,
-                visualDelta,
-                synergy,
-                trafficLoad,
-                baseEmissiveIntensity
-            );
-        }
+        // NOTE:
+        // We intentionally run LinkEnergyWave AFTER staged material patches (end of update)
+        // so its emissive modulation is not overwritten by earlier patch owners.
 
         // --- 7. Arc Discharge Update (Ring-triggered Electric Sparks) ---
         if (state.arcDischarges && state.pulseRing && this.modules.flow) {
@@ -2364,6 +2405,18 @@ export class LinkRendererConduit {
         }
         for (const [strandMesh, patch] of materialPatches.strands.entries()) {
             applyMaterialPatch(strandMesh.material, patch);
+        }
+
+        // Final-pass wave modulation (single authoritative per-link flow path).
+        if (state.energyWave && this.modules.flow) {
+            const baseEmissiveIntensity = state.strands[0]?.material?.emissiveIntensity || 1.2;
+            state.energyWave.update(
+                state.strands,
+                visualDelta,
+                synergy,
+                trafficLoad,
+                baseEmissiveIntensity
+            );
         }
     }
 
@@ -2607,6 +2660,143 @@ export class LinkRendererConduit {
             'mythic': 0x9933ff, 'prime': 0xffd700, 'error': 0xffffff
         };
         return colors[category] || 0xcccccc;
+    }
+
+    _getNodeId(node) {
+        return node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
+    }
+
+    _readNodeCorruption(node) {
+        if (!node) return 0;
+        const userData = node.userData || {};
+        const metrics = userData.metrics || {};
+        const values = [
+            metrics.corruption,
+            userData.corruption,
+            userData.corruptionLevel,
+            node.corruption,
+            node.corruptionLevel
+        ];
+        for (const value of values) {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                return Math.max(0, Math.min(1, value));
+            }
+        }
+        return 0;
+    }
+
+    _getLinkFeedbackNode(link) {
+        return link?.target || link?.targetNode || link?.to || link?.source || link?.sourceNode || link?.from || null;
+    }
+
+    _updateCorruptionFeedbackTriggers(links) {
+        if (!this.corruptionFeedbackVisuals || !Array.isArray(links) || links.length === 0) return;
+
+        const nowMs = performance.now();
+        const thresholds = this._corruptionFeedbackThresholds;
+        const seenNodeIds = new Set();
+        const liveLinkIds = new Set();
+
+        for (const link of links) {
+            if (!link || !link.id) continue;
+            liveLinkIds.add(link.id);
+
+            const metrics = link?.group?.userData?.conduitState?.metrics || this._readLinkMetrics(link);
+            const corruption = Math.max(0, Math.min(1, metrics?.corruption ?? 0));
+            const anchorNode = this._getLinkFeedbackNode(link);
+
+            const linkState = this._corruptionFeedbackLinkState.get(link.id) || {
+                lastCorruption: 0,
+                seedLatched: false,
+                cascadeLatched: false,
+                lastPulseTime: -Infinity
+            };
+
+            // Rising seed crossing
+            if (!linkState.seedLatched &&
+                linkState.lastCorruption < thresholds.linkSeed &&
+                corruption >= thresholds.linkSeed) {
+                this.corruptionFeedbackVisuals.displayCorruptionSeed?.(anchorNode);
+                linkState.seedLatched = true;
+            }
+            // Rising cascade crossing
+            if (!linkState.cascadeLatched &&
+                linkState.lastCorruption < thresholds.linkCascade &&
+                corruption >= thresholds.linkCascade) {
+                this.corruptionFeedbackVisuals.displayCascadeWarning?.(anchorNode);
+                linkState.cascadeLatched = true;
+            }
+            // Downward recovery crossing
+            if (linkState.lastCorruption >= thresholds.linkRecoveryFrom &&
+                corruption <= thresholds.linkRecovery &&
+                nowMs - linkState.lastPulseTime >= thresholds.pulseCooldownMs) {
+                this.corruptionFeedbackVisuals.displayHarmonyPulse?.(anchorNode);
+                linkState.lastPulseTime = nowMs;
+            }
+
+            if (linkState.seedLatched && corruption <= thresholds.linkSeedReset) {
+                linkState.seedLatched = false;
+            }
+            if (linkState.cascadeLatched && corruption <= thresholds.linkCascadeReset) {
+                linkState.cascadeLatched = false;
+            }
+
+            linkState.lastCorruption = corruption;
+            this._corruptionFeedbackLinkState.set(link.id, linkState);
+
+            // Node-level crossing detector (source + target), deduplicated per tick.
+            const candidates = [
+                link?.source || link?.sourceNode || link?.from || null,
+                link?.target || link?.targetNode || link?.to || null
+            ];
+            for (const node of candidates) {
+                const nodeId = this._getNodeId(node);
+                if (!node || nodeId === null || seenNodeIds.has(nodeId)) continue;
+                seenNodeIds.add(nodeId);
+
+                const nodeCorruption = this._readNodeCorruption(node);
+                const nodeState = this._corruptionFeedbackNodeState.get(nodeId) || {
+                    lastCorruption: 0,
+                    seedLatched: false,
+                    cascadeLatched: false,
+                    lastPulseTime: -Infinity
+                };
+
+                if (!nodeState.seedLatched &&
+                    nodeState.lastCorruption < thresholds.nodeSeed &&
+                    nodeCorruption >= thresholds.nodeSeed) {
+                    this.corruptionFeedbackVisuals.displayCorruptionSeed?.(node);
+                    nodeState.seedLatched = true;
+                }
+                if (!nodeState.cascadeLatched &&
+                    nodeState.lastCorruption < thresholds.nodeCascade &&
+                    nodeCorruption >= thresholds.nodeCascade) {
+                    this.corruptionFeedbackVisuals.displayCascadeWarning?.(node);
+                    nodeState.cascadeLatched = true;
+                }
+                if (nodeState.lastCorruption >= thresholds.nodeRecoveryFrom &&
+                    nodeCorruption <= thresholds.nodeRecovery &&
+                    nowMs - nodeState.lastPulseTime >= thresholds.pulseCooldownMs) {
+                    this.corruptionFeedbackVisuals.displayHarmonyPulse?.(node);
+                    nodeState.lastPulseTime = nowMs;
+                }
+
+                if (nodeState.seedLatched && nodeCorruption <= thresholds.nodeSeedReset) {
+                    nodeState.seedLatched = false;
+                }
+                if (nodeState.cascadeLatched && nodeCorruption <= thresholds.nodeCascadeReset) {
+                    nodeState.cascadeLatched = false;
+                }
+
+                nodeState.lastCorruption = nodeCorruption;
+                this._corruptionFeedbackNodeState.set(nodeId, nodeState);
+            }
+        }
+
+        // Cleanup stale link detector state.
+        for (const linkId of this._corruptionFeedbackLinkState.keys()) {
+            if (!liveLinkIds.has(linkId)) this._corruptionFeedbackLinkState.delete(linkId);
+        }
     }
 
     _getImpactMaterial(colorHex) {

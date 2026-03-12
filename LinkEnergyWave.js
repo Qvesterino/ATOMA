@@ -30,6 +30,9 @@ export class LinkEnergyWave {
             peakIntensity: 2.0,       // Enhanced peak emissive intensity (increased from 1.4)
             trafficBoost: 1.4,        // Enhanced multiplier per traffic unit (increased from 1.2)
             synergyBoost: 1.0,        // Enhanced multiplier per synergy unit (increased from 0.8)
+            // Keep wave readable even on very low-signal links.
+            minimumBaseEmissive: 0.55,
+            minimumVisibleIntensity: 0.35,
         };
         
         // Math cache
@@ -46,19 +49,22 @@ export class LinkEnergyWave {
      */
     update(strands, deltaTime, synergy = 0.5, traffic = 0, baseEmissiveIntensity = 1.2) {
         if (!strands || strands.length === 0) return;
+        const safeSynergy = Math.max(0, Math.min(1, Number.isFinite(synergy) ? synergy : 0.5));
+        const safeTraffic = Math.max(0, Math.min(1, Number.isFinite(traffic) ? traffic : 0));
+        const safeBase = Math.max(this.config.minimumBaseEmissive, Number.isFinite(baseEmissiveIntensity) ? baseEmissiveIntensity : 0);
 
         // Advance global wave time
         this.flowTime += deltaTime;
 
         // Calculate wave parameters
-        const speedMult = 1.0 + (traffic * this.config.trafficBoost) + (synergy * this.config.synergyBoost);
+        const speedMult = 1.0 + (safeTraffic * this.config.trafficBoost) + (safeSynergy * this.config.synergyBoost);
         const waveSpeed = this.config.baseWaveSpeed * speedMult;
         
         // Normalized wave position (0 -> 1 over one cycle)
         const wavePosition = (this.flowTime / waveSpeed) % 1.0;
 
         // Modulation intensity increases with synergy and traffic (enhanced impact)
-        const intensityMult = this.config.baseIntensity + (synergy * 0.6) + (traffic * 0.4);
+        const intensityMult = this.config.baseIntensity + (safeSynergy * 0.6) + (safeTraffic * 0.4);
 
         // Apply wave to each strand with phase offset
         strands.forEach((strand, strandIndex) => {
@@ -85,10 +91,13 @@ export class LinkEnergyWave {
             
             // Final emissive intensity: base + modulation
             const modulation = this.config.baseIntensity + (normalizedInfluence * this.config.peakIntensity - this.config.baseIntensity);
-            const finalIntensity = baseEmissiveIntensity * (modulation * intensityMult);
+            const finalIntensity = safeBase * (modulation * intensityMult);
 
             // Apply to material
-            strand.material.emissiveIntensity = Math.max(0.2, Math.min(3.0, finalIntensity));
+            strand.material.emissiveIntensity = Math.max(
+                this.config.minimumVisibleIntensity,
+                Math.min(3.0, finalIntensity)
+            );
         });
     }
 

@@ -170,6 +170,7 @@ class TrailParticle {
     // Link reference
     this.link = null;
     this.curve = null;
+    this.sourceType = 'corruption';
     
     // Impact tracking
     this.lastProgress = -0.1;  // Track progress to detect arrival
@@ -187,6 +188,7 @@ class TrailParticle {
     this.progress = 0;
     this.lastProgress = -0.1;
     this.impactTriggered = false;
+    this.sourceType = 'corruption';
     if (this.mesh) {
       this.mesh.visible = false;       // Hide frozen particle
       this.mesh.scale.setScalar(0);    // Collapse geometry to avoid lingering dots
@@ -322,13 +324,14 @@ class TrailParticle {
     return p2.clone().sub(p1).normalize();
   }
 
-  emit(startPos, link, curve, lifetime = 1.0) {
+  emit(startPos, link, curve, lifetime = 1.0, sourceType = 'corruption') {
     this.active = true;
     this.age = 0;
     this.progress = 0;
     this.lifetime = lifetime;
     this.link = link;
     this.curve = curve;
+    this.sourceType = sourceType;
     
     this.position.copy(startPos);
     this.opacity = 0;
@@ -350,6 +353,8 @@ export class LinkTrailParticleSystem {
     this.poolSize = poolSize;
     this.particles = [];
     this.active = 0;
+    this.activeByType = new Map();
+    this.sourceProfiles = new Map();
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
@@ -385,6 +390,45 @@ export class LinkTrailParticleSystem {
       const particle = new TrailParticle(mesh);
       this.particles.push(particle);
     }
+
+    // Shared source API defaults (single pool, typed streams).
+    this.registerTrailSource('corruption', {
+      emissionScale: 1.0,
+      lifetime: 1.25,
+      scaleBase: 0.07,
+      scaleByCorruption: 0.08,
+      maxActive: Math.floor(poolSize * 0.55),
+      color: null
+    });
+    this.registerTrailSource('healing', {
+      emissionScale: 0.8,
+      lifetime: 1.05,
+      scaleBase: 0.06,
+      scaleByCorruption: 0.02,
+      maxActive: Math.floor(poolSize * 0.32),
+      color: new THREE.Color(0x99f5ff)
+    });
+    this.registerTrailSource('spark', {
+      emissionScale: 0.55,
+      lifetime: 0.75,
+      scaleBase: 0.045,
+      scaleByCorruption: 0.02,
+      maxActive: Math.floor(poolSize * 0.24),
+      color: new THREE.Color(0xffdd99)
+    });
+  }
+
+  registerTrailSource(type, profile = {}) {
+    if (!type) return;
+    const current = this.sourceProfiles.get(type) || {};
+    this.sourceProfiles.set(type, {
+      emissionScale: profile.emissionScale ?? current.emissionScale ?? 1.0,
+      lifetime: profile.lifetime ?? current.lifetime ?? 1.0,
+      scaleBase: profile.scaleBase ?? current.scaleBase ?? 0.06,
+      scaleByCorruption: profile.scaleByCorruption ?? current.scaleByCorruption ?? 0.06,
+      maxActive: Math.max(1, Math.floor(profile.maxActive ?? current.maxActive ?? Math.max(1, this.poolSize * 0.33))),
+      color: profile.color ?? current.color ?? null
+    });
   }
 
   /**
@@ -392,38 +436,58 @@ export class LinkTrailParticleSystem {
    * Called when link is active and flowing
    */
   emitAlongLink(link, curve, linkDirection, emissionRate, time, harmony = 0.5, corruption = 0.2) {
+    this.emitFromSource({
+      type: 'corruption',
+      link,
+      curve,
+      linkDirection,
+      emissionRate,
+      time,
+      harmony,
+      corruption
+    });
+  }
+
+  emitFromSource(params = {}) {
+    const {
+      type = 'corruption',
+      link,
+      curve,
+      emissionRate = 0,
+      harmony = 0.5,
+      corruption = 0.2,
+      color = null
+    } = params;
     if (!curve || emissionRate <= 0) return;
 
-    // Calculate emission count based on rate and frame time
-    const emitCount = Math.floor(emissionRate * 0.016); // Assume 60 FPS
+    const profile = this.sourceProfiles.get(type) || this.sourceProfiles.get('corruption');
+    const rate = Math.max(0, emissionRate * (profile?.emissionScale ?? 1.0));
+    const emitCount = Math.floor(rate * 0.016); // Assume 60 FPS cadence
+    if (emitCount <= 0) return;
 
     for (let i = 0; i < emitCount && this.active < this.poolSize; i++) {
-      // Find inactive particle
-      let particle = null;
-      for (let p of this.particles) {
-        if (!p.active) {
-          particle = p;
-          break;
-        }
-      }
-
+      const particle = this._acquireParticle(type);
       if (!particle) break;
 
-      // Random position along link
       const randomProgress = Math.random();
       const emitPos = curve.getPointAt(randomProgress);
+      const lifetime = profile?.lifetime ?? 1.0;
+      particle.emit(emitPos, link, curve, lifetime, type);
 
-      // Set particle properties based on link state
-      particle.emit(emitPos, link, curve, 1.2);
+      if (color && color.isColor) {
+        particle.color = color.clone();
+      } else if (profile?.color && profile.color.isColor) {
+        particle.color = profile.color.clone();
+      } else {
+        particle.color = this._getParticleColorForType(type, harmony, corruption);
+      }
 
-      // Color based on link state
-      particle.color = this._getParticleColor(harmony, corruption);
-
-      // Scale based on corruption
-      particle.scale = 0.06 + corruption * 0.06;
-
-      // Add to active count
+      const baseScale = profile?.scaleBase ?? 0.06;
+      const scaleByCorruption = profile?.scaleByCorruption ?? 0.06;
+      const safeCorruption = Math.max(0, Math.min(1, corruption ?? 0));
+      particle.scale = baseScale + safeCorruption * scaleByCorruption;
       this.active++;
+      this.activeByType.set(type, (this.activeByType.get(type) || 0) + 1);
     }
   }
 
@@ -440,11 +504,14 @@ export class LinkTrailParticleSystem {
    */
   update(deltaTime, time) {
     this.active = 0;
+    this.activeByType.clear();
     
     for (let particle of this.particles) {
       if (particle.active) {
         if (particle.update(deltaTime, time, this.noise)) {
           this.active++;
+          const type = particle.sourceType || 'corruption';
+          this.activeByType.set(type, (this.activeByType.get(type) || 0) + 1);
           
           // Check for particle arrival at destination
           if (this.onParticleArrival && particle.checkArrival()) {
@@ -470,6 +537,30 @@ export class LinkTrailParticleSystem {
     color.lerp(new THREE.Color(0xff6666), corruption * 0.4);
 
     return color;
+  }
+
+  _getParticleColorForType(type, harmony, corruption) {
+    if (type === 'healing') {
+      const base = new THREE.Color(0x9cecff);
+      return base.lerp(new THREE.Color(0xc9fff2), Math.max(0, Math.min(1, harmony)));
+    }
+    if (type === 'spark') {
+      const base = new THREE.Color(0xffcc88);
+      return base.lerp(new THREE.Color(0xfff2aa), Math.max(0, Math.min(1, harmony * 0.6 + 0.2)));
+    }
+    return this._getParticleColor(harmony, corruption);
+  }
+
+  _acquireParticle(type = 'corruption') {
+    const profile = this.sourceProfiles.get(type) || this.sourceProfiles.get('corruption');
+    const maxActive = profile?.maxActive ?? this.poolSize;
+    const activeForType = this.activeByType.get(type) || 0;
+    if (activeForType >= maxActive) return null;
+
+    for (let i = 0; i < this.particles.length; i++) {
+      if (!this.particles[i].active) return this.particles[i];
+    }
+    return null;
   }
 
   /**
@@ -499,9 +590,10 @@ export class LinkTrailParticleSystem {
  * Manages emission logic for a single link
  */
 export class LinkTrailEmitter {
-  constructor(link, particleSystem) {
+  constructor(link, particleSystem, sourceType = 'corruption') {
     this.link = link;
     this.particleSystem = particleSystem;
+    this.sourceType = sourceType;
 
     this.emissionRate = 40; // Particles per second (increased from 20 for better visibility)
     this.enabled = true;
@@ -524,15 +616,16 @@ export class LinkTrailEmitter {
     rate *= 1.0 + corruption * 0.8;
 
     // Emit particles
-    this.particleSystem.emitAlongLink(
-      this.link,
+    this.particleSystem.emitFromSource({
+      type: this.sourceType,
+      link: this.link,
       curve,
       linkDirection,
-      rate,
+      emissionRate: rate,
       time,
       harmony,
       corruption
-    );
+    });
   }
 
   setEmissionRate(rate) {

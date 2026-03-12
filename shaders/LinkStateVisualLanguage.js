@@ -221,6 +221,7 @@ export const linkStateVertexShaderSimple = `
   uniform float uLocalLoad;
   uniform float uCorruption;
   uniform float uTime;
+  uniform float uSegmentCount;
   uniform vec3 uBaseColor;
   
   varying float vNetworkStress;
@@ -255,6 +256,7 @@ export const linkStateFragmentShaderSimple = `
   varying vec3 vBaseColor;
   varying vec3 vNormal;
   varying vec2 vUv;
+  uniform float uSegmentCount;
 
   float hash11(float p) {
     p = fract(p * 0.1031);
@@ -292,7 +294,8 @@ export const linkStateFragmentShaderSimple = `
     color += vec3(vPulsePhase * vLocalLoad * 0.3);
 
     // Thin slash-like segment mask (static in UV, low-cost).
-    float cells = 44.0;
+    // Keep roughly world-stable spacing by driving segment cell count from conduit.
+    float cells = max(24.0, uSegmentCount);
     float x = vUv.x * cells;
     float cellId = floor(x);
     float localX = fract(x);

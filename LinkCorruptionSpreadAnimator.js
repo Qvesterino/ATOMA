@@ -48,6 +48,9 @@ export class LinkCorruptionSpreadAnimator {
       spreadDuration: 2000,           // 2s for wave to travel source → target
       waveDuration: 800,              // Wave front width duration
       spreadStartThreshold: 0.15,     // Corruption level that triggers spread
+      triggerDeltaThreshold: 0.04,    // Minimum rise needed to trigger a new sweep
+      retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
+      forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
       maxCorruptionForSpread: 0.95,   // Cap on corruption visualization
     };
   }
@@ -64,6 +67,7 @@ export class LinkCorruptionSpreadAnimator {
       intensity: 0,
       startTime: performance.now(),
       previousCorruption: 0,
+      lastTriggerTime: -Infinity,
       isAnimating: false
     });
   }
@@ -73,15 +77,14 @@ export class LinkCorruptionSpreadAnimator {
    * @param {Object} link - Link to animate
    * @param {number} deltaTime - Delta time in seconds
    * @param {Array} strands - Link strand meshes to color
+   * @param {Object} options - { corruptionLevel, nowMs }
    * @returns {Object} Animation state
    */
-  update(link, deltaTime, strands) {
+  update(link, deltaTime, strands, options = {}) {
     if (!link.id || !strands || strands.length === 0) return null;
     
-    const corruptionLevel = Math.min(
-      this.config.maxCorruptionForSpread,
-      link.corruptionLevel ?? link.corruption ?? 0
-    );
+    const corruptionLevel = Math.min(this.config.maxCorruptionForSpread, this._readCorruptionLevel(link, options));
+    const nowMs = Number.isFinite(options?.nowMs) ? options.nowMs : performance.now();
     
     let state = this.animationStates.get(link.id);
     if (!state) {
@@ -89,17 +92,24 @@ export class LinkCorruptionSpreadAnimator {
       state = this.animationStates.get(link.id);
     }
     
-    // Trigger spread animation if corruption suddenly increases
+    // Trigger spread animation on meaningful corruption rise, with cooldown
     const corruptionDelta = corruptionLevel - state.previousCorruption;
-    if (corruptionDelta > 0.05 && corruptionLevel > this.config.spreadStartThreshold) {
+    const aboveThreshold = corruptionLevel > this.config.spreadStartThreshold;
+    const risingEnough = corruptionDelta >= this.config.triggerDeltaThreshold;
+    const cooldownElapsed = (nowMs - state.lastTriggerTime) >= this.config.retriggerCooldownMs;
+    const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;
+
+    if (aboveThreshold && risingEnough && (cooldownElapsed || forceRetrigger)) {
       state.isAnimating = true;
-      state.startTime = performance.now();
-      state.previousCorruption = corruptionLevel;
+      state.startTime = nowMs;
+      state.wavePhase = 0;
+      state.lastTriggerTime = nowMs;
     }
+    state.previousCorruption = corruptionLevel;
     
     // Update animation phase (0 to 1, represents wave position)
     if (state.isAnimating) {
-      const elapsed = performance.now() - state.startTime;
+      const elapsed = nowMs - state.startTime;
       state.wavePhase = Math.min(1.0, elapsed / this.config.spreadDuration);
       
       // End animation when wave completes
@@ -117,6 +127,25 @@ export class LinkCorruptionSpreadAnimator {
     this._applyCorruptionGradient(strands, corruptionLevel, state.wavePhase, link);
     
     return state;
+  }
+
+  _readCorruptionLevel(link, options = {}) {
+    const fromOptions = options?.corruptionLevel;
+    if (Number.isFinite(fromOptions)) return Math.max(0, fromOptions);
+
+    const userData = link?.userData || {};
+    const userMetrics = userData.metrics || {};
+    const values = [
+      link?.corruptionLevel,
+      link?.corruption,
+      userData?.corruptionLevel,
+      userData?.corruption,
+      userMetrics?.corruption
+    ];
+    for (const value of values) {
+      if (Number.isFinite(value)) return Math.max(0, value);
+    }
+    return 0;
   }
   
   /**
