@@ -609,6 +609,7 @@ import { VisualNetworkTimeElasticity_v1, validateVisualNetworkTimeElasticity } f
 import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js';
 import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Session126.js';
 import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluencePropagationSystem_Session127.js';
+import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { VisualEchoTrails_v1 } from './VisualEchoTrails_v1_Shader.js';
 import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
@@ -3231,6 +3232,8 @@ class AtomaGame {
         this._pendingHarmonicCascadeDt = 0;
         this._runCascadeVisualizerPending = false;
         this._pendingCascadeVisualizerDt = 0;
+        this._runLinkResonanceFlowPending = false;
+        this._pendingLinkResonanceFlowDt = 0;
         this.updateValidator.registerUpdateSystem('cameraController.update', 1, 1.0);
         this.updateValidator.registerUpdateSystem('playerController.update', 2, 1.0);
         this.updateValidator.registerUpdateSystem('aiNodes.update', 3, 4.0);
@@ -4240,6 +4243,7 @@ document.addEventListener('keydown', () => {
         this.harmonicHubAuraSystem = null;        // Harmonic hub resonance fields (Session 126)
         this.harmonicInfluencePropagation = null; // Harmonic influence propagation (Session 127)
         this.harmonicCascadeAmplification = null; // Hub-to-hub cascade amplification (Session 145)
+        this.linkResonanceFlowSystem = null;      // Directional link resonance flow (Session 124)
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
 
@@ -4690,6 +4694,7 @@ document.addEventListener('keydown', () => {
         this.setupHarmonicHubAuraSystem();
         this.setupHarmonicInfluencePropagation();
         this.setupHarmonicCascadeAmplification();
+        this.setupLinkResonanceFlowSystem();
         this.setupVisualEchoTrails();
 
         // ========================================================================
@@ -8578,6 +8583,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
+    linkResonanceFlowSystemTick(deltaTime) {
+        if (this.linkResonanceFlowSystem && this.linkingSystem) {
+            const links = this.linkingSystem.links || [];
+            const camera = this.camera;
+            this.linkResonanceFlowSystem.update(deltaTime, links, camera);
+        }
+    }
+
     updateHoverGlyphTarget() {
         const state = (typeof window !== 'undefined') ? window.__crosshairRaycastState : null;
         const node = state?.node || null;
@@ -8746,6 +8759,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this._runHarmonicCascadePending) {
                 this._runHarmonicCascadePending = false;
                 this.harmonicCascadeAmplificationTick?.(this._pendingHarmonicCascadeDt);
+            }
+        });
+        reg('linkResonanceFlowSystem', (_dt) => {
+            if (this._runLinkResonanceFlowPending) {
+                this._runLinkResonanceFlowPending = false;
+                this.linkResonanceFlowSystemTick?.(this._pendingLinkResonanceFlowDt);
             }
         });
         reg('audioSynergyMonitor', () => {
@@ -9105,6 +9124,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this._runHarmonicCascadePending = true;
             this._pendingCascadeVisualizerDt = deltaTime;
             this._runCascadeVisualizerPending = true;
+            this._pendingLinkResonanceFlowDt = deltaTime;
+            this._runLinkResonanceFlowPending = true;
         }
         this.semanticSlowAcc += deltaTime;
         const runSlowSemantic = this.semanticSlowAcc >= this.semanticSlowInterval;
@@ -11644,6 +11665,35 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             setupCascadeConsoleAPI(window, this.harmonicCascadeAmplification);
         } catch (err) {
             console.warn('⚠ Harmonic Cascade Amplification initialization failed:', err);
+        }
+    }
+    
+    /**
+     * Setup Link Resonance Flow System (Session 124)
+     * Directional energy pulses traveling along links based on synergy
+     */
+    setupLinkResonanceFlowSystem() {
+        try {
+            this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
+                this.scene,
+                this.world || { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
+                {
+                    baseSpawnRate: 2.0,
+                    synergySpawnBoost: 1.5,
+                    pulseSpeedBase: 1.0,
+                    pulseSpeedSynergyMult: 0.8,
+                    pulseRadiusBase: 0.3,
+                    pulseMaxRadius: 0.8,
+                    pulseGlowIntensity: 1.5,
+                    pulseLifetime: 2.0,
+                    maxPulsesPerLink: 8,
+                    maxTotalPulses: 1024,
+                    enabled: true,
+                }
+            );
+            console.log('✓ Link Resonance Flow System (Session 124) initialized');
+        } catch (err) {
+            console.warn('⚠ Link Resonance Flow System initialization failed:', err);
         }
     }
     

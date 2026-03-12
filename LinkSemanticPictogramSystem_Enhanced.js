@@ -60,15 +60,15 @@ const CONFIG = {
     MAX_GLYPHS_PER_LINK_IMPORTANT: 3,  // Important links
     MAX_GLYPHS_PER_LINK_NORMAL: 4,     // Normal links
     MAX_GLYPHS_PER_LINK_MINOR: 5,      // Minor links: more, smaller
-    MAX_GLYPHS_PER_LINK_ABSOLUTE: 10,  // Hard cap per link
-    MAX_GLYPHS_PER_STATE: 2,           // Max per pictogram state per link
-    MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 2 of each metric)
-        harmony: 2,
-        stability: 2,
-        synergy: 2,
-        loadPressure: 2,
-        corruption: 2,
-        default: 2
+    MAX_GLYPHS_PER_LINK_ABSOLUTE: 5,   // Hard cap per link
+    MAX_GLYPHS_PER_STATE: 1,           // Max per pictogram state per link
+    MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 1 of each metric)
+        harmony: 1,
+        stability: 1,
+        synergy: 1,
+        loadPressure: 1,
+        corruption: 1,
+        default: 1
     },
     DETERMINISTIC_GLYPHS: true,
     ORBIT_RADII: {

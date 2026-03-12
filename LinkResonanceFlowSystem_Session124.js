@@ -274,11 +274,9 @@ export class LinkResonanceFlowSystem_Session124 {
         this.config.pulseMaxRadius
       ),
       
-      intensity: Math.clamp(
-        this.config.baseIntensity + quality * this.config.qualityIntensityFactor,
-        0.3,
-        1.0
-      ),
+      intensity: Math.max(0.3, Math.min(1.0,
+        this.config.baseIntensity + quality * this.config.qualityIntensityFactor
+      )),
       
       // State
       life: 0,
@@ -374,7 +372,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const t = pulse.position;
     const pos = new THREE.Vector3()
       .copy(nodeA.position)
-      .lerp(nodeB.position, Math.clamp(t, 0, 1));
+      .lerp(nodeB.position, Math.max(0, Math.min(1, t)));
     
     return pos;
   }
@@ -423,7 +421,7 @@ export class LinkResonanceFlowSystem_Session124 {
     }
     
     // Apply intensity modulation
-    const baseOpacity = pulse.intensity * this.config.glowIntensity;
+    const baseOpacity = pulse.intensity * this.config.pulseGlowIntensity;
     
     // Dampen by corruption
     const corruptionDampen = 1.0 - (pulse.corruption * this.config.corruptionDampen);

@@ -199,27 +199,35 @@ export class LinkCorruptionParticleSystem {
     );
     const visualCorruption = THREE.MathUtils.clamp(corruption * 4.0, 0, 1);
 
-    // Spawn
-    if (corruption > 0.005) {
-      // Quantized mapping: 0.1 -> 2, 0.2 -> 4, ... 1.0 -> 20
-      const desired = THREE.MathUtils.clamp(Math.floor(corruption * 10.0) * 2, 0, 20);
-      if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-        const nowMs = performance.now();
-        if (!this._debugLastLog || nowMs - this._debugLastLog > 1000) {
-          const activeForLink = this.linkIndices.get(link.id)?.length || 0;
-          console.debug('[CorruptionParticles][spawn]', {
-            linkId: link.id,
-            corruption: Number(corruption.toFixed(3)),
-            visualCorruption: Number(visualCorruption.toFixed(3)),
-            desired,
-            activeForLink,
-            hasCurve: !!link.curve
-          });
-          this._debugLastLog = nowMs;
-        }
+    const desired = (corruption > 0.005)
+      ? THREE.MathUtils.clamp(Math.floor(corruption * 10.0) * 2, 0, PER_LINK_CAP)
+      : 0;
+    const activeForLink = this.linkIndices.get(link.id)?.length || 0;
+
+    if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+      const nowMs = performance.now();
+      if (!this._debugLastLog || nowMs - this._debugLastLog > 1000) {
+        console.debug('[CorruptionParticles][target]', {
+          linkId: link.id,
+          corruption: Number(corruption.toFixed(3)),
+          visualCorruption: Number(visualCorruption.toFixed(3)),
+          desired,
+          activeForLink,
+          hasCurve: !!link.curve
+        });
+        this._debugLastLog = nowMs;
       }
-      this._spawn(link, desired, visualCorruption, deltaTime);
-    } else if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+    }
+
+    if (activeForLink > desired) {
+      this._trimToTarget(link.id, desired);
+    }
+
+    const activeAfterTrim = this.linkIndices.get(link.id)?.length || 0;
+    const missing = Math.max(0, desired - activeAfterTrim);
+    if (missing > 0) {
+      this._spawn(link, missing, visualCorruption, deltaTime);
+    } else if (desired === 0 && typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
       const nowMs = performance.now();
       if (!this._debugLastZeroLog || nowMs - this._debugLastZeroLog > 1000) {
         console.debug('[CorruptionParticles][skip]', {
@@ -251,6 +259,23 @@ export class LinkCorruptionParticleSystem {
       this.linkRefs[idx] = null;
     }
     this.linkIndices.delete(linkId);
+  }
+
+  _trimToTarget(linkId, targetCount) {
+    const list = this.linkIndices.get(linkId);
+    if (!list || list.length <= targetCount) return;
+    const removeCount = list.length - targetCount;
+    for (let i = 0; i < removeCount; i++) {
+      const idx = list.pop();
+      if (idx === undefined) break;
+      this.active[idx] = false;
+      this.linkRefs[idx] = null;
+    }
+    if (list.length === 0) {
+      this.linkIndices.delete(linkId);
+    } else {
+      this.linkIndices.set(linkId, list);
+    }
   }
 
   // -------------------------------------------------------------------------

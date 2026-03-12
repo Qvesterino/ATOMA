@@ -1506,7 +1506,7 @@ export class LinkRendererConduit {
 
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
-            if (this.corruptionSpreadAnimator && state.strands) {
+            if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
                 this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
                     corruptionLevel: metrics?.corruption,
                     nowMs: performance.now()
@@ -1846,37 +1846,39 @@ export class LinkRendererConduit {
             state.sourceInjectionInterval = 0.075;
         }
 
-        if (state.dockRing) {
-            updateDockRing(state.dockRing);
-            if (state.dockSpray) {
-                state.dockSpray.update(visualTime);
-                const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
-                const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
-                if (visualTime >= nextSprayTime) {
-                    const payload = state.dockRing.userData.sprayPayload;
-                    if (payload) {
-                        state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
+        if (heavyTick) {
+            if (state.dockRing) {
+                updateDockRing(state.dockRing);
+                if (state.dockSpray) {
+                    state.dockSpray.update(visualTime);
+                    const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
+                    const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
+                    if (visualTime >= nextSprayTime) {
+                        const payload = state.dockRing.userData.sprayPayload;
+                        if (payload) {
+                            state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
+                        }
+                        state.dockRing.userData.nextSprayTime = visualTime + sprayInterval;
                     }
-                    state.dockRing.userData.nextSprayTime = visualTime + sprayInterval;
                 }
             }
-        }
 
-        if (state.dockGhost) {
-            updateDockRing(state.dockGhost);
-        }
+            if (state.dockGhost) {
+                updateDockRing(state.dockGhost);
+            }
 
-        if (state.sourceInjection) {
-            const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
-            const injectionAnchor = sourcePortPos.clone();
-            const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
-            const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? metrics.traffic ?? 0, 0, 1);
-            state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
-            const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
-            const injectionInterval = state.sourceInjectionInterval ?? 0.075;
-            if (visualTime >= nextInjectionTime) {
-                state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
-                state.sourceInjectionNextTime = visualTime + injectionInterval;
+            if (state.sourceInjection) {
+                const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
+                const injectionAnchor = sourcePortPos.clone();
+                const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
+                const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? metrics.traffic ?? 0, 0, 1);
+                state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
+                const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
+                const injectionInterval = state.sourceInjectionInterval ?? 0.075;
+                if (visualTime >= nextInjectionTime) {
+                    state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
+                    state.sourceInjectionNextTime = visualTime + injectionInterval;
+                }
             }
         }
         // --- 1. Curve Calculation ---
@@ -2061,8 +2063,8 @@ export class LinkRendererConduit {
                  );
              }
 
-             // Update shader material uniforms for node state
-             if (skin.material && skin.material.uniforms) {
+             // Update shader material uniforms for node state (30 Hz cadence)
+             if (heavyTick && skin.material && skin.material.uniforms) {
         const material = skin.material;
 
                  // Time-sync with node aura
@@ -2119,7 +2121,7 @@ export class LinkRendererConduit {
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
-            if (emitter) {
+            if (heavyTick && emitter) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
 
@@ -2246,7 +2248,7 @@ export class LinkRendererConduit {
             state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve);
         }
 
-        if (state.pulseRing && this.modules.flow) {
+        if (heavyTick && state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
             const sourceColor = new THREE.Color(state.baseColor);
@@ -2283,7 +2285,7 @@ export class LinkRendererConduit {
         // so its emissive modulation is not overwritten by earlier patch owners.
 
         // --- 7. Arc Discharge Update (Ring-triggered Electric Sparks) ---
-        if (state.arcDischarges && state.pulseRing && this.modules.flow) {
+        if (heavyTick && state.arcDischarges && state.pulseRing && this.modules.flow) {
                 const targetCat = link.target.userData?.category || 'input';
                 const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
                 const ringColor = new THREE.Color(state.baseColor).lerp(targetColor, state.pulseRing.progress);
