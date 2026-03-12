@@ -95,7 +95,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         
         // Runtime state
         this.oscillationTraps = [];           // { linkId, nodes, frequency, phase, amplitude, trapRadius, state }
-        this.reflectionHistory = [];          // { linkId, reflections: [{time, phase, intensity}] }
+        this.reflectionHistory = new Map();   // linkId -> { linkId, reflections: [{time, phase, intensity}] }
         this.trapZones = [];                  // { linkId, centerPos, radiusStart, radiusEnd, intensity, time }
         this.interferencePatterns = [];       // { trapId, spacing, contrast, beatPhase, time }
         this.resolutionEvents = [];           // { trapId, type, startTime, duration, progress }
@@ -343,8 +343,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         const link = this._getLinkById(linkId);
         if (!link) return;
         
-        trap.nodeA = link.sourceNode || link.from;
-        trap.nodeB = link.targetNode || link.to;
+        trap.nodeA = this._getLinkSource(link);
+        trap.nodeB = this._getLinkTarget(link);
         trap.reflectionCount++;
         trap.lastReflectionTime = this.time;
         
@@ -372,13 +372,14 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     _updateTrapAmplitude(trap) {
         if (!trap.nodeA || !trap.nodeB) return;
         
-        const harmonyA = trap.nodeA.harmony ?? 0.5;
-        const harmonyB = trap.nodeB.harmony ?? 0.5;
-        const corruptionA = trap.nodeA.corruption ?? 0.5;
-        const corruptionB = trap.nodeB.corruption ?? 0.5;
-        const instabilityA = trap.nodeA.instability ?? 0;
-        const instabilityB = trap.nodeB.instability ?? 0;
-        const synergyAvg = ((trap.nodeA.synergy ?? 0.5) + (trap.nodeB.synergy ?? 0.5)) * 0.5;
+        const harmonyA = this._readNodeMetric(trap.nodeA, 'harmony', 0.5);
+        const harmonyB = this._readNodeMetric(trap.nodeB, 'harmony', 0.5);
+        const corruptionA = this._readNodeMetric(trap.nodeA, 'corruption', 0.5);
+        const corruptionB = this._readNodeMetric(trap.nodeB, 'corruption', 0.5);
+        const instabilityA = this._readNodeMetric(trap.nodeA, 'instability', 0);
+        const instabilityB = this._readNodeMetric(trap.nodeB, 'instability', 0);
+        const synergyAvg =
+            (this._readNodeMetric(trap.nodeA, 'synergy', 0.5) + this._readNodeMetric(trap.nodeB, 'synergy', 0.5)) * 0.5;
         
         // Base amplitude
         let amplitude = this.config.standingWaveAmplitude;
@@ -405,7 +406,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         const lifespan = this.time - trap.birthTime;
         
         // Natural damping
-        const harmonyAvg = ((trap.nodeA?.harmony ?? 0.5) + (trap.nodeB?.harmony ?? 0.5)) * 0.5;
+        const harmonyAvg =
+            (this._readNodeMetric(trap.nodeA, 'harmony', 0.5) + this._readNodeMetric(trap.nodeB, 'harmony', 0.5)) * 0.5;
         trap.damping = lifespan * this.config.dampingRate * (1 + harmonyAvg * 0.5);
         
         // Determine state
@@ -421,7 +423,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             }
         } else {
             // Check for collapse condition
-            const instabilityAvg = ((trap.nodeA?.instability ?? 0) + (trap.nodeB?.instability ?? 0)) * 0.5;
+            const instabilityAvg =
+                (this._readNodeMetric(trap.nodeA, 'instability', 0) + this._readNodeMetric(trap.nodeB, 'instability', 0)) * 0.5;
             if (instabilityAvg > this.config.collapseTriggerInstability) {
                 this._initializeResolution(trap, 'collapse');
                 trap.state = 'resolving';
@@ -468,16 +471,16 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         links.forEach(link => {
             if (!link) return;
             
-            const nodeA = link.sourceNode || link.from;
-            const nodeB = link.targetNode || link.to;
+            const nodeA = this._getLinkSource(link);
+            const nodeB = this._getLinkTarget(link);
             
             if (!nodeA || !nodeB) return;
             
             // Check opposition criteria
-            const harmony_A = nodeA.harmony ?? 0.5;
-            const harmony_B = nodeB.harmony ?? 0.5;
-            const corruption_A = nodeA.corruption ?? 0.5;
-            const corruption_B = nodeB.corruption ?? 0.5;
+            const harmony_A = this._readNodeMetric(nodeA, 'harmony', 0.5);
+            const harmony_B = this._readNodeMetric(nodeB, 'harmony', 0.5);
+            const corruption_A = this._readNodeMetric(nodeA, 'corruption', 0.5);
+            const corruption_B = this._readNodeMetric(nodeB, 'corruption', 0.5);
             
             // Nodes are opposing if they have conflicting harmony/corruption
             const isOpposing = 
@@ -487,7 +490,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 (corruption_A < 0.4 && corruption_B > 0.6);
             
             if (isOpposing) {
-                const key = [nodeA.id, nodeB.id].sort().join('_');
+                const key = [this._getNodeId(nodeA), this._getNodeId(nodeB)].sort().join('_');
                 this.opposingNodePairs.set(key, {
                     nodeA: nodeA,
                     nodeB: nodeB,
@@ -594,6 +597,29 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
         return this.linkingSystem.links.find(l => l && l.id === linkId);
+    }
+
+    _getNodeId(node) {
+        return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+    }
+
+    _getLinkSource(link) {
+        return link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null;
+    }
+
+    _getLinkTarget(link) {
+        return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
+    }
+
+    _readNodeMetric(node, metric, fallback = 0) {
+        if (!node) return fallback;
+        const direct = node[metric];
+        if (typeof direct === 'number') return direct;
+        const userValue = node.userData?.[metric];
+        if (typeof userValue === 'number') return userValue;
+        const metricsValue = node.userData?.metrics?.[metric];
+        if (typeof metricsValue === 'number') return metricsValue;
+        return fallback;
     }
 
     /**

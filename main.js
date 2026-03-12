@@ -11588,10 +11588,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupHarmonicInfluencePropagation() {
         try {
+            const influenceWorld = this.world || {
+                aiNodes: this.aiNodes,
+                linkingSystem: this.linkingSystem
+            };
             this.harmonicInfluencePropagation = new HarmonicInfluencePropagationSystem_Session127(
                 this.scene,
                 this.worldRoot,
-                this.aiNodes,
+                influenceWorld,
                 this.harmonicHubAuraSystem,
                 this.nodeAuraSystem,
                 {
@@ -11604,6 +11608,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     oscillationAmplitude: 0.15,
                 }
             );
+
+            // Late-wire systems that were initialized before influence propagation.
+            if (this.influenceReflection) {
+                this.influenceReflection.harmonicInfluenceSystem = this.harmonicInfluencePropagation;
+            }
+            if (this.standingWaveTrap) {
+                this.standingWaveTrap.harmonicInfluenceSystem = this.harmonicInfluencePropagation;
+            }
             console.log('✓ Harmonic Influence Propagation System (Session 127) initialized');
         } catch (err) {
             console.warn('⚠ Harmonic Influence Propagation initialization failed:', err);

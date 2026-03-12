@@ -53,6 +53,7 @@ import * as THREE from 'three';
 
 // PHASE OFF-1: disable unbounded motion while keeping meshes active
 const MOTION_OFF_PHASE1 = true;
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export class HarmonicInfluencePropagationSystem_Session127 {
   constructor(scene, worldRoot, world, harmonicHubSystem, nodeAuraSystem, config = {}) {
@@ -270,12 +271,13 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       for (const neighbor of connectedNodes) {
         // Skip if neighbor is also in same hub (internal connection)
         if (hub.nodes.includes(neighbor)) continue;
+        const sourceLink = this._findLinkBetweenNodes(node, neighbor);
         
         // Create influence wave
         const wave = {
           sourceNode: node,
           targetNode: neighbor,
-          sourceLink: this._findLinkBetweenNodes(node, neighbor),
+          sourceLink,
           
           // Timing
           startTime: 0,
@@ -287,7 +289,10 @@ export class HarmonicInfluencePropagationSystem_Session127 {
           // Metrics (from source node)
           harmony: node.userData?.harmony ?? 0,
           corruption: node.userData?.corruption ?? 0,
-          synergy: (this._findLinkBetweenNodes(node, neighbor)?.userData?.synergy ?? 0),
+          synergy: (sourceLink?.userData?.synergy?.synergyNorm
+            ?? sourceLink?.userData?.synergy?.score
+            ?? sourceLink?.synergy
+            ?? 0),
         };
         
         this.activeInfluenceWaves.push(wave);
@@ -334,10 +339,12 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   _applyInfluenceToNode(node, wave) {
     if (!node) return;
+    const nodeId = this._getNodeId(node);
+    if (nodeId === undefined || nodeId === null) return;
     
     // Create or update node influence state
-    if (!this.nodeInfluenceState.has(node.id)) {
-      this.nodeInfluenceState.set(node.id, {
+    if (!this.nodeInfluenceState.has(nodeId)) {
+      this.nodeInfluenceState.set(nodeId, {
         life: 0,
         duration: 3.0,  // Influence persists for 3 seconds
         sourceHarmony: wave.harmony,
@@ -345,7 +352,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       });
     } else {
       // Update existing influence (refresh duration)
-      const state = this.nodeInfluenceState.get(node.id);
+      const state = this.nodeInfluenceState.get(nodeId);
       state.life = 0;
       state.sourceHarmony = Math.max(state.sourceHarmony, wave.harmony);
       state.sourceSynergy = Math.max(state.sourceSynergy, wave.synergy);
@@ -380,7 +387,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       const linkId = wave.sourceLink.id || `${wave.sourceNode.id}-${wave.targetNode.id}`;
       
       // Calculate flow progress (0 to 1)
-      const progress = Math.clamp(wave.startTime / wave.duration, 0, 1);
+      const progress = clamp01(wave.startTime / wave.duration);
       
       // Store flow state
       this.linkInfluenceState.set(linkId, {
@@ -403,7 +410,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     
     // Render node auras
     for (const [nodeId, influence] of this.nodeInfluenceState) {
-      const node = this.world?.nodes?.find(n => n.id === nodeId);
+      const nodes = this._getWorldNodes();
+      const node = nodes.find((n) => this._getNodeId(n) === nodeId);
       if (!node) continue;
       
       // Calculate aura properties
@@ -463,7 +471,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     opacity *= fadeProgress;
     
     // Set material properties
-    material.opacity = Math.clamp(opacity, 0.05, 0.5);
+    material.opacity = Math.max(0.05, Math.min(0.5, opacity));
     material.emissiveIntensity = material.opacity * 0.5;
     
     // Update color with warmth
@@ -518,11 +526,13 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   _createLinkFlowMesh(flow) {
     const link = flow.link;
-    if (!link || !link.nodeA || !link.nodeB) return null;
+    const source = this._getLinkSource(link);
+    const target = this._getLinkTarget(link);
+    if (!link || !source || !target) return null;
     
     // Get positions
-    const startPos = link.nodeA.position;
-    const endPos = link.nodeB.position;
+    const startPos = source.position;
+    const endPos = target.position;
     
     // Calculate flow position along link
     const flowPos = new THREE.Vector3()
@@ -566,14 +576,20 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    * Get connected nodes
    */
   _getConnectedNodes(node) {
-    if (!this.world?.links) return [];
+    const links = this._getWorldLinks();
+    if (!links.length) return [];
     
     const connected = [];
-    for (const link of this.world.links) {
-      if (link.nodeA.id === node.id && link.nodeB) {
-        connected.push(link.nodeB);
-      } else if (link.nodeB.id === node.id && link.nodeA) {
-        connected.push(link.nodeA);
+    const nodeId = this._getNodeId(node);
+    for (const link of links) {
+      const source = this._getLinkSource(link);
+      const target = this._getLinkTarget(link);
+      const sourceId = this._getNodeId(source);
+      const targetId = this._getNodeId(target);
+      if (sourceId === nodeId && target) {
+        connected.push(target);
+      } else if (targetId === nodeId && source) {
+        connected.push(source);
       }
     }
     return connected;
@@ -583,15 +599,49 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    * Find link between two nodes
    */
   _findLinkBetweenNodes(nodeA, nodeB) {
-    if (!this.world?.links) return null;
+    const links = this._getWorldLinks();
+    if (!links.length) return null;
+    const idA = this._getNodeId(nodeA);
+    const idB = this._getNodeId(nodeB);
     
-    for (const link of this.world.links) {
-      if ((link.nodeA.id === nodeA.id && link.nodeB.id === nodeB.id) ||
-          (link.nodeB.id === nodeA.id && link.nodeA.id === nodeB.id)) {
+    for (const link of links) {
+      const source = this._getLinkSource(link);
+      const target = this._getLinkTarget(link);
+      const sourceId = this._getNodeId(source);
+      const targetId = this._getNodeId(target);
+      if ((sourceId === idA && targetId === idB) ||
+          (sourceId === idB && targetId === idA)) {
         return link;
       }
     }
     return null;
+  }
+
+  _getNodeId(node) {
+    return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+  }
+
+  _getWorldNodes() {
+    const linksWorld = this.world || {};
+    if (Array.isArray(linksWorld.nodes)) return linksWorld.nodes;
+    if (Array.isArray(linksWorld.aiNodes?.nodes)) return linksWorld.aiNodes.nodes;
+    if (Array.isArray(linksWorld.aiNodes)) return linksWorld.aiNodes;
+    return [];
+  }
+
+  _getWorldLinks() {
+    const linksWorld = this.world || {};
+    if (Array.isArray(linksWorld.links)) return linksWorld.links;
+    if (Array.isArray(linksWorld.linkingSystem?.links)) return linksWorld.linkingSystem.links;
+    return [];
+  }
+
+  _getLinkSource(link) {
+    return link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null;
+  }
+
+  _getLinkTarget(link) {
+    return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
   }
   
   /**

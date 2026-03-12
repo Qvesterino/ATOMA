@@ -4917,15 +4917,72 @@ getLinksForNode(node) {
       return cached.metrics;
     }
 
+    const userData = link?.userData || {};
+    const userMetrics = userData.metrics || {};
+    const readMetric = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+      }
+      return undefined;
+    };
+
     const metrics = {
-      synergy: link['synergyScore'] ?? link?.synergyLevel ?? link.flow ?? 0.5,
-      harmony: link.harmonyLevel ?? link.harmony ?? 1.0,
-      corruption: link.corruptionLevel ?? link.corruption ?? 0.0,
-      instability: link.instability ?? link.instabilityLevel ?? 0.0,
-      stability: link.stability ?? link.stabilityLevel ?? 0.5,
-      traffic: link.traffic?.load ?? 0,
-      loadPressure: link.loadPressure ?? link.traffic?.load ?? 0,
-      quality: link.quality ?? link.userData?.quality?.score
+      synergy: readMetric(
+        userData.synergy?.synergyNorm,
+        userData.synergy?.score,
+        userMetrics.synergy,
+        link['synergyScore'],
+        link?.synergyLevel,
+        link.flow
+      ) ?? 0.5,
+      harmony: readMetric(
+        userData.harmonyLevel,
+        userData.harmony,
+        userMetrics.harmony,
+        link.harmonyLevel,
+        link.harmony
+      ) ?? 1.0,
+      corruption: readMetric(
+        userData.corruptionLevel,
+        userData.corruption,
+        userMetrics.corruption,
+        link.corruptionLevel,
+        link.corruption,
+        link.corruptionIntensity
+      ) ?? 0.0,
+      instability: readMetric(
+        userData.instabilityLevel,
+        userData.instability,
+        userMetrics.instability,
+        link.instability,
+        link.instabilityLevel
+      ) ?? 0.0,
+      stability: readMetric(
+        userMetrics.stability,
+        userData.stabilityLevel,
+        userData.stability,
+        link.stability,
+        link.stabilityLevel
+      ) ?? 0.5,
+      traffic: readMetric(
+        link.traffic?.load,
+        userData.traffic?.load,
+        userData.traffic,
+        userMetrics.traffic
+      ) ?? 0,
+      loadPressure: readMetric(
+        link.loadPressure,
+        userData.loadPressure,
+        userMetrics.loadPressure,
+        link.traffic?.load,
+        userData.traffic?.load
+      ) ?? 0,
+      quality: readMetric(
+        link.quality,
+        userData.quality?.score,
+        userData.quality,
+        userMetrics.quality
+      ) ?? 0.5
     };
 
     this._linkMetricsCache.set(linkId, { frame: this._linkMetricsFrame, metrics });

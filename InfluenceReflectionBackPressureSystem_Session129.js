@@ -170,13 +170,14 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
                       Object.values(this.aiNodes);
         
         nodes.forEach(node => {
-            if (!node || !node.id) return;
+            const nodeId = this._getNodeId(node);
+            if (!node || nodeId === undefined || nodeId === null) return;
             
             // READ-ONLY checks (no state modification)
-            const harmony = node.harmony ?? 0.5;
-            const corruption = node.corruption ?? 0.5;
-            const instability = node.instability ?? 0;
-            const isGated = node.gated || node.resistant || false;
+            const harmony = this._readNodeMetric(node, 'harmony', 0.5);
+            const corruption = this._readNodeMetric(node, 'corruption', 0.5);
+            const instability = this._readNodeMetric(node, 'instability', 0);
+            const isGated = node.gated || node.resistant || node.userData?.gated || node.userData?.resistant || false;
             
             // Resistance metrics
             const isResistant = (harmony < corruption) || (instability > 0.7) || isGated;
@@ -188,8 +189,8 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
                     (isGated ? 0.4 : 0)              // Gated bonus
                 );
                 
-                this.resistantNodes.set(node.id, {
-                    nodeId: node.id,
+                this.resistantNodes.set(nodeId, {
+                    nodeId,
                     node: node,
                     resistance: resistance,
                     harmony: harmony,
@@ -215,11 +216,11 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         links.forEach(link => {
             if (!link || !link.id) return;
             
-            const targetNodeId = link.targetNode?.id || link.to?.id;
+            const targetNodeId = this._getNodeId(this._getLinkTarget(link));
             
             // Check if target is resistant
             if (this.resistantNodes.has(targetNodeId)) {
-                const sourceNodeId = link.sourceNode?.id || link.from?.id;
+                const sourceNodeId = this._getNodeId(this._getLinkSource(link));
                 
                 // Look up influence intensity on this link
                 const influenceIntensity = this._getInfluenceIntensity(link);
@@ -322,7 +323,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
                     pulse.active = true;
                     pulse.linkId = zone.linkId;
                     pulse.fromNode = zone.nodeId;
-                    pulse.toNode = zone.link?.sourceNode?.id || zone.link?.from?.id;
+                    pulse.toNode = this._getNodeId(this._getLinkSource(zone.link));
                     pulse.life = 0;
                     pulse.maxLife = this.config.reflectionPulseLifetime;
                     pulse.intensity = zone.intensity;
@@ -412,6 +413,29 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         this.reflectionPulsePool = [];
         this.resistantNodes.clear();
         this.incomingInfluence.clear();
+    }
+
+    _getNodeId(node) {
+        return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+    }
+
+    _getLinkSource(link) {
+        return link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null;
+    }
+
+    _getLinkTarget(link) {
+        return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
+    }
+
+    _readNodeMetric(node, metric, fallback = 0) {
+        if (!node) return fallback;
+        const direct = node[metric];
+        if (typeof direct === 'number') return direct;
+        const userValue = node.userData?.[metric];
+        if (typeof userValue === 'number') return userValue;
+        const metricsValue = node.userData?.metrics?.[metric];
+        if (typeof metricsValue === 'number') return metricsValue;
+        return fallback;
     }
 }
 

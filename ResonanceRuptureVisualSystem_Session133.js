@@ -345,8 +345,10 @@ export class ResonanceRuptureVisualSystem_Session133 {
             // Get node metrics for modulation
             const nodeA = trap.nodeA || {};
             const nodeB = trap.nodeB || {};
-            const avgCorruption = ((nodeA.corruption ?? 0.5) + (nodeB.corruption ?? 0.5)) * 0.5;
-            const avgInstability = ((nodeA.instability ?? 0) + (nodeB.instability ?? 0)) * 0.5;
+            const avgCorruption =
+                (this._readNodeMetric(nodeA, 'corruption', 0.5) + this._readNodeMetric(nodeB, 'corruption', 0.5)) * 0.5;
+            const avgInstability =
+                (this._readNodeMetric(nodeA, 'instability', 0) + this._readNodeMetric(nodeB, 'instability', 0)) * 0.5;
             
             // Calculate effective rupture threshold
             let threshold = this.config.stressRuptureThreshold;
@@ -388,7 +390,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const link = this._getLinkById(trapId);
         if (!link) return;
         
-        const convergencePoint = link.targetNode?.position || link.to?.position;
+        const convergencePoint = this._getLinkTarget(link)?.position;
         if (!convergencePoint) return;
         
         // Set up rupture
@@ -505,7 +507,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (!originLink || !this.linkingSystem) return;
         
         // Find adjacent links
-        const targetNode = originLink.targetNode || originLink.to;
+        const targetNode = this._getLinkTarget(originLink);
         if (!targetNode) return;
         
         const adjacentLinks = this._findAdjacentLinks(targetNode, originLink);
@@ -543,8 +545,13 @@ export class ResonanceRuptureVisualSystem_Session133 {
         links.forEach(link => {
             if (!link || link.id === excludeLink.id) return;
             
-            const isAdjacentSource = (link.sourceNode?.id || link.from?.id) === node.id;
-            const isAdjacentTarget = (link.targetNode?.id || link.to?.id) === node.id;
+            const sourceNode = this._getLinkSource(link);
+            const targetNode = this._getLinkTarget(link);
+            const sourceId = this._getNodeId(sourceNode);
+            const targetId = this._getNodeId(targetNode);
+            const currentNodeId = this._getNodeId(node);
+            const isAdjacentSource = sourceId === currentNodeId;
+            const isAdjacentTarget = targetId === currentNodeId;
             
             if (isAdjacentSource || isAdjacentTarget) {
                 adjacent.push(link);
@@ -566,7 +573,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             // Advance to next link if progress exceeds threshold
             if (pulse.life > propagationDuration * (pulse.pathDistance + 1)) {
-                const nextNode = pulse.currentLink.targetNode || pulse.currentLink.to;
+                const nextNode = this._getLinkTarget(pulse.currentLink);
                 const nextLinks = this._findAdjacentLinks(nextNode, pulse.currentLink);
                 
                 if (nextLinks.length > 0 && pulse.pathDistance < this.config.propagationDistance) {
@@ -598,8 +605,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
         scarMesh.mesh.visible = true;
         
         // Position scar at link center
-        const startPos = link.sourceNode?.position || link.from?.position;
-        const endPos = link.targetNode?.position || link.to?.position;
+        const startPos = this._getLinkSource(link)?.position;
+        const endPos = this._getLinkTarget(link)?.position;
         
         if (startPos && endPos) {
             const scarCenter = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
@@ -648,15 +655,16 @@ export class ResonanceRuptureVisualSystem_Session133 {
      * Trigger node halo reaction
      */
     _triggerNodeReactions(node, intensity) {
-        if (!node || !node.id) return;
+        const nodeId = this._getNodeId(node);
+        if (!node || nodeId === undefined || nodeId === null) return;
         
-        const existing = this.nodeReactions.get(node.id);
+        const existing = this.nodeReactions.get(nodeId);
         
         if (existing) {
             existing.intensity = Math.max(existing.intensity, intensity);
             existing.startTime = this.time;
         } else {
-            this.nodeReactions.set(node.id, {
+            this.nodeReactions.set(nodeId, {
                 node: node,
                 startTime: this.time,
                 intensity: intensity,
@@ -708,9 +716,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         nodes.forEach(node => {
             if (!node) return;
-            avgHarmony += node.harmony ?? 0.5;
-            avgCorruption += node.corruption ?? 0.5;
-            avgSynergy += node.synergy ?? 0.5;
+            avgHarmony += this._readNodeMetric(node, 'harmony', 0.5);
+            avgCorruption += this._readNodeMetric(node, 'corruption', 0.5);
+            avgSynergy += this._readNodeMetric(node, 'synergy', 0.5);
             nodeCount++;
         });
         
@@ -750,6 +758,29 @@ export class ResonanceRuptureVisualSystem_Session133 {
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
         return this.linkingSystem.links.find(l => l && l.id === linkId);
+    }
+
+    _getNodeId(node) {
+        return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+    }
+
+    _getLinkSource(link) {
+        return link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null;
+    }
+
+    _getLinkTarget(link) {
+        return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
+    }
+
+    _readNodeMetric(node, metric, fallback = 0) {
+        if (!node) return fallback;
+        const direct = node[metric];
+        if (typeof direct === 'number') return direct;
+        const userValue = node.userData?.[metric];
+        if (typeof userValue === 'number') return userValue;
+        const metricsValue = node.userData?.metrics?.[metric];
+        if (typeof metricsValue === 'number') return metricsValue;
+        return fallback;
     }
 
     /**
