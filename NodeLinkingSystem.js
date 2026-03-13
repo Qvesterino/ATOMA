@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { safeComputeBounds, getSafeBoundingSphere } from './src/three/GeometryBoundsSafe.js';
+import { getLinkSynergy, getLinkCorruption } from './SemanticMetricAdapter.js';
 
 // SAFE SOFT REVERT: Use legacy bounds path to restore original visual behavior
 // When true: Use simple THREE.js Box3.setFromObject (no sanitization, no unions, no fallbacks)
@@ -4927,14 +4928,7 @@ getLinksForNode(node) {
     };
 
     const metrics = {
-      synergy: readMetric(
-        userData.synergy?.synergyNorm,
-        userData.synergy?.score,
-        userMetrics.synergy,
-        link['synergyScore'],
-        link?.synergyLevel,
-        link.flow
-      ) ?? 0.5,
+      synergy: getLinkSynergy(link) ?? 0.5,
       harmony: readMetric(
         userData.harmonyLevel,
         userData.harmony,
@@ -4942,14 +4936,7 @@ getLinksForNode(node) {
         link.harmonyLevel,
         link.harmony
       ) ?? 1.0,
-      corruption: readMetric(
-        userData.corruptionLevel,
-        userData.corruption,
-        userMetrics.corruption,
-        link.corruptionLevel,
-        link.corruption,
-        link.corruptionIntensity
-      ) ?? 0.0,
+      corruption: getLinkCorruption(link) ?? 0.0,
       instability: readMetric(
         userData.instabilityLevel,
         userData.instability,

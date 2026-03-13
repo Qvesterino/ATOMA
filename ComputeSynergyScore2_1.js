@@ -38,6 +38,7 @@
  * ============================================================================
  */
 
+import { getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 import { computeSynergyScore as computeSynergyScore2_0 } from './ComputeSynergyScore2_0.js';
 
 export class ComputeSynergyScore2_1 {
@@ -183,22 +184,22 @@ export class ComputeSynergyScore2_1 {
    */
   _computeVisual(nodeA, nodeB) {
     try {
-      // Extract visual metrics from both nodes
-      const vmA = nodeA.userData?.visualMetrics;
-      const vmB = nodeB.userData?.visualMetrics;
-      
-      // Both nodes must have visual metrics
-      if (!vmA || !vmB) {
-        return null;
-      }
-      
-      // ========== WEEK 1 BASELINE FORMULA ==========
-      // Blend metrics from both nodes using average (symmetric)
-      
-      const harmonyNorm = (vmA.harmonyNorm + vmB.harmonyNorm) / 2;
-      const stabilityNorm = (vmA.stabilityNorm + vmB.stabilityNorm) / 2;
-      const corruptionNorm = (vmA.corruptionNorm + vmB.corruptionNorm) / 2;
-      const energyNorm = (vmA.energyNorm + vmB.energyNorm) / 2;
+      const canonicalA = getNodeCanonicalMetrics(nodeA);
+      const canonicalB = getNodeCanonicalMetrics(nodeB);
+      if (!canonicalA || !canonicalB) return null;
+
+      // Blend canonical metrics from both nodes using average (symmetric)
+      const harmonyNorm = this._clamp01(
+        ((canonicalA.harmony ?? 0.5) + (canonicalB.harmony ?? 0.5)) / 2
+      );
+      const stabilityNorm = this._clamp01(
+        ((canonicalA.stability ?? 0.5) + (canonicalB.stability ?? 0.5)) / 2
+      );
+      const corruptionNorm = this._clamp01(
+        ((canonicalA.corruption ?? 0) + (canonicalB.corruption ?? 0)) / 2
+      );
+      const avgLoad = ((canonicalA.loadPressure ?? 0.5) + (canonicalB.loadPressure ?? 0.5)) / 2;
+      const energyNorm = this._clamp01(1 - avgLoad);
       
       // Compute base synergy: harmony × stability × (1 - corruption)
       let synergyNorm =

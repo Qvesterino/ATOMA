@@ -49,6 +49,7 @@
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
 import { traceMetricMutation } from './src/metrics/MetricAuthorityGuard.js';
+import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
 const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';
 const CANONICAL_METRIC_FIELDS = [
@@ -136,6 +137,11 @@ export class MetricsRuntime_v1 {
             loadPressure: 0
         };
 
+        // Runtime validator (low-frequency, warnings only)
+        this.metricValidator = new MetricValidationRuntime(runtimeOptions.metricValidation);
+        this._validationAccumulator = 0;
+        this._validationInterval = 1.0; // seconds (1 Hz)
+
         if (this.useNetworkMetricsAggregator) {
             this._initializeNetworkMetricsAggregator();
         } else {
@@ -197,6 +203,19 @@ export class MetricsRuntime_v1 {
         while (this._accumulator >= this._fixedDt) {
             this._step(this._fixedDt);
             this._accumulator -= this._fixedDt;
+        }
+
+        // Low-frequency validation (1 Hz)
+        this._validationAccumulator += dt;
+        if (this.metricValidator && this._validationAccumulator >= this._validationInterval) {
+            const nodeList = this.nodes?.nodes || this.nodes || [];
+            const linkList =
+                this.linkSystem?.links ||
+                this.links?.links ||
+                this.links ||
+                [];
+            this.metricValidator.validate({ nodes: nodeList, links: linkList });
+            this._validationAccumulator -= this._validationInterval;
         }
     }
 
