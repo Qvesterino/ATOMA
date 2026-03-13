@@ -35,6 +35,7 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
@@ -203,11 +204,7 @@ export class LinkResonanceFlowSystem_Session124 {
       if (!link || !link.userData) continue;
       
       const linkId = link.id;
-      const synergy = Number.isFinite(link.userData?.synergy?.synergyNorm)
-        ? link.userData.synergy.synergyNorm
-        : Number.isFinite(link.userData?.synergy?.score)
-          ? link.userData.synergy.score
-          : 0;
+      const synergy = getLinkSynergy(link);
       
       // Skip inactive links
       if (synergy < 0.1) continue;
@@ -241,11 +238,7 @@ export class LinkResonanceFlowSystem_Session124 {
     if (this.globalPulses.length >= this.config.maxTotalPulses) return;
     
     const linkId = link.id;
-    const synergy = Number.isFinite(link.userData?.synergy?.synergyNorm)
-      ? link.userData.synergy.synergyNorm
-      : Number.isFinite(link.userData?.synergy?.score)
-        ? link.userData.synergy.score
-        : 0;
+    const synergy = getLinkSynergy(link);
     const quality = link.userData.quality ?? 0.5;
     
     // Get or create pulse pool for this link

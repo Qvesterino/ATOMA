@@ -2,8 +2,7 @@ import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 import { TemporalUnitSystem } from './TemporalUnitSystem.js';
 import { CoreMetricsHUD } from './CoreMetricsHUD.js';
 import { TemporalEventEffects } from './TemporalEventEffects.js';
-import { CoreMetricsEngineAdapter } from './CoreMetricsEngineAdapter.js';
-import { projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
+import { updateHudMetrics, projectHudMetrics, withGlobalMetricAliases } from './SemanticMetricAdapter.js';
 import VisualTime from './src/time/VisualTime.js';
 
 /**
@@ -35,7 +34,6 @@ export class CoreMetricsOverlay {
     this.metricsCalculator = new CoreMetricsCalculator();
     this.temporalSystem = new TemporalUnitSystem();
     this.hud = new CoreMetricsHUD(renderer);
-    this.engineAdapter = new CoreMetricsEngineAdapter(this.hud);
     this.temporalEffects = new TemporalEventEffects(scene, renderer);
     this.hudLinkFallback = { synergyScore: 0 };
     this.lastHudDebugLog = 0;
@@ -99,22 +97,9 @@ export class CoreMetricsOverlay {
       this.currentMetrics = this.metricsCalculator.getMetrics();
       this.currentTemporalDisplay = this.temporalSystem.getFormattedDisplay();
       
-      // Update HUD display via engine adapter
+      // Update HUD display via SemanticMetricAdapter
       const linkSource = linkingSystem?.activeLink ?? linkingSystem?.selectedLink ?? this.hudLinkFallback;
-      const rawHudMetrics = this.engineAdapter?.update(
-        linkSource,
-        this.currentMetrics,
-        this.currentTemporalDisplay,
-        temporalEvents,
-        visualDelta // Phase 2A: feed canonical delta into HUD engine adapter
-      );
-      const hudMetrics = rawHudMetrics ?? projectHudMetrics(withGlobalMetricAliases({
-        networkSynergy: this.currentMetrics.networkSynergy ?? this.currentMetrics.synergy ?? linkSource.synergyScore ?? 0,
-        harmonyFlow: this.currentMetrics.harmonyFlow ?? this.currentMetrics.harmonyNorm ?? this.currentMetrics.harmony,
-        networkStress: this.currentMetrics.networkStress ?? this.currentMetrics.stabilityNorm ?? this.currentMetrics.stability,
-        corruptionLevel: this.currentMetrics.corruptionLevel ?? this.currentMetrics.corruptionNorm ?? this.currentMetrics.corruption,
-        loadPressure: this.currentMetrics.loadPressure ?? this.currentMetrics.loadNorm ?? this.currentMetrics.networkLoad ?? this.currentMetrics.energyNorm
-      }));
+      const hudMetrics = updateHudMetrics(linkSource, this.currentMetrics);
 
       this.hud.update(hudMetrics, this.currentTemporalDisplay, temporalEvents, visualDelta);
       this.hud.updateGlow(visualDelta); // Phase 2A: HUD glow uses canonical delta

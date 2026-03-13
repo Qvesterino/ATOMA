@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 // PictogramLibrary disabled during visual design; keep material factory only
 import { createPictogramMaterial } from './LinkPictogramLibrary.js';
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 if (typeof window !== 'undefined' && !window.__PicDiagModuleLoaded__) {
     console.info('[PicDiag] LinkSemanticPictogramSystem_Enhanced module loaded');
@@ -819,17 +820,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         let value;
         switch (key) {
             case 'synergy':
-                value = this._readNumericMetric(
-                    userData.synergy?.score,
-                    userData.synergy?.synergyNorm,
-                    userData.synergy,
-                    userMetrics.synergy,
-                    linkMetrics.synergy,
-                    conduitMetrics.synergy,
-                    link.synergyScore,
-                    link.synergyLevel,
-                    link.flow
-                );
+                value = getLinkSynergy(link);
                 break;
             case 'harmony':
                 value = this._readNumericMetric(

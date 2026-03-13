@@ -1,10 +1,34 @@
 /**
  * Semantic Metric Naming Adapter
- * Centralizes legacy → canonical metric aliases without changing numeric behavior.
+ * CENTRAL AUTHORITY for all metric reads in ATOMA.
  *
  * Canonical per-node: synergy, harmony, stability, corruption, loadPressure
- * Canonical global: networkSynergy, harmonyFlow, networkStress, corruptionLevel, loadPressure
+ * Canonical per-link: synergy, corruption
+ * Canonical global: networkSynergy, harmonyFlow, networkStress, corruptionLevel, loadPressure *
+ * ARCHITECTURAL CONTRACT:
+ * - All systems MUST read canonical metrics via this adapter
+ * - Legacy fields trigger deprecation warnings
+ * - No duplicate alias mapping elsewhere
  */
+
+// Warning deduplication to prevent console spam
+const WARNED_LEGACY_ACCESS = new Set();
+
+/**
+ * Log deprecation warning for legacy field access (once per field)
+ */
+function warnLegacyAccess(context, field, canonicalPath) {
+  const key = `${context}.${field}`;
+  if (!WARNED_LEGACY_ACCESS.has(key)) {
+    WARNED_LEGACY_ACCESS.add(key);
+    console.warn(
+      `[SemanticMetricAdapter] ⚠️ LEGACY FIELD: ${context}.${field}. ` +
+      `Use ${canonicalPath} instead. ` +
+      `This warning appears only once per field.`
+    );
+  }
+}
+
 function firstDefined(...values) {
   for (const v of values) {
     if (v !== undefined && v !== null) return v;
@@ -140,5 +164,147 @@ export function projectHudMetrics(metrics = {}) {
     networkStress: safeValue(metrics.networkStress ?? metrics.stability ?? metrics.stability ?? metrics.stabilityNorm),
     corruptionLevel: safeValue(metrics.corruptionLevel ?? metrics.corruption ?? metrics.corruptionNorm),
     loadPressure: safeValue(metrics.loadPressure ?? metrics.networkLoad ?? metrics.loadNorm ?? metrics.loadRatio ?? metrics.load)
+  };
+}
+
+// ============================================================================
+// LINK METRICS (merged from MetricRuntimeAdapter)
+// ============================================================================
+
+/**
+ * Resolve a link's synergy metric into canonical form with legacy fallbacks.
+ * Canonical: link.userData.synergy.score
+ * Legacy: link.synergyScore, link.synergy, link.synergy2_1
+ */
+export function getLinkSynergy(link) {
+  // Try canonical first: link.userData.synergy.score
+  if (link?.userData?.synergy?.score !== undefined) {
+    const value = link.userData.synergy.score;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Try canonical variant: link.userData.synergy.synergyNorm
+  if (link?.userData?.synergy?.synergyNorm !== undefined) {
+    const value = link.userData.synergy.synergyNorm;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Legacy fallback: link.synergyScore
+  if (link?.synergyScore !== undefined) {
+    warnLegacyAccess('link', 'synergyScore', 'link.userData.synergy.score');
+    const value = link.synergyScore;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Legacy fallback: link.synergy
+  if (link?.synergy !== undefined) {
+    warnLegacyAccess('link', 'synergy', 'link.userData.synergy.score');
+    const value = link.synergy;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  return 0.5; // Default neutral synergy
+}
+
+/**
+ * Resolve a link's corruption metric into canonical form with legacy fallbacks.
+ * Canonical: link.userData.corruptionLevel
+ * Legacy: link.corruption, link.corruptionIntensity
+ */
+export function getLinkCorruption(link) {
+  // Try canonical first
+  if (link?.userData?.corruptionLevel !== undefined) {
+    const value = link.userData.corruptionLevel;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Legacy fallback: link.corruption
+  if (link?.corruption !== undefined) {
+    warnLegacyAccess('link', 'corruption', 'link.userData.corruptionLevel');
+    const value = link.corruption;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  // Legacy fallback: link.corruptionIntensity
+  if (link?.corruptionIntensity !== undefined) {
+    warnLegacyAccess('link', 'corruptionIntensity', 'link.userData.corruptionLevel');
+    const value = link.corruptionIntensity;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(1, value));
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Get all canonical link metrics as object
+ */
+export function getLinkCanonicalMetrics(link) {
+  return {
+    synergy: getLinkSynergy(link),
+    corruption: getLinkCorruption(link)
+  };
+}
+
+// ============================================================================
+// HUD UPDATE FUNCTION (merged from CoreMetricsEngineAdapter)
+// ============================================================================
+
+/**
+ * Derive HUD-ready metrics from engine objects.
+ * Safe to call every frame; returns canonical metrics for HUD consumers.
+ * 
+ * @param {Object} link - Link object (optional, for link-based metrics)
+ * @param {Object} vm - ViewModel with network metrics
+ * @returns {Object} HUD-ready canonical metrics
+ */
+export function updateHudMetrics(link, vm) {
+  const globalMetrics = withGlobalMetricAliases({
+    networkSynergy: vm?.networkSynergy ?? vm?.synergy ?? link?.['synergyScore'],
+    harmonyFlow: vm?.harmonyFlow ?? vm?.harmonyNorm ?? vm?.harmony,
+    networkStress: vm?.networkStress ?? vm?.stabilityNorm ?? vm?.stability,
+    corruptionLevel: vm?.corruptionLevel ?? vm?.corruptionNorm ?? vm?.corruption,
+    loadPressure: vm?.loadPressure ?? vm?.loadNorm ?? vm?.networkLoad ?? vm?.energyNorm
+  });
+
+  return projectHudMetrics(globalMetrics);
+}
+
+// ============================================================================
+// UTILITY EXPORTS
+// ============================================================================
+
+/**
+ * Clear legacy warning cache (for testing)
+ */
+export function clearLegacyWarningCache() {
+  WARNED_LEGACY_ACCESS.clear();
+}
+
+// Console API for debugging
+if (typeof window !== 'undefined') {
+  window.__ATOMA_SEMANTIC_METRIC_ADAPTER = {
+    getNodeCanonicalMetrics,
+    getLinkCanonicalMetrics,
+    getLinkSynergy,
+    getLinkCorruption,
+    aggregateNetworkCanonicalMetrics,
+    withGlobalMetricAliases,
+    projectHudMetrics,
+    updateHudMetrics,
+    clearLegacyWarningCache
   };
 }

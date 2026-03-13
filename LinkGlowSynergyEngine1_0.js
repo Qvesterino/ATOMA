@@ -35,6 +35,8 @@
  * - Zero allocation in update loop
  */
 
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
+
 const LinkGlowSynergyEngine1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
   // PRIVATE STATE
@@ -130,26 +132,8 @@ const LinkGlowSynergyEngine1_0 = (() => {
       return Math.max(0, Math.min(1, debugState.forceScore));
     }
     
-    // Try different score locations
-    if (typeof link.userData?.synergy?.synergyNorm === 'number') {
-      return Math.max(0, Math.min(1, link.userData.synergy.synergyNorm));
-    }
-    if (typeof link['synergyScore'] === 'number') {
-      return Math.max(0, Math.min(1, link['synergyScore']));
-    }
-    if (link.linkData?.synergyScore) {
-      return Math.max(0, Math.min(1, link.linkData.synergyScore));
-    }
-    if (link.userData?.synergy?.score) {
-      return Math.max(0, Math.min(1, link.userData.synergy.score));
-    }
-    
-    // Fallback to traffic-based estimate
-    if (link.traffic?.load) {
-      return Math.max(0, Math.min(1, link.traffic.load));
-    }
-    
-    return 0.5; // Neutral default
+    // Use canonical metric adapter
+    return getLinkSynergy(link);
   }
   
   /**

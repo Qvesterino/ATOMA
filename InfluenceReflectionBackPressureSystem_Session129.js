@@ -35,6 +35,7 @@
  */
 
 import * as THREE from 'three';
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 export class InfluenceReflectionBackPressureSystem_Session129 {
     constructor(scene, world, harmonicInfluenceSystem, aiNodes, linkingSystem, config = {}) {
@@ -252,11 +253,9 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         
         // Fallback: estimate from link metrics if available
         if (link.intensity !== undefined) return link.intensity;
-        if (typeof link.userData?.synergy?.synergyNorm === 'number') {
-            return Math.max(0, Math.min(1, link.userData.synergy.synergyNorm));
-        }
-        if (typeof link.userData?.synergy?.score === 'number') {
-            return Math.max(0, Math.min(1, link.userData.synergy.score));
+        const synergy = getLinkSynergy(link);
+        if (Number.isFinite(synergy)) {
+            return synergy;
         }
         
         return 0;

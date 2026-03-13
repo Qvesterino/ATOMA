@@ -62,6 +62,8 @@
  *   this.mythicEvolutionFX.dispose();
  */
 
+import { getNodeCanonicalMetrics, getLinkSynergy, getLinkCorruption } from './SemanticMetricAdapter.js';
+
 /**
  * Evolution tier definitions (0–4)
  */
@@ -354,20 +356,20 @@ export class MythicEvolutionFX_v1 {
     const qualityNorm = Math.max(0, Math.min(1, quality / 100));
 
     // 2. Harmony/stability (0–1)
-    const harmony = node.userData?.metrics?.harmony ?? 
-                   node.userData?.metrics?.stability ?? 0.5;
+    const canonical = getNodeCanonicalMetrics(node);
+    const harmony = canonical.harmony ?? canonical.stability ?? 0.5;
     const harmonyNorm = Math.max(0, Math.min(1, harmony));
 
     // 3. Synergy from links (0–1)
-    const synergy = node.userData?.quality?.synergyNorm ?? 0.5;
+    const synergy = canonical.synergy ?? 0.5;
     const synergyNorm = Math.max(0, Math.min(1, synergy));
 
     // 4. Energy (0–1)
-    const energy = node.userData?.metrics?.energy ?? 0.5;
-    const energyNorm = Math.max(0, Math.min(1, energy));
+    const loadPressure = canonical.loadPressure ?? 0.5;
+    const energyNorm = Math.max(0, Math.min(1, 1 - loadPressure));
 
     // 5. Corruption penalty (0–1, inverted)
-    const corruption = node.userData?.metrics?.corruption ?? 0.0;
+    const corruption = canonical.corruption ?? 0.0;
     const corruptionNorm = Math.max(0, Math.min(1, corruption));
     const corruptionPenalty = 1.0 - corruptionNorm;
 
@@ -405,11 +407,11 @@ export class MythicEvolutionFX_v1 {
     const qualityNorm = Math.max(0, Math.min(1, quality / 100));
 
     // 2. Synergy (0–1)
-    const synergy = link.userData?.quality?.synergyNorm ?? 0.5;
+    const synergy = getLinkSynergy(link);
     const synergyNorm = Math.max(0, Math.min(1, synergy));
 
     // 3. Corruption penalty (0–1, inverted)
-    const corruption = link.userData?.metrics?.corruption ?? 0.0;
+    const corruption = getLinkCorruption(link);
     const corruptionNorm = Math.max(0, Math.min(1, corruption));
     const corruptionPenalty = 1.0 - corruptionNorm;
 

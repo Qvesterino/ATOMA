@@ -38,6 +38,8 @@
  * ============================================================================
  */
 
+import { getNodeCanonicalMetrics, getLinkSynergy } from './SemanticMetricAdapter.js';
+
 export class PersonalityVisualAdapter {
   /**
    * Initialize the personality visual adapter
@@ -140,16 +142,17 @@ export class PersonalityVisualAdapter {
     }
     
     const vm = node.userData.visualMetrics;
+    const canonical = getNodeCanonicalMetrics(node);
     
     // Compute surrounding link statistics
     const surrounding = this._computeSurroundingLinkStats(node);
     
     // Compute all 5 visual personality signals
-    const clarityBoost = this._computeClarityBoost(vm, surrounding);
-    const resonanceBoost = this._computeResonanceBoost(vm, surrounding);
-    const entropyPenalty = this._computeEntropyPenalty(vm, surrounding);
-    const focusShift = this._computeFocusShift(vm, surrounding);
-    const corruptionSignal = this._computeCorruptionSignal(vm, surrounding);
+    const clarityBoost = this._computeClarityBoost(vm, surrounding, canonical);
+    const resonanceBoost = this._computeResonanceBoost(vm, surrounding, canonical);
+    const entropyPenalty = this._computeEntropyPenalty(vm, surrounding, canonical);
+    const focusShift = this._computeFocusShift(vm, surrounding, canonical);
+    const corruptionSignal = this._computeCorruptionSignal(vm, surrounding, canonical);
     
     // Write to new personalityVisual field (additive)
     if (!node.userData.personalityVisual) {
@@ -245,15 +248,9 @@ export class PersonalityVisualAdapter {
           continue;  // Link not connected to this node
         }
         
-        // Try to get synergyNorm
-        const synergyObj = link.userData?.synergy;
-        if (synergyObj?.synergyNorm !== undefined) {
-          synergySum += synergyObj.synergyNorm;
-        } else if (synergyObj?.score !== undefined) {
-          synergySum += this._clamp01(synergyObj.score);
-        } else if (link?.synergyScore !== undefined) {
-          synergySum += this._clamp01(link?.synergyScore);
-        }
+        // Try to get canonical synergy
+        const synergyVal = getLinkSynergy(link);
+        synergySum += this._clamp01(synergyVal);
         
         // Try to get glowIntensity
         if (link.userData?.visualGlow?.glowIntensity !== undefined) {
@@ -285,10 +282,10 @@ export class PersonalityVisualAdapter {
    * @param {Object} surrounding - Surrounding link statistics
    * @returns {number} Normalized 0–1 value
    */
-  _computeClarityBoost(vm, surrounding) {
+  _computeClarityBoost(vm, surrounding, canonical) {
     try {
-      const harmony = vm.harmonyNorm ?? 0;
-      const stability = vm.stabilityNorm ?? 0;
+      const harmony = canonical?.harmony ?? 0;
+      const stability = canonical?.stability ?? 0;
       const quality = vm.qualityNorm ?? 0;
       
       const w = this.config.clarityWeights;
@@ -310,15 +307,15 @@ export class PersonalityVisualAdapter {
    * @param {Object} surrounding - Surrounding link statistics
    * @returns {number} Normalized 0–1 value
    */
-  _computeResonanceBoost(vm, surrounding) {
+  _computeResonanceBoost(vm, surrounding, canonical) {
     try {
       // If no links, fall back to harmony
       if (surrounding.linkCount === 0) {
-        return this._clamp01(vm.harmonyNorm ?? 0);
+        return this._clamp01(canonical?.harmony ?? 0);
       }
       
       const avgSynergy = surrounding.avgSynergyNorm ?? 0;
-      const harmony = vm.harmonyNorm ?? 0;
+      const harmony = canonical?.harmony ?? 0;
       
       const w = this.config.resonanceWeights;
       const value = (avgSynergy * w.synergy) + (harmony * w.harmony);
@@ -339,11 +336,11 @@ export class PersonalityVisualAdapter {
    * @param {Object} surrounding - Surrounding link statistics
    * @returns {number} Normalized 0–1 value
    */
-  _computeEntropyPenalty(vm, surrounding) {
+  _computeEntropyPenalty(vm, surrounding, canonical) {
     try {
-      const corruption = vm.corruptionNorm ?? 0;
-      const instability = 1 - (vm.stabilityNorm ?? 0);
-      const load = vm.loadNorm ?? 0;
+      const corruption = canonical?.corruption ?? 0;
+      const instability = 1 - (canonical?.stability ?? 0);
+      const load = canonical?.loadPressure ?? 0;
       
       const w = this.config.entropyWeights;
       const value = (corruption * w.corruption) + (instability * w.instability) + (load * w.load);
@@ -364,10 +361,10 @@ export class PersonalityVisualAdapter {
    * @param {Object} surrounding - Surrounding link statistics
    * @returns {number} Normalized 0–1 value
    */
-  _computeFocusShift(vm, surrounding) {
+  _computeFocusShift(vm, surrounding, canonical) {
     try {
-      const instability = 1 - (vm.stabilityNorm ?? 0);
-      const load = vm.loadNorm ?? 0;
+      const instability = 1 - (canonical?.stability ?? 0);
+      const load = canonical?.loadPressure ?? 0;
       
       const w = this.config.focusWeights;
       const value = (instability * w.instability) + (load * w.load);
@@ -388,9 +385,9 @@ export class PersonalityVisualAdapter {
    * @param {Object} surrounding - Surrounding link statistics
    * @returns {number} Normalized 0–1 value
    */
-  _computeCorruptionSignal(vm, surrounding) {
+  _computeCorruptionSignal(vm, surrounding, canonical) {
     try {
-      return this._clamp01(vm.corruptionNorm ?? 0);
+      return this._clamp01(canonical?.corruption ?? 0);
     } catch (error) {
       if (this.config.enableWarnings) {
         console.warn('[PersonalityVisualAdapter] Error computing corruption signal:', error);

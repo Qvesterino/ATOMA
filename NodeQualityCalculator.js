@@ -31,6 +31,8 @@
  * ============================================================================
  */
 
+import { getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
+
 export class NodeQualityCalculator {
   /**
    * Initialize the node quality calculator
@@ -202,15 +204,10 @@ export class NodeQualityCalculator {
    * @private
    */
   _computeEnergyComponent(node) {
-    const metrics = node.userData?.metrics;
-    if (!metrics) {
-      return 50; // Default neutral value
-    }
-    
-    // Extract energyNorm (0–1)
-    const energyNorm = metrics.energyNorm ?? 0.5;
-    
-    // Convert to 0–100 scale
+    const canonical = getNodeCanonicalMetrics(node);
+    // Legacy energyNorm mapped to inverse loadPressure
+    const loadPressure = canonical.loadPressure ?? 0.5;
+    const energyNorm = Math.max(0, Math.min(1, 1 - loadPressure));
     const energyComponent = energyNorm * 100;
     
     return Math.max(0, Math.min(100, energyComponent));

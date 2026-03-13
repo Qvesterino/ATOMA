@@ -12,6 +12,7 @@ import { LinkPulseDustEmitter } from './LinkPulseDustEmitter.js';
 import { LinkEnergyWave } from './LinkEnergyWave.js';
 import { LinkRingArcDischarges } from './LinkRingArcDischarges.js';
 import { LinkVisualStateAdapter } from './LinkVisualStateAdapter.js';
+import { getLinkSynergy, getLinkCorruption } from './SemanticMetricAdapter.js';
 import { NodeInterferenceManager } from './NodeInterferenceManager.js';
 import { NodeHarmonicManager } from './NodeHarmonicManager.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
@@ -2572,17 +2573,7 @@ export class LinkRendererConduit {
             return undefined;
         };
 
-        const synergy = readMetric(
-            userData.synergy?.score,
-            userData.synergy?.synergyNorm,
-            userData.synergy,
-            userMetrics.synergy,
-            linkMetrics.synergy,
-            conduitMetrics.synergy,
-            link?.synergyScore,
-            link?.synergyLevel,
-            link?.flow
-        );
+        const synergy = getLinkSynergy(link);
 
         const harmony = readMetric(
             userData.harmony,
@@ -2594,15 +2585,7 @@ export class LinkRendererConduit {
             link?.harmony
         );
 
-        const corruption = readMetric(
-            userData.corruption,
-            userData.corruptionLevel,
-            userMetrics.corruption,
-            linkMetrics.corruption,
-            conduitMetrics.corruption,
-            link?.corruptionLevel,
-            link?.corruption
-        );
+        const corruption = getLinkCorruption(link);
 
         const stability = readMetric(
             userData.stability,

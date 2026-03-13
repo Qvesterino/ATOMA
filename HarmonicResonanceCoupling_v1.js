@@ -36,6 +36,8 @@
  * - Never creates side effects: pure deterministic visual transform
  */
 
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
+
 export class HarmonicResonanceCoupling_v1 {
   constructor(scene, nodeLinkingSystem) {
     this.scene = scene;
@@ -184,26 +186,8 @@ export class HarmonicResonanceCoupling_v1 {
       }
     }
     
-    // Prefer canonical synergy object
-    const synergyObj = link.userData?.synergy;
-    if (synergyObj?.synergyNorm !== undefined) {
-      return synergyObj.synergyNorm;
-    }
-    if (synergyObj?.score !== undefined) {
-      return Math.max(0, Math.min(1, synergyObj.score));
-    }
-
-    // Fallback to normalized legacy score if present
-    if (link?.synergyScore !== undefined) {
-      return Math.max(0, Math.min(1, link?.synergyScore));
-    }
-    
-    // Last resort: quality-based estimate
-    if (link.traffic?.quality !== undefined) {
-      return link.traffic.quality * 0.8; // Conservative estimate
-    }
-    
-    return 0;
+    // Use canonical metric adapter
+    return getLinkSynergy(link);
   }
   
   /**

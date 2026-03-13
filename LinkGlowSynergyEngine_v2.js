@@ -40,6 +40,8 @@
  * ============================================================================
  */
 
+import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
+
 export class LinkGlowSynergyEngine_v2 {
   /**
    * Initialize the glow engine with system references
@@ -208,23 +210,22 @@ export class LinkGlowSynergyEngine_v2 {
    */
   _computeVisual(link, nodeA, nodeB) {
     try {
-      // Get synergy from ComputeSynergyScore2_1 (canonical object)
-      const synergy = link.userData?.synergy ?? { score: 0, synergyNorm: 0 };
-      const synergyNorm = this._clamp01(
-        synergy.synergyNorm ?? synergy.score ?? 0
-      );
+      // Get synergy via canonical metric adapter
+      const synergyNorm = getLinkSynergy(link);
       
       // ========== WEEK 2 FORMULA ==========
       
-      // Get quality metrics from nodes
-      const vmA = nodeA.userData?.visualMetrics;
-      const vmB = nodeB.userData?.visualMetrics;
+      // Get quality metrics from nodes via canonical adapter
+      const metricsA = getNodeCanonicalMetrics(nodeA);
+      const metricsB = getNodeCanonicalMetrics(nodeB);
       
       let qualityNorm = 0.5; // Default if unavailable
       
-      if (vmA && vmB) {
-        // Blend quality from both nodes
-        qualityNorm = (vmA.qualityNorm + vmB.qualityNorm) / 2;
+      // Quality derived from harmony + stability blend
+      if (metricsA && metricsB) {
+        const qualityA = (metricsA.harmony ?? 0.5) * 0.5 + (metricsA.stability ?? 0.5) * 0.5;
+        const qualityB = (metricsB.harmony ?? 0.5) * 0.5 + (metricsB.stability ?? 0.5) * 0.5;
+        qualityNorm = (qualityA + qualityB) / 2;
       }
       
       // Blend synergy + quality for final intensity
@@ -243,8 +244,8 @@ export class LinkGlowSynergyEngine_v2 {
       
       let corruptionPulse = 0;
       
-      if (this.config.enableChaosFlicker && vmA && vmB) {
-        const avgCorruption = (vmA.corruptionNorm + vmB.corruptionNorm) / 2;
+      if (this.config.enableChaosFlicker && metricsA && metricsB) {
+        const avgCorruption = ((metricsA.corruption ?? 0) + (metricsB.corruption ?? 0)) / 2;
         
         if (avgCorruption > this.config.corruptionThreshold) {
           // Chaotic nodes get extra pulse

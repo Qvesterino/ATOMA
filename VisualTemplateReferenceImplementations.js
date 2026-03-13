@@ -15,6 +15,7 @@
 // TEMPLATE 1: SYNERGY GLOW (Canonical Reference)
 // ============================================================================
 
+
 /**
  * SynergyGlowReference: Canonical pattern for link quality visualization
  * 

@@ -50,6 +50,7 @@
  */
 
 import * as THREE from 'three';
+import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 // PHASE OFF-1: disable unbounded motion while keeping meshes active
 const MOTION_OFF_PHASE1 = true;
@@ -287,12 +288,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
           active: true,
           
           // Metrics (from source node)
-          harmony: node.userData?.harmony ?? 0,
-          corruption: node.userData?.corruption ?? 0,
-          synergy: (sourceLink?.userData?.synergy?.synergyNorm
-            ?? sourceLink?.userData?.synergy?.score
-            ?? sourceLink?.synergy
-            ?? 0),
+          harmony: getNodeCanonicalMetrics(node).harmony ?? 0,
+          corruption: getNodeCanonicalMetrics(node).corruption ?? 0,
+          synergy: getLinkSynergy(sourceLink),
         };
         
         this.activeInfluenceWaves.push(wave);
