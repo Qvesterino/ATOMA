@@ -1211,6 +1211,10 @@ function _getSigmaV2Geometries() {
     SIGMA_V2_CACHE.baseGeometry.computeBoundingSphere();
     SIGMA_V2_CACHE.edgesGeometry = new THREE.EdgesGeometry(SIGMA_V2_CACHE.baseGeometry, 12);
     SIGMA_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.05, 12, 64);
+    SIGMA_V2_CACHE.cageGeometry = new THREE.IcosahedronGeometry(1.02, 0);
+    SIGMA_V2_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(SIGMA_V2_CACHE.cageGeometry, 8);
+    SIGMA_V2_CACHE.innerCoreGeometry = new THREE.OctahedronGeometry(0.28, 0);
+    SIGMA_V2_CACHE.beaconGeometry = new THREE.TetrahedronGeometry(0.08, 0);
   }
   return SIGMA_V2_CACHE;
 }
@@ -1241,7 +1245,19 @@ function _getSigmaV2Materials(color) {
     opacity: 0.35
   });
 
-  const mats = { coreMat, edgeMat, ringMat };
+  const cageMat = new THREE.LineBasicMaterial({
+    color: 0xa8fff0,
+    transparent: true,
+    opacity: 0.55
+  });
+
+  const beaconMat = new THREE.MeshBasicMaterial({
+    color: 0xc8fff3,
+    transparent: true,
+    opacity: 0.75
+  });
+
+  const mats = { coreMat, edgeMat, ringMat, cageMat, beaconMat };
   SIGMA_V2_MATERIALS.set(colorHex, mats);
   return mats;
 }
@@ -3681,55 +3697,148 @@ static createStorageNode0(group, color) {
    * Storage Node 1: Capsule with inner bands
    */
   static createStorageNode1(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const seedValue = hashString(nodeKey);
+    const seed = Math.abs(seedValue) || 1;
+    const rng = _mythicSeededRng(seed);
+
+    const shellMat = new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: 0.22,
-      metalness: 0.65,
-      roughness: 0.22
+      emissiveIntensity: 0.2,
+      metalness: 0.78,
+      roughness: 0.18
     });
 
-    // Base ring
-    const base = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 12, 32), mat);
-    base.position.y = -0.35;
-    base.rotation.x = Math.PI * 0.5;
-    validateMeshGeometry(base, 'createStorageNode1:base');
-    group.add(base);
+    const frameMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34
+    });
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.6, 10, 1), mat);
-    spine.position.y = 0.3;
+    const edgeMat = new THREE.LineBasicMaterial({
+      color: 0xc8f6ff,
+      transparent: true,
+      opacity: 0.55
+    });
+
+    const shardMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.28,
+      metalness: 0.58,
+      roughness: 0.24,
+      transparent: true,
+      opacity: 0.92
+    });
+
+    const root = new THREE.Group();
+    root.name = 'STORAGE_CAPSULE_RELIQUARY';
+
+    // Lower dock ring
+    const dock = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 12, 36), frameMat);
+    dock.position.y = -0.42;
+    dock.rotation.x = Math.PI * 0.5;
+    validateMeshGeometry(dock, 'createStorageNode1:dock');
+    root.add(dock);
+
+    // Main vault body: offset capsule shell built from cylindrical segments
+    const bodyGeo = new THREE.CylinderGeometry(0.38, 0.46, 1.7, 10, 3);
+    const body = new THREE.Mesh(bodyGeo, shellMat);
+    body.position.set(0.02, 0.28, -0.03);
+    body.rotation.set(0.08, Math.PI * 0.13, -0.03);
+    body.userData.isCore = true;
+    validateMeshGeometry(body, 'createStorageNode1:body');
+    root.add(body);
+
+    const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.4, 0.28, 10, 1), shellMat);
+    capTop.position.set(0.08, 1.16, -0.04);
+    capTop.rotation.y = Math.PI * 0.12;
+    validateMeshGeometry(capTop, 'createStorageNode1:capTop');
+    root.add(capTop);
+
+    const capBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.28, 0.24, 10, 1), shellMat);
+    capBottom.position.set(-0.05, -0.64, 0.03);
+    capBottom.rotation.y = -Math.PI * 0.09;
+    validateMeshGeometry(capBottom, 'createStorageNode1:capBottom');
+    root.add(capBottom);
+
+    // Inner memory spine
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.45, 0.18), shellMat);
+    spine.position.set(-0.12, 0.26, 0.1);
+    spine.rotation.set(0.04, Math.PI * 0.18, 0.06);
     validateMeshGeometry(spine, 'createStorageNode1:spine');
-    group.add(spine);
+    root.add(spine);
 
-    // Core prism
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.95, 0.55), mat);
-    core.position.y = 0.8;
-    core.rotation.y = Math.PI * 0.18;
-    core.userData.isCore = true;
-    validateMeshGeometry(core, 'createStorageNode1:core');
-    group.add(core);
+    // Irregular retention braces
+    const braceGeo = new THREE.BoxGeometry(0.12, 0.62, 0.1);
+    const braceConfigs = [
+      { pos: [0.46, 0.48, 0.18], rot: [0.18, 0.22, 0.3] },
+      { pos: [-0.42, 0.18, -0.24], rot: [-0.14, -0.18, -0.24] },
+      { pos: [0.36, -0.12, -0.28], rot: [0.1, 0.42, -0.3] },
+      { pos: [-0.34, 0.84, 0.12], rot: [-0.18, 0.12, 0.22] }
+    ];
+    braceConfigs.forEach((cfg, i) => {
+      const brace = new THREE.Mesh(braceGeo, shellMat);
+      brace.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      brace.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      validateMeshGeometry(brace, `createStorageNode1:brace${i}`);
+      root.add(brace);
+    });
 
-    // Frame ring
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.05, 10, 28), mat);
-    ring.position.y = 0.8;
-    ring.rotation.x = Math.PI * 0.5;
-    ring.rotation.y = Math.PI * 0.14;
-    validateMeshGeometry(ring, 'createStorageNode1:ring');
-    group.add(ring);
+    // Broken capacity bands
+    const bandConfigs = [
+      { radius: 0.72, tube: 0.04, arc: Math.PI * 1.45, pos: [0.0, 0.66, 0.0], rot: [Math.PI * 0.5, 0.24, 0.08] },
+      { radius: 0.82, tube: 0.035, arc: Math.PI * 1.18, pos: [0.04, 0.22, 0.02], rot: [Math.PI * 0.22, Math.PI * 0.18, Math.PI * 0.36] },
+      { radius: 0.7, tube: 0.03, arc: Math.PI * 1.28, pos: [-0.05, -0.24, 0.06], rot: [Math.PI * 0.5, -0.16, -0.1] }
+    ];
+    bandConfigs.forEach((cfg, i) => {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(cfg.radius, cfg.tube, 10, 44, cfg.arc), frameMat);
+      band.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      band.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      validateMeshGeometry(band, `createStorageNode1:band${i}`);
+      root.add(band);
+    });
 
-    // Fins (4)
-    const finGeo = new THREE.BoxGeometry(0.12, 0.5, 0.08);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const fin = new THREE.Mesh(finGeo, mat);
-      fin.position.set(Math.cos(angle) * 0.65, 0.4, Math.sin(angle) * 0.65);
-      fin.rotation.y = angle + Math.PI * 0.22;
-      fin.rotation.z = Math.PI * 0.18;
-      validateMeshGeometry(fin, `createStorageNode1:fin${i}`);
-      group.add(fin);
+    // Floating memory slabs around the capsule
+    const slabGeo = new THREE.BoxGeometry(0.18, 0.05, 0.38);
+    for (let i = 0; i < 9; i++) {
+      const slab = new THREE.Mesh(slabGeo, shardMat);
+      const angle = (i / 9) * Math.PI * 2;
+      const radius = 0.82 + rng() * 0.18;
+      slab.position.set(
+        Math.cos(angle) * radius,
+        -0.28 + i * 0.12,
+        Math.sin(angle * 1.12) * (0.54 + rng() * 0.22)
+      );
+      slab.rotation.set(
+        rng() * Math.PI * 0.35,
+        angle + rng() * 0.5,
+        -0.2 + rng() * 0.4
+      );
+      slab.scale.set(0.85 + rng() * 0.45, 1, 0.85 + rng() * 0.5);
+      validateMeshGeometry(slab, `createStorageNode1:slab${i}`);
+      root.add(slab);
     }
 
+    // Suspended data shards
+    const shardGeo = new THREE.TetrahedronGeometry(0.12, 0);
+    for (let i = 0; i < 5; i++) {
+      const shard = new THREE.Mesh(shardGeo, shardMat);
+      shard.position.set(
+        -0.18 + rng() * 0.5,
+        0.18 + i * 0.22,
+        -0.22 + rng() * 0.44
+      );
+      shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      shard.scale.set(0.9 + rng() * 0.5, 1.2 + rng() * 0.4, 0.8 + rng() * 0.3);
+      validateMeshGeometry(shard, `createStorageNode1:shard${i}`);
+      root.add(shard);
+    }
+
+    root.userData.visualVariant = 'STORAGE_CAPSULE_RELIQUARY_V2';
+    root.userData.nodeGeometryName = 'STORAGE_CAPSULE_RELIQUARY';
+    group.add(root);
     return group;
   }
 
@@ -5621,43 +5730,139 @@ static createControlNode0(group, color) {
     try {
       const geometries = _getSigmaV2Geometries();
       const materials = _getSigmaV2Materials(color);
+      const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(index || color || 0x00ffee);
+      const seedValue = hashString(nodeKey);
+      const seed = Math.abs(seedValue) || 1;
+      const rng = _mythicSeededRng(seed);
 
       const sigmaRoot = new THREE.Group();
       sigmaRoot.name = 'SIGMA_NODE';
       sigmaRoot.userData.visualVariant = 'SIGMA_V2';
-      console.log('BUILDER CALLED: createSigmaNodeStyled_v2', { visualVariant: sigmaRoot.userData.visualVariant });
 
       // CORE GROUP
       const coreGroup = new THREE.Group();
       coreGroup.name = 'CORE_GROUP';
 
-      const core = new THREE.Mesh(geometries.baseGeometry, materials.coreMat);
+      const deformedCoreGeometry = geometries.baseGeometry.clone();
+      const posAttr = deformedCoreGeometry.attributes.position;
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const y = posAttr.getY(i);
+        const z = posAttr.getZ(i);
+        const wave = 1 + Math.sin((x * 3.7) + (y * 5.1) + seed * 0.0001) * 0.14;
+        const skewX = x * (0.92 + rng() * 0.36) + (y * 0.12);
+        const skewY = y * (0.86 + rng() * 0.28) - (z * 0.16);
+        const skewZ = z * (0.92 + rng() * 0.34) + (x * 0.1);
+        posAttr.setXYZ(i, skewX * wave, skewY * wave, skewZ * wave);
+      }
+      posAttr.needsUpdate = true;
+      deformedCoreGeometry.computeVertexNormals();
+      deformedCoreGeometry.computeBoundingSphere();
+
+      const deformedCoreEdges = new THREE.EdgesGeometry(deformedCoreGeometry, 12);
+      const sigmaCoreMat = createSigmaCollapseMaterial(seed, color);
+      const core = new THREE.Mesh(deformedCoreGeometry, sigmaCoreMat);
       core.name = 'SigmaCore';
+      core.userData.isSigmaCore = true;
+      core.userData.collapseUniforms = sigmaCoreMat.uniforms;
+      core.rotation.set(Math.PI * 0.16, Math.PI * 0.23, -Math.PI * 0.08);
       coreGroup.add(core);
 
-      const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
+      const edges = new THREE.LineSegments(deformedCoreEdges, materials.edgeMat);
       edges.name = 'CoreEdges';
+      edges.rotation.copy(core.rotation);
       coreGroup.add(edges);
+
+      const innerCoreMat = materials.coreMat.clone();
+      innerCoreMat.emissiveIntensity = 0.42;
+      const innerCore = new THREE.Mesh(geometries.innerCoreGeometry, innerCoreMat);
+      innerCore.name = 'SigmaInnerCore';
+      innerCore.scale.set(0.82, 0.56, 0.94);
+      innerCore.position.set(0.06, -0.04, 0.02);
+      innerCore.rotation.set(-Math.PI * 0.24, Math.PI * 0.34, Math.PI * 0.11);
+      coreGroup.add(innerCore);
+
+      const cage = new THREE.LineSegments(geometries.cageEdgesGeometry, materials.cageMat);
+      cage.name = 'SigmaCage';
+      cage.rotation.set(Math.PI * 0.22, Math.PI * 0.31, Math.PI * 0.12);
+      cage.scale.set(1.2, 1.05, 1.16);
+      coreGroup.add(cage);
+
+      const ruptureFrame = new THREE.Group();
+      ruptureFrame.name = 'SigmaRuptureFrame';
+      const frameMat = materials.cageMat.clone();
+      frameMat.opacity = 0.42;
+      const framePts = [
+        new THREE.Vector3(-0.95, 0.55, -0.2),
+        new THREE.Vector3(0.15, 1.02, 0.32),
+        new THREE.Vector3(0.98, 0.18, 0.78),
+        new THREE.Vector3(0.42, -0.94, 0.12),
+        new THREE.Vector3(-0.82, -0.58, -0.86),
+        new THREE.Vector3(-1.04, 0.18, 0.34)
+      ];
+      for (let i = 0; i < framePts.length; i++) {
+        const next = framePts[(i + 1) % framePts.length];
+        const geom = new THREE.BufferGeometry().setFromPoints([framePts[i], next]);
+        const line = new THREE.Line(geom, frameMat);
+        ruptureFrame.add(line);
+      }
+      coreGroup.add(ruptureFrame);
+
+      const shardCount = 7;
+      const shardGeo = geometries.beaconGeometry;
+      for (let i = 0; i < shardCount; i++) {
+        const shard = new THREE.Mesh(shardGeo, materials.beaconMat);
+        const angle = (i / shardCount) * Math.PI * 2;
+        const radius = 0.82 + rng() * 0.28;
+        shard.name = `SigmaShard_${i}`;
+        shard.position.set(
+          Math.cos(angle) * radius,
+          -0.28 + rng() * 0.82,
+          Math.sin(angle * 1.35) * radius * 0.9
+        );
+        shard.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        shard.scale.set(0.7 + rng() * 0.7, 1.2 + rng() * 0.4, 0.7 + rng() * 0.6);
+        coreGroup.add(shard);
+      }
 
       sigmaRoot.add(coreGroup);
 
-      // FIELD GROUP (orthogonal rings)
+      // FIELD GROUP (broken orbital arcs + asym crown)
       const fieldGroup = new THREE.Group();
       fieldGroup.name = 'FIELD_GROUP';
 
-      const ringCount = 2;
+      const ringConfigs = [
+        { arc: Math.PI * 1.72, radius: 0.96, tube: 0.052, rot: [Math.PI * 0.52, Math.PI * 0.08, Math.PI * 0.06], scale: [1.0, 0.9, 1.08], axis: new THREE.Vector3(0, 1, 0), speed: 0.05, pos: [0.0, 0.02, 0.0] },
+        { arc: Math.PI * 1.38, radius: 0.88, tube: 0.045, rot: [Math.PI * 0.08, Math.PI * 0.5, -Math.PI * 0.22], scale: [1.1, 1.0, 0.94], axis: new THREE.Vector3(1, 0.15, 0), speed: 0.075, pos: [0.08, -0.04, 0.02] },
+        { arc: Math.PI * 1.24, radius: 1.02, tube: 0.04, rot: [Math.PI * 0.24, Math.PI * 0.16, Math.PI * 0.42], scale: [1.05, 0.88, 1.1], axis: new THREE.Vector3(0.35, 1, 0.45), speed: 0.095, pos: [-0.04, 0.08, -0.06] }
+      ];
+      const ringCount = ringConfigs.length;
       sigmaRoot.userData.orbitRingCount = ringCount;
       for (let i = 0; i < ringCount; i++) {
-        const ring = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+        const cfg = ringConfigs[i];
+        const ringGeo = new THREE.TorusGeometry(cfg.radius, cfg.tube, 10, 56, cfg.arc);
+        const ring = new THREE.Mesh(ringGeo, materials.ringMat);
         ring.name = `SigmaRing_${i}`;
-        ring.rotation.x = i === 0 ? Math.PI / 2 : 0;
-        ring.rotation.y = i === 1 ? Math.PI / 2 : 0;
+        ring.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        ring.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+        ring.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
         ring.userData.isSigmaRing = true;
         ring.userData.isOrbitRing = true;
-        ring.userData.orbitAxis = (i === 0 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
-        ring.userData.orbitSpeed = 0.05 + i * 0.02; // slow rotation
+        ring.userData.orbitAxis = cfg.axis.clone().normalize();
+        ring.userData.orbitSpeed = cfg.speed;
         ring.userData.visualCoreImmutable = true;
         fieldGroup.add(ring);
+      }
+
+      const beaconCount = 6;
+      for (let i = 0; i < beaconCount; i++) {
+        const beacon = new THREE.Mesh(geometries.beaconGeometry, materials.beaconMat);
+        const angle = (i / beaconCount) * Math.PI * 2;
+        beacon.name = `SigmaBeacon_${i}`;
+        beacon.position.set(Math.cos(angle) * 1.0, (i % 2 === 0 ? 0.4 : -0.26), Math.sin(angle * 1.18) * 0.86);
+        beacon.rotation.set(Math.PI * (0.12 + rng() * 0.2), angle, Math.PI * 0.12);
+        beacon.scale.set(0.8, 1.35, 0.8);
+        fieldGroup.add(beacon);
       }
 
       sigmaRoot.add(fieldGroup);
@@ -7377,8 +7582,7 @@ static createControlNode0(group, color) {
             0.5 * Math.sin(angle1)
           ];
         },
-        0, Math.PI * 2, 80, 0.18, 10, color,
-        { pathScale: 0.3, tubeScale: 0.5 }
+        0, Math.PI * 2, 80, 0.18, 10, color
       );
       group.add(tube);
       return group;
@@ -7539,8 +7743,7 @@ static createControlNode0(group, color) {
           const z = 0.35 * Math.sin(2.5 * t);
           return [x, y, z];
         },
-        0, Math.PI * 2.5, 96, 0.17, 8, color,
-        { pathScale: 0.3, tubeScale: 0.5 }
+        0, Math.PI * 2.5, 96, 0.17, 8, color
       );
       group.add(tube);
       return group;

@@ -1,4 +1,45 @@
 /**
+ * ============================================================================
+ * ARCHIVED: T2_HarmonyVisualConsumer_v1.js
+ * ============================================================================
+ * 
+ * ARCHIVAL DATE: 2026-03-13
+ * REASON: Violates ATOMA visual policy
+ * 
+ * ============================================================================
+ * WHY ARCHIVED:
+ * ============================================================================
+ * 
+ * This system was disabled in main.js (lines 637-639) because:
+ * 
+ * 1. USES PRIMITIVE GEOMETRIES:
+ *    - Line 85: new THREE.SphereGeometry(1.5, 32, 32) for auras
+ *    - Line 113: new THREE.SphereGeometry() for oasis zones
+ *    - Line 152: new THREE.SphereGeometry() for healing pulses
+ * 
+ * 2. BYPASSES VISUAL AUTHORITY:
+ *    - Creates geometries directly instead of through VisualTemplateResolver
+ *    - Does not use EnhancedNodeModels canonical system
+ *    - No coordination with CoreVisualAuthoritySystem
+ * 
+ * 3. DUPLICATES EXISTING FUNCTIONALITY:
+ *    - HarmonyAuraController already provides cyan aura effects
+ *    - HarmonyAuraController uses proper canonical templates
+ *    - HarmonyAuraController integrates with VisualTemplateResolver
+ * 
+ * ============================================================================
+ * REPLACEMENT:
+ * ============================================================================
+ * 
+ * Use HarmonyAuraController.js instead:
+ *    - Location: ./HarmonyAuraController.js (root)
+ *    - Wiring: Via VisualTemplateResolver.js
+ *    - Features: Canonical harmony aura with proper visual authority
+ * 
+ * ============================================================================
+ * ORIGINAL DOCUMENTATION:
+ * ============================================================================
+ * 
  * T2-003: HARMONY VISUAL CONSUMER v1.0
  * 
  * TIER 2 VISUAL INTEGRATION — HARMONY FEEDBACK LAYER
@@ -54,12 +95,9 @@ export class T2_HarmonyVisualConsumer_v1 {
       time: 0
     };
     
-    console.log('[T2_HarmonyVisualConsumer_v1] Initialized (harmony visual feedback layer)');
+    console.warn('[T2_HarmonyVisualConsumer_v1] ARCHIVED - Use HarmonyAuraController instead');
   }
   
-  /**
-   * Enable/disable all harmony visuals
-   */
   setEnabled(enabled) {
     this.enabled = enabled;
     this.registry.nodeAuras.forEach((data) => {
@@ -70,18 +108,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     });
   }
   
-  /**
-   * Register a node for harmony visual tracking
-   * Called when node is created or spawned
-   */
   registerNode(node) {
     if (!node || this.registry.nodeAuras.has(node.uuid)) return;
     
-    // Create cyan aura container
     const auraGroup = new THREE.Group();
     auraGroup.name = `harmony-aura-${node.uuid}`;
     
-    // Aura mesh (glowing sphere)
     const auraGeometry = new THREE.SphereGeometry(1.5, 32, 32);
     const auraMaterial = new THREE.MeshBasicMaterial({
       color: this.config.auraCyanColor,
@@ -103,10 +135,6 @@ export class T2_HarmonyVisualConsumer_v1 {
     });
   }
   
-  /**
-   * Create an oasis zone visual at a location
-   * Called by harmony system when oasis is stabilized
-   */
   createOasisZone(position, harmonyIntensity = 0.8) {
     if (!this.enabled) return;
     
@@ -135,17 +163,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     this.scene.add(zoneMesh);
     
-    // Register for tracking
     const zoneKey = `oasis-${position.x.toFixed(1)}-${position.y.toFixed(1)}-${position.z.toFixed(1)}`;
     this.registry.oasisZones.set(zoneKey, zoneMesh);
     
     return zoneMesh;
   }
   
-  /**
-   * Emit a healing pulse from a high-harmony node
-   * Called during update() when conditions are met
-   */
   emitHealingPulse(fromNode, targetPosition = null) {
     if (!this.enabled || !fromNode) return;
     
@@ -164,7 +187,6 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     this.scene.add(pulseMesh);
     
-    // Direction: toward target or random
     let direction = new THREE.Vector3(0, 0, 1);
     if (targetPosition) {
       direction = targetPosition.clone().sub(fromNode.position).normalize();
@@ -192,21 +214,15 @@ export class T2_HarmonyVisualConsumer_v1 {
     return pulse;
   }
   
-  /**
-   * Main update loop — call once per frame
-   * Reads harmony data and renders visual feedback
-   */
   update(deltaTime, aiNodes, harmonySystem) {
     if (!this.enabled) return;
     
     this.registry.time += deltaTime;
     
-    // ===== PART 1: Update Cyan Auras for High-Harmony Nodes =====
     if (aiNodes && aiNodes.nodes) {
       for (const node of aiNodes.nodes) {
         if (!node.userData) continue;
         
-        // Register new nodes
         if (!this.registry.nodeAuras.has(node.uuid)) {
           this.registerNode(node);
         }
@@ -214,18 +230,14 @@ export class T2_HarmonyVisualConsumer_v1 {
         const auraData = this.registry.nodeAuras.get(node.uuid);
         if (!auraData) continue;
         
-        // Read harmony level from node (if available)
         const harmonyLevel = node.userData.harmonyLevel ?? 0;
         
-        // Only show aura if harmony is above threshold (0.6)
         if (harmonyLevel >= 0.6) {
-          const harmonyIntensity = Math.max(0, harmonyLevel - 0.6) / 0.4; // Normalize to [0, 1]
+          const harmonyIntensity = Math.max(0, harmonyLevel - 0.6) / 0.4;
           
-          // Breathing animation
           auraData.breathingPhase += deltaTime * this.config.auraBreathingSpeed;
           const breathing = 1.0 + Math.sin(auraData.breathingPhase) * 0.08;
           
-          // Update aura visual
           const targetOpacity = this.config.auraMinOpacity + 
             (this.config.auraMaxOpacity - this.config.auraMinOpacity) * harmonyIntensity;
           
@@ -237,9 +249,7 @@ export class T2_HarmonyVisualConsumer_v1 {
           );
           auraData.auraMesh.visible = true;
           
-          // Emit healing pulses from high-harmony nodes
           if (harmonyIntensity > 0.7) {
-            // Emit pulses periodically
             const pulseInterval = 1.0 / this.config.pulseEmitRate;
             const timeSinceLastPulse = this.registry.time % pulseInterval;
             if (timeSinceLastPulse < deltaTime) {
@@ -254,11 +264,9 @@ export class T2_HarmonyVisualConsumer_v1 {
       }
     }
     
-    // ===== PART 2: Update Oasis Zones =====
     this.registry.oasisZones.forEach((zone) => {
       if (!zone.userData.isOasisZone) return;
       
-      // Breathing animation for oasis zones
       zone.userData.breathingPhase += deltaTime * this.config.oasisZoneBreathingFrequency;
       const breathing = 1.0 + Math.sin(zone.userData.breathingPhase) * 0.05;
       
@@ -266,25 +274,21 @@ export class T2_HarmonyVisualConsumer_v1 {
         zone.userData.harmonyIntensity * breathing;
     });
     
-    // ===== PART 3: Update Healing Pulses =====
     for (let i = this.registry.activeHealingPulses.length - 1; i >= 0; i--) {
       const pulse = this.registry.activeHealingPulses[i];
       
       pulse.ageSeconds += deltaTime;
       
-      // Update position
       pulse.mesh.position.add(
         pulse.direction.clone().multiplyScalar(pulse.speed * deltaTime)
       );
       
-      // Fade out as pulse dies
       const fadeStart = pulse.lifetime * 0.7;
       if (pulse.ageSeconds > fadeStart) {
         const fadeProgress = (pulse.ageSeconds - fadeStart) / (pulse.lifetime - fadeStart);
         pulse.mesh.material.opacity = 0.8 * (1.0 - fadeProgress);
       }
       
-      // Remove expired pulse
       if (pulse.ageSeconds >= pulse.lifetime) {
         this.scene.remove(pulse.mesh);
         pulse.mesh.geometry.dispose();
@@ -294,9 +298,6 @@ export class T2_HarmonyVisualConsumer_v1 {
     }
   }
   
-  /**
-   * Cleanup all harmony visuals from scene
-   */
   cleanup() {
     this.registry.nodeAuras.forEach((data) => {
       if (data.node && data.auraMesh) {
@@ -322,9 +323,6 @@ export class T2_HarmonyVisualConsumer_v1 {
     this.registry.activeHealingPulses = [];
   }
   
-  /**
-   * Get status for debugging
-   */
   getStatus() {
     return {
       enabled: this.enabled,

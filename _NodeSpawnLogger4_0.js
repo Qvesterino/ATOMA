@@ -15,6 +15,9 @@
 
 export const NodeSpawnLogger = {
   enabled: true,
+  sequence: 0,
+  maxHistory: 100,
+  history: [],
 
   /**
    * Log a node spawn event with full validation
@@ -48,10 +51,24 @@ export const NodeSpawnLogger = {
         const safeVisualCode = visualCode !== undefined ? visualCode : "??";
         const safeFactoryName = factoryName || "unknown";
         const safeNodeId = nodeId || "??";
+        const entry = {
+          seq: ++this.sequence,
+          ts,
+          category: safeCategory,
+          visualCode: safeVisualCode,
+          factoryName: safeFactoryName,
+          nodeId: safeNodeId,
+          source: src || 'unknown'
+        };
+        this.history.push(entry);
+        if (this.history.length > this.maxHistory) this.history.shift();
+        if (typeof window !== 'undefined') {
+          window.__ATOMA_SPAWN_LOG_HISTORY = this.history.slice();
+        }
         
         // Print simplified one-line format
-        console.error(
-          `[Spawn] cat=${safeCategory} code=${safeVisualCode} factory=${safeFactoryName} id=${safeNodeId} src=${src || 'unknown'}`
+        console.info(
+          `[Spawn#${entry.seq}] code=${safeVisualCode} cat=${safeCategory} factory=${safeFactoryName} id=${safeNodeId} src=${entry.source}`
         );
         return;
       }
@@ -180,6 +197,50 @@ export const NodeSpawnLogger = {
   setEnabled(enabled) {
     this.enabled = enabled;
     console.log(`[NodeSpawnLogger] Logging ${enabled ? "ENABLED" : "DISABLED"}`);
+  },
+
+  getRecent(limit = 20) {
+    const size = Math.max(1, Number(limit) || 20);
+    return this.history.slice(-size);
+  },
+
+  printRecent(limit = 20) {
+    const rows = this.getRecent(limit);
+    console.table(rows);
+    return rows;
+  },
+
+  logBatchSummary(entries = [], source = 'unknown') {
+    if (!this.enabled || !Array.isArray(entries) || entries.length === 0) return;
+
+    const byCategory = {};
+    const codes = [];
+
+    for (const entry of entries) {
+      const category = entry?.category || 'undefined';
+      const visualCode = entry?.visualCode ?? '??';
+      byCategory[category] = (byCategory[category] || 0) + 1;
+      codes.push(`${category}:${visualCode}`);
+    }
+
+    const summary = Object.entries(byCategory)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([category, count]) => `${category}=${count}`)
+      .join(', ');
+
+    const batch = {
+      total: entries.length,
+      source,
+      categories: byCategory,
+      codes
+    };
+    if (typeof window !== 'undefined') {
+      window.__ATOMA_SPAWN_BATCH_LAST = batch;
+    }
+    console.warn(
+      `[SpawnBatch] total=${entries.length} src=${source} categories=[${summary}] codes=[${codes.join(', ')}]`
+    );
+    console.table(entries);
   },
 
   /**

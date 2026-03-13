@@ -634,9 +634,10 @@ import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNN
 // ✅ T2-003: Harmony Visual Feedback Consumer
 // ============================================================================
 import { T2_CorruptionVisualIntegration_v1 } from './T2_CorruptionVisualIntegration_v1.js';
-// DISABLED: T2_HarmonyVisualConsumer_v1 creates primitive sphere auras (SphereGeometry)
-// Violates ATOMA visual policy - only EnhancedNodeModels allowed for node visuals
-// import { T2_HarmonyVisualConsumer_v1 } from './T2_HarmonyVisualConsumer_v1.js';
+// ARCHIVED (2026-03-13): T2_HarmonyVisualConsumer_v1 moved to src/legacy/
+// Reason: Violates ATOMA visual policy (primitive SphereGeometry instead of EnhancedNodeModels)
+// Replacement: HarmonyAuraController.js (via VisualTemplateResolver)
+// See: src/legacy/T2_HarmonyVisualConsumer_v1.js for documentation
 
 // ============================================================================
 // TIER 4 GAMEPLAY INTEGRATION — Gameplay Layer

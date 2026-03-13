@@ -106,7 +106,18 @@ import { initNodeMetrics, onNodeSpawn } from './src/metrics/NodeMetricEngine.js'
 // All spawn failure tracking now uses this._spawnAbortCounters
 const __ensureSpawnDiag = () => {
   if (typeof window === 'undefined') return null;
-  window.__SPAWN_DIAG = window.__SPAWN_DIAG || {
+  const current = window.__SPAWN_DIAG;
+  if (!current || typeof current !== 'object' || Array.isArray(current)) {
+    window.__SPAWN_DIAG = {
+      createNodesEnter: 0,
+      createNodesSkip: 0,
+      spawnNodeEnter: 0,
+      finalizeNull: {},
+      logged: 0
+    };
+    return window.__SPAWN_DIAG;
+  }
+  window.__SPAWN_DIAG = current || {
     createNodesEnter: 0,
     createNodesSkip: 0,
     spawnNodeEnter: 0,
@@ -1118,6 +1129,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     let spawned = 0;
     let attempts = 0;
     const maxAttempts = desiredCount * 3;
+    const batchSpawnEntries = [];
 
     while (spawned < desiredCount && attempts < maxAttempts) {
       // Generate per-node position to avoid modulo overlap
@@ -1186,6 +1198,15 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         // Spawn failed – try next attempt
         continue;
       }
+      const spawnResultCode =
+        this._lastSpawnResult?.visualCode ??
+        node?.userData?.visualCode ??
+        node?.userData?.spawnCycle?.visualCode ??
+        node?.userData?.enhancedNodeModelBinding?.visualCode;
+      const spawnRegistryEntry =
+        NODE_VISUAL_REGISTRY?.[Number(spawnResultCode)] ||
+        NODE_VISUAL_REGISTRY?.[String(spawnResultCode)] ||
+        null;
       if (node.userData?.visualFailed === true) {
         if (!window.ATOMA_FLAGS?.debug?.silentWarnings) {
           console.warn('[NodeSpawnSkipped] Visual build failed, skipping node');
@@ -1212,21 +1233,30 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
           // NODE SPAWN LOGGER v4.0: best-effort log only
           const ud = finalizedNode.userData || {};
-          const visualCodeSelected = ud.visualCode;
-          if (visualCodeSelected == null) {
+          const identity = findSpawnIdentity(finalizedNode);
+          const visualCodeSelected = identity.visualCode ?? ud.visualCode;
+          const effectiveVisualCode = visualCodeSelected ?? spawnResultCode ?? '??';
+          const effectiveFactoryName =
+            identity.factoryName ??
+            ud.factoryName ??
+            spawnRegistryEntry?.factoryName ??
+            'unknown';
+          const spawnEntry = {
+            category: identity.category ?? category ?? this._lastSpawnResult?.category,
+            visualCode: effectiveVisualCode,
+            factoryName: effectiveFactoryName,
+            nodeId: ud.nodeId || ud.id || finalizedNode.uuid,
+            source: 'AINodes.createNodes'
+          };
+          batchSpawnEntries.push(spawnEntry);
+
+          if (visualCodeSelected == null && spawnResultCode == null) {
             console.warn('[SPAWN_LOG_MISSING_VISUALCODE]', {
               category,
-              nodeId: finalizedNode.userData?.id || finalizedNode.userData?.nodeId || finalizedNode.uuid
+              nodeId: ud.id || ud.nodeId || finalizedNode.uuid
             });
           } else {
-            const factoryName = ud.factoryName;
-            NodeSpawnLogger.logSpawn({
-              category,
-              visualCode: visualCodeSelected,
-              factoryName,
-              nodeId: finalizedNode.userData?.id,
-              source: 'AINodes.createNodes'
-            });
+            NodeSpawnLogger.logSpawn(spawnEntry);
             if (__diag) __diag.logged++;
           }
       }
@@ -1249,6 +1279,30 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // After initial batch, sync category counts for HUD
     this.recomputeSpawnCategoryCountsFromNodes(this.nodes, true);
+    try {
+      const batchSummary = batchSpawnEntries.map((entry, idx) => ({
+        order: idx + 1,
+        code: entry.visualCode ?? '??',
+        category: entry.category ?? 'undefined',
+        factory: entry.factoryName ?? 'unknown',
+        nodeId: entry.nodeId || '??'
+      }));
+      const categorySummary = {};
+      for (const entry of batchSummary) {
+        categorySummary[entry.category] = (categorySummary[entry.category] || 0) + 1;
+      }
+      if (typeof window !== 'undefined') {
+        window.__ATOMA_LAST_INIT_SPAWN_BATCH = batchSummary;
+        window.__ATOMA_LAST_INIT_SPAWN_SUMMARY = categorySummary;
+      }
+      console.warn(
+        `[InitSpawnBatch] env=${environment} total=${batchSummary.length} categories=${Object.entries(categorySummary).map(([cat, count]) => `${cat}=${count}`).join(', ')}`
+      );
+      console.table(batchSummary);
+    } catch (err) {
+      console.warn('[InitSpawnBatch] logging failed', err?.message || err);
+    }
+    NodeSpawnLogger.logBatchSummary(batchSpawnEntries, 'AINodes.createNodes');
     if (this.spawningConfig) {
       this.spawningConfig.targetPopulation = desiredCount;
       this.spawningConfig.maxNodesTarget = desiredCount;
@@ -3551,7 +3605,25 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     }
 
-    // Recover visual identity from children if missing on root
+    // Recover visual identity from root bindings / children if missing on root
+    const bindingVisualCode =
+      node?.userData?.visualCode ??
+      node?.userData?.spawnCycle?.visualCode ??
+      node?.userData?.enhancedNodeModelBinding?.visualCode;
+
+    if (bindingVisualCode !== undefined && node?.userData?.visualCode === undefined) {
+      node.userData.visualCode = bindingVisualCode;
+    }
+    if (!node?.userData?.factoryName && node?.userData?.visualCode !== undefined) {
+      const registryEntry = NODE_VISUAL_REGISTRY?.[Number(node.userData.visualCode)] || NODE_VISUAL_REGISTRY?.[String(node.userData.visualCode)];
+      if (registryEntry?.factoryName) {
+        node.userData.factoryName = registryEntry.factoryName;
+      }
+      if (!node.userData.category && registryEntry?.category) {
+        node.userData.category = registryEntry.category;
+      }
+    }
+
     if (node?.userData?.visualCode === undefined) {
       let found = null;
       node.traverse(o => {
@@ -4057,12 +4129,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     
     // NODE SPAWN LOGGER v4.0: Log spawn with visualCode and factoryName
     const ud = finalizedNode.userData || {};
-    const nodeId = ud.id || finalizedNode.uuid;
-    const visualCode = ud.visualCode;
-    const factoryName = ud.factoryName;
+    const identity = findSpawnIdentity(finalizedNode);
+    const nodeId = ud.nodeId || ud.id || finalizedNode.uuid;
+    const visualCode = identity.visualCode ?? ud.visualCode;
+    const factoryName = identity.factoryName ?? ud.factoryName;
 
     NodeSpawnLogger.logSpawn({
-      category,
+      category: identity.category ?? category,
       visualCode,
       factoryName,
       nodeId,
