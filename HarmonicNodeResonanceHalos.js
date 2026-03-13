@@ -318,8 +318,12 @@ export class HarmonicNodeResonanceHalos {
 
   /**
    * Update all node halos
+   * @param {number} deltaTime - Frame delta time
+   * @param {Array|Map} nodeRegistry - Nodes to update halos for
+   * @param {Map} hubSystemData - Hub data from HarmonicHubAuraSystem
+   * @param {Map} harmonicManagerData - Hub data from NodeHarmonicManager (includes collapse/recovery/resilience)
    */
-  update(deltaTime, nodeRegistry, hubSystemData) {
+  update(deltaTime, nodeRegistry, hubSystemData, harmonicManagerData = null) {
     if (!nodeRegistry) return;
     
     this.totalTime += deltaTime;
@@ -336,8 +340,8 @@ export class HarmonicNodeResonanceHalos {
       
       if (!haloData) return;
       
-      // Get hub state from hubSystemData or node userData
-      const hubState = this.getHubState(nodeId, hubSystemData, node);
+      // Get hub state from hubSystemData, harmonicManagerData, or node userData
+      const hubState = this.getHubState(nodeId, hubSystemData, harmonicManagerData, node);
       
       // Determine if halo should be active
       const shouldBeActive = this.shouldHaloBeActive(hubState);
@@ -356,8 +360,12 @@ export class HarmonicNodeResonanceHalos {
 
   /**
    * Get hub state for a node
+   * @param {string} nodeId - Node ID
+   * @param {Map} hubSystemData - Hub data from HarmonicHubAuraSystem
+   * @param {Map} harmonicManagerData - Hub data from NodeHarmonicManager
+   * @param {Object} node - Node object
    */
-  getHubState(nodeId, hubSystemData, node) {
+  getHubState(nodeId, hubSystemData, harmonicManagerData, node) {
     const state = {
       isHarmonicHub: false,
       activeLinkCount: 0,
@@ -371,10 +379,12 @@ export class HarmonicNodeResonanceHalos {
       resilience: 0,
       isRecovering: false,
       isCollapsed: false,
+      collapseFactor: 0,
+      recoveryFactor: 0,
       nodeRadius: node.scale?.x || 1.0
     };
     
-    // Get from hubSystemData if available
+    // Get from hubSystemData if available (HarmonicHubAuraSystem)
     if (hubSystemData && hubSystemData.get) {
       const hubData = hubSystemData.get(nodeId);
       if (hubData) {
@@ -393,6 +403,28 @@ export class HarmonicNodeResonanceHalos {
       }
     }
     
+    // Get from harmonicManagerData if available (NodeHarmonicManager - includes collapse/recovery/resilience)
+    if (harmonicManagerData && harmonicManagerData.get) {
+      const managerData = harmonicManagerData.get(nodeId);
+      if (managerData) {
+        // Manager data takes precedence for these fields (more detailed)
+        state.isHarmonicHub = managerData.isHarmonicHub || state.isHarmonicHub;
+        state.activeLinkCount = managerData.activeLinkCount || state.activeLinkCount;
+        state.hubPhase = managerData.phase || state.hubPhase;
+        state.hubSyncStrength = managerData.syncStrength || state.hubSyncStrength;
+        state.harmony = managerData.harmony ?? state.harmony;
+        state.synergy = managerData.synergy ?? state.synergy;
+        state.corruption = managerData.corruption ?? state.corruption;
+        state.instability = managerData.instability ?? state.instability;
+        state.stability = managerData.stability ?? state.stability;
+        state.resilience = managerData.resilience || state.resilience;
+        state.isRecovering = managerData.isRecovering || state.isRecovering;
+        state.isCollapsed = managerData.isCollapsed || state.isCollapsed;
+        state.collapseFactor = managerData.collapseFactor || 0;
+        state.recoveryFactor = managerData.recoveryFactor || 0;
+      }
+    }
+    
     // Fallback to node userData
     if (node.userData) {
       state.isHarmonicHub = state.isHarmonicHub || (node.userData.isHarmonicHub || false);
@@ -408,6 +440,22 @@ export class HarmonicNodeResonanceHalos {
       state.resilience = node.userData.resilience || state.resilience;
       state.isRecovering = node.userData.isRecovering || state.isRecovering;
       state.isCollapsed = node.userData.isCollapsed || state.isCollapsed;
+    }
+    
+    // Also check node.harmonicControllers (attached by NodeHarmonicManager)
+    if (node.harmonicControllers) {
+      const { collapse, recovery, resilience } = node.harmonicControllers;
+      if (collapse) {
+        state.collapseFactor = collapse.collapseFactor || state.collapseFactor;
+        state.isCollapsed = collapse.collapseFactor > 0.8 || state.isCollapsed;
+      }
+      if (recovery) {
+        state.recoveryFactor = recovery.recoveryFactor || state.recoveryFactor;
+        state.isRecovering = recovery.isInRecovery() || state.isRecovering;
+      }
+      if (resilience) {
+        state.resilience = resilience.hubResilience || state.resilience;
+      }
     }
     
     return state;

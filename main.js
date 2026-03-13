@@ -613,6 +613,7 @@ import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Se
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
+import { HarmonicHubDebugger } from './HarmonicHubDebugger.js';
 import { VisualEchoTrails_v1 } from './VisualEchoTrails_v1_Shader.js';
 import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
 
@@ -894,6 +895,8 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 // ============================================================================
 import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
 import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
+import { SynergyHighways2_0 } from './SynergyHighways2_0.js';
+import { SynergyHighwayVisuals3D_1_0 } from './SynergyHighwayVisuals3D_1_0.js';
 
 // ============================================================================
 // DEBUG: HARMONY OVERLAY (visual readability, gated)
@@ -4069,6 +4072,11 @@ document.addEventListener('keydown', () => {
         // Week 22B Synergy Cascade FX Bridge (cascade → shader effects)
         this.synergyCascadeFXBridge = null;
 
+        // Synergy Highways (route computation) + 3D highway visuals
+        this.synergyHighways = null;
+        this.synergyHighwayVisuals3D = null;
+        this._synergyHighwayRefreshAcc = 0;
+
         // Week 25 (Bonus) Wave Interference Engine (multi-origin wave system)
         this.waveInterferenceEngine = null;
 
@@ -6063,6 +6071,21 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkingSystem.conduitRenderer.waveTravelShaderPack = this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack;
             this.linkingSystem.conduitRenderer.waveDynamicsShaderPack = this.waveDynamicsShaderPack || this.linkingSystem.conduitRenderer.waveDynamicsShaderPack;
             this.linkingSystem.conduitRenderer.setTravelingWaveFX?.(this.synergyTravelingWaveFX);
+        }
+        const enableSynergyHighway3D = window?.ATOMA_FLAGS?.visual?.synergyHighway3D ?? true;
+        if (enableSynergyHighway3D) {
+            this.synergyHighways = SynergyHighways2_0;
+            this.synergyHighways.init(this.linkingSystem);
+            this.synergyHighways.scheduleRebuild?.();
+            this.linkingSystem.onLinkCreated?.(() => this.synergyHighways?.scheduleRebuild?.());
+            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighways?.scheduleRebuild?.());
+            this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
+            this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.synergyHighways);
+            this.synergyHighwayVisuals3D.refreshFromHighways?.();
+            this._synergyHighwayRefreshAcc = 0;
+        } else {
+            this.synergyHighways = null;
+            this.synergyHighwayVisuals3D = null;
         }
         console.log('[main.js] NodeLinkingSystem created');
 
@@ -8629,8 +8652,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     harmonicNodeResonanceHalosTick(deltaTime) {
         if (this.harmonicNodeResonanceHalos && this.aiNodes) {
             const nodeRegistry = this.aiNodes.nodes;
+            // Get hub data from HarmonicHubAuraSystem
             const hubSystemData = this.harmonicHubAuraSystem?.hubs || null;
-            this.harmonicNodeResonanceHalos.update(deltaTime, nodeRegistry, hubSystemData);
+            // Also get hub data from NodeHarmonicManager (includes collapse/recovery/resilience)
+            const harmonicManagerData = this.linkRendererConduit?.nodeHarmonicManager?.getAllHubStateData() || null;
+            // Merge both data sources (harmonicManagerData takes precedence for shared fields)
+            this.harmonicNodeResonanceHalos.update(deltaTime, nodeRegistry, hubSystemData, harmonicManagerData);
         }
     }
 
@@ -8918,6 +8945,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
         regGuard('synergyTravelingWaveFX', 'visual.synergyTravelingWaveFX', (dt) => this.synergyTravelingWaveFX?.update?.(dt, this.time || 0));
+        regGuard('synergyHighwayVisuals3D', 'visual.synergyHighwayVisuals3D', (dt) => {
+            if (!this.synergyHighwayVisuals3D) return;
+            this._synergyHighwayRefreshAcc = (this._synergyHighwayRefreshAcc || 0) + dt;
+            if (this._synergyHighwayRefreshAcc >= 0.5) {
+                this.synergyHighways?.updateVisuals?.();
+                this.synergyHighwayVisuals3D.refreshFromHighways?.();
+                this._synergyHighwayRefreshAcc = 0;
+            }
+            this.synergyHighwayVisuals3D.update?.(dt);
+        });
 
 
 
@@ -11796,6 +11833,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         try {
             this.harmonicNodeResonanceHalos = new HarmonicNodeResonanceHalos();
             console.log('✓ Harmonic Node Resonance Halos initialized');
+            
+            // Setup HarmonicHubDebugger for console access
+            this.harmonicHubDebugger = new HarmonicHubDebugger(this);
+            window.HarmonicHubDebugger = this.harmonicHubDebugger;
+            console.log('✓ Harmonic Hub Debugger initialized (window.HarmonicHubDebugger)');
         } catch (err) {
             console.warn('⚠ Harmonic Node Resonance Halos initialization failed:', err);
         }

@@ -1155,8 +1155,8 @@ export class LinkRendererConduit {
      * Update all harmonic sync effects
      * Call this from the main render loop after all individual link updates
      */
-    updateNodeHarmonySync(links, harmony = 1.0, corruption = 0.0, instability = 0.0) {
-        this.nodeHarmonicManager.update(links, harmony, corruption, instability);
+    updateNodeHarmonySync(links, harmony = 1.0, corruption = 0.0, instability = 0.0, deltaTime = 0.016) {
+        this.nodeHarmonicManager.update(links, harmony, corruption, instability, deltaTime);
     }
 
     /**
@@ -1509,7 +1509,8 @@ export class LinkRendererConduit {
                 [link],
                 metrics?.harmony ?? 1.0,
                 metrics?.corruption ?? 0.0,
-                instabilityValue
+                instabilityValue,
+                visualDelta
             );
         }
 

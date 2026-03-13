@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
+import { EnhancedNodeModels } from '../EnhancedNodeModels.js'; // canonical factories (avoid drift)
 
 /**
  * RARE NODE SPAWNER (SAFE)
@@ -485,9 +486,10 @@ export class RareNodeSpawner {
   }
   
   /**
-   * Create Quantum Bloom Node (petal-like photon trails)
+   * Create Quantum Bloom Node (petal-like photon trails) — LEGACY IMPLEMENTATION
+   * Kept for reference; not used in production after March 2026.
    */
-  createQuantumBloomNode(group, color) {
+  createQuantumBloomNode_Legacy(group, color) {
     // Reuse one material instance per node
     const mat = this.getMaterial(
       `quantum-bloom-${color}`,
@@ -541,6 +543,17 @@ export class RareNodeSpawner {
     group.add(ring);
 
     group.userData.orbitSpeed = 0.015;
+  }
+
+  /**
+   * Canonical stub: delegates to EnhancedNodeModels to avoid duplicate factory definitions.
+   */
+  createQuantumBloomNode(group, color) {
+    if (EnhancedNodeModels?.createQuantumBloomNode) {
+      return EnhancedNodeModels.createQuantumBloomNode(group, color);
+    }
+    console.warn('[RareNodeSpawner] Deprecated createQuantumBloomNode fallback used; canonical factory unavailable.');
+    return group;
   }
   
   /**

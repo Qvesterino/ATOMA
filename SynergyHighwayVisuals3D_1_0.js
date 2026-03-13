@@ -51,6 +51,8 @@
  * 4. That's it! No modifications to core systems needed.
  */
 
+import * as THREE from 'three';
+
 const SynergyHighwayVisuals3D_1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
   // PRIVATE STATE

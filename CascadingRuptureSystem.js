@@ -215,8 +215,8 @@ export class CascadingRuptureSystem {
         this.linkingSystem = linkingSystem;
         this.regionalEquilibrium = regionalEquilibrium;
 
-        // Enable flag (default: false for safety)
-        this.enabled = false;
+        // Enable flag (default: true - activated per NETWORK_STABILITY_SYSTEMS_AUDIT)
+        this.enabled = true;
 
         // Detection state
         this.detectionTimer = 0.0;

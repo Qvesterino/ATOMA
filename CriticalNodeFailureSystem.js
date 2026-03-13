@@ -239,8 +239,8 @@ export class CriticalNodeFailureSystem {
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
 
-        // Enable flag (default: false for safety)
-        this.enabled = false;
+        // Enable flag (default: true - activated per NETWORK_STABILITY_SYSTEMS_AUDIT)
+        this.enabled = true;
 
         // Detection state
         this.detectionTimer = 0.0;
