@@ -899,6 +899,11 @@ import { SynergyHighways2_0 } from './SynergyHighways2_0.js';
 import { SynergyHighwayVisuals3D_1_0 } from './SynergyHighwayVisuals3D_1_0.js';
 
 // ============================================================================
+// WAVE BURST ROUTER (Event-Driven Burst Triggering)
+// ============================================================================
+import { setupWaveBurstRouter } from './WaveBurstRouter_v1.js';
+
+// ============================================================================
 // DEBUG: HARMONY OVERLAY (visual readability, gated)
 // ============================================================================
 import { HarmonyDebugOverlay } from './HarmonyDebugOverlay.js';
@@ -913,6 +918,8 @@ import { WaveParticleEmitter_v1 } from './WaveParticleEmitter_v1.js';
 // ============================================================================
 import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
 import { PersonalityRuntime_v1 } from './PersonalityRuntime_v1.js';
+import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
+import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
 
 // ============================================================================
 // EXTRACTION PACK V1.1 — RUNTIME ORCHESTRATION (WORLD & FX)
@@ -5092,6 +5099,17 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
         }
 
+        // Initialize Wave Burst Router (event-driven burst triggering)
+        try {
+            this.waveBurstRouter = setupWaveBurstRouter(this);
+            console.log('[main.js] WaveBurstRouter initialized ✓');
+            console.log('  - Listens to synergy, cascade, corruption, interaction events');
+            console.log('  - Auto-triggers wave bursts with 1.5s cooldown');
+            console.log('  - Makes wave effects visible without manual intervention');
+        } catch (err) {
+            console.warn('[main.js] WaveBurstRouter failed:', err);
+        }
+
         try {
             this.waveShaderBridge = new WaveShaderBridge_v1({
                 renderer: this.renderer,
@@ -8075,6 +8093,33 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 }
 
         // ====================================================================
+        // METRIC INTERPRETATION LAYER v1 — Visual Signal Interpretation
+        // ====================================================================
+        try {
+            this.metricInterpretationLayer = new MetricInterpretationLayer_v1({
+                debugEnabled: false
+            });
+            setupMetricInterpretationConsoleAPI(this.metricInterpretationLayer);
+            console.log('[main.js] MetricInterpretationLayer_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] MetricInterpretationLayer_v1 failed:', err);
+        }
+
+        // ====================================================================
+        // STRESS VISUAL SHADER SYSTEM — GPU-based stress visualization
+        // ====================================================================
+        try {
+            this.stressVisualShaderSystem = new StressVisualShaderSystem(this.scene, {
+                ambientEnabled: true,
+                nodeOverlayEnabled: true,
+                debugMode: false
+            });
+            console.log('[main.js] StressVisualShaderSystem initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] StressVisualShaderSystem failed:', err);
+        }
+
+        // ====================================================================
         // EXTRACTION PACK V1.0 — PERSONALITY RUNTIME ORCHESTRATION
         // ====================================================================
         try {
@@ -8944,6 +8989,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }));
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
+        regGuard('waveBurstRouter', 'visual.waveBurstRouter', (dt) => this.waveBurstRouter?.update?.(dt));
         regGuard('synergyTravelingWaveFX', 'visual.synergyTravelingWaveFX', (dt) => this.synergyTravelingWaveFX?.update?.(dt, this.time || 0));
         regGuard('synergyHighwayVisuals3D', 'visual.synergyHighwayVisuals3D', (dt) => {
             if (!this.synergyHighwayVisuals3D) return;
@@ -9186,6 +9232,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         if (this.metricsRuntime_v1) {
             this.metricsRuntime_v1.update(deltaTime);
+        }
+
+        // MetricInterpretationLayer_v1: visual signal interpretation
+        if (this.metricInterpretationLayer) {
+            const nodes = this.aiNodes?.nodes || [];
+            this.metricInterpretationLayer.update(deltaTime, nodes);
+        }
+
+        // StressVisualShaderSystem: GPU-based stress visualization
+        if (this.stressVisualShaderSystem) {
+            const nodes = this.aiNodes?.nodes || [];
+            this.stressVisualShaderSystem.update(deltaTime, this.time, nodes);
         }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock

@@ -91,6 +91,7 @@ export class NodeVisuals4_0 {
 
     if (!node || !node.children) return;
     
+    const allowAnimatedScale = node.userData?.allowAnimatedScale === true;
     const nodeId = node.uuid || Math.random().toString();
     
     // Store original for reference and attach overlay container
@@ -125,8 +126,10 @@ export class NodeVisuals4_0 {
     // Step 2: Add spectral energy ring
     this.addSpectralEnergyRing(visualData, baseColor);
     
-    // Step 3: Add levitation field (local oscillation)
-    this.addLevitationField(visualData, baseColor);
+    // Step 3: Add levitation field (local oscillation) — opt-in
+    if (allowAnimatedScale) {
+      this.addLevitationField(visualData, baseColor);
+    }
     
     // Step 4: Add neon rim-light
     this.addNeonRimLight(visualData, baseColor);
@@ -139,9 +142,11 @@ export class NodeVisuals4_0 {
       this.addExtremeSecondaryGlowLayer(visualData, baseColor);
     }
     
-    // Step 6: Mark for internal pulse
-    visualData.components.pulseEnabled = true;
-    visualData.components.pulseTime = 0;
+    // Step 6: Mark for internal pulse (opt-in)
+    if (allowAnimatedScale) {
+      visualData.components.pulseEnabled = true;
+      visualData.components.pulseTime = 0;
+    }
     
     this.registry.upgradeCount++;
   }

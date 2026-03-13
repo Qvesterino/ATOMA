@@ -164,6 +164,10 @@ export class NodeShellSizeAuthority {
    * @param {number} tier - Evolution tier (optional, default 2)
    */
   registerNode(node, category, tier = 2) {
+    // Allow opt-in animated scale: skip registration entirely
+    if (node?.userData?.allowAnimatedScale === true) {
+      return this.config.baseShellSize;
+    }
     const shellSize = this.computeNodeShellSize(node, category, tier);
     const nodeId = this._resolveNodeId(node);
     
@@ -224,6 +228,7 @@ export class NodeShellSizeAuthority {
     // Direct enforcement via aura system if available
     if (auraSystem && auraSystem.auras) {
       for (const [nodeKey, aura] of auraSystem.auras) {
+        if (aura?.node?.userData?.allowAnimatedScale === true) continue;
         const shellSize = this.getNodeShellSize(aura.node);
         
         // Override the aura's radius with static size
@@ -241,6 +246,7 @@ export class NodeShellSizeAuthority {
     // Enforce child shell/aura meshes only for registered nodes.
     for (const [nodeId, node] of this.registeredNodes.entries()) {
       if (!node || node.parent == null) continue;
+      if (node.userData?.allowAnimatedScale === true) continue;
       const staticSize = this.computedSizes.get(nodeId);
       if (!staticSize) continue;
       this._enforceNodeShells(node, staticSize);

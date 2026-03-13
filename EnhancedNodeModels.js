@@ -12,6 +12,7 @@ import { ControlSpineVariants } from './Atoma_nodes/ControlSpineVariants_Session
 import { InputSensoryEnhanced } from './Atoma_nodes/InputSensoryEnhanced_Session111.js';
 import { ControlNodeSpecialGovernors } from './Atoma_nodes/ControlNodeSpecialGoverners_Session114.js';
 import { StorageNodesVisual } from './Atoma_nodes/StorageNodesVisual_Session116.js';
+import { safeCreateEdgesGeometry } from './src/three/GeometryBoundsSafe.js';
 import { AINodeModel } from './AINodeModel.js';
 import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 
@@ -815,7 +816,7 @@ function _getInputV2Materials(color) {
 function _getControlV2Geometries() {
   if (!CONTROL_V2_CACHE.coreGeometry) {
     CONTROL_V2_CACHE.coreGeometry = new THREE.CylinderGeometry(0.52, 0.58, 1.22, 6, 1, false);
-    CONTROL_V2_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_CACHE.coreGeometry, 10);
+    CONTROL_V2_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(CONTROL_V2_CACHE.coreGeometry, 10);
     CONTROL_V2_CACHE.spireGeometry = new THREE.CylinderGeometry(0.038, 0.026, 1.5, 8, 1, false);
     CONTROL_V2_CACHE.ringGeometry = new THREE.TorusGeometry(0.88, 0.05, 12, 72);
     CONTROL_V2_CACHE.segmentGeometry = new THREE.BoxGeometry(0.16, 0.08, 0.14);
@@ -888,13 +889,13 @@ function _getControlV2Geometries_Legacy() {
   if (!CONTROL_V2_LEGACY_CACHE.coreGeometry) {
     CONTROL_V2_LEGACY_CACHE.coreGeometry = new THREE.IcosahedronGeometry(0.55, 1);
     CONTROL_V2_LEGACY_CACHE.coreGeometry.computeBoundingSphere();
-    CONTROL_V2_LEGACY_CACHE.coreEdgesGeometry = new THREE.EdgesGeometry(CONTROL_V2_LEGACY_CACHE.coreGeometry, 12);
+    CONTROL_V2_LEGACY_CACHE.coreEdgesGeometry = safeCreateEdgesGeometry(CONTROL_V2_LEGACY_CACHE.coreGeometry, 12);
     CONTROL_V2_LEGACY_CACHE.ringGeometry = new THREE.TorusGeometry(0.9, 0.06, 12, 96);
     CONTROL_V2_LEGACY_CACHE.satGeometry = new THREE.BoxGeometry(0.18, 0.12, 0.22);
 
     const cageGeom = new THREE.IcosahedronGeometry(1.05, 0);
     CONTROL_V2_LEGACY_CACHE.cageGeometry = cageGeom;
-    CONTROL_V2_LEGACY_CACHE.cageEdgesGeometry = new THREE.EdgesGeometry(cageGeom, 10);
+    CONTROL_V2_LEGACY_CACHE.cageEdgesGeometry = safeCreateEdgesGeometry(cageGeom, 10);
 
     CONTROL_V2_LEGACY_CACHE.barrierGeometry = new THREE.SphereGeometry(1.28, 24, 18);
 
@@ -7274,7 +7275,8 @@ static createControlNode0(group, color) {
             -Math.sin(3 * t)
           ];
         },
-        0, Math.PI * 2, 64, 0.25, 8, color
+        0, Math.PI * 2, 64, 0.25, 8, color,
+        { pathScale: 0.3, tubeScale: 0.5 } // halve overall size for integration knots
       );
       group.add(tube);
       return group;
@@ -7308,7 +7310,8 @@ static createControlNode0(group, color) {
             s2t
           ];
         },
-        0, Math.PI * 2, 64, 0.22, 8, color
+        0, Math.PI * 2, 64, 0.22, 8, color,
+        { pathScale: 0.3, tubeScale: 0.5 }
       );
       group.add(tube);
       return group;
@@ -7374,7 +7377,8 @@ static createControlNode0(group, color) {
             0.5 * Math.sin(angle1)
           ];
         },
-        0, Math.PI * 2, 80, 0.18, 10, color
+        0, Math.PI * 2, 80, 0.18, 10, color,
+        { pathScale: 0.3, tubeScale: 0.5 }
       );
       group.add(tube);
       return group;
@@ -7535,7 +7539,8 @@ static createControlNode0(group, color) {
           const z = 0.35 * Math.sin(2.5 * t);
           return [x, y, z];
         },
-        0, Math.PI * 2.5, 96, 0.17, 8, color
+        0, Math.PI * 2.5, 96, 0.17, 8, color,
+        { pathScale: 0.3, tubeScale: 0.5 }
       );
       group.add(tube);
       return group;
@@ -7553,21 +7558,23 @@ static createControlNode0(group, color) {
    * Creates smooth tubular mesh around knot path
    * [RAYCAST FIX] Ensures knot mesh is properly interactive
    */
-  static generateTubularKnot(parametricFunc, tStart, tEnd, segments, tubeRadius, tubeSegments, color) {
+  static generateTubularKnot(parametricFunc, tStart, tEnd, segments, tubeRadius, tubeSegments, color, options = {}) {
+    const pathScale = options.pathScale ?? 0.6;   // default original scale
+    const tubeScale = options.tubeScale ?? 1.0;   // default original thickness
     const points = [];
     
     // Generate knot path points
     for (let i = 0; i <= segments; i++) {
       const t = tStart + (tEnd - tStart) * (i / segments);
       const pt = parametricFunc(t);
-      points.push(new THREE.Vector3(pt[0] * 0.6, pt[1] * 0.6, pt[2] * 0.6));
+      points.push(new THREE.Vector3(pt[0] * pathScale, pt[1] * pathScale, pt[2] * pathScale));
     }
     
     // Create curve from points
     const curve = new THREE.CatmullRomCurve3(points);
     
     // Generate tubular geometry
-    const geometry = new THREE.TubeGeometry(curve, segments, tubeRadius, tubeSegments, false);
+    const geometry = new THREE.TubeGeometry(curve, segments, tubeRadius * tubeScale, tubeSegments, false);
     
     // Create material
     const material = new THREE.MeshStandardMaterial({

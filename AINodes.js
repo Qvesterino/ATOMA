@@ -1078,12 +1078,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       console.log('[SPAWN_PROBE] createNodes enter phase=', this.spawnState.phase);
     }
     if (this.spawnState.phase !== 'INIT') {
-      if (__diag && typeof __diag === 'object') __diag.createNodesSkip++;
-      __diagOnce('createNodesSkip', `[SpawnPhase] createNodes skipped; phase=${this.spawnState.phase}\n${new Error().stack}`);
-      console.warn(`[SpawnPhase] createNodes skipped; phase=${this.spawnState.phase}`);
-      return;
+      return; // hard skip duplicates
     }
-    const positions = this.getNodePositions(environment, count);
+    const MAX_INIT_NODES = 15;
+    const desiredCount = Math.min(count || MAX_INIT_NODES, MAX_INIT_NODES);
+    const positions = this.getNodePositions(environment, desiredCount);
+    const rotationStore = (typeof window !== 'undefined') ? (window.__spawnRotation = window.__spawnRotation || {}) : null;
     
     // INIT cycle: unique category per batch, based on CATEGORY_POOLS (non-empty only)
     const baseDeck = Object.keys(CATEGORY_POOLS || {})
@@ -1114,9 +1114,36 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return deck[deckIndex++];
     };
 
-    positions.forEach((pos, index) => {
+    this.hardSpawnCap = desiredCount; // enforce across runtime systems
+    let spawned = 0;
+    let attempts = 0;
+    const maxAttempts = desiredCount * 3;
+
+    while (spawned < desiredCount && attempts < maxAttempts) {
+      // Generate per-node position to avoid modulo overlap
+      let pos;
+      if (spawned < positions.length) {
+        pos = positions[spawned].clone();
+      } else {
+        // fallback random around origin per environment
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 10;
+        pos = new THREE.Vector3(
+          Math.cos(angle) * radius,
+          2 + Math.random() * 6,
+          Math.sin(angle) * radius
+        );
+      }
+      // small jitter to prevent stacking even on same ring
+      const j = 0.5;
+      pos.add(new THREE.Vector3(
+        (Math.random() - 0.5) * j,
+        (Math.random() - 0.5) * j,
+        (Math.random() - 0.5) * j
+      ));
       const category = nextInitCategory();
-      if (!category) return;
+      attempts++;
+      if (!category) break;
       const isSpecial = false; // special rule disabled during INIT to preserve unique categories
       
       // ========== EXTREME SPAWN SYSTEM v1.0 (HOISTED) ==========
@@ -1150,20 +1177,20 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           archetypeKey: archetypeKey
       };
 
-      const node = this.createNode(category, pos, index, isSpecial, options);
+      const node = this.createNode(category, pos, spawned, isSpecial, options);
       if (!node) {
         // UNIFIED ABORT COUNTERS (Fix 3): Use this._spawnAbortCounters instead of __diag.spawnNodeAbort
         if (__diag && this._spawnAbortCounters) {
           this._spawnAbortCounters.CREATE_NODE_NULL = (this._spawnAbortCounters.CREATE_NODE_NULL || 0) + 1;
         }
-        // Spawn failed – skip safely
-        return;
+        // Spawn failed – try next attempt
+        continue;
       }
       if (node.userData?.visualFailed === true) {
         if (!window.ATOMA_FLAGS?.debug?.silentWarnings) {
           console.warn('[NodeSpawnSkipped] Visual build failed, skipping node');
         }
-        return;
+        continue;
       }
       const finalized = this._finalizeSpawnedNode(node, category, pos);
       if (!finalized || !finalized.node) {
@@ -1180,30 +1207,59 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             archetype: archetypeKey,
           });
 
-          // NODE SPAWN LOGGER v4.0: Log spawn with full validation (object format for visualCode/factoryName)
+          // Any finalized node counts toward the init batch cap.
+          spawned++;
+
+          // NODE SPAWN LOGGER v4.0: best-effort log only
           const ud = finalizedNode.userData || {};
           const visualCodeSelected = ud.visualCode;
           if (visualCodeSelected == null) {
-            console.warn('[SPAWN_SKIP] visualCode undefined, skipping spawn', {
+            console.warn('[SPAWN_LOG_MISSING_VISUALCODE]', {
               category,
-              poolLen: Array.isArray(CATEGORY_POOLS?.[category]) ? CATEGORY_POOLS[category].length : 0
+              nodeId: finalizedNode.userData?.id || finalizedNode.userData?.nodeId || finalizedNode.uuid
             });
-            return null;
+          } else {
+            const factoryName = ud.factoryName;
+            NodeSpawnLogger.logSpawn({
+              category,
+              visualCode: visualCodeSelected,
+              factoryName,
+              nodeId: finalizedNode.userData?.id,
+              source: 'AINodes.createNodes'
+            });
+            if (__diag) __diag.logged++;
           }
-          const factoryName = ud.factoryName;
-          NodeSpawnLogger.logSpawn({
-            category,
-            visualCode: visualCodeSelected,
-            factoryName,
-            nodeId: finalizedNode.userData?.id,
-            source: 'AINodes.createNodes'
-          });
-          if (__diag) __diag.logged++;
       }
-    });
+    }
+
+    // Hard trim: if any legacy path over-produced nodes, keep only the first init batch.
+    if (Array.isArray(this.nodes) && this.nodes.length > desiredCount) {
+      const overflow = this.nodes.slice(desiredCount);
+      for (const node of overflow) {
+        if (!node) continue;
+        this.nodesRoot?.remove?.(node);
+        this.scene?.remove?.(node);
+        const id = node.userData?.nodeId || node.userData?.id;
+        if (id && this.nodesMap?.get(id) === node) {
+          this.nodesMap.delete(id);
+        }
+      }
+      this.nodes = this.nodes.slice(0, desiredCount);
+    }
     
     // After initial batch, sync category counts for HUD
     this.recomputeSpawnCategoryCountsFromNodes(this.nodes, true);
+    if (this.spawningConfig) {
+      this.spawningConfig.targetPopulation = desiredCount;
+      this.spawningConfig.maxNodesTarget = desiredCount;
+      this.spawningConfig.spawnThreshold = 0; // never auto-grow beyond target
+      this.spawningConfig.needsRearm = false;
+      this.spawningConfig.lastLinkTime = Date.now();
+      this.spawningConfig.disableRuntimeSpawn = true; // HARD OFF after init
+    }
+    // Hard stop any queued runtime spawns/visuals
+    this.spawnRequestQueue = [];
+    if (this.spawnVisualQueue) this.spawnVisualQueue.length = 0;
 
     // Transition to runtime (or disabled) after batch init completes.
     if (this.spawnState.phase === 'INIT') {
@@ -1213,9 +1269,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Create potential connections between nearby nodes
     this.createNodeConnections();
 
-    // Mark that spawning needs re-arming (updateSpawning() will handle it)
+    // Keep runtime spawning disabled after init
     if (this.spawningConfig) {
-      this.spawningConfig.needsRearm = true;
+      this.spawningConfig.needsRearm = false;
     }
   }
 
@@ -1423,6 +1479,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     // ========== VISUAL CODE SELECTION: deterministic per-category counter ==========
     let poolCategory = String(safeCategory || '').toLowerCase().trim();
+    const rotationStore = (typeof window !== 'undefined') ? (window.__spawnRotation = window.__spawnRotation || {}) : null;
     let pool = EnhancedNodeModels.getCategoryPool(poolCategory);
     if (!Array.isArray(pool) || pool.length === 0) {
       this._lastSpawnResult = { ok: false, reason: 'POOL_EMPTY', category: poolCategory };
@@ -1435,7 +1492,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     const counterKey = String(poolCategory || canonicalCategory || 'input');
     if (this._variantCounterByCategory[counterKey] === undefined) {
-      this._variantCounterByCategory[counterKey] = this.spawnState.seed || 0;
+      const stored = rotationStore ? rotationStore[counterKey] : undefined;
+      if (Number.isFinite(stored)) {
+        this._variantCounterByCategory[counterKey] = stored;
+      } else if (Number.isFinite(this.spawnState.seed)) {
+        this._variantCounterByCategory[counterKey] = this.spawnState.seed;
+      } else {
+        this._variantCounterByCategory[counterKey] = Math.floor(Math.random() * pool.length);
+      }
     }
     const counter = this._variantCounterByCategory[counterKey];
 
@@ -1456,6 +1520,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     finalVisualCode = selectedVisualCode;
 
     this._variantCounterByCategory[counterKey] = counter + 1;
+    if (rotationStore) rotationStore[counterKey] = this._variantCounterByCategory[counterKey];
     const debugCheckGeometry = (mesh, stage) => {
       if (!mesh || !mesh.geometry) return;
 
@@ -3273,14 +3338,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    */
   registerNodeRoot(root) {
     if (!root) return root;
-    const id = root.userData?.nodeId;
+    const id = root.userData?.nodeId || root.userData?.id || root.uuid;
     if (!this.nodes) this.nodes = [];
     if (!this.nodesMap) this.nodesMap = new Map();
-
-    if (!id) {
-      this.nodes.push(root);
-      return root;
-    }
 
     if (this.nodesMap.has(id)) {
       return this.nodesMap.get(id);
@@ -3519,6 +3579,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Direct spawn APIs must use this, not spawnNode() directly
    */
   requestSpawn(request) {
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
     this.spawnRequestQueue.push({
       category: request.category || null,
       archetype: request.archetype || null,
@@ -3533,6 +3595,11 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Called from updateSpawning() - single authority for spawn execution
    */
   _processSpawnRequests() {
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) {
+      this.spawnRequestQueue = [];
+      return;
+    }
     if (this.spawnState.phase !== 'RUNTIME') return;
     const capBefore = this.spawnStats.skippedCap || 0;
     const uniqueBefore = this._spawnAbortCounters?.UNIQUE_BLOCK || 0;
@@ -4156,8 +4223,12 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       this.spawnCategoryCounts[key] = 0;
     }
     let totalGlobal = 0;
+    const seen = new Set();
     if (Array.isArray(nodesArray)) {
       for (const node of nodesArray) {
+        const nodeKey = node?.userData?.nodeId || node?.userData?.id || node?.uuid;
+        if (nodeKey && seen.has(nodeKey)) continue;
+        if (nodeKey) seen.add(nodeKey);
         const cat = (node?.userData?.category || '').toUpperCase();
         if (this.spawnCategoryCounts[cat] !== undefined) {
           this.spawnCategoryCounts[cat] += 1;
@@ -4245,6 +4316,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * SINGLE AUTHORITY for nextTimeSpawn - only this method writes it
    */
   updateSpawning(currentTime) {
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
     // SPAWN AUTHORITY LOCKDOWN: Process request queue first
     this._processSpawnRequests();
 
@@ -4261,6 +4334,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    */
   onLinkCreated() {
     if (this.spawnState.phase !== 'RUNTIME') return;
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
     if (!isLinkSpawnEnabled()) {
       if (typeof window !== 'undefined' && window.ATOMA_FLAGS?.debug?.linkSpawn === true) {
         console.warn('[LINK-SPAWN] blocked (ATOMA_LINK_SPAWN_ENABLED !== true)');
@@ -4308,6 +4383,8 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Monitor network density and spawn nodes in growth areas
    */
   checkNetworkDensityAndSpawn() {
+    if (this.spawningConfig?.disableRuntimeSpawn === true) return;
+    if (Number.isFinite(this.hardSpawnCap) && this.getNodeCount() >= this.hardSpawnCap) return;
     // ============================================================
     // [LINK-SPAWN-TRACE] Debug instrumentation
     // ============================================================
