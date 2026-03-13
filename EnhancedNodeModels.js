@@ -4534,50 +4534,118 @@ static createControlNode0(group, color) {
    * Control Node 2: Ring-within-ring hierarchy structure
    */
   static createControlNode2(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
+    const nodeKey = group?.userData?.nodeId || group?.userData?.visualCode?.toString() || String(color || 0x00ffff);
+    const seedValue = hashString(nodeKey);
+    const seed = Math.abs(seedValue) || 1;
+    const rng = _mythicSeededRng(seed);
+
+    const bodyMat = new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: 0.28,
-      metalness: 0.75,
-      roughness: 0.25
+      emissiveIntensity: 0.24,
+      metalness: 0.82,
+      roughness: 0.18
     });
 
-    // Base square
-    const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.18, 1.1), mat);
-    base.position.y = -0.3;
-    validateMeshGeometry(base, 'createControlNode2:base');
-    group.add(base);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34
+    });
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12, 1), mat);
-    spine.position.y = 0.3;
-    validateMeshGeometry(spine, 'createControlNode2:spine');
-    group.add(spine);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0xcaf4ff,
+      transparent: true,
+      opacity: 0.52
+    });
 
-    // Core cube
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), mat);
-    core.position.y = 0.9;
-    core.rotation.set(Math.PI * 0.1, Math.PI * 0.18, 0);
+    const root = new THREE.Group();
+    root.name = 'CONTROL_SOVEREIGN_STABILIZER';
+
+    // Fractured command dais: three floating authority slabs
+    const daisGeo = new THREE.BoxGeometry(0.78, 0.12, 0.34);
+    const daisConfigs = [
+      { pos: [0.0, -0.5, 0.0], rot: [0, Math.PI * 0.08, 0], scale: [1.2, 1, 1.0] },
+      { pos: [-0.42, -0.36, 0.18], rot: [0.04, -Math.PI * 0.22, 0.18], scale: [0.88, 1, 0.72] },
+      { pos: [0.44, -0.32, -0.22], rot: [-0.03, Math.PI * 0.18, -0.2], scale: [0.94, 1, 0.76] }
+    ];
+    daisConfigs.forEach((cfg, i) => {
+      const slab = new THREE.Mesh(daisGeo, bodyMat);
+      slab.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      slab.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      slab.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      validateMeshGeometry(slab, `createControlNode2:dais${i}`);
+      root.add(slab);
+    });
+
+    // Sovereign pylons converging toward the command core
+    const pylonGeo = new THREE.BoxGeometry(0.11, 1.0, 0.11);
+    const pylonConfigs = [
+      { pos: [-0.28, 0.12, 0.22], rot: [0.1, 0.08, 0.2], scale: [1.0, 1.0, 1.0] },
+      { pos: [0.26, 0.18, -0.18], rot: [-0.06, -0.12, -0.18], scale: [1.0, 1.08, 1.0] },
+      { pos: [0.06, 0.14, 0.34], rot: [0.16, 0.18, -0.08], scale: [0.9, 0.9, 0.9] }
+    ];
+    pylonConfigs.forEach((cfg, i) => {
+      const pylon = new THREE.Mesh(pylonGeo, bodyMat);
+      pylon.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      pylon.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      pylon.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+      validateMeshGeometry(pylon, `createControlNode2:pylon${i}`);
+      root.add(pylon);
+    });
+
+    // Fractured authority core
+    const coreGeo = new THREE.OctahedronGeometry(0.34, 0);
+    const core = new THREE.Mesh(coreGeo, bodyMat);
+    core.position.set(0.02, 0.84, -0.02);
+    core.rotation.set(Math.PI * 0.12, Math.PI * 0.22, -Math.PI * 0.08);
+    core.scale.set(1.12, 1.34, 0.92);
     core.userData.isCore = true;
     validateMeshGeometry(core, 'createControlNode2:core');
-    group.add(core);
+    root.add(core);
 
-    // Wireframe cube
-    const frame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.7, 0.7, 0.7)),
-      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
-    );
-    frame.position.y = 0.9;
-    frame.rotation.y = Math.PI * 0.2;
-    group.add(frame);
+    const innerKernel = new THREE.Mesh(new THREE.TetrahedronGeometry(0.18, 0), bodyMat.clone());
+    innerKernel.position.set(0.0, 0.84, 0.03);
+    innerKernel.rotation.set(-Math.PI * 0.14, Math.PI * 0.3, Math.PI * 0.1);
+    innerKernel.scale.set(0.88, 1.2, 0.82);
+    innerKernel.material.emissiveIntensity = 0.36;
+    validateMeshGeometry(innerKernel, 'createControlNode2:innerKernel');
+    root.add(innerKernel);
 
-    // Tilted orbit ring
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.05, 10, 28), mat);
-    ring.position.y = 0.9;
-    ring.rotation.set(Math.PI * 0.5, Math.PI * 0.24, Math.PI * 0.12);
-    validateMeshGeometry(ring, 'createControlNode2:ring');
-    group.add(ring);
+    // Broken authority halos
+    const haloConfigs = [
+      { radius: 0.84, tube: 0.045, arc: Math.PI * 1.42, pos: [0.0, 0.84, 0.0], rot: [Math.PI * 0.5, 0.18, 0.06] },
+      { radius: 0.92, tube: 0.035, arc: Math.PI * 1.18, pos: [0.04, 0.88, -0.04], rot: [Math.PI * 0.18, Math.PI * 0.22, Math.PI * 0.34] }
+    ];
+    haloConfigs.forEach((cfg, i) => {
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(cfg.radius, cfg.tube, 10, 42, cfg.arc), haloMat);
+      halo.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+      halo.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+      halo.userData.isControlHalo = true;
+      validateMeshGeometry(halo, `createControlNode2:halo${i}`);
+      root.add(halo);
+    });
 
+    // Control sigils / stabilizer shards
+    const sigilGeo = new THREE.TetrahedronGeometry(0.1, 0);
+    for (let i = 0; i < 5; i++) {
+      const sigil = new THREE.Mesh(sigilGeo, haloMat);
+      const angle = (i / 5) * Math.PI * 2;
+      const radius = 0.72 + rng() * 0.16;
+      sigil.position.set(
+        Math.cos(angle) * radius,
+        0.62 + ((i % 2 === 0) ? 0.22 : -0.08),
+        Math.sin(angle * 1.18) * radius * 0.78
+      );
+      sigil.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+      sigil.scale.set(0.8 + rng() * 0.45, 1.3 + rng() * 0.25, 0.8 + rng() * 0.35);
+      validateMeshGeometry(sigil, `createControlNode2:sigil${i}`);
+      root.add(sigil);
+    }
+
+    root.userData.visualVariant = 'CONTROL_SOVEREIGN_STABILIZER_V2';
+    root.userData.nodeGeometryName = 'CONTROL_SOVEREIGN_STABILIZER';
+    group.add(root);
     return group;
   }
 
