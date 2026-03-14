@@ -152,8 +152,16 @@ export class GlyphFusionOverlay4_1 {
       if (!this.enabled) return;
       this.handleLinkCreated(evt);
     });
+    this.semanticBus.subscribe('link:created', (evt) => {
+      if (!this.enabled) return;
+      this.handleLinkCreated(evt);
+    });
     
     this.semanticBus.subscribe('network.link.destroyed', (evt) => {
+      if (!this.enabled) return;
+      this.handleLinkDestroyed(evt);
+    });
+    this.semanticBus.subscribe('link:collapsed', (evt) => {
       if (!this.enabled) return;
       this.handleLinkDestroyed(evt);
     });
@@ -170,6 +178,10 @@ export class GlyphFusionOverlay4_1 {
     });
     
     this.semanticBus.subscribe('semantic.ascension', (evt) => {
+      if (!this.enabled) return;
+      this.handleAscension(evt);
+    });
+    this.semanticBus.subscribe('node:ascended', (evt) => {
       if (!this.enabled) return;
       this.handleAscension(evt);
     });
@@ -193,6 +205,10 @@ export class GlyphFusionOverlay4_1 {
         this.handleNodeDeselected(evt.nodeId);
       }
     });
+    this.semanticBus.subscribe('node:selected', (evt) => {
+      if (!this.enabled) return;
+      this.handleNodeSelected(evt.nodeId);
+    });
   }
   
   /**
@@ -200,13 +216,13 @@ export class GlyphFusionOverlay4_1 {
    */
   handleLinkCreated(evt) {
     // Trigger exploring state on source node
-    this.triggerExploringState(evt.sourceNodeId, evt.timestamp);
+    this.triggerExploringState(evt.sourceNodeId || evt.sourceId, evt.timestamp);
   }
   
   handleLinkDestroyed(evt) {
     // Fade out fusion glyph on affected nodes
-    this.updateFusionFade(evt.sourceNodeId, 0, 0.5);
-    this.updateFusionFade(evt.targetNodeId, 0, 0.5);
+    this.updateFusionFade(evt.sourceNodeId || evt.sourceId, 0, 0.5);
+    this.updateFusionFade(evt.targetNodeId || evt.targetId, 0, 0.5);
   }
   
   handleSemanticStateChanged(evt) {
@@ -221,7 +237,7 @@ export class GlyphFusionOverlay4_1 {
   
   handleAscension(evt) {
     // Trigger ascended fusion form
-    this.triggerAscendedForm(evt.nodeId);
+    this.triggerAscendedForm(evt.nodeId || evt.id);
   }
   
   handleRitualStarted(evt) {

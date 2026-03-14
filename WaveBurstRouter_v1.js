@@ -62,6 +62,15 @@ export function setupWaveBurstRouter(game) {
     const semanticBus = game.semanticBus;
     const aiNodes = game.aiNodes;
     const harmonicHubSystem = game.harmonicHubSystem;
+
+    function findNodeById(nodeId) {
+        if (!nodeId || !aiNodes?.nodes) return null;
+        return aiNodes.nodes.find((n) =>
+            n?.id === nodeId ||
+            n?.uuid === nodeId ||
+            n?.userData?.nodeId === nodeId
+        ) || null;
+    }
     
     /**
      * Check if burst can be triggered (cooldown check)
@@ -141,18 +150,12 @@ export function setupWaveBurstRouter(game) {
         }
         
         const nodeId = payload.nodeId || payload.id;
-        if (!nodeId || !aiNodes || !aiNodes.nodes) {
-            return;
-        }
-        
-        const node = aiNodes.nodes.find(n => n.id === nodeId);
-        if (!node || !node.metrics) {
-            return;
-        }
-        
-        // Check synergy threshold
-        const synergy = node.metrics.synergy || 0;
-        if (synergy < config.synergyThreshold) {
+        const node = findNodeById(nodeId);
+        const synergyFromPayload = Number.isFinite(payload?.value) ? payload.value : null;
+        const synergyFromNode = node?.userData?.metrics?.synergy ?? node?.metrics?.synergy;
+        const synergy = synergyFromPayload ?? synergyFromNode ?? 0;
+
+        if (!node || synergy < config.synergyThreshold) {
             return;
         }
         
@@ -209,17 +212,16 @@ export function setupWaveBurstRouter(game) {
         }
         
         const nodeId = payload.nodeId || payload.id;
-        if (!nodeId || !aiNodes || !aiNodes.nodes) {
-            return;
-        }
-        
-        const node = aiNodes.nodes.find(n => n.id === nodeId);
-        if (!node || !node.metrics) {
+        const node = findNodeById(nodeId);
+        if (!node) {
             return;
         }
         
         // Check corruption threshold
-        const corruption = node.metrics.corruption || 0;
+        const corruption = (Number.isFinite(payload?.value) ? payload.value : null)
+            ?? node?.userData?.metrics?.corruption
+            ?? node?.metrics?.corruption
+            ?? 0;
         if (corruption < config.corruptionThreshold) {
             return;
         }
@@ -274,6 +276,9 @@ export function setupWaveBurstRouter(game) {
         semanticBus.subscribe('node.synergy.high', handleSynergyEvent, {
             priority: semanticBus.priority.NORMAL
         });
+        semanticBus.subscribe('metric:synergySpike', handleSynergyEvent, {
+            priority: semanticBus.priority.NORMAL
+        });
         
         // Cascade events
         semanticBus.subscribe('cascade.triggered', handleCascadeEvent, {
@@ -282,13 +287,25 @@ export function setupWaveBurstRouter(game) {
         semanticBus.subscribe('harmonic.cascade.start', handleCascadeEvent, {
             priority: semanticBus.priority.NORMAL
         });
+        semanticBus.subscribe('link:created', handleCascadeEvent, {
+            priority: semanticBus.priority.NORMAL
+        });
         
         // Corruption/failure events
         semanticBus.subscribe('node.corruption.high', handleCorruptionEvent, {
             priority: semanticBus.priority.NORMAL
         });
         semanticBus.subscribe('node.failure', handleCorruptionEvent, {
-            priority: semanticBus.priority.HIGH
+            priority: semanticBus.priority.INTERACTIVE
+        });
+        semanticBus.subscribe('metric:corruptionRise', handleCorruptionEvent, {
+            priority: semanticBus.priority.NORMAL
+        });
+        semanticBus.subscribe('network:corruptionSpread', handleCorruptionEvent, {
+            priority: semanticBus.priority.INTERACTIVE
+        });
+        semanticBus.subscribe('link:collapsed', handleCorruptionEvent, {
+            priority: semanticBus.priority.INTERACTIVE
         });
         
         // User interaction (debug)
@@ -296,6 +313,9 @@ export function setupWaveBurstRouter(game) {
             priority: semanticBus.priority.INTERACTIVE
         });
         semanticBus.subscribe('node.click', handleUserInteraction, {
+            priority: semanticBus.priority.INTERACTIVE
+        });
+        semanticBus.subscribe('node:selected', handleUserInteraction, {
             priority: semanticBus.priority.INTERACTIVE
         });
     }
@@ -352,12 +372,18 @@ export function setupWaveBurstRouter(game) {
         // Unsubscribe from semantic bus events
         if (semanticBus) {
             semanticBus.unsubscribe('node.synergy.high', handleSynergyEvent);
+            semanticBus.unsubscribe('metric:synergySpike', handleSynergyEvent);
             semanticBus.unsubscribe('cascade.triggered', handleCascadeEvent);
             semanticBus.unsubscribe('harmonic.cascade.start', handleCascadeEvent);
+            semanticBus.unsubscribe('link:created', handleCascadeEvent);
             semanticBus.unsubscribe('node.corruption.high', handleCorruptionEvent);
             semanticBus.unsubscribe('node.failure', handleCorruptionEvent);
+            semanticBus.unsubscribe('metric:corruptionRise', handleCorruptionEvent);
+            semanticBus.unsubscribe('network:corruptionSpread', handleCorruptionEvent);
+            semanticBus.unsubscribe('link:collapsed', handleCorruptionEvent);
             semanticBus.unsubscribe('node.hover', handleUserInteraction);
             semanticBus.unsubscribe('node.click', handleUserInteraction);
+            semanticBus.unsubscribe('node:selected', handleUserInteraction);
         }
     }
     

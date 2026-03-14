@@ -465,14 +465,29 @@ export class NodeEvolution2_0 {
     // ============================================================
     // EMIT EVENT FOR STAGE 4 (ASCENDED)
     // ============================================================
-    if (nextStage === 4 && this.semanticBus) {
-      this.semanticBus.emit('semantic.ascension', {
+    if (this.semanticBus) {
+      const timestamp = performance.now();
+      this.semanticBus.emit('node:evolved', {
         nodeId: evolutionState.nodeId,
+        stage: nextStage,
         fromStage: evolutionState.currentStage,
-        toStage: 'ascended',
-        timestamp: performance.now()
-      }, { priority: this.semanticBus.priority.CRITICAL });
-      console.log(`✓ Node ${evolutionState.nodeId} ascended to Stage 4 (event-driven)`);
+        timestamp
+      }, { priority: this.semanticBus.priority.NORMAL });
+
+      if (nextStage === 4) {
+        this.semanticBus.emit('semantic.ascension', {
+          nodeId: evolutionState.nodeId,
+          fromStage: evolutionState.currentStage,
+          toStage: 'ascended',
+          timestamp
+        }, { priority: this.semanticBus.priority.CRITICAL });
+        this.semanticBus.emit('node:ascended', {
+          nodeId: evolutionState.nodeId,
+          stage: nextStage,
+          timestamp
+        }, { priority: this.semanticBus.priority.CRITICAL });
+        console.log(`✓ Node ${evolutionState.nodeId} ascended to Stage 4 (event-driven)`);
+      }
     }
     
     // ============================================================

@@ -428,19 +428,7 @@ function publishSynergyTriggers(link, tier, score) {
  * Publishes event for aura intensity/color changes
  */
 function triggerAuraPulse(link, synergyTier) {
-  try {
-    const event = new CustomEvent('synergyAuraPulse', {
-      detail: {
-        linkId: link.id,
-        tier: synergyTier,
-        intensity: getTierIntensity(synergyTier),
-        timestamp: Date.now()
-      }
-    });
-    window.dispatchEvent(event);
-  } catch (e) {
-    // Silently fail
-  }
+  // LEGACY: CustomEvent emitter disabled (no listeners)
 }
 
 /**
@@ -448,20 +436,7 @@ function triggerAuraPulse(link, synergyTier) {
  * Publishes event for highway arc visibility/intensity
  */
 function triggerHighwayIntensity(link, synergyTier) {
-  try {
-    const event = new CustomEvent('synergyHighwayIntensity', {
-      detail: {
-        linkId: link.id,
-        tier: synergyTier,
-        intensity: getTierIntensity(synergyTier),
-        visible: synergyTier === 'high' || synergyTier === 'critical',
-        timestamp: Date.now()
-      }
-    });
-    window.dispatchEvent(event);
-  } catch (e) {
-    // Silently fail
-  }
+  // LEGACY: CustomEvent emitter disabled (no listeners)
 }
 
 /**
@@ -469,20 +444,7 @@ function triggerHighwayIntensity(link, synergyTier) {
  * Publishes event for enhanced glow/bloom effects
  */
 function triggerBeamGlowBoost(link, synergyTier) {
-  try {
-    const event = new CustomEvent('synergyBeamGlowBoost', {
-      detail: {
-        linkId: link.id,
-        tier: synergyTier,
-        intensity: getTierIntensity(synergyTier),
-        boost: getTierBoost(synergyTier),
-        timestamp: Date.now()
-      }
-    });
-    window.dispatchEvent(event);
-  } catch (e) {
-    // Silently fail
-  }
+  // LEGACY: CustomEvent emitter disabled (no listeners)
 }
 
 /**

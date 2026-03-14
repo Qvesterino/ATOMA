@@ -441,28 +441,20 @@ export class NodeStateMachine {
   /**
    * EVENT SYSTEM
    */
-  on(eventName, callback) {
-    if (!this.globalEvents.has(eventName)) {
-      this.globalEvents.set(eventName, []);
-    }
-    this.globalEvents.get(eventName).push(callback);
+  /**
+   * LEGACY EVENT EMITTER (unused in runtime)
+   * Kept for examples; disabled to avoid stray listeners.
+   */
+  on(_eventName, _callback) {
+    // Legacy no-op
   }
 
-  off(eventName, callback) {
-    const listeners = this.globalEvents.get(eventName);
-    if (listeners) {
-      const index = listeners.indexOf(callback);
-      if (index > -1) {
-        listeners.splice(index, 1);
-      }
-    }
+  off(_eventName, _callback) {
+    // Legacy no-op
   }
 
-  emit(eventName, eventData = {}) {
-    const listeners = this.globalEvents.get(eventName);
-    if (listeners) {
-      listeners.forEach(callback => callback(eventData));
-    }
+  emit(_eventName, _eventData = {}) {
+    // Legacy no-op
   }
 
   /**

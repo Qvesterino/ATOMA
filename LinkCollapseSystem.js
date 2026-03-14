@@ -89,10 +89,8 @@ export class LinkCollapseSystem {
    * @param {string} eventType - 'warning', 'critical', 'collapse', 'recovery'
    * @param {function} callback - (link, state) => void
    */
-  on(eventType, callback) {
-    if (this.eventHandlers[eventType]) {
-      this.eventHandlers.eventType.push(callback);
-    }
+  on(_eventType, _callback) {
+    // LEGACY: event callbacks disabled (no active listeners in runtime)
   }
   
   /**
@@ -100,15 +98,7 @@ export class LinkCollapseSystem {
    * @private
    */
   _emit(eventType, link, state) {
-    if (this.eventHandlers[eventType]) {
-      for (const handler of this.eventHandlers[eventType]) {
-        try {
-          handler(link, state);
-        } catch (e) {
-          console.warn(`[LinkCollapseSystem] Event handler error for ${eventType}:`, e);
-        }
-      }
-    }
+    // LEGACY: event emitter disabled
   }
   
   /**

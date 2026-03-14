@@ -1051,6 +1051,19 @@ import { AtomaDebugHUD_1_0 } from './AtomaDebugHUD_1_0.js';
 /**
  * Phase E — Semantic Scheduling
  * Lightweight event bus for meaning-driven triggers.
+ *
+ * Canonical semantic naming:
+ * - Format: `category:eventName` (e.g. `node:spawned`, `metric:corruptionRise`)
+ * - Categories:
+ *   - `network:*` high-level network state transitions
+ *   - `node:*` node lifecycle/selection/evolution transitions
+ *   - `link:*` link lifecycle and semantic threshold transitions
+ *   - `metric:*` canonical metric-derived semantic signals
+ *
+ * Subscription guidance:
+ * - Producers emit only on threshold crossing, meaningful delta, or state change.
+ * - Consumers subscribe through `subscribe()` or alias `on()`.
+ * - Keep payloads compact and immutable-at-callsite.
  */
 class SemanticEventBus {
     constructor() {
@@ -1109,7 +1122,29 @@ class SemanticEventBus {
             ['semantic.cluster.formation', { decayStages: [{ afterMs: 2000, priority: this.priority.BACKGROUND }], expiresMs: 4000, cooldownMs: 500, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
             ['semantic.ascension', { decayStages: [{ afterMs: 1500, priority: this.priority.NORMAL }], expiresMs: 3000, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
             ['semantic.ritual.started', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
-            ['semantic.ritual.completed', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }]
+            ['semantic.ritual.completed', { decayStages: [{ afterMs: 1000, priority: this.priority.NORMAL }], expiresMs: 2500, cooldownMs: 200, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+
+            // Canonical semantic vocabulary (category:event)
+            ['network:stabilityDrop', { cooldownMs: 250, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
+            ['network:stressRise', { cooldownMs: 250, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
+            ['network:corruptionSpread', { cooldownMs: 220, aggregateWithinMs: 450, aggregationStrategy: 'latest' }],
+            ['network:harmonyShift', { cooldownMs: 250, aggregateWithinMs: 500, aggregationStrategy: 'latest' }],
+
+            ['node:spawned', { cooldownMs: 80, aggregateWithinMs: 120, aggregationStrategy: 'latest' }],
+            ['node:selected', { cooldownMs: 160, aggregateWithinMs: 220, aggregationStrategy: 'latest' }],
+            ['node:evolved', { cooldownMs: 180, aggregateWithinMs: 280, aggregationStrategy: 'latest' }],
+            ['node:ascended', { cooldownMs: 220, aggregateWithinMs: 320, aggregationStrategy: 'latest' }],
+
+            ['link:created', { cooldownMs: 90, aggregateWithinMs: 140, aggregationStrategy: 'latest' }],
+            ['link:collapsed', { cooldownMs: 120, aggregateWithinMs: 200, aggregationStrategy: 'latest' }],
+            ['link:synergyThreshold', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
+            ['link:harmonicLock', { cooldownMs: 160, aggregateWithinMs: 260, aggregationStrategy: 'latest' }],
+
+            ['metric:synergySpike', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
+            ['metric:harmonyPeak', { cooldownMs: 150, aggregateWithinMs: 300, aggregationStrategy: 'latest' }],
+            ['metric:stabilityDrop', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
+            ['metric:corruptionRise', { cooldownMs: 120, aggregateWithinMs: 240, aggregationStrategy: 'latest' }],
+            ['metric:loadPressureHigh', { cooldownMs: 180, aggregateWithinMs: 320, aggregationStrategy: 'latest' }]
         ]);
         this.cooldownMap = new Map();
         // Phase E.3: aggregation buffers keyed by semantic tag
@@ -1417,6 +1452,22 @@ class SemanticEventBus {
         }
         const handlerPriority = this.normalizePriority(opts.priority);
         this.handlers.get(tag).push({ fn: handler, priority: handlerPriority });
+    }
+    on(tag, handler, opts = {}) {
+        this.subscribe(tag, handler, opts);
+    }
+    unsubscribe(tag, handler) {
+        const list = this.handlers.get(tag);
+        if (!list || list.length === 0) return;
+        const next = list.filter(entry => entry.fn !== handler);
+        if (next.length === 0) {
+            this.handlers.delete(tag);
+            return;
+        }
+        this.handlers.set(tag, next);
+    }
+    off(tag, handler) {
+        this.unsubscribe(tag, handler);
     }
     emit(tag, payload, opts = {}) {
         const list = this.handlers.get(tag);
@@ -6037,10 +6088,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             // Emit network.node.created event for event-driven systems
             if (this.semanticBus && node) {
+                const nodeId = node.userData?.nodeId || node.id || node.uuid;
+                const category = node.userData?.category;
+                const timestamp = performance.now();
                 this.semanticBus.emit('network.node.created', {
-                    nodeId: node.userData.nodeId,
-                    category: node.userData.category,
-                    timestamp: performance.now()
+                    nodeId,
+                    category,
+                    timestamp
+                }, { priority: this.semanticBus.priority.INTERACTIVE });
+                this.semanticBus.emit('node:spawned', {
+                    nodeId,
+                    category,
+                    timestamp
                 }, { priority: this.semanticBus.priority.INTERACTIVE });
             }
             return node;
@@ -6084,6 +6143,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.renderer,
             this.aiNodes
         );
+        this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge = this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
@@ -6405,12 +6465,50 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
             // Emit network.link.created event for event-driven systems
             if (this.semanticBus && result) {
+                const sourceId = sourceNode?.userData?.nodeId || sourceNode?.id || sourceNode?.uuid;
+                const targetId = targetNode?.userData?.nodeId || targetNode?.id || targetNode?.uuid;
+                const linkId = result?.userData?.id || result?.id;
+                const timestamp = performance.now();
                 this.semanticBus.emit('network.link.created', {
-                    sourceNodeId: sourceNode.userData.nodeId,
-                    targetNodeId: targetNode.userData.nodeId,
-                    linkId: result.userData.id,
-                    timestamp: performance.now()
+                    sourceNodeId: sourceId,
+                    targetNodeId: targetId,
+                    linkId,
+                    timestamp
                 }, { priority: this.semanticBus.priority.INTERACTIVE });
+                this.semanticBus.emit('link:created', {
+                    sourceId,
+                    targetId,
+                    linkId,
+                    timestamp
+                }, { priority: this.semanticBus.priority.INTERACTIVE });
+
+                const synergyScore = result?.userData?.synergy?.score;
+                if (Number.isFinite(synergyScore) && synergyScore >= 0.75) {
+                    this.semanticBus.emit('link:synergyThreshold', {
+                        sourceId,
+                        targetId,
+                        linkId,
+                        value: synergyScore,
+                        threshold: 0.75,
+                        timestamp
+                    }, { priority: this.semanticBus.priority.NORMAL });
+                }
+
+                const sourceHarmony = sourceNode?.userData?.metrics?.harmony;
+                const targetHarmony = targetNode?.userData?.metrics?.harmony;
+                if (Number.isFinite(sourceHarmony) && Number.isFinite(targetHarmony)) {
+                    const harmonicValue = (sourceHarmony + targetHarmony) * 0.5;
+                    if (harmonicValue >= 0.8) {
+                        this.semanticBus.emit('link:harmonicLock', {
+                            sourceId,
+                            targetId,
+                            linkId,
+                            value: harmonicValue,
+                            threshold: 0.8,
+                            timestamp
+                        }, { priority: this.semanticBus.priority.NORMAL });
+                    }
+                }
             }
             return result;
         };
@@ -10341,6 +10439,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         this.glyphFusionOverlay = new GlyphFusionOverlay4_1(this.scene, this.worldRoot, this.semanticGlyphAI, this.semanticBus);
+        this.glyphFusionOverlay.subscribeToEvents?.();
 
         // Initialize fusion glyphs for all existing nodes
         if (this.aiNodes) {
@@ -11494,20 +11593,25 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.selectionCore = new NodeSelectionCore3_4();
 
         // Hook audio feedback to selection events
-        this.selectionCore.onSelectCallbacks.push(() => {
+        this.selectionCore.onSelectCallbacks.push((node) => {
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playSelection();
             }
-            this.semanticBus.emit('node.selection', { type: 'select' }, { priority: this.semanticBus.priority.CRITICAL });
+            const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
+            const category = node?.userData?.category;
+            this.semanticBus.emit('node.selection', { type: 'select', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });
+            this.semanticBus.emit('node:selected', { nodeId, category, timestamp: performance.now() }, { priority: this.semanticBus.priority.CRITICAL });
             this.setHudDirty('coreMetrics');
             this.setHudDirty('nodeInspector');
         });
         
-        this.selectionCore.onDeselectCallbacks.push(() => {
+        this.selectionCore.onDeselectCallbacks.push((node) => {
             if (this.audioSystem && this.audioSystem.initialized) {
                 this.audioSystem.playDeselection();
             }
-            this.semanticBus.emit('node.selection', { type: 'deselect' }, { priority: this.semanticBus.priority.CRITICAL });
+            const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
+            const category = node?.userData?.category;
+            this.semanticBus.emit('node.selection', { type: 'deselect', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });
             this.setHudDirty('coreMetrics');
             this.setHudDirty('nodeInspector');
         });

@@ -168,8 +168,9 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
 
           // Check if corruption crossed 0.35 threshold
           if (previousCorruption < 0.35 && currentCorruption >= 0.35) {
-            if (this.multiNetworkManager && typeof this.multiNetworkManager.emit === 'function') {
-              this.multiNetworkManager.emit('corruptionThresholdCrossed', {
+            if (this.multiNetworkManager && typeof this.multiNetworkManager.emitEvent === 'function') {
+              this.multiNetworkManager.emitEvent({
+                type: 'corruptionThresholdCrossed',
                 node: node,
                 value: currentCorruption
               });
@@ -202,8 +203,9 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
 
       // PATCH 4: Emit event if threshold crossed
       if (previousCorruption < 0.35 && node.userData.gameplay.corruptionLevel >= 0.35) {
-        if (this.multiNetworkManager && typeof this.multiNetworkManager.emit === 'function') {
-          this.multiNetworkManager.emit('corruptionThresholdCrossed', {
+        if (this.multiNetworkManager && typeof this.multiNetworkManager.emitEvent === 'function') {
+          this.multiNetworkManager.emitEvent({
+            type: 'corruptionThresholdCrossed',
             node: node,
             value: node.userData.gameplay.corruptionLevel
           });

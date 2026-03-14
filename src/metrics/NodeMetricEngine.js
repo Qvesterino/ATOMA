@@ -33,6 +33,80 @@ const ALLOWED_WRITERS = [
   'MetricsRuntime_v1.js',
 ];
 
+// Semantic emission thresholds (delta since last emission)
+const SEMANTIC_THRESHOLDS = {
+  synergy: 0.05,
+  harmony: 0.05,
+  stability: 0.05,
+  corruption: 0.05,
+  loadPressure: 0.05,
+};
+
+// Track last emitted values to avoid per-frame spam
+const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
+
+function getSemanticBus() {
+  // semanticBus is attached to window/global in main.js
+  return (typeof globalThis !== 'undefined' && globalThis.semanticBus) || null;
+}
+
+function shouldEmit(metric, after, nodeId) {
+  const threshold = SEMANTIC_THRESHOLDS[metric] ?? 0.05;
+  const key = `${nodeId}:${metric}`;
+  const last = lastEmittedMetricValue.get(key);
+  if (last === undefined) {
+    return true; // allow first meaningful change to emit
+  }
+  const diff = Math.abs(after - last);
+  return diff >= threshold;
+}
+
+function recordEmit(metric, value, nodeId) {
+  lastEmittedMetricValue.set(`${nodeId}:${metric}`, value);
+}
+
+function emitSemanticMetricEvent(metric, before, after, nodeId) {
+  const bus = getSemanticBus();
+  if (!bus?.emit) return;
+
+  const delta = after - before;
+  const threshold = SEMANTIC_THRESHOLDS[metric] ?? 0.05;
+  const rising = delta > 0;
+  const falling = delta < 0;
+
+  let eventName = null;
+  switch (metric) {
+    case 'synergy':
+      if (rising && Math.abs(delta) >= threshold) eventName = 'metric:synergySpike';
+      break;
+    case 'harmony':
+      if (before < 0.85 && after >= 0.85) eventName = 'metric:harmonyPeak';
+      break;
+    case 'stability':
+      if (falling && Math.abs(delta) >= threshold) eventName = 'metric:stabilityDrop';
+      break;
+    case 'corruption':
+      if (rising && Math.abs(delta) >= threshold) eventName = 'metric:corruptionRise';
+      break;
+    case 'loadPressure':
+      if (before < 0.75 && after >= 0.75) eventName = 'metric:loadPressureHigh';
+      break;
+    default:
+      break;
+  }
+
+  if (eventName) {
+    if (!shouldEmit(metric, after, nodeId)) return;
+    bus.emit(eventName, {
+      nodeId,
+      value: after,
+      delta,
+      metric
+    }, { priority: bus.priority?.NORMAL });
+    recordEmit(metric, after, nodeId);
+  }
+}
+
 function wrapMetricsWithGuard(metricsObj) {
   if (!metricsObj || metricsObj.__guarded) return metricsObj;
   const warnedProps = new Set();
@@ -129,6 +203,7 @@ function adjust(metrics, key, delta, targetId = 'unknown-node') {
   const after = clamp01(before + clampedDelta);
   metrics[key] = after;
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
+  emitSemanticMetricEvent(key, before, after, targetId);
 }
 
 /**
@@ -170,6 +245,7 @@ export function setMetric(node, metric, value) {
   const after = clamp01(typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric]);
   m[metric] = after;
   traceMetricMutation('NodeMetricEngine', `node.${metric}`, before, after, id);
+  emitSemanticMetricEvent(metric, before, after, id);
   applyArchetypeClamp(node);
 }
 

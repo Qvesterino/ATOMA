@@ -15,7 +15,7 @@
 // TEMPLATE 1: SYNERGY GLOW (Canonical Reference)
 // ============================================================================
 
-
+import { getLinkSynergy } from './SemanticMetricAdapter.js';
 /**
  * SynergyGlowReference: Canonical pattern for link quality visualization
  * 
@@ -81,7 +81,7 @@ class SynergyGlowReference {
   static examplesOfWrongPatterns() {
     return `
     // ✗ WRONG: Reading raw stat
-    const intensity = (link.userData.synergy?.synergyNorm ?? link.userData.synergy?.score ?? 0) * 2.0;
+    const intensity = getLinkSynergy(link) * 2.0;
     
     // ✗ WRONG: Mixing signals
     const mixedColor = lerpColor(synergy, corruption, stress);

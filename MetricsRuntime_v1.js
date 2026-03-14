@@ -68,6 +68,14 @@ const RELAXATION = {
     loadPressure: 0.07
 };
 
+const SEMANTIC_DELTA = {
+    networkSynergy: 0.05,
+    harmonyFlow: 0.05,
+    networkStress: 0.05,
+    corruptionLevel: 0.05,
+    loadPressure: 0.05
+};
+
 export class MetricsRuntime_v1 {
     /**
      * Initialize metrics runtime orchestration
@@ -135,6 +143,20 @@ export class MetricsRuntime_v1 {
             networkStress: 0,
             corruptionLevel: 0,
             loadPressure: 0
+        };
+        this._semanticSignalState = {
+            last: {
+                networkSynergy: null,
+                harmonyFlow: null,
+                networkStress: null,
+                corruptionLevel: null,
+                loadPressure: null
+            },
+            flags: {
+                harmonyPeak: false,
+                corruptionSpread: false,
+                loadPressureHigh: false
+            }
         };
 
         // Runtime validator (low-frequency, warnings only)
@@ -575,6 +597,110 @@ const adapter = this._createLinkSystemAdapter(
         return null;
     }
 
+    _emitCanonicalSemanticMetrics(metricsPayload, context = {}) {
+        const scope = this._getGlobalScope();
+        const semanticBus = scope?.semanticBus;
+        if (!semanticBus?.emit) return;
+
+        const now = performance.now();
+        const current = {
+            networkSynergy: this._clamp01(metricsPayload.networkSynergy),
+            harmonyFlow: this._clamp01(metricsPayload.harmonyFlow),
+            networkStress: this._clamp01(metricsPayload.networkStress),
+            corruptionLevel: this._clamp01(metricsPayload.corruptionLevel),
+            loadPressure: this._clamp01(metricsPayload.loadPressure)
+        };
+        const last = this._semanticSignalState.last;
+        const flags = this._semanticSignalState.flags;
+
+        const nodeCount = context.nodeCount ?? 0;
+        const linkCount = context.linkCount ?? 0;
+        const emit = (eventName, value, delta, extra = {}, priority = semanticBus.priority?.NORMAL) => {
+            semanticBus.emit(eventName, {
+                value,
+                delta,
+                nodeCount,
+                linkCount,
+                timestamp: now,
+                ...extra
+            }, { priority });
+        };
+
+        const prevSynergy = last.networkSynergy;
+        const prevHarmony = last.harmonyFlow;
+        const prevStress = last.networkStress;
+        const prevCorruption = last.corruptionLevel;
+        const prevLoad = last.loadPressure;
+
+        if (prevSynergy !== null) {
+            const delta = current.networkSynergy - prevSynergy;
+            if (delta >= SEMANTIC_DELTA.networkSynergy) {
+                emit('metric:synergySpike', current.networkSynergy, delta, { metric: 'synergy' });
+            }
+        }
+
+        if (!flags.harmonyPeak && current.harmonyFlow >= 0.85) {
+            emit('metric:harmonyPeak', current.harmonyFlow, prevHarmony === null ? 0 : current.harmonyFlow - prevHarmony, { metric: 'harmony' });
+            flags.harmonyPeak = true;
+        } else if (flags.harmonyPeak && current.harmonyFlow <= 0.78) {
+            flags.harmonyPeak = false;
+        }
+
+        if (prevStress !== null) {
+            const prevStability = 1 - prevStress;
+            const stability = 1 - current.networkStress;
+            const stabilityDrop = prevStability - stability;
+            if (stabilityDrop >= SEMANTIC_DELTA.networkStress) {
+                emit('metric:stabilityDrop', stability, -stabilityDrop, { metric: 'stability' });
+            }
+        }
+
+        if (prevCorruption !== null) {
+            const delta = current.corruptionLevel - prevCorruption;
+            if (delta >= SEMANTIC_DELTA.corruptionLevel) {
+                emit('metric:corruptionRise', current.corruptionLevel, delta, { metric: 'corruption' });
+            }
+        }
+
+        if (!flags.loadPressureHigh && current.loadPressure >= 0.75) {
+            emit('metric:loadPressureHigh', current.loadPressure, prevLoad === null ? 0 : current.loadPressure - prevLoad, { metric: 'loadPressure' });
+            flags.loadPressureHigh = true;
+        } else if (flags.loadPressureHigh && current.loadPressure <= 0.65) {
+            flags.loadPressureHigh = false;
+        }
+
+        if (prevStress !== null) {
+            const stressDelta = current.networkStress - prevStress;
+            if (stressDelta >= SEMANTIC_DELTA.networkStress) {
+                emit('network:stressRise', current.networkStress, stressDelta, { metric: 'networkStress' }, semanticBus.priority?.INTERACTIVE);
+            }
+
+            const prevStability = 1 - prevStress;
+            const stability = 1 - current.networkStress;
+            const stabilityDrop = prevStability - stability;
+            if (stabilityDrop >= SEMANTIC_DELTA.networkStress) {
+                emit('network:stabilityDrop', stability, -stabilityDrop, { metric: 'networkStability' }, semanticBus.priority?.INTERACTIVE);
+            }
+        }
+
+        if (prevCorruption !== null) {
+            const corruptionDelta = current.corruptionLevel - prevCorruption;
+            const crossedCorruption = prevCorruption < 0.6 && current.corruptionLevel >= 0.6;
+            if (corruptionDelta >= SEMANTIC_DELTA.corruptionLevel || crossedCorruption) {
+                emit('network:corruptionSpread', current.corruptionLevel, corruptionDelta, { metric: 'corruptionLevel' }, semanticBus.priority?.INTERACTIVE);
+            }
+        }
+
+        if (prevHarmony !== null) {
+            const harmonyDelta = current.harmonyFlow - prevHarmony;
+            if (Math.abs(harmonyDelta) >= SEMANTIC_DELTA.harmonyFlow) {
+                emit('network:harmonyShift', current.harmonyFlow, harmonyDelta, { metric: 'harmonyFlow' }, semanticBus.priority?.INTERACTIVE);
+            }
+        }
+
+        this._semanticSignalState.last = current;
+    }
+
     /**
      * Publish canonical live metrics to global scope
      * Priority: NetworkMetricsAggregator override → Node aggregation fallback
@@ -608,6 +734,16 @@ const adapter = this._createLinkSystemAdapter(
                 nodeCount: 0,
                 linkCount: 0
             };
+            this._semanticSignalState.last = {
+                networkSynergy: 0,
+                harmonyFlow: 0,
+                networkStress: 0,
+                corruptionLevel: 0,
+                loadPressure: 0
+            };
+            this._semanticSignalState.flags.harmonyPeak = false;
+            this._semanticSignalState.flags.corruptionSpread = false;
+            this._semanticSignalState.flags.loadPressureHigh = false;
             return;
         }
 
@@ -730,6 +866,11 @@ const adapter = this._createLinkSystemAdapter(
             nodeCount,
             linkCount,
             temporalSaturation
+        });
+
+        this._emitCanonicalSemanticMetrics(clampedPublish, {
+            nodeCount,
+            linkCount
         });
     }
 

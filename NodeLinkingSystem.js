@@ -6960,6 +6960,20 @@ getLinksForNode(node) {
     // Capture recovery candidate before structural removal
     this._addRecoveryCandidate(link, decision);
 
+    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    if (semanticBus?.emit) {
+      const sourceId = this.getNodeId(link.source);
+      const targetId = this.getNodeId(link.target);
+      semanticBus.emit('link:collapsed', {
+        linkId: decision.linkId,
+        sourceId,
+        targetId,
+        reason: decision.reason,
+        source: decision.source || 'LinkCollapseSystem',
+        timestamp: performance.now()
+      }, { priority: semanticBus.priority?.INTERACTIVE });
+    }
+
     console.log(`[CollapseExecutor] unlinking link=${decision.linkId} reason=${decision.reason} source=${decision.source || 'unknown'} at=${new Date(decision.decidedAt).toISOString()}`);
     this.removeLink(link);
     this.lastCollapseDecisions.set(decision.linkId, { ...decision, executedAt: Date.now() });
