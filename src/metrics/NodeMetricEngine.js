@@ -30,8 +30,41 @@ const STEP = {
 const ALLOWED_WRITERS = [
   'SafeMetricsDNAIntegration1_0.js',
   'NodeMetricEngine.js',
-  'MetricsRuntime_v1.js',
 ];
+
+const FIXED_TICK_BASE = 0.1;
+
+const RELAXATION = {
+  harmony: 0.05,
+  stability: 0.04,
+  corruption: 0.03,
+  loadPressure: 0.07
+};
+
+const INTERACTION = {
+  harmonyRegen: 0.02,
+  harmonyCorruptionLoss: 0.05,
+  corruptionGrowth: 0.03,
+  corruptionSuppression: 0.04,
+  loadToCorruption: 0.025,
+  stabilityHeal: 0.01,
+  stabilityCorruptionLoss: 0.03,
+  stabilityLoadLoss: 0.01
+};
+
+const LINK_EQUALIZE = {
+  harmony: 0.02,
+  stability: 0.015
+};
+
+const SYNERGY_DERIVATION = {
+  harmonyWeight: 0.45,
+  stabilityWeight: 0.25,
+  antiCorruptionWeight: 0.2,
+  antiLoadWeight: 0.1,
+  smoothing: 0.25,
+  resonanceWeight: 0.02
+};
 
 // Semantic emission thresholds (delta since last emission)
 const SEMANTIC_THRESHOLDS = {
@@ -105,6 +138,90 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
     }, { priority: bus.priority?.NORMAL });
     recordEmit(metric, after, nodeId);
   }
+}
+
+function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
+  const before = metrics[key];
+  const after = clamp01(nextValue);
+  if (before === after) return;
+  metrics[key] = after;
+  traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
+  emitSemanticMetricEvent(key, before, after, targetId);
+}
+
+function getNodeId(node) {
+  return node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+}
+
+function resolveNodeList(nodesInput) {
+  if (Array.isArray(nodesInput?.nodes)) return nodesInput.nodes;
+  if (Array.isArray(nodesInput)) return nodesInput;
+  return [];
+}
+
+function resolveLinkList(linkSystem) {
+  if (Array.isArray(linkSystem?.links)) return linkSystem.links;
+  if (Array.isArray(linkSystem)) return linkSystem;
+  return [];
+}
+
+function deriveSynergyTarget(metrics) {
+  const harmony = clamp01(metrics.harmony ?? 0);
+  const stability = clamp01(metrics.stability ?? 0);
+  const corruption = clamp01(metrics.corruption ?? 0);
+  const loadPressure = clamp01(metrics.loadPressure ?? 0);
+
+  const base =
+    harmony * SYNERGY_DERIVATION.harmonyWeight +
+    stability * SYNERGY_DERIVATION.stabilityWeight +
+    (1 - corruption) * SYNERGY_DERIVATION.antiCorruptionWeight +
+    (1 - loadPressure) * SYNERGY_DERIVATION.antiLoadWeight;
+
+  const resonance = clamp01((stability - 0.6) / 0.3) * harmony * SYNERGY_DERIVATION.resonanceWeight;
+  return clamp01(base + resonance);
+}
+
+function applyCrossMetricInteractions(metrics, base, dtScale) {
+  let harmony = clamp01(metrics.harmony);
+  let stability = clamp01(metrics.stability);
+  let corruption = clamp01(metrics.corruption);
+  let loadPressure = clamp01(metrics.loadPressure);
+
+  harmony += (clamp01(base.harmony ?? harmony) - harmony) * RELAXATION.harmony * dtScale;
+  stability += (clamp01(base.stability ?? stability) - stability) * RELAXATION.stability * dtScale;
+  loadPressure += (clamp01(base.loadPressure ?? loadPressure) - loadPressure) * RELAXATION.loadPressure * dtScale;
+
+  corruption -= corruption * 0.04 * dtScale;
+  if ((base.corruption ?? 0) > 0) {
+    corruption += (clamp01(base.corruption) - corruption) * RELAXATION.corruption * dtScale;
+  }
+
+  const vulnerability = clamp01((1 - stability) * (0.6 + 0.4 * loadPressure));
+  const coherence = clamp01(stability * (1 - 0.7 * loadPressure));
+
+  harmony += (
+    INTERACTION.harmonyRegen * coherence -
+    INTERACTION.harmonyCorruptionLoss * corruption * (0.5 + 0.5 * vulnerability)
+  ) * dtScale;
+
+  corruption += (
+    INTERACTION.corruptionGrowth * vulnerability -
+    INTERACTION.corruptionSuppression * harmony * coherence +
+    INTERACTION.loadToCorruption * loadPressure * (0.4 + 0.6 * (1 - stability))
+  ) * dtScale;
+
+  stability += (
+    INTERACTION.stabilityHeal * harmony * 0.5 -
+    INTERACTION.stabilityCorruptionLoss * corruption * (0.3 + 0.7 * vulnerability) -
+    INTERACTION.stabilityLoadLoss * loadPressure
+  ) * dtScale;
+
+  return {
+    harmony: clamp01(harmony),
+    stability: clamp01(stability),
+    corruption: clamp01(corruption),
+    loadPressure: clamp01(loadPressure)
+  };
 }
 
 function wrapMetricsWithGuard(metricsObj) {
@@ -199,11 +316,78 @@ function ensureMetrics(node) {
 function adjust(metrics, key, delta, targetId = 'unknown-node') {
   assertMetricAuthority('NodeMetricEngine', key);
   const clampedDelta = Math.max(-MAX_IMPULSE, Math.min(MAX_IMPULSE, delta));
-  const before = metrics[key];
-  const after = clamp01(before + clampedDelta);
-  metrics[key] = after;
-  traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
-  emitSemanticMetricEvent(key, before, after, targetId);
+  writeMetric(metrics, key, (metrics[key] ?? 0) + clampedDelta, targetId);
+}
+
+function deriveSynergy(node, dtScale = 1) {
+  const m = ensureMetrics(node);
+  if (!m) return;
+  const id = getNodeId(node);
+  const target = deriveSynergyTarget(m);
+  const smoothing = Math.min(1, SYNERGY_DERIVATION.smoothing * dtScale);
+  const next = (m.synergy ?? 0) + (target - (m.synergy ?? 0)) * smoothing;
+  writeMetric(m, 'synergy', next, id);
+}
+
+export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) {
+  const nodes = resolveNodeList(nodesInput);
+  if (!nodes.length) return;
+
+  const dtClamped = Number.isFinite(dt) ? Math.max(0.001, Math.min(0.25, dt)) : FIXED_TICK_BASE;
+  const dtScale = dtClamped / FIXED_TICK_BASE;
+
+  for (const node of nodes) {
+    const m = ensureMetrics(node);
+    const base = node?.userData?.archetypeMetrics;
+    if (!m || !base) continue;
+    const id = getNodeId(node);
+
+    if (node?.userData) {
+      const cd = Number(node.userData.metricsCooldown ?? 0);
+      if (cd > 0) {
+        node.userData.metricsCooldown = cd - 1;
+        continue;
+      }
+    }
+
+    const next = applyCrossMetricInteractions(m, base, dtScale);
+    writeMetric(m, 'harmony', next.harmony, id);
+    writeMetric(m, 'stability', next.stability, id);
+    writeMetric(m, 'corruption', next.corruption, id);
+    writeMetric(m, 'loadPressure', next.loadPressure, id);
+    applyArchetypeClamp(node);
+  }
+
+  const links = resolveLinkList(linkSystem);
+  if (links.length) {
+    const equalizeHarmony = LINK_EQUALIZE.harmony * dtScale;
+    const equalizeStability = LINK_EQUALIZE.stability * dtScale;
+    for (const link of links) {
+      const nodeA = link?.source || link?.nodeA;
+      const nodeB = link?.target || link?.nodeB;
+      if (!nodeA || !nodeB) continue;
+
+      const ma = ensureMetrics(nodeA);
+      const mb = ensureMetrics(nodeB);
+      if (!ma || !mb) continue;
+
+      const idA = getNodeId(nodeA);
+      const idB = getNodeId(nodeB);
+
+      const dH = ((mb.harmony ?? 0) - (ma.harmony ?? 0)) * equalizeHarmony;
+      writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA);
+      writeMetric(mb, 'harmony', (mb.harmony ?? 0) - dH, idB);
+
+      const dSt = ((mb.stability ?? 0) - (ma.stability ?? 0)) * equalizeStability;
+      writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA);
+      writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB);
+    }
+  }
+
+  for (const node of nodes) {
+    deriveSynergy(node, dtScale);
+    applyArchetypeClamp(node);
+  }
 }
 
 /**
@@ -219,12 +403,16 @@ export function applyMetricImpulse(node, deltas = {}) {
     node.userData.metricsCooldown = 3;
   }
   const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
-  const keys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+  const keys = ['harmony', 'stability', 'corruption', 'loadPressure'];
   for (const key of keys) {
     if (typeof deltas[key] === 'number' && Number.isFinite(deltas[key])) {
       adjust(m, key, deltas[key], id);
     }
   }
+  if (typeof deltas.synergy === 'number' && Number.isFinite(deltas.synergy)) {
+    console.warn('DERIVED_METRIC_WRITE_BLOCKED', { key: 'synergy', nodeId: id });
+  }
+  deriveSynergy(node);
   applyArchetypeClamp(node);
 }
 
@@ -235,17 +423,19 @@ export function applyMetricImpulse(node, deltas = {}) {
 export function setMetric(node, metric, value) {
   if (!node || !metric) return;
   if (!LEGACY_KEYS.includes(metric)) return;
+  if (metric === 'synergy') {
+    console.warn('DERIVED_METRIC_WRITE_BLOCKED', { key: metric, nodeId: getNodeId(node) });
+    return;
+  }
   const m = ensureMetrics(node);
   if (!m) return;
-  const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  const id = getNodeId(node);
   if (Object.prototype.hasOwnProperty.call(node.userData, metric) && node.userData[metric] !== undefined) {
     console.warn('LEGACY METRIC WRITE BLOCKED', { key: metric, nodeId: id });
   }
-  const before = m[metric];
-  const after = clamp01(typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric]);
-  m[metric] = after;
-  traceMetricMutation('NodeMetricEngine', `node.${metric}`, before, after, id);
-  emitSemanticMetricEvent(metric, before, after, id);
+  const after = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric];
+  writeMetric(m, metric, after, id);
+  deriveSynergy(node);
   applyArchetypeClamp(node);
 }
 
@@ -260,14 +450,10 @@ export function initNodeMetrics(node) {
  * Initialize metrics on spawn without overwriting existing values.
  */
 export function onNodeSpawn(node) {
-  // Skip spawn nudge when a canonical DNA snapshot already exists
-  if (node?.userData?.metrics?._isMetricSnapshot) {
-    return;
-  }
-
   const m = ensureMetrics(node);
   if (!m) return;
-  // No blending toward defaults; preserve existing values
+  // Preserve spawn snapshot; only enforce canonical derived metric.
+  deriveSynergy(node);
   applyArchetypeClamp(node);
 }
 
@@ -280,11 +466,11 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
   for (const node of nodes) {
     const m = ensureMetrics(node);
     if (!m) continue;
-    const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
-    adjust(m, 'synergy', STEP.linkBoost, id);
+    const id = getNodeId(node);
     adjust(m, 'harmony', STEP.linkBoost, id);
     adjust(m, 'loadPressure', STEP.linkStress, id);
     adjust(m, 'corruption', -STEP.linkBoost * 0.5, id);
+    deriveSynergy(node);
   }
 
   if (nodeA?.userData?.category && nodeB?.userData?.category && nodeA.userData.category !== nodeB.userData.category) {
@@ -311,10 +497,10 @@ export function onLinkRemoved(nodeA, nodeB) {
   for (const node of nodes) {
     const m = ensureMetrics(node);
     if (!m) continue;
-    const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
-    adjust(m, 'synergy', -STEP.linkBoost * 0.5, id);
+    const id = getNodeId(node);
     adjust(m, 'harmony', -STEP.linkBoost * 0.5, id);
     adjust(m, 'loadPressure', -STEP.linkStress * 1.5, id);
+    deriveSynergy(node);
   }
   applyArchetypeClamp(nodeA);
   applyArchetypeClamp(nodeB);
@@ -328,9 +514,10 @@ export function onOverload(node, overloadAmount = 0) {
   const m = ensureMetrics(node);
   if (!m) return;
   const amt = clamp01(overloadAmount);
-  const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  const id = getNodeId(node);
   adjust(m, 'loadPressure', amt * STEP.overloadLoadScale, id);
   adjust(m, 'corruption', amt * STEP.overloadCorruptionScale, id);
   adjust(m, 'stability', -amt * STEP.overloadStabilityLoss, id);
+  deriveSynergy(node);
   applyArchetypeClamp(node);
 }

@@ -48,7 +48,7 @@
 
 import { NetworkMembershipResolver } from './src/metrics/NetworkMembershipResolver.js';
 import { NetworkMetricsAggregator } from './src/metrics/NetworkMetricsAggregator.js';
-import { traceMetricMutation } from './src/metrics/MetricAuthorityGuard.js';
+import { updateNodeMetrics } from './src/metrics/NodeMetricEngine.js';
 import { MetricValidationRuntime } from './MetricValidationRuntime.js';
 
 const NETWORK_METRICS_OVERRIDE_KEY = '__ATOMA_NETWORK_METRICS_AGGREGATOR_OVERRIDE__';
@@ -59,14 +59,6 @@ const CANONICAL_METRIC_FIELDS = [
     'corruptionLevel',
     'loadPressure'
 ];
-
-const RELAXATION = {
-    synergy: 0.06,
-    harmony: 0.05,
-    stability: 0.04,
-    corruption: 0.03,
-    loadPressure: 0.07
-};
 
 const SEMANTIC_DELTA = {
     networkSynergy: 0.05,
@@ -265,104 +257,15 @@ export class MetricsRuntime_v1 {
                 this.systems.safeMetricsFX.update(dt);
             }
 
-            // 2. Fixed-step relax toward archetype baselines
+            // 2. Canonical node metrics update (single-writer: NodeMetricEngine)
+            updateNodeMetrics(this.nodes, this.linkSystem || this.links, dt);
+
             const nodeList = this.nodes?.nodes || this.nodes || [];
             for (const node of nodeList) {
                 const m = node?.userData?.metrics;
-                const base = node?.userData?.archetypeMetrics;
-                if (!m || !base) continue;
+                if (!m) continue;
                 const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
                 this._sanitizeMetrics(m, id);
-
-                // Cooldown: skip relax if metrics were recently impulsed
-                if (node?.userData) {
-                    const cd = Number(node.userData.metricsCooldown ?? 0);
-                    if (cd > 0) {
-                        node.userData.metricsCooldown = cd - 1;
-                        continue;
-                    }
-                }
-
-                const beforeSynergy = m.synergy;
-                const beforeHarmony = m.harmony;
-                const beforeStability = m.stability;
-                const beforeCorruption = m.corruption;
-                const beforeLoad = m.loadPressure;
-
-                m.synergy      += (base.synergy      - m.synergy)      * (RELAXATION.synergy      ?? 0.05);
-                m.harmony      += (base.harmony      - m.harmony)      * (RELAXATION.harmony      ?? 0.05);
-                m.stability    += (base.stability    - m.stability)    * (RELAXATION.stability    ?? 0.05);
-
-                // Corruption decay model: decay toward 0, then relax toward archetype if needed
-                const corruptionDecay = 0.04;
-                m.corruption -= m.corruption * corruptionDecay;
-                if ((base.corruption ?? 0) > 0) {
-                    m.corruption += (base.corruption - m.corruption) * (RELAXATION.corruption ?? 0.05);
-                }
-
-                m.loadPressure += (base.loadPressure - m.loadPressure) * (RELAXATION.loadPressure ?? 0.05);
-
-                m.synergy = this._clamp01(m.synergy);
-                m.harmony = this._clamp01(m.harmony);
-                m.stability = this._clamp01(m.stability);
-                m.corruption = this._clamp01(m.corruption);
-                m.loadPressure = this._clamp01(m.loadPressure);
-
-                traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeSynergy, m.synergy, id);
-                traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeHarmony, m.harmony, id);
-                traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeStability, m.stability, id);
-                traceMetricMutation('MetricsRuntime_v1', 'node.corruption', beforeCorruption, m.corruption, id);
-                traceMetricMutation('MetricsRuntime_v1', 'node.loadPressure', beforeLoad, m.loadPressure, id);
-            }
-
-            // 3. InteractionKernel Phase 1: flow equalization across links
-            const equalizeRate = 0.02;
-            const linkList = this.linkSystem?.links || this.links || [];
-            for (const link of linkList) {
-                const a = link?.source;
-                const b = link?.target;
-                if (!a?.userData?.metrics || !b?.userData?.metrics) continue;
-                const ma = a.userData.metrics;
-                const mb = b.userData.metrics;
-                const idA = a?.userData?.nodeId || a?.uuid || a?.id || 'unknown-node';
-                const idB = b?.userData?.nodeId || b?.uuid || b?.id || 'unknown-node';
-
-                if (ma.synergy !== undefined && mb.synergy !== undefined) {
-                    this._sanitizeMetrics(ma, idA);
-                    this._sanitizeMetrics(mb, idB);
-                    const beforeA = ma.synergy;
-                    const beforeB = mb.synergy;
-                    const dS = (mb.synergy - ma.synergy) * equalizeRate;
-                    ma.synergy = this._clamp01(ma.synergy + dS);
-                    mb.synergy = this._clamp01(mb.synergy - dS);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeA, ma.synergy, idA);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.synergy', beforeB, mb.synergy, idB);
-                }
-
-                if (ma.harmony !== undefined && mb.harmony !== undefined) {
-                    this._sanitizeMetrics(ma, idA);
-                    this._sanitizeMetrics(mb, idB);
-                    const beforeA = ma.harmony;
-                    const beforeB = mb.harmony;
-                    const dH = (mb.harmony - ma.harmony) * equalizeRate;
-                    ma.harmony = this._clamp01(ma.harmony + dH);
-                    mb.harmony = this._clamp01(mb.harmony - dH);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeA, ma.harmony, idA);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.harmony', beforeB, mb.harmony, idB);
-                }
-
-                // Stability equalization (weaker than synergy/harmony)
-                if (ma.stability !== undefined && mb.stability !== undefined) {
-                    this._sanitizeMetrics(ma, idA);
-                    this._sanitizeMetrics(mb, idB);
-                    const beforeA = ma.stability;
-                    const beforeB = mb.stability;
-                    const dSt = (mb.stability - ma.stability) * 0.015;
-                    ma.stability = this._clamp01(ma.stability + dSt);
-                    mb.stability = this._clamp01(mb.stability - dSt);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeA, ma.stability, idA);
-                    traceMetricMutation('MetricsRuntime_v1', 'node.stability', beforeB, mb.stability, idB);
-                }
             }
 
             // 3. Network aggregation (fixed-step)
@@ -408,8 +311,7 @@ export class MetricsRuntime_v1 {
             const val = metricsObj[key];
             const clamped = this._clamp01(val);
             if (!Number.isFinite(val) || val !== clamped) {
-                metricsObj[key] = clamped;
-                console.warn('Metric drift corrected', { nodeId, key, value: val, corrected: clamped });
+                console.warn('Metric drift detected', { nodeId, key, value: val, expectedRange: '0..1' });
             }
         }
     }

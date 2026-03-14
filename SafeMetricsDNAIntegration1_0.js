@@ -8,12 +8,32 @@
  * Metrics are READ-ONLY reference data
  */
 
+import { NODE_VISUAL_REGISTRY } from './NodeVisualRegistry.js';
+
 export class SafeMetricsDNAIntegration1_0 {
   static _ALLOWED_WRITERS = [
     'SafeMetricsDNAIntegration1_0.js',
     'NodeMetricEngine.js',
     'MetricsRuntime_v1.js',
   ];
+
+  static _METRIC_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+
+  static _ALIASES = {
+    'prime-node': 'prime',
+    'mythic-core': 'mythic',
+    'quantum-lab': 'quantum',
+  };
+
+  static _DEFAULT_PRESET = Object.freeze({
+    synergy: 0.6,
+    harmony: 0.6,
+    stability: 0.6,
+    corruption: 0.05,
+    loadPressure: 0.4,
+  });
+
+  static _CATEGORY_PRESET_CACHE = null;
 
   static _wrapMetricsWithGuard(metricsObj) {
     if (!metricsObj || metricsObj.__guarded) return metricsObj;
@@ -37,106 +57,110 @@ export class SafeMetricsDNAIntegration1_0 {
     return proxy;
   }
 
-  /**
-   * Complete metrics table by archetype
-   * Values from official Node Archetype DNA System
-   */
-  static METRICS_TABLE = {
-    // Core categories
-    'input': {
-      synergy: 50,
-      harmony: 40,
-      stability: 70,
-      corruption: 90,
-      load: 3,
-    },
-    'process': {
-      synergy: 60,
-      harmony: 50,
-      stability: 65,
-      corruption: 70,
-      load: 4,
-    },
-    'integration': {
-      synergy: 70,
-      harmony: 95,
-      stability: 70,
-      corruption: 60,
-      load: 4,
-    },
-    'analytics': {
-      synergy: 55,
-      harmony: 50,
-      stability: 75,
-      corruption: 95,
-      load: 4,
-    },
-    'storage': {
-      synergy: 30,
-      harmony: 30,
-      stability: 95,
-      corruption: 50,
-      load: 6,
-    },
-    'control': {
-      synergy: 65,
-      harmony: 20,
-      stability: 90,
-      corruption: 70,
-      load: 5,
-    },
-    // New canonical categories
-    'prime': {
-      synergy: 70,
-      harmony: 70,
-      stability: 90,
-      corruption: 10,
-      load: 3,
-    },
-    'error': {
-      synergy: 40,
-      harmony: 20,
-      stability: 30,
-      corruption: 95,
-      load: 4,
-    },
-    'mythic': {
-      synergy: 95,
-      harmony: 85,
-      stability: 60,
-      corruption: 25,
-      load: 2,
-    },
-    'sigma': {
-      synergy: 60,
-      harmony: 50,
-      stability: 85,
-      corruption: 15,
-      load: 3,
-    },
-    'quantum': {
-      synergy: 65,
-      harmony: 15,
-      stability: 15,
-      corruption: 20,
-      load: 4,
-    },
-    'emotional': {
-      synergy: 75,
-      harmony: 85,
-      stability: 40,
-      corruption: 45,
-      load: 4,
-    },
-    // Fallback for unlabeled nodes
-    'default': {
-      synergy: 65,
-      harmony: 65,
-      stability: 65,
-      corruption: 65,
-      load: 3,
-    },
-  };
+  static _clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
+  }
+
+  static _normalizeCategoryKey(rawKey) {
+    const normalized = String(rawKey || 'input').toLowerCase().trim();
+    return this._ALIASES[normalized] || normalized;
+  }
+
+  static _resolveVisualCode(node) {
+    const rawCode =
+      node?.userData?.visualCode ??
+      node?.userData?.spawnCycle?.visualCode ??
+      node?.userData?.enhancedNodeModelBinding?.visualCode;
+    const numericCode = Number(rawCode);
+    return Number.isFinite(numericCode) ? numericCode : null;
+  }
+
+  static _getCategoryPresetCache() {
+    if (this._CATEGORY_PRESET_CACHE) return this._CATEGORY_PRESET_CACHE;
+
+    const accum = {};
+    for (const entry of Object.values(NODE_VISUAL_REGISTRY)) {
+      if (!entry || !entry.category || !entry.metrics) continue;
+      if (!accum[entry.category]) {
+        accum[entry.category] = {
+          count: 0,
+          synergy: 0,
+          harmony: 0,
+          stability: 0,
+          corruption: 0,
+          loadPressure: 0,
+        };
+      }
+      const bucket = accum[entry.category];
+      bucket.count += 1;
+      for (const key of this._METRIC_KEYS) {
+        bucket[key] += this._clamp01(Number(entry.metrics[key]));
+      }
+    }
+
+    const cache = {};
+    for (const [category, bucket] of Object.entries(accum)) {
+      if (!bucket.count) continue;
+      cache[category] = Object.freeze({
+        synergy: this._clamp01(bucket.synergy / bucket.count),
+        harmony: this._clamp01(bucket.harmony / bucket.count),
+        stability: this._clamp01(bucket.stability / bucket.count),
+        corruption: this._clamp01(bucket.corruption / bucket.count),
+        loadPressure: this._clamp01(bucket.loadPressure / bucket.count),
+      });
+    }
+
+    cache.default = this._DEFAULT_PRESET;
+    this._CATEGORY_PRESET_CACHE = Object.freeze(cache);
+    return this._CATEGORY_PRESET_CACHE;
+  }
+
+  static _resolveMetricPreset(node, archetype) {
+    const categoryKey = this._normalizeCategoryKey(node?.userData?.category || archetype || 'input');
+    const visualCode = this._resolveVisualCode(node);
+    const registryEntry = visualCode !== null ? NODE_VISUAL_REGISTRY[String(visualCode)] : null;
+
+    if (registryEntry?.metrics) {
+      return {
+        categoryKey: this._normalizeCategoryKey(registryEntry.category || categoryKey),
+        visualCode,
+        preset: registryEntry.metrics,
+      };
+    }
+
+    const categoryCache = this._getCategoryPresetCache();
+    const fallbackPreset = categoryCache[categoryKey] || categoryCache.default || this._DEFAULT_PRESET;
+    if (visualCode !== null) {
+      console.warn('[DNA] registry metrics missing for visualCode, using category fallback', {
+        visualCode,
+        categoryKey,
+      });
+    }
+
+    return {
+      categoryKey,
+      visualCode,
+      preset: fallbackPreset,
+    };
+  }
+
+  static _normalizePreset(preset) {
+    return {
+      synergy: this._clamp01(Number(preset?.synergy)),
+      harmony: this._clamp01(Number(preset?.harmony)),
+      stability: this._clamp01(Number(preset?.stability)),
+      corruption: this._clamp01(Number(preset?.corruption)),
+      loadPressure: this._clamp01(Number(preset?.loadPressure)),
+    };
+  }
+
+  // Compatibility accessor for older debug tooling.
+  static get METRICS_TABLE() {
+    return this.getAllMetrics();
+  }
 
   /**
    * Attach metrics to a node based on its archetype
@@ -149,35 +173,15 @@ export class SafeMetricsDNAIntegration1_0 {
     if (!node) return;
     if (!node.userData) node.userData = {};
 
-    // Prefer category (canonical), fall back to archetype for legacy callers
-    const rawKey = (node.userData.category || archetype || 'default').toLowerCase().trim();
-    // Lightweight alias map if categories come with suffixes/prefixes
-    const ALIASES = {
-      'prime-node': 'prime',
-      'mythic-core': 'mythic',
-      'quantum-lab': 'quantum',
-    };
-    const archetypeKey = ALIASES[rawKey] || rawKey;
-
-    const raw = this.METRICS_TABLE[archetypeKey] || this.METRICS_TABLE['default'];
-    if (!this.METRICS_TABLE[archetypeKey]) {
-      console.warn('[DNA] missing metrics key, using default', { key: archetypeKey, category: node.userData.category, archetype });
-    }
-
-  // --- Normalization helpers (safe, deterministic) ---
-  const clamp01 = (n) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
-  const normPct = (v) => clamp01((Number(v) || 0) / 100);
-
-  // If your table ever uses 0..120, this safely caps at 1.0.
-  const synergy = normPct(raw.synergy);
-  const harmony = normPct(raw.harmony);
-  const stability = normPct(raw.stability);
-  const corruption = normPct(raw.corruption);
-
-  // load is capacity (int). Keep it as-is, also derive loadPressure (0..1) for HUD.
-  const loadCap = Number.isFinite(raw.load) ? raw.load : 3;
-  const LOAD_MAX = 6; // keep simple; matches your table range
-  const loadPressure = clamp01(loadCap / LOAD_MAX);
+    const resolved = this._resolveMetricPreset(node, archetype);
+    const normalized = this._normalizePreset(resolved.preset);
+    const {
+      synergy,
+      harmony,
+      stability,
+      corruption,
+      loadPressure,
+    } = normalized;
 
   // Immutable archetype snapshot - preserves original archetype identity
   // Written once at spawn-time; must not be modified by dynamic or legacy systems
@@ -198,14 +202,13 @@ export class SafeMetricsDNAIntegration1_0 {
 
     // Keep raw DNA snapshot for debug/tuning (optional but useful)
     _dna: {
-      synergy: raw.synergy,
-      harmony: raw.harmony,
-      stability: raw.stability,
-      corruption: raw.corruption,
-      load: raw.load,
+      source: 'NodeVisualRegistry.metrics',
+      visualCode: resolved.visualCode,
+      category: resolved.categoryKey,
+      ...normalized,
     },
 
-    archetype: archetypeKey,
+    archetype: resolved.categoryKey,
     _isMetricSnapshot: true,
   };
 
@@ -242,7 +245,7 @@ export class SafeMetricsDNAIntegration1_0 {
    */
   static getMetricValue(node, metricName) {
     const metrics = this.getMetrics(node);
-    
+    if (!metrics || !metricName) return null;
     return (metricName in metrics) ? metrics[metricName] : null;
   }
 
@@ -269,24 +272,28 @@ export class SafeMetricsDNAIntegration1_0 {
    * @returns {Object} Validation report
    */
   static validateMetricsTable() {
-    const requiredFields = ['synergy','stability','harmony','corruption','load', ];
+    const requiredFields = [...this._METRIC_KEYS];
     const report = {
       valid: true,
       archetypes: {},
       errors: [],
     };
+    const uniqueness = new Set();
 
-    Object.entries(this.METRICS_TABLE).forEach(([archetype, metrics]) => {
+    Object.entries(NODE_VISUAL_REGISTRY).forEach(([visualCode, entry]) => {
+      const archetype = entry?.category || 'unknown';
+      const metrics = entry?.metrics;
       const archReport = {
         valid: true,
+        visualCode: Number(visualCode),
         fields: {},
         missing: [],
       };
 
       requiredFields.forEach(field => {
-        const value = metrics[field];
+        const value = metrics ? metrics[field] : undefined;
         const isNumber = typeof value === 'number';
-        const inRange = isNumber && value >= 0 && value <= 120;
+        const inRange = isNumber && value >= 0 && value <= 1;
 
         archReport.fields[field] = {
           value: value,
@@ -300,11 +307,19 @@ export class SafeMetricsDNAIntegration1_0 {
         }
       });
 
-      report.archetypes[archetype] = archReport;
+      const signature = requiredFields.map((field) => Number(metrics?.[field] ?? NaN).toFixed(6)).join('|');
+      if (uniqueness.has(signature)) {
+        archReport.valid = false;
+        archReport.missing.push('non-unique-preset');
+      } else {
+        uniqueness.add(signature);
+      }
+
+      report.archetypes[`${archetype}:${visualCode}`] = archReport;
 
       if (!archReport.valid) {
         report.valid = false;
-        report.errors.push(`${archetype}: missing or invalid ${archReport.missing.join(', ')}`);
+        report.errors.push(`${archetype}:${visualCode}: missing or invalid ${archReport.missing.join(', ')}`);
       }
     });
 
@@ -320,11 +335,12 @@ export class SafeMetricsDNAIntegration1_0 {
    * @returns {Object} Comparison data
    */
   static compareMetrics(archetype1, archetype2) {
-    const arch1Key = (archetype1 || 'default').toLowerCase();
-    const arch2Key = (archetype2 || 'default').toLowerCase();
+    const cache = this._getCategoryPresetCache();
+    const arch1Key = this._normalizeCategoryKey(archetype1 || 'default');
+    const arch2Key = this._normalizeCategoryKey(archetype2 || 'default');
 
-    const metrics1 = this.METRICS_TABLE[arch1Key] || this.METRICS_TABLE['default'];
-    const metrics2 = this.METRICS_TABLE[arch2Key] || this.METRICS_TABLE['default'];
+    const metrics1 = cache[arch1Key] || cache.default || this._DEFAULT_PRESET;
+    const metrics2 = cache[arch2Key] || cache.default || this._DEFAULT_PRESET;
 
     return {
       archetype1: arch1Key,
@@ -347,7 +363,7 @@ export class SafeMetricsDNAIntegration1_0 {
    * @returns {Object} All metrics by archetype
    */
   static getAllMetrics() {
-    return Object.freeze({ ...this.METRICS_TABLE });
+    return this._getCategoryPresetCache();
   }
 
   /**
@@ -356,6 +372,6 @@ export class SafeMetricsDNAIntegration1_0 {
    * @returns {Array<string>} Archetype names
    */
   static getArchetypeNames() {
-    return Object.keys(this.METRICS_TABLE).filter(k => k !== 'default');
+    return Object.keys(this._getCategoryPresetCache()).filter((k) => k !== 'default');
   }
 }
