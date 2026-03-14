@@ -42,14 +42,14 @@ const RELAXATION = {
 };
 
 const INTERACTION = {
-  harmonyRegen: 0.02,
-  harmonyCorruptionLoss: 0.05,
-  corruptionGrowth: 0.03,
-  corruptionSuppression: 0.04,
-  loadToCorruption: 0.025,
-  stabilityHeal: 0.01,
-  stabilityCorruptionLoss: 0.03,
-  stabilityLoadLoss: 0.01
+  harmonyCoherenceGain: 0.025,
+  harmonyCorruptionLoss: 0.06,
+  corruptionVulnerabilityGain: 0.035,
+  corruptionHarmonySuppression: 0.045,
+  corruptionLoadGain: 0.02,
+  stabilityHarmonyGain: 0.015,
+  stabilityCorruptionLoss: 0.04,
+  stabilityLoadLoss: 0.02
 };
 
 const LINK_EQUALIZE = {
@@ -58,13 +58,15 @@ const LINK_EQUALIZE = {
 };
 
 const SYNERGY_DERIVATION = {
-  harmonyWeight: 0.45,
-  stabilityWeight: 0.25,
-  antiCorruptionWeight: 0.2,
-  antiLoadWeight: 0.1,
   smoothing: 0.25,
-  resonanceWeight: 0.02
+  corruptionDamping: 0.85,
+  loadDamping: 0.65,
+  resonanceHarmonyThreshold: 0.75,
+  resonanceStabilityThreshold: 0.65,
+  resonanceScale: 0.35
 };
+
+const DYNAMICS_INERTIA = 0.85;
 
 // Semantic emission thresholds (delta since last emission)
 const SEMANTIC_THRESHOLDS = {
@@ -171,13 +173,17 @@ function deriveSynergyTarget(metrics) {
   const corruption = clamp01(metrics.corruption ?? 0);
   const loadPressure = clamp01(metrics.loadPressure ?? 0);
 
-  const base =
-    harmony * SYNERGY_DERIVATION.harmonyWeight +
-    stability * SYNERGY_DERIVATION.stabilityWeight +
-    (1 - corruption) * SYNERGY_DERIVATION.antiCorruptionWeight +
-    (1 - loadPressure) * SYNERGY_DERIVATION.antiLoadWeight;
+  const harmonyField = harmony * harmony;
+  const stabilityField = stability;
+  const corruptionField = 1 - corruption * SYNERGY_DERIVATION.corruptionDamping;
+  const loadField = 1 - loadPressure * SYNERGY_DERIVATION.loadDamping;
 
-  const resonance = clamp01((stability - 0.6) / 0.3) * harmony * SYNERGY_DERIVATION.resonanceWeight;
+  const base = harmonyField * stabilityField * corruptionField * loadField;
+  const resonance =
+    Math.max(0, harmony - SYNERGY_DERIVATION.resonanceHarmonyThreshold) *
+    Math.max(0, stability - SYNERGY_DERIVATION.resonanceStabilityThreshold) *
+    SYNERGY_DERIVATION.resonanceScale;
+
   return clamp01(base + resonance);
 }
 
@@ -196,25 +202,30 @@ function applyCrossMetricInteractions(metrics, base, dtScale) {
     corruption += (clamp01(base.corruption) - corruption) * RELAXATION.corruption * dtScale;
   }
 
-  const vulnerability = clamp01((1 - stability) * (0.6 + 0.4 * loadPressure));
-  const coherence = clamp01(stability * (1 - 0.7 * loadPressure));
+  const vulnerability = (1 - stability) * (0.5 + loadPressure * 0.7);
+  const coherence = stability * (1 - loadPressure * 0.6);
 
-  harmony += (
-    INTERACTION.harmonyRegen * coherence -
-    INTERACTION.harmonyCorruptionLoss * corruption * (0.5 + 0.5 * vulnerability)
+  const nextHarmony = harmony + (
+    INTERACTION.harmonyCoherenceGain * coherence -
+    INTERACTION.harmonyCorruptionLoss * corruption * vulnerability
   ) * dtScale;
 
-  corruption += (
-    INTERACTION.corruptionGrowth * vulnerability -
-    INTERACTION.corruptionSuppression * harmony * coherence +
-    INTERACTION.loadToCorruption * loadPressure * (0.4 + 0.6 * (1 - stability))
+  const nextCorruption = corruption + (
+    INTERACTION.corruptionVulnerabilityGain * vulnerability -
+    INTERACTION.corruptionHarmonySuppression * harmony * coherence +
+    INTERACTION.corruptionLoadGain * loadPressure
   ) * dtScale;
 
-  stability += (
-    INTERACTION.stabilityHeal * harmony * 0.5 -
-    INTERACTION.stabilityCorruptionLoss * corruption * (0.3 + 0.7 * vulnerability) -
+  const nextStability = stability + (
+    INTERACTION.stabilityHarmonyGain * harmony -
+    INTERACTION.stabilityCorruptionLoss * corruption -
     INTERACTION.stabilityLoadLoss * loadPressure
   ) * dtScale;
+
+  // Cheap inertia damping prevents oscillation in tightly coupled clusters.
+  harmony = harmony * DYNAMICS_INERTIA + nextHarmony * (1 - DYNAMICS_INERTIA);
+  corruption = corruption * DYNAMICS_INERTIA + nextCorruption * (1 - DYNAMICS_INERTIA);
+  stability = stability * DYNAMICS_INERTIA + nextStability * (1 - DYNAMICS_INERTIA);
 
   return {
     harmony: clamp01(harmony),
@@ -360,8 +371,6 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
 
   const links = resolveLinkList(linkSystem);
   if (links.length) {
-    const equalizeHarmony = LINK_EQUALIZE.harmony * dtScale;
-    const equalizeStability = LINK_EQUALIZE.stability * dtScale;
     for (const link of links) {
       const nodeA = link?.source || link?.nodeA;
       const nodeB = link?.target || link?.nodeB;
@@ -373,6 +382,11 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
 
       const idA = getNodeId(nodeA);
       const idB = getNodeId(nodeB);
+
+      const strengthRaw = link?.userData?.synergy?.score;
+      const strength = clamp01(Number.isFinite(strengthRaw) ? strengthRaw : 0.5);
+      const equalizeHarmony = LINK_EQUALIZE.harmony * strength * dtScale;
+      const equalizeStability = LINK_EQUALIZE.stability * strength * dtScale;
 
       const dH = ((mb.harmony ?? 0) - (ma.harmony ?? 0)) * equalizeHarmony;
       writeMetric(ma, 'harmony', (ma.harmony ?? 0) + dH, idA);

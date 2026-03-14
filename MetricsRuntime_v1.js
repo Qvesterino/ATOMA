@@ -600,7 +600,55 @@ const adapter = this._createLinkSystemAdapter(
             }
         }
 
+        this._emitGameplayTriggers(current, context);
         this._semanticSignalState.last = current;
+    }
+
+    _emitGameplayTriggers(metricsPayload, context = {}) {
+        const semanticBus = globalThis?.semanticBus;
+        if (!semanticBus?.emit) return;
+
+        const current = {
+            networkSynergy: this._clamp01(metricsPayload?.networkSynergy),
+            harmonyFlow: this._clamp01(metricsPayload?.harmonyFlow),
+            networkStress: this._clamp01(metricsPayload?.networkStress),
+            corruptionLevel: this._clamp01(metricsPayload?.corruptionLevel),
+            loadPressure: this._clamp01(metricsPayload?.loadPressure)
+        };
+        const last = this._semanticSignalState?.last || {};
+
+        if (current.networkSynergy >= 0.82 && (last.networkSynergy ?? 0) < 0.82) {
+            semanticBus.emit('event:synergyCascade', {
+                value: current.networkSynergy
+            });
+        }
+
+        if (current.harmonyFlow >= 0.85 && (last.harmonyFlow ?? 0) < 0.85) {
+            semanticBus.emit('event:harmonyResonance', {
+                value: current.harmonyFlow
+            });
+        }
+
+        if (current.corruptionLevel >= 0.6 && (last.corruptionLevel ?? 0) < 0.6) {
+            semanticBus.emit('event:corruptionOutbreak', {
+                value: current.corruptionLevel
+            });
+        }
+
+        const loadCollapseNow = current.loadPressure >= 0.8 && current.networkStress >= 0.6;
+        const loadCollapseBefore = (last.loadPressure ?? 0) >= 0.8 && (last.networkStress ?? 0) >= 0.6;
+        if (loadCollapseNow && !loadCollapseBefore) {
+            semanticBus.emit('event:loadCollapse', {
+                load: current.loadPressure,
+                stress: current.networkStress
+            });
+        }
+
+        if (current.networkStress >= 0.75 && (last.networkStress ?? 0) < 0.75) {
+            semanticBus.emit('event:instabilityTrap', {
+                value: current.networkStress
+            });
+        }
     }
 
     /**
