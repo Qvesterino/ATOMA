@@ -950,10 +950,10 @@ export class GlyphLayer4_MultiFusion {
         sourceNodeIds: sourceNodeIds,  // For source glyph reabsorption during dissolution
         // Provide access to node metrics for resonance modulation
         glyphData: {
-          harmonyDominance: node.userData?.harmony || 0.5,
+          harmonyDominance: node.userData?.metrics?.harmony || 0.5,
           corruptionLevel: node.userData?.corruption || 0,
-          synergyCoherence: node.userData?.synergy || 0.5,
-          stabilityIndex: node.userData?.stability || 0
+          synergyCoherence: node.userData?.metrics?.synergy || 0.5,
+          stabilityIndex: node.userData?.metrics?.stability || 0
         }
       };
       this.resonanceFeedback.registerCompositeGlyph(compositeGlyph);

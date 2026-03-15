@@ -57,6 +57,22 @@ const LINK_EQUALIZE = {
   stability: 0.015
 };
 
+const SYNERGY_RESONANCE = {
+  threshold: 0.75,
+  harmonyGain: 0.002,
+  stabilityGain: 0.001,
+  maxHarmonyPerTick: 0.01,
+  maxStabilityPerTick: 0.005
+};
+
+const SYNERGY_BURST = {
+  threshold: 0.85,
+  cooldownTicks: 120,
+  selfHarmonyBoost: 0.02,
+  selfStabilityBoost: 0.01,
+  neighborHarmonyBoost: 0.01
+};
+
 const SYNERGY_DERIVATION = {
   smoothing: 0.25,
   corruptionDamping: 0.85,
@@ -67,6 +83,11 @@ const SYNERGY_DERIVATION = {
 };
 
 const DYNAMICS_INERTIA = 0.85;
+const NODE_SEMANTIC_EVENT_THRESHOLDS = {
+  harmonyResonance: 0.75,
+  corruptionSurge: 0.6,
+  synergyCascade: 0.8
+};
 
 // Semantic emission thresholds (delta since last emission)
 const SEMANTIC_THRESHOLDS = {
@@ -79,6 +100,7 @@ const SEMANTIC_THRESHOLDS = {
 
 // Track last emitted values to avoid per-frame spam
 const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
+let nodeMetricsTick = 0;
 
 function getSemanticBus() {
   // semanticBus is attached to window/global in main.js
@@ -139,6 +161,36 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
       metric
     }, { priority: bus.priority?.NORMAL });
     recordEmit(metric, after, nodeId);
+  }
+}
+
+function emitNodeThresholdEvents(node) {
+  const bus = getSemanticBus();
+  if (!bus?.emit) return;
+  const metrics = ensureMetrics(node);
+  if (!metrics) return;
+
+  const nodeId = getNodeId(node);
+
+  if ((metrics.harmony ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.harmonyResonance) {
+    bus.emit('event:harmonyResonance', {
+      nodeId,
+      value: metrics.harmony ?? 0
+    }, { priority: bus.priority?.NORMAL });
+  }
+
+  if ((metrics.corruption ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.corruptionSurge) {
+    bus.emit('event:corruptionSurge', {
+      nodeId,
+      value: metrics.corruption ?? 0
+    }, { priority: bus.priority?.NORMAL });
+  }
+
+  if ((metrics.synergy ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.synergyCascade) {
+    bus.emit('event:synergyCascade', {
+      nodeId,
+      value: metrics.synergy ?? 0
+    }, { priority: bus.priority?.NORMAL });
   }
 }
 
@@ -340,12 +392,24 @@ function deriveSynergy(node, dtScale = 1) {
   writeMetric(m, 'synergy', next, id);
 }
 
+function applyCappedPositiveGain(metrics, key, baseGain, capByNode, capPerTick, targetId) {
+  if (!metrics || !targetId || baseGain <= 0) return;
+  const consumed = capByNode.get(targetId) ?? 0;
+  if (consumed >= capPerTick) return;
+  const allowed = Math.min(baseGain, capPerTick - consumed);
+  if (allowed <= 0) return;
+  writeMetric(metrics, key, (metrics[key] ?? 0) + allowed, targetId);
+  capByNode.set(targetId, consumed + allowed);
+}
+
 export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) {
   const nodes = resolveNodeList(nodesInput);
   if (!nodes.length) return;
 
+  const currentTick = ++nodeMetricsTick;
   const dtClamped = Number.isFinite(dt) ? Math.max(0.001, Math.min(0.25, dt)) : FIXED_TICK_BASE;
   const dtScale = dtClamped / FIXED_TICK_BASE;
+  const linkedNeighbors = new Map();
 
   for (const node of nodes) {
     const m = ensureMetrics(node);
@@ -371,6 +435,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
 
   const links = resolveLinkList(linkSystem);
   if (links.length) {
+    const resonanceHarmonyApplied = new Map();
+    const resonanceStabilityApplied = new Map();
     for (const link of links) {
       const nodeA = link?.source || link?.nodeA;
       const nodeB = link?.target || link?.nodeB;
@@ -379,6 +445,11 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const ma = ensureMetrics(nodeA);
       const mb = ensureMetrics(nodeB);
       if (!ma || !mb) continue;
+
+      if (!linkedNeighbors.has(nodeA)) linkedNeighbors.set(nodeA, new Set());
+      if (!linkedNeighbors.has(nodeB)) linkedNeighbors.set(nodeB, new Set());
+      linkedNeighbors.get(nodeA).add(nodeB);
+      linkedNeighbors.get(nodeB).add(nodeA);
 
       const idA = getNodeId(nodeA);
       const idB = getNodeId(nodeB);
@@ -395,12 +466,86 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
       const dSt = ((mb.stability ?? 0) - (ma.stability ?? 0)) * equalizeStability;
       writeMetric(ma, 'stability', (ma.stability ?? 0) + dSt, idA);
       writeMetric(mb, 'stability', (mb.stability ?? 0) - dSt, idB);
+
+      const synergyA = clamp01(ma.synergy ?? 0);
+      const synergyB = clamp01(mb.synergy ?? 0);
+      if (synergyA <= SYNERGY_RESONANCE.threshold || synergyB <= SYNERGY_RESONANCE.threshold) {
+        continue;
+      }
+
+      const harmonyGain = SYNERGY_RESONANCE.harmonyGain * strength;
+      const stabilityGain = SYNERGY_RESONANCE.stabilityGain * strength;
+
+      applyCappedPositiveGain(
+        ma,
+        'harmony',
+        harmonyGain,
+        resonanceHarmonyApplied,
+        SYNERGY_RESONANCE.maxHarmonyPerTick,
+        idA
+      );
+      applyCappedPositiveGain(
+        mb,
+        'harmony',
+        harmonyGain,
+        resonanceHarmonyApplied,
+        SYNERGY_RESONANCE.maxHarmonyPerTick,
+        idB
+      );
+      applyCappedPositiveGain(
+        ma,
+        'stability',
+        stabilityGain,
+        resonanceStabilityApplied,
+        SYNERGY_RESONANCE.maxStabilityPerTick,
+        idA
+      );
+      applyCappedPositiveGain(
+        mb,
+        'stability',
+        stabilityGain,
+        resonanceStabilityApplied,
+        SYNERGY_RESONANCE.maxStabilityPerTick,
+        idB
+      );
     }
   }
 
   for (const node of nodes) {
     deriveSynergy(node, dtScale);
     applyArchetypeClamp(node);
+  }
+
+  for (const node of nodes) {
+    const neighbors = linkedNeighbors.get(node);
+    if (!neighbors || neighbors.size === 0) continue;
+
+    const metrics = ensureMetrics(node);
+    if (!metrics) continue;
+    if ((metrics.synergy ?? 0) <= SYNERGY_BURST.threshold) continue;
+
+    const lastBurstTick = Number.isFinite(node?.lastSynergyBurstTick)
+      ? node.lastSynergyBurstTick
+      : -Infinity;
+    if (lastBurstTick + SYNERGY_BURST.cooldownTicks >= currentTick) continue;
+
+    applyMetricImpulse(node, {
+      harmony: SYNERGY_BURST.selfHarmonyBoost,
+      stability: SYNERGY_BURST.selfStabilityBoost
+    });
+
+    for (const neighbor of neighbors) {
+      applyMetricImpulse(neighbor, {
+        harmony: SYNERGY_BURST.neighborHarmonyBoost
+      });
+    }
+
+    node.lastSynergyBurstTick = currentTick;
+  }
+
+  // Emit threshold-based semantic events once per node at the end of the tick.
+  for (const node of nodes) {
+    emitNodeThresholdEvents(node);
   }
 }
 

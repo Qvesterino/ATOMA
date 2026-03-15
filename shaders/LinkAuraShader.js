@@ -93,6 +93,7 @@ export function createLinkAuraMaterial(config = {}) {
     uniform float uDisplacement;
     uniform float uHarmony;
     uniform float uCorruption;
+    uniform float uSynergy;
     uniform vec3 uLinkDirection;      // Direction from source to target
     uniform float uLinkBirthIntensity;
     uniform float uLinkRemovalIntensity;
@@ -201,9 +202,11 @@ export function createLinkAuraMaterial(config = {}) {
       // Corruption → rougher (enhanced motion)
       float harmonyDampen = mix(1.0, 0.6, uHarmony);  // Profile: harmonyMotionDampen = 0.6
       float corruptionEnhance = mix(1.0, 1.2, uCorruption);  // Profile: corruptionMotionEnhanceLink = 1.2
+      float motionFactor = harmonyDampen * corruptionEnhance;
+      motionFactor *= mix(1.0, 1.15, uSynergy);
       
       // Displacement is 60-70% of node aura (reduced amplitude)
-      float displacementFactor = uDisplacement * harmonyDampen * corruptionEnhance;
+      float displacementFactor = uDisplacement * motionFactor;
       
       // ========================================================================
       // LINK BIRTH & REMOVAL (CONTINUOUS WITH NODE AURA)
@@ -278,6 +281,7 @@ export function createLinkAuraMaterial(config = {}) {
     uniform float uOpacity;
     uniform float uHarmony;
     uniform float uCorruption;
+    uniform float uSynergy;
     uniform float uDesaturation;
     
     varying vec3 vNormal;
@@ -307,6 +311,7 @@ export function createLinkAuraMaterial(config = {}) {
       // Corruption influence: add red tint BEFORE desaturation
       // Slightly reduced influence (0.3 vs 0.4) to maintain visual hierarchy - Profile: corruptionLinkBlend
       auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uCorruption * 0.3);  // corruptionColor
+      auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
       
       // ========================================================================
       // CORRUPTION DESATURATION - SHARED WITH NODE
@@ -365,6 +370,7 @@ export function createLinkAuraMaterial(config = {}) {
       uDisplacement: { value: defaultConfig.baseDisplacement },
       uHarmony: { value: 0.5 },
       uCorruption: { value: 0.2 },
+      uSynergy: { value: 0.0 },
       uOpacity: { value: defaultConfig.baseOpacity },
       uLinkDirection: { value: new THREE.Vector3(0, 0, 1) },
       uLinkBirthIntensity: { value: 0 },

@@ -299,8 +299,8 @@ export class PulseBoundaryInteractionAdapter_v1 {
     const synergy = pulse.synergy ?? 0.5;
     const corruption = pulse.corruption ?? 0.0;
     const stability = pulse.stability ?? 0.5;
-    const nodeHarmony = node.userData?.harmony ?? 0.5;
-    const nodeStability = node.userData?.stability ?? 0.5;
+    const nodeHarmony = node.userData?.metrics?.harmony ?? 0.5;
+    const nodeStability = node.userData?.metrics?.stability ?? 0.5;
     
     // Combined metrics
     const avgHarmony = (harmony + nodeHarmony) / 2;

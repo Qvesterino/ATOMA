@@ -63,6 +63,7 @@ export class HarmonicHubAuraSystem_Session126 {
     this._attachRoot = worldRoot || scene;
     this.nodeAuraSystem = nodeAuraSystem;
     this.linkResonanceSystem = linkResonanceSystem;
+    this.semanticBus = (typeof globalThis !== 'undefined') ? globalThis.semanticBus : null;
     
     this.config = {
       // Hub qualification
@@ -146,6 +147,8 @@ export class HarmonicHubAuraSystem_Session126 {
       waveInteractions: 0,
       fragmentsDeformed: 0,
     };
+
+    this._boundHandleHarmonyResonance = (payload) => this.handleHarmonyResonance(payload);
     
     this.init();
     
@@ -161,6 +164,10 @@ export class HarmonicHubAuraSystem_Session126 {
     this.fieldGroup.name = 'harmonic-hub-fields';
     this._attachRoot.add(this.fieldGroup);
     this.root = this.fieldGroup;
+
+    if (this.semanticBus?.subscribe) {
+      this.semanticBus.subscribe('event:harmonyResonance', this._boundHandleHarmonyResonance);
+    }
   }
   
   /**
@@ -235,7 +242,7 @@ export class HarmonicHubAuraSystem_Session126 {
    * Check if node qualifies as harmony hub
    */
   _isHarmonyHub(node) {
-    const harmony = node.userData?.harmony ?? 0;
+    const harmony = node.userData?.metrics?.harmony ?? 0;
     const corruption = node.userData?.corruption ?? 0;
     
     return harmony > corruption && harmony > this.config.harmonyThreshold;
@@ -681,6 +688,74 @@ export class HarmonicHubAuraSystem_Session126 {
     
     return camera.position.distanceTo(position);
   }
+
+  _clamp01(value) {
+    const num = Number.isFinite(value) ? value : 0;
+    if (num < 0) return 0;
+    if (num > 1) return 1;
+    return num;
+  }
+
+  _getCurrentHarmonyFlow(payload = {}) {
+    const fromLiveMetrics = (typeof globalThis !== 'undefined')
+      ? globalThis?.__ATOMA_LIVE_METRICS__?.harmonyFlow
+      : null;
+    if (Number.isFinite(fromLiveMetrics)) return this._clamp01(fromLiveMetrics);
+    if (Number.isFinite(payload?.value)) return this._clamp01(payload.value);
+    return 0;
+  }
+
+  findDominantHub() {
+    let dominant = null;
+    let bestScore = -Infinity;
+
+    for (const hub of this.hubs.values()) {
+      if (!hub?.active) continue;
+      const harmony = this._clamp01(hub.harmony);
+      const synergy = this._clamp01(hub.synergy);
+      const corruption = this._clamp01(hub.corruption);
+      const score = harmony * 0.6 + synergy * 0.4 - corruption * 0.5;
+      if (score > bestScore) {
+        bestScore = score;
+        dominant = hub;
+      }
+    }
+
+    return dominant;
+  }
+
+  triggerCascade({ hubId, intensity = 0, type = 'resonance' } = {}) {
+    if (!this.semanticBus?.emit || !hubId) return;
+    const hub = this.hubs.get(hubId);
+    if (!hub) return;
+    const node = hub.primaryNode || hub.nodes?.[0] || null;
+    const nodeId = node?.userData?.nodeId || node?.id || node?.uuid || hubId;
+
+    this.semanticBus.emit('harmonic.cascade.start', {
+      hubId,
+      nodeId,
+      intensity: this._clamp01(intensity),
+      type
+    }, { priority: this.semanticBus.priority?.INTERACTIVE });
+  }
+
+  handleHarmonyResonance(payload = {}) {
+    const harmonyFlow = this._getCurrentHarmonyFlow(payload);
+    if (harmonyFlow <= 0) return;
+
+    const hub = this.findDominantHub();
+    if (!hub) return;
+
+    const intensity = Number.isFinite(payload?.value)
+      ? this._clamp01(payload.value)
+      : harmonyFlow;
+
+    this.triggerCascade({
+      hubId: hub.hubId,
+      intensity,
+      type: 'resonance'
+    });
+  }
   
   /**
    * Get system statistics
@@ -698,6 +773,10 @@ export class HarmonicHubAuraSystem_Session126 {
    * Cleanup
    */
   dispose() {
+    if (this.semanticBus?.unsubscribe) {
+      this.semanticBus.unsubscribe('event:harmonyResonance', this._boundHandleHarmonyResonance);
+    }
+
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
     }

@@ -227,7 +227,7 @@ export class SynapticFatigueAdapter_v1 {
    * Accumulate fatigue from gating activity
    */
   accumulateFatigue(node, fatigueState, gateStrength, pulseDensity, deltaTime) {
-    const harmony = node.userData?.harmony ?? 0.5;
+    const harmony = node.userData?.metrics?.harmony ?? 0.5;
     const corruption = node.userData?.corruption ?? 0.0;
     const instability = node.userData?.instability ?? 0.0;
     const isHub = node.userData?.isHub ?? false;
@@ -258,7 +258,7 @@ export class SynapticFatigueAdapter_v1 {
   decayFatigue(node, fatigueState, deltaTime, currentTime) {
     if (fatigueState.fatigue <= 0) return;
 
-    const harmony = node.userData?.harmony ?? 0.5;
+    const harmony = node.userData?.metrics?.harmony ?? 0.5;
     const corruption = node.userData?.corruption ?? 0.0;
     const instability = node.userData?.instability ?? 0.0;
 

@@ -400,7 +400,7 @@ export class NodeLinkedAuraSystem {
     const corruptionLevel = Math.max(0, Math.min(1, node.userData?.corruption ?? 0));
     
     // Calculate harmony dampening (reduces corruption visual effect)
-    const harmonyLevel = Math.max(0, Math.min(1, node.userData?.harmony ?? 0));
+    const harmonyLevel = Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0));
     const harmonyDampen = 1.0 - (harmonyLevel * 0.4);  // Up to 40% reduction at max harmony
     
     // Effective corruption after harmony dampening
@@ -430,7 +430,7 @@ export class NodeLinkedAuraSystem {
       // Stability = inverse of corruption, modulated by harmony
       // Range: 0 (unstable, corrupted) to 1 (stable, harmonious)
       const corruption = Math.max(0, Math.min(1, node.userData?.corruption ?? 0));
-      const harmony = Math.max(0, Math.min(1, node.userData?.harmony ?? 0));
+      const harmony = Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0));
       
       // Stability: start from (1 - corruption), boost with harmony
       // = harmony helps stabilize even corrupted nodes

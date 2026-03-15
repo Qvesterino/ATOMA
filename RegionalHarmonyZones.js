@@ -121,8 +121,8 @@ export class RegionalHarmonyZones {
       
       if (influence > 0.01) {
         // Get node's activity level
-        const nodeSynergy = node.userData?.synergy || 0;
-        const nodeHarmony = node.userData?.harmony || globalHarmony;
+        const nodeSynergy = node.userData?.metrics?.synergy || 0;
+        const nodeHarmony = node.userData?.metrics?.harmony || globalHarmony;
         
         // Accumulate weighted influence
         influenceSum += influence * nodeHarmony;

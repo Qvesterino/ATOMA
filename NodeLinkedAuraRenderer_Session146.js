@@ -258,12 +258,19 @@ export class NodeLinkedAuraRenderer_Session146 {
     const auraCoherenceBias = (node && node._auraCoherenceBias) ? node._auraCoherenceBias : 0;
     const waveInfluence = (node && node._waveInfluence) ? node._waveInfluence : 0;
     const hintStrength = (node && node._precastHintStrength) ? node._precastHintStrength : 0;
+    const synergyRaw =
+      node?.metrics?.synergy ??
+      node?.userData?.metrics?.synergy ??
+      node?.userData?.synergy ??
+      node?.synergy;
+    const synergy = Number.isFinite(synergyRaw) ? Math.max(0, Math.min(1, synergyRaw)) : 0;
     
     // Update shader uniforms
     if (aura.material && aura.material.uniforms) {
       aura.material.uniforms.uTime.value = this.globalTime;
       aura.material.uniforms.uHarmony.value = harmony;
       aura.material.uniforms.uCorruption.value = nodeCorruption;
+      aura.material.uniforms.uSynergy.value = synergy;
       aura.material.uniforms.uHintStrength.value = hintStrength;
       aura.material.uniforms.uWaveInfluence.value = waveInfluence;
       

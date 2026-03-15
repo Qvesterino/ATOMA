@@ -139,6 +139,18 @@ export function setupWaveBurstRouter(game) {
             console.log(`[WaveBurstRouter] Burst emitted: type=${intent.type}, intensity=${intensity.toFixed(2)}`);
         }
     }
+
+    /**
+     * Public-style router entry to reuse existing burst mechanism.
+     * @param {Object} intentPayload - Burst intent payload
+     */
+    function requestBurstIntent(intentPayload = {}) {
+        emitBurst({
+            type: intentPayload.type || 'harmonic',
+            origin: intentPayload.origin || new THREE.Vector3(0, 0, 0),
+            intensity: Number.isFinite(intentPayload.intensity) ? intentPayload.intensity : 0
+        });
+    }
     
     /**
      * Handle synergy event
@@ -263,6 +275,42 @@ export function setupWaveBurstRouter(game) {
             intensity: config.probeIntensity
         });
     }
+
+    function handleSynergyCascadeGameplay(payload) {
+        if (!canTriggerBurst(performance.now() * 0.001)) {
+            return;
+        }
+
+        requestBurstIntent({
+            type: 'synergyCascade',
+            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
+            regime: 'harmonic'
+        });
+    }
+
+    function handleInstabilityTrapGameplay(payload) {
+        if (!canTriggerBurst(performance.now() * 0.001)) {
+            return;
+        }
+
+        requestBurstIntent({
+            type: 'instabilityTrap',
+            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
+            regime: 'chaotic'
+        });
+    }
+
+    function handleLoadCollapseGameplay(payload) {
+        if (!canTriggerBurst(performance.now() * 0.001)) {
+            return;
+        }
+
+        requestBurstIntent({
+            type: 'loadCollapse',
+            intensity: Number.isFinite(payload?.load) ? payload.load : 0,
+            regime: 'stress'
+        });
+    }
     
     /**
      * Subscribe to semantic bus events
@@ -318,6 +366,10 @@ export function setupWaveBurstRouter(game) {
         semanticBus.subscribe('node:selected', handleUserInteraction, {
             priority: semanticBus.priority.INTERACTIVE
         });
+
+        globalThis.semanticBus?.on?.('event:synergyCascade', handleSynergyCascadeGameplay);
+        globalThis.semanticBus?.on?.('event:instabilityTrap', handleInstabilityTrapGameplay);
+        globalThis.semanticBus?.on?.('event:loadCollapse', handleLoadCollapseGameplay);
     }
     
     /**
@@ -385,6 +437,9 @@ export function setupWaveBurstRouter(game) {
             semanticBus.unsubscribe('node.click', handleUserInteraction);
             semanticBus.unsubscribe('node:selected', handleUserInteraction);
         }
+        globalThis.semanticBus?.unsubscribe?.('event:synergyCascade', handleSynergyCascadeGameplay);
+        globalThis.semanticBus?.unsubscribe?.('event:instabilityTrap', handleInstabilityTrapGameplay);
+        globalThis.semanticBus?.unsubscribe?.('event:loadCollapse', handleLoadCollapseGameplay);
     }
     
     // Initialize
@@ -396,6 +451,7 @@ export function setupWaveBurstRouter(game) {
         getStatus,
         setDebugMode,
         updateConfig,
+        requestBurstIntent,
         dispose
     };
 }

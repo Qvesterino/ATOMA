@@ -53,6 +53,7 @@ export function createNodeAuraMaterial(config = {}) {
     uniform float uDisplacement;
     uniform float uHarmony;
     uniform float uCorruption;
+    uniform float uSynergy;
     uniform float uHintStrength;
     uniform float uWaveInfluence;
     uniform vec3 uLinkDirection;
@@ -180,6 +181,8 @@ export function createNodeAuraMaterial(config = {}) {
       // Corruption → rougher (enhanced motion, faster morphing) - from EnergyVisualProfile
       float harmonyDampen = mix(1.0, 0.6, uHarmony);  // Profile: harmonyMotionDampen = 0.6
       float corruptionEnhance = mix(1.0, 1.4, uCorruption);  // Profile: corruptionMotionEnhanceNode = 1.4
+      float motionFactor = harmonyDampen * corruptionEnhance;
+      motionFactor *= mix(1.0, 1.15, uSynergy);
       
       // Cascade hints → compress displacement
       float hintCompression = mix(1.0, 1.0 - uHintStrength * 0.5, uHintStrength);
@@ -197,7 +200,7 @@ export function createNodeAuraMaterial(config = {}) {
       float waveOscillation = sin(uTime * 2.0 + uWaveInfluence * 6.28) * 0.15;
       
       // Final displacement: ridged noise + state modulation
-      float displacementFactor = ridgedNoise * uDisplacement * harmonyDampen * corruptionEnhance * hintCompression;
+      float displacementFactor = ridgedNoise * uDisplacement * motionFactor * hintCompression;
       displacementFactor += waveOscillation * 0.1;
       displacementFactor += breathing;  // Add breathing oscillation
       
@@ -273,6 +276,7 @@ export function createNodeAuraMaterial(config = {}) {
     uniform float uHarmony;
     uniform float uHintStrength;
     uniform float uCorruption;
+    uniform float uSynergy;
     uniform float uDesaturation;
     
     // Particle impact effects (from NodeImpactManager)
@@ -301,6 +305,7 @@ export function createNodeAuraMaterial(config = {}) {
       
       // Corruption influence: add red tint before desaturation (from EnergyVisualProfile)
       auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uCorruption * 0.4);  // corruptionColor, nodeBlend 0.4
+      auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
       
       // --- PARTICLE IMPACT COLOR BIASES ---
       // Corruption particles arriving: enhance red tint (energy absorption)
@@ -343,6 +348,7 @@ export function createNodeAuraMaterial(config = {}) {
       uDisplacement: { value: defaultConfig.baseDisplacement },
       uHarmony: { value: 0.5 },
       uCorruption: { value: 0.2 },
+      uSynergy: { value: 0.0 },
       uHintStrength: { value: 0 },
       uWaveInfluence: { value: 0 },
       uOpacity: { value: defaultConfig.baseOpacity },

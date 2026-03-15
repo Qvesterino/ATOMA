@@ -2089,8 +2089,10 @@ export class LinkRendererConduit {
                  // Harmony/corruption influence (from link or global state)
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
+                const linkSynergy = Math.max(0, Math.min(1, metrics.synergy ?? 0.5));
                 material.uniforms.uHarmony.value = linkHarmony;
                 material.uniforms.uCorruption.value = linkCorruption;
+                material.uniforms.uSynergy.value = linkSynergy;
 
                  // Desaturation (if link is corrupted)
                  const desaturation = Math.min(1.0, linkCorruption * 1.2);
