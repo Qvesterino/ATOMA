@@ -3210,6 +3210,26 @@ class AtomaGame {
         this.materialRegistry = materialRegistry;
         this.semanticBus = new SemanticEventBus();
         window.semanticBus = this.semanticBus;
+        
+        // ========================================================================
+        // CASCADE EVENT AUDIT (Temporary Runtime Check)
+        // ========================================================================
+        if (window.semanticBus) {
+            window.semanticBus.on("cascade.start", (e) => {
+                console.log("⚡ CASCADE START", e);
+            });
+
+            window.semanticBus.on("cascade.hop", (e) => {
+                console.log("⚡ CASCADE HOP", e);
+            });
+
+            window.semanticBus.on("cascade.end", (e) => {
+                console.log("⚡ CASCADE END", e);
+            });
+
+            console.log("CASCADE AUDIT SUBSCRIBED - Monitoring for cascade.start, cascade.hop, cascade.end events");
+        }
+        
         window.__ATOMA_SEMANTIC_STATS__ = () => this.semanticBus.getStats();
         window.__ATOMA_SEMANTIC_QUEUE__ = () => this.semanticBus.getQueueSizes();
         window.__ATOMA_SEMANTIC_DRAIN__ = (ms = 2) => this.semanticBus.drain(ms);
@@ -3814,7 +3834,12 @@ class AtomaGame {
         }, 'visual.cascadeParticleEmissionBoost');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleColorTinting) {
-                this.cascadeParticleColorTinting.update(dt, this.time);
+                this.cascadeParticleColorTinting.update(
+                    dt,
+                    this.nodeLinking?.links || [],
+                    this.cascadeVisualizer || this.harmonicCascadeAmplification || null,
+                    this.conflictSystem || null
+                );
             }
         }, 'visual.cascadeParticleColorTinting');
         this.frameScheduler.register('visual', (dt) => {
@@ -3842,11 +3867,11 @@ class AtomaGame {
         }, 'visual.cascadingRuptureSystem');
         
         // NEW: Update cascade resonance wave visualization
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadeResonanceWave && this.cascadeResonanceWave.config.enabled) {
-                this.cascadeResonanceWave.update(dt, this.time);
-            }
-        }, 'visual.cascadeResonanceWave');
+        this.frameScheduler.register(
+            'visual',
+            (dt) => this.cascadeResonanceWaveVisualization?.update?.(dt),
+            'visual.cascadeResonanceWaveVisualization'
+        );
         
         // NEW: Update resonance cascade visualization
         this.frameScheduler.register('visual', (dt) => {
@@ -3911,6 +3936,16 @@ class AtomaGame {
                 this.waveDynamicsShaderPack.update(dt);
             }
         }, 'visual.waveDynamicsShaderPack');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.synergyTravelingWaveFX) {
+                this.synergyTravelingWaveFX.update(dt, this.time || 0);
+            }
+        }, 'visual.synergyTravelingWaveFX');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.waveBurstRouter) {
+                this.waveBurstRouter.update(dt);
+            }
+        }, 'visual.waveBurstRouter');
         this.frameScheduler.register('visual', (dt) => {
             if (this.standingWaveRenderer) {
                 this.standingWaveRenderer.update(dt, this.time);
@@ -7577,12 +7612,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                         harmonyCascadeColor: 0x00ffff,     // Cyan
                         threatCascadeColor: 0xff6600,      // Orange
                         maxActiveRings: 50,
-                        depthDecayFactor: 0.7
+                        depthDecayFactor: 0.7,
+                        cascadeActivationThreshold: 0.3
                     }
                 );
                 this.cascadePropagationVisuals = this.phase5CascadePropagationVisuals;
                 if (this.cascadePropagationVisuals) {
                     this.cascadePropagationVisuals.frameScheduler = this.frameScheduler;
+                    if (this.linkCorruptionTransmission && typeof this.cascadePropagationVisuals.subscribeToCascadeEvents === 'function') {
+                        this.cascadePropagationVisuals.subscribeToCascadeEvents(this.linkCorruptionTransmission);
+                    }
                 }
                 if (typeof window !== 'undefined') {
                     window._cascadeVisuals = this.cascadePropagationVisuals;
@@ -8665,6 +8704,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     debugMode: false
                 }
             );
+            this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
             
             console.log('[main.js] CascadeResonanceWaveVisualization initialized ✓');
         } catch (err) {
@@ -11929,12 +11969,23 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 this.harmonicHubAuraSystem,
                 this.harmonicResonanceCoupling,
+                this.nodeAuraSystem,
                 {
-                    enabled: false,  // Currently disabled (skeleton)
+                    enabled: true,
                     debugMode: false,
                 }
             );
-            console.log('✓ Harmonic Cascade Amplification System (Session 145) initialized (skeleton)');
+            this.harmonicCascadeAmplification.init?.();
+
+            // Rebind existing wave visualization if it was initialized earlier with a stub cascade system.
+            if (this.cascadeResonanceWave) {
+                this.cascadeResonanceWave.cascadeSystem = this.harmonicCascadeAmplification;
+            }
+            if (this.cascadeResonanceWaveVisualization) {
+                this.cascadeResonanceWaveVisualization.cascadeSystem = this.harmonicCascadeAmplification;
+            }
+
+            console.log('✓ Harmonic Cascade Amplification System (Session 145) initialized');
             
             // Setup console API for debugging
             setupCascadeConsoleAPI(window, this.harmonicCascadeAmplification);

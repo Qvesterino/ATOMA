@@ -211,9 +211,9 @@ export class ParticleStreamCascadeAcceleration {
     if (!node) return 1.0;
 
     // Get cascade data for this node
-    const cascadeStrength = node._cascadeStrength || 0;
+    const cascadeStrength = node.userData?.cascadeStrength || 0;
     const cascadeLayer = node._cascadeLayer || 0;
-    const cascadeAmplitude = node._cascadeAmplitude || 0;
+    const cascadeAmplitude = node.userData?.cascadeAmplitude || 0;
 
     // Compute layer depth curve (deeper = faster acceleration)
     const layerDepthCurve = this._getLayerDepthCurve(cascadeLayer);
@@ -337,8 +337,8 @@ export class ParticleStreamCascadeAcceleration {
 
     const mult = this.getAccelerationMultiplier(nodeId);
     const layer = this._getCachedLayerDepth(nodeId);
-    const cascadeStrength = node._cascadeStrength || 0;
-    const cascadeAmplitude = node._cascadeAmplitude || 0;
+    const cascadeStrength = node.userData?.cascadeStrength || 0;
+    const cascadeAmplitude = node.userData?.cascadeAmplitude || 0;
 
     console.log(`[ParticleStreamCascadeAcceleration] Node ${nodeId}:`, {
       accelerationMultiplier: mult.toFixed(2),

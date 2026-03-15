@@ -162,9 +162,9 @@ export class ParticleCascadeFlowDeflection {
     if (flowDir.lengthSq() < 0.001) return new THREE.Vector3(); // No flow
 
     // Get cascade strength at this node
-    const cascadeStrength = sourceNode._cascadeStrength || 0;
+    const cascadeStrength = sourceNode.userData?.cascadeStrength || 0;
     const cascadeLayer = sourceNode._cascadeLayer || 0;
-    const cascadeAmplitude = sourceNode._cascadeAmplitude || 0;
+    const cascadeAmplitude = sourceNode.userData?.cascadeAmplitude || 0;
 
     // Compute deflection strength
     let strength = cascadeStrength * this.config.cascadeInfluence;
@@ -212,7 +212,7 @@ export class ParticleCascadeFlowDeflection {
     const node = this.nodeDynamicMetrics?.getNodeById?.(nodeId);
     if (!node) return 0;
 
-    const cascadeStrength = node._cascadeStrength || 0;
+    const cascadeStrength = node.userData?.cascadeStrength || 0;
     const synergy = node.synergy || 0;
     const influence = cascadeStrength * (1 + synergy * 0.3);
 
@@ -237,7 +237,7 @@ export class ParticleCascadeFlowDeflection {
     }
 
     const cascadeLayer = node._cascadeLayer || 0;
-    const cascadeStrength = node._cascadeStrength || 0;
+    const cascadeStrength = node.userData?.cascadeStrength || 0;
 
     // For hub (layer 0), compute average outward direction from all neighbors
     if (cascadeLayer === 0) {

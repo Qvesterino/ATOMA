@@ -23,13 +23,11 @@
  * 4. Ripple Effect: Concentric rings expanding from cascade source
  * 5. Harmonic Shimmer: Oscillating color bands along links
  * 
- * PROPAGATION ALGORITHM:
- * 1. Detect high-synergy nodes (synergy > 0.7)
- * 2. For each high-synergy node, initiate cascade
- * 3. Propagate to connected links with intensity decay
- * 4. Track cascade front position along each link
- * 5. Render visualizations based on cascade state
- * 6. Decay cascade when it reaches end of link or intensity drops
+ * EVENT FLOW:
+ * 1. Receive cascade events from semanticBus
+ * 2. Store lightweight visual hops per cascade id
+ * 3. Render visual effects from hop payload only
+ * 4. Expire visual hops after short duration
  */
 
 import * as THREE from 'three';
@@ -57,10 +55,10 @@ export class SynergyCascadeVisualizer {
     // Configuration
     this.config = {
       enabled: true,
-      detectionThreshold: 0.7,       // Synergy threshold to trigger cascade
-      maxCascadeDistance: 5,         // Maximum hops for propagation
-      baseIntensity: 1.0,            // Starting cascade intensity
-      decayPerHop: 0.75,             // Intensity multiplier per hop
+      detectionThreshold: 0.7,       // Legacy debug setting (visual only system)
+      maxCascadeDistance: 5,         // Legacy debug setting (visual only system)
+      baseIntensity: 1.0,            // Legacy debug setting (visual only system)
+      decayPerHop: 0.75,             // Legacy debug setting (visual only system)
       propagationSpeed: 2.0,         // Speed of cascade traveling along link (units/sec)
       waveWidth: 0.3,                // Width of cascade wave front
       
@@ -86,7 +84,8 @@ export class SynergyCascadeVisualizer {
       // Performance
       batchSize: 30,                  // Update cascades in batches
       updateFrequency: 1,             // Update every N frames
-      maxActiveCascades: 50           // Max simultaneous cascades
+      maxActiveCascades: 50,          // Max simultaneous cascades
+      hopLifetime: 0.7                // Seconds each hop stays visually active
     };
     
     // Cascade particles
@@ -99,10 +98,8 @@ export class SynergyCascadeVisualizer {
     
     // Frame counter
     this.frameCounter = 0;
-    this.pollingStrideFrames = 6; // Keep fallback polling, but lighter than per-update scan.
-    this.pendingSynergyUpdates = new Map(); // nodeId -> synergy value from semantic events
     this._semanticBus = null;
-    this._semanticHandler = null;
+    this._semanticHandlers = null;
     
     // Debug mode
     this.debugMode = false;
@@ -130,14 +127,6 @@ export class SynergyCascadeVisualizer {
     
     const startTime = performance.now();
     
-    // Process event-driven node updates first (lightweight targeted path).
-    this.processPendingSynergyUpdates();
-
-    // Keep polling as fallback, but run less often to reduce scanning cost.
-    if (this.pendingSynergyUpdates.size === 0 && (this.frameCounter % this.pollingStrideFrames === 0)) {
-      this.detectCascadeSources();
-    }
-    
     // Update active cascades
     this.updateActiveCascades(deltaTime);
     
@@ -157,168 +146,94 @@ export class SynergyCascadeVisualizer {
   /**
    * Detect nodes with high synergy that should trigger cascades
    */
-  detectCascadeSources() {
-    if (!this.linkingSystem || !this.linkingSystem.aiNodes) return;
-    
-    const nodes = this.linkingSystem.aiNodes.nodes || [];
-    
-    for (const node of nodes) {
-      // Get node synergy value
-      const synergy = this.getNodeSynergy(node);
-      this.upsertCascadeForNode(node, synergy);
-    }
-  }
-
   bindSemanticEvents() {
     const semanticBus = globalThis?.semanticBus;
     if (!semanticBus) return;
-    const on = semanticBus.on?.bind(semanticBus) || semanticBus.subscribe?.bind(semanticBus);
+    const on = semanticBus.on?.bind(semanticBus);
     if (!on) return;
 
     this._semanticBus = semanticBus;
-    this._semanticHandler = (payload = {}) => {
-      if (payload?.metric !== 'synergy') return; // react only to synergy metric updates
-      const nodeId = payload?.nodeId;
-      if (nodeId === undefined || nodeId === null) return;
-      const value = Number(payload?.value);
-      this.pendingSynergyUpdates.set(String(nodeId), Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0);
+    this._semanticHandlers = {
+      onCascadeHop: (event = {}) => this.renderCascadeHop(event),
+      onCascadeStart: (event = {}) => this.renderCascadeStart(event),
+      onCascadeEnd: (event = {}) => this.renderCascadeEnd(event)
     };
-
-    on('metric.node.updated', this._semanticHandler, { priority: semanticBus.priority?.NORMAL });
+    on('cascade.hop', this._semanticHandlers.onCascadeHop);
+    on('cascade.start', this._semanticHandlers.onCascadeStart);
+    on('cascade.end', this._semanticHandlers.onCascadeEnd);
   }
 
-  processPendingSynergyUpdates() {
-    if (this.pendingSynergyUpdates.size === 0) return;
-
-    for (const [nodeId, synergy] of this.pendingSynergyUpdates.entries()) {
-      const node = this.resolveNodeById(nodeId);
-      if (!node) continue;
-      this.upsertCascadeForNode(node, synergy);
+  _asVector3(value) {
+    if (value instanceof THREE.Vector3) return value.clone();
+    if (value && typeof value.x === 'number' && typeof value.y === 'number' && typeof value.z === 'number') {
+      return new THREE.Vector3(value.x, value.y, value.z);
     }
-
-    this.pendingSynergyUpdates.clear();
-  }
-
-  resolveNodeById(nodeId) {
-    if (!this.linkingSystem?.aiNodes) return null;
-    const nodesRef = this.linkingSystem.aiNodes.nodes;
-    const token = String(nodeId);
-
-    if (nodesRef instanceof Map) {
-      if (nodesRef.has(nodeId)) return nodesRef.get(nodeId);
-      if (nodesRef.has(token)) return nodesRef.get(token);
-      for (const node of nodesRef.values()) {
-        const candidateId = node?.userData?.nodeId ?? node?.id ?? node?.uuid;
-        if (candidateId !== undefined && String(candidateId) === token) return node;
-      }
-      return null;
-    }
-
-    const nodes = Array.isArray(nodesRef) ? nodesRef : [];
-    for (const node of nodes) {
-      const candidateId = node?.userData?.nodeId ?? node?.id ?? node?.uuid;
-      if (candidateId !== undefined && String(candidateId) === token) return node;
+    if (Array.isArray(value) && value.length >= 3) {
+      return new THREE.Vector3(Number(value[0]) || 0, Number(value[1]) || 0, Number(value[2]) || 0);
     }
     return null;
   }
 
-  upsertCascadeForNode(node, synergy) {
-    if (!node) return;
-    if (synergy > this.config.detectionThreshold) {
-      const existingCascade = this.activeCascades.find(c => c.sourceNode === node);
-      if (!existingCascade) {
-        this.initiateCascade(node, synergy);
-      } else {
-        existingCascade.intensity = Math.min(1.0, synergy);
-      }
-    }
+  _clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
   }
-  
-  /**
-   * Initiate a new cascade from a source node
-   */
-  initiateCascade(sourceNode, sourceIntensity) {
-    if (this.activeCascades.length >= this.config.maxActiveCascades) {
-      return; // Max cascades reached
-    }
-    
-    const cascadeId = this.cascadeId++;
-    
-    const cascade = {
+
+  _getOrCreateCascade(cascadeId, seedIntensity = 0) {
+    let cascade = this.activeCascades.find(item => item.id === cascadeId);
+    if (cascade) return cascade;
+    cascade = {
       id: cascadeId,
-      sourceNode: sourceNode,
-      startTime: Date.now(),
-      intensity: sourceIntensity,
-      baseIntensity: sourceIntensity,
-      
-      // Propagation state
-      propagationFront: [], // [{link, position, intensity, hopIndex}, ...]
-      completedLinks: new Set(),
-      currentHop: 0,
-      
-      // Visual state
       age: 0,
       isActive: true,
-      
-      // Ripple visual
       rippleRadius: 0,
-      rippleIntensity: 1.0
+      rippleIntensity: this._clamp01(seedIntensity),
+      completedLinks: new Set(),
+      hops: []
     };
-    
-    // Determine initial propagation targets (connected links from source node)
-    this.expandCascade(cascade, sourceNode, null, 0, sourceIntensity);
-    
     this.activeCascades.push(cascade);
-    
-    // Create ripple effect at source
-    if (this.config.visualizations.rippleEffect) {
-      this.createRipple(sourceNode.position, sourceIntensity);
+    if (this.activeCascades.length > this.config.maxActiveCascades) {
+      this.activeCascades.shift();
     }
-    
-    if (this.debugMode) {
-      console.log(`🟡 CASCADE #${cascadeId} initiated at node`, sourceNode.userData?.nodeId);
+    return cascade;
+  }
+
+  renderCascadeStart(event = {}) {
+    const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
+    const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
+    this._getOrCreateCascade(cascadeId, intensity);
+    const center = this._asVector3(event.center ?? event.position ?? event.origin);
+    if (center && this.config.visualizations.rippleEffect) {
+      this.createRipple(center, Math.max(0.2, intensity));
     }
   }
-  
-  /**
-   * Expand cascade to connected nodes
-   */
-  expandCascade(cascade, currentNode, incomingLink, hopIndex, currentIntensity) {
-    if (hopIndex >= this.config.maxCascadeDistance) return;
-    if (currentIntensity < 0.1) return; // Stop propagation if too weak
-    
-    // Find all links connected to current node
-    const connectedLinks = this.getConnectedLinks(currentNode);
-    
-    for (const link of connectedLinks) {
-      // Skip the link we came from
-      if (link === incomingLink) continue;
-      
-      // Skip if already completed
-      if (cascade.completedLinks.has(link)) continue;
-      
-      // Calculate propagation intensity for this link
-      const hopDecay = Math.pow(this.config.decayPerHop, hopIndex);
-      const linkIntensity = currentIntensity * hopDecay;
-      
-      // Get the target node
-      const targetNode = link.source === currentNode ? link.target : link.source;
-      
-      // Add to propagation front
-      cascade.propagationFront.push({
-        link: link,
-        startNode: currentNode,
-        targetNode: targetNode,
-        position: 0,              // 0-1, position along link
-        intensity: linkIntensity,
-        hopIndex: hopIndex,
-        direction: link.target === targetNode ? 1 : -1,
-        startTime: Date.now()
-      });
-      
-      // Recursively expand to next nodes
-      this.expandCascade(cascade, targetNode, link, hopIndex + 1, linkIntensity);
-    }
+
+  renderCascadeHop(event = {}) {
+    const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
+    const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
+    const startPosition = this._asVector3(event.sourcePosition ?? event.fromPosition ?? event.origin ?? event.start);
+    const targetPosition = this._asVector3(event.targetPosition ?? event.toPosition ?? event.center ?? event.end);
+    const link = event.link ?? event.linkRef ?? null;
+    if (!link && (!startPosition || !targetPosition)) return;
+
+    const cascade = this._getOrCreateCascade(cascadeId, intensity);
+    cascade.hops.push({
+      link,
+      intensity,
+      age: 0,
+      duration: this.config.hopLifetime,
+      startPosition,
+      targetPosition,
+      createdAt: Date.now(),
+      completed: false
+    });
+  }
+
+  renderCascadeEnd(event = {}) {
+    const cascadeId = event.cascadeId ?? event.id;
+    if (cascadeId === undefined || cascadeId === null) return;
+    const cascade = this.activeCascades.find(item => item.id === cascadeId);
+    if (!cascade) return;
+    cascade.isActive = false;
   }
   
   /**
@@ -345,51 +260,45 @@ export class SynergyCascadeVisualizer {
       
       cascade.age += deltaTime;
       
-      // Update propagation front positions
-      for (let i = 0; i < cascade.propagationFront.length; i++) {
-        const prop = cascade.propagationFront[i];
-        
-        // Calculate new position based on propagation speed
-        const distance = prop.startNode.position.distanceTo(prop.targetNode.position);
-        const travelSpeed = this.config.propagationSpeed;
-        const moveDistance = (travelSpeed * deltaTime) / distance;
-        
-        prop.position += moveDistance;
-        
-        // Check if propagation reached the end
-        if (prop.position >= 1.0) {
-          // Mark link as completed
-          cascade.completedLinks.add(prop.link);
-          
-          // Create ripple at target
-          if (this.config.visualizations.rippleEffect) {
-            this.createRipple(prop.targetNode.position, prop.intensity * 0.5);
+      for (let i = 0; i < cascade.hops.length; i++) {
+        const hop = cascade.hops[i];
+        hop.age += deltaTime;
+        const progress = this._clamp01(hop.age / Math.max(0.0001, hop.duration));
+        const propagation = {
+          link: hop.link,
+          intensity: hop.intensity,
+          position: progress,
+          startPosition: hop.startPosition,
+          targetPosition: hop.targetPosition,
+          completed: false
+        };
+
+        if (progress >= 1) {
+          if (hop.link) {
+            cascade.completedLinks.add(hop.link);
           }
-          
-          // Mark for removal
-          prop.completed = true;
-        } else {
-          // Apply visual effects to this link
-          this.applyLinkCascadeEffects(prop.link, prop);
+          if (this.config.visualizations.rippleEffect && hop.targetPosition) {
+            this.createRipple(hop.targetPosition, hop.intensity * 0.5);
+          }
+          propagation.completed = true;
+          hop.completed = true;
+        } else if (hop.link) {
+          this.applyLinkCascadeEffects(hop.link, propagation);
+        }
+
+        if (this.config.visualizations.flowParticles) {
+          this.spawnFlowParticles(propagation, cascade);
         }
       }
       
-      // Remove completed propagations
-      cascade.propagationFront = cascade.propagationFront.filter(p => !p.completed);
-      
-      // Spawn flow particles
-      if (this.config.visualizations.flowParticles) {
-        for (const prop of cascade.propagationFront) {
-          this.spawnFlowParticles(prop, cascade);
-        }
-      }
+      cascade.hops = cascade.hops.filter(hop => !hop.completed);
       
       // Update ripple effect
       cascade.rippleRadius += this.config.propagationSpeed * deltaTime;
       cascade.rippleIntensity = Math.max(0, 1.0 - (cascade.age / 2.0)); // Fade over 2 seconds
       
       // Check if cascade is dead
-      if (cascade.propagationFront.length === 0 && cascade.age > 3.0) {
+      if (cascade.hops.length === 0 && cascade.age > 3.0) {
         cascade.isActive = false;
       }
     }
@@ -526,6 +435,15 @@ export class SynergyCascadeVisualizer {
    */
   spawnFlowParticles(propagation, cascade) {
     const particleCount = Math.ceil(this.config.particleCount * propagation.intensity);
+    const startPos = propagation.startPosition
+      ?? propagation.startNode?.position
+      ?? propagation.link?.source?.position
+      ?? null;
+    const targetPos = propagation.targetPosition
+      ?? propagation.targetNode?.position
+      ?? propagation.link?.target?.position
+      ?? null;
+    if (!startPos || !targetPos) return;
     
     for (let i = 0; i < particleCount; i++) {
       const particle = this.getPooledParticle();
@@ -533,13 +451,11 @@ export class SynergyCascadeVisualizer {
       if (!particle) break; // No more particles available
       
       // Calculate particle position
-      const startNode = propagation.startNode;
-      const targetNode = propagation.targetNode;
       const lerpPos = propagation.position + Math.random() * 0.1 - 0.05; // Slight randomness
       
       const position = new THREE.Vector3().lerpVectors(
-        startNode.position,
-        targetNode.position,
+        startPos,
+        targetPos,
         Math.max(0, Math.min(1, lerpPos))
       );
       
@@ -549,8 +465,8 @@ export class SynergyCascadeVisualizer {
       particle.lifetime = this.config.particleLifetime;
       particle.age = 0;
       particle.velocity = new THREE.Vector3().subVectors(
-        targetNode.position,
-        startNode.position
+        targetPos,
+        startPos
       ).normalize().multiplyScalar(this.config.particleSpeed * propagation.intensity);
       
       particle.intensity = propagation.intensity;
@@ -750,46 +666,12 @@ export class SynergyCascadeVisualizer {
   }
   
   /**
-   * Get connected links for a node
-   */
-  getConnectedLinks(node) {
-    if (!this.linkingSystem || !this.linkingSystem.links) return [];
-    
-    return this.linkingSystem.links.filter(link =>
-      link.active && (link.source === node || link.target === node)
-    );
-  }
-  
-  /**
-   * Get synergy value for a node
-   */
-  getNodeSynergy(node) {
-    if (!node) return 0;
-    
-    // Check node userData for synergy score
-    if (node.userData && node.userData.metrics?.synergy !== undefined) {
-      return Math.max(0, Math.min(1, node.userData.metrics.synergy));
-    }
-    
-    // Fallback: calculate from connected links
-    const links = this.getConnectedLinks(node);
-    if (links.length === 0) return 0;
-    
-    let totalSynergy = 0;
-    for (const link of links) {
-      totalSynergy += link?.synergyScore || 0;
-    }
-    
-    return Math.max(0, Math.min(1, totalSynergy / links.length));
-  }
-  
-  /**
    * Count total affected links
    */
   getTotalAffectedLinks() {
     let count = 0;
     for (const cascade of this.activeCascades) {
-      count += cascade.propagationFront.length;
+      count += cascade.hops.length;
     }
     return count;
   }
@@ -798,7 +680,13 @@ export class SynergyCascadeVisualizer {
    * Manual cascade trigger (for testing/gameplay)
    */
   triggerCascadeAtNode(node, intensity = 1.0) {
-    this.initiateCascade(node, Math.max(0, Math.min(1, intensity)));
+    const position = node?.position ?? null;
+    const startPayload = {
+      id: `manual-${++this.cascadeId}`,
+      intensity: this._clamp01(intensity),
+      center: position
+    };
+    this.renderCascadeStart(startPayload);
   }
   
   /**
@@ -888,19 +776,11 @@ export class SynergyCascadeVisualizer {
       },
       
       trigger: (nodeIndex = 0) => {
-        const nodes = this.linkingSystem?.aiNodes?.nodes || [];
-        if (nodes[nodeIndex]) {
-          this.triggerCascadeAtNode(nodes[nodeIndex], 0.9);
-          console.log(`🟡 Cascade triggered at node ${nodeIndex}`);
-        }
+        console.log('⚠️ Manual node-index trigger disabled in event-driven mode');
       },
       
       triggerMultiple: (count = 3) => {
-        const nodes = this.linkingSystem?.aiNodes?.nodes || [];
-        for (let i = 0; i < count && i < nodes.length; i++) {
-          this.triggerCascadeAtNode(nodes[Math.floor(Math.random() * nodes.length)], Math.random() * 0.5 + 0.5);
-        }
-        console.log(`🟡 Triggered ${count} cascades`);
+        console.log('⚠️ Random cascade trigger disabled in event-driven mode');
       },
       
       clear: () => {

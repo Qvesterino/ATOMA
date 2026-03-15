@@ -87,10 +87,28 @@ export class PHASE5_CascadeVisualizationBridge {
         const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
         const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
         const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
+        const unsubCorruptionCascade = this.semanticBus.subscribe('event:corruptionCascade', (payload) => {
+          this._eventRefreshRequested = true;
+          const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'corruption');
+          if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
+        });
+        const unsubLinkCollapse = this.semanticBus.subscribe('event:linkCollapse', (payload) => {
+          this._eventRefreshRequested = true;
+          const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'threat');
+          if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
+        });
+        const unsubCorruptionSpread = this.semanticBus.subscribe('event:networkCorruptionSpread', (payload) => {
+          this._eventRefreshRequested = true;
+          const cascadeEvent = this._normalizeSemanticCascadeEvent(payload, 'corruption');
+          if (cascadeEvent) this.queueCascadeEvent(cascadeEvent);
+        });
 
         if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
         if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
         if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
+        if (typeof unsubCorruptionCascade === 'function') this._semanticUnsubscribers.push(unsubCorruptionCascade);
+        if (typeof unsubLinkCollapse === 'function') this._semanticUnsubscribers.push(unsubLinkCollapse);
+        if (typeof unsubCorruptionSpread === 'function') this._semanticUnsubscribers.push(unsubCorruptionSpread);
       }
     } catch (err) {
       if (this.config.enableDebug) {
@@ -423,6 +441,40 @@ export class PHASE5_CascadeVisualizationBridge {
         getRecentCascades: () => this.cascadeHistory.slice(-20)
       };
     }
+  }
+
+  _normalizeSemanticCascadeEvent(payload, defaultType = 'corruption') {
+    const p = payload ?? {};
+    const sourceNodeId = p.nodeId ?? p.sourceNodeId ?? p.sourceId ?? null;
+    const sourceNode = sourceNodeId ? this._findNodeById(sourceNodeId) : null;
+    const sourcePosition = sourceNode?.position ?? p.sourcePosition ?? p.position ?? null;
+    if (!sourceNode || !sourcePosition) return null;
+
+    const rawStrength = Number.isFinite(p.cascadeStrength)
+      ? p.cascadeStrength
+      : Number.isFinite(p.strength)
+        ? p.strength
+        : Number.isFinite(p.value)
+          ? p.value
+          : 0.5;
+
+    return {
+      sourceNode,
+      affectedNodes: [],
+      cascadeType: p.cascadeType ?? defaultType,
+      strength: Math.max(0, Math.min(1, rawStrength)),
+      depth: Number.isFinite(p.depth) ? p.depth : 0,
+      timestamp: Number.isFinite(p.timestamp) ? p.timestamp : Date.now()
+    };
+  }
+
+  _findNodeById(nodeId) {
+    if (!nodeId || !Array.isArray(this.aiNodes?.nodes)) return null;
+    for (const node of this.aiNodes.nodes) {
+      const candidateId = node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+      if (candidateId === nodeId) return node;
+    }
+    return null;
   }
 
   dispose() {

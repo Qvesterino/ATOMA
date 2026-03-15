@@ -247,6 +247,7 @@ export class CascadeParticleColorTinting_Session119 {
     this.scene = scene;
     this.enabled = options.enabled ?? true;
     this.debugMode = options.debugMode ?? false;
+    this.semanticBus = options.semanticBus ?? globalThis?.semanticBus ?? null;
     
     // Configuration
     this.config = {
@@ -267,6 +268,8 @@ export class CascadeParticleColorTinting_Session119 {
     
     // Per-link color tinters
     this.linkColorTinters = new Map();
+    this._cascadeEventState = new Map();
+    this._semanticUnsubscribers = [];
     
     // Statistics
     this.stats = {
@@ -279,6 +282,7 @@ export class CascadeParticleColorTinting_Session119 {
       console.log(`  Conflict type detection: ${this.config.enableConflictTypeDetection}`);
       console.log(`  Corruption tinting: ${this.config.enableCorruptionTinting}`);
     }
+    this._subscribeCascadeEvents();
   }
   
   /**
@@ -294,6 +298,39 @@ export class CascadeParticleColorTinting_Session119 {
     }
     
     return this.linkColorTinters.get(linkId);
+  }
+
+  _subscribeCascadeEvents() {
+    const on = this.semanticBus?.on?.bind(this.semanticBus);
+    if (typeof on !== 'function') return;
+
+    const onCascadeHop = (event = {}) => {
+      if (!event) return;
+      this.applyCascadeTint(
+        event.link,
+        event.intensity ?? 1.0,
+        event.hopIndex ?? 0
+      );
+    };
+
+    on('cascade.hop', onCascadeHop);
+    if (typeof this.semanticBus?.off === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.off('cascade.hop', onCascadeHop));
+    } else if (typeof this.semanticBus?.unsubscribe === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.unsubscribe('cascade.hop', onCascadeHop));
+    }
+  }
+
+  applyCascadeTint(link, intensity = 1.0, hopIndex = 0) {
+    if (!link) return;
+    const linkId = link.uuid;
+    if (!linkId) return;
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+    const hop = Math.max(0, Number(hopIndex) || 0);
+    const hopDecay = Math.pow(0.85, hop);
+    this._cascadeEventState.set(linkId, {
+      intensity: clampedIntensity * hopDecay
+    });
   }
   
   /**
@@ -345,10 +382,11 @@ export class CascadeParticleColorTinting_Session119 {
     
     // Check node corruption for corruption cascades
     if (this.config.enableCorruptionTinting) {
-      const nodeACorruption = nodeA.userData?.corruption ?? 0.0;
-      const nodeBCorruption = nodeB.userData?.corruption ?? 0.0;
-      
-      if (nodeACorruption > 0.5 || nodeBCorruption > 0.5) {
+      const linkCorruption = link.userData?.corruptionLevel ?? 0.0;
+      const nodeACorruption = nodeA.userData?.metrics?.corruption ?? 0.0;
+      const nodeBCorruption = nodeB.userData?.metrics?.corruption ?? 0.0;
+
+      if (linkCorruption > 0.5 || nodeACorruption > 0.5 || nodeBCorruption > 0.5) {
         return CONFLICT_TYPE.CORRUPTION;
       }
     }
@@ -398,35 +436,28 @@ export class CascadeParticleColorTinting_Session119 {
       const tinter = this._getOrCreateTinter(link);
       if (!tinter) continue;
       
-      // Get cascade intensity
-      let cascadeIntensity = 0.0;
-      if (cascadeSystem) {
-        const cascadeInfo = cascadeSystem.getLinkCascadeInfo?.(link);
-        if (cascadeInfo) {
-          cascadeIntensity = cascadeInfo.intensity ?? 0.0;
+      // Cascade intensity comes from semantic cascade.hop events only.
+      const linkId = link.uuid;
+      const eventState = this._cascadeEventState.get(linkId);
+      let cascadeIntensity = eventState?.intensity ?? 0.0;
+      if (eventState) {
+        eventState.intensity = Math.max(0, eventState.intensity - deltaTime * 0.7);
+        if (eventState.intensity <= 0.001) {
+          this._cascadeEventState.delete(linkId);
         }
       }
-      
-      // Fallback to userData cascade intensity
       if (cascadeIntensity === 0.0 && link.userData.cascadeIntensity) {
         cascadeIntensity = link.userData.cascadeIntensity;
       }
       
       // Detect conflict type
       const conflictType = this.config.enableConflictTypeDetection
-        ? this._detectConflictType(link, conflictSystem)
+        ? this._detectConflictType(link, null)
         : CONFLICT_TYPE.NONE;
       
       // Get conflict intensity
       let conflictIntensity = 0.0;
-      if (conflictSystem) {
-        const conflictInfo = conflictSystem.getLinkCascadeInfo?.(link);
-        if (conflictInfo) {
-          conflictIntensity = conflictInfo.intensity ?? 0.0;
-        }
-      }
-      
-      // Fallback to userData
+      // Fallback to userData only
       if (conflictIntensity === 0.0 && link.userData.cascadeIntensity) {
         conflictIntensity = link.userData.cascadeIntensity;
       }
@@ -534,6 +565,18 @@ export class CascadeParticleColorTinting_Session119 {
     };
     
     console.log('[Session 119] Debug API: window.cascadeParticleColorTintingDebug.getStats()');
+  }
+
+  dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
+    this._cascadeEventState.clear();
   }
 }
 

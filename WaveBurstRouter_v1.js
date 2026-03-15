@@ -262,9 +262,6 @@ export function setupWaveBurstRouter(game) {
         
         const nodeId = payload.nodeId || payload.id;
         const node = findNodeById(nodeId);
-        if (!node) {
-            return;
-        }
         
         // Check corruption threshold
         const corruption = (Number.isFinite(payload?.value) ? payload.value : null)
@@ -274,10 +271,18 @@ export function setupWaveBurstRouter(game) {
         if (corruption < config.corruptionThreshold) {
             return;
         }
+
+        const payloadPos = payload?.position || payload?.origin || payload?.center || null;
+        const fallbackNode = node || aiNodes?.nodes?.[0] || null;
+        const origin = payloadPos
+            ? (payloadPos instanceof THREE.Vector3
+                ? payloadPos
+                : new THREE.Vector3(payloadPos.x || 0, payloadPos.y || 0, payloadPos.z || 0))
+            : (fallbackNode?.position || new THREE.Vector3(0, 0, 0));
         
         emitBurst({
             type: 'destructive',
-            origin: node.position || new THREE.Vector3(0, 0, 0),
+            origin,
             intensity: corruption * config.corruptionIntensityMult
         });
     }
@@ -322,6 +327,30 @@ export function setupWaveBurstRouter(game) {
             type: 'synergy',
             intensity: Number.isFinite(payload?.value) ? payload.value : 0,
             regime: 'harmonic'
+        });
+    }
+
+    function handleHarmonyResonanceGameplay(payload) {
+        if (!canTriggerBurst(performance.now() * 0.001)) {
+            return;
+        }
+
+        requestBurstIntent({
+            type: 'harmonic',
+            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
+            regime: 'harmonic'
+        });
+    }
+
+    function handleCorruptionOutbreakGameplay(payload) {
+        if (!canTriggerBurst(performance.now() * 0.001)) {
+            return;
+        }
+
+        requestBurstIntent({
+            type: 'corruption',
+            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
+            regime: 'chaotic'
         });
     }
 
@@ -405,6 +434,8 @@ export function setupWaveBurstRouter(game) {
         });
 
         globalThis.semanticBus?.on?.('event:synergyCascade', handleSynergyCascadeGameplay);
+        globalThis.semanticBus?.on?.('event:harmonyResonance', handleHarmonyResonanceGameplay);
+        globalThis.semanticBus?.on?.('event:corruptionOutbreak', handleCorruptionOutbreakGameplay);
         globalThis.semanticBus?.on?.('event:instabilityTrap', handleInstabilityTrapGameplay);
         globalThis.semanticBus?.on?.('event:loadCollapse', handleLoadCollapseGameplay);
     }
@@ -475,6 +506,8 @@ export function setupWaveBurstRouter(game) {
             semanticBus.unsubscribe('node:selected', handleUserInteraction);
         }
         globalThis.semanticBus?.unsubscribe?.('event:synergyCascade', handleSynergyCascadeGameplay);
+        globalThis.semanticBus?.unsubscribe?.('event:harmonyResonance', handleHarmonyResonanceGameplay);
+        globalThis.semanticBus?.unsubscribe?.('event:corruptionOutbreak', handleCorruptionOutbreakGameplay);
         globalThis.semanticBus?.unsubscribe?.('event:instabilityTrap', handleInstabilityTrapGameplay);
         globalThis.semanticBus?.unsubscribe?.('event:loadCollapse', handleLoadCollapseGameplay);
     }

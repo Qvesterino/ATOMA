@@ -511,9 +511,15 @@ export class CascadingHarmonicResonanceAmplification {
         if (!node.userData) {
           node.userData = {};
         }
+        if (!node.userData.metrics) {
+          node.userData.metrics = {};
+        }
         node.userData.cascadeStrength = node._cascadeStrength;
         node.userData.cascadeAmplitude = node._cascadeAmplitude;
         node.userData.cascadePhase = node._cascadePhase;
+        node.userData.metrics.cascadeStrength = node._cascadeStrength;
+        node.userData.metrics.cascadeAmplitude = node._cascadeAmplitude;
+        node.userData.metrics.cascadePhase = node._cascadePhase;
 
         // Bridge cascade propagation output into canonical waveField consumed by wave shaders/particles.
         node.userData.waveField = node.userData.waveField || {};

@@ -290,6 +290,9 @@ export class SynergyCascadeFXBridge_v1 {
         
         // Active cascades tracking
         this.activeCascades = new Map();        // cascadeID → { startTime, originNode, depth }
+        this.semanticBus = null;
+        this._cascadeFrameCounter = 0;
+        this._pendingCascadeHopEvents = [];
         
         if (this.config.debugEnabled) {
             console.log('[SynergyCascadeFXBridge_v1] Initialized ✓');
@@ -302,6 +305,7 @@ export class SynergyCascadeFXBridge_v1 {
     registerEventSource(chainReactionRuntime) {
         try {
             this.chainReactionRuntime = chainReactionRuntime;
+            this.semanticBus = globalThis?.semanticBus ?? null;
             if (this.config.debugEnabled) {
                 console.log('[SynergyCascadeFXBridge_v1] Chain reaction event source registered ✓');
             }
@@ -347,6 +351,39 @@ export class SynergyCascadeFXBridge_v1 {
         }
         return this.linkStates.get(link);
     }
+
+    _resolveNodeId(node) {
+        return node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
+    }
+
+    _resolveCascadeId(node, hopIndex = 0) {
+        const chainState = node?.userData?.chainReactionState;
+        if (chainState?.chainID) return chainState.chainID;
+        const nodeId = this._resolveNodeId(node) ?? 'unknown';
+        return `cascade_${nodeId}_${hopIndex}_${this._cascadeFrameCounter}`;
+    }
+
+    _emitSemanticEvent(eventName, payload) {
+        const emit = this.semanticBus?.emit?.bind(this.semanticBus) ?? globalThis?.semanticBus?.emit?.bind(globalThis.semanticBus);
+        if (!emit) return;
+        try {
+            emit(eventName, payload);
+        } catch (err) {
+            // Semantic bus should never break shader routing loop.
+        }
+    }
+
+    _emitCascadeStart(payload) {
+        this._emitSemanticEvent('cascade.start', payload);
+    }
+
+    _emitCascadeHop(payload) {
+        this._emitSemanticEvent('cascade.hop', payload);
+    }
+
+    _emitCascadeEnd(payload) {
+        this._emitSemanticEvent('cascade.end', payload);
+    }
     
     /**
      * Process chain reaction events and update states
@@ -359,6 +396,8 @@ export class SynergyCascadeFXBridge_v1 {
             if (!reactions) return;
             
             const { linkEvents = [], nodeEvents = [] } = reactions;
+            this._cascadeFrameCounter++;
+            this._pendingCascadeHopEvents.length = 0;
             
             // Process node events
             if (nodeEvents.length > 0) {
@@ -372,21 +411,36 @@ export class SynergyCascadeFXBridge_v1 {
                         if (!node?.userData) continue;
                         
                         const state = this._getNodeState(node);
-                        const cascadeID = `cascade_${Date.now()}_${Math.random()}`;
-                        
-                        // Extract depth from chain reaction state if available
                         const chainState = node.userData.chainReactionState;
                         const depth = chainState?.hopIndex || 1;
+                        const cascadeID = this._resolveCascadeId(node, depth);
+                        
                         const maxDepth = 8;  // From SynergyChainReaction_v1 config
                         
                         state.activate(cascadeID, depth, maxDepth, reactionLevel, harmonicMode);
                         
                         // Track cascade
-                        this.activeCascades.set(cascadeID, {
-                            startTime: performance.now(),
-                            originNode: node,
-                            depth: depth
-                        });
+                        const existingCascade = this.activeCascades.get(cascadeID);
+                        if (!existingCascade) {
+                            this.activeCascades.set(cascadeID, {
+                                startTime: performance.now(),
+                                lastSeenTime: performance.now(),
+                                originNode: node,
+                                depth: depth,
+                                harmonicMode: harmonicMode ?? 0
+                            });
+                            this._emitCascadeStart({
+                                cascadeId: cascadeID,
+                                sourceNode: node,
+                                targetNode: node,
+                                link: null,
+                                hopIndex: depth,
+                                intensity: Math.max(0, Math.min(1, reactionLevel ?? 0)),
+                                harmonicMode: harmonicMode ?? 0
+                            });
+                        } else {
+                            existingCascade.lastSeenTime = performance.now();
+                        }
                         
                         this.processedNodesCount++;
                     } catch (err) {
@@ -407,13 +461,56 @@ export class SynergyCascadeFXBridge_v1 {
                         if (!link?.userData) continue;
                         
                         const state = this._getLinkState(link);
-                        state.activate(`cascade_${Date.now()}`, intensity, frequency);
+                        const sourceNode = link.sourceNode ?? link.source ?? null;
+                        const targetNode = link.targetNode ?? link.target ?? null;
+                        const hopIndex = linkEvent?.hopIndex ?? 0;
+                        const cascadeID = this._resolveCascadeId(sourceNode, hopIndex);
+                        state.activate(cascadeID, intensity, frequency);
+
+                        const sourceNodeState = sourceNode ? this._getNodeState(sourceNode) : null;
+                        const harmonicMode = sourceNodeState?.harmonicMode ?? 0;
+                        const now = performance.now();
+                        const trackedCascade = this.activeCascades.get(cascadeID);
+                        if (trackedCascade) {
+                            trackedCascade.lastSeenTime = now;
+                        } else {
+                            this.activeCascades.set(cascadeID, {
+                                startTime: now,
+                                lastSeenTime: now,
+                                originNode: sourceNode,
+                                depth: hopIndex,
+                                harmonicMode
+                            });
+                            this._emitCascadeStart({
+                                cascadeId: cascadeID,
+                                sourceNode,
+                                targetNode,
+                                link,
+                                hopIndex,
+                                intensity: Math.max(0, Math.min(1, intensity ?? 0)),
+                                harmonicMode
+                            });
+                        }
+                        this._pendingCascadeHopEvents.push({
+                            cascadeId: cascadeID,
+                            sourceNode,
+                            targetNode,
+                            link,
+                            hopIndex,
+                            intensity: Math.max(0, Math.min(1, intensity ?? 0)),
+                            harmonicMode
+                        });
                         
                         this.processedLinksCount++;
                     } catch (err) {
                         // Continue on individual event errors
                     }
                 }
+            }
+
+            // Emit hop events after node/link event processing in this frame.
+            for (const hopPayload of this._pendingCascadeHopEvents) {
+                this._emitCascadeHop(hopPayload);
             }
             
         } catch (err) {
@@ -561,8 +658,18 @@ export class SynergyCascadeFXBridge_v1 {
             
             // Step 4: Cleanup expired cascades
             for (const [cascadeID, cascadeData] of this.activeCascades) {
-                const elapsedTime = (performance.now() - cascadeData.startTime) / 1000.0;
+                const now = performance.now();
+                const elapsedTime = (now - cascadeData.startTime) / 1000.0;
                 if (elapsedTime > 2.0) {  // Cascades expire after 2 seconds
+                    this._emitCascadeEnd({
+                        cascadeId: cascadeID,
+                        sourceNode: cascadeData.originNode ?? null,
+                        targetNode: null,
+                        link: null,
+                        hopIndex: cascadeData.depth ?? 0,
+                        intensity: 0,
+                        harmonicMode: cascadeData.harmonicMode ?? 0
+                    });
                     this.activeCascades.delete(cascadeID);
                 }
             }

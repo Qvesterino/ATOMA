@@ -79,6 +79,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
       // Wave trigger conditions
       minPhaseSyncStrength: config.minPhaseSyncStrength ?? 0.1,    // Min phase delta for wave
       minPhaseSyncStability: config.minPhaseSyncStability ?? 0.15, // Min convergence strength
+      minCascadeStrengthTrigger: config.minCascadeStrengthTrigger ?? 0.35,
       
       // Temporal modulation
       linkPhaseCompression: config.linkPhaseCompression ?? 0.06,   // Link phase tightening
@@ -156,12 +157,17 @@ export class CascadeResonanceWaveVisualization_Session146 {
     for (let i = 0; i < pairsToProcess; i++) {
       const pair = proximityPairs[i];
       if (!pair) continue;
+
+      const pairCascadeData = this._resolvePairCascadeData(pair);
+      if (pairCascadeData.strength <= this.config.minCascadeStrengthTrigger) {
+        continue;
+      }
       
       // Compute wave trigger strength from phase sync quality
       // Higher avgPhaseDelta = stronger wave potential
       const phaseDelta = Math.min(1.0, phaseSyncStats.avgPhaseDelta / this.config.minPhaseSyncStrength);
       
-      // Wave only activates if phase sync is active AND pairs are proximal
+      // Wave only activates when cascade strength is high enough and pair remains valid
       if (phaseDelta < 0.01 || pair.proximityStrength < 0.2) {
         continue;  // Skip weak sync pairs
       }
@@ -172,7 +178,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       // Compute wave phase (0-1) based on global time and pair's unique phase offset
       // Each pair gets unique phase shift to avoid synchronization
       const pairPhaseOffset = (pair.hubAId.charCodeAt(0) + pair.hubBId.charCodeAt(0)) % 100 / 100;
-      const waveCycleTime = (this.globalWaveTime / this.config.waveOscillationPeriod + pairPhaseOffset) % 1.0;
+      const cascadePhaseOffset = (pairCascadeData.phase % (Math.PI * 2)) / (Math.PI * 2);
+      const waveCycleTime = (this.globalWaveTime / this.config.waveOscillationPeriod + pairPhaseOffset + cascadePhaseOffset) % 1.0;
       
       // Wave influence: rises to peak at 0.5 cycle, returns to baseline at 1.0
       // Using sine for smooth, organic oscillation
@@ -184,7 +191,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
       const influence = this.config.waveInfluenceMin + (waveInfluenceCurve * 0.5 + 0.5) * influenceRange;
       
       // Scale influence by phase sync quality and proximity strength
-      const scaledInfluence = influence * phaseDelta * pair.proximityStrength;
+      const amplitudeScale = Math.max(0.5, Math.min(1.0, pairCascadeData.amplitude / 2));
+      const scaledInfluence = influence * phaseDelta * pair.proximityStrength * amplitudeScale;
       
       // Store active wave
       this.activeWaves.set(waveKey, {
@@ -194,6 +202,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
         hubAId: pair.hubAId,
         hubBId: pair.hubBId,
         proximityStrength: pair.proximityStrength,
+        cascadeStrength: pairCascadeData.strength,
+        cascadeAmplitude: pairCascadeData.amplitude,
+        cascadePhase: pairCascadeData.phase,
       });
       
       totalInfluence += scaledInfluence;
@@ -225,6 +236,82 @@ export class CascadeResonanceWaveVisualization_Session146 {
         `time=${this.stats.lastUpdateTime.toFixed(2)}ms`
       );
     }
+  }
+
+  _resolvePairCascadeData(pair) {
+    const hubAData = this._resolveNodeCascadeData(pair?.hubAId);
+    const hubBData = this._resolveNodeCascadeData(pair?.hubBId);
+
+    const directStrength = Number.isFinite(pair?.cascadeStrength) ? pair.cascadeStrength : 0;
+    const directAmplitude = Number.isFinite(pair?.cascadeAmplitude) ? pair.cascadeAmplitude : 0;
+    const directPhase = Number.isFinite(pair?.cascadePhase) ? pair.cascadePhase : null;
+
+    return {
+      strength: Math.max(directStrength, hubAData.strength, hubBData.strength),
+      amplitude: Math.max(directAmplitude, hubAData.amplitude, hubBData.amplitude),
+      phase: directPhase ?? ((hubAData.phase + hubBData.phase) * 0.5)
+    };
+  }
+
+  _resolveNodeCascadeData(nodeId) {
+    if (!nodeId) return { strength: 0, amplitude: 0, phase: 0 };
+
+    if (typeof this.cascadeSystem?.getCascadeStrength === 'function') {
+      const strength = this.cascadeSystem.getCascadeStrength(nodeId);
+      if (Number.isFinite(strength)) {
+        return { strength, amplitude: 0, phase: 0 };
+      }
+    }
+
+    if (typeof this.cascadeSystem?.getCascadeAmplification === 'function') {
+      const amplification = this.cascadeSystem.getCascadeAmplification(nodeId);
+      const ampStrength = amplification?.cascadeStrength ?? amplification?.strength ?? amplification?.intensity;
+      if (Number.isFinite(ampStrength)) {
+        return {
+          strength: ampStrength,
+          amplitude: Number.isFinite(amplification?.cascadeAmplitude) ? amplification.cascadeAmplitude : 0,
+          phase: Number.isFinite(amplification?.cascadePhase) ? amplification.cascadePhase : 0
+        };
+      }
+    }
+
+    const node = this._findNodeById(nodeId);
+    if (node?.userData) {
+      const strength = node.userData.cascadeStrength;
+      const amplitude = node.userData.cascadeAmplitude;
+      const phase = node.userData.cascadePhase;
+      if (Number.isFinite(strength) || Number.isFinite(amplitude) || Number.isFinite(phase)) {
+        return {
+          strength: Number.isFinite(strength) ? strength : 0,
+          amplitude: Number.isFinite(amplitude) ? amplitude : 0,
+          phase: Number.isFinite(phase) ? phase : 0
+        };
+      }
+    }
+
+    const hub = this.harmonicHubSystem?.hubs?.get?.(nodeId) ?? null;
+    const hubStrength = hub?.userData?.cascadeStrength;
+    const hubAmplitude = hub?.userData?.cascadeAmplitude;
+    const hubPhase = hub?.userData?.cascadePhase;
+    if (Number.isFinite(hubStrength) || Number.isFinite(hubAmplitude) || Number.isFinite(hubPhase)) {
+      return {
+        strength: Number.isFinite(hubStrength) ? hubStrength : 0,
+        amplitude: Number.isFinite(hubAmplitude) ? hubAmplitude : 0,
+        phase: Number.isFinite(hubPhase) ? hubPhase : 0
+      };
+    }
+
+    return { strength: 0, amplitude: 0, phase: 0 };
+  }
+
+  _findNodeById(nodeId) {
+    const nodes = this.cascadeSystem?.world?.nodes;
+    if (!Array.isArray(nodes)) return null;
+    for (const node of nodes) {
+      const candidateId = node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+      if (candidateId === nodeId) return node;
+    }
+    return null;
   }
 
   /**

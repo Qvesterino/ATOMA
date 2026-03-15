@@ -47,7 +47,10 @@ export class PHASE5_CascadePropagationVisuals {
       enableDepthFading: config.enableDepthFading ?? true,
       
       // Cascade depth multipliers
-      depthDecayFactor: config.depthDecayFactor ?? 0.7  // Intensity × depth decay
+      depthDecayFactor: config.depthDecayFactor ?? 0.7,  // Intensity × depth decay
+
+      // Activation safety gate
+      cascadeActivationThreshold: config.cascadeActivationThreshold ?? 0.3
     };
     
     // Visual objects
@@ -78,9 +81,12 @@ export class PHASE5_CascadePropagationVisuals {
     
     // Update timing
     this.lastUpdateTime = Date.now();
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
+    this._boundCascadeHopHandler = null;
     
     // Console API
     this.setupConsoleAPI();
+    this._subscribeSemanticCascadeEvents();
   }
   
   /**
@@ -98,13 +104,25 @@ export class PHASE5_CascadePropagationVisuals {
         depth = 0,                     // Cascade depth (for decay)
         targetNodes = []               // Nodes in cascade path
       } = cascadeData;
+
+      const normalizedStrength = Number.isFinite(cascadeData?.cascadeStrength)
+        ? cascadeData.cascadeStrength
+        : Number.isFinite(cascadeData?.strength)
+          ? cascadeData.strength
+          : Number.isFinite(cascadeData?.level)
+            ? cascadeData.level
+            : cascadeStrength;
+
+      if (normalizedStrength <= this.config.cascadeActivationThreshold) {
+        return;
+      }
       
       // Create initial ring at source
       if (sourcePosition) {
         this.createRing(
           sourcePosition,
           cascadeType,
-          cascadeStrength,
+          normalizedStrength,
           depth
         );
       }
@@ -115,7 +133,7 @@ export class PHASE5_CascadePropagationVisuals {
           if (node && node.position) {
             // Stagger ring creation by cascade depth
             const delay = index * 0.05; // 50ms between rings
-            const depthStrength = cascadeStrength * Math.pow(
+            const depthStrength = normalizedStrength * Math.pow(
               this.config.depthDecayFactor,
               index + 1
             );
@@ -137,7 +155,7 @@ export class PHASE5_CascadePropagationVisuals {
         timestamp: Date.now(),
         sourceNodeId: sourceNodeId,
         cascadeType: cascadeType,
-        strength: cascadeStrength,
+        strength: normalizedStrength,
         depth: depth,
         nodeCount: targetNodes.length
       });
@@ -391,52 +409,58 @@ export class PHASE5_CascadePropagationVisuals {
       }
     }
   }
+
+  _subscribeSemanticCascadeEvents() {
+    const on = this.semanticBus?.on?.bind(this.semanticBus);
+    if (typeof on !== 'function') return;
+
+    this._boundCascadeHopHandler = (event = {}) => {
+      if (!event || !event.link) return;
+      this.spawnCascadePropagationVisual(
+        event.link,
+        event.intensity ?? 1.0,
+        event.hopIndex ?? 0
+      );
+    };
+    on('cascade.hop', this._boundCascadeHopHandler);
+  }
+
+  spawnCascadePropagationVisual(link, intensity = 1.0, hopIndex = 0) {
+    if (!link) return;
+
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourcePosition = sourceNode?.position ?? null;
+    const targetPosition = targetNode?.position ?? null;
+
+    if (!sourcePosition && !targetPosition) return;
+
+    const hop = Math.max(0, Number(hopIndex) || 0);
+    const strength = Math.max(0, Math.min(1, (Number(intensity) || 0) * Math.pow(this.config.depthDecayFactor, hop)));
+    if (strength <= this.config.cascadeActivationThreshold) return;
+
+    if (sourcePosition) {
+      this.createRing(sourcePosition, 'harmony', strength, hop);
+    }
+    if (targetPosition) {
+      this.createRing(targetPosition, 'harmony', strength, hop + 1);
+    }
+  }
   
   /**
    * Wire cascade events from LinkCorruptionTransmission
    */
   subscribeToCascadeEvents(linkCorruptionTransmission) {
-    try {
-      if (!linkCorruptionTransmission) return;
-      
-      // Store reference for event monitoring
-      this.linkCorruptionTransmission = linkCorruptionTransmission;
-      
-      // Check for cascade events each frame
-      if (typeof linkCorruptionTransmission.getCascadeHistory === 'function') {
-        this.cascadeEventHandler = () => {
-          const history = linkCorruptionTransmission.getCascadeHistory();
-          if (history && history.length > 0) {
-            // Process new cascades
-            const lastProcessed = this.lastProcessedCascadeIndex || 0;
-            for (let i = lastProcessed; i < history.length; i++) {
-              this.triggerCascade(history[i]);
-            }
-            this.lastProcessedCascadeIndex = history.length;
-          }
-        };
-      }
-      
-    } catch (err) {
-      if (this.config.enableDebug) {
-        console.warn('[PHASE5_CascadePropagationVisuals] Subscription error:', err);
-      }
-    }
+    // Legacy polling path disabled; cascade visuals are semanticBus-driven via cascade.hop.
+    this.linkCorruptionTransmission = null;
+    this.cascadeEventHandler = null;
   }
   
   /**
    * Check for new cascade events from corruption system
    */
   checkCascadeEvents() {
-    try {
-      if (this.cascadeEventHandler) {
-        this.cascadeEventHandler();
-      }
-    } catch (err) {
-      if (this.config.enableDebug) {
-        console.warn('[PHASE5_CascadePropagationVisuals] Event check error:', err);
-      }
-    }
+    // Legacy frame-driven polling disabled.
   }
   
   /**

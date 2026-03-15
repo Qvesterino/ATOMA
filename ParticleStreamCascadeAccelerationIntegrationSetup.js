@@ -292,12 +292,12 @@ export class ParticleStreamCascadeAccelerationIntegrationSetup {
       // Cascading resonance queries
       getCascadeStrength: (nodeId) => {
         const node = this.nodeDynamicMetrics.getNodeById(nodeId);
-        return node?._cascadeStrength ?? 0;
+        return node?.userData?.cascadeStrength ?? 0;
       },
       
       getCascadeAmplitude: (nodeId) => {
         const node = this.nodeDynamicMetrics.getNodeById(nodeId);
-        return node?._cascadeAmplitude ?? 0;
+        return node?.userData?.cascadeAmplitude ?? 0;
       },
 
       // Diagnostic

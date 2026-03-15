@@ -36,7 +36,6 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
     this.scene = scene;
-    this.waveEngine = config.waveEngine ?? globalThis.game?.waveInterferenceEngine ?? null;
     this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     
     this.config = {
@@ -45,6 +44,8 @@ export class CascadeParticleSystem_Session120 {
       emissionRate: config.emissionRate ?? 1.0,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
+      baseCascadeParticles: config.baseCascadeParticles ?? 8,
+      hopDecay: config.hopDecay ?? 0.82
     };
     
     // Texture Atlas Dimensions
@@ -57,13 +58,6 @@ export class CascadeParticleSystem_Session120 {
     
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
-    this._waveCrossingState = new Map();
-    this._waveThresholds = {
-      constructive: 0.35,
-      destructive: 0.4,
-      standing: 0.45
-    };
-    this._waveSpawnCapPerEvent = 12;
     this._semanticUnsubscribers = [];
 
     // Resources
@@ -80,43 +74,21 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _setupSemanticSubscriptions() {
-    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') return;
+    if (!this.semanticBus) return;
+    const on = this.semanticBus.on?.bind(this.semanticBus);
+    if (typeof on !== 'function') return;
 
-    const onMetricUpdated = (payload = {}) => {
-      const nodeId = payload?.nodeId;
-      if (nodeId === undefined || nodeId === null) return;
-      this._waveCrossingState.delete(`node:${nodeId}:source:constructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:source:destructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:source:standing`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:constructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:destructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:standing`);
+    const onCascadeHop = (event = {}) => {
+      this.spawnCascadeParticles(event.link, event.intensity, event.hopIndex);
     };
 
-    const onLinkCreated = (payload = {}) => {
-      const linkId = payload?.linkId;
-      if (linkId === undefined || linkId === null) return;
-      this._clearWaveCrossingState(`link:${linkId}`);
-    };
+    on('cascade.hop', onCascadeHop);
 
-    const onNodeSpawned = (payload = {}) => {
-      const nodeId = payload?.nodeId;
-      if (nodeId === undefined || nodeId === null) return;
-      this._waveCrossingState.delete(`node:${nodeId}:source:constructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:source:destructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:source:standing`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:constructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:destructive`);
-      this._waveCrossingState.delete(`node:${nodeId}:target:standing`);
-    };
-
-    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', onMetricUpdated);
-    const unsubLink = this.semanticBus.subscribe('link.created', onLinkCreated);
-    const unsubSpawn = this.semanticBus.subscribe('node.spawned', onNodeSpawned);
-
-    if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
-    if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
-    if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
+    if (typeof this.semanticBus.off === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.off('cascade.hop', onCascadeHop));
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.unsubscribe('cascade.hop', onCascadeHop));
+    }
   }
   
   /**
@@ -341,6 +313,8 @@ export class CascadeParticleSystem_Session120 {
         velocity: new THREE.Vector3(),
         // Link reference for path following
         linkRef: null,
+        sourcePosition: new THREE.Vector3(),
+        targetPosition: new THREE.Vector3(),
         pathProgress: 0, // 0-1 along link
         pathDirection: 1, // 1 or -1
         pathOffset: new THREE.Vector3(), // Lateral offset
@@ -366,182 +340,33 @@ export class CascadeParticleSystem_Session120 {
       : Math.max(0, currentCascadeTime - this._lastCascadeTime);
     this._lastCascadeTime = currentCascadeTime;
 
-    // 1. Spawn new particles from wave-field threshold crossings
-    this._spawnWaveDrivenParticles(cascadeDelta, links, currentCascadeTime);
-
-    // 2. Spawn new particles from active cascades
-    this._spawnParticles(cascadeDelta, links, currentCascadeTime);
-    
-    // 3. Update active particles
+    // Event-driven spawn only; update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
     
-    // 4. Update geometry
+    // Update geometry
     this._updateGeometry();
   }
 
-  _spawnWaveDrivenParticles(deltaTime, links, currentCascadeTime) {
-    if (!this.waveEngine || !Array.isArray(links) || links.length === 0) return;
-    if (typeof this.waveEngine.getLinkWaveField !== 'function') return;
+  spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
+    if (!this.config.enabled || !link) return;
 
-    for (const link of links) {
-      const linkId = link?.id ?? link?.userData?.id ?? link?.uuid ?? null;
-      if (!linkId) continue;
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourcePosition = sourceNode?.position;
+    const targetPosition = targetNode?.position;
+    if (!sourcePosition || !targetPosition) return;
 
-      const linkWave = this.waveEngine.getLinkWaveField(linkId, link);
-      if (!linkWave) {
-        this._clearWaveCrossingState(`link:${linkId}`);
-        continue;
-      }
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+    if (clampedIntensity <= 0) return;
 
-      this._processWaveFieldForEmitter(link, `link:${linkId}`, linkWave, currentCascadeTime);
+    const hop = Math.max(0, Number(hopIndex) || 0);
+    const hopDecay = Math.pow(this.config.hopDecay, hop);
+    const scaledIntensity = Math.max(0, Math.min(1, clampedIntensity * hopDecay));
+    const count = Math.max(1, Math.floor(this.config.baseCascadeParticles * scaledIntensity));
+    const currentCascadeTime = this._lastCascadeTime ?? 0;
 
-      // Also sample node fields when link endpoints are available.
-      const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
-      const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-      this._processLinkedNodeWave(link, sourceNode, 'source', currentCascadeTime);
-      this._processLinkedNodeWave(link, targetNode, 'target', currentCascadeTime);
-    }
-  }
-
-  _processLinkedNodeWave(link, node, sideKey, currentCascadeTime) {
-    if (!node || typeof this.waveEngine?.getNodeWaveField !== 'function') return;
-    const nodeId = node?.id ?? node?.userData?.nodeId ?? node?.uuid ?? null;
-    if (!nodeId) return;
-
-    const nodeWave = this.waveEngine.getNodeWaveField(nodeId, node);
-    const stateKey = `node:${nodeId}:${sideKey}`;
-    if (!nodeWave) {
-      this._clearWaveCrossingState(stateKey);
-      return;
-    }
-    this._processWaveFieldForEmitter(link, stateKey, nodeWave, currentCascadeTime);
-  }
-
-  _clearWaveCrossingState(prefix) {
-    this._waveCrossingState.delete(`${prefix}:constructive`);
-    this._waveCrossingState.delete(`${prefix}:destructive`);
-    this._waveCrossingState.delete(`${prefix}:standing`);
-  }
-
-  _processWaveFieldForEmitter(link, statePrefix, waveField, currentCascadeTime) {
-    const constructive = Number.isFinite(waveField.constructivePower)
-      ? waveField.constructivePower
-      : waveField.constructive;
-    const destructive = Number.isFinite(waveField.destructivePower)
-      ? waveField.destructivePower
-      : waveField.destructive;
-    const standing = Number.isFinite(waveField.standingWaveFactor)
-      ? waveField.standingWaveFactor
-      : waveField.standing;
-
-    this._emitOnWaveThresholdCrossing({
-      link,
-      stateKey: `${statePrefix}:constructive`,
-      value: constructive ?? 0,
-      threshold: this._waveThresholds.constructive,
-      shapeIndex: 1, // synergy shape
-      color: new THREE.Color(0.2, 0.9, 1.0), // cyan
-      flowType: 'forward',
-      conflictType: 'resolved_harmony',
-      currentCascadeTime
-    });
-
-    this._emitOnWaveThresholdCrossing({
-      link,
-      stateKey: `${statePrefix}:destructive`,
-      value: destructive ?? 0,
-      threshold: this._waveThresholds.destructive,
-      shapeIndex: 2, // rupture shape
-      color: new THREE.Color(1.0, 0.35, 0.1), // red/orange
-      flowType: 'oscillatory',
-      conflictType: 'corruption',
-      currentCascadeTime
-    });
-
-    this._emitOnWaveThresholdCrossing({
-      link,
-      stateKey: `${statePrefix}:standing`,
-      value: standing ?? 0,
-      threshold: this._waveThresholds.standing,
-      shapeIndex: 0, // harmonic ring
-      color: new THREE.Color(0.25, 0.45, 1.0), // blue
-      flowType: 'forward',
-      conflictType: 'destructive',
-      currentCascadeTime
-    });
-  }
-
-  _emitOnWaveThresholdCrossing(params) {
-    const {
-      link,
-      stateKey,
-      value,
-      threshold,
-      shapeIndex,
-      color,
-      flowType,
-      conflictType,
-      currentCascadeTime
-    } = params;
-
-    const currentValue = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
-    const wasAbove = this._waveCrossingState.get(stateKey) === true;
-    const isAbove = currentValue > threshold;
-    this._waveCrossingState.set(stateKey, isAbove);
-
-    // Spawn only on upward crossing to prevent per-frame spam.
-    if (wasAbove || !isAbove) return;
-
-    const spawnCount = Math.min(
-      this._waveSpawnCapPerEvent,
-      Math.max(1, Math.floor(2 + currentValue * 8))
-    );
-
-    this._emitWaveParticles(
-      spawnCount,
-      link,
-      shapeIndex,
-      flowType,
-      conflictType,
-      color,
-      currentCascadeTime
-    );
-  }
-
-  _emitWaveParticles(count, link, shapeIndex, flowType, conflictType, color, currentCascadeTime) {
-    const curvePoints = link?.userData?.curvePoints;
-    if (!curvePoints || curvePoints.length < 2) return;
-
-    for (let i = 0; i < count; i++) {
-      const p = this._allocateParticle();
-      if (!p) return;
-
-      p.active = true;
-      p.lifetime = 0;
-      p.maxLifetime = 0.35 + Math.random() * 0.35;
-      p.spawnTime = currentCascadeTime;
-      p.linkRef = link;
-      p.shapeIndex = shapeIndex;
-      p.conflictType = conflictType;
-      p.flowType = flowType;
-      p.pathProgress = Math.random();
-      p.pathDirection = flowType === 'backflow' ? -1 : 1;
-      p.pathOffset.set(
-        (Math.random() - 0.5) * 0.12,
-        (Math.random() - 0.5) * 0.12,
-        (Math.random() - 0.5) * 0.12
-      );
-
-      const colors = this.geometry.attributes.color.array;
-      colors[p.index * 3] = color.r;
-      colors[p.index * 3 + 1] = color.g;
-      colors[p.index * 3 + 2] = color.b;
-
-      const shapes = this.geometry.attributes.shapeIndex.array;
-      shapes[p.index] = shapeIndex;
-
-      this._updateSingleParticle(p, 0, currentCascadeTime);
-    }
+    // Canonical cascade particles use harmonic/cyan lane.
+    this._emit(count, link, 0, 'forward', 'resolved_harmony', currentCascadeTime, sourcePosition, targetPosition);
   }
   
   /**
@@ -590,16 +415,18 @@ export class CascadeParticleSystem_Session120 {
    * Emit N particles for a link
    * Respects density clustering parameters from Session 121
    */
-  _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime) {
-    const curvePoints = link.userData.curvePoints;
-    if (!curvePoints || curvePoints.length < 2) return;
+  _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
+    const curvePoints = link?.userData?.curvePoints;
+    const srcPos = sourcePosition ?? link?.source?.position ?? link?.sourceNode?.position ?? link?.from?.position ?? null;
+    const dstPos = targetPosition ?? link?.target?.position ?? link?.targetNode?.position ?? link?.to?.position ?? null;
+    if ((!curvePoints || curvePoints.length < 2) && (!srcPos || !dstPos)) return;
     
-    const color = link.userData.cascadeParticleColor || new THREE.Color(1, 1, 1);
+    const color = link?.userData?.cascadeParticleColor || new THREE.Color(1, 1, 1);
     
     // Session 121: Density & Clustering
-    const clusterCohesion = link.userData.particleClusterCohesion ?? 0;
-    const clusterRadius = link.userData.particleClusterRadius ?? 0.2;
-    const urgencyOscillation = link.userData.particleUrgencyOscillation ?? 0;
+    const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
+    const clusterRadius = link?.userData?.particleClusterRadius ?? 0.2;
+    const urgencyOscillation = link?.userData?.particleUrgencyOscillation ?? 0;
     
     for (let i = 0; i < count; i++) {
       const p = this._allocateParticle();
@@ -611,6 +438,8 @@ export class CascadeParticleSystem_Session120 {
       p.spawnTime = currentCascadeTime;
       
       p.linkRef = link;
+      if (srcPos) p.sourcePosition.copy(srcPos);
+      if (dstPos) p.targetPosition.copy(dstPos);
       p.shapeIndex = shapeIndex;
       p.conflictType = conflictType;
       p.flowType = flowType;
@@ -708,12 +537,13 @@ export class CascadeParticleSystem_Session120 {
    */
   _updateSingleParticle(p, deltaTime, currentCascadeTime) {
     const link = p.linkRef;
-    if (!link || !link.userData.curvePoints) {
+    const points = link?.userData?.curvePoints;
+    const hasCurve = Array.isArray(points) && points.length >= 2;
+    const hasEndpoints = p.sourcePosition && p.targetPosition;
+    if (!hasCurve && !hasEndpoints) {
       p.active = false;
       return;
     }
-    
-    const points = link.userData.curvePoints;
     
     // Advance progress
     let speed = 0.5; // Base speed (link length fraction per sec)
@@ -733,17 +563,20 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
     
-    // Interpolate position along curve
-    const idx = p.pathProgress * (points.length - 1);
-    const i1 = Math.floor(idx);
-    const i2 = Math.min(i1 + 1, points.length - 1);
-    const t = idx - i1;
-    
-    const p1 = points[i1];
-    const p2 = points[i2];
-    
-    // Base position
-    p.position.lerpVectors(p1, p2, t);
+    if (hasCurve) {
+      // Interpolate position along curve
+      const idx = p.pathProgress * (points.length - 1);
+      const i1 = Math.floor(idx);
+      const i2 = Math.min(i1 + 1, points.length - 1);
+      const t = idx - i1;
+      
+      const p1 = points[i1];
+      const p2 = points[i2];
+      
+      p.position.lerpVectors(p1, p2, t);
+    } else {
+      p.position.lerpVectors(p.sourcePosition, p.targetPosition, p.pathProgress);
+    }
     
     // Add offset
     p.position.add(p.pathOffset);
