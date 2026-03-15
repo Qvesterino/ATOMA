@@ -17,9 +17,10 @@ import * as THREE from 'three';
  */
 
 export class ExtremeAINodeEvolution3 {
-  constructor(nodes = []) {
+  constructor(nodes = [], semanticBus = null) {
     this.nodes = nodes;
     this.evolutionMap = new Map(); // node -> evolution data
+    this.nodeById = new Map(); // nodeId(string) -> node
     this.tempVec3 = new THREE.Vector3();
     this.tempEuler = new THREE.Euler();
     this.enabled = true;
@@ -41,8 +42,75 @@ export class ExtremeAINodeEvolution3 {
       stage2: 0.5
     };
 
+    // Event-driven stage updates
+    this.semanticBus = semanticBus || globalThis?.semanticBus || null;
+    this.dirtyNodes = new Set();
+    this.metricState = new Map(); // nodeId -> { synergy, harmony }
+    this._eventDrivenEnabled = false;
+    this._onSynergyCascade = null;
+    this._onHarmonyResonance = null;
+    this._unsubscribeSynergyCascade = null;
+    this._unsubscribeHarmonyResonance = null;
+
     this.initializeNodes();
+    this._setupEventSubscriptions();
     console.log(`[ExtremeAINodeEvolution3] Initialized with ${this.evolutionMap.size} extreme nodes`);
+  }
+
+  _getNodeId(node) {
+    const id =
+      node?.userData?.nodeId ??
+      node?.userData?.id ??
+      node?.id ??
+      node?.uuid;
+    return id === undefined || id === null ? null : String(id);
+  }
+
+  _setupEventSubscriptions() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+      this._eventDrivenEnabled = false;
+      return;
+    }
+
+    this._onSynergyCascade = (payload = {}) => {
+      this._handleMetricEvent('synergy', payload);
+    };
+    this._onHarmonyResonance = (payload = {}) => {
+      this._handleMetricEvent('harmony', payload);
+    };
+
+    const unsubSynergy = this.semanticBus.subscribe('event:synergyCascade', this._onSynergyCascade);
+    const unsubHarmony = this.semanticBus.subscribe('event:harmonyResonance', this._onHarmonyResonance);
+
+    if (typeof unsubSynergy === 'function') {
+      this._unsubscribeSynergyCascade = unsubSynergy;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeSynergyCascade = () => {
+        this.semanticBus.unsubscribe('event:synergyCascade', this._onSynergyCascade);
+      };
+    }
+
+    if (typeof unsubHarmony === 'function') {
+      this._unsubscribeHarmonyResonance = unsubHarmony;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeHarmonyResonance = () => {
+        this.semanticBus.unsubscribe('event:harmonyResonance', this._onHarmonyResonance);
+      };
+    }
+
+    this._eventDrivenEnabled = true;
+  }
+
+  _handleMetricEvent(metricName, payload = {}) {
+    const nodeId = payload?.nodeId;
+    const value = Number(payload?.value);
+    if (nodeId === undefined || nodeId === null || !Number.isFinite(value)) return;
+
+    const id = String(nodeId);
+    const current = this.metricState.get(id) || { synergy: 0, harmony: 0 };
+    current[metricName] = Math.max(0, Math.min(1, value));
+    this.metricState.set(id, current);
+    this.dirtyNodes.add(id);
   }
 
   /**
@@ -60,6 +128,11 @@ export class ExtremeAINodeEvolution3 {
         node.userData.extremeArchetypeName !== undefined;
 
       if (isExtremeNode) {
+        const nodeId = this._getNodeId(node);
+        if (nodeId !== null) {
+          this.nodeById.set(nodeId, node);
+        }
+
         this.evolutionMap.set(node, {
           stage: 0,
           progress: 0,
@@ -103,17 +176,35 @@ export class ExtremeAINodeEvolution3 {
     if (!this.enabled || !this.evolutionMap.size) return;
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
     
-    const currentTime = Date.now();
+    if (this._eventDrivenEnabled && this.dirtyNodes.size > 0) {
+      for (const dirtyNodeId of this.dirtyNodes) {
+        const node = this.nodeById.get(String(dirtyNodeId));
+        if (!node) continue;
+        const evoData = this.evolutionMap.get(node);
+        if (!evoData) continue;
+        this.updateEvolutionStageFromEvents(node, evoData);
+      }
+      this.dirtyNodes.clear();
+    }
 
     this.evolutionMap.forEach((evoData, node) => {
       if (!node || !node.visualGroup) {
+        const staleId = this._getNodeId(node);
+        if (staleId !== null) {
+          this.nodeById.delete(staleId);
+          this.metricState.delete(staleId);
+          this.dirtyNodes.delete(staleId);
+        }
         this.evolutionMap.delete(node);
         return;
       }
 
       // Update evolution state
       evoData.age += deltaTime;
-      this.updateEvolutionStage(evoData);
+      if (!this._eventDrivenEnabled) {
+        // Fallback polling when semanticBus does not exist
+        this.updateEvolutionStageFromPolling(node, evoData);
+      }
 
       // Apply visual effects based on stage and progress
       this.applyEvolutionEffects(node, evoData, deltaTime);
@@ -123,13 +214,8 @@ export class ExtremeAINodeEvolution3 {
   /**
    * Determine current evolution stage and progress
    */
-  updateEvolutionStage(evoData) {
+  updateEvolutionStageFromPolling(node, evoData) {
     const oldStage = evoData.stage;
-
-    // Check if we have metrics-based progression available
-    const node = Array.from(this.evolutionMap.entries()).find(
-      ([n, data]) => data === evoData
-    )?.[0];
 
     if (node?.userData?.metrics) {
       // Metrics-based transitions (if available)
@@ -162,6 +248,31 @@ export class ExtremeAINodeEvolution3 {
 
     if (evoData.stage !== oldStage) {
       // Stage transition occurred
+      console.log(`[ExtremeAINodeEvolution3] Node evolved to stage ${evoData.stage}`);
+    }
+  }
+
+  updateEvolutionStageFromEvents(node, evoData) {
+    const oldStage = evoData.stage;
+    const nodeId = this._getNodeId(node);
+    const metrics = nodeId ? this.metricState.get(nodeId) : null;
+    if (!metrics) return;
+
+    const synergy = metrics.synergy || 0;
+    const harmony = metrics.harmony || 0;
+
+    if (synergy > this.synergyThresholds.stage2 && harmony > this.harmonicThresholds.stage2) {
+      evoData.stage = 2;
+      evoData.progress = (synergy + harmony) / 2;
+    } else if (synergy > this.synergyThresholds.stage1 && harmony > this.harmonicThresholds.stage1) {
+      evoData.stage = 1;
+      evoData.progress = (synergy + harmony) / 2;
+    } else {
+      evoData.stage = 0;
+      evoData.progress = 0;
+    }
+
+    if (evoData.stage !== oldStage) {
       console.log(`[ExtremeAINodeEvolution3] Node evolved to stage ${evoData.stage}`);
     }
   }
@@ -771,6 +882,12 @@ export class ExtremeAINodeEvolution3 {
     if (this.evolutionMap.has(node)) {
       this.evolutionMap.delete(node);
     }
+    const nodeId = this._getNodeId(node);
+    if (nodeId !== null) {
+      this.nodeById.delete(nodeId);
+      this.metricState.delete(nodeId);
+      this.dirtyNodes.delete(nodeId);
+    }
   }
 
   /**
@@ -811,6 +928,32 @@ export class ExtremeAINodeEvolution3 {
     console.log('Enabled:', stats.enabled);
     console.table(this.evolutionMap);
     console.groupEnd();
+  }
+
+  dispose() {
+    if (typeof this._unsubscribeSynergyCascade === 'function') {
+      try {
+        this._unsubscribeSynergyCascade();
+      } catch (e) {
+        // noop
+      }
+    }
+    if (typeof this._unsubscribeHarmonyResonance === 'function') {
+      try {
+        this._unsubscribeHarmonyResonance();
+      } catch (e) {
+        // noop
+      }
+    }
+
+    this._unsubscribeSynergyCascade = null;
+    this._unsubscribeHarmonyResonance = null;
+    this._onSynergyCascade = null;
+    this._onHarmonyResonance = null;
+    this._eventDrivenEnabled = false;
+    this.dirtyNodes.clear();
+    this.metricState.clear();
+    this.nodeById.clear();
   }
 }
 

@@ -667,6 +667,10 @@ export class LinkRendererConduit {
             console.info('[PicDiag] Conduit constructed');
             window.__ConduitRenderer__ = this;
         }
+        this._nodeMetricCache = new Map();
+        this._metricSubscriptionDisposer = null;
+        this._hasMetricSubscription = false;
+        this._initMetricSubscription();
 
         this.config = {
             baseRadius: 0.06,
@@ -2663,8 +2667,65 @@ export class LinkRendererConduit {
         return node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
     }
 
+    _initMetricSubscription() {
+        const semanticBus = globalThis.semanticBus;
+        const subscribe = semanticBus?.subscribe;
+        if (typeof subscribe !== 'function') {
+            return;
+        }
+
+        const handler = (payload = {}) => {
+            const nodeId = payload?.nodeId;
+            const metric = payload?.metric;
+            const value = payload?.value;
+            if (nodeId === undefined || nodeId === null || typeof metric !== 'string') {
+                return;
+            }
+
+            const normalized = this._sanitizeMetricValue(metric, value);
+            if (normalized === null) {
+                return;
+            }
+
+            const key = String(nodeId);
+            const cached = this._nodeMetricCache.get(key) || {};
+            cached[metric] = normalized;
+            this._nodeMetricCache.set(key, cached);
+        };
+
+        this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+        this._hasMetricSubscription = true;
+    }
+
+    _sanitizeMetricValue(metric, value) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return null;
+        }
+        switch (metric) {
+            case 'synergy':
+            case 'harmony':
+            case 'stability':
+            case 'corruption':
+            case 'loadPressure':
+                return Math.max(0, Math.min(1, value));
+            default:
+                return null;
+        }
+    }
+
     _readNodeCorruption(node) {
         if (!node) return 0;
+        if (this._hasMetricSubscription) {
+            const nodeId = this._getNodeId(node);
+            const key = nodeId === null || nodeId === undefined ? null : String(nodeId);
+            if (key) {
+                const cached = this._nodeMetricCache.get(key);
+                if (cached && typeof cached.corruption === 'number' && Number.isFinite(cached.corruption)) {
+                    return Math.max(0, Math.min(1, cached.corruption));
+                }
+            }
+        }
+
         const userData = node.userData || {};
         const metrics = userData.metrics || {};
         const values = [
@@ -3223,6 +3284,11 @@ export class LinkRendererConduit {
      * Dispose and cleanup the renderer
      */
     dispose() {
+        if (typeof this._metricSubscriptionDisposer === 'function') {
+            this._metricSubscriptionDisposer();
+        }
+        this._metricSubscriptionDisposer = null;
+        this._nodeMetricCache.clear();
         if (this.nodeInterferenceManager) {
             this.nodeInterferenceManager.dispose();
         }

@@ -24,6 +24,91 @@ export class VisualDerivedMetrics {
     this.config = {
       defaultLoadMax: config.defaultLoadMax ?? 4
     };
+
+    this._nodeMetricCache = new Map();
+    this._metricSubscriptionDisposer = null;
+    this._hasMetricSubscription = false;
+    this._initMetricSubscription();
+  }
+
+  _initMetricSubscription() {
+    const semanticBus = globalThis.semanticBus;
+    const subscribe = semanticBus?.subscribe;
+    if (typeof subscribe !== 'function') {
+      return;
+    }
+
+    const handler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      const metric = payload?.metric;
+      const value = payload?.value;
+      if (nodeId === undefined || nodeId === null || typeof metric !== 'string') {
+        return;
+      }
+
+      const sanitizedValue = this._sanitizeMetric(metric, value);
+      if (sanitizedValue === null) {
+        return;
+      }
+
+      const key = String(nodeId);
+      const cached = this._nodeMetricCache.get(key) ?? {};
+      cached[metric] = sanitizedValue;
+      this._nodeMetricCache.set(key, cached);
+    };
+
+    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+    this._hasMetricSubscription = true;
+  }
+
+  _sanitizeMetric(metric, value) {
+    if (typeof value !== 'number' || !isFinite(value)) return null;
+    switch (metric) {
+      case 'synergy':
+      case 'harmony':
+      case 'stability':
+      case 'corruption':
+      case 'loadPressure':
+        return this._clamp01(value);
+      default:
+        return null;
+    }
+  }
+
+  _getNodeMetricKey(node) {
+    const key = node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
+    return key === null ? null : String(key);
+  }
+
+  _readNodeMetrics(node) {
+    if (!this._hasMetricSubscription) {
+      return node?.userData?.metrics ?? null;
+    }
+
+    const key = this._getNodeMetricKey(node);
+    if (!key) {
+      return node?.userData?.metrics ?? null;
+    }
+
+    const cached = this._nodeMetricCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const fallback = node?.userData?.metrics;
+    if (!fallback) {
+      return null;
+    }
+
+    const seeded = {
+      synergy: this._clamp01(fallback.synergy ?? 0.5),
+      harmony: this._clamp01(fallback.harmony ?? 0.5),
+      stability: this._clamp01(fallback.stability ?? 0.5),
+      corruption: this._clamp01(fallback.corruption ?? 0),
+      loadPressure: this._clamp01(fallback.loadPressure ?? fallback.load ?? fallback.loadRatio ?? 0)
+    };
+    this._nodeMetricCache.set(key, seeded);
+    return seeded;
   }
 
   /**
@@ -61,7 +146,7 @@ export class VisualDerivedMetrics {
     }
 
     const visual = node.userData.visualMetrics;
-    const base = node.userData.metrics; // READ-ONLY canonical metrics (0..1)
+    const base = this._readNodeMetrics(node); // Event-fed metrics with safe polling fallback
 
     // Structural/link metrics
     const linkData = this._computeLinkMetrics(node);
@@ -257,7 +342,11 @@ export class VisualDerivedMetrics {
    * @public
    */
   dispose() {
-    // No caches to clear in pass-through mode
+    if (typeof this._metricSubscriptionDisposer === 'function') {
+      this._metricSubscriptionDisposer();
+    }
+    this._metricSubscriptionDisposer = null;
+    this._nodeMetricCache.clear();
   }
 }
 

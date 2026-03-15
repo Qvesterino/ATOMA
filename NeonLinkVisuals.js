@@ -172,6 +172,8 @@ export class NeonLinkVisuals {
     
     // Create reusable materials
     this.materials = this.createMaterials();
+    this._semanticSubscriptions = [];
+    this._bindSemanticBus();
   }
 
   _useSharedMaterials() {
@@ -1799,6 +1801,7 @@ export class NeonLinkVisuals {
       synergyState: SynergyState.LOW,  // [SYNERGY STATE RESOLVER] Centralized state
       isSynergyAwakened: false,
       isHarmonyStabilized: false,
+      eventSynergyBoostUntil: 0,
       lastUpdate: 0
     });
     
@@ -1969,15 +1972,20 @@ export class NeonLinkVisuals {
       
       // [SYNERGY VISUALS v1.0] Compute synergy pulsing for emissive boost
       const synergyPulse = this._computeSynergyPulse(synergyState);
+      const eventBoost = state.eventSynergyBoostUntil > this.time ? 0.12 : 0;
+      const synergyPulseWithEvent = {
+        ...(synergyPulse || { boost: 0, frequency: 0 }),
+        boost: (synergyPulse?.boost ?? 0) + eventBoost
+      };
 
       // Apply to all materials in the mesh
       if (state.mesh.material) {
         // Single material
-        this._applyMetricMaterial(state.mesh.material, metricColor, pulse, synergyPulse);
+        this._applyMetricMaterial(state.mesh.material, metricColor, pulse, synergyPulseWithEvent);
       } else if (state.mesh.material && Array.isArray(state.mesh.material)) {
         // Material array
         for (const mat of state.mesh.material) {
-          this._applyMetricMaterial(mat, metricColor, pulse, synergyPulse);
+          this._applyMetricMaterial(mat, metricColor, pulse, synergyPulseWithEvent);
         }
       }
       
@@ -1985,7 +1993,7 @@ export class NeonLinkVisuals {
       if (state.mesh.children) {
         for (const child of state.mesh.children) {
           if (child.material && !child.userData?.isSelectionHighlight) {
-            this._applyMetricMaterial(child.material, metricColor, pulse, synergyPulse);
+            this._applyMetricMaterial(child.material, metricColor, pulse, synergyPulseWithEvent);
             
             // [SYNERGY/HARMONY UPGRADE] Track segment visibility for synergy bonding
             if (state.isSynergyAwakened) {
@@ -2257,10 +2265,66 @@ export class NeonLinkVisuals {
     }
   }
 
+  _getSemanticBus() {
+    return globalThis?.semanticBus || null;
+  }
+
+  _bindSemanticBus() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
+    if (!on) return;
+
+    const handleSynergyBurst = (data = {}) => {
+      this.triggerSynergyBurstEffect(data.nodeId);
+    };
+
+    on('metric.synergy.burst', handleSynergyBurst, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['metric.synergy.burst', handleSynergyBurst]);
+  }
+
+  triggerSynergyBurstEffect(nodeId) {
+    const idToken = nodeId === undefined || nodeId === null ? null : String(nodeId);
+    const now = this.time;
+    let matched = 0;
+
+    for (const [linkId, state] of this.linkStates.entries()) {
+      if (!state) continue;
+      const shouldApply = idToken ? String(linkId).includes(idToken) : false;
+      if (shouldApply) {
+        state.eventSynergyBoostUntil = now + 0.45;
+        if (state.mesh) {
+          this._createSynergyFlowParticles(state.mesh, SynergyState.STRONG);
+        }
+        matched++;
+      }
+    }
+
+    // Fallback if linkId does not encode node id: apply a subtle pulse to a few links.
+    if (matched === 0) {
+      let i = 0;
+      for (const state of this.linkStates.values()) {
+        if (!state) continue;
+        state.eventSynergyBoostUntil = now + 0.3;
+        i++;
+        if (i >= 3) break;
+      }
+    }
+  }
+
   /**
    * Cleanup - dispose of all materials
    */
   dispose() {
+    const bus = this._getSemanticBus();
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off) {
+      for (const [eventName, handler] of this._semanticSubscriptions) {
+        off(eventName, handler);
+      }
+    }
+    this._semanticSubscriptions = [];
+
     Object.values(this.materials).forEach(material => {
       if (material.dispose) material.dispose();
     });

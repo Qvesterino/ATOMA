@@ -36,6 +36,7 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
     this.scene = scene;
+    this.waveEngine = config.waveEngine ?? globalThis.game?.waveInterferenceEngine ?? null;
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
@@ -55,6 +56,13 @@ export class CascadeParticleSystem_Session120 {
     
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
+    this._waveCrossingState = new Map();
+    this._waveThresholds = {
+      constructive: 0.35,
+      destructive: 0.4,
+      standing: 0.45
+    };
+    this._waveSpawnCapPerEvent = 12;
 
     // Resources
     this.geometry = null;
@@ -315,14 +323,182 @@ export class CascadeParticleSystem_Session120 {
       : Math.max(0, currentCascadeTime - this._lastCascadeTime);
     this._lastCascadeTime = currentCascadeTime;
 
-    // 1. Spawn new particles from active cascades
+    // 1. Spawn new particles from wave-field threshold crossings
+    this._spawnWaveDrivenParticles(cascadeDelta, links, currentCascadeTime);
+
+    // 2. Spawn new particles from active cascades
     this._spawnParticles(cascadeDelta, links, currentCascadeTime);
     
-    // 2. Update active particles
+    // 3. Update active particles
     this._updateParticles(cascadeDelta, currentCascadeTime);
     
-    // 3. Update geometry
+    // 4. Update geometry
     this._updateGeometry();
+  }
+
+  _spawnWaveDrivenParticles(deltaTime, links, currentCascadeTime) {
+    if (!this.waveEngine || !Array.isArray(links) || links.length === 0) return;
+    if (typeof this.waveEngine.getLinkWaveField !== 'function') return;
+
+    for (const link of links) {
+      const linkId = link?.id ?? link?.userData?.id ?? link?.uuid ?? null;
+      if (!linkId) continue;
+
+      const linkWave = this.waveEngine.getLinkWaveField(linkId, link);
+      if (!linkWave) {
+        this._clearWaveCrossingState(`link:${linkId}`);
+        continue;
+      }
+
+      this._processWaveFieldForEmitter(link, `link:${linkId}`, linkWave, currentCascadeTime);
+
+      // Also sample node fields when link endpoints are available.
+      const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+      const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+      this._processLinkedNodeWave(link, sourceNode, 'source', currentCascadeTime);
+      this._processLinkedNodeWave(link, targetNode, 'target', currentCascadeTime);
+    }
+  }
+
+  _processLinkedNodeWave(link, node, sideKey, currentCascadeTime) {
+    if (!node || typeof this.waveEngine?.getNodeWaveField !== 'function') return;
+    const nodeId = node?.id ?? node?.userData?.nodeId ?? node?.uuid ?? null;
+    if (!nodeId) return;
+
+    const nodeWave = this.waveEngine.getNodeWaveField(nodeId, node);
+    const stateKey = `node:${nodeId}:${sideKey}`;
+    if (!nodeWave) {
+      this._clearWaveCrossingState(stateKey);
+      return;
+    }
+    this._processWaveFieldForEmitter(link, stateKey, nodeWave, currentCascadeTime);
+  }
+
+  _clearWaveCrossingState(prefix) {
+    this._waveCrossingState.delete(`${prefix}:constructive`);
+    this._waveCrossingState.delete(`${prefix}:destructive`);
+    this._waveCrossingState.delete(`${prefix}:standing`);
+  }
+
+  _processWaveFieldForEmitter(link, statePrefix, waveField, currentCascadeTime) {
+    const constructive = Number.isFinite(waveField.constructivePower)
+      ? waveField.constructivePower
+      : waveField.constructive;
+    const destructive = Number.isFinite(waveField.destructivePower)
+      ? waveField.destructivePower
+      : waveField.destructive;
+    const standing = Number.isFinite(waveField.standingWaveFactor)
+      ? waveField.standingWaveFactor
+      : waveField.standing;
+
+    this._emitOnWaveThresholdCrossing({
+      link,
+      stateKey: `${statePrefix}:constructive`,
+      value: constructive ?? 0,
+      threshold: this._waveThresholds.constructive,
+      shapeIndex: 1, // synergy shape
+      color: new THREE.Color(0.2, 0.9, 1.0), // cyan
+      flowType: 'forward',
+      conflictType: 'resolved_harmony',
+      currentCascadeTime
+    });
+
+    this._emitOnWaveThresholdCrossing({
+      link,
+      stateKey: `${statePrefix}:destructive`,
+      value: destructive ?? 0,
+      threshold: this._waveThresholds.destructive,
+      shapeIndex: 2, // rupture shape
+      color: new THREE.Color(1.0, 0.35, 0.1), // red/orange
+      flowType: 'oscillatory',
+      conflictType: 'corruption',
+      currentCascadeTime
+    });
+
+    this._emitOnWaveThresholdCrossing({
+      link,
+      stateKey: `${statePrefix}:standing`,
+      value: standing ?? 0,
+      threshold: this._waveThresholds.standing,
+      shapeIndex: 0, // harmonic ring
+      color: new THREE.Color(0.25, 0.45, 1.0), // blue
+      flowType: 'forward',
+      conflictType: 'destructive',
+      currentCascadeTime
+    });
+  }
+
+  _emitOnWaveThresholdCrossing(params) {
+    const {
+      link,
+      stateKey,
+      value,
+      threshold,
+      shapeIndex,
+      color,
+      flowType,
+      conflictType,
+      currentCascadeTime
+    } = params;
+
+    const currentValue = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+    const wasAbove = this._waveCrossingState.get(stateKey) === true;
+    const isAbove = currentValue > threshold;
+    this._waveCrossingState.set(stateKey, isAbove);
+
+    // Spawn only on upward crossing to prevent per-frame spam.
+    if (wasAbove || !isAbove) return;
+
+    const spawnCount = Math.min(
+      this._waveSpawnCapPerEvent,
+      Math.max(1, Math.floor(2 + currentValue * 8))
+    );
+
+    this._emitWaveParticles(
+      spawnCount,
+      link,
+      shapeIndex,
+      flowType,
+      conflictType,
+      color,
+      currentCascadeTime
+    );
+  }
+
+  _emitWaveParticles(count, link, shapeIndex, flowType, conflictType, color, currentCascadeTime) {
+    const curvePoints = link?.userData?.curvePoints;
+    if (!curvePoints || curvePoints.length < 2) return;
+
+    for (let i = 0; i < count; i++) {
+      const p = this._allocateParticle();
+      if (!p) return;
+
+      p.active = true;
+      p.lifetime = 0;
+      p.maxLifetime = 0.35 + Math.random() * 0.35;
+      p.spawnTime = currentCascadeTime;
+      p.linkRef = link;
+      p.shapeIndex = shapeIndex;
+      p.conflictType = conflictType;
+      p.flowType = flowType;
+      p.pathProgress = Math.random();
+      p.pathDirection = flowType === 'backflow' ? -1 : 1;
+      p.pathOffset.set(
+        (Math.random() - 0.5) * 0.12,
+        (Math.random() - 0.5) * 0.12,
+        (Math.random() - 0.5) * 0.12
+      );
+
+      const colors = this.geometry.attributes.color.array;
+      colors[p.index * 3] = color.r;
+      colors[p.index * 3 + 1] = color.g;
+      colors[p.index * 3 + 2] = color.b;
+
+      const shapes = this.geometry.attributes.shapeIndex.array;
+      shapes[p.index] = shapeIndex;
+
+      this._updateSingleParticle(p, 0, currentCascadeTime);
+    }
   }
   
   /**
@@ -430,7 +606,7 @@ export class CascadeParticleSystem_Session120 {
       shapes[p.index] = shapeIndex;
       
       // Initial update to set position
-      this._updateSingleParticle(p, 0);
+      this._updateSingleParticle(p, 0, currentCascadeTime);
     }
   }
   
@@ -609,7 +785,10 @@ export class CascadeParticleSystem_Session120 {
  */
 export function setupCascadeParticleSystem(game, options = {}) {
   try {
-    const system = new CascadeParticleSystem_Session120(game.scene, options);
+    const system = new CascadeParticleSystem_Session120(game.scene, {
+      ...options,
+      waveEngine: options.waveEngine ?? game.waveInterferenceEngine
+    });
     game.cascadeParticleSystem = system;
     return system;
   } catch (err) {

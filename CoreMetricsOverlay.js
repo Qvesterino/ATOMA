@@ -39,6 +39,10 @@ export class CoreMetricsOverlay {
     this.lastHudDebugLog = 0;
     this._timeOrigin = undefined;
     this._lastVisualTime = undefined;
+    this._nodeMetricCache = new Map();
+    this._metricSubscriptionDisposer = null;
+    this._hasMetricSubscription = false;
+    this._initMetricSubscription();
     
     // Cached data
     this.currentMetrics = {
@@ -66,6 +70,106 @@ export class CoreMetricsOverlay {
     
     console.log('✓ ATOMA Core Metrics Overlay 1.0 initialized');
   }
+
+  _initMetricSubscription() {
+    const semanticBus = globalThis.semanticBus;
+    const subscribe = semanticBus?.subscribe;
+    if (typeof subscribe !== 'function') {
+      return;
+    }
+
+    const handler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      const metric = payload?.metric;
+      const value = payload?.value;
+      if (nodeId === undefined || nodeId === null || typeof metric !== 'string') {
+        return;
+      }
+
+      const normalized = this._sanitizeMetric(metric, value);
+      if (normalized === null) return;
+
+      const key = String(nodeId);
+      const cached = this._nodeMetricCache.get(key) ?? {};
+      cached[metric] = normalized;
+      this._nodeMetricCache.set(key, cached);
+    };
+
+    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+    this._hasMetricSubscription = true;
+  }
+
+  _sanitizeMetric(metric, value) {
+    if (typeof value !== 'number' || !isFinite(value)) return null;
+    switch (metric) {
+      case 'synergy':
+      case 'harmony':
+      case 'stability':
+      case 'corruption':
+      case 'loadPressure':
+        return Math.max(0, Math.min(1, value));
+      default:
+        return null;
+    }
+  }
+
+  _getNodeMetricKey(node) {
+    const key = node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
+    return key === null ? null : String(key);
+  }
+
+  _getEventDrivenMetrics(aiNodes) {
+    const sums = {
+      synergy: 0,
+      harmony: 0,
+      stability: 0,
+      corruption: 0,
+      loadPressure: 0
+    };
+    const counts = {
+      synergy: 0,
+      harmony: 0,
+      stability: 0,
+      corruption: 0,
+      loadPressure: 0
+    };
+
+    const nodes = aiNodes?.nodes ?? [];
+    for (const node of nodes) {
+      const key = this._getNodeMetricKey(node);
+      if (!key) continue;
+
+      let snapshot = this._nodeMetricCache.get(key);
+      if (!snapshot) {
+        const metrics = node?.userData?.metrics;
+        if (!metrics) continue;
+        snapshot = {
+          synergy: this._sanitizeMetric('synergy', metrics.synergy ?? 0.5),
+          harmony: this._sanitizeMetric('harmony', metrics.harmony ?? 0.5),
+          stability: this._sanitizeMetric('stability', metrics.stability ?? 0.5),
+          corruption: this._sanitizeMetric('corruption', metrics.corruption ?? 0),
+          loadPressure: this._sanitizeMetric('loadPressure', metrics.loadPressure ?? metrics.load ?? metrics.loadRatio ?? 0)
+        };
+        this._nodeMetricCache.set(key, snapshot);
+      }
+
+      for (const metric of ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure']) {
+        const value = snapshot?.[metric];
+        if (typeof value !== 'number' || !isFinite(value)) continue;
+        sums[metric] += value;
+        counts[metric] += 1;
+      }
+    }
+
+    const getAvg = (metric) => (counts[metric] > 0 ? sums[metric] / counts[metric] : 0);
+    return withGlobalMetricAliases({
+      synergy: getAvg('synergy'),
+      harmony: getAvg('harmony'),
+      stability: getAvg('stability'),
+      corruption: getAvg('corruption'),
+      loadPressure: getAvg('loadPressure')
+    });
+  }
   
   /**
    * Update overlay state
@@ -87,14 +191,18 @@ export class CoreMetricsOverlay {
     try {
       const startTime = performance.now();
       
-      // Update metrics (low frequency)
-      this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
+      // Update metrics (event-fed when available, polling fallback otherwise)
+      if (this._hasMetricSubscription) {
+        this.currentMetrics = this._getEventDrivenMetrics(aiNodes);
+      } else {
+        this.metricsCalculator.update(visualDelta, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes);
+        this.currentMetrics = this.metricsCalculator.getMetrics();
+      }
       
       // Update temporal system
       const temporalEvents = this.temporalSystem.update(visualDelta);
       
       // Get current data
-      this.currentMetrics = this.metricsCalculator.getMetrics();
       this.currentTemporalDisplay = this.temporalSystem.getFormattedDisplay();
       
       // Update HUD display via SemanticMetricAdapter
@@ -238,6 +346,11 @@ export class CoreMetricsOverlay {
    * Cleanup resources
    */
   cleanup() {
+    if (typeof this._metricSubscriptionDisposer === 'function') {
+      this._metricSubscriptionDisposer();
+    }
+    this._metricSubscriptionDisposer = null;
+    this._nodeMetricCache.clear();
     this.hud.destroy();
     this.temporalEffects.cleanup();
     console.log('✓ Core Metrics Overlay cleaned up');

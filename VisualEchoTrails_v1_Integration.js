@@ -300,6 +300,38 @@ export function setupVisualEchoTrailsIntegration(
       integration.onLinkCreated(link);
     });
   }
+
+  const semanticBus = mainInstance?.semanticBus || mainInstance?.linkingSystem?.semanticBus || globalThis?.semanticBus || null;
+  if (semanticBus?.on) {
+    const resolveLinkFromPayload = (payload = {}) => {
+      const links = Array.isArray(mainInstance?.linkingSystem?.links) ? mainInstance.linkingSystem.links : [];
+      if (payload.linkId !== null && payload.linkId !== undefined) {
+        const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
+        if (byId) return byId;
+      }
+      const source = payload.source ?? null;
+      const target = payload.target ?? null;
+      if (!source || !target) return null;
+      return links.find((link) => {
+        const linkSource = link?.source || link?.nodeA || null;
+        const linkTarget = link?.target || link?.nodeB || null;
+        return linkSource === source && linkTarget === target;
+      }) || null;
+    };
+
+    const handleSemanticLinkCreated = (event = {}) => {
+      const payload = {
+        source: event.source ?? null,
+        target: event.target ?? null,
+        linkId: event.linkId ?? event.id ?? null
+      };
+      const link = resolveLinkFromPayload(payload);
+      if (!link) return;
+      integration.onLinkCreated(link);
+    };
+
+    semanticBus.on('link.created', handleSemanticLinkCreated);
+  }
   
   // Register callbacks for removed links
   if (mainInstance.linkingSystem?.onLinkRemovedCallbacks) {

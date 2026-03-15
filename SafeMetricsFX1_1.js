@@ -20,7 +20,7 @@
  */
 
 export class SafeMetricsFX1_1 {
-  constructor() {
+  constructor(semanticBus = null) {
     // Tick timing (15-20Hz = slower than raycast, minimal overhead)
     this.lastTickTime = 0;
     this.tickInterval = 1 / 15; // ~67ms per tick
@@ -30,6 +30,61 @@ export class SafeMetricsFX1_1 {
     
     // Flicker state (for instability flicker effect)
     this.flickerStates = new Map(); // nodeId -> { phase, nextFlicker }
+
+    // Event-driven processing state
+    this.semanticBus = semanticBus || globalThis?.semanticBus || null;
+    this.dirtyNodes = new Set();
+    this._eventDrivenEnabled = false;
+    this._metricNodeUpdatedHandler = null;
+    this._unsubscribeMetricNodeUpdated = null;
+
+    this._setupMetricSubscription();
+  }
+
+  _setupMetricSubscription() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+      this._eventDrivenEnabled = false;
+      return;
+    }
+
+    this._metricNodeUpdatedHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      this.dirtyNodes.add(String(nodeId));
+    };
+
+    const maybeUnsubscribe = this.semanticBus.subscribe(
+      'metric.node.updated',
+      this._metricNodeUpdatedHandler
+    );
+
+    if (typeof maybeUnsubscribe === 'function') {
+      this._unsubscribeMetricNodeUpdated = maybeUnsubscribe;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeMetricNodeUpdated = () => {
+        this.semanticBus.unsubscribe('metric.node.updated', this._metricNodeUpdatedHandler);
+      };
+    } else {
+      this._unsubscribeMetricNodeUpdated = null;
+    }
+
+    this._eventDrivenEnabled = true;
+  }
+
+  _findNodeByEventId(nodes, nodeId) {
+    if (!nodes || nodes.length === 0) return null;
+    const target = String(nodeId);
+
+    for (const node of nodes) {
+      if (!node) continue;
+      const nodeUserData = node.userData || {};
+      if (String(nodeUserData.nodeId) === target) return node;
+      if (String(nodeUserData.id) === target) return node;
+      if (String(node.id) === target) return node;
+      if (String(node.uuid) === target) return node;
+    }
+
+    return null;
   }
 
   /**
@@ -62,10 +117,23 @@ export class SafeMetricsFX1_1 {
     }
     this.lastTickTime = 0;
 
-    // Apply FX to all nodes
-    nodes.forEach(node => {
-      this.applyNodeMetricsFX(node);
-    });
+    if (!this._eventDrivenEnabled) {
+      // Fallback: no semanticBus -> keep original polling behavior
+      nodes.forEach(node => {
+        this.applyNodeMetricsFX(node);
+      });
+      return;
+    }
+
+    if (this.dirtyNodes.size === 0) return;
+
+    for (const dirtyNodeId of this.dirtyNodes) {
+      const node = this._findNodeByEventId(nodes, dirtyNodeId);
+      if (node) {
+        this.applyNodeMetricsFX(node);
+      }
+    }
+    this.dirtyNodes.clear();
   }
 
   /**
@@ -327,6 +395,7 @@ export class SafeMetricsFX1_1 {
   reset() {
     this.appliedFX.clear();
     this.flickerStates.clear();
+    this.dirtyNodes.clear();
     this.lastTickTime = 0;
   }
 
@@ -360,5 +429,19 @@ export class SafeMetricsFX1_1 {
         // Skip silently
       }
     }
+  }
+
+  dispose() {
+    if (typeof this._unsubscribeMetricNodeUpdated === 'function') {
+      try {
+        this._unsubscribeMetricNodeUpdated();
+      } catch (e) {
+        // Skip silently
+      }
+    }
+
+    this._unsubscribeMetricNodeUpdated = null;
+    this._metricNodeUpdatedHandler = null;
+    this._eventDrivenEnabled = false;
   }
 }

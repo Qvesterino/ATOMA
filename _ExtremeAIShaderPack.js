@@ -18,15 +18,62 @@ import * as THREE from 'three';
  */
 
 export class ExtremeAIShaderPack {
-  constructor() {
+  constructor(semanticBus = null) {
     this.nodeMap = new Map(); // node → shader data
+    this.nodeIdMap = new Map(); // nodeId(string) → node
     this.time = 0;
     this.enabled = true;
 
     // Shared shader cache to reduce compilation time
     this.shaderCache = new Map();
 
+    // Event-driven metric updates
+    this.semanticBus = semanticBus || globalThis?.semanticBus || null;
+    this.dirtyNodes = new Set();
+    this._eventDrivenEnabled = false;
+    this._metricUpdatedHandler = null;
+    this._unsubscribeMetricUpdated = null;
+    this._setupMetricSubscription();
+
     console.log('[ExtremeAIShaderPack] Initialized - 12 archetype shaders ready');
+  }
+
+  _setupMetricSubscription() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+      this._eventDrivenEnabled = false;
+      return;
+    }
+
+    this._metricUpdatedHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      this.dirtyNodes.add(String(nodeId));
+    };
+
+    const maybeUnsubscribe = this.semanticBus.subscribe(
+      'metric.node.updated',
+      this._metricUpdatedHandler
+    );
+
+    if (typeof maybeUnsubscribe === 'function') {
+      this._unsubscribeMetricUpdated = maybeUnsubscribe;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeMetricUpdated = () => {
+        this.semanticBus.unsubscribe('metric.node.updated', this._metricUpdatedHandler);
+      };
+    }
+
+    this._eventDrivenEnabled = true;
+  }
+
+  getNodeEventId(node) {
+    if (!node) return null;
+    const id =
+      node?.userData?.nodeId ??
+      node?.userData?.id ??
+      node?.id ??
+      node?.uuid;
+    return id === undefined || id === null ? null : String(id);
   }
 
   /**
@@ -55,6 +102,15 @@ export class ExtremeAIShaderPack {
         registered: true
       });
 
+      const nodeEventId = this.getNodeEventId(node);
+      if (nodeEventId !== null) {
+        this.nodeIdMap.set(nodeEventId, node);
+        // Ensure first metric application in event-driven mode
+        if (this._eventDrivenEnabled) {
+          this.dirtyNodes.add(nodeEventId);
+        }
+      }
+
       return true;
     } catch (err) {
       console.error('[ExtremeAIShaderPack] Error registering node:', err);
@@ -80,6 +136,11 @@ export class ExtremeAIShaderPack {
     }
 
     this.nodeMap.delete(node);
+    const nodeEventId = this.getNodeEventId(node);
+    if (nodeEventId !== null) {
+      this.nodeIdMap.delete(nodeEventId);
+      this.dirtyNodes.delete(nodeEventId);
+    }
   }
 
   /**
@@ -94,6 +155,11 @@ export class ExtremeAIShaderPack {
 
     this.nodeMap.forEach((shaderData, node) => {
       if (!node || !node.visualGroup) {
+        const staleNodeId = this.getNodeEventId(node);
+        if (staleNodeId !== null) {
+          this.nodeIdMap.delete(staleNodeId);
+          this.dirtyNodes.delete(staleNodeId);
+        }
         this.nodeMap.delete(node);
         return;
       }
@@ -104,12 +170,30 @@ export class ExtremeAIShaderPack {
           if (mat.uniforms && mat.uniforms.u_time) {
             mat.uniforms.u_time.value = this.time;
           }
+        });
 
-          // Update metrics uniforms if available
+        if (!this._eventDrivenEnabled) {
+          // Fallback: keep original polling when semanticBus is unavailable
+          shaderData.materials.forEach(mat => {
+            this.updateMetricsUniforms(node, mat);
+          });
+        }
+      }
+    });
+
+    if (this._eventDrivenEnabled && this.dirtyNodes.size > 0) {
+      for (const dirtyNodeId of this.dirtyNodes) {
+        const node = this.nodeIdMap.get(String(dirtyNodeId));
+        if (!node) continue;
+        const shaderData = this.nodeMap.get(node);
+        if (!shaderData?.materials) continue;
+
+        shaderData.materials.forEach(mat => {
           this.updateMetricsUniforms(node, mat);
         });
       }
-    });
+      this.dirtyNodes.clear();
+    }
   }
 
   /**
@@ -882,6 +966,22 @@ export class ExtremeAIShaderPack {
     console.log('Time:', stats.time.toFixed(2));
     console.log('Cache Size:', stats.cacheSize);
     console.groupEnd();
+  }
+
+  dispose() {
+    if (typeof this._unsubscribeMetricUpdated === 'function') {
+      try {
+        this._unsubscribeMetricUpdated();
+      } catch (err) {
+        // noop
+      }
+    }
+
+    this._unsubscribeMetricUpdated = null;
+    this._metricUpdatedHandler = null;
+    this._eventDrivenEnabled = false;
+    this.dirtyNodes.clear();
+    this.nodeIdMap.clear();
   }
 }
 

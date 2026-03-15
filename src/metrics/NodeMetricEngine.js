@@ -84,10 +84,10 @@ const SYNERGY_DERIVATION = {
 
 const DYNAMICS_INERTIA = 0.85;
 const NODE_SEMANTIC_EVENT_THRESHOLDS = {
-  harmonyResonance: 0.75,
-  corruptionSurge: 0.6,
-  synergyCascade: 0.8
+  synergyBurst: 0.85,
+  corruptionSpike: 0.65
 };
+const NODE_SEMANTIC_COOLDOWN_MS = 2000;
 
 // Semantic emission thresholds (delta since last emission)
 const SEMANTIC_THRESHOLDS = {
@@ -97,9 +97,11 @@ const SEMANTIC_THRESHOLDS = {
   corruption: 0.05,
   loadPressure: 0.05,
 };
+const NODE_METRIC_UPDATED_EVENT_INTERVAL_MS = 100; // 10Hz max per node
 
 // Track last emitted values to avoid per-frame spam
 const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
+const lastNodeMetricUpdatedEmitAt = new Map(); // key: `${nodeId}` → timestamp(ms)
 let nodeMetricsTick = 0;
 
 function getSemanticBus() {
@@ -164,34 +166,68 @@ function emitSemanticMetricEvent(metric, before, after, nodeId) {
   }
 }
 
+function emitNodeMetricUpdated(metric, value, nodeId) {
+  const bus = getSemanticBus();
+  if (!bus?.emit) return;
+  const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const key = `${nodeId}`;
+  const last = Number(lastNodeMetricUpdatedEmitAt.get(key) ?? -Infinity);
+  if (nowMs - last < NODE_METRIC_UPDATED_EVENT_INTERVAL_MS) return;
+  lastNodeMetricUpdatedEmitAt.set(key, nowMs);
+  bus.emit('metric.node.updated', {
+    nodeId,
+    metric,
+    value
+  }, { priority: bus.priority?.NORMAL });
+}
+
+function shouldEmitNodeSemanticEvent(node, key, nowMs) {
+  if (!node?.userData) return false;
+  if (!node.userData.__metricEventCooldowns) {
+    node.userData.__metricEventCooldowns = {};
+  }
+  const last = Number(node.userData.__metricEventCooldowns[key] ?? 0);
+  if (nowMs - last < NODE_SEMANTIC_COOLDOWN_MS) return false;
+  node.userData.__metricEventCooldowns[key] = nowMs;
+  return true;
+}
+
 function emitNodeThresholdEvents(node) {
   const bus = getSemanticBus();
   if (!bus?.emit) return;
   const metrics = ensureMetrics(node);
   if (!metrics) return;
 
-  const nodeId = getNodeId(node);
+  if (!node?.userData) return;
+  const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if (!node.userData.__metricEventState) {
+    node.userData.__metricEventState = {
+      synergyBurstActive: false,
+      corruptionSpikeActive: false
+    };
+  }
+  const state = node.userData.__metricEventState;
+  const nodeId = node?.id ?? getNodeId(node);
 
-  if ((metrics.harmony ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.harmonyResonance) {
-    bus.emit('event:harmonyResonance', {
+  const synergy = clamp01(metrics.synergy ?? 0);
+  const synergyActive = synergy > NODE_SEMANTIC_EVENT_THRESHOLDS.synergyBurst;
+  if (synergyActive && !state.synergyBurstActive && shouldEmitNodeSemanticEvent(node, 'synergyBurst', nowMs)) {
+    bus.emit('metric.synergy.burst', {
       nodeId,
-      value: metrics.harmony ?? 0
+      synergy
     }, { priority: bus.priority?.NORMAL });
   }
+  state.synergyBurstActive = synergyActive;
 
-  if ((metrics.corruption ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.corruptionSurge) {
-    bus.emit('event:corruptionSurge', {
+  const corruption = clamp01(metrics.corruption ?? 0);
+  const corruptionActive = corruption > NODE_SEMANTIC_EVENT_THRESHOLDS.corruptionSpike;
+  if (corruptionActive && !state.corruptionSpikeActive && shouldEmitNodeSemanticEvent(node, 'corruptionSpike', nowMs)) {
+    bus.emit('metric.corruption.spike', {
       nodeId,
-      value: metrics.corruption ?? 0
+      corruption
     }, { priority: bus.priority?.NORMAL });
   }
-
-  if ((metrics.synergy ?? 0) > NODE_SEMANTIC_EVENT_THRESHOLDS.synergyCascade) {
-    bus.emit('event:synergyCascade', {
-      nodeId,
-      value: metrics.synergy ?? 0
-    }, { priority: bus.priority?.NORMAL });
-  }
+  state.corruptionSpikeActive = corruptionActive;
 }
 
 function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
@@ -200,6 +236,7 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
   if (before === after) return;
   metrics[key] = after;
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
+  emitNodeMetricUpdated(key, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
 }
 

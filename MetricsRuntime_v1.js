@@ -67,6 +67,9 @@ const SEMANTIC_DELTA = {
     corruptionLevel: 0.05,
     loadPressure: 0.05
 };
+const NODE_EVENT_COOLDOWN_MS = 2000;
+const NODE_METRIC_UPDATED_COOLDOWN_MS = 100; // 10 Hz per node
+const LINK_SPREAD_DELTA_MIN = 0.01;
 
 export class MetricsRuntime_v1 {
     /**
@@ -259,6 +262,7 @@ export class MetricsRuntime_v1 {
 
             // 2. Canonical node metrics update (single-writer: NodeMetricEngine)
             updateNodeMetrics(this.nodes, this.linkSystem || this.links, dt);
+            this._emitCorruptionSpreadEvents();
 
             const nodeList = this.nodes?.nodes || this.nodes || [];
             for (const node of nodeList) {
@@ -267,6 +271,7 @@ export class MetricsRuntime_v1 {
                 const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
                 this._sanitizeMetrics(m, id);
             }
+            this._emitNodeMetricUpdatedEvents(nodeList);
 
             // 3. Network aggregation (fixed-step)
             // NOTE: networkMetricsAggregator now runs via FrameScheduler.background layer (2Hz)
@@ -497,6 +502,104 @@ const adapter = this._createLinkSystemAdapter(
             return global;
         }
         return null;
+    }
+
+    _canEmitNodeCooldown(node, key, nowMs, cooldownMs = NODE_EVENT_COOLDOWN_MS) {
+        if (!node?.userData) return false;
+        if (!node.userData.__metricEventCooldowns) {
+            node.userData.__metricEventCooldowns = {};
+        }
+        const last = Number(node.userData.__metricEventCooldowns[key] ?? 0);
+        if (nowMs - last < cooldownMs) return false;
+        node.userData.__metricEventCooldowns[key] = nowMs;
+        return true;
+    }
+
+    _emitNodeMetricUpdatedEvents(nodeList) {
+        const scope = this._getGlobalScope();
+        const semanticBus = scope?.semanticBus;
+        if (!semanticBus?.emit) return;
+        if (!Array.isArray(nodeList) || nodeList.length === 0) return;
+
+        const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const metricKeys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+
+        for (const node of nodeList) {
+            const metrics = node?.userData?.metrics;
+            if (!metrics || !node?.userData) continue;
+
+            const nodeId = node?.id ?? this._getNodeId(node);
+            if (!nodeId) continue;
+
+            const previous = node.userData.__lastMetricNodeUpdatedValues || (node.userData.__lastMetricNodeUpdatedValues = {});
+            let changedMetric = null;
+            let changedValue = null;
+
+            for (const metric of metricKeys) {
+                const value = this._clamp01(metrics[metric]);
+                const previousValue = previous[metric];
+                if (changedMetric === null && previousValue !== value) {
+                    changedMetric = metric;
+                    changedValue = value;
+                }
+                previous[metric] = value;
+            }
+
+            if (changedMetric === null) continue;
+            if (!this._canEmitNodeCooldown(node, 'metricNodeUpdated', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) continue;
+
+            semanticBus.emit('metric.node.updated', {
+                nodeId,
+                metric: changedMetric,
+                value: changedValue
+            }, { priority: semanticBus.priority?.NORMAL });
+        }
+    }
+
+    _emitCorruptionSpreadEvents() {
+        const scope = this._getGlobalScope();
+        const semanticBus = scope?.semanticBus;
+        if (!semanticBus?.emit) return;
+
+        const linksList =
+            this.linkSystem?.links ||
+            this.links?.links ||
+            this.links ||
+            [];
+        if (!Array.isArray(linksList) || linksList.length === 0) return;
+
+        const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+        for (const link of linksList) {
+            if (!link) continue;
+            const linkData = link.userData || (link.userData = {});
+            const current = this._clamp01(linkData.corruptionLevel);
+            const prev = Number.isFinite(linkData.__lastCorruptionSpreadLevel)
+                ? this._clamp01(linkData.__lastCorruptionSpreadLevel)
+                : null;
+            linkData.__lastCorruptionSpreadLevel = current;
+            if (prev === null) continue;
+
+            const delta = current - prev;
+            if (delta < LINK_SPREAD_DELTA_MIN) continue;
+
+            const sourceNode = link.source || link.nodeA;
+            const targetNode = link.target || link.nodeB;
+            if (!sourceNode || !targetNode) continue;
+
+            const sourceCorruption = this._clamp01(sourceNode?.userData?.metrics?.corruption ?? 0);
+            const targetCorruption = this._clamp01(targetNode?.userData?.metrics?.corruption ?? 0);
+            const fromNode = sourceCorruption >= targetCorruption ? sourceNode : targetNode;
+            const toNode = fromNode === sourceNode ? targetNode : sourceNode;
+
+            if (!this._canEmitNodeCooldown(fromNode, 'corruptionSpread', nowMs)) continue;
+
+            semanticBus.emit('metric.corruption.spread', {
+                source: fromNode?.id ?? this._getNodeId(fromNode),
+                target: toNode?.id ?? this._getNodeId(toNode),
+                amount: delta
+            }, { priority: semanticBus.priority?.NORMAL });
+        }
     }
 
     _emitCanonicalSemanticMetrics(metricsPayload, context = {}) {

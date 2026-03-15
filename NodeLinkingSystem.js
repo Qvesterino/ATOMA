@@ -3721,6 +3721,18 @@ getLinksForNode(node) {
       this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
     }
     
+    // Canonical semantic event: link created
+    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    if (semanticBus?.emit) {
+      const sourceId = this.getNodeId(sourceNode);
+      const targetId = this.getNodeId(targetNode);
+      semanticBus.emit('link.created', {
+        source: sourceId,
+        target: targetId,
+        linkId: link.id
+      }, { priority: semanticBus.priority?.INTERACTIVE });
+    }
+    
     // categoryTransitionSystem removed (unused)
     
     // 5. Initial Visual Update

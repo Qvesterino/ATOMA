@@ -447,6 +447,40 @@ export class AnimatedLinkFlow {
  */
 export function integrateAnimatedLinkFlow(linkingSystem, scene, camera) {
   const flowSystem = new AnimatedLinkFlow(scene, camera);
+  const semanticBus = linkingSystem?.semanticBus || globalThis?.semanticBus || null;
+
+  const resolveLinkFromPayload = (payload = {}) => {
+    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+    if (payload.linkId !== null && payload.linkId !== undefined) {
+      const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
+      if (byId) return byId;
+    }
+
+    const source = payload.source ?? null;
+    const target = payload.target ?? null;
+    if (!source || !target) return null;
+
+    return links.find((link) => {
+      const linkSource = link?.source || link?.nodeA || null;
+      const linkTarget = link?.target || link?.nodeB || null;
+      return linkSource === source && linkTarget === target;
+    }) || null;
+  };
+
+  const normalizeLinkCreatedEvent = (event = {}) => {
+    const payload = {
+      source: event.source ?? null,
+      target: event.target ?? null,
+      linkId: event.linkId ?? event.id ?? null
+    };
+    const resolvedLink = resolveLinkFromPayload(payload);
+    if (resolvedLink) {
+      payload.source = payload.source || resolvedLink.source || resolvedLink.nodeA || null;
+      payload.target = payload.target || resolvedLink.target || resolvedLink.nodeB || null;
+      payload.linkId = payload.linkId ?? resolvedLink.id ?? resolvedLink.userData?.id ?? null;
+    }
+    return payload;
+  };
   
   // Hook into link creation
   const originalOnLinkCreated = linkingSystem.onLinkCreatedCallbacks;
@@ -461,6 +495,22 @@ export function integrateAnimatedLinkFlow(linkingSystem, scene, camera) {
   linkingSystem.onLinkRemovedCallbacks.push((linkId) => {
     flowSystem.removeLinkFlow(linkId);
   });
+
+  if (semanticBus?.on) {
+    const handleSemanticLinkCreated = (event = {}) => {
+      const payload = normalizeLinkCreatedEvent(event);
+      const link = resolveLinkFromPayload(payload);
+      if (!link) return;
+      flowSystem.initializeLinkFlow(link, payload.linkId ?? link?.id ?? link?.userData?.id);
+    };
+    semanticBus.on('link.created', handleSemanticLinkCreated);
+
+    const originalDispose = flowSystem.dispose.bind(flowSystem);
+    flowSystem.dispose = () => {
+      semanticBus?.unsubscribe?.('link.created', handleSemanticLinkCreated);
+      originalDispose();
+    };
+  }
   
   // Store reference for animation loop
   linkingSystem._flowSystem = flowSystem;

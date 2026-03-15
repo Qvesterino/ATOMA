@@ -26,10 +26,10 @@ export class WaveParticleEmitter_v1 {
     this.config = {
       maxParticlesPerFamily: config.maxParticlesPerFamily ?? 2000,
       emissionRate: config.emissionRate ?? 1.0, // Multiplier on base emission
-      constructiveThreshold: 0,
-      destructiveThreshold: 0,
-      standingWaveThreshold: 0,
-      amplitudeSpikeThreshold: 0,
+      constructiveThreshold: config.constructiveThreshold ?? 0.35,
+      destructiveThreshold: config.destructiveThreshold ?? 0.40,
+      standingWaveThreshold: config.standingWaveThreshold ?? 0.45,
+      amplitudeSpikeThreshold: config.amplitudeSpikeThreshold ?? 0.20,
       amplitudeEMAAlpha: config.amplitudeEMAAlpha ?? 0.15,
       debugMode: config.debugMode ?? false,
     };
@@ -66,9 +66,9 @@ export class WaveParticleEmitter_v1 {
     };
 
     this.gateDelays = {
-      constructiveBurst: 0,
-      destructiveChaos: 0,
-      standingWaveRipple: 0,
+      constructiveBurst: config?.gateDelays?.constructiveBurst ?? 0.18,
+      destructiveChaos: config?.gateDelays?.destructiveChaos ?? 0.22,
+      standingWaveRipple: config?.gateDelays?.standingWaveRipple ?? 0.35,
     };
 
     // EMA tracking for amplitude spikes (per node)
@@ -347,21 +347,23 @@ export class WaveParticleEmitter_v1 {
         node?.userData?.waveField ??
         {};
 
-      const constructive = waveField.constructive ?? waveField.constructivePower ?? 0;
-      const destructive = waveField.destructive ?? waveField.destructivePower ?? 0;
-      const standing = waveField.standing ?? waveField.standingWaveFactor ?? 0;
+      const constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
+      const destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
+      const standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
       const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
 
-      // **Event 1: Constructive Burst** (high constructive interference)
-      this._emitConstructiveBurst(node);
+      if (constructive >= this.config.constructiveThreshold) {
+        this._emitConstructiveBurst(node, constructive);
+      }
 
-      // **Event 2: Destructive Chaos** (high destructive interference)
-      this._emitDestructiveChaos(node);
+      if (destructive >= this.config.destructiveThreshold) {
+        this._emitDestructiveChaos(node, destructive);
+      }
 
-      // **Event 3: Standing Wave Ripples** (high standing wave energy)
-      this._emitStandingWaveRipple(node);
+      if (standing >= this.config.standingWaveThreshold) {
+        this._emitStandingWaveRipple(node, standing);
+      }
 
-      // **Event 4: Amplitude Spike** (significant increase in amplitude)
       this._processAmplitudeSpike(nodeId, amplitude);
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Node event processing error:', err);
@@ -371,10 +373,12 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Constructive Burst particles
    */
-  _emitConstructiveBurst(node) {
+  _emitConstructiveBurst(node, strength = 1) {
     try {
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
+      const normalizedStrength = this._clamp01(strength);
+      const scaled = 0.6 + normalizedStrength * 0.8;
 
       // Check emission gate
       const lastEmission = this.emissionGate.constructiveBurst.get(nodeId) ?? -Infinity;
@@ -385,7 +389,10 @@ export class WaveParticleEmitter_v1 {
       this.emissionGate.constructiveBurst.set(nodeId, now);
 
       // Emit 3-5 particles per burst
-      const burstCount = Math.floor(3 + Math.random() * 2.99) * this.config.emissionRate;
+      const burstCount = Math.max(
+        1,
+        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * scaled)
+      );
       const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < burstCount; i++) {
@@ -422,10 +429,12 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Destructive Chaos particles
    */
-  _emitDestructiveChaos(node) {
+  _emitDestructiveChaos(node, strength = 1) {
     try {
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
+      const normalizedStrength = this._clamp01(strength);
+      const scaled = 0.6 + normalizedStrength * 0.8;
 
       // Check emission gate
       const lastEmission = this.emissionGate.destructiveChaos.get(nodeId) ?? -Infinity;
@@ -436,7 +445,10 @@ export class WaveParticleEmitter_v1 {
       this.emissionGate.destructiveChaos.set(nodeId, now);
 
       // Emit 5-8 chaotic particles
-      const burstCount = Math.floor(5 + Math.random() * 3.99) * this.config.emissionRate;
+      const burstCount = Math.max(
+        1,
+        Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * scaled)
+      );
       const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < burstCount; i++) {
@@ -476,10 +488,12 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Standing Wave Ripple particles (expanding rings)
    */
-  _emitStandingWaveRipple(node) {
+  _emitStandingWaveRipple(node, strength = 1) {
     try {
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
+      const normalizedStrength = this._clamp01(strength);
+      const scaled = 0.6 + normalizedStrength * 0.8;
 
       // Check emission gate
       const lastEmission = this.emissionGate.standingWaveRipple.get(nodeId) ?? -Infinity;
@@ -490,7 +504,10 @@ export class WaveParticleEmitter_v1 {
       this.emissionGate.standingWaveRipple.set(nodeId, now);
 
       // Emit ring wave (1-2 particles expanding)
-      const rippleCount = Math.floor(1 + Math.random() * 1.99) * this.config.emissionRate;
+      const rippleCount = Math.max(
+        1,
+        Math.floor((1 + Math.random() * 1.99) * this.config.emissionRate * scaled)
+      );
       const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < rippleCount; i++) {
@@ -533,6 +550,13 @@ export class WaveParticleEmitter_v1 {
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Amplitude spike error:', err);
     }
+  }
+
+  _clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
   }
 
   /**

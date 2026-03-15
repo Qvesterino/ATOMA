@@ -31,9 +31,11 @@ export class RecursiveGlyphSignalSystem {
 
     this.selectionCore = null;
     this.linkingSystem = null;
+    this.semanticBus = null;
 
     this.attachedSelectionCores = new WeakSet();
     this.attachedLinkingSystems = new WeakSet();
+    this._semanticLinkCreatedHandler = null;
 
     this.isBurstActive = () => false;
     this.isFieldActive = () => false;
@@ -128,6 +130,18 @@ export class RecursiveGlyphSignalSystem {
       linkingSystem.onLinkRemoved((source, target) => {
         this.triggerResidueSignal(source, target, 'tension');
       });
+    }
+
+    const semanticBus = this.semanticBus || linkingSystem?.semanticBus || globalThis?.semanticBus;
+    if (semanticBus?.on && !this._semanticLinkCreatedHandler) {
+      this.semanticBus = semanticBus;
+      this._semanticLinkCreatedHandler = (event = {}) => {
+        const payload = this._normalizeLinkCreatedEvent(event);
+        const { source, target } = payload;
+        if (!source || !target) return;
+        this.triggerResidueSignal(source, target, 'resonance');
+      };
+      semanticBus.on('link.created', this._semanticLinkCreatedHandler);
     }
   }
 
@@ -305,6 +319,11 @@ export class RecursiveGlyphSignalSystem {
   }
 
   cleanup() {
+    if (this.semanticBus?.unsubscribe && this._semanticLinkCreatedHandler) {
+      this.semanticBus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+      this._semanticLinkCreatedHandler = null;
+    }
+
     this.clearAllSignals();
     this._unregisterTick();
 
@@ -313,6 +332,28 @@ export class RecursiveGlyphSignalSystem {
     }
 
     Object.values(this.sharedGeometry).forEach((geometry) => geometry?.dispose?.());
+  }
+
+  _normalizeLinkCreatedEvent(event = {}) {
+    let source = event.source ?? null;
+    let target = event.target ?? null;
+    let linkId = event.linkId ?? event.id ?? null;
+
+    const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+    if ((!source || !target) && linkId !== null) {
+      const link = links.find((item) => (item?.id ?? item?.userData?.id) === linkId);
+      if (link) {
+        source = source || link.source || link.nodeA || null;
+        target = target || link.target || link.nodeB || null;
+        linkId = linkId ?? link.id ?? link.userData?.id ?? null;
+      }
+    }
+
+    return {
+      source,
+      target,
+      linkId
+    };
   }
 
   getStatus() {

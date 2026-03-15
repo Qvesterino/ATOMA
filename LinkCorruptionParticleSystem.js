@@ -29,6 +29,8 @@ export class LinkCorruptionParticleSystem {
     this.active = new Array(POOL_SIZE).fill(false);
     this.linkRefs = new Array(POOL_SIZE).fill(null);
     this.linkIndices = new Map(); // linkId -> array of pool indices
+    this.linkByPair = new Map(); // `${a}|${b}` -> link reference
+    this._semanticSubscriptions = [];
 
     // Attributes
     this.startPos = new Float32Array(POOL_SIZE * 3);
@@ -176,12 +178,35 @@ export class LinkCorruptionParticleSystem {
     applyLinkRenderLayer(this.points, 'LINK_PARTICLES');
     ensureUserData(this.points).isCorruptionParticles = true;
     this.scene.add(this.points);
+    this._bindSemanticBus();
+  }
+
+  _getSemanticBus() {
+    return globalThis?.semanticBus || null;
+  }
+
+  _bindSemanticBus() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
+    if (!on) return;
+
+    const handleSpread = (data = {}) => {
+      this.triggerCorruptionTransmission(data.source, data.target);
+    };
+
+    on('metric.corruption.spread', handleSpread, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['metric.corruption.spread', handleSpread]);
   }
 
   updateLinkParticles(link, deltaTime) {
     if (!link?.id || !link.curve) return null;
     const nodeA = link.sourceNode || link.nodeA || link.source;
     const nodeB = link.targetNode || link.nodeB || link.target;
+    const pairKey = this._pairKey(nodeA, nodeB);
+    if (pairKey) {
+      this.linkByPair.set(pairKey, link);
+    }
     const endpointCorruption = Math.max(
       this._readNodeCorruption(nodeA),
       this._readNodeCorruption(nodeB)
@@ -245,10 +270,20 @@ export class LinkCorruptionParticleSystem {
   }
 
   dispose() {
+    const bus = this._getSemanticBus();
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off) {
+      for (const [eventName, handler] of this._semanticSubscriptions) {
+        off(eventName, handler);
+      }
+    }
+    this._semanticSubscriptions = [];
+
     this.scene.remove(this.points);
     this.geometry.dispose();
     this.material.dispose();
     this.linkIndices.clear();
+    this.linkByPair.clear();
   }
 
   clearLinkParticles(linkId) {
@@ -434,6 +469,31 @@ export class LinkCorruptionParticleSystem {
       node?.corruption ??
       0
     );
+  }
+
+  _resolveNodeId(node) {
+    if (!node) return null;
+    const id = node?.id ?? node?.nodeId ?? node?.userData?.nodeId ?? node?.uuid;
+    return id === undefined || id === null ? null : String(id);
+  }
+
+  _pairKey(nodeA, nodeB) {
+    const a = this._resolveNodeId(nodeA);
+    const b = this._resolveNodeId(nodeB);
+    if (!a || !b) return null;
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  }
+
+  triggerCorruptionTransmission(sourceNodeId, targetNodeId) {
+    const key = this._pairKey(
+      { id: sourceNodeId },
+      { id: targetNodeId }
+    );
+    if (!key) return;
+    const link = this.linkByPair.get(key);
+    if (!link?.curve?.getPointAt) return;
+    this._spawn(link, 4, 0.7, 0.016);
+    this._updateForLink(link, 0.016);
   }
 
   _flagUpdates() {

@@ -89,8 +89,10 @@ export class NodeLinkedAuraRenderer_Session146 {
       updatesPerFrame: 0,
       lastUpdateTime: 0,
     };
+    this._semanticSubscriptions = [];
     
     this.init();
+    this._bindSemanticBus();
   }
 
   /**
@@ -215,6 +217,8 @@ export class NodeLinkedAuraRenderer_Session146 {
       mesh: mesh,
       material: material,
       linkBoostTime: 0,
+      eventSynergyTime: 0,
+      eventCorruptionTime: 0,
       lastHarmony: node.harmony ?? 0.5,
       lastCorruption: node.corruption ?? 0.2,
     });
@@ -246,11 +250,19 @@ export class NodeLinkedAuraRenderer_Session146 {
     if (aura.linkBoostTime > 0) {
       aura.linkBoostTime -= deltaTime;
     }
+    if (aura.eventSynergyTime > 0) {
+      aura.eventSynergyTime -= deltaTime;
+    }
+    if (aura.eventCorruptionTime > 0) {
+      aura.eventCorruptionTime -= deltaTime;
+    }
     
     // Compute link boost multiplier
     const linkBoost = aura.linkBoostTime > 0 ? 
       this.config.linkBoostIntensity * (aura.linkBoostTime / this.config.linkBoostDuration) :
       1.0;
+    const synergyEventBoost = aura.eventSynergyTime > 0 ? (aura.eventSynergyTime / 0.45) * 0.2 : 0;
+    const corruptionEventBoost = aura.eventCorruptionTime > 0 ? (aura.eventCorruptionTime / 0.6) * 0.25 : 0;
     
     // Get node state metrics with safe defaults
     const harmony = (node && typeof node.harmony === 'number') ? node.harmony : 0.5;
@@ -277,12 +289,13 @@ export class NodeLinkedAuraRenderer_Session146 {
       // Displacement scales with link boost + state
       const displacementBase = this.config.baseDisplacement * linkBoost;
       const coherenceModulation = 1 - auraCoherenceBias * 0.5;  // Hints compress displacement
-      aura.material.uniforms.uDisplacement.value = displacementBase * coherenceModulation;
+      aura.material.uniforms.uDisplacement.value = displacementBase * coherenceModulation * (1 + synergyEventBoost);
       
       // Opacity increases with activity
       const activityLevel = (harmony + waveInfluence + auraCoherenceBias) / 3;
       const opacityModulated = this.config.baseOpacity * (0.8 + activityLevel * 0.4) * linkBoost;
-      aura.material.uniforms.uOpacity.value = Math.min(1.0, opacityModulated);
+      aura.material.uniforms.uOpacity.value = Math.min(1.0, opacityModulated * (1 + synergyEventBoost + corruptionEventBoost));
+      aura.material.uniforms.uCorruption.value = Math.min(1, aura.material.uniforms.uCorruption.value + corruptionEventBoost * 0.25);
     }
     
     // Track state for potential animation triggers
@@ -425,10 +438,68 @@ export class NodeLinkedAuraRenderer_Session146 {
     };
   }
 
+  _getSemanticBus() {
+    return globalThis?.semanticBus || null;
+  }
+
+  _bindSemanticBus() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
+    if (!on) return;
+
+    const onSynergyBurst = (data = {}) => {
+      this.triggerSynergyBurstEffect(data.nodeId);
+    };
+    const onCorruptionSpike = (data = {}) => {
+      this.triggerCorruptionPulse(data.nodeId);
+    };
+
+    on('metric.synergy.burst', onSynergyBurst, { priority: bus.priority?.NORMAL });
+    on('metric.corruption.spike', onCorruptionSpike, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['metric.synergy.burst', onSynergyBurst]);
+    this._semanticSubscriptions.push(['metric.corruption.spike', onCorruptionSpike]);
+  }
+
+  _resolveAuraKey(nodeId) {
+    if (nodeId === undefined || nodeId === null) return null;
+    const token = String(nodeId);
+    if (this.nodeAuras.has(token)) return token;
+    for (const key of this.nodeAuras.keys()) {
+      if (String(key) === token) return key;
+    }
+    return null;
+  }
+
+  triggerSynergyBurstEffect(nodeId) {
+    const key = this._resolveAuraKey(nodeId);
+    if (!key) return;
+    const aura = this.nodeAuras.get(key);
+    if (!aura) return;
+    aura.eventSynergyTime = Math.max(aura.eventSynergyTime || 0, 0.45);
+  }
+
+  triggerCorruptionPulse(nodeId) {
+    const key = this._resolveAuraKey(nodeId);
+    if (!key) return;
+    const aura = this.nodeAuras.get(key);
+    if (!aura) return;
+    aura.eventCorruptionTime = Math.max(aura.eventCorruptionTime || 0, 0.6);
+  }
+
   /**
    * Cleanup and dispose
    */
   dispose() {
+    const bus = this._getSemanticBus();
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off) {
+      for (const [eventName, handler] of this._semanticSubscriptions) {
+        off(eventName, handler);
+      }
+    }
+    this._semanticSubscriptions = [];
+
     // Remove all auras from scene
     for (const aura of this.nodeAuras.values()) {
       if (aura.mesh && aura.mesh.parent) {

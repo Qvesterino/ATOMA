@@ -63,6 +63,21 @@ export function setupWaveBurstRouter(game) {
     const aiNodes = game.aiNodes;
     const harmonicHubSystem = game.harmonicHubSystem;
 
+    const TYPE_MAP = {
+        cascade: 'synergy',
+        destructive: 'corruption',
+        probe: 'harmonic',
+        harmonic: 'harmonic',
+        synergy: 'synergy',
+        corruption: 'corruption'
+    };
+
+    const REGIME_MAP = {
+        harmonic: 'coherent',
+        synergy: 'collaborative',
+        corruption: 'rupture'
+    };
+
     function findNodeById(nodeId) {
         if (!nodeId || !aiNodes?.nodes) return null;
         return aiNodes.nodes.find((n) =>
@@ -99,6 +114,15 @@ export function setupWaveBurstRouter(game) {
             origin.z + (rng - 0.5) * config.originJitter
         );
     }
+
+    function normalizeBurstType(type) {
+        const key = `${type || ''}`.toLowerCase();
+        return TYPE_MAP[key] || null;
+    }
+
+    function resolveToRegime(mappedType) {
+        return REGIME_MAP[mappedType] || 'coherent';
+    }
     
     /**
      * Emit wave burst intent
@@ -106,6 +130,11 @@ export function setupWaveBurstRouter(game) {
      */
     function emitBurst(burstData) {
         if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') {
+            return;
+        }
+
+        const mappedType = normalizeBurstType(burstData.type);
+        if (!mappedType) {
             return;
         }
         
@@ -120,8 +149,10 @@ export function setupWaveBurstRouter(game) {
         
         // Build burst intent
         const intent = {
-            type: burstData.type || 'harmonic',
-            origin: {
+            type: mappedType,
+            fromRegime: 'baseline',
+            toRegime: resolveToRegime(mappedType),
+            center: {
                 x: origin.x,
                 y: origin.y,
                 z: origin.z
@@ -145,9 +176,15 @@ export function setupWaveBurstRouter(game) {
      * @param {Object} intentPayload - Burst intent payload
      */
     function requestBurstIntent(intentPayload = {}) {
+        const payloadCenter =
+            intentPayload.center ||
+            intentPayload.origin ||
+            intentPayload.originPosition ||
+            intentPayload.position;
+
         emitBurst({
             type: intentPayload.type || 'harmonic',
-            origin: intentPayload.origin || new THREE.Vector3(0, 0, 0),
+            origin: payloadCenter || new THREE.Vector3(0, 0, 0),
             intensity: Number.isFinite(intentPayload.intensity) ? intentPayload.intensity : 0
         });
     }
@@ -282,7 +319,7 @@ export function setupWaveBurstRouter(game) {
         }
 
         requestBurstIntent({
-            type: 'synergyCascade',
+            type: 'synergy',
             intensity: Number.isFinite(payload?.value) ? payload.value : 0,
             regime: 'harmonic'
         });
@@ -294,7 +331,7 @@ export function setupWaveBurstRouter(game) {
         }
 
         requestBurstIntent({
-            type: 'instabilityTrap',
+            type: 'corruption',
             intensity: Number.isFinite(payload?.value) ? payload.value : 0,
             regime: 'chaotic'
         });
@@ -306,7 +343,7 @@ export function setupWaveBurstRouter(game) {
         }
 
         requestBurstIntent({
-            type: 'loadCollapse',
+            type: 'corruption',
             intensity: Number.isFinite(payload?.load) ? payload.load : 0,
             regime: 'stress'
         });
@@ -335,7 +372,7 @@ export function setupWaveBurstRouter(game) {
         semanticBus.subscribe('harmonic.cascade.start', handleCascadeEvent, {
             priority: semanticBus.priority.NORMAL
         });
-        semanticBus.subscribe('link:created', handleCascadeEvent, {
+        semanticBus.subscribe('link.created', handleCascadeEvent, {
             priority: semanticBus.priority.NORMAL
         });
         
@@ -427,7 +464,7 @@ export function setupWaveBurstRouter(game) {
             semanticBus.unsubscribe('metric:synergySpike', handleSynergyEvent);
             semanticBus.unsubscribe('cascade.triggered', handleCascadeEvent);
             semanticBus.unsubscribe('harmonic.cascade.start', handleCascadeEvent);
-            semanticBus.unsubscribe('link:created', handleCascadeEvent);
+            semanticBus.unsubscribe('link.created', handleCascadeEvent);
             semanticBus.unsubscribe('node.corruption.high', handleCorruptionEvent);
             semanticBus.unsubscribe('node.failure', handleCorruptionEvent);
             semanticBus.unsubscribe('metric:corruptionRise', handleCorruptionEvent);

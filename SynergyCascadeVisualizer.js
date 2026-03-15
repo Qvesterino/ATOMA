@@ -99,11 +99,16 @@ export class SynergyCascadeVisualizer {
     
     // Frame counter
     this.frameCounter = 0;
+    this.pollingStrideFrames = 6; // Keep fallback polling, but lighter than per-update scan.
+    this.pendingSynergyUpdates = new Map(); // nodeId -> synergy value from semantic events
+    this._semanticBus = null;
+    this._semanticHandler = null;
     
     // Debug mode
     this.debugMode = false;
     
     console.log('✅ SynergyCascadeVisualizer initialized');
+    this.bindSemanticEvents();
     this.setupConsoleAPI();
   }
   
@@ -125,8 +130,13 @@ export class SynergyCascadeVisualizer {
     
     const startTime = performance.now();
     
-    // Detect new cascades from high-synergy nodes
-    this.detectCascadeSources();
+    // Process event-driven node updates first (lightweight targeted path).
+    this.processPendingSynergyUpdates();
+
+    // Keep polling as fallback, but run less often to reduce scanning cost.
+    if (this.pendingSynergyUpdates.size === 0 && (this.frameCounter % this.pollingStrideFrames === 0)) {
+      this.detectCascadeSources();
+    }
     
     // Update active cascades
     this.updateActiveCascades(deltaTime);
@@ -155,19 +165,71 @@ export class SynergyCascadeVisualizer {
     for (const node of nodes) {
       // Get node synergy value
       const synergy = this.getNodeSynergy(node);
-      
-      // Check if this node should trigger a cascade
-      if (synergy > this.config.detectionThreshold) {
-        // Check if node already has active cascade
-        const existingCascade = this.activeCascades.find(c => c.sourceNode === node);
-        
-        if (!existingCascade) {
-          // Initiate new cascade
-          this.initiateCascade(node, synergy);
-        } else {
-          // Update existing cascade intensity
-          existingCascade.intensity = Math.min(1.0, synergy);
-        }
+      this.upsertCascadeForNode(node, synergy);
+    }
+  }
+
+  bindSemanticEvents() {
+    const semanticBus = globalThis?.semanticBus;
+    if (!semanticBus) return;
+    const on = semanticBus.on?.bind(semanticBus) || semanticBus.subscribe?.bind(semanticBus);
+    if (!on) return;
+
+    this._semanticBus = semanticBus;
+    this._semanticHandler = (payload = {}) => {
+      if (payload?.metric !== 'synergy') return; // react only to synergy metric updates
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      const value = Number(payload?.value);
+      this.pendingSynergyUpdates.set(String(nodeId), Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0);
+    };
+
+    on('metric.node.updated', this._semanticHandler, { priority: semanticBus.priority?.NORMAL });
+  }
+
+  processPendingSynergyUpdates() {
+    if (this.pendingSynergyUpdates.size === 0) return;
+
+    for (const [nodeId, synergy] of this.pendingSynergyUpdates.entries()) {
+      const node = this.resolveNodeById(nodeId);
+      if (!node) continue;
+      this.upsertCascadeForNode(node, synergy);
+    }
+
+    this.pendingSynergyUpdates.clear();
+  }
+
+  resolveNodeById(nodeId) {
+    if (!this.linkingSystem?.aiNodes) return null;
+    const nodesRef = this.linkingSystem.aiNodes.nodes;
+    const token = String(nodeId);
+
+    if (nodesRef instanceof Map) {
+      if (nodesRef.has(nodeId)) return nodesRef.get(nodeId);
+      if (nodesRef.has(token)) return nodesRef.get(token);
+      for (const node of nodesRef.values()) {
+        const candidateId = node?.userData?.nodeId ?? node?.id ?? node?.uuid;
+        if (candidateId !== undefined && String(candidateId) === token) return node;
+      }
+      return null;
+    }
+
+    const nodes = Array.isArray(nodesRef) ? nodesRef : [];
+    for (const node of nodes) {
+      const candidateId = node?.userData?.nodeId ?? node?.id ?? node?.uuid;
+      if (candidateId !== undefined && String(candidateId) === token) return node;
+    }
+    return null;
+  }
+
+  upsertCascadeForNode(node, synergy) {
+    if (!node) return;
+    if (synergy > this.config.detectionThreshold) {
+      const existingCascade = this.activeCascades.find(c => c.sourceNode === node);
+      if (!existingCascade) {
+        this.initiateCascade(node, synergy);
+      } else {
+        existingCascade.intensity = Math.min(1.0, synergy);
       }
     }
   }

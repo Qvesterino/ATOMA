@@ -148,11 +148,7 @@ export class GlyphFusionOverlay4_1 {
     }
     
     // Network events - trigger exploring state
-    this.semanticBus.subscribe('network.link.created', (evt) => {
-      if (!this.enabled) return;
-      this.handleLinkCreated(evt);
-    });
-    this.semanticBus.subscribe('link:created', (evt) => {
+    this.semanticBus.subscribe('link.created', (evt) => {
       if (!this.enabled) return;
       this.handleLinkCreated(evt);
     });
@@ -216,7 +212,11 @@ export class GlyphFusionOverlay4_1 {
    */
   handleLinkCreated(evt) {
     // Trigger exploring state on source node
-    this.triggerExploringState(evt.sourceNodeId || evt.sourceId, evt.timestamp);
+    const sourceNodeRef = evt.sourceNodeId || evt.sourceId || evt.source;
+    const sourceNodeId = (sourceNodeRef && typeof sourceNodeRef === 'object')
+      ? (sourceNodeRef.userData?.nodeId || sourceNodeRef.id || sourceNodeRef.uuid)
+      : sourceNodeRef;
+    this.triggerExploringState(sourceNodeId, evt.timestamp);
   }
   
   handleLinkDestroyed(evt) {

@@ -34,7 +34,7 @@ import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 
 export class AdaptiveGlyphRendering1_0 {
-  constructor(scene) {
+  constructor(scene, semanticBus = null) {
     this.scene = scene;
     
     // Enable/disable adaptivity
@@ -82,8 +82,73 @@ export class AdaptiveGlyphRendering1_0 {
     
     // Cache for metric tracking
     this.metricCache = new Map(); // nodeId → last metrics used
+
+    // Event-driven metric updates
+    this.semanticBus = semanticBus || globalThis?.semanticBus || null;
+    this.dirtyNodes = new Set();
+    this._eventDrivenEnabled = false;
+    this._metricUpdatedHandler = null;
+    this._unsubscribeMetricUpdated = null;
+    this._setupMetricSubscription();
     
     console.log('✓ Adaptive Glyph Rendering 1.0 initialized');
+  }
+
+  _setupMetricSubscription() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+      this._eventDrivenEnabled = false;
+      return;
+    }
+
+    this._metricUpdatedHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      const metric = payload?.metric;
+      const value = Number(payload?.value);
+      if (nodeId === undefined || nodeId === null || !metric || !Number.isFinite(value)) return;
+
+      const id = String(nodeId);
+      const cached = this.metricCache.get(id) || {
+        synergy: 0,
+        harmony: 0,
+        corruption: 0,
+        stability: 0,
+        load: 0
+      };
+
+      if (metric === 'synergy') cached.synergy = Math.max(0, Math.min(1, value));
+      if (metric === 'harmony') cached.harmony = Math.max(0, Math.min(1, value));
+      if (metric === 'corruption') cached.corruption = Math.max(0, Math.min(1, value));
+      if (metric === 'stability') cached.stability = Math.max(0, Math.min(1, value));
+      if (metric === 'loadPressure') cached.load = Math.max(0, Math.min(1, value));
+
+      this.metricCache.set(id, cached);
+      this.dirtyNodes.add(id);
+    };
+
+    const maybeUnsubscribe = this.semanticBus.subscribe(
+      'metric.node.updated',
+      this._metricUpdatedHandler
+    );
+
+    if (typeof maybeUnsubscribe === 'function') {
+      this._unsubscribeMetricUpdated = maybeUnsubscribe;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeMetricUpdated = () => {
+        this.semanticBus.unsubscribe('metric.node.updated', this._metricUpdatedHandler);
+      };
+    }
+
+    this._eventDrivenEnabled = true;
+  }
+
+  getNodeId(node, nodeIndex = null) {
+    const id =
+      node?.userData?.nodeId ??
+      node?.userData?.id ??
+      node?.id ??
+      node?.uuid ??
+      (nodeIndex !== null ? `node-${nodeIndex}` : null);
+    return id === undefined || id === null ? null : String(id);
   }
 
   /**
@@ -114,16 +179,37 @@ export class AdaptiveGlyphRendering1_0 {
         synergy: 0,
         harmony: 0,
         corruption: 0,
-        Stability: 0,
+        stability: 0,
         load: 0
       };
     }
-    
+
+    if (this._eventDrivenEnabled) {
+      const nodeId = this.getNodeId(node);
+      const cached = nodeId ? this.metricCache.get(nodeId) : null;
+      if (cached) {
+        return {
+          synergy: cached.synergy ?? 0,
+          harmony: cached.harmony ?? 0,
+          corruption: cached.corruption ?? 0,
+          stability: cached.stability ?? 0,
+          load: cached.load ?? 0
+        };
+      }
+      return {
+        synergy: 0,
+        harmony: 0,
+        corruption: 0,
+        stability: 0,
+        load: 0
+      };
+    }
+
     return {
       synergy: Math.max(0, Math.min(1, node.userData?.metrics?.synergy ?? 0)),
       harmony: Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0)),
       corruption: Math.max(0, Math.min(1, node.userData?.metrics?.corruption ?? 0)),
-      Stability: Math.max(0, Math.min(1, node.userData.Stability || 0)),
+      stability: Math.max(0, Math.min(1, node.userData?.metrics?.stability ?? node.userData?.Stability ?? 0)),
       load: Math.max(0, Math.min(1, node.userData?.metrics?.loadPressure ?? 0))
     };
   }
@@ -327,11 +413,32 @@ export class AdaptiveGlyphRendering1_0 {
     this.globalTime = currentGlyphTime;
     
     let processedCount = 0;
+
+    let nodesToProcess = nodes;
+    if (this._eventDrivenEnabled) {
+      if (this.dirtyNodes.size === 0) {
+        this.stats.nodesProcessed = 0;
+        this.stats.activeAdaptations = 0;
+        this.stats.lastFrameTime = (VisualTime.now - startTime) * 1000;
+        return;
+      }
+
+      nodesToProcess = [];
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (!node) continue;
+        const nodeId = this.getNodeId(node, i);
+        if (nodeId && this.dirtyNodes.has(nodeId)) {
+          nodesToProcess.push(node);
+        }
+      }
+    }
     
-    nodes.forEach((node, nodeIndex) => {
+    nodesToProcess.forEach((node, nodeIndex) => {
       if (!node || !node.visualGroup) return;
       
-      const nodeId = node.uuid || `node-${nodeIndex}`;
+      const nodeId = this.getNodeId(node, nodeIndex);
+      if (!nodeId) return;
       
       // Initialize state if needed
       if (!this.nodeAnimationState.has(nodeId)) {
@@ -382,8 +489,12 @@ export class AdaptiveGlyphRendering1_0 {
         }
       });
     });
+
+    if (this._eventDrivenEnabled) {
+      this.dirtyNodes.clear();
+    }
     
-    this.stats.nodesProcessed = nodes.length;
+    this.stats.nodesProcessed = nodesToProcess.length;
     this.stats.activeAdaptations = processedCount;
     this.stats.lastFrameTime = (VisualTime.now - startTime) * 1000;
   }
@@ -534,6 +645,19 @@ export class AdaptiveGlyphRendering1_0 {
    * Clear animation state for cleanup
    */
   cleanup() {
+    if (typeof this._unsubscribeMetricUpdated === 'function') {
+      try {
+        this._unsubscribeMetricUpdated();
+      } catch (e) {
+        // noop
+      }
+    }
+
+    this._unsubscribeMetricUpdated = null;
+    this._metricUpdatedHandler = null;
+    this._eventDrivenEnabled = false;
+    this.dirtyNodes.clear();
+    this.metricCache.clear();
     this.nodeAnimationState.clear();
     console.log('✓ Adaptive Glyph Rendering cleaned up');
   }

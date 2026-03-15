@@ -218,7 +218,7 @@ function createHaloMaterial() {
  * Manages resonance halos for harmonic hubs
  */
 export class HarmonicNodeResonanceHalos {
-  constructor() {
+  constructor(semanticBus = null) {
     // Per-node halo state tracking
     this.nodeHalos = new Map(); // nodeId → { node, haloMesh, state, ... }
     
@@ -232,6 +232,89 @@ export class HarmonicNodeResonanceHalos {
     
     // Stats
     this.activeHaloCount = 0;
+
+    // Event-driven harmony updates
+    this.semanticBus = semanticBus || globalThis?.semanticBus || null;
+    this.dirtyNodes = new Set();
+    this.harmonyByNode = new Map();
+    this._eventDrivenEnabled = false;
+    this._harmonyResonanceHandler = null;
+    this._unsubscribeHarmonyResonance = null;
+
+    this._setupHarmonySubscription();
+  }
+
+  _setupHarmonySubscription() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') {
+      this._eventDrivenEnabled = false;
+      return;
+    }
+
+    this._harmonyResonanceHandler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+
+      const id = String(nodeId);
+      const value = Number(payload?.value);
+      if (Number.isFinite(value)) {
+        this.harmonyByNode.set(id, Math.max(0, Math.min(1, value)));
+      }
+      this.dirtyNodes.add(id);
+    };
+
+    const maybeUnsubscribe = this.semanticBus.subscribe(
+      'event:harmonyResonance',
+      this._harmonyResonanceHandler
+    );
+
+    if (typeof maybeUnsubscribe === 'function') {
+      this._unsubscribeHarmonyResonance = maybeUnsubscribe;
+    } else if (typeof this.semanticBus.unsubscribe === 'function') {
+      this._unsubscribeHarmonyResonance = () => {
+        this.semanticBus.unsubscribe('event:harmonyResonance', this._harmonyResonanceHandler);
+      };
+    }
+
+    this._eventDrivenEnabled = true;
+  }
+
+  _findNodeEntryById(nodeRegistry, targetId) {
+    if (!nodeRegistry || targetId === undefined || targetId === null) return null;
+    const target = String(targetId);
+
+    if (typeof nodeRegistry.get === 'function') {
+      const direct = nodeRegistry.get(target) ?? nodeRegistry.get(Number(target));
+      if (direct) return { node: direct, nodeId: target };
+
+      for (const [nodeId, node] of nodeRegistry.entries()) {
+        if (!node) continue;
+        const userData = node.userData || {};
+        if (String(nodeId) === target) return { node, nodeId: String(nodeId) };
+        if (String(userData.nodeId) === target) return { node, nodeId: String(nodeId) };
+        if (String(userData.id) === target) return { node, nodeId: String(nodeId) };
+        if (String(node.id) === target) return { node, nodeId: String(nodeId) };
+        if (String(node.uuid) === target) return { node, nodeId: String(nodeId) };
+      }
+      return null;
+    }
+
+    if (typeof nodeRegistry.forEach === 'function') {
+      let found = null;
+      nodeRegistry.forEach((node, nodeId) => {
+        if (found || !node) return;
+        const userData = node.userData || {};
+        if (String(nodeId) === target ||
+            String(userData.nodeId) === target ||
+            String(userData.id) === target ||
+            String(node.id) === target ||
+            String(node.uuid) === target) {
+          found = { node, nodeId: String(nodeId ?? userData.nodeId ?? node.id ?? node.uuid ?? target) };
+        }
+      });
+      return found;
+    }
+
+    return null;
   }
 
   /**
@@ -329,33 +412,53 @@ export class HarmonicNodeResonanceHalos {
     this.totalTime += deltaTime;
     this.lastUpdateTime = performance.now();
     this.activeHaloCount = 0;
-    
-    // Update each node's halo
-    nodeRegistry.forEach((node, nodeId) => {
-      if (!node) return;
-      
-      // Get or initialize halo
-      const haloData = this.nodeHalos.get(nodeId) || 
+
+    if (!this._eventDrivenEnabled) {
+      // Fallback: keep original polling when semanticBus is unavailable
+      nodeRegistry.forEach((node, nodeId) => {
+        if (!node) return;
+        
+        const haloData = this.nodeHalos.get(nodeId) ||
+                        this.initializeNodeHalo(nodeId, node, node.scale?.x || 1.0);
+        
+        if (!haloData) return;
+        
+        const hubState = this.getHubState(nodeId, hubSystemData, harmonicManagerData, node);
+        const shouldBeActive = this.shouldHaloBeActive(hubState);
+        
+        this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime);
+        this.applyHaloVisuals(haloData);
+        
+        if (haloData.isActive) {
+          this.activeHaloCount++;
+        }
+      });
+      return;
+    }
+
+    if (this.dirtyNodes.size === 0) return;
+
+    for (const dirtyNodeId of this.dirtyNodes) {
+      const entry = this._findNodeEntryById(nodeRegistry, dirtyNodeId);
+      if (!entry || !entry.node) continue;
+
+      const { node, nodeId } = entry;
+      const haloData = this.nodeHalos.get(nodeId) ||
                       this.initializeNodeHalo(nodeId, node, node.scale?.x || 1.0);
-      
-      if (!haloData) return;
-      
-      // Get hub state from hubSystemData, harmonicManagerData, or node userData
+      if (!haloData) continue;
+
       const hubState = this.getHubState(nodeId, hubSystemData, harmonicManagerData, node);
-      
-      // Determine if halo should be active
       const shouldBeActive = this.shouldHaloBeActive(hubState);
-      
-      // Update halo state
+
       this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime);
-      
-      // Apply halo visuals
       this.applyHaloVisuals(haloData);
-      
+
       if (haloData.isActive) {
         this.activeHaloCount++;
       }
-    });
+    }
+
+    this.dirtyNodes.clear();
   }
 
   /**
@@ -432,7 +535,14 @@ export class HarmonicNodeResonanceHalos {
       state.hubPhase = node.userData.hubPhase || state.hubPhase;
       state.hubSyncStrength = node.userData.hubSyncStrength || state.hubSyncStrength;
       const metrics = node.userData.metrics || {};
-      state.harmony = metrics.harmony ?? state.harmony;
+      if (this._eventDrivenEnabled) {
+        const eventHarmony = this.harmonyByNode.get(String(nodeId));
+        if (eventHarmony !== undefined) {
+          state.harmony = eventHarmony;
+        }
+      } else {
+        state.harmony = metrics.harmony ?? state.harmony;
+      }
       state.synergy = metrics.synergy ?? state.synergy;
       state.corruption = metrics.corruption ?? state.corruption;
       state.stability = metrics.stability ?? state.stability;
@@ -731,6 +841,20 @@ export class HarmonicNodeResonanceHalos {
    * Dispose all halos
    */
   dispose() {
+    if (typeof this._unsubscribeHarmonyResonance === 'function') {
+      try {
+        this._unsubscribeHarmonyResonance();
+      } catch (e) {
+        // Skip silently
+      }
+    }
+
+    this._unsubscribeHarmonyResonance = null;
+    this._harmonyResonanceHandler = null;
+    this.dirtyNodes.clear();
+    this.harmonyByNode.clear();
+    this._eventDrivenEnabled = false;
+
     this.nodeHalos.forEach((haloData) => {
       if (haloData.haloMesh) {
         this.restoreHaloScale(haloData);

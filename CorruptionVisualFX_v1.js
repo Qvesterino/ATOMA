@@ -72,10 +72,68 @@ export class CorruptionVisualFX_v1 {
     // VisualTime is the canonical source (Phase 2A); external time/delta params are maintained for legacy signatures only.
     this.visualTime = VisualTime;
     this.corruptionShaderVariant = THREE ? this._createCorruptionShaderVariant() : null;
+    this._semanticSubscriptions = [];
+    this._bindSemanticBus();
     
     if (this.debugMode) {
       console.log('%c[CorruptionVisualFX_v1] Initialized', 'color: #ff4400; font-weight: bold;');
       this.setupConsoleAPI();
+    }
+  }
+
+  _getSemanticBus() {
+    return globalThis?.semanticBus || null;
+  }
+
+  _bindSemanticBus() {
+    const bus = this._getSemanticBus();
+    if (!bus) return;
+    const on = bus.on?.bind(bus) || bus.subscribe?.bind(bus);
+    if (!on) return;
+
+    const handleCorruptionSpike = (data = {}) => {
+      this.triggerCorruptionPulse(data.nodeId);
+    };
+
+    on('metric.corruption.spike', handleCorruptionSpike, { priority: bus.priority?.NORMAL });
+    this._semanticSubscriptions.push(['metric.corruption.spike', handleCorruptionSpike]);
+  }
+
+  _resolveNodeById(nodeId) {
+    if (nodeId === undefined || nodeId === null || !this.aiNodes) return null;
+    const idToken = String(nodeId);
+
+    const candidates = [];
+    if (Array.isArray(this.aiNodes?.nodes)) candidates.push(...this.aiNodes.nodes);
+    else if (this.aiNodes?.nodes instanceof Map) candidates.push(...this.aiNodes.nodes.values());
+    else if (this.aiNodes instanceof Map) candidates.push(...this.aiNodes.values());
+    else if (Array.isArray(this.aiNodes)) candidates.push(...this.aiNodes);
+
+    for (const node of candidates) {
+      if (!node) continue;
+      const nid = node?.nodeId ?? node?.id ?? node?.uuid ?? node?.userData?.nodeId;
+      if (nid !== undefined && String(nid) === idToken) return node;
+    }
+    return null;
+  }
+
+  triggerCorruptionPulse(nodeId) {
+    if (!THREE) return;
+    const node = this._resolveNodeById(nodeId);
+    if (!node) return;
+
+    const baseCorruption = Math.max(
+      0,
+      Math.min(
+        1,
+        node?.userData?.metrics?.corruption ??
+        node?.userData?.corruption ??
+        0.7
+      )
+    );
+    const pulseLevel = Math.max(0.65, baseCorruption);
+    for (let i = 0; i < 4; i++) {
+      this.emitChaosParticle(node, pulseLevel, i < 2);
     }
   }
 
@@ -637,6 +695,17 @@ export class CorruptionVisualFX_v1 {
 
     console.log('%c[CorruptionVisualDebug] API available: window.corruptionVisualDebug', 
       'color: #ff4400;');
+  }
+
+  dispose() {
+    const bus = this._getSemanticBus();
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off) {
+      for (const [eventName, handler] of this._semanticSubscriptions) {
+        off(eventName, handler);
+      }
+    }
+    this._semanticSubscriptions = [];
   }
 }
 

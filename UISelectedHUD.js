@@ -68,6 +68,8 @@ export class UISelectedHUD {
         this.isVisible = true;
         this.selectedNode = null;
         this.linkedCategories = [];
+        this.semanticBus = null;
+        this._semanticLinkCreatedHandler = null;
         
         // [LinkPriority v1.0] Track max priority tier of linked nodes
         this.maxLinkedPriorityTier = 0;
@@ -204,6 +206,30 @@ export class UISelectedHUD {
                 console.log('[SelectedHUD] ✓ Updated display for link creation');
             }
         });
+
+        const semanticBus = this.semanticBus || linkingSystem?.semanticBus || globalThis?.semanticBus;
+        if (semanticBus?.on && !this._semanticLinkCreatedHandler) {
+            this.semanticBus = semanticBus;
+            this._semanticLinkCreatedHandler = (event = {}) => {
+                const payload = this._normalizeLinkCreatedEvent(event);
+                const { source, target } = payload;
+                if (!source || !target || !this.selectedNode) return;
+
+                const selectedId = this._resolveNodeId(this.selectedNode);
+                const sourceId = this._resolveNodeId(source);
+                const targetId = this._resolveNodeId(target);
+                const involved =
+                    this.selectedNode === source ||
+                    this.selectedNode === target ||
+                    (selectedId && (selectedId === sourceId || selectedId === targetId));
+
+                if (involved) {
+                    this.updateLinkedCategories(this.selectedNode);
+                    this.updateDisplay(this.selectedNode);
+                }
+            };
+            semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+        }
         
         // Listen for link removal events
         linkingSystem.onLinkRemoved((source, target) => {
@@ -215,6 +241,33 @@ export class UISelectedHUD {
                 console.log('[SelectedHUD] ✓ Updated display for link removal');
             }
         });
+    }
+
+    _resolveNodeId(node) {
+        if (!node) return null;
+        if (typeof node === 'string' || typeof node === 'number') return String(node);
+        return this.linkingSystem?.getNodeId ? this.linkingSystem.getNodeId(node) : (node.userData?.nodeId || node.id || node.uuid || null);
+    }
+
+    _normalizeLinkCreatedEvent(event = {}) {
+        let source = event.source ?? null;
+        let target = event.target ?? null;
+        let linkId = event.linkId ?? event.id ?? null;
+
+        const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+        if ((!source || !target) && linkId !== null) {
+            const link = links.find((item) => (item?.id ?? item?.userData?.id) === linkId);
+            if (link) {
+                source = source || link.source || link.nodeA || null;
+                target = target || link.target || link.nodeB || null;
+            }
+        }
+
+        return {
+            source,
+            target,
+            linkId
+        };
     }
     
     /**

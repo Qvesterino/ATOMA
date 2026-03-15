@@ -243,7 +243,10 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   _isHarmonyHub(node) {
     const harmony = node.userData?.metrics?.harmony ?? 0;
-    const corruption = node.userData?.corruption ?? 0;
+    const corruption =
+      node.userData?.metrics?.corruption ??
+      node.userData?.corruption ??
+      0;
     
     return harmony > corruption && harmony > this.config.harmonyThreshold;
   }
@@ -286,7 +289,10 @@ export class HarmonicHubAuraSystem_Session126 {
         avgPosition: hub.primaryNode.position.clone(),
         avgSynergy: 0,
         avgHarmony: hub.primaryNode.userData?.harmony ?? 0,
-        avgCorruption: hub.primaryNode.userData?.corruption ?? 0,
+        avgCorruption:
+          hub.primaryNode.userData?.metrics?.corruption ??
+          hub.primaryNode.userData?.corruption ??
+          0,
       };
       
       // Find nearby hubs
@@ -305,7 +311,14 @@ export class HarmonicHubAuraSystem_Session126 {
           const count = region.nodes.size;
           region.avgPosition.lerp(otherHub.primaryNode.position, 1 / count);
           region.avgHarmony = (region.avgHarmony * (count - 1) + (otherHub.primaryNode.userData?.harmony ?? 0)) / count;
-          region.avgCorruption = (region.avgCorruption * (count - 1) + (otherHub.primaryNode.userData?.corruption ?? 0)) / count;
+          region.avgCorruption = (
+            region.avgCorruption * (count - 1) +
+            (
+              otherHub.primaryNode.userData?.metrics?.corruption ??
+              otherHub.primaryNode.userData?.corruption ??
+              0
+            )
+          ) / count;
           
           used.add(j);
         }

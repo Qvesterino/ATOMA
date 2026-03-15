@@ -93,6 +93,9 @@ export class NodeLinkedAuraSystem {
     
     // Aura tracking
     this.nodeAuras = new Map();  // node → aura data
+    this._nodeMetricCache = new Map();
+    this._metricSubscriptionDisposer = null;
+    this._hasMetricSubscription = false;
     
     // Visual parameters
     this.visualParams = {
@@ -146,12 +149,101 @@ export class NodeLinkedAuraSystem {
       lastUpdateTime: 0,
       avgUpdateTime: 0
     };
+
+    this._initMetricSubscription();
     
     if (this.enabled) {
       console.log('[NodeAuraSystem] Initialized (ENABLED)');
     } else {
       console.log('[NodeAuraSystem] Initialized (DISABLED - use game.enableNodeAuras() to activate)');
     }
+  }
+
+  _initMetricSubscription() {
+    const semanticBus = globalThis.semanticBus;
+    const subscribe = semanticBus?.subscribe;
+    if (typeof subscribe !== 'function') {
+      return;
+    }
+
+    const handler = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      const metric = payload?.metric;
+      const value = payload?.value;
+      if (nodeId === undefined || nodeId === null || typeof metric !== 'string') {
+        return;
+      }
+      const normalized = this._sanitizeMetric(metric, value);
+      if (normalized === null) {
+        return;
+      }
+
+      const key = String(nodeId);
+      const cached = this._nodeMetricCache.get(key) ?? {};
+      cached[metric] = normalized;
+      this._nodeMetricCache.set(key, cached);
+    };
+
+    this._metricSubscriptionDisposer = subscribe.call(semanticBus, 'metric.node.updated', handler);
+    this._hasMetricSubscription = true;
+  }
+
+  _sanitizeMetric(metric, value) {
+    if (typeof value !== 'number' || !isFinite(value)) return null;
+    switch (metric) {
+      case 'synergy':
+      case 'harmony':
+      case 'stability':
+      case 'corruption':
+      case 'loadPressure':
+        return Math.max(0, Math.min(1, value));
+      default:
+        return null;
+    }
+  }
+
+  _getNodeMetricKey(node) {
+    const key = node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
+    return key === null ? null : String(key);
+  }
+
+  _getNodeMetric(node, metric, fallback = 0) {
+    const fallbackValue = Math.max(0, Math.min(1, fallback));
+    if (!this._hasMetricSubscription) {
+      return fallbackValue;
+    }
+
+    const key = this._getNodeMetricKey(node);
+    if (!key) {
+      return fallbackValue;
+    }
+
+    const cached = this._nodeMetricCache.get(key);
+    if (cached && typeof cached[metric] === 'number') {
+      return cached[metric];
+    }
+
+    const nodeMetrics = node?.userData?.metrics;
+    if (nodeMetrics) {
+      const seeded = this._nodeMetricCache.get(key) ?? {};
+      seeded.synergy = Math.max(0, Math.min(1, nodeMetrics.synergy ?? seeded.synergy ?? 0.5));
+      seeded.harmony = Math.max(0, Math.min(1, nodeMetrics.harmony ?? seeded.harmony ?? 0.5));
+      seeded.stability = Math.max(0, Math.min(1, nodeMetrics.stability ?? seeded.stability ?? 0.5));
+      seeded.corruption = Math.max(
+        0,
+        Math.min(1, nodeMetrics.corruption ?? node?.userData?.corruption ?? seeded.corruption ?? 0)
+      );
+      seeded.loadPressure = Math.max(
+        0,
+        Math.min(1, nodeMetrics.loadPressure ?? nodeMetrics.load ?? nodeMetrics.loadRatio ?? seeded.loadPressure ?? 0)
+      );
+      this._nodeMetricCache.set(key, seeded);
+      if (typeof seeded[metric] === 'number') {
+        return seeded[metric];
+      }
+    }
+
+    return fallbackValue;
   }
   
   /**
@@ -397,10 +489,14 @@ export class NodeLinkedAuraSystem {
     }
     
     // Calculate corruption influence (0-1, defaults to 0 if not set)
-    const corruptionLevel = Math.max(0, Math.min(1, node.userData?.corruption ?? 0));
+    const corruptionLevel = this._getNodeMetric(
+      node,
+      'corruption',
+      node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0
+    );
     
     // Calculate harmony dampening (reduces corruption visual effect)
-    const harmonyLevel = Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0));
+    const harmonyLevel = this._getNodeMetric(node, 'harmony', node.userData?.metrics?.harmony ?? 0);
     const harmonyDampen = 1.0 - (harmonyLevel * 0.4);  // Up to 40% reduction at max harmony
     
     // Effective corruption after harmony dampening
@@ -429,8 +525,12 @@ export class NodeLinkedAuraSystem {
       // ====================================================================
       // Stability = inverse of corruption, modulated by harmony
       // Range: 0 (unstable, corrupted) to 1 (stable, harmonious)
-      const corruption = Math.max(0, Math.min(1, node.userData?.corruption ?? 0));
-      const harmony = Math.max(0, Math.min(1, node.userData?.metrics?.harmony ?? 0));
+      const corruption = this._getNodeMetric(
+        node,
+        'corruption',
+        node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0
+      );
+      const harmony = this._getNodeMetric(node, 'harmony', node.userData?.metrics?.harmony ?? 0);
       
       // Stability: start from (1 - corruption), boost with harmony
       // = harmony helps stabilize even corrupted nodes
@@ -970,6 +1070,11 @@ export class NodeLinkedAuraSystem {
     }
     
     this.nodeAuras.clear();
+    if (typeof this._metricSubscriptionDisposer === 'function') {
+      this._metricSubscriptionDisposer();
+    }
+    this._metricSubscriptionDisposer = null;
+    this._nodeMetricCache.clear();
     
     console.log('[NodeAuraSystem] Disposed');
   }
