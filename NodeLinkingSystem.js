@@ -3687,6 +3687,14 @@ getLinksForNode(node) {
           link.target
         );
       }
+      // Register link with node interference manager (if available)
+      if (this.conduitRenderer?.nodeInterferenceManager) {
+        this.conduitRenderer.nodeInterferenceManager.registerLinkWithNodes(
+          link,
+          link.source,
+          link.target
+        );
+      }
       
       LinkPrioritySystem.initializeLinkPriority(link);
       this._addLinkToIndex(link);
@@ -4832,6 +4840,26 @@ getLinksForNode(node) {
     if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
       this.conduitRenderer.updateTrailParticles(deltaTime, time);
       this.conduitRenderer.updateHealingParticles(deltaTime, time);
+
+      // Ensure interference controllers are fed with current node/link graph every visual frame.
+      if (Array.isArray(this.aiNodes?.nodes) && this.conduitRenderer?.nodeInterferenceManager) {
+        for (const node of this.aiNodes.nodes) {
+          if (node) this.conduitRenderer.nodeInterferenceManager.registerNode(node);
+        }
+      }
+
+      const networkMetrics = this.aiNodes?.nodeDynamicMetrics || this.nodeDynamicMetrics || {};
+      const avgHarmony = Number.isFinite(networkMetrics.avgHarmony) ? networkMetrics.avgHarmony : 0.5;
+      const avgCorruption = Number.isFinite(networkMetrics.avgCorruption) ? networkMetrics.avgCorruption : 0.0;
+      const avgStability = Number.isFinite(networkMetrics.avgStability) ? networkMetrics.avgStability : 0.5;
+      const avgInstability = Math.max(0, Math.min(1, 1 - avgStability));
+
+      this.conduitRenderer.updateNodeInterference?.(
+        this.links,
+        avgHarmony,
+        avgCorruption,
+        avgInstability
+      );
     }
     
     // [Dynamic Thickness v1.0] Animate all links toward target thickness values

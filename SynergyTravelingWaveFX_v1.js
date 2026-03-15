@@ -92,9 +92,9 @@ class WaveMaterialState {
         
         // GPU uniforms
         this.uniforms = {
-            uTime: { value: 0 },
+            uSynergyTravelTime: { value: 0 },
             uWaveSpeed: { value: 4.0 },
-            uWaveIntensity: { value: 1.0 },
+            uSynergyTravelIntensity: { value: 1.0 },
             uWaveColor: { value: new THREE.Color(0x00ff00) },
             uCascadeDepth: { value: 0 },
             uPropagationDirection: { value: 1.0 },
@@ -173,9 +173,9 @@ class WaveMaterialState {
                 // SYNERGY TRAVELING WAVE FX - FRAGMENT INJECTION
                 // ============================================================
                 
-                uniform float uTime;
+                uniform float uSynergyTravelTime;
                 uniform float uWaveSpeed;
-                uniform float uWaveIntensity;
+                uniform float uSynergyTravelIntensity;
                 uniform vec3 uWaveColor;
                 uniform float uCascadeDepth;
                 uniform float uPropagationDirection;
@@ -220,7 +220,7 @@ class WaveMaterialState {
                 
                 float calculateWavefront() {
                     // Wave position based on time and speed
-                    float wavePosition = uWaveSpeed * uTime * uPropagationDirection;
+                    float wavePosition = uWaveSpeed * uSynergyTravelTime * uPropagationDirection;
                     
                     // Distance from wavefront
                     float distFromWave = abs(vWaveDistance - wavePosition);
@@ -233,12 +233,12 @@ class WaveMaterialState {
                     
                     // Apply noise distortion for corrupted synergy
                     if (uNoiseStrength > 0.001) {
-                        float noisePattern = fbm(vWaveDistance * 3.0 + uTime * 2.0);
+                        float noisePattern = fbm(vWaveDistance * 3.0 + uSynergyTravelTime * 2.0);
                         wavefront *= mix(1.0, noisePattern, uNoiseStrength);
                     }
                     
                     // Pulsation for resonance waves
-                    float pulsation = 1.0 + sin(uTime * uPulsationFreq * 6.28318) * 0.3;
+                    float pulsation = 1.0 + sin(uSynergyTravelTime * uPulsationFreq * 6.28318) * 0.3;
                     wavefront *= pulsation;
                     
                     return wavefront;
@@ -249,7 +249,7 @@ class WaveMaterialState {
                 // ============================================================
                 
                 float calculateWaveIntensity() {
-                    float wavePosition = uWaveSpeed * uTime * uPropagationDirection;
+                    float wavePosition = uWaveSpeed * uSynergyTravelTime * uPropagationDirection;
                     float distFromWave = abs(vWaveDistance - wavePosition);
                     
                     // Different intensity profiles based on wave type
@@ -262,11 +262,11 @@ class WaveMaterialState {
                     // Negative wave: soft falloff with inversion
                     else if (uCascadeDepth < 0.66) {
                         intensity = smoothstep(3.0, 0.5, distFromWave);
-                        intensity = 0.5 + sin(uTime * 3.0 + distFromWave) * 0.3;
+                        intensity = 0.5 + sin(uSynergyTravelTime * 3.0 + distFromWave) * 0.3;
                     }
                     // Resonance wave: pulsating profile
                     else {
-                        float pulse = 0.5 + 0.5 * sin(uTime * uPulsationFreq * 6.28318);
+                        float pulse = 0.5 + 0.5 * sin(uSynergyTravelTime * uPulsationFreq * 6.28318);
                         intensity = pulse * max(0.0, 1.0 - (distFromWave * 0.3));
                     }
                     
@@ -297,7 +297,7 @@ class WaveMaterialState {
                     waveColor += vec3(0.1) * intensity * uSynergyLevel;
                     
                     // Pulse effect
-                    float pulse = 0.5 + 0.5 * sin(uTime * uPulsationFreq * 6.28318);
+                    float pulse = 0.5 + 0.5 * sin(uSynergyTravelTime * uPulsationFreq * 6.28318);
                     waveColor = mix(waveColor, waveColor * pulse, 0.3);
                     
                     return waveColor;
@@ -309,7 +309,7 @@ class WaveMaterialState {
                 
                 void applyTravelingWaveEffect(inout vec4 color) {
                     // Only apply if wave is active
-                    if (uWaveIntensity < 0.001) return;
+                    if (uSynergyTravelIntensity < 0.001) return;
                     
                     // Calculate wavefront contribution
                     float wavefront = calculateWavefront();
@@ -318,13 +318,13 @@ class WaveMaterialState {
                     
                     // Blend wave into existing color
                     // Use additive blending for glowing effect
-                    vec3 finalWaveColor = waveColor * intensity * uWaveIntensity;
+                    vec3 finalWaveColor = waveColor * intensity * uSynergyTravelIntensity;
                     
                     // Additive blend
                     color.rgb += finalWaveColor * 0.5;
                     
                     // Optional: increase alpha for visibility
-                    color.a = max(color.a, intensity * uWaveIntensity * 0.8);
+                    color.a = max(color.a, intensity * uSynergyTravelIntensity * 0.8);
                 }
             `;
             
@@ -402,7 +402,7 @@ class WaveMaterialState {
      */
     update(deltaTime, globalTime) {
         // Update global time uniform
-        this.uniforms.uTime.value = globalTime;
+        this.uniforms.uSynergyTravelTime.value = globalTime;
         
         // Decay chain event trigger
         if (this.uniforms.uChainEvent.value > 0) {
@@ -414,11 +414,11 @@ class WaveMaterialState {
             const elapsedTime = (performance.now() / 1000.0) - this.waveStartTime;
             if (elapsedTime > this.waveDuration) {
                 this.waveActive = false;
-                this.uniforms.uWaveIntensity.value = 0.0;
+                this.uniforms.uSynergyTravelIntensity.value = 0.0;
             } else {
                 // Fade intensity over duration
                 const progress = elapsedTime / this.waveDuration;
-                this.uniforms.uWaveIntensity.value = Math.max(0, 1.0 - progress);
+                this.uniforms.uSynergyTravelIntensity.value = Math.max(0, 1.0 - progress);
             }
         }
     }
@@ -435,6 +435,14 @@ export class SynergyTravelingWaveFX_v1 {
             waveSpeedBase: config.waveSpeedBase || 4.0,  // 2–8 units/sec
             waveIntensityBase: config.waveIntensityBase || 1.0
         };
+        this.semanticBus = config.semanticBus || globalThis.semanticBus || null;
+        this.linkingSystem =
+            config.linkingSystem ||
+            config.nodeLinking ||
+            globalThis.game?.linkingSystem ||
+            globalThis.game?.nodeLinking ||
+            null;
+        this.aiNodes = config.aiNodes || globalThis.game?.aiNodes || null;
         
         // Material state tracking (WeakMap for automatic GC)
         this.materialStates = new WeakMap();
@@ -447,10 +455,78 @@ export class SynergyTravelingWaveFX_v1 {
         
         // Active waves tracking
         this.activeWaves = new Map();  // material → { depth, synergyLevel, startTime }
+        this._boundSemanticWaveSpawn = (event = {}) => this.spawnWave(event?.node, event);
+        this._subscribeSemanticEvents();
         
         if (this.config.debugEnabled) {
             console.log('[SynergyTravelingWaveFX_v1] Initialized ✓');
         }
+    }
+
+    _subscribeSemanticEvents() {
+        if (!this.semanticBus?.on) return;
+        this.semanticBus.on('node.synergy.high', this._boundSemanticWaveSpawn);
+        this.semanticBus.on('metric:synergySpike', this._boundSemanticWaveSpawn);
+    }
+
+    _resolveNodeRef(nodeOrId) {
+        if (!nodeOrId) return null;
+        if (typeof nodeOrId === 'object') return nodeOrId;
+
+        const nodes = this.aiNodes?.nodes;
+        if (!Array.isArray(nodes)) return null;
+        return nodes.find((node) =>
+            node?.id === nodeOrId ||
+            node?.uuid === nodeOrId ||
+            node?.userData?.nodeId === nodeOrId ||
+            node?.userData?.id === nodeOrId
+        ) || null;
+    }
+
+    _getLinks() {
+        return this.linkingSystem?.links || [];
+    }
+
+    _collectLinkMaterialsForNode(node) {
+        const links = this._getLinks();
+        if (!node || !Array.isArray(links) || links.length === 0) return [];
+
+        const materials = [];
+        const nodeId = node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
+
+        for (const link of links) {
+            const endpoints = [
+                link?.source,
+                link?.target,
+                link?.from,
+                link?.to,
+                link?.sourceNode,
+                link?.targetNode,
+                ...(Array.isArray(link?.nodes) ? link.nodes : [])
+            ].filter(Boolean);
+
+            const isConnected = endpoints.some((endpoint) => {
+                const endpointId = endpoint?.userData?.nodeId ?? endpoint?.userData?.id ?? endpoint?.id ?? endpoint?.uuid ?? null;
+                return endpoint === node || (nodeId !== null && endpointId !== null && endpointId === nodeId);
+            });
+            if (!isConnected) continue;
+
+            const linkGroup = link?.group;
+            if (!linkGroup?.traverse) continue;
+
+            linkGroup.traverse((child) => {
+                if (!child?.isMesh || !child.geometry || !child.material) return;
+                if (Array.isArray(child.material)) {
+                    for (const material of child.material) {
+                        if (material) materials.push(material);
+                    }
+                } else {
+                    materials.push(child.material);
+                }
+            });
+        }
+
+        return materials;
     }
     
     /**
@@ -503,6 +579,41 @@ export class SynergyTravelingWaveFX_v1 {
             }
         } catch (err) {
             console.error('[SynergyTravelingWaveFX_v1] Failed to trigger wave:', err);
+        }
+    }
+
+    spawnWave(nodeRef, event = {}) {
+        try {
+            const node = this._resolveNodeRef(nodeRef);
+            if (!node) return;
+
+            const synergyLevel = Math.max(
+                0,
+                Math.min(
+                    1,
+                    Number.isFinite(event?.value)
+                        ? event.value
+                        : (node?.userData?.metrics?.synergy ?? node?.metrics?.synergy ?? 0.7)
+                )
+            );
+            const depth = Math.max(
+                0,
+                Math.min(
+                    8,
+                    Number.isFinite(event?.depth)
+                        ? event.depth
+                        : Math.round((event?.linkCount ?? 2))
+                )
+            );
+
+            const materials = this._collectLinkMaterialsForNode(node);
+            for (const material of materials) {
+                this.triggerWave(material, depth, synergyLevel, 1.0);
+            }
+        } catch (err) {
+            if (this.config.debugEnabled) {
+                console.warn('[SynergyTravelingWaveFX_v1] spawnWave failed:', err);
+            }
         }
     }
     
@@ -585,7 +696,7 @@ export class SynergyTravelingWaveFX_v1 {
         try {
             const state = this.materialStates.get(material);
             if (state) {
-                state.uniforms.uWaveIntensity.value = Math.max(0, Math.min(1, intensity));
+                state.uniforms.uSynergyTravelIntensity.value = Math.max(0, Math.min(1, intensity));
             }
         } catch (err) {
             // Graceful fallback
@@ -638,6 +749,13 @@ export class SynergyTravelingWaveFX_v1 {
     dispose() {
         try {
             this.activeWaves.clear();
+            if (this.semanticBus?.unsubscribe) {
+                this.semanticBus.unsubscribe('node.synergy.high', this._boundSemanticWaveSpawn);
+                this.semanticBus.unsubscribe('metric:synergySpike', this._boundSemanticWaveSpawn);
+            } else if (this.semanticBus?.off) {
+                this.semanticBus.off('node.synergy.high', this._boundSemanticWaveSpawn);
+                this.semanticBus.off('metric:synergySpike', this._boundSemanticWaveSpawn);
+            }
             
             // WeakMap will auto-cleanup
             

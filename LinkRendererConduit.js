@@ -27,6 +27,7 @@ import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSy
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
+import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import VisualTime from './src/time/VisualTime.js';
 import { LinkSemanticPictogramSystem_Enhanced } from './LinkSemanticPictogramSystem_Enhanced.js';
 
@@ -455,6 +456,11 @@ const makeDebugId = (prefix = 'pic') => {
     return `${prefix}-${rand}-${ts}`;
 };
 
+const waveTravelPack = new WaveTravelShaderPack_v1({
+    enableDebug: false,
+    enableWarnings: true
+});
+
 // Merge and apply material patch in deterministic order
 function applyMaterialPatch(material, patch = {}) {
     if (!material) return;
@@ -659,6 +665,7 @@ export class LinkRendererConduit {
         this.camera = camera;
         this.frameScheduler = frameScheduler;
         this.travelingWaveFX = null; // optional synergy traveling-wave shader patcher
+        this.waveTravelShaderPack = waveTravelPack;
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
@@ -852,6 +859,15 @@ export class LinkRendererConduit {
         this.travelingWaveFX = travelingWaveFX || null;
     }
 
+    _registerLinkMaterialWithBridge(material) {
+        if (!material || !this.waveShaderBridge?.registerLinkMaterial) return;
+        if (Array.isArray(material)) {
+            material.forEach((mat) => this.waveShaderBridge.registerLinkMaterial(mat));
+            return;
+        }
+        this.waveShaderBridge.registerLinkMaterial(material);
+    }
+
     /**
      * Update all links (canonical list) - ensures beads/sparks tick every frame
      */
@@ -860,6 +876,12 @@ export class LinkRendererConduit {
             console.log('[PicDiag] updateAll tick', this._picDiagCount + 1);
             this._picDiagCount += 1;
         }
+
+        // Keep travel-wave uniforms moving on visual tick for locally owned pack.
+        if (this.waveTravelShaderPack === waveTravelPack) {
+            this.waveTravelShaderPack.update(deltaTime);
+        }
+
         const list = links
             || this.linkSystem?.links
             || this.links
@@ -1343,8 +1365,8 @@ export class LinkRendererConduit {
                     material.userData.__domain = 'link';
                     material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
 
-                    if (this.waveShaderBridge?.registerMaterial) this.waveShaderBridge.registerMaterial(material);
-                    if (this.waveTravelShaderPack?.applyToMaterial) this.waveTravelShaderPack.applyToMaterial(material);
+                    if (this.waveShaderBridge?.registerLinkMaterial) this.waveShaderBridge.registerLinkMaterial(material);
+                    if (this.waveTravelShaderPack?.register) this.waveTravelShaderPack.register(material, 'TRAVEL_SINE');
                     if (this.waveDynamicsShaderPack?.applyToMaterial) this.waveDynamicsShaderPack.applyToMaterial(material);
                     if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
 
@@ -1357,6 +1379,7 @@ export class LinkRendererConduit {
                         colorWrite: false,
                         side: THREE.DoubleSide
                     });
+                    this._registerLinkMaterialWithBridge(depthMaterial);
                     const depthMesh = new THREE.Mesh(geometry, depthMaterial);
                     Object.assign(ensureUserData(depthMesh), { strandIndex: i, strandDepthPrepass: true });
                     depthMesh.frustumCulled = false;
@@ -1632,6 +1655,7 @@ export class LinkRendererConduit {
                         depthWrite: false,
                         side: THREE.DoubleSide
                     });
+                    this._registerLinkMaterialWithBridge(mat);
                     layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? 0.5;
                     const shellTilt = 0.16 + layerIndex * 0.06;
                     const shellLift = baseTubeRadius * (0.7 + layerIndex * 0.2);
@@ -1664,6 +1688,7 @@ export class LinkRendererConduit {
                         depthWrite: false,
                         side: THREE.DoubleSide
                     });
+                    this._registerLinkMaterialWithBridge(trailMat);
                     const trailGeo = new THREE.TorusGeometry(
                         layerRadius * (1.0 + layerIndex * 0.015),
                         baseTubeRadius * 0.42,
@@ -1752,6 +1777,7 @@ export class LinkRendererConduit {
                     depthWrite: false,
                     side: THREE.DoubleSide
                 });
+                this._registerLinkMaterialWithBridge(mat);
                 layerGroup.userData.baseOpacity = layerOpacity[layerIndex] ?? (0.5 * 0.35);
                 const shellTilt = 0.16 + layerIndex * 0.06;
                 const shellLift = baseTubeRadius * (0.65 + layerIndex * 0.18);
@@ -1784,6 +1810,7 @@ export class LinkRendererConduit {
                     depthWrite: false,
                     side: THREE.DoubleSide
                 });
+                this._registerLinkMaterialWithBridge(trailMat);
                 const trailGeo = new THREE.TorusGeometry(
                     layerRadius * 1.02,
                     baseTubeRadius * 0.36,
@@ -2515,6 +2542,7 @@ export class LinkRendererConduit {
             blending: THREE.AdditiveBlending,
             sizeAttenuation: true
         });
+        this._registerLinkMaterialWithBridge(mat);
 
         const points = new THREE.Points(geom, mat);
         points.userData = {
@@ -2875,6 +2903,7 @@ export class LinkRendererConduit {
             depthTest: true,
             side: THREE.DoubleSide
         });
+        this._registerLinkMaterialWithBridge(mat);
         ensureUserData(mat);
         mat.userData.__owner = 'LinkRenderer';
         mat.userData.__domain = 'link';

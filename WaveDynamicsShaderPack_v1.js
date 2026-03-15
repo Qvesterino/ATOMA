@@ -79,7 +79,7 @@ float breathingScale(float standingWave, float phase, float freq, float amplitud
     // Standing wave drives base expansion
     float baseBreathing = sin(phase * 6.28318) * amplitude * standingWave;
     // Add sine oscillation
-    float oscillation = sin(phase * freq + uTime * 0.5) * amplitude * 0.5;
+    float oscillation = sin(phase * freq + uWaveDynamicsTime * 0.5) * amplitude * 0.5;
     return 1.0 + baseBreathing + oscillation;
 }
 `;
@@ -102,12 +102,28 @@ const VERTEX_BREATHING_CHUNK = `
 const FRAGMENT_DIFFUSION_CHUNK = `
     // Color Diffusion Pulse FX (time-driven)
     float pulseEnergy = uWaveConstructive * uWaveIntensity;
-    float pulseFalloff = smoothstep(1.0, 0.0, abs(sin(uTime * 0.5)));
+    float pulseFalloff = smoothstep(1.0, 0.0, abs(sin(uWaveDynamicsTime * 0.5)));
     float pulseStrength = pulseEnergy * pulseFalloff * uWaveDynamicsDiffusionAmp;
     vec3 diffusionColor = mix(diffuseColor.rgb, vec3(0.6, 0.8, 1.0), pulseStrength * 0.3);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffusionColor, min(1.0, pulseStrength));
     outgoingLight += diffuseColor.rgb * uWaveConstructive * uWaveDynamicsDiffusionAmp * 0.2;
 `;
+
+const DYNAMICS_UNIFORM_DECLS = [
+    'uniform float uWavePhase;',
+    'uniform float uWaveIntensity;',
+    'uniform float uWaveStanding;',
+    'uniform float uWaveConstructive;',
+    'uniform float uWaveDestructive;',
+    'uniform vec3 uWaveCenter;',
+    'uniform float uWaveDynamicsBreathAmp;',
+    'uniform float uWaveDynamicsBreathFreq;',
+    'uniform float uWaveDynamicsRippleAmp;',
+    'uniform float uWaveDynamicsRippleFreq;',
+    'uniform float uWaveDynamicsChaosDrive;',
+    'uniform float uWaveDynamicsDiffusionAmp;',
+    'uniform float uWaveDynamicsTime;'
+];
 
 /**
  * World position varying (shared)
@@ -132,6 +148,7 @@ export class WaveDynamicsShaderPack_v1 {
 
             // Track materials
             this.registeredMaterials = new WeakSet();
+            this.materialList = new Set();
             this.materialProfiles = new WeakMap();
             this.originalOnBeforeCompile = new WeakMap();
             this.materialUniforms = new WeakMap();
@@ -206,6 +223,7 @@ export class WaveDynamicsShaderPack_v1 {
 
             // Mark as registered
             this.registeredMaterials.add(material);
+            this.materialList.add(material);
 
             // Mark material as patched (persists across all registration cycles)
             material[DYNAMICS_PACK_PATCHED] = true;
@@ -323,6 +341,7 @@ export class WaveDynamicsShaderPack_v1 {
 
             // Remove from tracking
             this.registeredMaterials.delete?.(material);
+            this.materialList.delete(material);
 
             if (this.debugEnabled) {
                 console.log('[WaveDynamicsShaderPack_v1] Material removed');
@@ -341,9 +360,8 @@ export class WaveDynamicsShaderPack_v1 {
      */
     update(deltaTime) {
         try {
-        // RUNTIME GUARD: Ensure registeredMaterials is valid and iterable
-        if (!this.registeredMaterials || 
-            (!Array.isArray(this.registeredMaterials) && !(this.registeredMaterials instanceof Set))) {
+        // RUNTIME GUARD: materialList is the iterable source; WeakSet stays as membership guard.
+        if (!this.materialList || !(this.materialList instanceof Set)) {
             return;
         }
 
@@ -355,7 +373,7 @@ export class WaveDynamicsShaderPack_v1 {
         this.globalTime = currentWaveDynamicsTime;
 
             // Update all registered material uniforms with global time
-            for (const material of this.registeredMaterials) {
+            for (const material of this.materialList) {
                 const uniforms = this.materialUniforms.get(material);
                 if (uniforms?.uWaveDynamicsTime) {
                     uniforms.uWaveDynamicsTime.value = currentWaveDynamicsTime;
@@ -380,6 +398,7 @@ export class WaveDynamicsShaderPack_v1 {
             shader.uniforms.uWaveStanding = shader.uniforms.uWaveStanding || { value: 0 };
             shader.uniforms.uWaveDestructive = shader.uniforms.uWaveDestructive || { value: 0 };
             shader.uniforms.uWaveConstructive = shader.uniforms.uWaveConstructive || { value: 0 };
+            shader.uniforms.uWaveCenter = shader.uniforms.uWaveCenter || { value: new THREE.Vector3(0, 0, 0) };
 
             // Add dynamics-specific uniforms
             shader.uniforms.uWaveDynamicsBreathAmp = shader.uniforms.uWaveDynamicsBreathAmp || {
@@ -407,13 +426,24 @@ export class WaveDynamicsShaderPack_v1 {
             // Store uniforms for future updates
             this.materialUniforms.set(shader.material || {}, shader.uniforms);
 
-            // Inject breathing and ripple functions into vertex shader
-            shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>
-                 ${BREATHING_FUNCTION}
-                 `
-            );
+            // Ensure required GLSL uniform declarations exist (declare only missing).
+            const buildMissingDecls = (source) => {
+                if (!source) return '';
+                const missing = DYNAMICS_UNIFORM_DECLS.filter((decl) => !source.includes(decl));
+                return missing.length ? `${missing.join('\n')}\n` : '';
+            };
+
+            const injectAtCommon = (source, injection) => {
+                if (!source || !injection) return source;
+                if (source.includes('#include <common>')) {
+                    return source.replace('#include <common>', `#include <common>\n${injection}`);
+                }
+                return `${injection}\n${source}`;
+            };
+
+            const vertexInject = `${buildMissingDecls(shader.vertexShader)}${BREATHING_FUNCTION}\n`;
+            shader.vertexShader = injectAtCommon(shader.vertexShader, vertexInject);
+            shader.fragmentShader = injectAtCommon(shader.fragmentShader, buildMissingDecls(shader.fragmentShader));
 
             // Inject breathing vertex effect (before project_vertex)
             shader.vertexShader = shader.vertexShader.replace(
@@ -465,7 +495,7 @@ export class WaveDynamicsShaderPack_v1 {
     getMetrics() {
         try {
             return {
-                registeredMaterialCount: this.registeredMaterials?.size ?? 0,
+                registeredMaterialCount: this.materialList?.size ?? 0,
                 globalTime: this.globalTime,
                 profiles: Object.keys(PROFILE_CONFIG)
             };
@@ -481,6 +511,7 @@ export class WaveDynamicsShaderPack_v1 {
     dispose() {
         try {
             this.registeredMaterials = null;
+            this.materialList = null;
             this.materialProfiles = null;
             this.originalOnBeforeCompile = null;
             this.materialUniforms = null;

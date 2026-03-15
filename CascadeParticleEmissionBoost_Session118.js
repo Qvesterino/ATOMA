@@ -91,6 +91,7 @@ export class CascadeParticleEmissionBoost_Session118 {
     this.scene = scene;
     this.enabled = options.enabled ?? true;
     this.debugMode = options.debugMode ?? false;
+    this.semanticBus = options.semanticBus ?? globalThis?.semanticBus ?? null;
     
     // Configuration
     this.config = {
@@ -113,6 +114,8 @@ export class CascadeParticleEmissionBoost_Session118 {
     
     // Per-link cascade particle boosters
     this.linkBoosters = new Map();
+    this._semanticUnsubscribers = [];
+    this._eventDrivenRefreshRequested = false;
     
     // Time tracking
     this.time = 0.0;
@@ -130,6 +133,24 @@ export class CascadeParticleEmissionBoost_Session118 {
       console.log(`  Max emission multiplier: ${this.config.maxEmissionMultiplier}x`);
       console.log(`  Cascade response curve: ${this.config.cascadeToEmissionResponse}`);
     }
+
+    this._setupSemanticSubscriptions();
+  }
+
+  _setupSemanticSubscriptions() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') return;
+
+    const requestRefresh = () => {
+      this._eventDrivenRefreshRequested = true;
+    };
+
+    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+    const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
+    const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
+
+    if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
+    if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+    if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
   }
   
   /**
@@ -224,6 +245,10 @@ export class CascadeParticleEmissionBoost_Session118 {
     if (links.length > 0) {
       this.stats.totalEmissionMultiplier /= links.length;
     }
+
+    if (this._eventDrivenRefreshRequested) {
+      this._eventDrivenRefreshRequested = false;
+    }
     
     // Cleanup inactive boosters (optional, for memory efficiency)
     // This could be done periodically (every 10 frames) to remove old entries
@@ -312,6 +337,17 @@ export class CascadeParticleEmissionBoost_Session118 {
     };
     
     console.log('[Session 118] Debug API: window.cascadeParticleBoostDebug.getStats()');
+  }
+
+  dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
   }
 }
 

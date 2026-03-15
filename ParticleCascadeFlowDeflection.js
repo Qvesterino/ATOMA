@@ -56,6 +56,7 @@ export class ParticleCascadeFlowDeflection {
     this.cascadingResonance = cascadingResonance;
     this.nodeDynamicMetrics = nodeDynamicMetrics;
     this.linkingSystem = linkingSystem;
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
 
     this.config = {
       // Deflection parameters
@@ -94,10 +95,38 @@ export class ParticleCascadeFlowDeflection {
     // Topology cache
     this.neighborCache = new Map(); // nodeId → Set<neighborNodeId>
     this.topologyGeneration = -1;
+    this._semanticUnsubscribers = [];
 
     if (this.config.debugMode) {
       console.log('[ParticleCascadeFlowDeflection] Constructor initialized', this.config);
     }
+
+    this._setupSemanticSubscriptions();
+  }
+
+  _setupSemanticSubscriptions() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') return;
+
+    const onMetricUpdated = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      this.flowDirectionCache.delete(String(nodeId));
+      this.flowStrengthCache.delete(String(nodeId));
+    };
+
+    const onTopologyChanged = () => {
+      this.flowDirectionCache.clear();
+      this.flowStrengthCache.clear();
+      this.neighborCache.clear();
+    };
+
+    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', onMetricUpdated);
+    const unsubLink = this.semanticBus.subscribe('link.created', onTopologyChanged);
+    const unsubSpawn = this.semanticBus.subscribe('node.spawned', onTopologyChanged);
+
+    if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
+    if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+    if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
   }
 
   /**
@@ -421,6 +450,17 @@ export class ParticleCascadeFlowDeflection {
   static setupConsoleAPI(flowDeflectionSystem) {
     window.cascadeFlowDeflection = flowDeflectionSystem.getConsoleAPI();
     console.log('[ParticleCascadeFlowDeflection] Console API attached to window.cascadeFlowDeflection');
+  }
+
+  dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
   }
 }
 

@@ -37,6 +37,7 @@ export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
     this.scene = scene;
     this.waveEngine = config.waveEngine ?? globalThis.game?.waveInterferenceEngine ?? null;
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
@@ -63,6 +64,7 @@ export class CascadeParticleSystem_Session120 {
       standing: 0.45
     };
     this._waveSpawnCapPerEvent = 12;
+    this._semanticUnsubscribers = [];
 
     // Resources
     this.geometry = null;
@@ -72,8 +74,49 @@ export class CascadeParticleSystem_Session120 {
     
     // Init
     this.init();
+    this._setupSemanticSubscriptions();
     
     console.log('[Session 120] CascadeParticleSystem initialized');
+  }
+
+  _setupSemanticSubscriptions() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') return;
+
+    const onMetricUpdated = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      this._waveCrossingState.delete(`node:${nodeId}:source:constructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:source:destructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:source:standing`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:constructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:destructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:standing`);
+    };
+
+    const onLinkCreated = (payload = {}) => {
+      const linkId = payload?.linkId;
+      if (linkId === undefined || linkId === null) return;
+      this._clearWaveCrossingState(`link:${linkId}`);
+    };
+
+    const onNodeSpawned = (payload = {}) => {
+      const nodeId = payload?.nodeId;
+      if (nodeId === undefined || nodeId === null) return;
+      this._waveCrossingState.delete(`node:${nodeId}:source:constructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:source:destructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:source:standing`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:constructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:destructive`);
+      this._waveCrossingState.delete(`node:${nodeId}:target:standing`);
+    };
+
+    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', onMetricUpdated);
+    const unsubLink = this.semanticBus.subscribe('link.created', onLinkCreated);
+    const unsubSpawn = this.semanticBus.subscribe('node.spawned', onNodeSpawned);
+
+    if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
+    if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+    if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
   }
   
   /**
@@ -773,6 +816,15 @@ export class CascadeParticleSystem_Session120 {
    * Cleanup
    */
   dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
+
     this.scene.remove(this.mesh);
     this.geometry.dispose();
     this.material.dispose();

@@ -144,6 +144,7 @@ export class ResonanceCascadeVisualization_Session117B {
     this.scene = scene;
     this.enabled = options.enabled ?? true;
     this.debugMode = options.debugMode ?? false;
+    this.semanticBus = options.semanticBus ?? globalThis.semanticBus ?? null;
     
     // Active cascades
     this.activeCascades = [];
@@ -159,8 +160,16 @@ export class ResonanceCascadeVisualization_Session117B {
     // Per-node cascade accumulator
     this.nodeCascadeIntensity = new Map();
     this.linkCascadeIntensity = new Map();
+    this._boundHandleCascade = this.handleCascade.bind(this);
+    this._subscribeSemanticBus();
     
     console.log('[Session 117B] ResonanceCascadeVisualization initialized ✓');
+  }
+
+  _subscribeSemanticBus() {
+    if (!this.semanticBus?.on) return;
+    this.semanticBus.on('cascade.triggered', this._boundHandleCascade);
+    this.semanticBus.on('harmonic.cascade.start', this._boundHandleCascade);
   }
   
   /**
@@ -274,6 +283,42 @@ export class ResonanceCascadeVisualization_Session117B {
       'radial'
     );
     
+    this.activeCascades.push(cascade);
+  }
+
+  /**
+   * Semantic bus cascade handler.
+   * Emits an immediate resonance visual impulse at event origin.
+   */
+  handleCascade(event = {}) {
+    if (!this.enabled || !THREE) return;
+
+    const sourcePos =
+      event?.center ||
+      event?.position ||
+      event?.origin ||
+      event?.centerPos ||
+      null;
+
+    const pos = sourcePos
+      ? new THREE.Vector3(
+          Number(sourcePos.x) || 0,
+          Number(sourcePos.y) || 0,
+          Number(sourcePos.z) || 0
+        )
+      : new THREE.Vector3(0, 0, 0);
+
+    const rawIntensity =
+      event?.intensity ??
+      event?.value ??
+      event?.strength ??
+      CASCADE_CONFIG.MIN_CONFLICT_FOR_CASCADE;
+    const impulseIntensity = Math.max(
+      CASCADE_CONFIG.MIN_CONFLICT_FOR_CASCADE,
+      Math.min(1, Number(rawIntensity) || 0)
+    );
+
+    const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
     this.activeCascades.push(cascade);
   }
   
@@ -536,6 +581,13 @@ export class ResonanceCascadeVisualization_Session117B {
     
     console.log('[Session 117B] Debug API: window.cascadeDebug.getCascadeState()');
   }
+
+  dispose() {
+    if (this.semanticBus?.unsubscribe) {
+      this.semanticBus.unsubscribe('cascade.triggered', this._boundHandleCascade);
+      this.semanticBus.unsubscribe('harmonic.cascade.start', this._boundHandleCascade);
+    }
+  }
 }
 
 /**
@@ -548,6 +600,7 @@ export function setupResonanceCascadeVisualization(game, options = {}) {
       {
         enabled: true,
         debugMode: false,
+        semanticBus: game.semanticBus,
         ...options
       }
     );

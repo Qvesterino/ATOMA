@@ -31,6 +31,7 @@
  */
 export class ParticleSemanticDensityAdapter_Session121 {
   constructor(config = {}) {
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     this.config = {
       // Intensity mapping
       intensityEMAAlpha: config.intensityEMAAlpha ?? 0.2,
@@ -50,6 +51,8 @@ export class ParticleSemanticDensityAdapter_Session121 {
     
     // Per-link tracking
     this.linkMetrics = new Map(); // linkId → { intensity, urgency, cohesion, ... }
+    this._semanticUnsubscribers = [];
+    this._semanticRefreshRequested = false;
     
     // Statistics
     this.stats = {
@@ -62,6 +65,24 @@ export class ParticleSemanticDensityAdapter_Session121 {
     if (this.config.debugMode) {
       console.log('[Session 121] ParticleSemanticDensityAdapter initialized');
     }
+
+    this._setupSemanticSubscriptions();
+  }
+
+  _setupSemanticSubscriptions() {
+    if (!this.semanticBus || typeof this.semanticBus.subscribe !== 'function') return;
+
+    const requestRefresh = () => {
+      this._semanticRefreshRequested = true;
+    };
+
+    const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+    const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
+    const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
+
+    if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
+    if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+    if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
   }
   
   /**
@@ -152,8 +173,9 @@ export class ParticleSemanticDensityAdapter_Session121 {
     }
     
     // Cleanup inactive metrics (optional)
-    if (Math.random() < 0.01) {
+    if (this._semanticRefreshRequested || Math.random() < 0.01) {
       this._cleanupInactiveMetrics();
+      this._semanticRefreshRequested = false;
     }
   }
   
@@ -182,8 +204,8 @@ export class ParticleSemanticDensityAdapter_Session121 {
       const nodeB = link.nodes[1];
       
       // Corruption multiplies intensity
-      const nodeACorruption = nodeA?.userData?.corruption ?? 0;
-      const nodeBCorruption = nodeB?.userData?.corruption ?? 0;
+      const nodeACorruption = nodeA?.userData?.metrics?.corruption ?? 0;
+      const nodeBCorruption = nodeB?.userData?.metrics?.corruption ?? 0;
       const corruptionFactor = 1 + Math.max(nodeACorruption, nodeBCorruption) * 0.5;
       
       intensity *= corruptionFactor;
@@ -367,6 +389,17 @@ export class ParticleSemanticDensityAdapter_Session121 {
     };
     
     console.log('[Session 121] Debug API: window.particleSemanticDensityDebug');
+  }
+
+  dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
   }
 }
 

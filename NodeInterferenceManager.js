@@ -92,8 +92,17 @@ export class NodeInterferenceManager {
         if (!this.config.enabled) return;
 
         // Update all node controllers
-        this.nodeControllers.forEach(controller => {
+        this.nodeControllers.forEach((controller, node) => {
             controller.update(harmony, corruption, instability);
+
+            // Export node-level interference to canonical waveField bridge.
+            if (!node?.userData) node.userData = {};
+            node.userData.waveField = node.userData.waveField || {};
+            const feedback = controller.getInterferenceFeedback?.();
+            const rawInterference = Number.isFinite(feedback?.interferenceFactor)
+                ? feedback.interferenceFactor
+                : 0;
+            node.userData.waveField.interference = Math.max(0, Math.min(1, rawInterference));
         });
 
         // Apply interference feedback to each link's visuals

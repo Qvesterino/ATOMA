@@ -177,6 +177,7 @@ export class WaveTravelShaderPack_v1 {
 
             // Track registered materials
             this.registeredMaterials = new WeakSet();
+            this.materialList = new Set();
             this.materialProfiles = new WeakMap();
             this.originalOnBeforeCompile = new WeakMap();
             this.materialUniforms = new WeakMap();
@@ -242,6 +243,7 @@ export class WaveTravelShaderPack_v1 {
 
             // Mark as registered
             this.registeredMaterials.add(material);
+            this.materialList.add(material);
 
             // Mark material as patched (persists across all registration cycles)
             material[TRAVEL_PACK_PATCHED] = true;
@@ -273,6 +275,7 @@ export class WaveTravelShaderPack_v1 {
 
             // Remove from tracking
             this.registeredMaterials.delete?.(material);
+            this.materialList.delete(material);
 
             if (this.debugEnabled) {
                 console.log('[WaveTravelShaderPack_v1] Material unregistered');
@@ -326,9 +329,8 @@ export class WaveTravelShaderPack_v1 {
      */
     update(deltaTime) {
         try {
-        // RUNTIME GUARD: Ensure registeredMaterials is valid and iterable
-        if (!this.registeredMaterials || 
-            (!Array.isArray(this.registeredMaterials) && !(this.registeredMaterials instanceof Set))) {
+        // RUNTIME GUARD: materialList is the iterable source; WeakSet stays as membership guard.
+        if (!this.materialList || !(this.materialList instanceof Set)) {
             return;
         }
 
@@ -340,7 +342,7 @@ export class WaveTravelShaderPack_v1 {
         this.globalTime = currentWaveTime;
 
             // Update all registered material uniforms
-            for (const material of this.registeredMaterials) {
+            for (const material of this.materialList) {
                 const uniforms = this.materialUniforms.get(material);
                 if (uniforms?.uWaveTravelTime) {
                     uniforms.uWaveTravelTime.value = currentWaveTime;
@@ -497,7 +499,7 @@ export class WaveTravelShaderPack_v1 {
     getMetrics() {
         try {
             return {
-                registeredMaterialCount: this.registeredMaterials?.size ?? 0,
+                registeredMaterialCount: this.materialList?.size ?? 0,
                 globalTime: this.globalTime,
                 profiles: Object.keys(PROFILE_CONFIG)
             };
@@ -513,6 +515,7 @@ export class WaveTravelShaderPack_v1 {
     dispose() {
         try {
             this.registeredMaterials = null;
+            this.materialList = null;
             this.materialProfiles = null;
             this.originalOnBeforeCompile = null;
             this.materialUniforms = null;

@@ -23,6 +23,7 @@ export class PHASE5_CascadeVisualizationBridge {
     this.aiNodes = aiNodes;
     this.linkCorruptionTransmission = linkCorruptionTransmission;
     this.cascadePropagationVisuals = cascadePropagationVisuals;
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     
     this.config = {
       enableDebug: config.enableDebug ?? false,
@@ -56,6 +57,8 @@ export class PHASE5_CascadeVisualizationBridge {
     
     // Cascade history for debugging
     this.cascadeHistory = [];
+    this._semanticUnsubscribers = [];
+    this._eventRefreshRequested = false;
     
     // Subscribe to systems
     this.subscribeToEvents();
@@ -74,6 +77,20 @@ export class PHASE5_CascadeVisualizationBridge {
         if (this.config.enableLogging) {
           console.log('[PHASE5_CascadeVisualizationBridge] Subscribed to LinkCorruptionTransmission');
         }
+      }
+
+      if (this.semanticBus && typeof this.semanticBus.subscribe === 'function') {
+        const requestRefresh = () => {
+          this._eventRefreshRequested = true;
+        };
+
+        const unsubMetric = this.semanticBus.subscribe('metric.node.updated', requestRefresh);
+        const unsubLink = this.semanticBus.subscribe('link.created', requestRefresh);
+        const unsubSpawn = this.semanticBus.subscribe('node.spawned', requestRefresh);
+
+        if (typeof unsubMetric === 'function') this._semanticUnsubscribers.push(unsubMetric);
+        if (typeof unsubLink === 'function') this._semanticUnsubscribers.push(unsubLink);
+        if (typeof unsubSpawn === 'function') this._semanticUnsubscribers.push(unsubSpawn);
       }
     } catch (err) {
       if (this.config.enableDebug) {
@@ -94,6 +111,10 @@ export class PHASE5_CascadeVisualizationBridge {
     try {
       // Check for new cascade events
       this.checkCascadeEvents();
+      if (this._eventRefreshRequested) {
+        this.checkCascadeEvents();
+        this._eventRefreshRequested = false;
+      }
       
       // Process queued cascade events
       this.processQueuedCascades();
@@ -376,6 +397,7 @@ export class PHASE5_CascadeVisualizationBridge {
       this.processedCascadeIds.clear();
       this.cascadeHistory = [];
       this.lastProcessedCascadeIndex = 0;
+      this._eventRefreshRequested = false;
     } catch (err) {
       if (this.config.enableDebug) {
         console.warn('[PHASE5_CascadeVisualizationBridge] Clear error:', err);
@@ -401,5 +423,16 @@ export class PHASE5_CascadeVisualizationBridge {
         getRecentCascades: () => this.cascadeHistory.slice(-20)
       };
     }
+  }
+
+  dispose() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
   }
 }

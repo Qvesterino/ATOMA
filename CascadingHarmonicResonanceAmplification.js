@@ -141,6 +141,12 @@ export class CascadingHarmonicResonanceAmplification {
     this.debugEnabled = false;
     this.lastUpdateTime = 0;
     this.statsPerFrame = { hubsCascading: 0, nodesTouched: 0, secondaryHubsCreated: 0 };
+
+    // Secondary-hub burst trigger state (post-propagation side-effect only).
+    this.secondaryHubBurstThreshold = 0.7;
+    this.secondaryHubBurstCooldownSec = 0.5;
+    this._lastCascadeStrengthByNode = new Map(); // nodeId -> previous strength
+    this._secondaryHubBurstCooldownByNode = new Map(); // nodeId -> last burst time (sec)
   }
 
   /**
@@ -385,8 +391,10 @@ export class CascadingHarmonicResonanceAmplification {
 
     if (!hubAData || !hubBData) return 0.5;
 
+    const hubAMetrics = hubAData?.userData?.metrics || {};
+    const hubBMetrics = hubBData?.userData?.metrics || {};
     const strengthDiff = Math.abs(
-      (hubAData.harmony || 0) - (hubBData.harmony || 0)
+      (hubAMetrics.harmony || 0) - (hubBMetrics.harmony || 0)
     );
 
     // Maximum alignment (1.0) when strengths match, decays with difference
@@ -402,10 +410,12 @@ export class CascadingHarmonicResonanceAmplification {
     if (!this.network?.nodes) return hubs;
 
     for (const [nodeId, nodeData] of this.network.nodes) {
-      const harmony = nodeData.harmony || 0;
-      const synergy = nodeData.synergy || 0;
-      const corruption = nodeData.corruption || 0;
-      const resilience = nodeData.resilience || 0;
+      const metrics = nodeData?.userData?.metrics || {};
+      const harmony = metrics.harmony || 0;
+      const synergy = metrics.synergy || 0;
+      const corruption = metrics.corruption || 0;
+      // Canonical source is metrics.*; resilience aliases to stability when dedicated value is absent.
+      const resilience = metrics.resilience ?? metrics.stability ?? 0;
 
       // Compute resonance energy
       const resonanceEnergy = harmony * (0.5 + synergy * 0.2 * resilience);
@@ -478,6 +488,14 @@ export class CascadingHarmonicResonanceAmplification {
     // - Node pulse system (modulates pulse rate)
     // - Link glow system (intensifies links in cascade path)
     // - Glyph system (synchronizes glyph intensity across layers)
+    const TWO_PI = Math.PI * 2;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const toPhase0ToTwoPi = (value) => {
+      if (!Number.isFinite(value)) return 0;
+      let phase = value % TWO_PI;
+      if (phase < 0) phase += TWO_PI;
+      return phase;
+    };
 
     for (const [nodeId, layerData] of this.nodeLayerData) {
       const node = this.network?.nodes?.get?.(nodeId);
@@ -488,8 +506,97 @@ export class CascadingHarmonicResonanceAmplification {
         node._cascadeAmplitude = layerData.resonanceAmplitude || 0;
         node._cascadePhase = layerData.cascadePhase || 0;
         node._cascadeSourceCount = layerData.sourceCount || 0;
+
+        // Export cascade state for FX systems that read canonical userData fields.
+        if (!node.userData) {
+          node.userData = {};
+        }
+        node.userData.cascadeStrength = node._cascadeStrength;
+        node.userData.cascadeAmplitude = node._cascadeAmplitude;
+        node.userData.cascadePhase = node._cascadePhase;
+
+        // Bridge cascade propagation output into canonical waveField consumed by wave shaders/particles.
+        node.userData.waveField = node.userData.waveField || {};
+        const existingConstructive = Number.isFinite(node.userData.waveField.constructive)
+          ? node.userData.waveField.constructive
+          : 0;
+        const existingDestructive = Number.isFinite(node.userData.waveField.destructive)
+          ? node.userData.waveField.destructive
+          : 0;
+        const existingStanding = Number.isFinite(node.userData.waveField.standing)
+          ? node.userData.waveField.standing
+          : 0;
+        const existingAmplitude = Number.isFinite(node.userData.waveField.amplitude)
+          ? node.userData.waveField.amplitude
+          : 0;
+        const cascadeAmplitude = node._cascadeAmplitude || 0;
+        const standingFromCascade = clamp(cascadeAmplitude * 0.5, 0, 1);
+
+        node.userData.waveField.constructive = clamp(
+          Math.max(existingConstructive, node._cascadeStrength || 0),
+          0,
+          1
+        );
+        node.userData.waveField.destructive = clamp(existingDestructive, 0, 1);
+        node.userData.waveField.standing = clamp(
+          Math.max(existingStanding, standingFromCascade),
+          0,
+          1
+        );
+        node.userData.waveField.amplitude = clamp(
+          Math.max(existingAmplitude, cascadeAmplitude),
+          0,
+          2
+        );
+        node.userData.waveField.phase = toPhase0ToTwoPi(node._cascadePhase || 0);
+        node.userData.waveField.sourceCount = Math.max(
+          0,
+          Number.isFinite(node._cascadeSourceCount) ? node._cascadeSourceCount : 0
+        );
+
+        // Trigger wave burst intent when node crosses secondary-hub threshold.
+        this._triggerSecondaryHubBurstIfCrossed(nodeId, node);
       }
     }
+  }
+
+  _triggerSecondaryHubBurstIfCrossed(nodeId, node) {
+    const threshold = this.secondaryHubBurstThreshold;
+    const currentStrength = Number.isFinite(node?._cascadeStrength) ? node._cascadeStrength : 0;
+    const previousStrength = this._lastCascadeStrengthByNode.get(nodeId) ?? 0;
+    this._lastCascadeStrengthByNode.set(nodeId, currentStrength);
+
+    // Rising-edge only: emit when crossing into secondary-hub range.
+    const crossedUp = previousStrength <= threshold && currentStrength > threshold;
+    if (!crossedUp) return;
+
+    const waveEngine = this.network?.waveEngine;
+    if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') return;
+
+    const nowSec = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now() * 0.001
+      : (Date.now() * 0.001);
+    const lastBurstSec = this._secondaryHubBurstCooldownByNode.get(nodeId) ?? -Infinity;
+    if ((nowSec - lastBurstSec) < this.secondaryHubBurstCooldownSec) return;
+    this._secondaryHubBurstCooldownByNode.set(nodeId, nowSec);
+
+    const center = node?.position
+      ? { x: node.position.x || 0, y: node.position.y || 0, z: node.position.z || 0 }
+      : { x: 0, y: 0, z: 0 };
+    const intensity = Math.max(0, Math.min(1, currentStrength));
+
+    waveEngine.requestBurstIntent({
+      type: 'synergy',
+      sourceId: String(nodeId),
+      fromRegime: 'baseline',
+      toRegime: 'collaborative',
+      center,
+      intensity,
+      metadata: {
+        reason: 'cascade_secondary_hub_crossing',
+        nodeId: String(nodeId)
+      }
+    });
   }
 
   /**

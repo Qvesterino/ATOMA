@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { canProcessNodeVisuals, filterReadyNodes } from './NodeVisualReadinessGate_v1.js';
+const WAVE_BRIDGE_PATCHED = Symbol('waveShaderBridgePatched');
 
 /**
  * WAVE SHADER BRIDGE v1.0
@@ -53,6 +54,10 @@ function updateEMA(current, target, alpha) {
     return lerp(current, target, alpha);
 }
 
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // ============================================================================
 // WAVE SHADER BRIDGE v1.0
 // ============================================================================
@@ -92,6 +97,8 @@ export class WaveShaderBridge_v1 {
             
             // EMA smoothing factor (alpha ~0.18 = ~0.4-0.5s smoothing at 60fps)
             this.emaAlpha = 0.18;
+            this.visualUpdateIntervalSec = 1 / 30;
+            this._visualUpdateAccumulator = 0;
             
             // Debug flags
             this.debugEnabled = false;
@@ -115,6 +122,11 @@ export class WaveShaderBridge_v1 {
         try {
             if (!material) {
                 if (this.warningsEnabled) console.warn('[WaveShaderBridge_v1] registerNodeMaterial: material is null');
+                return;
+            }
+
+            // Material-level guard: prevent duplicate onBeforeCompile stacking across re-inits.
+            if (material[WAVE_BRIDGE_PATCHED]) {
                 return;
             }
 
@@ -171,6 +183,7 @@ export class WaveShaderBridge_v1 {
 
             // Mark as registered
             this.registeredNodeMaterials.add(material);
+            material[WAVE_BRIDGE_PATCHED] = true;
 
             if (this.debugEnabled) {
                 console.log(`[WaveShaderBridge_v1] Node material registered (profile: ${profile})`);
@@ -190,6 +203,11 @@ export class WaveShaderBridge_v1 {
         try {
             if (!material) {
                 if (this.warningsEnabled) console.warn('[WaveShaderBridge_v1] registerLinkMaterial: material is null');
+                return;
+            }
+
+            // Material-level guard: prevent duplicate onBeforeCompile stacking across re-inits.
+            if (material[WAVE_BRIDGE_PATCHED]) {
                 return;
             }
 
@@ -246,6 +264,7 @@ export class WaveShaderBridge_v1 {
 
             // Mark as registered
             this.registeredLinkMaterials.add(material);
+            material[WAVE_BRIDGE_PATCHED] = true;
 
             if (this.debugEnabled) {
                 console.log(`[WaveShaderBridge_v1] Link material registered (profile: ${profile})`);
@@ -291,6 +310,13 @@ export class WaveShaderBridge_v1 {
             if (!Array.isArray(nodes) || !Array.isArray(links)) {
                 return;  // SILENT EXIT ONLY
             }
+
+            const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
+            this._visualUpdateAccumulator += dt;
+            if (this._visualUpdateAccumulator < this.visualUpdateIntervalSec) {
+                return;
+            }
+            this._visualUpdateAccumulator = 0;
 
             // Guard: early exit if no materials registered
             if (nodes.length === 0 && links.length === 0) {
@@ -408,11 +434,21 @@ export class WaveShaderBridge_v1 {
 
             // Compute target values (normalized 0..1)
             const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? 0));
-            const targetConstructive = clamp01(waveField.constructivePower ?? 0);
-            const targetDestructive = clamp01(waveField.destructivePower ?? 0);
-            const targetInterference = clamp01(waveField.interferenceIndex ?? 0);
-            const targetStanding = clamp01(waveField.standingWaveFactor ?? 0);
-            const targetPhase = clamp01(waveField.travelPhase ?? 0);
+            const targetConstructive = clamp01(
+                waveField.constructivePower ?? waveField.constructive ?? 0
+            );
+            const targetDestructive = clamp01(
+                waveField.destructivePower ?? waveField.destructive ?? waveField.destructiveInterference ?? 0
+            );
+            const targetInterference = clamp01(
+                waveField.interferenceIndex ?? waveField.totalAmplitude ?? 0
+            );
+            const targetStanding = clamp01(
+                waveField.standingWaveFactor ?? waveField.standing ?? 0
+            );
+            const targetPhase = clamp01(
+                waveField.travelPhase ?? waveField.phase ?? 0
+            );
             const targetSourceCount = clamp01((waveField.sourceCount ?? 0) / this.maxSources);
             const targetIntensity = clamp01(
                 targetConstructive * 0.7 + targetInterference * 0.3
@@ -491,6 +527,7 @@ export class WaveShaderBridge_v1 {
         // Core wave uniforms
         ensureUniform('uWaveAmplitude', { value: 0 });
         ensureUniform('uWaveConstructive', { value: 0 });
+        ensureUniform('uWaveDestructive', { value: 0 });
         ensureUniform('uWaveInterference', { value: 0 });
         ensureUniform('uWaveStanding', { value: 0 });
         ensureUniform('uWavePhase', { value: 0 });
@@ -512,42 +549,59 @@ export class WaveShaderBridge_v1 {
         ensureUniform('uTime', { value: 0 });
         ensureUniform('uWaveTime', { value: 0 });
 
-        const addDeclIfMissing = (code, decl) =>
-            code.includes(decl) ? code : `${decl}\n${code}`;
+        const hasUniformDecl = (code, uniformName) => {
+            if (!code || !uniformName) return false;
+            const name = escapeRegExp(uniformName);
+            const re = new RegExp(`\\buniform\\b[^;]*\\b${name}\\b\\s*;`);
+            return re.test(code);
+        };
+        const addDeclIfMissing = (code, decl, uniformName) =>
+            hasUniformDecl(code, uniformName) ? code : `${decl}\n${code}`;
+        const dedupeUniformDecls = (code, uniformName) => {
+            if (!code || !uniformName) return code;
+            const name = escapeRegExp(uniformName);
+            const lineRe = new RegExp(`^\\s*uniform\\b[^;]*\\b${name}\\b\\s*;\\s*$`, 'gm');
+            let seen = false;
+            return code.replace(lineRe, (match) => {
+                if (seen) return '';
+                seen = true;
+                return match;
+            });
+        };
 
         // Uniform declarations
         const uniformDecls = [
-            'uniform float uTime;',
-            'uniform float uWaveAmplitude;',
-            'uniform float uWaveConstructive;',
-            'uniform float uWaveDestructive;',
-            'uniform float uWaveInterference;',
-            'uniform float uWaveStanding;',
-            'uniform float uWavePhase;',
-            'uniform float uWaveSourceCount;',
-            'uniform float uWaveIntensity;',
-            'uniform vec3 uWaveTravelFreqMix;',
-            'uniform float uWaveTravelScale;',
-            'uniform float uWaveTravelChaos;',
-            'uniform float uWaveTravelPulse;',
-            'uniform float uWaveTravelUVFlow;',
-            'uniform float uWaveTravelColorGradient;',
-            'uniform float uWaveDynamicsBreathFreq;',
-            'uniform float uWaveDynamicsBreathAmp;',
-            'uniform float uWaveDynamicsRippleAmp;',
-            'uniform float uWaveDynamicsRippleFreq;',
-            'uniform float uWaveDynamicsChaosDrive;',
-            'uniform float uWaveDynamicsDiffusionAmp;',
-            'uniform vec3 uWaveCenter;'
+            { name: 'uTime', decl: 'uniform float uTime;' },
+            { name: 'uWaveAmplitude', decl: 'uniform float uWaveAmplitude;' },
+            { name: 'uWaveConstructive', decl: 'uniform float uWaveConstructive;' },
+            { name: 'uWaveDestructive', decl: 'uniform float uWaveDestructive;' },
+            { name: 'uWaveInterference', decl: 'uniform float uWaveInterference;' },
+            { name: 'uWaveStanding', decl: 'uniform float uWaveStanding;' },
+            { name: 'uWavePhase', decl: 'uniform float uWavePhase;' },
+            { name: 'uWaveSourceCount', decl: 'uniform float uWaveSourceCount;' },
+            { name: 'uWaveIntensity', decl: 'uniform float uWaveIntensity;' },
+            { name: 'uWaveTravelFreqMix', decl: 'uniform vec3 uWaveTravelFreqMix;' },
+            { name: 'uWaveTravelScale', decl: 'uniform float uWaveTravelScale;' },
+            { name: 'uWaveTravelChaos', decl: 'uniform float uWaveTravelChaos;' },
+            { name: 'uWaveTravelPulse', decl: 'uniform float uWaveTravelPulse;' },
+            { name: 'uWaveTravelUVFlow', decl: 'uniform float uWaveTravelUVFlow;' },
+            { name: 'uWaveTravelColorGradient', decl: 'uniform float uWaveTravelColorGradient;' },
+            { name: 'uWaveDynamicsBreathFreq', decl: 'uniform float uWaveDynamicsBreathFreq;' },
+            { name: 'uWaveDynamicsBreathAmp', decl: 'uniform float uWaveDynamicsBreathAmp;' },
+            { name: 'uWaveDynamicsRippleAmp', decl: 'uniform float uWaveDynamicsRippleAmp;' },
+            { name: 'uWaveDynamicsRippleFreq', decl: 'uniform float uWaveDynamicsRippleFreq;' },
+            { name: 'uWaveDynamicsChaosDrive', decl: 'uniform float uWaveDynamicsChaosDrive;' },
+            { name: 'uWaveDynamicsDiffusionAmp', decl: 'uniform float uWaveDynamicsDiffusionAmp;' },
+            { name: 'uWaveCenter', decl: 'uniform vec3 uWaveCenter;' }
         ];
 
-        uniformDecls.forEach(decl => {
-            if (!shader.vertexShader.includes(decl)) {
-                shader.vertexShader = addDeclIfMissing(shader.vertexShader, decl);
-            }
-            if (!shader.fragmentShader.includes(decl)) {
-                shader.fragmentShader = addDeclIfMissing(shader.fragmentShader, decl);
-            }
+        uniformDecls.forEach(({ name, decl }) => {
+            shader.vertexShader = addDeclIfMissing(shader.vertexShader, decl, name);
+            shader.fragmentShader = addDeclIfMissing(shader.fragmentShader, decl, name);
+        });
+        uniformDecls.forEach(({ name }) => {
+            shader.vertexShader = dedupeUniformDecls(shader.vertexShader, name);
+            shader.fragmentShader = dedupeUniformDecls(shader.fragmentShader, name);
         });
 
     }

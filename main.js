@@ -612,6 +612,7 @@ import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluen
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
+import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
 import { HarmonicHubDebugger } from './HarmonicHubDebugger.js';
 import { VisualEchoTrails_v1 } from './VisualEchoTrails_v1_Shader.js';
@@ -927,6 +928,11 @@ import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
 // ============================================================================
 import { WorldRuntime_v1 } from './WorldRuntime_v1.js';
 // import { FXRuntime_v1 } from './FXRuntime_v1.js';
+
+const waveDynamicsPack = new WaveDynamicsShaderPack_v1({
+    enableDebug: false,
+    enableWarnings: true
+});
 
 // ============================================================================
 // EXTRACTION PACK V1.2 — RUNTIME ORCHESTRATION (NODE EDITOR & UI)
@@ -3461,7 +3467,8 @@ class AtomaGame {
             this.harmonyCascade.network = {
                 nodes: nodeMap,
                 links: this.linkingSystem?.links || [],
-                _topologyGeneration: this.linkingSystem?._topologyGeneration || 0
+                _topologyGeneration: this.linkingSystem?._topologyGeneration || 0,
+                waveEngine: this.waveInterferenceEngine || null
             };
 
             this.harmonyCascade.update(dt);
@@ -3610,6 +3617,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
         this.frameScheduler.register('visual', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'visual.phase5CascadeEventCheck');
         this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
+        this.frameScheduler.register('visual', (dt) => this.preCascadeVisualHint?.update?.(dt), 'visual.preCascadeVisualHint');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
@@ -3724,14 +3732,14 @@ class AtomaGame {
             }
         }, 'visual.resonanceRupture');
         this.frameScheduler.register('visual', (dt) => {
-            if (!this._runSlowSemanticPending) return;
-            if (this.resonanceEchoTrails?.enabled) {
-                this.resonanceEchoTrails.update(
+            const resonanceEchoTrailSystem = this.resonanceEchoTrailSystem || this.resonanceEchoTrails;
+            if (resonanceEchoTrailSystem?.enabled) {
+                resonanceEchoTrailSystem.update(
                     dt,
                     this.linkSemanticPictograms?.fusionZoneManager?.compositeGlyphs
                 );
             }
-        }, 'visual.resonanceEchoTrails');
+        }, 'visual.resonanceEchoTrailSystem');
         this.frameScheduler.register('visual', (dt) => {
             if (this.compositeResonanceFeedback) {
                 this.compositeResonanceFeedback.update(dt);
@@ -3842,10 +3850,11 @@ class AtomaGame {
         
         // NEW: Update resonance cascade visualization
         this.frameScheduler.register('visual', (dt) => {
-            if (this.resonanceCascade && this.resonanceCascade.config.enabled) {
-                this.resonanceCascade.update(dt, this.time);
+            const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
+            if (resonanceCascadeVisualization && resonanceCascadeVisualization.config.enabled) {
+                resonanceCascadeVisualization.update(dt, this.time);
             }
-        }, 'visual.resonanceCascade');
+        }, 'visual.resonanceCascadeVisualization');
         
         this.frameScheduler.register('visual', (dt) => {
             if (this.healingParticles) {
@@ -3914,8 +3923,10 @@ class AtomaGame {
         }, 'visual.waveInterferencePattern');
         this.frameScheduler.register('visual', (dt) => {
             // Harmonic resonance feedback fields (30 Hz visual cadence)
-            if (this.harmonicResonance) {
-                this.harmonicResonance.update?.(dt);
+            const harmonicResonanceFeedbackSystem =
+                this.harmonicResonanceFeedbackSystem || this.harmonicResonance;
+            if (harmonicResonanceFeedbackSystem) {
+                harmonicResonanceFeedbackSystem.update?.(dt);
             }
         }, 'visual.harmonicResonanceFeedback');
         this.frameScheduler.register('visual', () => {
@@ -4335,6 +4346,7 @@ document.addEventListener('keydown', () => {
         this.harmonicCascadeAmplification = null; // Hub-to-hub cascade amplification (Session 145)
         this.linkResonanceFlowSystem = null;      // Directional link resonance flow (Session 124)
         this.harmonicPhaseSynchronization = null; // Hub phase alignment (Session 146)
+        this.preCascadeVisualHint = null;         // Pre-cascade subtle visual hinting (Session 146)
         this.harmonicNodeResonanceHalos = null;   // Node resonance halos for harmonic hubs
         this.echoTrailsSystem = null;             // Echo trails shader system
         this.echoTrailsIntegration = null;        // Echo trails integration layer
@@ -4788,6 +4800,7 @@ document.addEventListener('keydown', () => {
         this.setupHarmonicCascadeAmplification();
         this.setupLinkResonanceFlowSystem();
         this.setupHarmonicPhaseSynchronization();
+        this.setupPreCascadeVisualHint();
         this.setupHarmonicNodeResonanceHalos();
         this.setupVisualEchoTrails();
 
@@ -5210,10 +5223,7 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
-            this.waveDynamicsShaderPack = new WaveDynamicsShaderPack_v1({
-                enableDebug: false,
-                enableWarnings: false
-            });
+            this.waveDynamicsShaderPack = waveDynamicsPack;
             console.log('[main.js] WaveDynamicsShaderPack_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] WaveDynamicsShaderPack_v1 failed:', err);
@@ -6102,6 +6112,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 logPrograms('after-first-node', this.renderer);
                 __loggedFirstSpawn = true;
             }
+            if (this.waveDynamicsShaderPack && node) {
+                this.waveDynamicsShaderPack.applyToNode(node, 'SYNERGY');
+            }
             // Emit canonical node.spawned event for event-driven systems
             if (this.semanticBus && node) {
                 const nodeId = node.userData?.nodeId || node.id || node.uuid;
@@ -6433,10 +6446,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         try {
             if (this.waveDynamicsShaderPack && this.aiNodes?.nodes) {
                 for (const node of this.aiNodes.nodes) {
-                    const mats = node?.material
-                        ? (Array.isArray(node.material) ? node.material : [node.material])
-                        : [];
-                    mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'AURA'));
+                    this.waveDynamicsShaderPack.applyToNode(node, 'SYNERGY');
                 }
                 console.log('[main.js] Wave Dynamics Shader Pack: Node materials applied ✓');
             }
@@ -8023,9 +8033,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.frameScheduler?.register('visual', (dt) => {
                 this.particleEmitter?.update?.(
                     dt,
-                    this.time,
-                    this.nodeLinking?.links || [],
-                    this.aiNodes || []
+                    this.aiNodes?.nodes || [],
+                    this.nodeLinking?.links || this.linkingSystem?.links || [],
+                    this.waveInterferenceEngine
                 );
             }, 'visual.harmony.waveParticleEmitter');
         } catch (err) {
@@ -8683,13 +8693,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.warn('[main.js] ResonanceSystem stub created');
             }
             
-            this.resonanceCascade = new ResonanceCascadeVisualization_Session117B({
+            this.resonanceCascadeVisualization = new ResonanceCascadeVisualization_Session117B({
                 conflictSystem: this.conflictSystem,
                 resonanceSystem: this.resonanceSystem,
                 linkingSystem: this.linkingSystem,
                 enabled: true,
                 debugMode: false
             });
+            this.resonanceCascade = this.resonanceCascadeVisualization;
             
             console.log('[main.js] ResonanceCascadeVisualization initialized ✓');
         } catch (err) {
@@ -9122,9 +9133,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
             this.particleEmitter?.update?.(
                 dt,
-                this.time,
-                this.nodeLinking?.links || [],
-                this.aiNodes || []
+                this.aiNodes?.nodes || [],
+                this.nodeLinking?.links || this.linkingSystem?.links || [],
+                this.waveInterferenceEngine
             );
         });
 
@@ -9154,6 +9165,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
+        regGuard('preCascadeVisualHint', 'visual.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));
@@ -11388,8 +11400,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupHarmonicResonanceFeedback() {
         try {
-            this.harmonicResonance = new HarmonicResonanceFeedbackSystem(this.scene);
-            setupHarmonicResonanceConsoleAPI(this, this.harmonicResonance);
+            this.harmonicResonanceFeedbackSystem = new HarmonicResonanceFeedbackSystem(this.scene);
+            this.harmonicResonance = this.harmonicResonanceFeedbackSystem;
+            setupHarmonicResonanceConsoleAPI(this, this.harmonicResonanceFeedbackSystem);
             console.log('[main.js] HarmonicResonanceFeedbackSystem initialized ✓');
             console.log('[main.js] Features: resonance fields, phase alignment, pictogram influence');
         } catch (err) {
@@ -11404,8 +11417,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupResonanceEchoTrails() {
         try {
-            this.resonanceEchoTrails = new ResonanceEchoTrailSystem(this.scene, this.worldRoot);
-            setupResonanceEchoConsoleAPI(this, this.resonanceEchoTrails);
+            this.resonanceEchoTrailSystem = new ResonanceEchoTrailSystem(this.scene, this.worldRoot);
+            this.resonanceEchoTrails = this.resonanceEchoTrailSystem;
+            setupResonanceEchoConsoleAPI(this, this.resonanceEchoTrailSystem);
             console.log('[main.js] ResonanceEchoTrailSystem initialized ✓');
             console.log('[main.js] Features: echo pool, temporal decay, harmony modulation');
         } catch (err) {
@@ -11986,6 +12000,30 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('✓ Harmonic Phase Synchronization (Session 146) initialized');
         } catch (err) {
             console.warn('⚠ Harmonic Phase Synchronization initialization failed:', err);
+        }
+    }
+
+    /**
+     * Setup Pre-Cascade Visual Hint System (Session 146)
+     * Subtle anticipatory cues before harmonic cascade expression
+     */
+    setupPreCascadeVisualHint() {
+        try {
+            this.preCascadeVisualHint = new PreCascadeVisualHint_Session146(
+                this.harmonicCascadeAmplification,
+                this.harmonicHubAuraSystem,
+                this.nodeAuraSystem,
+                this.linkResonanceSystem,
+                {
+                    enabled: true,
+                    debugMode: false
+                }
+            );
+            this.preCascadeVisualHint.frameScheduler = this.frameScheduler;
+            console.log('✓ PreCascade Visual Hint (Session 146) initialized');
+        } catch (err) {
+            this.preCascadeVisualHint = null;
+            console.warn('⚠ PreCascade Visual Hint initialization failed:', err);
         }
     }
     

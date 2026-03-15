@@ -248,10 +248,11 @@ class CompositeGlyphTracker {
 // ============================================================================
 
 export class ResonanceEchoTrailSystem {
-    constructor(scene, worldRoot) {
+    constructor(scene, worldRoot, options = {}) {
         this.scene = scene;
         this.worldRoot = worldRoot;
         this._attachRoot = worldRoot || scene;
+        this.semanticBus = options.semanticBus ?? globalThis.semanticBus ?? null;
 
         this.root = new THREE.Group();
         this.root.name = 'ResonanceEchoTrailRoot';
@@ -268,6 +269,7 @@ export class ResonanceEchoTrailSystem {
         this.updateTimer = 0.0;
         this._timeOrigin = undefined;
         this._lastVisualTime = undefined;
+        this._boundWaveBurstHandler = (burst) => this.spawnEchoTrail(burst?.center, burst?.intensity);
         
         // Debug
         this.debugEchoVisualization = null;
@@ -276,8 +278,21 @@ export class ResonanceEchoTrailSystem {
         }
         
         this.enabled = true;
+        this._subscribeSemanticEvents();
         
         console.log('[ResonanceEchoTrailSystem] Initialized');
+    }
+
+    _subscribeSemanticEvents() {
+        if (!this.semanticBus?.on) return;
+        this.semanticBus.on('wave.burst', this._boundWaveBurstHandler);
+    }
+
+    _getCurrentVisualTime() {
+        if (this._timeOrigin === undefined) {
+            this._timeOrigin = VisualTime.now;
+        }
+        return VisualTime.now - this._timeOrigin;
     }
     
     // ========================================================================
@@ -420,6 +435,31 @@ export class ResonanceEchoTrailSystem {
             }
         }
     }
+
+    spawnEchoTrail(center, intensity = 0.5) {
+        if (!this.enabled || !center || this.echoInstances.length === 0) return;
+
+        const x = Number(center.x);
+        const y = Number(center.y);
+        const z = Number(center.z);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+
+        const clampedIntensity = Math.max(0, Math.min(1, Number.isFinite(intensity) ? intensity : 0.5));
+        const currentVisualTime = this._getCurrentVisualTime();
+
+        // Use existing pool geometry/material path - no new shaders/materials/pools.
+        const pooledGeometry = this.echoInstances[0]?.mesh?.geometry;
+        if (!pooledGeometry) return;
+
+        this.spawnEcho(
+            new THREE.Vector3(x, y, z),
+            pooledGeometry,
+            0.5 + clampedIntensity * 0.5, // harmonyBalance
+            0.5 + clampedIntensity * 0.3, // stability
+            clampedIntensity,             // synergy
+            currentVisualTime
+        );
+    }
     
     // ========================================================================
     // ENABLE / DISABLE
@@ -519,6 +559,10 @@ export class ResonanceEchoTrailSystem {
 
     dispose() {
         this.resetAll();
+
+        if (this.semanticBus?.unsubscribe) {
+            this.semanticBus.unsubscribe('wave.burst', this._boundWaveBurstHandler);
+        }
 
         this.root?.traverse(obj => {
             if (obj.isMesh) {
