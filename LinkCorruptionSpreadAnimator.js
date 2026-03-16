@@ -101,7 +101,7 @@ export class LinkCorruptionSpreadAnimator {
     
     // Trigger spread animation on meaningful corruption rise, with cooldown
     const corruptionDelta = corruptionLevel - state.previousCorruption;
-    const aboveThreshold = (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD;
+    const aboveThreshold = corruptionLevel > CASCADE_CORRUPTION_THRESHOLD;
     const risingEnough = corruptionDelta >= this.config.triggerDeltaThreshold;
     const cooldownElapsed = (nowMs - state.lastTriggerTime) >= this.config.retriggerCooldownMs;
     const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;
@@ -140,7 +140,11 @@ export class LinkCorruptionSpreadAnimator {
     const fromOptions = options?.corruptionLevel;
     if (Number.isFinite(fromOptions)) return Math.max(0, fromOptions);
 
-    const value = link?.userData?.corruptionLevel;
+    const value =
+      link?.group?.userData?.conduitState?.metrics?.corruption ??
+      link?.userData?.metrics?.corruption ??
+      link?.userData?.corruption ??
+      link?.userData?.corruptionLevel;
 
     if (Number.isFinite(value)) {
       return Math.max(0, value);

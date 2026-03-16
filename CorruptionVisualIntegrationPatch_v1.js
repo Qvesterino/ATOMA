@@ -26,6 +26,15 @@ const THREE = THREE_SAFE;
 
 import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
 
+function readNodeCorruptionLevel(node) {
+  return (
+    node?.userData?.metrics?.corruption ??
+    node?.userData?.corruption ??
+    node?.userData?.gameplay?.corruptionLevel ??
+    0
+  );
+}
+
 /**
  * Patch ArchetypeVisualDifferentiationSystem to include corruption effects
  */
@@ -56,7 +65,7 @@ export function patchArchetypeVisualWithCorruptionFX(archetypeVisualSystem, aiNo
       originalUpdateArchetypeEffects(nodeModel, deltaTime, time);
 
       // Apply corruption effects on top
-      if (corruptionFX && nodeModel.userData?.gameplay?.corruptionLevel > 0) {
+      if (corruptionFX && readNodeCorruptionLevel(nodeModel) > 0) {
         corruptionFX.applyCorruptionEffects(nodeModel, deltaTime, time);
       }
     };
@@ -131,7 +140,7 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
       originalUpdateNodeVisuals(node, data, time, deltaTime);
 
       // Apply corruption effects
-      if (corruptionFX && node.userData?.gameplay?.corruptionLevel > 0) {
+      if (corruptionFX && readNodeCorruptionLevel(node) > 0) {
         corruptionFX.applyCorruptionEffects(node, deltaTime, time);
       }
     };
@@ -158,12 +167,12 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
       // Apply corruption effects to all nodes
       if (this.nodes) {
         this.nodes.forEach(node => {
-          if (node.userData?.gameplay?.corruptionLevel > 0) {
+          if (readNodeCorruptionLevel(node) > 0) {
             corruptionFX.applyCorruptionEffects(node, deltaTime, time);
           }
 
           // PATCH 4: Emit corruption threshold crossed event
-          const currentCorruption = node.userData?.gameplay?.corruptionLevel ?? 0;
+          const currentCorruption = readNodeCorruptionLevel(node);
           const previousCorruption = node.userData?._lastCorruption ?? 0;
 
           // Check if corruption crossed 0.35 threshold

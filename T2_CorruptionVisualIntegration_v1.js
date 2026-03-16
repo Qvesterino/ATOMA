@@ -266,7 +266,14 @@ export class T2_CorruptionVisualIntegration_v1 {
       if (!link || !link.userData) continue;
       
       // Read corruption level from link (set by LinkCorruptionTransmission_v1)
-      const corruptionLevel = link.userData.corruptionLevel ?? 0;
+      const corruptionLevel =
+        link?.group?.userData?.conduitState?.metrics?.corruption ??
+        link?.userData?.metrics?.corruption ??
+        link?.userData?.corruption ??
+        link?.userData?.corruptionLevel ??
+        link?.corruption ??
+        link?.corruptionLevel ??
+        0;
       
       // Apply visual effects if corrupted
       if (corruptionLevel > 0.01) {

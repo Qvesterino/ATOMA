@@ -56,8 +56,8 @@ import { EnhancedNodeModels } from './EnhancedNodeModels.js';
 import { ArchetypeVisualProfiles } from './ArchetypeVisualProfiles_v1.js';
 import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDifferentiationSystem_v1.js';
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
-// import { AtomaAudioSystem } from './AtomaAudioSystem.js';
-// import { AtomaAudioModulation } from './AtomaAudioModulation.js';
+import { AtomaAudioSystem } from './AtomaAudioSystem.js';
+import { AtomaAudioModulation } from './AtomaAudioModulation.js';
 import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
@@ -4028,6 +4028,43 @@ this.setHudDirty('nodeInspect');
         this.semanticBus.subscribe('node.selection', () => {
             this.wakeHud('selection');
         });
+
+        // Audio System - Subscribe to gameplay events
+        if (this.audioSystem) {
+            // Node selection/deselection
+            this.semanticBus.subscribe('node.selection', (evt) => {
+                if (!this.audioSystem) return;
+                if (evt.type === 'select') {
+                    console.log('[ATOMA AUDIO] playSelection() triggered');
+                    this.audioSystem.playSelection();
+                } else if (evt.type === 'deselect') {
+                    this.audioSystem.playDeselection();
+                }
+            });
+
+            // Link creation
+            this.semanticBus.subscribe('link.created', () => {
+                if (this.audioSystem) {
+                    console.log('[ATOMA AUDIO] playLinkCreated() triggered');
+                    this.audioSystem.playLinkCreated();
+                }
+            });
+
+            // Link destruction
+            this.semanticBus.subscribe('network.link.destroyed', () => {
+                if (this.audioSystem) {
+                    this.audioSystem.playLinkBroken();
+                }
+            });
+
+            // Synergy activation
+            this.semanticBus.subscribe('node.synergy.high', () => {
+                if (this.audioSystem) {
+                    console.log('[ATOMA AUDIO] playSynergyActive() triggered');
+                    this.audioSystem.playSynergyActive();
+                }
+            });
+        }
         
         // Phase B Console API
         window.scheduler = {
@@ -4078,27 +4115,30 @@ this.setHudDirty('nodeInspect');
         // ========================================================================
         // AUDIO SYSTEM (ATOMA Audio Design)
         // ========================================================================
-        //this.audioSystem = new AtomaAudioSystem();
-        // this.audioModulation = new AtomaAudioModulation(this.audioSystem);
+        this.audioSystem = new AtomaAudioSystem();
+        console.log('[ATOMA AUDIO] Audio System created');
+        this.audioModulation = new AtomaAudioModulation(this.audioSystem);
         this.previousSynergyState = 'none'; // 'none', 'active', 'fading'
         this.synergyActivationThreshold = 0.5;
         this.synergyFadingThreshold = 0.3;
-        
-        // Start audio on first interaction
-document.addEventListener('click', () => {
-    if (!this.audioSystem) return;
-    if (!this.audioSystem.initialized) {
-        this.audioSystem.start();
-    }
-});
 
+        // Start audio on first user interaction (pointerdown, click, or keydown)
+        const startAudioOnFirstInteraction = async () => {
+            if (!this.audioSystem) return;
+            if (this.audioSystem.initialized) return;
 
-document.addEventListener('keydown', () => {
-  if (!this.audioSystem) return;
-  if (!this.audioSystem.initialized) {
-    this.audioSystem.start();
-  }
-});
+            try {
+                await this.audioSystem.start();
+                console.log('[ATOMA AUDIO] AudioContext started successfully');
+            } catch (error) {
+                console.error('[Audio] Failed to start AudioContext:', error);
+            }
+        };
+
+        // Add event listeners for first interaction
+        document.addEventListener('pointerdown', startAudioOnFirstInteraction, { once: true });
+        document.addEventListener('click', startAudioOnFirstInteraction, { once: true });
+        document.addEventListener('keydown', startAudioOnFirstInteraction, { once: true });
 
         // Initialize systems
         this.nodeEditor = null;
@@ -6337,7 +6377,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 'simulation.linkingSystem.metrics'
             );
             // Corruption transmission (gameplay) — 10 Hz simulation lane
-            if (this.aiNodes?.linkCorruption) {
+            // Avoid duplicate ticking when canonical simulation.linkCorruptionTransmission is already registered.
+            if (this.aiNodes?.linkCorruption && this.frameScheduler?.isRegistered?.('simulation.linkCorruptionTransmission') !== true) {
                 this.frameScheduler.register(
                     'simulation',
                     (dt) => {
@@ -7518,12 +7559,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Corruption Transmission + Harmony Stabilization
         // ====================================================================
         
-        // Initialize Link Corruption Transmission v1.0
+        // Initialize Link Corruption Transmission v1.0 (single authority instance)
         try {
-            this.linkCorruptionTransmission = new LinkCorruptionTransmission_v1(
-                this.aiNodes,           // AI nodes system
-                this.linkingSystem       // Link system
-            );
+            this.linkCorruptionTransmission =
+                this.linkCorruptionTransmission ||
+                this.corruptionTransmission ||
+                this.aiNodes?.linkCorruption ||
+                new LinkCorruptionTransmission_v1(
+                    this.aiNodes,           // AI nodes system
+                    this.linkingSystem      // Link system
+                );
+            this.corruptionTransmission = this.linkCorruptionTransmission;
+            if (this.aiNodes) this.aiNodes.linkCorruption = this.linkCorruptionTransmission;
             console.log('[main.js] LinkCorruptionTransmission_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] LinkCorruptionTransmission_v1 initialization failed:', err);
@@ -9687,6 +9734,15 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
 
             this.zoneAudioReactivity.update(deltaTime);
+
+            // Audio Modulation - Update with network metrics
+            if (this.audioModulation && this.nodeDynamicMetrics) {
+                this.audioModulation.update(deltaTime, {
+                    synergy: this.nodeDynamicMetrics.avgSynergy || 0,
+                    harmony: this.nodeDynamicMetrics.avgHarmony || 50,
+                    corruption: this.nodeDynamicMetrics.avgCorruption || 0
+                });
+            }
 
             if (this.systemStateOverlay?.regionalHarmonyZones) {
                 const zoneInfluences = this.zoneAudioReactivity.getZoneInfluences();

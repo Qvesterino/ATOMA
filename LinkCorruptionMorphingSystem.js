@@ -309,6 +309,7 @@ export class LinkCorruptionMorphingSystem {
       if (!state) return;
 
       const corruption = this.getCorruptionFromLink(link);
+      state.corruption = corruption;
 
       if (Math.abs(corruption - state.lastCorruption) > 0.01) {
         state.targetProfile = getProfileForCorruption(corruption);
@@ -339,22 +340,50 @@ export class LinkCorruptionMorphingSystem {
    */
   getCorruptionFromLink(link) {
     if (!link) return 0;
-    
-    // LinkCorruptionTransmission_v1 stores corruption on link
-    if (link.userData && link.userData.corruption !== undefined) {
-      return link.userData.corruption;
+
+    const readMetric = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return Math.max(0, Math.min(1, value));
+        }
+      }
+      return undefined;
+    };
+
+    const fromMetrics = readMetric(
+      link?.group?.userData?.conduitState?.metrics?.corruption,
+      link?.userData?.metrics?.corruption,
+      link?.userData?.corruption,
+      link?.userData?.corruptionLevel,
+      link?.corruption,
+      link?.corruptionLevel
+    );
+    if (typeof fromMetrics === 'number') return fromMetrics;
+
+    const sourceCorruption = readMetric(
+      link?.source?.userData?.metrics?.corruption,
+      link?.sourceNode?.userData?.metrics?.corruption,
+      link?.nodeA?.userData?.metrics?.corruption
+    );
+    const targetCorruption = readMetric(
+      link?.target?.userData?.metrics?.corruption,
+      link?.targetNode?.userData?.metrics?.corruption,
+      link?.nodeB?.userData?.metrics?.corruption
+    );
+    if (typeof sourceCorruption === 'number' || typeof targetCorruption === 'number') {
+      return Math.max(sourceCorruption ?? 0, targetCorruption ?? 0);
     }
-    
-    // Fallback: check link health (lower health → higher corruption)
+
+    // Fallback: check link health (lower health -> higher corruption)
     if (link.userData && link.userData.health !== undefined) {
-      return Math.max(0, 1 - link.userData.health);
+      return Math.max(0, Math.min(1, 1 - link.userData.health));
     }
-    
+
     // Fallback: check degradation state
     if (link.userData && link.userData.degradationLevel !== undefined) {
-      return link.userData.degradationLevel;
+      return Math.max(0, Math.min(1, link.userData.degradationLevel));
     }
-    
+
     return 0;
   }
 

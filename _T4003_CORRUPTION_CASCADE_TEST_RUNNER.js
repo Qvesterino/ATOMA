@@ -43,7 +43,10 @@ export function setupCorruptionCascadeTestRunner(game) {
     console.log('%c[STEP 1] Checking Prerequisites...', 'color: #00ffff; font-weight: bold;');
     
     // Check corruption system initialized
-    const corruptionSystem = game.linkCorruptionTransmission;
+    const corruptionSystem =
+      game.linkCorruptionTransmission ||
+      game.corruptionTransmission ||
+      game.aiNodes?.linkCorruption;
     if (!corruptionSystem) {
       report.anomalies.push('LinkCorruptionTransmission_v1 not initialized');
       report.prerequisitesMetAll = false;

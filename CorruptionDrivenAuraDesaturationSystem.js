@@ -2,6 +2,18 @@ import { CorruptionDesaturationController } from './LEGACY/aura/CorruptionDriven
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
+function readLinkCorruption(link) {
+  return (
+    link?.group?.userData?.conduitState?.metrics?.corruption ??
+    link?.userData?.metrics?.corruption ??
+    link?.userData?.corruption ??
+    link?.userData?.corruptionLevel ??
+    link?.corruption ??
+    link?.corruptionLevel ??
+    0
+  );
+}
+
 export class CorruptionDrivenAuraDesaturationSystem {
   constructor(aiNodes) {
     this.aiNodes = aiNodes;
@@ -35,7 +47,7 @@ export class CorruptionDrivenAuraDesaturationSystem {
         game?.linkingSystem?.getNodeLinks?.(node) ||
         [];
       const hasCascadeCorruptionLink = Array.isArray(nodeLinks) && nodeLinks.some((link) => (
-        (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD
+        readLinkCorruption(link) > CASCADE_CORRUPTION_THRESHOLD
       ));
       if (!hasCascadeCorruptionLink) {
         continue;

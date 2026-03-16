@@ -1656,15 +1656,14 @@ export class LinkRendererConduit {
         if (this.modules.corruptionFX) {
             if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
                 this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
-                    corruptionLevel: link?.userData?.corruptionLevel ?? 0,
+                    corruptionLevel: metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0,
                     nowMs: performance.now()
                 });
             }
             if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
                 this.corruptionMorphing.update(
-                    link,
                     visualDelta,
-                    state.strands
+                    link
                 );
             }
             if (runHeavyCorruptionUpdate && this.corruptionParticleSystem) {
@@ -2929,13 +2928,23 @@ export class LinkRendererConduit {
     }
 
     _readNodeCorruption(node) {
-        const metrics = node?.userData?.metrics;
+        const readMetric = (...values) => {
+            for (const value of values) {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    return Math.max(0, Math.min(1, value));
+                }
+            }
+            return 0;
+        };
 
-        if (metrics && Number.isFinite(metrics.corruption)) {
-            return Math.max(0, metrics.corruption);
-        }
+        const nodeId = this._getNodeId(node);
+        const cached = nodeId !== null ? this._nodeMetricCache.get(String(nodeId)) : null;
 
-        return 0;
+        return readMetric(
+            node?.userData?.metrics?.corruption,
+            node?.userData?.corruption,
+            cached?.corruption
+        );
     }
 
     _getLinkFeedbackNode(link) {

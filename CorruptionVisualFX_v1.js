@@ -214,7 +214,15 @@ export class CorruptionVisualFX_v1 {
     const links = nodeModel?.userData?.links;
     if (!Array.isArray(links)) return false;
     return links.some((link) => (
-      (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD
+      (
+        link?.group?.userData?.conduitState?.metrics?.corruption ??
+        link?.userData?.metrics?.corruption ??
+        link?.userData?.corruption ??
+        link?.userData?.corruptionLevel ??
+        link?.corruption ??
+        link?.corruptionLevel ??
+        0
+      ) > CASCADE_CORRUPTION_THRESHOLD
     ));
   }
 
