@@ -951,7 +951,7 @@ export class GlyphLayer4_MultiFusion {
         // Provide access to node metrics for resonance modulation
         glyphData: {
           harmonyDominance: node.userData?.metrics?.harmony || 0.5,
-          corruptionLevel: node.userData?.corruption || 0,
+          corruptionLevel: (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0),
           synergyCoherence: node.userData?.metrics?.synergy || 0.5,
           stabilityIndex: node.userData?.metrics?.stability || 0
         }

@@ -294,7 +294,7 @@ export function setupHarmonyHealingTestRunner(atomaGame) {
     
     // Collect node metrics
     for (const node of testState.aiNodes.nodes) {
-      const corruption = node.userData?.corruption || 0;
+      const corruption = (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0);
       const harmonyLevel = node.userData?.harmonyLevel || 0;
       const category = node.userData?.category || 'unknown';
       const stability = node.userData?.metrics?.stability || 0;

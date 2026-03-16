@@ -525,7 +525,7 @@ const adapter = this._createLinkSystemAdapter(
         const metricKeys = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
 
         for (const node of nodeList) {
-            const metrics = node?.userData?.metrics;
+            const metrics = node?.metrics ?? node?.userData?.metrics;
             if (!metrics || !node?.userData) continue;
 
             const nodeId = node?.id ?? this._getNodeId(node);
@@ -534,19 +534,21 @@ const adapter = this._createLinkSystemAdapter(
             const previous = node.userData.__lastMetricNodeUpdatedValues || (node.userData.__lastMetricNodeUpdatedValues = {});
             let changedMetric = null;
             let changedValue = null;
-            let synergyCrossedHigh = false;
-            let synergyValue = 0;
+            const synergyValue = this._clamp01(metrics.synergy);
+
+            if (synergyValue > 0.72 && this._canEmitNodeCooldown(node, 'nodeSynergyHigh', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) {
+                semanticBus.emit('node.synergy.high', {
+                    nodeId,
+                    synergy: synergyValue,
+                    position: node?.position
+                        ? { x: node.position.x, y: node.position.y, z: node.position.z }
+                        : undefined
+                }, { priority: semanticBus.priority?.INTERACTIVE });
+            }
 
             for (const metric of metricKeys) {
                 const value = this._clamp01(metrics[metric]);
                 const previousValue = previous[metric];
-                if (metric === 'synergy') {
-                    const prevSynergy = Number.isFinite(previousValue) ? this._clamp01(previousValue) : null;
-                    if ((prevSynergy ?? 0) < 0.8 && value >= 0.8) {
-                        synergyCrossedHigh = true;
-                        synergyValue = value;
-                    }
-                }
                 if (changedMetric === null && previousValue !== value) {
                     changedMetric = metric;
                     changedValue = value;
@@ -562,14 +564,6 @@ const adapter = this._createLinkSystemAdapter(
                 metric: changedMetric,
                 value: changedValue
             }, { priority: semanticBus.priority?.NORMAL });
-
-            if (synergyCrossedHigh && this._canEmitNodeCooldown(node, 'nodeSynergyHigh', nowMs)) {
-                semanticBus.emit('node.synergy.high', {
-                    node,
-                    nodeId,
-                    value: synergyValue
-                }, { priority: semanticBus.priority?.INTERACTIVE });
-            }
         }
     }
 

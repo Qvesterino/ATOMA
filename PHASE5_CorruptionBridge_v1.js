@@ -205,7 +205,7 @@ export class PHASE5_CorruptionBridge {
       
       let totalCorruption = 0;
       for (const node of network.aiNodes.nodes) {
-        totalCorruption += node.userData?.corruption ?? 0;
+        totalCorruption += node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
       }
       
       return totalCorruption / network.aiNodes.nodes.length;

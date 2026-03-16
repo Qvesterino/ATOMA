@@ -200,7 +200,7 @@ export class HarmonyStabilizationSystem_v1 {
     if (!harmonyData) return;
 
     // Check if node has corruption to counter
-    const nodeCorruption = node.userData?.corruption || 0;
+    const nodeCorruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
     
     // [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
     // Compute recovery boost from average synergy of connected links
@@ -466,7 +466,7 @@ export class HarmonyStabilizationSystem_v1 {
 
     // Block corruption on this node
     node.userData.corrupted = false;
-    setNodeCorruption(node, Math.max(0, node.userData.corruption - 0.2));
+    setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - 0.2));
     this._emitCorruptionThreshold(node);
 
     // Trigger healing pulse
@@ -564,7 +564,7 @@ export class HarmonyStabilizationSystem_v1 {
         if (distance <= pulse.radius) {
           // Reduce corruption
           if (node.userData) {
-          setNodeCorruption(node, Math.max(0, node.userData.corruption - pulse.intensity * 0.3));
+          setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - pulse.intensity * 0.3));
           this._emitCorruptionThreshold(node);
             // Boost harmony
             const harmonyData = this.initializeNodeHarmony(node);
@@ -754,7 +754,7 @@ export class HarmonyStabilizationSystem_v1 {
     for (const node of zone.nodes) {
       if (node.userData) {
         // Reduce corruption
-        setNodeCorruption(node, Math.max(0, node.userData.corruption - zone.intensity * 0.01 * deltaTime));
+        setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - zone.intensity * 0.01 * deltaTime));
         this._emitCorruptionThreshold(node);
         // Boost harmony
         const harmonyData = this.initializeNodeHarmony(node);
@@ -1143,7 +1143,7 @@ export class HarmonyStabilizationSystem_v1 {
   _emitCorruptionThreshold(node) {
     if (!node?.userData) return;
     const prev = node.userData._prevCorruption ?? 0;
-    const current = node.userData.corruption ?? 0;
+    const current = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
     const THRESHOLD = 0.7;
     if (prev < THRESHOLD && current >= THRESHOLD) {
       this.multiNetworkManager?.emitEvent?.({

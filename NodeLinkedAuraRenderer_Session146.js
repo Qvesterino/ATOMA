@@ -220,7 +220,7 @@ export class NodeLinkedAuraRenderer_Session146 {
       eventSynergyTime: 0,
       eventCorruptionTime: 0,
       lastHarmony: node.harmony ?? 0.5,
-      lastCorruption: node.corruption ?? 0.2,
+      lastCorruption: node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.2,
     });
   }
 
@@ -266,7 +266,7 @@ export class NodeLinkedAuraRenderer_Session146 {
     
     // Get node state metrics with safe defaults
     const harmony = (node && typeof node.harmony === 'number') ? node.harmony : 0.5;
-    const nodeCorruption = (node && typeof node.corruption === 'number') ? node.corruption : 0.2;
+    const nodeCorruption = node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.2;
     const auraCoherenceBias = (node && node._auraCoherenceBias) ? node._auraCoherenceBias : 0;
     const waveInfluence = (node && node._waveInfluence) ? node._waveInfluence : 0;
     const hintStrength = (node && node._precastHintStrength) ? node._precastHintStrength : 0;

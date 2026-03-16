@@ -300,7 +300,7 @@ export class PHASE5_NetworkSynchronization {
       // Validate node corruption values are in valid range
       if (network.aiNodes?.nodes) {
         for (const node of network.aiNodes.nodes) {
-          const corruption = node.userData?.corruption;
+          const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption;
           if (typeof corruption === 'number') {
             if (corruption < 0 || corruption > 1) {
               // Clamp to valid range

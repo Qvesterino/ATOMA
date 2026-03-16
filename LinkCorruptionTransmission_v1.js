@@ -844,6 +844,16 @@ export class LinkCorruptionTransmission_v1 {
       sourceNode?.userData?.corruption ??
       sourceNode?.corruption ??
       0;
+    const semanticBus = globalThis?.semanticBus;
+    if (sourceCorruption > 0.6 && semanticBus?.emit) {
+      semanticBus.emit('metric:corruptionRise', {
+        nodeId: sourceNode.id,
+        corruption: sourceCorruption,
+        position: sourceNode?.position
+          ? { x: sourceNode.position.x, y: sourceNode.position.y, z: sourceNode.position.z }
+          : undefined
+      });
+    }
     const targetCorruption = targetNode.userData?.corruption || 0;
     
     // Corruption spreads from higher → lower
@@ -863,6 +873,18 @@ export class LinkCorruptionTransmission_v1 {
     linkData.level = Math.min(1.0, linkData.level + corruptionIncrease);
     linkData.velocity = corruptionIncrease / (deltaTime + 0.001);
     linkData.lastUpdateTime = Date.now();
+
+    // Relaxation decay to prevent permanent link corruption accumulation.
+    // Runs after propagation update every cycle.
+    const DECAY_RATE = 0.05;
+    const decayedLevel = Math.max(
+      0,
+      (link.userData?.corruptionLevel ?? linkData.level) - DECAY_RATE * deltaTime
+    );
+    linkData.level = decayedLevel;
+    if (link.userData) {
+      link.userData.corruptionLevel = decayedLevel;
+    }
 
     // Check cascade thresholds
     this.checkCascadeThresholds(link, linkData);

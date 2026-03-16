@@ -554,7 +554,7 @@ export class WaveInterferencePatternSystem_Session132 {
         nodes.forEach(node => {
             if (!node) return;
             avgHarmony += node.harmony ?? 0.5;
-            avgCorruption += node.corruption ?? 0.5;
+            avgCorruption += node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.5;
             avgInstability += node.instability ?? 0;
             avgSynergy += node.synergy ?? 0.5;
             nodeCount++;

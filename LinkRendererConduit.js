@@ -860,12 +860,83 @@ export class LinkRendererConduit {
     }
 
     _registerLinkMaterialWithBridge(material) {
-        if (!material || !this.waveShaderBridge?.registerLinkMaterial) return;
+        if (!material) return;
+        const bridge = this.waveShaderBridge || window.game?.waveShaderBridge;
+        const travelPack = this.waveTravelShaderPack || window.game?.waveTravelShaderPack;
+        const waveShaderMaterialPatch = window.game?.waveShaderMaterialPatch;
+        const registerOne = (mat) => {
+            if (!mat) return;
+            if (bridge?.registerLinkMaterial) {
+                bridge.registerLinkMaterial(mat, 'DEFAULT');
+            }
+            if (waveShaderMaterialPatch?.patch) {
+                waveShaderMaterialPatch.patch(mat, 'SYNERGY');
+            }
+            if (travelPack?.register) {
+                travelPack.register(mat, 'TRAVEL_INTERFERENCE');
+            }
+        };
         if (Array.isArray(material)) {
-            material.forEach((mat) => this.waveShaderBridge.registerLinkMaterial(mat));
+            material.forEach(registerOne);
             return;
         }
-        this.waveShaderBridge.registerLinkMaterial(material);
+        registerOne(material);
+    }
+
+    _attachWaveDirectionUniform(material, direction, waveLength = 1.0, wavePhaseOffset = 0.0) {
+        if (!material || !direction) return;
+        ensureUserData(material);
+        material.userData.waveDirection = direction;
+        material.userData.waveLength = Number.isFinite(waveLength) ? waveLength : 1.0;
+        material.userData.wavePhaseOffset = Number.isFinite(wavePhaseOffset) ? wavePhaseOffset : 0.0;
+        if (material.uniforms && !material.uniforms.uWaveDirection) {
+            material.uniforms.uWaveDirection = { value: direction };
+        }
+        if (material.uniforms && !material.uniforms.uWaveLength) {
+            material.uniforms.uWaveLength = { value: material.userData.waveLength };
+        }
+        if (material.uniforms && !material.uniforms.uWavePhaseOffset) {
+            material.uniforms.uWavePhaseOffset = { value: material.userData.wavePhaseOffset };
+        }
+        const previousOnBeforeCompile = material.onBeforeCompile;
+        if (material.userData.__waveDirectionHooked) {
+            return;
+        }
+        material.onBeforeCompile = (shader) => {
+            if (!shader.uniforms.uWaveDirection) {
+                shader.uniforms.uWaveDirection = { value: direction };
+            } else {
+                shader.uniforms.uWaveDirection.value = direction;
+            }
+            if (!shader.uniforms.uWaveLength) {
+                shader.uniforms.uWaveLength = { value: material.userData.waveLength || 1.0 };
+            } else {
+                shader.uniforms.uWaveLength.value = material.userData.waveLength || 1.0;
+            }
+            if (!shader.uniforms.uWavePhaseOffset) {
+                shader.uniforms.uWavePhaseOffset = { value: material.userData.wavePhaseOffset || 0.0 };
+            } else {
+                shader.uniforms.uWavePhaseOffset.value = material.userData.wavePhaseOffset || 0.0;
+            }
+
+            if (typeof shader.vertexShader === 'string') {
+                if (!shader.vertexShader.includes('uniform float uWaveLength;')) {
+                    shader.vertexShader = shader.vertexShader.replace(
+                        'void main() {',
+                        'uniform float uWaveLength;\nuniform float uWavePhaseOffset;\nvoid main() {'
+                    );
+                }
+                shader.vertexShader = shader.vertexShader.replace(
+                    'float travelPhase = uWavePhase * 6.28318;',
+                    'float travelPhase = (uWavePhase + uWavePhaseOffset) * 6.28318;\n    float lengthFactor = clamp(uWaveLength * 0.2, 0.5, 4.0);\n    travelPhase *= lengthFactor;'
+                );
+            }
+            if (typeof previousOnBeforeCompile === 'function') {
+                previousOnBeforeCompile.call(material, shader);
+            }
+        };
+        material.userData.__waveDirectionHooked = true;
+        material.needsUpdate = true;
     }
 
     /**
@@ -1249,6 +1320,29 @@ export class LinkRendererConduit {
         const group = new THREE.Group();
         Object.assign(ensureUserData(group), { isLinkVisual: true });
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
+        const sourceNode = link?.source || link?.sourceNode;
+        const targetNode = link?.target || link?.targetNode;
+        const directionVec = new THREE.Vector3(1, 0, 0);
+        if (sourceNode?.position && targetNode?.position) {
+            directionVec.subVectors(targetNode.position, sourceNode.position);
+            if (directionVec.lengthSq() > 1e-8) {
+                directionVec.normalize();
+            } else {
+                directionVec.set(1, 0, 0);
+            }
+        }
+        const linkLength = (sourceNode?.position && targetNode?.position)
+            ? sourceNode.position.distanceTo(targetNode.position)
+            : 1.0;
+        const wavePhaseOffset = linkLength * 0.25;
+        const linkUserData = ensureUserData(link);
+        linkUserData.waveDirection = directionVec;
+        linkUserData.waveLength = linkLength;
+        linkUserData.wavePhaseOffset = wavePhaseOffset;
+        const waveShaderBridge = this.waveShaderBridge || window.game?.waveShaderBridge;
+        if (waveShaderBridge?.registerLinkDirection) {
+            waveShaderBridge.registerLinkDirection(link?.id, directionVec);
+        }
         const sourceCat = link.source.userData.category || 'input';
         const targetCat = link.target.userData.category || 'input';
         const baseColor = this.getCategoryColor(sourceCat);
@@ -1282,6 +1376,10 @@ export class LinkRendererConduit {
         ensureUserData(skinMaterial);
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';
+        skinMaterial.userData.waveDirection = directionVec;
+        skinMaterial.userData.waveLength = linkLength;
+        skinMaterial.userData.wavePhaseOffset = wavePhaseOffset;
+        this._attachWaveDirectionUniform(skinMaterial, directionVec, linkLength, wavePhaseOffset);
         // Freeze variant properties immediately after material creation
         freezeMaterialFlags(skinMaterial, 'LinkRenderer');
         applyLinkRenderLayer(skinMesh, 'LINK_SKIN');
@@ -1311,6 +1409,9 @@ export class LinkRendererConduit {
             baseColorObj: baseColorObj,
             colorA,
             colorB,
+            waveDirection: directionVec,
+            waveLength: linkLength,
+            wavePhaseOffset: wavePhaseOffset,
             impacts: [],
             __dynamicGeometryInitialized: false,
             bootstrap: {
@@ -1364,11 +1465,20 @@ export class LinkRendererConduit {
                     material.userData.__owner = 'LinkRenderer';
                     material.userData.__domain = 'link';
                     material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
+                    const directionVec =
+                        link?.userData?.waveDirection ||
+                        state?.waveDirection ||
+                        new THREE.Vector3(1, 0, 0);
+                    const waveLength = link?.userData?.waveLength ?? state?.waveLength ?? 1.0;
+                    const wavePhaseOffset = link?.userData?.wavePhaseOffset ?? state?.wavePhaseOffset ?? 0.0;
+                    material.userData.waveDirection = directionVec;
+                    material.userData.waveLength = waveLength;
+                    material.userData.wavePhaseOffset = wavePhaseOffset;
 
-                    if (this.waveShaderBridge?.registerLinkMaterial) this.waveShaderBridge.registerLinkMaterial(material);
-                    if (this.waveTravelShaderPack?.register) this.waveTravelShaderPack.register(material, 'TRAVEL_SINE');
+                    this._registerLinkMaterialWithBridge(material);
                     if (this.waveDynamicsShaderPack?.applyToMaterial) this.waveDynamicsShaderPack.applyToMaterial(material);
                     if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
+                    this._attachWaveDirectionUniform(material, directionVec, waveLength, wavePhaseOffset);
 
                     const geometry = new THREE.BufferGeometry();
                     const depthMaterial = new THREE.MeshBasicMaterial({
@@ -1940,6 +2050,22 @@ export class LinkRendererConduit {
         // Store link direction for aura modulation later
         const linkUD = ensureUserData(link);
         linkUD.linkDirection = linkDir.clone();
+        const waveDirection = linkUD.waveDirection instanceof THREE.Vector3
+            ? linkUD.waveDirection
+            : new THREE.Vector3();
+        waveDirection.copy(linkDir);
+        linkUD.waveDirection = waveDirection;
+        const waveLength = Math.max(0.0001, linkDist || 1.0);
+        const wavePhaseOffset = waveLength * 0.25;
+        linkUD.waveLength = waveLength;
+        linkUD.wavePhaseOffset = wavePhaseOffset;
+        state.waveDirection = waveDirection;
+        state.waveLength = waveLength;
+        state.wavePhaseOffset = wavePhaseOffset;
+        const waveShaderBridge = this.waveShaderBridge || window.game?.waveShaderBridge;
+        if (waveShaderBridge?.registerLinkDirection) {
+            waveShaderBridge.registerLinkDirection(link?.id, waveDirection);
+        }
 
         const geometryTick = (frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true;
         const segments = geometryTick
@@ -1994,9 +2120,25 @@ export class LinkRendererConduit {
                 mat.uniforms.uNetworkStress.value = metrics.loadPressure ?? 0;
                 mat.uniforms.uLocalLoad.value = metrics.traffic ?? 0;
                 mat.uniforms.uCorruption.value = metrics.corruption ?? 0;
+                if (mat.uniforms.uWaveDirection?.value?.copy) {
+                    mat.uniforms.uWaveDirection.value.copy(waveDirection);
+                } else if (mat.uniforms.uWaveDirection) {
+                    mat.uniforms.uWaveDirection.value = waveDirection;
+                }
+                if (mat.uniforms.uWaveLength) {
+                    mat.uniforms.uWaveLength.value = waveLength;
+                }
+                if (mat.uniforms.uWavePhaseOffset) {
+                    mat.uniforms.uWavePhaseOffset.value = wavePhaseOffset;
+                }
                 if (mat.uniforms.uSegmentCount) {
                     mat.uniforms.uSegmentCount.value = overlaySegmentCount;
                 }
+            }
+            if (mat?.userData) {
+                mat.userData.waveDirection = waveDirection;
+                mat.userData.waveLength = waveLength;
+                mat.userData.wavePhaseOffset = wavePhaseOffset;
             }
             // Flow texture
             if (mesh.material && mesh.material.emissiveMap) {
@@ -2112,10 +2254,21 @@ export class LinkRendererConduit {
                  // Time-sync with node aura
                  material.uniforms.uTime.value = visualTime;
 
-                 // Link direction for directional noise bias
-                 if (linkDir) {
-                     material.uniforms.uLinkDirection.value = linkDir.clone();
-                 }
+                // Link direction for directional noise bias
+                if (linkDir) {
+                    material.uniforms.uLinkDirection.value.copy(waveDirection);
+                }
+                if (material.uniforms.uWaveDirection?.value?.copy) {
+                    material.uniforms.uWaveDirection.value.copy(waveDirection);
+                } else if (material.uniforms.uWaveDirection) {
+                    material.uniforms.uWaveDirection.value = waveDirection;
+                }
+                if (material.uniforms.uWaveLength) {
+                    material.uniforms.uWaveLength.value = waveLength;
+                }
+                if (material.uniforms.uWavePhaseOffset) {
+                    material.uniforms.uWavePhaseOffset.value = wavePhaseOffset;
+                }
 
                  // Harmony/corruption influence (from link or global state)
                 const linkHarmony = metrics.harmony ?? 0.5;
@@ -2760,7 +2913,7 @@ export class LinkRendererConduit {
             metrics.corruption,
             userData.corruption,
             userData.corruptionLevel,
-            node.corruption,
+            node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? node?.corruption ?? 0,
             node.corruptionLevel
         ];
         for (const value of values) {

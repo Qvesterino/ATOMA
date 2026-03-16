@@ -398,7 +398,7 @@ export class RegionalEquilibriumFieldSystem {
         
         for (const node of region.nodes) {
             harmonySum += (node.harmony || 0.5);
-            corruptionSum += (node.corruption || 0.0);
+            corruptionSum += (node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.0);
             // Synergy might not be per-node; use network-level if available
             instabilitySum += (node.instability || 0.0);
         }

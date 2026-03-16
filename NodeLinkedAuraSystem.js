@@ -231,7 +231,7 @@ export class NodeLinkedAuraSystem {
       seeded.stability = Math.max(0, Math.min(1, nodeMetrics.stability ?? seeded.stability ?? 0.5));
       seeded.corruption = Math.max(
         0,
-        Math.min(1, nodeMetrics.corruption ?? node?.userData?.corruption ?? seeded.corruption ?? 0)
+        Math.min(1, nodeMetrics.corruption ?? node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? seeded.corruption ?? 0)
       );
       seeded.loadPressure = Math.max(
         0,

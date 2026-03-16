@@ -68,6 +68,12 @@ export class WaveInterferenceEngine_v1 {
         this.timeSource = options.timeSource || { now: () => performance.now() * 0.001 };
         this.debugEnabled = options.enableDebug ?? false;
         this.warningsEnabled = options.enableWarnings ?? false;
+        this.eventBus =
+            options.eventBus ||
+            options.semanticBus ||
+            globalThis?.semanticBus ||
+            globalThis?.game?.semanticBus ||
+            null;
         this.reflectionSystem =
             options.reflectionSystem ||
             options.influenceReflection ||
@@ -196,6 +202,7 @@ export class WaveInterferenceEngine_v1 {
         this._registerBoundaryReflection(normalized);
         this._emitLifecycle('accepted', { snapshot, intent: normalized });
         this._emitLifecycle('started', { snapshot, intent: normalized });
+        this._emitWavePacketSpawn(normalized, snapshot);
 
         return snapshot;
     }
@@ -585,6 +592,40 @@ export class WaveInterferenceEngine_v1 {
         }
         if (this.debugEnabled) {
             console.log('[WaveInterferenceEngine]', state, payload || '');
+        }
+    }
+
+    _emitWavePacketSpawn(intent, snapshot) {
+        const bus =
+            this.eventBus ||
+            globalThis?.semanticBus ||
+            globalThis?.game?.semanticBus ||
+            null;
+        if (!bus) return;
+
+        const payload = {
+            linkId: intent?.linkId || null,
+            sourceNode: intent?.sourceNode || null,
+            targetNode: intent?.targetNode || null,
+            phase: intent?.metadata?.phase ?? 0,
+            intensity: clamp01(intent?.intensityEnvelope?.peak ?? 1.0),
+            type: intent?.type || snapshot?.type || 'harmonic',
+            center: snapshot?.spatial?.center || null
+        };
+
+        if (typeof bus.emit === 'function') {
+            if (bus.priority) {
+                bus.emit('wave.packet.spawn', payload, {
+                    priority: bus.priority.INTERACTIVE ?? bus.priority.NORMAL
+                });
+                return;
+            }
+            bus.emit('wave.packet.spawn', payload);
+            return;
+        }
+
+        if (typeof bus.publish === 'function') {
+            bus.publish('wave.packet.spawn', payload);
         }
     }
 }

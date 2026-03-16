@@ -228,7 +228,7 @@ export class LinkCorruptionTransmissionIntegrationPatch_v1 {
 
       // Update visuals for affected nodes
       for (const node of affectedNodes) {
-        if (this.visualFXLayer && node.userData?.corruption) {
+        if (this.visualFXLayer && (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0)) {
           // Let visual layer handle corruption rendering
           this.visualFXLayer.applyCorruptionEffects(node, deltaTime);
         }

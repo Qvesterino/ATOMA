@@ -457,7 +457,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
                   harmony * this.config.nodeAuraOpacityHarmonyMult;
     
     // Apply corruption damping
-    const corruption = node.userData?.corruption ?? 0;
+    const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
     opacity *= (1.0 - corruption * this.config.corruptionDampen);
     
     // Apply LOD suppression

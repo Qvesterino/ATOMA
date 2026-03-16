@@ -21,6 +21,14 @@ export class PulseWaveSystemBridge_v1 {
   constructor(config = {}) {
     this.enabled = config.enabled ?? true;
     this.debugMode = config.debugMode ?? false;
+    this.world = config.world || null;
+    this.waveEngine = config.waveEngine || this.world?.waveInterferenceEngine || null;
+    this.eventBus =
+      config.eventBus ||
+      this.world?.semanticBus ||
+      globalThis?.semanticBus ||
+      globalThis?.game?.semanticBus ||
+      null;
     
     // Configuration
     this.pulseWidthFactor = config.pulseWidthFactor ?? 0.12;      // How wide pulse appears
@@ -29,9 +37,11 @@ export class PulseWaveSystemBridge_v1 {
     
     // Active tracking
     this.activeLinkWaves = new Map();  // linkId → { phase, amplitude, ... }
+    this.activePackets = new Map();    // packetId -> traveling packet state
     this._linkCursor = 0;
     this._timeBudgetMs = config.timeBudgetMs ?? 3.5;
     
+    this._bindPacketEvents();
     // Console API
     this.setupConsoleAPI();
     
@@ -46,7 +56,7 @@ export class PulseWaveSystemBridge_v1 {
     if (!this.enabled) return;
     
     const {
-      waveEngine,
+      waveEngine = this.waveEngine,
       links = [],
       nodeDynamicMetrics,
       pulseIntersectionAdapter
@@ -147,6 +157,7 @@ export class PulseWaveSystemBridge_v1 {
       }
       
       this._linkCursor = (this._linkCursor + processed) % totalLinks;
+      this._updateTravelingPackets(deltaTime, links, pulseIntersectionAdapter, nodeDynamicMetrics);
       
       // Clean up stale entries
       const now = Date.now();
@@ -159,6 +170,82 @@ export class PulseWaveSystemBridge_v1 {
     } catch (err) {
       console.warn('[PulseWaveSystemBridge] update error:', err);
     }
+  }
+
+  _bindPacketEvents() {
+    const bus = this.eventBus;
+    if (!bus) return;
+    const handler = (event) => this.spawnPacket(event);
+    if (typeof bus.on === 'function') {
+      bus.on('wave.packet.spawn', handler);
+      return;
+    }
+    if (typeof bus.subscribe === 'function') {
+      bus.subscribe('wave.packet.spawn', handler);
+      return;
+    }
+    if (typeof bus.addListener === 'function') {
+      bus.addListener('wave.packet.spawn', handler);
+    }
+  }
+
+  spawnPacket(event = {}) {
+    const linkId = event.linkId || null;
+    if (!linkId) return;
+
+    const packetId = `${linkId}:${Date.now()}`;
+    this.activePackets.set(packetId, {
+      linkId,
+      sourceNode: event.sourceNode || null,
+      targetNode: event.targetNode || null,
+      phase: Number.isFinite(event.phase) ? event.phase : 0,
+      intensity: Math.max(0, Math.min(1, event.intensity ?? 1)),
+      progress: 0
+    });
+  }
+
+  _updateTravelingPackets(deltaTime, links, pulseIntersectionAdapter, nodeDynamicMetrics) {
+    if (!pulseIntersectionAdapter || this.activePackets.size === 0 || !Array.isArray(links) || links.length === 0) {
+      return;
+    }
+
+    const toRemove = [];
+    for (const [packetId, packet] of this.activePackets) {
+      const link = links.find((candidate) => {
+        const candidateId = candidate?.id || candidate?.uuid || candidate?.name;
+        return candidateId === packet.linkId;
+      });
+
+      if (!link) {
+        toRemove.push(packetId);
+        continue;
+      }
+
+      const intensity = Math.max(0, Math.min(1, packet.intensity ?? 1));
+      const speed = (0.2 + intensity * 0.8) * this.pulseSpeedFactor;
+      packet.progress = Math.min(1, packet.progress + Math.max(0, deltaTime) * speed);
+
+      const pulseWidth = this.pulseWidthFactor * (0.6 + intensity * 0.8);
+      pulseIntersectionAdapter.updatePulsePosition(
+        packet.linkId,
+        packet.progress,
+        {
+          isActive: true,
+          duration: 0.8,
+          width: pulseWidth,
+          harmony: Math.max(0, 1 - intensity * 0.35),
+          synergy: intensity,
+          corruption: 0,
+          instability: nodeDynamicMetrics?.avgInstability ?? 0
+        }
+      );
+
+      if (packet.progress >= 1) {
+        toRemove.push(packetId);
+      }
+    }
+
+    toRemove.forEach((packetId) => this.activePackets.delete(packetId));
   }
 
   /**
@@ -224,6 +311,9 @@ Pulse Wave Bridge Console API:
 export function setupPulseWaveSystemBridgeIntegration(game) {
   try {
     const bridge = new PulseWaveSystemBridge_v1({
+      world: game,
+      waveEngine: game.waveInterferenceEngine || null,
+      eventBus: game.semanticBus || null,
       enabled: true,
       debugMode: false,
       pulseWidthFactor: 0.12,

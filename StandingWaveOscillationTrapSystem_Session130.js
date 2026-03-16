@@ -49,6 +49,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         this.harmonicInfluenceSystem = harmonicInfluenceSystem;
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
+        this.waveEngine = world?.waveInterferenceEngine || globalThis?.game?.waveInterferenceEngine || null;
         
         // Configuration
         this.config = {
@@ -142,7 +143,10 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 reflectionCount: 0,
                 lastReflectionTime: 0,
                 damping: 0,
-                resolution: null
+                resolution: null,
+                energyStorage: 0,
+                maxEnergy: 5.0,
+                decayRate: 0.02
             });
         }
         
@@ -339,9 +343,13 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             if (!pooledTrap) return;  // Pool exhausted
             
             pooledTrap.active = true;
+            pooledTrap.id = linkId;
             pooledTrap.linkId = linkId;
             pooledTrap.birthTime = this.time;
             pooledTrap.reflectionCount = 0;
+            pooledTrap.energyStorage = 0;
+            pooledTrap.maxEnergy = 5.0;
+            pooledTrap.decayRate = 0.02;
             
             this.oscillationTraps.push(pooledTrap);
             trap = pooledTrap;
@@ -355,6 +363,10 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         trap.nodeB = this._getLinkTarget(link);
         trap.reflectionCount++;
         trap.lastReflectionTime = this.time;
+        trap.energyStorage = Math.min(
+            trap.maxEnergy,
+            (trap.energyStorage || 0) + (reflection?.intensity ?? 0)
+        );
         
         // Calculate oscillation frequency based on reflection rate
         const reflectionRate = history.reflections.length / this.config.detectionWindow;
@@ -390,7 +402,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             (this._readNodeMetric(trap.nodeA, 'synergy', 0.5) + this._readNodeMetric(trap.nodeB, 'synergy', 0.5)) * 0.5;
         
         // Base amplitude
-        let amplitude = this.config.standingWaveAmplitude;
+        const baseAmplitude = this.config.standingWaveAmplitude;
+        let amplitude = baseAmplitude;
         
         // Harmony weakens the trap
         const avgHarmony = (harmonyA + harmonyB) * 0.5;
@@ -404,7 +417,10 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         const avgInstability = (instabilityA + instabilityB) * 0.5;
         amplitude *= (1 + Math.sin(this.time * 2) * avgInstability * this.config.instabilityWobble);
         
-        trap.amplitude = Math.max(0, Math.min(1, amplitude));
+        // Stored trap energy amplifies standing-wave oscillation.
+        amplitude *= (1 + (trap.energyStorage || 0) * 0.5);
+
+        trap.amplitude = Math.max(0, Math.min(3, amplitude));
     }
 
     /**
@@ -527,6 +543,22 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             
             // Apply damping to amplitude
             trap.amplitude *= (1 - deltaTime * this.config.dampingRate * 0.5);
+
+            // Passive energy decay
+            trap.energyStorage = Math.max(0, (trap.energyStorage || 0) - (trap.decayRate || 0.02));
+
+            // Optional release burst when trapped energy gets high.
+            if ((trap.energyStorage || 0) > 3.0) {
+                const waveEngine = this.waveEngine || this.world?.waveInterferenceEngine || globalThis?.game?.waveInterferenceEngine || null;
+                if (waveEngine?.requestBurstIntent) {
+                    waveEngine.requestBurstIntent({
+                        type: 'trapRelease',
+                        sourceTrap: trap.id,
+                        intensity: (trap.energyStorage || 0) * 0.4
+                    });
+                }
+                trap.energyStorage *= 0.5;
+            }
             
             return true;
         });

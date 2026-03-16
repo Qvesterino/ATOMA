@@ -267,7 +267,7 @@ export class ParticleStreamCascadeAcceleration {
     // Get state metrics
     const harmony = node.harmony || 0;
     const synergy = node.synergy || 0;
-    const corruption = node.corruption || 0;
+    const corruption = node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0;
 
     // Harmony: smooths acceleration (dampens particles)
     // High harmony → lower acceleration multiplier
@@ -347,7 +347,7 @@ export class ParticleStreamCascadeAcceleration {
       cascadeAmplitude: cascadeAmplitude.toFixed(3),
       harmony: (node.harmony || 0).toFixed(2),
       synergy: (node.synergy || 0).toFixed(2),
-      corruption: (node.corruption || 0).toFixed(2),
+      corruption: (node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0).toFixed(2),
     });
   }
 

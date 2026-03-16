@@ -154,7 +154,7 @@ export function setupCascadeSystemConsoleAPI(game) {
 
         nodes.forEach((node, index) => {
             const stability = node.userData?.metrics?.stability ?? 1.0;
-            const corruption = node.userData?.corruption ?? 0.0;
+            const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0.0;
             
             if (stability <= 0.3 && corruption >= 0.6) {
                 criticalNodes.push({

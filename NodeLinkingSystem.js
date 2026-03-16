@@ -3734,11 +3734,29 @@ getLinksForNode(node) {
     if (semanticBus?.emit) {
       const sourceId = this.getNodeId(sourceNode);
       const targetId = this.getNodeId(targetNode);
-      semanticBus.emit('link.created', {
+      const payload = {
         source: sourceId,
         target: targetId,
-        linkId: link.id
-      }, { priority: semanticBus.priority?.INTERACTIVE });
+        linkId: link.id,
+        midpoint: (sourceNode?.position && targetNode?.position)
+          ? {
+              x: (sourceNode.position.x + targetNode.position.x) * 0.5,
+              y: (sourceNode.position.y + targetNode.position.y) * 0.5,
+              z: (sourceNode.position.z + targetNode.position.z) * 0.5
+            }
+          : undefined
+      };
+      semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
+
+      if (window.game?.waveInterferenceEngine) {
+        window.game.waveInterferenceEngine.requestBurstIntent({
+          type: "synergy",
+          sourceId: payload?.linkId || "link",
+          center: payload?.position || payload?.midpoint || { x: 0, y: 0, z: 0 },
+          toRegime: "collaborative",
+          fromRegime: "baseline"
+        });
+      }
     }
     
     // categoryTransitionSystem removed (unused)

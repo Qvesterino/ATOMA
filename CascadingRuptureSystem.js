@@ -34,6 +34,8 @@
 
 import * as THREE from 'three';
 
+const CASCADE_CORRUPTION_THRESHOLD = 0.35;
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -43,7 +45,7 @@ const CONFIG = {
     DETECTION_INTERVAL: 0.5, // Check for cascade conditions every 0.5s
     
     // Trigger thresholds
-    CORRUPTION_THRESHOLD: 0.6, // Region must have > 60% corruption
+    CORRUPTION_THRESHOLD: CASCADE_CORRUPTION_THRESHOLD, // Region must exceed cascade threshold
     STABILITY_THRESHOLD: 0.4, // Region must have < 40% avg stability
     STANDING_WAVE_THRESHOLD: 0.3, // Unresolved wave energy > 30%
     
@@ -321,9 +323,11 @@ export class CascadingRuptureSystem {
         const links = this.linkingSystem.getNodeLinks(node);
         if (!links || links.length === 0) return false;
 
-        // Check corruption threshold
-        const corruption = node.userData?.metrics?.corruption ?? 0;
-        if (corruption < CONFIG.CORRUPTION_THRESHOLD) return false;
+        // Check corruption threshold on connected links
+        const hasCascadeCorruptionLink = links.some((link) => (
+            (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD
+        ));
+        if (!hasCascadeCorruptionLink) return false;
 
         // Check stability threshold
         const stability = node.userData?.metrics?.stability ?? 1.0;

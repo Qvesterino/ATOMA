@@ -1580,6 +1580,30 @@ export class EnhancedNodeModels {
     rootGroup.userData.factoryName = def.factoryName;
     rootGroup.userData.category = cat;
 
+    const waveShaderBridge = window.game?.waveShaderBridge;
+    const waveShaderMaterialPatch = window.game?.waveShaderMaterialPatch;
+    if (
+      (waveShaderBridge && typeof waveShaderBridge.registerNodeMaterial === 'function') ||
+      (waveShaderMaterialPatch && typeof waveShaderMaterialPatch.patch === 'function')
+    ) {
+      const seenMaterials = new Set();
+      rootGroup.traverse((child) => {
+        const materialRef = child?.material;
+        if (!materialRef) return;
+        const materials = Array.isArray(materialRef) ? materialRef : [materialRef];
+        for (const material of materials) {
+          if (!material || seenMaterials.has(material)) continue;
+          seenMaterials.add(material);
+          if (waveShaderBridge?.registerNodeMaterial) {
+            waveShaderBridge.registerNodeMaterial(material, 'DEFAULT');
+          }
+          if (waveShaderMaterialPatch?.patch) {
+            waveShaderMaterialPatch.patch(material, 'AURA');
+          }
+        }
+      });
+    }
+
     // Generate canonical nodeId (factory-level identity)
     if (!rootGroup.userData.nodeId) {
       rootGroup.userData.nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

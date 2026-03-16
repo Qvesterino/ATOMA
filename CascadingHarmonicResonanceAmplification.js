@@ -501,6 +501,7 @@ export class CascadingHarmonicResonanceAmplification {
       if (phase < 0) phase += TWO_PI;
       return phase;
     };
+    const semanticBus = globalThis?.semanticBus;
 
     for (const [nodeId, layerData] of this.nodeLayerData) {
       const node = this.network?.nodes?.get?.(nodeId);
@@ -525,6 +526,16 @@ export class CascadingHarmonicResonanceAmplification {
         node.userData.metrics.cascadeStrength = node._cascadeStrength;
         node.userData.metrics.cascadeAmplitude = node._cascadeAmplitude;
         node.userData.metrics.cascadePhase = node._cascadePhase;
+
+        if (node._cascadeStrength > 0.65 && semanticBus?.emit) {
+          semanticBus.emit('cascade.triggered', {
+            sourceNode: node.id ?? nodeId,
+            strength: node._cascadeStrength,
+            position: node?.position
+              ? { x: node.position.x, y: node.position.y, z: node.position.z }
+              : undefined
+          });
+        }
 
         // Bridge cascade propagation output into canonical waveField consumed by wave shaders/particles.
         node.userData.waveField = node.userData.waveField || {};

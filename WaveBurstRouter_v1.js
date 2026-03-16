@@ -48,6 +48,9 @@ export function setupWaveBurstRouter(game) {
         synergyIntensityMult: 1.0,        // Synergy burst intensity multiplier
         cascadeIntensityMult: 0.8,         // Cascade burst intensity multiplier
         corruptionIntensityMult: 1.0,      // Corruption burst intensity multiplier
+        ambientIntervalSeconds: 5.0,
+        ambientIntensity: 0.15,
+        ambientMaxIntensity: 0.2
     };
     
     // Runtime state
@@ -55,6 +58,7 @@ export function setupWaveBurstRouter(game) {
         lastBurstTime: 0,               // Last burst timestamp
         lastCascadeBurstTime: 0,
         accumulatedTime: 0,               // Time accumulator for update
+        ambientTimer: 0,
         rngSeed: Math.random() * 10000,   // RNG seed for jitter
     };
     
@@ -70,7 +74,9 @@ export function setupWaveBurstRouter(game) {
         probe: 'harmonic',
         harmonic: 'harmonic',
         synergy: 'synergy',
-        corruption: 'corruption'
+        corruption: 'corruption',
+        ambient: 'harmonic',
+        ambientwave: 'harmonic'
     };
 
     const REGIME_MAP = {
@@ -153,12 +159,14 @@ export function setupWaveBurstRouter(game) {
             type: mappedType,
             fromRegime: 'baseline',
             toRegime: resolveToRegime(mappedType),
+            sourceId: burstData.sourceId || undefined,
             center: {
                 x: origin.x,
                 y: origin.y,
                 z: origin.z
             },
-            intensity: intensity
+            intensity: intensity,
+            metadata: burstData.metadata || undefined
         };
         
         // Trigger burst
@@ -186,7 +194,9 @@ export function setupWaveBurstRouter(game) {
         emitBurst({
             type: intentPayload.type || 'harmonic',
             origin: payloadCenter || new THREE.Vector3(0, 0, 0),
-            intensity: Number.isFinite(intentPayload.intensity) ? intentPayload.intensity : 0
+            intensity: Number.isFinite(intentPayload.intensity) ? intentPayload.intensity : 0,
+            sourceId: intentPayload.sourceId,
+            metadata: intentPayload.metadata
         });
     }
     
@@ -453,9 +463,18 @@ export function setupWaveBurstRouter(game) {
     function update(deltaTime) {
         // Accumulate time for cooldown tracking
         state.accumulatedTime += deltaTime;
-        
-        // No per-frame processing needed
-        // All burst triggers are event-driven
+        state.ambientTimer += deltaTime;
+
+        if (state.ambientTimer >= 2.0) {
+            state.ambientTimer = 0;
+            requestBurstIntent({
+                type: 'ambient',
+                intensity: Math.min(config.ambientIntensity, config.ambientMaxIntensity),
+                origin: new THREE.Vector3(0, 0, 0),
+                sourceId: 'ambient',
+                metadata: { phase: Math.random(), source: 'ambient' }
+            });
+        }
     }
     
     /**

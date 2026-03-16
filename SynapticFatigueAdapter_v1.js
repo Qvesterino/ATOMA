@@ -228,7 +228,7 @@ export class SynapticFatigueAdapter_v1 {
    */
   accumulateFatigue(node, fatigueState, gateStrength, pulseDensity, deltaTime) {
     const harmony = node.userData?.metrics?.harmony ?? 0.5;
-    const corruption = node.userData?.corruption ?? 0.0;
+    const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0.0;
     const instability = node.userData?.instability ?? 0.0;
     const isHub = node.userData?.isHub ?? false;
 
@@ -259,7 +259,7 @@ export class SynapticFatigueAdapter_v1 {
     if (fatigueState.fatigue <= 0) return;
 
     const harmony = node.userData?.metrics?.harmony ?? 0.5;
-    const corruption = node.userData?.corruption ?? 0.0;
+    const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0.0;
     const instability = node.userData?.instability ?? 0.0;
 
     // Base decay rate

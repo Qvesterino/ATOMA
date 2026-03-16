@@ -68,7 +68,8 @@ import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
 import PHASE5_MultiNetworkManager from './PHASE5_MultiNetworkManager_v1.js';
 import PHASE5_CorruptionBridge from './PHASE5_CorruptionBridge_v1.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
-import CorruptionVisualFX_v1 from './CorruptionVisualFX_v1.js';
+import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
+import { CorruptionDrivenAuraDesaturationSystem } from './CorruptionDrivenAuraDesaturationSystem.js';
 import './FXDebugSandbox.js';
 // REMOVED (2026-03-01): ShaderFreezeGuard disabled for new visual modules
 // import { installShaderFreezeGuard, warmupAllVisualVariants } from './Engine/Debug/ShaderFreezeGuard.js';
@@ -3467,7 +3468,7 @@ class AtomaGame {
         }, 'simulation.synapticSpecializationAdapter');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.linkCorruptionTransmission) {
-                safeTick(this.linkCorruptionTransmission, dt);
+                this.linkCorruptionTransmission.updateTransmission(dt);
             }
         }, 'simulation.linkCorruptionTransmission');
         this.frameScheduler.register('simulation', (dt) => {
@@ -3529,10 +3530,11 @@ class AtomaGame {
             }
         }, 'simulation.influenceReflection');
         this.frameScheduler.register('simulation', (dt) => {
-            if (this.standingWaveTrap) {
-                this.standingWaveTrap.update(dt, this.time);
+            const trapSystem = this.standingWaveTrapSystem || this.standingWaveTrap;
+            if (trapSystem) {
+                trapSystem.update(dt, this.time);
             }
-        }, 'simulation.standingWaveTrap');
+        }, 'simulation.waveStandingTraps');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.cascadeAccelSetup) {
                 this.cascadeAccelSetup.update(dt, this.time);
@@ -3637,6 +3639,9 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.frameScheduler.register('visual', this.synergyChainReactionTick.bind(this), 'visual.synergyChainReaction');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            this.corruptionAuraDesaturation?.update?.(dt);
+        }, 'visual.corruptionAuraDesaturation');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -3760,15 +3765,16 @@ class AtomaGame {
             }
         }, 'harmonicCascadeAmplification.realtime');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.pulseWaveSystemBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
-                this.pulseWaveSystemBridge.update(dt, {
+            const pulseWaveBridge = this.pulseWaveBridge || this.pulseWaveSystemBridge;
+            if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
+                pulseWaveBridge.update(dt, {
                     waveEngine: this.waveInterferenceEngine,
                     links: this.nodeLinking?.links || [],
                     nodeDynamicMetrics: this.nodeDynamicMetrics,
                     pulseIntersectionAdapter: this.pulseIntersectionAdapter
                 });
             }
-        }, 'visual.pulseWaveSystemBridge');
+        }, 'visual.pulseWaveBridge');
         this.frameScheduler.register('visual', () => {
             if (this.pulseBoundaryInteractionAdapter && this.aiNodes && this.nodeLinking) {
                 this.pulseBoundaryInteractionAdapter.update({
@@ -3906,13 +3912,6 @@ class AtomaGame {
             }
         }, 'visual.particleTrailSystem');
         
-        // NEW: Update cascading rupture system
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadingRuptureSystem && this.cascadingRuptureSystem.config.enabled) {
-                this.cascadingRuptureSystem.update(dt, this.time, this.ruptureSystem, this.harmonySystem);
-            }
-        }, 'visual.cascadingRuptureSystem');
-        
         // NEW: Update cascade resonance wave visualization
         this.frameScheduler.register(
             'visual',
@@ -3962,14 +3961,11 @@ class AtomaGame {
                 this.dynamicLinkColorSystem.update(dt);
             }
         }, 'visual.dynamicLinkColorSystem');
-        this.frameScheduler.register('visual', (dt) => {
+        this.frameScheduler.register('visual', (deltaTime) => {
             if (this.waveShaderBridge) {
-                this.waveShaderBridge.update(dt, {
-                    links: this.nodeLinking?.links || [],
-                    nodes: this.aiNodes?.nodes || [],
-                    time: this.time,
-                    visualTime: window.VISUAL_TIME ?? this.time,
-                    nodeDynamicMetrics: this.nodeDynamicMetrics
+                this.waveShaderBridge.update(deltaTime, {
+                    nodes: this.nodes || this.nodeList || [],
+                    links: this.links || this.linkList || []
                 });
             }
         }, 'visual.waveShaderBridge');
@@ -3997,12 +3993,13 @@ class AtomaGame {
             if (this.standingWaveRenderer) {
                 this.standingWaveRenderer.update(dt, this.time);
             }
-        }, 'visual.standingWaveRenderer');
+        }, 'visual.waveStandingRenderer');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.waveInterference) {
-                this.waveInterference.update(dt, this.time);
+            const wavePatternSystem = this.wavePatternSystem || this.waveInterference;
+            if (wavePatternSystem) {
+                wavePatternSystem.update(dt, this.time);
             }
-        }, 'visual.waveInterferencePattern');
+        }, 'visual.waveInterferencePatterns');
         this.frameScheduler.register('visual', (dt) => {
             // Harmonic resonance feedback fields (30 Hz visual cadence)
             const harmonicResonanceFeedbackSystem =
@@ -4280,6 +4277,7 @@ document.addEventListener('keydown', () => {
 
         // Pulse Wave System Bridge (connects waves to neural firing)
         this.pulseWaveSystemBridge = null;
+        this.pulseWaveBridge = null;
 
         // Pulse Boundary Interaction Adapter (energy dissipation/absorption at nodes)
         this.pulseBoundaryInteractionAdapter = null;
@@ -4325,6 +4323,7 @@ document.addEventListener('keydown', () => {
         // Noise-driven aura meshes around nodes
         // ====================================================================
         this.nodeAuraRenderer = null;
+        this.corruptionAuraDesaturation = null;
 
         // ====================================================================
         // PHASE 3C WEEK 10: LINK AURA SYSTEM
@@ -4336,6 +4335,7 @@ document.addEventListener('keydown', () => {
         // Visualizes constructive/destructive wave collision patterns
         // ====================================================================
         this.waveInterference = null;
+        this.wavePatternSystem = null;
 
         // ====================================================================
         // SESSION 133: RESONANCE RUPTURE VISUAL SYSTEM
@@ -4742,12 +4742,6 @@ document.addEventListener('keydown', () => {
         // Visualizes subtle wave propagation between synchronized hubs
         // ========================================================================
         this.setupCascadeResonanceWaveVisualization();
-
-        // ========================================================================
-        // CASCADING RUPTURE SYSTEM
-        // Visualizes rupture cascades across regions
-        // ========================================================================
-        this.setupCascadingRuptureSystem();
 
         // ========================================================================
         // SESSION 121: PARTICLE SEMANTIC DENSITY
@@ -5191,6 +5185,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 enabled: true,
                 enableDebug: false,
                 enableWarnings: false,
+                eventBus: this.semanticBus,
                 onFieldSuppressionChange: (active) => {
                     // Burst playback suppresses ambient fields to preserve contrast.
                     if (!this.semanticBus) return;
@@ -5258,6 +5253,27 @@ window.__ATOMA_SCENE__ = this.scene;
                 activeSnapshot: this.waveInterferenceEngine?.getActiveSnapshot?.() || null,
                 metrics: this.waveInterferenceEngine?.getMetrics?.() || null
             });
+            window.debugWaveBurst = (type = "harmonic") => {
+                const engine = this.waveInterferenceEngine;
+                if (!engine?.requestBurstIntent) return null;
+
+                return engine.requestBurstIntent({
+                    type,
+                    sourceId: "debug",
+                    fromRegime: "baseline",
+                    toRegime:
+                        type === "corruption" ? "rupture" :
+                        type === "synergy" ? "collaborative" :
+                        "coherent",
+                    center: { x: 0, y: 0, z: 0 },
+                    metadata: { source: "debugBurst" }
+                });
+            };
+            window.debugWaveSnapshot = () => {
+                const snap = this.waveInterferenceEngine?.getActiveSnapshot?.() || null;
+                console.log("debugWaveSnapshot", snap);
+                return snap;
+            };
             console.log('[main.js] WaveInterferenceEngine_v1 initialized (burst snapshot pipeline)');
         } catch (err) {
             console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
@@ -5270,6 +5286,10 @@ window.__ATOMA_SCENE__ = this.scene;
             console.log('  - Listens to synergy, cascade, corruption, interaction events');
             console.log('  - Auto-triggers wave bursts with 1.5s cooldown');
             console.log('  - Makes wave effects visible without manual intervention');
+            window.debugWaveRouterStatus = () => {
+                console.log(this.waveBurstRouter?.getStatus?.());
+                return this.waveBurstRouter?.getStatus?.();
+            };
         } catch (err) {
             console.warn('[main.js] WaveBurstRouter failed:', err);
         }
@@ -5291,16 +5311,17 @@ window.__ATOMA_SCENE__ = this.scene;
                 enableDebug: false,
                 enableWarnings: false
             });
-            console.log('[main.js] WaveShaderMaterialPatch_v1 initialized ✓');
+            console.log('[main] WaveShaderMaterialPatch initialized');
         } catch (err) {
             console.warn('[main.js] WaveShaderMaterialPatch_v1 failed:', err);
         }
 
         try {
             this.waveTravelShaderPack = new WaveTravelShaderPack_v1({
-                enableDebug: false
+                enableDebug: false,
+                enableWarnings: false
             });
-            console.log('[main.js] WaveTravelShaderPack_v1 initialized ✓');
+            console.log('[main] WaveTravelShaderPack initialized');
         } catch (err) {
             console.warn('[main.js] WaveTravelShaderPack_v1 failed:', err);
         }
@@ -5825,8 +5846,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 console.log('[main.js] CascadeParticleSystem disposed');
             }
             
-            if (this.cascadingRuptureSystem && typeof this.cascadingRuptureSystem.dispose === 'function') {
-                this.cascadingRuptureSystem.dispose();
+            if (this.cascadingRuptures && typeof this.cascadingRuptures.dispose === 'function') {
+                this.cascadingRuptures.dispose();
                 console.log('[main.js] CascadingRuptureSystem disposed');
             }
             
@@ -6252,6 +6273,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.renderer,
             this.aiNodes
         );
+        if (this.linkingSystem?.conduitRenderer) {
+            this.linkingSystem.conduitRenderer.waveShaderBridge =
+                this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
+        }
         this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
         if (this.linkingSystem?.conduitRenderer) {
@@ -6343,8 +6368,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
-                        // PATCH 3: Apply corruption VFX only if corruption > 0.35
-                        if (node.userData?.corruption > 0.35) {
+                        const corruptionLevel =
+                            node?.userData?.metrics?.corruption ??
+                            node?.userData?.metrics?.corruption ??
+                            node?.userData?.corruption ??
+                            0;
+                        if (corruptionLevel > 0.35) {
                             this.corruptionVisualFX.applyCorruptionEffects(
                                 node.mesh || node,
                                 dt,
@@ -6378,7 +6407,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Corruption feedback visuals (event-driven; idle until threshold events fire)
         this.corruptionFeedback = new TIER4_CorruptionFeedbackVisuals(this.scene, { enableDebug: false });
         this.corruptionFeedback.frameScheduler = this.frameScheduler;
-        this.corruptionVisualFX = new CorruptionVisualFX_v1(this.aiNodes, false);
+        this.corruptionVisualFX = new CorruptionVisualFX_v1(this.scene, this.aiNodes, false);
 
         // Listen for corruption threshold events
         this.multiNetworkManager.on((event) => {
@@ -6648,6 +6677,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkingSystem,
             { enabled: true }  // Feature flag - enabled by default
         );
+        this.corruptionAuraDesaturation =
+            new CorruptionDrivenAuraDesaturationSystem(this.aiNodes);
         
         // Wire orchestrator to linking system for effect registration
         this.linkingSystem.effectOrchestrator = this.effectOrchestrator;
@@ -8712,26 +8743,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
-     * Setup CASCADING RUPTURE SYSTEM
-     * Visualizes rupture cascades across regions
-     */
-    setupCascadingRuptureSystem() {
-        try {
-            this.cascadingRuptureSystem = new CascadingRuptureSystem({
-                scene: this.scene,
-                linkingSystem: this.linkingSystem,
-                nodes: this.nodes,
-                enabled: true,
-                debugMode: false
-            });
-            
-            console.log('[main.js] CascadingRuptureSystem initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] CascadingRuptureSystem initialization failed:', err);
-        }
-    }
-
-    /**
      * Setup CASCADE RESONANCE WAVE VISUALIZATION
      * Visualizes subtle wave propagation between synchronized hubs
      */
@@ -9195,13 +9206,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-        regGuard('waveShaderBridge', 'visual.waveShaderBridge', (dt) => this.waveShaderBridge?.update?.(dt, {
-            links: this.nodeLinking?.links || [],
-            nodes: this.aiNodes?.nodes || [],
-            time: this.time,
-            visualTime: window.VISUAL_TIME ?? this.time,
-            nodeDynamicMetrics: this.nodeDynamicMetrics
-        }));
+        regGuard('waveShaderBridge', 'visual.waveShaderBridge', (deltaTime) => {
+            if (this.waveShaderBridge) {
+                this.waveShaderBridge.update(deltaTime, {
+                    nodes: this.nodes || this.nodeList || [],
+                    links: this.links || this.linkList || []
+                });
+            }
+        });
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
         regGuard('waveBurstRouter', 'visual.waveBurstRouter', (dt) => this.waveBurstRouter?.update?.(dt));
@@ -9220,7 +9232,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
 
 
-        regGuard('standingWaveRenderer', 'visual.standingWaveRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
+        regGuard('standingWaveRenderer', 'visual.waveStandingRenderer', (dt) => this.standingWaveRenderer?.update?.(dt, this.time));
         regGuard('nodeAuraRenderer', 'visual.nodeAuraRenderer', (dt) => {
             this.nodeAuraRenderer?.update?.(dt);
         });
@@ -9233,7 +9245,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('linkTrailParticles', 'visual.linkTrailParticles', (dt) => {
             this.linkTrailParticles?.update?.(dt, this.time);
         });
-        regGuard('waveInterference', 'visual.waveInterferencePattern', (dt) => this.waveInterference?.update?.(dt, this.time));
+        regGuard('waveInterference', 'visual.waveInterferencePatterns', (dt) => {
+            const wavePatternSystem = this.wavePatternSystem || this.waveInterference;
+            wavePatternSystem?.update?.(dt, this.time);
+        });
         regGuard('waveParticleEmitter', 'visual.harmony.waveParticleEmitter', (dt) => {
             this.particleEmitter?.update?.(
                 dt,
@@ -9460,6 +9475,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.stressVisualShaderSystem) {
             const nodes = this.aiNodes?.nodes || [];
             this.stressVisualShaderSystem.update(deltaTime, this.time, nodes);
+        }
+
+        if (this.waveBurstRouter?.update) {
+            this.waveBurstRouter.update(deltaTime);
         }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
@@ -11057,6 +11076,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     collapseTriggerInstability: 0.85
                 }
             );
+            this.standingWaveTrapSystem = this.standingWaveTrap;
+            this.standingWaveTrapSystem.waveEngine =
+                this.waveInterferenceEngine || this.standingWaveTrapSystem.waveEngine || null;
             
             this.standingWaveTrap.setup();
             
@@ -11079,7 +11101,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Initialize visual renderer with core world references
             this.standingWaveRenderer = new StandingWaveVisualRenderer_Session131(
                 this.scene,
-                this.standingWaveTrap,  // Trap system (provides state)
+                this.standingWaveTrapSystem || this.standingWaveTrap,  // Trap system (provides state)
                 this.linkingSystem,
                 this.aiNodes,
                 {
@@ -11220,6 +11242,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     lodDistance: 35
                 }
             );
+            this.wavePatternSystem = this.waveInterference;
+            this.wavePatternSystem.waveEngine =
+                this.waveInterferenceEngine || this.wavePatternSystem.waveEngine || null;
             
             this.waveInterference.setup();
             
@@ -11452,7 +11477,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     this.cascadeParticleSystem.trigger({
                         position: node.position,
                         strength: cascadeEvent.energy ?? 1.0,
-                        corruption: node.userData?.corruption ?? 0
+                        corruption: node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0
                     });
                 };
                 console.log('[CASCADE] Particle system connected to CascadingRuptureSystem');
@@ -11718,8 +11743,25 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
+            const payload = {
+                nodeId,
+                category,
+                position: node?.position
+                    ? { x: node.position.x, y: node.position.y, z: node.position.z }
+                    : { x: 0, y: 0, z: 0 }
+            };
             this.semanticBus.emit('node.selection', { type: 'select', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });
             this.semanticBus.emit('node:selected', { nodeId, category, timestamp: performance.now() }, { priority: this.semanticBus.priority.CRITICAL });
+            this.semanticBus.emit('node.click', payload, { priority: this.semanticBus.priority.INTERACTIVE });
+            if (window.game?.waveInterferenceEngine) {
+                window.game.waveInterferenceEngine.requestBurstIntent({
+                    type: "harmonic",
+                    sourceId: payload?.nodeId || "node",
+                    center: payload?.position || { x: 0, y: 0, z: 0 },
+                    toRegime: "aligned",
+                    fromRegime: "baseline"
+                });
+            }
             this.setHudDirty('coreMetrics');
             this.setHudDirty('nodeInspector');
         });
@@ -12224,6 +12266,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         try {
             const bridge = setupPulseWaveSystemBridgeIntegration(this);
             this.pulseWaveSystemBridge = bridge;
+            this.pulseWaveBridge = bridge;
             console.log('✅ [main.js] Pulse Wave System Bridge initialized');
         } catch (err) {
             console.warn('⚠ Pulse Wave System Bridge setup error:', err);

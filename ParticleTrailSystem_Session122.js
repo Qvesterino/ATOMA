@@ -112,6 +112,10 @@ export class ParticleTrailSystem_Session122 {
         uTrailLifetime: { value: this.config.trailLifetime },
       },
       vertexShader: `
+        #ifdef USE_POINTS
+        attribute float size;
+        attribute vec3 color;
+        #endif
         attribute float age;
         attribute float length;
         
@@ -128,7 +132,9 @@ export class ParticleTrailSystem_Session122 {
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           
           // Size: larger trails are longer streaks
+          #ifdef USE_POINTS
           gl_PointSize = size * (1.0 + length * 0.3);
+          #endif
           
           // Age-based fade
           float ageFraction = age / uTrailLifetime;
@@ -139,7 +145,11 @@ export class ParticleTrailSystem_Session122 {
           vTrailStretch = length;
           
           // Color inheritance
+          #ifdef USE_POINTS
           vColor = color;
+          #else
+          vColor = vec3(1.0);
+          #endif
         }
       `,
       fragmentShader: `

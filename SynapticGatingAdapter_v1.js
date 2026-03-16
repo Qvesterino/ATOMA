@@ -130,7 +130,7 @@ export class SynapticGatingAdapter_v1 {
    */
   computeGateStrength(node) {
     const harmony = node.userData?.metrics?.harmony ?? 0.5;
-    const corruption = node.userData?.corruption ?? 0.0;
+    const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0.0;
     const instability = node.userData?.instability ?? 0.0;
     const synergy = node.userData?.metrics?.synergy ?? 0.5;
     

@@ -35,6 +35,7 @@ if (!THREE_SAFE) {
 }
 
 const THREE = THREE_SAFE;
+const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
 // Private symbols for one-time corruption shader binding metadata
 const CORRUPTION_BINDING = Symbol('corruptionBinding');
@@ -57,9 +58,16 @@ const CORRUPTION_COLOR_PALETTE = {
  * Main class for all corruption visual effects
  */
 export class CorruptionVisualFX_v1 {
-  constructor(aiNodesInstance, debugMode = false) {
-    this.aiNodes = aiNodesInstance;
-    this.debugMode = debugMode;
+  constructor(sceneOrAiNodes, aiNodesOrDebugMode = false, debugMode = false) {
+    if (Array.isArray(sceneOrAiNodes?.nodes) || sceneOrAiNodes?.nodes instanceof Map || Array.isArray(sceneOrAiNodes)) {
+      this.scene = null;
+      this.aiNodes = sceneOrAiNodes;
+      this.debugMode = !!aiNodesOrDebugMode;
+    } else {
+      this.scene = sceneOrAiNodes || null;
+      this.aiNodes = aiNodesOrDebugMode;
+      this.debugMode = !!debugMode;
+    }
     
     // Visual state tracking
     this.nodeVisualState = new Map(); // node -> { jitterOffset, particleEmitTime, etc }
@@ -167,7 +175,11 @@ export class CorruptionVisualFX_v1 {
   applyCorruptionEffects(nodeModel, deltaTime, time = 0) {
     if (!nodeModel || !nodeModel.userData) return;
 
-    const corruptionLevel = (nodeModel.userData?.corruption ?? 0);
+    const corruptionLevel = (
+      nodeModel.userData?.metrics?.corruption ??
+      nodeModel.userData?.corruption ??
+      0
+    );
 
     // Phase 2A: use canonical RAF visual time (VisualTime) for all internal timing (behavior-preserving).
     const visualNow = this.visualTime.now;
@@ -193,9 +205,17 @@ export class CorruptionVisualFX_v1 {
     }
 
     // Spawn chaos particles
-    if (corruptionLevel > 0.45) {
+    if (this._hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
       this.spawnChaosParticles(nodeModel, corruptionLevel, visualDelta, visualState);
     }
+  }
+
+  _hasCascadeCorruptionLink(nodeModel) {
+    const links = nodeModel?.userData?.links;
+    if (!Array.isArray(links)) return false;
+    return links.some((link) => (
+      (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD
+    ));
   }
 
   /**
@@ -503,10 +523,11 @@ export class CorruptionVisualFX_v1 {
     const now = performance.now();
 
     // Determine particle emission rate based on corruption
-    if (corruptionLevel > 0.45) {
-      const baseEmitRate = 5;  // particles per second at 0.45 corruption
+    if (this._hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
+      const baseEmitRate = 5;  // particles per second at cascade corruption threshold
       const maxEmitRate = 30;  // particles per second at full corruption
-      const emitRate = baseEmitRate + (maxEmitRate - baseEmitRate) * ((corruptionLevel - 0.45) / 0.55);
+      const thresholdRange = Math.max(0.001, 1.0 - CASCADE_CORRUPTION_THRESHOLD);
+      const emitRate = baseEmitRate + (maxEmitRate - baseEmitRate) * ((corruptionLevel - CASCADE_CORRUPTION_THRESHOLD) / thresholdRange);
 
       // Emit particles based on rate
       const timeSinceLastEmit = now - visualState.lastParticleEmitTime;

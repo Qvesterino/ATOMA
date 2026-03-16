@@ -17,6 +17,8 @@
 
 import * as THREE from 'three';
 
+const CASCADE_CORRUPTION_THRESHOLD = 0.35;
+
 export class LinkCorruptionSpreadAnimator {
   constructor() {
     // Per-link corruption animation state
@@ -47,7 +49,7 @@ export class LinkCorruptionSpreadAnimator {
     this.config = {
       spreadDuration: 2000,           // 2s for wave to travel source → target
       waveDuration: 800,              // Wave front width duration
-      spreadStartThreshold: 0.15,     // Corruption level that triggers spread
+      spreadStartThreshold: CASCADE_CORRUPTION_THRESHOLD, // Corruption level that triggers spread
       triggerDeltaThreshold: 0.04,    // Minimum rise needed to trigger a new sweep
       retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
       forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
@@ -94,7 +96,7 @@ export class LinkCorruptionSpreadAnimator {
     
     // Trigger spread animation on meaningful corruption rise, with cooldown
     const corruptionDelta = corruptionLevel - state.previousCorruption;
-    const aboveThreshold = corruptionLevel > this.config.spreadStartThreshold;
+    const aboveThreshold = (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD;
     const risingEnough = corruptionDelta >= this.config.triggerDeltaThreshold;
     const cooldownElapsed = (nowMs - state.lastTriggerTime) >= this.config.retriggerCooldownMs;
     const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;

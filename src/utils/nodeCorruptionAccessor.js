@@ -5,7 +5,8 @@
 import { setMetric } from '../metrics/NodeMetricEngine.js';
 
 export function getNodeCorruption(node) {
-    return node?.userData?.corruption ??
+    return node?.userData?.metrics?.corruption ??
+        node?.userData?.corruption ??
            node?.userData?.metrics?.corruption ??
            0;
 }

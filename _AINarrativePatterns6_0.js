@@ -356,7 +356,7 @@ export class AINarrativePatterns6_0 {
     for (const node of cluster.nodes) {
       synergy += node.synergy || 0;
       harmony += node.harmony || 0;
-      corruption += node.corruption || 0;
+      corruption += node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0;
       stability += node.stability || 0;
       consciousness += node.consciousness || 0;
     }

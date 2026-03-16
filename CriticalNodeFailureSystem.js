@@ -340,7 +340,7 @@ export class CriticalNodeFailureSystem {
 
         // Check thresholds
         const stability = node.userData?.metrics?.stability ?? 1.0;
-        const corruption = node.userData.corruption ?? 0.0;
+        const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0.0;
 
         if (stability > CONFIG.STABILITY_CRITICAL) return false;
         if (corruption < CONFIG.CORRUPTION_CRITICAL) return false;

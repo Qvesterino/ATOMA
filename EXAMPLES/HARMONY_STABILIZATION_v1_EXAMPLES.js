@@ -259,7 +259,7 @@ export function example8_HarmonyCounterAttack(aiNodes) {
       const allNodes = system.getAllNodes();
       
       for (const node of allNodes) {
-        const corruption = node.userData?.corruption || 0;
+        const corruption = (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0);
         
         // High corruption = heal response
         if (corruption > this.threshold) {
@@ -420,7 +420,7 @@ export function runAllTests(aiNodes) {
       node.userData.corruption = 0.8;
       system.setNodeHarmony(node, 0.6);
       system.updateHarmony(1/60);
-      const corruption = node.userData.corruption;
+      const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
       tests.push({
         name: 'Corruption reduces',
         pass: corruption < 0.8,
