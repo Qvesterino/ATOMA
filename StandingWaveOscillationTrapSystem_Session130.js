@@ -41,7 +41,11 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     constructor(scene, world, reflectionSystem, harmonicInfluenceSystem, aiNodes, linkingSystem, config = {}) {
         this.scene = scene;
         this.world = world;
-        this.reflectionSystem = reflectionSystem;
+        this.reflectionSystem =
+            reflectionSystem ||
+            world?.influenceReflection ||
+            world?.waveReflectionSystem ||
+            globalThis.waveReflectionSystem;
         this.harmonicInfluenceSystem = harmonicInfluenceSystem;
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
@@ -109,6 +113,10 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         
         this.time = 0;
         this.initialized = false;
+    }
+
+    getActiveTraps() {
+        return this.oscillationTraps.filter(t => t && t.active);
     }
 
     /**
@@ -201,8 +209,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             // Add reflection event
             history.reflections.push({
                 time: this.time,
-                phase: reflection.phase || 0,
-                intensity: reflection.intensity || 0.5
+                phase: reflection.phase ?? 0,
+                intensity: reflection.intensity ?? 0.5
             });
             
             // Prune old reflections outside detection window

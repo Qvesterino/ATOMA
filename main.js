@@ -3558,6 +3558,53 @@ class AtomaGame {
             this.metricsRuntime_v1?.update?.(dt);
         }, 'simulation.metricsRuntime_v1');
         this.frameScheduler.register('simulation', (dt) => {
+            this.networkStressAggregator?.update?.(dt);
+        }, 'simulation.networkStress');
+        this.frameScheduler.register('simulation', () => {
+            const stress = this.networkStressAggregator?.getStress?.() ?? 0;
+            const emitEvent = (eventName, payload) => {
+                if (this.semanticBus?.emit) {
+                    this.semanticBus.emit(
+                        eventName,
+                        payload,
+                        { priority: this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL }
+                    );
+                }
+                if (this.multiNetworkManager?.emitEvent) {
+                    this.multiNetworkManager.emitEvent(eventName, payload);
+                }
+            };
+
+            let tier = 0;
+            let tierEvent = null;
+            if (stress > 90) {
+                tier = 3;
+                tierEvent = 'cascade.high';
+            } else if (stress > 75) {
+                tier = 2;
+                tierEvent = 'cascade.medium';
+            } else if (stress > 60) {
+                tier = 1;
+                tierEvent = 'cascade.low';
+            }
+
+            const previousTier = this._networkStressCascadeTier ?? 0;
+            this._networkStressCascadeTier = tier;
+            if (tier <= 0 || tier === previousTier || !tierEvent) {
+                return;
+            }
+
+            const payload = {
+                stress,
+                tier,
+                source: 'networkStressAggregator',
+                timestamp: Date.now()
+            };
+
+            emitEvent(tierEvent, payload);
+            emitEvent('cascade.triggered', { ...payload, level: tierEvent });
+        }, 'simulation.networkStressCascadeBridge');
+        this.frameScheduler.register('simulation', (dt) => {
             this.personalityRuntime_v1?.update?.(dt);
         }, 'simulation.personalityRuntime_v1');
         this.frameScheduler.register('simulation', (dt) => {
@@ -4305,6 +4352,7 @@ document.addEventListener('keydown', () => {
 
         // Extraction Pack v1.0 — Runtime Orchestration
         this.metricsRuntime_v1 = null;
+        this.networkStressAggregator = null;
         this.personalityRuntime_v1 = null;
 
         // Extraction Pack v1.1 — Runtime Orchestration (World & FX)
@@ -6216,6 +6264,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (enableSynergyHighway3D) {
             this.synergyHighways = SynergyHighways2_0;
             this.synergyHighways.init(this.linkingSystem);
+            window.SynergyHighways2_0 = this.synergyHighways;
             this.synergyHighways.scheduleRebuild?.();
             this.linkingSystem.onLinkCreated?.(() => this.synergyHighways?.scheduleRebuild?.());
             this.linkingSystem.onLinkRemoved?.(() => this.synergyHighways?.scheduleRebuild?.());
@@ -8240,6 +8289,21 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 } catch (err) {
   console.warn('[main.js] MetricsRuntime_v1 failed:', err);
 }
+
+        // ====================================================================
+        // NETWORK STRESS AGGREGATOR — standalone stress runtime layer
+        // ====================================================================
+        try {
+            this.networkStressAggregator = new NetworkStressAggregator({
+                linkingSystem: this.linkingSystem
+            });
+            if (typeof window !== 'undefined') {
+                window.ATOMA_NETWORK_STRESS = () => this.networkStressAggregator?.getStress?.();
+            }
+            console.log('[main.js] NetworkStressAggregator initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NetworkStressAggregator failed:', err);
+        }
 
         // ====================================================================
         // METRIC INTERPRETATION LAYER v1 — Visual Signal Interpretation
@@ -10970,8 +11034,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Initialize trap system with core world references
             this.standingWaveTrap = new StandingWaveOscillationTrapSystem_Session130(
                 this.scene,
-                this.world || { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
-                this.influenceReflection,  // Reflection system (required for detection)
+                this,
+                this.influenceReflection || this.waveReflectionSystem || globalThis.waveReflectionSystem,
                 this.harmonicInfluencePropagation,  // Influence system (optional)
                 this.aiNodes,
                 this.linkingSystem,

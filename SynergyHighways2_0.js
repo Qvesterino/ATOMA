@@ -26,11 +26,14 @@
  * Data Model:
  * Highway = {
  *   id: unique identifier
+ *   type: 'synergy' | 'cascade'
  *   fromCategory: 'input' | 'process' | 'integration' | 'analytics' | 'storage' | 'control' | 'sigma' | 'quantum' | 'emotional'
  *   toCategory: same categories
  *   linkCount: number of links in this route
  *   avgSynergy: 0.0-1.0 average synergy
  *   maxSynergy: 0.0-1.0 maximum synergy in route
+ *   avgCascade: 0.0-1.0 average cascade strength in route
+ *   maxCascade: 0.0-1.0 maximum cascade strength in route
  *   trend: 'rising' | 'falling' | 'stable'
  *   volatility: 0.0-1.0 measure of fluctuation
  *   visuals: { width, intensity, speed, color, bloomActive }
@@ -92,7 +95,10 @@ const SynergyHighways2_0 = (() => {
     low: 0x3d7aaa,          // Muted cyan
     mid: 0x3d9f92,          // Muted aqua
     high: 0x00b385,         // Muted green
-    critical: 0x99dddd      // Muted white (cyan-white)
+    critical: 0x99dddd,     // Muted white (cyan-white)
+    cascadeLow: 0x3d9f92,   // Cyan
+    cascadeMid: 0xff7a33,   // Orange
+    cascadeHigh: 0xff3333   // Red
   };
   
   // Valid category pairs for highways
@@ -151,6 +157,16 @@ const SynergyHighways2_0 = (() => {
       return Math.max(0, Math.min(1, link.traffic.load));
     }
     return 0.5; // neutral default
+  }
+
+  /**
+   * Get cascade strength from link (derived runtime metric, null-safe)
+   */
+  function getLinkCascade(link) {
+    if (!link) return 0;
+    const rawCascade = link.userData?.cascadeStrength ?? link.userData?.cascade ?? 0;
+    if (!Number.isFinite(rawCascade)) return 0;
+    return Math.max(0, Math.min(1, rawCascade));
   }
   
   /**
@@ -215,6 +231,31 @@ const SynergyHighways2_0 = (() => {
       color: color,
       bloomActive: bloomActive,
       volatility: volatility
+    };
+  }
+
+  /**
+   * Compute visual profile for cascade highways.
+   * Uses same renderer pipeline; profile carries stronger temporal flow.
+   */
+  function computeCascadeVisualProfile(avgCascade, maxCascade) {
+    if (!Number.isFinite(avgCascade)) avgCascade = 0;
+    if (!Number.isFinite(maxCascade)) maxCascade = 0;
+    avgCascade = Math.max(0, Math.min(1, avgCascade));
+    maxCascade = Math.max(0, Math.min(1, maxCascade));
+
+    let color = colorPalette.cascadeLow;
+    if (maxCascade >= 0.66) color = colorPalette.cascadeHigh;
+    else if (maxCascade >= 0.33) color = colorPalette.cascadeMid;
+
+    return {
+      width: lerp(visualCurves.width.min, visualCurves.width.max, avgCascade),
+      intensity: lerp(visualCurves.intensity.min, visualCurves.intensity.max, maxCascade),
+      speed: Math.max(visualCurves.speed.min, avgCascade * 2.0),
+      emissiveBoost: lerp(visualCurves.emissiveBoost.min, visualCurves.emissiveBoost.max, maxCascade),
+      color: color,
+      bloomActive: maxCascade > 0.6,
+      opacityMult: 1.2
     };
   }
   
@@ -290,6 +331,9 @@ const SynergyHighways2_0 = (() => {
       const synergies = links.map(link => getLinkSynergy(link));
       const avgSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
       const maxSynergy = Math.max(...synergies);
+      const cascades = links.map(link => getLinkCascade(link));
+      const avgCascade = cascades.reduce((a, b) => a + b, 0) / cascades.length;
+      const maxCascade = Math.max(...cascades);
       
       if (avgSynergy < config.minAvgSynergy) continue;
       
@@ -299,11 +343,14 @@ const SynergyHighways2_0 = (() => {
       
       const highway = {
         id: routeId,
+        type: 'synergy',
         fromCategory: fromCat,
         toCategory: toCat,
         linkCount: links.length,
         avgSynergy: avgSynergy,
         maxSynergy: maxSynergy,
+        avgCascade: avgCascade,
+        maxCascade: maxCascade,
         trend: trend,
         volatility: volatility,
         visuals: visuals,
@@ -312,6 +359,27 @@ const SynergyHighways2_0 = (() => {
       
       highways.push(highway);
       highwayMap.set(routeId, highway);
+
+      // Optional cascade overlay highway on same graph route.
+      if (maxCascade > 0.25) {
+        const cascadeHighway = {
+          id: `${routeId}_cascade`,
+          type: 'cascade',
+          fromCategory: fromCat,
+          toCategory: toCat,
+          linkCount: links.length,
+          avgSynergy: avgSynergy,
+          maxSynergy: maxSynergy,
+          avgCascade: avgCascade,
+          maxCascade: maxCascade,
+          trend: trend,
+          volatility: volatility,
+          visuals: computeCascadeVisualProfile(avgCascade, maxCascade),
+          links: links
+        };
+        highways.push(cascadeHighway);
+        highwayMap.set(cascadeHighway.id, cascadeHighway);
+      }
     }
     
     lastRebuildTime = performance.now();
@@ -350,17 +418,22 @@ const SynergyHighways2_0 = (() => {
       
       // Recalculate metrics (scores may have changed)
       const synergies = highway.links.map(link => getLinkSynergy(link));
+      const cascades = highway.links.map(link => getLinkCascade(link));
       highway.avgSynergy = synergies.reduce((a, b) => a + b, 0) / synergies.length;
       highway.maxSynergy = Math.max(...synergies);
+      highway.avgCascade = cascades.reduce((a, b) => a + b, 0) / cascades.length;
+      highway.maxCascade = Math.max(...cascades);
       highway.trend = aggregateTrend(highway.links);
       highway.volatility = averageVolatility(highway.links);
       
       // Update visual profile
-      highway.visuals = computeVisualProfile(
-        highway.avgSynergy,
-        highway.maxSynergy,
-        highway.volatility
-      );
+      highway.visuals = highway.type === 'cascade'
+        ? computeCascadeVisualProfile(highway.avgCascade, highway.maxCascade)
+        : computeVisualProfile(
+            highway.avgSynergy,
+            highway.maxSynergy,
+            highway.volatility
+          );
     }
   }
   
@@ -524,11 +597,14 @@ const SynergyHighways2_0 = (() => {
         if (!highway) return null;
         return {
           id: highway.id,
+          type: highway.type || 'synergy',
           fromCategory: highway.fromCategory,
           toCategory: highway.toCategory,
           linkCount: highway.linkCount,
           avgSynergy: highway.avgSynergy.toFixed(3),
           maxSynergy: highway.maxSynergy.toFixed(3),
+          avgCascade: (highway.avgCascade ?? 0).toFixed(3),
+          maxCascade: (highway.maxCascade ?? 0).toFixed(3),
           trend: highway.trend,
           volatility: highway.volatility.toFixed(3),
           visuals: {
@@ -544,8 +620,10 @@ const SynergyHighways2_0 = (() => {
       // Return all highways summary
       return highways.map(hw => ({
         id: hw.id,
+        type: hw.type || 'synergy',
         linkCount: hw.linkCount,
         avgSynergy: hw.avgSynergy.toFixed(3),
+        avgCascade: (hw.avgCascade ?? 0).toFixed(3),
         trend: hw.trend,
         volatility: hw.volatility.toFixed(3)
       }));

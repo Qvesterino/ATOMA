@@ -53,6 +53,7 @@ export function setupWaveBurstRouter(game) {
     // Runtime state
     const state = {
         lastBurstTime: 0,               // Last burst timestamp
+        lastCascadeBurstTime: 0,
         accumulatedTime: 0,               // Time accumulator for update
         rngSeed: Math.random() * 10000,   // RNG seed for jitter
     };
@@ -220,7 +221,11 @@ export function setupWaveBurstRouter(game) {
      * @param {Object} payload - Event payload
      */
     function handleCascadeEvent(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
+        const now = performance.now() * 0.001;
+        if (!canTriggerBurst(now)) {
+            return;
+        }
+        if (state.lastCascadeBurstTime && (now - state.lastCascadeBurstTime) < 0.12) {
             return;
         }
         
@@ -249,6 +254,7 @@ export function setupWaveBurstRouter(game) {
             origin: position,
             intensity: config.cascadeIntensityMult
         });
+        state.lastCascadeBurstTime = now;
     }
     
     /**

@@ -115,6 +115,11 @@ THREE_SAFE =
 export class CascadingHarmonicResonanceAmplification {
   constructor(network = null) {
     this.network = network;
+    this.waveEngine =
+      network?.waveEngine ??
+      globalThis?.waveInterferenceEngine ??
+      globalThis?.game?.waveInterferenceEngine ??
+      null;
     
     // Cascade metadata (per-node)
     this.nodeLayerData = new Map(); // nodeId → { layer, cascadeStrength, resonanceAmplitude, cascadePhase }
@@ -576,7 +581,13 @@ export class CascadingHarmonicResonanceAmplification {
     const crossedUp = previousStrength <= threshold && currentStrength > threshold;
     if (!crossedUp) return;
 
-    const waveEngine = this.network?.waveEngine;
+    const waveEngine =
+      this.waveEngine ??
+      this.network?.waveEngine ??
+      globalThis?.waveInterferenceEngine ??
+      globalThis?.game?.waveInterferenceEngine ??
+      null;
+    this.waveEngine = waveEngine;
     if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') return;
 
     const nowSec = (typeof performance !== 'undefined' && typeof performance.now === 'function')
@@ -586,22 +597,12 @@ export class CascadingHarmonicResonanceAmplification {
     if ((nowSec - lastBurstSec) < this.secondaryHubBurstCooldownSec) return;
     this._secondaryHubBurstCooldownByNode.set(nodeId, nowSec);
 
-    const center = node?.position
-      ? { x: node.position.x || 0, y: node.position.y || 0, z: node.position.z || 0 }
-      : { x: 0, y: 0, z: 0 };
     const intensity = Math.max(0, Math.min(1, currentStrength));
 
     waveEngine.requestBurstIntent({
-      type: 'synergy',
-      sourceId: String(nodeId),
-      fromRegime: 'baseline',
-      toRegime: 'collaborative',
-      center,
-      intensity,
-      metadata: {
-        reason: 'cascade_secondary_hub_crossing',
-        nodeId: String(nodeId)
-      }
+      type: 'harmonicCascade',
+      sourceNode: node,
+      intensity: node?._cascadeStrength ?? intensity
     });
   }
 

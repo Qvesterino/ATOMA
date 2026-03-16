@@ -339,6 +339,14 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       // Create mesh
       const mesh = new (THREE?.Mesh || function() {})(geometry, material);
+      if (material?.uniforms) {
+        const isCascadeHighway = highway.type === 'cascade';
+        const baseSpeed = Number.isFinite(highway?.visuals?.speed) ? highway.visuals.speed : 1.0;
+        const cascadeSpeed = isCascadeHighway ? baseSpeed * 2.0 : baseSpeed;
+        const cascadeOpacityMult = isCascadeHighway ? 1.2 : 1.0;
+        material.uniforms.flowSpeed.value = cascadeSpeed;
+        material.uniforms.opacityMult.value = config.opacityBase * cascadeOpacityMult;
+      }
       mesh.userData = {
         highwayId: highway.id,
         highwayData: highway,
@@ -413,9 +421,14 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     try {
       // Update shader uniforms
       if (mesh.material.uniforms) {
+        const isCascadeHighway = highway.type === 'cascade';
+        const baseSpeed = Number.isFinite(highway?.visuals?.speed) ? highway.visuals.speed : 1.0;
+        const cascadeSpeed = isCascadeHighway ? baseSpeed * 2.0 : baseSpeed;
+        const cascadeOpacityMult = isCascadeHighway ? 1.2 : 1.0;
         mesh.material.uniforms.color.value = new (THREE.Color || function() {})(highway.visuals.color);
         mesh.material.uniforms.intensity.value = highway.visuals.intensity;
-        mesh.material.uniforms.flowSpeed.value = highway.visuals.speed;
+        mesh.material.uniforms.flowSpeed.value = cascadeSpeed;
+        mesh.material.uniforms.opacityMult.value = config.opacityBase * cascadeOpacityMult;
       }
       
       // Update material opacity/color

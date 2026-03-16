@@ -43,7 +43,10 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class WaveInterferencePatternSystem_Session132 {
     constructor(scene, reflectionSystem, standingWaveTrapSystem, linkingSystem, aiNodes, config = {}) {
         this.scene = scene;
-        this.reflectionSystem = reflectionSystem;
+        this.reflectionSystem =
+            reflectionSystem ||
+            globalThis?.waveReflectionSystem ||
+            null;
         this.standingWaveTrapSystem = standingWaveTrapSystem;
         this.linkingSystem = linkingSystem;
         this.aiNodes = aiNodes;

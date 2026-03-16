@@ -68,6 +68,12 @@ export class WaveInterferenceEngine_v1 {
         this.timeSource = options.timeSource || { now: () => performance.now() * 0.001 };
         this.debugEnabled = options.enableDebug ?? false;
         this.warningsEnabled = options.enableWarnings ?? false;
+        this.reflectionSystem =
+            options.reflectionSystem ||
+            options.influenceReflection ||
+            options.waveReflectionSystem ||
+            globalThis?.waveReflectionSystem ||
+            null;
 
         this.arbitrationPolicy = {
             allowCoexistence: options.allowCoexistence ?? false,
@@ -187,6 +193,7 @@ export class WaveInterferenceEngine_v1 {
         };
 
         this._setFieldSuppressed(true, snapshot);
+        this._registerBoundaryReflection(normalized);
         this._emitLifecycle('accepted', { snapshot, intent: normalized });
         this._emitLifecycle('started', { snapshot, intent: normalized });
 
@@ -275,7 +282,8 @@ export class WaveInterferenceEngine_v1 {
     }
 
     _normalizeIntent(intent) {
-        const type = `${intent?.type || ''}`.toLowerCase();
+        const rawType = `${intent?.type || ''}`.toLowerCase();
+        const type = rawType === 'cascadehop' ? BURST_TYPES.SYNERGY : rawType;
         if (!Object.values(BURST_TYPES).includes(type)) {
             if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Invalid burst type in intent:', intent?.type);
             return null;
@@ -300,8 +308,50 @@ export class WaveInterferenceEngine_v1 {
             decayProfile: intent?.decayProfile || {},
             renderPayload: intent?.renderPayload || {},
             metadata: intent?.metadata || {},
-            timestamp: intent?.timestamp
+            timestamp: intent?.timestamp,
+            sourceNode: intent?.sourceNode || null,
+            targetNode: intent?.targetNode || null,
+            linkId: intent?.linkId || intent?.link?.id || intent?.link?.uuid || null
         };
+    }
+
+    _registerBoundaryReflection(intent) {
+        const reflectionSystem =
+            this.reflectionSystem ||
+            globalThis?.game?.influenceReflection ||
+            globalThis?.waveReflectionSystem ||
+            null;
+        if (!reflectionSystem) return;
+        if (!intent?.linkId) return;
+
+        const reflection = {
+            linkId: intent.linkId,
+            phase: intent?.metadata?.phase ?? 0,
+            intensity: clamp01((intent?.intensityEnvelope?.peak ?? 1.0) * 0.7),
+            time: this.timeSource.now()
+        };
+        if (typeof reflectionSystem.registerReflection === 'function') {
+            reflectionSystem.registerReflection(reflection);
+            return;
+        }
+
+        // Fallback wiring for reflection systems exposing pulse pools.
+        const pool = Array.isArray(reflectionSystem.reflectionPulsePool) ? reflectionSystem.reflectionPulsePool : null;
+        if (pool) {
+            const pulse = pool.find((p) => p && !p.active);
+            if (pulse) {
+                pulse.active = true;
+                pulse.linkId = reflection.linkId;
+                pulse.phase = reflection.phase;
+                pulse.intensity = reflection.intensity;
+                pulse.time = reflection.time;
+                pulse.life = 0;
+                pulse.maxLife = Number.isFinite(pulse.maxLife) ? pulse.maxLife : 0.5;
+                if (Array.isArray(reflectionSystem.reflectionPulses)) {
+                    reflectionSystem.reflectionPulses.push(pulse);
+                }
+            }
+        }
     }
 
     _evaluateCrossing(intent) {

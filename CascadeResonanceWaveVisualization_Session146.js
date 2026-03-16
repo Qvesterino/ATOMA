@@ -68,6 +68,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this.cascadeSystem = cascadeSystem;
     this.harmonicHubSystem = harmonicHubSystem;
     this.linkResonanceSystem = linkResonanceSystem;
+    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     
     // Configuration
     this.config = {
@@ -110,6 +111,67 @@ export class CascadeResonanceWaveVisualization_Session146 {
       avgWaveInfluence: 0,
       lastUpdateTime: 0,
     };
+
+    this._semanticUnsubscribers = [];
+    this._subscribeCascadeEvents();
+  }
+
+  _subscribeCascadeEvents() {
+    const on = this.semanticBus?.on?.bind(this.semanticBus);
+    if (typeof on !== 'function') return;
+
+    const onCascadeHop = (event = {}) => {
+      if (!event || !event.link) return;
+
+      const sourceNode = event.link.source || event.link.sourceNode;
+      const targetNode = event.link.target || event.link.targetNode;
+
+      this.spawnCascadeResonanceWave(
+        sourceNode,
+        targetNode,
+        event.intensity ?? 1.0,
+        event.hopIndex ?? 0
+      );
+    };
+
+    on('cascade.hop', onCascadeHop);
+
+    if (typeof this.semanticBus?.off === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.off('cascade.hop', onCascadeHop));
+    } else if (typeof this.semanticBus?.unsubscribe === 'function') {
+      this._semanticUnsubscribers.push(() => this.semanticBus.unsubscribe('cascade.hop', onCascadeHop));
+    }
+  }
+
+  _resolveNodeId(node) {
+    return node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
+  }
+
+  spawnCascadeResonanceWave(sourceNode, targetNode, intensity = 1.0, hopIndex = 0) {
+    const sourceId = this._resolveNodeId(sourceNode);
+    const targetId = this._resolveNodeId(targetNode);
+    if (!sourceId || !targetId) return;
+
+    const waveKey = `${sourceId}-${targetId}`;
+    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+    if (clampedIntensity <= 0) return;
+
+    const hop = Math.max(0, Number(hopIndex) || 0);
+    const hopDecay = Math.pow(0.9, hop);
+    const influenceRange = this.config.waveInfluenceMax - this.config.waveInfluenceMin;
+    const influence = this.config.waveInfluenceMin + clampedIntensity * hopDecay * influenceRange;
+
+    this.activeWaves.set(waveKey, {
+      wavePhase: this.globalWaveTime % 1,
+      influence: Math.max(this.config.waveInfluenceMin, Math.min(this.config.waveInfluenceMax, influence)),
+      lastStrength: clampedIntensity,
+      hubAId: sourceId,
+      hubBId: targetId,
+      proximityStrength: 1.0,
+      cascadeStrength: clampedIntensity,
+      cascadeAmplitude: clampedIntensity,
+      cascadePhase: this.globalWaveTime
+    });
   }
 
   /**
@@ -119,7 +181,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
   update(deltaTime) {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
     
-    if (!this.config.enabled || !this.cascadeSystem) {
+    if (!this.config.enabled) {
       this._decayAllWaves(deltaTime);
       return;
     }
@@ -129,93 +191,17 @@ export class CascadeResonanceWaveVisualization_Session146 {
     // Accumulate global wave time
     this.globalWaveTime += deltaTime;
     
-    // Get proximity pairs and phase sync data
-    const proximityPairs = this.cascadeSystem.getProximityPairs();
-    const phaseSyncStats = this.cascadeSystem.phaseSynchronization?.getStats?.();
-    
-    // Early exit if insufficient conditions
-    if (!proximityPairs || proximityPairs.length < 1 || !phaseSyncStats) {
-      this._decayAllWaves(deltaTime);
-      this.stats.activeWaves = 0;
-      this.stats.affectedLinks = 0;
-      this.stats.affectedHubs = 0;
-      this.stats.avgWaveInfluence = 0;
-      return;
-    }
-    
-    // Clear and rebuild active waves
-    const previousWaveCount = this.activeWaves.size;
-    this.activeWaves.clear();
-    
+    // Event-driven mode: no proximity scanning, no cascadeSystem/hub polling triggers.
+    this._decayAllWaves(deltaTime);
+
     let totalInfluence = 0;
     let waveCount = 0;
     const affectedHubSet = new Set();
-    
-    // Process each proximity pair as a potential resonance wave path
-    const pairsToProcess = Math.min(proximityPairs.length, this.config.maxWaveActivePairs);
-    
-    for (let i = 0; i < pairsToProcess; i++) {
-      const pair = proximityPairs[i];
-      if (!pair) continue;
-
-      const pairCascadeData = this._resolvePairCascadeData(pair);
-      if (pairCascadeData.strength <= this.config.minCascadeStrengthTrigger) {
-        continue;
-      }
-      
-      // Compute wave trigger strength from phase sync quality
-      // Higher avgPhaseDelta = stronger wave potential
-      const phaseDelta = Math.min(1.0, phaseSyncStats.avgPhaseDelta / this.config.minPhaseSyncStrength);
-      
-      // Wave only activates when cascade strength is high enough and pair remains valid
-      if (phaseDelta < 0.01 || pair.proximityStrength < 0.2) {
-        continue;  // Skip weak sync pairs
-      }
-      
-      // Create wave key for this pair
-      const waveKey = `${pair.hubAId}-${pair.hubBId}`;
-      
-      // Compute wave phase (0-1) based on global time and pair's unique phase offset
-      // Each pair gets unique phase shift to avoid synchronization
-      const pairPhaseOffset = (pair.hubAId.charCodeAt(0) + pair.hubBId.charCodeAt(0)) % 100 / 100;
-      const cascadePhaseOffset = (pairCascadeData.phase % (Math.PI * 2)) / (Math.PI * 2);
-      const waveCycleTime = (this.globalWaveTime / this.config.waveOscillationPeriod + pairPhaseOffset + cascadePhaseOffset) % 1.0;
-      
-      // Wave influence: rises to peak at 0.5 cycle, returns to baseline at 1.0
-      // Using sine for smooth, organic oscillation
-      const waveInfluenceCurve = Math.sin(waveCycleTime * Math.PI * 2);
-      
-      // Normalize influence to [waveInfluenceMin, waveInfluenceMax]
-      // Rises from min at cycle start, peaks at mid-cycle, decays back to min
-      const influenceRange = this.config.waveInfluenceMax - this.config.waveInfluenceMin;
-      const influence = this.config.waveInfluenceMin + (waveInfluenceCurve * 0.5 + 0.5) * influenceRange;
-      
-      // Scale influence by phase sync quality and proximity strength
-      const amplitudeScale = Math.max(0.5, Math.min(1.0, pairCascadeData.amplitude / 2));
-      const scaledInfluence = influence * phaseDelta * pair.proximityStrength * amplitudeScale;
-      
-      // Store active wave
-      this.activeWaves.set(waveKey, {
-        wavePhase: waveCycleTime,
-        influence: scaledInfluence,
-        lastStrength: phaseDelta,
-        hubAId: pair.hubAId,
-        hubBId: pair.hubBId,
-        proximityStrength: pair.proximityStrength,
-        cascadeStrength: pairCascadeData.strength,
-        cascadeAmplitude: pairCascadeData.amplitude,
-        cascadePhase: pairCascadeData.phase,
-      });
-      
-      totalInfluence += scaledInfluence;
-      waveCount++;
-      affectedHubSet.add(pair.hubAId);
-      affectedHubSet.add(pair.hubBId);
-    }
-    
-    // Decay waves that are no longer active
-    if (previousWaveCount > this.activeWaves.size) {
-      this._decayOrphans(deltaTime);
+    for (const waveData of this.activeWaves.values()) {
+      totalInfluence += waveData.influence;
+      waveCount += 1;
+      if (waveData.hubAId) affectedHubSet.add(waveData.hubAId);
+      if (waveData.hubBId) affectedHubSet.add(waveData.hubBId);
     }
     
     // Apply wave effects to visual systems
@@ -477,6 +463,14 @@ export class CascadeResonanceWaveVisualization_Session146 {
    */
   dispose() {
     this.activeWaves.clear();
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
   }
 }
 

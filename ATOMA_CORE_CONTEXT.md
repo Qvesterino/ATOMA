@@ -31,7 +31,7 @@ ATOMA behaves more like an organism or ecosystem than a static application.
 
 ## 2. Technology Stack
 
-- Language: TypeScript
+- Language: JavaScript
 - Rendering: Three.js (WebGL2), future WebGPU
 - Architecture: modular, layered, GPU-first
 - Rendering style: shader-heavy, minimal CPU animation
@@ -71,7 +71,19 @@ Rules:
 - Node cores must NEVER be hidden by aura, postprocessing, or events
 - Node visuals are controlled by shader uniforms
 - Node animation should be GPU-driven where possible
-
+Node Category: 
+- Input 
+- Process 
+- Integration 
+- Analytics 
+- Storage 
+- Control 
+- Sigma 
+- Quantum 
+- Emotional 
+- Mythic
+- Prime
+- Error
 ---
 
 ## 5. Links
@@ -92,6 +104,11 @@ Rules:
 - Link visuals must reflect metrics truthfully
 - Link logic and visuals are separated systems
 
+Effect: 
+1. Link Directional streaks inside 2. Link strands
+3. Beads and 4. bead trails cycling around strands from node A -> Node B
+5. Pulse ring with 6. Arch discharge triggered on pulse with 7. particle dust emission travelling behind Ring
+
 ---
 
 ## 6. Metrics
@@ -101,8 +118,8 @@ Core metrics include (but are not limited to):
 - Synergy
 - Harmony
 - Corruption
-- Stress / Load
-- Phase / Resonance
+- Stability / network stress
+- Load pressure
 
 Rules:
 
@@ -169,3 +186,10 @@ The goal is:
 - a world that feels alive and reactive
 
 ATOMA should feel like observing a living system, not playing a scripted game.
+
+## 11.MAPS: 
+1. Fractal valley
+2. Quantum Island
+3. Dream Desert
+4. Sigma RIft Chamber
+5. Chamber

@@ -274,6 +274,7 @@ export class SynergyCascadeFXBridge_v1 {
         
         // Event source (SynergyChainReaction_v1 instance)
         this.chainReactionRuntime = null;
+        this.waveEngine = config.waveEngine ?? globalThis?.waveInterferenceEngine ?? globalThis?.game?.waveInterferenceEngine ?? null;
         
         // State tracking (WeakMaps for automatic GC)
         this.nodeStates = new WeakMap();        // node → NodeCascadeState
@@ -379,6 +380,18 @@ export class SynergyCascadeFXBridge_v1 {
 
     _emitCascadeHop(payload) {
         this._emitSemanticEvent('cascade.hop', payload);
+        const event = payload;
+        if (this.waveEngine && event?.link && typeof this.waveEngine.requestBurstIntent === 'function') {
+            const sourceNode = event.sourceNode || event.node || null;
+            const targetNode = event.targetNode || event.link?.target || event.link?.targetNode || null;
+            this.waveEngine.requestBurstIntent({
+                type: 'cascadeHop',
+                sourceNode,
+                targetNode,
+                linkId: event.link?.id || event.link?.uuid || null,
+                intensity: event.intensity || event.cascadeStrength || 1.0
+            });
+        }
     }
 
     _emitCascadeEnd(payload) {
