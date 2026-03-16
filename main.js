@@ -1082,6 +1082,16 @@ class SemanticEventBus {
             NORMAL: 2,
             BACKGROUND: 3
         };
+        this.eventCounters = {
+            nodeSelect: 0,
+            nodeDeselect: 0,
+            linkCreated: 0,
+            linkDestroyed: 0,
+            synergyHigh: 0,
+            synergyFade: 0
+        };
+        this.lastAuditLogTime = 0;
+        this.auditIntervalMs = 5000;
         this.eventQueues = [
             { items: [], head: 0 },
             { items: [], head: 0 },
@@ -1452,6 +1462,62 @@ class SemanticEventBus {
             timestamp: performance.now()
         };
     }
+    incrementEventCounter(tag, payload) {
+        switch (tag) {
+            case 'node.selection':
+                if (payload?.type === 'select') {
+                    this.eventCounters.nodeSelect++;
+                } else if (payload?.type === 'deselect') {
+                    this.eventCounters.nodeDeselect++;
+                }
+                break;
+            case 'link.created':
+                this.eventCounters.linkCreated++;
+                break;
+            case 'network.link.destroyed':
+                this.eventCounters.linkDestroyed++;
+                break;
+            case 'node.synergy.high':
+                this.eventCounters.synergyHigh++;
+                break;
+            case 'synergy.fade':
+                this.eventCounters.synergyFade++;
+                break;
+            default:
+                break;
+        }
+    }
+    logEventAudit() {
+        const now = performance.now();
+        if (now - this.lastAuditLogTime < this.auditIntervalMs) {
+            return;
+        }
+        console.log('[ATOMA EVENT AUDIT]');
+        console.log(`nodeSelect: ${this.eventCounters.nodeSelect}`);
+        console.log(`nodeDeselect: ${this.eventCounters.nodeDeselect}`);
+        console.log(`linkCreated: ${this.eventCounters.linkCreated}`);
+        console.log(`linkDestroyed: ${this.eventCounters.linkDestroyed}`);
+        console.log(`synergyHigh: ${this.eventCounters.synergyHigh}`);
+        console.log(`synergyFade: ${this.eventCounters.synergyFade}`);
+        this.lastAuditLogTime = now;
+    }
+    resetEventCounters() {
+        this.eventCounters = {
+            nodeSelect: 0,
+            nodeDeselect: 0,
+            linkCreated: 0,
+            linkDestroyed: 0,
+            synergyHigh: 0,
+            synergyFade: 0
+        };
+    }
+    getEventCounters() {
+        return { ...this.eventCounters };
+    }
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        this.logEventAudit();
+    }
     subscribe(tag, handler, opts = {}) {
         if (!this.handlers.has(tag)) {
             this.handlers.set(tag, []);
@@ -1495,6 +1561,7 @@ class SemanticEventBus {
             ? (prefixHandlers.length > 0 ? exactHandlers.concat(prefixHandlers) : exactHandlers)
             : prefixHandlers;
         if (!list || list.length === 0) return;
+        this.incrementEventCounter(tag, payload);
         const eventPriority = this.normalizePriority(opts.priority);
         const now = performance.now();
         const basePolicy = opts.policy || this.eventPolicies.get(tag);
@@ -4119,6 +4186,17 @@ this.setHudDirty('nodeInspect');
         console.log('[ATOMA AUDIO] Audio System created');
         this.audioModulation = new AtomaAudioModulation(this.audioSystem);
         this.previousSynergyState = 'none'; // 'none', 'active', 'fading'
+
+        // Event Frequency Audit - Track which events are actually firing
+        this.eventCounters = {
+            nodeSelect: 0,
+            nodeDeselect: 0,
+            linkCreated: 0,
+            linkDestroyed: 0,
+            synergyHigh: 0,
+            synergyFade: 0
+        };
+        this.lastAuditLogTime = 0;
         this.synergyActivationThreshold = 0.5;
         this.synergyFadingThreshold = 0.3;
 

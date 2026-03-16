@@ -3572,8 +3572,8 @@ static createAnalyticsNode2(group, color) {
    */
   static createAnalyticsParallaxOracle(group, color) {
     try {
-      // Create central observer core (stable dodecahedron)
-      const observerGeometry = new THREE.DodecahedronGeometry(0.28, 0);
+      // Create central observer core (stable dodecahedron, Oracle Scanner v2 scale)
+      const observerGeometry = new THREE.DodecahedronGeometry(0.32, 0);
       const observerMaterial = new THREE.MeshPhysicalMaterial({
         color: color,
         metalness: 0.85,
@@ -3590,21 +3590,61 @@ static createAnalyticsNode2(group, color) {
       observer.userData.visualCoreImmutable = true;
       group.add(observer);
 
-      // Create 4 translucent observation planes (perception layers)
+      // Secondary wireframe shell for analytic resonance readout
+      const shellGeometry = new THREE.IcosahedronGeometry(0.42, 0);
+      const shellMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.25,
+        wireframe: true
+      });
+      const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+      shell.userData.isObserverShell = true;
+      shell.userData.visualCoreImmutable = true;
+      group.add(shell);
+
+      // Thin analytic orbit ring
+      const ringGeometry = new THREE.TorusGeometry(0.58, 0.012, 8, 48);
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.32
+      });
+      const analyticRing = new THREE.Mesh(ringGeometry, ringMaterial);
+      analyticRing.rotation.set(Math.PI * 0.5, 0, Math.PI * 0.22);
+      analyticRing.userData.isAnalyticRing = true;
+      analyticRing.userData.visualCoreImmutable = true;
+      group.add(analyticRing);
+
+      // Thin vertical scan beam above the observer core
+      const beamGeometry = new THREE.CylinderGeometry(0.01, 0.016, 0.9, 8, 1, true);
+      const beamMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide
+      });
+      const scanBeam = new THREE.Mesh(beamGeometry, beamMaterial);
+      scanBeam.position.y = 0.78;
+      scanBeam.userData.isScanBeam = true;
+      scanBeam.userData.visualCoreImmutable = true;
+      group.add(scanBeam);
+
+      // Create 4 analytic scan panels (perception layers)
       const planeCount = 4;
       const planeMaterial = new THREE.MeshBasicMaterial({
         color: color,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.18,
         side: THREE.DoubleSide,
-        wireframe: false
+        wireframe: true
       });
 
       for (let i = 0; i < planeCount; i++) {
-        // Create plane geometry (different dimensions for parallax effect)
+        // Create panel geometry (different dimensions for parallax effect)
         const planeWidth = 0.7 - i * 0.08;
         const planeHeight = 0.5 + i * 0.1;
-        const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 10, 8);
         
         const plane = new THREE.Mesh(planeGeometry, planeMaterial);
         
@@ -3631,6 +3671,29 @@ static createAnalyticsNode2(group, color) {
         plane.userData.planeRotationSpeed = 0.08 + i * 0.02;
         plane.userData.visualCoreImmutable = true;
         group.add(plane);
+      }
+
+      // Orbiting probes (small analytic samplers)
+      const probeGeometry = new THREE.TetrahedronGeometry(0.065, 0);
+      const probeMaterial = new THREE.MeshStandardMaterial({
+        color: color,
+        emissive: color,
+        emissiveIntensity: 0.18,
+        metalness: 0.65,
+        roughness: 0.2
+      });
+      for (let i = 0; i < 4; i++) {
+        const probe = new THREE.Mesh(probeGeometry, probeMaterial);
+        const probeAngle = (i / 4) * Math.PI * 2 + Math.PI * 0.25;
+        probe.position.set(Math.cos(probeAngle) * 0.68, 0.12 + (i % 2) * 0.1, Math.sin(probeAngle) * 0.68);
+        probe.rotation.set(0.2 + i * 0.22, probeAngle, -0.1 + i * 0.17);
+        probe.userData.isOrbitingProbe = true;
+        probe.userData.probeIndex = i;
+        probe.userData.baseAngle = probeAngle;
+        probe.userData.orbitRadius = 0.68;
+        probe.userData.orbitSpeed = 0.07 + i * 0.01;
+        probe.userData.visualCoreImmutable = true;
+        group.add(probe);
       }
 
       // Store animation metadata (independent plane rotation)
