@@ -9480,6 +9480,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.waveBurstRouter?.update) {
             this.waveBurstRouter.update(deltaTime);
         }
+        if (this.waveInterferenceEngine?.update) {
+            this.waveInterferenceEngine.update(deltaTime);
+        }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
         VisualTime.delta = deltaTime;

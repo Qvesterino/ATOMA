@@ -1,0 +1,370 @@
+{
+  "timestamp": "2026-03-16T12:44:17.501Z",
+  "summary": {
+    "totalRegistered": 35,
+    "totalInstances": 377,
+    "zombieSystems": 10,
+    "factoryPatterns": 5
+  },
+  "priorityBreakdown": {
+    "priority1": [
+      "simulation.networkStress",
+      "simulation.phase5MultiNetwork",
+      "realtime.cameraController",
+      "realtime.playerController",
+      "visual.synergyChainReaction",
+      "visual.nodeAuraSystem",
+      "InputRuntime_v1",
+      "visual.linkBeadSystem",
+      "visual.harmony.waveParticleEmitter",
+      "cascadeVisualizerTick"
+    ],
+    "priority2": [],
+    "priority3": [],
+    "priority4": []
+  },
+  "zombieSystems": [
+    {
+      "systemName": "networkStress",
+      "schedulerId": "simulation.networkStress",
+      "layer": "simulation",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "networkStress"
+    },
+    {
+      "systemName": "phase5MultiNetwork",
+      "schedulerId": "simulation.phase5MultiNetwork",
+      "layer": "simulation",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "phase5MultiNetwork"
+    },
+    {
+      "systemName": "runCameraControllerTick",
+      "schedulerId": "realtime.cameraController",
+      "layer": "realtime",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": false,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "runCameraControllerTick"
+    },
+    {
+      "systemName": "runPlayerControllerTick",
+      "schedulerId": "realtime.playerController",
+      "layer": "realtime",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": false,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "runPlayerControllerTick"
+    },
+    {
+      "systemName": "synergyChainReactionTick",
+      "schedulerId": "visual.synergyChainReaction",
+      "layer": "visual",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": false,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "synergyChainReactionTick"
+    },
+    {
+      "systemName": "runNodeAuraSystemTick",
+      "schedulerId": "visual.nodeAuraSystem",
+      "layer": "visual",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": false,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "runNodeAuraSystemTick"
+    },
+    {
+      "systemName": "inputRuntime",
+      "schedulerId": "InputRuntime_v1",
+      "layer": "InputRuntime_v1",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "inputRuntime"
+    },
+    {
+      "systemName": "linkBeadSystem",
+      "schedulerId": "visual.linkBeadSystem",
+      "layer": "visual",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "linkBeadSystem"
+    },
+    {
+      "systemName": "waveParticleEmitter",
+      "schedulerId": "visual.harmony.waveParticleEmitter",
+      "layer": "visual",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "waveParticleEmitter"
+    },
+    {
+      "systemName": "cascadeVisualizerTick",
+      "schedulerId": "cascadeVisualizerTick",
+      "layer": "unknown",
+      "instanceCreated": false,
+      "instanceType": "none",
+      "callbackUsesOptionalChaining": true,
+      "status": "SCHEDULER WITHOUT INSTANCE",
+      "issues": [
+        "No instance found in main.js"
+      ],
+      "targetObject": "cascadeVisualizerTick"
+    }
+  ],
+  "allRegistrations": [
+    {
+      "id": "background.worldEvents",
+      "layer": "background",
+      "targetObject": "worldEvents",
+      "hasInstance": true
+    },
+    {
+      "id": "background.weatherPack",
+      "layer": "background",
+      "targetObject": "weatherPack",
+      "hasInstance": true
+    },
+    {
+      "id": "background.ambientEntityManager",
+      "layer": "background",
+      "targetObject": "ambientEntityManager",
+      "hasInstance": true
+    },
+    {
+      "id": "background.consciousnessLayer",
+      "layer": "background",
+      "targetObject": "consciousnessLayer",
+      "hasInstance": true
+    },
+    {
+      "id": "background.poetryEngine",
+      "layer": "background",
+      "targetObject": "poetryEngine",
+      "hasInstance": true
+    },
+    {
+      "id": "background.emotionalFeed",
+      "layer": "background",
+      "targetObject": "emotionalFeed",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.worldRuntime_v1",
+      "layer": "visual",
+      "targetObject": "worldRuntime_v1",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.nodeEditorRuntime_v1",
+      "layer": "simulation",
+      "targetObject": "nodeEditorRuntime_v1",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.metricsRuntime_v1",
+      "layer": "simulation",
+      "targetObject": "metricsRuntime_v1",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.networkStress",
+      "layer": "simulation",
+      "targetObject": "networkStress",
+      "hasInstance": false
+    },
+    {
+      "id": "simulation.personalityRuntime_v1",
+      "layer": "simulation",
+      "targetObject": "personalityRuntime_v1",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.nodePersonalitySystem",
+      "layer": "simulation",
+      "targetObject": "nodePersonalitySystem",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.worldPersonalityController",
+      "layer": "simulation",
+      "targetObject": "worldPersonalityController",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.phase5MultiNetwork",
+      "layer": "simulation",
+      "targetObject": "phase5MultiNetwork",
+      "hasInstance": false
+    },
+    {
+      "id": "simulation.emergentThoughtStorms",
+      "layer": "simulation",
+      "targetObject": "emergentThoughtStorms",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.colonyManager",
+      "layer": "simulation",
+      "targetObject": "colonyManager",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.nodePersonality",
+      "layer": "simulation",
+      "targetObject": "nodePersonality",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.tier4GameplayIntegration",
+      "layer": "simulation",
+      "targetObject": "tier4GameplayIntegration",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.corruptionAuraDesaturation",
+      "layer": "visual",
+      "targetObject": "corruptionAuraDesaturation",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.linkDebugMode",
+      "layer": "visual",
+      "targetObject": "linkDebugMode",
+      "hasInstance": true
+    },
+    {
+      "id": "simulation.corruptionBridge",
+      "layer": "simulation",
+      "targetObject": "corruptionBridge",
+      "hasInstance": true
+    },
+    {
+      "id": "realtime.cameraController",
+      "layer": "realtime",
+      "targetObject": "runCameraControllerTick",
+      "hasInstance": false
+    },
+    {
+      "id": "realtime.playerController",
+      "layer": "realtime",
+      "targetObject": "runPlayerControllerTick",
+      "hasInstance": false
+    },
+    {
+      "id": "visual.synergyChainReaction",
+      "layer": "visual",
+      "targetObject": "synergyChainReactionTick",
+      "hasInstance": false
+    },
+    {
+      "id": "visual.nodeAuraSystem",
+      "layer": "visual",
+      "targetObject": "runNodeAuraSystemTick",
+      "hasInstance": false
+    },
+    {
+      "id": "InputRuntime_v1",
+      "layer": "InputRuntime_v1",
+      "targetObject": "inputRuntime",
+      "hasInstance": false
+    },
+    {
+      "id": "visual.waveShaderBridge",
+      "layer": "visual",
+      "targetObject": "waveShaderBridge",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.nodeAuraRenderer",
+      "layer": "visual",
+      "targetObject": "nodeAuraRenderer",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.linkBeadSystem",
+      "layer": "visual",
+      "targetObject": "linkBeadSystem",
+      "hasInstance": false
+    },
+    {
+      "id": "visual.linkTrailParticles",
+      "layer": "visual",
+      "targetObject": "linkTrailParticles",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.waveInterferencePatterns",
+      "layer": "visual",
+      "targetObject": "waveInterference",
+      "hasInstance": true
+    },
+    {
+      "id": "visual.harmony.waveParticleEmitter",
+      "layer": "visual",
+      "targetObject": "waveParticleEmitter",
+      "hasInstance": false
+    },
+    {
+      "id": "activeWorld",
+      "layer": "unknown",
+      "targetObject": "activeWorld",
+      "hasInstance": true
+    },
+    {
+      "id": "cascadeVisualizerTick",
+      "layer": "unknown",
+      "targetObject": "cascadeVisualizerTick",
+      "hasInstance": false
+    },
+    {
+      "id": "nodeLinking",
+      "layer": "unknown",
+      "targetObject": "nodeLinking",
+      "hasInstance": true
+    }
+  ]
+}

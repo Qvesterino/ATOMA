@@ -1656,7 +1656,7 @@ export class LinkRendererConduit {
         if (this.modules.corruptionFX) {
             if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
                 this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
-                    corruptionLevel: metrics?.corruption,
+                    corruptionLevel: link?.userData?.corruptionLevel ?? 0,
                     nowMs: performance.now()
                 });
             }
@@ -1672,7 +1672,11 @@ export class LinkRendererConduit {
                 const updater = this.corruptionParticleSystem.updateLinkParticles
                     ? this.corruptionParticleSystem.updateLinkParticles.bind(this.corruptionParticleSystem)
                     : this.corruptionParticleSystem.update?.bind(this.corruptionParticleSystem);
-                if (updater) updater(link, visualDelta);
+                if (updater) {
+                    updater(link, visualDelta, {
+                        corruptionLevel: metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0
+                    });
+                }
             }
         }
 
@@ -2772,7 +2776,36 @@ export class LinkRendererConduit {
             link?.harmony
         );
 
-        const corruption = getLinkCorruption(link);
+        const endpointCorruption = readMetric(
+            this._readNodeCorruption(link?.source || link?.sourceNode || link?.nodeA),
+            this._readNodeCorruption(link?.target || link?.targetNode || link?.nodeB)
+        );
+        const corruption = readMetric(
+            userMetrics.corruption,
+            linkMetrics.corruption,
+            conduitMetrics.corruption,
+            userData.corruption,
+            userData.corruptionLevel,
+            link?.corruption,
+            link?.corruptionLevel,
+            endpointCorruption,
+            getLinkCorruption(link)
+        );
+
+        const sourceStability = readMetric(
+            link?.source?.userData?.metrics?.stability,
+            link?.sourceNode?.userData?.metrics?.stability,
+            link?.nodeA?.userData?.metrics?.stability
+        );
+        const targetStability = readMetric(
+            link?.target?.userData?.metrics?.stability,
+            link?.targetNode?.userData?.metrics?.stability,
+            link?.nodeB?.userData?.metrics?.stability
+        );
+        const endpointStability =
+            (typeof sourceStability === 'number' && typeof targetStability === 'number')
+                ? (sourceStability + targetStability) * 0.5
+                : (sourceStability ?? targetStability);
 
         const stability = readMetric(
             userData.stability,
@@ -2781,7 +2814,8 @@ export class LinkRendererConduit {
             linkMetrics.stability,
             conduitMetrics.stability,
             link?.stability,
-            link?.stabilityLevel
+            link?.stabilityLevel,
+            endpointStability
         );
 
         const instability = readMetric(
@@ -2895,32 +2929,12 @@ export class LinkRendererConduit {
     }
 
     _readNodeCorruption(node) {
-        if (!node) return 0;
-        if (this._hasMetricSubscription) {
-            const nodeId = this._getNodeId(node);
-            const key = nodeId === null || nodeId === undefined ? null : String(nodeId);
-            if (key) {
-                const cached = this._nodeMetricCache.get(key);
-                if (cached && typeof cached.corruption === 'number' && Number.isFinite(cached.corruption)) {
-                    return Math.max(0, Math.min(1, cached.corruption));
-                }
-            }
+        const metrics = node?.userData?.metrics;
+
+        if (metrics && Number.isFinite(metrics.corruption)) {
+            return Math.max(0, metrics.corruption);
         }
 
-        const userData = node.userData || {};
-        const metrics = userData.metrics || {};
-        const values = [
-            metrics.corruption,
-            userData.corruption,
-            userData.corruptionLevel,
-            node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? node?.corruption ?? 0,
-            node.corruptionLevel
-        ];
-        for (const value of values) {
-            if (typeof value === 'number' && Number.isFinite(value)) {
-                return Math.max(0, Math.min(1, value));
-            }
-        }
         return 0;
     }
 

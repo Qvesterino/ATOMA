@@ -178,12 +178,12 @@ export class Bead {
    * @param {number} deltaTime - seconds
    * @param {number} curveLength - total curve length
    */
-  update(deltaTime, curveLength) {
+  update(deltaTime, curveLength, speedMultiplier = 1) {
     this.age += deltaTime;
     
     // Movement: t increases as bead travels
     // If curve length is L and speed is v, then dt = (v/L) per second
-    const dt = (this.speed / curveLength) * deltaTime;
+    const dt = (this.speed / curveLength) * Math.max(0, speedMultiplier) * deltaTime;
     this.t += dt;
     
     // Bead reaches target when t > 1.0
@@ -229,6 +229,7 @@ export class LinkBeadPool {
       progress: 0,      // 0.0 to 1.0 along link
       intensity: 0      // Current intensity
     };
+    this.waveInterferenceEngine = globalThis?.game?.waveInterferenceEngine || null;
     
     // Initialize pool
     for (let i = 0; i < maxBeads; i++) {
@@ -382,7 +383,10 @@ export class LinkBeadPool {
     // Update active beads
     for (const bead of this.beads) {
       if (bead.isActive) {
-        const arrived = bead.update(deltaTime, curveLength);
+        const waveEnergyRaw = this.waveInterferenceEngine?.sampleLinkEnergy?.(this.link?.id, bead.t) ?? 0;
+        const waveEnergy = Number.isFinite(waveEnergyRaw) ? Math.max(0, waveEnergyRaw) : 0;
+        const waveSpeedMultiplier = 1 + waveEnergy * 2.0;
+        const arrived = bead.update(deltaTime, curveLength, waveSpeedMultiplier);
         if (arrived && onArrival) {
             onArrival(bead);
         }

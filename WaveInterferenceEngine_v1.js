@@ -80,6 +80,11 @@ export class WaveInterferenceEngine_v1 {
             options.waveReflectionSystem ||
             globalThis?.waveReflectionSystem ||
             null;
+        this.linkSystem =
+            options.linkSystem ||
+            globalThis?.game?.linkingSystem ||
+            globalThis?.game?.nodeLinking ||
+            null;
 
         this.arbitrationPolicy = {
             allowCoexistence: options.allowCoexistence ?? false,
@@ -132,6 +137,12 @@ export class WaveInterferenceEngine_v1 {
         this._fieldSuppressed = false;
         this._fieldSuppressionHandler = options.onFieldSuppressionChange || null;
         this._lifecycleHandler = options.onLifecycleEvent || null;
+        this._travelPackets = [];
+        this._packetInjections = new Map();
+        this._packetCounter = 0;
+        this._baseWaveSpeed = options.baseWaveSpeed ?? 4.0;
+        this._packetSpread = options.packetSpread ?? 0.08;
+        this._packetTtlSec = options.packetTtlSec ?? 2.5;
     }
 
     requestUpdate(reason, context = {}) {
@@ -203,6 +214,7 @@ export class WaveInterferenceEngine_v1 {
         this._emitLifecycle('accepted', { snapshot, intent: normalized });
         this._emitLifecycle('started', { snapshot, intent: normalized });
         this._emitWavePacketSpawn(normalized, snapshot);
+        this._enqueueTravelPacket(normalized);
 
         return snapshot;
     }
@@ -226,10 +238,70 @@ export class WaveInterferenceEngine_v1 {
 
     getLinkWaveField(linkId, linkRef = null) {
         this._syncBurstLifecycle();
-        if (!this._activeBurst) return null;
         const midpoint = getLinkMidpoint(linkRef);
-        if (!midpoint) return null;
-        return this._sampleBurstAtPosition(midpoint, this.timeSource.now());
+        const packetEnergy = this.sampleLinkEnergy(linkId, 0.5);
+        if (!midpoint) {
+            if (packetEnergy <= 0) return null;
+            return {
+                totalAmplitude: packetEnergy,
+                constructivePower: packetEnergy,
+                destructivePower: packetEnergy * 0.15,
+                interferenceIndex: packetEnergy,
+                standingWaveFactor: packetEnergy * 0.5,
+                travelPhase: 0,
+                sourceCount: 1,
+                timestamp: this.timeSource.now(),
+                amplitude: packetEnergy,
+                constructive: packetEnergy,
+                destructive: packetEnergy * 0.15,
+                standing: packetEnergy * 0.5,
+                phase: 0,
+                harmonicLevel: packetEnergy,
+                destructiveInterference: packetEnergy * 0.15
+            };
+        }
+
+        const now = this.timeSource.now();
+        const burstField = this._activeBurst ? this._sampleBurstAtPosition(midpoint, now) : null;
+        if (!burstField && packetEnergy <= 0) return null;
+        if (!burstField) {
+            return {
+                totalAmplitude: packetEnergy,
+                constructivePower: packetEnergy,
+                destructivePower: packetEnergy * 0.15,
+                interferenceIndex: packetEnergy,
+                standingWaveFactor: packetEnergy * 0.5,
+                travelPhase: 0,
+                sourceCount: 1,
+                timestamp: now,
+                amplitude: packetEnergy,
+                constructive: packetEnergy,
+                destructive: packetEnergy * 0.15,
+                standing: packetEnergy * 0.5,
+                phase: 0,
+                harmonicLevel: packetEnergy,
+                destructiveInterference: packetEnergy * 0.15
+            };
+        }
+
+        if (packetEnergy <= 0) return burstField;
+        const total = clamp01((burstField.totalAmplitude ?? burstField.amplitude ?? 0) + packetEnergy);
+        const constructive = clamp01((burstField.constructivePower ?? burstField.constructive ?? 0) + packetEnergy * 0.9);
+        const destructive = clamp01((burstField.destructivePower ?? burstField.destructive ?? 0) + packetEnergy * 0.15);
+        const standing = clamp01((burstField.standingWaveFactor ?? burstField.standing ?? 0) + packetEnergy * 0.4);
+        return {
+            ...burstField,
+            totalAmplitude: total,
+            amplitude: total,
+            constructivePower: constructive,
+            constructive,
+            destructivePower: destructive,
+            destructive,
+            standingWaveFactor: standing,
+            standing,
+            harmonicLevel: clamp01((burstField.harmonicLevel ?? 0) + packetEnergy * 0.8),
+            destructiveInterference: destructive
+        };
     }
 
     getWaveFieldForEntity(entity, isLink = false) {
@@ -273,9 +345,28 @@ export class WaveInterferenceEngine_v1 {
         }];
     }
 
-    update() {
-        // Burst mode intentionally has no per-frame solver path.
-        return false;
+    update(deltaTime = 0) {
+        this._syncBurstLifecycle();
+        const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
+        if (this._travelPackets.length === 0) return false;
+
+        const now = this.timeSource.now();
+        for (let i = this._travelPackets.length - 1; i >= 0; i--) {
+            const packet = this._travelPackets[i];
+            const step = dt > 0 ? dt : 0.016;
+            packet.position += packet.velocity * step;
+            this.injectWaveEnergy(packet.linkId, packet.position, packet.amplitude, packet.linkLength);
+            if (packet.position > packet.linkLength || (now - packet.createdAt) > this._packetTtlSec) {
+                this._travelPackets.splice(i, 1);
+            }
+        }
+
+        for (const [linkId, entries] of this._packetInjections.entries()) {
+            const fresh = entries.filter((entry) => (now - entry.time) <= this._packetTtlSec);
+            if (fresh.length === 0) this._packetInjections.delete(linkId);
+            else this._packetInjections.set(linkId, fresh.slice(-16));
+        }
+        return this._travelPackets.length > 0;
     }
 
     clear() {
@@ -290,7 +381,7 @@ export class WaveInterferenceEngine_v1 {
 
     _normalizeIntent(intent) {
         const rawType = `${intent?.type || ''}`.toLowerCase();
-        const type = rawType === 'cascadehop' ? BURST_TYPES.SYNERGY : rawType;
+        const type = (rawType === 'cascadehop' || rawType === 'cascade_packet') ? BURST_TYPES.SYNERGY : rawType;
         if (!Object.values(BURST_TYPES).includes(type)) {
             if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Invalid burst type in intent:', intent?.type);
             return null;
@@ -318,8 +409,100 @@ export class WaveInterferenceEngine_v1 {
             timestamp: intent?.timestamp,
             sourceNode: intent?.sourceNode || null,
             targetNode: intent?.targetNode || null,
-            linkId: intent?.linkId || intent?.link?.id || intent?.link?.uuid || null
+            linkId: intent?.linkId || intent?.link?.id || intent?.link?.uuid || null,
+            travel: intent?.travel === true,
+            energy: clamp01(intent?.energy ?? intent?.intensity ?? intent?.intensityEnvelope?.peak ?? 1.0),
+            originNode: intent?.originNode || null
         };
+    }
+
+    _enqueueTravelPacket(intent) {
+        if (!intent?.travel) return;
+
+        const resolvedLink = this._resolveLinkFromIntent(intent);
+        const linkId = intent.linkId || resolvedLink?.id || resolvedLink?.uuid || null;
+        if (!linkId) return;
+
+        const linkLength = this._resolveLinkLength(resolvedLink, intent);
+        const packet = {
+            id: `packet_${++this._packetCounter}`,
+            linkId,
+            position: 0,
+            velocity: this._baseWaveSpeed,
+            amplitude: clamp01(intent.energy ?? 1.0),
+            linkLength: Math.max(0.001, linkLength),
+            createdAt: this.timeSource.now()
+        };
+        this._travelPackets.push(packet);
+    }
+
+    _resolveLinkFromIntent(intent) {
+        if (!this.linkSystem) return null;
+        const links = Array.isArray(this.linkSystem?.links) ? this.linkSystem.links : [];
+        if (intent?.linkId) {
+            return links.find((link) => (link?.id || link?.uuid) === intent.linkId) || null;
+        }
+
+        const sourceId = this._resolveNodeId(intent?.sourceNode || intent?.originNode);
+        const targetId = this._resolveNodeId(intent?.targetNode);
+        if (!sourceId || !targetId) return null;
+        return links.find((link) => {
+            const a = this._resolveNodeId(link?.source || link?.sourceNode);
+            const b = this._resolveNodeId(link?.target || link?.targetNode);
+            return (a === sourceId && b === targetId) || (a === targetId && b === sourceId);
+        }) || null;
+    }
+
+    _resolveNodeId(nodeLike) {
+        if (!nodeLike) return null;
+        if (typeof nodeLike === 'string' || typeof nodeLike === 'number') {
+            return String(nodeLike);
+        }
+        return String(nodeLike?.userData?.nodeId || nodeLike?.id || nodeLike?.uuid || '');
+    }
+
+    _resolveLinkLength(link, intent) {
+        if (link?.curve?.getLength) {
+            const curveLen = link.curve.getLength();
+            if (Number.isFinite(curveLen) && curveLen > 0) return curveLen;
+        }
+        const sourceNode = link?.source || link?.sourceNode || intent?.sourceNode || null;
+        const targetNode = link?.target || link?.targetNode || intent?.targetNode || null;
+        if (sourceNode?.position && targetNode?.position && sourceNode.position.distanceTo) {
+            const dist = sourceNode.position.distanceTo(targetNode.position);
+            if (Number.isFinite(dist) && dist > 0) return dist;
+        }
+        return 1.0;
+    }
+
+    injectWaveEnergy(linkId, position, amplitude, linkLength = 1.0) {
+        if (!linkId) return;
+        const key = String(linkId);
+        const entries = this._packetInjections.get(key) || [];
+        entries.push({
+            position: Math.max(0, position),
+            amplitude: clamp01(amplitude),
+            linkLength: Math.max(0.001, linkLength),
+            time: this.timeSource.now()
+        });
+        this._packetInjections.set(key, entries.slice(-16));
+    }
+
+    sampleLinkEnergy(linkId, t = 0.5) {
+        if (!linkId) return 0;
+        const key = String(linkId);
+        const entries = this._packetInjections.get(key) || [];
+        if (entries.length === 0) return 0;
+        const tt = clamp01(t);
+        let energy = 0;
+        const spread = Math.max(0.001, this._packetSpread);
+        for (const entry of entries) {
+            const packetT = clamp01((entry.position || 0) / Math.max(0.001, entry.linkLength || 1));
+            const dist = Math.abs(tt - packetT);
+            const falloff = Math.exp(-(dist * dist) / (spread * spread));
+            energy += (entry.amplitude || 0) * falloff;
+        }
+        return clamp01(energy);
     }
 
     _registerBoundaryReflection(intent) {

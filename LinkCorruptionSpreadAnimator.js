@@ -86,12 +86,17 @@ export class LinkCorruptionSpreadAnimator {
     if (!link.id || !strands || strands.length === 0) return null;
     
     const corruptionLevel = Math.min(this.config.maxCorruptionForSpread, this._readCorruptionLevel(link, options));
+    
     const nowMs = Number.isFinite(options?.nowMs) ? options.nowMs : performance.now();
     
     let state = this.animationStates.get(link.id);
     if (!state) {
       this.initializeLink(link);
       state = this.animationStates.get(link.id);
+    }
+    
+    if (corruptionLevel <= 0 && !state?.isAnimating) {
+      return null;
     }
     
     // Trigger spread animation on meaningful corruption rise, with cooldown
@@ -135,18 +140,12 @@ export class LinkCorruptionSpreadAnimator {
     const fromOptions = options?.corruptionLevel;
     if (Number.isFinite(fromOptions)) return Math.max(0, fromOptions);
 
-    const userData = link?.userData || {};
-    const userMetrics = userData.metrics || {};
-    const values = [
-      link?.corruptionLevel,
-      link?.corruption,
-      userData?.corruptionLevel,
-      userData?.corruption,
-      userMetrics?.corruption
-    ];
-    for (const value of values) {
-      if (Number.isFinite(value)) return Math.max(0, value);
+    const value = link?.userData?.corruptionLevel;
+
+    if (Number.isFinite(value)) {
+      return Math.max(0, value);
     }
+
     return 0;
   }
   
@@ -202,7 +201,7 @@ export class LinkCorruptionSpreadAnimator {
       
       // Slightly increase emissive intensity with corruption
       if (strand.material.emissiveIntensity !== undefined) {
-        strand.material.emissiveIntensity = 0.5 + (corruptionLevel * 0.5);
+        strand.material.emissiveIntensity = 0.6 + (corruptionLevel * 1.4);
       }
     });
   }

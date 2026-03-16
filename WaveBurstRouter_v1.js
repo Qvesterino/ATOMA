@@ -231,6 +231,30 @@ export function setupWaveBurstRouter(game) {
      * @param {Object} payload - Event payload
      */
     function handleCascadeEvent(payload) {
+        const packetLink = payload?.link || null;
+        const packetLinkId = payload?.linkId || packetLink?.id || packetLink?.uuid || null;
+        const packetSourceNode = packetLink?.source || packetLink?.sourceNode || payload?.sourceNode || null;
+        const packetTargetNode = packetLink?.target || packetLink?.targetNode || payload?.targetNode || null;
+        const packetNodeId = payload?.nodeId || payload?.hubId || payload?.id || null;
+        const packetCenter = payload?.position || packetLink?.midpoint || packetSourceNode?.position || { x: 0, y: 0, z: 0 };
+        const packetEnergy = Number.isFinite(payload?.strength)
+            ? payload.strength
+            : (Number.isFinite(payload?.intensity) ? payload.intensity : config.cascadeIntensityMult);
+        waveEngine?.requestBurstIntent?.({
+            type: 'cascade_packet',
+            sourceId: `cascade_packet:${packetNodeId ?? 'global'}`,
+            fromRegime: 'baseline',
+            toRegime: 'collaborative',
+            center: packetCenter,
+            linkId: packetLinkId,
+            sourceNode: packetSourceNode,
+            targetNode: packetTargetNode,
+            originNode: packetNodeId,
+            energy: packetEnergy,
+            travel: true,
+            metadata: { source: 'cascadePacket' }
+        });
+
         const now = performance.now() * 0.001;
         if (!canTriggerBurst(now)) {
             return;

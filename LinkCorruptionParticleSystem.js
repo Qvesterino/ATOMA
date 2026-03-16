@@ -199,7 +199,7 @@ export class LinkCorruptionParticleSystem {
     this._semanticSubscriptions.push(['metric.corruption.spread', handleSpread]);
   }
 
-  updateLinkParticles(link, deltaTime) {
+  updateLinkParticles(link, deltaTime, input = null) {
     if (!link?.id || !link.curve) return null;
     const nodeA = link.sourceNode || link.nodeA || link.source;
     const nodeB = link.targetNode || link.nodeB || link.target;
@@ -211,8 +211,12 @@ export class LinkCorruptionParticleSystem {
       this._readNodeCorruption(nodeA),
       this._readNodeCorruption(nodeB)
     );
+    const canonicalCorruption = Number.isFinite(input?.corruptionLevel)
+      ? input.corruptionLevel
+      : null;
     const corruption = Math.max(
       0,
+      canonicalCorruption ??
       link?.group?.userData?.conduitState?.metrics?.corruption ??
       link?.userData?.metrics?.corruption ??
       link?.userData?.corruptionLevel ??

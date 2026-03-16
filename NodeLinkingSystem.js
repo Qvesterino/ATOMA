@@ -4985,6 +4985,44 @@ getLinksForNode(node) {
       return undefined;
     };
 
+    const sourceCorruption = readMetric(
+      link?.source?.userData?.metrics?.corruption,
+      link?.sourceNode?.userData?.metrics?.corruption,
+      link?.nodeA?.userData?.metrics?.corruption
+    );
+    const targetCorruption = readMetric(
+      link?.target?.userData?.metrics?.corruption,
+      link?.targetNode?.userData?.metrics?.corruption,
+      link?.nodeB?.userData?.metrics?.corruption
+    );
+    const endpointCorruption =
+      (typeof sourceCorruption === 'number' && typeof targetCorruption === 'number')
+        ? Math.max(sourceCorruption, targetCorruption)
+        : (sourceCorruption ?? targetCorruption);
+
+    const sourceStability = readMetric(
+      link?.source?.userData?.metrics?.stability,
+      link?.sourceNode?.userData?.metrics?.stability,
+      link?.nodeA?.userData?.metrics?.stability
+    );
+    const targetStability = readMetric(
+      link?.target?.userData?.metrics?.stability,
+      link?.targetNode?.userData?.metrics?.stability,
+      link?.nodeB?.userData?.metrics?.stability
+    );
+    const endpointStability =
+      (typeof sourceStability === 'number' && typeof targetStability === 'number')
+        ? (sourceStability + targetStability) * 0.5
+        : (sourceStability ?? targetStability);
+    const stability = readMetric(
+      userMetrics.stability,
+      userData.stabilityLevel,
+      userData.stability,
+      link.stability,
+      link.stabilityLevel,
+      endpointStability
+    );
+
     const metrics = {
       synergy: getLinkSynergy(link) ?? 0.5,
       harmony: readMetric(
@@ -4994,21 +5032,24 @@ getLinksForNode(node) {
         link.harmonyLevel,
         link.harmony
       ) ?? 1.0,
-      corruption: getLinkCorruption(link) ?? 0.0,
+      corruption: readMetric(
+        userMetrics.corruption,
+        userData.corruption,
+        userData.corruptionLevel,
+        link.corruption,
+        link.corruptionLevel,
+        endpointCorruption,
+        getLinkCorruption(link)
+      ) ?? 0.0,
       instability: readMetric(
         userData.instabilityLevel,
         userData.instability,
         userMetrics.instability,
         link.instability,
-        link.instabilityLevel
+        link.instabilityLevel,
+        (typeof stability === 'number') ? (1 - stability) : undefined
       ) ?? 0.0,
-      stability: readMetric(
-        userMetrics.stability,
-        userData.stabilityLevel,
-        userData.stability,
-        link.stability,
-        link.stabilityLevel
-      ) ?? 0.5,
+      stability: stability ?? 0.5,
       traffic: readMetric(
         link.traffic?.load,
         userData.traffic?.load,
@@ -5439,8 +5480,8 @@ getLinksForNode(node) {
       LinkEmissionPulsingSystem.updateLinkEmissionPulsing(link, link.traffic.load, deltaTime);
     }
 
-    // [BRAIDED CONDUIT] Delegate animation and geometry update (per-link)
-    if (this.conduitRenderer && !link.extremeMode) {
+    // [BRAIDED CONDUIT] Delegate animation only when frame-scheduler path owns conduit updates.
+    if (this.conduitRenderer && !link.extremeMode && this.conduitManagedByFrameScheduler) {
       this.conduitRenderer.update(link, deltaTime, time);
       return;
     }
