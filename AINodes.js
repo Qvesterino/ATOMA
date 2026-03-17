@@ -664,10 +664,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this._activitySemiInterval = 0.1; // ~10 Hz
     this._activitySemiAccumulator = 0;
     this.activityCounters = { active: 0, semiActive: 0, dormant: 0 };
+    this._edgeCageFadeAccumulator = 0;
+    this._edgeCageWorldPos = new THREE.Vector3();
 
     // Runtime spawn intent rotation to avoid INPUT lock-in
     this._runtimeSpawnIndex = 0;
     this._spawnIntentLogged = false;
+    this._categoryVariantBags = new Map();
 
     // UNIFIED ABORT COUNTERS (Fix 3): Single source for spawn failure tracking
     this._spawnAbortCounters = {
@@ -1570,7 +1573,21 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       });
     }
 
-    const selectedVisualCode = pool[idx];
+    let selectedVisualCode = pool[idx];
+    // Error-category anti-stuck selection:
+    // use a shuffled per-category bag so repeated spawns don't keep picking one visual.
+    if (counterKey === 'error' && pool.length > 1) {
+      let bag = this._categoryVariantBags.get(counterKey);
+      if (!Array.isArray(bag) || bag.length === 0) {
+        bag = [...pool];
+        for (let i = bag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+      }
+      selectedVisualCode = bag.shift();
+      this._categoryVariantBags.set(counterKey, bag);
+    }
     finalVisualCode = selectedVisualCode;
 
     this._variantCounterByCategory[counterKey] = counter + 1;
@@ -2796,6 +2813,61 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       positions.setXYZ(1, node2.position.x, node2.position.y, node2.position.z);
       positions.needsUpdate = true;
     });
+  }
+
+  /**
+   * Distance-based fade for edge cages (visual-only).
+   * Applies only to objects tagged with userData.isEdgeCage === true.
+   */
+  updateEdgeCageDistanceFade(deltaTime, camera) {
+    if (!camera?.position) return;
+    if (!Array.isArray(this.nodes) || this.nodes.length === 0) return;
+
+    this._edgeCageFadeAccumulator += (Number.isFinite(deltaTime) ? deltaTime : 0);
+    const tickInterval = 1 / 30; // visual cadence target
+    if (this._edgeCageFadeAccumulator < tickInterval) return;
+    this._edgeCageFadeAccumulator %= tickInterval;
+
+    const minDist = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_MIN_DIST))
+      ? window.ATOMA_EDGE_FADE_MIN_DIST
+      : 10;
+    const maxDist = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_MAX_DIST))
+      ? window.ATOMA_EDGE_FADE_MAX_DIST
+      : 60;
+    const near = Math.min(minDist, maxDist - 0.001);
+    const far = Math.max(maxDist, near + 0.001);
+
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const smoothstep = (edge0, edge1, x) => {
+      const t = clamp01((x - edge0) / (edge1 - edge0));
+      return t * t * (3 - 2 * t);
+    };
+
+    const worldPos = this._edgeCageWorldPos || new THREE.Vector3();
+    for (const node of this.nodes) {
+      if (!node?.traverse) continue;
+      node.traverse((obj) => {
+        if (!obj?.userData || obj.userData.isEdgeCage !== true) return;
+        if (!obj.material) return;
+
+        obj.getWorldPosition(worldPos);
+        const distance = camera.position.distanceTo(worldPos);
+        const fade = smoothstep(far, near, distance);
+
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const mat of mats) {
+          if (!mat) continue;
+          const mud = mat.userData || (mat.userData = {});
+          if (!Number.isFinite(mud.__edgeCageBaseOpacity)) {
+            mud.__edgeCageBaseOpacity = Number.isFinite(mat.opacity) ? mat.opacity : 1.0;
+          }
+          const targetOpacity = Math.max(0.05, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
+          mat.transparent = true;
+          mat.depthWrite = false;
+          mat.opacity = targetOpacity;
+        }
+      });
+    }
   }
   
   /**

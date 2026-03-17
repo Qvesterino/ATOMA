@@ -4034,6 +4034,9 @@ class AtomaGame {
                 this.dynamicLinkColorSystem.update(dt);
             }
         }, 'visual.dynamicLinkColorSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            this.aiNodes?.updateEdgeCageDistanceFade?.(dt, this.camera);
+        }, 'visual.edgeCageDistanceFade');
         this.frameScheduler.register('visual', (deltaTime) => {
             if (this.waveShaderBridge) {
                 this.waveShaderBridge.update(deltaTime, {
@@ -9345,6 +9348,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 });
             }
         });
+        regGuard('edgeCageDistanceFade', 'visual.edgeCageDistanceFade', (dt) => {
+            this.aiNodes?.updateEdgeCageDistanceFade?.(dt, this.camera);
+        });
         regGuard('waveTravelShaderPack', 'visual.waveTravelShaderPack', (dt) => this.waveTravelShaderPack?.update?.(dt));
         regGuard('waveDynamicsShaderPack', 'visual.waveDynamicsShaderPack', (dt) => this.waveDynamicsShaderPack?.update?.(dt));
         regGuard('waveBurstRouter', 'visual.waveBurstRouter', (dt) => this.waveBurstRouter?.update?.(dt));
@@ -14012,13 +14018,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         };
 
         // Start audio context (required on first interaction)
-        window.startAudio = function () {
-            if (window.game && window.game.audioSystem) {
-                window.game.audioSystem.start().then(() => {
-                    console.log('🎵 Audio Context Started');
-                });
-            }
-        };
+        // Note: AudioContext is started on first user gesture via event listeners in constructor
+        // No automatic start - browser autoplay policy requires user gesture
 
         // Test individual sounds
         window.testAudio = function (soundName = 'all') {

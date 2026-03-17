@@ -2280,6 +2280,25 @@ static _createInputNodeLegacy(group, index, color) {
       const funnel = new THREE.Mesh(funnelGeometry, funnelMaterial);
       funnel.userData.isFunnelShell = true;
       funnel.userData.visualCoreImmutable = true;
+
+      // Explicit factory wireframe for funnel shell (independent of global edge overlay).
+      const funnelWire = new THREE.LineSegments(
+        new THREE.EdgesGeometry(funnelGeometry, 8),
+        new THREE.LineBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 1.9,
+          depthWrite: false,
+          depthTest: true
+        })
+      );
+      funnelWire.name = 'FunnelShellWire';
+      funnelWire.userData.isFactoryCage = true;
+      funnelWire.userData.isEdgeCage = true;
+      funnelWire.userData.allowNoFrustum = true;
+      funnelWire.frustumCulled = false;
+      funnel.add(funnelWire);
+
       group.add(funnel);
 
       // Create central concentration point (focal core)
@@ -6714,10 +6733,32 @@ static createControlNode0(group, color) {
     try {
       const geometries = _getErrorV2Geometries();
       const materials = _getErrorV2Materials(color);
+      const ERROR_VARIANT_NAMES = {
+        0: 'INTERSECTING_SOLIDS',
+        1: 'INVERTED_NORMALS',
+        2: 'SELF_CLIPPING',
+        3: 'FOLDED_IMPOSSIBLE',
+        4: 'TOPOLOGY_TEAR',
+        5: 'CORRUPTED_MANIFOLD',
+        6: 'ERROR_V2_BASELINE'
+      };
+      const resolveErrorVariant = (value) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return 6; // canonical ERROR_V2 fallback
+        // Visual-code routing (registry path)
+        if (n >= 1101 && n <= 1106) return n - 1101;
+        if (n === 1108) return 6; // canonical V2
+        // Direct wrapper routing (0..5)
+        if (n >= 0 && n <= 5) return n;
+        return 6;
+      };
+      const variant = resolveErrorVariant(index);
 
       const errorRoot = new THREE.Group();
       errorRoot.name = 'ERROR_NODE';
       errorRoot.userData.visualVariant = 'ERROR_V2';
+      errorRoot.userData.errorVariantIndex = variant;
+      errorRoot.userData.errorVariantName = ERROR_VARIANT_NAMES[variant] || ERROR_VARIANT_NAMES[6];
 
       // CORE
       const coreGroup = new THREE.Group();
@@ -6772,6 +6813,86 @@ static createControlNode0(group, color) {
       halo.frustumCulled = false;
       distortionGroup.add(halo);
 
+      // Route named ERROR factories to distinct variant layouts while keeping ERROR_V2 architecture.
+      switch (variant) {
+        case 0: { // Intersecting solids
+          const coreB = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+          coreB.name = 'IntersectCoreB';
+          coreB.scale.set(0.88, 1.02, 0.82);
+          coreB.position.set(-0.08, 0.06, 0.11);
+          coreB.rotation.set(-0.24, 0.19, 0.08);
+          coreGroup.add(coreB);
+
+          const edgesB = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
+          edgesB.name = 'IntersectEdgesB';
+          edgesB.position.copy(coreB.position);
+          edgesB.rotation.copy(coreB.rotation);
+          edgesB.scale.copy(coreB.scale);
+          coreGroup.add(edgesB);
+
+          ring.position.x = 0.2;
+          ring.rotation.set(0.28, -0.08, 0.56);
+          cage.rotation.set(-0.08, 0.34, 0.21);
+          break;
+        }
+        case 1: { // Inverted normals
+          core.material = materials.coreMat.clone();
+          core.material.side = THREE.BackSide;
+          core.scale.set(0.94, 0.78, 1.18);
+          core.rotation.set(-0.11, 0.22, 0.06);
+          ring.rotation.set(-0.34, 0.26, -0.18);
+          ring.scale.set(1.08, 0.9, 0.96);
+          cage.rotation.set(0.26, -0.16, 0.31);
+          shadow.rotation.set(0.2, -0.21, 0.09);
+          break;
+        }
+        case 2: { // Self clipping (current reference look)
+          // Keep baseline transforms for legacy self-clipping silhouette.
+          break;
+        }
+        case 3: { // Folded impossible
+          core.scale.set(1.12, 0.62, 1.02);
+          core.rotation.set(0.38, -0.09, 0.26);
+          ring.position.x = -0.18;
+          ring.rotation.set(0.74, -0.42, 0.12);
+          ring.scale.set(1.0, 0.68, 1.12);
+          cage.scale.set(1.32, 0.92, 1.04);
+          cage.rotation.set(-0.4, 0.16, -0.12);
+          shadow.position.z = -0.09;
+          shadow.rotation.set(0.32, -0.1, 0.27);
+          break;
+        }
+        case 4: { // Topology tear
+          structureGroup.remove(ring);
+          const tornRingGeo = new THREE.TorusGeometry(0.95, 0.04, 12, 96, Math.PI * 1.72);
+          const tornRing = new THREE.Mesh(tornRingGeo, materials.ringMat);
+          tornRing.name = 'TopologyTornRing';
+          tornRing.position.x = 0.04;
+          tornRing.rotation.set(0.12, -0.28, 0.48);
+          tornRing.scale.set(1.02, 0.96, 1.0);
+          structureGroup.add(tornRing);
+          cage.scale.set(1.18, 0.96, 1.12);
+          cage.rotation.set(-0.35, 0.41, -0.08);
+          break;
+        }
+        case 5: { // Corrupted manifold
+          core.scale.set(0.92, 1.08, 0.86);
+          core.rotation.set(-0.32, 0.12, -0.22);
+          ring.position.x = 0.24;
+          ring.rotation.set(-0.18, 0.34, -0.62);
+          ring.scale.set(0.96, 1.12, 0.94);
+          cage.scale.set(1.36, 1.08, 1.2);
+          cage.rotation.set(0.28, -0.38, 0.25);
+          shadow.scale.set(1.09, 1.0, 1.06);
+          shadow.position.z = 0.1;
+          break;
+        }
+        case 6:
+        default: { // Canonical ERROR_V2 (visualCode 1108 / direct builder path)
+          break;
+        }
+      }
+
       errorRoot.add(distortionGroup);
 
       // Validate geometries on all meshes
@@ -6792,42 +6913,42 @@ static createControlNode0(group, color) {
 
   static createErrorIntersectingSolidsNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 0, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for IntersectingSolids');
     return g;
   }
 
   static createErrorInvertedNormalsNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 1, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for InvertedNormals');
     return g;
   }
 
   static createErrorSelfClippingNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 2, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for SelfClipping');
     return g;
   }
 
   static createErrorFoldedImpossibleNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 3, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for FoldedImpossible');
     return g;
   }
 
   static createErrorTopologyTearNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 4, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for TopologyTear');
     return g;
   }
 
   static createErrorCorruptedManifoldNode(group, visualCode, color) {
     const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, 5, color);
+    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
     if (!res) throw new Error('Error v2 builder failed for CorruptedManifold');
     return g;
   }
