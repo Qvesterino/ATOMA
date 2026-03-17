@@ -697,13 +697,22 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Spawn-cycle state (deterministic cyclic runtime category intent)
     this.spawnCycleState = {
        order: [
-    'input','process','storage','analytics','integration','control',
-    'quantum','sigma','mythic','prime','error','emotional'],
-      cursor: 0,
-      lastAdvancedAt: 0,
-      skippedSinceSuccess: 0,
-    };
+     'input','process','storage','analytics','integration','control',
+     'quantum','sigma','mythic','prime','error','emotional'],
+       cursor: 0,
+       lastAdvancedAt: 0,
+       skippedSinceSuccess: 0,
+     };
     this._pendingCyclicCandidate = null;
+    
+    // DEBUG: Log spawn cycle initialization
+    if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+      console.log('[CYCLE_DEBUG] Spawn cycle initialized:', {
+        cursor: this.spawnCycleState.cursor,
+        order: this.spawnCycleState.order,
+        timestamp: Date.now()
+      });
+    }
 
     // Single post-spawn observer pipeline (ordered)
     this.postSpawnObservers = new Map();
@@ -1009,6 +1018,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const candidate = order[cursor];
       const validation = this.validateCategory(candidate);
 
+      // DEBUG: Log category selection attempt
+      if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+        console.log('[SPAWN_CATEGORY_DEBUG] Candidate:', {
+          candidate,
+          cursor,
+          valid: validation?.valid,
+          category: validation?.category,
+          reason: validation?.reason
+        });
+      }
+
       if (validation?.valid === true && validation.category) {
         this._pendingCyclicCandidate = {
           category: validation.category,
@@ -1018,6 +1038,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         state.cursor = cursor;
         state.lastAdvancedAt = Date.now();
         state.skippedSinceSuccess = 0;
+
+        // DEBUG: Log selected category
+        if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+          console.log('[SPAWN_CATEGORY_DEBUG] Selected:', {
+            category: validation.category,
+            cursor,
+            nextCursor: (cursor + 1) % order.length
+          });
+        }
+
         return validation.category;
       }
 
@@ -1098,11 +1128,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const desiredCount = Math.min(count || MAX_INIT_NODES, MAX_INIT_NODES);
     const positions = this.getNodePositions(environment, desiredCount);
     const rotationStore = (typeof window !== 'undefined') ? (window.__spawnRotation = window.__spawnRotation || {}) : null;
+    const forcedInitCategories = ['mythic', 'prime'];
+    const forcedInitCount = Math.min(forcedInitCategories.length, desiredCount);
+    const forcedCategorySet = new Set(forcedInitCategories);
+    const regularTargetCount = Math.max(0, desiredCount - forcedInitCount);
+    console.warn('[FORCE SPAWN]', 'mythic + prime');
     
     // INIT cycle: unique category per batch, based on CATEGORY_POOLS (non-empty only)
     const baseDeck = Object.keys(CATEGORY_POOLS || {})
       .map(k => (k || '').trim().toLowerCase())
-      .filter(k => k.length > 0 && Array.isArray(CATEGORY_POOLS[k]) && CATEGORY_POOLS[k].length > 0);
+      .filter(k => k.length > 0 && Array.isArray(CATEGORY_POOLS[k]) && CATEGORY_POOLS[k].length > 0)
+      .filter(k => !forcedCategorySet.has(k));
     const uniqueBaseDeck = Array.from(new Set(baseDeck));
 
     const shuffleDeck = (arr) => {
@@ -1134,7 +1170,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     const maxAttempts = desiredCount * 3;
     const batchSpawnEntries = [];
 
-    while (spawned < desiredCount && attempts < maxAttempts) {
+    while (spawned < regularTargetCount && attempts < maxAttempts) {
       // Generate per-node position to avoid modulo overlap
       let pos;
       if (spawned < positions.length) {
@@ -1262,6 +1298,89 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             NodeSpawnLogger.logSpawn(spawnEntry);
             if (__diag) __diag.logged++;
           }
+      }
+    }
+
+    // DEBUG FORCE SPAWN (deterministic tail phase):
+    // Always reserve and fill the tail with mythic + prime when capacity allows.
+    console.warn('[FORCE SPAWN DEBUG]', {
+      desiredCount,
+      regularTargetCount,
+      forcedInitCount,
+      spawnedBeforeForced: spawned
+    });
+    for (const forcedCategory of forcedInitCategories) {
+      if (spawned >= desiredCount) break;
+      console.warn('[FORCE SPAWN EXEC]', forcedCategory);
+
+      let forcedSpawned = false;
+      for (let forceAttempt = 1; forceAttempt <= 2 && !forcedSpawned; forceAttempt++) {
+        const forcedPos = (spawned < positions.length)
+          ? positions[spawned].clone()
+          : new THREE.Vector3(
+              (Math.random() - 0.5) * 20,
+              2 + Math.random() * 6,
+              (Math.random() - 0.5) * 20
+            );
+        const forceOptions = {
+          isExtreme: false,
+          extremeArchetype: null,
+          extremeTier: 1,
+          archetypeKey: forcedCategory
+        };
+        const node = this.createNode(forcedCategory, forcedPos, spawned, false, forceOptions);
+        if (!node || node.userData?.visualFailed === true) {
+          console.warn('[FORCE SPAWN FAIL]', forcedCategory, { attempt: forceAttempt, reason: this._lastSpawnResult?.reason });
+          continue;
+        }
+
+        const finalized = this._finalizeSpawnedNode(node, forcedCategory, forcedPos);
+        if (!finalized || !finalized.node) {
+          console.warn('[FORCE SPAWN FAIL]', forcedCategory, { attempt: forceAttempt, reason: 'FINALIZE_NULL' });
+          continue;
+        }
+
+        const finalizedNode = finalized.node;
+        this._runPostSpawnObservers(finalizedNode, {
+          source: 'createNodes.force',
+          category: forcedCategory,
+          position: forcedPos,
+          archetype: forcedCategory
+        });
+
+        spawned++;
+        const ud = finalizedNode.userData || {};
+        const identity = findSpawnIdentity(finalizedNode);
+        const visualCodeSelected = identity.visualCode ?? ud.visualCode;
+        const spawnResultCode =
+          this._lastSpawnResult?.visualCode ??
+          visualCodeSelected ??
+          ud.visualCode ??
+          ud.spawnCycle?.visualCode ??
+          ud.enhancedNodeModelBinding?.visualCode;
+        const spawnRegistryEntry =
+          NODE_VISUAL_REGISTRY?.[Number(spawnResultCode)] ||
+          NODE_VISUAL_REGISTRY?.[String(spawnResultCode)] ||
+          null;
+        const spawnEntry = {
+          category: identity.category ?? forcedCategory,
+          visualCode: visualCodeSelected ?? spawnResultCode ?? '??',
+          factoryName: identity.factoryName ?? ud.factoryName ?? spawnRegistryEntry?.factoryName ?? 'unknown',
+          nodeId: ud.nodeId || ud.id || finalizedNode.uuid,
+          source: 'AINodes.createNodes'
+        };
+        batchSpawnEntries.push(spawnEntry);
+        NodeSpawnLogger.logSpawn(spawnEntry);
+        if (__diag) __diag.logged++;
+        console.warn('[FORCE SPAWN SUCCESS]', forcedCategory, {
+          visualCode: spawnEntry.visualCode,
+          factoryName: spawnEntry.factoryName,
+          nodeId: spawnEntry.nodeId
+        });
+        forcedSpawned = true;
+      }
+      if (!forcedSpawned) {
+        console.warn('[FORCE SPAWN GIVEUP]', forcedCategory);
       }
     }
 
@@ -1518,6 +1637,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     
     // Fail-closed helper: mark visual failure and abort without fallback visuals
+    let didLogMythicPrimeSpawnFail = false;
     const failClosedVisual = (node, reason) => {
       this._lastSpawnResult = { ok: false, reason: reason || 'VISUAL_FAIL', category: safeCategory };
       const target = node || { userData: {} };
@@ -1526,6 +1646,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         target.userData.visualFailed = true;
         target.userData.__visualFailed = true;
         target.visible = false;
+      }
+      if (!didLogMythicPrimeSpawnFail && (safeCategory === 'mythic' || safeCategory === 'prime')) {
+        didLogMythicPrimeSpawnFail = true;
+        console.warn('[SPAWN_FAIL]', safeCategory, finalVisualCode, reason || 'VISUAL_FAIL');
       }
       console.warn('[NODE_REJECT] Canonical visual missing - node not spawned');
       if (reason && window?.ATOMA_DEBUG_LINK_SPAWN === true) {
@@ -1545,6 +1669,17 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         console.error('[SpawnVisualError]', { category: poolCategory, reason: 'POOL_EMPTY' });
         this._poolGuardLog.add(logKey);
       }
+      
+      // DEBUG: Log spawn abort due to empty pool
+      if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+        console.log('[SPAWN_ABORT]', {
+          category: poolCategory,
+          reason: 'POOL_EMPTY',
+          poolSize: pool.length,
+          timestamp: Date.now()
+        });
+      }
+      
       return null;
     }
     const counterKey = String(poolCategory || canonicalCategory || 'input');
@@ -1574,6 +1709,21 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     let selectedVisualCode = pool[idx];
+    
+    // Runtime logging for category spawn debugging
+    if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+      console.log('[SPAWN_DEBUG]', {
+        category: canonicalCategory,
+        poolCategory: poolCategory,
+        poolLen: pool.length,
+        counter,
+        idx,
+        selectedVisualCode,
+        availableFactories: CATEGORY_POOLS[poolCategory] || [],
+        timestamp: Date.now()
+      });
+    }
+    
     // Error-category anti-stuck selection:
     // use a shuffled per-category bag so repeated spawns don't keep picking one visual.
     if (counterKey === 'error' && pool.length > 1) {
@@ -1590,8 +1740,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
     finalVisualCode = selectedVisualCode;
 
-    this._variantCounterByCategory[counterKey] = counter + 1;
-    if (rotationStore) rotationStore[counterKey] = this._variantCounterByCategory[counterKey];
     const debugCheckGeometry = (mesh, stage) => {
       if (!mesh || !mesh.geometry) return;
 
@@ -1658,55 +1806,62 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     }
 
     let nodeModel = null;
-    try {
-      nodeModel = EnhancedNodeModels.create(poolCategory, finalVisualCode, coreColor);
-      // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
-      if (nodeModel) {
-        copySpawnIdentity(nodeModel, nodeModel);
-        // TEMP DEBUG: log any sphere/icosa shells attached to the node
-        nodeModel.traverse((o) => {
-          if (o?.geometry && (o.geometry.type === 'SphereGeometry' || o.geometry.type === 'IcosahedronGeometry')) {
-            console.log('SPHERE FOUND', {
-              name: o.name,
-              type: o.geometry.type,
-              params: o.geometry.parameters,
-              material: {
-                transparent: o.material?.transparent,
-                opacity: o.material?.opacity,
-                depthWrite: o.material?.depthWrite,
-                depthTest: o.material?.depthTest,
-                visible: o.visible
-              },
-              parent: o.parent?.name || o.parent?.uuid,
-              nodeId: nodeModel.userData?.nodeId
-            });
-          }
-        });
+    let createFailReason = null;
+    for (let attempt = 1; attempt <= 2 && !nodeModel; attempt++) {
+      try {
+        nodeModel = EnhancedNodeModels.create(poolCategory, finalVisualCode, coreColor);
+        // === SPAWN VISUAL DEBUG TRACE (NON-DESTRUCTIVE) ===
+        if (nodeModel) {
+          copySpawnIdentity(nodeModel, nodeModel);
+          // TEMP DEBUG: log any sphere/icosa shells attached to the node
+          nodeModel.traverse((o) => {
+            if (o?.geometry && (o.geometry.type === 'SphereGeometry' || o.geometry.type === 'IcosahedronGeometry')) {
+              console.log('SPHERE FOUND', {
+                name: o.name,
+                type: o.geometry.type,
+                params: o.geometry.parameters,
+                material: {
+                  transparent: o.material?.transparent,
+                  opacity: o.material?.opacity,
+                  depthWrite: o.material?.depthWrite,
+                  depthTest: o.material?.depthTest,
+                  visible: o.visible
+                },
+                parent: o.parent?.name || o.parent?.uuid,
+                nodeId: nodeModel.userData?.nodeId
+              });
+            }
+          });
 
-        // HARD LOCK: nodeId is canonical - throw if missing
-        if (!nodeModel.userData.nodeId) {
-          throw new Error('[IdentityLock] EnhancedNodeModels.create() did not set canonical nodeId');
+          // HARD LOCK: nodeId is canonical - throw if missing
+          if (!nodeModel.userData.nodeId) {
+            throw new Error('[IdentityLock] EnhancedNodeModels.create() did not set canonical nodeId');
+          }
+
+          const visualCodeLog = nodeModel.userData?.visualCode ?? 'UNKNOWN';
+          const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
+          const childCount = nodeModel.children?.length ?? 0;
+
+          console.log(
+            '[SPAWN_TRACE]',
+            {
+              category,
+              visualCode: visualCodeLog,
+              factoryName,
+              childCount,
+              nodeId: nodeModel.userData?.nodeId ?? nodeModel.uuid
+            }
+          );
+        } else {
+          createFailReason = 'No canonical visual available';
+          console.warn('[SPAWN_TRACE_NULL]', { category, attempt });
         }
-
-        const visualCodeLog = nodeModel.userData?.visualCode ?? 'UNKNOWN';
-        const factoryName = nodeModel.userData?.factoryName ?? 'UNKNOWN';
-        const childCount = nodeModel.children?.length ?? 0;
-
-        console.log(
-          '[SPAWN_TRACE]',
-          {
-            category,
-            visualCode: visualCodeLog,
-            factoryName,
-            childCount,
-            nodeId: nodeModel.userData?.nodeId ?? nodeModel.uuid
-          }
-        );
-      } else {
-        console.warn('[SPAWN_TRACE_NULL]', { category });
+      } catch (err) {
+        createFailReason = err?.message || 'EnhancedNodeModels.create threw';
+        if (attempt >= 2) {
+          return failClosedVisual(null, createFailReason);
+        }
       }
-    } catch (err) {
-      return failClosedVisual(null, err?.message || 'EnhancedNodeModels.create threw');
     }
     if (!nodeModel) {
       if (!this._spawnPauseLogged) {
@@ -1719,7 +1874,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         });
         this._spawnPauseLogged = true;
       }
-      return failClosedVisual(null, 'No canonical visual available');
+      return failClosedVisual(null, createFailReason || 'No canonical visual available');
     }
     nodeModel.userData.visualCode = finalVisualCode;
     debugCheckGeometry(nodeModel, 'after_model_create');
@@ -1734,6 +1889,9 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       console.warn('[NODE_REJECT] Empty visual root');
       return failClosedVisual(nodeModel, 'Empty visual root');
     }
+    // Advance per-category spawn rotation only after successful canonical visual build/validation.
+    this._variantCounterByCategory[counterKey] = counter + 1;
+    if (rotationStore) rotationStore[counterKey] = this._variantCounterByCategory[counterKey];
     nodeModel.position.copy(position);
     const spawnNodeScale = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_NODE_SPAWN_SCALE))
       ? window.ATOMA_NODE_SPAWN_SCALE
@@ -3936,6 +4094,16 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         requestedCategory: validation.requestedCategoryRaw
       };
       return validation.existingNode || null;
+    }
+
+    // DEBUG: Log final category used for spawn
+    if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+      console.log('[SPAWN_CATEGORY_DEBUG] Final category for spawn:', {
+        requestedCategoryRaw: validation.requestedCategoryRaw,
+        finalCategory: validation.category,
+        isFallback: validation.isFallbackSpawn,
+        fallbackReason: validation.fallbackReason
+      });
     }
 
     // Local trackers for fallback detection (no behavioral change to visuals/logic)

@@ -48,6 +48,92 @@ export function hasFinitePositions(geometry) {
 }
 
 /**
+ * Check if geometry has finite normal values
+ * Returns false if any non-finite values (NaN or Infinity) found in normal attribute
+ * 
+ * This is critical for edge geometry offset operations which rely on normals.
+ * Some primitive geometries (TorusGeometry, ConeGeometry) may have NaN normals.
+ * 
+ * PERFORMANCE: Samples up to 100 vertices (300 values - 3 components per normal)
+ * 
+ * @param {THREE.BufferGeometry} geometry - Geometry to check
+ * @returns {boolean} True if all sampled normals are finite
+ */
+export function hasFiniteNormals(geometry) {
+  const normalAttr = geometry?.attributes?.normal;
+  if (!normalAttr || !normalAttr.array) return false;
+
+  const arr = normalAttr.array;
+  for (let i = 0; i < arr.length; i++) {
+    if (!Number.isFinite(arr[i])) return false;
+  }
+  return true;
+}
+
+/**
+ * Build offset source geometry for edge extraction by moving vertices slightly
+ * along normals. If any required attribute is invalid, returns original geometry.
+ *
+ * @param {THREE.BufferGeometry} sourceGeometry
+ * @param {number} normalOffset
+ * @returns {THREE.BufferGeometry}
+ */
+function buildOffsetEdgeSourceGeometry(sourceGeometry, normalOffset = 0.002) {
+  const posAttr = sourceGeometry?.attributes?.position;
+  const normalAttr = sourceGeometry?.attributes?.normal;
+  if (!posAttr || !normalAttr || !posAttr.array || !normalAttr.array) {
+    return sourceGeometry;
+  }
+
+  const offsetGeometry = sourceGeometry.clone();
+  const offsetPosAttr = offsetGeometry.attributes?.position;
+  const offsetNormals = normalAttr.array;
+  const offsetPositions = offsetPosAttr?.array;
+  if (!offsetPosAttr || !offsetPositions || !offsetNormals) {
+    return sourceGeometry;
+  }
+
+  const limit = Math.min(offsetPositions.length, offsetNormals.length);
+  for (let i = 0; i < limit; i += 3) {
+    offsetPositions[i] += offsetNormals[i] * normalOffset;
+    offsetPositions[i + 1] += offsetNormals[i + 1] * normalOffset;
+    offsetPositions[i + 2] += offsetNormals[i + 2] * normalOffset;
+  }
+  offsetPosAttr.needsUpdate = true;
+  return offsetGeometry;
+}
+
+/**
+ * Validate that geometry has finite position data for at least one triangle.
+ *
+ * @param {THREE.BufferGeometry} geometry
+ * @returns {boolean}
+ */
+function hasValidPositions(geometry) {
+  const pos = geometry?.attributes?.position?.array;
+  if (!pos || pos.length < 9) return false; // fewer than 3 vertices
+
+  for (let i = 0; i < pos.length; i++) {
+    if (!Number.isFinite(pos[i])) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validate index buffer shape for indexed geometry.
+ * Non-indexed geometry is treated as valid.
+ *
+ * @param {THREE.BufferGeometry} geometry
+ * @returns {boolean}
+ */
+function hasValidIndex(geometry) {
+  if (!geometry?.index) return true;
+  const arr = geometry.index.array;
+  return !!arr && arr.length >= 3;
+}
+
+/**
  * Replace non-finite position values with 0
  * Returns number of values sanitized
  * 
@@ -233,52 +319,92 @@ export function getSafeBoundingBox(geometry, fallbackPosition = new THREE.Vector
 }
 
 /**
- * Safe EdgesGeometry creation
- * Returns null if source geometry is invalid
+ * Safe EdgesGeometry creation with normal validation
+ * NEVER aborts spawn pipeline - always returns valid geometry or fallback
  * 
- * EdgesGeometry inherits NaN from malformed source geometries. This function
- * ensures the source has valid bounds before creating the EdgesGeometry.
+ * EdgesGeometry inherits NaN from malformed source geometries, particularly
+ * when source has invalid normals. This function:
+ * 1. Validates source geometry bounds
+ * 2. Checks for finite normals (critical for edge operations)
+ * 3. Creates EdgesGeometry and validates result
+ * 4. Falls back to sanitized geometry if needed
  * 
  * @param {THREE.BufferGeometry} sourceGeometry - Source geometry to extract edges from
  * @param {number} thresholdAngle - Angle threshold for edge detection (default: 1)
- * @returns {THREE.EdgesGeometry|null} EdgesGeometry or null if invalid
+ * @returns {THREE.EdgesGeometry} Always returns valid EdgesGeometry (never null)
  */
-export function safeCreateEdgesGeometry(sourceGeometry, thresholdAngle = 1) {
-  if (!sourceGeometry) return null;
+export function safeCreateEdgesGeometry(sourceGeometry, thresholdAngle = 1, normalOffset = 0.002) {
+  if (!sourceGeometry) {
+    console.warn('[safeCreateEdgesGeometry] null source → creating minimal fallback');
+    return new THREE.EdgesGeometry(new THREE.BoxGeometry(0.1, 0.1, 0.1));
+  }
+
+  if (!hasValidPositions(sourceGeometry) || !hasValidIndex(sourceGeometry)) {
+    console.warn('[EdgesGeometry SKIP] empty or degenerate geometry');
+    return new THREE.EdgesGeometry(new THREE.BoxGeometry(0.2, 0.2, 0.2));
+  }
 
   // 1. Ensure source is sane
   const sourceResult = safeComputeBounds(sourceGeometry);
   if (!sourceResult.ok) {
-    console.warn('[GeometryBoundsSafe] Cannot create EdgesGeometry from invalid source geometry');
-    return null;
+    console.warn('[safeCreateEdgesGeometry] Invalid source bounds → creating fallback');
+    return new THREE.EdgesGeometry(new THREE.BoxGeometry(0.1, 0.1, 0.1));
   }
 
+  // 2. Build edge source with safe normal handling (never abort on normal issues)
+  let edgeSource;
+  if (hasFiniteNormals(sourceGeometry)) {
+    edgeSource = buildOffsetEdgeSourceGeometry(sourceGeometry, normalOffset);
+  } else {
+    console.warn('[EdgesGeometry] invalid normals → using raw geometry');
+    edgeSource = sourceGeometry;
+  }
+  
+  // 3. Attempt to create EdgesGeometry
   try {
-    const edges = new THREE.EdgesGeometry(sourceGeometry, thresholdAngle);
+    let edges = new THREE.EdgesGeometry(edgeSource, thresholdAngle);
+    
+    // 4. Validate edges geometry
     const pos = edges.attributes?.position?.array;
+    let hasNaN = false;
+    
     if (pos) {
       for (let i = 0; i < pos.length; i++) {
         if (!Number.isFinite(pos[i])) {
-          console.error('[GeometrySource] NaN created in EdgesGeometry', edges);
+          hasNaN = true;
+          console.warn('[safeCreateEdgesGeometry] NaN detected in EdgesGeometry → using sanitized source');
           break;
         }
       }
     }
 
-    // 2. 🔴 CRITICAL: normalize drawRange on EDGES geometry
+    if (hasNaN) {
+      // 5. Fallback: sanitize source and try again
+      forceFinitePositions(sourceGeometry);
+      const edgesSanitized = new THREE.EdgesGeometry(sourceGeometry, thresholdAngle);
+      
+      // 🔴 CRITICAL: normalize drawRange on EDGES geometry
+      normalizeDrawRange(edgesSanitized);
+      
+      return edgesSanitized;
+    }
+
+    // 6. 🔴 CRITICAL: normalize drawRange on EDGES geometry
     normalizeDrawRange(edges);
 
-    // 3. Optional but recommended: validate edges bounds
+    // 7. Optional: validate edges bounds (non-critical)
     const edgesResult = safeComputeBounds(edges);
     if (!edgesResult.ok) {
-      console.warn('[GeometryBoundsSafe] EdgesGeometry has invalid bounds after creation');
-      return null;
+      console.warn('[safeCreateEdgesGeometry] EdgesGeometry bounds validation failed, but returning anyway');
     }
 
     return edges;
   } catch (e) {
-    console.error('[GeometryBoundsSafe] EdgesGeometry creation failed:', e);
-    return null;
+    console.error('[safeCreateEdgesGeometry] EdgesGeometry creation failed:', e);
+    console.warn('[safeCreateEdgesGeometry] Returning fallback geometry to keep spawn pipeline alive');
+    
+    // Final fallback - minimal edges geometry
+    return new THREE.EdgesGeometry(new THREE.BoxGeometry(0.1, 0.1, 0.1));
   }
 }
 

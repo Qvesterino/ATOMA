@@ -246,7 +246,7 @@ export class WaveShaderMaterialPatch_v1 {
                     originalCompile?.(shader);
 
                     // Inject wave shader code
-                    this._injectWaveShaders(shader, profile);
+                    this._injectWaveShaders(shader, profile, material);
                 } catch (e) {
                     console.warn('[WaveShaderMaterialPatch_v1] onBeforeCompile patch error:', e);
                 }
@@ -300,9 +300,10 @@ export class WaveShaderMaterialPatch_v1 {
     /**
      * Internal: Inject wave shader code into shader
      */
-    _injectWaveShaders(shader, profile) {
+    _injectWaveShaders(shader, profile, material) {
         try {
             const config = PROFILE_CONFIG[profile] || PROFILE_CONFIG.DEFAULT;
+            const ignoreWaveColor = material?.userData?.ignoreWaveColor === true;
 
             // Ensure uniforms exist (should be from WaveShaderBridge)
             shader.uniforms = shader.uniforms || {};
@@ -343,13 +344,16 @@ export class WaveShaderMaterialPatch_v1 {
                  `
             );
 
-            // Inject wave fragment effects (before final color output)
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <dithering_fragment>',
-                `${WAVE_FRAGMENT_CHUNK}
-                 #include <dithering_fragment>
-                 `
-            );
+            // Inject wave fragment effects (before final color output).
+            // Keep wave vertex/pulse distortion active, but skip color override when requested.
+            if (!ignoreWaveColor) {
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <dithering_fragment>',
+                    `${WAVE_FRAGMENT_CHUNK}
+                     #include <dithering_fragment>
+                     `
+                );
+            }
 
             if (this.debugEnabled) {
                 console.log(`[WaveShaderMaterialPatch_v1] Wave shaders injected (profile: ${profile})`);

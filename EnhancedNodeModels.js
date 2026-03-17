@@ -28,6 +28,18 @@ function validateMeshGeometry(mesh, label = 'unknown') {
   }
 }
 
+function isValidNodeObject(obj) {
+  if (!obj) return false;
+
+  if (obj.isMesh && obj.geometry) return true;
+
+  if (obj.isGroup && obj.children?.length) {
+    return obj.children.some(child => child.isMesh && child.geometry);
+  }
+
+  return false;
+}
+
 
 const FORBIDDEN_CANONICAL_GEOMETRIES = new Set([
   'SphereGeometry',
@@ -146,6 +158,18 @@ const CONTROL_V2_LEGACY_CACHE = {
   matrixGeometry: null
 };
 const CONTROL_V2_LEGACY_MATERIALS = new Map(); // keyed by color hex
+const CONTROL_EXTREME_608_CACHE = {
+  coreGeometry: null,
+  innerCubeGeometry: null,
+  outerCubeGeometry: null,
+  edgesInnerGeometry: null,
+  edgesOuterGeometry: null,
+  anchorGeometry: null,
+  pulsePlaneGeometry: null,
+  auraCubeGeometry: null,
+  scanCubeGeometry: null
+};
+const CONTROL_EXTREME_608_MATERIALS = new Map(); // keyed by color hex
 
 // ANALYTICS v2 caches
 const ANALYTICS_V2_CACHE = {
@@ -214,36 +238,57 @@ function _getPrimeV2Materials(color) {
   const colorHex = typeof color === 'number' ? color : 0xffffff;
   if (PRIME_V2_MATERIALS.has(colorHex)) return PRIME_V2_MATERIALS.get(colorHex);
 
-  const coreMat = getSharedCoreBasicMaterial('prime', colorHex, {
-    opacity: 1.0
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0xc0c0c0),
+    emissive: new THREE.Color(0x222222),
+    emissiveIntensity: 0.3,
+    metalness: 0.9,
+    roughness: 0.25,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true
   });
 
   const edgesMat = new THREE.LineBasicMaterial({
-    color: colorHex,
+    color: new THREE.Color(0xffffff),
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.6,
     depthWrite: true
   });
 
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: colorHex,
-    transparent: true,
-    opacity: 0.4,
-    depthWrite: false
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0xd9d9d9),
+    emissive: new THREE.Color(0x111111),
+    emissiveIntensity: 0.12,
+    metalness: 1.0,
+    roughness: 0.2,
+    transparent: false,
+    opacity: 0.9,
+    depthWrite: true,
+    depthTest: true,
+    blending: THREE.NormalBlending
   });
 
   const latticeMat = new THREE.MeshStandardMaterial({
-    color: colorHex,
-    metalness: 0.5,
-    roughness: 0.1,
-    emissive: colorHex,
-    emissiveIntensity: 0.45,
-    transparent: true,
-    opacity: 0.65,
-    depthWrite: false
+    color: new THREE.Color(0xbfbfbf),
+    emissive: new THREE.Color(0x111111),
+    emissiveIntensity: 0.2,
+    metalness: 0.7,
+    roughness: 0.28,
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    blending: THREE.NormalBlending
   });
 
   const mats = { coreMat, edgesMat, ringMat, latticeMat };
+  // Prime v2 must stay depth-occluding (no aura translucency patch mode).
+  for (const mat of [coreMat, ringMat, latticeMat]) {
+    mat.userData = mat.userData || {};
+    mat.userData.wavePatchMode = 'DEFAULT';
+  }
   PRIME_V2_MATERIALS.set(colorHex, mats);
   return mats;
 }
@@ -1597,11 +1642,16 @@ export class EnhancedNodeModels {
         for (const material of materials) {
           if (!material || seenMaterials.has(material)) continue;
           seenMaterials.add(material);
+          if (child.userData?.ignoreWaveColor) {
+            material.userData = material.userData || {};
+            material.userData.ignoreWaveColor = true;
+          }
           if (waveShaderBridge?.registerNodeMaterial) {
             waveShaderBridge.registerNodeMaterial(material, 'DEFAULT');
           }
           if (waveShaderMaterialPatch?.patch) {
-            waveShaderMaterialPatch.patch(material, 'AURA');
+            const patchMode = material?.userData?.wavePatchMode || child?.userData?.wavePatchMode || 'AURA';
+            waveShaderMaterialPatch.patch(material, patchMode);
           }
         }
       });
@@ -6431,13 +6481,23 @@ static createControlNode0(group, color) {
    * Legacy shared entry is no longer used by registry (strict 1:1 mapping).
    */
   static _createMythicGeometry(group, builderFn, label) {
-    const mesh = builderFn?.(1.0);
-    if (!mesh) throw new Error(`Mythic builder failed: ${label}`);
-    validateMeshGeometry(mesh, label);
-    if (!mesh.userData) mesh.userData = {};
-    mesh.userData.category = 'mythic';
-    mesh.userData.visualReady = true;
-    group.add(mesh);
+    const nodeObj = builderFn?.call(CanonicalGeometryFamilies, 1.0);
+    if (!isValidNodeObject(nodeObj)) {
+      throw new Error(`Mythic builder failed: ${label}`);
+    }
+    if (nodeObj.isMesh) {
+      validateMeshGeometry(nodeObj, label);
+    } else if (nodeObj.isGroup) {
+      nodeObj.traverse((child) => {
+        if (child?.isMesh && child.geometry) {
+          validateMeshGeometry(child, `${label}:${child.name || 'mesh'}`);
+        }
+      });
+    }
+    if (!nodeObj.userData) nodeObj.userData = {};
+    nodeObj.userData.category = 'mythic';
+    nodeObj.userData.visualReady = true;
+    group.add(nodeObj);
     return group;
   }
 
@@ -6486,6 +6546,21 @@ static createControlNode0(group, color) {
       coreGroup.name = 'CORE_GROUP';
       const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
       coreMesh.name = 'CoreMesh';
+      
+      // Ensure core is solid depth occluder
+      coreMesh.material.transparent = false;
+      coreMesh.material.opacity = 1.0;
+      coreMesh.material.depthWrite = true;
+      coreMesh.material.depthTest = true;
+      coreMesh.material.blending = THREE.NormalBlending;
+      
+      // Render core BEFORE aura and effects
+      coreMesh.renderOrder = 2;
+      coreMesh.material.transparent = false;
+      coreMesh.material.depthWrite = true;
+      coreMesh.material.depthTest = true;
+      coreMesh.material.blending = THREE.NormalBlending;
+      
       const coreEdges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
       coreEdges.name = 'CoreEdges';
       coreGroup.add(coreMesh);
@@ -6588,6 +6663,12 @@ static createControlNode0(group, color) {
     try {
       const geometries = _getPrimeV2Geometries();
       const materials = _getPrimeV2Materials(color);
+      const coreMatLocal = materials.coreMat.clone();
+      const ringMatLocal = materials.ringMat.clone();
+      const latticeMatLocal = materials.latticeMat.clone();
+      coreMatLocal.userData = { ...(coreMatLocal.userData || {}), wavePatchMode: 'DEFAULT' };
+      ringMatLocal.userData = { ...(ringMatLocal.userData || {}), wavePatchMode: 'DEFAULT' };
+      latticeMatLocal.userData = { ...(latticeMatLocal.userData || {}), wavePatchMode: 'DEFAULT' };
       const primeRoot = new THREE.Group();
       primeRoot.name = 'PRIME_NODE';
       primeRoot.userData.visualVariant = 'PRIME_V2';
@@ -6595,10 +6676,26 @@ static createControlNode0(group, color) {
       // CORE
       const coreGroup = new THREE.Group();
       coreGroup.name = 'CORE_GROUP';
-      const coreMesh = new THREE.Mesh(geometries.coreGeometry, materials.coreMat);
+      const coreMesh = new THREE.Mesh(geometries.coreGeometry, coreMatLocal);
       coreMesh.name = 'PrimeCore';
+      coreMesh.userData.ignoreWaveColor = true;
+      
+      // Ensure core is solid depth occluder
+      coreMesh.material.transparent = false;
+      coreMesh.material.opacity = 1.0;
+      coreMesh.material.depthWrite = true;
+      coreMesh.material.depthTest = true;
+      coreMesh.material.blending = THREE.NormalBlending;
+      coreMesh.material.side = THREE.FrontSide;
+      
+      // Render core BEFORE aura and effects
+      coreMesh.renderOrder = 3;
+      
       const coreEdges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgesMat);
       coreEdges.name = 'CoreEdges';
+      coreEdges.renderOrder = 4;
+      coreEdges.material.depthTest = true;
+      coreEdges.material.depthWrite = false;
       coreGroup.add(coreMesh);
       coreGroup.add(coreEdges);
       primeRoot.add(coreGroup);
@@ -6607,25 +6704,42 @@ static createControlNode0(group, color) {
       const structureGroup = new THREE.Group();
       structureGroup.name = 'STRUCTURE_GROUP';
 
-      const ringA = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      const ringA = new THREE.Mesh(geometries.ringGeometry, ringMatLocal);
       ringA.name = 'OrbitRing_A';
       ringA.rotation.set(0, 0, 0);
-      ringA.renderOrder = EnhancedNodeModels._getCoreRenderOrder();
+      ringA.renderOrder = 1;
+      ringA.material.transparent = false;
+      ringA.material.opacity = 0.9;
+      ringA.material.depthWrite = true;
+      ringA.material.depthTest = true;
+      ringA.material.blending = THREE.NormalBlending;
+      ringA.material.side = THREE.FrontSide;
       structureGroup.add(ringA);
 
-      const ringB = new THREE.Mesh(geometries.ringGeometry, materials.ringMat);
+      const ringB = new THREE.Mesh(geometries.ringGeometry, ringMatLocal.clone());
       ringB.name = 'OrbitRing_B';
       ringB.rotation.x = THREE.MathUtils.degToRad(35);
       ringB.rotation.z = THREE.MathUtils.degToRad(20);
       ringB.scale.setScalar(1.08);
-      ringB.renderOrder = EnhancedNodeModels._getCoreRenderOrder();
+      ringB.renderOrder = 1;
+      ringB.material.transparent = false;
+      ringB.material.opacity = 0.9;
+      ringB.material.depthWrite = true;
+      ringB.material.depthTest = true;
+      ringB.material.blending = THREE.NormalBlending;
+      ringB.material.side = THREE.FrontSide;
       structureGroup.add(ringB);
 
       const latticePositions = _getPrimeV2LatticePositions(geometries.coreGeometry);
       const latticeCount = Math.max(0, latticePositions.length);
-      const lattice = new THREE.InstancedMesh(geometries.latticeGeometry, materials.latticeMat, latticeCount);
+      const lattice = new THREE.InstancedMesh(geometries.latticeGeometry, latticeMatLocal, latticeCount);
       lattice.name = 'LatticeInstances';
       lattice.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      lattice.renderOrder = 2;
+      lattice.material.transparent = false;
+      lattice.material.depthWrite = true;
+      lattice.material.depthTest = true;
+      lattice.material.blending = THREE.NormalBlending;
 
       const up = new THREE.Vector3(0, 1, 0);
       const scratch = new THREE.Object3D();
@@ -6644,20 +6758,36 @@ static createControlNode0(group, color) {
       // AURA
       const auraGroup = new THREE.Group();
       auraGroup.name = 'AURA_GROUP';
-      const shell1 = createNodeHologramShell(coreMesh);
+      const shell1 = createNodeHologramShell(coreMesh, 0xc0c0c0);
       if (shell1) {
         shell1.name = 'PrimeShell_1';
         shell1.scale.setScalar(1.08);
         shell1.frustumCulled = false;
         shell1.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        if (shell1.material) {
+          shell1.material.depthTest = true;
+          shell1.material.depthWrite = false;
+          shell1.material.blending = THREE.NormalBlending;
+          if (shell1.material.uniforms?.uOpacity) {
+            shell1.material.uniforms.uOpacity.value = 0.06;
+          }
+        }
         auraGroup.add(shell1);
       }
-      const shell2 = createNodeHologramShell(coreMesh);
+      const shell2 = createNodeHologramShell(coreMesh, 0xc0c0c0);
       if (shell2) {
         shell2.name = 'PrimeShell_2';
         shell2.scale.setScalar(1.14);
         shell2.frustumCulled = false;
         shell2.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        if (shell2.material) {
+          shell2.material.depthTest = true;
+          shell2.material.depthWrite = false;
+          shell2.material.blending = THREE.NormalBlending;
+          if (shell2.material.uniforms?.uOpacity) {
+            shell2.material.uniforms.uOpacity.value = 0.045;
+          }
+        }
         auraGroup.add(shell2);
       }
       primeRoot.add(auraGroup);
@@ -6674,13 +6804,21 @@ static createControlNode0(group, color) {
   // Legacy PRIME visuals (kept as fallback)
   static _createPrimeGeometry(builderFn, label) {
     const root = new THREE.Group();
-    const mesh = builderFn?.(1.0);
-    if (!mesh) throw new Error(`Prime builder failed: ${label}`);
-    validateMeshGeometry(mesh, label);
-    if (!mesh.userData) mesh.userData = {};
-    mesh.userData.category = 'prime';
-    mesh.userData.visualReady = true;
-    root.add(mesh);
+    const nodeObj = builderFn?.call(CanonicalGeometryFamilies, 1.0);
+    if (!isValidNodeObject(nodeObj)) throw new Error(`Prime builder failed: ${label}`);
+    if (nodeObj.isMesh) {
+      validateMeshGeometry(nodeObj, label);
+    } else if (nodeObj.isGroup) {
+      nodeObj.traverse((child) => {
+        if (child?.isMesh && child.geometry) {
+          validateMeshGeometry(child, `${label}:${child.name || 'mesh'}`);
+        }
+      });
+    }
+    if (!nodeObj.userData) nodeObj.userData = {};
+    nodeObj.userData.category = 'prime';
+    nodeObj.userData.visualReady = true;
+    root.add(nodeObj);
     return root;
   }
 
@@ -6710,7 +6848,20 @@ static createControlNode0(group, color) {
 
   static getCategoryPool(cat) {
     const key = (cat || '').toLowerCase();
-    return CATEGORY_POOLS[key] || [];
+    const pool = CATEGORY_POOLS[key] || [];
+    
+    // Runtime logging for category pool debugging
+    if (window.ATOMA_FLAGS?.debug?.spawnCategory === true) {
+      console.log('[CATEGORY_POOL_DEBUG]', {
+        requestedCategory: cat,
+        normalizedKey: key,
+        poolSize: pool.length,
+        poolCodes: pool,
+        timestamp: Date.now()
+      });
+    }
+    
+    return pool;
   }
 
   // ===== ERROR NODES (Frozen Corruption - 6 variants) =====
@@ -9364,7 +9515,7 @@ static createControlNode0(group, color) {
       
       // Ultra-rare categories
       'mythic': 0xffdd00,       // Gold - ultra-ceremonial
-      'prime': 0xffffff,        // White - perfect topology
+      'prime': 0xc0c0c0,        // Silver - perfect topology
       'error': 0xff3333,        // Red - unstable/chaotic
       
       // Legacy/fallback
@@ -9727,18 +9878,258 @@ static createControlNode0(group, color) {
    */
   static createExtremeControl0(group, color) {
     try {
-      const tempNode = new THREE.Group();
-      tempNode.visualGroup = new THREE.Group();
-      
-      const extremeGroup = this.extremeNodePack.createInfiniteSpiral(tempNode, null);
-      if (!extremeGroup) {
-        console.error('[VisualBuildFail]', { archetype: 'extreme-control-0', category: 'control', reason: 'NoMesh' });
-        return group;
+      const colorHex = new THREE.Color(color).getHex();
+      if (!CONTROL_EXTREME_608_CACHE.coreGeometry) {
+        CONTROL_EXTREME_608_CACHE.coreGeometry = new THREE.OctahedronGeometry(0.17, 2);
+        CONTROL_EXTREME_608_CACHE.innerCubeGeometry = new THREE.BoxGeometry(0.92, 0.92, 0.92);
+        CONTROL_EXTREME_608_CACHE.outerCubeGeometry = new THREE.BoxGeometry(1.28, 1.28, 1.28);
+        CONTROL_EXTREME_608_CACHE.edgesInnerGeometry = safeCreateEdgesGeometry(CONTROL_EXTREME_608_CACHE.innerCubeGeometry, 12);
+        CONTROL_EXTREME_608_CACHE.edgesOuterGeometry = safeCreateEdgesGeometry(CONTROL_EXTREME_608_CACHE.outerCubeGeometry, 12);
+        CONTROL_EXTREME_608_CACHE.anchorGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+        CONTROL_EXTREME_608_CACHE.pulsePlaneGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+        CONTROL_EXTREME_608_CACHE.auraCubeGeometry = new THREE.BoxGeometry(1.62, 1.62, 1.62);
+        CONTROL_EXTREME_608_CACHE.scanCubeGeometry = new THREE.BoxGeometry(1.36, 1.36, 1.36);
       }
-      
-      group.add(extremeGroup);
-      tempNode.userData.extremeArchetype = 10;
-      
+
+      let mats = CONTROL_EXTREME_608_MATERIALS.get(colorHex);
+      if (!mats) {
+        mats = {
+          coreMat: new THREE.MeshStandardMaterial({
+            color: 0xd8fbff,
+            emissive: 0xb8f4ff,
+            emissiveIntensity: 0.95,
+            metalness: 0.15,
+            roughness: 0.25,
+            transparent: false,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true
+          }),
+          cageWireMat: new THREE.MeshBasicMaterial({
+            color: colorHex,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.2,
+            depthWrite: false,
+            depthTest: true
+          }),
+          cageEdgeMat: new THREE.LineBasicMaterial({
+            color: 0xc9f7ff,
+            transparent: true,
+            opacity: 0.72,
+            depthWrite: false,
+            depthTest: true
+          }),
+          anchorMat: new THREE.MeshStandardMaterial({
+            color: colorHex,
+            emissive: colorHex,
+            emissiveIntensity: 0.42,
+            metalness: 0.62,
+            roughness: 0.26,
+            transparent: false,
+            depthWrite: true,
+            depthTest: true
+          }),
+          pulseMat: new THREE.MeshBasicMaterial({
+            color: 0xd9ffff,
+            transparent: true,
+            opacity: 0.26,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide
+          }),
+          auraMat: new THREE.MeshBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.BackSide
+          }),
+          scanMat: new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.DoubleSide,
+            uniforms: {
+              uTime: { value: 0 },
+              uColor: { value: new THREE.Color(0xcffbff) },
+              uOpacity: { value: 0.07 }
+            },
+            vertexShader: `
+              varying vec3 vPos;
+              void main() {
+                vPos = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              }
+            `,
+            fragmentShader: `
+              uniform float uTime;
+              uniform vec3 uColor;
+              uniform float uOpacity;
+              varying vec3 vPos;
+              void main() {
+                float scan = step(0.62, fract((vPos.y * 5.0) + uTime * 0.95));
+                float alpha = uOpacity * (0.35 + scan * 0.65);
+                gl_FragColor = vec4(uColor, alpha);
+              }
+            `
+          })
+        };
+        CONTROL_EXTREME_608_MATERIALS.set(colorHex, mats);
+      }
+
+      const root = new THREE.Group();
+      root.name = 'CONTROL_EXTREME_608_SOVEREIGN_CORE';
+      root.userData.visualVariant = 'CONTROL_608_SOVEREIGN';
+      root.userData.nodeGeometryName = 'CONTROL_SOVEREIGN_CORE_608';
+
+      const core = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.coreGeometry, mats.coreMat);
+      core.name = 'SovereignCore';
+      core.userData.isCore = true;
+      validateMeshGeometry(core, 'createExtremeControl0:core');
+      root.add(core);
+
+      const innerCube = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.innerCubeGeometry, mats.cageWireMat);
+      innerCube.name = 'InnerCubeCage';
+      innerCube.rotation.set(0.2, 0.4, 0.1);
+      root.add(innerCube);
+      const innerEdges = new THREE.LineSegments(CONTROL_EXTREME_608_CACHE.edgesInnerGeometry, mats.cageEdgeMat);
+      innerEdges.name = 'InnerCubeEdges';
+      innerEdges.rotation.copy(innerCube.rotation);
+      innerEdges.userData.isEdgeCage = true;
+      root.add(innerEdges);
+
+      const outerCube = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.outerCubeGeometry, mats.cageWireMat);
+      outerCube.name = 'OuterCubeCage';
+      outerCube.rotation.set(-0.18, 0.14, -0.22);
+      root.add(outerCube);
+      const outerEdges = new THREE.LineSegments(CONTROL_EXTREME_608_CACHE.edgesOuterGeometry, mats.cageEdgeMat);
+      outerEdges.name = 'OuterCubeEdges';
+      outerEdges.rotation.copy(outerCube.rotation);
+      outerEdges.userData.isEdgeCage = true;
+      root.add(outerEdges);
+
+      const aura = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.auraCubeGeometry, mats.auraMat);
+      aura.name = 'CubeAuraField';
+      aura.rotation.set(0.1, -0.3, 0.2);
+      root.add(aura);
+
+      const scanOverlay = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.scanCubeGeometry, mats.scanMat);
+      scanOverlay.name = 'ScanlineOverlay';
+      scanOverlay.rotation.set(-0.16, 0.22, -0.12);
+      root.add(scanOverlay);
+
+      const pulsePlane = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.pulsePlaneGeometry, mats.pulseMat);
+      pulsePlane.name = 'SquarePulsePlane';
+      pulsePlane.rotation.x = -Math.PI * 0.5;
+      pulsePlane.position.y = -0.02;
+      pulsePlane.scale.setScalar(0.45);
+      root.add(pulsePlane);
+
+      const anchorGroup = new THREE.Group();
+      anchorGroup.name = 'AnchorNodes';
+      const anchorCount = 6;
+      const anchorPaths = [];
+      for (let i = 0; i < anchorCount; i++) {
+        const phase = (i / anchorCount) * Math.PI * 2;
+        const path = [
+          new THREE.Vector3(Math.cos(phase) * 0.95, 0.14, Math.sin(phase) * 0.95),
+          new THREE.Vector3(Math.cos(phase + 0.82) * 0.86, -0.12, Math.sin(phase + 0.82) * 0.86),
+          new THREE.Vector3(Math.cos(phase + 1.67) * 1.02, 0.08, Math.sin(phase + 1.67) * 1.02),
+          new THREE.Vector3(Math.cos(phase + 2.44) * 0.9, -0.18, Math.sin(phase + 2.44) * 0.9)
+        ];
+        anchorPaths.push(path);
+
+        const anchor = new THREE.Mesh(CONTROL_EXTREME_608_CACHE.anchorGeometry, mats.anchorMat);
+        anchor.name = `Anchor_${i}`;
+        anchor.position.copy(path[0]);
+        anchor.userData.pathIndex = 0;
+        anchor.userData.path = path;
+        validateMeshGeometry(anchor, `createExtremeControl0:anchor${i}`);
+        anchorGroup.add(anchor);
+      }
+      root.add(anchorGroup);
+
+      const state = {
+        lastTime: 0,
+        snapAccum: 0,
+        teleportAccum: 0,
+        pulseAccum: 0,
+        freezeFrames: 0,
+        freezeCooldown: 1.6,
+        freezeCooldownAccum: 0,
+        pulseScale: 0.45
+      };
+
+      root.onBeforeRender = () => {
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+        if (state.lastTime === 0) {
+          state.lastTime = now;
+          return;
+        }
+        const dt = Math.min(0.05, now - state.lastTime);
+        state.lastTime = now;
+
+        if (state.freezeFrames > 0) {
+          state.freezeFrames--;
+          mats.scanMat.uniforms.uTime.value = now;
+          return;
+        }
+
+        state.snapAccum += dt;
+        state.teleportAccum += dt;
+        state.pulseAccum += dt;
+        state.freezeCooldownAccum += dt;
+
+        if (state.snapAccum >= 0.8) {
+          state.snapAccum = 0;
+          root.rotation.y += Math.PI * 0.5;
+          innerCube.rotation.x += 0.14;
+          innerCube.rotation.y -= 0.22;
+          outerCube.rotation.x -= 0.1;
+          outerCube.rotation.y += 0.18;
+          innerEdges.rotation.copy(innerCube.rotation);
+          outerEdges.rotation.copy(outerCube.rotation);
+        }
+
+        if (state.teleportAccum >= 0.42) {
+          state.teleportAccum = 0;
+          for (let i = 0; i < anchorGroup.children.length; i++) {
+            const anchor = anchorGroup.children[i];
+            const path = anchor.userData.path;
+            const nextIdx = (anchor.userData.pathIndex + 1) % path.length;
+            anchor.userData.pathIndex = nextIdx;
+            anchor.position.copy(path[nextIdx]);
+          }
+        }
+
+        if (state.pulseAccum >= 0.9) {
+          state.pulseAccum = 0;
+          state.pulseScale = 0.45;
+          mats.pulseMat.opacity = 0.26;
+        } else {
+          state.pulseScale = Math.min(2.2, state.pulseScale + dt * 1.45);
+          mats.pulseMat.opacity = Math.max(0.04, mats.pulseMat.opacity - dt * 0.24);
+        }
+        pulsePlane.scale.set(state.pulseScale, state.pulseScale, 1);
+
+        if (state.freezeCooldownAccum >= state.freezeCooldown) {
+          if (Math.sin(now * 1.9) > 0.93) {
+            state.freezeFrames = (Math.sin(now * 3.7) > 0) ? 2 : 1;
+            state.freezeCooldownAccum = 0;
+          }
+        }
+
+        aura.rotation.y += dt * 0.18;
+        aura.rotation.x += dt * 0.06;
+        mats.scanMat.uniforms.uTime.value = now;
+        core.material.emissiveIntensity = 0.78 + Math.sign(Math.sin(now * 2.4)) * 0.12;
+      };
+
+      root.userData.visualCoreImmutable = true;
+      root.userData.controlSovereignAnchors = anchorPaths;
+      group.add(root);
       return group;
     } catch (err) {
       console.error('[NodeVisualAbort]', {

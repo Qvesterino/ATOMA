@@ -498,4 +498,12 @@ export class LinkHealingEmitter {
   setHarmonyThreshold(threshold) {
     this.harmonyThreshold = THREE.MathUtils.clamp(threshold, 0, 1);
   }
+
+  disable() {
+    this.enabled = false;
+  }
+
+  enable() {
+    this.enabled = true;
+  }
 }
