@@ -220,7 +220,7 @@ export class HarmonyStabilizationSystem_v1 {
       let healAmount = harmonyData.level * 0.1 * deltaTime; // Up to 10% corruption/sec
       healAmount *= recoveryBoost; // [Tier 4.9] Accelerate corruption decay on nodes
       if (nodeCorruption > 0) {
-        setNodeCorruption(node, Math.max(0, nodeCorruption - healAmount));
+        setNodeCorruption(node, Math.max(0, nodeCorruption - healAmount), { source: 'harmony-stabilization' });
         this._emitCorruptionThreshold(node);
       }
     }
@@ -466,7 +466,7 @@ export class HarmonyStabilizationSystem_v1 {
 
     // Block corruption on this node
     node.userData.corrupted = false;
-    setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - 0.2));
+    setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - 0.2), { source: 'harmony-stabilization' });
     this._emitCorruptionThreshold(node);
 
     // Trigger healing pulse
@@ -484,7 +484,7 @@ export class HarmonyStabilizationSystem_v1 {
     if (!node || !node.userData) return;
 
     node.userData.isHarmonyAnchor = true;
-    setNodeCorruption(node, 0);
+    setNodeCorruption(node, 0, { source: 'harmony-stabilization' });
     this._emitCorruptionThreshold(node);
 
     // Continuous pulse
@@ -564,7 +564,7 @@ export class HarmonyStabilizationSystem_v1 {
         if (distance <= pulse.radius) {
           // Reduce corruption
           if (node.userData) {
-          setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - pulse.intensity * 0.3));
+          setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - pulse.intensity * 0.3), { source: 'harmony-stabilization' });
           this._emitCorruptionThreshold(node);
             // Boost harmony
             const harmonyData = this.initializeNodeHarmony(node);
@@ -754,7 +754,7 @@ export class HarmonyStabilizationSystem_v1 {
     for (const node of zone.nodes) {
       if (node.userData) {
         // Reduce corruption
-        setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - zone.intensity * 0.01 * deltaTime));
+        setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - zone.intensity * 0.01 * deltaTime), { source: 'harmony-stabilization' });
         this._emitCorruptionThreshold(node);
         // Boost harmony
         const harmonyData = this.initializeNodeHarmony(node);
@@ -1061,7 +1061,7 @@ export class HarmonyStabilizationSystem_v1 {
       // Fully cleanse a node
       cleanseNode: (node) => {
         if (node.userData) {
-          setNodeCorruption(node, 0);
+          setNodeCorruption(node, 0, { source: 'harmony-stabilization' });
           this._emitCorruptionThreshold(node);
         }
         this.setNodeHarmony(node, 1.0);

@@ -116,7 +116,7 @@ export const NODE_VISUAL_REGISTRY = {
   // Error (11xx)
   1101: { category: 'error', factoryName: 'createErrorIntersectingSolidsNode', archetypeTag: 'pressure', metrics: { synergy: 0.050000, harmony: 0.050000, stability: 0.180000, corruption: 0.850000, loadPressure: 0.620000 } },
   1102: { category: 'error', factoryName: 'createErrorInvertedNormalsNode', archetypeTag: 'risky', metrics: { synergy: 0.078333, harmony: 0.078333, stability: 0.210000, corruption: 0.850000, loadPressure: 0.663333 } },
-  1103: { category: 'error', factoryName: 'createErrorSelfClippingNode', archetypeTag: 'risky', metrics: { synergy: 0.106667, harmony: 0.106667, stability: 0.240000, corruption: 0.850000, loadPressure: 0.706667 } },
+  1103: { category: 'error', factoryName: 'createErrorSelfClippingNode', archetypeTag: 'risky', metrics: { synergy: 0.106667, harmony: 0.106667, stability: 0.240000, corruption: 0.300000, loadPressure: 0.706667 } },
   1104: { category: 'error', factoryName: 'createErrorFoldedImpossibleNode', archetypeTag: 'pressure', metrics: { synergy: 0.135000, harmony: 0.135000, stability: 0.270000, corruption: 0.850000, loadPressure: 0.750000 } },
   1105: { category: 'error', factoryName: 'createErrorTopologyTearNode', archetypeTag: 'harmonizer', metrics: { synergy: 0.163333, harmony: 0.163333, stability: 0.300000, corruption: 0.873333, loadPressure: 0.793333 } },
   1106: { category: 'error', factoryName: 'createErrorCorruptedManifoldNode', archetypeTag: 'stabilizer', metrics: { synergy: 0.191667, harmony: 0.191667, stability: 0.330000, corruption: 0.896667, loadPressure: 0.836667 } },

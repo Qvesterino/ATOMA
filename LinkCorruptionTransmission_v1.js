@@ -2240,7 +2240,7 @@ export class LinkCorruptionTransmission_v1 {
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
         const delta = computedCorruption - targetCorruptionBefore;
-        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta });
+        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta }, { source: 'link-corruption-transmission' });
       }
       
       // Mark as infected
@@ -2284,7 +2284,7 @@ export class LinkCorruptionTransmission_v1 {
       
       if (!PHASE_C3_METRIC_WRITE_LOCK) {
         const delta = attenuatedSurge - (targetMetrics.corruption || 0);
-        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta });
+        if (delta !== 0) applyMetricImpulse(targetNode, { corruption: delta }, { source: 'link-corruption-transmission' });
         targetNode.userData.corruptionSurgeTime = Date.now();
       }
       

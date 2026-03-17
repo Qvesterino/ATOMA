@@ -6793,6 +6793,7 @@ static createControlNode0(group, color) {
       primeRoot.add(auraGroup);
 
       primeRoot.userData.visualReady = true;
+      primeRoot.scale.setScalar(0.75);
       group.add(primeRoot);
       return group;
     } catch (err) {

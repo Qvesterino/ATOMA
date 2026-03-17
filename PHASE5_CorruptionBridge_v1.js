@@ -230,7 +230,7 @@ export class PHASE5_CorruptionBridge {
       for (const node of network.aiNodes.nodes) {
         const currentCorruption = node.userData?.metrics?.corruption ?? 0;
         const nextCorruption = Math.min(currentCorruption + corruptionPerNode, 1.0);
-        setNodeCorruption(node, nextCorruption);
+        setNodeCorruption(node, nextCorruption, { source: 'phase5-corruption-bridge' });
 
         // Threshold detection (visual-only event)
         const prev = node.userData?._prevCorruption ?? 0;
@@ -268,7 +268,7 @@ export class PHASE5_CorruptionBridge {
       for (const node of network.aiNodes.nodes) {
         const currentCorruption = node.userData?.metrics?.corruption ?? 0;
         const nextCorruption = Math.max(currentCorruption - harmonyPerNode, 0);
-        setNodeCorruption(node, nextCorruption);
+        setNodeCorruption(node, nextCorruption, { source: 'phase5-corruption-bridge' });
 
         // Update cached previous corruption for threshold tracking
         if (!node.userData) node.userData = {};

@@ -2988,10 +2988,13 @@ function purgeForbiddenNodePrimitives(visualRoot) {
 
     const minDist = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_MIN_DIST))
       ? window.ATOMA_EDGE_FADE_MIN_DIST
-      : 10;
+      : 18;
     const maxDist = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_MAX_DIST))
       ? window.ATOMA_EDGE_FADE_MAX_DIST
-      : 60;
+      : 140;
+    const minOpacityFloor = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_FADE_MIN_OPACITY))
+      ? Math.max(0.01, Math.min(1, window.ATOMA_EDGE_FADE_MIN_OPACITY))
+      : 0.22;
     const near = Math.min(minDist, maxDist - 0.001);
     const far = Math.max(maxDist, near + 0.001);
 
@@ -3019,7 +3022,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           if (!Number.isFinite(mud.__edgeCageBaseOpacity)) {
             mud.__edgeCageBaseOpacity = Number.isFinite(mat.opacity) ? mat.opacity : 1.0;
           }
-          const targetOpacity = Math.max(0.05, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
+          const targetOpacity = Math.max(minOpacityFloor, Math.min(1.0, mud.__edgeCageBaseOpacity * fade));
           mat.transparent = true;
           mat.depthWrite = false;
           mat.opacity = targetOpacity;
@@ -3313,7 +3316,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             child.isMesh && child.userData.isHologramShell === true
           );
           if (holoShell) {
-            holoShell.frustumCulled = true;
+            holoShell.frustumCulled = false;
             fixed = true;
           }
         }
@@ -3324,7 +3327,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
             child.isMesh && child.userData.visualLayer === 'CORE'
           );
           if (coreMesh) {
-            coreMesh.frustumCulled = true;
+            coreMesh.frustumCulled = false;
             fixed = true;
           }
         }

@@ -6496,17 +6496,20 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
                     const time = this.time ?? performance.now();
                     for (const node of this.aiNodes.nodes) {
+                        const visualTarget = node?.traverse ? node : (node?.mesh || node);
                         const corruptionLevel =
                             node?.userData?.metrics?.corruption ??
                             node?.userData?.metrics?.corruption ??
                             node?.userData?.corruption ??
                             0;
-                        if (corruptionLevel > 0.35) {
+                        if (corruptionLevel > 0.75) {
                             this.corruptionVisualFX.applyCorruptionEffects(
-                                node.mesh || node,
+                                visualTarget,
                                 dt,
                                 time
                             );
+                        } else if (this.corruptionVisualFX?.restoreNodeVisualBaseline) {
+                            this.corruptionVisualFX.restoreNodeVisualBaseline(visualTarget);
                         }
                     }
                 },

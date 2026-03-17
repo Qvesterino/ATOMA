@@ -73,6 +73,18 @@ const SYNERGY_BURST = {
   neighborHarmonyBoost: 0.01
 };
 
+const UNLINKED_WRITE_POLICY = {
+  OFF: 'off',
+  STRICT: 'strict',
+  ALLOWLIST: 'allowlist'
+};
+
+const DEFAULT_UNLINKED_ALLOWLIST = new Set([
+  'phase5-corruption-bridge',
+  'phase5-network-synchronization',
+  'harmony-stabilization'
+]);
+
 const SYNERGY_DERIVATION = {
   smoothing: 0.25,
   corruptionDamping: 0.85,
@@ -102,6 +114,7 @@ const NODE_METRIC_UPDATED_EVENT_INTERVAL_MS = 100; // 10Hz max per node
 // Track last emitted values to avoid per-frame spam
 const lastEmittedMetricValue = new Map(); // key: `${nodeId}:${metric}` → value
 const lastNodeMetricUpdatedEmitAt = new Map(); // key: `${nodeId}` → timestamp(ms)
+const unlinkedWriteWarned = new Set();
 let nodeMetricsTick = 0;
 
 function getSemanticBus() {
@@ -242,6 +255,46 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
 
 function getNodeId(node) {
   return node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+}
+
+function getUnlinkedWritePolicy() {
+  const policyRaw = (typeof window !== 'undefined' && window?.ATOMA_METRIC_UNLINKED_WRITE_POLICY) || UNLINKED_WRITE_POLICY.OFF;
+  const policy = String(policyRaw).toLowerCase();
+  if (policy === UNLINKED_WRITE_POLICY.STRICT) return UNLINKED_WRITE_POLICY.STRICT;
+  if (policy === UNLINKED_WRITE_POLICY.ALLOWLIST) return UNLINKED_WRITE_POLICY.ALLOWLIST;
+  return UNLINKED_WRITE_POLICY.OFF;
+}
+
+function getUnlinkedAllowlist() {
+  if (typeof window !== 'undefined' && Array.isArray(window?.ATOMA_METRIC_UNLINKED_ALLOWLIST)) {
+    return new Set(window.ATOMA_METRIC_UNLINKED_ALLOWLIST.map((v) => String(v).toLowerCase()));
+  }
+  return DEFAULT_UNLINKED_ALLOWLIST;
+}
+
+function isNodeMetricActiveLinked(node) {
+  return node?.userData?._metricActiveLink === true;
+}
+
+function shouldBlockUnlinkedWrite(node, source = 'unknown') {
+  const policy = getUnlinkedWritePolicy();
+  if (policy === UNLINKED_WRITE_POLICY.OFF) return false;
+  if (isNodeMetricActiveLinked(node)) return false;
+
+  if (policy === UNLINKED_WRITE_POLICY.STRICT) return true;
+  if (policy === UNLINKED_WRITE_POLICY.ALLOWLIST) {
+    const allow = getUnlinkedAllowlist();
+    return !allow.has(String(source).toLowerCase());
+  }
+  return false;
+}
+
+function warnUnlinkedWriteBlocked(node, metric, source, op) {
+  const nodeId = getNodeId(node);
+  const key = `${op}:${nodeId}:${metric}:${String(source).toLowerCase()}`;
+  if (unlinkedWriteWarned.has(key)) return;
+  unlinkedWriteWarned.add(key);
+  console.warn('UNLINKED_METRIC_WRITE_BLOCKED', { nodeId, metric, source, policy: getUnlinkedWritePolicy(), op });
 }
 
 function resolveNodeList(nodesInput) {
@@ -447,8 +500,25 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
   const dtClamped = Number.isFinite(dt) ? Math.max(0.001, Math.min(0.25, dt)) : FIXED_TICK_BASE;
   const dtScale = dtClamped / FIXED_TICK_BASE;
   const linkedNeighbors = new Map();
+  const links = resolveLinkList(linkSystem);
+  const activeLinks = [];
+  const activeNodes = new Set();
+
+  for (const link of links) {
+    if (link?.active === false) continue;
+    const nodeA = link?.source || link?.nodeA;
+    const nodeB = link?.target || link?.nodeB;
+    if (!nodeA || !nodeB) continue;
+    activeLinks.push(link);
+    activeNodes.add(nodeA);
+    activeNodes.add(nodeB);
+  }
 
   for (const node of nodes) {
+    if (node?.userData) {
+      node.userData._metricActiveLink = activeNodes.has(node);
+    }
+    if (!activeNodes.has(node)) continue;
     const m = ensureMetrics(node);
     const base = node?.userData?.archetypeMetrics;
     if (!m || !base) continue;
@@ -470,11 +540,10 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     applyArchetypeClamp(node);
   }
 
-  const links = resolveLinkList(linkSystem);
-  if (links.length) {
+  if (activeLinks.length) {
     const resonanceHarmonyApplied = new Map();
     const resonanceStabilityApplied = new Map();
-    for (const link of links) {
+    for (const link of activeLinks) {
       const nodeA = link?.source || link?.nodeA;
       const nodeB = link?.target || link?.nodeB;
       if (!nodeA || !nodeB) continue;
@@ -549,6 +618,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
   }
 
   for (const node of nodes) {
+    if (!activeNodes.has(node)) continue;
     deriveSynergy(node, dtScale);
     applyArchetypeClamp(node);
   }
@@ -582,6 +652,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
 
   // Emit threshold-based semantic events once per node at the end of the tick.
   for (const node of nodes) {
+    if (!activeNodes.has(node)) continue;
     emitNodeThresholdEvents(node);
   }
 }
@@ -591,8 +662,13 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
  * @param {Object} node - target node
  * @param {Object} deltas - { synergy?, harmony?, stability?, corruption?, loadPressure? }
  */
-export function applyMetricImpulse(node, deltas = {}) {
+export function applyMetricImpulse(node, deltas = {}, options = {}) {
   if (!node) return;
+  const source = options?.source || 'unknown';
+  if (shouldBlockUnlinkedWrite(node, source)) {
+    warnUnlinkedWriteBlocked(node, 'impulse', source, 'applyMetricImpulse');
+    return;
+  }
   const m = ensureMetrics(node);
   if (!m) return;
   if (node.userData) {
@@ -616,9 +692,14 @@ export function applyMetricImpulse(node, deltas = {}) {
  * Set a single metric value (absolute) on the canonical container.
  * Blocks legacy field writes by warning when direct fields are present.
  */
-export function setMetric(node, metric, value) {
+export function setMetric(node, metric, value, options = {}) {
   if (!node || !metric) return;
   if (!LEGACY_KEYS.includes(metric)) return;
+  const source = options?.source || 'unknown';
+  if (shouldBlockUnlinkedWrite(node, source)) {
+    warnUnlinkedWriteBlocked(node, metric, source, 'setMetric');
+    return;
+  }
   if (metric === 'synergy') {
     console.warn('DERIVED_METRIC_WRITE_BLOCKED', { key: metric, nodeId: getNodeId(node) });
     return;

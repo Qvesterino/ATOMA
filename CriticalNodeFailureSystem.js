@@ -549,7 +549,7 @@ export class CriticalNodeFailureSystem {
                 0.5 // Cap at 50% (never fully recovers without healing)
             );
             const delta = targetStability - currentStability;
-            if (delta !== 0) applyMetricImpulse(node, { stability: delta });
+            if (delta !== 0) applyMetricImpulse(node, { stability: delta }, { source: 'critical-node-failure' });
 
             // Gradually brighten core
             const targetBrightness = 0.7;

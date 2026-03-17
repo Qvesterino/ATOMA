@@ -6140,7 +6140,7 @@ getLinksForNode(node) {
     const clamped = Math.max(0, Math.min(1, value ?? 0));
     const delta = clamped - current;
     if (delta !== 0) {
-      applyMetricImpulse(node, { corruption: delta });
+      applyMetricImpulse(node, { corruption: delta }, { source: 'node-linking-system' });
     }
   }
   

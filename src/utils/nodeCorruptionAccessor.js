@@ -11,11 +11,11 @@ export function getNodeCorruption(node) {
            0;
 }
 
-export function setNodeCorruption(node, value) {
+export function setNodeCorruption(node, value, options = {}) {
     if (!node) return;
     if (!node.userData) node.userData = {};
     const next = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
-    setMetric(node, 'corruption', next);
+    setMetric(node, 'corruption', next, options);
     // Keep legacy mirror for backward compatibility readers.
     node.userData.corruption = next;
 }

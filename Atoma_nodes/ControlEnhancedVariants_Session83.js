@@ -82,6 +82,7 @@ export class ControlEnhancedVariants {
 
       const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
       trunk.userData.isTrunk = true;
+      trunk.userData.isVFX = true;
       group.add(trunk);
 
       // Create asymmetric branches from split point
@@ -156,6 +157,7 @@ export class ControlEnhancedVariants {
         branch.userData.isDecisionBranch = true;
         branch.userData.branchIndex = branchIdx;
         branch.userData.visualCoreImmutable = true;
+        branch.userData.isVFX = true;
         group.add(branch);
       }
 
@@ -170,6 +172,7 @@ export class ControlEnhancedVariants {
           orb.userData.orbitRadius = 0.8 + (i * 0.2);
           orb.userData.orbitSpeed = 0.3 + (i * 0.1);
           orb.userData.visualCoreImmutable = true;
+          orb.userData.isVFX = true;
           
           group.add(orb);
       }
@@ -267,6 +270,7 @@ export class ControlEnhancedVariants {
       const helix = new THREE.Mesh(helixGeometry, helixMaterial);
       helix.userData.isHelixStrand = true;
       helix.userData.visualCoreImmutable = true;
+      helix.userData.isVFX = true;
       group.add(helix);
 
       // Create central hierarchy axis
@@ -421,6 +425,7 @@ export class ControlEnhancedVariants {
             const flow = new THREE.Mesh(flowGeometry, flowMaterial);
             flow.userData.isFlowLine = true;
             flow.userData.visualCoreImmutable = true;
+            flow.userData.isVFX = true;
             group.add(flow);
           }
         });

@@ -22,7 +22,6 @@
  */
 
 import VisualTime from './src/time/VisualTime.js';
-
 // === THREE SAFE LOADER (v1.1) ===
 let THREE_SAFE = null;
 THREE_SAFE =
@@ -35,6 +34,7 @@ if (!THREE_SAFE) {
 }
 
 const THREE = THREE_SAFE;
+
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
 // Private symbols for one-time corruption shader binding metadata
@@ -276,6 +276,17 @@ export class CorruptionVisualFX_v1 {
       if (!child.userData.originalColor) {
         child.userData.originalColor = material.color.getHex();
       }
+      if (!Number.isFinite(child.userData._corruptionFxOriginalColorHex)) {
+        child.userData._corruptionFxOriginalColorHex = material.color.getHex();
+      }
+      if (material.emissive && this.isMaterialEmissiveCapable(material)) {
+        if (!Number.isFinite(child.userData._corruptionFxOriginalEmissiveHex)) {
+          child.userData._corruptionFxOriginalEmissiveHex = material.emissive.getHex();
+        }
+      }
+      if (material.emissiveIntensity !== undefined && !Number.isFinite(child.userData._corruptionFxOriginalEmissiveIntensity)) {
+        child.userData._corruptionFxOriginalEmissiveIntensity = material.emissiveIntensity;
+      }
 
       // Get base color
       const baseColor = new THREE.Color(child.userData.originalColor);
@@ -325,6 +336,9 @@ export class CorruptionVisualFX_v1 {
       if (!child.isMesh || !child.material) return;
 
       const material = child.material;
+      if (material.emissiveIntensity !== undefined && !Number.isFinite(child.userData?._corruptionFxOriginalEmissiveIntensity)) {
+        child.userData._corruptionFxOriginalEmissiveIntensity = material.emissiveIntensity;
+      }
       
       // Apply emissive intensity if capable
       if (material.emissive && this.isMaterialEmissiveCapable(material)) {
@@ -335,6 +349,34 @@ export class CorruptionVisualFX_v1 {
       // For meshPhong/standard materials, modulate intensity
       if (material.emissiveIntensity !== undefined) {
         material.emissiveIntensity = glowIntensity;
+      }
+    });
+  }
+
+  /**
+   * Restore node materials to their pre-corruption baseline.
+   * Prevents sticky color/emissive states when corruption gate is not active.
+   */
+  restoreNodeVisualBaseline(nodeModel) {
+    if (!nodeModel?.traverse) return;
+    nodeModel.traverse((child) => {
+      if (!child?.isMesh || !child.material) return;
+      this._unbindCorruptionVariantFromMesh(child);
+      const material = child.material;
+      const u = child.userData || {};
+
+      if (material.color && Number.isFinite(u._corruptionFxOriginalColorHex)) {
+        material.color.setHex(u._corruptionFxOriginalColorHex);
+      } else if (material.color && Number.isFinite(u.originalColor)) {
+        material.color.setHex(u.originalColor);
+      }
+
+      if (material.emissive && this.isMaterialEmissiveCapable(material) && Number.isFinite(u._corruptionFxOriginalEmissiveHex)) {
+        material.emissive.setHex(u._corruptionFxOriginalEmissiveHex);
+      }
+
+      if (material.emissiveIntensity !== undefined && Number.isFinite(u._corruptionFxOriginalEmissiveIntensity)) {
+        material.emissiveIntensity = u._corruptionFxOriginalEmissiveIntensity;
       }
     });
   }
@@ -495,6 +537,26 @@ export class CorruptionVisualFX_v1 {
 
     mesh.material = this.corruptionShaderVariant;
     return binding;
+  }
+
+  _unbindCorruptionVariantFromMesh(mesh) {
+    if (!mesh?.userData) return;
+    const binding = mesh.userData[CORRUPTION_BINDING];
+    if (!binding) return;
+
+    if (binding.sourceMaterial) {
+      mesh.material = binding.sourceMaterial;
+    }
+
+    const original = mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER];
+    if (typeof original === 'function') {
+      mesh.onBeforeRender = original;
+    } else {
+      mesh.onBeforeRender = null;
+    }
+
+    delete mesh.userData[CORRUPTION_BINDING];
+    delete mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER];
   }
 
   /**

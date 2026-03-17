@@ -210,9 +210,9 @@ export class PHASE5_NetworkSynchronization {
         }
         
         // Apply resolved value to both
-        setNodeCorruption(sourceNode, resolvedValue);
+        setNodeCorruption(sourceNode, resolvedValue, { source: 'phase5-network-synchronization' });
         this._emitCorruptionThreshold(sourceNode);
-        setNodeCorruption(targetNode, resolvedValue);
+        setNodeCorruption(targetNode, resolvedValue, { source: 'phase5-network-synchronization' });
         this._emitCorruptionThreshold(targetNode);
         
         this.resolutions.push({
@@ -304,7 +304,7 @@ export class PHASE5_NetworkSynchronization {
           if (typeof corruption === 'number') {
             if (corruption < 0 || corruption > 1) {
               // Clamp to valid range
-              setNodeCorruption(node, Math.max(0, Math.min(1, corruption)));
+              setNodeCorruption(node, Math.max(0, Math.min(1, corruption)), { source: 'phase5-network-synchronization' });
               this._emitCorruptionThreshold(node);
             }
           }
