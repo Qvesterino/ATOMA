@@ -6912,45 +6912,754 @@ static createControlNode0(group, color) {
   }
 
   static createErrorIntersectingSolidsNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for IntersectingSolids');
-    return g;
+    try {
+      const seed = group?.userData?.nodeId
+        ? hashNodeIdToFloat(group.userData.nodeId)
+        : hashNodeIdToFloat(`error-intersect-${color}`);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
+      const root = new THREE.Group();
+      root.name = 'ERROR_INTERSECTING_SOLIDS';
+      root.userData.visualVariant = 'ERROR_INTERSECTING_SOLIDS_ORACLE_V2';
+
+      const jitterGeometry = (geometry, magnitude = 0.02) => {
+        const g = geometry.clone();
+        const attr = g.attributes?.position;
+        if (!attr) return g;
+        for (let i = 0; i < attr.count; i++) {
+          attr.setXYZ(
+            i,
+            attr.getX(i) + (rng() - 0.5) * magnitude,
+            attr.getY(i) + (rng() - 0.5) * magnitude * 0.8,
+            attr.getZ(i) + (rng() - 0.5) * magnitude
+          );
+        }
+        attr.needsUpdate = true;
+        g.computeVertexNormals?.();
+        return g;
+      };
+
+      const bloodMat = new THREE.MeshPhysicalMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.36,
+        metalness: 0.72,
+        roughness: 0.18,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.2
+      });
+      const antiMat = new THREE.MeshStandardMaterial({
+        color: 0x070707,
+        emissive: 0x120000,
+        emissiveIntensity: 0.1,
+        metalness: 0.15,
+        roughness: 0.82,
+        side: THREE.DoubleSide
+      });
+      const antiVoidMat = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.BackSide
+      });
+      const cageMat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        depthTest: true
+      });
+      const glassWireMat = new THREE.LineBasicMaterial({
+        color: 0xa8f4ff,
+        transparent: true,
+        opacity: 0.62,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      // Reality A: blood-red aggressive polyhedron.
+      const bloodGeo = jitterGeometry(new THREE.IcosahedronGeometry(0.48, 1), 0.06);
+      const blood = new THREE.Mesh(bloodGeo, bloodMat);
+      blood.name = 'CollisionBloodPolyhedron';
+      blood.position.set(0.0, 0.03, 0.02);
+      blood.rotation.set(0.52, -0.38, 0.2);
+      blood.scale.set(1.18, 0.72, 1.36);
+      root.add(blood);
+
+      const bloodEdges = new THREE.LineSegments(new THREE.EdgesGeometry(bloodGeo, 7), cageMat);
+      bloodEdges.name = 'CollisionBloodEdgesCage';
+      bloodEdges.position.copy(blood.position);
+      bloodEdges.rotation.copy(blood.rotation);
+      bloodEdges.scale.copy(blood.scale);
+      root.add(bloodEdges);
+
+      // Reality B: anti-solid with carved interior.
+      const antiGeo = new THREE.DodecahedronGeometry(0.5, 0);
+      const antiSolid = new THREE.Mesh(antiGeo, antiMat);
+      antiSolid.name = 'CollisionAntiSolid';
+      antiSolid.position.set(-0.08, -0.05, -0.11);
+      antiSolid.rotation.set(-0.28, 0.31, -0.42);
+      antiSolid.scale.set(0.96, 1.24, 0.78);
+      root.add(antiSolid);
+
+      const antiVoid = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), antiVoidMat);
+      antiVoid.name = 'CollisionAntiVoidCore';
+      antiVoid.position.copy(antiSolid.position);
+      antiVoid.position.add(new THREE.Vector3(0.04, -0.02, 0.05));
+      antiVoid.rotation.copy(antiSolid.rotation);
+      antiVoid.scale.set(0.94, 1.18, 0.88);
+      root.add(antiVoid);
+
+      const antiEdges = new THREE.LineSegments(new THREE.EdgesGeometry(antiGeo, 8), cageMat);
+      antiEdges.name = 'CollisionAntiEdgesCage';
+      antiEdges.position.copy(antiSolid.position);
+      antiEdges.rotation.copy(antiSolid.rotation);
+      antiEdges.scale.copy(antiSolid.scale);
+      root.add(antiEdges);
+
+      // Reality C: glass-like broken triangle skeleton.
+      const skeleton = new THREE.Group();
+      skeleton.name = 'CollisionBrokenGlassSkeletonCage';
+      const triCount = 9;
+      for (let i = 0; i < triCount; i++) {
+        const radius = 0.44 + i * 0.04;
+        const p1 = new THREE.Vector3((rng() - 0.5) * radius, (rng() - 0.5) * radius, (rng() - 0.5) * radius);
+        const p2 = new THREE.Vector3((rng() - 0.5) * radius, (rng() - 0.5) * radius, (rng() - 0.5) * radius);
+        const p3 = new THREE.Vector3((rng() - 0.5) * radius, (rng() - 0.5) * radius, (rng() - 0.5) * radius);
+        const triGeo = new THREE.BufferGeometry().setFromPoints([p1, p2, p2, p3, p3, p1]);
+        const tri = new THREE.LineSegments(triGeo, glassWireMat);
+        tri.name = `GlassFractureWire${i}`;
+        skeleton.add(tri);
+      }
+      skeleton.rotation.set(0.18, -0.3, 0.43);
+      root.add(skeleton);
+
+      // Singularity core where realities collapse.
+      const singularityMat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.94
+      });
+      const singularity = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), singularityMat);
+      singularity.name = 'CollisionSingularityCore';
+      singularity.scale.set(1.0, 0.72, 1.35);
+      root.add(singularity);
+
+      const singularityEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.OctahedronGeometry(0.15, 0), 1),
+        cageMat
+      );
+      singularityEdges.name = 'CollisionSingularityEdgeCage';
+      singularityEdges.scale.set(1.0, 0.72, 1.35);
+      root.add(singularityEdges);
+
+      // Broken torus orbit.
+      const brokenRingGeo = new THREE.TorusGeometry(0.86, 0.043, 10, 88, Math.PI * 1.62);
+      const brokenRing = new THREE.Mesh(
+        brokenRingGeo,
+        new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.44,
+          metalness: 0.42,
+          roughness: 0.36,
+          transparent: true,
+          opacity: 0.86
+        })
+      );
+      brokenRing.name = 'CollisionBrokenTorusRing';
+      brokenRing.rotation.set(0.78, -0.12, 0.61);
+      brokenRing.position.set(0.05, -0.02, 0.02);
+      root.add(brokenRing);
+
+      const brokenRingEdges = new THREE.LineSegments(new THREE.EdgesGeometry(brokenRingGeo, 8), cageMat);
+      brokenRingEdges.name = 'CollisionBrokenTorusWireCage';
+      brokenRingEdges.rotation.copy(brokenRing.rotation);
+      brokenRingEdges.position.copy(brokenRing.position);
+      root.add(brokenRingEdges);
+
+      // Long needle fracture lines.
+      const needleCount = 16;
+      for (let i = 0; i < needleCount; i++) {
+        const dir = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize();
+        const length = 0.9 + rng() * 0.65;
+        const offset = new THREE.Vector3((rng() - 0.5) * 0.18, (rng() - 0.5) * 0.18, (rng() - 0.5) * 0.18);
+        const a = dir.clone().multiplyScalar(-length * 0.5).add(offset);
+        const b = dir.clone().multiplyScalar(length * 0.5).add(offset);
+        const needleGeo = new THREE.BufferGeometry().setFromPoints([a, b]);
+        const needle = new THREE.LineSegments(needleGeo, cageMat);
+        needle.name = `CollisionFractureNeedleWire${i}`;
+        root.add(needle);
+      }
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-intersecting');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorIntersectingSolidsNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createErrorInvertedNormalsNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for InvertedNormals');
-    return g;
+    try {
+      const root = new THREE.Group();
+      root.name = 'ERROR_INVERTED_NORMALS';
+      root.userData.visualVariant = 'ERROR_INVERTED_NORMALS_INSIDE_OUT_V2';
+
+      const darkShellMat = new THREE.MeshStandardMaterial({
+        color: 0x07090f,
+        emissive: 0x090015,
+        emissiveIntensity: 0.22,
+        metalness: 0.62,
+        roughness: 0.34,
+        side: THREE.BackSide
+      });
+      const darkBodyMat = new THREE.MeshStandardMaterial({
+        color: 0x09090b,
+        emissive: 0x140000,
+        emissiveIntensity: 0.12,
+        metalness: 0.35,
+        roughness: 0.62
+      });
+      const lumenMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.95
+      });
+      const cageMat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.86,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      // Hollow anti-core with forbidden inner light.
+      const antiCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.48, 1), darkBodyMat);
+      antiCore.name = 'InsideOutAntiCoreBody';
+      antiCore.scale.set(1.06, 0.84, 1.2);
+      antiCore.rotation.set(-0.22, 0.3, -0.12);
+      root.add(antiCore);
+
+      const lumen = new THREE.Mesh(new THREE.SphereGeometry(0.31, 20, 16), lumenMat);
+      lumen.name = 'InsideOutLumenCore';
+      lumen.scale.set(0.84, 1.16, 0.78);
+      lumen.rotation.set(0.14, -0.2, 0.31);
+      root.add(lumen);
+
+      const antiCoreEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.48, 1), 8),
+        cageMat
+      );
+      antiCoreEdges.name = 'InsideOutAntiCoreEdgesCage';
+      antiCoreEdges.scale.copy(antiCore.scale);
+      antiCoreEdges.rotation.copy(antiCore.rotation);
+      root.add(antiCoreEdges);
+
+      // 3 inside-out semi-open shell layers with diagonal cuts.
+      const shellLayers = [
+        { r: 0.92, phiStart: 0.22, phiLen: Math.PI * 1.48, thetaStart: 0.26, thetaLen: Math.PI * 0.74, rot: new THREE.Euler(0.62, -0.28, 0.38), scl: new THREE.Vector3(1.0, 0.82, 1.12) },
+        { r: 0.78, phiStart: 0.66, phiLen: Math.PI * 1.34, thetaStart: 0.44, thetaLen: Math.PI * 0.68, rot: new THREE.Euler(-0.34, 0.39, -0.21), scl: new THREE.Vector3(1.08, 0.74, 0.92) },
+        { r: 0.66, phiStart: 1.05, phiLen: Math.PI * 1.26, thetaStart: 0.18, thetaLen: Math.PI * 0.7, rot: new THREE.Euler(0.28, 0.17, 0.56), scl: new THREE.Vector3(0.9, 1.12, 0.84) }
+      ];
+
+      shellLayers.forEach((cfg, i) => {
+        const shellGeo = new THREE.SphereGeometry(cfg.r, 24, 18, cfg.phiStart, cfg.phiLen, cfg.thetaStart, cfg.thetaLen);
+        const shell = new THREE.Mesh(shellGeo, darkShellMat);
+        shell.name = `InsideOutShellLayer${i}`;
+        shell.rotation.copy(cfg.rot);
+        shell.scale.copy(cfg.scl);
+        root.add(shell);
+
+        const shellEdges = new THREE.LineSegments(new THREE.EdgesGeometry(shellGeo, 8), cageMat);
+        shellEdges.name = `InsideOutShellLayerEdgesCage${i}`;
+        shellEdges.rotation.copy(shell.rotation);
+        shellEdges.scale.copy(shell.scale);
+        root.add(shellEdges);
+      });
+
+      // Curved membrane fins pushed outward.
+      const finCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, -0.26, -0.06),
+        new THREE.Vector3(0.12, -0.04, 0.08),
+        new THREE.Vector3(0.18, 0.2, 0.12),
+        new THREE.Vector3(0.08, 0.42, -0.03)
+      ]);
+      for (let i = 0; i < 3; i++) {
+        const finGeo = new THREE.TubeGeometry(finCurve, 28, 0.05 - i * 0.008, 7, false);
+        const fin = new THREE.Mesh(finGeo, darkBodyMat);
+        fin.name = `InsideOutMembraneFin${i}`;
+        fin.rotation.set(0.2 + i * 0.55, -0.62 + i * 0.51, 0.36 - i * 0.44);
+        fin.scale.set(1.1 - i * 0.08, 1.0, 0.9 + i * 0.1);
+        root.add(fin);
+
+        const finEdges = new THREE.LineSegments(new THREE.EdgesGeometry(finGeo, 8), cageMat);
+        finEdges.name = `InsideOutMembraneFinEdgesCage${i}`;
+        finEdges.rotation.copy(fin.rotation);
+        finEdges.scale.copy(fin.scale);
+        root.add(finEdges);
+      }
+
+      // Torn inner ribs ejected outward.
+      for (let i = 0; i < 8; i++) {
+        const ribGeo = new THREE.CylinderGeometry(0.012, 0.02, 0.48 + i * 0.05, 6);
+        const rib = new THREE.Mesh(ribGeo, darkBodyMat);
+        rib.name = `InsideOutTornRib${i}`;
+        const angle = i * 0.77;
+        rib.position.set(Math.cos(angle) * 0.2, -0.08 + i * 0.03, Math.sin(angle) * 0.16);
+        rib.rotation.set(1.1 + i * 0.12, angle * 0.45, -0.4 + i * 0.09);
+        root.add(rib);
+
+        const ribEdges = new THREE.LineSegments(new THREE.EdgesGeometry(ribGeo, 8), cageMat);
+        ribEdges.name = `InsideOutTornRibEdgesCage${i}`;
+        ribEdges.position.copy(rib.position);
+        ribEdges.rotation.copy(rib.rotation);
+        root.add(ribEdges);
+      }
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-inverted');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorInvertedNormalsNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createErrorSelfClippingNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for SelfClipping');
-    return g;
+    try {
+      const seed = group?.userData?.nodeId
+        ? hashNodeIdToFloat(group.userData.nodeId)
+        : hashNodeIdToFloat(`error-selfclip-${color}`);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
+      const root = new THREE.Group();
+      root.name = 'ERROR_SELF_CLIPPING';
+      root.userData.visualVariant = 'ERROR_SELF_CLIPPING_RECURSIVE_AMPUTATION_V2';
+
+      const deformGeometry = (geo, amp = 0.045) => {
+        const g = geo.clone();
+        const pos = g.attributes?.position;
+        if (!pos) return g;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i);
+          const y = pos.getY(i);
+          const z = pos.getZ(i);
+          const bias = (x * 0.7 - y * 0.3 + z * 0.5);
+          pos.setXYZ(
+            i,
+            x + (rng() - 0.5) * amp + bias * 0.02,
+            y + (rng() - 0.5) * amp * 0.8,
+            z + (rng() - 0.5) * amp - bias * 0.018
+          );
+        }
+        pos.needsUpdate = true;
+        g.computeVertexNormals?.();
+        return g;
+      };
+
+      const coreMat = new THREE.MeshPhysicalMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.34,
+        metalness: 0.66,
+        roughness: 0.2,
+        clearcoat: 0.28,
+        clearcoatRoughness: 0.22
+      });
+      const slabMat = new THREE.MeshStandardMaterial({
+        color: 0x1a0c16,
+        emissive: color,
+        emissiveIntensity: 0.18,
+        metalness: 0.5,
+        roughness: 0.38,
+        transparent: true,
+        opacity: 0.62
+      });
+      const seamMat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.96
+      });
+      const cavityMat = new THREE.MeshBasicMaterial({
+        color: 0x020203,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.BackSide
+      });
+      const cageMat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      // Dominant wounded idol core.
+      const coreGeo = deformGeometry(new THREE.DodecahedronGeometry(0.58, 1), 0.055);
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      core.name = 'AmputationIdolCore';
+      core.scale.set(1.08, 0.76, 1.22);
+      core.rotation.set(0.34, -0.27, 0.18);
+      root.add(core);
+
+      const coreEdges = new THREE.LineSegments(new THREE.EdgesGeometry(coreGeo, 8), cageMat);
+      coreEdges.name = 'AmputationIdolCoreEdgesCage';
+      coreEdges.scale.copy(core.scale);
+      coreEdges.rotation.copy(core.rotation);
+      root.add(coreEdges);
+
+      // Diagonal clipping slab.
+      const slabGeo = new THREE.BoxGeometry(1.52, 0.12, 0.46);
+      const slab = new THREE.Mesh(slabGeo, slabMat);
+      slab.name = 'AmputationClippingSlab';
+      slab.position.set(0.02, 0.02, 0.05);
+      slab.rotation.set(0.62, -0.38, 0.46);
+      root.add(slab);
+
+      const slabEdges = new THREE.LineSegments(new THREE.EdgesGeometry(slabGeo, 8), cageMat);
+      slabEdges.name = 'AmputationClippingSlabEdgesCage';
+      slabEdges.position.copy(slab.position);
+      slabEdges.rotation.copy(slab.rotation);
+      root.add(slabEdges);
+
+      // Exposed wound: emissive seam + hollow cavity.
+      const seamGeo = new THREE.TorusGeometry(0.44, 0.026, 8, 72, Math.PI * 1.18);
+      const seam = new THREE.Mesh(seamGeo, seamMat);
+      seam.name = 'AmputationWoundSeam';
+      seam.position.set(0.01, 0.03, 0.0);
+      seam.rotation.set(0.62, -0.36, 0.51);
+      seam.scale.set(1.0, 0.66, 1.28);
+      root.add(seam);
+
+      const seamEdges = new THREE.LineSegments(new THREE.EdgesGeometry(seamGeo, 8), cageMat);
+      seamEdges.name = 'AmputationWoundSeamEdgesCage';
+      seamEdges.position.copy(seam.position);
+      seamEdges.rotation.copy(seam.rotation);
+      seamEdges.scale.copy(seam.scale);
+      root.add(seamEdges);
+
+      const cavity = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24, 0), cavityMat);
+      cavity.name = 'AmputationInnerCavity';
+      cavity.position.set(0.06, -0.02, 0.03);
+      cavity.scale.set(0.84, 1.22, 0.72);
+      cavity.rotation.set(-0.24, 0.32, -0.17);
+      root.add(cavity);
+
+      // 2-4 detached fragments in pathological proximity.
+      const fragmentCount = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < fragmentCount; i++) {
+        const fragGeo = deformGeometry(new THREE.TetrahedronGeometry(0.18 + i * 0.04, 0), 0.035);
+        const frag = new THREE.Mesh(fragGeo, coreMat);
+        frag.name = `AmputationDetachedFragment${i}`;
+        frag.position.set(
+          (rng() - 0.5) * 0.44 + 0.14,
+          (rng() - 0.5) * 0.3 - 0.02,
+          (rng() - 0.5) * 0.36
+        );
+        frag.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        frag.scale.set(1.0 + i * 0.08, 0.72 + i * 0.05, 1.14 - i * 0.06);
+        root.add(frag);
+
+        const fragEdges = new THREE.LineSegments(new THREE.EdgesGeometry(fragGeo, 8), cageMat);
+        fragEdges.name = `AmputationDetachedFragmentEdgesCage${i}`;
+        fragEdges.position.copy(frag.position);
+        fragEdges.rotation.copy(frag.rotation);
+        fragEdges.scale.copy(frag.scale);
+        root.add(fragEdges);
+      }
+
+      // Asymmetric broken contour cage (not torus orbit).
+      const brokenContours = [
+        { r: 0.82, tube: 0.028, arc: Math.PI * 1.06, rot: new THREE.Euler(0.32, 0.16, -0.58), pos: new THREE.Vector3(0.07, -0.01, 0.08), scl: new THREE.Vector3(1.22, 0.74, 1.04) },
+        { r: 0.63, tube: 0.024, arc: Math.PI * 0.88, rot: new THREE.Euler(-0.36, 0.41, 0.22), pos: new THREE.Vector3(-0.1, 0.08, -0.05), scl: new THREE.Vector3(0.92, 1.18, 0.84) },
+        { r: 0.72, tube: 0.021, arc: Math.PI * 0.72, rot: new THREE.Euler(0.54, -0.34, 0.37), pos: new THREE.Vector3(0.03, -0.11, 0.02), scl: new THREE.Vector3(1.1, 0.68, 1.2) }
+      ];
+      brokenContours.forEach((c, i) => {
+        const contourGeo = new THREE.TorusGeometry(c.r, c.tube, 8, 64, c.arc);
+        const contour = new THREE.LineSegments(new THREE.EdgesGeometry(contourGeo, 8), cageMat);
+        contour.name = `AmputationBrokenContourCage${i}`;
+        contour.position.copy(c.pos);
+        contour.rotation.copy(c.rot);
+        contour.scale.copy(c.scl);
+        root.add(contour);
+      });
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-selfclip');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorSelfClippingNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createErrorFoldedImpossibleNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for FoldedImpossible');
-    return g;
+    try {
+      const root = new THREE.Group();
+      root.name = 'ERROR_FOLDED_IMPOSSIBLE';
+      root.userData.visualVariant = 'ERROR_FOLDED_IMPOSSIBLE_V1';
+
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.26,
+        metalness: 0.6,
+        roughness: 0.24
+      });
+      const wire = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      const slabGeo = new THREE.BoxGeometry(0.9, 0.16, 0.42);
+      for (let i = 0; i < 4; i++) {
+        const slab = new THREE.Mesh(slabGeo, mat);
+        slab.name = `FoldedSlab${i}`;
+        slab.position.y = (i - 1.5) * 0.14;
+        slab.rotation.set(0.22 + i * 0.18, -0.12 + i * 0.11, 0.35 - i * 0.2);
+        slab.scale.set(1.0 - i * 0.08, 1.0, 1.0 + i * 0.1);
+        root.add(slab);
+
+        const slabEdges = new THREE.LineSegments(new THREE.EdgesGeometry(slabGeo, 8), wire);
+        slabEdges.name = `FoldedSlabEdges${i}`;
+        slabEdges.position.copy(slab.position);
+        slabEdges.rotation.copy(slab.rotation);
+        slabEdges.scale.copy(slab.scale);
+        root.add(slabEdges);
+      }
+
+      const impossibleLoop = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.TorusKnotGeometry(0.46, 0.08, 72, 8, 2, 5), 8),
+        wire
+      );
+      impossibleLoop.name = 'FoldImpossibleLoop';
+      impossibleLoop.rotation.set(-0.28, 0.33, 0.19);
+      root.add(impossibleLoop);
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-folded');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorFoldedImpossibleNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createErrorTopologyTearNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for TopologyTear');
-    return g;
+    try {
+      const seed = group?.userData?.nodeId
+        ? hashNodeIdToFloat(group.userData.nodeId)
+        : hashNodeIdToFloat(`error-tear-${color}`);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
+      const root = new THREE.Group();
+      root.name = 'ERROR_TOPOLOGY_TEAR';
+      root.userData.visualVariant = 'ERROR_TOPOLOGY_TEAR_V1';
+
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.24,
+        metalness: 0.55,
+        roughness: 0.28
+      });
+      const wire = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.86,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      const tornRing = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 10, 80, Math.PI * 1.55), mat);
+      tornRing.name = 'TornRingBody';
+      tornRing.rotation.set(0.21, -0.36, 0.18);
+      root.add(tornRing);
+
+      const tearCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.36, 0), mat);
+      tearCore.name = 'TopologyTearCore';
+      tearCore.scale.set(1.0, 0.75, 1.25);
+      tearCore.rotation.set(-0.31, 0.1, 0.24);
+      root.add(tearCore);
+
+      const tornEdges = new THREE.LineSegments(new THREE.EdgesGeometry(tornRing.geometry, 8), wire);
+      tornEdges.name = 'TornRingEdges';
+      tornEdges.rotation.copy(tornRing.rotation);
+      root.add(tornEdges);
+
+      for (let i = 0; i < 5; i++) {
+        const seg = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(0.28 + i * 0.03, 0.03, 0.05), 8),
+          wire
+        );
+        seg.name = `TearSeam${i}`;
+        seg.position.set(0.22 + i * 0.1, -0.1 + i * 0.05, (rng() - 0.5) * 0.18);
+        seg.rotation.set((rng() - 0.5) * 0.4, 0.35 + i * 0.1, (rng() - 0.5) * 0.4);
+        root.add(seg);
+      }
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-topology-tear');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorTopologyTearNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   static createErrorCorruptedManifoldNode(group, visualCode, color) {
-    const g = new THREE.Group();
-    const res = this.createErrorNodeStyled_v2(g, visualCode, color);
-    if (!res) throw new Error('Error v2 builder failed for CorruptedManifold');
-    return g;
+    try {
+      const root = new THREE.Group();
+      root.name = 'ERROR_CORRUPTED_MANIFOLD';
+      root.userData.visualVariant = 'ERROR_CORRUPTED_MANIFOLD_V1';
+
+      const pathA = [];
+      const pathB = [];
+      const segments = 72;
+      for (let i = 0; i <= segments; i++) {
+        const t = (i / segments) * Math.PI * 2;
+        pathA.push(new THREE.Vector3(
+          Math.cos(t) * (0.42 + 0.16 * Math.sin(2.7 * t)),
+          Math.sin(1.6 * t) * 0.23,
+          Math.sin(t) * (0.4 + 0.08 * Math.cos(2.0 * t))
+        ));
+        pathB.push(new THREE.Vector3(
+          Math.cos(t + 0.9) * (0.28 + 0.18 * Math.cos(3.1 * t)),
+          Math.sin(t * 2.2 + 0.4) * 0.27,
+          Math.sin(t + 0.9) * (0.48 + 0.06 * Math.sin(2.4 * t))
+        ));
+      }
+      const manifoldGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pathA), segments, 0.105, 10, true);
+      const seamGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pathB), segments, 0.072, 8, true);
+      const manifoldMat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.24,
+        metalness: 0.58,
+        roughness: 0.26
+      });
+      const manifold = new THREE.Mesh(manifoldGeo, manifoldMat);
+      manifold.name = 'CorruptedManifoldBody';
+      manifold.rotation.set(0.18, -0.24, 0.3);
+      root.add(manifold);
+
+      const seam = new THREE.Mesh(seamGeo, manifoldMat);
+      seam.name = 'CorruptedSeamBody';
+      seam.rotation.set(-0.12, 0.36, -0.17);
+      seam.scale.set(1.08, 0.88, 1.14);
+      root.add(seam);
+
+      const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), manifoldMat);
+      core.name = 'CorruptedKernel';
+      core.scale.set(0.92, 1.14, 0.84);
+      core.rotation.set(-0.2, 0.3, -0.1);
+      root.add(core);
+
+      const wireMat = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.86,
+        depthWrite: false,
+        depthTest: true
+      });
+      const manifoldEdges = new THREE.LineSegments(new THREE.EdgesGeometry(manifoldGeo, 8), wireMat);
+      manifoldEdges.name = 'CorruptedManifoldEdges';
+      manifoldEdges.rotation.copy(manifold.rotation);
+      root.add(manifoldEdges);
+
+      const seamEdges = new THREE.LineSegments(new THREE.EdgesGeometry(seamGeo, 8), wireMat);
+      seamEdges.name = 'CorruptedSeamEdges';
+      seamEdges.rotation.copy(seam.rotation);
+      seamEdges.scale.copy(seam.scale);
+      root.add(seamEdges);
+
+      const cage = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.98, 0), 8),
+        wireMat
+      );
+      cage.name = 'CorruptedAsymmetricCage';
+      cage.scale.set(1.35, 0.86, 1.2);
+      cage.rotation.set(-0.42, 0.27, 0.08);
+      root.add(cage);
+
+      for (let i = 0; i < 5; i++) {
+        const shard = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.TetrahedronGeometry(0.18 + i * 0.015, 0), 8),
+          wireMat
+        );
+        shard.name = `ManifoldShardEdge${i}`;
+        shard.position.set(
+          Math.cos(i * 1.31) * (0.62 + i * 0.03),
+          -0.2 + i * 0.08,
+          Math.sin(i * 1.17) * (0.54 + i * 0.02)
+        );
+        shard.rotation.set(i * 0.29, -i * 0.23, i * 0.17);
+        root.add(shard);
+      }
+
+      root.traverse(o => {
+        if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
+          validateMeshGeometry(o, o.name || 'error-corrupted-manifold');
+        }
+      });
+      group.add(root);
+      return group;
+    } catch (err) {
+      console.error('[NodeVisualAbort]', {
+        model: 'createErrorCorruptedManifoldNode',
+        category: 'error',
+        reason: 'Visual build failed — fallback visuals are forbidden',
+        error: err
+      });
+      return null;
+    }
   }
 
   // ===== EMOTIONAL NODES (Crystalline Organics - 6 variants) =====
