@@ -1579,6 +1579,7 @@ export class EnhancedNodeModels {
     rootGroup.userData.visualCode = visualCode;
     rootGroup.userData.factoryName = def.factoryName;
     rootGroup.userData.category = cat;
+    EnhancedNodeModels._annotateFactoryEdgeCages(rootGroup, color);
 
     const waveShaderBridge = window.game?.waveShaderBridge;
     const waveShaderMaterialPatch = window.game?.waveShaderMaterialPatch;
@@ -1588,6 +1589,8 @@ export class EnhancedNodeModels {
     ) {
       const seenMaterials = new Set();
       rootGroup.traverse((child) => {
+        // Keep cage/wire line materials unpatched to avoid mesh-vs-cage geometric drift.
+        if (!child?.isMesh) return;
         const materialRef = child?.material;
         if (!materialRef) return;
         const materials = Array.isArray(materialRef) ? materialRef : [materialRef];
@@ -1610,6 +1613,39 @@ export class EnhancedNodeModels {
     }
 
     return rootGroup;
+  }
+
+  /**
+   * Tag factory-created edge cages without mutating their authored visual style.
+   */
+  static _annotateFactoryEdgeCages(rootGroup, color) {
+    if (!rootGroup) return;
+    const isCageLine = (obj) => {
+      if (!obj?.isLineSegments) return false;
+      if (obj.geometry?.isEdgesGeometry) return true;
+      const n = String(obj.name || '').toLowerCase();
+      return n.includes('edge') || n.includes('cage') || n.includes('frame') || n.includes('wire');
+    };
+
+    let hasFactoryCage = false;
+    rootGroup.traverse((child) => {
+      if (!isCageLine(child)) return;
+      child.userData = child.userData || {};
+      child.userData.isFactoryCage = true;
+      child.userData.isEdgeCage = true;
+      child.userData.allowNoFrustum = true;
+      child.frustumCulled = false;
+      hasFactoryCage = true;
+    });
+
+    if (!hasFactoryCage) return;
+    rootGroup.userData = rootGroup.userData || {};
+    rootGroup.userData.hasFactoryCage = true;
+    rootGroup.traverse((child) => {
+      if (!child?.isMesh) return;
+      child.userData = child.userData || {};
+      child.userData.hasEdgeCage = true;
+    });
   }
   // ===== INPUT NODES (Cyan - 4 variants) =====
 
@@ -3094,6 +3130,37 @@ static createAnalyticsNode2(group, color) {
     frame.rotation.set(Math.PI * 0.5, Math.PI * 0.2, Math.PI * 0.1);
     validateMeshGeometry(frame, 'createAnalyticsNode3:frame');
     group.add(frame);
+
+    // Outer wireframe layers (kept local to this factory for stable analytics aura)
+    const frameWire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.TorusGeometry(0.78, 0.05, 10, 28, Math.PI * 2), 8),
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.52,
+        depthWrite: false,
+        depthTest: true
+      })
+    );
+    frameWire.name = 'FrameWire';
+    frameWire.scale.copy(frame.scale);
+    frameWire.position.copy(frame.position);
+    frameWire.rotation.copy(frame.rotation);
+    group.add(frameWire);
+
+    const baseWire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.9, 0.95, 0.14, 10, 1), 8),
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false,
+        depthTest: true
+      })
+    );
+    baseWire.name = 'BaseWire';
+    baseWire.position.copy(base.position);
+    group.add(baseWire);
 
     // Data petals (4)
     const petalGeo = new THREE.BoxGeometry(0.14, 0.55, 0.08);
@@ -6794,6 +6861,9 @@ static createControlNode0(group, color) {
       core.rotation.set(0.18, -0.1, 0.05);
       const edges = new THREE.LineSegments(geometries.edgesGeometry, materials.edgeMat);
       edges.name = 'CoreEdges';
+      edges.scale.copy(core.scale);
+      edges.rotation.copy(core.rotation);
+      edges.position.copy(core.position);
       const glow = new THREE.Mesh(geometries.shellGeometry, materials.glowMat);
       glow.name = 'InnerGlowLayer';
       glow.scale.setScalar(1.1);
@@ -7217,22 +7287,21 @@ static createControlNode0(group, color) {
         child.scale.y = base * (1 + Math.sin(time * 1.5) * 0.02);
       }
       if (child.userData?.isInputVortexCore && child.userData.vortexUniforms?.uTime) {
-        child.userData.vortexUniforms.uTime.value = performance.now() * 0.001;
+        child.userData.vortexUniforms.uTime.value = 0;
       }
       if (child.userData?.isIntegrationOrbit) {
         child.rotation.y += deltaTime * 0.08;
       }
       if (child.userData?.isControl3Core && child.userData.fractureUniforms?.uTime) {
-        child.userData.fractureUniforms.uTime.value = performance.now() * 0.001;
+        child.userData.fractureUniforms.uTime.value = 0;
       }
       if (child.userData?.isAuthorityAxis) {
         child.rotation.y += deltaTime * 0.05;
         child.rotation.x += deltaTime * 0.02;
       }
       if (child.userData?.isSigmaCore && child.userData.collapseUniforms) {
-        child.userData.collapseUniforms.uTime.value = performance.now() * 0.001;
-        const strength = 0.4 + 0.2 * Math.sin(performance.now() * 0.0015);
-        child.userData.collapseUniforms.uCollapseStrength.value = strength;
+        child.userData.collapseUniforms.uTime.value = 0;
+        child.userData.collapseUniforms.uCollapseStrength.value = 0.5;
       }
       if (child.userData?.isSigmaLayer && child.userData.ringSpeed) {
         child.rotation.y += deltaTime * child.userData.ringSpeed;

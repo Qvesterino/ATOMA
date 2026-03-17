@@ -3280,6 +3280,12 @@ class AtomaGame {
         window.semanticBus = this.semanticBus;
         
         // ========================================================================
+        // ATOMA EVENT FIRE FREQUENCY AUDIT
+        // Runtime audit to track which events are actually firing
+        // ========================================================================
+        this.semanticBus.animate(); // Start the 5-second audit logging loop
+        
+        // ========================================================================
         // CASCADE EVENT AUDIT (Temporary Runtime Check)
         // ========================================================================
         if (window.semanticBus) {

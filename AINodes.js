@@ -1718,7 +1718,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       return failClosedVisual(nodeModel, 'Empty visual root');
     }
     nodeModel.position.copy(position);
-    nodeModel.scale.setScalar(0.9); // Slightly larger for visibility
+    const spawnNodeScale = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_NODE_SPAWN_SCALE))
+      ? window.ATOMA_NODE_SPAWN_SCALE
+      : 1.0;
+    nodeModel.scale.setScalar(spawnNodeScale);
     debugCheckGeometry(nodeModel, 'after_scale');
     
     // [SPAWN AUTHORITY] Apply pre-determined spawn options
@@ -1913,6 +1916,40 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
       
       function safeEdgesGeometry(sourceGeo) {
+          function buildOffsetEdgeSourceGeometry(geo) {
+              const normalOffset = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_NORMAL_OFFSET))
+                ? window.ATOMA_EDGE_NORMAL_OFFSET
+                : 0.01;
+              if (!(normalOffset > 0)) return geo;
+              try {
+                  const offsetGeo = geo.clone();
+                  const pos = offsetGeo?.attributes?.position;
+                  if (!pos) return geo;
+                  if (!offsetGeo.attributes?.normal && typeof offsetGeo.computeVertexNormals === 'function') {
+                      offsetGeo.computeVertexNormals();
+                  }
+                  const normal = offsetGeo?.attributes?.normal;
+                  if (!normal || normal.count !== pos.count) {
+                      offsetGeo.dispose?.();
+                      return geo;
+                  }
+                  for (let i = 0; i < pos.count; i++) {
+                      pos.setXYZ(
+                          i,
+                          pos.getX(i) + normal.getX(i) * normalOffset,
+                          pos.getY(i) + normal.getY(i) * normalOffset,
+                          pos.getZ(i) + normal.getZ(i) * normalOffset
+                      );
+                  }
+                  pos.needsUpdate = true;
+                  offsetGeo.computeBoundingSphere?.();
+                  offsetGeo.computeBoundingBox?.();
+                  return offsetGeo;
+              } catch {
+                  return geo;
+              }
+          }
+
           // ===== EDGES-SOURCE-IDENTIFICATION: Diagnostic Logging =====
           const posAttr = sourceGeo?.attributes?.position;
           const arr = posAttr?.array;
@@ -1949,7 +1986,14 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           if (!hasFinitePositions(sourceGeo)) {
               return null;
           }
-          const edgeGeometry = new THREE.EdgesGeometry(sourceGeo);
+          const edgeSource = buildOffsetEdgeSourceGeometry(sourceGeo);
+          const edgeThresholdAngle = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_THRESHOLD_ANGLE))
+            ? window.ATOMA_EDGE_THRESHOLD_ANGLE
+            : 0;
+          const edgeGeometry = new THREE.EdgesGeometry(edgeSource, edgeThresholdAngle);
+          if (edgeSource !== sourceGeo) {
+              edgeSource.dispose?.();
+          }
           
           // FIX 2: Validate position attribute after EdgesGeometry creation
           const pos = edgeGeometry.attributes?.position;
@@ -1990,13 +2034,23 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           const edgeMaterial = new THREE.LineBasicMaterial({
             color: layerColors.secondary,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.65,
+            depthWrite: false,
+            depthTest: true,
             fog: false,
             linewidth: 1
           });
           const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
           edgeLines.userData.isVFX = true;
           edgeLines.userData.edgeGlow = true;
+          edgeLines.userData.isEdgeCage = true;
+          edgeLines.userData.allowNoFrustum = true;
+          edgeLines.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+          const edgeInflation = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_EDGE_OVERLAY_INFLATION))
+            ? window.ATOMA_EDGE_OVERLAY_INFLATION
+            : 1.0;
+          edgeLines.scale.setScalar(edgeInflation);
+          edgeLines.frustumCulled = false;
           // Guard: Only add edge glow if not already present for this child
           const edgeKey = `edge-glow-${child.uuid}`;
           if (!nodeModel.userData.overlays[edgeKey]) {

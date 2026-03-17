@@ -253,8 +253,8 @@ export class WaveDynamicsShaderPack_v1 {
 
             let count = 0;
 
-            // Apply to node material
-            if (node?.material) {
+            // Apply only to mesh materials; never patch line/edge cage materials.
+            if (node?.isMesh === true && node?.material) {
                 if (Array.isArray(node.material)) {
                     for (const mat of node.material) {
                         if (this.applyToMaterial(mat, profile)) {

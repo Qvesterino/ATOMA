@@ -5,6 +5,16 @@ function isFiniteScale(scale) {
   return Number.isFinite(scale?.x) && Number.isFinite(scale?.y) && Number.isFinite(scale?.z);
 }
 
+function isEdgeCageObject(child) {
+  if (!child || child.isObject3D !== true) return false;
+  const ud = child.userData || {};
+  if (ud.edgeGlow === true || ud.isFactoryCage === true || ud.isEdgeCage === true) return true;
+  if (!child.isLineSegments && !child.isLine) return false;
+  if (child.geometry?.isEdgesGeometry) return true;
+  const n = String(child.name || '').toLowerCase();
+  return n.includes('edge') || n.includes('cage') || n.includes('wire') || n.includes('frame');
+}
+
 export class NodeVisualAuthorityRuntime {
   constructor(options = {}) {
     this.debugMode = options.debugMode === true;
@@ -41,7 +51,10 @@ export class NodeVisualAuthorityRuntime {
       if (!child || child.isObject3D !== true) return;
 
       const userData = child.userData || {};
-      if (userData.isInteractionProxy === true) {
+      if (isEdgeCageObject(child)) {
+        // Keep edge cages always eligible for rendering; do not let runtime baseline recull them.
+        child.frustumCulled = false;
+      } else if (userData.isInteractionProxy === true) {
         child.frustumCulled = false;
       } else if (child.frustumCulled === false && userData.allowNoFrustum !== true) {
         child.frustumCulled = true;
