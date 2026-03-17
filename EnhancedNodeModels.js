@@ -7422,16 +7422,34 @@ static createControlNode0(group, color) {
 
   static createErrorFoldedImpossibleNode(group, visualCode, color) {
     try {
+      const seed = group?.userData?.nodeId
+        ? hashNodeIdToFloat(group.userData.nodeId)
+        : hashNodeIdToFloat(`error-folded-${color}`);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
       const root = new THREE.Group();
       root.name = 'ERROR_FOLDED_IMPOSSIBLE';
-      root.userData.visualVariant = 'ERROR_FOLDED_IMPOSSIBLE_V1';
+      root.userData.visualVariant = 'ERROR_NON_EUCLIDEAN_FOLD_CATHEDRAL_V2';
 
-      const mat = new THREE.MeshStandardMaterial({
-        color,
+      const obsidianMat = new THREE.MeshStandardMaterial({
+        color: 0x090b12,
+        emissive: 0x0e1320,
+        emissiveIntensity: 0.18,
+        metalness: 0.68,
+        roughness: 0.28
+      });
+      const foldMat = new THREE.MeshPhysicalMaterial({
+        color: 0x10141c,
         emissive: color,
-        emissiveIntensity: 0.26,
-        metalness: 0.6,
-        roughness: 0.24
+        emissiveIntensity: 0.16,
+        metalness: 0.52,
+        roughness: 0.34,
+        clearcoat: 0.2,
+        clearcoatRoughness: 0.32
+      });
+      const seedMat = new THREE.MeshBasicMaterial({
+        color: 0xc36cff,
+        transparent: true,
+        opacity: 0.92
       });
       const wire = new THREE.LineBasicMaterial({
         color,
@@ -7441,30 +7459,137 @@ static createControlNode0(group, color) {
         depthTest: true
       });
 
-      const slabGeo = new THREE.BoxGeometry(0.9, 0.16, 0.42);
-      for (let i = 0; i < 4; i++) {
-        const slab = new THREE.Mesh(slabGeo, mat);
-        slab.name = `FoldedSlab${i}`;
-        slab.position.y = (i - 1.5) * 0.14;
-        slab.rotation.set(0.22 + i * 0.18, -0.12 + i * 0.11, 0.35 - i * 0.2);
-        slab.scale.set(1.0 - i * 0.08, 1.0, 1.0 + i * 0.1);
-        root.add(slab);
+      // Central impossible spine: disciplined but topologically wrong fold stack.
+      const spineSegmentGeo = new THREE.BoxGeometry(0.24, 0.42, 0.1);
+      const spinePoints = [];
+      for (let i = 0; i < 6; i++) {
+        const seg = new THREE.Mesh(spineSegmentGeo, obsidianMat);
+        seg.name = `FoldCathedralSpineSegment${i}`;
+        seg.position.set((i % 2 === 0 ? -0.05 : 0.07), -0.62 + i * 0.24, (i % 3 - 1) * 0.05);
+        seg.rotation.set(
+          0.26 + (i % 2 ? -0.34 : 0.4),
+          -0.22 + i * 0.17,
+          (i % 2 === 0 ? 0.5 : -0.46)
+        );
+        seg.scale.set(1.0 - i * 0.05, 1.0, 1.12 - i * 0.04);
+        root.add(seg);
+        spinePoints.push(seg.position.clone());
 
-        const slabEdges = new THREE.LineSegments(new THREE.EdgesGeometry(slabGeo, 8), wire);
-        slabEdges.name = `FoldedSlabEdges${i}`;
-        slabEdges.position.copy(slab.position);
-        slabEdges.rotation.copy(slab.rotation);
-        slabEdges.scale.copy(slab.scale);
-        root.add(slabEdges);
+        const segEdges = new THREE.LineSegments(new THREE.EdgesGeometry(spineSegmentGeo, 8), wire);
+        segEdges.name = `FoldCathedralSpineEdgesCage${i}`;
+        segEdges.position.copy(seg.position);
+        segEdges.rotation.copy(seg.rotation);
+        segEdges.scale.copy(seg.scale);
+        root.add(segEdges);
       }
 
-      const impossibleLoop = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.TorusKnotGeometry(0.46, 0.08, 72, 8, 2, 5), 8),
-        wire
-      );
-      impossibleLoop.name = 'FoldImpossibleLoop';
-      impossibleLoop.rotation.set(-0.28, 0.33, 0.19);
-      root.add(impossibleLoop);
+      // Large fold planes in impossible orientations.
+      const planeGeo = new THREE.BoxGeometry(1.06, 0.035, 0.56);
+      const planeLayout = [
+        { pos: new THREE.Vector3(-0.28, 0.28, 0.08), rot: new THREE.Euler(0.58, -0.34, 0.24), scl: new THREE.Vector3(1.0, 1.0, 1.18) },
+        { pos: new THREE.Vector3(0.3, -0.06, -0.1), rot: new THREE.Euler(-0.46, 0.48, -0.36), scl: new THREE.Vector3(1.22, 1.0, 0.84) },
+        { pos: new THREE.Vector3(-0.08, -0.34, 0.24), rot: new THREE.Euler(0.22, 0.18, 0.74), scl: new THREE.Vector3(0.92, 1.0, 1.26) },
+        { pos: new THREE.Vector3(0.18, 0.46, -0.2), rot: new THREE.Euler(-0.64, -0.22, 0.18), scl: new THREE.Vector3(1.12, 1.0, 0.92) }
+      ];
+      planeLayout.forEach((cfg, i) => {
+        const plane = new THREE.Mesh(planeGeo, foldMat);
+        plane.name = `FoldCathedralPlane${i}`;
+        plane.position.copy(cfg.pos);
+        plane.rotation.copy(cfg.rot);
+        plane.scale.copy(cfg.scl);
+        root.add(plane);
+
+        const planeEdges = new THREE.LineSegments(new THREE.EdgesGeometry(planeGeo, 8), wire);
+        planeEdges.name = `FoldCathedralPlaneEdgesCage${i}`;
+        planeEdges.position.copy(plane.position);
+        planeEdges.rotation.copy(plane.rotation);
+        planeEdges.scale.copy(plane.scale);
+        root.add(planeEdges);
+      });
+
+      // Impossible bridges: seemingly illegal direct connections.
+      const addBridge = (name, from, to) => {
+        const dir = new THREE.Vector3().subVectors(to, from);
+        const len = Math.max(0.001, dir.length());
+        const bridgeGeo = new THREE.CylinderGeometry(0.018, 0.022, len, 6);
+        const bridge = new THREE.Mesh(bridgeGeo, obsidianMat);
+        bridge.name = name;
+        const up = new THREE.Vector3(0, 1, 0);
+        bridge.quaternion.setFromUnitVectors(up, dir.clone().normalize());
+        bridge.position.copy(from).add(to).multiplyScalar(0.5);
+        root.add(bridge);
+
+        const bridgeEdges = new THREE.LineSegments(new THREE.EdgesGeometry(bridgeGeo, 8), wire);
+        bridgeEdges.name = `${name}EdgesCage`;
+        bridgeEdges.position.copy(bridge.position);
+        bridgeEdges.quaternion.copy(bridge.quaternion);
+        root.add(bridgeEdges);
+      };
+      addBridge('FoldCathedralImpossibleBridge0', spinePoints[0], spinePoints[4].clone().add(new THREE.Vector3(0.25, 0.08, -0.14)));
+      addBridge('FoldCathedralImpossibleBridge1', spinePoints[1].clone().add(new THREE.Vector3(-0.3, 0.02, 0.2)), spinePoints[5]);
+      addBridge('FoldCathedralImpossibleBridge2', spinePoints[2].clone().add(new THREE.Vector3(0.28, -0.16, 0.18)), spinePoints[3].clone().add(new THREE.Vector3(-0.3, 0.2, -0.22)));
+
+      // Recursive folded seed at the center.
+      const seedOuterGeo = new THREE.OctahedronGeometry(0.24, 0);
+      const seedInnerGeo = new THREE.OctahedronGeometry(0.13, 0);
+      const coreSeed = new THREE.Mesh(seedOuterGeo, seedMat);
+      coreSeed.name = 'FoldCathedralRecursiveSeed';
+      coreSeed.rotation.set(0.56, -0.4, 0.22);
+      coreSeed.scale.set(1.0, 0.72, 1.18);
+      root.add(coreSeed);
+
+      const coreSeedInner = new THREE.Mesh(seedInnerGeo, seedMat);
+      coreSeedInner.name = 'FoldCathedralRecursiveSeedNested';
+      coreSeedInner.rotation.set(-0.34, 0.58, -0.29);
+      coreSeedInner.scale.set(0.84, 1.14, 0.76);
+      root.add(coreSeedInner);
+
+      const seedOuterEdges = new THREE.LineSegments(new THREE.EdgesGeometry(seedOuterGeo, 8), wire);
+      seedOuterEdges.name = 'FoldCathedralRecursiveSeedEdgesCage';
+      seedOuterEdges.rotation.copy(coreSeed.rotation);
+      seedOuterEdges.scale.copy(coreSeed.scale);
+      root.add(seedOuterEdges);
+
+      // Open polygonal fold halo / contour frame (non-torus).
+      const buildOpenContour = (points, name) => {
+        const pairs = [];
+        for (let i = 0; i < points.length - 1; i++) {
+          pairs.push(points[i], points[i + 1]);
+        }
+        const g = new THREE.BufferGeometry().setFromPoints(pairs);
+        const contour = new THREE.LineSegments(g, wire);
+        contour.name = name;
+        root.add(contour);
+      };
+
+      const contourA = [
+        new THREE.Vector3(-0.92, -0.42, -0.08),
+        new THREE.Vector3(-0.36, -0.76, 0.28),
+        new THREE.Vector3(0.48, -0.5, 0.36),
+        new THREE.Vector3(0.88, 0.06, 0.08),
+        new THREE.Vector3(0.42, 0.66, -0.22),
+        new THREE.Vector3(-0.24, 0.86, -0.34),
+        new THREE.Vector3(-0.82, 0.34, -0.14)
+      ];
+      const contourB = [
+        new THREE.Vector3(-0.66, -0.12, 0.62),
+        new THREE.Vector3(-0.12, -0.56, 0.78),
+        new THREE.Vector3(0.46, -0.2, 0.64),
+        new THREE.Vector3(0.62, 0.44, 0.3),
+        new THREE.Vector3(0.16, 0.72, -0.02),
+        new THREE.Vector3(-0.42, 0.46, 0.18)
+      ];
+      buildOpenContour(contourA, 'FoldCathedralOpenContourFrameA');
+      buildOpenContour(contourB, 'FoldCathedralOpenContourFrameB');
+
+      for (let i = 0; i < 4; i++) {
+        const p1 = new THREE.Vector3((rng() - 0.5) * 1.2, (rng() - 0.5) * 1.1, (rng() - 0.5) * 1.1);
+        const p2 = new THREE.Vector3((rng() - 0.5) * 1.2, (rng() - 0.5) * 1.1, (rng() - 0.5) * 1.1);
+        const g = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+        const accent = new THREE.LineSegments(g, wire);
+        accent.name = `FoldCathedralContourAccentWire${i}`;
+        root.add(accent);
+      }
 
       root.traverse(o => {
         if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
@@ -7492,14 +7617,53 @@ static createControlNode0(group, color) {
       const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
       const root = new THREE.Group();
       root.name = 'ERROR_TOPOLOGY_TEAR';
-      root.userData.visualVariant = 'ERROR_TOPOLOGY_TEAR_V1';
+      root.userData.visualVariant = 'ERROR_SEVERED_CONTINUUM_RELIC_V2';
 
-      const mat = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.24,
-        metalness: 0.55,
-        roughness: 0.28
+      const deformRelicGeometry = (geometry, amp = 0.05) => {
+        const g = geometry.clone();
+        const attr = g.attributes?.position;
+        if (!attr) return g;
+        for (let i = 0; i < attr.count; i++) {
+          const x = attr.getX(i);
+          const y = attr.getY(i);
+          const z = attr.getZ(i);
+          const fold = Math.sin((x + y * 0.7 - z * 0.4) * 3.0) * 0.02;
+          attr.setXYZ(
+            i,
+            x + (rng() - 0.5) * amp + fold,
+            y + (rng() - 0.5) * amp * 0.8 - fold * 0.6,
+            z + (rng() - 0.5) * amp
+          );
+        }
+        attr.needsUpdate = true;
+        g.computeVertexNormals?.();
+        return g;
+      };
+
+      const shellMat = new THREE.MeshPhysicalMaterial({
+        color: 0x0a0d14,
+        emissive: 0x101827,
+        emissiveIntensity: 0.2,
+        metalness: 0.65,
+        roughness: 0.3,
+        clearcoat: 0.2,
+        clearcoatRoughness: 0.35
+      });
+      const seamMat = new THREE.MeshBasicMaterial({
+        color: 0x8ff7ff,
+        transparent: true,
+        opacity: 0.9
+      });
+      const voidMat = new THREE.MeshBasicMaterial({
+        color: 0x010305,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.BackSide
+      });
+      const threadMat = new THREE.MeshBasicMaterial({
+        color: 0x9af4ff,
+        transparent: true,
+        opacity: 0.84
       });
       const wire = new THREE.LineBasicMaterial({
         color,
@@ -7509,32 +7673,164 @@ static createControlNode0(group, color) {
         depthTest: true
       });
 
-      const tornRing = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 10, 80, Math.PI * 1.55), mat);
-      tornRing.name = 'TornRingBody';
-      tornRing.rotation.set(0.21, -0.36, 0.18);
-      root.add(tornRing);
+      // Main relic split into two unequal halves by an open rift gap.
+      const relicGeo = deformRelicGeometry(new THREE.DodecahedronGeometry(0.7, 1), 0.06);
+      const halfA = new THREE.Mesh(relicGeo, shellMat);
+      halfA.name = 'ContinuumRelicHalfA';
+      halfA.position.set(-0.18, 0.04, 0.06);
+      halfA.rotation.set(0.22, -0.37, 0.18);
+      halfA.scale.set(1.0, 1.14, 0.86);
+      root.add(halfA);
 
-      const tearCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.36, 0), mat);
-      tearCore.name = 'TopologyTearCore';
-      tearCore.scale.set(1.0, 0.75, 1.25);
-      tearCore.rotation.set(-0.31, 0.1, 0.24);
-      root.add(tearCore);
+      const halfB = new THREE.Mesh(relicGeo, shellMat);
+      halfB.name = 'ContinuumRelicHalfB';
+      halfB.position.set(0.2, -0.03, -0.07);
+      halfB.rotation.set(-0.17, 0.34, -0.22);
+      halfB.scale.set(0.88, 0.92, 1.22);
+      root.add(halfB);
 
-      const tornEdges = new THREE.LineSegments(new THREE.EdgesGeometry(tornRing.geometry, 8), wire);
-      tornEdges.name = 'TornRingEdges';
-      tornEdges.rotation.copy(tornRing.rotation);
-      root.add(tornEdges);
+      const halfAEdges = new THREE.LineSegments(new THREE.EdgesGeometry(relicGeo, 8), wire);
+      halfAEdges.name = 'ContinuumRelicHalfAEdgesCage';
+      halfAEdges.position.copy(halfA.position);
+      halfAEdges.rotation.copy(halfA.rotation);
+      halfAEdges.scale.copy(halfA.scale);
+      root.add(halfAEdges);
+
+      const halfBEdges = new THREE.LineSegments(new THREE.EdgesGeometry(relicGeo, 8), wire);
+      halfBEdges.name = 'ContinuumRelicHalfBEdgesCage';
+      halfBEdges.position.copy(halfB.position);
+      halfBEdges.rotation.copy(halfB.rotation);
+      halfBEdges.scale.copy(halfB.scale);
+      root.add(halfBEdges);
+
+      // Inner rift cavity and cold seam.
+      const seamCore = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.16, 1.08, 12, 1, true), voidMat);
+      seamCore.name = 'ContinuumRiftVoidCavity';
+      seamCore.rotation.set(0.61, -0.16, 0.43);
+      seamCore.position.set(0.02, 0.02, -0.01);
+      root.add(seamCore);
+
+      const seamRibbon = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.018, 8, 80, Math.PI * 1.16), seamMat);
+      seamRibbon.name = 'ContinuumRiftColdSeam';
+      seamRibbon.rotation.set(0.63, -0.2, 0.44);
+      seamRibbon.scale.set(1.0, 0.56, 1.34);
+      seamRibbon.position.set(0.01, 0.02, -0.01);
+      root.add(seamRibbon);
 
       for (let i = 0; i < 5; i++) {
-        const seg = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(0.28 + i * 0.03, 0.03, 0.05), 8),
-          wire
+        const ribGeo = new THREE.BoxGeometry(0.025, 0.22 + i * 0.04, 0.016);
+        const rib = new THREE.Mesh(ribGeo, seamMat);
+        rib.name = `ContinuumRiftInnerRib${i}`;
+        rib.position.set(
+          -0.03 + i * 0.018,
+          -0.2 + i * 0.1,
+          -0.05 + (rng() - 0.5) * 0.08
         );
-        seg.name = `TearSeam${i}`;
-        seg.position.set(0.22 + i * 0.1, -0.1 + i * 0.05, (rng() - 0.5) * 0.18);
-        seg.rotation.set((rng() - 0.5) * 0.4, 0.35 + i * 0.1, (rng() - 0.5) * 0.4);
-        root.add(seg);
+        rib.rotation.set(0.58 + i * 0.04, -0.22 + i * 0.07, 0.36 + (rng() - 0.5) * 0.2);
+        root.add(rib);
       }
+
+      // Continuity threads keeping the severed halves together.
+      const threadCount = 3 + Math.floor(rng() * 5); // 3..7
+      for (let i = 0; i < threadCount; i++) {
+        const start = new THREE.Vector3(
+          halfA.position.x + 0.12 + (rng() - 0.5) * 0.12,
+          halfA.position.y + (rng() - 0.5) * 0.28,
+          halfA.position.z + (rng() - 0.5) * 0.18
+        );
+        const end = new THREE.Vector3(
+          halfB.position.x - 0.12 + (rng() - 0.5) * 0.12,
+          halfB.position.y + (rng() - 0.5) * 0.28,
+          halfB.position.z + (rng() - 0.5) * 0.18
+        );
+        const ctrl = new THREE.Vector3(
+          (start.x + end.x) * 0.5 + (rng() - 0.5) * 0.2,
+          (start.y + end.y) * 0.5 + (rng() - 0.5) * 0.24,
+          (start.z + end.z) * 0.5 + (rng() - 0.5) * 0.2
+        );
+        const strandCurve = new THREE.QuadraticBezierCurve3(start, ctrl, end);
+        const strandGeo = new THREE.TubeGeometry(strandCurve, 24, 0.008 + rng() * 0.005, 6, false);
+        const strand = new THREE.Mesh(strandGeo, threadMat);
+        strand.name = `ContinuumRiftThread${i}`;
+        root.add(strand);
+
+        const strandWireGeo = new THREE.BufferGeometry().setFromPoints(strandCurve.getPoints(20));
+        const strandWire = new THREE.Line(strandWireGeo, wire);
+        strandWire.name = `ContinuumRiftThreadWire${i}`;
+        root.add(strandWire);
+      }
+
+      // Detached topology fragments (2..4), meaningful larger shards.
+      const fragmentCount = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < fragmentCount; i++) {
+        const fragGeo = deformRelicGeometry(new THREE.TetrahedronGeometry(0.19 + i * 0.05, 0), 0.03);
+        const frag = new THREE.Mesh(fragGeo, shellMat);
+        frag.name = `ContinuumDetachedFragment${i}`;
+        frag.position.set(
+          (i % 2 === 0 ? -0.46 : 0.48) + (rng() - 0.5) * 0.1,
+          -0.2 + i * 0.2 + (rng() - 0.5) * 0.08,
+          (rng() - 0.5) * 0.42
+        );
+        frag.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        frag.scale.set(1.0 + i * 0.12, 0.82 + i * 0.08, 1.06 - i * 0.05);
+        root.add(frag);
+
+        const fragEdges = new THREE.LineSegments(new THREE.EdgesGeometry(fragGeo, 8), wire);
+        fragEdges.name = `ContinuumDetachedFragmentEdgesCage${i}`;
+        fragEdges.position.copy(frag.position);
+        fragEdges.rotation.copy(frag.rotation);
+        fragEdges.scale.copy(frag.scale);
+        root.add(fragEdges);
+      }
+
+      // Split cage frame / rift bracket structure aligned with rift direction.
+      const addBracketFrame = (points, name, offset) => {
+        const segs = [];
+        for (let i = 0; i < points.length - 1; i++) segs.push(points[i], points[i + 1]);
+        const g = new THREE.BufferGeometry().setFromPoints(segs);
+        const frame = new THREE.LineSegments(g, wire);
+        frame.name = name;
+        frame.position.copy(offset);
+        root.add(frame);
+      };
+      const bracketShapeA = [
+        new THREE.Vector3(-0.6, -0.44, -0.08),
+        new THREE.Vector3(-0.28, -0.7, 0.14),
+        new THREE.Vector3(0.02, -0.54, 0.18),
+        new THREE.Vector3(0.12, -0.08, 0.08),
+        new THREE.Vector3(-0.12, 0.28, -0.02),
+        new THREE.Vector3(-0.42, 0.5, -0.12)
+      ];
+      const bracketShapeB = [
+        new THREE.Vector3(0.14, -0.3, 0.06),
+        new THREE.Vector3(0.44, -0.56, -0.12),
+        new THREE.Vector3(0.74, -0.2, -0.22),
+        new THREE.Vector3(0.68, 0.24, -0.16),
+        new THREE.Vector3(0.34, 0.5, 0.02),
+        new THREE.Vector3(0.08, 0.26, 0.1)
+      ];
+      addBracketFrame(bracketShapeA, 'ContinuumSplitCageFrameA', new THREE.Vector3(0, 0, 0));
+      addBracketFrame(bracketShapeB, 'ContinuumSplitCageFrameB', new THREE.Vector3(0, 0, 0));
+
+      const bracketWireA = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-0.08, -0.3, -0.06),
+          new THREE.Vector3(0.08, 0.18, 0.04)
+        ]),
+        wire
+      );
+      bracketWireA.name = 'ContinuumRiftBracketWireA';
+      root.add(bracketWireA);
+
+      const bracketWireB = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-0.02, -0.12, -0.14),
+          new THREE.Vector3(0.06, 0.34, 0.12)
+        ]),
+        wire
+      );
+      bracketWireB.name = 'ContinuumRiftBracketWireB';
+      root.add(bracketWireB);
 
       root.traverse(o => {
         if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
@@ -7556,52 +7852,87 @@ static createControlNode0(group, color) {
 
   static createErrorCorruptedManifoldNode(group, visualCode, color) {
     try {
+      const seed = group?.userData?.nodeId
+        ? hashNodeIdToFloat(group.userData.nodeId)
+        : hashNodeIdToFloat(`error-corrupted-${color}`);
+      const rng = _mythicSeededRng(Math.floor(seed * 1000) || 1);
       const root = new THREE.Group();
       root.name = 'ERROR_CORRUPTED_MANIFOLD';
-      root.userData.visualVariant = 'ERROR_CORRUPTED_MANIFOLD_V1';
+      root.userData.visualVariant = 'ERROR_APOSTATE_FLESH_OF_GEOMETRY_V2';
 
-      const pathA = [];
-      const pathB = [];
-      const segments = 72;
-      for (let i = 0; i <= segments; i++) {
-        const t = (i / segments) * Math.PI * 2;
-        pathA.push(new THREE.Vector3(
-          Math.cos(t) * (0.42 + 0.16 * Math.sin(2.7 * t)),
-          Math.sin(1.6 * t) * 0.23,
-          Math.sin(t) * (0.4 + 0.08 * Math.cos(2.0 * t))
-        ));
-        pathB.push(new THREE.Vector3(
-          Math.cos(t + 0.9) * (0.28 + 0.18 * Math.cos(3.1 * t)),
-          Math.sin(t * 2.2 + 0.4) * 0.27,
-          Math.sin(t + 0.9) * (0.48 + 0.06 * Math.sin(2.4 * t))
-        ));
-      }
-      const manifoldGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pathA), segments, 0.105, 10, true);
-      const seamGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pathB), segments, 0.072, 8, true);
-      const manifoldMat = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.24,
-        metalness: 0.58,
-        roughness: 0.26
+      const makeCorruptedMassGeometry = (baseRadius = 0.64, detail = 2) => {
+        const geo = new THREE.IcosahedronGeometry(baseRadius, detail);
+        const pos = geo.attributes?.position;
+        if (!pos) return geo;
+
+        const lobeCenters = [
+          new THREE.Vector3(0.92, 0.3, -0.08).normalize(),
+          new THREE.Vector3(-0.72, 0.62, 0.26).normalize(),
+          new THREE.Vector3(0.2, -0.94, 0.32).normalize(),
+          new THREE.Vector3(-0.18, 0.16, -0.97).normalize()
+        ];
+        const lobeWeights = [0.24, 0.18, 0.2, 0.14];
+
+        for (let i = 0; i < pos.count; i++) {
+          const p = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+          const n = p.clone().normalize();
+
+          let lobeInflation = 0;
+          for (let j = 0; j < lobeCenters.length; j++) {
+            const d = n.distanceTo(lobeCenters[j]);
+            lobeInflation += Math.exp(-(d * d) * 7.2) * lobeWeights[j];
+          }
+          const undulate = Math.sin(n.x * 8.0 + n.y * 6.2 - n.z * 5.4) * 0.035;
+          const radial = baseRadius * (0.93 + lobeInflation + undulate);
+          const warped = n.multiplyScalar(radial).add(new THREE.Vector3(
+            n.y * 0.05,
+            -n.z * 0.03,
+            n.x * 0.04
+          ));
+          pos.setXYZ(i, warped.x, warped.y, warped.z);
+        }
+
+        pos.needsUpdate = true;
+        geo.computeVertexNormals?.();
+        return geo;
+      };
+
+      const bodyMat = new THREE.MeshPhysicalMaterial({
+        color: 0x0d0a12,
+        emissive: 0x160d22,
+        emissiveIntensity: 0.2,
+        metalness: 0.66,
+        roughness: 0.3,
+        clearcoat: 0.24,
+        clearcoatRoughness: 0.28
       });
-      const manifold = new THREE.Mesh(manifoldGeo, manifoldMat);
-      manifold.name = 'CorruptedManifoldBody';
-      manifold.rotation.set(0.18, -0.24, 0.3);
-      root.add(manifold);
-
-      const seam = new THREE.Mesh(seamGeo, manifoldMat);
-      seam.name = 'CorruptedSeamBody';
-      seam.rotation.set(-0.12, 0.36, -0.17);
-      seam.scale.set(1.08, 0.88, 1.14);
-      root.add(seam);
-
-      const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), manifoldMat);
-      core.name = 'CorruptedKernel';
-      core.scale.set(0.92, 1.14, 0.84);
-      core.rotation.set(-0.2, 0.3, -0.1);
-      root.add(core);
-
+      const tumorMat = new THREE.MeshPhysicalMaterial({
+        color: 0x15101b,
+        emissive: 0x2b1638,
+        emissiveIntensity: 0.26,
+        metalness: 0.52,
+        roughness: 0.36,
+        clearcoat: 0.18,
+        clearcoatRoughness: 0.34
+      });
+      const sutureMat = new THREE.MeshBasicMaterial({
+        color: 0xee2f9f,
+        transparent: true,
+        opacity: 0.9
+      });
+      const cavityMat = new THREE.MeshBasicMaterial({
+        color: 0x05060a,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.BackSide
+      });
+      const parasiteMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1322,
+        emissive: 0x3a1743,
+        emissiveIntensity: 0.18,
+        metalness: 0.42,
+        roughness: 0.44
+      });
       const wireMat = new THREE.LineBasicMaterial({
         color,
         transparent: true,
@@ -7609,40 +7940,186 @@ static createControlNode0(group, color) {
         depthWrite: false,
         depthTest: true
       });
+      const crownMat = new THREE.LineBasicMaterial({
+        color: 0xc06dff,
+        transparent: true,
+        opacity: 0.78,
+        depthWrite: false,
+        depthTest: true
+      });
+
+      // Dominant corrupted manifold body with infected lobes.
+      const manifoldGeo = makeCorruptedMassGeometry(0.64, 2);
+      const manifold = new THREE.Mesh(manifoldGeo, bodyMat);
+      manifold.name = 'ApostateCorruptedManifoldBody';
+      manifold.scale.set(1.06, 0.9, 1.2);
+      manifold.rotation.set(0.22, -0.34, 0.14);
+      root.add(manifold);
+
       const manifoldEdges = new THREE.LineSegments(new THREE.EdgesGeometry(manifoldGeo, 8), wireMat);
-      manifoldEdges.name = 'CorruptedManifoldEdges';
+      manifoldEdges.name = 'ApostateCorruptedManifoldEdgesCage';
+      manifoldEdges.scale.copy(manifold.scale);
       manifoldEdges.rotation.copy(manifold.rotation);
       root.add(manifoldEdges);
 
-      const seamEdges = new THREE.LineSegments(new THREE.EdgesGeometry(seamGeo, 8), wireMat);
-      seamEdges.name = 'CorruptedSeamEdges';
-      seamEdges.rotation.copy(seam.rotation);
-      seamEdges.scale.copy(seam.scale);
-      root.add(seamEdges);
+      // Local thickened tumors / bulges (infected but still elegant).
+      const tumorLayout = [
+        { pos: new THREE.Vector3(0.34, 0.24, -0.08), scl: new THREE.Vector3(0.62, 0.42, 0.5), rot: new THREE.Euler(0.38, -0.24, 0.42) },
+        { pos: new THREE.Vector3(-0.28, 0.14, 0.26), scl: new THREE.Vector3(0.5, 0.56, 0.44), rot: new THREE.Euler(-0.22, 0.46, -0.18) },
+        { pos: new THREE.Vector3(0.12, -0.32, 0.18), scl: new THREE.Vector3(0.58, 0.38, 0.62), rot: new THREE.Euler(0.52, 0.2, -0.3) }
+      ];
+      tumorLayout.forEach((t, i) => {
+        const g = makeCorruptedMassGeometry(0.22 + i * 0.03, 1);
+        const m = new THREE.Mesh(g, tumorMat);
+        m.name = `ApostateTumorBulge${i}`;
+        m.position.copy(t.pos);
+        m.rotation.copy(t.rot);
+        m.scale.copy(t.scl);
+        root.add(m);
+      });
 
-      const cage = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(0.98, 0), 8),
-        wireMat
-      );
-      cage.name = 'CorruptedAsymmetricCage';
-      cage.scale.set(1.35, 0.86, 1.2);
-      cage.rotation.set(-0.42, 0.27, 0.08);
-      root.add(cage);
+      // False openings / pseudo-cavities with misleading seams.
+      const openingLayout = [
+        { pos: new THREE.Vector3(0.24, -0.08, 0.36), rot: new THREE.Euler(0.62, -0.22, 0.1), scl: new THREE.Vector3(0.52, 0.3, 0.26) },
+        { pos: new THREE.Vector3(-0.34, 0.18, -0.18), rot: new THREE.Euler(-0.32, 0.44, -0.28), scl: new THREE.Vector3(0.46, 0.34, 0.24) },
+        { pos: new THREE.Vector3(0.04, 0.34, -0.28), rot: new THREE.Euler(0.18, 0.16, 0.52), scl: new THREE.Vector3(0.38, 0.24, 0.22) }
+      ];
+      openingLayout.forEach((o, i) => {
+        const cavity = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), cavityMat);
+        cavity.name = `ApostatePseudoCavity${i}`;
+        cavity.position.copy(o.pos);
+        cavity.rotation.copy(o.rot);
+        cavity.scale.copy(o.scl);
+        root.add(cavity);
 
-      for (let i = 0; i < 5; i++) {
-        const shard = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.TetrahedronGeometry(0.18 + i * 0.015, 0), 8),
+        const rimPoints = [];
+        for (let s = 0; s <= 22; s++) {
+          const a = (s / 22) * Math.PI * 2;
+          rimPoints.push(new THREE.Vector3(Math.cos(a) * 0.14, Math.sin(a) * 0.08, 0));
+        }
+        const rimCurve = new THREE.CatmullRomCurve3(rimPoints, true);
+        const rimGeo = new THREE.TubeGeometry(rimCurve, 40, 0.008, 6, true);
+        const rim = new THREE.Mesh(rimGeo, sutureMat);
+        rim.name = `ApostatePseudoCavityRim${i}`;
+        rim.position.copy(o.pos);
+        rim.rotation.copy(o.rot);
+        rim.scale.copy(new THREE.Vector3(o.scl.x * 1.6, o.scl.y * 1.4, 1.0));
+        root.add(rim);
+      });
+
+      // Corruption sutures / pathological seam lines over the shell.
+      const addSuture = (name, points, radius = 0.01) => {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const geo = new THREE.TubeGeometry(curve, 40, radius, 6, false);
+        const seamMesh = new THREE.Mesh(geo, sutureMat);
+        seamMesh.name = name;
+        root.add(seamMesh);
+
+        const seamWire = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(curve.getPoints(26)),
           wireMat
         );
-        shard.name = `ManifoldShardEdge${i}`;
-        shard.position.set(
-          Math.cos(i * 1.31) * (0.62 + i * 0.03),
-          -0.2 + i * 0.08,
-          Math.sin(i * 1.17) * (0.54 + i * 0.02)
+        seamWire.name = `${name}Wire`;
+        root.add(seamWire);
+      };
+
+      addSuture('ApostateCorruptionSutureA', [
+        new THREE.Vector3(-0.46, -0.16, 0.08),
+        new THREE.Vector3(-0.22, 0.08, 0.34),
+        new THREE.Vector3(0.12, 0.2, 0.38),
+        new THREE.Vector3(0.42, 0.34, 0.12)
+      ], 0.011);
+      addSuture('ApostateCorruptionSutureB', [
+        new THREE.Vector3(-0.34, 0.34, -0.18),
+        new THREE.Vector3(-0.08, 0.18, -0.42),
+        new THREE.Vector3(0.18, -0.04, -0.3),
+        new THREE.Vector3(0.36, -0.3, -0.06)
+      ], 0.01);
+      addSuture('ApostateCorruptionSutureC', [
+        new THREE.Vector3(-0.1, -0.46, 0.02),
+        new THREE.Vector3(0.08, -0.18, 0.18),
+        new THREE.Vector3(0.24, 0.04, -0.06),
+        new THREE.Vector3(0.06, 0.32, -0.28)
+      ], 0.009);
+      addSuture('ApostateCorruptionSutureD', [
+        new THREE.Vector3(-0.22, -0.12, -0.3),
+        new THREE.Vector3(-0.02, 0.08, -0.1),
+        new THREE.Vector3(0.22, 0.16, 0.06),
+        new THREE.Vector3(0.44, -0.08, 0.22)
+      ], 0.008);
+
+      // Parasite sub-structures with thin connecting bridges.
+      const parasiteCount = 3 + Math.floor(rng() * 4); // 3..6
+      for (let i = 0; i < parasiteCount; i++) {
+        const parasiteGeo = makeCorruptedMassGeometry(0.12 + i * 0.02, 1);
+        const parasite = new THREE.Mesh(parasiteGeo, parasiteMat);
+        parasite.name = `ApostateParasiteNode${i}`;
+
+        const angle = 0.9 + i * 1.02 + rng() * 0.4;
+        const radius = 0.92 + i * 0.08 + (rng() - 0.5) * 0.06;
+        parasite.position.set(
+          Math.cos(angle) * radius,
+          -0.16 + i * 0.12 + (rng() - 0.5) * 0.08,
+          Math.sin(angle) * (0.62 + i * 0.05)
         );
-        shard.rotation.set(i * 0.29, -i * 0.23, i * 0.17);
-        root.add(shard);
+        parasite.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+        parasite.scale.set(0.9 + i * 0.08, 0.74 + i * 0.06, 1.02 - i * 0.04);
+        root.add(parasite);
+
+        const parasiteEdges = new THREE.LineSegments(new THREE.EdgesGeometry(parasiteGeo, 8), wireMat);
+        parasiteEdges.name = `ApostateParasiteNodeEdgesCage${i}`;
+        parasiteEdges.position.copy(parasite.position);
+        parasiteEdges.rotation.copy(parasite.rotation);
+        parasiteEdges.scale.copy(parasite.scale);
+        root.add(parasiteEdges);
+
+        const anchor = parasite.position.clone().normalize().multiplyScalar(0.55);
+        const ctrl = new THREE.Vector3(
+          (anchor.x + parasite.position.x) * 0.5 + (rng() - 0.5) * 0.16,
+          (anchor.y + parasite.position.y) * 0.5 + (rng() - 0.5) * 0.12,
+          (anchor.z + parasite.position.z) * 0.5 + (rng() - 0.5) * 0.16
+        );
+        const bridgeCurve = new THREE.QuadraticBezierCurve3(anchor, ctrl, parasite.position.clone().multiplyScalar(0.92));
+        const bridgeGeo = new THREE.TubeGeometry(bridgeCurve, 20, 0.007 + rng() * 0.003, 6, false);
+        const bridge = new THREE.Mesh(bridgeGeo, parasiteMat);
+        bridge.name = `ApostateParasiteBridge${i}`;
+        root.add(bridge);
       }
+
+      // Corrupted crown-frame lattice (secondary infected aura).
+      const addLatticeFrame = (name, pts) => {
+        const segs = [];
+        for (let i = 0; i < pts.length - 1; i++) segs.push(pts[i], pts[i + 1]);
+        const g = new THREE.BufferGeometry().setFromPoints(segs);
+        const frame = new THREE.LineSegments(g, crownMat);
+        frame.name = name;
+        root.add(frame);
+      };
+      addLatticeFrame('ApostateCrownLatticeFrameA', [
+        new THREE.Vector3(-0.92, 0.08, -0.18),
+        new THREE.Vector3(-0.64, 0.54, -0.36),
+        new THREE.Vector3(-0.2, 0.82, -0.28),
+        new THREE.Vector3(0.26, 0.76, -0.02),
+        new THREE.Vector3(0.72, 0.42, 0.26),
+        new THREE.Vector3(0.86, -0.12, 0.18),
+        new THREE.Vector3(0.42, -0.44, -0.12)
+      ]);
+      addLatticeFrame('ApostateCrownLatticeFrameB', [
+        new THREE.Vector3(-0.68, -0.24, 0.48),
+        new THREE.Vector3(-0.22, -0.58, 0.66),
+        new THREE.Vector3(0.34, -0.54, 0.42),
+        new THREE.Vector3(0.66, -0.14, 0.1),
+        new THREE.Vector3(0.32, 0.36, -0.08),
+        new THREE.Vector3(-0.16, 0.52, 0.1),
+        new THREE.Vector3(-0.56, 0.2, 0.44)
+      ]);
+      addLatticeFrame('ApostateCrownLatticeFrameC', [
+        new THREE.Vector3(-0.34, -0.78, -0.22),
+        new THREE.Vector3(0.08, -0.84, -0.38),
+        new THREE.Vector3(0.52, -0.62, -0.24),
+        new THREE.Vector3(0.66, -0.22, 0.04),
+        new THREE.Vector3(0.32, 0.06, 0.2)
+      ]);
 
       root.traverse(o => {
         if (o?.isMesh || o?.isLine || o?.isLineSegments || o?.isPoints) {
