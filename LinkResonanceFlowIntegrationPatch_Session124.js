@@ -194,3 +194,91 @@ export function setBidirectionalFlow(enabled, world) {
   world._linkResonanceFlowSystem.config.bidirectional = enabled;
   console.log(`[Session 124] Bidirectional flow: ${enabled}`);
 }
+
+/**
+ * Apply harmony integration to link resonance flow system
+ * 
+ * This function connects LinkResonanceFlowSystem with HarmonyStabilizationSystem
+ * by updating link.userData.flowState.energy with the average harmony of connected nodes.
+ * 
+ * @param {Object} linkResonanceFlowSystem - LinkResonanceFlowSystem_Session124 instance
+ * @param {Object} world - World object containing links
+ * 
+ * Integration points:
+ * - Updates link.userData.flowState.energy with harmony levels
+ * - Preserves existing flow direction
+ * - Makes links "live" with harmony-driven energy
+ */
+export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem, world) {
+  if (!linkResonanceFlowSystem) {
+    console.error('[LinkResonanceFlowHarmonyIntegration] linkResonanceFlowSystem parameter is required');
+    return;
+  }
+
+  if (!world || !world.links) {
+    console.error('[LinkResonanceFlowHarmonyIntegration] world.links is required');
+    return;
+  }
+
+  // Store reference to world for updates
+  linkResonanceFlowSystem.world = world;
+
+  // Add method to update link flow state with harmony
+  if (!linkResonanceFlowSystem.updateLinkFlowEnergy) {
+    linkResonanceFlowSystem.updateLinkFlowEnergy = function(links) {
+      if (!links) return;
+
+      for (const link of links) {
+        if (!link || !link.userData) continue;
+
+        // Get source and target nodes
+        const nodeA = link.source || link.sourceNode;
+        const nodeB = link.target || link.targetNode;
+
+        if (!nodeA || !nodeB) continue;
+
+        // Get harmony levels from nodes
+        const harmonyA = nodeA.userData?.harmonyLevel ?? 0;
+        const harmonyB = nodeB.userData?.harmonyLevel ?? 0;
+
+        // Initialize flowState if not exists
+        if (!link.userData.flowState) {
+          link.userData.flowState = {
+            energy: 0,
+            direction: 1, // 1 = forward, -1 = backward
+            lastUpdateTime: Date.now()
+          };
+        }
+
+        // Calculate energy as average of connected node harmony levels
+        // This makes links "live" with harmony-driven energy
+        const previousEnergy = link.userData.flowState.energy;
+        link.userData.flowState.energy = (harmonyA * 0.5) + (harmonyB * 0.5);
+
+        // Preserve existing flow direction
+        // Only update energy, not direction
+        // Direction is controlled by the pulse system
+
+        link.userData.flowState.lastUpdateTime = Date.now();
+      }
+    };
+  }
+
+  // Hook into update loop to update flow energy
+  const originalUpdate = linkResonanceFlowSystem.update.bind(linkResonanceFlowSystem);
+  linkResonanceFlowSystem.update = function(deltaTime, links, camera) {
+    // Update link flow energy with harmony levels
+    if (this.updateLinkFlowEnergy && links) {
+      this.updateLinkFlowEnergy(links);
+    }
+
+    // Call original update
+    return originalUpdate(deltaTime, links, camera);
+  };
+
+  console.log('[LinkResonanceFlowHarmonyIntegration] Integration applied successfully');
+  console.log('[LinkResonanceFlowHarmonyIntegration] - Link flow energy will be driven by harmony levels');
+  console.log('[LinkResonanceFlowHarmonyIntegration] - Existing flow direction preserved');
+
+  return linkResonanceFlowSystem;
+}

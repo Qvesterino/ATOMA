@@ -386,6 +386,7 @@ import { setupCascadeParticleSystem } from './CascadeParticleSystem_Session120.j
 import { setupParticleTrailSystem, updateParticleTrailSystem, cleanupParticleTrailSystem } from './ParticleTrailIntegrationPatch_Session122.js';
 import { CascadeResonanceWaveVisualization_Session146 } from './CascadeResonanceWaveVisualization_Session146.js';
 import { ResonanceCascadeVisualization_Session117B } from './ResonanceCascadeVisualization_Session117B.js';
+import { createCascadeEventBridge } from './CascadeEventBridge_v1.js';
 
 // ============================================================================
 // SESSION 121: PARTICLE SEMANTIC DENSITY (Clustering & Density as Meaning)
@@ -611,6 +612,9 @@ import { HarmonicResonanceCoupling_v1 } from './HarmonicResonanceCoupling_v1.js'
 import { HarmonicHubAuraSystem_Session126 } from './HarmonicHubAuraSystem_Session126.js';
 import { HarmonicInfluencePropagationSystem_Session127 } from './HarmonicInfluencePropagationSystem_Session127.js';
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
+import { applyLinkResonanceFlowHarmonyIntegration } from './LinkResonanceFlowIntegrationPatch_Session124.js';
+import { applyEchoRippleIntegration } from './EchoRippleIntegrationPatch_Session125.js';
+import { applyCorruptionDesaturationIntegration } from './CorruptionDesaturationIntegrationPatch.js';
 import { HarmonicCascadeAmplification_Session145, setupCascadeConsoleAPI } from './HarmonicCascadeAmplification_Session145.js';
 import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } from './HarmonicPhaseSynchronization_Session146.js';
 import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
@@ -625,6 +629,7 @@ import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } fro
 // ============================================================================
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
 import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
+import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
 import { setupCorruptionCascadeTestRunner } from './_T4003_CORRUPTION_CASCADE_TEST_RUNNER.js';
 import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNNER.js';
 
@@ -3409,8 +3414,6 @@ class AtomaGame {
         this._pendingHarmonicHubAuraDt = 0;
         this._runHarmonicInfluencePending = false;
         this._pendingHarmonicInfluenceDt = 0;
-        this._runHarmonicCascadePending = false;
-        this._pendingHarmonicCascadeDt = 0;
         this._runCascadeVisualizerPending = false;
         this._pendingCascadeVisualizerDt = 0;
         this._runLinkResonanceFlowPending = false;
@@ -3831,12 +3834,6 @@ class AtomaGame {
                 this.harmonicInfluencePropagationTick(this._pendingHarmonicInfluenceDt);
             }
         }, 'harmonicInfluencePropagation.realtime');
-        this.frameScheduler.register('realtime', () => {
-            if (this._runHarmonicCascadePending) {
-                this._runHarmonicCascadePending = false;
-                this.harmonicCascadeAmplificationTick(this._pendingHarmonicCascadeDt);
-            }
-        }, 'harmonicCascadeAmplification.realtime');
         this.frameScheduler.register('visual', (dt) => {
             const pulseWaveBridge = this.pulseWaveBridge || this.pulseWaveSystemBridge;
             if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
@@ -5972,10 +5969,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.cascadeParticles.dispose();
                 console.log('[main.js] CascadeParticleSystem disposed');
             }
-            
+             
             if (this.cascadingRuptures && typeof this.cascadingRuptures.dispose === 'function') {
                 this.cascadingRuptures.dispose();
                 console.log('[main.js] CascadingRuptureSystem disposed');
+            }
+
+            // NEW: Dispose cascade event bridge
+            if (this.cascadeEventBridge && typeof this.cascadeEventBridge.dispose === 'function') {
+                this.cascadeEventBridge.dispose();
+                console.log('[main.js] CascadeEventBridge disposed');
             }
             
             if (this.cascadeResonanceWave && typeof this.cascadeResonanceWave.dispose === 'function') {
@@ -7675,6 +7678,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.linkCorruptionTransmission             // LinkCorruptionTransmission for category multipliers
             );
             console.log('[main.js] HarmonyStabilizationSystem_v1 initialized ✓');
+            
+            // Apply harmony stabilization integration patch
+            // Connects HarmonyStabilizationSystem with downstream systems
+            // Ensures consistent writing of harmonyLevel
+            try {
+                applyHarmonyStabilizationIntegration(this.harmonyStabilizationSystem, this);
+                console.log('[main.js] HarmonyStabilizationIntegrationPatch_v1 applied ✓');
+            } catch (err) {
+                console.warn('[main.js] HarmonyStabilizationIntegrationPatch_v1 failed:', err);
+            }
         } catch (err) {
             console.warn('[main.js] HarmonyStabilizationSystem_v1 initialization failed:', err);
         }
@@ -8861,6 +8874,28 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         // ========================================================================
+        // CASCADE EVENT BRIDGE (SESSION 120)
+        // Connects SemanticEventBus events to CascadeParticleSystem
+        // ========================================================================
+        try {
+            this.cascadeEventBridge = createCascadeEventBridge({
+                linkingSystem: this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking,
+                semanticBus: this.semanticBus,
+                frameScheduler: this.frameScheduler,
+                waveEngine: this.waveInterferenceEngine,
+                decayRate: 0.92,
+                minIntensityThreshold: 0.01,
+                cascadeWaveThreshold: 0.6,
+                cascadeWaveCooldown: 1.0,
+                enabled: true
+            });
+            
+            console.log('[main.js] CascadeEventBridge initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] CascadeEventBridge initialization failed:', err);
+        }
+
+        // ========================================================================
         // ATOMA SAFE PATCH: PARTICLE TRAIL SYSTEM (SESSION 122)
         // Activates ParticleTrailSystem_Session122 for trail rendering
         // ========================================================================
@@ -9034,12 +9069,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     harmonicInfluencePropagationTick(deltaTime) {
         if (this.harmonicInfluencePropagation) {
             this.harmonicInfluencePropagation.update(deltaTime);
-        }
-    }
-
-    harmonicCascadeAmplificationTick(deltaTime) {
-        if (this.harmonicCascadeAmplification && this.harmonicCascadeAmplification.config.enabled) {
-            this.harmonicCascadeAmplification.update(deltaTime);
         }
     }
 
@@ -9231,12 +9260,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this._runHarmonicInfluencePending) {
                 this._runHarmonicInfluencePending = false;
                 this.harmonicInfluencePropagationTick?.(this._pendingHarmonicInfluenceDt);
-            }
-        });
-        reg('harmonicCascadeAmplification', (_dt) => {
-            if (this._runHarmonicCascadePending) {
-                this._runHarmonicCascadePending = false;
-                this.harmonicCascadeAmplificationTick?.(this._pendingHarmonicCascadeDt);
             }
         });
         reg('linkResonanceFlowSystem', (_dt) => {
@@ -9647,8 +9670,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this._runHarmonicHubAuraPending = true;
             this._pendingHarmonicInfluenceDt = deltaTime;
             this._runHarmonicInfluencePending = true;
-            this._pendingHarmonicCascadeDt = deltaTime;
-            this._runHarmonicCascadePending = true;
             this._pendingCascadeVisualizerDt = deltaTime;
             this._runCascadeVisualizerPending = true;
             this._pendingLinkResonanceFlowDt = deltaTime;
@@ -11633,13 +11654,44 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.log('[CASCADE] Particle system connected to CascadingRuptureSystem');
             }
 
+            // Register CascadingRuptureSystem update loop to FrameScheduler
+            if (this.frameScheduler && this.cascadingRuptures) {
+                this.frameScheduler.register('simulation', (dt) => {
+                    if (this.cascadingRuptures && this.cascadingRuptures.enabled) {
+                        this.cascadingRuptures.update(
+                            dt,
+                            this.time,
+                            this.cascadingRuptures,
+                            this.harmonySystem
+                        );
+                    }
+                }, 'simulation.cascadingRuptures');
+                console.log('[main.js] CascadingRuptureSystem registered to FrameScheduler ✓');
+            }
+
+            // Register HarmonicCascadeAmplification update loop to FrameScheduler
+            if (this.frameScheduler && this.harmonicCascadeAmplification) {
+                this.frameScheduler.register('simulation', (dt) => {
+                    if (this.harmonicCascadeAmplification && this.harmonicCascadeAmplification.config.enabled) {
+                        this.harmonicCascadeAmplification.update(dt);
+                    }
+                }, 'simulation.harmonicCascadeAmplification');
+                console.log('[main.js] HarmonicCascadeAmplification registered to FrameScheduler ✓');
+            }
+
+            // Enable CascadingRuptureSystem by default
+            if (this.cascadingRuptures && typeof this.cascadingRuptures.enable === 'function') {
+                this.cascadingRuptures.enable();
+                console.log('[main.js] CascadingRuptureSystem enabled by default ✓');
+            }
+
             // Setup console API
             setupCascadeSystemConsoleAPI(this);
 
             console.log('[main.js] CascadingRuptureSystem & CriticalNodeFailureSystem initialized ✓');
-            console.log('[main.js] ⚠️  Both systems DISABLED by default for safety');
-            console.log('[main.js] Enable via console:');
-            console.log('[main.js]   game.enableBothCascadeSystems()');
+            console.log('[main.js] ⚠️  CriticalNodeFailureSystem DISABLED by default for safety');
+            console.log('[main.js] CascadingRuptureSystem ACTIVE by default');
+            console.log('[main.js] Disable via console: game.cascadingRuptures.disable()');
             console.log('[main.js] Help: game.cascadeHelp()');
         } catch (err) {
             console.warn('[main.js] Cascading rupture/failure init error:', err);
@@ -12274,6 +12326,45 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             );
             console.log('✓ Link Resonance Flow System (Session 124) initialized');
+            
+            // Apply link resonance flow harmony integration
+            // Connects LinkResonanceFlowSystem with HarmonyStabilizationSystem
+            // Updates link.userData.flowState.energy with harmony levels
+            try {
+                applyLinkResonanceFlowHarmonyIntegration(this.linkResonanceFlowSystem, this.world || { links: this.linkingSystem?.links });
+                console.log('✓ LinkResonanceFlowHarmonyIntegration applied');
+            } catch (err) {
+                console.warn('⚠ LinkResonanceFlowHarmonyIntegration failed:', err);
+            }
+            
+            // Apply echo ripple integration
+            // Connects LinkResonanceFlowSystem with ripple spawning on wave burst and cascade hop
+            try {
+                applyEchoRippleIntegration(this.linkResonanceFlowSystem, this.cascadeSystem);
+                console.log('✓ EchoRippleIntegration applied');
+            } catch (err) {
+                console.warn('⚠ EchoRippleIntegration failed:', err);
+            }
+            
+            // Apply corruption desaturation integration
+            // Visually desaturates corrupted parts of the network
+            try {
+                const nodes = this.aiNodes?.nodes || [];
+                const links = this.linkingSystem?.links || [];
+                this.corruptionDesaturation = applyCorruptionDesaturationIntegration(
+                    this.scene,
+                    nodes,
+                    links,
+                    {
+                        desaturationStrength: 0.7,
+                        enabled: true,
+                        debugMode: false
+                    }
+                );
+                console.log('✓ CorruptionDesaturationIntegration applied');
+            } catch (err) {
+                console.warn('⚠ CorruptionDesaturationIntegration failed:', err);
+            }
         } catch (err) {
             console.warn('⚠ Link Resonance Flow System initialization failed:', err);
         }

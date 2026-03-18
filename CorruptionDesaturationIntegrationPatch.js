@@ -1,460 +1,200 @@
 /**
- * CORRUPTION DESATURATION INTEGRATION PATCH
- * ==========================================
- * Seamlessly integrates corruption-driven desaturation with aura system
+ * CorruptionDesaturationIntegrationPatch.js
+ * ============================================================================
+ * INTEGRATION PATCH FOR CORRUPTION VISUAL DESATURATION
  * 
- * Integration Points:
- * 1. Corruption value → desaturation multiplier
- * 2. Combines with synergy colors (both apply to final result)
- * 3. Per-frame uniform updates
- * 4. Batch optimization for 100+ nodes
- * 5. Zero breaking changes
+ * Visually desaturates corrupted parts of the network.
+ * Connects corruption metric with color desaturation.
  * 
- * Works With:
- * - FresnelRimLightAuraShader.js
- * - SynergyDrivenAuraColorSystem.js
- * - CorruptionDrivenAuraDesaturationSystem.js
+ * @author VFX Technical Director — ATOMA Project
+ * @version 1.0.0
  */
 
 import * as THREE from 'three';
-import {
-  CorruptionDesaturationController,
-  BatchCorruptionDesaturationController,
-  desaturateColor,
-  DesaturationCurves,
-} from './LEGACY/aura/CorruptionDrivenAuraDesaturationSystem.js';
 
 /**
- * Global integration state
- */
-const integrationState = {
-  enabled: false,
-  batchController: null,
-  nodeControllers: new Map(),  // nodeId → CorruptionDesaturationController
-  config: {},
-};
-
-/**
- * Configure integration
- */
-export function configureCorruptionDesaturationPatch(options = {}) {
-  Object.assign(integrationState.config, options);
-}
-
-/**
- * Initialize corruption-driven desaturation
- * Call this after fresnel aura and synergy color patches
+ * Apply corruption desaturation integration
  * 
- * @param {Object} options Configuration
- * @returns {Object} Initialization report
+ * This function applies visual desaturation to nodes and links based on their corruption level.
+ * 
+ * @param {Object} scene - THREE.Scene
+ * @param {Array} nodes - Array of node objects
+ * @param {Array} links - Array of link objects
+ * @param {Object} config - Configuration options
+ * 
+ * Integration points:
+ * - For each node/link: calculates corruption from userData.metrics.corruption
+ * - Applies color desaturation: material.color.lerp(neutral gray, corruption * 0.7)
+ * - Preserves original color as base
  */
-export function initializeCorruptionDesaturation(options = {}) {
-  const {
-    enabled = true,
-    useBatchController = true,
-    desaturationCurve = 'SMOOTHSTEP',
-    enableGraynessOverlay = true,
-    graynessThreshold = 0.75,
-  } = options;
-
-  integrationState.enabled = enabled;
-  integrationState.config = {
-    enabled,
-    useBatchController,
-    desaturationCurve,
-    enableGraynessOverlay,
-    graynessThreshold,
-  };
-
-  // Get curve function
-  const curveFunc = DesaturationCurves[desaturationCurve] || DesaturationCurves.SMOOTHSTEP;
-
-  if (useBatchController) {
-    integrationState.batchController = new BatchCorruptionDesaturationController({
-      desaturationCurve: curveFunc,
-      enableGraynessOverlay,
-      graynessThreshold,
-    });
+export function applyCorruptionDesaturationIntegration(scene, nodes = [], links = [], config = {}) {
+  if (!scene) {
+    console.error('[CorruptionDesaturationIntegration] scene parameter is required');
+    return;
   }
 
-  console.log('[CorruptionDesaturation] Initialized', {
-    enabled,
-    useBatchController,
-    desaturationCurve,
-    enableGraynessOverlay,
-  });
-
-  return {
-    initialized: true,
-    config: integrationState.config,
+  const configOptions = {
+    desaturationStrength: config.desaturationStrength ?? 0.7,
+    neutralColor: config.neutralColor ?? new THREE.Color(0.5, 0.5, 0.5),
+    updateInterval: config.updateInterval ?? 0.1, // Update every 0.1 seconds
+    enabled: config.enabled ?? true,
+    debugMode: config.debugMode ?? false,
   };
-}
 
-/**
- * Register a node's aura for corruption tracking
- * 
- * @param {string} nodeId Unique node identifier
- * @param {THREE.Mesh} auraMesh The aura mesh
- * @param {number} initialCorruption Initial corruption value (0-1)
- * @param {THREE.Color} originalColor Original aura color (for desaturation)
- * @returns {CorruptionDesaturationController} Controller for this node
- */
-export function registerNodeAuraForDesaturationTracking(
-  nodeId,
-  auraMesh,
-  initialCorruption = 0,
-  originalColor = null
-) {
-  if (!integrationState.enabled) {
-    return null;
-  }
+  // Store original colors for preservation
+  const originalNodeColors = new Map();
+  const originalLinkColors = new Map();
 
-  let controller;
-
-  if (integrationState.batchController) {
-    // Use batch controller
-    controller = integrationState.batchController.register(
-      nodeId,
-      auraMesh,
-      initialCorruption,
-      originalColor
-    );
-  } else {
-    // Use individual controller
-    controller = new CorruptionDesaturationController(auraMesh);
-    if (originalColor) {
-      controller.setOriginalColor(originalColor);
+  // Store original colors
+  for (const node of nodes) {
+    if (node.material && node.material.color) {
+      originalNodeColors.set(node.id, node.material.color.clone());
     }
-    controller.updateDesaturation(initialCorruption, 0);
-    integrationState.nodeControllers.set(nodeId, controller);
   }
 
-  return controller;
-}
-
-/**
- * Update a single node's aura desaturation
- * 
- * @param {string} nodeId Node identifier
- * @param {number} corruptionValue New corruption value (0-1)
- * @param {number} time Current time in seconds
- */
-export function updateNodeDesaturation(nodeId, corruptionValue, time = 0) {
-  if (!integrationState.enabled) return;
-
-  let controller = integrationState.nodeControllers.get(nodeId);
-
-  if (!controller && integrationState.batchController) {
-    controller = integrationState.batchController.controllers.get(nodeId);
-  }
-
-  if (controller) {
-    controller.updateDesaturation(corruptionValue, time);
-  }
-}
-
-/**
- * Update all node desaturations (batch operation)
- * Optimized for 100+ nodes per frame
- * 
- * @param {Array<{nodeId: string, corruption: number}>} nodeStates Node corruption states
- * @param {number} time Current time in seconds
- * @returns {Object} Update statistics
- */
-export function updateAllNodeDesaturations(nodeStates, time = 0) {
-  if (!integrationState.enabled) return null;
-
-  if (integrationState.batchController) {
-    // Batch update (fast)
-    const stats = integrationState.batchController.updateAll(
-      nodeStates.map(s => ({
-        nodeId: s.nodeId,
-        corruption: s.corruption,
-      })),
-      time
-    );
-    return stats;
-  } else {
-    // Individual updates (slower)
-    let count = 0;
-    for (const state of nodeStates) {
-      updateNodeDesaturation(state.nodeId, state.corruption, time);
-      count++;
+  for (const link of links) {
+    if (link.material && link.material.color) {
+      originalLinkColors.set(link.id, link.material.color.clone());
     }
-    return { count, batchMode: false };
-  }
-}
-
-/**
- * Quick update from node objects directly
- * Assumes nodes have .data.id and .data.corruption properties
- * 
- * @param {Array<THREE.Object3D>} nodeObjects Array of node objects
- * @param {number} time Current time in seconds
- * @returns {Object} Update statistics
- */
-export function updateDesaturationsFromNodes(nodeObjects, time = 0) {
-  if (!integrationState.enabled) return null;
-
-  const nodeStates = nodeObjects
-    .filter(n => n.data?.id && n.data?.corruption !== undefined)
-    .map(n => ({
-      nodeId: n.data.id,
-      corruption: n.data.corruption,
-    }));
-
-  return updateAllNodeDesaturations(nodeStates, time);
-}
-
-/**
- * Unregister a node from desaturation tracking
- * Call when node is destroyed
- * 
- * @param {string} nodeId Node identifier
- */
-export function unregisterNodeDesaturation(nodeId) {
-  if (integrationState.batchController) {
-    integrationState.batchController.unregister(nodeId);
-  } else {
-    integrationState.nodeControllers.delete(nodeId);
-  }
-}
-
-/**
- * Get desaturation state for a node's aura
- * 
- * @param {string} nodeId Node identifier
- * @returns {Object} State information
- */
-export function getNodeDesaturationState(nodeId) {
-  let controller = integrationState.nodeControllers.get(nodeId);
-
-  if (!controller && integrationState.batchController) {
-    controller = integrationState.batchController.controllers.get(nodeId);
   }
 
-  if (controller) {
-    return controller.getState();
-  }
+  /**
+   * Update node colors based on corruption
+   */
+  function updateNodeColors() {
+    for (const node of nodes) {
+      if (!node || !node.userData) continue;
 
-  return null;
-}
+      const corruption = node.userData.metrics?.corruption ?? node.userData?.corruption ?? 0;
+      
+      // Get original color (base)
+      const originalColor = originalNodeColors.get(node.id);
+      if (!originalColor) continue;
 
-/**
- * Get diagnostics for all tracked desaturations
- */
-export function getDesaturationTrackingDiagnostics() {
-  const result = {
-    integrationEnabled: integrationState.enabled,
-    totalTracked: 0,
-    levelDistribution: {},
-    usingBatchController: !!integrationState.batchController,
-  };
+      // Get current material
+      const material = node.material;
+      if (!material || !material.color) continue;
 
-  if (integrationState.batchController) {
-    const diag = integrationState.batchController.getDiagnostics();
-    result.totalTracked = diag.totalTracked;
-    result.levelDistribution = diag.levelDistribution;
-    result.lastBatchTimeMs = diag.lastBatchTimeMs;
-    result.avgTimePerNode = diag.avgTimePerNode;
-  } else {
-    result.totalTracked = integrationState.nodeControllers.size;
-  }
-
-  return result;
-}
-
-/**
- * Auto-wiring helper: Scan scene and register all auras
- * 
- * @param {THREE.Scene} scene The scene containing nodes
- * @param {Function} getOriginalColor Optional function to get original color per node
- */
-export function autoWireAllNodeDesaturations(scene, getOriginalColor = null) {
-  if (!integrationState.enabled) {
-    console.warn('[CorruptionDesaturation] Integration not enabled, skipping auto-wire');
-    return 0;
-  }
-
-  let registeredCount = 0;
-
-  scene.traverse(obj => {
-    if (obj.userData?.isAura && obj.parent?.data?.id) {
-      const parentNode = obj.parent;
-      const corruption = parentNode.data?.corruption ?? 0;
-
-      // Get original color from synergy system if available
-      let originalColor = null;
-      if (getOriginalColor) {
-        originalColor = getOriginalColor(parentNode);
-      } else if (obj.material?.uniforms?.uAuraColor) {
-        originalColor = obj.material.uniforms.uAuraColor.value.clone();
-      }
-
-      registerNodeAuraForDesaturationTracking(
-        parentNode.data.id,
-        obj,
-        corruption,
-        originalColor
+      // Apply desaturation: lerp from original color to neutral gray
+      // Higher corruption = more desaturated (closer to neutral gray)
+      const desaturatedColor = originalColor.clone().lerp(
+        configOptions.neutralColor,
+        corruption * configOptions.desaturationStrength
       );
-      registeredCount++;
+
+      // Apply to material
+      material.color.copy(desaturatedColor);
+
+      if (configOptions.debugMode) {
+        console.log(`[CorruptionDesaturation] Node ${node.id}: corruption=${corruption.toFixed(2)}, desaturation applied`);
+      }
     }
-  });
-
-  console.log(`[CorruptionDesaturation] Auto-wired ${registeredCount} node desaturations`);
-  return registeredCount;
-}
-
-/**
- * Advanced: Set custom desaturation curve for a node
- * 
- * @param {string} nodeId Node identifier
- * @param {Function} curveFunction Custom desaturation curve
- */
-export function setCustomDesaturationCurveForNode(nodeId, curveFunction) {
-  let controller = integrationState.nodeControllers.get(nodeId);
-
-  if (!controller && integrationState.batchController) {
-    controller = integrationState.batchController.controllers.get(nodeId);
   }
 
-  if (controller) {
-    controller.options.desaturationCurve = curveFunction;
+  /**
+   * Update link colors based on corruption
+   */
+  function updateLinkColors() {
+    for (const link of links) {
+      if (!link || !link.userData) continue;
+
+      const corruption = link.userData.metrics?.corruption ?? link.userData?.corruption ?? 0;
+      
+      // Get original color (base)
+      const originalColor = originalLinkColors.get(link.id);
+      if (!originalColor) continue;
+
+      // Get current material
+      const material = link.material;
+      if (!material || !material.color) continue;
+
+      // Apply desaturation: lerp from original color to neutral gray
+      // Higher corruption = more desaturated (closer to neutral gray)
+      const desaturatedColor = originalColor.clone().lerp(
+        configOptions.neutralColor,
+        corruption * configOptions.desaturationStrength
+      );
+
+      // Apply to material
+      material.color.copy(desaturatedColor);
+
+      if (configOptions.debugMode) {
+        console.log(`[CorruptionDesaturation] Link ${link.id}: corruption=${corruption.toFixed(2)}, desaturation applied`);
+      }
+    }
+  }
+
+  /**
+   * Update all colors
+   */
+  function updateAllColors() {
+    if (!configOptions.enabled) return;
+
+    updateNodeColors();
+    updateLinkColors();
+  }
+
+  // Initial update
+  updateAllColors();
+
+  console.log('[CorruptionDesaturationIntegration] Integration applied successfully');
+  console.log('[CorruptionDesaturationIntegration] - Corruption will be immediately visible');
+  console.log('[CorruptionDesaturationIntegration] - Original colors preserved as base');
+  console.log(`[CorruptionDesaturationIntegration] - Desaturation strength: ${configOptions.desaturationStrength}`);
+  console.log(`[CorruptionDesaturationIntegration] - Nodes processed: ${nodes.length}`);
+  console.log(`[CorruptionDesaturationIntegration] - Links processed: ${links.length}`);
+
+  // Return update function for manual triggering
+  return {
+    update: updateAllColors,
+    updateNodes: updateNodeColors,
+    updateLinks: updateLinkColors,
+    config: configOptions,
+    originalNodeColors,
+    originalLinkColors,
+  };
+}
+
+/**
+ * Apply corruption desaturation to specific node
+ * 
+ * @param {Object} node - Node object
+ * @param {Object} originalColor - Original color (base)
+ * @param {Number} desaturationStrength - Desaturation strength (0-1)
+ */
+export function applyNodeCorruptionDesaturation(node, originalColor, desaturationStrength = 0.7) {
+  if (!node || !node.userData) return;
+
+  const corruption = node.userData.metrics?.corruption ?? node.userData?.corruption ?? 0;
+  const neutralColor = new THREE.Color(0.5, 0.5, 0.5);
+
+  // Apply desaturation
+  const desaturatedColor = originalColor.clone().lerp(neutralColor, corruption * desaturationStrength);
+
+  // Apply to material
+  if (node.material && node.material.color) {
+    node.material.color.copy(desaturatedColor);
   }
 }
 
 /**
- * Advanced: Combine synergy color with corruption desaturation
- * Use this to apply both effects to final display color
+ * Apply corruption desaturation to specific link
  * 
- * @param {THREE.Color} synergyColor Base color from synergy system
- * @param {number} corruptionValue Corruption level (0-1)
- * @param {Function} curve Desaturation curve
- * @returns {THREE.Color} Final color with both effects applied
+ * @param {Object} link - Link object
+ * @param {Object} originalColor - Original color (base)
+ * @param {Number} desaturationStrength - Desaturation strength (0-1)
  */
-export function applyCombinedSynergyCorruptionColor(synergyColor, corruptionValue, curve = DesaturationCurves.SMOOTHSTEP) {
-  // Apply desaturation based on corruption
-  return desaturateColor(synergyColor, curve(corruptionValue));
+export function applyLinkCorruptionDesaturation(link, originalColor, desaturationStrength = 0.7) {
+  if (!link || !link.userData) return;
+
+  const corruption = link.userData.metrics?.corruption ?? link.userData?.corruption ?? 0;
+  const neutralColor = new THREE.Color(0.5, 0.5, 0.5);
+
+  // Apply desaturation
+  const desaturatedColor = originalColor.clone().lerp(neutralColor, corruption * desaturationStrength);
+
+  // Apply to material
+  if (link.material && link.material.color) {
+    link.material.color.copy(desaturatedColor);
+  }
 }
-
-/**
- * Console API for real-time testing
- */
-export const corruptionDesaturationConsole = {
-  /**
-   * Manually set corruption for a node
-   */
-  setCorruptionForNode(nodeId, corruptionValue, time = 0) {
-    updateNodeDesaturation(nodeId, corruptionValue, time);
-    console.log(`[CorruptionDesaturation] Set corruption for ${nodeId} to ${corruptionValue.toFixed(2)}`);
-  },
-
-  /**
-   * Simulate corruption increase (for testing)
-   */
-  animateCorruptionIncrease(nodeId, duration = 3.0) {
-    const startTime = performance.now() / 1000;
-    let animating = true;
-
-    const animate = () => {
-      const elapsed = performance.now() / 1000 - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      updateNodeDesaturation(nodeId, progress, progress);
-
-      if (progress < 1.0) {
-        requestAnimationFrame(animate);
-      } else {
-        animating = false;
-        console.log(`[CorruptionDesaturation] Animation complete for ${nodeId}`);
-      }
-    };
-
-    requestAnimationFrame(animate);
-  },
-
-  /**
-   * Print desaturation state for all tracked nodes
-   */
-  printAllDesaturationStates() {
-    console.log('[CorruptionDesaturation] Desaturation States:');
-
-    if (integrationState.batchController) {
-      const allStates = integrationState.batchController.getAllStates();
-      for (const [nodeId, state] of Object.entries(allStates)) {
-        console.log(`  ${nodeId}: ${state.level} (corruption: ${state.corruption.toFixed(2)})`);
-      }
-    } else {
-      for (const [nodeId, controller] of integrationState.nodeControllers.entries()) {
-        const state = controller.getState();
-        console.log(`  ${nodeId}: ${state.level} (corruption: ${state.corruption.toFixed(2)})`);
-      }
-    }
-  },
-
-  /**
-   * Print diagnostics
-   */
-  printDiagnostics() {
-    const diag = getDesaturationTrackingDiagnostics();
-    console.log('[CorruptionDesaturation] Diagnostics:', diag);
-  },
-
-  /**
-   * Get all states
-   */
-  getAllStates() {
-    if (integrationState.batchController) {
-      return integrationState.batchController.getAllStates();
-    } else {
-      const result = {};
-      for (const [nodeId, controller] of integrationState.nodeControllers.entries()) {
-        result[nodeId] = controller.getState();
-      }
-      return result;
-    }
-  },
-
-  /**
-   * Get level distribution
-   */
-  getLevelDistribution() {
-    if (integrationState.batchController) {
-      return integrationState.batchController.getDistribution();
-    } else {
-      const dist = { CLEAN: 0, DEGRADED: 0, CORRUPTED: 0, SEVERE: 0 };
-      for (const [, controller] of integrationState.nodeControllers.entries()) {
-        dist[controller._getDesaturationLevel()]++;
-      }
-      return dist;
-    }
-  },
-};
-
-/**
- * Export all functions
- */
-export default {
-  // Configuration
-  configure: configureCorruptionDesaturationPatch,
-  initialize: initializeCorruptionDesaturation,
-
-  // Node management
-  register: registerNodeAuraForDesaturationTracking,
-  unregister: unregisterNodeDesaturation,
-  getState: getNodeDesaturationState,
-
-  // Updates
-  updateSingle: updateNodeDesaturation,
-  updateBatch: updateAllNodeDesaturations,
-  updateFromNodes: updateDesaturationsFromNodes,
-
-  // Advanced
-  autoWire: autoWireAllNodeDesaturations,
-  setCustomCurve: setCustomDesaturationCurveForNode,
-  applyCombinedColor: applyCombinedSynergyCorruptionColor,
-
-  // Diagnostics
-  getDiagnostics: getDesaturationTrackingDiagnostics,
-  console: corruptionDesaturationConsole,
-};

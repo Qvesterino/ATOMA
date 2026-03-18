@@ -514,6 +514,15 @@ export class CascadingHarmonicResonanceAmplification {
         node._cascadeSourceCount = layerData.sourceCount || 0;
 
         // Export cascade state for FX systems that read canonical userData fields.
+        // Guard: Only primary cascade system writes to cascadeStrength
+        if (node.userData._cascadeOwner && node.userData._cascadeOwner !== 'CascadingHarmonicResonanceAmplification') {
+          // Skip writing if another system owns cascade data
+          return;
+        }
+
+        // Mark this system as the cascade owner
+        node.userData._cascadeOwner = 'CascadingHarmonicResonanceAmplification';
+
         if (!node.userData) {
           node.userData = {};
         }

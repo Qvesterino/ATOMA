@@ -50,9 +50,9 @@ export function getNodeCanonicalMetrics(node) {
   );
 
   const harmony = firstDefined(
+    node?.userData?.harmonyLevel,  // Canonical: HarmonyStabilizationSystem_v1 writes here
     metrics.harmony,
-    metrics.harmonyNorm,
-
+    metrics.harmonyNorm
   );
 
   const stability = firstDefined(

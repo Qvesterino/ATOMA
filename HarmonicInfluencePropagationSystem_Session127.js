@@ -272,6 +272,10 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       for (const neighbor of connectedNodes) {
         // Skip if neighbor is also in same hub (internal connection)
         if (hub.nodes.includes(neighbor)) continue;
+        
+        // Guard: Only propagate if source node has stabilized harmony level
+        if (!node.userData?.harmonyLevel) continue;
+        
         const sourceLink = this._findLinkBetweenNodes(node, neighbor);
         
         // Create influence wave

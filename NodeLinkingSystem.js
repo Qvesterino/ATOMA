@@ -3644,6 +3644,23 @@ getLinksForNode(node) {
       }
     };
     
+    // Initialize cascade data for CascadeParticleSystem
+    if (!link.userData) link.userData = {};
+    link.userData.cascadeIntensity ??= 0.0;
+    link.userData.cascadeConflictType ??= 'resolved_harmony';
+    link.userData.cascadeParticleColor ??= new THREE.Color(1, 1, 1);
+    link.userData.cascadeParticleEmissionBoost ??= 1.0;
+    
+    // Initialize shared flow state for unified cascade/waves/beads system
+    if (!link.userData.flowState) {
+      link.userData.flowState = {
+        intensity: 0.0,        // For cascade particles and beads
+        direction: 1.0,         // For waves and beads (1 = forward, -1 = backflow)
+        type: 'resolved_harmony', // For cascade particles (conflict type)
+        energy: 0.0             // For waves (continuous field energy)
+      };
+    }
+    
     // 2. Create visual group via new renderer using real link reference
     const linkGroup = this.conduitRenderer.createLinkVisuals(link);
     link.group = linkGroup;
@@ -4188,6 +4205,23 @@ getLinksForNode(node) {
         }
       }
     };
+    
+    // Initialize cascade data for CascadeParticleSystem
+    if (!link.userData) link.userData = {};
+    link.userData.cascadeIntensity ??= 0.0;
+    link.userData.cascadeConflictType ??= 'resolved_harmony';
+    link.userData.cascadeParticleColor ??= new THREE.Color(1, 1, 1);
+    link.userData.cascadeParticleEmissionBoost ??= 1.0;
+    
+    // Initialize shared flow state for unified cascade/waves/beads system
+    if (!link.userData.flowState) {
+      link.userData.flowState = {
+        intensity: 0.0,        // For cascade particles and beads
+        direction: 1.0,         // For waves and beads (1 = forward, -1 = backflow)
+        type: 'resolved_harmony', // For cascade particles (conflict type)
+        energy: 0.0             // For waves (continuous field energy)
+      };
+    }
     
     this.links.push(link);
     

@@ -1,0 +1,424 @@
+/**
+ * CascadeEventBridge_v1.js
+ * ============================================================================
+ * EVENT BRIDGE FOR CASCADE PARTICLE SYSTEM
+ * 
+ * Connects SemanticEventBus events to CascadeParticleSystem by updating
+ * link.userData.cascadeIntensity and link.userData.cascadeConflictType.
+ * 
+ * FEATURES:
+ * - Event-driven cascade intensity updates
+ * - Automatic decay of cascade effects
+ * - Conflict type classification based on event semantics
+ * - FrameScheduler integration for decay mechanism
+ * 
+ * EVENT MAPPINGS:
+ * - 'node.synergy.high' → cascadeIntensity = max(current, 0.7), conflictType = 'specialization_drift'
+ * - 'metric:corruptionRise' → cascadeIntensity = max(current, 0.9), conflictType = 'corruption'
+ * - 'link:collapsed' → cascadeIntensity = 1.0, conflictType = 'destructive'
+ * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
+ * 
+ * DECAY:
+ * - cascadeIntensity *= 0.92 per frame (30 Hz on visual layer)
+ * - Intensity resets to 0 when below 0.01
+ * 
+ * @author VFX Technical Director — ATOMA Project Session 120
+ * @version 1.0.0
+ */
+
+export class CascadeEventBridge_v1 {
+  constructor(config = {}) {
+    this.linkingSystem = config.linkingSystem || null;
+    this.semanticBus = config.semanticBus || globalThis?.semanticBus || null;
+    this.frameScheduler = config.frameScheduler || globalThis?.frameScheduler || null;
+    this.waveEngine = config.waveEngine || globalThis?.game?.waveInterferenceEngine || null;
+    
+    this.config = {
+      decayRate: config.decayRate ?? 0.92,
+      minIntensityThreshold: config.minIntensityThreshold ?? 0.01,
+      cascadeWaveThreshold: config.cascadeWaveThreshold ?? 0.6, // Threshold for generating waves
+      enabled: config.enabled ?? true
+    };
+
+    // Event subscriptions
+    this._subscriptions = [];
+    this._boundHandlers = null;
+
+    // State
+    this._isRegistered = false;
+    this._isInitialized = false;
+  }
+  
+  /**
+   * Initialize the bridge
+   */
+  init() {
+    if (this._isInitialized) return;
+    
+    if (!this.semanticBus) {
+      console.warn('[CascadeEventBridge] No semanticBus available - event-driven disabled');
+      return;
+    }
+    
+    if (!this.linkingSystem) {
+      console.warn('[CascadeEventBridge] No linkingSystem provided - cannot update links');
+      return;
+    }
+    
+    this._setupEventHandlers();
+    this._subscribeToEvents();
+    this._registerDecayUpdate();
+    
+    this._isInitialized = true;
+  }
+  
+  /**
+   * Setup event handlers
+   */
+  _setupEventHandlers() {
+    this._boundHandlers = {
+      handleNodeSynergyHigh: this._handleNodeSynergyHigh.bind(this),
+      handleMetricCorruptionRise: this._handleMetricCorruptionRise.bind(this),
+      handleLinkCollapsed: this._handleLinkCollapsed.bind(this),
+      handleNodeHover: this._handleNodeHover.bind(this),
+      decayUpdate: this._decayUpdate.bind(this)
+    };
+  }
+  
+  /**
+   * Subscribe to semantic events
+   */
+  _subscribeToEvents() {
+    const bus = this.semanticBus;
+    const on = bus?.on?.bind(bus);
+    const subscribe = bus?.subscribe?.bind(bus);
+    
+    if (typeof on === 'function') {
+      // Prefer on() method for event subscription
+      on('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
+      on('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
+      on('link:collapsed', this._boundHandlers.handleLinkCollapsed);
+      on('node.hover', this._boundHandlers.handleNodeHover);
+      
+      this._subscriptions.push(
+        () => bus.off?.('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh),
+        () => bus.off?.('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise),
+        () => bus.off?.('link:collapsed', this._boundHandlers.handleLinkCollapsed),
+        () => bus.off?.('node.hover', this._boundHandlers.handleNodeHover)
+      );
+    } else if (typeof subscribe === 'function') {
+      // Fallback to subscribe() method
+      const unsub1 = subscribe('node.synergy.high', this._boundHandlers.handleNodeSynergyHigh);
+      const unsub2 = subscribe('metric:corruptionRise', this._boundHandlers.handleMetricCorruptionRise);
+      const unsub3 = subscribe('link:collapsed', this._boundHandlers.handleLinkCollapsed);
+      const unsub4 = subscribe('node.hover', this._boundHandlers.handleNodeHover);
+      
+      this._subscriptions.push(unsub1, unsub2, unsub3, unsub4);
+    }
+  }
+  
+  /**
+   * Register decay update to FrameScheduler
+   */
+  _registerDecayUpdate() {
+    if (!this.frameScheduler) {
+      console.warn('[CascadeEventBridge] No frameScheduler available - decay disabled');
+      return;
+    }
+    
+    const success = this.frameScheduler.register('visual', this._boundHandlers.decayUpdate, 'visual.cascadeEventBridge');
+    
+    if (success) {
+      this._isRegistered = true;
+    } else {
+      console.warn('[CascadeEventBridge] Failed to register to frameScheduler');
+    }
+  }
+  
+  /**
+   * Handle node.synergy.high event
+   */
+  _handleNodeSynergyHigh(event = {}) {
+    if (!this.config.enabled) return;
+
+    const nodeId = event.nodeId;
+    const links = this._getLinksForNode(nodeId);
+
+    for (const link of links) {
+      if (!link.userData) link.userData = {};
+      if (!link.userData.flowState) link.userData.flowState = {};
+
+      // Write to shared flowState (single source of truth)
+      const flowState = link.userData.flowState;
+      flowState.intensity = Math.max(flowState.intensity ?? 0, 0.7);
+      flowState.type = 'specialization_drift';
+    }
+  }
+  
+  /**
+   * Handle metric:corruptionRise event
+   */
+  _handleMetricCorruptionRise(event = {}) {
+    if (!this.config.enabled) return;
+
+    const nodeId = event.nodeId;
+    const links = this._getLinksForNode(nodeId);
+
+    for (const link of links) {
+      if (!link.userData) link.userData = {};
+      if (!link.userData.flowState) link.userData.flowState = {};
+
+      // Write to shared flowState (single source of truth)
+      const flowState = link.userData.flowState;
+      flowState.intensity = Math.max(flowState.intensity ?? 0, 0.9);
+      flowState.type = 'corruption';
+      flowState.energy = Math.max(flowState.energy ?? 0, 0.8);
+    }
+  }
+  
+  /**
+   * Handle link:collapsed event
+   */
+  _handleLinkCollapsed(event = {}) {
+    if (!this.config.enabled) return;
+
+    const linkId = event.linkId;
+    const link = this._getLinkById(linkId);
+
+    if (link) {
+      if (!link.userData) link.userData = {};
+      if (!link.userData.flowState) link.userData.flowState = {};
+
+      // Write to shared flowState (single source of truth)
+      const flowState = link.userData.flowState;
+      flowState.intensity = 1.0;
+      flowState.type = 'destructive';
+      flowState.energy = 1.0;
+      flowState.direction = -1.0; // Collapse causes backflow
+    }
+  }
+  
+  /**
+   * Handle node.hover event
+   */
+  _handleNodeHover(event = {}) {
+    if (!this.config.enabled) return;
+
+    const nodeId = event.nodeId;
+    const links = this._getLinksForNode(nodeId);
+
+    for (const link of links) {
+      if (!link.userData) link.userData = {};
+      if (!link.userData.flowState) link.userData.flowState = {};
+
+      // Write to shared flowState (single source of truth)
+      const flowState = link.userData.flowState;
+      flowState.intensity = Math.max(flowState.intensity ?? 0, 0.3);
+      flowState.type = 'oscillatory_balance';
+      flowState.energy = Math.max(flowState.energy ?? 0, 0.4);
+    }
+  }
+  
+  /**
+   * Decay cascade intensity for all links
+   */
+  _decayUpdate(deltaTime) {
+    if (!this.config.enabled) return;
+    
+    const links = this.linkingSystem?.links || [];
+    
+    for (const link of links) {
+      if (!link.userData) continue;
+      
+      // Initialize flowState if needed
+      if (!link.userData.flowState) {
+        link.userData.flowState = {
+          intensity: 0.0,
+          direction: 1.0,
+          type: 'resolved_harmony',
+          energy: 0.0
+        };
+      }
+      
+      const flowState = link.userData.flowState;
+      
+      // Calculate target intensity from node cascadeStrength
+      const targetIntensity = this._calculateTargetIntensity(link);
+      
+      // Apply smoothing with lerp (0.2 factor)
+      const lerpFactor = 0.2;
+      flowState.intensity = flowState.intensity + (targetIntensity - flowState.intensity) * lerpFactor;
+      
+      // Clamp to 0-1 range
+      flowState.intensity = Math.max(0, Math.min(1, flowState.intensity));
+      
+      // Reset to 0 when below threshold
+      if (flowState.intensity < this.config.minIntensityThreshold) {
+        flowState.intensity = 0;
+      }
+      
+      // Decay energy (slower decay for continuous field)
+      if (flowState.energy > 0) {
+        flowState.energy = flowState.energy * (this.config.decayRate + 0.05);
+        
+        if (flowState.energy < this.config.minIntensityThreshold) {
+          flowState.energy = 0;
+        }
+      }
+      
+      // Generate wave burst if intensity is high enough
+      if (flowState.intensity > this.config.cascadeWaveThreshold) {
+        this._requestCascadeWaveBurst(link, flowState);
+      }
+    }
+  }
+  
+  /**
+   * Calculate target intensity from node cascadeStrength
+   */
+  _calculateTargetIntensity(link) {
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    
+    if (!sourceNode || !targetNode) return 0;
+    
+    // Get cascadeStrength from source and target nodes
+    const sourceStrength = sourceNode.userData?.metrics?.cascadeStrength 
+      ?? sourceNode.userData?.cascadeStrength 
+      ?? 0;
+    const targetStrength = targetNode.userData?.metrics?.cascadeStrength 
+      ?? targetNode.userData?.cascadeStrength 
+      ?? 0;
+    
+    // Use max of source and target node cascadeStrength
+    return Math.max(sourceStrength, targetStrength);
+  }
+  
+  /**
+   * Get links connected to a node
+   */
+  _getLinksForNode(nodeId) {
+    if (!this.linkingSystem) return [];
+    
+    const links = this.linkingSystem.links || [];
+    const nodeLinks = [];
+    
+    for (const link of links) {
+      const sourceId = this.linkingSystem.getNodeId?.(link.source);
+      const targetId = this.linkingSystem.getNodeId?.(link.target);
+      
+      if (sourceId === nodeId || targetId === nodeId) {
+        nodeLinks.push(link);
+      }
+    }
+    
+    return nodeLinks;
+  }
+  
+  /**
+   * Get link by ID
+   */
+  _getLinkById(linkId) {
+    if (!this.linkingSystem) return null;
+    
+    const links = this.linkingSystem.links || [];
+    
+    for (const link of links) {
+      if (link.id === linkId) {
+        return link;
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Request wave burst from WaveInterferenceEngine for cascade activity
+   */
+  _requestCascadeWaveBurst(link, flowState) {
+    if (!this.waveEngine || !this.waveEngine.requestBurstIntent) return;
+
+    const linkId = link.id || link.uuid || link.name;
+    if (!linkId) return;
+
+    const now = performance.now();
+
+    // Initialize last wave burst time if needed
+    link.userData._lastWaveBurstTime ??= 0;
+
+    // Check cooldown (800ms)
+    if (now - link.userData._lastWaveBurstTime < 800) {
+      return; // Skip - still in cooldown
+    }
+
+    // Validate flowState data before requesting burst
+    if (!Number.isFinite(flowState.intensity)) return;
+    if (flowState.intensity <= 0) return;
+
+    // Update last burst time
+    link.userData._lastWaveBurstTime = now;
+
+    // Get source and target nodes
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+
+    if (!sourceNode || !targetNode) return;
+
+    // Calculate midpoint position
+    const sourcePosition = sourceNode.position;
+    const targetPosition = targetNode.position;
+    const midpoint = {
+      x: (sourcePosition.x + targetPosition.x) * 0.5,
+      y: (sourcePosition.y + targetPosition.y) * 0.5,
+      z: (sourcePosition.z + targetPosition.z) * 0.5
+    };
+
+    // Validate midpoint position
+    if (!midpoint) return;
+
+    // Request wave burst
+    this.waveEngine.requestBurstIntent({
+      type: 'cascade',
+      center: midpoint,
+      intensity: flowState.intensity,
+      sourceId: linkId,
+      metadata: {
+        conflictType: flowState.type,
+        sourceNodeId: sourceNode.id || sourceNode.uuid,
+        targetNodeId: targetNode.id || targetNode.uuid
+      }
+    });
+  }
+  
+  /**
+   * Dispose the bridge
+   */
+  dispose() {
+    // Unsubscribe from events
+    for (const unsubscribe of this._subscriptions) {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    }
+    this._subscriptions = [];
+    
+    // Unregister from FrameScheduler
+    if (this._isRegistered && this.frameScheduler) {
+      this.frameScheduler.unregister('visual.cascadeEventBridge');
+      this._isRegistered = false;
+    }
+
+    // Clear handlers
+    this._boundHandlers = null;
+    this._isInitialized = false;
+  }
+}
+
+/**
+ * Factory function to create and initialize CascadeEventBridge
+ */
+export function createCascadeEventBridge(config = {}) {
+  const bridge = new CascadeEventBridge_v1(config);
+  bridge.init();
+  return bridge;
+}

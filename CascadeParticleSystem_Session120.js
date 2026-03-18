@@ -45,7 +45,8 @@ export class CascadeParticleSystem_Session120 {
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
       baseCascadeParticles: config.baseCascadeParticles ?? 8,
-      hopDecay: config.hopDecay ?? 0.82
+      hopDecay: config.hopDecay ?? 0.82,
+      cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3 // Cooldown in seconds
     };
     
     // Texture Atlas Dimensions
@@ -59,6 +60,9 @@ export class CascadeParticleSystem_Session120 {
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
     this._semanticUnsubscribers = [];
+    
+    // Cascade hop cooldown tracking (per link)
+    this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
 
     // Resources
     this.geometry = null;
@@ -378,16 +382,17 @@ export class CascadeParticleSystem_Session120 {
     
     for (const link of links) {
       if (!link.userData) continue;
-      
+
       // Check for cascade activity
       const boost = link.userData.cascadeParticleEmissionBoost ?? 1.0;
-      // We only care if boost > 1.0 (active cascade) OR explicit intensity
-      const intensity = link.userData.cascadeIntensity ?? 0;
-      
+      // Read from shared flowState (single source of truth)
+      const flowState = link.userData.flowState || {};
+      const intensity = flowState.intensity ?? 0;
+
       if (intensity < 0.1 && boost <= 1.0) continue;
-      
-      // Determine conflict type (Semantic Shape)
-      const conflictType = link.userData.cascadeConflictType ?? 'none';
+
+      // Determine conflict type (Semantic Shape) from flowState
+      const conflictType = flowState.type ?? 'none';
       const shapeIndex = this._getShapeIndexForConflict(conflictType);
       
       // Determine Flow Type (Semantic Velocity)
@@ -407,8 +412,67 @@ export class CascadeParticleSystem_Session120 {
       
       if (count > 0) {
         this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime);
+        
+        // Emit cascade.hop event for CascadeResonanceWaveVisualization
+        this._emitCascadeHop(link, intensity, conflictType);
       }
     }
+  }
+  
+  /**
+   * Emit cascade.hop event for CascadeResonanceWaveVisualization
+   * Throttled to prevent event spam (0.3s cooldown per link)
+   */
+  _emitCascadeHop(link, intensity, conflictType) {
+    if (!this.semanticBus || !this.semanticBus.emit) return;
+    
+    const linkId = link.id || link.uuid || link.name;
+    if (!linkId) return;
+    
+    const now = performance.now() / 1000; // Convert to seconds
+    
+    // Check cooldown (0.3s default)
+    const lastHopTime = this._linkHopCooldowns.get(linkId) || 0;
+    const cooldownElapsed = now - lastHopTime;
+    
+    if (cooldownElapsed < this.config.cascadeHopCooldown) {
+      return; // Skip - still in cooldown
+    }
+    
+    // Update last hop time
+    this._linkHopCooldowns.set(linkId, now);
+    
+    // Get source and target nodes
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    
+    if (!sourceNode || !targetNode) return;
+
+    // Calculate midpoint position
+    const sourcePosition = sourceNode.position;
+    const targetPosition = targetNode.position;
+    const midpoint = {
+      x: (sourcePosition.x + targetPosition.x) * 0.5,
+      y: (sourcePosition.y + targetPosition.y) * 0.5,
+      z: (sourcePosition.z + targetPosition.z) * 0.5
+    };
+
+    // Validate event data before emitting
+    if (!midpoint) return;
+    if (!Number.isFinite(intensity)) return;
+    if (intensity <= 0) return;
+
+    // Emit cascade.hop event
+    this.semanticBus.emit('cascade.hop', {
+      link: link, // Include link object for backward compatibility
+      linkId: linkId,
+      sourceId: sourceNode.id || sourceNode.uuid,
+      targetId: targetNode.id || targetNode.uuid,
+      position: midpoint,
+      intensity: intensity,
+      conflictType: conflictType,
+      timestamp: now
+    }, { priority: this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL });
   }
   
   /**
@@ -657,6 +721,9 @@ export class CascadeParticleSystem_Session120 {
       }
     }
     this._semanticUnsubscribers.length = 0;
+    
+    // Clear cascade hop cooldowns
+    this._linkHopCooldowns.clear();
 
     this.scene.remove(this.mesh);
     this.geometry.dispose();

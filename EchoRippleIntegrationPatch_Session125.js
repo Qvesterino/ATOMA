@@ -100,6 +100,100 @@ export function integrateEchoRippleSystem(
 }
 
 /**
+ * Apply echo ripple integration to link resonance flow system
+ * 
+ * This function connects LinkResonanceFlowSystem with ripple spawning
+ * on wave burst and cascade hop events.
+ * 
+ * @param {Object} linkResonanceFlowSystem - LinkResonanceFlowSystem_Session124 instance
+ * @param {Object} cascadeSystem - Cascade system instance (optional)
+ * 
+ * Integration points:
+ * - Spawns ripples on wave burst (pulse creation)
+ * - Spawns ripples on cascade hop
+ * - Creates visual echoes in network
+ */
+export function applyEchoRippleIntegration(linkResonanceFlowSystem, cascadeSystem = null) {
+  if (!linkResonanceFlowSystem) {
+    console.error('[EchoRippleIntegration] linkResonanceFlowSystem parameter is required');
+    return;
+  }
+
+  // Store cascade system reference
+  linkResonanceFlowSystem.cascadeSystem = cascadeSystem;
+
+  // Hook into pulse spawning to create ripples on wave burst
+  if (!linkResonanceFlowSystem.spawnRippleOnWaveBurst) {
+    const originalSpawnPulse = linkResonanceFlowSystem._spawnPulse.bind(linkResonanceFlowSystem);
+    
+    linkResonanceFlowSystem._spawnPulse = function(link) {
+      // Call original spawn pulse
+      originalSpawnPulse(link);
+      
+      // Spawn ripple on wave burst
+      this.spawnRippleOnWaveBurst && this.spawnRippleOnWaveBurst(link);
+    };
+  }
+
+  // Add method to spawn ripple on wave burst
+  if (!linkResonanceFlowSystem.spawnRippleOnWaveBurst) {
+    linkResonanceFlowSystem.spawnRippleOnWaveBurst = function(link) {
+      if (!link || !link.userData) return;
+      
+      // Get target node (where pulse is going)
+      const targetNode = link.target || link.targetNode;
+      if (!targetNode) return;
+      
+      // Create ripple effect at target node
+      // This is a visual effect that expands outward
+      if (this.scene && typeof this.createRippleEffect === 'function') {
+        this.createRippleEffect(targetNode.position, {
+          intensity: 0.5,
+          color: new THREE.Color(0x00ffff),
+          lifetime: 1.0
+        });
+      }
+    };
+  }
+
+  // Add method to spawn ripple on cascade hop
+  if (!linkResonanceFlowSystem.spawnRippleOnCascadeHop) {
+    linkResonanceFlowSystem.spawnRippleOnCascadeHop = function(node, intensity = 0.6) {
+      if (!node || !node.position) return;
+      
+      // Create ripple effect at node
+      // This represents cascade hop visual feedback
+      if (this.scene && typeof this.createRippleEffect === 'function') {
+        this.createRippleEffect(node.position, {
+          intensity: intensity,
+          color: new THREE.Color(0xff4444), // Reddish for cascade
+          lifetime: 0.8
+        });
+      }
+    };
+  }
+
+  // Hook into cascade system if available
+  if (cascadeSystem) {
+    // Listen for cascade events
+    if (cascadeSystem.addEventListener) {
+      cascadeSystem.addEventListener('cascadeHop', (event) => {
+        if (linkResonanceFlowSystem.spawnRippleOnCascadeHop) {
+          linkResonanceFlowSystem.spawnRippleOnCascadeHop(event.node, event.intensity);
+        }
+      });
+    }
+  }
+
+  console.log('[EchoRippleIntegration] Integration applied successfully');
+  console.log('[EchoRippleIntegration] - Ripples will spawn on wave burst');
+  console.log('[EchoRippleIntegration] - Ripples will spawn on cascade hop');
+  console.log('[EchoRippleIntegration] - Visual echoes enabled in network');
+
+  return linkResonanceFlowSystem;
+}
+
+/**
  * EXPECTED VISUAL BEHAVIOR:
  * 
  * 1. PULSE ARRIVAL

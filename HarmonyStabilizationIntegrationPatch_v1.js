@@ -294,4 +294,104 @@ export class HarmonyStabilizationIntegrationPatch_v1 {
   }
 }
 
+/**
+ * Apply harmony stabilization integration to main instance
+ * 
+ * This function connects HarmonyStabilizationSystem_v1 with downstream systems
+ * and ensures consistent writing of harmonyLevel.
+ * 
+ * @param {Object} harmonySystem - HarmonyStabilizationSystem_v1 instance
+ * @param {Object} mainInstance - Main application instance
+ * 
+ * Integration points:
+ * - Stores reference to harmony system on main instance
+ * - Sets up update loop integration
+ * - Ensures harmonyLevel is properly distributed to downstream systems
+ * - Guards against duplicate writes
+ * - Does not override existing values without checking
+ */
+export function applyHarmonyStabilizationIntegration(harmonySystem, mainInstance) {
+  if (!harmonySystem) {
+    console.error('[HarmonyStabilizationIntegration] harmonySystem parameter is required');
+    return;
+  }
+
+  if (!mainInstance) {
+    console.error('[HarmonyStabilizationIntegration] mainInstance parameter is required');
+    return;
+  }
+
+  // Store reference to harmony system on main instance (guarded)
+  if (!mainInstance.harmonySystem) {
+    mainInstance.harmonySystem = harmonySystem;
+  } else if (mainInstance.harmonySystem !== harmonySystem) {
+    console.warn('[HarmonyStabilizationIntegration] mainInstance.harmonySystem already exists and is different. Skipping assignment.');
+  }
+
+  // Store reference to aiNodes if available (guarded)
+  if (mainInstance.aiNodes && !mainInstance.aiNodes.harmonySystem) {
+    mainInstance.aiNodes.harmonySystem = harmonySystem;
+  }
+
+  // Ensure linkCorruptionTransmission is connected if available (guarded)
+  if (mainInstance.linkCorruptionTransmission && !harmonySystem.linkCorruptionTransmission) {
+    harmonySystem.linkCorruptionTransmission = mainInstance.linkCorruptionTransmission;
+  }
+
+  // Setup update loop integration - add method to main instance if not exists
+  if (!mainInstance.updateHarmonySystem) {
+    mainInstance.updateHarmonySystem = function(deltaTime = 1/60) {
+      if (this.harmonySystem) {
+        this.harmonySystem.updateHarmony(deltaTime);
+      }
+    };
+  }
+
+  // Add convenience method to get node harmony info (guarded)
+  if (mainInstance.aiNodes && !mainInstance.aiNodes.getNodeHarmonyInfo) {
+    mainInstance.aiNodes.getNodeHarmonyInfo = function(node) {
+      if (this.harmonySystem) {
+        return this.harmonySystem.getNodeHarmonyInfo ? 
+               this.harmonySystem.getNodeHarmonyInfo(node) : 
+               this.harmonySystem.nodeHarmony.get(node.id);
+      }
+      return null;
+    };
+  }
+
+  // Add method to set node harmony (guarded)
+  if (mainInstance.aiNodes && !mainInstance.aiNodes.setNodeHarmonyLevel) {
+    mainInstance.aiNodes.setNodeHarmonyLevel = function(node, level) {
+      if (this.harmonySystem) {
+        this.harmonySystem.setNodeHarmony(node, level);
+      }
+    };
+  }
+
+  // Add method to set link harmony (guarded)
+  if (mainInstance.aiNodes && !mainInstance.aiNodes.setLinkHarmonyLevel) {
+    mainInstance.aiNodes.setLinkHarmonyLevel = function(link, level) {
+      if (this.harmonySystem) {
+        this.harmonySystem.setLinkHarmony(link, level);
+      }
+    };
+  }
+
+  // Add method to trigger harmony pulse (guarded)
+  if (mainInstance.aiNodes && !mainInstance.aiNodes.triggerHarmonyPulse) {
+    mainInstance.aiNodes.triggerHarmonyPulse = function(node, radius = 2.0, intensity = 0.5) {
+      if (this.harmonySystem) {
+        return this.harmonySystem.triggerHarmonyPulse(node, radius, intensity);
+      }
+    };
+  }
+
+  console.log('[HarmonyStabilizationIntegration] Integration applied successfully');
+  console.log('[HarmonyStabilizationIntegration] - Harmony system connected to main instance');
+  console.log('[HarmonyStabilizationIntegration] - Update loop integration ready');
+  console.log('[HarmonyStabilizationIntegration] - Downstream system integration complete');
+
+  return harmonySystem;
+}
+
 export default HarmonyStabilizationIntegrationPatch_v1;
