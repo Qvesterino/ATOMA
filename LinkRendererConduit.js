@@ -1834,6 +1834,7 @@ export class LinkRendererConduit {
                     direction: surfaceDir.clone().negate(),
                     color: ringColor.clone()
                 };
+                ensureUserData(ring).__linkOwnerId = this._getLinkOwnerId(link);
                 this.scene?.add(ring);
                 state.dockRing = ring;
                 state.dockRingColor = ringColor.clone();
@@ -1852,6 +1853,9 @@ export class LinkRendererConduit {
                 if (!state.dockSpray) {
                     const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
                     state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
+                    if (state.dockSpray?.mesh) {
+                        ensureUserData(state.dockSpray.mesh).__linkOwnerId = this._getLinkOwnerId(link);
+                    }
                     this.scene?.add(state.dockSpray.mesh);
                 }
             }
@@ -1948,6 +1952,7 @@ export class LinkRendererConduit {
             }
             ring.userData.layerGroups = layerGroups;
             ring.userData.layerSpeed = pg.layerSpeed;
+            ensureUserData(ring).__linkOwnerId = this._getLinkOwnerId(link);
             this.scene?.add(ring);
             state.dockGhost = ring;
             state.dockGhostPending = null;
@@ -1995,6 +2000,12 @@ export class LinkRendererConduit {
         if (!state.sourceInjection) {
             const sourceOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
             state.sourceInjection = createSourceInjectionSystem(this.scene, sourceOrder, 28);
+            if (state.sourceInjection?.points) {
+                ensureUserData(state.sourceInjection.points).__linkOwnerId = this._getLinkOwnerId(link);
+            }
+            if (state.sourceInjection?.vortex) {
+                ensureUserData(state.sourceInjection.vortex).__linkOwnerId = this._getLinkOwnerId(link);
+            }
             this.scene?.add(state.sourceInjection.points);
             this.scene?.add(state.sourceInjection.vortex);
             state.sourceInjectionNextTime = visualTime;
@@ -3376,12 +3387,57 @@ export class LinkRendererConduit {
         return allowed.size ? allowed : new Set(scored.slice(0, maxCount).map(s => s.id));
     }
 
+    _getLinkOwnerId(linkOrId) {
+        if (linkOrId === undefined || linkOrId === null) return null;
+        if (typeof linkOrId === 'string' || typeof linkOrId === 'number') return linkOrId;
+        return (
+            linkOrId.id ??
+            linkOrId.uuid ??
+            linkOrId.userData?.id ??
+            linkOrId.userData?.linkId ??
+            null
+        );
+    }
+
+    _disposeObjectTree(root) {
+        if (!root) return;
+        root.traverse((obj) => {
+            if (obj.geometry) obj.geometry.dispose?.();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) obj.material.forEach((m) => m?.dispose?.());
+                else obj.material.dispose?.();
+            }
+        });
+    }
+
+    clearLinkAuxVisuals(linkOrId) {
+        const ownerId = this._getLinkOwnerId(linkOrId);
+        if (ownerId === null || ownerId === undefined) return 0;
+
+        let removed = 0;
+        const roots = [this.scene, this.conduitRoot].filter(Boolean);
+        roots.forEach((root) => {
+            const toRemove = [];
+            root.traverse((obj) => {
+                if (obj?.userData?.__linkOwnerId === ownerId) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach((obj) => {
+                obj.parent?.remove?.(obj);
+                this._disposeObjectTree(obj);
+                removed += 1;
+            });
+        });
+
+        return removed;
+    }
+
     disposeLinkVisuals(linkGroup, link = null) {
-        if (!linkGroup || !linkGroup.userData.conduitState) return;
-        const state = linkGroup.userData.conduitState;
+        const state = linkGroup?.userData?.conduitState;
 
         // Spawn dissolve burst before tearing down
-        if (this.modules.dissolve && link && link.curve) {
+        if (state && this.modules.dissolve && link && link.curve) {
             this._spawnDissolveEffect(link, state);
         }
 
@@ -3413,6 +3469,11 @@ export class LinkRendererConduit {
             this.trailParticles.clearLink(link.id);
         }
 
+        // Clear semantic pictograms for this link immediately on unlink
+        if (link && this.pictogramSystem?.clearLink) {
+            this.pictogramSystem.clearLink(link);
+        }
+
         // Dispose healing particle emitter for this link
         if (link && this.healingEmitters && link.id) {
             const emitter = this.healingEmitters.get(link.id);
@@ -3422,50 +3483,53 @@ export class LinkRendererConduit {
             this.healingEmitters.delete(link.id);
         }
 
-        state.strands.forEach(m => {
-            if(m.geometry) m.geometry.dispose();
-            if(m.material) m.material.dispose();
-        });
+        if (state) {
+            state.strands.forEach(m => {
+                if(m.geometry) m.geometry.dispose();
+                if(m.material) m.material.dispose();
+            });
 
-        if (state.skinMesh) {
-            if(state.skinMesh.geometry) state.skinMesh.geometry.dispose();
-            if(state.skinMesh.material) state.skinMesh.material.dispose();
+            if (state.skinMesh) {
+                if(state.skinMesh.geometry) state.skinMesh.geometry.dispose();
+                if(state.skinMesh.material) state.skinMesh.material.dispose();
+            }
+
+            if (state.beads) state.beads.dispose();
+            if (state.sparks) state.sparks.dispose();
+            if (state.trails) state.trails.dispose();
+            if (state.rings) state.rings.dispose();
+
+            if (state.pulseRing) state.pulseRing.dispose();
+            if (state.pulseDust) state.pulseDust.dispose();
+            if (state.energyWave) state.energyWave = null;
+            if (state.arcDischarges) state.arcDischarges.dispose();
+            if (state.visualStateAdapter) state.visualStateAdapter.dispose();
+            if (state.dockSpray) state.dockSpray.dispose();
+            if (state.sourceInjection) state.sourceInjection.dispose();
+
+            if (state.directionalStreaks && this.directionalStreaks) {
+                this.directionalStreaks.dispose(state.directionalStreaks);
+            }
+
+            state.impacts.forEach(g => {
+                if (g.parent) g.parent.remove(g);
+                g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) this._returnImpactMaterial(o.material); });
+            });
+            state.impacts = [];
         }
-
-        if (state.beads) state.beads.dispose();
-        if (state.sparks) state.sparks.dispose();
-        if (state.trails) state.trails.dispose();
-        if (state.rings) state.rings.dispose();
-
-        if (state.pulseRing) state.pulseRing.dispose();
-        if (state.pulseDust) state.pulseDust.dispose();
-        if (state.energyWave) state.energyWave = null;
-        if (state.arcDischarges) state.arcDischarges.dispose();
-        if (state.visualStateAdapter) state.visualStateAdapter.dispose();
-        if (state.dockSpray) state.dockSpray.dispose();
-        if (state.sourceInjection) state.sourceInjection.dispose();
-
-        if (state.directionalStreaks && this.directionalStreaks) {
-            this.directionalStreaks.dispose(state.directionalStreaks);
-        }
-
-        state.impacts.forEach(g => {
-            if (g.parent) g.parent.remove(g);
-            g.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) this._returnImpactMaterial(o.material); });
-        });
-        state.impacts = [];
 
         // Final cleanup: remove the link group from scene graph and dispose remaining geometries/materials
         if (linkGroup?.parent) {
             linkGroup.parent.remove(linkGroup);
         }
-        linkGroup.traverse(obj => {
-            if (obj.geometry) { obj.geometry.dispose?.(); }
-            if (obj.material) {
-                if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose?.());
-                else obj.material.dispose?.();
-            }
-        });
+        if (linkGroup) {
+            this._disposeObjectTree(linkGroup);
+        }
+
+        // Defensive orphan cleanup for effects attached directly to scene
+        if (link) {
+            this.clearLinkAuxVisuals(link);
+        }
     }
 
     /**

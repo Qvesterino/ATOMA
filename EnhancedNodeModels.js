@@ -4332,7 +4332,7 @@ static createStorageNode0(group, color) {
           auraMat: new THREE.MeshBasicMaterial({
             color: colorHex,
             transparent: true,
-            opacity: 0.08,
+            opacity: 0.12,
             depthWrite: false,
             side: THREE.BackSide
           })
@@ -4345,6 +4345,21 @@ static createStorageNode0(group, color) {
       outerShell.userData.visualCoreImmutable = true;
       group.add(outerShell);
 
+      // MEMORY SHELL LAYER (outer echo)
+      const memoryShell = new THREE.Mesh(
+        cache.geometries.mainGeometry,
+        new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.08,
+          wireframe: true,
+          depthWrite: false
+        })
+      );
+      memoryShell.scale.setScalar(1.15);
+      memoryShell.userData.visualCoreImmutable = true;
+      group.add(memoryShell);
+
       // Inner emissive core based on the main shell geometry (scaled to 60%).
       const innerCore = new THREE.Mesh(cache.geometries.mainGeometry, mats.innerCoreMat);
       innerCore.scale.setScalar(0.6);
@@ -4354,6 +4369,13 @@ static createStorageNode0(group, color) {
 
       const edgeOverlay = new THREE.LineSegments(cache.geometries.edgesGeometry, mats.edgeMat);
       edgeOverlay.userData.visualCoreImmutable = true;
+      
+      // EDGE OVERLAY PULSE
+      edgeOverlay.onBeforeRender = () => {
+        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+        edgeOverlay.material.opacity = 0.22 + Math.sin(t * 2.0) * 0.1;
+      };
+      
       group.add(edgeOverlay);
 
       const ringA = new THREE.Mesh(cache.geometries.ringGeometryA, mats.ringMat);
@@ -4365,6 +4387,20 @@ static createStorageNode0(group, color) {
       ringB.rotation.z = Math.PI * 0.5;
       ringB.userData.visualCoreImmutable = true;
       group.add(ringB);
+
+      // VAULT SEAL RING (signature element)
+      const seal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.42, 0.01, 8, 64),
+        new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false
+        })
+      );
+      seal.rotation.x = Math.PI * 0.5;
+      seal.userData.visualCoreImmutable = true;
+      group.add(seal);
 
       const particleOrbit = new THREE.Group();
       const particleCount = 6;
@@ -4399,7 +4435,8 @@ static createStorageNode0(group, color) {
         particleOrbit.rotation.y = t * 0.18;
         particleOrbit.children.forEach((p, idx) => {
           const phase = t * 1.05 + (p.userData.phase || idx * 0.5);
-          p.position.y = (p.userData.baseY || 0) + Math.sin(phase) * 0.02;
+          // PARTICLES → MEMORY FRAGMENTS (subtler movement)
+          p.position.y = (p.userData.baseY || 0) + Math.sin(phase) * 0.01;
           p.rotation.x = phase * 0.25;
           p.rotation.z = -phase * 0.2;
         });

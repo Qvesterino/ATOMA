@@ -1872,6 +1872,31 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // CLEANUP
     // ========================================================================
 
+    clearLink(linkOrId) {
+        const linkId = typeof linkOrId === 'string' ? linkOrId : this.getLinkKey(linkOrId);
+        if (!linkId) return 0;
+
+        let cleared = 0;
+        this.pictograms.forEach(pictogram => {
+            if (!pictogram?.active) return;
+            const pictogramLinkId = pictogram._linkKey || this.getLinkKey(pictogram.link);
+            if (pictogramLinkId !== linkId) return;
+            pictogram.reset();
+            pictogram._linkKey = null;
+            pictogram._stateKey = null;
+            cleared += 1;
+        });
+
+        this.linkImportanceScores.delete(linkId);
+        this.linkPictogramCounts.delete(linkId);
+        this.linkSpawnTimers.delete(linkId);
+        this.linkStateCounts.delete(linkId);
+        this.linkMetricCounts.delete(linkId);
+        this._initializedLinks.delete(linkId);
+
+        return cleared;
+    }
+
     dispose() {
         this.pictograms.forEach(p => p.reset());
         this.linkImportanceScores.clear();

@@ -3690,7 +3690,7 @@ class AtomaGame {
         }, 'simulation.worldPersonalityController');
         this.frameScheduler.register('simulation', (dt) => {
             this.phase5MultiNetworkOrchestrator?.update?.(dt);
-        }, 'simulation.phase5MultiNetwork');
+        }, 'simulation.phase5MultiNetworkOrchestrator');
         this.frameScheduler.register('simulation', (dt) => {
             this.emergentThoughtStorms?.update?.(dt, this.aiNodes, this.linkingSystem);
         }, 'simulation.emergentThoughtStorms');
@@ -9601,9 +9601,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.spherePolicy.sweepAllRoots(false, { phase: 'animate' });
         }
 
-        if (this.metricsRuntime_v1) {
-            this.metricsRuntime_v1.update(deltaTime);
-        }
+        // MetricsRuntime_v1 is scheduler-owned: simulation.metricsRuntime_v1
 
         // MetricInterpretationLayer_v1: visual signal interpretation
         if (this.metricInterpretationLayer) {

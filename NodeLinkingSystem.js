@@ -6517,7 +6517,7 @@ getLinksForNode(node) {
     }
     
     // Unified visual dispose (conduit + particles)
-    if (this.conduitRenderer && link.group && link.group.userData.conduitState) {
+    if (this.conduitRenderer && link.group) {
       this.conduitRenderer.disposeLinkVisuals(link.group, link);
     }
     // Unregister from harmonic sync manager
@@ -6537,6 +6537,12 @@ getLinksForNode(node) {
       const emitter = conduit.trailEmitters.get(link.id);
       emitter?.disable?.();
       conduit.trailEmitters.delete(link.id);
+    }
+    if (conduit?.pictogramSystem?.clearLink) {
+      conduit.pictogramSystem.clearLink(link);
+    }
+    if (conduit?.clearLinkAuxVisuals) {
+      conduit.clearLinkAuxVisuals(link);
     }
     // Ensure memory ghost trails are cleared for all unlink call paths
     if (this.memoryTrails?.linkTrails?.removeLinkTrail && link?.id !== undefined) {

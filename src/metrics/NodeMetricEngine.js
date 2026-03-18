@@ -84,6 +84,7 @@ const DEFAULT_UNLINKED_ALLOWLIST = new Set([
   'phase5-network-synchronization',
   'harmony-stabilization'
 ]);
+const UNLINKED_DAMPING_FACTOR = 0.1;
 
 const SYNERGY_DERIVATION = {
   smoothing: 0.25,
@@ -675,10 +676,11 @@ export function applyMetricImpulse(node, deltas = {}, options = {}) {
     node.userData.metricsCooldown = 3;
   }
   const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
+  const impulseScale = isNodeMetricActiveLinked(node) ? 1 : UNLINKED_DAMPING_FACTOR;
   const keys = ['harmony', 'stability', 'corruption', 'loadPressure'];
   for (const key of keys) {
     if (typeof deltas[key] === 'number' && Number.isFinite(deltas[key])) {
-      adjust(m, key, deltas[key], id);
+      adjust(m, key, deltas[key] * impulseScale, id);
     }
   }
   if (typeof deltas.synergy === 'number' && Number.isFinite(deltas.synergy)) {
@@ -710,7 +712,24 @@ export function setMetric(node, metric, value, options = {}) {
   if (Object.prototype.hasOwnProperty.call(node.userData, metric) && node.userData[metric] !== undefined) {
     console.warn('LEGACY METRIC WRITE BLOCKED', { key: metric, nodeId: id });
   }
-  const after = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric];
+  const rawValue = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric];
+  const currentValue = Number.isFinite(m[metric]) ? m[metric] : DEFAULT_METRICS[metric];
+  const isUnlinked = !isNodeMetricActiveLinked(node);
+  const sourceKey = String(source).toLowerCase();
+  let unlinkedFactor = UNLINKED_DAMPING_FACTOR;
+  if (sourceKey === 'harmony-stabilization') unlinkedFactor = 0.25;
+  if (sourceKey === 'phase5-network-synchronization') unlinkedFactor = 0.15;
+  if (sourceKey === 'phase5-corruption-bridge') unlinkedFactor = 0.05;
+
+  let nextValue = isUnlinked
+    ? currentValue + (rawValue - currentValue) * unlinkedFactor
+    : rawValue;
+
+  if (Math.abs(nextValue - currentValue) < 0.01) {
+    return currentValue;
+  }
+
+  const after = clamp01(nextValue);
   writeMetric(m, metric, after, id);
   deriveSynergy(node);
   applyArchetypeClamp(node);
