@@ -54,6 +54,7 @@ export class T2_CorruptionVisualIntegration_v1 {
       framesProcessed: 0,
       lastCascadeTriggerTime: {}
     };
+    this._tmpPullVector = new THREE.Vector3();
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     
@@ -197,7 +198,8 @@ export class T2_CorruptionVisualIntegration_v1 {
   triggerParticleBurst(link, intensity, corruptionLevel) {
     if (!link || !this.scene) return;
     
-    const burstCount = Math.ceil(intensity * 5);
+    const burstJitter = 0.7 + Math.random() * 0.6; // 0.7 -> 1.3
+    const burstCount = Math.max(1, Math.ceil(intensity * 5 * burstJitter));
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
     const sourceWorldPos = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
@@ -209,7 +211,9 @@ export class T2_CorruptionVisualIntegration_v1 {
     
     // Create burst particles
     for (let i = 0; i < burstCount; i++) {
-      const particle = this.createBurstParticle(targetWorldPos, corruptionLevel, direction);
+      const spawnFromTarget = Math.random() < 0.7;
+      const spawnPosition = spawnFromTarget ? targetWorldPos : sourceWorldPos;
+      const particle = this.createBurstParticle(spawnPosition, corruptionLevel, direction, targetWorldPos);
       this.scene.add(particle);
     }
   }
@@ -226,7 +230,7 @@ export class T2_CorruptionVisualIntegration_v1 {
   /**
    * Create a single corruption burst particle
    */
-  createBurstParticle(position, corruptionLevel, direction = null) {
+  createBurstParticle(position, corruptionLevel, direction = null, targetAnchor = null) {
     const useTetra = Math.random() < 0.5;
     const particleGeometry = useTetra
       ? new THREE.TetrahedronGeometry(0.1, 0)
@@ -267,7 +271,10 @@ export class T2_CorruptionVisualIntegration_v1 {
       createdAt: this.registry.time,
       baseScale: 1.0,
       seed,
-      spin
+      spin,
+      targetAnchor: targetAnchor ? targetAnchor.clone() : null,
+      trailBuffer: [particle.position.clone()],
+      trailMax: 5
     };
     
     return particle;
@@ -316,6 +323,25 @@ export class T2_CorruptionVisualIntegration_v1 {
       
       // Update position
       particle.position.addScaledVector(particle.userData.velocity, deltaTime);
+
+      // Gentle velocity pull back toward target (gravity feel)
+      if (particle.userData.targetAnchor) {
+        this._tmpPullVector.subVectors(particle.userData.targetAnchor, particle.position);
+        const distSq = this._tmpPullVector.lengthSq();
+        if (distSq > 1e-6) {
+          const pullStrength = 2.2;
+          this._tmpPullVector.normalize();
+          particle.userData.velocity.addScaledVector(this._tmpPullVector, pullStrength * deltaTime);
+        }
+      }
+
+      // Trail buffer (max 5 points)
+      const trail = particle.userData.trailBuffer;
+      if (Array.isArray(trail)) {
+        trail.push(particle.position.clone());
+        const trailMax = Math.max(1, particle.userData.trailMax || 5);
+        while (trail.length > trailMax) trail.shift();
+      }
 
       // Exponential fade
       const fade = Math.pow(1.0 - t, 2.5);

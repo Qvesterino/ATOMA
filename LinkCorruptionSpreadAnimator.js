@@ -183,6 +183,7 @@ export class LinkCorruptionSpreadAnimator {
     // Apply color to each strand based on position along wave
     strands.forEach((strand, strandIndex) => {
       if (!strand || !strand.material) return;
+      const material = strand.material;
       
       const strandColor = new THREE.Color(baseColor);
       
@@ -193,19 +194,21 @@ export class LinkCorruptionSpreadAnimator {
       strandColor.lerp(targetColor, waveInfluence * corruptionLevel * 0.9);
       
       // Apply to strand material
-      if (strand.material.color) {
-        strand.material.color.copy(strandColor);
+      if (material.uniforms?.uBaseColor?.value?.copy) {
+        material.uniforms.uBaseColor.value.copy(strandColor);
+      } else if (material.color) {
+        material.color.copy(strandColor);
       }
       
       // Enhance emissive for corrupted strands
-      if (strand.material.emissive) {
+      if (material.emissive) {
         const corruptionEmissive = new THREE.Color(targetColor).multiplyScalar(corruptionLevel * 0.6);
-        strand.material.emissive.copy(corruptionEmissive);
+        material.emissive.copy(corruptionEmissive);
       }
       
       // Slightly increase emissive intensity with corruption
-      if (strand.material.emissiveIntensity !== undefined) {
-        strand.material.emissiveIntensity = 0.6 + (corruptionLevel * 1.4);
+      if (material.emissiveIntensity !== undefined) {
+        material.emissiveIntensity = 0.6 + (corruptionLevel * 1.4);
       }
     });
   }

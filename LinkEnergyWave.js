@@ -37,6 +37,7 @@ export class LinkEnergyWave {
         
         // Math cache
         this._vec3Cache = new THREE.Vector3();
+        this._shaderLoadBaseline = new WeakMap();
     }
 
     /**
@@ -70,6 +71,7 @@ export class LinkEnergyWave {
         // Apply wave to each strand with phase offset
         strands.forEach((strand, strandIndex) => {
             if (!strand || !strand.material) return;
+            const material = strand.material;
 
             // Phase offset for this strand (spreads the wave across all strands)
             // Creates the spiraling/rotating effect
@@ -97,8 +99,24 @@ export class LinkEnergyWave {
                 ? finalIntensity * 3.5
                 : finalIntensity;
 
-            // Apply to material
-            strand.material.emissiveIntensity = Math.max(
+            // ShaderMaterial path (ATOMA strand shader): drive uLocalLoad pulse directly.
+            if (material.uniforms?.uLocalLoad) {
+                const rawBaseLoad = material.uniforms.uLocalLoad.value;
+                const baseLoad = this._shaderLoadBaseline.has(material)
+                    ? this._shaderLoadBaseline.get(material)
+                    : Math.max(0, Math.min(1, Number.isFinite(rawBaseLoad) ? rawBaseLoad : safeTraffic));
+                this._shaderLoadBaseline.set(material, baseLoad);
+
+                const pulseLoad = Math.max(
+                    0,
+                    Math.min(1, baseLoad + (normalizedInfluence * 0.65 * (0.6 + safeSynergy * 0.4)))
+                );
+                material.uniforms.uLocalLoad.value = pulseLoad;
+                return;
+            }
+
+            // Lit material fallback (legacy strands with emissive pipeline).
+            material.emissiveIntensity = Math.max(
                 this.config.minimumVisibleIntensity,
                 Math.min(6.0, boosted)
             );

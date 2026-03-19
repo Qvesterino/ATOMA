@@ -906,6 +906,9 @@ export class LinkRendererConduit {
             return;
         }
         material.onBeforeCompile = (shader) => {
+            if (typeof previousOnBeforeCompile === 'function') {
+                previousOnBeforeCompile.call(material, shader);
+            }
             if (!shader.uniforms.uWaveDirection) {
                 shader.uniforms.uWaveDirection = { value: direction };
             } else {
@@ -934,12 +937,14 @@ export class LinkRendererConduit {
                     'float travelPhase = (uWavePhase + uWavePhaseOffset) * 6.28318;\n    float lengthFactor = clamp(uWaveLength * 0.2, 0.5, 4.0);\n    travelPhase *= lengthFactor;'
                 );
             }
-            if (typeof previousOnBeforeCompile === 'function') {
-                previousOnBeforeCompile.call(material, shader);
-            }
         };
         material.userData.__waveDirectionHooked = true;
         material.needsUpdate = true;
+        if (typeof window !== 'undefined' && window.__DEBUG_WAVE_NEEDSUPDATE_SOURCE_TRACE__ === true) {
+            const key = 'LinkRendererConduit.js:942 material.needsUpdate=true';
+            const bucket = window.__WAVE_NEEDSUPDATE_SOURCE_TRACE__ || (window.__WAVE_NEEDSUPDATE_SOURCE_TRACE__ = {});
+            bucket[key] = (bucket[key] || 0) + 1;
+        }
     }
 
     /**

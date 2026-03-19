@@ -235,6 +235,12 @@ class FrameScheduler {
                     if (!this.shouldRun(entry, now)) continue; // Load shaping gate: skip until interval reached
 
                     try {
+                        if (typeof window !== 'undefined' && window.__DEBUG_WAVE_TASK_CONTEXT__ === true) {
+                            window.__ATOMA_ACTIVE_FRAME_TASK__ = {
+                                id: entry.id || entry.fn?.name || 'anonymous',
+                                layer: layerName
+                            };
+                        }
                         entry.fn(layer.interval);
                     } catch (error) {
                         const jobId = entry.id || entry.fn?.name || 'visual-task';
@@ -245,6 +251,10 @@ class FrameScheduler {
                         }
                         entry._disabled = true;
                         // Continue execution - do not crash
+                    } finally {
+                        if (typeof window !== 'undefined' && window.__DEBUG_WAVE_TASK_CONTEXT__ === true) {
+                            window.__ATOMA_ACTIVE_FRAME_TASK__ = null;
+                        }
                     }
                 }
 

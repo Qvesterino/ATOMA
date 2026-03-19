@@ -243,6 +243,11 @@ export class VisualStateSnapshot {
           if (typeof window !== 'undefined') {
             window.__B3C3_NEEDSUPDATE_COUNT =
               (window.__B3C3_NEEDSUPDATE_COUNT || 0) + 1;
+            if (window.__DEBUG_WAVE_NEEDSUPDATE_SOURCE_TRACE__ === true) {
+              const key = 'VisualStateSnapshot.js:242 material.needsUpdate=true';
+              const bucket = window.__WAVE_NEEDSUPDATE_SOURCE_TRACE__ || (window.__WAVE_NEEDSUPDATE_SOURCE_TRACE__ = {});
+              bucket[key] = (bucket[key] || 0) + 1;
+            }
           }
         }
       }

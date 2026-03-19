@@ -136,6 +136,15 @@ export class SafeMobilityPack4 {
       maxFOV: 85,              // degrees
       baseFOV: 75              // degrees
     };
+
+    // Ground-check raycast cache (performance-safe, no gameplay semantics change)
+    this._groundCheckDistance = 0.1;
+    this._groundRayDirection = new THREE.Vector3(0, -1, 0);
+    this._groundRayOrigin = new THREE.Vector3();
+    this._groundRaycaster = new THREE.Raycaster();
+    this._raycastTargetsCache = [];
+    this._sceneChildrenSnapshot = [];
+    this._raycastTargetsDirty = true;
     
     this.initializeInputHandlers();
     console.log('✓ Safe Mobility Pack 4.0 initialized');
@@ -153,16 +162,47 @@ export class SafeMobilityPack4 {
     return true;
   }
 
-  _collectValidRaycastTargets() {
-    if (!this.scene || !this.scene.children) return [];
+  _isRaycastTargetCacheStale() {
+    if (this._raycastTargetsDirty) return true;
+    if (!this.scene || !this.scene.children) return true;
+    const children = this.scene.children;
+    if (children.length !== this._sceneChildrenSnapshot.length) return true;
+    for (let i = 0; i < children.length; i++) {
+      if (children[i] !== this._sceneChildrenSnapshot[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _rebuildRaycastTargetCache() {
+    if (!this.scene || !this.scene.children) {
+      this._raycastTargetsCache = [];
+      this._sceneChildrenSnapshot = [];
+      this._raycastTargetsDirty = false;
+      return;
+    }
+
+    const children = this.scene.children;
     const targets = [];
-    this.scene.children.forEach(child => {
-      if (!child) return;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (!child) continue;
       if (!this._hasInvalidGeometry(child)) {
         targets.push(child);
       }
-    });
-    return targets;
+    }
+
+    this._raycastTargetsCache = targets;
+    this._sceneChildrenSnapshot = children.slice();
+    this._raycastTargetsDirty = false;
+  }
+
+  _collectValidRaycastTargets() {
+    if (this._isRaycastTargetCacheStale()) {
+      this._rebuildRaycastTargetCache();
+    }
+    return this._raycastTargetsCache;
   }
   
   /**
@@ -423,11 +463,13 @@ export class SafeMobilityPack4 {
   updateGroundState() {
     try {
       // Check if player is on ground
-      const groundCheckDistance = 0.1;
-      const origin = this.player.position.clone();
-      origin.y += 0.5;  // Offset from center
-      
-      const raycaster = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, groundCheckDistance);
+      this._groundRayOrigin.copy(this.player.position);
+      this._groundRayOrigin.y += 0.5;  // Offset from center
+
+      const raycaster = this._groundRaycaster;
+      raycaster.set(this._groundRayOrigin, this._groundRayDirection);
+      raycaster.near = 0;
+      raycaster.far = this._groundCheckDistance;
       const targets = this._collectValidRaycastTargets();
       const intersects = raycaster.intersectObjects(targets, true);
       const filtered = filterRaycastIntersections(intersects);
