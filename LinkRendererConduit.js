@@ -49,6 +49,7 @@ const remap = (v, in0, in1, out0, out1) => {
     const t = clamp01((v - in0) / (in1 - in0));
     return out0 + (out1 - out0) * t;
 };
+const FORCE_VISUAL_DEBUG = true;
 
 // Lightweight dock spray system (per-link, instanced points)
 function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
@@ -665,6 +666,7 @@ export class LinkRendererConduit {
         this.frameScheduler = frameScheduler;
         this.travelingWaveFX = null; // optional synergy traveling-wave shader patcher
         this.waveTravelShaderPack = waveTravelPack;
+        this.waveSystem = this.waveTravelShaderPack;
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
@@ -721,6 +723,7 @@ export class LinkRendererConduit {
 
         // Harmonic synchronization management (visual only)
         this.nodeHarmonicManager = new NodeHarmonicManager(scene);
+        this.harmonicManager = this.nodeHarmonicManager;
 
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
@@ -735,6 +738,7 @@ export class LinkRendererConduit {
 
         // Corruption morphing system (visual deformation)
         this.corruptionMorphing = new LinkCorruptionMorphingSystem();
+        this.morphSystem = this.corruptionMorphing;
 
         // Tier 4 corruption feedback visuals (idle until events wired)
         this.corruptionFeedbackVisuals = new TIER4_CorruptionFeedbackVisuals(scene, {
@@ -942,14 +946,12 @@ export class LinkRendererConduit {
      * Update all links (canonical list) - ensures beads/sparks tick every frame
      */
     updateAll(links, deltaTime, time) {
+        if (FORCE_VISUAL_DEBUG) {
+            console.warn('[DEBUG MODE ACTIVE] Visual systems are overridden');
+        }
         if (this._picDiagCount < 3) {
             console.log('[PicDiag] updateAll tick', this._picDiagCount + 1);
             this._picDiagCount += 1;
-        }
-
-        // Keep travel-wave uniforms moving on visual tick for locally owned pack.
-        if (this.waveTravelShaderPack === waveTravelPack) {
-            this.waveTravelShaderPack.update(deltaTime);
         }
 
         const list = links
@@ -957,12 +959,41 @@ export class LinkRendererConduit {
             || this.links
             || [];
 
+        this.waveSystem?.update?.(deltaTime);
+
+        if (this.morphSystem?.update) {
+            this.morphSystem.update(deltaTime, list);
+        }
+
+        if (this.harmonicManager?.update) {
+            let sumHarmony = 0;
+            let sumCorruption = 0;
+            let sumInstability = 0;
+            let count = 0;
+            for (const link of list) {
+                if (!link) continue;
+                const m = this._readLinkMetrics(link);
+                sumHarmony += (m?.harmony ?? 0.5);
+                sumCorruption += (m?.corruption ?? 0);
+                sumInstability += (m?.instability ?? (1 - (m?.stability ?? 1)));
+                count += 1;
+            }
+            const inv = count > 0 ? (1 / count) : 0;
+            this.harmonicManager.update(
+                list,
+                count > 0 ? sumHarmony * inv : 0.5,
+                count > 0 ? sumCorruption * inv : 0,
+                count > 0 ? sumInstability * inv : 0,
+                VisualTime.delta
+            );
+        }
+
         // Cadence gating
         this._acc30 += deltaTime;
         this._acc10 += deltaTime;
-        const run30 = this._acc30 >= (1 / 30);
+        let run30 = this._acc30 >= (1 / 30);
         if (run30) this._acc30 -= (1 / 30);
-        const run10 = this._acc10 >= 0.1;
+        let run10 = this._acc10 >= 0.1;
         if (run10) this._acc10 -= 0.1;
 
         // Heavy link selection (LOD)
@@ -1015,7 +1046,7 @@ export class LinkRendererConduit {
             visualDelta: VisualTime.delta * (run30 ? 2 : 1), // keep travel speed when ticking slower
             deltaTime
         };
-        const runHeavyCorruptionUpdate = run30 && (((this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1), this._corruptionFrameCounter % 2 === 0));
+        let runHeavyCorruptionUpdate = run30 && (((this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1), this._corruptionFrameCounter % 2 === 0));
 
         for (const link of list) {
             this.update(link, deltaTime, time, {
@@ -1611,7 +1642,7 @@ export class LinkRendererConduit {
         const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
         const visualDelta = frameStateOverride?.time?.visualDelta ?? VisualTime.delta;
         const heavyTick = frameStateOverride?.flags?.heavyTick ?? true;
-        const metrics = frameStateOverride?.metrics ?? this._readLinkMetrics(link);
+        let metrics = frameStateOverride?.metrics ?? this._readLinkMetrics(link);
         const frameState = frameStateOverride || {
             time: { visualTime, visualDelta, deltaTime, time },
             metrics
@@ -2639,6 +2670,9 @@ export class LinkRendererConduit {
         }
 
         // Final-pass wave modulation (single authoritative per-link flow path).
+        if (!state.energyWave && LinkEnergyWave) {
+            state.energyWave = new LinkEnergyWave();
+        }
         if (state.energyWave && this.modules.flow) {
             const baseEmissiveIntensity = state.strands[0]?.material?.emissiveIntensity || 1.2;
             state.energyWave.update(

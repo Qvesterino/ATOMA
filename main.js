@@ -6473,11 +6473,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                             this._picDiagFSLogged = true;
                         }
                         this.linkingSystem.update(dt, this.time);
-                        this.linkingSystem.conduitRenderer?.updateAll?.(
-                            this.linkingSystem.links,
-                            dt,
-                            this.time
-                        );
                     }
                 },
                 'visual.linkingSystem'

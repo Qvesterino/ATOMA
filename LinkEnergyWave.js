@@ -48,6 +48,7 @@ export class LinkEnergyWave {
      * @param {number} baseEmissiveIntensity - Starting emissive intensity for materials
      */
     update(strands, deltaTime, synergy = 0.5, traffic = 0, baseEmissiveIntensity = 1.2) {
+        const DEBUG_WAVE_VISIBLE = true;
         if (!strands || strands.length === 0) return;
         const safeSynergy = Math.max(0, Math.min(1, Number.isFinite(synergy) ? synergy : 0.5));
         const safeTraffic = Math.max(0, Math.min(1, Number.isFinite(traffic) ? traffic : 0));
@@ -92,11 +93,14 @@ export class LinkEnergyWave {
             // Final emissive intensity: base + modulation
             const modulation = this.config.baseIntensity + (normalizedInfluence * this.config.peakIntensity - this.config.baseIntensity);
             const finalIntensity = safeBase * (modulation * intensityMult);
+            const boosted = DEBUG_WAVE_VISIBLE
+                ? finalIntensity * 3.5
+                : finalIntensity;
 
             // Apply to material
             strand.material.emissiveIntensity = Math.max(
                 this.config.minimumVisibleIntensity,
-                Math.min(3.0, finalIntensity)
+                Math.min(6.0, boosted)
             );
         });
     }
