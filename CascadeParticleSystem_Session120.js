@@ -60,6 +60,8 @@ export class CascadeParticleSystem_Session120 {
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
     this._semanticUnsubscribers = [];
+    this._tmpSourceWorldPos = new THREE.Vector3();
+    this._tmpTargetWorldPos = new THREE.Vector3();
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
@@ -356,8 +358,8 @@ export class CascadeParticleSystem_Session120 {
 
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-    const sourcePosition = sourceNode?.position;
-    const targetPosition = targetNode?.position;
+    const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
     if (!sourcePosition || !targetPosition) return;
 
     const clampedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
@@ -449,8 +451,9 @@ export class CascadeParticleSystem_Session120 {
     if (!sourceNode || !targetNode) return;
 
     // Calculate midpoint position
-    const sourcePosition = sourceNode.position;
-    const targetPosition = targetNode.position;
+    const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+    if (!sourcePosition || !targetPosition) return;
     const midpoint = {
       x: (sourcePosition.x + targetPosition.x) * 0.5,
       y: (sourcePosition.y + targetPosition.y) * 0.5,
@@ -480,10 +483,9 @@ export class CascadeParticleSystem_Session120 {
    * Respects density clustering parameters from Session 121
    */
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
-    const curvePoints = link?.userData?.curvePoints;
-    const srcPos = sourcePosition ?? link?.source?.position ?? link?.sourceNode?.position ?? link?.from?.position ?? null;
-    const dstPos = targetPosition ?? link?.target?.position ?? link?.targetNode?.position ?? link?.to?.position ?? null;
-    if ((!curvePoints || curvePoints.length < 2) && (!srcPos || !dstPos)) return;
+    const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
+    const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
+    if (!srcPos || !dstPos) return;
     
     const color = link?.userData?.cascadeParticleColor || new THREE.Color(1, 1, 1);
     
@@ -600,11 +602,8 @@ export class CascadeParticleSystem_Session120 {
    * Implements Task 2: Velocity Direction Encoding
    */
   _updateSingleParticle(p, deltaTime, currentCascadeTime) {
-    const link = p.linkRef;
-    const points = link?.userData?.curvePoints;
-    const hasCurve = Array.isArray(points) && points.length >= 2;
-    const hasEndpoints = p.sourcePosition && p.targetPosition;
-    if (!hasCurve && !hasEndpoints) {
+    const hasEndpoints = this._isValidWorldPosition(p.sourcePosition) && this._isValidWorldPosition(p.targetPosition);
+    if (!hasEndpoints) {
       p.active = false;
       return;
     }
@@ -627,20 +626,7 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
     
-    if (hasCurve) {
-      // Interpolate position along curve
-      const idx = p.pathProgress * (points.length - 1);
-      const i1 = Math.floor(idx);
-      const i2 = Math.min(i1 + 1, points.length - 1);
-      const t = idx - i1;
-      
-      const p1 = points[i1];
-      const p2 = points[i2];
-      
-      p.position.lerpVectors(p1, p2, t);
-    } else {
-      p.position.lerpVectors(p.sourcePosition, p.targetPosition, p.pathProgress);
-    }
+    p.position.lerpVectors(p.sourcePosition, p.targetPosition, p.pathProgress);
     
     // Add offset
     p.position.add(p.pathOffset);
@@ -669,6 +655,25 @@ export class CascadeParticleSystem_Session120 {
     
     // 3. Forward Flow (Dominance)
     return 'forward';
+  }
+
+  _isValidWorldPosition(pos) {
+    if (!pos) return false;
+    if (
+      !Number.isFinite(pos.x) ||
+      !Number.isFinite(pos.y) ||
+      !Number.isFinite(pos.z)
+    ) return false;
+    if (pos.lengthSq() < 0.0001) return false;
+    return true;
+  }
+
+  _resolveWorldPosition(node, outVec) {
+    if (!node || !node.position) return null;
+    const pos = (typeof node.getWorldPosition === 'function')
+      ? node.getWorldPosition(outVec || new THREE.Vector3())
+      : node.position;
+    return this._isValidWorldPosition(pos) ? pos : null;
   }
   
   /**

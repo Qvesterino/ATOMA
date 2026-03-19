@@ -60,13 +60,26 @@ export function setupWaveBurstRouter(game) {
         accumulatedTime: 0,               // Time accumulator for update
         ambientTimer: 0,
         rngSeed: Math.random() * 10000,   // RNG seed for jitter
+        subscribed: false,
+        burstCounter: 0,
+        unsubscribers: []
     };
     
-    // Cache references
-    const waveEngine = game.waveInterferenceEngine;
-    const semanticBus = game.semanticBus;
-    const aiNodes = game.aiNodes;
-    const harmonicHubSystem = game.harmonicHubSystem;
+    function getWaveEngine() {
+        return game.waveInterferenceEngine || null;
+    }
+
+    function getSemanticBus() {
+        return game.semanticBus || globalThis?.semanticBus || null;
+    }
+
+    function getAiNodes() {
+        return game.aiNodes || null;
+    }
+
+    function getHarmonicHubSystem() {
+        return game.harmonicHubSystem || null;
+    }
 
     const TYPE_MAP = {
         cascade: 'synergy',
@@ -86,6 +99,7 @@ export function setupWaveBurstRouter(game) {
     };
 
     function findNodeById(nodeId) {
+        const aiNodes = getAiNodes();
         if (!nodeId || !aiNodes?.nodes) return null;
         return aiNodes.nodes.find((n) =>
             n?.id === nodeId ||
@@ -130,12 +144,20 @@ export function setupWaveBurstRouter(game) {
     function resolveToRegime(mappedType) {
         return REGIME_MAP[mappedType] || 'coherent';
     }
+
+    function resolveSourceId(mappedType, burstData = {}) {
+        if (burstData.sourceId) return String(burstData.sourceId);
+        const explicitNodeId = burstData.metadata?.nodeId || burstData.metadata?.sourceNodeId || burstData.metadata?.targetNodeId;
+        if (explicitNodeId) return `${mappedType}:${explicitNodeId}`;
+        return `${mappedType}:router:${++state.burstCounter}`;
+    }
     
     /**
      * Emit wave burst intent
      * @param {Object} burstData - Burst configuration
      */
     function emitBurst(burstData) {
+        const waveEngine = getWaveEngine();
         if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') {
             return;
         }
@@ -159,7 +181,7 @@ export function setupWaveBurstRouter(game) {
             type: mappedType,
             fromRegime: 'baseline',
             toRegime: resolveToRegime(mappedType),
-            sourceId: burstData.sourceId || undefined,
+            sourceId: resolveSourceId(mappedType, burstData),
             center: {
                 x: origin.x,
                 y: origin.y,
@@ -170,9 +192,10 @@ export function setupWaveBurstRouter(game) {
         };
         
         // Trigger burst
-        waveEngine.requestBurstIntent(intent);
-        
-        // Update last burst time
+        const snapshot = waveEngine.requestBurstIntent(intent);
+        if (!snapshot) return;
+
+        // Update last burst time only when request is accepted.
         state.lastBurstTime = performance.now() * 0.001;
         
         if (config.enableDebug) {
@@ -231,6 +254,10 @@ export function setupWaveBurstRouter(game) {
      * @param {Object} payload - Event payload
      */
     function handleCascadeEvent(payload) {
+        const waveEngine = getWaveEngine();
+        const aiNodes = getAiNodes();
+        const harmonicHubSystem = getHarmonicHubSystem();
+
         const packetLink = payload?.link || null;
         const packetLinkId = payload?.linkId || packetLink?.id || packetLink?.uuid || null;
         const packetSourceNode = packetLink?.source || packetLink?.sourceNode || payload?.sourceNode || null;
@@ -302,6 +329,7 @@ export function setupWaveBurstRouter(game) {
         
         const nodeId = payload.nodeId || payload.id;
         const node = findNodeById(nodeId);
+        const aiNodes = getAiNodes();
         
         // Check corruption threshold
         const corruption = (Number.isFinite(payload?.value) ? payload.value : null)
@@ -343,6 +371,7 @@ export function setupWaveBurstRouter(game) {
         
         // Try to get node position
         let position = new THREE.Vector3(0, 0, 0);
+        const aiNodes = getAiNodes();
         
         if (aiNodes && aiNodes.nodes) {
             const node = aiNodes.nodes.find(n => n.id === nodeId);
@@ -422,62 +451,60 @@ export function setupWaveBurstRouter(game) {
      * Subscribe to semantic bus events
      */
     function subscribeToEvents() {
-        if (!semanticBus) {
-            return;
+        const semanticBus = getSemanticBus();
+        if (!semanticBus || state.subscribed) {
+            return false;
         }
+
+        const subscribeFn =
+            (typeof semanticBus.subscribe === 'function' && semanticBus.subscribe.bind(semanticBus)) ||
+            (typeof semanticBus.on === 'function' && semanticBus.on.bind(semanticBus)) ||
+            null;
+        const unsubscribeFn =
+            (typeof semanticBus.unsubscribe === 'function' && semanticBus.unsubscribe.bind(semanticBus)) ||
+            (typeof semanticBus.off === 'function' && semanticBus.off.bind(semanticBus)) ||
+            null;
+        if (!subscribeFn) return false;
+
+        const addSubscription = (tag, handler, priority) => {
+            subscribeFn(tag, handler, { priority });
+            if (unsubscribeFn) {
+                state.unsubscribers.push(() => unsubscribeFn(tag, handler));
+            }
+        };
         
         // Synergy events
-        semanticBus.subscribe('node.synergy.high', handleSynergyEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
-        semanticBus.subscribe('metric:synergySpike', handleSynergyEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
+        addSubscription('node.synergy.high', handleSynergyEvent, semanticBus.priority?.NORMAL);
+        addSubscription('metric:synergySpike', handleSynergyEvent, semanticBus.priority?.NORMAL);
+        addSubscription('link:synergyThreshold', handleSynergyEvent, semanticBus.priority?.NORMAL);
         
         // Cascade events
-        semanticBus.subscribe('cascade.triggered', handleCascadeEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
-        semanticBus.subscribe('harmonic.cascade.start', handleCascadeEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
-        semanticBus.subscribe('link.created', handleCascadeEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
+        addSubscription('cascade.triggered', handleCascadeEvent, semanticBus.priority?.NORMAL);
+        addSubscription('harmonic.cascade.start', handleCascadeEvent, semanticBus.priority?.NORMAL);
+        addSubscription('link.created', handleCascadeEvent, semanticBus.priority?.NORMAL);
+        addSubscription('cascade.start', handleCascadeEvent, semanticBus.priority?.NORMAL);
+        addSubscription('cascade.hop', handleCascadeEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('cascade.end', handleCascadeEvent, semanticBus.priority?.NORMAL);
         
         // Corruption/failure events
-        semanticBus.subscribe('node.corruption.high', handleCorruptionEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
-        semanticBus.subscribe('node.failure', handleCorruptionEvent, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
-        semanticBus.subscribe('metric:corruptionRise', handleCorruptionEvent, {
-            priority: semanticBus.priority.NORMAL
-        });
-        semanticBus.subscribe('network:corruptionSpread', handleCorruptionEvent, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
-        semanticBus.subscribe('link:collapsed', handleCorruptionEvent, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
+        addSubscription('node.corruption.high', handleCorruptionEvent, semanticBus.priority?.NORMAL);
+        addSubscription('node.failure', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('metric:corruptionRise', handleCorruptionEvent, semanticBus.priority?.NORMAL);
+        addSubscription('network:corruptionSpread', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('link:collapsed', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         
         // User interaction (debug)
-        semanticBus.subscribe('node.hover', handleUserInteraction, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
-        semanticBus.subscribe('node.click', handleUserInteraction, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
-        semanticBus.subscribe('node:selected', handleUserInteraction, {
-            priority: semanticBus.priority.INTERACTIVE
-        });
+        addSubscription('node.hover', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('node.click', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('node:selected', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        addSubscription('event:synergyCascade', handleSynergyCascadeGameplay, semanticBus.priority?.NORMAL);
+        addSubscription('event:harmonyResonance', handleHarmonyResonanceGameplay, semanticBus.priority?.NORMAL);
+        addSubscription('event:corruptionOutbreak', handleCorruptionOutbreakGameplay, semanticBus.priority?.NORMAL);
+        addSubscription('event:instabilityTrap', handleInstabilityTrapGameplay, semanticBus.priority?.NORMAL);
+        addSubscription('event:loadCollapse', handleLoadCollapseGameplay, semanticBus.priority?.NORMAL);
 
-        globalThis.semanticBus?.on?.('event:synergyCascade', handleSynergyCascadeGameplay);
-        globalThis.semanticBus?.on?.('event:harmonyResonance', handleHarmonyResonanceGameplay);
-        globalThis.semanticBus?.on?.('event:corruptionOutbreak', handleCorruptionOutbreakGameplay);
-        globalThis.semanticBus?.on?.('event:instabilityTrap', handleInstabilityTrapGameplay);
-        globalThis.semanticBus?.on?.('event:loadCollapse', handleLoadCollapseGameplay);
+        state.subscribed = true;
+        return true;
     }
     
     /**
@@ -485,6 +512,10 @@ export function setupWaveBurstRouter(game) {
      * @param {number} deltaTime - Frame delta time in seconds
      */
     function update(deltaTime) {
+        if (!state.subscribed) {
+            subscribeToEvents();
+        }
+
         // Accumulate time for cooldown tracking
         state.accumulatedTime += deltaTime;
         state.ambientTimer += deltaTime;
@@ -538,27 +569,15 @@ export function setupWaveBurstRouter(game) {
      * Dispose router (cleanup)
      */
     function dispose() {
-        // Unsubscribe from semantic bus events
-        if (semanticBus) {
-            semanticBus.unsubscribe('node.synergy.high', handleSynergyEvent);
-            semanticBus.unsubscribe('metric:synergySpike', handleSynergyEvent);
-            semanticBus.unsubscribe('cascade.triggered', handleCascadeEvent);
-            semanticBus.unsubscribe('harmonic.cascade.start', handleCascadeEvent);
-            semanticBus.unsubscribe('link.created', handleCascadeEvent);
-            semanticBus.unsubscribe('node.corruption.high', handleCorruptionEvent);
-            semanticBus.unsubscribe('node.failure', handleCorruptionEvent);
-            semanticBus.unsubscribe('metric:corruptionRise', handleCorruptionEvent);
-            semanticBus.unsubscribe('network:corruptionSpread', handleCorruptionEvent);
-            semanticBus.unsubscribe('link:collapsed', handleCorruptionEvent);
-            semanticBus.unsubscribe('node.hover', handleUserInteraction);
-            semanticBus.unsubscribe('node.click', handleUserInteraction);
-            semanticBus.unsubscribe('node:selected', handleUserInteraction);
+        for (const unsubscribe of state.unsubscribers) {
+            try {
+                unsubscribe();
+            } catch (_err) {
+                // no-op
+            }
         }
-        globalThis.semanticBus?.unsubscribe?.('event:synergyCascade', handleSynergyCascadeGameplay);
-        globalThis.semanticBus?.unsubscribe?.('event:harmonyResonance', handleHarmonyResonanceGameplay);
-        globalThis.semanticBus?.unsubscribe?.('event:corruptionOutbreak', handleCorruptionOutbreakGameplay);
-        globalThis.semanticBus?.unsubscribe?.('event:instabilityTrap', handleInstabilityTrapGameplay);
-        globalThis.semanticBus?.unsubscribe?.('event:loadCollapse', handleLoadCollapseGameplay);
+        state.unsubscribers = [];
+        state.subscribed = false;
     }
     
     // Initialize

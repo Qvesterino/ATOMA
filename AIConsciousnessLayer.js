@@ -320,6 +320,9 @@ export class AIConsciousnessLayer {
   _spawnPulsePacket(link) {
     if (!this.config.enabled) return;
     
+    // HARD STOP: Validate link has required properties
+    if (!link || !link.nodeA || !link.nodeB) return;
+    
     // Get from pool
     let pulse = this.particlePools.pulsePackets.find(p => !p.active);
     if (!pulse) {
@@ -630,10 +633,16 @@ export class AIConsciousnessLayer {
    * Spawn new thoughts on active links
    */
   _spawnNewThoughts() {
+    // STRICT GUARD: Skip if no valid linking system
+    if (!this.linkingSystem || !this.linkingSystem.links || this.linkingSystem.links.length === 0) {
+      return;
+    }
+    
     const links = this.linkingSystem?.links || [];
     
     for (const link of links) {
-      if (!link.nodeA || !link.nodeB) continue;
+      // Skip invalid links
+      if (!link || !link.nodeA || !link.nodeB) continue;
       
       // Create neural thread if not exists
       if (!this.activeThoughts.threadMeshes.has(link.id) && Math.random() < 0.2) {

@@ -588,7 +588,19 @@ export class CorruptionVisualFX_v1 {
    * Spawn chaos particles at high corruption levels
    */
   spawnChaosParticles(nodeModel, corruptionLevel, deltaTime, visualState) {
-    if (!THREE || !nodeModel.position) return;
+    if (!THREE) return;
+    
+    // HARD BLOCK: Validate nodeModel exists
+    if (!nodeModel) {
+      if (this.debugMode) console.log('[Corruption] orphan spawn blocked - no nodeModel');
+      return;
+    }
+    
+    // HARD BLOCK: Validate position exists
+    if (!nodeModel.position && !nodeModel.mesh?.position) {
+      if (this.debugMode) console.log('[Corruption] orphan spawn blocked - no position');
+      return;
+    }
 
     const now = performance.now();
 
@@ -628,15 +640,37 @@ export class CorruptionVisualFX_v1 {
    * Emit a single chaos particle
    */
   emitChaosParticle(nodeModel, corruptionLevel, isBurst = false) {
-    if (!THREE || !nodeModel.position) return;
+    if (!THREE) return;
+    
+    // HARD BLOCK: Validate nodeModel exists
+    if (!nodeModel) {
+      if (this.debugMode) console.log('[Corruption] orphan emit blocked - no nodeModel');
+      return;
+    }
+    
+    // HARD BLOCK: Validate position exists
+    if (!nodeModel.position && !nodeModel.mesh?.position) {
+      if (this.debugMode) console.log('[Corruption] orphan emit blocked - no position');
+      return;
+    }
+
+    // Get position with fallback
+    const nodePos = nodeModel?.position?.clone?.() 
+      || nodeModel?.mesh?.position?.clone?.();
+    
+    // HARD GUARD: Block origin spawn (0,0,0)
+    if (!nodePos || (nodePos.x === 0 && nodePos.y === 0 && nodePos.z === 0)) {
+      if (this.debugMode) console.warn('[CorruptionVFX] origin spawn blocked - source at (0,0,0)');
+      return;
+    }
 
     // Particle properties
     const particle = {
-      position: nodeModel.position.clone().add(
+      position: nodePos.add(
         new THREE.Vector3(
-          (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 0.5,
-          (Math.random() - 0.5) * 0.5
+          (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.3
         )
       ),
       startPosition: null, // will be set to position after creation
@@ -676,7 +710,12 @@ export class CorruptionVisualFX_v1 {
       particle.life = 1 - (particle.age / particle.maxLife);
 
       // Update position with gravity using base position (no incremental adds)
-      const start = particle.startPosition || new THREE.Vector3();
+      // HARD GUARD: Skip if no startPosition (orphan particle)
+      if (!particle.startPosition) {
+        this.activeParticles.splice(i, 1);
+        continue;
+      }
+      const start = particle.startPosition;
       const vx = particle.baseVelocity?.x || 0;
       const vy = particle.baseVelocity?.y || 0;
       const vz = particle.baseVelocity?.z || 0;

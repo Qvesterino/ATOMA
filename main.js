@@ -3997,7 +3997,7 @@ class AtomaGame {
         // NEW: Update resonance cascade visualization
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
-            if (resonanceCascadeVisualization && resonanceCascadeVisualization.config.enabled) {
+            if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
                 resonanceCascadeVisualization.update(dt, this.time);
             }
         }, 'visual.resonanceCascadeVisualization');
@@ -4074,6 +4074,9 @@ class AtomaGame {
             }
         }, 'visual.synergyTravelingWaveFX');
         this.frameScheduler.register('visual', (dt) => {
+            if (!this.waveBurstRouter && this._initWaveBurstRouter) {
+                this._initWaveBurstRouter();
+            }
             if (this.waveBurstRouter) {
                 this.waveBurstRouter.update(dt);
             }
@@ -4094,7 +4097,13 @@ class AtomaGame {
             const harmonicResonanceFeedbackSystem =
                 this.harmonicResonanceFeedbackSystem || this.harmonicResonance;
             if (harmonicResonanceFeedbackSystem) {
-                harmonicResonanceFeedbackSystem.update?.(dt);
+                const pictogramSystem = this.linkSemanticPictograms || this.linkPictogramSystem;
+                harmonicResonanceFeedbackSystem.update?.(
+                    dt,
+                    pictogramSystem?.fusionZoneManager,
+                    pictogramSystem?.pictograms,
+                    this.linkingSystem || this.nodeLinking || this.nodeLinkingSystem
+                );
             }
         }, 'visual.harmonicResonanceFeedback');
         this.frameScheduler.register('visual', () => {
@@ -5414,18 +5423,39 @@ window.__ATOMA_SCENE__ = this.scene;
                 console.log("debugWaveSnapshot", snap);
                 return snap;
             };
+            window.debugWaveBurstLifecycle = (limit = 12) => {
+                const metrics = this.waveInterferenceEngine?.getMetrics?.() || null;
+                const lifecycle = this.waveInterferenceEngine?.getBurstLifecycleEvents?.(limit) || [];
+                const payload = { metrics, lifecycle };
+                console.log('debugWaveBurstLifecycle', payload);
+                return payload;
+            };
             console.log('[main.js] WaveInterferenceEngine_v1 initialized (burst snapshot pipeline)');
         } catch (err) {
             console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
         }
 
         // Initialize Wave Burst Router (event-driven burst triggering)
+        this._initWaveBurstRouter = () => {
+            if (this.waveBurstRouter) return this.waveBurstRouter;
+            if (!this.semanticBus || !this.waveInterferenceEngine) return null;
+            try {
+                this.waveBurstRouter = setupWaveBurstRouter(this);
+                return this.waveBurstRouter;
+            } catch (_err) {
+                return null;
+            }
+        };
         try {
-            this.waveBurstRouter = setupWaveBurstRouter(this);
-            console.log('[main.js] WaveBurstRouter initialized ✓');
-            console.log('  - Listens to synergy, cascade, corruption, interaction events');
-            console.log('  - Auto-triggers wave bursts with 1.5s cooldown');
-            console.log('  - Makes wave effects visible without manual intervention');
+            const router = this._initWaveBurstRouter();
+            if (router) {
+                console.log('[main.js] WaveBurstRouter initialized ✓');
+                console.log('  - Listens to synergy, cascade, corruption, interaction events');
+                console.log('  - Auto-triggers wave bursts with 1.5s cooldown');
+                console.log('  - Makes wave effects visible without manual intervention');
+            } else {
+                console.warn('[main.js] WaveBurstRouter pending: semanticBus/waveEngine not ready');
+            }
             window.debugWaveRouterStatus = () => {
                 console.log(this.waveBurstRouter?.getStatus?.());
                 return this.waveBurstRouter?.getStatus?.();
@@ -8370,6 +8400,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     debugMode: false
                 }
             );
+            this.cascadeAccelSetup.frameScheduler = this.frameScheduler;
             
             // Defer initialization until after all systems are ready
             // (nodeDynamicMetrics and linkingSystem must be fully initialized)
@@ -8954,37 +8985,34 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupCascadeResonanceWaveVisualization() {
         try {
-            // Create stubs if systems don't exist
-            if (!this.harmonicCascadeAmplification) {
-                this.harmonicCascadeAmplification = {
-                    getCascadeAmplification: (nodeId) => ({ intensity: 0, active: false })
-                };
-                console.warn('[main.js] HarmonicCascadeAmplification stub created');
+            const cascadeSystem = this.harmonicCascadeAmplification;
+            const harmonicHubSystem = this.harmonicHubAuraSystem;
+            const linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
+
+            if (!cascadeSystem || !harmonicHubSystem || !linkResonanceSystem) {
+                console.warn('[main.js] CascadeResonanceWaveVisualization pending: dependencies not ready');
+                return;
             }
-            
-            if (!this.harmonicHubAuraSystem) {
-                this.harmonicHubAuraSystem = {
-                    getHarmonicHubs: () => []
-                };
-                console.warn('[main.js] HarmonicHubAuraSystem stub created');
+
+            if (this.cascadeResonanceWave) {
+                this.cascadeResonanceWave.cascadeSystem = cascadeSystem;
+                this.cascadeResonanceWave.harmonicHubSystem = harmonicHubSystem;
+                this.cascadeResonanceWave.linkResonanceSystem = linkResonanceSystem;
+                this.cascadeResonanceWave.frameScheduler = this.frameScheduler;
+                this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
+                return;
             }
-            
-            if (!this.linkResonanceSystem) {
-                this.linkResonanceSystem = {
-                    getLinkResonance: () => ({ intensity: 0, active: false })
-                };
-                console.warn('[main.js] LinkResonanceSystem stub created');
-            }
-            
+
             this.cascadeResonanceWave = new CascadeResonanceWaveVisualization_Session146(
-                this.harmonicCascadeAmplification,
-                this.harmonicHubAuraSystem,
-                this.linkResonanceSystem,
+                cascadeSystem,
+                harmonicHubSystem,
+                linkResonanceSystem,
                 {
                     enabled: true,
                     debugMode: false
                 }
             );
+            this.cascadeResonanceWave.frameScheduler = this.frameScheduler;
             this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
             
             console.log('[main.js] CascadeResonanceWaveVisualization initialized ✓');
@@ -9021,6 +9049,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 enabled: true,
                 debugMode: false
             });
+            this.resonanceCascadeVisualization.frameScheduler = this.frameScheduler;
             this.resonanceCascade = this.resonanceCascadeVisualization;
             
             console.log('[main.js] ResonanceCascadeVisualization initialized ✓');
@@ -9683,6 +9712,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.stressVisualShaderSystem.update(deltaTime, this.time, nodes);
         }
 
+        if (!this.waveBurstRouter && this._initWaveBurstRouter) {
+            this._initWaveBurstRouter();
+        }
         if (this.waveBurstRouter?.update) {
             this.waveBurstRouter.update(deltaTime);
         }
@@ -11661,6 +11693,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.linkingSystem,
                 this.regionalEquilibrium
             );
+            this.cascadingRuptures.frameScheduler = this.frameScheduler;
+            if (Array.isArray(this.cascadingRuptures.visualEffects)) {
+                for (const effect of this.cascadingRuptures.visualEffects) {
+                    if (effect) effect.frameScheduler = this.frameScheduler;
+                }
+            }
 
             // Initialize critical node failure system (link severing)
             this.criticalNodeFailure = new CriticalNodeFailureSystem(
@@ -11684,19 +11722,53 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             };
 
-            // Connect cascade particle system to cascade events (visual-only)
-            if (this.cascadingRuptures && this.cascadeParticleSystem) {
-                this.cascadingRuptures.onCascade = (cascadeEvent) => {
-                    const node = cascadeEvent?.node;
-                    if (!node?.position) return;
-
-                    this.cascadeParticleSystem.trigger({
-                        position: node.position,
-                        strength: cascadeEvent.energy ?? 1.0,
-                        corruption: node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0
-                    });
+            // Connect rupture cascade callbacks to semantic events + cascade particles
+            if (this.cascadingRuptures) {
+                this.cascadingRuptures.onCascadeStart = (originNode, energy) => {
+                    this.semanticBus?.emit?.(
+                        'cascade.start',
+                        {
+                            sourceNode: originNode,
+                            center: originNode?.position || null,
+                            intensity: energy ?? 0,
+                            value: energy ?? 0
+                        },
+                        { priority: this.semanticBus?.priority?.INTERACTIVE ?? this.semanticBus?.priority?.NORMAL }
+                    );
                 };
-                console.log('[CASCADE] Particle system connected to CascadingRuptureSystem');
+
+                this.cascadingRuptures.onCascadeHop = (fromNode, toNode, energy, link, hopIndex = 0) => {
+                    if (link) {
+                        this.cascadeParticleSystem?.spawnCascadeParticles?.(link, energy ?? 0, hopIndex);
+                    }
+                    this.semanticBus?.emit?.(
+                        'cascade.hop',
+                        {
+                            sourceNode: fromNode,
+                            targetNode: toNode,
+                            link: link || null,
+                            intensity: energy ?? 0,
+                            value: energy ?? 0,
+                            hopIndex
+                        },
+                        { priority: this.semanticBus?.priority?.INTERACTIVE ?? this.semanticBus?.priority?.NORMAL }
+                    );
+                };
+
+                this.cascadingRuptures.onCascadeComplete = (originNode, totalHops) => {
+                    this.semanticBus?.emit?.(
+                        'cascade.end',
+                        {
+                            sourceNode: originNode,
+                            targetNode: null,
+                            link: null,
+                            totalHops: totalHops ?? 0,
+                            intensity: 0,
+                            value: 0
+                        },
+                        { priority: this.semanticBus?.priority?.NORMAL }
+                    );
+                };
             }
 
             // Register CascadingRuptureSystem update loop to FrameScheduler
@@ -11777,6 +11849,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupHarmonicResonanceFeedback() {
         try {
             this.harmonicResonanceFeedbackSystem = new HarmonicResonanceFeedbackSystem(this.scene);
+            this.harmonicResonanceFeedbackSystem.frameScheduler = this.frameScheduler;
+            if (Array.isArray(this.harmonicResonanceFeedbackSystem.resonanceFields)) {
+                for (const field of this.harmonicResonanceFeedbackSystem.resonanceFields) {
+                    if (field) field.frameScheduler = this.frameScheduler;
+                }
+            }
             this.harmonicResonance = this.harmonicResonanceFeedbackSystem;
             setupHarmonicResonanceConsoleAPI(this, this.harmonicResonanceFeedbackSystem);
             console.log('[main.js] HarmonicResonanceFeedbackSystem initialized ✓');
@@ -11794,6 +11872,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupResonanceEchoTrails() {
         try {
             this.resonanceEchoTrailSystem = new ResonanceEchoTrailSystem(this.scene, this.worldRoot);
+            this.resonanceEchoTrailSystem.frameScheduler = this.frameScheduler;
             this.resonanceEchoTrails = this.resonanceEchoTrailSystem;
             setupResonanceEchoConsoleAPI(this, this.resonanceEchoTrailSystem);
             console.log('[main.js] ResonanceEchoTrailSystem initialized ✓');
@@ -12328,14 +12407,30 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     debugMode: false,
                 }
             );
+            this.harmonicCascadeAmplification.frameScheduler = this.frameScheduler;
             this.harmonicCascadeAmplification.init?.();
 
-            // Rebind existing wave visualization if it was initialized earlier with a stub cascade system.
+            // Rebind existing wave visualization to live systems.
             if (this.cascadeResonanceWave) {
                 this.cascadeResonanceWave.cascadeSystem = this.harmonicCascadeAmplification;
+                this.cascadeResonanceWave.harmonicHubSystem = this.harmonicHubAuraSystem;
+                this.cascadeResonanceWave.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
             }
             if (this.cascadeResonanceWaveVisualization) {
                 this.cascadeResonanceWaveVisualization.cascadeSystem = this.harmonicCascadeAmplification;
+                this.cascadeResonanceWaveVisualization.harmonicHubSystem = this.harmonicHubAuraSystem;
+                this.cascadeResonanceWaveVisualization.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
+            } else {
+                this.setupCascadeResonanceWaveVisualization();
+            }
+
+            if (this.frameScheduler && !this._harmonicCascadeAmplificationRegistered) {
+                this.frameScheduler.register('simulation', (dt) => {
+                    if (this.harmonicCascadeAmplification && this.harmonicCascadeAmplification.config.enabled) {
+                        this.harmonicCascadeAmplification.update(dt);
+                    }
+                }, 'simulation.harmonicCascadeAmplification');
+                this._harmonicCascadeAmplificationRegistered = true;
             }
 
             console.log('✓ Harmonic Cascade Amplification System (Session 145) initialized');

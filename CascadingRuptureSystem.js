@@ -482,7 +482,7 @@ export class CascadingRuptureSystem {
 
             // Fire hop event
             if (this.onCascadeHop) {
-                this.onCascadeHop(fromNode, toNode, cascade.currentEnergy);
+                this.onCascadeHop(fromNode, toNode, cascade.currentEnergy, link, cascade.currentDepth);
             }
 
             // Record rupture in history

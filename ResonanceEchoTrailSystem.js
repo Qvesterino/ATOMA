@@ -269,7 +269,11 @@ export class ResonanceEchoTrailSystem {
         this.updateTimer = 0.0;
         this._timeOrigin = undefined;
         this._lastVisualTime = undefined;
-        this._boundWaveBurstHandler = (burst) => this.spawnEchoTrail(burst?.center, burst?.intensity);
+        this._boundWaveBurstHandler = (burst) => {
+            const resolved = this._resolveBurstPayload(burst);
+            if (!resolved) return;
+            this.spawnEchoTrail(resolved.center, resolved.intensity);
+        };
         
         // Debug
         this.debugEchoVisualization = null;
@@ -286,6 +290,36 @@ export class ResonanceEchoTrailSystem {
     _subscribeSemanticEvents() {
         if (!this.semanticBus?.on) return;
         this.semanticBus.on('wave.burst', this._boundWaveBurstHandler);
+        this.semanticBus.on('wave.burst.lifecycle', this._boundWaveBurstHandler);
+        this.semanticBus.on('wave.packet.spawn', this._boundWaveBurstHandler);
+    }
+
+    _resolveBurstPayload(event = {}) {
+        const lifecyclePayload = event?.payload || {};
+        const lifecycleSnapshot = lifecyclePayload?.snapshot || {};
+        const lifecycleIntent = lifecyclePayload?.intent || {};
+        const lifecycleCenter = lifecycleSnapshot?.spatial?.center || lifecycleIntent?.center || null;
+
+        const center =
+            event?.center ||
+            event?.position ||
+            lifecycleCenter ||
+            null;
+
+        const rawIntensity =
+            event?.intensity ??
+            event?.value ??
+            lifecycleIntent?.energy ??
+            lifecycleIntent?.intensity ??
+            lifecycleIntent?.intensityEnvelope?.peak ??
+            lifecyclePayload?.intensity ??
+            0.5;
+
+        if (!center) return null;
+        return {
+            center,
+            intensity: Number.isFinite(rawIntensity) ? rawIntensity : 0.5
+        };
     }
 
     _getCurrentVisualTime() {
@@ -562,6 +596,12 @@ export class ResonanceEchoTrailSystem {
 
         if (this.semanticBus?.unsubscribe) {
             this.semanticBus.unsubscribe('wave.burst', this._boundWaveBurstHandler);
+            this.semanticBus.unsubscribe('wave.burst.lifecycle', this._boundWaveBurstHandler);
+            this.semanticBus.unsubscribe('wave.packet.spawn', this._boundWaveBurstHandler);
+        } else if (this.semanticBus?.off) {
+            this.semanticBus.off('wave.burst', this._boundWaveBurstHandler);
+            this.semanticBus.off('wave.burst.lifecycle', this._boundWaveBurstHandler);
+            this.semanticBus.off('wave.packet.spawn', this._boundWaveBurstHandler);
         }
 
         this.root?.traverse(obj => {

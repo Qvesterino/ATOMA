@@ -76,6 +76,7 @@ export class WaveParticleEmitter_v1 {
 
     // Time tracking
     this.time = 0;
+    this._tmpNodeWorldPos = new THREE.Vector3();
 
     if (this.config.debugMode) {
       console.log('[WaveParticleEmitter_v1] Constructor initialized', this.config);
@@ -375,6 +376,9 @@ export class WaveParticleEmitter_v1 {
    */
   _emitConstructiveBurst(node, strength = 1) {
     try {
+      const pos = this._resolveEmissionPosition(node);
+      if (!pos) return;
+
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
@@ -393,7 +397,6 @@ export class WaveParticleEmitter_v1 {
         1,
         Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * scaled)
       );
-      const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < burstCount; i++) {
         const particle = this._allocateParticle('constructiveBurst');
@@ -431,6 +434,9 @@ export class WaveParticleEmitter_v1 {
    */
   _emitDestructiveChaos(node, strength = 1) {
     try {
+      const pos = this._resolveEmissionPosition(node);
+      if (!pos) return;
+
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
@@ -449,7 +455,6 @@ export class WaveParticleEmitter_v1 {
         1,
         Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * scaled)
       );
-      const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < burstCount; i++) {
         const particle = this._allocateParticle('destructiveChaos');
@@ -490,6 +495,9 @@ export class WaveParticleEmitter_v1 {
    */
   _emitStandingWaveRipple(node, strength = 1) {
     try {
+      const pos = this._resolveEmissionPosition(node);
+      if (!pos) return;
+
       const nodeId = node?.id ?? node?.uuid;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
@@ -508,7 +516,6 @@ export class WaveParticleEmitter_v1 {
         1,
         Math.floor((1 + Math.random() * 1.99) * this.config.emissionRate * scaled)
       );
-      const pos = node?.position ?? new THREE.Vector3();
 
       for (let i = 0; i < rippleCount; i++) {
         const particle = this._allocateParticle('standingWaveRipple');
@@ -557,6 +564,23 @@ export class WaveParticleEmitter_v1 {
     if (value < 0) return 0;
     if (value > 1) return 1;
     return value;
+  }
+
+  _resolveEmissionPosition(node) {
+    if (!node || !node.position) return null;
+
+    const pos = (typeof node.getWorldPosition === 'function')
+      ? node.getWorldPosition(this._tmpNodeWorldPos)
+      : node.position;
+
+    if (
+      !Number.isFinite(pos.x) ||
+      !Number.isFinite(pos.y) ||
+      !Number.isFinite(pos.z)
+    ) return null;
+
+    if (pos.lengthSq() < 0.0001) return null;
+    return pos;
   }
 
   /**
