@@ -8,7 +8,7 @@
  * 
  * ARCHITECTURE:
  * - WaveInterferenceEngine publishes burst snapshots
- * - Bridge samples link wave field from engine (legacy userData fallback)
+ * - Bridge reads active burst snapshot from engine
  * - Bridge extracts wave amplitude + phase → pulse position (0-1)
  * - Calls pulseIntersectionAdapter.updatePulsePosition() per link per frame
  * - Result: Neural firing appears to follow energy wave propagation
@@ -23,12 +23,6 @@ export class PulseWaveSystemBridge_v1 {
     this.debugMode = config.debugMode ?? false;
     this.world = config.world || null;
     this.waveEngine = config.waveEngine || this.world?.waveInterferenceEngine || null;
-    this.eventBus =
-      config.eventBus ||
-      this.world?.semanticBus ||
-      globalThis?.semanticBus ||
-      globalThis?.game?.semanticBus ||
-      null;
     
     // Configuration
     this.pulseWidthFactor = config.pulseWidthFactor ?? 0.12;      // How wide pulse appears
@@ -37,11 +31,9 @@ export class PulseWaveSystemBridge_v1 {
     
     // Active tracking
     this.activeLinkWaves = new Map();  // linkId → { phase, amplitude, ... }
-    this.activePackets = new Map();    // packetId -> traveling packet state
     this._linkCursor = 0;
     this._timeBudgetMs = config.timeBudgetMs ?? 3.5;
-    
-    this._bindPacketEvents();
+
     // Console API
     this.setupConsoleAPI();
     
@@ -67,6 +59,38 @@ export class PulseWaveSystemBridge_v1 {
     }
     
     try {
+      const snapshot = waveEngine?.getActiveSnapshot?.() || null;
+      if (!snapshot?.timeline) {
+        this.activeLinkWaves.clear();
+        return;
+      }
+
+      const nowSec = performance.now() * 0.001;
+      const startAt = Number(snapshot.timeline.startAt);
+      const peakAt = Number(snapshot.timeline.peakAt);
+      const endAt = Number(snapshot.timeline.endAt);
+      if (!Number.isFinite(startAt) || !Number.isFinite(peakAt) || !Number.isFinite(endAt)) {
+        return;
+      }
+      if (nowSec < startAt || nowSec > endAt) {
+        this.activeLinkWaves.clear();
+        return;
+      }
+
+      const riseDuration = Math.max(0.0001, peakAt - startAt);
+      const decayDuration = Math.max(0.0001, endAt - peakAt);
+      let envelope = 0;
+      if (nowSec <= peakAt) envelope = Math.max(0, Math.min(1, (nowSec - startAt) / riseDuration));
+      else envelope = Math.max(0, Math.min(1, 1 - ((nowSec - peakAt) / decayDuration)));
+
+      const totalDuration = Math.max(0.0001, endAt - startAt);
+      const phase01 = Math.max(0, Math.min(1, (nowSec - startAt) / totalDuration));
+      const phase = phase01 * Math.PI * 2;
+      const burstType = `${snapshot.type || ''}`.toLowerCase();
+      const constructiveBase = burstType === 'corruption' ? envelope * 0.2 : burstType === 'synergy' ? envelope * 0.85 : envelope;
+      const destructiveBase = burstType === 'corruption' ? envelope * 0.95 : burstType === 'synergy' ? envelope * 0.12 : envelope * 0.05;
+      const amplitudeBase = envelope;
+
       const startTime = performance.now();
       const totalLinks = links.length;
       if (totalLinks === 0) return;
@@ -88,20 +112,25 @@ export class PulseWaveSystemBridge_v1 {
           continue;
         }
         
-        // Read burst field from engine first; fallback to legacy userData.
-        const waveField =
-          waveEngine?.getLinkWaveField?.(linkId, link) ??
-          link?.userData?.waveField;
-        if (!waveField) {
-          processed += 1;
-          continue;
+        let radialAttenuation = 1.0;
+        const center = snapshot?.spatial?.center || null;
+        const radius = Number(snapshot?.spatial?.scope?.radius || 0);
+        const src = link?.source || link?.sourceNode || null;
+        const dst = link?.target || link?.targetNode || null;
+        if (center && radius > 0 && src?.position && dst?.position) {
+          const mx = (src.position.x + dst.position.x) * 0.5;
+          const my = (src.position.y + dst.position.y) * 0.5;
+          const mz = (src.position.z + dst.position.z) * 0.5;
+          const dx = mx - center.x;
+          const dy = my - center.y;
+          const dz = mz - center.z;
+          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          radialAttenuation = Math.max(0, Math.min(1, 1 - (distance / radius)));
         }
-        
-        // Extract wave metrics
-        const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
-        const phase = waveField.phase ?? ((waveField.travelPhase ?? 0) * Math.PI * 2 - Math.PI);
-        const harmonicLevel = waveField.harmonicLevel ?? waveField.constructivePower ?? waveField.constructive ?? 0;
-        const destructiveInterference = waveField.destructiveInterference ?? waveField.destructivePower ?? waveField.destructive ?? 0;
+
+        const amplitude = Math.max(0, Math.min(1, amplitudeBase * radialAttenuation));
+        const harmonicLevel = Math.max(0, Math.min(1, constructiveBase * radialAttenuation));
+        const destructiveInterference = Math.max(0, Math.min(1, destructiveBase * radialAttenuation));
         
         // Skip low-amplitude waves
         if (amplitude < this.minAmplitudeToFire) {
@@ -111,7 +140,7 @@ export class PulseWaveSystemBridge_v1 {
         }
         
         // Convert phase to pulse position (0-1)
-        const normalizedPhase = (phase + Math.PI) / (Math.PI * 2);
+        const normalizedPhase = phase01;
         const pulsePosition = (normalizedPhase * this.pulseSpeedFactor) % 1.0;
         
         // Pulse width modulated by amplitude
@@ -157,7 +186,6 @@ export class PulseWaveSystemBridge_v1 {
       }
       
       this._linkCursor = (this._linkCursor + processed) % totalLinks;
-      this._updateTravelingPackets(deltaTime, links, pulseIntersectionAdapter, nodeDynamicMetrics);
       
       // Clean up stale entries
       const now = Date.now();
@@ -170,82 +198,6 @@ export class PulseWaveSystemBridge_v1 {
     } catch (err) {
       console.warn('[PulseWaveSystemBridge] update error:', err);
     }
-  }
-
-  _bindPacketEvents() {
-    const bus = this.eventBus;
-    if (!bus) return;
-    const handler = (event) => this.spawnPacket(event);
-    if (typeof bus.on === 'function') {
-      bus.on('wave.packet.spawn', handler);
-      return;
-    }
-    if (typeof bus.subscribe === 'function') {
-      bus.subscribe('wave.packet.spawn', handler);
-      return;
-    }
-    if (typeof bus.addListener === 'function') {
-      bus.addListener('wave.packet.spawn', handler);
-    }
-  }
-
-  spawnPacket(event = {}) {
-    const linkId = event.linkId || null;
-    if (!linkId) return;
-
-    const packetId = `${linkId}:${Date.now()}`;
-    this.activePackets.set(packetId, {
-      linkId,
-      sourceNode: event.sourceNode || null,
-      targetNode: event.targetNode || null,
-      phase: Number.isFinite(event.phase) ? event.phase : 0,
-      intensity: Math.max(0, Math.min(1, event.intensity ?? 1)),
-      progress: 0
-    });
-  }
-
-  _updateTravelingPackets(deltaTime, links, pulseIntersectionAdapter, nodeDynamicMetrics) {
-    if (!pulseIntersectionAdapter || this.activePackets.size === 0 || !Array.isArray(links) || links.length === 0) {
-      return;
-    }
-
-    const toRemove = [];
-    for (const [packetId, packet] of this.activePackets) {
-      const link = links.find((candidate) => {
-        const candidateId = candidate?.id || candidate?.uuid || candidate?.name;
-        return candidateId === packet.linkId;
-      });
-
-      if (!link) {
-        toRemove.push(packetId);
-        continue;
-      }
-
-      const intensity = Math.max(0, Math.min(1, packet.intensity ?? 1));
-      const speed = (0.2 + intensity * 0.8) * this.pulseSpeedFactor;
-      packet.progress = Math.min(1, packet.progress + Math.max(0, deltaTime) * speed);
-
-      const pulseWidth = this.pulseWidthFactor * (0.6 + intensity * 0.8);
-      pulseIntersectionAdapter.updatePulsePosition(
-        packet.linkId,
-        packet.progress,
-        {
-          isActive: true,
-          duration: 0.8,
-          width: pulseWidth,
-          harmony: Math.max(0, 1 - intensity * 0.35),
-          synergy: intensity,
-          corruption: 0,
-          instability: nodeDynamicMetrics?.avgInstability ?? 0
-        }
-      );
-
-      if (packet.progress >= 1) {
-        toRemove.push(packetId);
-      }
-    }
-
-    toRemove.forEach((packetId) => this.activePackets.delete(packetId));
   }
 
   /**

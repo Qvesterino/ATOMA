@@ -6,8 +6,7 @@ const WAVE_BRIDGE_PATCHED = Symbol('waveShaderBridgePatched');
  * WAVE SHADER BRIDGE v1.0
  * 
  * GPU shader uniform bridge for wave interference visualization.
- * Reads per-node and per-link wave data from WaveInterferenceEngine snapshots
- * (legacy userData.waveField fallback supported for compatibility)
+ * Reads burst snapshot data from WaveInterferenceEngine_v1 only
  * and injects normalized shader uniforms via onBeforeCompile.
  * 
  * FEATURES:
@@ -81,6 +80,8 @@ export class WaveShaderBridge_v1 {
             // Material tracking
             this.registeredNodeMaterials = new WeakSet();
             this.registeredLinkMaterials = new WeakSet();
+            this.registeredNodeMaterialList = new Set();
+            this.registeredLinkMaterialList = new Set();
             
             // Material → internal state mapping
             this.materialStates = new WeakMap();
@@ -183,6 +184,7 @@ export class WaveShaderBridge_v1 {
 
             // Mark as registered
             this.registeredNodeMaterials.add(material);
+            this.registeredNodeMaterialList.add(material);
             material[WAVE_BRIDGE_PATCHED] = true;
 
             if (this.debugEnabled) {
@@ -264,6 +266,7 @@ export class WaveShaderBridge_v1 {
 
             // Mark as registered
             this.registeredLinkMaterials.add(material);
+            this.registeredLinkMaterialList.add(material);
             material[WAVE_BRIDGE_PATCHED] = true;
 
             if (this.debugEnabled) {
@@ -285,6 +288,8 @@ export class WaveShaderBridge_v1 {
             // Remove from tracking sets
             this.registeredNodeMaterials.delete?.(material);
             this.registeredLinkMaterials.delete?.(material);
+            this.registeredNodeMaterialList?.delete?.(material);
+            this.registeredLinkMaterialList?.delete?.(material);
 
             // WeakMap will auto-GC, but we can help by clearing if needed
             // (WeakMap doesn't have clear/delete, so just let it GC naturally)
@@ -306,11 +311,6 @@ export class WaveShaderBridge_v1 {
      */
     update(deltaTime, { nodes = [], links = [] } = {}) {
         try {
-            // HARD GUARD: Ensure nodes and links are arrays
-            if (!Array.isArray(nodes) || !Array.isArray(links)) {
-                return;  // SILENT EXIT ONLY
-            }
-
             const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
             this._visualUpdateAccumulator += dt;
             if (this._visualUpdateAccumulator < this.visualUpdateIntervalSec) {
@@ -318,16 +318,13 @@ export class WaveShaderBridge_v1 {
             }
             this._visualUpdateAccumulator = 0;
 
-            // Guard: early exit if no materials registered
-            if (nodes.length === 0 && links.length === 0) {
-                return;
-            }
+            const snapshot = this.waveEngine?.getActiveSnapshot?.() || null;
 
             // Update node materials
-            this._updateNodeMaterials(nodes);
+            this._updateNodeMaterials(snapshot, nodes);
 
             // Update link materials
-            this._updateLinkMaterials(links);
+            this._updateLinkMaterials(snapshot, links);
         } catch (e) {
             console.warn('[WaveShaderBridge_v1] update error:', e);
         }
@@ -338,7 +335,7 @@ export class WaveShaderBridge_v1 {
      * 
      * VISUAL READINESS GATE: Only process nodes that are visualReady
      */
-    _updateNodeMaterials(nodes) {
+    _updateNodeMaterials(snapshot, nodes) {
         try {
             // HARD GUARD: Ensure nodes is an array and has elements
             if (!Array.isArray(nodes) || nodes.length === 0) return;
@@ -349,14 +346,14 @@ export class WaveShaderBridge_v1 {
                 return;  // No ready nodes, skip silently
             }
 
-            // HARDENING: Ensure registeredNodeMaterials is iterable before iterating
-            if (!this.registeredNodeMaterials || typeof this.registeredNodeMaterials[Symbol.iterator] !== 'function') {
+            // Iterate via explicit Set registry (WeakSet is membership-only and non-iterable)
+            if (!this.registeredNodeMaterialList || typeof this.registeredNodeMaterialList[Symbol.iterator] !== 'function') {
                 return;  // Silent exit, no fallback
             }
 
             // Iterate through registered node materials
-            for (const material of this.registeredNodeMaterials) {
-                this._updateMaterialUniforms(material, readyNodes);
+            for (const material of this.registeredNodeMaterialList) {
+                this._updateMaterialUniforms(material, snapshot, readyNodes);
             }
         } catch (e) {
             console.warn('[WaveShaderBridge_v1] _updateNodeMaterials error:', e);
@@ -366,19 +363,19 @@ export class WaveShaderBridge_v1 {
     /**
      * Internal: Update all registered link materials
      */
-    _updateLinkMaterials(links) {
+    _updateLinkMaterials(snapshot, links) {
         try {
             // HARD GUARD: Ensure links is an array and has elements
             if (!Array.isArray(links) || links.length === 0) return;
 
-            // HARDENING: Ensure registeredLinkMaterials is iterable before iterating
-            if (!this.registeredLinkMaterials || typeof this.registeredLinkMaterials[Symbol.iterator] !== 'function') {
+            // Iterate via explicit Set registry (WeakSet is membership-only and non-iterable)
+            if (!this.registeredLinkMaterialList || typeof this.registeredLinkMaterialList[Symbol.iterator] !== 'function') {
                 return;  // Silent exit, no fallback
             }
 
             // Iterate through registered link materials
-            for (const material of this.registeredLinkMaterials) {
-                this._updateMaterialUniforms(material, links, true);
+            for (const material of this.registeredLinkMaterialList) {
+                this._updateMaterialUniforms(material, snapshot, links, true);
             }
         } catch (e) {
             console.warn('[WaveShaderBridge_v1] _updateLinkMaterials error:', e);
@@ -388,7 +385,7 @@ export class WaveShaderBridge_v1 {
     /**
      * Internal: Update uniforms for a single material
      */
-    _updateMaterialUniforms(material, entities, isLink = false) {
+    _updateMaterialUniforms(material, snapshot, entities, isLink = false) {
         try {
             if (!material) return;
 
@@ -403,34 +400,25 @@ export class WaveShaderBridge_v1 {
             const state = this.materialStates.get(material);
             if (!state) return;
 
-            // Find the entity that uses this material
-            let entity = null;
-
-            // Quick cache check
-            const cachedEntity = isLink 
-                ? this.linkMaterialToEntity.get(material)
-                : this.nodeMaterialToEntity.get(material);
-            
-            if (cachedEntity) {
-                entity = cachedEntity;
-            } else {
-                // Find matching entity by checking material references
-                for (const ent of entities) {
-                    if (this._entityUsesMaterial(ent, material)) {
-                        entity = ent;
-                        
-                        // Cache the mapping
-                        if (isLink) {
-                            this.linkMaterialToEntity.set(material, entity);
-                        } else {
-                            this.nodeMaterialToEntity.set(material, entity);
+            if (Array.isArray(entities) && entities.length > 0) {
+                const cachedEntity = isLink
+                    ? this.linkMaterialToEntity.get(material)
+                    : this.nodeMaterialToEntity.get(material);
+                if (!cachedEntity) {
+                    for (const ent of entities) {
+                        if (this._entityUsesMaterial(ent, material)) {
+                            if (isLink) {
+                                this.linkMaterialToEntity.set(material, ent);
+                            } else {
+                                this.nodeMaterialToEntity.set(material, ent);
+                            }
+                            break;
                         }
-                        break;
                     }
                 }
             }
 
-            const waveField = this._resolveWaveField(entity, isLink);
+            const waveField = this._resolveWaveField(snapshot);
 
             // Compute target values (normalized 0..1)
             const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? 0));
@@ -474,6 +462,10 @@ export class WaveShaderBridge_v1 {
             uniforms.uWavePhase.value = ema.phase;
             uniforms.uWaveSourceCount.value = ema.sourceCount;
             uniforms.uWaveIntensity.value = ema.intensity;
+            if (uniforms.uWaveCenter && snapshot?.spatial?.center) {
+                const c = snapshot.spatial.center;
+                uniforms.uWaveCenter.value.set?.(c.x || 0, c.y || 0, c.z || 0);
+            }
             const nowSec = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
             if (uniforms.uTime) uniforms.uTime.value = nowSec;
             if (uniforms.uWaveTime) uniforms.uWaveTime.value = nowSec;
@@ -482,24 +474,51 @@ export class WaveShaderBridge_v1 {
         }
     }
 
-    _resolveWaveField(entity, isLink) {
-        if (entity && this.waveEngine) {
-            try {
-                if (typeof this.waveEngine.getWaveFieldForEntity === 'function') {
-                    return this.waveEngine.getWaveFieldForEntity(entity, isLink) ?? {};
-                }
-                if (isLink && typeof this.waveEngine.getLinkWaveField === 'function') {
-                    return this.waveEngine.getLinkWaveField(entity.id || entity.uuid || entity.name, entity) ?? {};
-                }
-                if (!isLink && typeof this.waveEngine.getNodeWaveField === 'function') {
-                    return this.waveEngine.getNodeWaveField(entity.id || entity.uuid || entity.name, entity) ?? {};
-                }
-            } catch (e) {
-                console.warn('[WaveShaderBridge_v1] waveEngine read error:', e);
-            }
+    _resolveWaveField(snapshot) {
+        if (!snapshot?.timeline) return {};
+
+        const nowSec = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001;
+        const startAt = Number(snapshot.timeline.startAt);
+        const peakAt = Number(snapshot.timeline.peakAt);
+        const endAt = Number(snapshot.timeline.endAt);
+        if (!Number.isFinite(startAt) || !Number.isFinite(peakAt) || !Number.isFinite(endAt)) {
+            return {};
         }
-        // Compatibility path for older systems still writing userData.waveField.
-        return entity?.userData?.waveField ?? {};
+        if (nowSec < startAt || nowSec > endAt) return {};
+
+        const riseDuration = Math.max(0.0001, peakAt - startAt);
+        const decayDuration = Math.max(0.0001, endAt - peakAt);
+        let envelope = 0;
+        if (nowSec <= peakAt) {
+            envelope = clamp01((nowSec - startAt) / riseDuration);
+        } else {
+            envelope = clamp01(1 - ((nowSec - peakAt) / decayDuration));
+        }
+
+        const type = `${snapshot.type || ''}`.toLowerCase();
+        const constructive =
+            type === 'corruption' ? envelope * 0.2 :
+            type === 'synergy' ? envelope * 0.85 :
+            envelope;
+        const destructive =
+            type === 'corruption' ? envelope * 0.95 :
+            type === 'synergy' ? envelope * 0.12 :
+            envelope * 0.05;
+        const standing =
+            type === 'corruption' ? envelope * 0.35 :
+            type === 'synergy' ? envelope * 0.55 :
+            envelope * 0.7;
+        const phase = clamp01((nowSec - startAt) / Math.max(0.0001, endAt - startAt));
+
+        return {
+            totalAmplitude: envelope,
+            constructivePower: clamp01(constructive),
+            destructivePower: clamp01(destructive),
+            interferenceIndex: clamp01((constructive + destructive) * 0.5),
+            standingWaveFactor: clamp01(standing),
+            travelPhase: phase,
+            sourceCount: 1
+        };
     }
 
     /**
@@ -643,6 +662,8 @@ export class WaveShaderBridge_v1 {
             // Just null out references
             this.registeredNodeMaterials = null;
             this.registeredLinkMaterials = null;
+            this.registeredNodeMaterialList = null;
+            this.registeredLinkMaterialList = null;
             this.materialStates = null;
             this.materialUniforms = null;
             this.materialProfiles = null;
@@ -677,8 +698,8 @@ export class WaveShaderBridge_v1 {
     getMetrics() {
         try {
             return {
-                registeredNodeMaterials: this.registeredNodeMaterials?.size ?? 0,
-                registeredLinkMaterials: this.registeredLinkMaterials?.size ?? 0,
+                registeredNodeMaterials: this.registeredNodeMaterialList?.size ?? 0,
+                registeredLinkMaterials: this.registeredLinkMaterialList?.size ?? 0,
                 emaAlpha: this.emaAlpha,
                 maxSources: this.maxSources
             };

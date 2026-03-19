@@ -376,18 +376,18 @@ export class CascadeEventBridge_v1 {
     // Validate midpoint position
     if (!midpoint) return;
 
-    // Request wave burst
-    this.waveEngine.requestBurstIntent({
-      type: 'cascade',
-      center: midpoint,
-      intensity: flowState.intensity,
+    const semanticBus = this.semanticBus || null;
+    if (!semanticBus?.emit) return;
+
+    semanticBus.emit('cascade.hop', {
+      link,
+      sourceNode,
+      targetNode,
       sourceId: linkId,
-      metadata: {
-        conflictType: flowState.type,
-        sourceNodeId: sourceNode.id || sourceNode.uuid,
-        targetNodeId: targetNode.id || targetNode.uuid
-      }
-    });
+      sourcePosition: midpoint,
+      strength: flowState.intensity,
+      intensity: flowState.intensity
+    }, { priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL });
   }
   
   /**

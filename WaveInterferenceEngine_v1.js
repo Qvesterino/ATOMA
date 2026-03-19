@@ -10,9 +10,12 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value ?? 0));
 }
 
-function asVector3(input, fallback = new THREE.Vector3()) {
+function asVector3(input) {
     if (input instanceof THREE.Vector3) return input.clone();
     if (Array.isArray(input) && input.length >= 3) {
+        if (!Number.isFinite(input[0]) || !Number.isFinite(input[1]) || !Number.isFinite(input[2])) {
+            return null;
+        }
         return new THREE.Vector3(input[0], input[1], input[2]);
     }
     if (input && typeof input === 'object' &&
@@ -21,7 +24,7 @@ function asVector3(input, fallback = new THREE.Vector3()) {
         Number.isFinite(input.z)) {
         return new THREE.Vector3(input.x, input.y, input.z);
     }
-    return fallback.clone();
+    return null;
 }
 
 function deepFreeze(value) {
@@ -71,20 +74,13 @@ export class WaveInterferenceEngine_v1 {
         this.eventBus =
             options.eventBus ||
             options.semanticBus ||
-            globalThis?.semanticBus ||
-            globalThis?.game?.semanticBus ||
             null;
         this.reflectionSystem =
             options.reflectionSystem ||
             options.influenceReflection ||
             options.waveReflectionSystem ||
-            globalThis?.waveReflectionSystem ||
             null;
-        this.linkSystem =
-            options.linkSystem ||
-            globalThis?.game?.linkingSystem ||
-            globalThis?.game?.nodeLinking ||
-            null;
+        this.linkSystem = options.linkSystem || null;
 
         this.arbitrationPolicy = {
             allowCoexistence: options.allowCoexistence ?? false,
@@ -148,25 +144,6 @@ export class WaveInterferenceEngine_v1 {
     requestUpdate(reason, context = {}) {
         if (!this.enabled) return null;
         if (context?.burstIntent) return this.requestBurstIntent(context.burstIntent);
-
-        if (context?.type || context?.burstType) {
-            return this.requestBurstIntent({
-                ...context,
-                type: context.type || context.burstType
-            });
-        }
-
-        if (reason === 'MANUAL_DEBUG' && context?.type) {
-            return this.requestBurstIntent(context);
-        }
-
-        if (reason === 'PHASE_CHANGED' && context?.toRegime && context?.type) {
-            return this.requestBurstIntent(context);
-        }
-
-        if (this.warningsEnabled) {
-            console.warn('[WaveInterferenceEngine] Unsupported requestUpdate reason for burst mode:', reason);
-        }
         return null;
     }
 
@@ -205,7 +182,7 @@ export class WaveInterferenceEngine_v1 {
             snapshot,
             center: asVector3(snapshot.spatial.center),
             direction: snapshot.spatial.directionalBias
-                ? asVector3(snapshot.spatial.directionalBias, new THREE.Vector3(0, 0, 0)).normalize()
+                ? asVector3(snapshot.spatial.directionalBias)?.normalize?.() || null
                 : null
         };
 
@@ -387,20 +364,34 @@ export class WaveInterferenceEngine_v1 {
             return null;
         }
 
-        const sourceId = `${intent?.sourceId || intent?.originId || 'global'}`;
-        const prevKey = `${type}:${sourceId}`;
-        const prevState = this._regimeState.get(prevKey);
-        const fromRegime = `${intent?.fromRegime || prevState?.lastRegime || 'unknown'}`;
-        const toRegime = `${intent?.toRegime || intent?.regime || 'unknown'}`;
+        const sourceRaw = intent?.sourceId ?? intent?.originId;
+        if (sourceRaw === undefined || sourceRaw === null || sourceRaw === '') {
+            if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Missing sourceId/originId in intent');
+            return null;
+        }
+        const sourceId = `${sourceRaw}`;
+
+        const fromRegime = intent?.fromRegime ?? intent?.regimeFrom;
+        const toRegime = intent?.toRegime ?? intent?.regime;
+        if (typeof fromRegime !== 'string' || typeof toRegime !== 'string' || !fromRegime || !toRegime) {
+            if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Missing fromRegime/toRegime in intent');
+            return null;
+        }
+
+        const center = asVector3(intent?.center || intent?.originPosition || intent?.position || intent?.sourcePosition);
+        if (!center) {
+            if (this.warningsEnabled) console.warn('[WaveInterferenceEngine] Missing center/sourcePosition in intent');
+            return null;
+        }
 
         return {
             type,
             sourceId,
             reasonClass: intent?.reasonClass || 'regime_transition',
-            fromRegime,
-            toRegime,
-            center: asVector3(intent?.center || intent?.originPosition || intent?.position),
-            direction: intent?.direction ? asVector3(intent.direction, new THREE.Vector3(0, 0, 0)) : null,
+            fromRegime: `${fromRegime}`,
+            toRegime: `${toRegime}`,
+            center,
+            direction: intent?.direction ? asVector3(intent.direction) : null,
             scope: intent?.scope || {},
             intensityEnvelope: intent?.intensityEnvelope || {},
             decayProfile: intent?.decayProfile || {},
@@ -424,6 +415,7 @@ export class WaveInterferenceEngine_v1 {
         if (!linkId) return;
 
         const linkLength = this._resolveLinkLength(resolvedLink, intent);
+        if (!Number.isFinite(linkLength) || linkLength <= 0) return;
         const packet = {
             id: `packet_${++this._packetCounter}`,
             linkId,
@@ -472,7 +464,7 @@ export class WaveInterferenceEngine_v1 {
             const dist = sourceNode.position.distanceTo(targetNode.position);
             if (Number.isFinite(dist) && dist > 0) return dist;
         }
-        return 1.0;
+        return null;
     }
 
     injectWaveEnergy(linkId, position, amplitude, linkLength = 1.0) {
@@ -506,11 +498,7 @@ export class WaveInterferenceEngine_v1 {
     }
 
     _registerBoundaryReflection(intent) {
-        const reflectionSystem =
-            this.reflectionSystem ||
-            globalThis?.game?.influenceReflection ||
-            globalThis?.waveReflectionSystem ||
-            null;
+        const reflectionSystem = this.reflectionSystem || null;
         if (!reflectionSystem) return;
         if (!intent?.linkId) return;
 
@@ -545,6 +533,9 @@ export class WaveInterferenceEngine_v1 {
     }
 
     _evaluateCrossing(intent) {
+        if (intent?.reasonClass === 'semantic_event') {
+            return { accepted: true };
+        }
         const key = `${intent.type}:${intent.sourceId}`;
         const policy = this.triggerPolicies[intent.type];
         const state = this._regimeState.get(key) || { lastRegime: intent.fromRegime, armed: true };
@@ -779,11 +770,7 @@ export class WaveInterferenceEngine_v1 {
     }
 
     _emitWavePacketSpawn(intent, snapshot) {
-        const bus =
-            this.eventBus ||
-            globalThis?.semanticBus ||
-            globalThis?.game?.semanticBus ||
-            null;
+        const bus = this.eventBus || null;
         if (!bus) return;
 
         const payload = {

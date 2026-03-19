@@ -549,14 +549,6 @@ export class StandingWaveOscillationTrapSystem_Session130 {
 
             // Optional release burst when trapped energy gets high.
             if ((trap.energyStorage || 0) > 3.0) {
-                const waveEngine = this.waveEngine || this.world?.waveInterferenceEngine || globalThis?.game?.waveInterferenceEngine || null;
-                if (waveEngine?.requestBurstIntent) {
-                    waveEngine.requestBurstIntent({
-                        type: 'trapRelease',
-                        sourceTrap: trap.id,
-                        intensity: (trap.energyStorage || 0) * 0.4
-                    });
-                }
                 trap.energyStorage *= 0.5;
             }
             

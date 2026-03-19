@@ -601,14 +601,13 @@ export class CascadingHarmonicResonanceAmplification {
     const crossedUp = previousStrength <= threshold && currentStrength > threshold;
     if (!crossedUp) return;
 
-    const waveEngine =
-      this.waveEngine ??
-      this.network?.waveEngine ??
-      globalThis?.waveInterferenceEngine ??
-      globalThis?.game?.waveInterferenceEngine ??
+    const semanticBus =
+      this.semanticBus ??
+      this.network?.semanticBus ??
+      globalThis?.semanticBus ??
+      globalThis?.game?.semanticBus ??
       null;
-    this.waveEngine = waveEngine;
-    if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') return;
+    if (!semanticBus?.emit) return;
 
     const nowSec = (typeof performance !== 'undefined' && typeof performance.now === 'function')
       ? performance.now() * 0.001
@@ -619,11 +618,15 @@ export class CascadingHarmonicResonanceAmplification {
 
     const intensity = Math.max(0, Math.min(1, currentStrength));
 
-    waveEngine.requestBurstIntent({
-      type: 'harmonicCascade',
+    semanticBus.emit('cascade.triggered', {
+      sourceId: nodeId,
       sourceNode: node,
+      sourcePosition: node?.position
+        ? { x: node.position.x, y: node.position.y, z: node.position.z }
+        : undefined,
+      strength: node?._cascadeStrength ?? intensity,
       intensity: node?._cascadeStrength ?? intensity
-    });
+    }, { priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL });
   }
 
   /**

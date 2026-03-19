@@ -5367,57 +5367,10 @@ window.__ATOMA_SCENE__ = this.scene;
                     );
                 }
             });
-            this.semanticBus?.subscribe?.(
-                'wave.regime.transition',
-                (payload) => this.waveInterferenceEngine?.requestBurstIntent?.(payload),
-                { priority: this.semanticBus.priority.INTERACTIVE }
-            );
-            this.semanticBus?.subscribe?.(
-                'wave.interference.burst.intent',
-                (payload) => this.waveInterferenceEngine?.requestBurstIntent?.(payload),
-                { priority: this.semanticBus.priority.INTERACTIVE }
-            );
-            this.semanticBus?.eventPolicies?.set?.('wave.regime.transition', {
-                aggregateWithinMs: 120,
-                aggregationStrategy: 'latest',
-                cooldownMs: 90,
-                suppress: { ifOverload: true, maxQueueDepth: 180 }
-            });
-            this.semanticBus?.eventPolicies?.set?.('wave.interference.burst.intent', {
-                aggregateWithinMs: 120,
-                aggregationStrategy: 'latest',
-                cooldownMs: 90,
-                suppress: { ifOverload: true, maxQueueDepth: 180 }
-            });
-            window.emitWaveInterferenceBurstIntent = (intent = {}) =>
-                this.waveInterferenceEngine?.requestBurstIntent?.(intent) || null;
-            window.emitWaveRegimeTransition = (payload = {}) => {
-                this.semanticBus?.emit?.(
-                    'wave.regime.transition',
-                    payload,
-                    { priority: this.semanticBus.priority.INTERACTIVE }
-                );
-            };
             window.getWaveInterferenceBurstState = () => ({
                 activeSnapshot: this.waveInterferenceEngine?.getActiveSnapshot?.() || null,
                 metrics: this.waveInterferenceEngine?.getMetrics?.() || null
             });
-            window.debugWaveBurst = (type = "harmonic") => {
-                const engine = this.waveInterferenceEngine;
-                if (!engine?.requestBurstIntent) return null;
-
-                return engine.requestBurstIntent({
-                    type,
-                    sourceId: "debug",
-                    fromRegime: "baseline",
-                    toRegime:
-                        type === "corruption" ? "rupture" :
-                        type === "synergy" ? "collaborative" :
-                        "coherent",
-                    center: { x: 0, y: 0, z: 0 },
-                    metadata: { source: "debugBurst" }
-                });
-            };
             window.debugWaveSnapshot = () => {
                 const snap = this.waveInterferenceEngine?.getActiveSnapshot?.() || null;
                 console.log("debugWaveSnapshot", snap);
@@ -5505,7 +5458,9 @@ window.__ATOMA_SCENE__ = this.scene;
 
         try {
             this.synergyTravelingWaveFX = new SynergyTravelingWaveFX_v1({
-                debugEnabled: false
+                debugEnabled: false,
+                waveEngine: this.waveInterferenceEngine,
+                world: this
             });
             console.log('[main.js] SynergyTravelingWaveFX_v1 initialized ✓');
         } catch (err) {
@@ -12079,15 +12034,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.semanticBus.emit('node.selection', { type: 'select', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });
             this.semanticBus.emit('node:selected', { nodeId, category, timestamp: performance.now() }, { priority: this.semanticBus.priority.CRITICAL });
             this.semanticBus.emit('node.click', payload, { priority: this.semanticBus.priority.INTERACTIVE });
-            if (window.game?.waveInterferenceEngine) {
-                window.game.waveInterferenceEngine.requestBurstIntent({
-                    type: "harmonic",
-                    sourceId: payload?.nodeId || "node",
-                    center: payload?.position || { x: 0, y: 0, z: 0 },
-                    toRegime: "aligned",
-                    fromRegime: "baseline"
-                });
-            }
             this.setHudDirty('coreMetrics');
             this.setHudDirty('nodeInspector');
         });

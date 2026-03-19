@@ -1,460 +1,250 @@
-/**
- * WaveBurstRouter_v1.js
- * ============================================================================
- * EVENT-DRIVEN WAVE BURST ROUTER
- * 
- * Purpose:
- * Automatically triggers wave bursts in WaveInterferenceEngine_v1 based on
- * existing system events, making wave effects visible without manual intervention.
- * 
- * Architecture:
- * - Listens to semantic bus events (synergy, cascade, corruption, interaction)
- * - Applies cooldown between bursts (1.5s)
- * - Clamps burst intensity to 0-1 range
- * - Adds subtle RNG jitter to burst origin
- * - Zero console spam, silent operation
- * 
- * Integration:
- * - Requires: game.waveInterferenceEngine (WaveInterferenceEngine_v1)
- * - Requires: game.semanticBus (SemanticEventBus)
- * - Optional: game.aiNodes (for node metrics)
- * - Optional: game.harmonicHubSystem (for cascade events)
- * 
- * @author ATOMA Architect
- * @version 1.0.0
- */
-
 import * as THREE from 'three';
 
-/**
- * Setup wave burst router
- * @param {Object} game - Main game instance
- * @returns {Object} Router instance with update() method
- */
 export function setupWaveBurstRouter(game) {
-    // Configuration
+    const EXPECTED_EVENT_TAGS = [
+        'node.synergy.high',
+        'link:synergyThreshold',
+        'metric:synergySpike',
+        'metric.synergy.burst',
+        'cascade.triggered',
+        'harmonic.cascade.start',
+        'cascade.start',
+        'cascade.hop',
+        'metric:corruptionRise',
+        'metric.corruption.spike',
+        'metric.corruption.spread',
+        'network:corruptionSpread',
+        'link:collapsed'
+    ];
+
     const config = {
-        cooldownSeconds: 1.5,           // Minimum time between bursts
-        maxBurstIntensity: 1.0,        // Clamp burst intensity
-        originJitter: 0.3,              // Random position jitter (units)
-        enableDebug: false,               // Console logging (default off)
-        
-        // Event thresholds
-        synergyThreshold: 0.7,            // Min synergy to trigger burst
-        corruptionThreshold: 0.5,         // Min corruption to trigger burst
-        probeIntensity: 0.4,              // User interaction burst intensity
-        
-        // Intensity multipliers
-        synergyIntensityMult: 1.0,        // Synergy burst intensity multiplier
-        cascadeIntensityMult: 0.8,         // Cascade burst intensity multiplier
-        corruptionIntensityMult: 1.0,      // Corruption burst intensity multiplier
-        ambientIntervalSeconds: 5.0,
-        ambientIntensity: 0.15,
-        ambientMaxIntensity: 0.2
+        cooldownSeconds: 1.5
     };
-    
-    // Runtime state
+
     const state = {
-        lastBurstTime: 0,               // Last burst timestamp
-        lastCascadeBurstTime: 0,
-        accumulatedTime: 0,               // Time accumulator for update
-        ambientTimer: 0,
-        rngSeed: Math.random() * 10000,   // RNG seed for jitter
+        lastBurstTime: 0,
+        lastBurstByKey: new Map(),
+        boundBus: null,
+        emitHookRestore: null,
         subscribed: false,
-        burstCounter: 0,
         unsubscribers: []
     };
-    
+
+    function getSemanticBus() {
+        return game.semanticBus || null;
+    }
+
     function getWaveEngine() {
         return game.waveInterferenceEngine || null;
     }
 
-    function getSemanticBus() {
-        return game.semanticBus || globalThis?.semanticBus || null;
+    function clamp01(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return 0;
+        return Math.max(0, Math.min(1, num));
     }
 
-    function getAiNodes() {
-        return game.aiNodes || null;
+    function isOnCooldown(key, nowSec) {
+        const last = state.lastBurstByKey.get(key);
+        if (!Number.isFinite(last)) return false;
+        return (nowSec - last) < config.cooldownSeconds;
     }
 
-    function getHarmonicHubSystem() {
-        return game.harmonicHubSystem || null;
+    function markBurst(key, nowSec) {
+        state.lastBurstByKey.set(key, nowSec);
+        state.lastBurstTime = nowSec;
     }
 
-    const TYPE_MAP = {
-        cascade: 'synergy',
-        destructive: 'corruption',
-        probe: 'harmonic',
-        harmonic: 'harmonic',
-        synergy: 'synergy',
-        corruption: 'corruption',
-        ambient: 'harmonic',
-        ambientwave: 'harmonic'
-    };
+    function asVector3(candidate) {
+        if (!candidate) return null;
+        if (candidate instanceof THREE.Vector3) return candidate;
+        const x = Number(candidate.x);
+        const y = Number(candidate.y);
+        const z = Number(candidate.z);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+        return new THREE.Vector3(x, y, z);
+    }
 
-    const REGIME_MAP = {
-        harmonic: 'coherent',
-        synergy: 'collaborative',
-        corruption: 'rupture'
-    };
+    function resolveNodeId(node) {
+        if (!node) return null;
+        return String(node?.userData?.nodeId || node?.id || node?.uuid || '');
+    }
+
+    function getAllNodes() {
+        const aiNodes = game?.aiNodes?.nodes;
+        const nodeList = game?.nodes || game?.nodeList;
+        if (Array.isArray(aiNodes) && aiNodes.length > 0) return aiNodes;
+        if (Array.isArray(nodeList) && nodeList.length > 0) return nodeList;
+        return [];
+    }
+
+    function getAllLinks() {
+        const linkingLinks = game?.linkingSystem?.links;
+        const nodeLinkingLinks = game?.nodeLinking?.links;
+        const linkList = game?.links || game?.linkList;
+        if (Array.isArray(linkingLinks) && linkingLinks.length > 0) return linkingLinks;
+        if (Array.isArray(nodeLinkingLinks) && nodeLinkingLinks.length > 0) return nodeLinkingLinks;
+        if (Array.isArray(linkList) && linkList.length > 0) return linkList;
+        return [];
+    }
 
     function findNodeById(nodeId) {
-        const aiNodes = getAiNodes();
-        if (!nodeId || !aiNodes?.nodes) return null;
-        return aiNodes.nodes.find((n) =>
-            n?.id === nodeId ||
-            n?.uuid === nodeId ||
-            n?.userData?.nodeId === nodeId
-        ) || null;
+        if (nodeId === undefined || nodeId === null || nodeId === '') return null;
+        const id = String(nodeId);
+        const nodes = getAllNodes();
+        for (const node of nodes) {
+            if (!node) continue;
+            const candidateId = resolveNodeId(node);
+            if (candidateId && candidateId === id) return node;
+        }
+        return null;
     }
-    
-    /**
-     * Check if burst can be triggered (cooldown check)
-     * @param {number} currentTime - Current time in seconds
-     * @returns {boolean} True if burst can be triggered
-     */
-    function canTriggerBurst(currentTime) {
-        return (currentTime - state.lastBurstTime) >= config.cooldownSeconds;
+
+    function findLinkById(linkId) {
+        if (linkId === undefined || linkId === null || linkId === '') return null;
+        const id = String(linkId);
+        const links = getAllLinks();
+        for (const link of links) {
+            if (!link) continue;
+            const candidateId = String(link.id || link.uuid || link?.userData?.id || '');
+            if (candidateId && candidateId === id) return link;
+        }
+        return null;
     }
-    
-    /**
-     * Add random jitter to position
-     * @param {THREE.Vector3} origin - Original position
-     * @returns {THREE.Vector3} Position with jitter applied
-     */
-    function applyJitter(origin) {
-        if (!origin) return new THREE.Vector3(0, 0, 0);
-        
-        // Simple RNG using seed
-        state.rngSeed = (state.rngSeed * 9301 + 49297) % 233280;
-        const rng = state.rngSeed / 233280;
-        
+
+    function resolveFromLinkPayload(link) {
+        if (!link) return null;
+        const sourceNode = link?.source || link?.sourceNode || link?.from || null;
+        const targetNode = link?.target || link?.targetNode || link?.to || null;
+        const sourcePos = asVector3(sourceNode?.position);
+        const targetPos = asVector3(targetNode?.position);
+        if (!sourcePos || !targetPos) return null;
         return new THREE.Vector3(
-            origin.x + (rng - 0.5) * config.originJitter,
-            origin.y + (rng - 0.5) * config.originJitter,
-            origin.z + (rng - 0.5) * config.originJitter
+            (sourcePos.x + targetPos.x) * 0.5,
+            (sourcePos.y + targetPos.y) * 0.5,
+            (sourcePos.z + targetPos.z) * 0.5
         );
     }
 
-    function normalizeBurstType(type) {
-        const key = `${type || ''}`.toLowerCase();
-        return TYPE_MAP[key] || null;
+    function resolveFromSourceTargetIds(payload = {}) {
+        const sourceNode = findNodeById(payload.source || payload.sourceId || payload.from || payload.fromId);
+        const targetNode = findNodeById(payload.target || payload.targetId || payload.to || payload.toId);
+        if (!sourceNode || !targetNode) return null;
+        return resolveFromLinkPayload({ source: sourceNode, target: targetNode });
     }
 
-    function resolveToRegime(mappedType) {
-        return REGIME_MAP[mappedType] || 'coherent';
+    function resolveFromNodeIdPayload(payload = {}) {
+        const node = findNodeById(payload.nodeId || payload.sourceNodeId || payload.sourceId || payload.id);
+        return asVector3(node?.position);
     }
 
-    function resolveSourceId(mappedType, burstData = {}) {
-        if (burstData.sourceId) return String(burstData.sourceId);
-        const explicitNodeId = burstData.metadata?.nodeId || burstData.metadata?.sourceNodeId || burstData.metadata?.targetNodeId;
-        if (explicitNodeId) return `${mappedType}:${explicitNodeId}`;
-        return `${mappedType}:router:${++state.burstCounter}`;
+    function resolveFromLinkIdPayload(payload = {}) {
+        const link = findLinkById(payload.linkId || payload.id);
+        return resolveFromLinkPayload(link);
     }
-    
-    /**
-     * Emit wave burst intent
-     * @param {Object} burstData - Burst configuration
-     */
-    function emitBurst(burstData) {
+
+    function resolveSourcePosition(payload = {}) {
+        return (
+            asVector3(payload.sourcePosition) ||
+            asVector3(payload.position) ||
+            asVector3(payload.midpoint) ||
+            asVector3(payload.center) ||
+            asVector3(payload.origin) ||
+            asVector3(payload.sourceNode?.position) ||
+            asVector3(payload.node?.position) ||
+            resolveFromLinkPayload(payload.link) ||
+            resolveFromNodeIdPayload(payload) ||
+            resolveFromLinkIdPayload(payload) ||
+            resolveFromSourceTargetIds(payload)
+        );
+    }
+
+    function resolveStrength(payload = {}) {
+        const candidates = [
+            payload.strength,
+            payload.intensity,
+            payload.value,
+            payload.synergy,
+            payload.corruption,
+            payload.amount,
+            payload.loadPressure,
+            payload.load,
+            payload.stress
+        ];
+
+        for (const candidate of candidates) {
+            const strength = clamp01(candidate);
+            if (strength > 0) return strength;
+        }
+
+        return 0;
+    }
+
+    function resolveType(type) {
+        if (type === 'cascade') return 'synergy';
+        return type;
+    }
+
+    function resolveBoundary(type) {
+        if (type === 'corruption') {
+            return { fromRegime: 'baseline', toRegime: 'rupture' };
+        }
+        return { fromRegime: 'baseline', toRegime: 'collaborative' };
+    }
+
+    function resolveSourceId(type, payload = {}) {
+        const id = payload.sourceId || payload.nodeId || payload.id || payload.linkId || payload.source;
+        if (id !== undefined && id !== null && id !== '') return String(id);
+        return `${type}:semantic`;
+    }
+
+    function emitIntent(type, payload = {}, eventTag = '') {
         const waveEngine = getWaveEngine();
-        if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') {
-            return;
-        }
+        if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') return;
 
-        const mappedType = normalizeBurstType(burstData.type);
-        if (!mappedType) {
-            return;
-        }
-        
-        // Clamp intensity
-        const intensity = Math.max(0, Math.min(config.maxBurstIntensity, burstData.intensity));
-        if (intensity <= 0.01) {
-            return; // Too weak, skip
-        }
-        
-        // Apply jitter to origin
-        const origin = applyJitter(burstData.origin);
-        
-        // Build burst intent
+        const nowSec = performance.now() * 0.001;
+
+        const sourcePosition = resolveSourcePosition(payload);
+        if (!sourcePosition) return;
+
+        const strength = resolveStrength(payload);
+        if (strength <= 0) return;
+
+        const sourceId = resolveSourceId(type, payload);
+        const cooldownKey = `${type}:${sourceId}`;
+        if (isOnCooldown(cooldownKey, nowSec)) return;
+
         const intent = {
-            type: mappedType,
-            fromRegime: 'baseline',
-            toRegime: resolveToRegime(mappedType),
-            sourceId: resolveSourceId(mappedType, burstData),
-            center: {
-                x: origin.x,
-                y: origin.y,
-                z: origin.z
+            type: resolveType(type),
+            reasonClass: 'semantic_event',
+            strength,
+            sourcePosition: {
+                x: sourcePosition.x,
+                y: sourcePosition.y,
+                z: sourcePosition.z
             },
-            intensity: intensity,
-            metadata: burstData.metadata || undefined
+            ...resolveBoundary(type),
+            intensity: strength,
+            center: {
+                x: sourcePosition.x,
+                y: sourcePosition.y,
+                z: sourcePosition.z
+            },
+            sourceId,
+            metadata: {
+                semanticEvent: eventTag,
+                semanticType: type
+            }
         };
-        
-        // Trigger burst
+
         const snapshot = waveEngine.requestBurstIntent(intent);
         if (!snapshot) return;
-
-        // Update last burst time only when request is accepted.
-        state.lastBurstTime = performance.now() * 0.001;
-        
-        if (config.enableDebug) {
-            console.log(`[WaveBurstRouter] Burst emitted: type=${intent.type}, intensity=${intensity.toFixed(2)}`);
-        }
+        markBurst(cooldownKey, nowSec);
     }
 
-    /**
-     * Public-style router entry to reuse existing burst mechanism.
-     * @param {Object} intentPayload - Burst intent payload
-     */
-    function requestBurstIntent(intentPayload = {}) {
-        const payloadCenter =
-            intentPayload.center ||
-            intentPayload.origin ||
-            intentPayload.originPosition ||
-            intentPayload.position;
-
-        emitBurst({
-            type: intentPayload.type || 'harmonic',
-            origin: payloadCenter || new THREE.Vector3(0, 0, 0),
-            intensity: Number.isFinite(intentPayload.intensity) ? intentPayload.intensity : 0,
-            sourceId: intentPayload.sourceId,
-            metadata: intentPayload.metadata
-        });
-    }
-    
-    /**
-     * Handle synergy event
-     * @param {Object} payload - Event payload
-     */
-    function handleSynergyEvent(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-        
-        const nodeId = payload.nodeId || payload.id;
-        const node = findNodeById(nodeId);
-        const synergyFromPayload = Number.isFinite(payload?.value) ? payload.value : null;
-        const synergyFromNode = node?.userData?.metrics?.synergy ?? node?.metrics?.synergy;
-        const synergy = synergyFromPayload ?? synergyFromNode ?? 0;
-
-        if (!node || synergy < config.synergyThreshold) {
-            return;
-        }
-        
-        emitBurst({
-            type: 'harmonic',
-            origin: node.position || new THREE.Vector3(0, 0, 0),
-            intensity: synergy * config.synergyIntensityMult
-        });
-    }
-    
-    /**
-     * Handle cascade event
-     * @param {Object} payload - Event payload
-     */
-    function handleCascadeEvent(payload) {
-        const waveEngine = getWaveEngine();
-        const aiNodes = getAiNodes();
-        const harmonicHubSystem = getHarmonicHubSystem();
-
-        const packetLink = payload?.link || null;
-        const packetLinkId = payload?.linkId || packetLink?.id || packetLink?.uuid || null;
-        const packetSourceNode = packetLink?.source || packetLink?.sourceNode || payload?.sourceNode || null;
-        const packetTargetNode = packetLink?.target || packetLink?.targetNode || payload?.targetNode || null;
-        const packetNodeId = payload?.nodeId || payload?.hubId || payload?.id || null;
-        const packetCenter = payload?.position || packetLink?.midpoint || packetSourceNode?.position || { x: 0, y: 0, z: 0 };
-        const packetEnergy = Number.isFinite(payload?.strength)
-            ? payload.strength
-            : (Number.isFinite(payload?.intensity) ? payload.intensity : config.cascadeIntensityMult);
-        waveEngine?.requestBurstIntent?.({
-            type: 'cascade_packet',
-            sourceId: `cascade_packet:${packetNodeId ?? 'global'}`,
-            fromRegime: 'baseline',
-            toRegime: 'collaborative',
-            center: packetCenter,
-            linkId: packetLinkId,
-            sourceNode: packetSourceNode,
-            targetNode: packetTargetNode,
-            originNode: packetNodeId,
-            energy: packetEnergy,
-            travel: true,
-            metadata: { source: 'cascadePacket' }
-        });
-
-        const now = performance.now() * 0.001;
-        if (!canTriggerBurst(now)) {
-            return;
-        }
-        if (state.lastCascadeBurstTime && (now - state.lastCascadeBurstTime) < 0.12) {
-            return;
-        }
-        
-        const nodeId = payload.nodeId || payload.hubId || payload.id;
-        if (!nodeId) {
-            return;
-        }
-        
-        // Try to get node position from various sources
-        let position = new THREE.Vector3(0, 0, 0);
-        
-        if (aiNodes && aiNodes.nodes) {
-            const node = aiNodes.nodes.find(n => n.id === nodeId);
-            if (node && node.position) {
-                position = node.position;
-            }
-        } else if (harmonicHubSystem && harmonicHubSystem.hubs) {
-            const hub = harmonicHubSystem.hubs.get(nodeId);
-            if (hub && hub.position) {
-                position = hub.position;
-            }
-        }
-        
-        emitBurst({
-            type: 'cascade',
-            origin: position,
-            intensity: config.cascadeIntensityMult
-        });
-        state.lastCascadeBurstTime = now;
-    }
-    
-    /**
-     * Handle corruption/failure event
-     * @param {Object} payload - Event payload
-     */
-    function handleCorruptionEvent(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-        
-        const nodeId = payload.nodeId || payload.id;
-        const node = findNodeById(nodeId);
-        const aiNodes = getAiNodes();
-        
-        // Check corruption threshold
-        const corruption = (Number.isFinite(payload?.value) ? payload.value : null)
-            ?? node?.userData?.metrics?.corruption
-            ?? node?.metrics?.corruption
-            ?? 0;
-        if (corruption < config.corruptionThreshold) {
-            return;
-        }
-
-        const payloadPos = payload?.position || payload?.origin || payload?.center || null;
-        const fallbackNode = node || aiNodes?.nodes?.[0] || null;
-        const origin = payloadPos
-            ? (payloadPos instanceof THREE.Vector3
-                ? payloadPos
-                : new THREE.Vector3(payloadPos.x || 0, payloadPos.y || 0, payloadPos.z || 0))
-            : (fallbackNode?.position || new THREE.Vector3(0, 0, 0));
-        
-        emitBurst({
-            type: 'destructive',
-            origin,
-            intensity: corruption * config.corruptionIntensityMult
-        });
-    }
-    
-    /**
-     * Handle user interaction (debug)
-     * @param {Object} payload - Event payload
-     */
-    function handleUserInteraction(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-        
-        const nodeId = payload.nodeId || payload.id;
-        if (!nodeId) {
-            return;
-        }
-        
-        // Try to get node position
-        let position = new THREE.Vector3(0, 0, 0);
-        const aiNodes = getAiNodes();
-        
-        if (aiNodes && aiNodes.nodes) {
-            const node = aiNodes.nodes.find(n => n.id === nodeId);
-            if (node && node.position) {
-                position = node.position;
-            }
-        }
-        
-        emitBurst({
-            type: 'probe',
-            origin: position,
-            intensity: config.probeIntensity
-        });
-    }
-
-    function handleSynergyCascadeGameplay(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-
-        requestBurstIntent({
-            type: 'synergy',
-            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
-            regime: 'harmonic'
-        });
-    }
-
-    function handleHarmonyResonanceGameplay(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-
-        requestBurstIntent({
-            type: 'harmonic',
-            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
-            regime: 'harmonic'
-        });
-    }
-
-    function handleCorruptionOutbreakGameplay(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-
-        requestBurstIntent({
-            type: 'corruption',
-            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
-            regime: 'chaotic'
-        });
-    }
-
-    function handleInstabilityTrapGameplay(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-
-        requestBurstIntent({
-            type: 'corruption',
-            intensity: Number.isFinite(payload?.value) ? payload.value : 0,
-            regime: 'chaotic'
-        });
-    }
-
-    function handleLoadCollapseGameplay(payload) {
-        if (!canTriggerBurst(performance.now() * 0.001)) {
-            return;
-        }
-
-        requestBurstIntent({
-            type: 'corruption',
-            intensity: Number.isFinite(payload?.load) ? payload.load : 0,
-            regime: 'stress'
-        });
-    }
-    
-    /**
-     * Subscribe to semantic bus events
-     */
     function subscribeToEvents() {
         const semanticBus = getSemanticBus();
-        if (!semanticBus || state.subscribed) {
-            return false;
-        }
+        if (!semanticBus || state.subscribed) return false;
 
         const subscribeFn =
             (typeof semanticBus.subscribe === 'function' && semanticBus.subscribe.bind(semanticBus)) ||
@@ -464,110 +254,99 @@ export function setupWaveBurstRouter(game) {
             (typeof semanticBus.unsubscribe === 'function' && semanticBus.unsubscribe.bind(semanticBus)) ||
             (typeof semanticBus.off === 'function' && semanticBus.off.bind(semanticBus)) ||
             null;
+
         if (!subscribeFn) return false;
 
-        const addSubscription = (tag, handler, priority) => {
+        const bind = (tag, type, priority) => {
+            const handler = (payload = {}) => emitIntent(type, payload, tag);
             subscribeFn(tag, handler, { priority });
             if (unsubscribeFn) {
                 state.unsubscribers.push(() => unsubscribeFn(tag, handler));
             }
         };
-        
-        // Synergy events
-        addSubscription('node.synergy.high', handleSynergyEvent, semanticBus.priority?.NORMAL);
-        addSubscription('metric:synergySpike', handleSynergyEvent, semanticBus.priority?.NORMAL);
-        addSubscription('link:synergyThreshold', handleSynergyEvent, semanticBus.priority?.NORMAL);
-        
-        // Cascade events
-        addSubscription('cascade.triggered', handleCascadeEvent, semanticBus.priority?.NORMAL);
-        addSubscription('harmonic.cascade.start', handleCascadeEvent, semanticBus.priority?.NORMAL);
-        addSubscription('link.created', handleCascadeEvent, semanticBus.priority?.NORMAL);
-        addSubscription('cascade.start', handleCascadeEvent, semanticBus.priority?.NORMAL);
-        addSubscription('cascade.hop', handleCascadeEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('cascade.end', handleCascadeEvent, semanticBus.priority?.NORMAL);
-        
-        // Corruption/failure events
-        addSubscription('node.corruption.high', handleCorruptionEvent, semanticBus.priority?.NORMAL);
-        addSubscription('node.failure', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('metric:corruptionRise', handleCorruptionEvent, semanticBus.priority?.NORMAL);
-        addSubscription('network:corruptionSpread', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('link:collapsed', handleCorruptionEvent, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        
-        // User interaction (debug)
-        addSubscription('node.hover', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('node.click', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('node:selected', handleUserInteraction, semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
-        addSubscription('event:synergyCascade', handleSynergyCascadeGameplay, semanticBus.priority?.NORMAL);
-        addSubscription('event:harmonyResonance', handleHarmonyResonanceGameplay, semanticBus.priority?.NORMAL);
-        addSubscription('event:corruptionOutbreak', handleCorruptionOutbreakGameplay, semanticBus.priority?.NORMAL);
-        addSubscription('event:instabilityTrap', handleInstabilityTrapGameplay, semanticBus.priority?.NORMAL);
-        addSubscription('event:loadCollapse', handleLoadCollapseGameplay, semanticBus.priority?.NORMAL);
+
+        const EVENT_TYPE_BY_TAG = new Map([
+            ['node.synergy.high', 'synergy'],
+            ['link:synergyThreshold', 'synergy'],
+            ['metric:synergySpike', 'synergy'],
+            ['metric.synergy.burst', 'synergy'],
+            ['cascade.triggered', 'cascade'],
+            ['harmonic.cascade.start', 'cascade'],
+            ['cascade.start', 'cascade'],
+            ['cascade.hop', 'cascade'],
+            ['metric:corruptionRise', 'corruption'],
+            ['metric.corruption.spike', 'corruption'],
+            ['metric.corruption.spread', 'corruption'],
+            ['network:corruptionSpread', 'corruption'],
+            ['link:collapsed', 'corruption']
+        ]);
+
+        const emitFn = semanticBus.emit;
+        if (typeof emitFn === 'function' && !state.emitHookRestore) {
+            const originalEmit = emitFn.bind(semanticBus);
+            semanticBus.emit = (tag, payload, opts) => {
+                const eventType = EVENT_TYPE_BY_TAG.get(tag);
+                if (eventType) {
+                    emitIntent(eventType, payload || {}, tag);
+                }
+                return originalEmit(tag, payload, opts);
+            };
+            state.emitHookRestore = () => {
+                semanticBus.emit = emitFn;
+            };
+        }
+
+        // Synergy gameplay events
+        bind('node.synergy.high', 'synergy', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bind('link:synergyThreshold', 'synergy', semanticBus.priority?.NORMAL);
+        bind('metric:synergySpike', 'synergy', semanticBus.priority?.NORMAL);
+        bind('metric.synergy.burst', 'synergy', semanticBus.priority?.NORMAL);
+
+        // Cascade gameplay events
+        bind('cascade.triggered', 'cascade', semanticBus.priority?.NORMAL);
+        bind('harmonic.cascade.start', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bind('cascade.start', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bind('cascade.hop', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+
+        // Corruption gameplay events
+        bind('metric:corruptionRise', 'corruption', semanticBus.priority?.NORMAL);
+        bind('metric.corruption.spike', 'corruption', semanticBus.priority?.NORMAL);
+        bind('metric.corruption.spread', 'corruption', semanticBus.priority?.NORMAL);
+        bind('network:corruptionSpread', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bind('link:collapsed', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         state.subscribed = true;
+        state.boundBus = semanticBus;
         return true;
     }
-    
-    /**
-     * Update router (called every frame)
-     * @param {number} deltaTime - Frame delta time in seconds
-     */
-    function update(deltaTime) {
+
+    function hasExpectedBindings(semanticBus) {
+        const handlers = semanticBus?.handlers;
+        if (!handlers || typeof handlers.get !== 'function') return true;
+        for (const tag of EXPECTED_EVENT_TAGS) {
+            const list = handlers.get(tag);
+            if (!Array.isArray(list) || list.length === 0) return false;
+        }
+        return true;
+    }
+
+    function update() {
+        const semanticBus = getSemanticBus();
+        if (!semanticBus) {
+            if (state.subscribed) dispose();
+            return;
+        }
+        if (state.boundBus && state.boundBus !== semanticBus) {
+            dispose();
+        }
+        if (state.subscribed && !hasExpectedBindings(semanticBus)) {
+            dispose();
+        }
         if (!state.subscribed) {
             subscribeToEvents();
         }
+    }
 
-        // Accumulate time for cooldown tracking
-        state.accumulatedTime += deltaTime;
-        state.ambientTimer += deltaTime;
-
-        if (state.ambientTimer >= 2.0) {
-            state.ambientTimer = 0;
-            requestBurstIntent({
-                type: 'ambient',
-                intensity: Math.min(config.ambientIntensity, config.ambientMaxIntensity),
-                origin: new THREE.Vector3(0, 0, 0),
-                sourceId: 'ambient',
-                metadata: { phase: Math.random(), source: 'ambient' }
-            });
-        }
-    }
-    
-    /**
-     * Get router status (for debugging)
-     * @returns {Object} Status object
-     */
-    function getStatus() {
-        const currentTime = performance.now() * 0.001;
-        const cooldownRemaining = Math.max(0, config.cooldownSeconds - (currentTime - state.lastBurstTime));
-        
-        return {
-            lastBurstTime: state.lastBurstTime,
-            cooldownRemaining: cooldownRemaining,
-            canTrigger: cooldownRemaining <= 0,
-            accumulatedTime: state.accumulatedTime,
-            config: { ...config }
-        };
-    }
-    
-    /**
-     * Enable/disable debug mode
-     * @param {boolean} enabled - Debug mode state
-     */
-    function setDebugMode(enabled) {
-        config.enableDebug = enabled;
-    }
-    
-    /**
-     * Update configuration
-     * @param {Object} newConfig - Configuration updates
-     */
-    function updateConfig(newConfig) {
-        Object.assign(config, newConfig);
-    }
-    
-    /**
-     * Dispose router (cleanup)
-     */
     function dispose() {
         for (const unsubscribe of state.unsubscribers) {
             try {
@@ -577,19 +356,29 @@ export function setupWaveBurstRouter(game) {
             }
         }
         state.unsubscribers = [];
+        if (typeof state.emitHookRestore === 'function') {
+            try {
+                state.emitHookRestore();
+            } catch (_err) {
+                // no-op
+            }
+        }
+        state.emitHookRestore = null;
         state.subscribed = false;
+        state.boundBus = null;
     }
-    
-    // Initialize
+
     subscribeToEvents();
-    
-    // Return router interface
+
     return {
         update,
-        getStatus,
-        setDebugMode,
-        updateConfig,
-        requestBurstIntent,
+        getStatus: () => ({
+            subscribed: state.subscribed,
+            lastBurstTime: state.lastBurstTime,
+            activeCooldownKeys: state.lastBurstByKey.size,
+            cooldownSeconds: config.cooldownSeconds,
+            subscriptions: state.unsubscribers.length
+        }),
         dispose
     };
 }

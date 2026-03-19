@@ -435,17 +435,15 @@ export class SynergyTravelingWaveFX_v1 {
             waveSpeedBase: config.waveSpeedBase || 4.0,  // 2–8 units/sec
             waveIntensityBase: config.waveIntensityBase || 1.0
         };
-        this.semanticBus = config.semanticBus || globalThis.semanticBus || null;
-        this.linkingSystem =
-            config.linkingSystem ||
-            config.nodeLinking ||
-            globalThis.game?.linkingSystem ||
-            globalThis.game?.nodeLinking ||
+        this.waveEngine =
+            config.waveEngine ||
+            config.world?.waveInterferenceEngine ||
+            globalThis.game?.waveInterferenceEngine ||
             null;
-        this.aiNodes = config.aiNodes || globalThis.game?.aiNodes || null;
         
         // Material state tracking (WeakMap for automatic GC)
         this.materialStates = new WeakMap();
+        this.materialRegistry = new Set();
         
         // Performance tracking
         this.lastUpdateTime = 0;
@@ -455,78 +453,11 @@ export class SynergyTravelingWaveFX_v1 {
         
         // Active waves tracking
         this.activeWaves = new Map();  // material → { depth, synergyLevel, startTime }
-        this._boundSemanticWaveSpawn = (event = {}) => this.spawnWave(event?.node, event);
-        this._subscribeSemanticEvents();
+        this._lastSnapshotId = null;
         
         if (this.config.debugEnabled) {
             console.log('[SynergyTravelingWaveFX_v1] Initialized ✓');
         }
-    }
-
-    _subscribeSemanticEvents() {
-        if (!this.semanticBus?.on) return;
-        this.semanticBus.on('node.synergy.high', this._boundSemanticWaveSpawn);
-        this.semanticBus.on('metric:synergySpike', this._boundSemanticWaveSpawn);
-    }
-
-    _resolveNodeRef(nodeOrId) {
-        if (!nodeOrId) return null;
-        if (typeof nodeOrId === 'object') return nodeOrId;
-
-        const nodes = this.aiNodes?.nodes;
-        if (!Array.isArray(nodes)) return null;
-        return nodes.find((node) =>
-            node?.id === nodeOrId ||
-            node?.uuid === nodeOrId ||
-            node?.userData?.nodeId === nodeOrId ||
-            node?.userData?.id === nodeOrId
-        ) || null;
-    }
-
-    _getLinks() {
-        return this.linkingSystem?.links || [];
-    }
-
-    _collectLinkMaterialsForNode(node) {
-        const links = this._getLinks();
-        if (!node || !Array.isArray(links) || links.length === 0) return [];
-
-        const materials = [];
-        const nodeId = node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
-
-        for (const link of links) {
-            const endpoints = [
-                link?.source,
-                link?.target,
-                link?.from,
-                link?.to,
-                link?.sourceNode,
-                link?.targetNode,
-                ...(Array.isArray(link?.nodes) ? link.nodes : [])
-            ].filter(Boolean);
-
-            const isConnected = endpoints.some((endpoint) => {
-                const endpointId = endpoint?.userData?.nodeId ?? endpoint?.userData?.id ?? endpoint?.id ?? endpoint?.uuid ?? null;
-                return endpoint === node || (nodeId !== null && endpointId !== null && endpointId === nodeId);
-            });
-            if (!isConnected) continue;
-
-            const linkGroup = link?.group;
-            if (!linkGroup?.traverse) continue;
-
-            linkGroup.traverse((child) => {
-                if (!child?.isMesh || !child.geometry || !child.material) return;
-                if (Array.isArray(child.material)) {
-                    for (const material of child.material) {
-                        if (material) materials.push(material);
-                    }
-                } else {
-                    materials.push(child.material);
-                }
-            });
-        }
-
-        return materials;
     }
     
     /**
@@ -544,6 +475,7 @@ export class SynergyTravelingWaveFX_v1 {
                 const state = new WaveMaterialState(material, options);
                 state.patch();
                 this.materialStates.set(material, state);
+                this.materialRegistry.add(material);
                 
                 if (this.config.debugEnabled) {
                     console.log(`[SynergyTravelingWaveFX_v1] Material registered: ${options.type || 'unknown'} (${options.polarity || 'positive'})`);
@@ -582,39 +514,26 @@ export class SynergyTravelingWaveFX_v1 {
         }
     }
 
-    spawnWave(nodeRef, event = {}) {
-        try {
-            const node = this._resolveNodeRef(nodeRef);
-            if (!node) return;
-
-            const synergyLevel = Math.max(
-                0,
-                Math.min(
-                    1,
-                    Number.isFinite(event?.value)
-                        ? event.value
-                        : (node?.userData?.metrics?.synergy ?? node?.metrics?.synergy ?? 0.7)
-                )
-            );
-            const depth = Math.max(
-                0,
-                Math.min(
-                    8,
-                    Number.isFinite(event?.depth)
-                        ? event.depth
-                        : Math.round((event?.linkCount ?? 2))
-                )
-            );
-
-            const materials = this._collectLinkMaterialsForNode(node);
-            for (const material of materials) {
-                this.triggerWave(material, depth, synergyLevel, 1.0);
-            }
-        } catch (err) {
-            if (this.config.debugEnabled) {
-                console.warn('[SynergyTravelingWaveFX_v1] spawnWave failed:', err);
-            }
+    _deriveSnapshotWaveParams(snapshot) {
+        const nowSec = performance.now() * 0.001;
+        const startAt = Number(snapshot?.timeline?.startAt);
+        const endAt = Number(snapshot?.timeline?.endAt);
+        if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) {
+            return null;
         }
+        const duration = Math.max(0.15, endAt - startAt);
+        const type = `${snapshot?.type || ''}`.toLowerCase();
+        const synergyLevel =
+            type === 'corruption' ? 0.35 :
+            type === 'synergy' ? 1.0 :
+            0.75;
+        const depth = type === 'corruption' ? 6 : type === 'synergy' ? 3 : 4;
+        const remaining = Math.max(0, endAt - nowSec);
+        return {
+            depth,
+            synergyLevel,
+            duration: Math.max(0.15, Math.min(duration, remaining || duration))
+        };
     }
     
     /**
@@ -644,6 +563,17 @@ export class SynergyTravelingWaveFX_v1 {
             
             // Increment global time
             this.globalTime += deltaTime;
+
+            const snapshot = this.waveEngine?.getActiveSnapshot?.() || null;
+            if (snapshot?.id && snapshot.id !== this._lastSnapshotId) {
+                this._lastSnapshotId = snapshot.id;
+                const waveParams = this._deriveSnapshotWaveParams(snapshot);
+                if (waveParams) {
+                    for (const material of this.materialRegistry) {
+                        this.triggerWave(material, waveParams.depth, waveParams.synergyLevel, waveParams.duration);
+                    }
+                }
+            }
             
             // Iterate all material states and update
             let updatedCount = 0;
@@ -749,13 +679,7 @@ export class SynergyTravelingWaveFX_v1 {
     dispose() {
         try {
             this.activeWaves.clear();
-            if (this.semanticBus?.unsubscribe) {
-                this.semanticBus.unsubscribe('node.synergy.high', this._boundSemanticWaveSpawn);
-                this.semanticBus.unsubscribe('metric:synergySpike', this._boundSemanticWaveSpawn);
-            } else if (this.semanticBus?.off) {
-                this.semanticBus.off('node.synergy.high', this._boundSemanticWaveSpawn);
-                this.semanticBus.off('metric:synergySpike', this._boundSemanticWaveSpawn);
-            }
+            this.materialRegistry.clear();
             
             // WeakMap will auto-cleanup
             

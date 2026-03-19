@@ -3765,15 +3765,6 @@ getLinksForNode(node) {
       };
       semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
 
-      if (window.game?.waveInterferenceEngine) {
-        window.game.waveInterferenceEngine.requestBurstIntent({
-          type: "synergy",
-          sourceId: payload?.linkId || "link",
-          center: payload?.position || payload?.midpoint || { x: 0, y: 0, z: 0 },
-          toRegime: "collaborative",
-          fromRegime: "baseline"
-        });
-      }
     }
     
     // categoryTransitionSystem removed (unused)
