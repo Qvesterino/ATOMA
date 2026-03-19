@@ -3,7 +3,8 @@ import * as THREE from 'three';
 const BURST_TYPES = Object.freeze({
     HARMONIC: 'harmonic',
     SYNERGY: 'synergy',
-    CORRUPTION: 'corruption'
+    CORRUPTION: 'corruption',
+    STABILITY: 'stability'
 });
 
 function clamp01(value) {
@@ -87,6 +88,7 @@ export class WaveInterferenceEngine_v1 {
             supersedeOnHigherPriority: options.supersedeOnHigherPriority ?? true,
             priorityOrder: options.priorityOrder || [
                 BURST_TYPES.CORRUPTION,
+                BURST_TYPES.STABILITY,
                 BURST_TYPES.SYNERGY,
                 BURST_TYPES.HARMONIC
             ]
@@ -107,6 +109,11 @@ export class WaveInterferenceEngine_v1 {
                 radius: options.corruptionRadius ?? 26,
                 riseSec: options.corruptionRiseSec ?? 0.05,
                 decaySec: options.corruptionDecaySec ?? 1.6
+            },
+            stability: {
+                radius: options.stabilityRadius ?? options.instabilityRadius ?? 24,
+                riseSec: options.stabilityRiseSec ?? options.instabilityRiseSec ?? 0.06,
+                decaySec: options.stabilityDecaySec ?? options.instabilityDecaySec ?? 1.4
             }
         };
 
@@ -122,6 +129,10 @@ export class WaveInterferenceEngine_v1 {
             corruption: {
                 criticalRegimes: new Set(options.corruptionCriticalRegimes || ['critical_divergence', 'rupture', 'contaminated']),
                 resetRegimes: new Set(options.corruptionResetRegimes || ['baseline', 'contained', 'recovered'])
+            },
+            stability: {
+                criticalRegimes: new Set(options.stabilityCriticalRegimes || options.instabilityCriticalRegimes || ['unstable', 'fragmented', 'turbulent']),
+                resetRegimes: new Set(options.stabilityResetRegimes || options.instabilityResetRegimes || ['baseline', 'stable', 'recovered'])
             }
         };
 
@@ -699,6 +710,10 @@ export class WaveInterferenceEngine_v1 {
             constructive = amplitude * 0.85;
             destructive = amplitude * 0.12;
             standing = amplitude * 0.55;
+        } else if (snapshot.type === BURST_TYPES.STABILITY) {
+            constructive = amplitude * 0.45;
+            destructive = amplitude * 0.55;
+            standing = amplitude * 0.5;
         } else if (snapshot.type === BURST_TYPES.CORRUPTION) {
             constructive = amplitude * 0.2;
             destructive = amplitude * 0.95;
@@ -719,7 +734,7 @@ export class WaveInterferenceEngine_v1 {
             destructive: clamp01(destructive),
             standing: clamp01(standing),
             phase: phaseRadians,
-            harmonicLevel: snapshot.type === BURST_TYPES.CORRUPTION ? 0 : clamp01(amplitude),
+            harmonicLevel: snapshot.type === BURST_TYPES.CORRUPTION ? 0 : clamp01(amplitude * (snapshot.type === BURST_TYPES.STABILITY ? 0.4 : 1)),
             destructiveInterference: clamp01(destructive)
         };
     }

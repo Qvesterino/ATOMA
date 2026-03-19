@@ -167,13 +167,8 @@ export class ResonanceCascadeVisualization_Session117B {
       event?.centerPos ||
       null;
 
-    const pos = sourcePos
-      ? new THREE.Vector3(
-          Number(sourcePos.x) || 0,
-          Number(sourcePos.y) || 0,
-          Number(sourcePos.z) || 0
-        )
-      : new THREE.Vector3(0, 0, 0);
+    const pos = this._asValidPosition(sourcePos);
+    if (!pos) return;
 
     const rawIntensity = event?.intensity ?? event?.value ?? event?.strength ?? 0;
     const impulseIntensity = this._clamp01(rawIntensity);
@@ -181,6 +176,15 @@ export class ResonanceCascadeVisualization_Session117B {
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
     this.activeCascades.push(cascade);
+  }
+
+  _asValidPosition(value) {
+    if (!value) return null;
+    const x = Number(value.x);
+    const y = Number(value.y);
+    const z = Number(value.z);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+    return new THREE.Vector3(x, y, z);
   }
 
   handleCascadeStart(event = {}) {

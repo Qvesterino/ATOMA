@@ -498,14 +498,17 @@ export class WaveShaderBridge_v1 {
         const type = `${snapshot.type || ''}`.toLowerCase();
         const constructive =
             type === 'corruption' ? envelope * 0.2 :
+            type === 'stability' ? envelope * 0.45 :
             type === 'synergy' ? envelope * 0.85 :
             envelope;
         const destructive =
             type === 'corruption' ? envelope * 0.95 :
+            type === 'stability' ? envelope * 0.55 :
             type === 'synergy' ? envelope * 0.12 :
             envelope * 0.05;
         const standing =
             type === 'corruption' ? envelope * 0.35 :
+            type === 'stability' ? envelope * 0.5 :
             type === 'synergy' ? envelope * 0.55 :
             envelope * 0.7;
         const phase = clamp01((nowSec - startAt) / Math.max(0.0001, endAt - startAt));

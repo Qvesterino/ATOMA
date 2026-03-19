@@ -164,14 +164,28 @@ export class SynergyCascadeVisualizer {
   }
 
   _asVector3(value) {
-    if (value instanceof THREE.Vector3) return value.clone();
+    if (value instanceof THREE.Vector3) {
+      return this._isValidWorldPosition(value) ? value.clone() : null;
+    }
     if (value && typeof value.x === 'number' && typeof value.y === 'number' && typeof value.z === 'number') {
-      return new THREE.Vector3(value.x, value.y, value.z);
+      const vec = new THREE.Vector3(value.x, value.y, value.z);
+      return this._isValidWorldPosition(vec) ? vec : null;
     }
     if (Array.isArray(value) && value.length >= 3) {
-      return new THREE.Vector3(Number(value[0]) || 0, Number(value[1]) || 0, Number(value[2]) || 0);
+      const x = Number(value[0]);
+      const y = Number(value[1]);
+      const z = Number(value[2]);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+      const vec = new THREE.Vector3(x, y, z);
+      return this._isValidWorldPosition(vec) ? vec : null;
     }
     return null;
+  }
+
+  _isValidWorldPosition(pos) {
+    if (!pos) return false;
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) return false;
+    return true;
   }
 
   _clamp01(value) {
@@ -443,7 +457,7 @@ export class SynergyCascadeVisualizer {
       ?? propagation.targetNode?.position
       ?? propagation.link?.target?.position
       ?? null;
-    if (!startPos || !targetPos) return;
+    if (!this._isValidWorldPosition(startPos) || !this._isValidWorldPosition(targetPos)) return;
     
     for (let i = 0; i < particleCount; i++) {
       const particle = this.getPooledParticle();

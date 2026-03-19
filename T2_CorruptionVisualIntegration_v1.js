@@ -54,6 +54,8 @@ export class T2_CorruptionVisualIntegration_v1 {
       framesProcessed: 0,
       lastCascadeTriggerTime: {}
     };
+    this._tmpSourceWorldPos = new THREE.Vector3();
+    this._tmpTargetWorldPos = new THREE.Vector3();
     
     console.log('[T2_CorruptionVisualIntegration_v1] Initialized (corruption visual wiring)');
   }
@@ -196,37 +198,41 @@ export class T2_CorruptionVisualIntegration_v1 {
     if (!link || !this.scene) return;
     
     const burstCount = Math.ceil(intensity * 5);
-    const linkMidpoint = new THREE.Vector3();
-    
-    if (link.geometry && link.geometry.attributes.position) {
-      // Get midpoint of link
-      const positions = link.geometry.attributes.position.array;
-      if (positions.length >= 6) {
-        linkMidpoint.set(
-          (positions[0] + positions[3]) / 2,
-          (positions[1] + positions[4]) / 2,
-          (positions[2] + positions[5]) / 2
-        );
-        if (link.parent) {
-          link.parent.localToWorld(linkMidpoint);
-        }
-      }
-    }
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourceWorldPos = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetWorldPos = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+    if (!sourceWorldPos || !targetWorldPos) return;
+    const direction = new THREE.Vector3().subVectors(targetWorldPos, sourceWorldPos);
+    if (direction.lengthSq() < 1e-6) return;
+    direction.normalize();
     
     // Create burst particles
     for (let i = 0; i < burstCount; i++) {
-      const particle = this.createBurstParticle(linkMidpoint, corruptionLevel);
+      const particle = this.createBurstParticle(targetWorldPos, corruptionLevel, direction);
       this.scene.add(particle);
     }
+  }
+
+  _resolveWorldPosition(node, outVec) {
+    if (!node || !node.position) return null;
+    const pos = (typeof node.getWorldPosition === 'function')
+      ? node.getWorldPosition(outVec || new THREE.Vector3())
+      : node.position;
+    if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || !Number.isFinite(pos.z)) return null;
+    return pos;
   }
   
   /**
    * Create a single corruption burst particle
    */
-  createBurstParticle(position, corruptionLevel) {
-    const particleGeometry = new THREE.SphereGeometry(0.1, 4, 4);
+  createBurstParticle(position, corruptionLevel, direction = null) {
+    const useTetra = Math.random() < 0.5;
+    const particleGeometry = useTetra
+      ? new THREE.TetrahedronGeometry(0.1, 0)
+      : new THREE.OctahedronGeometry(0.1, 0);
     const particleColor = this.getCorruptionColor(corruptionLevel);
-    const particleMaterial = new THREE.MeshBasicMaterial({
+    const particleMaterial = new THREE.MeshLambertMaterial({
       color: particleColor,
       emissive: particleColor,
       emissiveIntensity: 0.8,
@@ -236,16 +242,32 @@ export class T2_CorruptionVisualIntegration_v1 {
     
     const particle = new THREE.Mesh(particleGeometry, particleMaterial);
     particle.position.copy(position);
+    const baseDir = direction && direction.lengthSq() > 1e-6
+      ? direction.clone()
+      : new THREE.Vector3(1, 0, 0);
+    const jitter = 0.3;
+    const driftDir = baseDir.add(new THREE.Vector3(
+      (Math.random() * 2 - 1) * jitter,
+      (Math.random() * 2 - 1) * jitter,
+      (Math.random() * 2 - 1) * jitter
+    )).normalize();
+    const speed = 10 + Math.random() * 10;
+    const seed = Math.random() * Math.PI * 2;
+    const spin = new THREE.Vector3(
+      (Math.random() * 2 - 1) * 4,
+      (Math.random() * 2 - 1) * 4,
+      (Math.random() * 2 - 1) * 4
+    );
+
     particle.userData = {
       isBurstParticle: true,
-      velocity: new THREE.Vector3(
-        (Math.random() - 0.5) * 20,
-        (Math.random() - 0.5) * 20,
-        (Math.random() - 0.5) * 20
-      ),
+      velocity: driftDir.multiplyScalar(speed),
       lifetime: 1.0 + Math.random() * 0.5,
       age: 0,
-      createdAt: this.registry.time
+      createdAt: this.registry.time,
+      baseScale: 1.0,
+      seed,
+      spin
     };
     
     return particle;
@@ -289,19 +311,34 @@ export class T2_CorruptionVisualIntegration_v1 {
     for (let i = burstParticles.length - 1; i >= 0; i--) {
       const particle = burstParticles[i];
       particle.userData.age += deltaTime;
+      const life = Math.max(0.0001, particle.userData.lifetime || 1.0);
+      const t = Math.max(0, Math.min(1, particle.userData.age / life));
       
       // Update position
-      particle.position.add(
-        particle.userData.velocity.clone().multiplyScalar(deltaTime)
-      );
-      
-      // Fade out
-      const fadeStart = particle.userData.lifetime * 0.7;
-      if (particle.userData.age > fadeStart) {
-        const fadeProgress = (particle.userData.age - fadeStart) / 
-          (particle.userData.lifetime - fadeStart);
-        particle.material.opacity = 0.9 * (1.0 - fadeProgress);
+      particle.position.addScaledVector(particle.userData.velocity, deltaTime);
+
+      // Exponential fade
+      const fade = Math.pow(1.0 - t, 2.5);
+      particle.material.opacity = 0.9 * fade;
+
+      // Pulse scale (0.8 -> 1.1)
+      const seed = particle.userData.seed || 0;
+      const pulse01 = Math.sin(this.registry.time * 6 + seed) * 0.5 + 0.5;
+      const pulseScale = 0.8 + pulse01 * 0.3;
+      const baseScale = particle.userData.baseScale || 1.0;
+      particle.scale.setScalar(baseScale * pulseScale);
+
+      // Emissive flicker (0.8 -> 1.2)
+      if (particle.material?.emissiveIntensity !== undefined) {
+        const flicker01 = Math.sin(this.registry.time * 14 + seed * 1.7) * 0.5 + 0.5;
+        const emissiveMult = 0.8 + flicker01 * 0.4;
+        particle.material.emissiveIntensity = 0.8 * emissiveMult;
       }
+
+      // Rotation
+      particle.rotation.x += (particle.userData.spin?.x || 0) * deltaTime;
+      particle.rotation.y += (particle.userData.spin?.y || 0) * deltaTime;
+      particle.rotation.z += (particle.userData.spin?.z || 0) * deltaTime;
       
       // Remove expired particle
       if (particle.userData.age >= particle.userData.lifetime) {

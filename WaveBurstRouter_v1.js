@@ -6,14 +6,21 @@ export function setupWaveBurstRouter(game) {
         'link:synergyThreshold',
         'metric:synergySpike',
         'metric.synergy.burst',
+        'link:harmonicLock',
+        'metric:harmonyPeak',
+        'network:harmonyShift',
         'cascade.triggered',
         'harmonic.cascade.start',
         'cascade.start',
         'cascade.hop',
+        'metric:stabilityDrop',
+        'metric:loadPressureHigh',
+        'network:stressRise',
         'metric:corruptionRise',
         'metric.corruption.spike',
         'metric.corruption.spread',
         'network:corruptionSpread',
+        'metrics.spike',
         'link:collapsed'
     ];
 
@@ -189,6 +196,12 @@ export function setupWaveBurstRouter(game) {
         if (type === 'corruption') {
             return { fromRegime: 'baseline', toRegime: 'rupture' };
         }
+        if (type === 'stability') {
+            return { fromRegime: 'baseline', toRegime: 'unstable' };
+        }
+        if (type === 'harmonic') {
+            return { fromRegime: 'baseline', toRegime: 'aligned' };
+        }
         return { fromRegime: 'baseline', toRegime: 'collaborative' };
     }
 
@@ -270,14 +283,21 @@ export function setupWaveBurstRouter(game) {
             ['link:synergyThreshold', 'synergy'],
             ['metric:synergySpike', 'synergy'],
             ['metric.synergy.burst', 'synergy'],
+            ['link:harmonicLock', 'harmonic'],
+            ['metric:harmonyPeak', 'harmonic'],
+            ['network:harmonyShift', 'harmonic'],
             ['cascade.triggered', 'cascade'],
             ['harmonic.cascade.start', 'cascade'],
             ['cascade.start', 'cascade'],
             ['cascade.hop', 'cascade'],
+            ['metric:stabilityDrop', 'stability'],
+            ['metric:loadPressureHigh', 'stability'],
+            ['network:stressRise', 'stability'],
             ['metric:corruptionRise', 'corruption'],
             ['metric.corruption.spike', 'corruption'],
             ['metric.corruption.spread', 'corruption'],
             ['network:corruptionSpread', 'corruption'],
+            ['metrics.spike', 'corruption'],
             ['link:collapsed', 'corruption']
         ]);
 
@@ -301,6 +321,9 @@ export function setupWaveBurstRouter(game) {
         bind('link:synergyThreshold', 'synergy', semanticBus.priority?.NORMAL);
         bind('metric:synergySpike', 'synergy', semanticBus.priority?.NORMAL);
         bind('metric.synergy.burst', 'synergy', semanticBus.priority?.NORMAL);
+        bind('link:harmonicLock', 'harmonic', semanticBus.priority?.NORMAL);
+        bind('metric:harmonyPeak', 'harmonic', semanticBus.priority?.NORMAL);
+        bind('network:harmonyShift', 'harmonic', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Cascade gameplay events
         bind('cascade.triggered', 'cascade', semanticBus.priority?.NORMAL);
@@ -309,10 +332,14 @@ export function setupWaveBurstRouter(game) {
         bind('cascade.hop', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Corruption gameplay events
+        bind('metric:stabilityDrop', 'stability', semanticBus.priority?.NORMAL);
+        bind('metric:loadPressureHigh', 'stability', semanticBus.priority?.NORMAL);
+        bind('network:stressRise', 'stability', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('metric:corruptionRise', 'corruption', semanticBus.priority?.NORMAL);
         bind('metric.corruption.spike', 'corruption', semanticBus.priority?.NORMAL);
         bind('metric.corruption.spread', 'corruption', semanticBus.priority?.NORMAL);
         bind('network:corruptionSpread', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
+        bind('metrics.spike', 'corruption', semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('link:collapsed', 'corruption', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         state.subscribed = true;

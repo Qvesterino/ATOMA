@@ -440,6 +440,9 @@ export class SynergyVFXEngine1_0 {
     try {
       const linkId = link.id || `${link.from?.id}_${link.to?.id}`;
       if (!linkId) return;
+      const fromPos = this._cloneValidWorldPosition(link?.from?.position ?? link?.source?.position ?? null);
+      const toPos = this._cloneValidWorldPosition(link?.to?.position ?? link?.target?.position ?? null);
+      if (!fromPos || !toPos) return;
 
       // Check cooldown
       const existingBurst = this.burstEvents.get(linkId);
@@ -453,8 +456,8 @@ export class SynergyVFXEngine1_0 {
         endTime: this.state.time + this.config.burstDurationMs + this.config.burstCooldownMs,
         active: true,
         color: color,
-        fromPos: link.from?.position?.clone() || new THREE.Vector3(),
-        toPos: link.to?.position?.clone() || new THREE.Vector3(),
+        fromPos,
+        toPos,
       });
 
     } catch (error) {
@@ -566,13 +569,16 @@ export class SynergyVFXEngine1_0 {
 
             if (link1 && link2 && link1 !== link2) {
               const polarity = link1['synergyState']?.polarity || 'neutral';
+              const startPos = this._cloneValidWorldPosition(link1?.from?.position ?? link1?.source?.position ?? null);
+              const endPos = this._cloneValidWorldPosition(link2?.to?.position ?? link2?.target?.position ?? null);
+              if (!startPos || !endPos) continue;
 
               this.synergyThreads.push({
                 clusterId: clusterId,
                 link1: link1,
                 link2: link2,
-                startPos: link1.from?.position?.clone() || new THREE.Vector3(),
-                endPos: link2.to?.position?.clone() || new THREE.Vector3(),
+                startPos,
+                endPos,
                 color: this.synergyHues[polarity].hex,
                 lifetime: this.config.threadLifetimeMs,
                 elapsed: 0,
@@ -898,6 +904,15 @@ export class SynergyVFXEngine1_0 {
     } catch (error) {
       this.state.errors++;
     }
+  }
+
+  _cloneValidWorldPosition(pos) {
+    if (!pos) return null;
+    const x = Number(pos.x);
+    const y = Number(pos.y);
+    const z = Number(pos.z);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+    return new THREE.Vector3(x, y, z);
   }
 
   /**
