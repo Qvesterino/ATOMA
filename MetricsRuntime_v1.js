@@ -393,28 +393,19 @@ const adapter = this._createLinkSystemAdapter(
     }
 
     _runNetworkMetricsAggregator() {
-        if (!this.networkResolver || !this.networkMetricsAggregator) {
-            this._clearNetworkMetricsOverride();
+        // Run NetworkMetricsAggregator.compute() and store result for publishing
+        if (!this.networkMetricsAggregator) {
+            console.warn('[MetricsRuntime_v1] NetworkMetricsAggregator not initialized');
             return;
         }
-
-        this.networkResolver.nodeMap = this._buildNodeMap();
-        this.networkResolver.linkSystem = this.linkSystemAdapter;
-        this.networkResolver.resolve();
-
-        const computed = this.networkMetricsAggregator.compute?.();
-        if (!computed || (computed.nodeCount ?? 0) === 0) {
-            this._clearNetworkMetricsOverride();
-            return;
+        
+        try {
+            const result = this.networkMetricsAggregator.compute();
+            this._lastNetworkMetricsResult = result;
+        } catch (err) {
+            console.warn('[MetricsRuntime_v1] NetworkMetricsAggregator.compute() failed:', err.message);
+            this._lastNetworkMetricsResult = null;
         }
-
-        const override = this._pickCanonicalOverride(computed);
-        if (!override) {
-            this._clearNetworkMetricsOverride();
-            return;
-        }
-
-        this._publishNetworkMetricsOverride(override);
     }
 
     /**
@@ -770,172 +761,34 @@ const adapter = this._createLinkSystemAdapter(
      * Priority: NetworkMetricsAggregator override → Node aggregation fallback
      * This is the canonical source of truth for HUD and other consumers
      * Always publishes, even when metrics are 0, to ensure object shape stability
-     * 
-     * Applies exponential smoothing to prevent instant jumps on spawn.
-     * Tracks baseline (node-only) and influence (link contribution) internally.
      */
     _publishLiveMetrics() {
         const scope = this._getGlobalScope();
         if (!scope) return;
 
-        let networkSynergy = 0;
-        let harmonyFlow = 0;
-        let networkStress = 0;
-        let corruptionLevel = 0;
-        let loadPressure = 0;
-        let nodeCount = 0;
-        let linkCount = 0;
-
-        // Guard: if no links exist, zero all global metrics
-        const totalLinks = this._countLinks();
-        if (totalLinks === 0) {
-            scope.__ATOMA_LIVE_METRICS__ = {
-                networkSynergy: 0,
-                harmonyFlow: 0,
-                networkStress: 0,
-                corruptionLevel: 0,
-                loadPressure: 0,
-                nodeCount: 0,
-                linkCount: 0
-            };
-            this._semanticSignalState.last = {
-                networkSynergy: 0,
-                harmonyFlow: 0,
-                networkStress: 0,
-                corruptionLevel: 0,
-                loadPressure: 0
-            };
-            this._semanticSignalState.flags.harmonyPeak = false;
-            this._semanticSignalState.flags.corruptionSpread = false;
-            this._semanticSignalState.flags.loadPressureHigh = false;
-            return;
-        }
-
-        // Always compute baseline (node-only aggregation)
-        const baseline = this._aggregateNodeMetrics();
-        this._baselineMetrics = {
-            networkSynergy: baseline.networkSynergy,
-            harmonyFlow: baseline.harmonyFlow,
-            networkStress: baseline.networkStress,
-            corruptionLevel: baseline.corruptionLevel,
-            loadPressure: baseline.loadPressure
-        };
-
-        // Link-derived synergy (canonical link metric average)
-        const linkAgg = this._aggregateLinkSynergy();
-        linkCount = linkAgg.linkCount;
-
-        // Priority 1: Use NetworkMetricsAggregator override if available
-        const override = scope[this.networkMetricsOverrideKey];
-        let isUsingAggregator = false;
+        // Use NetworkMetricsAggregator result if available, otherwise use node aggregation
+        let result;
         
-        if (override && typeof override === 'object') {
-            isUsingAggregator = true;
-            networkSynergy = this._clamp01(override.networkSynergy);
-            harmonyFlow = this._clamp01(override.harmonyFlow);
-            networkStress = this._clamp01(override.networkStress);
-            corruptionLevel = this._clamp01(override.corruptionLevel);
-            loadPressure = this._clamp01(override.loadPressure);
-            nodeCount = override.nodeCount ?? 0;
-
-            // Track link influence (final - baseline)
-            this._influenceMetrics = {
-                networkSynergy: this._clamp01(networkSynergy - this._baselineMetrics.networkSynergy),
-                harmonyFlow: this._clamp01(harmonyFlow - this._baselineMetrics.harmonyFlow),
-                networkStress: this._clamp01(networkStress - this._baselineMetrics.networkStress),
-                corruptionLevel: this._clamp01(corruptionLevel - this._baselineMetrics.corruptionLevel),
-                loadPressure: this._clamp01(loadPressure - this._baselineMetrics.loadPressure)
-            };
+        if (this._lastNetworkMetricsResult) {
+            result = this._lastNetworkMetricsResult;
         } else {
-            // Priority 2: Fallback to aggregating node metrics (no link influence)
-            networkSynergy = linkAgg.avgSynergy;
-            harmonyFlow = baseline.harmonyFlow;
-            networkStress = baseline.networkStress;
-            corruptionLevel = baseline.corruptionLevel;
-            loadPressure = baseline.loadPressure;
-            nodeCount = baseline.nodeCount;
-
-            // No link influence when not using aggregator
-            this._influenceMetrics = {
-                networkSynergy: 0,
-                harmonyFlow: 0,
-                networkStress: 0,
-                corruptionLevel: 0,
-                loadPressure: 0
-            };
+            // Fallback: aggregate from nodes
+            result = this._aggregateNodeMetrics();
         }
 
-        // Apply exponential smoothing (soft damping)
-        const smoothedNetworkSynergy = this._lerp(this._smoothedMetrics.networkSynergy, networkSynergy, this._dampingFactor);
-        const smoothedHarmonyFlow = this._lerp(this._smoothedMetrics.harmonyFlow, harmonyFlow, this._dampingFactor);
-        const smoothedNetworkStress = this._lerp(this._smoothedMetrics.networkStress, networkStress, this._dampingFactor);
-        const smoothedCorruptionLevel = this._lerp(this._smoothedMetrics.corruptionLevel, corruptionLevel, this._dampingFactor);
-        const smoothedLoadPressure = this._lerp(this._smoothedMetrics.loadPressure, loadPressure, this._dampingFactor);
-
-        // Update smoothed state for next frame
-        this._smoothedMetrics = {
-            networkSynergy: smoothedNetworkSynergy,
-            harmonyFlow: smoothedHarmonyFlow,
-            networkStress: smoothedNetworkStress,
-            corruptionLevel: smoothedCorruptionLevel,
-            loadPressure: smoothedLoadPressure
+        // Publish to __ATOMA_LIVE_METRICS__
+        scope.__ATOMA_LIVE_METRICS__ = {
+            networkSynergy: this._clamp01(result.networkSynergy ?? result.synergy ?? 0),
+            harmonyFlow: this._clamp01(result.harmonyFlow ?? result.harmony ?? 0),
+            networkStress: this._clamp01(result.networkStress ?? (1 - (result.stability ?? 0))),
+            corruptionLevel: this._clamp01(result.corruptionLevel ?? result.corruption ?? 0),
+            loadPressure: this._clamp01(result.loadPressure ?? 0)
         };
 
-        // Final HUD-friendly smoothing
-        const publishFactor = 0.15;
-        const publishNetworkSynergy = this._lerp(this._publishedMetrics.networkSynergy, smoothedNetworkSynergy, publishFactor);
-        const publishHarmonyFlow = this._lerp(this._publishedMetrics.harmonyFlow, smoothedHarmonyFlow, publishFactor);
-        const publishNetworkStress = this._lerp(this._publishedMetrics.networkStress, smoothedNetworkStress, publishFactor);
-        const publishCorruptionLevel = this._lerp(this._publishedMetrics.corruptionLevel, smoothedCorruptionLevel, publishFactor);
-        const publishLoadPressure = this._lerp(this._publishedMetrics.loadPressure, smoothedLoadPressure, publishFactor);
-
-        // Clamp published values to [0,1]
-        const clampedPublish = {
-            networkSynergy: this._clamp01(publishNetworkSynergy),
-            harmonyFlow: this._clamp01(publishHarmonyFlow),
-            networkStress: this._clamp01(publishNetworkStress),
-            corruptionLevel: this._clamp01(publishCorruptionLevel),
-            loadPressure: this._clamp01(publishLoadPressure)
-        };
-
-        this._publishedMetrics = {
-            networkSynergy: clampedPublish.networkSynergy,
-            harmonyFlow: clampedPublish.harmonyFlow,
-            networkStress: clampedPublish.networkStress,
-            corruptionLevel: clampedPublish.corruptionLevel,
-            loadPressure: clampedPublish.loadPressure
-        };
-
-        // Temporal saturation flag (true when time is being slowed)
-        const temporalSaturation = smoothedNetworkSynergy >= 0.85;
-
-        console.log("ATOMA METRICS PUBLISHED", {
-            networkSynergy: clampedPublish.networkSynergy,
-            harmonyFlow: clampedPublish.harmonyFlow,
-            networkStress: clampedPublish.networkStress,
-            corruptionLevel: clampedPublish.corruptionLevel,
-            loadPressure: clampedPublish.loadPressure,
-            nodeCount,
-            linkCount,
-            isUsingAggregator
-        });
-
-        // Always publish with safe merge strategy (exposes smoothed values)
-        this._safePublishLiveMetrics({
-            networkSynergy: clampedPublish.networkSynergy,
-            harmonyFlow: clampedPublish.harmonyFlow,
-            networkStress: clampedPublish.networkStress,
-            corruptionLevel: clampedPublish.corruptionLevel,
-            loadPressure: clampedPublish.loadPressure,
-            nodeCount,
-            linkCount,
-            temporalSaturation
-        });
-
-        this._emitCanonicalSemanticMetrics(clampedPublish, {
-            nodeCount,
-            linkCount
-        });
+        // Debug guard - warn if LIVE METRICS not set
+        if (!scope.__ATOMA_LIVE_METRICS__) {
+            console.warn('[MetricsRuntime] LIVE METRICS NOT SET');
+        }
     }
 
     /**

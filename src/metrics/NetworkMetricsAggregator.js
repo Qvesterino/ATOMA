@@ -6,6 +6,7 @@
 
 // Debug flag - set to true for console output during development
 const DEBUG_NETWORK_METRICS = false;
+const DEBUG_NODE_METRICS_FALLBACK = true;
 
 export class NetworkMetricsAggregator {
   constructor({ networkResolver }) {
@@ -23,6 +24,10 @@ export class NetworkMetricsAggregator {
       return this._emptyMetrics();
     }
 
+    if (typeof this.networkResolver?.resolve === 'function') {
+      this.networkResolver.resolve();
+    }
+
     const networks = this.networkResolver.getNetworks();
     if (!networks || networks.size === 0) {
       return this._emptyMetrics();
@@ -36,7 +41,22 @@ export class NetworkMetricsAggregator {
     for (const nodes of networks.values()) {
       for (const nodeId of nodes) {
         const node = this._getNode(nodeId);
-        if (!node || !node.userData?.metrics) continue;
+        if (!node) continue;
+        if (!node.userData) {
+          node.userData = {};
+        }
+        if (DEBUG_NODE_METRICS_FALLBACK && !node.userData?.metrics) {
+          node.userData.metrics = {
+            synergy: Math.random(),
+            harmony: Math.random(),
+            stability: Math.random(),
+            corruption: Math.random(),
+            loadPressure: Math.random(),
+            energy: Math.random()
+          };
+        }
+        console.log('[NODE METRICS]', node.userData?.metrics);
+        if (!node.userData?.metrics) continue;
         const links = this._getLinksForNode(nodeId);
         const degree = links?.length || 0;
         if (degree === 0) continue;
@@ -95,6 +115,10 @@ export class NetworkMetricsAggregator {
     console.log("totalLinks:", totalLinks);
     if (totalLinks === 0) {
       return this._emptyMetrics();
+    }
+
+    if (typeof this.networkResolver?.resolve === 'function') {
+      this.networkResolver.resolve();
     }
 
     const networks = this.networkResolver.getNetworks();

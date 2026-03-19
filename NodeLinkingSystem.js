@@ -4718,9 +4718,44 @@ getLinksForNode(node) {
     }
   }
   
+   /**
+    * Calculate link metrics from source and target nodes
+    * Called every tick (10Hz) to ensure link metrics are never stale
+    * 
+    * @param {Object} link - Link object with source and target nodes
+    * @returns {Object} Link metrics { harmony, synergy, corruption, energy, __updatedAt }
+    */
+  _calculateLinkMetrics(link) {
+    if (!link || !link.source || !link.target) {
+      return null;
+    }
+
+    // Ensure source and target nodes have metrics
+    const sourceNode = link.sourceNode || link.source;
+    const targetNode = link.targetNode || link.target;
+    
+    if (!sourceNode?.userData?.metrics || !targetNode?.userData?.metrics) {
+      return null;
+    }
+
+    const source = sourceNode.userData.metrics;
+    const target = targetNode.userData.metrics;
+
+    // Calculate link metrics from node metrics
+    const metrics = {
+      harmony: (source.harmony + target.harmony) * 0.5,
+      synergy: (source.synergy + target.synergy) * 0.5,
+      corruption: Math.max(source.corruption, target.corruption),
+      energy: (source.energy || 0 + target.energy || 0) * 0.5,
+      __updatedAt: performance.now()
+    };
+
+    return metrics;
+  }
+
   /**
-   * Update all links - positions, animations, and traffic simulation
-   */
+    * Update all links - positions, animations, and traffic simulation
+    */
   update(deltaTime, time) {
     if (!this._picDiagUpdateLogged) {
       console.error('[PicDiag] NodeLinkingSystem.update entered', { worldReady: this.worldReady, links: this.links?.length || 0 });
@@ -4821,6 +4856,13 @@ getLinksForNode(node) {
       if (!this._isValidNodeForLink(link.source) || !this._isValidNodeForLink(link.target)) {
         deadLinks.push(link);
         return;
+      }
+
+      // Calculate link metrics from source and target nodes (every tick, no lazy fallbacks)
+      const linkMetrics = this._calculateLinkMetrics(link);
+      if (linkMetrics) {
+        // Always overwrite - no lazy fallbacks
+        link.userData.metrics = linkMetrics;
       }
       
       // ===== HARD GUARD: PREVENT NODE VISUAL MUTATION DURING LINK UPDATE =====

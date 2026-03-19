@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
+import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 
 /**
  * CORE METRICS HUD
@@ -11,11 +12,14 @@ import { projectHudMetrics } from './SemanticMetricAdapter.js';
  * Displays:
  * - Synergy, Harmony, stability, Corruption, Network Load (with bars)
  * - Cycle time, Epoch number, Aeon number
+ * 
+ * Metrics Source: CoreMetricsCalculator (single source of truth)
  */
 
 export class CoreMetricsHUD {
-  constructor(renderer) {
+  constructor(renderer, coreMetricsCalculator = null) {
     this.renderer = renderer;
+    this.coreMetricsCalculator = coreMetricsCalculator;
     this.enabled = true;
     
     // DOM elements
@@ -213,14 +217,38 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
   this.lastUpdateTime = now;
 
-  // === READ LIVE METRICS FROM RUNTIME ===
-  // Priority: Runtime live metrics � Fallback to parameter metrics
+  // === READ METRICS FROM __ATOMA_LIVE_METRICS__ ===
+  // Primary source: window.__ATOMA_LIVE_METRICS__ (published by MetricsRuntime_v1)
+  // Fallback: CoreMetricsCalculator (for backward compatibility)
+  let synergy, harmony, stress, corruption, load;
+
   const liveMetrics = window.__ATOMA_LIVE_METRICS__;
-  const synergy    = this.clamp01(liveMetrics?.networkSynergy ?? metrics?.networkSynergy ?? metrics?.synergy ?? 0);
-  const harmony    = this.clamp01(liveMetrics?.harmonyFlow ?? metrics?.harmonyFlow ?? metrics?.harmony ?? 0);
-  const stress     = this.clamp01(liveMetrics?.networkStress ?? metrics?.networkStress ?? metrics?.stability ?? 0);
-  const corruption = this.clamp01(liveMetrics?.corruptionLevel ?? metrics?.corruptionLevel ?? metrics?.corruption ?? 0);
-  const load       = this.clamp01(liveMetrics?.loadPressure ?? metrics?.loadPressure ?? metrics?.networkLoad ?? 0);
+  if (liveMetrics) {
+    // Read from __ATOMA_LIVE_METRICS__ (MetricsRuntime_v1 published)
+    synergy = this.clamp01(liveMetrics.networkSynergy ?? 0);
+    harmony = this.clamp01(liveMetrics.harmonyFlow ?? 0);
+    stress = this.clamp01(liveMetrics.networkStress ?? 0);
+    corruption = this.clamp01(liveMetrics.corruptionLevel ?? 0);
+    load = this.clamp01(liveMetrics.loadPressure ?? 0);
+  } else if (this.coreMetricsCalculator) {
+    // Fallback: CoreMetricsCalculator
+    const calcMetrics = this.coreMetricsCalculator.getMetrics();
+    synergy = this.clamp01(calcMetrics.synergy ?? 0);
+    harmony = this.clamp01(calcMetrics.harmony ?? 0);
+    stress = this.clamp01(calcMetrics.stability ?? 0);
+    corruption = this.clamp01(calcMetrics.corruption ?? 0);
+    load = this.clamp01(calcMetrics.loadPressure ?? 0);
+  } else if (metrics) {
+    // Fallback to provided metrics parameter
+    synergy = this.clamp01(metrics.synergy ?? 0);
+    harmony = this.clamp01(metrics.harmony ?? 0);
+    stress = this.clamp01(metrics.stability ?? 0);
+    corruption = this.clamp01(metrics.corruption ?? 0);
+    load = this.clamp01(metrics.loadPressure ?? 0);
+  } else {
+    // Final fallback to zero values
+    synergy = harmony = stress = corruption = load = 0;
+  }
 
   // === RENDER HUD (expects 0..1 floats) ===
   this.updateMetricDisplay('synergy', synergy);

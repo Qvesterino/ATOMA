@@ -695,70 +695,81 @@ export class NeonLinkVisuals {
    */
   updateShaderUniforms() {
     if (!this.scene) return;
-    
-    // Global stress from network state (0-1)
-    // Sources: linkCollapseSystem, linkDegradationSystem, corruption, load
-    const networkStress = Math.min(1, (window.NETWORK_STRESS ?? 0) * 0.01);
-    
+
     // Flow rate controlled by system state or debug API
     const flowRate = window.__linkVisual?.flowRate ?? 1.0;
     
     // Global opacity control
     const globalOpacity = window.__linkVisual?.opacity ?? 0.8;
     const useShared = this._useSharedMaterials();
-    
-    this.scene.traverse((obj) => {
-      // Link Visual Language v2 shader materials
-      if (obj.material && obj.material.uniforms) {
-        const uniformStore = obj.userData?.__linkUniforms;
-        const useDedupUniforms = useShared && uniformStore;
-        // Animate time
-        if (obj.material.uniforms.uTime) {
-          obj.material.uniforms.uTime.value = this.time;
-          if (useDedupUniforms) uniformStore.uTime = this.time;
-        }
-        
-        // Wire per-link stress or use global stress
-        if (obj.material.uniforms.uStress) {
-          const linkStress = obj.userData?.linkStress ?? networkStress;
-          if (useDedupUniforms) {
-            uniformStore.uStress = linkStress;
-          } else {
-            obj.material.uniforms.uStress.value = linkStress;
-          }
-        }
-        
-        // Flow animation (moving pattern)
-        if (obj.material.uniforms.uFlow) {
-          if (useDedupUniforms) {
-            uniformStore.uFlow = flowRate;
-          } else {
-            obj.material.uniforms.uFlow.value = flowRate;
-          }
-        }
-        
-        // Global opacity (stable, non-blocking)
-        if (obj.material.uniforms.uOpacity) {
-          if (useDedupUniforms) {
-            uniformStore.uOpacity = globalOpacity;
-          } else {
-            obj.material.uniforms.uOpacity.value = globalOpacity;
+
+    const applyMetricsToMaterial = (material, metrics, uniformStore = null) => {
+      if (!material?.uniforms || !metrics) return;
+      const useDedupUniforms = useShared && uniformStore;
+      const stress = 1.0 - (metrics.stability ?? 1);
+      const load = metrics.loadPressure ?? 0;
+
+      if (material.uniforms.uTime) {
+        if (useDedupUniforms) uniformStore.uTime = this.time;
+        else material.uniforms.uTime.value = this.time;
+      }
+      if (material.uniforms.uSynergy) {
+        if (useDedupUniforms) uniformStore.uSynergy = metrics.synergy ?? 0;
+        else material.uniforms.uSynergy.value = metrics.synergy ?? 0;
+      }
+      if (material.uniforms.uHarmony) {
+        if (useDedupUniforms) uniformStore.uHarmony = metrics.harmony ?? 0;
+        else material.uniforms.uHarmony.value = metrics.harmony ?? 0;
+      }
+      if (material.uniforms.uStress) {
+        if (useDedupUniforms) uniformStore.uStress = stress;
+        else material.uniforms.uStress.value = stress;
+      }
+      if (material.uniforms.uCorruption) {
+        if (useDedupUniforms) uniformStore.uCorruption = metrics.corruption ?? 0;
+        else material.uniforms.uCorruption.value = metrics.corruption ?? 0;
+      }
+      if (material.uniforms.uLoad) {
+        if (useDedupUniforms) uniformStore.uLoad = load;
+        else material.uniforms.uLoad.value = load;
+      }
+      if (material.uniforms.uFlow) {
+        if (useDedupUniforms) uniformStore.uFlow = flowRate;
+        else material.uniforms.uFlow.value = flowRate;
+      }
+      if (material.uniforms.uOpacity) {
+        if (useDedupUniforms) uniformStore.uOpacity = globalOpacity;
+        else material.uniforms.uOpacity.value = globalOpacity;
+      }
+
+      if (Math.random() < 0.01) {
+        console.log('[LINK METRICS → SHADER]', metrics);
+      }
+    };
+
+    for (const [, state] of this.linkStates.entries()) {
+      const link = state?.mesh?.userData?.link;
+      const m = link?.userData?.metrics;
+      if (!m || !state?.mesh) continue;
+
+      const rootStore = state.mesh.userData?.__linkUniforms;
+      if (state.mesh.material && !Array.isArray(state.mesh.material)) {
+        applyMetricsToMaterial(state.mesh.material, m, rootStore);
+      } else if (Array.isArray(state.mesh.material)) {
+        state.mesh.material.forEach(mat => applyMetricsToMaterial(mat, m, rootStore));
+      }
+
+      if (Array.isArray(state.mesh.children)) {
+        for (const child of state.mesh.children) {
+          const childStore = child.userData?.__linkUniforms;
+          if (child.material && !Array.isArray(child.material)) {
+            applyMetricsToMaterial(child.material, m, childStore);
+          } else if (Array.isArray(child.material)) {
+            child.material.forEach(mat => applyMetricsToMaterial(mat, m, childStore));
           }
         }
       }
-      
-      // Also handle material arrays
-      if (obj.material && Array.isArray(obj.material)) {
-        obj.material.forEach(mat => {
-          if (mat.uniforms) {
-            if (mat.uniforms.uTime) mat.uniforms.uTime.value = this.time;
-            if (mat.uniforms.uStress) mat.uniforms.uStress.value = networkStress;
-            if (mat.uniforms.uFlow) mat.uniforms.uFlow.value = flowRate;
-            if (mat.uniforms.uOpacity) mat.uniforms.uOpacity.value = globalOpacity;
-          }
-        });
-      }
-    });
+    }
   }
   
   /**

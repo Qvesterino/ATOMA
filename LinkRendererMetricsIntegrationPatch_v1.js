@@ -45,6 +45,9 @@ export class LinkRendererMetricsIntegrationBridge {
     this.coreMetricsCalculator = null;
     this.linkRendererMaterials = null;  // Map of linkId → material
     
+    // DEBUG: Enable logging for shader uniform verification
+    this.enableLogging = options.enableLogging || false;
+    
     // Statistics
     this.stats = {
       framesUpdated: 0,
@@ -92,31 +95,16 @@ export class LinkRendererMetricsIntegrationBridge {
    * @returns {boolean} True if update was applied
    */
   update() {
-    if (!this.enabled || !this.coreMetricsCalculator) {
+    if (!this.enabled) {
       return false;
     }
     
     const startTime = performance.now();
     
     try {
-      // Get current metrics from calculator
-      const metrics = this.coreMetricsCalculator.getMetrics();
+      // Disabled path: renderer must read only link.userData.metrics in conduit/visual pipelines.
+      return false;
       
-      // Update integration
-      this.metricsIntegration.update(metrics);
-      
-      // Apply to all registered materials
-      const applied = this.metricsIntegration.updateAllRegisteredMaterials();
-      
-      // Update statistics
-      this.stats.framesUpdated++;
-      this.stats.lastMetricsUpdateTime = Date.now();
-      
-      const updateTime = performance.now() - startTime;
-      this.stats.averageUpdateTime = 
-        (this.stats.averageUpdateTime * 0.9) + (updateTime * 0.1);
-      
-      return applied > 0;
     } catch (error) {
       console.warn('[LinkRendererMetrics] Error during update:', error);
       return false;

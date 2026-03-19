@@ -54,6 +54,7 @@
  */
 
 import * as THREE from 'three';
+import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 
 export class HarmonicHubAuraSystem_Session126 {
   constructor(scene, worldRoot, world, nodeAuraSystem, linkResonanceSystem, config = {}) {
@@ -64,6 +65,7 @@ export class HarmonicHubAuraSystem_Session126 {
     this.nodeAuraSystem = nodeAuraSystem;
     this.linkResonanceSystem = linkResonanceSystem;
     this.semanticBus = (typeof globalThis !== 'undefined') ? globalThis.semanticBus : null;
+    this.coreMetricsCalculator = config.coreMetricsCalculator || null;
     
     this.config = {
       // Hub qualification
@@ -710,11 +712,16 @@ export class HarmonicHubAuraSystem_Session126 {
   }
 
   _getCurrentHarmonyFlow(payload = {}) {
-    const fromLiveMetrics = (typeof globalThis !== 'undefined')
-      ? globalThis?.__ATOMA_LIVE_METRICS__?.harmonyFlow
-      : null;
-    if (Number.isFinite(fromLiveMetrics)) return this._clamp01(fromLiveMetrics);
+    // Priority 1: Read from CoreMetricsCalculator (single source of truth)
+    if (this.coreMetricsCalculator) {
+      const metrics = this.coreMetricsCalculator.getMetrics();
+      if (Number.isFinite(metrics?.harmony)) return this._clamp01(metrics.harmony);
+    }
+    
+    // Priority 2: Use payload value
     if (Number.isFinite(payload?.value)) return this._clamp01(payload.value);
+    
+    // Fallback to zero
     return 0;
   }
 

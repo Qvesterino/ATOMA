@@ -159,10 +159,33 @@ export class LinkShaderMetricsIntegration {
     
     // Update legacy uniforms for compatibility
     if (uniforms.energy) {
-      uniforms.energy.value = 0.5 + load * 0.5;  // Load drives energy
+      const energyValue = 0.5 + load * 0.5;  // Load drives energy
+      uniforms.energy.value = energyValue;
+      
+      // EMISSIVE / GLOW EFFECT: Boost final color for emissive/glow
+      const emissiveBoost = 1.0 + energy * 1.5;  // Emissive glow based on energy
+      uniforms.uEmissiveBoost = emissiveBoost;
+      
+      // DEBUG: Log emissive boost
+      if (this.enableLogging) {
+        console.log('[LinkShaderMetrics] emissive boost updated:', {
+          load: load.toFixed(3),
+          energy: energyValue.toFixed(3),
+          emissiveBoost: emissiveBoost.toFixed(3),
+          calculation: '1.0 + energy * 1.5'
+        });
+      }
     }
     if (uniforms.intensity) {
       uniforms.intensity.value = 1.0;  // Always full intensity
+      
+      // DEBUG: Log intensity uniform update
+      if (this.enableLogging) {
+        console.log('[LinkShaderMetrics] intensity uniform updated:', {
+          intensity: 1.0,
+          note: 'Always full intensity'
+        });
+      }
     }
     
     return true;

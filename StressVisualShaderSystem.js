@@ -2,10 +2,10 @@
  * STRESS VISUAL SHADER SYSTEM
  * 
  * GPU-based stress visualization using GLSL shaders.
- * Consumes metrics from MetricInterpretationLayer_v1 and __ATOMA_LIVE_METRICS__.
+ * Consumes metrics from CoreMetricsCalculator (single source of truth).
  * 
  * DATA SOURCES (Read-Only):
- * - networkStress: from __ATOMA_LIVE_METRICS__.networkStress
+ * - networkStress: from CoreMetricsCalculator.getMetrics().stability
  * - node visual metrics: from node.userData.visualMetrics
  * 
  * VISUAL OUTPUT:
@@ -15,6 +15,7 @@
  */
 
 import * as THREE from 'three';
+import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 import {
     stressAmbientVertexShader,
     stressAmbientFragmentShader,
@@ -43,6 +44,7 @@ export class StressVisualShaderSystem {
     constructor(scene, config = {}) {
         this.scene = scene;
         this.config = { ...DEFAULT_CONFIG, ...config };
+        this.coreMetricsCalculator = config.coreMetricsCalculator || null;
         
         // State
         this.networkStress = 0;
@@ -162,11 +164,14 @@ export class StressVisualShaderSystem {
     }
     
     /**
-     * Read network stress from __ATOMA_LIVE_METRICS__
+     * Read network stress from CoreMetricsCalculator
+     * CoreMetricsCalculator is the single source of truth for network metrics
      */
     _updateNetworkStress() {
-        if (typeof window !== 'undefined' && window.__ATOMA_LIVE_METRICS__) {
-            this.networkStress = window.__ATOMA_LIVE_METRICS__.networkStress ?? 0;
+        if (this.coreMetricsCalculator) {
+            const metrics = this.coreMetricsCalculator.getMetrics();
+            // networkStress = 1 - stability (inverted)
+            this.networkStress = 1 - (metrics?.stability ?? 0);
         }
     }
     

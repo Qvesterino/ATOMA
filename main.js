@@ -630,6 +630,7 @@ import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } fro
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
 import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
 import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
+import { injectHarmonyIntoNodes, injectRandomHarmonyDistribution, getHarmonyStatistics, HarmonyInjectAPI } from './InjectHarmonyIntoNodes.js';
 import { setupCorruptionCascadeTestRunner } from './_T4003_CORRUPTION_CASCADE_TEST_RUNNER.js';
 import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNNER.js';
 
@@ -3580,6 +3581,10 @@ class AtomaGame {
                 safeTick(this.effectOrchestrator, dt, this.time);
             }
         }, 'simulation.effectOrchestrator');
+        
+        // Disabled: renderer now reads only link.userData.metrics directly in link pipelines.
+        this.linkRendererMetricsIntegration = null;
+        this.coreMetricsCalculator = null;
         this.frameScheduler.register('simulation', (dt) => {
             if (this.nodeShellSizeAuthority) {
                 this.nodeShellSizeAuthority.enforceShellSizes(null, this.nodeAuraSystem || null);
@@ -7688,9 +7693,27 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             } catch (err) {
                 console.warn('[main.js] HarmonyStabilizationIntegrationPatch_v1 failed:', err);
             }
+            
+            // Inject harmony values into nodes to make visual pipeline live
+            // This is a temporary debug feature to verify visual systems respond to harmony
+            try {
+                const result = injectHarmonyIntoNodes(this.aiNodes, 0.8, false);
+                if (result.success) {
+                    console.log(`[main.js] Injected harmonyLevel=0.8 into ${result.injectedCount} nodes ✓`);
+                } else {
+                    console.warn('[main.js] Harmony injection failed:', result.error);
+                }
+            } catch (err) {
+                console.warn('[main.js] Harmony injection error:', err);
+            }
         } catch (err) {
             console.warn('[main.js] HarmonyStabilizationSystem_v1 initialization failed:', err);
         }
+        
+        // LinkRenderer metrics integration via CoreMetricsCalculator is disabled.
+        // Canonical source for link shader uniforms is link.userData.metrics only.
+        this.linkRendererMetricsIntegration = null;
+        this.coreMetricsCalculator = null;
         
         // ====================================================================
         // T4-003: CORRUPTION CASCADE TEST RUNNER (Debug Console)

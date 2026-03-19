@@ -12,7 +12,6 @@ import { LinkPulseDustEmitter } from './LinkPulseDustEmitter.js';
 import { LinkEnergyWave } from './LinkEnergyWave.js';
 import { LinkRingArcDischarges } from './LinkRingArcDischarges.js';
 import { LinkVisualStateAdapter } from './LinkVisualStateAdapter.js';
-import { getLinkSynergy, getLinkCorruption } from './SemanticMetricAdapter.js';
 import { NodeInterferenceManager } from './NodeInterferenceManager.js';
 import { NodeHarmonicManager } from './NodeHarmonicManager.js';
 import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
@@ -1656,7 +1655,7 @@ export class LinkRendererConduit {
         if (this.modules.corruptionFX) {
             if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
                 this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
-                    corruptionLevel: metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0,
+                    corruptionLevel: metrics?.corruption ?? 0,
                     nowMs: performance.now()
                 });
             }
@@ -1673,7 +1672,7 @@ export class LinkRendererConduit {
                     : this.corruptionParticleSystem.update?.bind(this.corruptionParticleSystem);
                 if (updater) {
                     updater(link, visualDelta, {
-                        corruptionLevel: metrics?.corruption ?? link?.userData?.corruptionLevel ?? 0
+                        corruptionLevel: metrics?.corruption ?? 0
                     });
                 }
             }
@@ -2037,7 +2036,7 @@ export class LinkRendererConduit {
                 const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
                 const injectionAnchor = sourcePortPos.clone();
                 const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
-                const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? metrics.traffic ?? 0, 0, 1);
+                const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? 0, 0, 1);
                 state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
                 const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
                 const injectionInterval = state.sourceInjectionInterval ?? 0.075;
@@ -2090,7 +2089,7 @@ export class LinkRendererConduit {
 
         // --- 2. Dynamic Parameters ---
         const synergy = metrics.synergy;
-        const trafficLoad = metrics.loadPressure ?? metrics.traffic ?? 0;
+        const trafficLoad = metrics.loadPressure ?? 0;
 
         // Collect per-link material patches to apply once per frame (last-wins per property)
         const materialPatches = {
@@ -2131,9 +2130,20 @@ export class LinkRendererConduit {
             const mat = mesh.material;
             if (mat?.uniforms) {
                 mat.uniforms.uTime.value = visualTime;
-                mat.uniforms.uNetworkStress.value = metrics.loadPressure ?? 0;
-                mat.uniforms.uLocalLoad.value = metrics.traffic ?? 0;
-                mat.uniforms.uCorruption.value = metrics.corruption ?? 0;
+                const m = link?.userData?.metrics;
+                if (!m) return;
+
+                if (mat.uniforms.uSynergy) mat.uniforms.uSynergy.value = m.synergy ?? 0;
+                if (mat.uniforms.uHarmony) mat.uniforms.uHarmony.value = m.harmony ?? 0;
+                if (mat.uniforms.uStress) mat.uniforms.uStress.value = 1.0 - (m.stability ?? 1);
+                if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
+                if (mat.uniforms.uLoad) mat.uniforms.uLoad.value = m.loadPressure ?? 0;
+                if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
+                if (mat.uniforms.uLocalLoad) mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
+
+                if (Math.random() < 0.01) {
+                    console.log('[LINK METRICS → SHADER]', m);
+                }
                 if (mat.uniforms.uWaveDirection?.value?.copy) {
                     mat.uniforms.uWaveDirection.value.copy(waveDirection);
                 } else if (mat.uniforms.uWaveDirection) {
@@ -2284,17 +2294,25 @@ export class LinkRendererConduit {
                     material.uniforms.uWavePhaseOffset.value = wavePhaseOffset;
                 }
 
-                 // Harmony/corruption influence (from link or global state)
-                const linkHarmony = metrics.harmony ?? 0.5;
-                const linkCorruption = metrics.corruption ?? 0.2;
-                const linkSynergy = Math.max(0, Math.min(1, metrics.synergy ?? 0.5));
-                material.uniforms.uHarmony.value = linkHarmony;
-                material.uniforms.uCorruption.value = linkCorruption;
-                material.uniforms.uSynergy.value = linkSynergy;
+                const m = link?.userData?.metrics;
+                if (m) {
+                    const linkHarmony = m.harmony ?? 0;
+                    const linkCorruption = m.corruption ?? 0;
+                    const linkSynergy = Math.max(0, Math.min(1, m.synergy ?? 0));
+                    if (material.uniforms.uHarmony) material.uniforms.uHarmony.value = linkHarmony;
+                    if (material.uniforms.uCorruption) material.uniforms.uCorruption.value = linkCorruption;
+                    if (material.uniforms.uSynergy) material.uniforms.uSynergy.value = linkSynergy;
+                    if (material.uniforms.uStress) material.uniforms.uStress.value = 1.0 - (m.stability ?? 1);
+                    if (material.uniforms.uLoad) material.uniforms.uLoad.value = m.loadPressure ?? 0;
 
-                 // Desaturation (if link is corrupted)
-                 const desaturation = Math.min(1.0, linkCorruption * 1.2);
-                 material.uniforms.uDesaturation.value = desaturation;
+                    // Desaturation (if link is corrupted)
+                    const desaturation = Math.min(1.0, linkCorruption * 1.2);
+                    material.uniforms.uDesaturation.value = desaturation;
+
+                    if (Math.random() < 0.01) {
+                        console.log('[LINK METRICS → SHADER]', m);
+                    }
+                }
 
                  // Link birth/removal effects (synced with node aura)
                  // Birth: ramp up to 1.0, then decay over ~400ms
@@ -2641,7 +2659,7 @@ export class LinkRendererConduit {
         const synergy = metrics.synergy ?? 0.5;
         const harmony = metrics.harmony ?? 0.5;
         const corruption = metrics.corruption ?? 0.0;
-        const load = metrics.loadPressure ?? metrics.traffic ?? 0.0;
+        const load = metrics.loadPressure ?? 0.0;
 
         const out = this._vfxInput;
         // Raise baselines so VFX stay visible even at low activity
@@ -2759,122 +2777,26 @@ export class LinkRendererConduit {
      * Read link metrics once per frame into a canonical structure.
      * Returns safe defaults if fields are missing.
      */
-    _readLinkMetrics(link) {
-        const userData = link?.userData || {};
-        const userMetrics = userData.metrics || {};
-        const linkMetrics = link?.metrics || {};
-        const conduitMetrics = link?.group?.userData?.conduitState?.metrics || {};
-
-        const readMetric = (...values) => {
-            for (const value of values) {
-                if (typeof value === 'number' && Number.isFinite(value)) {
-                    return value;
-                }
-            }
-            return undefined;
-        };
-
-        const synergy = getLinkSynergy(link);
-
-        const harmony = readMetric(
-            userData.harmony,
-            userData.harmonyLevel,
-            userMetrics.harmony,
-            linkMetrics.harmony,
-            conduitMetrics.harmony,
-            link?.harmonyLevel,
-            link?.harmony
-        );
-
-        const endpointCorruption = readMetric(
-            this._readNodeCorruption(link?.source || link?.sourceNode || link?.nodeA),
-            this._readNodeCorruption(link?.target || link?.targetNode || link?.nodeB)
-        );
-        const corruption = readMetric(
-            userMetrics.corruption,
-            linkMetrics.corruption,
-            conduitMetrics.corruption,
-            userData.corruption,
-            userData.corruptionLevel,
-            link?.corruption,
-            link?.corruptionLevel,
-            endpointCorruption,
-            getLinkCorruption(link)
-        );
-
-        const sourceStability = readMetric(
-            link?.source?.userData?.metrics?.stability,
-            link?.sourceNode?.userData?.metrics?.stability,
-            link?.nodeA?.userData?.metrics?.stability
-        );
-        const targetStability = readMetric(
-            link?.target?.userData?.metrics?.stability,
-            link?.targetNode?.userData?.metrics?.stability,
-            link?.nodeB?.userData?.metrics?.stability
-        );
-        const endpointStability =
-            (typeof sourceStability === 'number' && typeof targetStability === 'number')
-                ? (sourceStability + targetStability) * 0.5
-                : (sourceStability ?? targetStability);
-
-        const stability = readMetric(
-            userData.stability,
-            userData.stabilityLevel,
-            userMetrics.stability,
-            linkMetrics.stability,
-            conduitMetrics.stability,
-            link?.stability,
-            link?.stabilityLevel,
-            endpointStability
-        );
-
-        const instability = readMetric(
-            userData.instability,
-            userData.instabilityLevel,
-            userMetrics.instability,
-            linkMetrics.instability,
-            conduitMetrics.instability,
-            link?.instability,
-            link?.instabilityLevel,
-            (typeof stability === 'number') ? (1 - stability) : undefined
-        );
-
-        const traffic = readMetric(
-            link?.traffic?.load,
-            userData.traffic?.load,
-            userData.traffic,
-            userMetrics.traffic,
-            linkMetrics.traffic,
-            conduitMetrics.traffic
-        ) ?? 0;
-
-        const loadPressure = readMetric(
-            link?.loadPressure,
-            userData.loadPressure,
-            userMetrics.loadPressure,
-            linkMetrics.loadPressure,
-            conduitMetrics.loadPressure,
-            traffic
-        ) ?? 0;
-
-        const quality = readMetric(
-            userData.quality?.score,
-            userData.quality,
-            userMetrics.quality,
-            linkMetrics.quality,
-            conduitMetrics.quality,
-            link?.quality
-        );
+     _readLinkMetrics(link) {
+        const m = link?.userData?.metrics;
+        if (!m) {
+            return {
+                synergy: 0,
+                harmony: 0,
+                corruption: 0,
+                stability: 1,
+                instability: 0,
+                loadPressure: 0
+            };
+        }
 
         return {
-            synergy: synergy ?? 0.5,
-            harmony: harmony ?? 1.0,
-            corruption: corruption ?? 0.0,
-            instability: instability ?? 0.0,
-            stability: stability ?? 1.0,
-            traffic,
-            loadPressure,
-            quality: quality ?? 0.5
+            synergy: m.synergy ?? 0,
+            harmony: m.harmony ?? 0,
+            corruption: m.corruption ?? 0,
+            stability: m.stability ?? 1,
+            instability: 1 - (m.stability ?? 1),
+            loadPressure: m.loadPressure ?? 0
         };
     }
 

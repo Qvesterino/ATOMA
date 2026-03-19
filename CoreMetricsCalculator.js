@@ -311,4 +311,46 @@ export class CoreMetricsCalculator {
       networkLoad: this.getFormattedMetric('loadPressure') // legacy label
     };
   }
+
+  /**
+   * Static method: Compute metrics for a single node
+   * Reads from node.userData.metrics and returns canonical metrics object
+   * 
+   * @param {Object} node - Node object with userData.metrics
+   * @returns {Object} Metrics object { synergy, harmony, stability, corruption, loadPressure }
+   */
+  static compute(node) {
+    if (!node || !node.userData) {
+      return {
+        synergy: 0,
+        harmony: 0,
+        stability: 0,
+        corruption: 0,
+        loadPressure: 0
+      };
+    }
+
+    const metrics = node.userData.metrics;
+    return {
+      synergy: metrics?.synergy ?? 0,
+      harmony: metrics?.harmony ?? 0,
+      stability: metrics?.stability ?? 0,
+      corruption: metrics?.corruption ?? 0,
+      loadPressure: metrics?.loadPressure ?? metrics?.load ?? metrics?.loadRatio ?? 0
+    };
+  }
+
+  /**
+   * Static method: Ensure node has metrics
+   * Guard pattern to initialize node.userData.metrics if missing
+   * 
+   * @param {Object} node - Node object to ensure metrics for
+   */
+  static ensureMetrics(node) {
+    if (!node) return;
+    if (!node.userData) node.userData = {};
+    if (!node.userData.metrics) {
+      node.userData.metrics = CoreMetricsCalculator.compute(node);
+    }
+  }
 }
