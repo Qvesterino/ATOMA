@@ -355,6 +355,7 @@ export class LinkTrailParticleSystem {
     this.active = 0;
     this.activeByType = new Map();
     this.sourceProfiles = new Map();
+    this.emitAccumulators = new Map(); // key -> fractional emit remainder
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
@@ -454,6 +455,7 @@ export class LinkTrailParticleSystem {
       link,
       curve,
       emissionRate = 0,
+      deltaTime = 0.016,
       harmony = 0.5,
       corruption = 0.2,
       color = null
@@ -462,7 +464,13 @@ export class LinkTrailParticleSystem {
 
     const profile = this.sourceProfiles.get(type) || this.sourceProfiles.get('corruption');
     const rate = Math.max(0, emissionRate * (profile?.emissionScale ?? 1.0));
-    const emitCount = Math.floor(rate * 0.016); // Assume 60 FPS cadence
+    const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0.016;
+    const emitterKey = this._getEmitterKey(type, link, curve);
+    const prev = this.emitAccumulators.get(emitterKey) || 0;
+    const accumulated = prev + (rate * dt);
+    const emitCount = Math.floor(accumulated);
+    const remainder = accumulated - emitCount;
+    this.emitAccumulators.set(emitterKey, remainder > 1e-9 ? remainder : 0);
     if (emitCount <= 0) return;
 
     for (let i = 0; i < emitCount && this.active < this.poolSize; i++) {
@@ -563,10 +571,21 @@ export class LinkTrailParticleSystem {
     return null;
   }
 
+  _getEmitterKey(type, link, curve) {
+    const linkKey = link?.id ?? link?.uuid ?? link?.name ?? null;
+    if (linkKey !== null && linkKey !== undefined) return `${type}:${String(linkKey)}`;
+    const curveKey = curve?.uuid ?? curve?.id ?? curve?.name ?? 'curve';
+    return `${type}:curve:${String(curveKey)}`;
+  }
+
   /**
    * Clear particles for a specific link
    */
   clearLink(linkId) {
+    const suffix = `:${String(linkId)}`;
+    for (const key of this.emitAccumulators.keys()) {
+      if (key.endsWith(suffix)) this.emitAccumulators.delete(key);
+    }
     for (let particle of this.particles) {
       if (particle.link?.id === linkId) {
         particle.reset();
@@ -579,6 +598,7 @@ export class LinkTrailParticleSystem {
    * Dispose all resources
    */
   dispose() {
+    this.emitAccumulators.clear();
     this.material.dispose();
     this.geometry.dispose();
     this.scene.remove(this.poolGroup);
@@ -622,6 +642,7 @@ export class LinkTrailEmitter {
       curve,
       linkDirection,
       emissionRate: rate,
+      deltaTime,
       time,
       harmony,
       corruption

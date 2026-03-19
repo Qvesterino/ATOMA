@@ -4,6 +4,9 @@ import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 import { CONFIG } from './config.js';
 import VisualTime from './src/time/VisualTime.js';
 
+// NeonLinkVisuals is FX-only layer.
+// Metrics uniforms are owned exclusively by LinkRendererConduit.
+
 function ensureUserData(obj) {
   if (!obj) return {};
   if (obj.userData && typeof obj.userData === 'object') return obj.userData;
@@ -183,13 +186,13 @@ export class NeonLinkVisuals {
   _getUniformDefaults(type) {
     switch (type) {
       case 'neonLine':
-        return { uColor: DEFAULT_LINE_COLOR, uStress: 0, uFlow: 1, uOpacity: 0.8, uWidth: 1, opacity: 1, linewidth: 1 };
+        return { uColor: DEFAULT_LINE_COLOR, uFlow: 1, uOpacity: 0.8, uWidth: 1, opacity: 1, linewidth: 1 };
       case 'ghostLine':
-        return { uColor: DEFAULT_GHOST_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+        return { uColor: DEFAULT_GHOST_COLOR, opacity: 1, linewidth: 1 };
       case 'ghostValid':
-        return { uColor: DEFAULT_VALID_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+        return { uColor: DEFAULT_VALID_COLOR, opacity: 1, linewidth: 1 };
       case 'ghostInvalid':
-        return { uColor: DEFAULT_INVALID_COLOR, uStress: 0, opacity: 1, linewidth: 1 };
+        return { uColor: DEFAULT_INVALID_COLOR, opacity: 1, linewidth: 1 };
       default:
         return {};
     }
@@ -206,9 +209,6 @@ export class NeonLinkVisuals {
     } else if (!store.uColor && defaults.uColor) {
       store.uColor = defaults.uColor.clone ? defaults.uColor.clone() : defaults.uColor;
     }
-
-    if (seed.uStress !== undefined) store.uStress = seed.uStress;
-    else if (store.uStress === undefined && defaults.uStress !== undefined) store.uStress = defaults.uStress;
 
     if (seed.uFlow !== undefined) store.uFlow = seed.uFlow;
     else if (store.uFlow === undefined && defaults.uFlow !== undefined) store.uFlow = defaults.uFlow;
@@ -238,10 +238,6 @@ export class NeonLinkVisuals {
       const colorSource = store.uColor || defaults.uColor;
       if (uniforms.uColor && colorSource) {
         uniforms.uColor.value.copy(colorSource);
-      }
-
-      if (uniforms.uStress) {
-        uniforms.uStress.value = store.uStress ?? defaults.uStress ?? 0;
       }
 
       if (uniforms.uFlow) {
@@ -691,7 +687,10 @@ export class NeonLinkVisuals {
   
   /**
    * Update shader uniforms for Link Visual Language v2
-   * Wires: time (animation), stress (metrics), flow (visual language)
+   * FX-only uniforms:
+   * - uTime
+   * - uFlow
+   * - uOpacity
    */
   updateShaderUniforms() {
     if (!this.scene) return;
@@ -703,35 +702,13 @@ export class NeonLinkVisuals {
     const globalOpacity = window.__linkVisual?.opacity ?? 0.8;
     const useShared = this._useSharedMaterials();
 
-    const applyMetricsToMaterial = (material, metrics, uniformStore = null) => {
-      if (!material?.uniforms || !metrics) return;
+    const applyFxUniformsToMaterial = (material, uniformStore = null) => {
+      if (!material?.uniforms) return;
       const useDedupUniforms = useShared && uniformStore;
-      const stress = 1.0 - (metrics.stability ?? 1);
-      const load = metrics.loadPressure ?? 0;
 
       if (material.uniforms.uTime) {
         if (useDedupUniforms) uniformStore.uTime = this.time;
         else material.uniforms.uTime.value = this.time;
-      }
-      if (material.uniforms.uSynergy) {
-        if (useDedupUniforms) uniformStore.uSynergy = metrics.synergy ?? 0;
-        else material.uniforms.uSynergy.value = metrics.synergy ?? 0;
-      }
-      if (material.uniforms.uHarmony) {
-        if (useDedupUniforms) uniformStore.uHarmony = metrics.harmony ?? 0;
-        else material.uniforms.uHarmony.value = metrics.harmony ?? 0;
-      }
-      if (material.uniforms.uStress) {
-        if (useDedupUniforms) uniformStore.uStress = stress;
-        else material.uniforms.uStress.value = stress;
-      }
-      if (material.uniforms.uCorruption) {
-        if (useDedupUniforms) uniformStore.uCorruption = metrics.corruption ?? 0;
-        else material.uniforms.uCorruption.value = metrics.corruption ?? 0;
-      }
-      if (material.uniforms.uLoad) {
-        if (useDedupUniforms) uniformStore.uLoad = load;
-        else material.uniforms.uLoad.value = load;
       }
       if (material.uniforms.uFlow) {
         if (useDedupUniforms) uniformStore.uFlow = flowRate;
@@ -741,31 +718,25 @@ export class NeonLinkVisuals {
         if (useDedupUniforms) uniformStore.uOpacity = globalOpacity;
         else material.uniforms.uOpacity.value = globalOpacity;
       }
-
-      if (Math.random() < 0.01) {
-        console.log('[LINK METRICS → SHADER]', metrics);
-      }
     };
 
     for (const [, state] of this.linkStates.entries()) {
-      const link = state?.mesh?.userData?.link;
-      const m = link?.userData?.metrics;
-      if (!m || !state?.mesh) continue;
+      if (!state?.mesh) continue;
 
       const rootStore = state.mesh.userData?.__linkUniforms;
       if (state.mesh.material && !Array.isArray(state.mesh.material)) {
-        applyMetricsToMaterial(state.mesh.material, m, rootStore);
+        applyFxUniformsToMaterial(state.mesh.material, rootStore);
       } else if (Array.isArray(state.mesh.material)) {
-        state.mesh.material.forEach(mat => applyMetricsToMaterial(mat, m, rootStore));
+        state.mesh.material.forEach(mat => applyFxUniformsToMaterial(mat, rootStore));
       }
 
       if (Array.isArray(state.mesh.children)) {
         for (const child of state.mesh.children) {
           const childStore = child.userData?.__linkUniforms;
           if (child.material && !Array.isArray(child.material)) {
-            applyMetricsToMaterial(child.material, m, childStore);
+            applyFxUniformsToMaterial(child.material, childStore);
           } else if (Array.isArray(child.material)) {
-            child.material.forEach(mat => applyMetricsToMaterial(mat, m, childStore));
+            child.material.forEach(mat => applyFxUniformsToMaterial(mat, childStore));
           }
         }
       }

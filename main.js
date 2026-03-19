@@ -4041,9 +4041,20 @@ class AtomaGame {
         }, 'visual.edgeCageDistanceFade');
         this.frameScheduler.register('visual', (deltaTime) => {
             if (this.waveShaderBridge) {
+                const nodes =
+                    this.aiNodes?.nodes ||
+                    this.nodes ||
+                    this.nodeList ||
+                    [];
+                const links =
+                    this.linkingSystem?.links ||
+                    this.nodeLinking?.links ||
+                    this.links ||
+                    this.linkList ||
+                    [];
                 this.waveShaderBridge.update(deltaTime, {
-                    nodes: this.nodes || this.nodeList || [],
-                    links: this.links || this.linkList || []
+                    nodes,
+                    links
                 });
             }
         }, 'visual.waveShaderBridge');
@@ -6462,6 +6473,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                             this._picDiagFSLogged = true;
                         }
                         this.linkingSystem.update(dt, this.time);
+                        this.linkingSystem.conduitRenderer?.updateAll?.(
+                            this.linkingSystem.links,
+                            dt,
+                            this.time
+                        );
                     }
                 },
                 'visual.linkingSystem'
@@ -9391,9 +9407,20 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         regGuard('waveShaderBridge', 'visual.waveShaderBridge', (deltaTime) => {
             if (this.waveShaderBridge) {
+                const nodes =
+                    this.aiNodes?.nodes ||
+                    this.nodes ||
+                    this.nodeList ||
+                    [];
+                const links =
+                    this.linkingSystem?.links ||
+                    this.nodeLinking?.links ||
+                    this.links ||
+                    this.linkList ||
+                    [];
                 this.waveShaderBridge.update(deltaTime, {
-                    nodes: this.nodes || this.nodeList || [],
-                    links: this.links || this.linkList || []
+                    nodes,
+                    links
                 });
             }
         });
