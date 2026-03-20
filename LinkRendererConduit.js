@@ -50,6 +50,40 @@ const remap = (v, in0, in1, out0, out1) => {
     return out0 + (out1 - out0) * t;
 };
 const FORCE_VISUAL_DEBUG = true;
+const COLOR_WHITE = new THREE.Color(0xffffff);
+const STRAND_FILAMENT_STYLE = {
+    ENABLED: true,
+    COUNT_PER_STRAND: 20,
+    BASE_OPACITY: 0.28,
+    RADIAL_PUSH: 1.1,
+    LENGTH_SCALE: 1.55,
+    SWAY_SPEED: 3.1,
+    SWAY_AMOUNT: 0.58,
+    TRAVEL_SPEED: 0.048,
+    DETACH_SPEED: 2.2,
+    DETACH_BOOST: 0.18,
+    FLOW_LEAN: 1.18,
+    RADIAL_LEAN: 0.38,
+    BRIDGE_SHARE: 0.34,
+    BRIDGE_FORWARD: 0.12,
+    BRIDGE_TWIST: 1.18,
+    BRIDGE_CLING: 1.03,
+    BRIDGE_CURVE: 0.52,
+    BRIDGE_HOP_SPEED: 1.35
+};
+const hashString32 = (value = '') => {
+    const text = String(value);
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+};
+const seededNoise = (seed) => {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+};
 
 // Lightweight dock spray system (per-link, instanced points)
 function createDockSpraySystem(scene, renderOrder = 0, maxParticles = 48) {
@@ -903,6 +937,372 @@ export class LinkRendererConduit {
         return ownerState;
     }
 
+    _disposeStrandFilaments(state) {
+        if (!state?.strandFilaments) return;
+        const filamentState = state.strandFilaments;
+        if (filamentState.mesh?.parent) {
+            filamentState.mesh.parent.remove(filamentState.mesh);
+        }
+        filamentState.geometry?.dispose?.();
+        filamentState.material?.dispose?.();
+        state.strandFilaments = null;
+    }
+
+    _ensureStrandFilaments(link, state) {
+        if (!STRAND_FILAMENT_STYLE.ENABLED || !state) return null;
+        const strands = Array.isArray(state.strands) ? state.strands : [];
+        if (!strands.length) return null;
+
+        const strandCount = Math.max(1, state.strandCount || strands.length || 1);
+        const countPerStrand = Math.max(4, STRAND_FILAMENT_STYLE.COUNT_PER_STRAND | 0);
+        const sampleCount = strandCount * countPerStrand;
+
+        if (state.strandFilaments && state.strandFilaments.sampleCount !== sampleCount) {
+            this._disposeStrandFilaments(state);
+        }
+        if (state.strandFilaments) {
+            return state.strandFilaments;
+        }
+
+        // Two line segments per filament (start->mid, mid->end) to fake curved bridges.
+        const positions = new Float32Array(sampleCount * 12);
+        const colors = new Float32Array(sampleCount * 12);
+        const rootT = new Float32Array(sampleCount);
+        const phase = new Float32Array(sampleCount);
+        const lengthScale = new Float32Array(sampleCount);
+        const strandSlot = new Uint8Array(sampleCount);
+        const driftSign = new Float32Array(sampleCount);
+        const filamentVariant = new Uint8Array(sampleCount); // 0=flow hair, 1=surface bridge
+        const bridgeForward = new Float32Array(sampleCount);
+        const bridgeTwist = new Float32Array(sampleCount);
+        const bridgeNeighborSign = new Int8Array(sampleCount);
+
+        const seedBase = hashString32(link?.id || link?.uuid || `link-filaments-${sampleCount}`);
+        let cursor = 0;
+        for (let strandIndex = 0; strandIndex < strandCount; strandIndex += 1) {
+            for (let j = 0; j < countPerStrand; j += 1) {
+                const seed = seedBase + strandIndex * 131 + j * 17;
+                rootT[cursor] = clamp01((j + seededNoise(seed * 0.13)) / countPerStrand);
+                phase[cursor] = seededNoise(seed * 0.31) * Math.PI * 2.0;
+                lengthScale[cursor] = 0.55 + seededNoise(seed * 0.71) * 0.95;
+                strandSlot[cursor] = strandIndex;
+                driftSign[cursor] = seededNoise(seed * 1.13) > 0.5 ? 1.0 : -1.0;
+                filamentVariant[cursor] = seededNoise(seed * 1.47) < STRAND_FILAMENT_STYLE.BRIDGE_SHARE ? 1 : 0;
+                bridgeForward[cursor] = 0.018 + seededNoise(seed * 1.81) * STRAND_FILAMENT_STYLE.BRIDGE_FORWARD;
+                bridgeTwist[cursor] = (0.22 + seededNoise(seed * 2.07) * STRAND_FILAMENT_STYLE.BRIDGE_TWIST) *
+                    (seededNoise(seed * 2.51) > 0.5 ? 1.0 : -1.0);
+                bridgeNeighborSign[cursor] = seededNoise(seed * 2.83) > 0.5 ? 1 : -1;
+                cursor += 1;
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        const positionAttr = new THREE.BufferAttribute(positions, 3);
+        const colorAttr = new THREE.BufferAttribute(colors, 3);
+        positionAttr.setUsage(THREE.DynamicDrawUsage);
+        colorAttr.setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute('position', positionAttr);
+        geometry.setAttribute('color', colorAttr);
+        geometry.computeBoundingSphere();
+
+        const material = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: STRAND_FILAMENT_STYLE.BASE_OPACITY,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true
+        });
+        material.toneMapped = false;
+        const filamentMesh = new THREE.LineSegments(geometry, material);
+        filamentMesh.frustumCulled = false;
+        filamentMesh.raycast = () => null;
+        applyLinkRenderLayer(filamentMesh, 'LINK_STRANDS');
+        Object.assign(ensureUserData(filamentMesh), { isStrandFilaments: true });
+
+        const parent = link?.group || strands[0]?.parent || null;
+        if (parent) {
+            parent.add(filamentMesh);
+        }
+
+        state.strandFilaments = {
+            mesh: filamentMesh,
+            geometry,
+            material,
+            positions,
+            colors,
+            rootT,
+            phase,
+            lengthScale,
+            strandSlot,
+            driftSign,
+            filamentVariant,
+            bridgeForward,
+            bridgeTwist,
+            bridgeNeighborSign,
+            sampleCount,
+            vPoint: new THREE.Vector3(),
+            vPoint2: new THREE.Vector3(),
+            vStart: new THREE.Vector3(),
+            vMid: new THREE.Vector3(),
+            vEnd: new THREE.Vector3(),
+            vTangent: new THREE.Vector3(),
+            vTangent2: new THREE.Vector3(),
+            vNormal: new THREE.Vector3(),
+            vBinormal: new THREE.Vector3(),
+            vRadial: new THREE.Vector3(),
+            vNormal2: new THREE.Vector3(),
+            vBinormal2: new THREE.Vector3(),
+            vRadial2: new THREE.Vector3(),
+            vSide: new THREE.Vector3(),
+            cBase: new THREE.Color(),
+            cMid: new THREE.Color(),
+            cTip: new THREE.Color()
+        };
+        return state.strandFilaments;
+    }
+
+    _updateStrandFilaments(link, state, ctx = {}) {
+        if (!STRAND_FILAMENT_STYLE.ENABLED || !state) return;
+        const strands = Array.isArray(state.strands) ? state.strands : [];
+        if (!strands.length) return;
+
+        const filamentState = this._ensureStrandFilaments(link, state);
+        if (!filamentState) return;
+        const mesh = filamentState.mesh;
+        const material = filamentState.material;
+        const geometry = filamentState.geometry;
+        if (!mesh || !material || !geometry) return;
+
+        if (!mesh.parent) {
+            const parent = link?.group || strands[0]?.parent || null;
+            if (parent) parent.add(mesh);
+        }
+
+        const metrics = ctx.metrics || link?.userData?.metrics || {};
+        const synergy = clamp01(metrics.synergy ?? 0);
+        const harmony = clamp01(metrics.harmony ?? 0);
+        const corruption = clamp01(metrics.corruption ?? 0);
+        const load = clamp01(metrics.loadPressure ?? 0);
+        const instability = clamp01(1.0 - (metrics.stability ?? 1));
+        material.opacity = THREE.MathUtils.clamp(
+            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.18 + corruption * 0.22 + synergy * 0.08,
+            0.18,
+            0.92
+        );
+
+        if (!ctx.geometryTick || !ctx.mainCurve || !ctx.frames) return;
+
+        const mainCurve = ctx.mainCurve;
+        const frames = ctx.frames;
+        const segments = Math.max(1, ctx.segments || state.strandSegments || 1);
+        const strandCount = Math.max(1, state.strandCount || strands.length || 1);
+        const activeRadius = Math.max(0.0001, ctx.activeRadius || this.config.baseRadius || 0.06);
+        const twistPhase = Number.isFinite(ctx.twistPhase) ? ctx.twistPhase : 0;
+        const linkLength = Math.max(0.0001, ctx.linkDist || state.linkLength || state.waveLength || 1.0);
+        const twists = linkLength / Math.max(0.01, this.config.twistSpacing || 2.0);
+        const visualTime = Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0;
+        const noiseBase = Number.isFinite(ctx.noiseBase) ? ctx.noiseBase : 0.0025;
+
+        const {
+            positions, colors, rootT, phase, lengthScale, strandSlot, driftSign,
+            filamentVariant, bridgeForward, bridgeTwist, bridgeNeighborSign, sampleCount,
+            vPoint, vPoint2, vStart, vMid, vEnd, vTangent, vTangent2, vNormal, vBinormal, vRadial,
+            vNormal2, vBinormal2, vRadial2, vSide, cBase, cMid, cTip
+        } = filamentState;
+
+        const edgeFadeSpan = 0.05;
+        for (let idx = 0; idx < sampleCount; idx += 1) {
+            const strandIndex = Math.min(strandCount - 1, strandSlot[idx] || 0);
+            const advect = visualTime * (STRAND_FILAMENT_STYLE.TRAVEL_SPEED + synergy * 0.08) * driftSign[idx];
+            const tRaw = rootT[idx] + advect;
+            const tWrapped = ((tRaw % 1) + 1) % 1;
+            const t = THREE.MathUtils.clamp(tWrapped, 0.015, 0.985);
+
+            mainCurve.getPointAt(t, vPoint);
+
+            const framePos = t * segments;
+            const i0 = Math.min(segments, Math.max(0, Math.floor(framePos)));
+            const i1 = Math.min(segments, i0 + 1);
+            const frameLerp = framePos - i0;
+            const n0 = frames.normals[i0] || frames.normals[frames.normals.length - 1];
+            const n1 = frames.normals[i1] || n0;
+            const b0 = frames.binormals[i0] || frames.binormals[frames.binormals.length - 1];
+            const b1 = frames.binormals[i1] || b0;
+            if (!n0 || !b0) continue;
+
+            vNormal.copy(n0).lerp(n1, frameLerp).normalize();
+            vBinormal.copy(b0).lerp(b1, frameLerp).normalize();
+
+            const angleOffset = (strandIndex / strandCount) * Math.PI * 2.0;
+            const currentTwist = t * Math.PI * 2.0 * twists + twistPhase;
+            const angle = angleOffset + currentTwist;
+
+            const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
+            let radius = activeRadius * flare + Math.sin(t * 37.0 + strandIndex * 4.9 + phase[idx]) * noiseBase;
+            const edgeDistance = Math.min(t, 1.0 - t);
+            if (edgeDistance < edgeFadeSpan) {
+                const fade = 1.0 - (edgeDistance / edgeFadeSpan);
+                radius *= (1.0 - fade * 0.55);
+            }
+
+            vRadial.copy(vNormal).multiplyScalar(Math.cos(angle));
+            vRadial.addScaledVector(vBinormal, Math.sin(angle)).normalize();
+            vStart.copy(vPoint).addScaledVector(vRadial, radius * STRAND_FILAMENT_STYLE.RADIAL_PUSH);
+
+            mainCurve.getTangentAt(t, vTangent).normalize();
+            vSide.crossVectors(vTangent, vRadial);
+            if (vSide.lengthSq() < 1e-6) {
+                vSide.copy(vBinormal);
+            } else {
+                vSide.normalize();
+            }
+
+            const pulse = 0.5 + 0.5 * Math.sin(
+                visualTime * STRAND_FILAMENT_STYLE.SWAY_SPEED + phase[idx] + t * 12.0
+            );
+            const detachPulse = Math.pow(
+                Math.max(0.0, Math.sin(visualTime * STRAND_FILAMENT_STYLE.DETACH_SPEED + phase[idx] * 1.7 + t * 9.0)),
+                6.0
+            );
+            const detach = detachPulse * (0.35 + corruption * 0.95 + load * 0.25);
+            const filamentLength =
+                activeRadius *
+                STRAND_FILAMENT_STYLE.LENGTH_SCALE *
+                lengthScale[idx] *
+                (0.7 + harmony * 0.35 + load * 0.45) +
+                detach * STRAND_FILAMENT_STYLE.DETACH_BOOST;
+            const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + instability * 0.6);
+            const isBridge = filamentVariant[idx] === 1;
+
+            if (isBridge) {
+                const hopWave = Math.sin(
+                    visualTime * STRAND_FILAMENT_STYLE.BRIDGE_HOP_SPEED +
+                    phase[idx] * 0.75 +
+                    t * 8.0
+                );
+                const hopDir = hopWave >= 0 ? bridgeNeighborSign[idx] : -bridgeNeighborSign[idx];
+                let targetStrandIndex = (strandIndex + hopDir + strandCount) % strandCount;
+                if (targetStrandIndex === strandIndex && strandCount > 1) {
+                    targetStrandIndex = (strandIndex + 1) % strandCount;
+                }
+                const tBridge = THREE.MathUtils.clamp(
+                    t + bridgeForward[idx] * driftSign[idx] + Math.sin(visualTime * 0.9 + phase[idx]) * 0.012,
+                    0.01,
+                    0.99
+                );
+
+                mainCurve.getPointAt(tBridge, vPoint2);
+                const framePos2 = tBridge * segments;
+                const j0 = Math.min(segments, Math.max(0, Math.floor(framePos2)));
+                const j1 = Math.min(segments, j0 + 1);
+                const frameLerp2 = framePos2 - j0;
+                const n2a = frames.normals[j0] || frames.normals[frames.normals.length - 1];
+                const n2b = frames.normals[j1] || n2a;
+                const b2a = frames.binormals[j0] || frames.binormals[frames.binormals.length - 1];
+                const b2b = frames.binormals[j1] || b2a;
+                if (!n2a || !b2a) continue;
+
+                vNormal2.copy(n2a).lerp(n2b, frameLerp2).normalize();
+                vBinormal2.copy(b2a).lerp(b2b, frameLerp2).normalize();
+                mainCurve.getTangentAt(tBridge, vTangent2).normalize();
+
+                const targetAngleOffset = (targetStrandIndex / strandCount) * Math.PI * 2.0;
+                const targetTwist = tBridge * Math.PI * 2.0 * twists + twistPhase;
+                const angle2 =
+                    targetAngleOffset + targetTwist +
+                    bridgeTwist[idx] * (0.85 + 0.35 * Math.sin(visualTime * 1.35 + phase[idx] + t * 4.0));
+                const flare2 = 1.0 + Math.pow(2.0 * (tBridge - 0.5), 2) * 0.18;
+                let radius2 = activeRadius * flare2 + Math.sin(tBridge * 31.0 + targetStrandIndex * 2.8 + phase[idx]) * noiseBase;
+                const edgeDistance2 = Math.min(tBridge, 1.0 - tBridge);
+                if (edgeDistance2 < edgeFadeSpan) {
+                    const fade2 = 1.0 - (edgeDistance2 / edgeFadeSpan);
+                    radius2 *= (1.0 - fade2 * 0.52);
+                }
+
+                vRadial2.copy(vNormal2).multiplyScalar(Math.cos(angle2));
+                vRadial2.addScaledVector(vBinormal2, Math.sin(angle2)).normalize();
+                vSide.crossVectors(vTangent2, vRadial2);
+                if (vSide.lengthSq() < 1e-6) {
+                    vSide.copy(vBinormal2);
+                } else {
+                    vSide.normalize();
+                }
+
+                vEnd.copy(vPoint2)
+                    .addScaledVector(vRadial2, radius2 * STRAND_FILAMENT_STYLE.BRIDGE_CLING)
+                    .addScaledVector(vTangent2, filamentLength * (0.18 + synergy * 0.2))
+                    .addScaledVector(vSide, filamentLength * sway * 0.32);
+
+                vMid.lerpVectors(vStart, vEnd, 0.5)
+                    .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
+                    .addScaledVector(vSide, filamentLength * sway * 0.55)
+                    .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1));
+            } else {
+                const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2);
+                const radialLean = filamentLength * (STRAND_FILAMENT_STYLE.RADIAL_LEAN + corruption * 0.18);
+
+                vEnd.copy(vStart)
+                    .addScaledVector(vTangent, forwardLean)
+                    .addScaledVector(vRadial, radialLean)
+                    .addScaledVector(vSide, filamentLength * sway * 0.44)
+                    .addScaledVector(vTangent, detach * 0.2 * driftSign[idx]);
+
+                vMid.lerpVectors(vStart, vEnd, 0.52)
+                    .addScaledVector(vSide, filamentLength * sway * 0.26)
+                    .addScaledVector(vRadial, filamentLength * 0.12);
+            }
+
+            const p = idx * 12;
+            positions[p] = vStart.x;
+            positions[p + 1] = vStart.y;
+            positions[p + 2] = vStart.z;
+            positions[p + 3] = vMid.x;
+            positions[p + 4] = vMid.y;
+            positions[p + 5] = vMid.z;
+            positions[p + 6] = vMid.x;
+            positions[p + 7] = vMid.y;
+            positions[p + 8] = vMid.z;
+            positions[p + 9] = vEnd.x;
+            positions[p + 10] = vEnd.y;
+            positions[p + 11] = vEnd.z;
+
+            const strandBaseColor = strands[strandIndex]?.material?.uniforms?.uBaseColor?.value;
+            if (strandBaseColor?.isColor) {
+                cBase.copy(strandBaseColor);
+            } else if (state.baseColorObj?.isColor) {
+                cBase.copy(state.baseColorObj);
+            } else {
+                cBase.set(0xffffff);
+            }
+
+            const startGain = (isBridge ? 0.56 : 0.62) + load * 0.4 + pulse * 0.22;
+            const midGain = (isBridge ? 0.66 : 0.72) + harmony * 0.26 + pulse * 0.16;
+            const tipGain = (isBridge ? 0.74 : 0.84) + harmony * 0.28 + detach * 0.62;
+            cTip.copy(cBase).lerp(
+                COLOR_WHITE,
+                THREE.MathUtils.clamp((isBridge ? 0.42 : 0.58) + detach * 0.55 + corruption * 0.25, 0.0, 1.0)
+            );
+            cMid.copy(cBase).lerp(cTip, isBridge ? 0.62 : 0.48);
+
+            colors[p] = cBase.r * startGain;
+            colors[p + 1] = cBase.g * startGain;
+            colors[p + 2] = cBase.b * startGain;
+            colors[p + 3] = cMid.r * midGain;
+            colors[p + 4] = cMid.g * midGain;
+            colors[p + 5] = cMid.b * midGain;
+            colors[p + 6] = cMid.r * midGain;
+            colors[p + 7] = cMid.g * midGain;
+            colors[p + 8] = cMid.b * midGain;
+            colors[p + 9] = cTip.r * tipGain;
+            colors[p + 10] = cTip.g * tipGain;
+            colors[p + 11] = cTip.b * tipGain;
+        }
+
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+    }
+
     setTravelingWaveFX(travelingWaveFX) {
         this.travelingWaveFX = travelingWaveFX || null;
     }
@@ -1645,6 +2045,7 @@ export class LinkRendererConduit {
             strandCount: strandCount,
             strandDepthPasses: [],
             strandOverlays: [],
+            strandFilaments: null,
             skinMesh: skinMesh,
             beads: null,
             sparks: null,
@@ -2548,6 +2949,19 @@ export class LinkRendererConduit {
             if (mesh.material && mesh.material.linewidth !== undefined) {
                 mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
             }
+        });
+
+        this._updateStrandFilaments(link, state, {
+            mainCurve,
+            frames,
+            segments,
+            geometryTick,
+            metrics,
+            visualTime,
+            activeRadius,
+            twistPhase,
+            noiseBase,
+            linkDist
         });
 
         // --- 4. Aura Skin Update (Unified Shader Material) ---
@@ -3725,6 +4139,7 @@ export class LinkRendererConduit {
         }
 
         if (state) {
+            this._disposeStrandFilaments(state);
             state.strands.forEach(m => {
                 if(m.geometry) m.geometry.dispose();
                 if(m.material) m.material.dispose();

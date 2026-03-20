@@ -8307,9 +8307,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.particleEmitter = new WaveParticleEmitter_v1({
                 maxParticlesPerFamily: 2000,
                 emissionRate: 1.0,
-                constructiveThreshold: 0.7,
-                destructiveThreshold: 0.7,
-                standingWaveThreshold: 0.65,
+                constructiveThreshold: 0.35,
+                destructiveThreshold: 0.4,
+                standingWaveThreshold: 0.45,
                 amplitudeSpikeThreshold: 0.12,
                 amplitudeEMAAlpha: 0.15,
                 debugMode: false

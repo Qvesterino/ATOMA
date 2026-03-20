@@ -113,6 +113,7 @@ export class WaveInterferencePatternSystem_Session132 {
         this.constructiveZones = new Map();    // linkId -> { position, intensity, phase }
         this.destructiveZones = new Map();     // linkId -> { position, intensity, phase }
         this.phaseRelationships = new Map();   // "wave1_wave2" -> phase difference
+        this.zoneLifecycles = new Map();       // zoneKey -> { birthTime, lastSeenTime }
         
         // Object pools
         this.interferenceMeshPool = [];
@@ -123,6 +124,10 @@ export class WaveInterferencePatternSystem_Session132 {
         
         this.time = 0;
         this.initialized = false;
+
+        // Debug audit
+        this.debug = false; // Off by default
+        this._lastDebugAuditTime = 0;
     }
 
     /**
@@ -208,6 +213,18 @@ export class WaveInterferencePatternSystem_Session132 {
         
         // Step 6: Manage lifecycle
         this._updateInterferenceLifecycle(deltaTime);
+        // Debug audit (activatable, throttled)
+        if (this.debug && (currentTime - this._lastDebugAuditTime > 1.0)) {
+            this._lastDebugAuditTime = currentTime;
+            // Output audit info (minimal, non-spam)
+            console.log('[WaveInterferencePatternSystem DEBUG]', {
+                time: currentTime,
+                collisionPairs: this.collisionPairs.length,
+                interferenceZones: this.interferenceZones.length,
+                activeMeshes: this.interferenceMeshes.length,
+                beatPatterns: this.beatPatterns.length
+            });
+        }
     }
 
     /**
@@ -236,7 +253,7 @@ export class WaveInterferencePatternSystem_Session132 {
                     const phaseDiff = this._calculatePhaseDifference(reflection1, reflection2);
                     
                     if (phaseDiff < this.config.phaseDifferenceThreshold ||
-                        phaseDiff > (1 - this.config.phaseDifferenceThreshold)) {
+                        phaseDiff > (0.5 - this.config.phaseDifferenceThreshold)) {
                         // Collision detected
                         const convergencePoint = this._findConvergencePoint(reflection1, reflection2, links);
                         
@@ -283,20 +300,20 @@ export class WaveInterferencePatternSystem_Session132 {
         const link2 = links.find(l => l && l.id === reflection2.linkId);
         
         if (!link1 || !link2) return false;
+        const link1Endpoints = this._getLinkEndpoints(link1);
+        const link2Endpoints = this._getLinkEndpoints(link2);
         
-        // Get link endpoints
-        const link1Start = link1.sourceNode?.position || link1.from?.position;
-        const link1End = link1.targetNode?.position || link1.to?.position;
-        const link2Start = link2.sourceNode?.position || link2.from?.position;
-        const link2End = link2.targetNode?.position || link2.to?.position;
+        const link1Start = link1Endpoints.startPos;
+        const link1End = link1Endpoints.endPos;
+        const link2Start = link2Endpoints.startPos;
+        const link2End = link2Endpoints.endPos;
         
         if (!link1Start || !link1End || !link2Start || !link2End) return false;
-        
-        // Check if links share a common node (converging point)
-        const link1StartId = link1.sourceNode?.id || link1.from?.id;
-        const link1EndId = link1.targetNode?.id || link1.to?.id;
-        const link2StartId = link2.sourceNode?.id || link2.from?.id;
-        const link2EndId = link2.targetNode?.id || link2.to?.id;
+
+        const link1StartId = this._getNodeId(link1Endpoints.startNode);
+        const link1EndId = this._getNodeId(link1Endpoints.endNode);
+        const link2StartId = this._getNodeId(link2Endpoints.startNode);
+        const link2EndId = this._getNodeId(link2Endpoints.endNode);
         
         // Paths converge if they share an endpoint
         return (link1EndId === link2StartId || link1EndId === link2EndId ||
@@ -327,22 +344,24 @@ export class WaveInterferencePatternSystem_Session132 {
         
         if (!link1 || !link2) return new THREE.Vector3();
         
-        // Check which endpoints match
-        const link1EndId = link1.targetNode?.id || link1.to?.id;
-        const link2StartId = link2.sourceNode?.id || link2.from?.id;
-        const link2EndId = link2.targetNode?.id || link2.to?.id;
-        const link1StartId = link1.sourceNode?.id || link1.from?.id;
+        const link1Endpoints = this._getLinkEndpoints(link1);
+        const link2Endpoints = this._getLinkEndpoints(link2);
+
+        const link1EndId = this._getNodeId(link1Endpoints.endNode);
+        const link2StartId = this._getNodeId(link2Endpoints.startNode);
+        const link2EndId = this._getNodeId(link2Endpoints.endNode);
+        const link1StartId = this._getNodeId(link1Endpoints.startNode);
         
         let convergenceNode = null;
         
         if (link1EndId === link2StartId) {
-            convergenceNode = link1.targetNode || link1.to;
+            convergenceNode = link1Endpoints.endNode;
         } else if (link1EndId === link2EndId) {
-            convergenceNode = link1.targetNode || link1.to;
+            convergenceNode = link1Endpoints.endNode;
         } else if (link1StartId === link2StartId) {
-            convergenceNode = link1.sourceNode || link1.from;
+            convergenceNode = link1Endpoints.startNode;
         } else if (link1StartId === link2EndId) {
-            convergenceNode = link1.sourceNode || link1.from;
+            convergenceNode = link1Endpoints.startNode;
         }
         
         return convergenceNode?.position || new THREE.Vector3();
@@ -355,6 +374,7 @@ export class WaveInterferencePatternSystem_Session132 {
         this.constructiveZones.clear();
         this.destructiveZones.clear();
         this.interferenceZones = [];
+        const activeZoneKeys = new Set();
         
         this.collisionPairs.forEach(pair => {
             // Determine interference type based on phase
@@ -364,17 +384,34 @@ export class WaveInterferencePatternSystem_Session132 {
             // Waves out of phase (phaseDiff ≈ 0.5) = destructive
             const isConstructive = phaseDiff < 0.25;
             
+            const zoneType = isConstructive ? 'constructive' : 'destructive';
+            const zoneKey = this._getZoneKey(pair.linkIds, zoneType);
+            let lifecycle = this.zoneLifecycles.get(zoneKey);
+
+            if (!lifecycle) {
+                lifecycle = {
+                    birthTime: this.time,
+                    lastSeenTime: this.time
+                };
+                this.zoneLifecycles.set(zoneKey, lifecycle);
+            } else {
+                lifecycle.lastSeenTime = this.time;
+            }
+
+            activeZoneKeys.add(zoneKey);
+
             const zone = {
                 linkIds: pair.linkIds,
                 convergencePoint: pair.convergencePoint,
-                type: isConstructive ? 'constructive' : 'destructive',
+                type: zoneType,
                 phaseDifference: pair.phaseDifference,
                 intensity: Math.min(pair.wave1.intensity, pair.wave2.intensity),
                 frequency1: this._getWaveFrequency(pair.wave1),
                 frequency2: this._getWaveFrequency(pair.wave2),
                 wave1: pair.wave1,
                 wave2: pair.wave2,
-                birthTime: this.time
+                birthTime: lifecycle.birthTime,
+                zoneKey
             };
             
             this.interferenceZones.push(zone);
@@ -396,6 +433,13 @@ export class WaveInterferencePatternSystem_Session132 {
                         phase: pair.wave1.phase
                     });
                 });
+            }
+        });
+
+        this.zoneLifecycles.forEach((lifecycle, zoneKey) => {
+            if (!activeZoneKeys.has(zoneKey) &&
+                (this.time - lifecycle.lastSeenTime) > this.config.collisionWindowSeconds) {
+                this.zoneLifecycles.delete(zoneKey);
             }
         });
     }
@@ -465,7 +509,7 @@ export class WaveInterferencePatternSystem_Session132 {
             meshItem.mesh.visible = true;
             meshItem.zone = zone;
             meshItem.type = zone.type;
-            meshItem.birthTime = this.time;
+            meshItem.birthTime = zone.birthTime;
             
             // Position mesh at convergence point
             meshItem.mesh.position.copy(zone.convergencePoint);
@@ -489,10 +533,12 @@ export class WaveInterferencePatternSystem_Session132 {
             
             // Check LOD
             if (this.config.enableLOD) {
-                const cameraPos = this.scene.getObjectByName('camera')?.position || new THREE.Vector3();
-                const distance = zone.convergencePoint.distanceTo(cameraPos);
-                if (distance > this.config.lodDistance) {
-                    meshItem.mesh.visible = false;
+                const cameraPos = this._resolveCameraPosition();
+                if (cameraPos) {
+                    const distance = zone.convergencePoint.distanceTo(cameraPos);
+                    if (distance > this.config.lodDistance) {
+                        meshItem.mesh.visible = false;
+                    }
                 }
             }
             
@@ -511,15 +557,6 @@ export class WaveInterferencePatternSystem_Session132 {
         // Emergence phase
         if (lifespan < this.config.emergenceTime) {
             opacityFactor = lifespan / this.config.emergenceTime;
-        }
-        // Peak phase
-        else if (lifespan < this.config.emergenceTime + this.config.peakDuration) {
-            opacityFactor = 1.0;
-        }
-        // Dissipation phase
-        else {
-            const dissipateProgress = (lifespan - this.config.emergenceTime - this.config.peakDuration) / this.config.dissipateTime;
-            opacityFactor = Math.max(0, 1 - dissipateProgress);
         }
         
         // Apply to material
@@ -597,11 +634,20 @@ export class WaveInterferencePatternSystem_Session132 {
      * Update interference lifecycle (cleanup old patterns)
      */
     _updateInterferenceLifecycle(deltaTime) {
-        this.interferenceZones = this.interferenceZones.filter(zone => {
-            const lifespan = this.time - zone.birthTime;
-            const totalLifetime = this.config.emergenceTime + this.config.peakDuration + this.config.dissipateTime;
-            return lifespan < totalLifetime;
+        const activeZoneKeys = new Set(this.interferenceZones.map(zone => zone.zoneKey));
+        this.zoneLifecycles.forEach((lifecycle, zoneKey) => {
+            if (activeZoneKeys.has(zoneKey)) return;
+            if ((this.time - lifecycle.lastSeenTime) > this.config.collisionWindowSeconds) {
+                this.zoneLifecycles.delete(zoneKey);
+            }
         });
+    }
+
+    _getZoneKey(linkIds, zoneType) {
+        const normalizedLinks = Array.isArray(linkIds)
+            ? linkIds.filter(Boolean).map(String).sort().join('|')
+            : '';
+        return `${zoneType}:${normalizedLinks}`;
     }
 
     /**
@@ -635,6 +681,38 @@ export class WaveInterferencePatternSystem_Session132 {
         this.destructiveZones.clear();
         this.phaseRelationships.clear();
         this.waveCollisionHistory.clear();
+        this.zoneLifecycles.clear();
+    }
+
+    _getLinkEndpoints(link) {
+        const startNode = link?.sourceNode || link?.source || link?.from || link?.nodeA || null;
+        const endNode = link?.targetNode || link?.target || link?.to || link?.nodeB || null;
+
+        return {
+            startNode,
+            endNode,
+            startPos: startNode?.position || null,
+            endPos: endNode?.position || null
+        };
+    }
+
+    _getNodeId(node) {
+        return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id ?? null;
+    }
+
+    _resolveCameraPosition() {
+        const sceneCamera = this.scene?.getObjectByName?.('camera')?.position;
+        if (sceneCamera) return sceneCamera;
+
+        if (typeof window !== 'undefined' && window.__ATOMA_CAMERA__?.position) {
+            return window.__ATOMA_CAMERA__.position;
+        }
+
+        if (globalThis.__ATOMA_CAMERA__?.position) {
+            return globalThis.__ATOMA_CAMERA__.position;
+        }
+
+        return null;
     }
 }
 
