@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+import { filterRaycastIntersections, isInteractiveObject } from './CanonicalInteractionFilter.js';
 
 const logOnce = (key, fn) => {
   if (typeof window === 'undefined') {
@@ -87,7 +87,7 @@ export class SafeMobilityPack4 {
       enabled: true,
       jumpCount: 0,            // 0, 1, or 2
       maxJumps: 2,
-      pressWindow: 0.26,       // seconds to detect double press
+      pressWindow: 0.30,       // seconds to detect double press (300ms)
       lastSpacePress: 0,
       isActive: false,
       boostMultiplier: 1.35,   // +35% upward impulse
@@ -107,6 +107,7 @@ export class SafeMobilityPack4 {
     // INTERACTION STATE
     this.state = {
       onGround: true,
+      lastOnGround: true,
       lastGroundContact: 0,
       dashAfterJump: false,     // Can dash after double jump
       jumpAfterDash: false,     // Can jump after dash
@@ -145,6 +146,8 @@ export class SafeMobilityPack4 {
     this._raycastTargetsCache = [];
     this._sceneChildrenSnapshot = [];
     this._raycastTargetsDirty = true;
+    this._raycastTargetsLastBuildMs = 0;
+    this._raycastTargetsMaxAgeMs = 500;
     
     this.initializeInputHandlers();
     console.log('✓ Safe Mobility Pack 4.0 initialized');
@@ -165,6 +168,8 @@ export class SafeMobilityPack4 {
   _isRaycastTargetCacheStale() {
     if (this._raycastTargetsDirty) return true;
     if (!this.scene || !this.scene.children) return true;
+    const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if ((nowMs - this._raycastTargetsLastBuildMs) > this._raycastTargetsMaxAgeMs) return true;
     const children = this.scene.children;
     if (children.length !== this._sceneChildrenSnapshot.length) return true;
     for (let i = 0; i < children.length; i++) {
@@ -180,22 +185,24 @@ export class SafeMobilityPack4 {
       this._raycastTargetsCache = [];
       this._sceneChildrenSnapshot = [];
       this._raycastTargetsDirty = false;
+      this._raycastTargetsLastBuildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       return;
     }
 
-    const children = this.scene.children;
     const targets = [];
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (!child) continue;
-      if (!this._hasInvalidGeometry(child)) {
-        targets.push(child);
-      }
-    }
+    this.scene.traverse((obj) => {
+      if (!obj || obj === this.scene) return;
+      if (!isInteractiveObject(obj)) return;
+      if (obj.userData?.raycastDisabled === true) return;
+      if (typeof obj.raycast !== 'function') return;
+      if (this._hasInvalidGeometry(obj)) return;
+      targets.push(obj);
+    });
 
     this._raycastTargetsCache = targets;
-    this._sceneChildrenSnapshot = children.slice();
+    this._sceneChildrenSnapshot = this.scene.children.slice();
     this._raycastTargetsDirty = false;
+    this._raycastTargetsLastBuildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   }
 
   _collectValidRaycastTargets() {
@@ -214,6 +221,7 @@ export class SafeMobilityPack4 {
         this.handleShiftPress();
       }
       if (e.code === 'Space') {
+        if (e.repeat) return;
         this.handleSpacePress();
       }
     });
@@ -303,21 +311,35 @@ export class SafeMobilityPack4 {
     if (!this.doubleJump.enabled || this.state.safeMode) return;
     
     const now = Date.now() / 1000;
-    const timeSinceLastPress = now - this.doubleJump.lastSpacePress;
-    
-    // First jump (ground)
-    if (this.state.onGround) {
-      this.doubleJump.jumpCount = 1;
+    const timeSinceLastPress = now - (this.doubleJump.lastSpacePress || 0);
+    const isSecondTapInWindow = timeSinceLastPress > 0 && timeSinceLastPress <= this.doubleJump.pressWindow;
+
+    // First tap: arm window and let normal jump handler continue.
+    if (!isSecondTapInWindow) {
       this.doubleJump.lastSpacePress = now;
-      return;  // Let normal jump handler deal with it
+      if (this.state.onGround) {
+        this.doubleJump.jumpCount = 1;
+      }
+      return;
     }
-    
-    // Double jump (mid-air within press window)
-    if (this.doubleJump.jumpCount === 1 && timeSinceLastPress < this.doubleJump.pressWindow) {
+
+    // Still grounded: consume as tap refresh only, no mid-air impulse.
+    if (this.state.onGround) {
+      this.doubleJump.lastSpacePress = now;
+      this.doubleJump.jumpCount = 1;
+      return;
+    }
+
+    // Second tap in air within 300ms => deterministic double jump.
+    if (this.doubleJump.jumpCount === 1) {
       this.executeDoubleJump();
       this.doubleJump.jumpCount = 2;
-      this.doubleJump.lastSpacePress = now;
+      this.doubleJump.lastSpacePress = 0; // consume sequence
+      return;
     }
+
+    // Any other state: restart timing window.
+    this.doubleJump.lastSpacePress = now;
   }
   
   /**
@@ -471,14 +493,18 @@ export class SafeMobilityPack4 {
       raycaster.near = 0;
       raycaster.far = this._groundCheckDistance;
       const targets = this._collectValidRaycastTargets();
-      const intersects = raycaster.intersectObjects(targets, true);
+      const intersects = raycaster.intersectObjects(targets, false);
       const filtered = filterRaycastIntersections(intersects);
       
+      const wasOnGround = this.state.onGround;
       this.state.onGround = filtered.length > 0;
-      
-      if (this.state.onGround) {
+      const justLanded = this.state.onGround && !wasOnGround;
+      this.state.lastOnGround = this.state.onGround;
+
+      if (justLanded) {
         // Reset jump counter on ground contact
         this.doubleJump.jumpCount = 0;
+        this.doubleJump.lastSpacePress = 0;
         this.state.dashAfterJump = false;
         this.state.jumpAfterDash = false;
       }

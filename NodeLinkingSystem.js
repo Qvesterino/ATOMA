@@ -489,7 +489,42 @@ export class NodeLinkingSystem {
     this.lastCrosshairCameraPos = new THREE.Vector3();
     this.lastCrosshairCameraQuat = new THREE.Quaternion();
     this.crosshairRaycastStats = { executed: 0, skipped: 0 };
-    
+    this._coreRaycastCache = {
+      meshes: [],
+      nodesRef: null,
+      nodeCount: 0,
+      headNodeId: null,
+      tailNodeId: null,
+      builtAtMs: 0,
+      ttlMs: 16
+    };
+    this._proxyMeshCache = {
+      meshes: [],
+      registryRef: null,
+      builtAtMs: 0,
+      ttlMs: 16
+    };
+    this._crosshairProxyCandidateCache = {
+      proxyRef: null,
+      proxyLen: 0,
+      builtAtMs: 0,
+      ttlMs: 16,
+      bounded: [],
+      candidates: [],
+      cameraPos: new THREE.Vector3(),
+      cameraQuat: new THREE.Quaternion()
+    };
+    this._mouseMoveRafId = 0;
+    this._pendingMouseMove = null;
+    this._nodeLookupCache = {
+      map: new Map(),
+      nodesRef: null,
+      nodeCount: 0,
+      headNodeId: null,
+      tailNodeId: null,
+      builtAtMs: 0,
+      ttlMs: 33
+    };
     // Visual system
     this.visuals = new NeonLinkVisuals(scene, camera);
 
@@ -924,6 +959,23 @@ export class NodeLinkingSystem {
    * Mouse move handler - Updates box selection visual
    */
   handleMouseMove(event) {
+    this._pendingMouseMove = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      movementX: event.movementX || 0,
+      movementY: event.movementY || 0
+    };
+    if (this._mouseMoveRafId) return;
+    this._mouseMoveRafId = requestAnimationFrame(() => {
+      this._mouseMoveRafId = 0;
+      const evt = this._pendingMouseMove;
+      this._pendingMouseMove = null;
+      if (!evt) return;
+      this._handleMouseMoveCoalesced(evt);
+    });
+  }
+
+  _handleMouseMoveCoalesced(event) {
     // Only process if we started on empty space
     if (!this.boxSelectState.startedOnEmpty || !this.boxSelectState.lmbDown) {
       return;
@@ -2904,8 +2956,9 @@ getLinksForNode(node) {
     // ========================================================================
     
     // Fast path: use hit-proxy system when fully ready to avoid failsafe violations
+    const proxyMeshesSnapshot = this._getProxyMeshesSnapshot();
     const proxiesReady = window.HITPROXY_READY === true &&
-                         window.hitProxySystem?.registry?.getAllProxies()?.length > 0 &&
+                         proxyMeshesSnapshot.length > 0 &&
                          window.safeProxyRaycaster;
 
     if (proxiesReady) {
@@ -2929,12 +2982,7 @@ getLinksForNode(node) {
       if (proxyHits.length > 0) {
         const resolveStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
         const nodeId = proxyHits[0].nodeId || proxyHits[0].object?.userData?.targetNodeId;
-        const hitNode = this.aiNodes.nodes.find(n => {
-          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
-            ? window.getNodeIdentity(n)
-            : (n.userData?.id || n.userData?.nodeId || n.uuid);
-          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
-        });
+        const hitNode = this._resolveNodeById(nodeId);
         const resolveElapsed = (typeof performance !== 'undefined')
           ? (performance.now() - resolveStart)
           : (Date.now() - resolveStart);
@@ -2971,58 +3019,7 @@ getLinksForNode(node) {
     // ========================================================================
     // STRATEGY: Direct raycast against node core meshes ONLY
     // ========================================================================
-    // Collect all node core meshes (authoritative raycast targets)
-    const coreMeshes = [];
-    
-    for (const node of this.aiNodes.nodes) {
-      if (!node || !node.visible) continue;
-      if (!this._nodeWithinTargetingBounds(node)) continue;
-
-      if (node.userData?._boundsDirty) {
-        this.computeNodeBoundingSphere(node);
-        node.userData._boundsDirty = false;
-      }
-      
-      // Traverse node tree to find core mesh
-      // Priority: find mesh marked as isNodeCore, or first mesh in node
-      const raycastTargetAllowed = node.userData?.isRaycastTarget !== false;
-      let coreMesh = node.userData?.coreMesh || null;
-
-      if ((!coreMesh || !coreMesh.isMesh) && raycastTargetAllowed) {
-        node.traverse(child => {
-          if (!coreMesh && child.isMesh && child.visible) {
-            // Prefer explicitly marked core mesh
-            if (child.userData?.isNodeCore === true) {
-              coreMesh = child;
-            }
-            // Otherwise accept first visible mesh (likely the core)
-            // But skip obvious visual-only meshes
-            else if (!child.userData?.isAura && 
-                     !child.userData?.isShell &&
-                     !child.userData?.isHologramShell &&
-                     !child.userData?.isParticle &&
-                     !child.userData?.isFX &&
-                     !child.userData?.isGlyph &&
-                     !child.userData?.isLinkVisual &&
-                     child.userData?.isNodeCore !== false) {
-              coreMesh = child;
-            }
-          }
-        });
-      }
-      
-      if (coreMesh) {
-        if (node.userData) {
-          node.userData.coreMesh = coreMesh;
-          node.userData.isRaycastTarget = node.userData.isRaycastTarget ?? true;
-        }
-        if (raycastTargetAllowed) {
-          coreMeshes.push(coreMesh);
-        }
-      } else if (raycastTargetAllowed && node?.userData?.boundingSphere === undefined) {
-        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
-      }
-    }
+    const coreMeshes = this._getCoreRaycastMeshes();
     
     // Guard: No core meshes found
     if (coreMeshes.length === 0) {
@@ -3050,7 +3047,7 @@ getLinksForNode(node) {
       
       while (parentNode) {
         if (this.aiNodes.nodes.includes(parentNode)) {
-          if (parentNode.userData?.nodeId) {
+          if (parentNode.userData?.nodeId && typeof window !== 'undefined' && window.DEBUG_RAYCAST_PROXY === true) {
             console.log('[NodeLinkingSystem] ✓ Node core raycast hit confirmed');
           }
           const resolveElapsed = (typeof performance !== 'undefined')
@@ -3127,6 +3124,144 @@ getLinksForNode(node) {
     recordRaycastCost('resolve_hit', resolveElapsed, callsite, { path: 'sphere-buffer' });
     return closestNode;
   }
+
+  _getCoreRaycastMeshes() {
+    const nodes = this.aiNodes?.nodes || [];
+    const cache = this._coreRaycastCache;
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const headNode = nodes.length > 0 ? nodes[0] : null;
+    const tailNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
+    const headNodeId = headNode?.uuid || null;
+    const tailNodeId = tailNode?.uuid || null;
+
+    const cacheFresh =
+      cache &&
+      cache.nodesRef === nodes &&
+      cache.nodeCount === nodes.length &&
+      cache.headNodeId === headNodeId &&
+      cache.tailNodeId === tailNodeId &&
+      (nowMs - cache.builtAtMs) <= cache.ttlMs;
+
+    if (cacheFresh) {
+      return cache.meshes;
+    }
+
+    const coreMeshes = [];
+
+    for (const node of nodes) {
+      if (!node || !node.visible) continue;
+      if (!this._nodeWithinTargetingBounds(node)) continue;
+
+      if (node.userData?._boundsDirty) {
+        this.computeNodeBoundingSphere(node);
+        node.userData._boundsDirty = false;
+      }
+
+      const raycastTargetAllowed = node.userData?.isRaycastTarget !== false;
+      let coreMesh = node.userData?.coreMesh || null;
+      if (coreMesh && (!coreMesh.isMesh || !coreMesh.parent || coreMesh.visible !== true)) {
+        coreMesh = null;
+      }
+
+      if ((!coreMesh || !coreMesh.isMesh) && raycastTargetAllowed) {
+        node.traverse(child => {
+          if (!coreMesh && child.isMesh && child.visible) {
+            if (child.userData?.isNodeCore === true) {
+              coreMesh = child;
+            } else if (!child.userData?.isAura &&
+                     !child.userData?.isShell &&
+                     !child.userData?.isHologramShell &&
+                     !child.userData?.isParticle &&
+                     !child.userData?.isFX &&
+                     !child.userData?.isGlyph &&
+                     !child.userData?.isLinkVisual &&
+                     child.userData?.isNodeCore !== false) {
+              coreMesh = child;
+            }
+          }
+        });
+      }
+
+      if (coreMesh) {
+        if (node.userData) {
+          node.userData.coreMesh = coreMesh;
+          node.userData.isRaycastTarget = node.userData.isRaycastTarget ?? true;
+        }
+        if (raycastTargetAllowed) coreMeshes.push(coreMesh);
+      } else if (raycastTargetAllowed && node?.userData?.boundingSphere === undefined) {
+        console.warn("⚠ Raycast node without bounds", node.id || node.userData?.id || node.uuid);
+      }
+    }
+
+    cache.meshes = coreMeshes;
+    cache.nodesRef = nodes;
+    cache.nodeCount = nodes.length;
+    cache.headNodeId = headNodeId;
+    cache.tailNodeId = tailNodeId;
+    cache.builtAtMs = nowMs;
+
+    return coreMeshes;
+  }
+
+  _getProxyMeshesSnapshot() {
+    const registry = window.hitProxySystem?.registry || null;
+    if (!registry || typeof registry.getAllProxies !== 'function') return [];
+
+    const cache = this._proxyMeshCache;
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const cacheFresh =
+      cache &&
+      cache.registryRef === registry &&
+      (nowMs - cache.builtAtMs) <= cache.ttlMs;
+
+    if (cacheFresh) return cache.meshes;
+
+    const meshes = registry.getAllProxies() || [];
+    cache.meshes = meshes;
+    cache.registryRef = registry;
+    cache.builtAtMs = nowMs;
+    return meshes;
+  }
+
+  _getCrosshairProxyCandidates(proxyMeshes) {
+    if (!Array.isArray(proxyMeshes) || proxyMeshes.length === 0 || !this.camera) {
+      return { bounded: [], candidates: [] };
+    }
+
+    const cache = this._crosshairProxyCandidateCache;
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const cameraMoved =
+      cache.cameraPos.distanceToSquared(this.camera.position) > 1e-8 ||
+      cache.cameraQuat.angleTo(this.camera.quaternion) > 1e-6;
+    const cacheFresh =
+      cache &&
+      cache.proxyRef === proxyMeshes &&
+      cache.proxyLen === proxyMeshes.length &&
+      !cameraMoved &&
+      (nowMs - cache.builtAtMs) <= cache.ttlMs;
+
+    if (cacheFresh) {
+      return { bounded: cache.bounded, candidates: cache.candidates };
+    }
+
+    const boundedRaw = this._filterNodeTargetingProxies(proxyMeshes);
+    const candidatesRaw = this._filterRaycastCandidates(boundedRaw);
+    const bounded = (boundedRaw === proxyMeshes) ? proxyMeshes : boundedRaw.slice();
+    const candidates =
+      (candidatesRaw === bounded || candidatesRaw === proxyMeshes)
+        ? candidatesRaw
+        : candidatesRaw.slice();
+
+    cache.proxyRef = proxyMeshes;
+    cache.proxyLen = proxyMeshes.length;
+    cache.bounded = bounded;
+    cache.candidates = candidates;
+    cache.builtAtMs = nowMs;
+    cache.cameraPos.copy(this.camera.position);
+    cache.cameraQuat.copy(this.camera.quaternion);
+
+    return { bounded, candidates };
+  }
   
   /**
    * [CRITICAL STABILIZATION] NODE INTERACTION AUTHORITY
@@ -3144,7 +3279,7 @@ getLinksForNode(node) {
       this.raycaster.far = this.interactionConfig.maxLinkingDistance;
       
       // ONLY use hit-proxies (visual meshes excluded)
-      const hitProxyMeshes = window.hitProxySystem?.registry?.getAllProxies() || [];
+      const hitProxyMeshes = this._getProxyMeshesSnapshot();
 
       if (hitProxyMeshes.length === 0) {
         return null;  // No proxies available
@@ -3161,7 +3296,7 @@ getLinksForNode(node) {
       if (filtered.length > 0) {
         const targetNodeId = filtered[0].object?.userData?.targetNodeId;
         if (targetNodeId) {
-          const hitNode = this.aiNodes.nodes.find(n => n.userData?.id === targetNodeId);
+          const hitNode = this._resolveNodeById(targetNodeId);
           if (hitNode) {
             return hitNode;
           }
@@ -4748,10 +4883,6 @@ getLinksForNode(node) {
     * Update all links - positions, animations, and traffic simulation
     */
   update(deltaTime, time) {
-    if (!this._picDiagUpdateLogged) {
-      console.error('[PicDiag] NodeLinkingSystem.update entered', { worldReady: this.worldReady, links: this.links?.length || 0 });
-      this._picDiagUpdateLogged = true;
-    }
     // [Audit 6.2] Skip update if world not ready (during world transitions)
     if (!this.worldReady) {
       return;
@@ -4832,7 +4963,7 @@ getLinksForNode(node) {
     if (this.flowSystem) {
       this.flowSystem.animate(deltaTime, time);
     }
-    
+
     // [LinkGuard] Collect dead links for cleanup after iteration
     const deadLinks = [];
     
@@ -4910,7 +5041,6 @@ getLinksForNode(node) {
 
     // Global pictogram tick (once per frame)
     if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
-      console.info('[PicDiag] pictogram tick requested', deltaTime);
       try {
         this.conduitRenderer.updatePictograms(deltaTime, time);
       } catch (err) {
@@ -5163,7 +5293,7 @@ getLinksForNode(node) {
 
     // [SESSION 62B] HITPROXY_READY GATE - Prevent FPS death during startup
     // Prefer HITPROXY_READY but fall back to live registry presence
-    const proxyList = window.hitProxySystem?.registry?.getAllProxies?.() || [];
+    const proxyList = this._getProxyMeshesSnapshot();
     const proxiesAvailable = proxyList.length > 0;
     const ready = (window.HITPROXY_READY === true) || proxiesAvailable;
     if (!ready) {
@@ -5182,13 +5312,11 @@ getLinksForNode(node) {
     // [SESSION 62] SURGICAL FIX: Use ONLY hit-proxy meshes
     // Before: Collected all real meshes (cores, auras, glyphs) → raycast violations
     // After: Use registered hit-proxy meshes only → zero violations
-    let proxyMeshes = [];
-    if (window.hitProxySystem && window.hitProxySystem.registry) {
-      proxyMeshes = window.hitProxySystem.registry.getAllProxies();
-    }
+    const proxyMeshes = proxyList;
     const totalProxies = proxyMeshes.length;
-    const boundedProxies = this._filterNodeTargetingProxies(proxyMeshes);
-    const candidateMeshes = this._filterRaycastCandidates(boundedProxies);
+    const proxyCandidates = this._getCrosshairProxyCandidates(proxyMeshes);
+    const boundedProxies = proxyCandidates.bounded;
+    const candidateMeshes = proxyCandidates.candidates;
     
     // If no proxy system available, fall back safely
     if (candidateMeshes.length === 0) {
@@ -5200,14 +5328,25 @@ getLinksForNode(node) {
       return;
     }
 
-    // Frequency gate: limit crosshair raycasts based on camera motion
+    // Frequency gate: adaptive crosshair cadence
+    // Active interaction (linking/hover lock): 33ms idle camera, 100ms moving camera
+    // Passive idle: 66ms idle camera, 140ms moving camera
     const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const posDist = this.camera.position.distanceToSquared(this.lastCrosshairCameraPos);
     const rotAngle = this.camera.quaternion.angleTo(this.lastCrosshairCameraQuat);
     const MOVEMENT_EPS = 0.0001; // small epsilon for motion detection
     const ROTATION_EPS = 0.00005;
     const cameraMoving = (posDist > MOVEMENT_EPS || rotAngle > ROTATION_EPS);
-    const minInterval = cameraMoving ? 100 : 33; // ms
+    const interactionActive =
+      !!this.activeLink ||
+      !!this.selectedNode ||
+      this.multiSelectMode === true ||
+      this.boxSelectState?.isActive === true ||
+      this.rmbState?.isHolding === true ||
+      !!this.hoveredNodeForSelection;
+    const minInterval = cameraMoving
+      ? (interactionActive ? 100 : 140)
+      : (interactionActive ? 33 : 66); // ms
     if (now - this.lastCrosshairRaycastTime < minInterval) {
       this.crosshairRaycastStats.skipped++;
       recordRaycastCost('proxy_raycast', 0, 'crosshair', { path: 'gated_skip' });
@@ -5252,12 +5391,7 @@ getLinksForNode(node) {
     if (filtered.length > 0) {
       const nodeId = filtered[0].object?.userData?.targetNodeId || filtered[0].nodeId;
       if (nodeId && this.aiNodes?.nodes) {
-        resolvedNode = this.aiNodes.nodes.find(n => {
-          const identity = (typeof window !== 'undefined' && window.getNodeIdentity)
-            ? window.getNodeIdentity(n)
-            : (n.userData?.id || n.userData?.nodeId || n.uuid);
-          return identity === nodeId || n.userData?.id === nodeId || n.userData?.nodeId === nodeId;
-        }) || null;
+        resolvedNode = this._resolveNodeById(nodeId) || null;
       }
     }
 
@@ -6767,6 +6901,11 @@ getLinksForNode(node) {
         clearTimeout(this.clickState.singleClickTimer);
         this.clickState.singleClickTimer = null;
       }
+      if (this._mouseMoveRafId) {
+        cancelAnimationFrame(this._mouseMoveRafId);
+        this._mouseMoveRafId = 0;
+      }
+      this._pendingMouseMove = null;
     } catch (err) {
       console.warn('[NodeLinkingSystem] Error clearing click timers:', err);
     }
@@ -7373,8 +7512,52 @@ getLinksForNode(node) {
    * @private
    */
   _findNodeById(nodeId) {
-    if (!nodeId || !this.aiNodes?.nodes) return null;
-    return this.aiNodes.nodes.find(n => this.getNodeId(n) === nodeId) || null;
+    return this._resolveNodeById(nodeId);
+  }
+
+  _getNodeLookupMap() {
+    const nodes = this.aiNodes?.nodes || [];
+    const cache = this._nodeLookupCache;
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    const headNode = nodes.length > 0 ? nodes[0] : null;
+    const tailNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
+    const headNodeId = headNode?.uuid || null;
+    const tailNodeId = tailNode?.uuid || null;
+
+    const cacheFresh =
+      cache &&
+      cache.nodesRef === nodes &&
+      cache.nodeCount === nodes.length &&
+      cache.headNodeId === headNodeId &&
+      cache.tailNodeId === tailNodeId &&
+      (nowMs - cache.builtAtMs) <= cache.ttlMs;
+
+    if (cacheFresh) return cache.map;
+
+    const map = new Map();
+    for (const node of nodes) {
+      if (!node) continue;
+      const canonicalId = this.getNodeId(node);
+      const id = node.userData?.id;
+      const nodeId = node.userData?.nodeId;
+      if (canonicalId) map.set(canonicalId, node);
+      if (id) map.set(id, node);
+      if (nodeId) map.set(nodeId, node);
+      if (node.uuid) map.set(node.uuid, node);
+    }
+
+    cache.map = map;
+    cache.nodesRef = nodes;
+    cache.nodeCount = nodes.length;
+    cache.headNodeId = headNodeId;
+    cache.tailNodeId = tailNodeId;
+    cache.builtAtMs = nowMs;
+    return map;
+  }
+
+  _resolveNodeById(anyId) {
+    if (!anyId) return null;
+    return this._getNodeLookupMap().get(anyId) || null;
   }
 
   /**
@@ -7473,4 +7656,3 @@ NodeLinkingSystem.prototype.setSelectionCore = function() {};
 
 
 export default NodeLinkingSystem;
-

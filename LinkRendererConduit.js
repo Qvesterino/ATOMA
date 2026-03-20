@@ -862,6 +862,22 @@ export class LinkRendererConduit {
         this.travelingWaveFX = travelingWaveFX || null;
     }
 
+    _shouldRegisterForTravelPack(material) {
+        if (!material) return false;
+
+        // Register only link-body ShaderMaterial variants.
+        if (!(material instanceof THREE.ShaderMaterial)) return false;
+        if (material.userData?.isFX === true) return false;
+
+        // Skip additive particle-like materials.
+        if (material.transparent === true && material.blending === THREE.AdditiveBlending) {
+            return false;
+        }
+
+        if (material.userData?.travelRelevant === true) return true;
+        return material.userData?.isLinkCore === true;
+    }
+
     _registerLinkMaterialWithBridge(material) {
         if (!material) return;
         const bridge = this.waveShaderBridge || window.game?.waveShaderBridge;
@@ -875,7 +891,7 @@ export class LinkRendererConduit {
             if (waveShaderMaterialPatch?.patch) {
                 waveShaderMaterialPatch.patch(mat, 'SYNERGY');
             }
-            if (travelPack?.register) {
+            if (travelPack?.register && this._shouldRegisterForTravelPack(mat)) {
                 travelPack.register(mat, 'TRAVEL_INTERFERENCE');
             }
         };
@@ -970,7 +986,10 @@ export class LinkRendererConduit {
             this.morphSystem.update(deltaTime, list);
         }
 
-        if (this.harmonicManager?.update) {
+        let frameHarmony = 0.5;
+        let frameCorruption = 0;
+        let frameInstability = 0;
+        if (this.harmonicManager?.update || this.nodeInterferenceManager?.update) {
             let sumHarmony = 0;
             let sumCorruption = 0;
             let sumInstability = 0;
@@ -984,12 +1003,27 @@ export class LinkRendererConduit {
                 count += 1;
             }
             const inv = count > 0 ? (1 / count) : 0;
+            frameHarmony = count > 0 ? sumHarmony * inv : 0.5;
+            frameCorruption = count > 0 ? sumCorruption * inv : 0;
+            frameInstability = count > 0 ? sumInstability * inv : 0;
+        }
+
+        if (this.harmonicManager?.update) {
             this.harmonicManager.update(
                 list,
-                count > 0 ? sumHarmony * inv : 0.5,
-                count > 0 ? sumCorruption * inv : 0,
-                count > 0 ? sumInstability * inv : 0,
+                frameHarmony,
+                frameCorruption,
+                frameInstability,
                 VisualTime.delta
+            );
+        }
+
+        if (this.nodeInterferenceManager?.update) {
+            this.nodeInterferenceManager.update(
+                list,
+                frameHarmony,
+                frameCorruption,
+                frameInstability
             );
         }
 
@@ -1116,6 +1150,143 @@ export class LinkRendererConduit {
                 this._healingDebugLast = now;
             }
         }
+    }
+
+    _resolveLinkForRuntimeReport(linkId = null) {
+        const list = this.linkSystem?.links || this.links || [];
+        if (!Array.isArray(list) || list.length === 0) return null;
+        if (linkId === null || linkId === undefined) return list[0] || null;
+        return list.find((link) => link?.id === linkId || link?.uuid === linkId) || null;
+    }
+
+    getLinkRuntimeReport(linkId = null) {
+        const link = this._resolveLinkForRuntimeReport(linkId);
+        if (!link) {
+            return { ok: false, reason: 'no-link-found', linkId };
+        }
+
+        const state = link?.group?.userData?.conduitState;
+        if (!state) {
+            return { ok: false, reason: 'missing-conduit-state', linkId: link.id || link.uuid || linkId };
+        }
+
+        const runtime = state.__runtime || {};
+        const metrics = state.metrics || this._readLinkMetrics(link) || {};
+        const trailEmitter = link.id ? this.trailEmitters?.get(link.id) : null;
+        const healingEmitter = link.id ? this.healingEmitters?.get(link.id) : null;
+        const spreadState = link.id ? this.corruptionSpreadAnimator?.animationStates?.get(link.id) : null;
+        const strands = Array.isArray(state.strands) ? state.strands : [];
+        const strandDiagnostics = strands.reduce((acc, strand) => {
+            const mat = strand?.material;
+            if (!mat) return acc;
+            acc.total += 1;
+            if (mat.uniforms?.uLocalLoad) acc.waveUniformTargets += 1;
+            if (mat.uniforms?.uBaseColor) acc.baseColorUniformTargets += 1;
+            if (mat.uniforms?.braid_tightness) acc.morphBraidTargets += 1;
+            if (mat.uniforms?.emissive_intensity) acc.morphEmissionTargets += 1;
+            if (mat.uniforms?.emission_pulse) acc.morphPulseTargets += 1;
+            if (mat.emissive) acc.emissivePropertyTargets += 1;
+            return acc;
+        }, {
+            total: 0,
+            waveUniformTargets: 0,
+            baseColorUniformTargets: 0,
+            morphBraidTargets: 0,
+            morphEmissionTargets: 0,
+            morphPulseTargets: 0,
+            emissivePropertyTargets: 0
+        });
+
+        const spreadAnimating = !!spreadState?.isAnimating;
+        const hasWaveTargets = strandDiagnostics.waveUniformTargets > 0;
+        const hasMorphTargets =
+            strandDiagnostics.morphBraidTargets > 0 ||
+            strandDiagnostics.morphEmissionTargets > 0 ||
+            strandDiagnostics.morphPulseTargets > 0 ||
+            strandDiagnostics.emissivePropertyTargets > 0;
+        const trailActuallyEmitting =
+            (runtime.trailEmitterTicks || 0) > 0 &&
+            ((runtime.trailSharedCorruptionEmits || 0) > 0 || (runtime.healingEmitterTicks || 0) > 0);
+
+        const statuses = {
+            energyWave: (this.modules.flow && state.energyWave && (runtime.energyWaveTicks || 0) > 0)
+                ? (hasWaveTargets ? 'visibly-active' : 'ticking-no-wave-target')
+                : 'dormant',
+            trailEmitter: (this.modules.trails && trailEmitter && (runtime.trailEmitterTicks || 0) > 0)
+                ? (trailActuallyEmitting ? 'visibly-active' : 'ticking-low-emission')
+                : 'dormant',
+            corruptionSpread: (this.modules.corruptionFX && this.corruptionSpreadAnimator && (runtime.corruptionSpreadTicks || 0) > 0)
+                ? (spreadAnimating ? 'visibly-active' : 'ticking-idle')
+                : 'dormant',
+            corruptionMorph: (this.modules.corruptionFX && this.corruptionMorphing && (runtime.corruptionMorphTicks || 0) > 0)
+                ? (hasMorphTargets ? 'visibly-active' : 'ticking-no-morph-target')
+                : 'dormant',
+            corruptionParticles: (this.modules.corruptionFX && this.corruptionParticleSystem && (runtime.corruptionParticleTicks || 0) > 0)
+                ? 'visibly-active'
+                : 'dormant',
+            tier4Feedback: this.corruptionFeedbackVisuals?.getStats?.()?.activeEffects > 0 ? 'active' : 'dormant'
+        };
+
+        return {
+            ok: true,
+            linkId: link.id || link.uuid || null,
+            statuses,
+            modules: { ...this.modules },
+            runtime: {
+                updateCalls: runtime.updateCalls || 0,
+                lastVisualTime: runtime.lastVisualTime || 0,
+                lastCorruption: runtime.lastCorruption ?? metrics.corruption ?? 0,
+                lastHarmony: runtime.lastHarmony ?? metrics.harmony ?? 0,
+                lastSynergy: runtime.lastSynergy ?? metrics.synergy ?? 0,
+                lastTraffic: runtime.lastTraffic ?? metrics.loadPressure ?? 0,
+                energyWaveTicks: runtime.energyWaveTicks || 0,
+                trailEmitterTicks: runtime.trailEmitterTicks || 0,
+                trailSharedCorruptionEmits: runtime.trailSharedCorruptionEmits || 0,
+                healingEmitterTicks: runtime.healingEmitterTicks || 0,
+                corruptionSpreadTicks: runtime.corruptionSpreadTicks || 0,
+                corruptionMorphTicks: runtime.corruptionMorphTicks || 0,
+                corruptionParticleTicks: runtime.corruptionParticleTicks || 0
+            },
+            triggerContext: {
+                corruption: metrics.corruption ?? 0,
+                spreadThreshold: 0.35,
+                spreadDeltaThreshold: this.corruptionSpreadAnimator?.config?.triggerDeltaThreshold ?? null,
+                spreadAnimating,
+                spreadWavePhase: spreadState?.wavePhase ?? null,
+                runHeavyCorruptionUpdateCadence: 'updateAll: run30 && every 2nd heavy frame'
+            },
+            resources: {
+                strands: state.strands?.length || 0,
+                hasEnergyWave: !!state.energyWave,
+                hasTrailEmitter: !!trailEmitter,
+                trailEmitterEnabled: trailEmitter?.enabled ?? null,
+                hasHealingEmitter: !!healingEmitter,
+                healingEmitterEnabled: healingEmitter?.enabled ?? null
+            },
+            strandDiagnostics
+        };
+    }
+
+    resetLinkRuntimeReport(linkId = null) {
+        const link = this._resolveLinkForRuntimeReport(linkId);
+        if (!link?.group?.userData?.conduitState) return false;
+        const state = link.group.userData.conduitState;
+        state.__runtime = {
+            updateCalls: 0,
+            lastVisualTime: 0,
+            lastCorruption: 0,
+            lastHarmony: 0,
+            lastSynergy: 0,
+            lastTraffic: 0,
+            corruptionSpreadTicks: 0,
+            corruptionMorphTicks: 0,
+            corruptionParticleTicks: 0,
+            trailEmitterTicks: 0,
+            trailSharedCorruptionEmits: 0,
+            healingEmitterTicks: 0,
+            energyWaveTicks: 0
+        };
+        return true;
     }
 
     /**
@@ -1411,6 +1582,8 @@ export class LinkRendererConduit {
         ensureUserData(skinMaterial);
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';
+        skinMaterial.userData.isLinkCore = true;
+        skinMaterial.userData.travelRelevant = true;
         skinMaterial.userData.waveDirection = directionVec;
         skinMaterial.userData.waveLength = linkLength;
         skinMaterial.userData.wavePhaseOffset = wavePhaseOffset;
@@ -1499,6 +1672,8 @@ export class LinkRendererConduit {
                     ensureUserData(material);
                     material.userData.__owner = 'LinkRenderer';
                     material.userData.__domain = 'link';
+                    material.userData.isLinkCore = true;
+                    material.userData.travelRelevant = true;
                     material.userData.__flagsFrozen = material.userData.__flagsFrozen || false;
                     const directionVec =
                         link?.userData?.waveDirection ||
@@ -1670,6 +1845,25 @@ export class LinkRendererConduit {
 
         this._advanceLinkBootstrap(link, state);
         state.metrics = metrics;
+        const runtime = state.__runtime || (state.__runtime = {
+            updateCalls: 0,
+            lastVisualTime: 0,
+            lastCorruption: 0,
+            lastHarmony: 0,
+            lastSynergy: 0,
+            lastTraffic: 0,
+            corruptionSpreadTicks: 0,
+            corruptionMorphTicks: 0,
+            corruptionParticleTicks: 0,
+            trailEmitterTicks: 0,
+            trailSharedCorruptionEmits: 0,
+            healingEmitterTicks: 0,
+            energyWaveTicks: 0
+        });
+        runtime.updateCalls += 1;
+        runtime.lastVisualTime = visualTime;
+        runtime.lastCorruption = metrics?.corruption ?? 0;
+        runtime.lastHarmony = metrics?.harmony ?? 0;
 
         // Harmonic sync update (links + aggregated metrics)
         if (this.nodeHarmonicManager) {
@@ -1694,12 +1888,14 @@ export class LinkRendererConduit {
                     corruptionLevel: metrics?.corruption ?? 0,
                     nowMs: performance.now()
                 });
+                runtime.corruptionSpreadTicks += 1;
             }
             if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
                 this.corruptionMorphing.update(
                     visualDelta,
                     link
                 );
+                runtime.corruptionMorphTicks += 1;
             }
             if (runHeavyCorruptionUpdate && this.corruptionParticleSystem) {
                 // Prefer canonical updater; fall back if alias differs
@@ -1710,6 +1906,7 @@ export class LinkRendererConduit {
                     updater(link, visualDelta, {
                         corruptionLevel: metrics?.corruption ?? 0
                     });
+                    runtime.corruptionParticleTicks += 1;
                 }
             }
         }
@@ -2398,6 +2595,7 @@ export class LinkRendererConduit {
                     linkHarmony,
                     linkCorruption
                 );
+                runtime.trailEmitterTicks += 1;
             }
 
             // Shared pool mapping: LinkCorruptionParticleSystem -> corruption trail source.
@@ -2414,6 +2612,7 @@ export class LinkRendererConduit {
                         harmony: metrics.harmony ?? 0.5,
                         corruption: corruptionLevel
                     });
+                    runtime.trailSharedCorruptionEmits += 1;
                 }
             }
         }
@@ -2437,6 +2636,7 @@ export class LinkRendererConduit {
                             linkCorruption,
                             tintColor
                         );
+                        runtime.healingEmitterTicks += 1;
                         // Shared pool mapping: LinkHealingParticleSystem -> healing trail source.
                         this.trailParticles?.emitFromSource?.({
                             type: 'healing',
@@ -2687,7 +2887,10 @@ export class LinkRendererConduit {
                 trafficLoad,
                 baseEmissiveIntensity
             );
+            runtime.energyWaveTicks += 1;
         }
+        runtime.lastSynergy = synergy;
+        runtime.lastTraffic = trafficLoad;
     }
 
     /**
