@@ -289,7 +289,6 @@ export class ResonanceEchoTrailSystem {
 
     _subscribeSemanticEvents() {
         if (!this.semanticBus?.on) return;
-        this.semanticBus.on('wave.burst', this._boundWaveBurstHandler);
         this.semanticBus.on('wave.burst.lifecycle', this._boundWaveBurstHandler);
         this.semanticBus.on('wave.packet.spawn', this._boundWaveBurstHandler);
     }
@@ -595,11 +594,9 @@ export class ResonanceEchoTrailSystem {
         this.resetAll();
 
         if (this.semanticBus?.unsubscribe) {
-            this.semanticBus.unsubscribe('wave.burst', this._boundWaveBurstHandler);
             this.semanticBus.unsubscribe('wave.burst.lifecycle', this._boundWaveBurstHandler);
             this.semanticBus.unsubscribe('wave.packet.spawn', this._boundWaveBurstHandler);
         } else if (this.semanticBus?.off) {
-            this.semanticBus.off('wave.burst', this._boundWaveBurstHandler);
             this.semanticBus.off('wave.burst.lifecycle', this._boundWaveBurstHandler);
             this.semanticBus.off('wave.packet.spawn', this._boundWaveBurstHandler);
         }

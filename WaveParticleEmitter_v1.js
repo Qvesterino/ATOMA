@@ -26,9 +26,9 @@ export class WaveParticleEmitter_v1 {
     this.config = {
       maxParticlesPerFamily: config.maxParticlesPerFamily ?? 2000,
       emissionRate: config.emissionRate ?? 1.0, // Multiplier on base emission
-      constructiveThreshold: config.constructiveThreshold ?? 0.35,
-      destructiveThreshold: config.destructiveThreshold ?? 0.40,
-      standingWaveThreshold: config.standingWaveThreshold ?? 0.45,
+      constructiveThreshold: config.constructiveThreshold ?? 0.15,
+      destructiveThreshold: config.destructiveThreshold ?? 0.20,
+      standingWaveThreshold: config.standingWaveThreshold ?? 0.25,
       amplitudeSpikeThreshold: config.amplitudeSpikeThreshold ?? 0.20,
       amplitudeEMAAlpha: config.amplitudeEMAAlpha ?? 0.15,
       debugMode: config.debugMode ?? false,
@@ -77,6 +77,9 @@ export class WaveParticleEmitter_v1 {
     // Time tracking
     this.time = 0;
     this._tmpNodeWorldPos = new THREE.Vector3();
+    this._tmpLinkMidpoint = new THREE.Vector3();
+    this._tmpLinkSourceWorldPos = new THREE.Vector3();
+    this._tmpLinkTargetWorldPos = new THREE.Vector3();
 
     if (this.config.debugMode) {
       console.log('[WaveParticleEmitter_v1] Constructor initialized', this.config);
@@ -326,6 +329,12 @@ export class WaveParticleEmitter_v1 {
         }
       }
 
+      if (links && Array.isArray(links)) {
+        for (const link of links) {
+          this._processLinkWaveEvents(link, waveEngine);
+        }
+      }
+
       // Update all 3 particle systems
       this._updateParticleSystem('constructiveBurst', deltaTime);
       this._updateParticleSystem('destructiveChaos', deltaTime);
@@ -340,6 +349,8 @@ export class WaveParticleEmitter_v1 {
    */
   _processNodeWaveEvents(node, waveEngine = null) {
     try {
+      const MIN_CHANNEL = 0.12;
+      const MIN_VISIBILITY = 0.1;
       const nodeId = node?.id ?? node?.uuid;
       if (!nodeId) return;
 
@@ -348,27 +359,185 @@ export class WaveParticleEmitter_v1 {
         node?.userData?.waveField ??
         {};
 
-      const constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
-      const destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
-      const standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
       const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
+      const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
+      let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
+      let destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
+      let standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
+      constructive = Math.max(constructive, minimumChannelValue);
+      destructive = Math.max(destructive, minimumChannelValue);
+      standing = Math.max(standing, minimumChannelValue);
+      const constructiveValue = Math.max(constructive, MIN_VISIBILITY);
+      const destructiveValue = Math.max(destructive, MIN_VISIBILITY);
+      const standingValue = Math.max(standing, MIN_VISIBILITY);
 
-      if (constructive >= this.config.constructiveThreshold) {
-        this._emitConstructiveBurst(node, constructive);
+      if (constructiveValue >= this.config.constructiveThreshold) {
+        this._emitConstructiveBurst(node, constructiveValue);
       }
 
-      if (destructive >= this.config.destructiveThreshold) {
-        this._emitDestructiveChaos(node, destructive);
+      if (destructiveValue >= this.config.destructiveThreshold) {
+        this._emitDestructiveChaos(node, destructiveValue);
       }
 
-      if (standing >= this.config.standingWaveThreshold) {
-        this._emitStandingWaveRipple(node, standing);
+      if (standingValue >= this.config.standingWaveThreshold) {
+        this._emitStandingWaveRipple(node, standingValue);
       }
 
       this._processAmplitudeSpike(nodeId, amplitude);
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Node event processing error:', err);
     }
+  }
+
+  _processLinkWaveEvents(link, waveEngine = null) {
+    try {
+      const MIN_CHANNEL = 0.12;
+      const MIN_VISIBILITY = 0.1;
+      const MIN_LINK_AMPLITUDE = 0.15;
+      const linkId = this._resolveLinkId(link);
+      if (!linkId) return;
+
+      const midpoint = this._resolveLinkMidpoint(link);
+      if (!midpoint) return;
+
+      const waveField = this._resolveLinkWaveField(link, linkId, waveEngine);
+      if (!waveField) return;
+
+      const amplitude = this._clamp01(waveField.amplitude ?? waveField.totalAmplitude ?? 0);
+      if (amplitude <= MIN_LINK_AMPLITUDE) return;
+
+      const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
+      let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
+      let destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
+      let standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
+      constructive = Math.max(constructive, minimumChannelValue);
+      destructive = Math.max(destructive, minimumChannelValue);
+      standing = Math.max(standing, minimumChannelValue);
+      const constructiveValue = Math.max(constructive, MIN_VISIBILITY);
+      const destructiveValue = Math.max(destructive, MIN_VISIBILITY);
+      const standingValue = Math.max(standing, MIN_VISIBILITY);
+      const linkEmitterTarget = {
+        id: `wave-link:${linkId}`,
+        position: midpoint
+      };
+
+      if (constructiveValue >= this.config.constructiveThreshold) {
+        this._emitConstructiveBurst(linkEmitterTarget, constructiveValue);
+      }
+
+      if (destructiveValue >= this.config.destructiveThreshold) {
+        this._emitDestructiveChaos(linkEmitterTarget, destructiveValue);
+      }
+
+      if (standingValue >= this.config.standingWaveThreshold) {
+        this._emitStandingWaveRipple(linkEmitterTarget, standingValue);
+      }
+    } catch (err) {
+      console.error('[WaveParticleEmitter_v1] Link event processing error:', err);
+    }
+  }
+
+  _resolveLinkWaveField(link, linkId, waveEngine = null) {
+    const linkWaveField = waveEngine?.getLinkWaveField?.(linkId, link) ?? null;
+    if (linkWaveField) return linkWaveField;
+
+    const { sourceNode, targetNode } = this._resolveLinkEndpoints(link);
+    const sourceWaveField = this._resolveEndpointWaveField(sourceNode, waveEngine);
+    const targetWaveField = this._resolveEndpointWaveField(targetNode, waveEngine);
+
+    if (!sourceWaveField && !targetWaveField) return null;
+
+    const amplitude = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['amplitude', 'totalAmplitude']);
+    const constructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['constructive', 'constructivePower']);
+    const destructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['destructive', 'destructivePower', 'destructiveInterference']);
+    const standing = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['standing', 'standingWaveFactor']);
+
+    return {
+      amplitude,
+      totalAmplitude: amplitude,
+      constructive,
+      constructivePower: constructive,
+      destructive,
+      destructivePower: destructive,
+      destructiveInterference: destructive,
+      standing,
+      standingWaveFactor: standing
+    };
+  }
+
+  _resolveEndpointWaveField(node, waveEngine = null) {
+    if (!node) return null;
+    const nodeId = this._resolveEntityId(node);
+    return waveEngine?.getNodeWaveField?.(nodeId, node) ?? node?.userData?.waveField ?? null;
+  }
+
+  _averageWaveFieldValue(sourceWaveField, targetWaveField, keys = []) {
+    let sum = 0;
+    let count = 0;
+    for (const waveField of [sourceWaveField, targetWaveField]) {
+      if (!waveField) continue;
+      for (const key of keys) {
+        const value = waveField?.[key];
+        if (Number.isFinite(value)) {
+          sum += value;
+          count += 1;
+          break;
+        }
+      }
+    }
+    return count > 0 ? this._clamp01(sum / count) : 0;
+  }
+
+  _resolveLinkId(link) {
+    return link?.userData?.linkId || link?.id || link?.uuid || link?.name || null;
+  }
+
+  _resolveEntityId(entity) {
+    return entity?.userData?.nodeId || entity?.id || entity?.uuid || entity?.name || null;
+  }
+
+  _resolveLinkEndpoints(link) {
+    return {
+      sourceNode: link?.source || link?.sourceNode || link?.from || link?.nodeA || null,
+      targetNode: link?.target || link?.targetNode || link?.to || link?.nodeB || null
+    };
+  }
+
+  _resolveLinkMidpoint(link) {
+    const { sourceNode, targetNode } = this._resolveLinkEndpoints(link);
+    const sourcePos = this._resolveLinkEndpointPosition(sourceNode, this._tmpLinkSourceWorldPos);
+    const targetPos = this._resolveLinkEndpointPosition(targetNode, this._tmpLinkTargetWorldPos);
+
+    if (sourcePos && targetPos) {
+      return this._tmpLinkMidpoint.copy(sourcePos).add(targetPos).multiplyScalar(0.5);
+    }
+
+    const arr = link?.geometry?.attributes?.position?.array;
+    if (arr?.length >= 6) {
+      return this._tmpLinkMidpoint.set(
+        (arr[0] + arr[3]) * 0.5,
+        (arr[1] + arr[4]) * 0.5,
+        (arr[2] + arr[5]) * 0.5
+      );
+    }
+
+    return null;
+  }
+
+  _resolveLinkEndpointPosition(node, target) {
+    if (!node?.position) return null;
+
+    const pos = (typeof node.getWorldPosition === 'function')
+      ? node.getWorldPosition(target)
+      : target.copy(node.position);
+
+    if (
+      !Number.isFinite(pos.x) ||
+      !Number.isFinite(pos.y) ||
+      !Number.isFinite(pos.z)
+    ) return null;
+
+    return pos;
   }
 
   /**

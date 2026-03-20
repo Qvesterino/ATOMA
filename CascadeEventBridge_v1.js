@@ -47,6 +47,7 @@ export class CascadeEventBridge_v1 {
     // State
     this._isRegistered = false;
     this._isInitialized = false;
+    this._cascadeSequence = 0;
   }
   
   /**
@@ -241,6 +242,8 @@ export class CascadeEventBridge_v1 {
       }
       
       const flowState = link.userData.flowState;
+      const lifecycle = this._ensureCascadeLifecycle(link);
+      const wasActive = lifecycle.active === true;
       
       // Calculate target intensity from node cascadeStrength
       const targetIntensity = this._calculateTargetIntensity(link);
@@ -255,6 +258,10 @@ export class CascadeEventBridge_v1 {
       // Reset to 0 when below threshold
       if (flowState.intensity < this.config.minIntensityThreshold) {
         flowState.intensity = 0;
+      }
+
+      if (wasActive && flowState.intensity <= 0) {
+        this._emitCascadeEnd(link, flowState);
       }
       
       // Decay energy (slower decay for continuous field)
@@ -331,6 +338,129 @@ export class CascadeEventBridge_v1 {
     
     return null;
   }
+
+  _ensureCascadeLifecycle(link) {
+    if (!link.userData) link.userData = {};
+    link.userData._cascadeLifecycle ??= {
+      active: false,
+      cascadeId: null,
+      startedAt: 0
+    };
+    return link.userData._cascadeLifecycle;
+  }
+
+  _resolveNodeId(nodeLike) {
+    if (!nodeLike) return null;
+    return nodeLike.userData?.nodeId || nodeLike.id || nodeLike.uuid || nodeLike.name || null;
+  }
+
+  _createCascadeId(linkId) {
+    this._cascadeSequence += 1;
+    return `cascade-${String(linkId)}-${this._cascadeSequence}`;
+  }
+
+  _buildCascadePayload(link, flowState) {
+    const linkId = link?.id || link?.uuid || link?.name || null;
+    if (!linkId) return null;
+
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    if (!sourceNode || !targetNode) return null;
+
+    const sourcePosition = sourceNode.position;
+    const targetPosition = targetNode.position;
+    if (!sourcePosition || !targetPosition) return null;
+
+    const lifecycle = this._ensureCascadeLifecycle(link);
+    const midpoint = {
+      x: (sourcePosition.x + targetPosition.x) * 0.5,
+      y: (sourcePosition.y + targetPosition.y) * 0.5,
+      z: (sourcePosition.z + targetPosition.z) * 0.5
+    };
+
+    return {
+      cascadeId: lifecycle.cascadeId,
+      id: lifecycle.cascadeId,
+      link,
+      linkId,
+      sourceNode,
+      targetNode,
+      sourceId: linkId,
+      targetId: this._resolveNodeId(targetNode),
+      sourceNodeId: this._resolveNodeId(sourceNode),
+      targetNodeId: this._resolveNodeId(targetNode),
+      sourcePosition: {
+        x: sourcePosition.x,
+        y: sourcePosition.y,
+        z: sourcePosition.z
+      },
+      targetPosition: {
+        x: targetPosition.x,
+        y: targetPosition.y,
+        z: targetPosition.z
+      },
+      center: midpoint,
+      position: midpoint,
+      origin: midpoint,
+      intensity: flowState?.intensity ?? 0,
+      strength: flowState?.intensity ?? 0,
+      value: flowState?.intensity ?? 0,
+      conflictType: flowState?.type || 'resolved_harmony',
+      energy: flowState?.energy ?? 0,
+      direction: flowState?.direction ?? 1.0
+    };
+  }
+
+  _emitCascadeStart(link, flowState) {
+    const semanticBus = this.semanticBus || null;
+    if (!semanticBus?.emit) return null;
+
+    const lifecycle = this._ensureCascadeLifecycle(link);
+    const linkId = link?.id || link?.uuid || link?.name || null;
+    if (!lifecycle.cascadeId) {
+      lifecycle.cascadeId = this._createCascadeId(linkId || 'link');
+    }
+
+    const payload = this._buildCascadePayload(link, flowState);
+    if (!payload) return null;
+
+    lifecycle.active = true;
+    lifecycle.startedAt = performance.now();
+
+    semanticBus.emit('cascade.start', payload, {
+      priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+    });
+
+    return payload;
+  }
+
+  _emitCascadeEnd(link, flowState) {
+    const semanticBus = this.semanticBus || null;
+    if (!semanticBus?.emit) return;
+
+    const lifecycle = this._ensureCascadeLifecycle(link);
+    if (!lifecycle.active || !lifecycle.cascadeId) return;
+
+    const payload = this._buildCascadePayload(link, flowState);
+    if (!payload) {
+      lifecycle.active = false;
+      lifecycle.cascadeId = null;
+      lifecycle.startedAt = 0;
+      return;
+    }
+
+    const durationMs = Math.max(0, performance.now() - (lifecycle.startedAt || performance.now()));
+    semanticBus.emit('cascade.end', {
+      ...payload,
+      durationMs
+    }, {
+      priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+    });
+
+    lifecycle.active = false;
+    lifecycle.cascadeId = null;
+    lifecycle.startedAt = 0;
+  }
   
   /**
    * Request wave burst from WaveInterferenceEngine for cascade activity
@@ -340,6 +470,12 @@ export class CascadeEventBridge_v1 {
 
     const linkId = link.id || link.uuid || link.name;
     if (!linkId) return;
+
+    const lifecycle = this._ensureCascadeLifecycle(link);
+    if (!lifecycle.active) {
+      lifecycle.cascadeId = this._createCascadeId(linkId);
+      this._emitCascadeStart(link, flowState);
+    }
 
     const now = performance.now();
 
@@ -358,36 +494,15 @@ export class CascadeEventBridge_v1 {
     // Update last burst time
     link.userData._lastWaveBurstTime = now;
 
-    // Get source and target nodes
-    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
-    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-
-    if (!sourceNode || !targetNode) return;
-
-    // Calculate midpoint position
-    const sourcePosition = sourceNode.position;
-    const targetPosition = targetNode.position;
-    const midpoint = {
-      x: (sourcePosition.x + targetPosition.x) * 0.5,
-      y: (sourcePosition.y + targetPosition.y) * 0.5,
-      z: (sourcePosition.z + targetPosition.z) * 0.5
-    };
-
-    // Validate midpoint position
-    if (!midpoint) return;
-
     const semanticBus = this.semanticBus || null;
     if (!semanticBus?.emit) return;
 
-    semanticBus.emit('cascade.hop', {
-      link,
-      sourceNode,
-      targetNode,
-      sourceId: linkId,
-      sourcePosition: midpoint,
-      strength: flowState.intensity,
-      intensity: flowState.intensity
-    }, { priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL });
+    const payload = this._buildCascadePayload(link, flowState);
+    if (!payload) return;
+
+    semanticBus.emit('cascade.hop', payload, {
+      priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+    });
   }
   
   /**

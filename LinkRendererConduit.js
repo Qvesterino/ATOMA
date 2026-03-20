@@ -67,9 +67,12 @@ const STRAND_FILAMENT_STYLE = {
     BRIDGE_SHARE: 0.34,
     BRIDGE_FORWARD: 0.12,
     BRIDGE_TWIST: 1.18,
-    BRIDGE_CLING: 1.03,
+    BRIDGE_CLING: 1.0,
     BRIDGE_CURVE: 0.52,
-    BRIDGE_HOP_SPEED: 1.35
+    BRIDGE_HOP_SPEED: 1.35,
+    MICRO_JUMP_SHARE: 0.12,
+    MICRO_JUMP_CURVE: 0.74,
+    MICRO_JUMP_SPEED: 4.6
 };
 const hashString32 = (value = '') => {
     const text = String(value);
@@ -943,8 +946,13 @@ export class LinkRendererConduit {
         if (filamentState.mesh?.parent) {
             filamentState.mesh.parent.remove(filamentState.mesh);
         }
+        if (filamentState.sparkMesh?.parent) {
+            filamentState.sparkMesh.parent.remove(filamentState.sparkMesh);
+        }
         filamentState.geometry?.dispose?.();
         filamentState.material?.dispose?.();
+        filamentState.sparkGeometry?.dispose?.();
+        filamentState.sparkMaterial?.dispose?.();
         state.strandFilaments = null;
     }
 
@@ -972,7 +980,7 @@ export class LinkRendererConduit {
         const lengthScale = new Float32Array(sampleCount);
         const strandSlot = new Uint8Array(sampleCount);
         const driftSign = new Float32Array(sampleCount);
-        const filamentVariant = new Uint8Array(sampleCount); // 0=flow hair, 1=surface bridge
+        const filamentVariant = new Uint8Array(sampleCount); // 0=flow hair, 1=surface bridge, 2=micro jump
         const bridgeForward = new Float32Array(sampleCount);
         const bridgeTwist = new Float32Array(sampleCount);
         const bridgeNeighborSign = new Int8Array(sampleCount);
@@ -987,7 +995,14 @@ export class LinkRendererConduit {
                 lengthScale[cursor] = 0.55 + seededNoise(seed * 0.71) * 0.95;
                 strandSlot[cursor] = strandIndex;
                 driftSign[cursor] = seededNoise(seed * 1.13) > 0.5 ? 1.0 : -1.0;
-                filamentVariant[cursor] = seededNoise(seed * 1.47) < STRAND_FILAMENT_STYLE.BRIDGE_SHARE ? 1 : 0;
+                const variantSeed = seededNoise(seed * 1.47);
+                if (variantSeed < STRAND_FILAMENT_STYLE.BRIDGE_SHARE) {
+                    filamentVariant[cursor] = 1;
+                } else if (variantSeed < STRAND_FILAMENT_STYLE.BRIDGE_SHARE + STRAND_FILAMENT_STYLE.MICRO_JUMP_SHARE) {
+                    filamentVariant[cursor] = 2;
+                } else {
+                    filamentVariant[cursor] = 0;
+                }
                 bridgeForward[cursor] = 0.018 + seededNoise(seed * 1.81) * STRAND_FILAMENT_STYLE.BRIDGE_FORWARD;
                 bridgeTwist[cursor] = (0.22 + seededNoise(seed * 2.07) * STRAND_FILAMENT_STYLE.BRIDGE_TWIST) *
                     (seededNoise(seed * 2.51) > 0.5 ? 1.0 : -1.0);
@@ -1025,10 +1040,60 @@ export class LinkRendererConduit {
             parent.add(filamentMesh);
         }
 
+        const sparkMax = Math.max(18, Math.min(96, sampleCount));
+        const sparkPositions = new Float32Array(sparkMax * 3);
+        const sparkOrigin = new Float32Array(sparkMax * 3);
+        const sparkVelocity = new Float32Array(sparkMax * 3);
+        const sparkBirth = new Float32Array(sparkMax);
+        const sparkDuration = new Float32Array(sparkMax);
+        sparkBirth.fill(-1);
+        for (let i = 0; i < sparkMax; i += 1) {
+            const s = i * 3;
+            sparkPositions[s] = 1e6;
+            sparkPositions[s + 1] = 1e6;
+            sparkPositions[s + 2] = 1e6;
+        }
+
+        const sparkGeometry = new THREE.BufferGeometry();
+        const sparkPositionAttr = new THREE.BufferAttribute(sparkPositions, 3);
+        sparkPositionAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkGeometry.setAttribute('position', sparkPositionAttr);
+        sparkGeometry.computeBoundingSphere();
+
+        const sparkMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.06,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            sizeAttenuation: true
+        });
+        sparkMaterial.toneMapped = false;
+        const sparkMesh = new THREE.Points(sparkGeometry, sparkMaterial);
+        sparkMesh.frustumCulled = false;
+        sparkMesh.raycast = () => null;
+        applyLinkRenderLayer(sparkMesh, 'LINK_STRANDS');
+        Object.assign(ensureUserData(sparkMesh), { isStrandTipSparkOverlay: true });
+        if (parent) {
+            parent.add(sparkMesh);
+        }
+
         state.strandFilaments = {
             mesh: filamentMesh,
             geometry,
             material,
+            sparkMesh,
+            sparkGeometry,
+            sparkMaterial,
+            sparkPositions,
+            sparkOrigin,
+            sparkVelocity,
+            sparkBirth,
+            sparkDuration,
+            sparkCursor: 0,
+            sparkMax,
             positions,
             colors,
             rootT,
@@ -1062,6 +1127,72 @@ export class LinkRendererConduit {
         return state.strandFilaments;
     }
 
+    _spawnStrandTipSpark(filamentState, origin, direction, visualTime, energy = 1) {
+        if (!filamentState || !origin || !direction) return;
+        const {
+            sparkOrigin,
+            sparkVelocity,
+            sparkBirth,
+            sparkDuration,
+            sparkMax
+        } = filamentState;
+        if (!sparkOrigin || !sparkVelocity || !sparkBirth || !sparkDuration || !sparkMax) return;
+
+        const idx = filamentState.sparkCursor % sparkMax;
+        filamentState.sparkCursor = (filamentState.sparkCursor + 1) % sparkMax;
+        const s = idx * 3;
+
+        const speed = 0.36 + Math.max(0, energy) * 0.95;
+        sparkOrigin[s] = origin.x;
+        sparkOrigin[s + 1] = origin.y;
+        sparkOrigin[s + 2] = origin.z;
+        sparkVelocity[s] = direction.x * speed;
+        sparkVelocity[s + 1] = direction.y * speed;
+        sparkVelocity[s + 2] = direction.z * speed;
+        sparkBirth[idx] = visualTime;
+        sparkDuration[idx] = 0.22 + energy * 0.28;
+    }
+
+    _updateStrandTipSparks(filamentState, visualTime) {
+        if (!filamentState?.sparkGeometry) return;
+        const {
+            sparkPositions,
+            sparkOrigin,
+            sparkVelocity,
+            sparkBirth,
+            sparkDuration,
+            sparkMax
+        } = filamentState;
+        let hasLive = false;
+        for (let i = 0; i < sparkMax; i += 1) {
+            const born = sparkBirth[i];
+            const s = i * 3;
+            if (!(born >= 0)) {
+                sparkPositions[s] = 1e6;
+                sparkPositions[s + 1] = 1e6;
+                sparkPositions[s + 2] = 1e6;
+                continue;
+            }
+            const age = visualTime - born;
+            const duration = sparkDuration[i] || 0.25;
+            if (age >= duration) {
+                sparkBirth[i] = -1;
+                sparkPositions[s] = 1e6;
+                sparkPositions[s + 1] = 1e6;
+                sparkPositions[s + 2] = 1e6;
+                continue;
+            }
+            hasLive = true;
+            const drag = 1.0 - (age / duration) * 0.35;
+            sparkPositions[s] = sparkOrigin[s] + sparkVelocity[s] * age * drag;
+            sparkPositions[s + 1] = sparkOrigin[s + 1] + sparkVelocity[s + 1] * age * drag;
+            sparkPositions[s + 2] = sparkOrigin[s + 2] + sparkVelocity[s + 2] * age * drag;
+        }
+
+        filamentState.sparkMaterial.opacity = hasLive ? 0.85 : 0.0;
+        filamentState.sparkGeometry.attributes.position.needsUpdate = true;
+    }
+
     _updateStrandFilaments(link, state, ctx = {}) {
         if (!STRAND_FILAMENT_STYLE.ENABLED || !state) return;
         const strands = Array.isArray(state.strands) ? state.strands : [];
@@ -1078,6 +1209,10 @@ export class LinkRendererConduit {
             const parent = link?.group || strands[0]?.parent || null;
             if (parent) parent.add(mesh);
         }
+        if (filamentState.sparkMesh && !filamentState.sparkMesh.parent) {
+            const parent = link?.group || strands[0]?.parent || null;
+            if (parent) parent.add(filamentState.sparkMesh);
+        }
 
         const metrics = ctx.metrics || link?.userData?.metrics || {};
         const synergy = clamp01(metrics.synergy ?? 0);
@@ -1090,6 +1225,7 @@ export class LinkRendererConduit {
             0.18,
             0.92
         );
+        this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
         if (!ctx.geometryTick || !ctx.mainCurve || !ctx.frames) return;
 
@@ -1137,9 +1273,12 @@ export class LinkRendererConduit {
             const angleOffset = (strandIndex / strandCount) * Math.PI * 2.0;
             const currentTwist = t * Math.PI * 2.0 * twists + twistPhase;
             const angle = angleOffset + currentTwist;
+            const variant = filamentVariant[idx] || 0;
+            const isBridge = variant === 1;
+            const isMicroJump = variant === 2;
 
             const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
-            let radius = activeRadius * flare + Math.sin(t * 37.0 + strandIndex * 4.9 + phase[idx]) * noiseBase;
+            let radius = activeRadius * flare + Math.sin(t * 40.0 + strandIndex * 10.0) * noiseBase;
             const edgeDistance = Math.min(t, 1.0 - t);
             if (edgeDistance < edgeFadeSpan) {
                 const fade = 1.0 - (edgeDistance / edgeFadeSpan);
@@ -1148,7 +1287,8 @@ export class LinkRendererConduit {
 
             vRadial.copy(vNormal).multiplyScalar(Math.cos(angle));
             vRadial.addScaledVector(vBinormal, Math.sin(angle)).normalize();
-            vStart.copy(vPoint).addScaledVector(vRadial, radius * STRAND_FILAMENT_STYLE.RADIAL_PUSH);
+            const startSurfaceMul = (isBridge || isMicroJump) ? 1.0 : STRAND_FILAMENT_STYLE.RADIAL_PUSH;
+            vStart.copy(vPoint).addScaledVector(vRadial, radius * startSurfaceMul);
 
             mainCurve.getTangentAt(t, vTangent).normalize();
             vSide.crossVectors(vTangent, vRadial);
@@ -1173,9 +1313,9 @@ export class LinkRendererConduit {
                 (0.7 + harmony * 0.35 + load * 0.45) +
                 detach * STRAND_FILAMENT_STYLE.DETACH_BOOST;
             const sway = (pulse - 0.5) * STRAND_FILAMENT_STYLE.SWAY_AMOUNT * (1.0 + instability * 0.6);
-            const isBridge = filamentVariant[idx] === 1;
+            let jumpVisibility = 1.0;
 
-            if (isBridge) {
+            if (isBridge || isMicroJump) {
                 const hopWave = Math.sin(
                     visualTime * STRAND_FILAMENT_STYLE.BRIDGE_HOP_SPEED +
                     phase[idx] * 0.75 +
@@ -1213,7 +1353,7 @@ export class LinkRendererConduit {
                     targetAngleOffset + targetTwist +
                     bridgeTwist[idx] * (0.85 + 0.35 * Math.sin(visualTime * 1.35 + phase[idx] + t * 4.0));
                 const flare2 = 1.0 + Math.pow(2.0 * (tBridge - 0.5), 2) * 0.18;
-                let radius2 = activeRadius * flare2 + Math.sin(tBridge * 31.0 + targetStrandIndex * 2.8 + phase[idx]) * noiseBase;
+                let radius2 = activeRadius * flare2 + Math.sin(tBridge * 40.0 + targetStrandIndex * 10.0) * noiseBase;
                 const edgeDistance2 = Math.min(tBridge, 1.0 - tBridge);
                 if (edgeDistance2 < edgeFadeSpan) {
                     const fade2 = 1.0 - (edgeDistance2 / edgeFadeSpan);
@@ -1229,15 +1369,31 @@ export class LinkRendererConduit {
                     vSide.normalize();
                 }
 
-                vEnd.copy(vPoint2)
-                    .addScaledVector(vRadial2, radius2 * STRAND_FILAMENT_STYLE.BRIDGE_CLING)
-                    .addScaledVector(vTangent2, filamentLength * (0.18 + synergy * 0.2))
-                    .addScaledVector(vSide, filamentLength * sway * 0.32);
+                // Endpoint is clamped to the target strand surface for visible strand-to-strand contact.
+                vEnd.copy(vPoint2).addScaledVector(vRadial2, radius2 * STRAND_FILAMENT_STYLE.BRIDGE_CLING);
 
-                vMid.lerpVectors(vStart, vEnd, 0.5)
-                    .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
-                    .addScaledVector(vSide, filamentLength * sway * 0.55)
-                    .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1));
+                if (isMicroJump) {
+                    const jumpPulse = Math.sin(
+                        visualTime * STRAND_FILAMENT_STYLE.MICRO_JUMP_SPEED +
+                        phase[idx] * 2.2 +
+                        t * 12.0
+                    );
+                    const jumpGate = THREE.MathUtils.clamp((jumpPulse - 0.62) * 4.2, 0.0, 1.0);
+                    jumpVisibility = jumpGate;
+                    vMid.lerpVectors(vStart, vEnd, 0.5)
+                        .addScaledVector(vSide, filamentLength * sway * 0.36)
+                        .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.MICRO_JUMP_CURVE * jumpGate))
+                        .addScaledVector(vTangent2, filamentLength * (0.03 + jumpGate * 0.08));
+                    if (jumpGate < 0.05) {
+                        vEnd.lerp(vStart, 1.0 - jumpGate * 20.0);
+                        vMid.lerpVectors(vStart, vEnd, 0.5);
+                    }
+                } else {
+                    vMid.lerpVectors(vStart, vEnd, 0.5)
+                        .addScaledVector(vRadial, filamentLength * (STRAND_FILAMENT_STYLE.BRIDGE_CURVE * (0.6 + 0.4 * pulse)))
+                        .addScaledVector(vSide, filamentLength * sway * 0.55)
+                        .addScaledVector(vTangent2, filamentLength * (0.08 + load * 0.1));
+                }
             } else {
                 const forwardLean = filamentLength * (STRAND_FILAMENT_STYLE.FLOW_LEAN + load * 0.35 + synergy * 0.2);
                 const radialLean = filamentLength * (STRAND_FILAMENT_STYLE.RADIAL_LEAN + corruption * 0.18);
@@ -1276,14 +1432,14 @@ export class LinkRendererConduit {
                 cBase.set(0xffffff);
             }
 
-            const startGain = (isBridge ? 0.56 : 0.62) + load * 0.4 + pulse * 0.22;
-            const midGain = (isBridge ? 0.66 : 0.72) + harmony * 0.26 + pulse * 0.16;
-            const tipGain = (isBridge ? 0.74 : 0.84) + harmony * 0.28 + detach * 0.62;
+            const startGain = (isMicroJump ? (0.34 + jumpVisibility * 0.36) : (isBridge ? 0.56 : 0.62)) + load * 0.4 + pulse * 0.22;
+            const midGain = (isMicroJump ? (0.4 + jumpVisibility * 0.34) : (isBridge ? 0.66 : 0.72)) + harmony * 0.26 + pulse * 0.16;
+            const tipGain = (isMicroJump ? (0.48 + jumpVisibility * 0.36) : (isBridge ? 0.74 : 0.84)) + harmony * 0.28 + detach * 0.62;
             cTip.copy(cBase).lerp(
                 COLOR_WHITE,
-                THREE.MathUtils.clamp((isBridge ? 0.42 : 0.58) + detach * 0.55 + corruption * 0.25, 0.0, 1.0)
+                THREE.MathUtils.clamp((isMicroJump ? (0.25 + jumpVisibility * 0.5) : (isBridge ? 0.42 : 0.58)) + detach * 0.55 + corruption * 0.25, 0.0, 1.0)
             );
-            cMid.copy(cBase).lerp(cTip, isBridge ? 0.62 : 0.48);
+            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.32 + jumpVisibility * 0.38) : (isBridge ? 0.62 : 0.48));
 
             colors[p] = cBase.r * startGain;
             colors[p + 1] = cBase.g * startGain;
@@ -1297,6 +1453,29 @@ export class LinkRendererConduit {
             colors[p + 9] = cTip.r * tipGain;
             colors[p + 10] = cTip.g * tipGain;
             colors[p + 11] = cTip.b * tipGain;
+
+            // Detached sparks from filament tips (rare, burst-like).
+            const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
+            const sparkChanceGate = isMicroJump ? (0.93 + (1.0 - jumpVisibility) * 0.04) : 0.978;
+            if ((detach > 0.14 || (isMicroJump && jumpVisibility > 0.82)) && sparkPulse > sparkChanceGate) {
+                if (isBridge || isMicroJump) {
+                    vSide.copy(vTangent2)
+                        .addScaledVector(vRadial2, 0.65 + detach * 0.85 + jumpVisibility * 0.2)
+                        .addScaledVector(vBinormal2, driftSign[idx] * 0.18)
+                        .normalize();
+                } else {
+                    vSide.copy(vTangent)
+                        .addScaledVector(vRadial, 0.5 + detach * 0.7)
+                        .normalize();
+                }
+                this._spawnStrandTipSpark(
+                    filamentState,
+                    vEnd,
+                    vSide,
+                    visualTime,
+                    0.4 + detach * 0.9 + jumpVisibility * 0.4
+                );
+            }
         }
 
         geometry.attributes.position.needsUpdate = true;

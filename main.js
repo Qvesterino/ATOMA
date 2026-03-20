@@ -3821,24 +3821,24 @@ class AtomaGame {
                 this.runVisualSemanticTick(this._pendingVisualSemanticDt, this._pendingMark);
             }
         }, 'semantic.visual30Hz');
-        this.frameScheduler.register('realtime', () => {
+        this.frameScheduler.register('visual', () => {
             if (this._runHarmonicResonancePending) {
                 this._runHarmonicResonancePending = false;
                 this.harmonicResonanceCouplingTick(this._pendingHarmonicResonanceDt);
             }
-        }, 'harmonicResonanceCoupling.realtime');
-        this.frameScheduler.register('realtime', () => {
+        }, 'visual.harmonicResonanceCoupling');
+        this.frameScheduler.register('visual', () => {
             if (this._runHarmonicHubAuraPending) {
                 this._runHarmonicHubAuraPending = false;
                 this.harmonicHubAuraSystemTick(this._pendingHarmonicHubAuraDt);
             }
-        }, 'harmonicHubAuraSystem.realtime');
-        this.frameScheduler.register('realtime', () => {
+        }, 'visual.harmonicHubAuraSystem');
+        this.frameScheduler.register('visual', () => {
             if (this._runHarmonicInfluencePending) {
                 this._runHarmonicInfluencePending = false;
                 this.harmonicInfluencePropagationTick(this._pendingHarmonicInfluenceDt);
             }
-        }, 'harmonicInfluencePropagation.realtime');
+        }, 'visual.harmonicInfluencePropagation');
         this.frameScheduler.register('visual', (dt) => {
             const pulseWaveBridge = this.pulseWaveBridge || this.pulseWaveSystemBridge;
             if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
@@ -4081,6 +4081,11 @@ class AtomaGame {
                 this.waveBurstRouter.update(dt);
             }
         }, 'visual.waveBurstRouter');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.waveInterferenceEngine) {
+                this.waveInterferenceEngine.update(dt);
+            }
+        }, 'simulation.waveInterferenceEngine');
         this.frameScheduler.register('visual', (dt) => {
             if (this.standingWaveRenderer) {
                 this.standingWaveRenderer.update(dt, this.time);
@@ -5381,6 +5386,67 @@ window.__ATOMA_SCENE__ = this.scene;
                 const lifecycle = this.waveInterferenceEngine?.getBurstLifecycleEvents?.(limit) || [];
                 const payload = { metrics, lifecycle };
                 console.log('debugWaveBurstLifecycle', payload);
+                return payload;
+            };
+            window.debugWaveRuntimeFlow = (limit = 12) => {
+                const routerStatus = this.waveBurstRouter?.getStatus?.() || null;
+                const recentIntents = this.waveBurstRouter?.getRecentIntents?.(limit) || [];
+                const activeSnapshot = this.waveInterferenceEngine?.getActiveSnapshot?.() || null;
+                const engineMetrics = this.waveInterferenceEngine?.getMetrics?.() || null;
+                const lifecycle = this.waveInterferenceEngine?.getBurstLifecycleEvents?.(limit) || [];
+
+                const wavePatternSystem = this.wavePatternSystem || this.waveInterference || null;
+                const resonanceEchoTrailSystem = this.resonanceEchoTrailSystem || this.resonanceEchoTrails || null;
+                const activeEchoes = Array.isArray(resonanceEchoTrailSystem?.echoInstances)
+                    ? resonanceEchoTrailSystem.echoInstances.filter((echo) => echo?.active).length
+                    : 0;
+
+                const payload = {
+                    ingress: {
+                        routerStatus,
+                        recentIntents
+                    },
+                    engine: {
+                        activeSnapshot,
+                        metrics: engineMetrics,
+                        lifecycle
+                    },
+                    consumers: {
+                        waveShaderBridge: {
+                            present: !!this.waveShaderBridge,
+                            hasWaveEngine: !!this.waveShaderBridge?.waveEngine,
+                            registeredNodeMaterials: this.waveShaderBridge?.registeredNodeMaterialList?.size ?? 0,
+                            registeredLinkMaterials: this.waveShaderBridge?.registeredLinkMaterialList?.size ?? 0
+                        },
+                        waveParticleEmitter: {
+                            present: !!this.particleEmitter,
+                            activeCount: this.particleEmitter?.activeCount || null,
+                            thresholds: this.particleEmitter?.config
+                                ? {
+                                    constructive: this.particleEmitter.config.constructiveThreshold,
+                                    destructive: this.particleEmitter.config.destructiveThreshold,
+                                    standing: this.particleEmitter.config.standingWaveThreshold
+                                }
+                                : null
+                        },
+                        waveInterferencePatterns: {
+                            present: !!wavePatternSystem,
+                            hasWaveEngine: !!wavePatternSystem?.waveEngine,
+                            initialized: wavePatternSystem?.initialized ?? null,
+                            collisionPairs: wavePatternSystem?.collisionPairs?.length ?? 0,
+                            interferenceZones: wavePatternSystem?.interferenceZones?.length ?? 0,
+                            beatPatterns: wavePatternSystem?.beatPatterns?.length ?? 0
+                        },
+                        resonanceEchoTrailSystem: {
+                            present: !!resonanceEchoTrailSystem,
+                            enabled: resonanceEchoTrailSystem?.enabled ?? false,
+                            totalEchoes: resonanceEchoTrailSystem?.echoInstances?.length ?? 0,
+                            activeEchoes
+                        }
+                    }
+                };
+
+                console.log('debugWaveRuntimeFlow', payload);
                 return payload;
             };
             console.log('[main.js] WaveInterferenceEngine_v1 initialized (burst snapshot pipeline)');
@@ -8307,9 +8373,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.particleEmitter = new WaveParticleEmitter_v1({
                 maxParticlesPerFamily: 2000,
                 emissionRate: 1.0,
-                constructiveThreshold: 0.35,
-                destructiveThreshold: 0.4,
-                standingWaveThreshold: 0.45,
+                constructiveThreshold: 0.15,
+                destructiveThreshold: 0.2,
+                standingWaveThreshold: 0.25,
                 amplitudeSpikeThreshold: 0.12,
                 amplitudeEMAAlpha: 0.15,
                 debugMode: false
@@ -9665,16 +9731,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.stressVisualShaderSystem) {
             const nodes = this.aiNodes?.nodes || [];
             this.stressVisualShaderSystem.update(deltaTime, this.time, nodes);
-        }
-
-        if (!this.waveBurstRouter && this._initWaveBurstRouter) {
-            this._initWaveBurstRouter();
-        }
-        if (this.waveBurstRouter?.update) {
-            this.waveBurstRouter.update(deltaTime);
-        }
-        if (this.waveInterferenceEngine?.update) {
-            this.waveInterferenceEngine.update(deltaTime);
         }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock

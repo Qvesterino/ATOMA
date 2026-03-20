@@ -1,6 +1,9 @@
 import * as THREE from 'three';
+import { SynergyStateResolver, SynergyState } from './SynergyStateResolver.js';
 
 export function setupWaveBurstRouter(game) {
+    const synergyResolver = new SynergyStateResolver();
+
     const EXPECTED_EVENT_TAGS = [
         'node.synergy.high',
         'link:synergyThreshold',
@@ -25,14 +28,16 @@ export function setupWaveBurstRouter(game) {
     ];
 
     const config = {
-        cooldownSeconds: 1.5
+        cooldownSeconds: 1.5,
+        maxRecentIntents: 24
     };
 
     const state = {
         lastBurstTime: 0,
         lastBurstByKey: new Map(),
+        regimeBySource: new Map(),
+        recentIntents: [],
         boundBus: null,
-        emitHookRestore: null,
         subscribed: false,
         unsubscribers: []
     };
@@ -60,6 +65,13 @@ export function setupWaveBurstRouter(game) {
     function markBurst(key, nowSec) {
         state.lastBurstByKey.set(key, nowSec);
         state.lastBurstTime = nowSec;
+    }
+
+    function recordIntent(entry) {
+        state.recentIntents.push(entry);
+        if (state.recentIntents.length > config.maxRecentIntents) {
+            state.recentIntents.splice(0, state.recentIntents.length - config.maxRecentIntents);
+        }
     }
 
     function asVector3(candidate) {
@@ -117,6 +129,258 @@ export function setupWaveBurstRouter(game) {
             if (candidateId && candidateId === id) return link;
         }
         return null;
+    }
+
+    function resolveLinkId(payload = {}) {
+        const linkId =
+            payload.linkId ||
+            payload.link?.id ||
+            payload.link?.uuid ||
+            payload.link?.userData?.id ||
+            null;
+        return linkId !== undefined && linkId !== null && linkId !== '' ? String(linkId) : null;
+    }
+
+    function resolveSourceNode(payload = {}) {
+        if (payload.sourceNode?.position) return payload.sourceNode;
+
+        if (payload.link?.source || payload.link?.sourceNode || payload.link?.from) {
+            return payload.link.source || payload.link.sourceNode || payload.link.from || null;
+        }
+
+        return findNodeById(
+            payload.sourceNodeId ||
+            payload.nodeId ||
+            payload.source ||
+            payload.from ||
+            payload.sourceId ||
+            payload.id
+        );
+    }
+
+    function resolveTargetNode(payload = {}) {
+        if (payload.targetNode?.position) return payload.targetNode;
+
+        if (payload.link?.target || payload.link?.targetNode || payload.link?.to) {
+            return payload.link.target || payload.link.targetNode || payload.link.to || null;
+        }
+
+        return findNodeById(
+            payload.targetNodeId ||
+            payload.target ||
+            payload.to ||
+            payload.targetId
+        );
+    }
+
+    function resolveLinkFromPayload(payload = {}) {
+        if (payload.link) return payload.link;
+
+        const linkId = resolveLinkId(payload);
+        if (linkId) {
+            const linked = findLinkById(linkId);
+            if (linked) return linked;
+        }
+
+        const sourceNode = resolveSourceNode({ ...payload, link: null });
+        const targetNode = resolveTargetNode({ ...payload, link: null });
+        if (!sourceNode || !targetNode) return null;
+
+        const sourceId = resolveNodeId(sourceNode);
+        const targetId = resolveNodeId(targetNode);
+        if (!sourceId || !targetId) return null;
+
+        const links = getAllLinks();
+        for (const link of links) {
+            const linkSourceId = resolveNodeId(link?.source || link?.sourceNode || link?.from);
+            const linkTargetId = resolveNodeId(link?.target || link?.targetNode || link?.to);
+            if (
+                (linkSourceId === sourceId && linkTargetId === targetId) ||
+                (linkSourceId === targetId && linkTargetId === sourceId)
+            ) {
+                return link;
+            }
+        }
+
+        return null;
+    }
+
+    function readNodeMetrics(node) {
+        const metrics = node?.userData?.metrics || node?.metrics || {};
+        return {
+            synergy: clamp01(metrics.synergy),
+            harmony: clamp01(metrics.harmony),
+            corruption: clamp01(metrics.corruption),
+            stability: clamp01(metrics.stability ?? metrics.resilience),
+            loadPressure: clamp01(metrics.loadPressure ?? metrics.load ?? metrics.loadRatio)
+        };
+    }
+
+    function resolveSynergyRegime(value, corruption = 0) {
+        const synergyState = synergyResolver.resolve(value);
+        if (synergyState === SynergyState.AWAKENED) return 'reinforced';
+        if (synergyState === SynergyState.STRONG) return 'convergent';
+        if (synergyState === SynergyState.ACTIVE) return 'collaborative';
+        if (corruption >= 0.45) return 'decoherent';
+        return 'baseline';
+    }
+
+    function resolveHarmonicRegime(harmony, stability, explicitType = '') {
+        if (explicitType === 'resolved_harmony') return 'resolved';
+        if (harmony >= 0.85 && stability >= 0.55) return 'aligned';
+        if (harmony >= 0.55) return 'coherent';
+        return 'diffuse';
+    }
+
+    function resolveCorruptionRegime(value, destructive = false) {
+        if (destructive || value >= 0.85) return 'rupture';
+        if (value >= 0.6) return 'critical_divergence';
+        if (value >= 0.3) return 'contaminated';
+        return 'contained';
+    }
+
+    function resolveStabilityRegime(stability, loadPressure, intensity = 0) {
+        const instability = Math.max(1 - clamp01(stability), clamp01(loadPressure), clamp01(intensity));
+        if (instability >= 0.85) return 'turbulent';
+        if (instability >= 0.6) return 'fragmented';
+        if (instability >= 0.3) return 'unstable';
+        return 'stable';
+    }
+
+    function resolveNodeFamily(payload = {}) {
+        const node = resolveSourceNode(payload);
+        if (!node) return 'synergy';
+
+        const metrics = readNodeMetrics(node);
+        const instability = Math.max(1 - metrics.stability, metrics.loadPressure);
+
+        if (metrics.corruption >= 0.45 && metrics.corruption >= Math.max(metrics.synergy, metrics.harmony)) {
+            return 'corruption';
+        }
+        if (instability >= 0.55 && instability > metrics.harmony) {
+            return 'stability';
+        }
+        if (metrics.harmony >= metrics.synergy) {
+            return 'harmonic';
+        }
+        return 'synergy';
+    }
+
+    function resolveCascadeFamily(payload = {}, eventTag = '') {
+        const flowType = `${
+            payload.conflictType ||
+            payload.link?.userData?.flowState?.type ||
+            payload.link?.userData?.cascadeConflictType ||
+            ''
+        }`.toLowerCase();
+
+        if (flowType === 'corruption' || flowType === 'destructive') return 'corruption';
+        if (flowType === 'oscillatory_balance' || flowType === 'resolved_harmony') return 'harmonic';
+        if (flowType === 'fatigue_yield' || flowType === 'stability') return 'stability';
+        if (flowType === 'specialization_drift') return 'synergy';
+
+        if (eventTag === 'cascade.triggered') {
+            return resolveNodeFamily(payload);
+        }
+
+        const link = resolveLinkFromPayload(payload);
+        if (link?.userData?.flowState?.type) {
+            return resolveCascadeFamily({ ...payload, conflictType: link.userData.flowState.type }, eventTag);
+        }
+
+        return 'synergy';
+    }
+
+    function resolveType(type, payload = {}, eventTag = '') {
+        if (type === 'cascade') return resolveCascadeFamily(payload, eventTag);
+        return type;
+    }
+
+    function resolveNodeRegimeForType(type, payload = {}) {
+        const node = resolveSourceNode(payload);
+        if (!node) return null;
+
+        const metrics = readNodeMetrics(node);
+        if (type === 'harmonic') {
+            return resolveHarmonicRegime(metrics.harmony, metrics.stability);
+        }
+        if (type === 'corruption') {
+            return resolveCorruptionRegime(metrics.corruption);
+        }
+        if (type === 'stability') {
+            return resolveStabilityRegime(metrics.stability, metrics.loadPressure);
+        }
+        return resolveSynergyRegime(metrics.synergy, metrics.corruption);
+    }
+
+    function resolveLinkRegimeForType(type, payload = {}) {
+        const link = resolveLinkFromPayload(payload);
+        if (!link) return null;
+
+        const flowState = link?.userData?.flowState || {};
+        const intensity = clamp01(payload.intensity ?? payload.strength ?? flowState.intensity);
+        const energy = clamp01(payload.energy ?? flowState.energy);
+        const value = Math.max(intensity, energy);
+        const flowType = `${payload.conflictType || flowState.type || ''}`.toLowerCase();
+
+        if (type === 'harmonic') {
+            return resolveHarmonicRegime(value, 1 - value, flowType);
+        }
+        if (type === 'corruption') {
+            return resolveCorruptionRegime(value, flowType === 'destructive');
+        }
+        if (type === 'stability') {
+            return resolveStabilityRegime(1 - value, value, value);
+        }
+        return resolveSynergyRegime(value, clamp01(flowType === 'corruption' ? value : 0));
+    }
+
+    function resolveCurrentRegime(type, payload = {}, eventTag = '') {
+        if (eventTag === 'cascade.hop' || eventTag === 'cascade.start' || eventTag === 'harmonic.cascade.start') {
+            return resolveLinkRegimeForType(type, payload) || resolveNodeRegimeForType(type, payload);
+        }
+
+        return resolveNodeRegimeForType(type, payload) || resolveLinkRegimeForType(type, payload);
+    }
+
+    function resolveBoundary(type, payload = {}, eventTag = '', sourceId = '') {
+        const currentRegime = resolveCurrentRegime(type, payload, eventTag);
+        if (!currentRegime) {
+            if (type === 'corruption') {
+                return { fromRegime: 'baseline', toRegime: 'rupture' };
+            }
+            if (type === 'stability') {
+                return { fromRegime: 'baseline', toRegime: 'unstable' };
+            }
+            if (type === 'harmonic') {
+                return { fromRegime: 'baseline', toRegime: 'aligned' };
+            }
+            return { fromRegime: 'baseline', toRegime: 'collaborative' };
+        }
+
+        const regimeKey = `${type}:${sourceId}`;
+        const previousRegime = state.regimeBySource.get(regimeKey) || 'baseline';
+        state.regimeBySource.set(regimeKey, currentRegime);
+        return {
+            fromRegime: previousRegime,
+            toRegime: currentRegime
+        };
+    }
+
+    function resolveIntentContext(payload = {}, eventTag = '') {
+        const link = resolveLinkFromPayload(payload);
+        const sourceNode = resolveSourceNode({ ...payload, link });
+        const targetNode = resolveTargetNode({ ...payload, link });
+        const linkId = resolveLinkId({ ...payload, link });
+        const travel = !!linkId && (eventTag === 'cascade.hop' || eventTag === 'cascade.start' || eventTag === 'harmonic.cascade.start');
+
+        return {
+            link,
+            linkId,
+            sourceNode,
+            targetNode,
+            travel
+        };
     }
 
     function resolveFromLinkPayload(link) {
@@ -187,26 +451,17 @@ export function setupWaveBurstRouter(game) {
         return 0;
     }
 
-    function resolveType(type) {
-        if (type === 'cascade') return 'synergy';
-        return type;
-    }
-
-    function resolveBoundary(type) {
-        if (type === 'corruption') {
-            return { fromRegime: 'baseline', toRegime: 'rupture' };
-        }
-        if (type === 'stability') {
-            return { fromRegime: 'baseline', toRegime: 'unstable' };
-        }
-        if (type === 'harmonic') {
-            return { fromRegime: 'baseline', toRegime: 'aligned' };
-        }
-        return { fromRegime: 'baseline', toRegime: 'collaborative' };
-    }
-
-    function resolveSourceId(type, payload = {}) {
-        const id = payload.sourceId || payload.nodeId || payload.id || payload.linkId || payload.source;
+    function resolveSourceId(type, payload = {}, eventTag = '') {
+        const intentContext = resolveIntentContext(payload, eventTag);
+        const id =
+            (intentContext.travel ? intentContext.linkId : null) ||
+            resolveLinkId(payload) ||
+            resolveNodeId(intentContext.sourceNode) ||
+            payload.sourceNodeId ||
+            payload.nodeId ||
+            payload.sourceId ||
+            payload.id ||
+            payload.source;
         if (id !== undefined && id !== null && id !== '') return String(id);
         return `${type}:semantic`;
     }
@@ -223,12 +478,16 @@ export function setupWaveBurstRouter(game) {
         const strength = resolveStrength(payload);
         if (strength <= 0) return;
 
-        const sourceId = resolveSourceId(type, payload);
-        const cooldownKey = `${type}:${sourceId}`;
+        const resolvedType = resolveType(type, payload, eventTag);
+        const sourceId = resolveSourceId(resolvedType, payload, eventTag);
+        const cooldownKey = `${resolvedType}:${sourceId}`;
         if (isOnCooldown(cooldownKey, nowSec)) return;
 
+        const intentContext = resolveIntentContext(payload, eventTag);
+        const boundary = resolveBoundary(resolvedType, payload, eventTag, sourceId);
+
         const intent = {
-            type: resolveType(type),
+            type: resolvedType,
             reasonClass: 'semantic_event',
             strength,
             sourcePosition: {
@@ -236,7 +495,7 @@ export function setupWaveBurstRouter(game) {
                 y: sourcePosition.y,
                 z: sourcePosition.z
             },
-            ...resolveBoundary(type),
+            ...boundary,
             intensity: strength,
             center: {
                 x: sourcePosition.x,
@@ -244,13 +503,34 @@ export function setupWaveBurstRouter(game) {
                 z: sourcePosition.z
             },
             sourceId,
+            linkId: intentContext.linkId,
+            link: intentContext.link,
+            sourceNode: intentContext.sourceNode,
+            targetNode: intentContext.targetNode,
+            travel: intentContext.travel,
             metadata: {
                 semanticEvent: eventTag,
-                semanticType: type
+                semanticType: type,
+                resolvedType,
+                conflictType: payload.conflictType || payload.link?.userData?.flowState?.type || null
             }
         };
 
         const snapshot = waveEngine.requestBurstIntent(intent);
+        recordIntent({
+            timeSec: nowSec,
+            semanticEvent: eventTag,
+            semanticType: type,
+            resolvedType,
+            sourceId,
+            fromRegime: boundary.fromRegime,
+            toRegime: boundary.toRegime,
+            intensity: strength,
+            linkId: intentContext.linkId || null,
+            travel: intentContext.travel === true,
+            accepted: !!snapshot,
+            snapshotId: snapshot?.id || null
+        });
         if (!snapshot) return;
         markBurst(cooldownKey, nowSec);
     }
@@ -277,44 +557,6 @@ export function setupWaveBurstRouter(game) {
                 state.unsubscribers.push(() => unsubscribeFn(tag, handler));
             }
         };
-
-        const EVENT_TYPE_BY_TAG = new Map([
-            ['node.synergy.high', 'synergy'],
-            ['link:synergyThreshold', 'synergy'],
-            ['metric:synergySpike', 'synergy'],
-            ['metric.synergy.burst', 'synergy'],
-            ['link:harmonicLock', 'harmonic'],
-            ['metric:harmonyPeak', 'harmonic'],
-            ['network:harmonyShift', 'harmonic'],
-            ['cascade.triggered', 'cascade'],
-            ['harmonic.cascade.start', 'cascade'],
-            ['cascade.start', 'cascade'],
-            ['cascade.hop', 'cascade'],
-            ['metric:stabilityDrop', 'stability'],
-            ['metric:loadPressureHigh', 'stability'],
-            ['network:stressRise', 'stability'],
-            ['metric:corruptionRise', 'corruption'],
-            ['metric.corruption.spike', 'corruption'],
-            ['metric.corruption.spread', 'corruption'],
-            ['network:corruptionSpread', 'corruption'],
-            ['metrics.spike', 'corruption'],
-            ['link:collapsed', 'corruption']
-        ]);
-
-        const emitFn = semanticBus.emit;
-        if (typeof emitFn === 'function' && !state.emitHookRestore) {
-            const originalEmit = emitFn.bind(semanticBus);
-            semanticBus.emit = (tag, payload, opts) => {
-                const eventType = EVENT_TYPE_BY_TAG.get(tag);
-                if (eventType) {
-                    emitIntent(eventType, payload || {}, tag);
-                }
-                return originalEmit(tag, payload, opts);
-            };
-            state.emitHookRestore = () => {
-                semanticBus.emit = emitFn;
-            };
-        }
 
         // Synergy gameplay events
         bind('node.synergy.high', 'synergy', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
@@ -383,14 +625,6 @@ export function setupWaveBurstRouter(game) {
             }
         }
         state.unsubscribers = [];
-        if (typeof state.emitHookRestore === 'function') {
-            try {
-                state.emitHookRestore();
-            } catch (_err) {
-                // no-op
-            }
-        }
-        state.emitHookRestore = null;
         state.subscribed = false;
         state.boundBus = null;
     }
@@ -403,9 +637,14 @@ export function setupWaveBurstRouter(game) {
             subscribed: state.subscribed,
             lastBurstTime: state.lastBurstTime,
             activeCooldownKeys: state.lastBurstByKey.size,
+            trackedRegimes: state.regimeBySource.size,
             cooldownSeconds: config.cooldownSeconds,
             subscriptions: state.unsubscribers.length
         }),
+        getRecentIntents: (limit = 12) => {
+            if (limit <= 0) return [];
+            return state.recentIntents.slice(-limit).map(entry => ({ ...entry }));
+        },
         dispose
     };
 }
