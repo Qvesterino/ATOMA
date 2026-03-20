@@ -51,6 +51,8 @@ export class LinkDecayEffectApplier {
             if (!strand || !strand.material) return;
 
             const mat = strand.material;
+            const ownerState = mat?.userData?.__strandOwnerStateRef || null;
+            const dampen = ownerState?.corruptionDampen ?? 1.0;
 
             // === DISCOLORATION ===
             // Strands shift toward red/orange as they decay
@@ -59,13 +61,13 @@ export class LinkDecayEffectApplier {
                 mat.color.getHSL(hsl);
 
                 // Hue shift toward orange/red
-                hsl.h += decayState.discolorationHue;
+                hsl.h += decayState.discolorationHue * dampen;
 
                 // Desaturation increases with decay
-                hsl.s *= (1.0 - decayIntensity * 0.5);
+                hsl.s *= (1.0 - decayIntensity * 0.5 * dampen);
 
                 // Lightness reduction (darkens with decay)
-                hsl.l *= (1.0 - decayIntensity * 0.3);
+                hsl.l *= (1.0 - decayIntensity * 0.3 * dampen);
 
                 mat.color.setHSL(hsl.h, hsl.s, hsl.l);
             }
@@ -76,8 +78,8 @@ export class LinkDecayEffectApplier {
                 const baseIntensity = (mat.emissiveIntensity || 1.2);
                 
                 // Glitch flickering increases with decay
-                const glitchFlicker = Math.sin(this.glitchPhase + index * 0.7) * decayIntensity * 0.5;
-                const decayedIntensity = baseIntensity * (1.0 - decayIntensity * 0.4) + glitchFlicker;
+                const glitchFlicker = Math.sin(this.glitchPhase + index * 0.7) * decayIntensity * 0.5 * dampen;
+                const decayedIntensity = baseIntensity * (1.0 - decayIntensity * 0.4 * dampen) + glitchFlicker;
                 
                 mat.emissiveIntensity = Math.max(0.1, decayedIntensity);
             }
@@ -86,13 +88,13 @@ export class LinkDecayEffectApplier {
             // Roughness increases (surface becomes worn)
             if (mat.roughness !== undefined) {
                 const baseRoughness = mat.roughness || 0.35;
-                mat.roughness = Math.min(0.9, baseRoughness + decayIntensity * 0.5);
+                mat.roughness = Math.min(0.9, baseRoughness + decayIntensity * 0.5 * dampen);
             }
 
             // Metalness decreases (surface oxidizes/corrodes)
             if (mat.metalness !== undefined) {
                 const baseMetalness = mat.metalness || 0.8;
-                mat.metalness = Math.max(0.2, baseMetalness - decayIntensity * 0.6);
+                mat.metalness = Math.max(0.2, baseMetalness - decayIntensity * 0.6 * dampen);
             }
 
             // === OPACITY VARIATIONS ===
@@ -101,8 +103,8 @@ export class LinkDecayEffectApplier {
                 const baseOpacity = mat.opacity || 0.95;
                 
                 // Higher decay = more opacity noise
-                const opacityNoise = Math.sin(this.glitchPhase * 1.5 + index) * decayIntensity * 0.2;
-                const decayedOpacity = baseOpacity * (1.0 - decayIntensity * 0.1) + opacityNoise;
+                const opacityNoise = Math.sin(this.glitchPhase * 1.5 + index) * decayIntensity * 0.2 * dampen;
+                const decayedOpacity = baseOpacity * (1.0 - decayIntensity * 0.1 * dampen) + opacityNoise;
                 
                 mat.opacity = Math.max(0.4, Math.min(1.0, decayedOpacity));
             }

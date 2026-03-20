@@ -1,5 +1,19 @@
 import * as THREE from 'three';
 
+function claimStrandChannel(material, channel, writer, priority) {
+    const ownerState = material?.userData?.__strandOwnerStateRef;
+    if (!ownerState) return true;
+    ownerState.claims = ownerState.claims || {};
+    ownerState.trace = ownerState.trace || {};
+    const current = ownerState.claims[channel];
+    if (current && Number.isFinite(current.priority) && current.priority > priority) {
+        return false;
+    }
+    ownerState.claims[channel] = { writer, priority };
+    ownerState.trace[channel] = writer;
+    return true;
+}
+
 /**
  * LinkEnergyWave
  * ============================================================================
@@ -101,6 +115,9 @@ export class LinkEnergyWave {
 
             // ShaderMaterial path (ATOMA strand shader): drive uLocalLoad pulse directly.
             if (material.uniforms?.uLocalLoad) {
+                if (!claimStrandChannel(material, 'uLocalLoad', 'LinkEnergyWave', 200)) {
+                    return;
+                }
                 const rawBaseLoad = material.uniforms.uLocalLoad.value;
                 const baseLoad = this._shaderLoadBaseline.has(material)
                     ? this._shaderLoadBaseline.get(material)
@@ -112,6 +129,8 @@ export class LinkEnergyWave {
                     Math.min(1, baseLoad + (normalizedInfluence * 0.65 * (0.6 + safeSynergy * 0.4)))
                 );
                 material.uniforms.uLocalLoad.value = pulseLoad;
+                material.userData = material.userData || {};
+                material.userData.__uLocalLoadOwnedByEnergyWave = true;
                 return;
             }
 

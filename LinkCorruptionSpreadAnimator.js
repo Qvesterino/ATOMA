@@ -19,6 +19,20 @@ import * as THREE from 'three';
 
 const CASCADE_CORRUPTION_THRESHOLD = 0.35;
 
+function claimStrandChannel(material, channel, writer, priority) {
+  const ownerState = material?.userData?.__strandOwnerStateRef;
+  if (!ownerState) return true;
+  ownerState.claims = ownerState.claims || {};
+  ownerState.trace = ownerState.trace || {};
+  const current = ownerState.claims[channel];
+  if (current && Number.isFinite(current.priority) && current.priority > priority) {
+    return false;
+  }
+  ownerState.claims[channel] = { writer, priority };
+  ownerState.trace[channel] = writer;
+  return true;
+}
+
 export class LinkCorruptionSpreadAnimator {
   constructor() {
     // Per-link corruption animation state
@@ -54,6 +68,29 @@ export class LinkCorruptionSpreadAnimator {
       retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
       forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
       maxCorruptionForSpread: 0.95,   // Cap on corruption visualization
+    };
+  }
+
+  _readDebugConfig() {
+    if (typeof window === 'undefined') {
+      return {
+        forceSweep: false,
+        sweepIntervalMs: 900,
+        minCorruption: 0.1,
+        visibilityBoost: 1.0
+      };
+    }
+
+    const forceSweep = window.__DEBUG_CORRUPTION_SPREAD_FORCE_SWEEP__ === true;
+    const sweepIntervalRaw = window.__DEBUG_CORRUPTION_SPREAD_INTERVAL_MS__;
+    const minCorruptionRaw = window.__DEBUG_CORRUPTION_SPREAD_MIN_CORRUPTION__;
+    const visibilityBoostRaw = window.__DEBUG_CORRUPTION_SPREAD_BOOST__;
+
+    return {
+      forceSweep,
+      sweepIntervalMs: Number.isFinite(sweepIntervalRaw) ? Math.max(120, sweepIntervalRaw) : 900,
+      minCorruption: Number.isFinite(minCorruptionRaw) ? Math.max(0, Math.min(1, minCorruptionRaw)) : 0.1,
+      visibilityBoost: Number.isFinite(visibilityBoostRaw) ? Math.max(1.0, Math.min(3.0, visibilityBoostRaw)) : 1.0
     };
   }
   
@@ -98,6 +135,8 @@ export class LinkCorruptionSpreadAnimator {
     if (corruptionLevel <= 0 && !state?.isAnimating) {
       return null;
     }
+
+    const debugCfg = this._readDebugConfig();
     
     // Trigger spread animation on meaningful corruption rise, with cooldown
     const corruptionDelta = corruptionLevel - state.previousCorruption;
@@ -107,6 +146,18 @@ export class LinkCorruptionSpreadAnimator {
     const forceRetrigger = corruptionDelta >= this.config.forceRetriggerDelta;
 
     if (aboveThreshold && risingEnough && (cooldownElapsed || forceRetrigger)) {
+      state.isAnimating = true;
+      state.startTime = nowMs;
+      state.wavePhase = 0;
+      state.lastTriggerTime = nowMs;
+    }
+
+    // Debug-only periodic sweep retrigger for visual verification.
+    if (
+      debugCfg.forceSweep &&
+      corruptionLevel >= debugCfg.minCorruption &&
+      (nowMs - state.lastTriggerTime) >= debugCfg.sweepIntervalMs
+    ) {
       state.isAnimating = true;
       state.startTime = nowMs;
       state.wavePhase = 0;
@@ -131,7 +182,10 @@ export class LinkCorruptionSpreadAnimator {
     state.intensity = Math.max(waveFalloff, corruptionLevel * 0.5);
     
     // Apply colors to strands based on corruption progression
-    this._applyCorruptionGradient(strands, corruptionLevel, state.wavePhase, link);
+    this._applyCorruptionGradient(strands, corruptionLevel, state.wavePhase, link, {
+      isAnimating: state.isAnimating,
+      debugVisibilityBoost: debugCfg.visibilityBoost
+    });
     
     return state;
   }
@@ -158,9 +212,13 @@ export class LinkCorruptionSpreadAnimator {
    * Colors progress from clean → tainted → corrupted
    * @private
    */
-  _applyCorruptionGradient(strands, corruptionLevel, wavePhase, link) {
+  _applyCorruptionGradient(strands, corruptionLevel, wavePhase, link, options = {}) {
     if (corruptionLevel < this.config.spreadStartThreshold) {
       // No visible corruption yet
+      return;
+    }
+    if (!options?.isAnimating) {
+      // Ownership override only during active corruption sweep moments.
       return;
     }
     
@@ -184,16 +242,27 @@ export class LinkCorruptionSpreadAnimator {
     strands.forEach((strand, strandIndex) => {
       if (!strand || !strand.material) return;
       const material = strand.material;
+      if (!claimStrandChannel(material, 'colorEmissive', 'CorruptionSpreadAnimator', 300)) {
+        return;
+      }
       
       const strandColor = new THREE.Color(baseColor);
       
       // Create wave sweep effect: color progresses along strands as wave travels
       const waveInfluence = this._getWaveInfluenceAtStrand(strandIndex, wavePhase, strands.length);
       
-      // Blend strand color toward corruption color based on wave position
-      strandColor.lerp(targetColor, waveInfluence * corruptionLevel * 0.9);
+      // Blend strand color toward corruption color based on wave position.
+      // Debug visibility boost applies only when sweep is actively animating.
+      let blend = waveInfluence * corruptionLevel * 0.9;
+      if (options?.isAnimating && Number.isFinite(options?.debugVisibilityBoost)) {
+        blend *= options.debugVisibilityBoost;
+      }
+      blend = Math.max(0, Math.min(1, blend));
+      strandColor.lerp(targetColor, blend);
       
       // Apply to strand material
+      material.userData = material.userData || {};
+      material.userData.__colorLockedByCorruption = true;
       if (material.uniforms?.uBaseColor?.value?.copy) {
         material.uniforms.uBaseColor.value.copy(strandColor);
       } else if (material.color) {

@@ -176,21 +176,23 @@ export class HarmonicSyncEffectApplier {
             if (!strand || !strand.material) return;
 
             const mat = strand.material;
+            const ownerState = mat?.userData?.__strandOwnerStateRef || null;
+            const dampen = ownerState?.corruptionDampen ?? 1.0;
 
             // === EMISSIVE SYNCHRONIZATION ===
             // Synchronized strands pulse slightly brighter (harmonic glow)
             const baseEmissive = mat.emissiveIntensity || 1.2;
-            const syncGlow = baseEmissive * (1.0 + syncStrength * 0.2);
+            const syncGlow = baseEmissive * (1.0 + syncStrength * 0.2 * dampen);
             
             // Smooth interpolation
-            mat.emissiveIntensity = baseEmissive + (syncGlow - baseEmissive) * 0.08;
+            mat.emissiveIntensity = baseEmissive + (syncGlow - baseEmissive) * (0.08 * dampen);
 
             // === METALNESS ENHANCEMENT ===
             // Sync increases reflectivity (harmonic resonance visual)
             if (mat.metalness !== undefined) {
                 const baseMetal = mat.metalness || 0.8;
-                const syncedMetal = baseMetal * (1.0 + syncStrength * 0.15);
-                mat.metalness = baseMetal + (syncedMetal - baseMetal) * 0.08;
+                const syncedMetal = baseMetal * (1.0 + syncStrength * 0.15 * dampen);
+                mat.metalness = baseMetal + (syncedMetal - baseMetal) * (0.08 * dampen);
             }
 
             // === PHASE INFORMATION ===

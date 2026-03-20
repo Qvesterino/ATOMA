@@ -89,7 +89,7 @@ export class StandingWaveVisualRenderer_Session131 {
         };
         
         // Runtime state
-        this.linkMaterialMap = new Map();    // linkId -> { material, originalWaveSpeed }
+        this.linkMaterialMap = new Map();    // linkId -> { materialStates, isStanding }
         this.antinodeMeshes = [];            // Active antinode glow meshes
         this.trapZoneMeshes = [];            // Active trap zone meshes
         this.nodePulsePhases = new Map();    // nodeId -> phase offset
@@ -233,61 +233,56 @@ export class StandingWaveVisualRenderer_Session131 {
      * Apply standing wave appearance to a link
      */
     _applyStandingWaveMaterial(link, trap, deltaTime) {
-        if (!link.mesh && !link.line) return;
+        const materials = this._collectLinkMaterials(link);
+        if (materials.length === 0) return;
         
         const linkId = link.id;
         
         // Get or create link material state
         let materialState = this.linkMaterialMap.get(linkId);
         if (!materialState) {
-            const material = link.mesh?.material || link.line?.material;
-            if (!material) return;
-            
             materialState = {
                 linkId: linkId,
-                material: material,
-                originalWaveSpeed: material.uniforms?.waveSpeed?.value || 1.0,
+                materialStates: materials.map((material) => ({
+                    material: material,
+                    originalWaveSpeed: material.uniforms?.waveSpeed?.value ?? material.uniforms?.uWaveSpeed?.value ?? 1.0,
+                    originalWavelength: material.uniforms?.wavelength?.value ?? material.uniforms?.uWaveLength?.value ?? material.userData?.waveLength ?? null,
+                    originalPhaseOffset: material.uniforms?.uWavePhaseOffset?.value ?? material.userData?.wavePhaseOffset ?? null
+                })),
                 isStanding: false
             };
             this.linkMaterialMap.set(linkId, materialState);
         }
-        
-        const material = materialState.material;
+
+        if (materialState.materialStates.length !== materials.length ||
+            materialState.materialStates.some((state) => !materials.includes(state.material))) {
+            materialState.materialStates = materials.map((material) => ({
+                material: material,
+                originalWaveSpeed: material.uniforms?.waveSpeed?.value ?? material.uniforms?.uWaveSpeed?.value ?? 1.0,
+                originalWavelength: material.uniforms?.wavelength?.value ?? material.uniforms?.uWaveLength?.value ?? material.userData?.waveLength ?? null,
+                originalPhaseOffset: material.uniforms?.uWavePhaseOffset?.value ?? material.userData?.wavePhaseOffset ?? null
+            }));
+        }
         
         // Switch to standing wave mode
         if (!materialState.isStanding) {
-            // Store original wave speed
-            if (material.uniforms?.waveSpeed) {
-                materialState.originalWaveSpeed = material.uniforms.waveSpeed.value;
-                material.uniforms.waveSpeed.value = 0;  // Stop wave travel
-            }
+            materialState.materialStates.forEach((state) => {
+                const material = state.material;
+                if (material.uniforms?.waveSpeed) {
+                    state.originalWaveSpeed = material.uniforms.waveSpeed.value;
+                    material.uniforms.waveSpeed.value = 0;
+                }
+                if (material.uniforms?.uWaveSpeed) {
+                    state.originalWaveSpeed = material.uniforms.uWaveSpeed.value;
+                    material.uniforms.uWaveSpeed.value = 0;
+                }
+            });
             materialState.isStanding = true;
         }
-        
-        // Apply wave state modifications
-        if (material.uniforms) {
-            // Set standing wave oscillation frequency
-            if (material.uniforms.standingWaveFrequency) {
-                material.uniforms.standingWaveFrequency.value = trap.frequency;
-            }
-            
-            // Set oscillation phase
-            if (material.uniforms.standingWavePhase) {
-                material.uniforms.standingWavePhase.value = trap.phase;
-            }
-            
-            // Set amplitude modulation
-            if (material.uniforms.waveAmplitude) {
-                const modulatedAmplitude = trap.amplitude * 
-                    (1 + Math.sin(trap.phase) * 0.3);  // Slight sinusoidal variation
-                material.uniforms.waveAmplitude.value = modulatedAmplitude;
-            }
-            
-            // Compress wavelength in trap zone
-            if (material.uniforms.wavelength) {
-                material.uniforms.wavelength.value *= this.config.waveCompressionFactor;
-            }
-        }
+
+        materialState.materialStates.forEach((state) => {
+            this._applyStandingWaveToMaterialState(state, trap);
+        });
     }
 
     /**
@@ -300,17 +295,40 @@ export class StandingWaveVisualRenderer_Session131 {
         const materialState = this.linkMaterialMap.get(linkId);
         
         if (materialState && materialState.isStanding) {
-            const material = materialState.material;
-            
-            // Restore original wave speed
-            if (material.uniforms?.waveSpeed) {
-                material.uniforms.waveSpeed.value = materialState.originalWaveSpeed;
-            }
-            
-            // Reset standing wave uniforms
-            if (material.uniforms?.standingWaveFrequency) {
-                material.uniforms.standingWaveFrequency.value = 0;
-            }
+            materialState.materialStates.forEach((state) => {
+                const material = state.material;
+
+                if (material.uniforms?.waveSpeed) {
+                    material.uniforms.waveSpeed.value = state.originalWaveSpeed;
+                }
+                if (material.uniforms?.uWaveSpeed) {
+                    material.uniforms.uWaveSpeed.value = state.originalWaveSpeed;
+                }
+                if (material.uniforms?.standingWaveFrequency) {
+                    material.uniforms.standingWaveFrequency.value = 0;
+                }
+                if (material.uniforms?.standingWavePhase) {
+                    material.uniforms.standingWavePhase.value = 0;
+                }
+                if (material.uniforms?.wavelength && state.originalWavelength !== null) {
+                    material.uniforms.wavelength.value = state.originalWavelength;
+                }
+                if (material.uniforms?.uWaveLength && state.originalWavelength !== null) {
+                    material.uniforms.uWaveLength.value = state.originalWavelength;
+                }
+                if (material.uniforms?.uWavePhaseOffset && state.originalPhaseOffset !== null) {
+                    material.uniforms.uWavePhaseOffset.value = state.originalPhaseOffset;
+                }
+                if (material.userData && state.originalWavelength !== null) {
+                    material.userData.waveLength = state.originalWavelength;
+                }
+                if (material.userData && state.originalPhaseOffset !== null) {
+                    material.userData.wavePhaseOffset = state.originalPhaseOffset;
+                }
+                if (material.userData) {
+                    material.userData.standingWaveActive = false;
+                }
+            });
             
             materialState.isStanding = false;
         }
@@ -344,8 +362,9 @@ export class StandingWaveVisualRenderer_Session131 {
             if (!link) return;
             
             // Calculate antinode positions along link
-            const startPos = link.sourceNode?.position || link.from?.position;
-            const endPos = link.targetNode?.position || link.to?.position;
+            const endpoints = this._getLinkEndpoints(link);
+            const startPos = endpoints.startPos;
+            const endPos = endpoints.endPos;
             
             if (!startPos || !endPos) return;
             
@@ -373,10 +392,11 @@ export class StandingWaveVisualRenderer_Session131 {
                 
                 // Check LOD
                 if (this.config.enableLOD) {
-                    const cameraDistance = antinodeWorldPos.distanceTo(
-                        this.scene.getObjectByName('camera')?.position || new THREE.Vector3()
-                    );
-                    if (cameraDistance > this.config.antinodeLODDistance) continue;
+                    const cameraPosition = this._resolveCameraPosition();
+                    if (cameraPosition) {
+                        const cameraDistance = antinodeWorldPos.distanceTo(cameraPosition);
+                        if (cameraDistance > this.config.antinodeLODDistance) continue;
+                    }
                 }
                 
                 // Acquire antinode from pool
@@ -421,8 +441,9 @@ export class StandingWaveVisualRenderer_Session131 {
             const link = this._getLinkById(zone.linkId);
             if (!link) return;
             
-            const startPos = link.sourceNode?.position || link.from?.position;
-            const endPos = link.targetNode?.position || link.to?.position;
+            const endpoints = this._getLinkEndpoints(link);
+            const startPos = endpoints.startPos;
+            const endPos = endpoints.endPos;
             
             if (!startPos || !endPos) return;
             
@@ -475,26 +496,32 @@ export class StandingWaveVisualRenderer_Session131 {
             const link = this._getLinkById(pattern.trapId);
             if (!link) return;
             
-            const material = link.mesh?.material || link.line?.material;
-            if (!material || !material.uniforms) return;
-            
-            // Set interference pattern uniforms
-            if (material.uniforms.interferencePhase) {
-                material.uniforms.interferencePhase.value = pattern.beatPhase;
-            }
-            
-            if (material.uniforms.interferenceSpacing) {
-                material.uniforms.interferenceSpacing.value = pattern.spacing;
-            }
-            
-            if (material.uniforms.interferenceContrast) {
-                material.uniforms.interferenceContrast.value = pattern.contrast;
-            }
-            
-            // Enable interference rendering
-            if (material.uniforms.renderInterference) {
-                material.uniforms.renderInterference.value = true;
-            }
+            const materials = this._collectLinkMaterials(link);
+            if (materials.length === 0) return;
+
+            materials.forEach((material) => {
+                if (!material?.uniforms) return;
+
+                if (material.uniforms.interferencePhase) {
+                    material.uniforms.interferencePhase.value = pattern.beatPhase;
+                }
+
+                if (material.uniforms.interferenceSpacing) {
+                    material.uniforms.interferenceSpacing.value = pattern.spacing;
+                }
+
+                if (material.uniforms.interferenceContrast) {
+                    material.uniforms.interferenceContrast.value = pattern.contrast;
+                }
+
+                if (material.uniforms.renderInterference) {
+                    material.uniforms.renderInterference.value = true;
+                }
+
+                if (material.uniforms.uWavePhase) {
+                    material.uniforms.uWavePhase.value = pattern.beatPhase;
+                }
+            });
         });
     }
 
@@ -529,9 +556,10 @@ export class StandingWaveVisualRenderer_Session131 {
      * Apply pulsing effect to node shell
      */
     _applyNodePulsing(node, phase, invertPhase) {
-        if (!node || !node.shell) return;
-        
-        const material = node.shell.material;
+        const shell = this._getNodeShell(node);
+        if (!shell) return;
+
+        const material = shell.material;
         if (!material) return;
         
         // Calculate pulse amplitude
@@ -595,12 +623,19 @@ export class StandingWaveVisualRenderer_Session131 {
     _animateBreakthrough(trap, progress) {
         // Accelerate wave travel
         const link = this._getLinkById(trap.linkId);
-        if (!link && link.mesh) {
-            const material = link.mesh.material;
-            if (material && material.uniforms?.waveSpeed) {
-                material.uniforms.waveSpeed.value = 
-                    trap.frequency * this.config.breakthroughAcceleration * progress;
-            }
+        if (link) {
+            const materialState = this.linkMaterialMap.get(trap.linkId);
+            materialState?.materialStates?.forEach((state) => {
+                const material = state.material;
+                if (material?.uniforms?.waveSpeed) {
+                    material.uniforms.waveSpeed.value =
+                        trap.frequency * this.config.breakthroughAcceleration * progress;
+                }
+                if (material?.uniforms?.uWaveSpeed) {
+                    material.uniforms.uWaveSpeed.value =
+                        trap.frequency * this.config.breakthroughAcceleration * progress;
+                }
+            });
         }
         
         // Shrink trap zone
@@ -633,6 +668,112 @@ export class StandingWaveVisualRenderer_Session131 {
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
         return this.linkingSystem.links.find(l => l && l.id === linkId);
+    }
+
+    _getLinkEndpoints(link) {
+        const startNode = link?.sourceNode || link?.source || link?.from || link?.nodeA || null;
+        const endNode = link?.targetNode || link?.target || link?.to || link?.nodeB || null;
+
+        return {
+            startNode,
+            endNode,
+            startPos: startNode?.position || null,
+            endPos: endNode?.position || null
+        };
+    }
+
+    _getLinkVisualState(link) {
+        return link?.group?.userData?.conduitState || null;
+    }
+
+    _collectLinkMaterials(link) {
+        const materials = [];
+        const seen = new Set();
+        const visualState = this._getLinkVisualState(link);
+
+        const tryAddMaterial = (material) => {
+            if (!material || seen.has(material)) return;
+            seen.add(material);
+            materials.push(material);
+        };
+
+        tryAddMaterial(link?.mesh?.material);
+        tryAddMaterial(link?.line?.material);
+        tryAddMaterial(link?.coreLine?.material);
+        tryAddMaterial(link?.midGlowLine?.material);
+        tryAddMaterial(link?.haloLine?.material);
+        tryAddMaterial(link?.bloomAuraLine?.material);
+        tryAddMaterial(link?.edgeLine?.material);
+        tryAddMaterial(visualState?.skinMesh?.material);
+
+        if (Array.isArray(visualState?.strands)) {
+            visualState.strands.forEach((strand) => tryAddMaterial(strand?.material));
+        }
+
+        return materials;
+    }
+
+    _applyStandingWaveToMaterialState(materialState, trap) {
+        const material = materialState.material;
+        if (!material?.uniforms) return;
+
+        if (material.uniforms.standingWaveFrequency) {
+            material.uniforms.standingWaveFrequency.value = trap.frequency;
+        }
+
+        if (material.uniforms.standingWavePhase) {
+            material.uniforms.standingWavePhase.value = trap.phase;
+        }
+
+        if (material.uniforms.uWavePhase) {
+            material.uniforms.uWavePhase.value = trap.phase;
+        }
+
+        if (material.uniforms.waveAmplitude) {
+            const modulatedAmplitude = trap.amplitude *
+                (1 + Math.sin(trap.phase) * 0.3);
+            material.uniforms.waveAmplitude.value = modulatedAmplitude;
+        }
+
+        if (material.uniforms.wavelength && materialState.originalWavelength !== null) {
+            material.uniforms.wavelength.value = materialState.originalWavelength * this.config.waveCompressionFactor;
+        }
+
+        if (material.uniforms.uWaveLength && materialState.originalWavelength !== null) {
+            material.uniforms.uWaveLength.value = materialState.originalWavelength * this.config.waveCompressionFactor;
+        }
+
+        if (material.uniforms.uWavePhaseOffset && materialState.originalPhaseOffset !== null) {
+            material.uniforms.uWavePhaseOffset.value = trap.phase + materialState.originalPhaseOffset;
+        }
+
+        if (material.userData && materialState.originalWavelength !== null) {
+            material.userData.waveLength = materialState.originalWavelength * this.config.waveCompressionFactor;
+        }
+        if (material.userData) {
+            material.userData.standingWaveActive = true;
+            material.userData.standingWavePhase = trap.phase;
+            material.userData.standingWaveFrequency = trap.frequency;
+        }
+    }
+
+    _resolveCameraPosition() {
+        const sceneCamera = this.scene?.getObjectByName?.('camera')?.position;
+        if (sceneCamera) return sceneCamera;
+
+        if (typeof window !== 'undefined' && window.__ATOMA_CAMERA__?.position) {
+            return window.__ATOMA_CAMERA__.position;
+        }
+
+        if (globalThis.__ATOMA_CAMERA__?.position) {
+            return globalThis.__ATOMA_CAMERA__.position;
+        }
+
+        return null;
+    }
+
+    _getNodeShell(node) {
+        return node?.shell || node?.holoShell || node?.userData?.holoShell || null;
     }
 
     /**

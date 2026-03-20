@@ -43,6 +43,8 @@ export class InterferenceEffectApplier {
 
         strands.forEach((strand, index) => {
             if (!strand || !strand.material) return;
+            const ownerState = strand.material?.userData?.__strandOwnerStateRef || null;
+            const dampen = ownerState?.corruptionDampen ?? 1.0;
 
             // === CONSTRUCTIVE INTERFERENCE ===
             // interferenceFactor > 1.0 means constructive
@@ -67,7 +69,8 @@ export class InterferenceEffectApplier {
                 
                 // Constructive brightens, destructive dims
                 const intensityMod = (interferenceFactor - 1.0) * 0.3; // -0.3 to +0.15 range
-                strand.material.emissiveIntensity = Math.max(0.3, baseIntensity * (1.0 + intensityMod));
+                const targetIntensity = Math.max(0.3, baseIntensity * (1.0 + intensityMod * dampen));
+                strand.material.emissiveIntensity = baseIntensity + (targetIntensity - baseIntensity) * (0.2 * dampen);
             }
 
             // === VISUAL EFFECT: Opacity Modulation ===
@@ -78,7 +81,8 @@ export class InterferenceEffectApplier {
                 
                 // Destructive reduces opacity
                 const opacityMod = -destructiveStrength * 0.15; // 0 to -0.15
-                strand.material.opacity = Math.max(0.5, baseOpacity * (1.0 + opacityMod));
+                const targetOpacity = Math.max(0.5, baseOpacity * (1.0 + opacityMod * dampen));
+                strand.material.opacity = baseOpacity + (targetOpacity - baseOpacity) * (0.22 * dampen);
             }
 
             // === VISUAL EFFECT: Roughness Modulation ===

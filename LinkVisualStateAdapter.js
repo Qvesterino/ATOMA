@@ -2,6 +2,29 @@ import * as THREE from 'three';
 import { LinkDecayTracker } from './LinkDecayTracker.js';
 import { LinkDecayEffectApplier } from './LinkDecayEffectApplier.js';
 
+// Artistic strand tuning sliders (safe, local, no gameplay impact).
+// Adjust these three values for quick visual iteration:
+const STRAND_ART = {
+    GLOW: 1.0,         // 0.6..1.8  (higher = brighter energetic strands)
+    OPACITY: 1.0,      // 0.7..1.3  (higher = less transparent strands)
+    PULSE_SPEED: 1.0,  // 0.6..1.8  (higher = faster breathing/pulse motion)
+    IRREGULARITY: 0.22 // 0.0..0.5  (higher = more organic non-uniform motion)
+};
+
+function claimStrandChannel(material, channel, writer, priority) {
+    const ownerState = material?.userData?.__strandOwnerStateRef;
+    if (!ownerState) return true;
+    ownerState.claims = ownerState.claims || {};
+    ownerState.trace = ownerState.trace || {};
+    const current = ownerState.claims[channel];
+    if (current && Number.isFinite(current.priority) && current.priority > priority) {
+        return false;
+    }
+    ownerState.claims[channel] = { writer, priority };
+    ownerState.trace[channel] = writer;
+    return true;
+}
+
 /**
  * LinkVisualStateAdapter
  * ============================================================================
@@ -67,7 +90,7 @@ export class LinkVisualStateAdapter {
         this.instabilityPhase += deltaTime * (1.5 + instability * 2.5);
         
         // Update synergy rhythm phase (independent, clean rhythm)
-        this.synergyPhase += deltaTime * (1.0 + synergy * 2.0);
+        this.synergyPhase += deltaTime * (1.0 + synergy * 2.0) * STRAND_ART.PULSE_SPEED;
 
         // === UPDATE DECAY TRACKER ===
         // Track cumulative corruption exposure over time
@@ -119,20 +142,41 @@ export class LinkVisualStateAdapter {
 
             // Apply to material
             const mat = strand.material;
+            const ownerState = mat?.userData?.__strandOwnerStateRef || null;
+            const dampen = ownerState?.corruptionDampen ?? 1.0;
+            const strandNoiseSeed = (strand.userData.__strandNoiseSeed ??= Math.random() * Math.PI * 2);
+            const irregularPhase = Math.sin(this.instabilityPhase * 0.63 + strandNoiseSeed + index * 0.37) * STRAND_ART.IRREGULARITY;
+            const pulse = 0.5 + 0.5 * Math.sin(this.synergyPhase + index + irregularPhase);
+            const viewBoost = 0.3 + 0.7 * Math.abs(Math.sin(this.synergyPhase));
+            const microFlicker = 1.0 + (Math.sin(this.corruptionPhase * 0.41 + strandNoiseSeed * 1.9) * 0.12 * STRAND_ART.IRREGULARITY);
+            const energyFactor = (0.8 + pulse * 0.6) * viewBoost * microFlicker;
+            const targetEmissiveIntensity = (1.2 + synergy * 1.5) * energyFactor * STRAND_ART.GLOW;
 
-            // Emissive Intensity (harmony brightens, corruption reduces)
-            mat.emissiveIntensity = (mat.emissiveIntensity || 1.2) * (harmonyBrightness * (1.0 - corruption * 0.3));
-
-            // Roughness (harmony smooths)
-            if (typeof mat.roughness !== 'undefined') {
-                mat.roughness = harmonyRoughness + (corruption * 0.2);
+            // Emissive Intensity (energy-driven, less material/plastic feel)
+            if (claimStrandChannel(mat, 'colorEmissive', 'LinkVisualStateAdapter', 100)) {
+                const current = (typeof mat.emissiveIntensity === 'number')
+                    ? mat.emissiveIntensity
+                    : targetEmissiveIntensity;
+                mat.emissiveIntensity = current + (targetEmissiveIntensity - current) * (0.55 * dampen);
             }
 
-            // Opacity (instability flickers)
-            mat.opacity = Math.max(0.3, Math.min(1.0, instabilityOpacity));
+            // Matte energy ribbon look (reduce plastic feel)
+            if (typeof mat.roughness !== 'undefined') {
+                mat.roughness = 0.15;
+            }
+            if (typeof mat.metalness !== 'undefined') {
+                mat.metalness = 0.0;
+            }
+
+            // Remove opaque feeling while preserving instability readability
+            if (claimStrandChannel(mat, 'opacity', 'LinkVisualStateAdapter', 100)) {
+                const targetOpacityBase = (0.75 + synergy * 0.2 - instability * 0.12) * STRAND_ART.OPACITY;
+                const targetOpacity = Math.max(0.4, Math.min(0.96, targetOpacityBase + irregularPhase * 0.08));
+                mat.opacity = mat.opacity + (targetOpacity - (mat.opacity ?? targetOpacity)) * (0.6 * dampen);
+            }
 
             // Color adjustments (corruption hue-shifts and desaturates)
-            if (mat.color) {
+            if (mat.color && !mat.userData?.__colorLockedByCorruption && claimStrandChannel(mat, 'colorEmissive', 'LinkVisualStateAdapter', 100)) {
                 const hsl = {};
                 mat.color.getHSL(hsl);
                 
@@ -140,20 +184,34 @@ export class LinkVisualStateAdapter {
                 hsl.h += corruptionHueShift;
                 
                 // Desaturation from corruption
-                hsl.s *= (1.0 - corruptionDesaturation);
+                hsl.s *= (1.0 - corruptionDesaturation * dampen);
                 
                 // Lightness affected by harmony and corruption
-                hsl.l = hsl.l * (1.0 - corruption * 0.15) + (harmony * 0.1);
+                hsl.l = hsl.l * (1.0 - corruption * 0.15 * dampen) + (harmony * 0.1 * dampen);
                 
                 mat.color.setHSL(hsl.h, hsl.s, hsl.l);
             }
 
+            // ShaderMaterial path: drive base color as energetic light source.
+            if (mat.uniforms?.uBaseColor?.value?.isColor && !mat.userData?.__colorLockedByCorruption && claimStrandChannel(mat, 'colorEmissive', 'LinkVisualStateAdapter', 100)) {
+                const base = mat.uniforms.uBaseColor.value;
+                const hsl = {};
+                base.getHSL(hsl);
+                hsl.h += corruptionHueShift;
+                hsl.s *= (1.0 - corruptionDesaturation * dampen);
+                hsl.l = Math.min(1.0, hsl.l * (0.92 + harmony * 0.18) + (synergy * 0.08));
+                base.setHSL(hsl.h, hsl.s, hsl.l);
+            }
+
             // Emissive color also shifts with corruption
-            if (mat.emissive) {
+            if (mat.emissive && !mat.userData?.__colorLockedByCorruption && claimStrandChannel(mat, 'colorEmissive', 'LinkVisualStateAdapter', 100)) {
+                if (mat.color?.isColor) {
+                    mat.emissive.copy(mat.color);
+                }
                 const hsl = {};
                 mat.emissive.getHSL(hsl);
                 hsl.h += corruptionHueShift * 0.5;
-                hsl.s *= (1.0 - corruptionDesaturation * 0.5);
+                hsl.s *= (1.0 - corruptionDesaturation * 0.5 * dampen);
                 mat.emissive.setHSL(hsl.h, hsl.s, hsl.l);
             }
 
@@ -165,12 +223,7 @@ export class LinkVisualStateAdapter {
                 strand.userData.synergyPhase = (index / strands.length) * Math.PI * 2;
             }
             
-            // Subtle metalness variation with synergy (higher synergy = more reflective)
-            if (typeof mat.metalness !== 'undefined') {
-                const baseMet = 0.8;
-                const synergyMetalMod = synergy * 0.15;
-                mat.metalness = baseMet + synergyMetalMod;
-            }
+            // Keep material lightweight and non-metallic; glow carries the energy look.
         });
     }
 

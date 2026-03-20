@@ -858,6 +858,51 @@ export class LinkRendererConduit {
         this.linkStateVisualLanguage = null;
     }
 
+    _beginStrandOwnershipFrame(state, metrics, visualTime) {
+        const ownerState = state.__strandOwnerState || (state.__strandOwnerState = {
+            frame: 0,
+            claims: { colorEmissive: null, opacity: null, uLocalLoad: null },
+            trace: { colorEmissive: 'none', opacity: 'none', uLocalLoad: 'none' },
+            previousCorruption: 0,
+            corruptionOverrideUntil: 0,
+            corruptionOverrideActive: false,
+            corruptionDampen: 1.0
+        });
+
+        ownerState.frame += 1;
+        ownerState.claims.colorEmissive = null;
+        ownerState.claims.opacity = null;
+        ownerState.claims.uLocalLoad = null;
+        ownerState.trace.colorEmissive = 'none';
+        ownerState.trace.opacity = 'none';
+        ownerState.trace.uLocalLoad = 'none';
+
+        const corruption = Math.max(0, Math.min(1, metrics?.corruption ?? 0));
+        const prev = Number.isFinite(ownerState.previousCorruption) ? ownerState.previousCorruption : corruption;
+        const delta = corruption - prev;
+        const threshold = 0.04;
+        const overrideWindowSec = 0.45;
+
+        if (delta > threshold) {
+            ownerState.corruptionOverrideUntil = visualTime + overrideWindowSec;
+        }
+        ownerState.previousCorruption = corruption;
+        ownerState.corruptionOverrideActive = visualTime < (ownerState.corruptionOverrideUntil || 0);
+        ownerState.corruptionDampen = ownerState.corruptionOverrideActive ? 0.5 : 1.0;
+
+        // Reset per-frame corruption color lock; animator can assert it again this frame.
+        if (Array.isArray(state.strands)) {
+            for (const strand of state.strands) {
+                const mat = strand?.material;
+                if (!mat) continue;
+                mat.userData = mat.userData || {};
+                mat.userData.__colorLockedByCorruption = false;
+            }
+        }
+
+        return ownerState;
+    }
+
     setTravelingWaveFX(travelingWaveFX) {
         this.travelingWaveFX = travelingWaveFX || null;
     }
@@ -1653,11 +1698,12 @@ export class LinkRendererConduit {
                 const strandCount = state.strandCount || 3;
                 for (let i = 0; i < strandCount; i++) {
                     const categoryColor = (i % 2 === 0) ? state.colorA : state.colorB;
+                    const accentColor = (i % 2 === 0) ? state.colorB : state.colorA;
                     const material = new THREE.ShaderMaterial({
                         vertexShader: linkStateVertexShaderSimple,
                         fragmentShader: linkStateFragmentShaderSimple,
-                        transparent: false,
-                        depthWrite: true,
+                        transparent: true,
+                        depthWrite: false,
                         depthTest: true,
                         side: THREE.DoubleSide,
                         uniforms: {
@@ -1666,7 +1712,10 @@ export class LinkRendererConduit {
                             uCorruption: { value: 0.0 },
                             uTime: { value: 0.0 },
                             uSegmentCount: { value: 44.0 },
-                            uBaseColor: { value: categoryColor.clone() }
+                            uBaseColor: { value: categoryColor.clone() },
+                            uAccentColor: { value: accentColor.clone() },
+                            uStrandIndex: { value: i },
+                            uStrandCount: { value: strandCount }
                         }
                     });
                     ensureUserData(material);
@@ -1845,6 +1894,7 @@ export class LinkRendererConduit {
 
         this._advanceLinkBootstrap(link, state);
         state.metrics = metrics;
+        const strandOwnerState = this._beginStrandOwnershipFrame(state, metrics, visualTime);
         const runtime = state.__runtime || (state.__runtime = {
             updateCalls: 0,
             lastVisualTime: 0,
@@ -1884,10 +1934,18 @@ export class LinkRendererConduit {
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
             if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
-                this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
+                const spreadState = this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
                     nowMs: performance.now()
                 });
+                if (spreadState?.isAnimating) {
+                    strandOwnerState.corruptionOverrideActive = true;
+                    strandOwnerState.corruptionDampen = 0.5;
+                    strandOwnerState.corruptionOverrideUntil = Math.max(
+                        strandOwnerState.corruptionOverrideUntil || 0,
+                        visualTime + 0.25
+                    );
+                }
                 runtime.corruptionSpreadTicks += 1;
             }
             if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
@@ -2361,6 +2419,11 @@ export class LinkRendererConduit {
             }
             // Shader uniforms (simple link state shader)
             const mat = mesh.material;
+            if (mat) {
+                mat.userData = mat.userData || {};
+                mat.userData.__strandOwnerStateRef = strandOwnerState;
+                mat.userData.__strandOwnerLinkId = link?.id || link?.uuid || 'link-unknown';
+            }
             if (mat?.uniforms) {
                 mat.uniforms.uTime.value = visualTime;
                 const m = link?.userData?.metrics;
@@ -2372,7 +2435,9 @@ export class LinkRendererConduit {
                 if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
                 if (mat.uniforms.uLoad) mat.uniforms.uLoad.value = m.loadPressure ?? 0;
                 if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
-                if (mat.uniforms.uLocalLoad) mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
+                if (mat.uniforms.uLocalLoad && !mat.userData?.__uLocalLoadOwnedByEnergyWave) {
+                    mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
+                }
 
                 if (Math.random() < 0.01) {
                     console.log('[LINK METRICS → SHADER]', m);
@@ -2891,6 +2956,18 @@ export class LinkRendererConduit {
         }
         runtime.lastSynergy = synergy;
         runtime.lastTraffic = trafficLoad;
+
+        if (typeof window !== 'undefined' && window.__ATOMA_STRAND_OWNER_TRACE === true) {
+            const trace = strandOwnerState?.trace || {};
+            console.log('[StrandOwnerTrace]', {
+                linkId: link?.id || link?.uuid || 'unknown-link',
+                frame: strandOwnerState?.frame || 0,
+                colorEmissive: trace.colorEmissive || 'none',
+                opacity: trace.opacity || 'none',
+                uLocalLoad: trace.uLocalLoad || 'none',
+                corruptionOverrideActive: !!strandOwnerState?.corruptionOverrideActive
+            });
+        }
     }
 
     /**

@@ -222,28 +222,40 @@ export const linkStateVertexShaderSimple = `
   uniform float uCorruption;
   uniform float uTime;
   uniform float uSegmentCount;
+  uniform float uStrandIndex;
+  uniform float uStrandCount;
   uniform vec3 uBaseColor;
+  uniform vec3 uAccentColor;
   
   varying float vNetworkStress;
   varying float vLocalLoad;
   varying float vCorruption;
   varying float vPulsePhase;
+  varying float vStrandIndex;
+  varying float vStrandCount;
   varying vec3 vBaseColor;
+  varying vec3 vAccentColor;
   varying vec3 vNormal;
+  varying vec3 vWorldPos;
   varying vec2 vUv;
   
   void main() {
     vNetworkStress = uNetworkStress;
     vLocalLoad = uLocalLoad;
     vCorruption = uCorruption;
+    vStrandIndex = uStrandIndex;
+    vStrandCount = uStrandCount;
     vBaseColor = uBaseColor;
+    vAccentColor = uAccentColor;
     vNormal = normalize(normalMatrix * normal);
     vUv = uv;
     
     // Simple pulse
     float freq = 2.0 + uLocalLoad * 6.0;
     vPulsePhase = sin(uTime * freq) * 0.5 + 0.5;
-    
+
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -253,10 +265,15 @@ export const linkStateFragmentShaderSimple = `
   varying float vLocalLoad;
   varying float vCorruption;
   varying float vPulsePhase;
+  varying float vStrandIndex;
+  varying float vStrandCount;
   varying vec3 vBaseColor;
+  varying vec3 vAccentColor;
   varying vec3 vNormal;
+  varying vec3 vWorldPos;
   varying vec2 vUv;
   uniform float uSegmentCount;
+  uniform float uTime;
 
   float hash11(float p) {
     p = fract(p * 0.1031);
@@ -279,19 +296,32 @@ export const linkStateFragmentShaderSimple = `
   
   void main() {
     float effectiveStress = max(vNetworkStress, 0.08);
-    vec3 color = vBaseColor * 0.8 + getStressColor(effectiveStress) * 0.2;
+    float strandCountSafe = max(1.0, vStrandCount);
+    float strandPhase = (vStrandIndex / strandCountSafe) * 6.28318;
+    float travel = vUv.x;
+    float flowBand = sin((travel * 24.0) - (uTime * (2.6 + vLocalLoad * 2.2)) + strandPhase);
+    float flowT = flowBand * 0.5 + 0.5;
+    vec3 strandFlowColor = mix(vBaseColor, vAccentColor, flowT);
+    vec3 stressTint = getStressColor(effectiveStress);
+    vec3 color = mix(strandFlowColor, stressTint, 0.14 + vCorruption * 0.08);
     
     // Simple Lambert + rim for plasticity
     vec3 n = normalize(vNormal);
     vec3 lightDir = normalize(vec3(0.3, 0.7, 0.6));
     float lambert = clamp(dot(n, lightDir), 0.45, 1.0);
-    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.55;
+    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+    float fresnel = pow(max(0.0, 1.0 - dot(n, viewDir)), 2.2);
+    float rim = pow(1.0 - abs(dot(n, lightDir)), 2.0) * 0.5 + fresnel * 0.75;
     float lighting = lambert * 0.95 + rim * 0.45;
     color *= lighting;
-    color += vBaseColor * 0.12;
+    color += strandFlowColor * (0.15 + vLocalLoad * 0.12);
     
-    // Add pulse glow from load
-    color += vec3(vPulsePhase * vLocalLoad * 0.3);
+    // Hot energetic streaks that travel along strands (orchestral spark lanes).
+    float streakCoord = fract((travel * 36.0) - (uTime * (4.2 + vLocalLoad * 2.8)) + strandPhase * 0.28);
+    float streak = 1.0 - smoothstep(0.08, 0.28, abs(streakCoord - 0.5));
+    vec3 streakColor = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(strandPhase + uTime * 0.8));
+    streakColor = mix(streakColor, vec3(1.0), 0.22);
+    color += streakColor * streak * (0.24 + vLocalLoad * 0.34 + vPulsePhase * 0.18);
 
     // Thin slash-like segment mask (static in UV, low-cost).
     // Keep roughly world-stable spacing by driving segment cell count from conduit.
@@ -316,14 +346,17 @@ export const linkStateFragmentShaderSimple = `
     float segmentMask = clamp(slash * slashTrim * laneMask, 0.0, 1.0);
     segmentMask = smoothstep(0.38, 0.88, segmentMask);
 
-    float darken = segmentMask * (0.18 + vCorruption * 0.05 + vLocalLoad * 0.02);
+    float darken = segmentMask * (0.09 + vCorruption * 0.06 + vLocalLoad * 0.01);
     color *= (1.0 - darken);
     
-    // Dim from corruption
-    color *= (1.0 - vCorruption * 0.3);
+    // Corruption front warms the strand palette rather than only dimming it.
+    vec3 corruptionHue = mix(vBaseColor, vAccentColor, 0.5 + 0.5 * sin(uTime * 0.7 + strandPhase));
+    color = mix(color, mix(color, corruptionHue * (0.7 + vPulsePhase * 0.3), 0.55), vCorruption * 0.75);
+    color *= (1.0 - vCorruption * 0.18);
     
     // Alpha based on coherence (1 - corruption)
-    float alpha = mix(0.82, 1.0, 1.0 - vCorruption);
+    float alpha = mix(0.86, 1.0, 1.0 - vCorruption) + fresnel * 0.12;
+    alpha = clamp(alpha, 0.0, 1.0);
     
     gl_FragColor = vec4(color, alpha);
   }
