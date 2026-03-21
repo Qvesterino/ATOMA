@@ -929,6 +929,7 @@ import { MetricsRuntime_v1 } from './MetricsRuntime_v1.js';
 import { PersonalityRuntime_v1 } from './PersonalityRuntime_v1.js';
 import { MetricInterpretationLayer_v1, setupMetricInterpretationConsoleAPI } from './MetricInterpretationLayer_v1.js';
 import { StressVisualShaderSystem } from './StressVisualShaderSystem.js';
+import { CanonicalTemplate3_StressVisuals } from './CanonicalTemplate3_StressVisuals.js';
 
 // ============================================================================
 // EXTRACTION PACK V1.1 — RUNTIME ORCHESTRATION (WORLD & FX)
@@ -3645,6 +3646,10 @@ class AtomaGame {
         }, 'simulation.networkStress');
         this.frameScheduler.register('simulation', () => {
             const stress = this.networkStressAggregator?.getStress?.() ?? 0;
+            // Feed network stress to CanonicalTemplate3_StressVisuals
+            if (this.canonicalTemplate3_StressVisuals) {
+                this.canonicalTemplate3_StressVisuals.updateNetworkStress(stress);
+            }
             const emitEvent = (eventName, payload) => {
                 if (this.semanticBus?.emit) {
                     this.semanticBus.emit(
@@ -4111,6 +4116,31 @@ class AtomaGame {
                 );
             }
         }, 'visual.harmonicResonanceFeedback');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.canonicalTemplate3_StressVisuals) {
+                // Register all nodes for stress tracking
+                const nodes = this.aiNodes?.nodes || [];
+                for (const node of nodes) {
+                    if (node && this.canonicalTemplate3_StressVisuals) {
+                        this.canonicalTemplate3_StressVisuals.registerNode(node);
+                    }
+                }
+                
+                // Feed node load pressure data (computed from node metrics)
+                for (const node of nodes) {
+                    if (node && node.userData) {
+                        // Compute load pressure based on actual node metrics
+                        const linkCount = node.userData.linkCount || 0;
+                        const activeLinks = node.userData.activeLinks || 0;
+                        const corruptionLevel = node.userData.corruption || 0;
+                        // Load pressure = (activeLinks / linkCount) + (corruptionLevel * 0.5)
+                        const loadPressure = Math.min(1, (activeLinks / Math.max(1, linkCount)) + (corruptionLevel * 0.5));
+                        this.canonicalTemplate3_StressVisuals.updateNodeLoadPressure(node, loadPressure);
+                    }
+                }
+                this.canonicalTemplate3_StressVisuals.update(dt, this.time || 0);
+            }
+        }, 'visual.canonicalTemplate3_StressVisuals');
         this.frameScheduler.register('visual', () => {
             if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
                 const nodes = this.aiNodes?.nodes || [];
@@ -6023,6 +6053,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.frameScheduler?.resetLayer?.('visual');
             if (this.vfxLoader) {
                 this.vfxLoader.onWorldSwitch(reasonForCreate);
+            }
+
+            // Reset CanonicalTemplate3_StressVisuals on world switch
+            if (this.canonicalTemplate3_StressVisuals) {
+                this.canonicalTemplate3_StressVisuals.reset();
             }
 
             // NEW: Dispose particle trail system (SESSION 122)
@@ -8597,6 +8632,28 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] StressVisualShaderSystem initialized ✓');
         } catch (err) {
             console.warn('[main.js] StressVisualShaderSystem failed:', err);
+        }
+
+        // ====================================================================
+        // CANONICAL TEMPLATE #3: NETWORK STRESS & LOAD PRESSURE VISUALS
+        // ====================================================================
+        try {
+            this.canonicalTemplate3_StressVisuals = new CanonicalTemplate3_StressVisuals(this.scene, {
+                debugMode: false
+            });
+            console.log('[main.js] CanonicalTemplate3_StressVisuals initialized ✓');
+            
+            // Register dispose handler for world switch
+            if (this._worldEventDisposers) {
+                this._worldEventDisposers.push(() => {
+                    if (this.canonicalTemplate3_StressVisuals) {
+                        this.canonicalTemplate3_StressVisuals.dispose();
+                        this.canonicalTemplate3_StressVisuals = null;
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] CanonicalTemplate3_StressVisuals failed:', err);
         }
 
         // ====================================================================

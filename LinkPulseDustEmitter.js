@@ -40,7 +40,8 @@ void main() {
     float fadeOut = 1.0 - lifeProgress;
     float size = aInfo.z * mix(1.15, 2.7, lifeProgress);
 
-    gl_PointSize = min(24.0, size * (88.0 / max(1.0, -mvPosition.z)));
+    // Match LinkSparkSystem attenuation pattern exactly.
+    gl_PointSize = size * (10.0 / -mvPosition.z);
 
     vColor = aColor;
     vAlpha = 0.68 * fadeIn * fadeOut;

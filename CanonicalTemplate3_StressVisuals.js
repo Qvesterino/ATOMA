@@ -65,6 +65,62 @@ export class CanonicalTemplate3_StressVisuals {
   }
 
   /**
+   * Register a node for stress tracking
+   * 
+   * @param {Object} node - Node to track
+   */
+  registerNode(node) {
+    if (!node) return;
+    
+    const nodeId = node.id || `node_${Math.random()}`;
+    
+    if (!this.nodeStressMap.has(nodeId)) {
+      this.nodeStressMap.set(nodeId, {
+        loadPressure: 0,
+        node: node,
+        jitterAccel: 0,
+        pulsePhase: Math.random() * Math.PI * 2
+      });
+      
+      // Store original position
+      if (node.position && !node.userData.originalPosition) {
+        node.userData.originalPosition = node.position.clone();
+      }
+    }
+  }
+
+  /**
+   * Unregister a node from stress tracking
+   * 
+   * @param {Object} node - Node to untrack
+   */
+  unregisterNode(node) {
+    if (!node) return;
+    
+    const nodeId = node.id || `node_${Math.random()}`;
+    
+    if (this.nodeStressMap.has(nodeId)) {
+      const stressData = this.nodeStressMap.get(nodeId);
+      
+      // Restore original position
+      if (node.userData && node.userData.originalPosition) {
+        node.position.copy(node.userData.originalPosition);
+        delete node.userData.originalPosition;
+      }
+      
+      // Clear stress-related userData
+      if (node.userData) {
+        delete node.userData.stressPulseRate;
+        delete node.userData.stressPulsePhase;
+        delete node.userData.stressIntensity;
+      }
+      
+      // Remove from tracking
+      this.nodeStressMap.delete(nodeId);
+    }
+  }
+
+  /**
    * Update node-local load pressure
    * 
    * @param {Object} node - Node object
@@ -83,6 +139,11 @@ export class CanonicalTemplate3_StressVisuals {
         jitterAccel: 0,
         pulsePhase: Math.random() * Math.PI * 2
       });
+      
+      // Store original position
+      if (node.position && !node.userData.originalPosition) {
+        node.userData.originalPosition = node.position.clone();
+      }
     }
 
     const stressData = this.nodeStressMap.get(nodeId);
@@ -167,10 +228,19 @@ export class CanonicalTemplate3_StressVisuals {
    * - Connector emphasis (ports glow)
    */
   updateNodeStressOverlays(deltaTime) {
+    // Remove stale nodes (nodes that no longer exist in scene)
+    const staleNodeIds = [];
+    
     for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
       const { node, loadPressure, jitterAccel, pulsePhase } = stressData;
       
-      if (!node || !node.userData) continue;
+      // Check if node still exists and is in scene
+      if (!node || !node.parent) {
+        staleNodeIds.push(nodeId);
+        continue;
+      }
+      
+      if (!node.userData) continue;
 
       // === JITTER EFFECT ===
       // Higher load = more vibration
@@ -214,6 +284,14 @@ export class CanonicalTemplate3_StressVisuals {
 
       if (this.debugMode && Math.random() < 0.01) {
         console.log(`[Template3] Node ${nodeId.substring(0, 8)}... stress=${loadPressure.toFixed(2)}`);
+      }
+    }
+    
+    // Remove stale nodes from tracking
+    for (const nodeId of staleNodeIds) {
+      this.nodeStressMap.delete(nodeId);
+      if (this.debugMode) {
+        console.warn(`[Template3] Removed stale node: ${nodeId.substring(0, 8)}...`);
       }
     }
   }
@@ -267,6 +345,76 @@ export class CanonicalTemplate3_StressVisuals {
       console.log(`  ${nodeId.substring(0, 8)}... load=${data.loadPressure.toFixed(3)}`);
     }
   }
-}
 
-export default CanonicalTemplate3_StressVisuals;
+  /**
+   * Reset system state (call on world switch)
+   * Clears all node tracking and restores original positions
+   */
+  reset() {
+    // Restore all tracked node positions
+    for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
+      const { node } = stressData;
+      
+      if (node && node.userData && node.userData.originalPosition) {
+        // Restore original position
+        node.position.copy(node.userData.originalPosition);
+        
+        // Clear stress-related userData
+        delete node.userData.originalPosition;
+        delete node.userData.stressPulseRate;
+        delete node.userData.stressPulsePhase;
+        delete node.userData.stressIntensity;
+      }
+    }
+    
+    // Clear all node tracking
+    this.nodeStressMap.clear();
+    
+    // Reset network stress
+    this.networkStress = 0;
+    
+    // Reset elapsed time
+    this.elapsedTime = 0;
+    
+    if (this.debugMode) {
+      console.log('%c[CanonicalTemplate3] System reset', 'color: #ff9900; font-weight: bold;');
+    }
+  }
+
+  /**
+   * Dispose system and clean up all resources
+   * Restores all node positions and clears all state
+   */
+  dispose() {
+    // Restore all node positions (same as reset)
+    for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
+      const { node } = stressData;
+      
+      if (node && node.userData && node.userData.originalPosition) {
+        node.position.copy(node.userData.originalPosition);
+        
+        delete node.userData.originalPosition;
+        delete node.userData.stressPulseRate;
+        delete node.userData.stressPulsePhase;
+        delete node.userData.stressIntensity;
+      }
+    }
+    
+    // Clear all node tracking
+    this.nodeStressMap.clear();
+    
+    // Reset network stress
+    this.networkStress = 0;
+    
+    // Reset elapsed time
+    this.elapsedTime = 0;
+    
+    // Clear scene reference
+    this.scene = null;
+    
+    if (this.debugMode) {
+      console.log('%c[CanonicalTemplate3] System disposed', 'color: #ff9900; font-weight: bold;');
+    }
+  }
+};
+

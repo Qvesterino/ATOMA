@@ -528,7 +528,7 @@ export class LinkPulseRing {
         // === LAYER 3: TRAIL (Echo rings - ORGANIC TRAIL V2) ===
         // Update all trail meshes with organic behavior (ako LinkBeadTrail)
         
-        const spacing = 0.03;
+        const spacing = 0.018;
         this.trailMeshes.forEach((trail, i) => {
             const variation = trail.userData.trailVariation;
             const trailProgress = this.progress - spacing * (i + 1);
@@ -546,21 +546,21 @@ export class LinkPulseRing {
             this._buildTrailFrame(trailTan, this._trailNormal, this._trailBinormal);
 
             // Propulsion-like thrust pulses along tangent
-            const phase = this._time * 18.0 + i * 1.2;
-            const osc1 = Math.sin(phase) * 0.05;
-            const osc2 = Math.sin(phase * 2.3 + 1.7) * 0.03;
-            const osc3 = Math.sin(phase * 4.1 + 0.4) * 0.015;
-            const burst = Math.max(0.0, Math.sin(this._time * 6.0 + i)) * 0.05;
+            const phase = this._time * 26.0 + i * 1.35;
+            const osc1 = Math.sin(phase) * 0.07;
+            const osc2 = Math.sin(phase * 2.9 + 1.7) * 0.038;
+            const osc3 = Math.sin(phase * 5.4 + 0.4) * 0.02;
+            const burst = Math.max(0.0, Math.sin(this._time * 9.4 + i * 1.1)) * 0.07;
             const oscillation = osc1 + osc2 + osc3 + burst;
             trail.position.addScaledVector(trailTan, oscillation);
 
             // Optional scale pulse for added energy feel
-            const scalePulse = 1.0 + Math.sin(this._time * 16.0 + i * 1.3) * 0.05;
+            const scalePulse = 1.0 + Math.sin(this._time * 23.0 + i * 1.5) * 0.07;
             const baseScale = this.mesh.scale.x;
             const dynamicScale = baseScale * scalePulse;
 
             // Energy compression along tangent
-            const compPhase = this._time * 14.0 + i * 0.9;
+            const compPhase = this._time * 21.0 + i * 1.1;
             const compression = Math.pow(Math.max(0.0, Math.sin(compPhase)), 2.0);
             const scaleForward = 1.0 - compression * 0.35;
             const scaleSide = 1.0 + compression * 0.18;

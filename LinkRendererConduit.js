@@ -74,6 +74,149 @@ const STRAND_FILAMENT_STYLE = {
     MICRO_JUMP_CURVE: 0.74,
     MICRO_JUMP_SPEED: 4.6
 };
+const WAVE_SPARK_GLYPH = {
+    SLIVER: 0,
+    NOTCH: 1,
+    RUNE: 2,
+    EMBER: 3
+};
+const WAVE_SPARK_RATIOS = {
+    default: [0.52, 0.22, 0.16, 0.10],
+    tipDetach: [0.45, 0.10, 0.10, 0.35],
+    microJump: [0.30, 0.25, 0.40, 0.05],
+    bridgeContact: [0.25, 0.40, 0.30, 0.05]
+};
+const WAVE_SPARK_PROFILE = [
+    { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 7.0, sizeMax: 13.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.10 },
+    { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 8.0, sizeMax: 14.0, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.10 },
+    { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 9.0, sizeMax: 16.0, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.15 },
+    { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.0, sizeMax: 11.0, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.60 }
+];
+const weightedPickIndex = (weights) => {
+    let total = 0;
+    for (let i = 0; i < weights.length; i += 1) total += Math.max(0, weights[i] || 0);
+    if (total <= 0) return 0;
+    let cursor = Math.random() * total;
+    for (let i = 0; i < weights.length; i += 1) {
+        cursor -= Math.max(0, weights[i] || 0);
+        if (cursor <= 0) return i;
+    }
+    return Math.max(0, weights.length - 1);
+};
+const randRange = (min, max) => min + Math.random() * (max - min);
+const strandSparkVertexShader = `
+    attribute vec3 aColor;
+    attribute float aSize;
+    attribute float aShape;
+    attribute float aAngle;
+    attribute float aSpin;
+    attribute float aBirth;
+    attribute float aDuration;
+    attribute float aGain;
+
+    uniform float uTime;
+    uniform float uGlobalOpacity;
+
+    varying vec3 vColor;
+    varying float vShape;
+    varying float vAge;
+    varying float vAngle;
+    varying float vGain;
+
+    void main() {
+        float duration = max(0.0001, aDuration);
+        float age = (uTime - aBirth) / duration;
+        vAge = age;
+        vColor = aColor;
+        vShape = aShape;
+        vAngle = aAngle + (uTime - aBirth) * aSpin;
+        vGain = aGain * uGlobalOpacity;
+
+        if (age < 0.0 || age > 1.0) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            gl_PointSize = 0.0;
+            return;
+        }
+
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        // Match LinkSparkSystem attenuation pattern exactly.
+        gl_PointSize = aSize * (10.0 / -mvPosition.z);
+    }
+`;
+const strandSparkFragmentShader = `
+    precision highp float;
+
+    varying vec3 vColor;
+    varying float vShape;
+    varying float vAge;
+    varying float vAngle;
+    varying float vGain;
+
+    vec2 rot(vec2 p, float a) {
+        float c = cos(a);
+        float s = sin(a);
+        return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    }
+
+    float shapeSliver(vec2 p) {
+        float body = 1.0 - smoothstep(0.22, 0.48, abs(p.y) + abs(p.x) * 0.24);
+        float core = 1.0 - smoothstep(0.06, 0.16, abs(p.y));
+        return clamp(body * 0.75 + core * 0.25, 0.0, 1.0);
+    }
+
+    float shapeNotch(vec2 p) {
+        float segA = 1.0 - smoothstep(0.10, 0.24, abs(p.y + 0.22));
+        segA *= smoothstep(0.05, 0.44, abs(p.x));
+        float segB = 1.0 - smoothstep(0.10, 0.24, abs(p.y - 0.18));
+        segB *= smoothstep(0.05, 0.34, abs(p.x + 0.10));
+        return clamp(max(segA, segB), 0.0, 1.0);
+    }
+
+    float shapeRune(vec2 p) {
+        float r = length(p);
+        float ringOuter = 1.0 - smoothstep(0.64, 0.84, r);
+        float ringInner = smoothstep(0.32, 0.50, r);
+        float ring = ringOuter * ringInner;
+        float gap = smoothstep(-0.10, 0.24, p.x);
+        float shard = 1.0 - smoothstep(0.12, 0.28, length(p - vec2(0.34, 0.0)));
+        return clamp(ring * gap + shard * 0.5, 0.0, 1.0);
+    }
+
+    float shapeEmber(vec2 p) {
+        float dia = 1.0 - smoothstep(0.52, 0.78, abs(p.x) + abs(p.y));
+        float tail = 1.0 - smoothstep(0.10, 0.24, length(p - vec2(-0.24, 0.0)));
+        return clamp(max(dia, tail * 0.75), 0.0, 1.0);
+    }
+
+    void main() {
+        if (vAge < 0.0 || vAge > 1.0 || vGain <= 0.001) discard;
+
+        vec2 p = gl_PointCoord * 2.0 - 1.0;
+        p = rot(p, vAngle);
+
+        float shape = 0.0;
+        if (vShape < 0.5) {
+            shape = shapeSliver(p);
+        } else if (vShape < 1.5) {
+            shape = shapeNotch(p);
+        } else if (vShape < 2.5) {
+            shape = shapeRune(p);
+        } else {
+            shape = shapeEmber(p);
+        }
+
+        float fadeIn = smoothstep(0.0, 0.09, vAge);
+        float fadeOut = 1.0 - smoothstep(0.68, 1.0, vAge);
+        float core = 1.0 - smoothstep(0.0, 0.62, length(p));
+        float flicker = 0.88 + 0.12 * sin((1.0 - vAge) * 29.0 + vShape * 7.7 + p.x * 5.0);
+        float alpha = shape * fadeIn * fadeOut * vGain * flicker;
+        if (alpha < 0.01) discard;
+
+        vec3 color = vColor + vec3(core * 0.32);
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
 const hashString32 = (value = '') => {
     const text = String(value);
     let hash = 2166136261;
@@ -1044,31 +1187,72 @@ export class LinkRendererConduit {
         const sparkPositions = new Float32Array(sparkMax * 3);
         const sparkOrigin = new Float32Array(sparkMax * 3);
         const sparkVelocity = new Float32Array(sparkMax * 3);
+        const sparkDrift = new Float32Array(sparkMax * 3);
         const sparkBirth = new Float32Array(sparkMax);
         const sparkDuration = new Float32Array(sparkMax);
+        const sparkShape = new Float32Array(sparkMax);
+        const sparkSize = new Float32Array(sparkMax);
+        const sparkAngle = new Float32Array(sparkMax);
+        const sparkSpin = new Float32Array(sparkMax);
+        const sparkGain = new Float32Array(sparkMax);
+        const sparkColor = new Float32Array(sparkMax * 3);
+        const sparkPhase = new Float32Array(sparkMax);
         sparkBirth.fill(-1);
         for (let i = 0; i < sparkMax; i += 1) {
             const s = i * 3;
             sparkPositions[s] = 1e6;
             sparkPositions[s + 1] = 1e6;
             sparkPositions[s + 2] = 1e6;
+            sparkShape[i] = WAVE_SPARK_GLYPH.SLIVER;
+            sparkSize[i] = 0.0;
+            sparkGain[i] = 0.0;
+            sparkDuration[i] = 0.001;
+            sparkColor[s] = 1.0;
+            sparkColor[s + 1] = 1.0;
+            sparkColor[s + 2] = 1.0;
         }
 
         const sparkGeometry = new THREE.BufferGeometry();
         const sparkPositionAttr = new THREE.BufferAttribute(sparkPositions, 3);
+        const sparkColorAttr = new THREE.BufferAttribute(sparkColor, 3);
+        const sparkShapeAttr = new THREE.BufferAttribute(sparkShape, 1);
+        const sparkSizeAttr = new THREE.BufferAttribute(sparkSize, 1);
+        const sparkAngleAttr = new THREE.BufferAttribute(sparkAngle, 1);
+        const sparkSpinAttr = new THREE.BufferAttribute(sparkSpin, 1);
+        const sparkBirthAttr = new THREE.BufferAttribute(sparkBirth, 1);
+        const sparkDurationAttr = new THREE.BufferAttribute(sparkDuration, 1);
+        const sparkGainAttr = new THREE.BufferAttribute(sparkGain, 1);
         sparkPositionAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkColorAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkShapeAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkSizeAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkAngleAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkSpinAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkBirthAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkDurationAttr.setUsage(THREE.DynamicDrawUsage);
+        sparkGainAttr.setUsage(THREE.DynamicDrawUsage);
         sparkGeometry.setAttribute('position', sparkPositionAttr);
+        sparkGeometry.setAttribute('aColor', sparkColorAttr);
+        sparkGeometry.setAttribute('aShape', sparkShapeAttr);
+        sparkGeometry.setAttribute('aSize', sparkSizeAttr);
+        sparkGeometry.setAttribute('aAngle', sparkAngleAttr);
+        sparkGeometry.setAttribute('aSpin', sparkSpinAttr);
+        sparkGeometry.setAttribute('aBirth', sparkBirthAttr);
+        sparkGeometry.setAttribute('aDuration', sparkDurationAttr);
+        sparkGeometry.setAttribute('aGain', sparkGainAttr);
         sparkGeometry.computeBoundingSphere();
 
-        const sparkMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.06,
+        const sparkMaterial = new THREE.ShaderMaterial({
+            vertexShader: strandSparkVertexShader,
+            fragmentShader: strandSparkFragmentShader,
             transparent: true,
-            opacity: 0.85,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: true,
-            sizeAttenuation: true
+            uniforms: {
+                uTime: { value: 0 },
+                uGlobalOpacity: { value: 0.0 }
+            }
         });
         sparkMaterial.toneMapped = false;
         const sparkMesh = new THREE.Points(sparkGeometry, sparkMaterial);
@@ -1090,8 +1274,16 @@ export class LinkRendererConduit {
             sparkPositions,
             sparkOrigin,
             sparkVelocity,
+            sparkDrift,
             sparkBirth,
             sparkDuration,
+            sparkShape,
+            sparkSize,
+            sparkAngle,
+            sparkSpin,
+            sparkGain,
+            sparkColor,
+            sparkPhase,
             sparkCursor: 0,
             sparkMax,
             positions,
@@ -1122,35 +1314,95 @@ export class LinkRendererConduit {
             vSide: new THREE.Vector3(),
             cBase: new THREE.Color(),
             cMid: new THREE.Color(),
-            cTip: new THREE.Color()
+            cTip: new THREE.Color(),
+            cSparkBase: new THREE.Color(),
+            cSparkAccent: new THREE.Color(),
+            cSparkOut: new THREE.Color()
         };
         return state.strandFilaments;
     }
 
-    _spawnStrandTipSpark(filamentState, origin, direction, visualTime, energy = 1) {
+    _spawnStrandTipSpark(filamentState, origin, direction, visualTime, energy = 1, options = {}) {
         if (!filamentState || !origin || !direction) return;
         const {
             sparkOrigin,
             sparkVelocity,
+            sparkDrift,
             sparkBirth,
             sparkDuration,
+            sparkShape,
+            sparkSize,
+            sparkAngle,
+            sparkSpin,
+            sparkGain,
+            sparkColor,
+            sparkPhase,
             sparkMax
         } = filamentState;
-        if (!sparkOrigin || !sparkVelocity || !sparkBirth || !sparkDuration || !sparkMax) return;
+        if (
+            !sparkOrigin || !sparkVelocity || !sparkDrift || !sparkBirth || !sparkDuration || !sparkMax ||
+            !sparkShape || !sparkSize || !sparkAngle || !sparkSpin || !sparkGain || !sparkColor || !sparkPhase
+        ) return;
 
         const idx = filamentState.sparkCursor % sparkMax;
         filamentState.sparkCursor = (filamentState.sparkCursor + 1) % sparkMax;
         const s = idx * 3;
 
-        const speed = 0.36 + Math.max(0, energy) * 0.95;
+        const mode = options.mode || 'default';
+        const ratios = WAVE_SPARK_RATIOS[mode] || WAVE_SPARK_RATIOS.default;
+        const shapeIndex = weightedPickIndex(ratios);
+        const profile = WAVE_SPARK_PROFILE[shapeIndex] || WAVE_SPARK_PROFILE[WAVE_SPARK_GLYPH.SLIVER];
+        const energyClamped = clamp01(energy);
+
+        const speedMul = randRange(profile.speedMin, profile.speedMax);
+        const speed = 0.18 + speedMul * (0.5 + energyClamped * 1.2);
         sparkOrigin[s] = origin.x;
         sparkOrigin[s + 1] = origin.y;
         sparkOrigin[s + 2] = origin.z;
         sparkVelocity[s] = direction.x * speed;
         sparkVelocity[s + 1] = direction.y * speed;
         sparkVelocity[s + 2] = direction.z * speed;
+        sparkDrift[s] = (-direction.y + (Math.random() - 0.5) * 0.3) * 0.15;
+        sparkDrift[s + 1] = (direction.x + (Math.random() - 0.5) * 0.3) * 0.15;
+        sparkDrift[s + 2] = ((Math.random() - 0.5) * 0.45) * 0.15;
+        sparkPhase[idx] = Math.random() * Math.PI * 2.0;
+
+        sparkShape[idx] = shapeIndex;
+        sparkSize[idx] = randRange(profile.sizeMin, profile.sizeMax) * (0.85 + energyClamped * 0.35);
+        sparkAngle[idx] = Math.random() * Math.PI * 2.0;
+        sparkSpin[idx] = randRange(profile.spinMin, profile.spinMax);
+        sparkGain[idx] = randRange(profile.gainMin, profile.gainMax);
+
+        const baseColor = options.baseColor?.isColor ? options.baseColor : COLOR_WHITE;
+        const accentColor = options.accentColor?.isColor ? options.accentColor : baseColor;
+        const harmony = clamp01(options.harmony ?? 0);
+        const corruption = clamp01(options.corruption ?? 0);
+        const load = clamp01(options.load ?? 0);
+        const hotBoost = clamp01(options.hotBoost ?? 0);
+
+        filamentState.cSparkBase.copy(baseColor);
+        filamentState.cSparkAccent.copy(accentColor);
+        filamentState.cSparkOut.copy(filamentState.cSparkBase)
+            .lerp(filamentState.cSparkAccent, clamp01(profile.accentMix + corruption * 0.08))
+            .lerp(COLOR_WHITE, clamp01(profile.hotMix + hotBoost + load * 0.08 + harmony * 0.04));
+        sparkColor[s] = filamentState.cSparkOut.r;
+        sparkColor[s + 1] = filamentState.cSparkOut.g;
+        sparkColor[s + 2] = filamentState.cSparkOut.b;
+
         sparkBirth[idx] = visualTime;
-        sparkDuration[idx] = 0.22 + energy * 0.28;
+        sparkDuration[idx] = randRange(profile.lifeMin, profile.lifeMax) * (0.85 + energyClamped * 0.35);
+        const attrs = filamentState.sparkGeometry?.attributes;
+        if (attrs) {
+            attrs.position.needsUpdate = true;
+            attrs.aColor.needsUpdate = true;
+            attrs.aShape.needsUpdate = true;
+            attrs.aSize.needsUpdate = true;
+            attrs.aAngle.needsUpdate = true;
+            attrs.aSpin.needsUpdate = true;
+            attrs.aBirth.needsUpdate = true;
+            attrs.aDuration.needsUpdate = true;
+            attrs.aGain.needsUpdate = true;
+        }
     }
 
     _updateStrandTipSparks(filamentState, visualTime) {
@@ -1159,8 +1411,10 @@ export class LinkRendererConduit {
             sparkPositions,
             sparkOrigin,
             sparkVelocity,
+            sparkDrift,
             sparkBirth,
             sparkDuration,
+            sparkPhase,
             sparkMax
         } = filamentState;
         let hasLive = false;
@@ -1183,14 +1437,22 @@ export class LinkRendererConduit {
                 continue;
             }
             hasLive = true;
-            const drag = 1.0 - (age / duration) * 0.35;
-            sparkPositions[s] = sparkOrigin[s] + sparkVelocity[s] * age * drag;
-            sparkPositions[s + 1] = sparkOrigin[s + 1] + sparkVelocity[s + 1] * age * drag;
-            sparkPositions[s + 2] = sparkOrigin[s + 2] + sparkVelocity[s + 2] * age * drag;
+            const ageNorm = clamp01(age / duration);
+            const drag = 1.0 - ageNorm * 0.35;
+            const wobble = Math.sin(age * 24.0 + sparkPhase[i]) * (0.12 * (1.0 - ageNorm));
+            sparkPositions[s] = sparkOrigin[s] + sparkVelocity[s] * age * drag + sparkDrift[s] * wobble;
+            sparkPositions[s + 1] = sparkOrigin[s + 1] + sparkVelocity[s + 1] * age * drag + sparkDrift[s + 1] * wobble;
+            sparkPositions[s + 2] = sparkOrigin[s + 2] + sparkVelocity[s + 2] * age * drag + sparkDrift[s + 2] * wobble;
         }
-
-        filamentState.sparkMaterial.opacity = hasLive ? 0.85 : 0.0;
-        filamentState.sparkGeometry.attributes.position.needsUpdate = true;
+        if (filamentState.sparkMaterial?.uniforms?.uTime) {
+            filamentState.sparkMaterial.uniforms.uTime.value = visualTime;
+        }
+        if (filamentState.sparkMaterial?.uniforms?.uGlobalOpacity) {
+            filamentState.sparkMaterial.uniforms.uGlobalOpacity.value = hasLive ? 1.0 : 0.0;
+        }
+        const attrs = filamentState.sparkGeometry.attributes;
+        attrs.position.needsUpdate = true;
+        attrs.aBirth.needsUpdate = true;
     }
 
     _updateStrandFilaments(link, state, ctx = {}) {
@@ -1457,6 +1719,7 @@ export class LinkRendererConduit {
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
             const sparkChanceGate = isMicroJump ? (0.93 + (1.0 - jumpVisibility) * 0.04) : 0.978;
+            const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
             if ((detach > 0.14 || (isMicroJump && jumpVisibility > 0.82)) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
                     vSide.copy(vTangent2)
@@ -1473,7 +1736,39 @@ export class LinkRendererConduit {
                     vEnd,
                     vSide,
                     visualTime,
-                    0.4 + detach * 0.9 + jumpVisibility * 0.4
+                    0.4 + detach * 0.9 + jumpVisibility * 0.4,
+                    {
+                        mode: isMicroJump ? 'microJump' : 'tipDetach',
+                        baseColor: cBase,
+                        accentColor: sparkAccent,
+                        harmony,
+                        corruption,
+                        load,
+                        hotBoost: isMicroJump ? 0.16 : 0.10
+                    }
+                );
+            }
+
+            // Occasional bridge contact pulses: short glyph arcs at strand-to-strand touch moments.
+            if (isBridge && pulse > 0.972 && Math.sin(visualTime * 5.7 + phase[idx] * 1.9) > 0.82) {
+                vSide.copy(vTangent2)
+                    .addScaledVector(vRadial2, 0.75 + load * 0.25)
+                    .normalize();
+                this._spawnStrandTipSpark(
+                    filamentState,
+                    vMid,
+                    vSide,
+                    visualTime,
+                    0.34 + harmony * 0.35 + load * 0.2,
+                    {
+                        mode: 'bridgeContact',
+                        baseColor: cBase,
+                        accentColor: sparkAccent,
+                        harmony,
+                        corruption,
+                        load,
+                        hotBoost: 0.08
+                    }
                 );
             }
         }
