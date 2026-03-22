@@ -477,7 +477,19 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 rupture.burstMesh.scale.set(scale, scale, scale);
             }
             
-            return rupture.life < rupture.maxLife;
+            if (rupture.life >= rupture.maxLife) {
+                // FIX 1: Remove burst mesh from scene and reset pool item
+                if (rupture.burstMesh) {
+                    this.scene.remove(rupture.burstMesh);
+                    rupture.burstMesh.geometry.dispose();
+                    rupture.burstMesh.material.dispose();
+                    rupture.burstMesh = null;
+                }
+                rupture.active = false;
+                return false;
+            }
+            
+            return true;
         });
     }
 
@@ -521,6 +533,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
             pulse.pathDistance = 0;
             pulse.life = 0;
             pulse.intensity = intensity * this.config.propagationDamping;
+
+            // FIX 2: Create visual mesh for propagation pulse
+            const geo = new THREE.SphereGeometry(0.15, 6, 6);
+            const mat = this.propagationMaterial.clone();
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.renderOrder = 10;
+            this.scene.add(mesh);
+            pulse.mesh = mesh;
             
             this.propagationPulses.push(pulse);
         }
@@ -574,12 +594,39 @@ export class ResonanceRuptureVisualSystem_Session133 {
                     pulse.pathDistance++;
                     pulse.intensity *= this.config.propagationDamping;
                 } else {
-                    return false;  // End propagation
+                    this._disposePropagationPulse(pulse);
+                    return false;
                 }
             }
+
+            // FIX 2: Update pulse mesh position along current link
+            if (pulse.mesh) {
+                const src = this._getLinkSource(pulse.currentLink)?.position;
+                const tgt = this._getLinkTarget(pulse.currentLink)?.position;
+                if (src && tgt) {
+                    pulse.mesh.position.lerpVectors(src, tgt, linkProgress);
+                }
+                pulse.mesh.material.opacity = pulse.intensity * 0.6;
+            }
+
+            if (pulse.life >= propagationDuration * this.config.propagationDistance) {
+                // FIX 4: Reset pool item and remove mesh
+                this._disposePropagationPulse(pulse);
+                return false;
+            }
             
-            return pulse.life < propagationDuration * this.config.propagationDistance;
+            return true;
         });
+    }
+
+    _disposePropagationPulse(pulse) {
+        if (pulse.mesh) {
+            this.scene.remove(pulse.mesh);
+            pulse.mesh.geometry.dispose();
+            pulse.mesh.material.dispose();
+            pulse.mesh = null;
+        }
+        pulse.active = false;
     }
 
     /**
@@ -738,11 +785,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             rupture.burstMesh.material.emissiveIntensity *= modulation;
         });
         
-        // Modulate scars
-        this.resonanceScars.forEach(scar => {
-            let visibility = 1 - avgHarmony * 0.3;  // Harmony fades scars
-            scar.mesh.mesh.material.opacity *= visibility;
-        });
+        // Modulate scars — opacity is managed by _updateResonanceScars; skip per-frame multiplication here
     }
 
     /**

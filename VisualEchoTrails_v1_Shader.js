@@ -1,5 +1,5 @@
 /**
- * VISUAL ECHO TRAILS v1.0 — Shader-Level Material Extension
+ * — Shader-Level Material Extension
  * ============================================================
  * 
  * Pure shader-level visual enhancement for network link pulses.
@@ -28,6 +28,9 @@
  * 
  * All echoes use smoothstep gating to activate smoothly at synergy 0.7+
  */
+
+// FIX 1: Proper ESM import — THREE was never imported, causing ReferenceError everywhere
+import * as THREE from 'three';
 
 export class VisualEchoTrails_v1 {
   constructor() {
@@ -365,6 +368,8 @@ export class VisualEchoTrails_v1 {
    * Console API setup for debugging
    */
   static setupConsoleAPI() {
+    // FIX 2: Guard against non-browser environments
+    if (typeof window === 'undefined') return;
     window.VisualEchoTrails_v1 = {
       docs: 'Visual Echo Trails v1.0 Shader System',
       info: 'Shader-level pure visual enhancement for link pulses',
@@ -389,5 +394,7 @@ export class VisualEchoTrails_v1 {
   }
 }
 
-// Initialize console API
-VisualEchoTrails_v1.setupConsoleAPI();
+// FIX 2: Only call in browser context
+if (typeof window !== 'undefined') {
+  VisualEchoTrails_v1.setupConsoleAPI();
+}

@@ -5024,7 +5024,7 @@ this.setHudDirty('nodeInspect');
                     const reflectionActive =
                         dbg.reflection?.reflectionPulsePool?.filter?.((p) => p?.active)?.length || 0;
                     const traps = dbg.trap?.oscillationTraps?.length || 0;
-                    const ruptures = dbg.rupture?.activeRuptures?.length || 0;
+                    const ruptures = dbg.rupture?.ruptures?.length || 0;
 
                     console.log(
                         '[ATOMA PIPELINE]',
@@ -6130,6 +6130,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.resonanceCascade.dispose();
                 console.log('[main.js] ResonanceCascadeVisualization disposed');
             }
+
+            // FIX 6: Dispose Visual Echo Trails on world switch
+            if (this.echoTrailsIntegration && typeof this.echoTrailsIntegration.dispose === 'function') {
+                this.echoTrailsIntegration.dispose();
+            }
+            this.echoTrailsIntegration = null;
+            this.echoTrailsSystem = null;
 
             // Dispose existing AI nodes before tearing down roots
             if (this.aiNodes && typeof this.aiNodes.dispose === 'function') {
@@ -7976,11 +7983,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         
         // ====================================================================
-        // PHASE 5: INTER-NETWORK CONNECTION VISUALS (Disabled)
+        // PHASE 5: INTER-NETWORK VISUALIZATION BRIDGE
         // ====================================================================
-        // Hard off: skip initialization of visuals and bridge
-        // this.phase5InterNetworkConnectionVisuals = null;
-        // this.phase5InterNetworkVisualizationBridge = null;
+        try {
+            this.phase5InterNetworkVisualizationBridge = new PHASE5_InterNetworkVisualizationBridge(
+                this.phase5MultiNetworkOrchestrator,
+                this.phase5CorruptionBridge || null,
+                null  // connectionVisuals: not yet available; bridge runs in data-only mode
+            );
+            console.log('[main.js] PHASE5_InterNetworkVisualizationBridge initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] PHASE5_InterNetworkVisualizationBridge initialization failed:', err);
+        }
         
         // ====================================================================
         // PHASE 5: CASCADE PROPAGATION VISUAL EFFECTS
@@ -8881,6 +8895,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Cleanup old world event listeners
             this.disposeWorldListeners();
 
+            // Dispose systems that have explicit cleanup
+            this.phase5InterNetworkVisualizationBridge?.dispose?.();
+
             const fn = this.worldRegistry?.[worldId];
             console.log('[LOADWORLD] before registry', worldId, 'hasKey=', !!fn);
             if (!fn) {
@@ -9185,13 +9202,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.warn('[main.js] ResonanceSystem stub created');
             }
             
-            this.resonanceCascadeVisualization = new ResonanceCascadeVisualization_Session117B({
-                conflictSystem: this.conflictSystem,
-                resonanceSystem: this.resonanceSystem,
-                linkingSystem: this.linkingSystem,
-                enabled: true,
-                debugMode: false
-            });
+            // FIX 2: Pass scene as first arg; options as second (matches constructor signature)
+            this.resonanceCascadeVisualization = new ResonanceCascadeVisualization_Session117B(
+                this.scene,
+                {
+                    conflictSystem: this.conflictSystem,
+                    resonanceSystem: this.resonanceSystem,
+                    linkingSystem: this.linkingSystem,
+                    enabled: true,
+                    debugMode: false,
+                    semanticBus: this.semanticBus ?? null
+                }
+            );
             this.resonanceCascadeVisualization.frameScheduler = this.frameScheduler;
             this.resonanceCascade = this.resonanceCascadeVisualization;
             
@@ -9501,7 +9523,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
         reg('echoTrailsIntegration', () => {
-            if (this.echoTrailsIntegration && this.nodeDynamicMetrics) {
+            // FIX 5: Removed hard gate on nodeDynamicMetrics — falls back to 0.0 if absent
+            if (this.echoTrailsIntegration) {
                 const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
                 const visualTime = window.VISUAL_TIME ?? this.time;
                 this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
@@ -9662,6 +9685,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('t2CorruptionVisualIntegration', 'visual.t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
+        regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
         regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
         regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
         regGuard('preCascadeVisualHint', 'visual.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
@@ -12741,6 +12765,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Pure additive visual effect, no gameplay impact
      */
     setupVisualEchoTrails() {
+        try {
         // Initialize shader system
         this.echoTrailsSystem = new VisualEchoTrails_v1();
         
@@ -12751,6 +12776,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         );
         
         console.log('✓ Visual Echo Trails v1.0 initialized');
+        } catch (err) {
+            console.warn('[main.js] Visual Echo Trails init failed:', err);
+        }
     }
     
     /**

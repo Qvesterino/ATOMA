@@ -33,13 +33,8 @@
  * ============================================================================
  */
 
-let THREE_SAFE = null;
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-const THREE = THREE_SAFE;
+// FIX 1: Use proper ESM import instead of unreliable window.THREE fallback
+import * as THREE from 'three';
 
 /**
  * Configuration for cascade behavior
@@ -318,6 +313,8 @@ export class ResonanceCascadeVisualization_Session117B {
    * Setup console API for debugging
    */
   setupConsoleAPI() {
+    // FIX 3: Guard against non-browser environments
+    if (typeof window === 'undefined') return;
     window.cascadeDebug = {
       getCascadeState: () => this.getCascadeState(),
       getNodeCascadeInfo: (node) => this.getNodeCascadeInfo(node),
@@ -340,6 +337,17 @@ export class ResonanceCascadeVisualization_Session117B {
       this.semanticBus.off('cascade.hop', this._boundHandleCascadeHop);
       this.semanticBus.off('cascade.end', this._boundHandleCascadeEnd);
     }
+
+    // FIX 4: Remove window.cascadeDebug to prevent leak on world switch
+    if (typeof window !== 'undefined') {
+      delete window.cascadeDebug;
+    }
+
+    // Clear internal state
+    this.activeCascades = [];
+    this.nodeCascadeIntensity.clear();
+    this.linkCascadeIntensity.clear();
+    this.semanticBus = null;
   }
 }
 

@@ -19,6 +19,9 @@
  * - Backward compatible with existing visuals
  */
 
+// FIX 3: THREE used in _getLinkColor but never imported
+import * as THREE from 'three';
+
 export class VisualEchoTrails_v1_Integration {
   constructor(scene, linkingSystem, neonLinkVisuals, echoTrailsSystem) {
     this.scene = scene;
@@ -270,6 +273,22 @@ export class VisualEchoTrails_v1_Integration {
     }
     
     return total === 0 ? true : healthy === total;
+  }
+
+  /**
+   * FIX 6: Dispose — restore original materials and clear state for world switch
+   */
+  dispose() {
+    for (const materials of this.echoMaterials.values()) {
+      for (const material of materials) {
+        if (material) material.dispose();
+      }
+    }
+    this.echoMaterials.clear();
+    this.enabled = false;
+    this.linkingSystem = null;
+    this.neonLinkVisuals = null;
+    this.echoTrailsSystem = null;
   }
 }
 

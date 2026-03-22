@@ -95,7 +95,8 @@ export class T2_HarmonyVisualConsumer_v1 {
       time: 0
     };
     
-    console.warn('[T2_HarmonyVisualConsumer_v1] ARCHIVED - Use HarmonyAuraController instead');
+    // REACTIVATED for harmony visual testing (2026-03-22)
+    console.log('[T2_HarmonyVisualConsumer_v1] Initialized - REACTIVATED for testing');
   }
   
   setEnabled(enabled) {

@@ -37,11 +37,11 @@ export function injectHarmonyIntoNodes(aiNodes, harmonyLevel = 0.5, debugMode = 
     for (const node of nodes) {
         if (!node || !node.userData) continue;
 
-        // Guard: Only inject if harmonyLevel is currently 0 or undefined
+        // Guard: Skip nodes that already have harmony > 0
         const currentHarmony = node.userData?.harmonyLevel ?? 0;
-        if (currentHarmony <= 0) {
+        if (currentHarmony > 0) {
             if (debugMode) {
-                console.log(`[InjectHarmonyIntoNodes] Skipping node ${node.id}: currentHarmony=${currentHarmony.toFixed(2)} <= 0, skipping injection`);
+                console.log(`[InjectHarmonyIntoNodes] Skipping node ${node.id}: already has harmony=${currentHarmony.toFixed(2)}`);
             }
             continue;
         }
@@ -212,11 +212,11 @@ export function injectHarmonyIntoNodesById(aiNodes, nodeIds, harmonyLevel = 0.5,
             continue;
         }
 
-        // Guard: Only inject if harmonyLevel is currently 0 or undefined
+        // Guard: Skip nodes that already have harmony > 0
         const currentHarmony = node.userData?.harmonyLevel ?? 0;
-        if (currentHarmony <= 0) {
+        if (currentHarmony > 0) {
             if (debugMode) {
-                console.log(`[injectHarmonyIntoNodesById] Skipping node ${nodeId}: currentHarmony=${currentHarmony.toFixed(2)} <= 0, skipping injection`);
+                console.log(`[injectHarmonyIntoNodesById] Skipping node ${nodeId}: already has harmony=${currentHarmony.toFixed(2)}`);
             }
             continue;
         }

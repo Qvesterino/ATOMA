@@ -12,6 +12,8 @@
  * Read-only consumer of multi-network state
  */
 
+import * as THREE from 'three';
+
 export class PHASE5_InterNetworkVisualizationBridge {
   constructor(
     multiNetworkManager,
@@ -19,12 +21,14 @@ export class PHASE5_InterNetworkVisualizationBridge {
     connectionVisuals,
     config = {}
   ) {
-    if (!connectionVisuals) {
-      return;
-    }
+    // FIX 3: Always initialize all properties; connectionVisuals is optional
     this.multiNetworkManager = multiNetworkManager;
     this.corruptionBridge = corruptionBridge;
-    this.connectionVisuals = connectionVisuals;
+    this.connectionVisuals = connectionVisuals || null;
+
+    if (!connectionVisuals) {
+      console.warn('[PHASE5_InterNetworkVisualizationBridge] connectionVisuals not provided — bridge will operate in data-only mode.');
+    }
     
     this.config = {
       enableDebug: config.enableDebug ?? false,
@@ -64,18 +68,19 @@ export class PHASE5_InterNetworkVisualizationBridge {
    */
   setupEventListeners() {
     try {
-      // Subscribe to network registration
       if (this.multiNetworkManager && this.multiNetworkManager.onNetworkRegistered) {
-        this.multiNetworkManager.onNetworkRegistered((networkId, network, metadata) => {
+        const unsub = this.multiNetworkManager.onNetworkRegistered((networkId, network, metadata) => {
           this.handleNetworkRegistered(networkId, network, metadata);
         });
+        // FIX 6: Store unsubscribe handle if provided
+        if (typeof unsub === 'function') this.eventSubscriptions.push(unsub);
       }
       
-      // Subscribe to connection creation
       if (this.multiNetworkManager && this.multiNetworkManager.onConnectionCreated) {
-        this.multiNetworkManager.onConnectionCreated((connection) => {
+        const unsub = this.multiNetworkManager.onConnectionCreated((connection) => {
           this.handleConnectionCreated(connection);
         });
+        if (typeof unsub === 'function') this.eventSubscriptions.push(unsub);
       }
       
     } catch (err) {
@@ -134,7 +139,8 @@ export class PHASE5_InterNetworkVisualizationBridge {
    * Call from main animation loop
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+    // FIX 1: Removed this.frameScheduler guard — frameScheduler is never assigned,
+    // causing update() to always return immediately. Caller controls when to invoke update().
 
     const syncStart = Date.now();
     
@@ -199,7 +205,7 @@ export class PHASE5_InterNetworkVisualizationBridge {
           
           networkData.set(networkId, {
             network: network,
-            position: position || new (require('three')).Vector3(),
+            position: position || new THREE.Vector3(),
             metadata: metadata,
             name: metadata.name || `Network_${networkId}`
           });
@@ -314,17 +320,10 @@ export class PHASE5_InterNetworkVisualizationBridge {
    */
   isConnectionActive(connection) {
     try {
-      // Connection is active if:
-      // 1. It was created recently (within last 10 seconds)
-      // 2. There's active corruption transfer
-      // 3. Strength is above minimum threshold
-      
-      const age = Date.now() - (connection.createdAt || Date.now());
-      const isRecent = age < 10000; // 10 seconds
-      const hasStrength = connection.strength >= 0.2;
-      
-      return isRecent && hasStrength;
-      
+      // FIX 4: Removed 10-second recency check — it caused all persistent connections
+      // to go inactive after 10s. Active state is determined by strength alone.
+      return (connection.strength ?? 0.5) >= 0.2;
+
     } catch (err) {
       return false;
     }
@@ -334,7 +333,6 @@ export class PHASE5_InterNetworkVisualizationBridge {
    * Calculate network center position from its nodes
    */
   calculateNetworkCenterPosition(network) {
-    const THREE = require('three');
     const centerPos = new THREE.Vector3();
     
     try {
@@ -405,10 +403,33 @@ export class PHASE5_InterNetworkVisualizationBridge {
         getStats: () => this.getStats(),
         toggleDebug: () => { this.config.enableDebug = !this.config.enableDebug; },
         setNetworkPosition: (networkId, x, y, z) => {
-          const THREE = require('three');
           this.setNetworkPosition(networkId, new THREE.Vector3(x, y, z));
         }
       };
     }
+  }
+
+  /**
+   * FIX 5: Dispose — clean up for world switch survival
+   */
+  dispose() {
+    // Unsubscribe from all events
+    for (const unsub of this.eventSubscriptions) {
+      try { unsub(); } catch (_) {}
+    }
+    this.eventSubscriptions = [];
+
+    // Clear maps
+    this.networkPositions.clear();
+
+    // Remove window API
+    if (typeof window !== 'undefined') {
+      delete window.PHASE5_InterNetworkVisualizationBridge_API;
+    }
+
+    // Nullify references
+    this.multiNetworkManager = null;
+    this.corruptionBridge = null;
+    this.connectionVisuals = null;
   }
 }
