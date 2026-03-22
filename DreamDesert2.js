@@ -575,8 +575,13 @@ export class DreamDesert2 {
     
     const collisionTerrain = new THREE.Mesh(collisionGeo, invisibleMaterial);
     collisionTerrain.rotation.x = -Math.PI / 2;
-    collisionTerrain.userData.isCollisionMesh = true;
+    collisionTerrain.userData = {
+      isWalkable: true,
+      collisionEnabled: true,
+      terrainType: 'mainDunes'
+    };
     
+    this.worldRoot.add(collisionTerrain);
     this.collisionObjects.push(collisionTerrain);
     
     // Collision for ridges
@@ -597,8 +602,14 @@ export class DreamDesert2 {
       collider.position.set(x, height * 0.5 + 0.3, z);
       collider.rotation.y = Math.random() * Math.PI;
       collider.rotation.z = (Math.random() - 0.5) * 0.12;
-      collider.userData.isCollisionMesh = true;
+      collider.userData = {
+        isWalkable: true,
+        collisionEnabled: true,
+        terrainType: 'fractalRidge',
+        height: height
+      };
       
+      this.worldRoot.add(collider);
       this.collisionObjects.push(collider);
     }
     
@@ -615,8 +626,13 @@ export class DreamDesert2 {
         invisibleMaterial
       );
       collider.position.set(x, floatHeight, z);
-      collider.userData.isCollisionMesh = true;
+      collider.userData = {
+        isWalkable: true,
+        collisionEnabled: true,
+        terrainType: 'floatingFragment'
+      };
       
+      this.worldRoot.add(collider);
       this.collisionObjects.push(collider);
     }
   }

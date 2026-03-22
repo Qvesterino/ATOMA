@@ -16,6 +16,7 @@ export class DreamDesert {
     this.crystals = [];
     this.fragments = [];
     this.energyVeins = [];
+    this.collisionObjects = []; // Track collision meshes
     
     // Session 112+: Initialize map reference plane from config
     this.initializeMapConfig();
@@ -98,6 +99,21 @@ export class DreamDesert {
     
     this.worldRoot.add(desert);
     
+    // Create collision mesh for desert floor (invisible)
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+      visible: false
+    });
+    const desertCollision = new THREE.Mesh(desertGeometry.clone(), collisionMaterial);
+    desertCollision.rotation.x = -Math.PI / 2;
+    desertCollision.position.copy(desert.position);
+    desertCollision.userData = {
+      isWalkable: true,
+      collisionEnabled: true,
+      terrainType: 'desertFloor'
+    };
+    this.worldRoot.add(desertCollision);
+    this.collisionObjects.push(desertCollision);
+    
     // Create geometric dunes with subtle patterns
     this.dunes = [];
     const duneCount = 12;
@@ -135,6 +151,19 @@ export class DreamDesert {
       
       this.worldRoot.add(dune);
       this.dunes.push(dune);
+      
+      // Create collision mesh for dune (invisible)
+      const duneCollision = new THREE.Mesh(duneGeometry.clone(), collisionMaterial);
+      duneCollision.position.copy(dune.position);
+      duneCollision.rotation.copy(dune.rotation);
+      duneCollision.userData = {
+        isWalkable: true,
+        collisionEnabled: true,
+        terrainType: 'dune',
+        height: duneGeometry.parameters.height || 5
+      };
+      this.worldRoot.add(duneCollision);
+      this.collisionObjects.push(duneCollision);
     }
   }
   

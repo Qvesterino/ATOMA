@@ -508,6 +508,22 @@ export class PHASE5_CascadePropagationVisuals {
       }
     }
   }
+
+  dispose() {
+    // Unsubscribe semantic listeners to prevent duplicate handlers after world switch.
+    const off = this.semanticBus?.off?.bind(this.semanticBus) || this.semanticBus?.unsubscribe?.bind(this.semanticBus);
+    if (off && this._boundCascadeHopHandler) {
+      try {
+        off('cascade.hop', this._boundCascadeHopHandler);
+      } catch (_) {
+        // noop
+      }
+    }
+    this._boundCascadeHopHandler = null;
+
+    this.clear();
+    this.scene?.remove?.(this.ringGroup);
+  }
   
   /**
    * Setup console API for debugging

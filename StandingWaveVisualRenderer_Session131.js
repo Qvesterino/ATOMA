@@ -45,6 +45,8 @@ export class StandingWaveVisualRenderer_Session131 {
         this.standingWaveTrapSystem = standingWaveTrapSystem;
         this.linkingSystem = linkingSystem;
         this.aiNodes = aiNodes;
+        this.attachRoot = config.attachRoot || config.parentRoot || scene;
+        this.attachRootResolver = config.attachRootResolver || null;
         
         // Configuration
         this.config = {
@@ -104,6 +106,7 @@ export class StandingWaveVisualRenderer_Session131 {
         this.antinodeMaterial = null;
         this.trapZoneMaterial = null;
         this.interferenceShader = null;
+        this.root = null;
         
         this.time = 0;
         this.initialized = false;
@@ -114,6 +117,10 @@ export class StandingWaveVisualRenderer_Session131 {
      */
     setup() {
         if (this.initialized) return;
+
+        this.root = new THREE.Group();
+        this.root.name = 'StandingWaveVisualRendererRoot';
+        this._ensureAttachRoot();
         
         // Create antinode glow material
         this.antinodeMaterial = new THREE.MeshStandardMaterial({
@@ -144,8 +151,9 @@ export class StandingWaveVisualRenderer_Session131 {
             const geometry = new THREE.IcosahedronGeometry(this.config.antinodeRadius, 3);
             const mesh = new THREE.Mesh(geometry, this.antinodeMaterial.clone());
             mesh.visible = false;
+            mesh.frustumCulled = false;
             mesh.renderOrder = 10;  // Render after main geometry
-            this.scene.add(mesh);
+            this.root.add(mesh);
             this.antinodeMeshPool.push({
                 mesh: mesh,
                 active: false,
@@ -160,8 +168,9 @@ export class StandingWaveVisualRenderer_Session131 {
             const geometry = new THREE.PlaneGeometry(1, 1, 4, 4);
             const mesh = new THREE.Mesh(geometry, this.trapZoneMaterial.clone());
             mesh.visible = false;
+            mesh.frustumCulled = false;
             mesh.renderOrder = 5;
-            this.scene.add(mesh);
+            this.root.add(mesh);
             this.trapZoneMeshPool.push({
                 mesh: mesh,
                 active: false,
@@ -180,6 +189,7 @@ export class StandingWaveVisualRenderer_Session131 {
      */
     update(deltaTime, currentTime) {
         if (!this.initialized) this.setup();
+        this._ensureAttachRoot();
         
         this.time = currentTime;
         
@@ -360,17 +370,9 @@ export class StandingWaveVisualRenderer_Session131 {
             
             const link = this._getLinkById(trap.linkId);
             if (!link) return;
-            
-            // Calculate antinode positions along link
-            const endpoints = this._getLinkEndpoints(link);
-            const startPos = endpoints.startPos;
-            const endPos = endpoints.endPos;
-            
-            if (!startPos || !endPos) return;
-            
-            const linkVec = new THREE.Vector3().subVectors(endPos, startPos);
-            const linkLength = linkVec.length();
-            const linkDir = linkVec.normalize();
+
+            const linkCurve = this._getLinkCurve(link);
+            if (!linkCurve) return;
             
             // Spacing between antinodes
             const spacing = pattern.spacing || 0.2;
@@ -385,10 +387,11 @@ export class StandingWaveVisualRenderer_Session131 {
                 const trapEnd = 1.0 - trap.trapRadius * 0.5;
                 
                 if (t < trapStart || t > trapEnd) continue;
-                
-                // Calculate antinode world position
-                const antinodeWorldPos = new THREE.Vector3()
-                    .addVectors(startPos, linkDir.clone().multiplyScalar(linkLength * t));
+
+                // Calculate antinode world position on actual rendered curve when available.
+                const antinodeWorldPos = linkCurve.getPointAt(
+                    Math.max(0, Math.min(1, t))
+                );
                 
                 // Check LOD
                 if (this.config.enableLOD) {
@@ -440,20 +443,13 @@ export class StandingWaveVisualRenderer_Session131 {
             
             const link = this._getLinkById(zone.linkId);
             if (!link) return;
-            
-            const endpoints = this._getLinkEndpoints(link);
-            const startPos = endpoints.startPos;
-            const endPos = endpoints.endPos;
-            
-            if (!startPos || !endPos) return;
-            
-            // Calculate trap zone center
-            const linkVec = new THREE.Vector3().subVectors(endPos, startPos);
-            const linkLength = linkVec.length();
-            const linkDir = linkVec.normalize();
-            
-            const centerPos = new THREE.Vector3()
-                .addVectors(startPos, linkDir.clone().multiplyScalar(linkLength * zone.trapCenter));
+
+            const linkCurve = this._getLinkCurve(link);
+            const centerT = Math.max(0, Math.min(1, zone.trapCenter ?? 0.5));
+            const centerPos = linkCurve?.getPointAt?.(centerT) || null;
+            const tangent = linkCurve?.getTangentAt?.(centerT) || null;
+            const linkLength = this._estimateLinkLength(linkCurve, link);
+            if (!centerPos || !tangent || !linkLength) return;
             
             // Acquire trap zone mesh from pool
             const trapZoneMesh = this.trapZoneMeshPool[zoneIndex];
@@ -463,8 +459,8 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneMesh.mesh.visible = true;
             trapZoneMesh.mesh.position.copy(centerPos);
             
-            // Orient mesh along link
-            trapZoneMesh.mesh.lookAt(endPos);
+            // Orient mesh along local link tangent rather than node-to-node chord.
+            trapZoneMesh.mesh.lookAt(centerPos.clone().add(tangent));
             trapZoneMesh.mesh.rotateX(Math.PI * 0.5);  // Face perpendicular to link
             
             // Scale trap zone
@@ -686,6 +682,47 @@ export class StandingWaveVisualRenderer_Session131 {
         return link?.group?.userData?.conduitState || null;
     }
 
+    _getLinkCurve(link) {
+        const visualState = this._getLinkVisualState(link);
+        if (visualState?.mainCurve?.getPointAt) {
+            return visualState.mainCurve;
+        }
+        if (visualState?.curve?.getPointAt) {
+            return visualState.curve;
+        }
+
+        const endpoints = this._getLinkEndpoints(link);
+        const startPos = endpoints.startPos;
+        const endPos = endpoints.endPos;
+        if (!startPos || !endPos) return null;
+
+        return new THREE.LineCurve3(startPos.clone(), endPos.clone());
+    }
+
+    _ensureAttachRoot() {
+        if (!this.root) return;
+
+        const resolvedRoot = this.attachRootResolver?.() || this.attachRoot || this.scene;
+        if (!resolvedRoot?.add) return;
+
+        if (this.root.parent !== resolvedRoot) {
+            this.root.parent?.remove?.(this.root);
+            resolvedRoot.add(this.root);
+        }
+
+        this.attachRoot = resolvedRoot;
+    }
+
+    _estimateLinkLength(linkCurve, link) {
+        if (linkCurve?.getLength) {
+            return linkCurve.getLength();
+        }
+
+        const endpoints = this._getLinkEndpoints(link);
+        if (!endpoints.startPos || !endpoints.endPos) return 0;
+        return endpoints.startPos.distanceTo(endpoints.endPos);
+    }
+
     _collectLinkMaterials(link) {
         const materials = [];
         const seen = new Set();
@@ -776,6 +813,29 @@ export class StandingWaveVisualRenderer_Session131 {
         return node?.shell || node?.holoShell || node?.userData?.holoShell || null;
     }
 
+    getDebugInfo() {
+        const trapSystem = this.standingWaveTrapSystem;
+        const activeTraps = trapSystem?.getActiveTraps?.() || trapSystem?.oscillationTraps?.filter?.((trap) => trap?.active) || [];
+        const activeAntinodes = this.antinodeMeshPool.filter((entry) => entry?.active && entry.mesh?.visible).length;
+        const activeTrapZones = this.trapZoneMeshPool.filter((entry) => entry?.active && entry.mesh?.visible).length;
+        const standingLinks = Array.from(this.linkMaterialMap.values()).filter((entry) => entry?.isStanding).length;
+
+        return {
+            initialized: this.initialized,
+            attached: Boolean(this.root?.parent),
+            attachRootName: this.root?.parent?.name || this.attachRoot?.name || null,
+            activeTrapCount: activeTraps.length,
+            trapZoneCount: trapSystem?.trapZones?.length || 0,
+            interferencePatternCount: trapSystem?.interferencePatterns?.length || 0,
+            activeAntinodeMeshes: activeAntinodes,
+            activeTrapZoneMeshes: activeTrapZones,
+            standingLinkCount: standingLinks,
+            pooledAntinodeMeshes: this.antinodeMeshPool.length,
+            pooledTrapZoneMeshes: this.trapZoneMeshPool.length,
+            sampleTrapIds: activeTraps.slice(0, 5).map((trap) => trap?.linkId).filter(Boolean)
+        };
+    }
+
     /**
      * Dispose - cleanup
      */
@@ -821,6 +881,13 @@ export class StandingWaveVisualRenderer_Session131 {
         this.nodePulsePhases.clear();
         this.linkWaveStates.clear();
         this.resolutionAnimators.clear();
+
+        if (this.root?.parent) {
+            this.root.parent.remove(this.root);
+        }
+        this.root?.clear?.();
+        this.root = null;
+        this.initialized = false;
     }
 }
 

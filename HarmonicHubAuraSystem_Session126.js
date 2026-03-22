@@ -84,6 +84,12 @@ export class HarmonicHubAuraSystem_Session126 {
       fieldOpacityBase: config.fieldOpacityBase ?? 0.3,
       fieldOpacitySynergyMult: config.fieldOpacitySynergyMult ?? 0.4,
       fieldGlowIntensity: config.fieldGlowIntensity ?? 0.8,
+      fieldOpacityMin: config.fieldOpacityMin ?? 0.12,
+      fieldOpacityMax: config.fieldOpacityMax ?? 0.92,
+      fieldWireframe: config.fieldWireframe ?? true,
+      fieldRenderOrder: config.fieldRenderOrder ?? 120,
+      fieldColorBoost: config.fieldColorBoost ?? 1.0,
+      fieldEmissiveBoost: config.fieldEmissiveBoost ?? 1.0,
       
       // Phase synchronization
       phaseLockSpeed: config.phaseLockSpeed ?? 1.5,   // Convergence speed
@@ -119,6 +125,20 @@ export class HarmonicHubAuraSystem_Session126 {
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
     };
+
+    // Preserve baseline visual config so debug presets are reversible.
+    this._baseVisualConfig = {
+      fieldOpacityBase: this.config.fieldOpacityBase,
+      fieldOpacitySynergyMult: this.config.fieldOpacitySynergyMult,
+      fieldGlowIntensity: this.config.fieldGlowIntensity,
+      fieldOpacityMin: this.config.fieldOpacityMin,
+      fieldOpacityMax: this.config.fieldOpacityMax,
+      fieldWireframe: this.config.fieldWireframe,
+      fieldRenderOrder: this.config.fieldRenderOrder,
+      fieldColorBoost: this.config.fieldColorBoost,
+      fieldEmissiveBoost: this.config.fieldEmissiveBoost
+    };
+    this._highVisEnabled = false;
     
     // Hub instances (keyed by hub ID)
     this.hubs = new Map();           // hubId → hub object
@@ -127,6 +147,7 @@ export class HarmonicHubAuraSystem_Session126 {
     // Rendering
     this.fieldGroup = null;
     this.fieldMeshes = new Map();     // hubId → resonance field mesh
+    this._hubDebugMarkerGeometry = null;
     
     // Phase tracking (pooled)
     this.nodePhaseOffsets = new Map(); // nodeId → { currentPhase, targetPhase, offset }
@@ -166,6 +187,7 @@ export class HarmonicHubAuraSystem_Session126 {
     this.fieldGroup.name = 'harmonic-hub-fields';
     this._attachRoot.add(this.fieldGroup);
     this.root = this.fieldGroup;
+    this._hubDebugMarkerGeometry = new THREE.SphereGeometry(1, 10, 10);
 
     if (this.semanticBus?.subscribe) {
       this.semanticBus.subscribe('event:harmonyResonance', this._boundHandleHarmonyResonance);
@@ -294,12 +316,13 @@ export class HarmonicHubAuraSystem_Session126 {
       if (used.has(i)) continue;
       
       const hub = potentialHubs[i];
+      const primaryPos = this._getNodeFieldPosition(hub.primaryNode, new THREE.Vector3());
       const region = {
         hubId: `hub-${regions.length}`,
         primaryNode: hub.primaryNode,
         nodes: new Set([hub.primaryNode]),
         connectedNodes: new Set(hub.connectedNodes),
-        avgPosition: hub.primaryNode.position.clone(),
+        avgPosition: primaryPos.clone(),
         avgSynergy: 0,
         avgHarmony:
           hub.primaryNode.userData?.metrics?.harmony ??
@@ -317,7 +340,8 @@ export class HarmonicHubAuraSystem_Session126 {
         if (used.has(j)) continue;
         
         const otherHub = potentialHubs[j];
-        const dist = hub.primaryNode.position.distanceTo(otherHub.primaryNode.position);
+        const otherPos = this._getNodeFieldPosition(otherHub.primaryNode, new THREE.Vector3());
+        const dist = primaryPos.distanceTo(otherPos);
         
         if (dist < this.config.maxHubDistance) {
           region.nodes.add(otherHub.primaryNode);
@@ -326,7 +350,7 @@ export class HarmonicHubAuraSystem_Session126 {
           
           // Update averages
           const count = region.nodes.size;
-          region.avgPosition.lerp(otherHub.primaryNode.position, 1 / count);
+          region.avgPosition.lerp(otherPos, 1 / count);
           region.avgHarmony = (
             region.avgHarmony * (count - 1) +
             (
@@ -421,7 +445,12 @@ export class HarmonicHubAuraSystem_Session126 {
       hub.primaryNode = region.primaryNode;
       hub.nodes = Array.from(region.nodes);
       hub.connectedNodes = Array.from(region.connectedNodes);
-      hub.position.lerp(region.avgPosition, 0.2);  // Smooth movement
+      // Avoid visible drift for single-core hubs: pin directly to core position.
+      if (region.nodes.size <= 1) {
+        hub.position.copy(region.avgPosition);
+      } else {
+        hub.position.lerp(region.avgPosition, 0.2);  // Smooth movement for grouped hubs
+      }
       hub.harmony = hub.harmony * 0.9 + region.avgHarmony * 0.1;
       hub.corruption = hub.corruption * 0.9 + region.avgCorruption * 0.1;
       hub.synergy = hub.synergy * 0.9 + region.avgSynergy * 0.1;
@@ -457,10 +486,12 @@ export class HarmonicHubAuraSystem_Session126 {
     const synergyBonus = region.avgSynergy * this.config.fieldRadiusSynergyMult;
     const harmonyScale = Math.max(0.5, region.avgHarmony / Math.max(0.1, region.avgCorruption));
     
-    return Math.min(
+    const computed = Math.min(
       (baseRadius + synergyBonus) * harmonyScale,
       this.config.fieldMaxRadius
     );
+    // High-vis debug keeps field size readable even in busy scenes.
+    return this._highVisEnabled ? Math.max(computed, 6.0) : computed;
   }
   
   /**
@@ -529,7 +560,33 @@ export class HarmonicHubAuraSystem_Session126 {
         this.fieldGroup.add(fieldMesh);
         this.fieldMeshes.set(hub.hubId, fieldMesh);
       }
+
+      // High-vis debug marker: explicit hub center indicator.
+      if (this._highVisEnabled) {
+        const marker = this._createHubDebugMarker(hub);
+        if (marker) this.fieldGroup.add(marker);
+      }
     }
+  }
+
+  _createHubDebugMarker(hub) {
+    if (!hub?.position) return null;
+    const markerPos = this._getNodeFieldPosition(hub.primaryNode, new THREE.Vector3());
+
+    const marker = new THREE.Mesh(
+      this._hubDebugMarkerGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffe74a,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        depthWrite: false
+      })
+    );
+    marker.position.copy(markerPos);
+    marker.scale.setScalar(Math.max(0.75, hub.fieldRadius * 0.22));
+    marker.renderOrder = this.config.fieldRenderOrder + 20;
+    return marker;
   }
   
   /**
@@ -560,13 +617,14 @@ export class HarmonicHubAuraSystem_Session126 {
     const color = this._getFieldColor(hub);
     
     // Create material
+    const boostedColor = color.clone().multiplyScalar(this.config.fieldColorBoost);
     const material = new THREE.MeshPhongMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: this.config.fieldGlowIntensity * harmonyInfluence,
+      color: boostedColor,
+      emissive: boostedColor,
+      emissiveIntensity: this.config.fieldGlowIntensity * harmonyInfluence * this.config.fieldEmissiveBoost,
       transparent: true,
-      opacity: Math.max(0.12, Math.min(0.92, opacity)),
-      wireframe: true,
+      opacity: Math.max(this.config.fieldOpacityMin, Math.min(this.config.fieldOpacityMax, opacity)),
+      wireframe: this.config.fieldWireframe,
       side: THREE.DoubleSide,
       depthWrite: false,
       depthTest: true
@@ -574,7 +632,7 @@ export class HarmonicHubAuraSystem_Session126 {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(hub.position);
-    mesh.renderOrder = 120;
+    mesh.renderOrder = this.config.fieldRenderOrder;
     
     // Add vertex animation for breathing effect
     this._animateFieldVertices(mesh, hub);
@@ -764,6 +822,43 @@ export class HarmonicHubAuraSystem_Session126 {
     return node?.userData?.nodeId || node?.id || node?.uuid || null;
   }
 
+  _getNodeFieldPosition(node, out = new THREE.Vector3()) {
+    if (!node) return out.set(0, 0, 0);
+
+    // Prefer world-space position projected into HubAura attach-root local space.
+    if (typeof node.getWorldPosition === 'function') {
+      node.getWorldPosition(out);
+      if (this._attachRoot && typeof this._attachRoot.worldToLocal === 'function') {
+        this._attachRoot.worldToLocal(out);
+      }
+      return out;
+    }
+
+    return out.copy(node.position || new THREE.Vector3());
+  }
+
+  enableHighVisDebug() {
+    this.config.fieldOpacityBase = 0.72;
+    this.config.fieldOpacitySynergyMult = 0.85;
+    this.config.fieldGlowIntensity = 1.9;
+    this.config.fieldOpacityMin = 0.45;
+    this.config.fieldOpacityMax = 0.98;
+    this.config.fieldWireframe = false;
+    this.config.fieldRenderOrder = 240;
+    this.config.fieldColorBoost = 1.35;
+    this.config.fieldEmissiveBoost = 1.6;
+    this._highVisEnabled = true;
+  }
+
+  disableHighVisDebug() {
+    Object.assign(this.config, this._baseVisualConfig);
+    this._highVisEnabled = false;
+  }
+
+  isHighVisDebugEnabled() {
+    return this._highVisEnabled === true;
+  }
+
   _getCurrentHarmonyFlow(payload = {}) {
     // Priority 1: Read from CoreMetricsCalculator (single source of truth)
     if (this.coreMetricsCalculator) {
@@ -864,6 +959,10 @@ export class HarmonicHubAuraSystem_Session126 {
     for (const mesh of this.fieldMeshes.values()) {
       if (mesh.geometry) mesh.geometry.dispose();
       if (mesh.material) mesh.material.dispose();
+    }
+    if (this._hubDebugMarkerGeometry) {
+      this._hubDebugMarkerGeometry.dispose();
+      this._hubDebugMarkerGeometry = null;
     }
     
     this.hubs.clear();

@@ -3728,6 +3728,9 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             this.corruptionAuraDesaturation?.update?.(dt);
         }, 'visual.corruptionAuraDesaturation');
+        this.frameScheduler.register('visual', () => {
+            this.corruptionDesaturation?.update?.();
+        }, 'visual.corruptionDesaturation');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -6093,7 +6096,31 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.cascadeEventBridge.dispose();
                 console.log('[main.js] CascadeEventBridge disposed');
             }
-            
+            this.cascadeEventBridge = null;
+
+            if (this.cascadeVisualizer && typeof this.cascadeVisualizer.dispose === 'function') {
+                this.cascadeVisualizer.dispose();
+                console.log('[main.js] SynergyCascadeVisualizer disposed');
+            }
+            this.cascadeVisualizer = null;
+
+            if (this.cascadePropagationVisuals && typeof this.cascadePropagationVisuals.dispose === 'function') {
+                this.cascadePropagationVisuals.dispose();
+                console.log('[main.js] CascadePropagationVisuals disposed');
+            }
+            if (this.phase5CascadePropagationVisuals && this.phase5CascadePropagationVisuals !== this.cascadePropagationVisuals && typeof this.phase5CascadePropagationVisuals.dispose === 'function') {
+                this.phase5CascadePropagationVisuals.dispose();
+                console.log('[main.js] PHASE5_CascadePropagationVisuals disposed');
+            }
+            this.cascadePropagationVisuals = null;
+            this.phase5CascadePropagationVisuals = null;
+
+            if (this.corruptionVisualFX && typeof this.corruptionVisualFX.dispose === 'function') {
+                this.corruptionVisualFX.dispose();
+                console.log('[main.js] CorruptionVisualFX disposed');
+            }
+            this.corruptionVisualFX = null;
+             
             if (this.cascadeResonanceWave && typeof this.cascadeResonanceWave.dispose === 'function') {
                 this.cascadeResonanceWave.dispose();
                 console.log('[main.js] CascadeResonanceWaveVisualization disposed');
@@ -6334,6 +6361,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Create AI nodes for this environment
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
+        this.ensureCascadeEventBridge();
 
         // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
@@ -6618,7 +6646,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                             node?.userData?.metrics?.corruption ??
                             node?.userData?.corruption ??
                             0;
-                        if (corruptionLevel > 0.75) {
+                        if (corruptionLevel > 0) {
                             this.corruptionVisualFX.applyCorruptionEffects(
                                 visualTarget,
                                 dt,
@@ -9012,6 +9040,41 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Setup CASCADE PARTICLE SYSTEM (Session 120)
      * Semantic particles with shape and velocity encoding
      */
+    _getCascadeEventBridgeConfig() {
+        return {
+            linkingSystem: this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking,
+            semanticBus: this.semanticBus,
+            frameScheduler: this.frameScheduler,
+            waveEngine: this.waveInterferenceEngine,
+            decayRate: 0.92,
+            minIntensityThreshold: 0.01,
+            cascadeWaveThreshold: 0.6,
+            cascadeWaveCooldown: 1.0,
+            enabled: true
+        };
+    }
+
+    ensureCascadeEventBridge() {
+        try {
+            const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking;
+            if (!linkingSystem || !this.semanticBus || !this.frameScheduler) {
+                return false;
+            }
+
+            // Idempotent rebind: always dispose stale/previous instance first to avoid duplicate subscriptions.
+            if (this.cascadeEventBridge && typeof this.cascadeEventBridge.dispose === 'function') {
+                this.cascadeEventBridge.dispose();
+            }
+
+            this.cascadeEventBridge = createCascadeEventBridge(this._getCascadeEventBridgeConfig());
+            console.log('[main.js] CascadeEventBridge re-bound ✓');
+            return true;
+        } catch (err) {
+            console.warn('[main.js] CascadeEventBridge re-bind failed:', err);
+            return false;
+        }
+    }
+
     setupCascadeParticleSystem() {
         try {
             this.cascadeParticleSystem = setupCascadeParticleSystem(
@@ -9035,19 +9098,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Connects SemanticEventBus events to CascadeParticleSystem
         // ========================================================================
         try {
-            this.cascadeEventBridge = createCascadeEventBridge({
-                linkingSystem: this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking,
-                semanticBus: this.semanticBus,
-                frameScheduler: this.frameScheduler,
-                waveEngine: this.waveInterferenceEngine,
-                decayRate: 0.92,
-                minIntensityThreshold: 0.01,
-                cascadeWaveThreshold: 0.6,
-                cascadeWaveCooldown: 1.0,
-                enabled: true
-            });
-            
-            console.log('[main.js] CascadeEventBridge initialized ✓');
+            this.ensureCascadeEventBridge();
         } catch (err) {
             console.warn('[main.js] CascadeEventBridge initialization failed:', err);
         }
@@ -11458,7 +11509,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     
                     maxAntinodeMeshes: 100,
                     maxTrapZoneMeshes: 30,
-                    enableLOD: true
+                        enableLOD: true,
+                    attachRoot: this.vfxRoot || this.worldRoot || this.scene,
+                    attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
                 }
             );
             
@@ -12430,6 +12483,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             );
             this.harmonicHubAuraSystem.frameScheduler = this.frameScheduler;
             console.log('✓ Harmonic Hub Aura System (Session 126) initialized');
+            console.log('[HubAura] Debug preset: game.harmonicHubAuraSystem.enableHighVisDebug() / disableHighVisDebug()');
         } catch (err) {
             console.warn('⚠ Harmonic Hub Aura System initialization failed:', err);
         }

@@ -831,4 +831,20 @@ cascadeDebug.help()                - Show this help
     
     console.log('💡 Cascade debugging API available at: cascadeDebug');
   }
+
+  dispose() {
+    // Unsubscribe semantic listeners to prevent duplicate handlers after world switch.
+    const bus = this._semanticBus;
+    const handlers = this._semanticHandlers;
+    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
+    if (off && handlers) {
+      try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
+      try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
+      try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
+    }
+    this._semanticBus = null;
+    this._semanticHandlers = null;
+
+    this.clearAllCascades();
+  }
 }

@@ -241,15 +241,20 @@ export class StandingWaveOscillationTrapSystem_Session130 {
      */
     _getActiveReflections() {
         if (!this.reflectionSystem) return [];
-        
-        // If reflection system exposes activeReflections
-        if (this.reflectionSystem.reflectionPulses && Array.isArray(this.reflectionSystem.reflectionPulses)) {
-            return this.reflectionSystem.reflectionPulses.filter(r => r && r.active);
+
+        // Prefer whichever source currently holds active pulses.
+        const activeDirectPulses = Array.isArray(this.reflectionSystem.reflectionPulses)
+            ? this.reflectionSystem.reflectionPulses.filter(r => r && r.active)
+            : [];
+        if (activeDirectPulses.length > 0) {
+            return activeDirectPulses;
         }
-        
-        // Fallback: scan reflection pulse pool
-        if (this.reflectionSystem.reflectionPulsePool && Array.isArray(this.reflectionSystem.reflectionPulsePool)) {
-            return this.reflectionSystem.reflectionPulsePool.filter(p => p && p.active);
+
+        const activePooledPulses = Array.isArray(this.reflectionSystem.reflectionPulsePool)
+            ? this.reflectionSystem.reflectionPulsePool.filter(p => p && p.active)
+            : [];
+        if (activePooledPulses.length > 0) {
+            return activePooledPulses;
         }
         
         return [];
@@ -652,6 +657,42 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         const metricsValue = node.userData?.metrics?.[metric];
         if (typeof metricsValue === 'number') return metricsValue;
         return fallback;
+    }
+
+    getDebugInfo() {
+        const activeReflections = this._getActiveReflections();
+        const activeTraps = this.getActiveTraps();
+
+        return {
+            initialized: this.initialized,
+            reflectionSystemConnected: Boolean(this.reflectionSystem),
+            activeReflectionCount: activeReflections.length,
+            reflectionPulseArrayCount: Array.isArray(this.reflectionSystem?.reflectionPulses)
+                ? this.reflectionSystem.reflectionPulses.filter(p => p?.active).length
+                : 0,
+            reflectionPulsePoolCount: Array.isArray(this.reflectionSystem?.reflectionPulsePool)
+                ? this.reflectionSystem.reflectionPulsePool.filter(p => p?.active).length
+                : 0,
+            reflectionHistoryLinks: this.reflectionHistory.size,
+            activeTrapCount: activeTraps.length,
+            trapZoneCount: this.trapZones.length,
+            interferencePatternCount: this.interferencePatterns.length,
+            resolutionEventCount: this.resolutionEvents.length,
+            thresholds: {
+                reflectionCountThreshold: this.config.reflectionCountThreshold,
+                detectionWindow: this.config.detectionWindow,
+                netFlowThreshold: this.config.netFlowThreshold,
+                phaseConsistencyThreshold: this.config.phaseConsistencyThreshold
+            },
+            traps: activeTraps.slice(0, 5).map((trap) => ({
+                linkId: trap.linkId,
+                amplitude: Number((trap.amplitude || 0).toFixed(3)),
+                frequency: Number((trap.frequency || 0).toFixed(3)),
+                trapRadius: Number((trap.trapRadius || 0).toFixed(3)),
+                reflectionCount: trap.reflectionCount || 0,
+                state: trap.state || 'unknown'
+            }))
+        };
     }
 
     /**

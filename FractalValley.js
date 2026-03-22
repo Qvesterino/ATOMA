@@ -18,6 +18,7 @@ export class FractalValley {
     this.dataRivers = [];
     this.holograms = [];
     this.symbols = [];
+    this.collisionObjects = []; // Track collision meshes
     
     // Session 112+: Initialize map configuration and reference plane
     this.initializeMapConfig();
@@ -115,6 +116,21 @@ export class FractalValley {
     floor.position.y = -2;
     this.worldRoot.add(floor);
     
+    // Create collision mesh for valley floor (invisible)
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+      visible: false
+    });
+    const floorCollision = new THREE.Mesh(floorGeometry.clone(), collisionMaterial);
+    floorCollision.rotation.x = -Math.PI / 2;
+    floorCollision.position.copy(floor.position);
+    floorCollision.userData = {
+      isWalkable: true,
+      collisionEnabled: true,
+      terrainType: 'valleyFloor'
+    };
+    this.worldRoot.add(floorCollision);
+    this.collisionObjects.push(floorCollision);
+    
     // Hexagonal terrace pattern on floor
     this.createHexTerraces();
   }
@@ -125,6 +141,9 @@ export class FractalValley {
   createHexTerraces() {
     const hexRadius = 8;
     const hexCount = 15;
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+      visible: false
+    });
     
     for (let i = 0; i < hexCount; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -144,6 +163,19 @@ export class FractalValley {
       hex.rotation.y = Math.random() * Math.PI;
       
       this.worldRoot.add(hex);
+      
+      // Create collision mesh for hex terrace (invisible)
+      const hexCollision = new THREE.Mesh(hexGeometry.clone(), collisionMaterial);
+      hexCollision.position.copy(hex.position);
+      hexCollision.rotation.copy(hex.rotation);
+      hexCollision.userData = {
+        isWalkable: true,
+        collisionEnabled: true,
+        terrainType: 'hexTerrace',
+        height: 0.3
+      };
+      this.worldRoot.add(hexCollision);
+      this.collisionObjects.push(hexCollision);
       
       // Neon outline
       const edgeGeometry = new THREE.EdgesGeometry(hexGeometry);
@@ -181,6 +213,10 @@ export class FractalValley {
    * Create a mountain range with fractal patterns
    */
   createMountainRange(offsetX, offsetZ, count, pattern) {
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+      visible: false
+    });
+    
     for (let i = 0; i < count; i++) {
       const scale = 1 - (i * 0.15); // Self-similar shrinking
       const mountainHeight = 25 * scale;
@@ -220,6 +256,20 @@ export class FractalValley {
       
       this.worldRoot.add(mountain);
       this.mountains.push(mountain);
+      
+      // Create collision mesh for mountain (invisible)
+      const mountainCollision = new THREE.Mesh(geometry.clone(), collisionMaterial);
+      mountainCollision.position.copy(mountain.position);
+      mountainCollision.rotation.copy(mountain.rotation);
+      mountainCollision.userData = {
+        isWalkable: true,
+        collisionEnabled: true,
+        terrainType: 'mountain',
+        mountainType: pattern,
+        height: mountainHeight
+      };
+      this.worldRoot.add(mountainCollision);
+      this.collisionObjects.push(mountainCollision);
       
       // Add neon edge outlines
       this.addNeonOutline(mountain, geometry);

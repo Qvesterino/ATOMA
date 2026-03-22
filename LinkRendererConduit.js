@@ -2532,6 +2532,7 @@ export class LinkRendererConduit {
             visualStateAdapter: null,
             directionalStreaks: null,
             directionalStreaksManager: null,
+            mainCurve: null,
             phaseOffset: Math.random() * Math.PI * 2,
             baseColor: baseColor,
             baseColorObj: baseColorObj,
@@ -3531,6 +3532,8 @@ export class LinkRendererConduit {
         if (geometryTick) {
             state.__dynamicGeometryInitialized = true;
         }
+
+        state.mainCurve = mainCurve;
 
         // --- 4.5. TRAIL PARTICLE EFFECTS ---
         // Emit organic trail particles using same noise as aura systems

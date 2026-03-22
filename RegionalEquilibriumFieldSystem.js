@@ -36,6 +36,8 @@
  */
 
 import * as THREE from 'three';
+import { createStressTurbulenceDistortionMaterial } from './StressTurbulenceShaderMaterial.js';
+import { StressTurbulenceController } from './StressTurbulenceController.js';
 
 const FIELD_VERTEX_SHADER = `
 varying vec3 vWorldPos;
@@ -133,10 +135,15 @@ class Region {
         this.id = id;
         this.nodes = nodes;
         this.centerPos = centerPos.clone();
+        this.userData = { stressVisualIntensity: 0.0 };
         
         // Visual state
         this.fieldMesh = null;
         this.material = null;
+        this.stressOverlayMesh = null;
+        this.stressOverlayMaterial = null;
+        this.stressOverlayController = null;
+        this.stressVisualIntensity = 0.0;
         
         // State tracking (for modulation)
         this.harmony = 0.5;
@@ -174,6 +181,7 @@ class Region {
             sum.add(node.position);
         }
         this.centerPos.copy(sum).multiplyScalar(1.0 / this.nodes.length);
+        this.radius = this._computeRadius();
     }
 }
 
@@ -359,11 +367,28 @@ export class RegionalEquilibriumFieldSystem {
         mesh.position.copy(region.centerPos);
         mesh.renderOrder = 2; // Behind nodes but in front of background
         mesh.frustumCulled = false;
+
+        const overlayMaterial = createStressTurbulenceDistortionMaterial();
+        overlayMaterial.side = THREE.BackSide;
+        overlayMaterial.depthWrite = false;
+        overlayMaterial.depthTest = true;
+        overlayMaterial.transparent = true;
+        overlayMaterial.uniforms.uStressIntensity = { value: 0.0 };
+
+        const overlayMesh = new THREE.Mesh(geo.clone(), overlayMaterial);
+        overlayMesh.position.copy(region.centerPos);
+        overlayMesh.renderOrder = 3;
+        overlayMesh.frustumCulled = false;
+        overlayMesh.scale.setScalar(1.02);
         
         this.scene.add(mesh);
+        this.scene.add(overlayMesh);
         
         region.fieldMesh = mesh;
         region.material = material;
+        region.stressOverlayMesh = overlayMesh;
+        region.stressOverlayMaterial = overlayMaterial;
+        region.stressOverlayController = new StressTurbulenceController(region, overlayMaterial);
     }
     
     /**
@@ -380,9 +405,13 @@ export class RegionalEquilibriumFieldSystem {
         
         // 3. Compute power balance drift
         this._updatePowerBalanceDrift(region, deltaTime, harmonySystem, standingWaveSystem);
+
+        // 3.5. Derive stress signal for turbulence sidecar overlay
+        region.stressVisualIntensity = this._computeStressVisualIntensity(region);
+        region.userData.stressVisualIntensity = region.stressVisualIntensity;
         
         // 4. Update visual uniforms
-        this._updateFieldVisuals(region, time);
+        this._updateFieldVisuals(region, deltaTime, time);
     }
     
     /**
@@ -440,6 +469,20 @@ export class RegionalEquilibriumFieldSystem {
         // Compute tension metric from historical events
         region.historicalTension = (region.ruptureScarIntensity * 0.6 + region.resistanceMemory * 0.4);
     }
+
+    _computeStressVisualIntensity(region) {
+        const corruption = THREE.MathUtils.clamp(region.corruption || 0.0, 0.0, 1.0);
+        const instability = THREE.MathUtils.clamp(region.instability || 0.0, 0.0, 1.0);
+        const historicalTension = THREE.MathUtils.clamp(region.historicalTension || 0.0, 0.0, 1.0);
+
+        return THREE.MathUtils.clamp(
+            instability * 0.5 +
+            corruption * 0.3 +
+            historicalTension * 0.2,
+            0.0,
+            1.0
+        );
+    }
     
     /**
      * Update power balance drift (long-term shift direction)
@@ -491,8 +534,8 @@ export class RegionalEquilibriumFieldSystem {
         // Smooth interpolation to target
         if (driftTarget.length() > 0) {
             driftTarget.normalize();
-            this.config.driftUpdateRate = Math.min(0.2, deltaTime * 0.5);
-            this.region.driftDirection.lerp(driftTarget, this.config.driftUpdateRate);
+            const driftLerpAlpha = Math.min(this.config.driftUpdateRate, deltaTime * 0.5);
+            region.driftDirection.lerp(driftTarget, driftLerpAlpha);
         }
     }
     
@@ -525,7 +568,7 @@ export class RegionalEquilibriumFieldSystem {
     /**
      * Update field material uniforms for visual display
      */
-    _updateFieldVisuals(region, time) {
+    _updateFieldVisuals(region, deltaTime, time) {
         const uniforms = region.material.uniforms;
         
         uniforms.uTime.value = time;
@@ -544,6 +587,13 @@ export class RegionalEquilibriumFieldSystem {
         // Update mesh position
         region.fieldMesh.position.copy(region.centerPos);
         region.fieldMesh.scale.setScalar(region.radius / 1.0);
+
+        if (region.stressOverlayMesh) {
+            region.stressOverlayMesh.position.copy(region.centerPos);
+            region.stressOverlayMesh.scale.setScalar(Math.max(region.radius, 1.0) * 1.02);
+        }
+
+        region.stressOverlayController?.update(deltaTime, time);
     }
     
     /**
@@ -572,6 +622,17 @@ export class RegionalEquilibriumFieldSystem {
      * Clean up region resources
      */
     _disposeRegion(region) {
+        if (region.stressOverlayMesh) {
+            this.scene.remove(region.stressOverlayMesh);
+            region.stressOverlayMesh.geometry.dispose();
+            region.stressOverlayMesh = null;
+        }
+        if (region.stressOverlayMaterial) {
+            region.stressOverlayMaterial.dispose();
+            region.stressOverlayMaterial = null;
+        }
+        region.stressOverlayController = null;
+
         if (region.fieldMesh) {
             this.scene.remove(region.fieldMesh);
             region.fieldMesh.geometry.dispose();
@@ -602,6 +663,7 @@ export class RegionalEquilibriumFieldSystem {
             corruption: region.corruption.toFixed(2),
             synergy: region.synergy.toFixed(2),
             instability: region.instability.toFixed(2),
+            stressVisualIntensity: region.stressVisualIntensity.toFixed(2),
             historicalTension: region.historicalTension.toFixed(2),
             driftDirection: {
                 x: region.driftDirection.x.toFixed(2),
