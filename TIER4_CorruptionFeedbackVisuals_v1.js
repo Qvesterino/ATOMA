@@ -34,13 +34,15 @@ export class TIER4_CorruptionFeedbackVisuals {
       // Harmony restoration
       showHarmonyPulse: config.showHarmonyPulse ?? true,
       harmonyPulseColor: config.harmonyPulseColor ?? 0x00ffff,
-      harmonyPulseDuration: config.harmonyPulseDuration ?? 0.8
+      harmonyPulseDuration: config.harmonyPulseDuration ?? 0.8,
+      harmonyPulseIntensityBoost: config.harmonyPulseIntensityBoost ?? 1.5,
+      harmonyPulseScaleBoost: config.harmonyPulseScaleBoost ?? 1.2
     };
     
     // Active visual effects
     this.activeCorruptionSeeds = [];
     this.activeCascadeWarnings = [];
-    this.activeHarmonyPulses = [];
+    this.harmonyFieldConsumer = config.harmonyFieldConsumer ?? null;
     
     // Material pool for reuse
     this.materialPool = {
@@ -53,17 +55,13 @@ export class TIER4_CorruptionFeedbackVisuals {
         transparent: true,
         emissive: this.config.cascadeWarningColor,
         emissiveIntensity: 0.5
-      }),
-      harmonyPulse: new THREE.MeshBasicMaterial({
-        color: this.config.harmonyPulseColor,
-        transparent: true
       })
     };
     
     // Geometry pool
     this.geometryPool = {
       sphere: new THREE.IcosahedronGeometry(0.3, 4),
-      ring: new THREE.TorusGeometry(0.5, 0.1, 16, 32)
+      cascadeWarningRing: new THREE.TorusGeometry(0.5, 0.1, 16, 32)
     };
     
     // Statistics
@@ -73,6 +71,10 @@ export class TIER4_CorruptionFeedbackVisuals {
       harmonyPulsesRendered: 0,
       totalEffectsActive: 0
     };
+  }
+
+  setHarmonyFieldConsumer(harmonyFieldConsumer) {
+    this.harmonyFieldConsumer = harmonyFieldConsumer ?? null;
   }
   
   /**
@@ -129,7 +131,7 @@ export class TIER4_CorruptionFeedbackVisuals {
     
     try {
       const mesh = new THREE.Mesh(
-        this.geometryPool.ring,
+        this.geometryPool.cascadeWarningRing,
         this.materialPool.cascadeWarning.clone()
       );
       
@@ -165,36 +167,21 @@ export class TIER4_CorruptionFeedbackVisuals {
    * Cyan expanding wave emanating from node
    */
   displayHarmonyPulse(node) {
-    if (!node || !this.config.showHarmonyPulse) return;
+    if (!node || !this.config.showHarmonyPulse || !this.harmonyFieldConsumer?.flashHarmonyField) return;
     
     try {
-      const mesh = new THREE.Mesh(
-        this.geometryPool.ring,
-        this.materialPool.harmonyPulse.clone()
-      );
-      
-      // Position at node
-      mesh.position.copy(node.position);
-      mesh.scale.set(0.5, 0.5, 1.0);
-      mesh.userData.opacity = 1.0;
-      
-      this.scene.add(mesh);
-      
-      // Create animation data
-      const effect = {
-        mesh,
-        type: 'harmonyPulse',
-        startTime: Date.now(),
-        duration: this.config.harmonyPulseDuration * 1000, // Convert to ms
-        startScale: new THREE.Vector3(0.5, 0.5, 1.0),
-        endScale: new THREE.Vector3(2.0, 2.0, 1.0)
-      };
-      
-      this.activeHarmonyPulses.push(effect);
+      const flashed = this.harmonyFieldConsumer.flashHarmonyField(node, {
+        duration: this.config.harmonyPulseDuration,
+        intensityMultiplier: this.config.harmonyPulseIntensityBoost,
+        scaleMultiplier: this.config.harmonyPulseScaleBoost
+      });
+
+      if (!flashed) return;
+
       this.stats.harmonyPulsesRendered++;
       
       if (this.config.enableDebug) {
-        console.log('[TIER4_CorruptionFeedbackVisuals] Harmony pulse displayed');
+        console.log('[TIER4_CorruptionFeedbackVisuals] Harmony field pulse flashed');
       }
       
     } catch (err) {
@@ -251,33 +238,10 @@ export class TIER4_CorruptionFeedbackVisuals {
       }
     }
     
-    // Update harmony pulses
-    for (let i = this.activeHarmonyPulses.length - 1; i >= 0; i--) {
-      const effect = this.activeHarmonyPulses[i];
-      const elapsed = currentTime - effect.startTime;
-      const progress = Math.min(elapsed / effect.duration, 1.0);
-      
-      // Scale out (expanding wave)
-      const scale = effect.startScale.clone()
-        .lerp(effect.endScale, progress);
-      effect.mesh.scale.copy(scale);
-      
-      // Fade out
-      const opacity = Math.max(1.0 - progress, 0);
-      effect.mesh.material.opacity = opacity;
-      
-      // Remove when done
-      if (progress >= 1.0) {
-        this.scene.remove(effect.mesh);
-        this.activeHarmonyPulses.splice(i, 1);
-      }
-    }
-    
     // Update stats
     this.stats.totalEffectsActive = 
       this.activeCorruptionSeeds.length + 
-      this.activeCascadeWarnings.length + 
-      this.activeHarmonyPulses.length;
+      this.activeCascadeWarnings.length;
   }
   
   /**
@@ -306,12 +270,6 @@ export class TIER4_CorruptionFeedbackVisuals {
     }
     this.activeCascadeWarnings = [];
     
-    // Remove harmony pulses
-    for (const effect of this.activeHarmonyPulses) {
-      this.scene.remove(effect.mesh);
-    }
-    this.activeHarmonyPulses = [];
-    
     this.stats.totalEffectsActive = 0;
   }
   
@@ -324,11 +282,10 @@ export class TIER4_CorruptionFeedbackVisuals {
     // Dispose materials
     this.materialPool.corruptionSeed.dispose();
     this.materialPool.cascadeWarning.dispose();
-    this.materialPool.harmonyPulse.dispose();
     
     // Dispose geometries
     this.geometryPool.sphere.dispose();
-    this.geometryPool.ring.dispose();
+    this.geometryPool.cascadeWarningRing.dispose();
   }
 }
 

@@ -114,6 +114,9 @@ export class T2_HarmonyVisualConsumer_v1 {
       fieldSaturation: 0.72,
       fieldLightness: 0.54,
       fieldColorFlowSpeed: 0.9,
+      fieldPulseBoostDuration: 0.6,
+      fieldPulseBoostIntensityMultiplier: 1.5,
+      fieldPulseBoostScaleMultiplier: 1.2,
       ringScaleVariants: [1.0, 0.96, 1.04],
       ringRotationSpeeds: [
         { x: 0.2, y: 0.0, z: 0.0 },
@@ -311,14 +314,29 @@ export class T2_HarmonyVisualConsumer_v1 {
   _updateHarmonyFieldVisual(fieldData, deltaTime, harmonyIntensity) {
     fieldData.breathingPhase += deltaTime * this.config.fieldBreathingSpeed;
     const groupScale = (1 + Math.sin(fieldData.breathingPhase) * this.config.fieldBreathingAmplitude) * 1.45;
-    fieldData.auraGroup.scale.setScalar(groupScale);
+    let pulseIntensityMultiplier = 1.0;
+    let pulseScaleMultiplier = 1.0;
+
+    if (fieldData.pulseBoost?.remaining > 0 && fieldData.pulseBoost.duration > 0) {
+      fieldData.pulseBoost.remaining = Math.max(0, fieldData.pulseBoost.remaining - deltaTime);
+      const progress = 1.0 - (fieldData.pulseBoost.remaining / fieldData.pulseBoost.duration);
+      const envelope = Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI);
+      pulseIntensityMultiplier = 1.0 + ((fieldData.pulseBoost.intensityMultiplier || 1.0) - 1.0) * envelope;
+      pulseScaleMultiplier = 1.0 + ((fieldData.pulseBoost.scaleMultiplier || 1.0) - 1.0) * envelope;
+
+      if (fieldData.pulseBoost.remaining <= 0) {
+        fieldData.pulseBoost = null;
+      }
+    }
+
+    fieldData.auraGroup.scale.setScalar(groupScale * pulseScaleMultiplier);
     fieldData.auraGroup.visible = true;
 
     const hueAmplitude = (this.config.fieldHueMax - this.config.fieldHueMin) * 0.5;
     const hueCenter = this.config.fieldHueMin + hueAmplitude;
-    const targetOpacity = this.config.fieldBaseOpacity + (this.config.fieldMaxOpacity - this.config.fieldBaseOpacity) * harmonyIntensity;
-    const emissiveIntensity = this.config.fieldBaseEmissiveIntensity +
-      (this.config.fieldMaxEmissiveIntensity - this.config.fieldBaseEmissiveIntensity) * harmonyIntensity;
+    const targetOpacity = (this.config.fieldBaseOpacity + (this.config.fieldMaxOpacity - this.config.fieldBaseOpacity) * harmonyIntensity) * pulseIntensityMultiplier;
+    const emissiveIntensity = (this.config.fieldBaseEmissiveIntensity +
+      (this.config.fieldMaxEmissiveIntensity - this.config.fieldBaseEmissiveIntensity) * harmonyIntensity) * pulseIntensityMultiplier;
 
     fieldData.ringMeshes.forEach((ringMesh, index) => {
       const material = fieldData.ringMaterials[index];
@@ -524,8 +542,32 @@ export class T2_HarmonyVisualConsumer_v1 {
       ringMaterials,
       phaseOffsets,
       breathingPhase: Math.random() * Math.PI * 2,
-      lastHarmonyLevel: 0
+      lastHarmonyLevel: 0,
+      pulseBoost: null
     });
+  }
+
+  flashHarmonyField(node, options = {}) {
+    if (!this.enabled || !node?.uuid) return false;
+
+    const auraData = this.registry.nodeAuras.get(node.uuid);
+    if (!auraData) return false;
+
+    const harmonyLevel = this._resolveNodeHarmonyLevel(node, this.harmonySystem);
+    if (!Number.isFinite(harmonyLevel) || harmonyLevel < this.config.harmonyFieldThreshold) {
+      return false;
+    }
+
+    const duration = Math.max(0.05, options.duration ?? this.config.fieldPulseBoostDuration);
+    auraData.pulseBoost = {
+      duration,
+      remaining: duration,
+      intensityMultiplier: Math.max(1.0, options.intensityMultiplier ?? this.config.fieldPulseBoostIntensityMultiplier),
+      scaleMultiplier: Math.max(1.0, options.scaleMultiplier ?? this.config.fieldPulseBoostScaleMultiplier)
+    };
+    auraData.auraGroup.visible = true;
+
+    return true;
   }
   
   createOasisZone(position, harmonyIntensity = 0.8, radius = this.config.oasisZoneRadius, zoneKey = null) {

@@ -393,6 +393,69 @@ export class PHASE5_MultiNetworkManager {
       this.eventCallbacks.splice(index, 1);
     }
   }
+
+  /**
+   * Register callback for network registration events
+   */
+  onNetworkRegistered(callback) {
+    // Store callback for network registration events
+    this._networkRegisteredCallbacks = this._networkRegisteredCallbacks || [];
+
+    // Wrap to emit as standard event
+    const wrapped = (event) => {
+      if (event.type === 'networkRegistered') {
+        callback(event.networkId, this.networks.get(event.networkId), this.networkMetadata.get(event.networkId));
+      }
+    };
+
+    this.eventCallbacks.push(wrapped);
+    this._networkRegisteredCallbacks.push(wrapped);
+
+    // Return unsubscribe function
+    return () => {
+      const idx = this._networkRegisteredCallbacks.indexOf(wrapped);
+      if (idx >= 0) {
+        this._networkRegisteredCallbacks.splice(idx, 1);
+      }
+      const cbIdx = this.eventCallbacks.indexOf(wrapped);
+      if (cbIdx >= 0) {
+        this.eventCallbacks.splice(cbIdx, 1);
+      }
+    };
+  }
+
+  /**
+   * Register callback for connection creation events
+   */
+  onConnectionCreated(callback) {
+    // Store callback for connection events
+    this._connectionCreatedCallbacks = this._connectionCreatedCallbacks || [];
+
+    // Wrap to emit as standard event
+    const wrapped = (event) => {
+      if (event.type === 'networkConnected') {
+        const connection = this.networkConnections.find(c =>
+          c.sourceNetworkId === event.sourceNetworkId && c.targetNetworkId === event.targetNetworkId
+        );
+        callback(connection || event);
+      }
+    };
+
+    this.eventCallbacks.push(wrapped);
+    this._connectionCreatedCallbacks.push(wrapped);
+
+    // Return unsubscribe function
+    return () => {
+      const idx = this._connectionCreatedCallbacks.indexOf(wrapped);
+      if (idx >= 0) {
+        this._connectionCreatedCallbacks.splice(idx, 1);
+      }
+      const cbIdx = this.eventCallbacks.indexOf(wrapped);
+      if (cbIdx >= 0) {
+        this.eventCallbacks.splice(cbIdx, 1);
+      }
+    };
+  }
   
   /**
    * Get statistics
@@ -424,6 +487,8 @@ export class PHASE5_MultiNetworkManager {
   dispose() {
     this.clear();
     this.eventCallbacks = [];
+    this._networkRegisteredCallbacks = [];
+    this._connectionCreatedCallbacks = [];
   }
 }
 

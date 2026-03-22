@@ -76,15 +76,15 @@ export class TIER4_GameplayIntegrationCore {
     
     // Wire link creation events
     if (this.linkingSystem.onLinkCreated) {
-      this.linkingSystem.onLinkCreated((link) => {
-        this.onLinkCreated(link);
+      this.linkingSystem.onLinkCreated((source, target) => {
+        this.onLinkCreated(source, target);
       });
     }
-    
+
     // Wire link removal events
     if (this.linkingSystem.onLinkRemoved) {
-      this.linkingSystem.onLinkRemoved((link) => {
-        this.onLinkRemoved(link);
+      this.linkingSystem.onLinkRemoved((source, target) => {
+        this.onLinkRemoved(source, target);
       });
     }
     
@@ -94,19 +94,41 @@ export class TIER4_GameplayIntegrationCore {
     
     return true;
   }
-  
+
+  /**
+   * Helper: Find link object between two nodes
+   */
+  getLink(sourceNode, targetNode) {
+    if (!this.linkingSystem?.links) return null;
+
+    for (const link of this.linkingSystem.links) {
+      const linkNodes = link.nodes || [];
+      if (linkNodes.length >= 2) {
+        const node1 = linkNodes[0];
+        const node2 = linkNodes[1];
+        if ((node1 === sourceNode && node2 === targetNode) ||
+            (node1 === targetNode && node2 === sourceNode)) {
+          return link;
+        }
+      }
+    }
+    return null;
+  }
+
   /**
    * Called when a link is created by player action
    * Applies: corruption seeding, harmony boost
    */
-  onLinkCreated(link) {
-    if (!link || !this.linkingSystem) return;
-    
+  onLinkCreated(sourceNode, targetNode) {
+    if (!sourceNode || !targetNode || !this.linkingSystem) return;
+
     try {
-      const sourceNode = link.nodes?.[0];
-      const targetNode = link.nodes?.[1];
-      
-      if (!sourceNode || !targetNode) return;
+      // Find the link object between these nodes
+      const link = this.getLink(sourceNode, targetNode);
+      if (!link) {
+        console.warn('[TIER4_GameplayIntegrationCore] Link not found between nodes');
+        return;
+      }
       
       // ====================================================================
       // [1] Apply Corruption Seed on Source Node
@@ -167,14 +189,19 @@ export class TIER4_GameplayIntegrationCore {
    * Called when a link is destroyed by player action
    * Applies: cascade cleanup, harmony restoration
    */
-  onLinkRemoved(link) {
-    if (!link || !this.linkingSystem) return;
-    
+  onLinkRemoved(sourceNode, targetNode) {
+    if (!sourceNode || !targetNode || !this.linkingSystem) return;
+
     try {
-      const sourceNode = link.nodes?.[0];
-      const targetNode = link.nodes?.[1];
-      
-      if (!sourceNode || !targetNode) return;
+      // Get link data before removal (corruption level)
+      // Note: link object may not exist after removal, so track it now
+      let linkCorruptionLevel = 0;
+
+      // Try to get link before it's removed
+      const link = this.linkingSystem.getLink(sourceNode, targetNode);
+      if (link) {
+        linkCorruptionLevel = link.userData?.corruptionLevel ?? 0;
+      }
       
       // ====================================================================
       // [1] Detect and Mitigate Cascades

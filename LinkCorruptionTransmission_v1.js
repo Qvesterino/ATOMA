@@ -5140,6 +5140,26 @@ export class LinkCorruptionTransmission_v1 {
           temporalWindow: HEALING_CONTENTION_THRESHOLDS.TEMPORAL_WINDOW_MS + 'ms',
           spatialRange: HEALING_CONTENTION_THRESHOLDS.SPATIAL_RANGE_HOPS + ' hops'
         });
+      },
+
+      // Get network corruption level (average corruption across all nodes)
+      getNetworkCorruption: () => {
+        const allNodes = this.aiNodes?.nodes || [];
+        if (allNodes.length === 0) return 0;
+
+        let totalCorruption = 0;
+        let corruptedNodeCount = 0;
+
+        for (const node of allNodes) {
+          const corruption = node.userData?.metrics?.corruption || node.userData?.corruption || 0;
+          if (corruption > 0) {
+            totalCorruption += corruption;
+            corruptedNodeCount++;
+          }
+        }
+
+        // Return average corruption (0-1 scale)
+        return corruptedNodeCount > 0 ? totalCorruption / allNodes.length : 0;
       }
     };
 

@@ -651,6 +651,7 @@ import { T2_HarmonyVisualConsumer_v1 } from './src/legacy/T2_HarmonyVisualConsum
 // ✅ T4-003: Gameplay Feedback UI (notifications + meters)
 // ============================================================================
 import { TIER4_GameplayIntegrationBridge } from './TIER4_GameplayIntegrationBridge_v1.js';
+import { TIER4_GameplayFeedbackUI } from './TIER4_GameplayFeedbackUI_v1.js';
 
 // ============================================================================
 // PHASE 5: MULTI-NETWORK SYNCHRONIZATION — Inter-Network Dynamics
@@ -7894,6 +7895,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
                 }
             );
+            this.corruptionFeedback?.setHarmonyFieldConsumer?.(this.t2HarmonyVisualConsumer);
             console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
@@ -7926,14 +7928,27 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.aiNodes,
                 this.scene,
                 this.linkCorruptionTransmission,
-                this.harmonyStabilizationSystem
+                this.harmonyStabilizationSystem,
+                this.t2HarmonyVisualConsumer
             );
             
             console.log('[main.js] TIER4_GameplayIntegrationBridge initialized ✓');
+
+            // Wire frame scheduler for visual tick control
+            this.tier4GameplayIntegration.frameScheduler = this.frameScheduler;
+            if (this.tier4GameplayIntegration.core) {
+              this.tier4GameplayIntegration.core.frameScheduler = this.frameScheduler;
+            }
+            if (this.tier4GameplayIntegration.visuals) {
+              this.tier4GameplayIntegration.visuals.frameScheduler = this.frameScheduler;
+            }
+            if (this.tier4GameplayIntegration.ui) {
+              this.tier4GameplayIntegration.ui.frameScheduler = this.frameScheduler;
+            }
         } catch (err) {
             console.warn('[main.js] TIER4_GameplayIntegrationBridge initialization failed:', err);
         }
-        
+
         // ====================================================================
         // PHASE 5: MULTI-NETWORK SYNCHRONIZATION INITIALIZATION
         // ====================================================================
@@ -7947,10 +7962,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 enableSynchronization: true,
                 enableEventPropagation: true
             });
-            
+
             // Initialize orchestrator
             this.phase5MultiNetworkOrchestrator.initialize();
-            
+
+            // Wire frame scheduler for tick control
+            this.phase5MultiNetworkOrchestrator.frameScheduler = this.frameScheduler;
+
             // Register primary network (current network as Network 0)
             // This allows future multi-network scenarios
             this.phase5MultiNetworkOrchestrator.registerNetwork(
@@ -7997,6 +8015,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     {
                         enableDebug: false,
                         enableLogging: false,
+                        semanticBus: this.semanticBus,
                         ringRadius: 1.5,
                         expandSpeed: 8.0,
                         fadeDuration: 0.8,
@@ -8045,6 +8064,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                         maxEventHistory: 100
                     }
                 );
+                this.phase5CascadeVisualizationBridge.frameScheduler = this.frameScheduler;
+                this.phase5CascadeVisualizationBridge.semanticBus = this.semanticBus;
                 console.log('[main.js] PHASE5_CascadeVisualizationBridge initialized ✓');
             } catch (err) {
                 console.warn('[main.js] PHASE5_CascadeVisualizationBridge initialization failed:', err);

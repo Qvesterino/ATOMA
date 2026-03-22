@@ -50,6 +50,7 @@ export class TIER4_GameplayIntegrationBridge {
     this.scene = null;
     this.linkCorruptionTransmission = null;
     this.harmonyStabilizationSystem = null;
+    this.harmonyVisualConsumer = null;
     
     // Event tracking
     this.isInitialized = false;
@@ -59,7 +60,7 @@ export class TIER4_GameplayIntegrationBridge {
    * Initialize all TIER 4 subsystems
    * Call from main.js after all TIER 1-3 systems are ready
    */
-  initialize(linkingSystem, aiNodes, scene, linkCorruptionTransmission, harmonyStabilizationSystem) {
+  initialize(linkingSystem, aiNodes, scene, linkCorruptionTransmission, harmonyStabilizationSystem, harmonyVisualConsumer = null) {
     if (!linkingSystem || !aiNodes || !scene) {
       console.error('[TIER4_GameplayIntegrationBridge] Missing required systems');
       return false;
@@ -70,6 +71,7 @@ export class TIER4_GameplayIntegrationBridge {
     this.scene = scene;
     this.linkCorruptionTransmission = linkCorruptionTransmission;
     this.harmonyStabilizationSystem = harmonyStabilizationSystem;
+    this.harmonyVisualConsumer = harmonyVisualConsumer;
     
     try {
       // ====================================================================
@@ -104,7 +106,8 @@ export class TIER4_GameplayIntegrationBridge {
           enableDebug: this.config.enableDebug,
           showCorruptionSeedPulse: this.config.showCorruptionSeedPulse,
           showCascadeWarning: this.config.showCascadeWarning,
-          showHarmonyPulse: this.config.showHarmonyPulse
+          showHarmonyPulse: this.config.showHarmonyPulse,
+          harmonyFieldConsumer: this.harmonyVisualConsumer
         });
         
         // Wire to core for visual event triggers
@@ -154,54 +157,60 @@ export class TIER4_GameplayIntegrationBridge {
    */
   wireEventCallbacks() {
     if (!this.core) return;
-    
+
     // Hook into core events to trigger visual feedback
     const originalOnLinkCreated = this.core.onLinkCreated.bind(this.core);
-    this.core.onLinkCreated = (link) => {
-      originalOnLinkCreated(link);
-      
+    this.core.onLinkCreated = (sourceNode, targetNode) => {
+      originalOnLinkCreated(sourceNode, targetNode);
+
       // Trigger visual feedback
-      if (this.visuals && link.nodes?.[0]) {
-        this.visuals.displayCorruptionSeed(link.nodes[0]);
-        this.visuals.displayHarmonyPulse(link.nodes[1]);
+      if (this.visuals && sourceNode) {
+        this.visuals.displayCorruptionSeed(sourceNode);
+        this.visuals.displayHarmonyPulse(targetNode);
       }
-      
+
       // Trigger UI feedback
-      if (this.ui && link.nodes?.[0] && link.nodes?.[1]) {
+      if (this.ui && sourceNode && targetNode) {
         this.ui.notifyLinkCreated(
-          link.nodes[0],
-          link.nodes[1],
+          sourceNode,
+          targetNode,
           this.config.linkCreationCorruptionSeed
         );
-        
+
         this.ui.notifyHarmonyBoost(2, this.config.linkCreationHarmonyBoost);
       }
     };
-    
+
     const originalOnLinkRemoved = this.core.onLinkRemoved.bind(this.core);
-    this.core.onLinkRemoved = (link) => {
-      originalOnLinkRemoved(link);
-      
-      // Check if cascade was detected
-      const wasCorrupted = link.userData?.corruptionLevel ?? 0 > 0.6;
-      
-      if (wasCorrupted && this.visuals && link.nodes?.[0]) {
-        this.visuals.displayCascadeWarning(link.nodes[0]);
-        this.visuals.displayCascadeWarning(link.nodes[1]);
+    this.core.onLinkRemoved = (sourceNode, targetNode) => {
+      originalOnLinkRemoved(sourceNode, targetNode);
+
+      // Get link corruption level before removal
+      let wasCorrupted = false;
+      let corruptionLevel = 0;
+      const link = this.core?.getLink(sourceNode, targetNode);
+      if (link) {
+        corruptionLevel = link.userData?.corruptionLevel ?? 0;
+        wasCorrupted = corruptionLevel > 0.6;
       }
-      
+
+      if (wasCorrupted && this.visuals && sourceNode) {
+        this.visuals.displayCascadeWarning(sourceNode);
+        this.visuals.displayCascadeWarning(targetNode);
+      }
+
       // Trigger UI feedback
-      if (this.ui && link.nodes?.[0] && link.nodes?.[1]) {
+      if (this.ui && sourceNode && targetNode) {
         this.ui.notifyLinkDestroyed(
-          link.nodes[0],
-          link.nodes[1],
+          sourceNode,
+          targetNode,
           this.config.linkDestructionHarmonyBoost
         );
-        
+
         if (wasCorrupted) {
           this.ui.notifyCascadeWarning(
-            link.nodes[0],
-            link.userData?.corruptionLevel ?? 0
+            sourceNode,
+            corruptionLevel
           );
         }
       }
@@ -216,12 +225,19 @@ export class TIER4_GameplayIntegrationBridge {
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
     if (!this.isInitialized) return;
-    
+
     // Update visual effects
     if (this.visuals) {
       this.visuals.update(deltaTime);
     }
-    
+
+    // Update UI health meter (corruption + harmony)
+    if (this.ui && this.linkCorruptionTransmission && this.harmonyStabilizationSystem) {
+      const corruptionLevel = this.linkCorruptionTransmission.getNetworkCorruption() || 0;
+      const harmonyLevel = this.harmonyStabilizationSystem.getNetworkHarmony() || 0;
+      this.ui.updateNetworkHealthMeter(corruptionLevel, harmonyLevel);
+    }
+
     // Core updates happen via event callbacks (no per-frame update needed currently)
   }
   

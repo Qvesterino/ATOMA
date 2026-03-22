@@ -1134,6 +1134,22 @@ export class HarmonyStabilizationSystem_v1 {
       toggleDebug: () => {
         this.debugMode = !this.debugMode;
         console.log(`[HarmonyStabilization] Debug mode: ${this.debugMode}`);
+      },
+
+      // Get network harmony level (average harmony across all nodes)
+      getNetworkHarmony: () => {
+        const allNodes = this.aiNodes?.nodes || [];
+        if (allNodes.length === 0) return 0;
+
+        let totalHarmony = 0;
+
+        for (const node of allNodes) {
+          const harmony = this.nodeHarmony.get(node.id)?.level || node.userData?.harmony || 0;
+          totalHarmony += harmony;
+        }
+
+        // Return average harmony (0-1 scale)
+        return totalHarmony / allNodes.length;
       }
     };
 
