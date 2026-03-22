@@ -630,7 +630,6 @@ import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } fro
 import { LinkCorruptionTransmission_v1 } from './LinkCorruptionTransmission_v1.js';
 import { HarmonyStabilizationSystem_v1 } from './HarmonyStabilizationSystem_v1.js';
 import { applyHarmonyStabilizationIntegration } from './HarmonyStabilizationIntegrationPatch_v1.js';
-import { injectHarmonyIntoNodes, injectRandomHarmonyDistribution, getHarmonyStatistics, HarmonyInjectAPI } from './InjectHarmonyIntoNodes.js';
 import { setupCorruptionCascadeTestRunner } from './_T4003_CORRUPTION_CASCADE_TEST_RUNNER.js';
 import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNNER.js';
 
@@ -642,10 +641,7 @@ import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNN
 // ✅ T2-003: Harmony Visual Feedback Consumer
 // ============================================================================
 import { T2_CorruptionVisualIntegration_v1 } from './T2_CorruptionVisualIntegration_v1.js';
-// ARCHIVED (2026-03-13): T2_HarmonyVisualConsumer_v1 moved to src/legacy/
-// Reason: Violates ATOMA visual policy (primitive SphereGeometry instead of EnhancedNodeModels)
-// Replacement: HarmonyAuraController.js (via VisualTemplateResolver)
-// See: src/legacy/T2_HarmonyVisualConsumer_v1.js for documentation
+import { T2_HarmonyVisualConsumer_v1 } from './src/legacy/T2_HarmonyVisualConsumer_v1.js';
 
 // ============================================================================
 // TIER 4 GAMEPLAY INTEGRATION — Gameplay Layer
@@ -3807,6 +3803,7 @@ class AtomaGame {
         }, 'visual.hardInteractionAuthority');
         this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
         this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
+        this.frameScheduler.register('visual', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem), 'visual.t2HarmonyVisualConsumer');
         // Realtime systems
         this.frameScheduler.register('realtime', (dt) => this.nodeInteractionEngine?.update?.(dt), 'realtime.nodeInteraction');
         this.frameScheduler.register('realtime', (dt) => this.hitProxySystem?.update?.(dt), 'realtime.hitProxy');
@@ -4344,8 +4341,8 @@ this.setHudDirty('nodeInspect');
         // T2-002: Corruption Visual Integration
         this.t2CorruptionVisualIntegration = null;
         
-        // T2-003: DISABLED - Harmony Visual Consumer creates primitive sphere auras
-        // this.t2HarmonyVisualConsumer = null;
+        // T2-003: Harmony Visual Consumer
+        this.t2HarmonyVisualConsumer = null;
         
         // ====================================================================
         // TIER 4 GAMEPLAY INTEGRATION: Gameplay Layer
@@ -6240,6 +6237,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         });
 
+        this.t2HarmonyVisualConsumer?.resetForWorldSwitch?.({
+            scene: this.scene,
+            harmonySystem: this.harmonyStabilizationSystem,
+            attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
+        });
+
         // Dispose old world instance before creating new one
         if (this.activeWorld) {
             console.log('[WorldInstance] Disposing old activeWorld:', this.activeWorld);
@@ -7836,19 +7839,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             } catch (err) {
                 console.warn('[main.js] HarmonyStabilizationIntegrationPatch_v1 failed:', err);
             }
-            
-            // Inject harmony values into nodes to make visual pipeline live
-            // This is a temporary debug feature to verify visual systems respond to harmony
-            try {
-                const result = injectHarmonyIntoNodes(this.aiNodes, 0.8, false);
-                if (result.success) {
-                    console.log(`[main.js] Injected harmonyLevel=0.8 into ${result.injectedCount} nodes ✓`);
-                } else {
-                    console.warn('[main.js] Harmony injection failed:', result.error);
-                }
-            } catch (err) {
-                console.warn('[main.js] Harmony injection error:', err);
-            }
         } catch (err) {
             console.warn('[main.js] HarmonyStabilizationSystem_v1 initialization failed:', err);
         }
@@ -7896,18 +7886,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] T2_CorruptionVisualIntegration_v1 initialization failed:', err);
         }
         
-        // T2-003: DISABLED - Harmony Visual Consumer creates primitive sphere auras
-        // Violates ATOMA visual policy (no SphereGeometry allowed)
-        console.log('[ATOMA] HarmonyVisualConsumer DISABLED (primitive sphere source removed)');
-        // try {
-        //     this.t2HarmonyVisualConsumer = new T2_HarmonyVisualConsumer_v1(
-        //         this.scene,
-        //         this.harmonyStabilizationSystem
-        //     );
-        //     console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
-        // } catch (err) {
-        //     console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
-        // }
+        try {
+            this.t2HarmonyVisualConsumer = new T2_HarmonyVisualConsumer_v1(
+                this.scene,
+                this.harmonyStabilizationSystem,
+                {
+                    attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
+                }
+            );
+            console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
+        }
         
         // ====================================================================
         // TIER 4 GAMEPLAY INTEGRATION: Gameplay Layer
@@ -9683,6 +9673,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('narrativePatterns', 'background.narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         regGuard('hitProxy', 'realtime.hitProxy', (dt) => this.hitProxySystem?.update?.(dt));
         regGuard('t2CorruptionVisualIntegration', 'visual.t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
+        regGuard('t2HarmonyVisualConsumer', 'visual.t2HarmonyVisualConsumer', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem));
         regGuard('tier4GameplayIntegration', 'simulation.tier4GameplayIntegration', (dt) => this.tier4GameplayIntegration?.update?.(dt));
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
