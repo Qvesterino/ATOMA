@@ -422,14 +422,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         // Create resonance scar
         this._createResonanceScar(trapId, trap, rupture.intensity);
 
-        // PATCH 1: Trigger cascade
-        if (this.cascadingRuptureSystem) {
-            const originNode = trap.nodeA || trap.nodeB;
-            if (originNode) {
-                console.log("[CASCADE] triggered", originNode.uuid.slice(0, 8));
-                this.cascadingRuptureSystem.triggerCascade(originNode);
-            }
-        }
+        // Cascade trigger is handled above via initiateCascade() to avoid duplicate/invalid calls.
     }
 
     /**

@@ -61,7 +61,14 @@ export class CanonicalTemplate3_StressVisuals {
    * @param {number} stressValue - Global network stress (0–1)
    */
   updateNetworkStress(stressValue) {
-    this.networkStress = Math.max(0, Math.min(1, stressValue ?? 0));
+    const numericStress = Number(stressValue ?? 0);
+    if (!Number.isFinite(numericStress)) {
+      this.networkStress = 0;
+      return;
+    }
+    // Accept both 0..1 and 0..100 sources (NetworkStressAggregator is 0..100).
+    const normalizedStress = numericStress > 1 ? (numericStress / 100) : numericStress;
+    this.networkStress = Math.max(0, Math.min(1, normalizedStress));
   }
 
   /**

@@ -491,14 +491,17 @@ export class LinkPulseRing {
         });
 
         // Arc burst trigger (re-enabled)
-        if (pulseState.atPeak && !this._arcTriggeredThisPulse && this.arcSystem) {
-            this.mesh.getWorldDirection(this._worldDirection);
-            this.arcSystem.spawnArcBurst(
-                this.mesh.position,
-                this._worldDirection,
-                synergy,
-                traffic
-            );
+        if (pulseState.atPeak && !this._arcTriggeredThisPulse) {
+            if (this.arcSystem) {
+                this.mesh.getWorldDirection(this._worldDirection);
+                this.arcSystem.spawnArcBurst(
+                    this.mesh.position,
+                    this._worldDirection,
+                    synergy,
+                    traffic
+                );
+            }
+            this._spawnTrailChainArcsAtPeak();
             this._arcTriggeredThisPulse = true;
         }
 
@@ -545,25 +548,23 @@ export class LinkPulseRing {
             this._trailQuaternion.setFromUnitVectors(this._ringAxis, trailTan.normalize());
             this._buildTrailFrame(trailTan, this._trailNormal, this._trailBinormal);
 
-            // Propulsion-like thrust pulses along tangent
-            const phase = this._time * 26.0 + i * 1.35;
-            const osc1 = Math.sin(phase) * 0.07;
-            const osc2 = Math.sin(phase * 2.9 + 1.7) * 0.038;
-            const osc3 = Math.sin(phase * 5.4 + 0.4) * 0.02;
-            const burst = Math.max(0.0, Math.sin(this._time * 9.4 + i * 1.1)) * 0.07;
-            const oscillation = osc1 + osc2 + osc3 + burst;
+            // Calmed tangent thrust: two harmonics only (no burst spikes).
+            const phase = this._time * 14.0 + i * 1.25;
+            const osc1 = Math.sin(phase) * 0.035;
+            const osc2 = Math.sin(phase * 2.15 + 1.2) * 0.016;
+            const oscillation = osc1 + osc2;
             trail.position.addScaledVector(trailTan, oscillation);
 
             // Optional scale pulse for added energy feel
-            const scalePulse = 1.0 + Math.sin(this._time * 23.0 + i * 1.5) * 0.07;
+            const scalePulse = 1.0 + Math.sin(this._time * 16.0 + i * 1.4) * 0.03;
             const baseScale = this.mesh.scale.x;
             const dynamicScale = baseScale * scalePulse;
 
             // Energy compression along tangent
-            const compPhase = this._time * 21.0 + i * 1.1;
+            const compPhase = this._time * 13.5 + i * 1.1;
             const compression = Math.pow(Math.max(0.0, Math.sin(compPhase)), 2.0);
-            const scaleForward = 1.0 - compression * 0.35;
-            const scaleSide = 1.0 + compression * 0.18;
+            const scaleForward = 1.0 - compression * 0.16;
+            const scaleSide = 1.0 + compression * 0.08;
             trail.scale.set(
                 dynamicScale * scaleSide,
                 dynamicScale * scaleSide,
@@ -575,22 +576,11 @@ export class LinkPulseRing {
             const trailOpacityDecay = 1.0 - (i + 1) / (this.trailMeshes.length + 1);
             const trailLifetimeDecay = trailProgress < 0.3 ? trailProgress / 0.3 : (trailProgress > 0.7 ? (1.0 - trailProgress) / 0.3 : 1.0);
             trail.material.uniforms.uOpacity.value = finalOpacity * trailLifetimeDecay * trailOpacityDecay * (0.72 + trailOpacityPulse);
-            const trailHueOffset = variation.hueOffset + (Math.random() - 0.5) * 0.02;
+            // Fixed per-trail hue offset (no per-frame randomness).
+            const trailHueOffset = variation.hueOffset;
             this._tempColor.setHSL(hsl.h + trailHueOffset, hsl.s, hsl.l);
             this._applyRingVisuals(trail.material, this._tempColor, trail.material.uniforms.uOpacity.value);
         });
-
-        // Chain arcs between adjacent trails
-        if (this.trailMeshes.length >= 2) {
-            for (let i = 0; i < this.trailMeshes.length - 1; i++) {
-                const a = this.trailMeshes[i];
-                const b = this.trailMeshes[i + 1];
-                const dist = a.position.distanceTo(b.position);
-                if (dist < 0.2 && Math.random() < 0.35 && this._activeChainArcs.length < 2) {
-                    this._spawnChainArc(a.position, b.position);
-                }
-            }
-        }
 
         // Update active chain arcs
         if (this._activeChainArcs.length > 0) {
@@ -663,6 +653,19 @@ export class LinkPulseRing {
         arc.material.opacity = arc.baseOpacity;
 
         this._activeChainArcs.push(arc);
+    }
+
+    _spawnTrailChainArcsAtPeak() {
+        if (this.trailMeshes.length < 2 || this._activeChainArcs.length >= 2) return;
+        for (let i = 0; i < this.trailMeshes.length - 1; i++) {
+            const a = this.trailMeshes[i];
+            const b = this.trailMeshes[i + 1];
+            if (!a?.visible || !b?.visible) continue;
+            const dist = a.position.distanceTo(b.position);
+            if (dist < 0.2 && this._activeChainArcs.length < 2) {
+                this._spawnChainArc(a.position, b.position);
+            }
+        }
     }
 
     _applyRingVisuals(material, color, opacity, intensityMultiplier = 1.0) {

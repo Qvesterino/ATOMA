@@ -13,8 +13,8 @@ export const stressAmbientVertexShader = `
   
   void main() {
     vWorldPosition = position;
-    vDepth = gl_Position.z;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vDepth = gl_Position.z;
   }
 `;
 

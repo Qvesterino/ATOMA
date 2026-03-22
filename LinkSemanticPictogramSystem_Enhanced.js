@@ -109,9 +109,9 @@ const CONFIG = {
     // Depth & parallax
     PARALLAX_STRENGTH: 0.15,
     MICRO_ROTATION_AMOUNT: 0.05,  // Radians
-    MICRO_ROTATION_SPEED: 0.3,
-    SPIRAL_TURNS: 3.5,            // How many wraps around link per traversal
-    SPIRAL_ROTATION_SPEED: 0.8,   // Revolutions per second around link axis
+    MICRO_ROTATION_SPEED: 0.16,
+    SPIRAL_TURNS: 2.2,            // Fewer wraps for calmer readability
+    SPIRAL_ROTATION_SPEED: 0.32,  // Slower revolutions around link axis
     
     // Lifetime
     LIFETIME_MIN: 10.0,
@@ -354,6 +354,7 @@ class EnhancedPictogramInstance {
         this.updatePositionAlongLink(linkContext, cameraPosition);
 
         if (!this.active || !this.link) return;
+        this.linkContextCache = linkContext || null;
 
         this.age += deltaTime;
 
@@ -413,10 +414,10 @@ class EnhancedPictogramInstance {
         // Animate synergy arrow clusters (if present)
         if (this.mesh?.userData?.synergyArrows) {
             const pulse = 1 + Math.sin(this.age * 6) * 0.12;
-            const rotSpeed = 2.5;
             this.mesh.userData.synergyArrows.forEach((cluster, idx) => {
-                cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * deltaTime;
                 const synergyBoost = (this.linkContextCache?.synergy || 0);
+                const spinFactor = 0.22 + synergyBoost * 0.38;
+                cluster.rotation.z += (cluster.userData.spinSpeed || 0.8) * spinFactor * deltaTime;
                 const s = cluster.userData.baseScale * pulse * (1 + synergyBoost * 0.5);
                 cluster.scale.setScalar(s);
             });
@@ -1357,10 +1358,20 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const linkContext = this.analyzeLinkContext(pictogram.link);
             pictogram.update(deltaTime, linkContext, cameraPos);
 
-            // Animate orbital glyph layers
-            if (pictogram._orbit1) pictogram._orbit1.rotation.x += deltaTime * 1.8;
-            if (pictogram._orbit2) pictogram._orbit2.rotation.z += deltaTime * 1.5;
-            if (pictogram.mesh) pictogram.mesh.rotation.y += deltaTime * 1.2;
+            // Animate orbital glyph layers: calm drift + occasional metric accent.
+            const sy = linkContext?.synergy || 0;
+            const co = linkContext?.corruption || 0;
+            const sw = linkContext?.standingWaveIntensity || 0;
+            const accent = (sy > 0.62 || co > 0.55 || sw > 0.6) ? 1.0 : 0.0;
+            const pulse = 0.5 + 0.5 * Math.sin((pictogram.age || 0) * 0.9 + (pictogram.depthLayer || 0) * 0.7);
+            const accentBoost = accent * (0.25 + pulse * 0.75);
+            const orbit1Rate = 0.28 + accentBoost * 0.35;
+            const orbit2Rate = 0.22 + accentBoost * 0.30;
+            const meshYRate = 0.08 + accentBoost * 0.12;
+
+            if (pictogram._orbit1) pictogram._orbit1.rotation.x += deltaTime * orbit1Rate;
+            if (pictogram._orbit2) pictogram._orbit2.rotation.z += deltaTime * orbit2Rate;
+            if (pictogram.mesh) pictogram.mesh.rotation.y += deltaTime * meshYRate;
 
             if (!pictogram.active) {
                 const linkId = pictogram._linkKey || this.getLinkKey(pictogram.link);

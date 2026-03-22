@@ -25,7 +25,6 @@ uniform float uTime;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vLife;
-varying vec2 vDir;
 
 void main() {
     float age = uTime - aInfo.x;
@@ -63,19 +62,6 @@ void main() {
     
     // Alpha fades out linearly
     vAlpha = 0.76 * (1.0 - lifeProgress);
-    vec4 mvForward = modelViewMatrix * vec4(currentPos + aDir * 0.14, 1.0);
-    vec4 clipForward = projectionMatrix * mvForward;
-    vec2 ndcA = clipPosition.xy / max(clipPosition.w, 1e-4);
-    vec2 ndcB = clipForward.xy / max(clipForward.w, 1e-4);
-    vec2 screenDir = ndcB - ndcA;
-    float dirLen = length(screenDir);
-    if (dirLen <= 1e-5) {
-        vec2 fallbackDir = (modelViewMatrix * vec4(aDir, 0.0)).xy;
-        float fallbackLen = length(fallbackDir);
-        vDir = (fallbackLen > 1e-5) ? (fallbackDir / fallbackLen) : vec2(0.0, 1.0);
-    } else {
-        vDir = screenDir / dirLen;
-    }
 }
 `;
 
@@ -83,29 +69,31 @@ const TRAIL_FS = `
 varying vec3 vColor;
 varying float vAlpha;
 varying float vLife;
-varying vec2 vDir;
 
 void main() {
     if (vAlpha <= 0.01) discard;
-    
-    // Teardrop sprite aligned to travel direction:
-    // +Y points to target (head), -Y points to source (tail).
-    vec2 raw = gl_PointCoord * 2.0 - 1.0;
-    vec2 perp = vec2(-vDir.y, vDir.x);
-    vec2 p = vec2(dot(raw, perp), dot(raw, vDir));
-    p.y *= 1.05;
 
-    float head = 1.0 - smoothstep(0.26, 0.86, length(vec2(p.x * 1.15, (p.y - 0.34) * 0.92)));
-    float tailWidth = mix(0.14, 0.55, clamp((p.y + 1.0) * 0.5, 0.0, 1.0));
-    float tail = 1.0 - smoothstep(0.0, 1.0, max(abs(p.x) / max(tailWidth, 0.001), -(p.y + 0.86)));
-    tail *= 1.0 - smoothstep(0.08, 1.0, vLife);
+    // Fluid-like rounded "amoeba" smear (low directionality).
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float wobble = sin((p.x * 2.6 + p.y * 1.9 + vLife * 6.8) * 3.14159) * (0.09 * (1.0 - vLife));
+    p.x += wobble;
+    p.y += sin((p.x - p.y + vLife * 5.2) * 3.14159) * 0.05 * (1.0 - vLife);
 
-    float shape = max(head, tail * 0.84);
-    shape = smoothstep(0.02, 0.9, shape);
+    vec2 e0 = vec2(p.x * 1.02, p.y * 1.18);
+    float core = 1.0 - smoothstep(0.18, 0.78, length(e0));
+
+    float lobeA = 1.0 - smoothstep(0.10, 0.50, length(p - vec2(0.24, -0.08)));
+    float lobeB = 1.0 - smoothstep(0.10, 0.52, length(p - vec2(-0.22, 0.10)));
+    float membrane = 1.0 - smoothstep(0.36, 0.96, length(vec2(p.x * 1.25, p.y * 1.05)));
+
+    float shape = max(core, max(lobeA * 0.62, lobeB * 0.55));
+    shape = max(shape, membrane * 0.42);
+    shape = smoothstep(0.03, 0.92, shape);
     if (shape < 0.01) discard;
 
-    float glow = 0.58 + (1.0 - abs(p.y)) * 0.26;
-    gl_FragColor = vec4(vColor, vAlpha * shape * glow);
+    // Keep hue readable (avoid white washing).
+    float innerGlow = 0.86 + core * 0.12;
+    gl_FragColor = vec4(vColor * innerGlow, vAlpha * shape);
 }
 `;
 
@@ -130,7 +118,15 @@ export class LinkBeadTrailSystem {
         this.scene = scene;
         this.maxParticles = maxParticles;
         this.writeIndex = 0;
+        this.laneCursor = 0;
         this._prevBeadPos = new WeakMap();
+        this._tmpDir = new THREE.Vector3();
+        this._tmpLaneBase = new THREE.Vector3();
+        this._tmpLaneTangent = new THREE.Vector3();
+        this._tmpLaneNormal = new THREE.Vector3();
+        this._tmpLaneBinormal = new THREE.Vector3();
+        this._tmpLanePos = new THREE.Vector3();
+        this._tmpColor = new THREE.Color();
         
         // Configuration
         this.config = {
@@ -210,6 +206,10 @@ export class LinkBeadTrailSystem {
         let updateStart = -1;
         let updateEnd = -1;
         
+        const hasCurve = !!(curve && typeof curve.getPointAt === 'function' && typeof curve.getTangentAt === 'function');
+        const curveLength = hasCurve && typeof curve.getLength === 'function' ? curve.getLength() : null;
+        const twists = curveLength ? Math.max(1.5, curveLength / 4.2) : 2.2;
+
         // Iterate beads
         for (const [bead, mesh] of beadToMesh) {
             // Filter: Only trails for Medium and Large beads
@@ -224,10 +224,11 @@ export class LinkBeadTrailSystem {
             
             // Get bead position (world space)
             const beadPos = mesh.position;
-            const beadColor = mesh.material.color;
+            const beadColor = mesh.material?.color;
+            const beadEmissive = mesh.material?.emissive;
             const previous = this._prevBeadPos.get(bead) || beadPos.clone();
-            const dir = new THREE.Vector3();
-            if (curve && typeof bead?.t === 'number' && curve.getTangentAt) {
+            const dir = this._tmpDir;
+            if (hasCurve && typeof bead?.t === 'number') {
                 dir.copy(curve.getTangentAt(Math.max(0.0, Math.min(1.0, bead.t))));
             } else {
                 dir.copy(beadPos).sub(previous);
@@ -235,17 +236,52 @@ export class LinkBeadTrailSystem {
             if (dir.lengthSq() < 1e-8) dir.set(0, 0, 1);
             dir.normalize();
             this._prevBeadPos.set(bead, beadPos.clone());
+
+            if (beadColor?.isColor) {
+                this._tmpColor.copy(beadColor);
+                if (beadEmissive?.isColor) {
+                    this._tmpColor.lerp(beadEmissive, 0.22);
+                }
+            } else {
+                this._tmpColor.set(0xffffff);
+            }
             
             // Spawn particles
             for (let k = 0; k < count; k++) {
                 const idx = this.writeIndex;
                 const i3 = idx * 3;
                 
-                // Position: Bead Position + Random jitter
-                const jitter = 0.012 * bead.radius; // Slightly wider origin so the trail reads inside the braid
-                this.positions[i3] = beadPos.x + (Math.random()-0.5)*jitter;
-                this.positions[i3+1] = beadPos.y + (Math.random()-0.5)*jitter;
-                this.positions[i3+2] = beadPos.z + (Math.random()-0.5)*jitter;
+                // Position: cycle particles through strand lanes for readable lane flow.
+                if (hasCurve && typeof bead?.t === 'number') {
+                    const t = Math.max(0.0, Math.min(1.0, bead.t));
+                    curve.getPointAt(t, this._tmpLaneBase);
+                    curve.getTangentAt(t, this._tmpLaneTangent).normalize();
+                    this._buildLaneFrame(this._tmpLaneTangent, this._tmpLaneNormal, this._tmpLaneBinormal);
+
+                    const laneCount = Math.max(3, Math.min(5, bead.laneCount || 3));
+                    const laneIndex = this.laneCursor % laneCount;
+                    this.laneCursor = (this.laneCursor + 1) % 4096;
+                    const lanePhase = (laneIndex / laneCount) * Math.PI * 2.0 + Math.PI * 0.5;
+                    const helixAngle = t * Math.PI * 2.0 * twists + lanePhase;
+                    const envelope = 0.14;
+                    const laneRadius = (bead.size === 'medium')
+                        ? Math.max(bead.radius * 0.34, envelope * 0.28)
+                        : Math.max(bead.radius * 0.40, envelope * 0.34);
+
+                    this._tmpLanePos.copy(this._tmpLaneBase);
+                    this._tmpLanePos.addScaledVector(this._tmpLaneNormal, Math.cos(helixAngle) * laneRadius);
+                    this._tmpLanePos.addScaledVector(this._tmpLaneBinormal, Math.sin(helixAngle) * laneRadius);
+
+                    const jitter = 0.004 + bead.radius * 0.02;
+                    this.positions[i3] = this._tmpLanePos.x + (Math.random() - 0.5) * jitter;
+                    this.positions[i3 + 1] = this._tmpLanePos.y + (Math.random() - 0.5) * jitter;
+                    this.positions[i3 + 2] = this._tmpLanePos.z + (Math.random() - 0.5) * jitter;
+                } else {
+                    const jitter = 0.012 * bead.radius;
+                    this.positions[i3] = beadPos.x + (Math.random() - 0.5) * jitter;
+                    this.positions[i3 + 1] = beadPos.y + (Math.random() - 0.5) * jitter;
+                    this.positions[i3 + 2] = beadPos.z + (Math.random() - 0.5) * jitter;
+                }
                 
                 // Tail drifts backward (toward source) while head points toward target direction.
                 const backSpeed = (bead.size === 'large')
@@ -259,10 +295,10 @@ export class LinkBeadTrailSystem {
                 this.directions[i3+1] = dir.y;
                 this.directions[i3+2] = dir.z;
                 
-                // Color: Inherit from bead
-                this.colors[i3] = beadColor.r;
-                this.colors[i3+1] = beadColor.g;
-                this.colors[i3+2] = beadColor.b;
+                // Color: inherit bead gradient (source->target) and keep saturation readable.
+                this.colors[i3] = this._tmpColor.r;
+                this.colors[i3+1] = this._tmpColor.g;
+                this.colors[i3+2] = this._tmpColor.b;
                 
                 // Info: BirthTime, Duration, Size
                 this.infos[i3] = time;
@@ -303,6 +339,15 @@ export class LinkBeadTrailSystem {
             this.mesh.geometry.attributes.aColor.needsUpdate = true;
             this.mesh.geometry.attributes.aInfo.needsUpdate = true;
         }
+    }
+
+    _buildLaneFrame(tangent, normal, binormal) {
+        normal.set(0, 1, 0);
+        if (Math.abs(tangent.dot(normal)) > 0.92) {
+            normal.set(1, 0, 0);
+        }
+        binormal.crossVectors(tangent, normal).normalize();
+        normal.crossVectors(binormal, tangent).normalize();
     }
     
     dispose() {

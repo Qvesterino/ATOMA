@@ -89,50 +89,104 @@ export class ExtremeAINodePack {
 
   /**
    * ARCHETYPE 1: Hyperbolic Neural Prism
-   * 5D-like prism with morphing convex/concave animation
+   * Extreme INPUT redesign: Hyperbolic Prism Receiver
    */
   createHyperbolicPrism(node, scene) {
     const group = new THREE.Group();
     group.userData = { archetypeName: 'HyperbolicPrism', animations: [] };
 
-    const baseColors = [0x00ffff, 0xff00ff, 0xffff00];
+    const baseColor = node?.userData?.color || 0x00ddff;
 
-    // Create primary prism geometry (icosahedron scaled)
-    const prismGeo = new THREE.IcosahedronGeometry(0.4, 3);
-    const prismMat = new THREE.MeshPhongMaterial({
-      color: baseColors[0],
-      emissive: baseColors[0],
-      emissiveIntensity: 0.4,
-      wireframe: false,
+    // Reused lightweight materials only (no shader classes beyond standard/basic).
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: baseColor,
+      metalness: 0.72,
+      roughness: 0.28,
+      emissive: baseColor,
+      emissiveIntensity: 0.35,
       transparent: true,
-      opacity: 0.7,
-      side: THREE.DoubleSide
+      opacity: 0.92
+    });
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0xc9f7ff,
+      metalness: 0.6,
+      roughness: 0.34,
+      emissive: 0x79dfff,
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.82
+    });
+    const accentMat = new THREE.MeshBasicMaterial({
+      color: 0xa7f4ff,
+      transparent: true,
+      opacity: 0.52
     });
 
-    const prism = new THREE.Mesh(prismGeo, prismMat);
-    prism.userData = { isExtremVFX: true };
+    const geometries = [];
+
+    // 1) Central prism core (dominant intake body)
+    const prismGeo = new THREE.CylinderGeometry(0.19, 0.135, 0.82, 6, 1, false);
+    prismGeo.scale(1.0, 1.0, 0.84);
+    geometries.push(prismGeo);
+    const prism = new THREE.Mesh(prismGeo, coreMat);
+    prism.position.y = 0.02;
+    prism.rotation.set(0.06, Math.PI * 0.09, -0.04);
+    prism.userData = { isExtremVFX: true, isPrismCore: true };
     group.add(prism);
 
-    // Create wireframe overlay
-    const wireGeo = new THREE.IcosahedronGeometry(0.42, 3);
-    const wireMat = new THREE.MeshBasicMaterial({
-      color: baseColors[2],
-      wireframe: true,
-      transparent: true,
-      opacity: 0.4
-    });
+    // 2) Inner sacred seed (allowed polyhedron used meaningfully as inner reactor)
+    const seedGeo = new THREE.IcosahedronGeometry(0.13, 0);
+    geometries.push(seedGeo);
+    const seed = new THREE.Mesh(seedGeo, accentMat);
+    seed.position.set(0.01, 0.08, -0.02);
+    seed.rotation.set(-0.2, 0.36, 0.18);
+    seed.userData = { isExtremVFX: true, isSeed: true };
+    group.add(seed);
 
-    const wireframe = new THREE.Mesh(wireGeo, wireMat);
-    wireframe.userData = { isExtremVFX: true };
-    group.add(wireframe);
+    // 3-6) Receptor arms (open angled collectors, not straight rods)
+    const armGeo = new THREE.CylinderGeometry(0.028, 0.014, 0.44, 7, 1, false);
+    armGeo.translate(0, 0.22, 0); // pivot at root for easier directional placement
+    geometries.push(armGeo);
+    const armDirs = [
+      new THREE.Vector3(0.88, 0.33, -0.22),
+      new THREE.Vector3(-0.64, 0.55, 0.52),
+      new THREE.Vector3(0.18, 0.44, 0.86),
+      new THREE.Vector3(-0.38, 0.26, -0.88)
+    ];
+    const up = new THREE.Vector3(0, 1, 0);
+    const armTwist = [0.24, -0.17, 0.21, -0.23];
+    for (let i = 0; i < armDirs.length; i++) {
+      const dir = armDirs[i].clone().normalize();
+      const arm = new THREE.Mesh(armGeo, frameMat);
+      arm.position.copy(dir).multiplyScalar(0.09);
+      arm.quaternion.setFromUnitVectors(up, dir);
+      arm.rotateZ(armTwist[i]);
+      arm.rotateX(armTwist[(i + 1) % armTwist.length] * 0.5);
+      arm.userData = { isExtremVFX: true, armIndex: i };
+      group.add(arm);
+    }
 
-    // Store geometry refs for disposal
-    group.userData.geometries = [prismGeo, wireGeo];
-    group.userData.materials = [prismMat, wireMat];
+    // 7) Broken/offset orbit frame (partial and tilted, signal capture silhouette)
+    const orbitGeo = new THREE.TorusGeometry(0.46, 0.016, 7, 22, Math.PI * 1.55);
+    geometries.push(orbitGeo);
+    const orbit = new THREE.Mesh(orbitGeo, frameMat);
+    orbit.position.set(0.03, 0.04, 0);
+    orbit.rotation.set(Math.PI * 0.31, Math.PI * 0.2, -Math.PI * 0.18);
+    orbit.userData = { isExtremVFX: true, isOrbitFrame: true };
+    group.add(orbit);
 
-    // Animation data
-    group.userData.morphPhase = Math.random() * Math.PI * 2;
-    group.userData.morphSpeed = 0.3;
+    // 8) Subtle base anchor (lightweight stabilizer, not heavy pedestal)
+    const baseGeo = new THREE.CylinderGeometry(0.26, 0.33, 0.07, 6, 1, false);
+    geometries.push(baseGeo);
+    const base = new THREE.Mesh(baseGeo, coreMat);
+    base.position.y = -0.35;
+    base.rotation.y = Math.PI * 0.12;
+    base.userData = { isExtremVFX: true, isAnchor: true };
+    group.add(base);
+
+    // Store refs for deterministic disposal
+    group.userData.geometries = geometries;
+    group.userData.materials = [coreMat, frameMat, accentMat];
 
     return group;
   }

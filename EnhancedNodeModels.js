@@ -4744,47 +4744,81 @@ static createControlNode0(group, color) {
    * Control Node 1: Sharp tetrahedral pyramid
    */
   static createControlNode1(group, color) {
-    const mat = new THREE.MeshStandardMaterial({
+    const bodyMat = new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: 0.3,
+      emissiveIntensity: 0.22,
       metalness: 0.8,
       roughness: 0.2
     });
+    const accentMat = new THREE.MeshBasicMaterial({
+      color: 0xd9f6ff,
+      transparent: true,
+      opacity: 0.42
+    });
 
-    // Base
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 0.18, 6, 1), mat);
-    base.position.y = -0.28;
-    validateMeshGeometry(base, 'createControlNode1:base');
-    group.add(base);
+    // 1) Ceremonial base - lower authority plinth
+    const baseLower = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.76, 0.11, 7, 1), bodyMat);
+    baseLower.position.y = -0.46;
+    baseLower.rotation.y = Math.PI * 0.06;
+    validateMeshGeometry(baseLower, 'createControlNode1:baseLower');
+    group.add(baseLower);
 
-    // Spine
-    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.1, 8, 1), mat);
-    spine.position.y = 0.28;
+    // 2) Ceremonial base - upper command plate
+    const baseUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.51, 0.09, 9, 1), bodyMat);
+    baseUpper.position.y = -0.33;
+    baseUpper.rotation.y = -Math.PI * 0.08;
+    validateMeshGeometry(baseUpper, 'createControlNode1:baseUpper');
+    group.add(baseUpper);
+
+    // 3) Command spine - dominant ascended obelisk
+    const spineGeo = new THREE.CylinderGeometry(0.11, 0.07, 1.58, 6, 1);
+    spineGeo.scale(0.9, 1.0, 1.08);
+    const spine = new THREE.Mesh(spineGeo, bodyMat);
+    spine.position.y = 0.35;
+    spine.rotation.set(0.015, Math.PI * 0.11, -0.012);
     validateMeshGeometry(spine, 'createControlNode1:spine');
     group.add(spine);
 
-    // Core pyramid (tetra)
-    const core = new THREE.Mesh(new THREE.TetrahedronGeometry(0.65, 0), mat);
-    core.position.y = 0.9;
-    core.rotation.set(Math.PI * 0.05, Math.PI * 0.15, 0);
+    // 4) Control core - ascended relic seed
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.29, 1), bodyMat);
+    core.position.y = 1.02;
+    core.rotation.set(Math.PI * 0.05, Math.PI * 0.24, Math.PI * 0.02);
     core.userData.isCore = true;
     validateMeshGeometry(core, 'createControlNode1:core');
     group.add(core);
 
-    // Orbit ring
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.06, 10, 32), mat);
-    ring.position.y = 0.9;
-    ring.rotation.x = Math.PI * 0.5;
-    ring.rotation.y = Math.PI * 0.18;
-    validateMeshGeometry(ring, 'createControlNode1:ring');
-    group.add(ring);
+    // 5) Symbolic frame - thin broken crown/orbit of authority
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.013, 8, 26, Math.PI * 1.38), accentMat);
+    crown.position.set(0.01, 1.02, 0.0);
+    crown.rotation.set(Math.PI * 0.36, Math.PI * 0.2, -Math.PI * 0.13);
+    validateMeshGeometry(crown, 'createControlNode1:crown');
+    group.add(crown);
 
-    // Top beacon
-    const beacon = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.26, 8, 1), mat);
-    beacon.position.y = 1.4;
-    validateMeshGeometry(beacon, 'createControlNode1:beacon');
-    group.add(beacon);
+    // 6) Left relic buttress - command support spine
+    const buttressGeo = new THREE.BoxGeometry(0.12, 0.95, 0.16);
+    const finLeft = new THREE.Mesh(buttressGeo, bodyMat);
+    finLeft.position.set(-0.22, 0.12, 0.14);
+    finLeft.rotation.set(-0.06, Math.PI * 0.14, 0.05);
+    validateMeshGeometry(finLeft, 'createControlNode1:finLeft');
+    group.add(finLeft);
+
+    // 7) Right relic buttress - asymmetric counter-command
+    const finRight = new THREE.Mesh(buttressGeo, bodyMat);
+    finRight.position.set(0.2, 0.18, -0.18);
+    finRight.rotation.set(0.05, -Math.PI * 0.12, -0.06);
+    validateMeshGeometry(finRight, 'createControlNode1:finRight');
+    group.add(finRight);
+
+    // 8) Upper authority marker - ascended command relic tip
+    const marker = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.34, 5, 1), accentMat);
+    marker.position.set(-0.02, 1.58, 0.01);
+    marker.rotation.set(0.06, Math.PI * 0.27, -0.03);
+    validateMeshGeometry(marker, 'createControlNode1:marker');
+    group.add(marker);
+
+    group.userData.visualTier = "CONTROL_AUTHORITY_SPIRE";
+    group.userData.hasAuthoritySpine = true;
 
     return group;
   }
@@ -5434,122 +5468,83 @@ static createControlNode0(group, color) {
    */
   static createControlCommandPyramid(group, color) {
     try {
-      // Create tall asymmetric pyramid base (authority structure)
-      const pyramidVertices = new Float32Array([
-        // Base (wide rectangular)
-        -0.45, -0.4, -0.35,   // 0
-        0.45, -0.4, -0.35,    // 1
-        0.45, -0.4, 0.45,     // 2
-        -0.45, -0.4, 0.45,    // 3
-        
-        // Apex (tall, slightly offset - asymmetric authority)
-        0.08, 0.65, -0.05     // 4
-      ]);
-
-      const pyramidIndices = new Uint16Array([
-        // Base
-        0, 2, 1,
-        0, 3, 2,
-        
-        // Sides to apex
-        0, 1, 4,
-        1, 2, 4,
-        2, 3, 4,
-        3, 0, 4
-      ]);
-
-      const pyramidGeometry = new THREE.BufferGeometry();
-      pyramidGeometry.setAttribute('position', new THREE.BufferAttribute(pyramidVertices, 3));
-      pyramidGeometry.setIndex(new THREE.BufferAttribute(pyramidIndices, 1));
-      pyramidGeometry.computeVertexNormals();
-
-      const pyramidMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
+      const bodyMat = new THREE.MeshStandardMaterial({
         color: color,
-        metalness: 0.85,
-        roughness: 0.15,
+        metalness: 0.82,
+        roughness: 0.18,
         emissive: color,
-        emissiveIntensity: 0.3
-
+        emissiveIntensity: 0.28
+      });
+      const frameMat = new THREE.MeshBasicMaterial({
+        color: 0xd7f5ff,
+        transparent: true,
+        opacity: 0.42
       });
 
-      const pyramid = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+      // 1) Strategic base: command dais (disciplined, not bulky)
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.1, 8, 1), bodyMat);
+      base.position.y = -0.47;
+      base.rotation.y = Math.PI * 0.06;
+      validateMeshGeometry(base, 'createControlCommandPyramid:base');
+      base.userData.visualCoreImmutable = true;
+      group.add(base);
+
+      // 2) Secondary lift plate: optical separation for elevated command core
+      const liftPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.08, 8, 1), bodyMat);
+      liftPlate.position.y = -0.31;
+      liftPlate.rotation.y = -Math.PI * 0.09;
+      validateMeshGeometry(liftPlate, 'createControlCommandPyramid:liftPlate');
+      liftPlate.userData.visualCoreImmutable = true;
+      group.add(liftPlate);
+
+      // 3) Pyramid command focus: ascended directive core (not touching heavy base)
+      const pyramid = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.78, 4, 1), bodyMat);
+      pyramid.position.y = 0.36;
+      pyramid.rotation.set(0.0, Math.PI * 0.25, 0.02);
       pyramid.userData.isCommandPyramid = true;
       pyramid.userData.visualCoreImmutable = true;
+      validateMeshGeometry(pyramid, 'createControlCommandPyramid:pyramid');
       group.add(pyramid);
 
-      // Create 4 radiating command beams (pointing outward from apex)
-      const beamCount = 4;
-      const beamLength = 0.55;
-      const beamMaterial = new THREE.MeshStandardMaterial({
-        transparent: false,
-        opacity: 1,
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.FrontSide,
-        color: color,
-        metalness: 0.9,
-        roughness: 0.1,
-        emissive: color,
-        emissiveIntensity: 0.4
+      // 4) Directive frame: thin broken command orbit/crown
+      const frame = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.014, 8, 24, Math.PI * 1.35), frameMat);
+      frame.position.set(0.02, 0.37, -0.01);
+      frame.rotation.set(Math.PI * 0.34, Math.PI * 0.16, -Math.PI * 0.12);
+      frame.userData.visualCoreImmutable = true;
+      validateMeshGeometry(frame, 'createControlCommandPyramid:frame');
+      group.add(frame);
 
-      });
-
-      const beamDirections = [
-        [1, 0.3, 0],      // Forward-up
-        [-1, 0.3, 0],     // Back-up
-        [0, 0.3, 1],      // Right-up
-        [0, 0.3, -1]      // Left-up
+      // 5-7) Vertical authority accents: directive pylons (discipline markers)
+      const pylonGeo = new THREE.BoxGeometry(0.08, 0.64, 0.12);
+      const pylonConfigs = [
+        { pos: [-0.24, 0.0, 0.18], rot: [-0.05, Math.PI * 0.12, 0.05] },
+        { pos: [0.26, 0.08, -0.16], rot: [0.04, -Math.PI * 0.1, -0.06] },
+        { pos: [0.0, -0.02, -0.27], rot: [0.02, Math.PI * 0.02, 0.0] }
       ];
-
-      for (let i = 0; i < beamCount; i++) {
-        // Create beam as thin elongated box
-        const beamGeometry = new THREE.BoxGeometry(0.08, 0.08, beamLength);
-        const beam = new THREE.Mesh(beamGeometry, beamMaterial);
-        
-        // Position beam originating from apex
-        const [dx, dy, dz] = beamDirections[i];
-        const normalized = new THREE.Vector3(dx, dy, dz).normalize();
-        beam.position.set(
-          normalized.x * (beamLength / 2 + 0.1),
-          0.65 + normalized.y * (beamLength / 2),
-          normalized.z * (beamLength / 2)
-        );
-        
-        // Point beam outward
-        beam.lookAt(
-          normalized.x * (beamLength + 1),
-          0.65 + normalized.y * (beamLength + 1),
-          normalized.z * (beamLength + 1)
-        );
-        
-        beam.userData.isCommandBeam = true;
-        beam.userData.beamIndex = i;
-        beam.userData.visualCoreImmutable = true;
-        group.add(beam);
-      }
-
-      // Create central authority glow core
-      const glowGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: color,
-        transparent: true,
-        opacity: 0.3
+      pylonConfigs.forEach((cfg, i) => {
+        const pylon = new THREE.Mesh(pylonGeo, bodyMat);
+        pylon.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        pylon.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        pylon.userData.isDirectivePylon = true;
+        pylon.userData.pylonIndex = i;
+        pylon.userData.visualCoreImmutable = true;
+        validateMeshGeometry(pylon, `createControlCommandPyramid:pylon${i}`);
+        group.add(pylon);
       });
-      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-      glow.position.set(0.08, 0.65, -0.05); // At apex
-      glow.userData.isAuthorityGlow = true;
-      glow.userData.visualCoreImmutable = true;
-      group.add(glow);
 
-      // Store animation metadata
-      group.userData.commandRotationSpeed = 0.18;
-      group.userData.commandPulseAmplitude = 0.08; // 8% glow pulsing
-      group.userData.commandPulseSpeed = 1.0;
+      // 8) Optional top cap: command seed beacon
+      const seed = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), frameMat);
+      seed.position.set(0.0, 0.84, -0.01);
+      seed.rotation.set(0.06, Math.PI * 0.2, -0.03);
+      seed.userData.isAuthorityGlow = true;
+      seed.userData.visualCoreImmutable = true;
+      validateMeshGeometry(seed, 'createControlCommandPyramid:seed');
+      group.add(seed);
+
+      // Keep metadata fields for compatibility; set static-friendly values.
+      group.userData.commandRotationSpeed = 0.0;
+      group.userData.commandPulseAmplitude = 0.0;
+      group.userData.commandPulseSpeed = 0.0;
 
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'CONTROL_COMMAND_PYRAMID';

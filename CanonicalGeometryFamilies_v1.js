@@ -450,66 +450,111 @@ export class CanonicalGeometryFamilies {
   static createMythicAncientCoreWithMissing(scale = 1.0) {
     const group = new THREE.Group();
     const mat = this._getMythicMaterial();
+    const voidMat = new THREE.MeshBasicMaterial({ color: 0x1c130d });
 
-    // Base pedestal
-    const baseGeometry = getCachedGeometry('mythic-hollow-base', () => {
-      const g = new THREE.CylinderGeometry(0.55, 0.6, 0.14, 10, 1);
-      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:base');
+    // 1) Ceremonial base: lower altar slab (ritual foundation)
+    const baseLowerGeometry = getCachedGeometry('mythic-ancient-base-lower', () => {
+      const g = new THREE.CylinderGeometry(0.72, 0.82, 0.11, 7, 1);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:baseLower');
       return g;
     });
-    const base = new THREE.Mesh(baseGeometry, mat);
-    base.position.y = -0.32;
-    group.add(base);
+    const baseLower = new THREE.Mesh(baseLowerGeometry, mat);
+    baseLower.position.y = -0.41;
+    baseLower.rotation.y = Math.PI * 0.07;
+    group.add(baseLower);
 
-    // Outer shell
-    const shellGeometry = getCachedGeometry('mythic-hollow-shell', () => {
-      const g = new THREE.DodecahedronGeometry(0.55, 0);
+    // 2) Ceremonial base: upper altar ring (elevated sacred platform)
+    const baseUpperGeometry = getCachedGeometry('mythic-ancient-base-upper', () => {
+      const g = new THREE.CylinderGeometry(0.54, 0.62, 0.09, 9, 1);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:baseUpper');
+      return g;
+    });
+    const baseUpper = new THREE.Mesh(baseUpperGeometry, mat);
+    baseUpper.position.y = -0.29;
+    baseUpper.rotation.y = -Math.PI * 0.09;
+    group.add(baseUpper);
+
+    // 3) Ascending core: carved relic polyhedron with deliberate missing sector
+    const coreGeometry = getCachedGeometry('mythic-ancient-core-voided', () => {
+      const g = new THREE.IcosahedronGeometry(0.36, 1);
       const pos = g.getAttribute('position');
       const arr = pos.array;
-      // Remove a forward face by collapsing vertices near +Z
       for (let i = 0; i < arr.length; i += 3) {
-        if (arr[i + 2] > 0.35) {
-          arr[i] *= 0.55;
-          arr[i + 1] *= 0.55;
-          arr[i + 2] *= 0.4;
+        const x = arr[i];
+        const y = arr[i + 1];
+        const z = arr[i + 2];
+        // Sacred absence: collapse one high-forward sector inward (readable void scar)
+        if (x > 0.13 && y > 0.02 && z > -0.08) {
+          arr[i] = x * 0.34;
+          arr[i + 1] = y * 0.26;
+          arr[i + 2] = z * 0.22;
         }
       }
       pos.needsUpdate = true;
       g.computeVertexNormals();
-      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:shell');
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:core');
       return g;
     });
-    const shell = new THREE.Mesh(shellGeometry, mat);
-    shell.position.y = 0.05;
-    group.add(shell);
+    const core = new THREE.Mesh(coreGeometry, mat);
+    core.position.set(0, 0.06, -0.01);
+    core.rotation.set(0.19, -0.35, 0.07);
+    core.userData.isCore = true;
+    group.add(core);
 
-    // Inner seed
-    const seedGeometry = getCachedGeometry('mythic-hollow-seed', () => {
-      const g = new THREE.DodecahedronGeometry(0.28, 0);
-      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:seed');
+    // 4) Mythic frame/halo: one broken ceremonial arc (no full closed ring)
+    const haloGeometry = getCachedGeometry('mythic-ancient-broken-halo', () => {
+      const g = new THREE.TorusGeometry(0.63, 0.024, 8, 28, Math.PI * 1.52);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:halo');
       return g;
     });
-    const seed = new THREE.Mesh(seedGeometry, mat);
-    seed.position.set(0, 0.12, 0.02);
-    seed.rotation.y = Math.PI * 0.18;
-    seed.userData.isCore = true;
-    group.add(seed);
+    const halo = new THREE.Mesh(haloGeometry, mat);
+    halo.position.set(0.02, 0.03, 0.0);
+    halo.rotation.set(Math.PI * 0.26, Math.PI * 0.18, -Math.PI * 0.13);
+    group.add(halo);
 
-    // Cradle ring
-    const ringGeometry = getCachedGeometry('mythic-hollow-ring', () => {
-      const g = new THREE.TorusGeometry(0.32, 0.03, 8, 18, Math.PI * 2);
-      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:ring');
+    // 5) Missing part companion: detached shard where truth was removed
+    const missingShardGeometry = getCachedGeometry('mythic-ancient-missing-shard', () => {
+      const g = new THREE.TetrahedronGeometry(0.16, 0);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:missingShard');
       return g;
     });
-    const ring = new THREE.Mesh(ringGeometry, mat);
-    ring.position.y = -0.02;
-    ring.rotation.x = Math.PI * 0.5;
-    group.add(ring);
+    const missingShard = new THREE.Mesh(missingShardGeometry, mat);
+    missingShard.position.set(0.34, 0.21, 0.1);
+    missingShard.rotation.set(0.31, 0.88, -0.27);
+    group.add(missingShard);
+
+    // 6) Impossible accent: suspended void-seed above absent sector
+    const voidSeedGeometry = getCachedGeometry('mythic-ancient-void-seed', () => {
+      const g = new THREE.OctahedronGeometry(0.1, 0);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:voidSeed');
+      return g;
+    });
+    const voidSeed = new THREE.Mesh(voidSeedGeometry, voidMat);
+    voidSeed.position.set(0.08, 0.5, -0.04);
+    voidSeed.rotation.set(-0.42, 0.19, 0.33);
+    group.add(voidSeed);
+
+    // 7-8) Relic witnesses: two asymmetric sacred shards reinforcing silhouette
+    const witnessGeometry = getCachedGeometry('mythic-ancient-witness-shard', () => {
+      const g = new THREE.ConeGeometry(0.09, 0.3, 5, 1);
+      this._validateGeometry(g, 'createMythicAncientCoreWithMissing:witness');
+      return g;
+    });
+    const witnessA = new THREE.Mesh(witnessGeometry, mat);
+    witnessA.position.set(-0.44, -0.02, 0.15);
+    witnessA.rotation.set(-Math.PI * 0.37, Math.PI * 0.12, Math.PI * 0.11);
+    group.add(witnessA);
+
+    const witnessB = new THREE.Mesh(witnessGeometry, mat);
+    witnessB.position.set(0.18, -0.08, -0.45);
+    witnessB.rotation.set(-Math.PI * 0.23, -Math.PI * 0.34, -Math.PI * 0.09);
+    witnessB.scale.set(0.85, 1.15, 0.85);
+    group.add(witnessB);
 
     group.scale.multiplyScalar(scale);
     group.userData.geometryFamily = 'MYTHIC';
-    group.userData.geometryVariant = 'AncientCoreWithMissing_V3';
-    group.userData.polycount = 360; // approx combined
+    group.userData.geometryVariant = 'AncientCoreWithMissing_V4';
+    group.userData.polycount = 520; // approx combined
     this._precomputeAndFreeze(group);
     return group;
   }

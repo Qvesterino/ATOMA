@@ -4141,6 +4141,17 @@ class AtomaGame {
                 this.canonicalTemplate3_StressVisuals.update(dt, this.time || 0);
             }
         }, 'visual.canonicalTemplate3_StressVisuals');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.stressVisualShaderSystem) {
+                const nodes = this.aiNodes?.nodes || [];
+                for (const node of nodes) {
+                    if (node) {
+                        this.stressVisualShaderSystem.registerNode(node);
+                    }
+                }
+                this.stressVisualShaderSystem.update(dt, this.time, nodes);
+            }
+        }, 'visual.stressVisualShaderSystem');
         this.frameScheduler.register('visual', () => {
             if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
                 const nodes = this.aiNodes?.nodes || [];
@@ -8596,9 +8607,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // NETWORK STRESS AGGREGATOR — standalone stress runtime layer
         // ====================================================================
         try {
-            this.networkStressAggregator = new NetworkStressAggregator({
-                linkingSystem: this.linkingSystem
-            });
+            this.networkStressAggregator = new NetworkStressAggregator(
+                this.linkDegradationSystem,
+                null,
+                this.nodeDynamicMetrics
+            );
+            this.networkStressAggregator.frameScheduler = this.frameScheduler;
             if (typeof window !== 'undefined') {
                 window.ATOMA_NETWORK_STRESS = () => this.networkStressAggregator?.getStress?.();
             }
@@ -12388,10 +12402,18 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupHarmonicHubAuraSystem() {
         try {
+            // Dynamic world view: always read current runtime arrays (world rebuild-safe).
+            const hubWorld = {};
+            Object.defineProperty(hubWorld, 'nodes', {
+                get: () => this.aiNodes?.nodes || []
+            });
+            Object.defineProperty(hubWorld, 'links', {
+                get: () => this.linkingSystem?.links || []
+            });
             this.harmonicHubAuraSystem = new HarmonicHubAuraSystem_Session126(
                 this.scene,
                 this.worldRoot,
-                this.aiNodes,
+                hubWorld,
                 this.nodeAuraSystem,
                 this.harmonicResonanceCoupling,
                 {
@@ -12401,8 +12423,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     fieldMinRadius: 0.8,
                     fieldRadiusSynergyMult: 0.6,
                     fieldMaxRadius: 6.0,
+                    fieldOpacityBase: 0.48,
+                    fieldOpacitySynergyMult: 0.52,
+                    fieldGlowIntensity: 1.05,
                 }
             );
+            this.harmonicHubAuraSystem.frameScheduler = this.frameScheduler;
             console.log('✓ Harmonic Hub Aura System (Session 126) initialized');
         } catch (err) {
             console.warn('⚠ Harmonic Hub Aura System initialization failed:', err);
@@ -12524,6 +12550,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     enabled: true,
                 }
             );
+            // Canonical alias for downstream systems expecting linkResonanceSystem contract.
+            this.linkResonanceSystem = this.linkResonanceFlowSystem;
+
+            // Late-wire systems initialized earlier in startup order.
+            if (this.harmonicHubAuraSystem) {
+                this.harmonicHubAuraSystem.linkResonanceSystem = this.linkResonanceSystem;
+            }
+            if (this.harmonicCascadeAmplification) {
+                this.harmonicCascadeAmplification.linkResonanceSystem = this.linkResonanceSystem;
+            }
+            if (this.preCascadeVisualHint) {
+                this.preCascadeVisualHint.linkResonanceSystem = this.linkResonanceSystem;
+            }
             console.log('✓ Link Resonance Flow System (Session 124) initialized');
             
             // Apply link resonance flow harmony integration

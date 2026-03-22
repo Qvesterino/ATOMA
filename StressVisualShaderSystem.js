@@ -168,11 +168,34 @@ export class StressVisualShaderSystem {
      * CoreMetricsCalculator is the single source of truth for network metrics
      */
     _updateNetworkStress() {
-        if (this.coreMetricsCalculator) {
+        if (this.coreMetricsCalculator?.getMetrics) {
             const metrics = this.coreMetricsCalculator.getMetrics();
-            // networkStress = 1 - stability (inverted)
-            this.networkStress = 1 - (metrics?.stability ?? 0);
+            if (typeof metrics?.stability === 'number' && Number.isFinite(metrics.stability)) {
+                // networkStress = 1 - stability (inverted)
+                this.networkStress = this._normalizeStressValue(1 - metrics.stability);
+                return;
+            }
         }
+
+        // Fallback for integrations wired to NetworkStressAggregator/window scope.
+        const globalStress =
+            (typeof window !== 'undefined' && typeof window.ATOMA_NETWORK_STRESS === 'function'
+                ? window.ATOMA_NETWORK_STRESS()
+                : null) ??
+            (typeof window !== 'undefined' ? window.NETWORK_STRESS : null);
+
+        this.networkStress = this._normalizeStressValue(globalStress);
+    }
+
+    /**
+     * Normalize stress values from heterogeneous sources.
+     * Supports 0..1 (canonical) and 0..100 (aggregator).
+     */
+    _normalizeStressValue(stress) {
+        const numericStress = Number(stress ?? 0);
+        if (!Number.isFinite(numericStress)) return 0;
+        const normalized = numericStress > 1 ? numericStress / 100 : numericStress;
+        return Math.max(0, Math.min(1, normalized));
     }
     
     /**

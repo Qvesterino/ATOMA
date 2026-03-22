@@ -237,105 +237,106 @@ export class InputSensoryEnhanced {
    */
   static createInputSensory_NeuralReceptor(group, color) {
     try {
-      // Central soma (neural cell body)
-      const somaGeo = new THREE.TetrahedronGeometry(0.25, 2);
-      somaGeo.scale(1.1, 1.3, 0.9); // Slightly elongated
-      
-      const somaMat = new THREE.MeshPhysicalMaterial({
-        color: color,
+      // Reused material set (no material cloning, no extra shader paths)
+      const coreMat = new THREE.MeshPhysicalMaterial({
+        color,
         metalness: 0.8,
-        roughness: 0.15,
+        roughness: 0.16,
         emissive: color,
-        emissiveIntensity: 0.7,
-        transmission: 0, // Phase B.3.A: transmission disabled to prevent RenderTransmissionPass
-        thickness: 0.25,
-        ior: 1.45
+        emissiveIntensity: 0.65,
+        transmission: 0,
+        thickness: 0.22,
+        ior: 1.45,
+        transparent: true,
+        opacity: 0.94
       });
-      
-      const soma = new THREE.Mesh(somaGeo, somaMat);
-      soma.userData.isSoma = true;
-      soma.userData.visualCoreImmutable = true;
-      group.add(soma);
-
-      // Create dendritic branching structure
-      const branchMat = new THREE.MeshStandardMaterial({
-        color: color,
-        metalness: 0.7,
-        roughness: 0.2,
+      const receptorMat = new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.72,
+        roughness: 0.22,
         emissive: color,
         emissiveIntensity: 0.4,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.86
       });
 
-      // Recursive branch generation (3 levels)
-      const generateBranches = (parent, depth, startAngle, count = 3) => {
-        if (depth === 0) return;
-        
-        for (let i = 0; i < count; i++) {
-          const angleOffset = (i / count) * Math.PI * 2;
-          const branchAngle = startAngle + angleOffset;
-          
-          // Branch length decreases with depth
-          const branchLength = 0.35 * (1 - (3 - depth) * 0.25);
-          const branchPoints = [];
-          const branchSegments = 15;
-          
-          for (let j = 0; j <= branchSegments; j++) {
-            const t = j / branchSegments;
-            
-            // Branch curves outward and slightly upward
-            const curvature = Math.sin(t * Math.PI) * 0.1;
-            const x = Math.cos(branchAngle) * t * branchLength + curvature;
-            const y = Math.sin(branchAngle) * t * branchLength * 0.5;
-            const z = Math.sin(branchAngle + Math.PI / 4) * t * branchLength + curvature * 0.5;
-            
-            branchPoints.push(new THREE.Vector3(x, y, z));
-          }
-          
-          const curve = new THREE.CatmullRomCurve3(branchPoints);
-          const branchRadius = 0.025 * Math.pow(0.8, 3 - depth);
-          const branchGeo = new THREE.TubeGeometry(curve, 12, branchRadius, 4, false);
-          
-          const branch = new THREE.Mesh(branchGeo, branchMat.clone());
-          branch.userData.isDendrite = true;
-          branch.userData.branchDepth = depth;
-          branch.userData.branchIndex = i;
-          branch.userData.curve = curve;
-          branch.userData.visualCoreImmutable = true;
-          
-          parent.add(branch);
-          
-          // Add signal particles on this branch
-          for (let sig = 0; sig < 2; sig++) {
-            const signalGeo = new THREE.OctahedronGeometry(0.06, 0);
-            const signalMat = new THREE.MeshBasicMaterial({
-              color: 0xffffff,
-              transparent: true,
-              opacity: 0.9
-            });
-            const signal = new THREE.Mesh(signalGeo, signalMat);
-            
-            signal.userData.isNeuralSignal = true;
-            signal.userData.parentCurve = curve;
-            signal.userData.signalSpeed = 0.3 + Math.random() * 0.2;
-            signal.userData.pathOffset = (sig / 2) * 0.5; // Start at different points
-            signal.userData.visualCoreImmutable = true;
-            
-            parent.add(signal);
-          }
-          
-          // Recurse for deeper levels
-          if (depth > 1) {
-            generateBranches(branch, depth - 1, branchAngle, 2);
-          }
-        }
-      };
-      
-      // Generate 3 main dendritic branches from soma
-      for (let main = 0; main < 3; main++) {
-        generateBranches(soma, 3, (main / 3) * Math.PI * 2, 3);
+      // 1) Core: compact neural "brain"
+      const coreGeo = new THREE.DodecahedronGeometry(0.18, 0);
+      coreGeo.scale(1.0, 1.08, 0.94);
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      core.userData.isSoma = true;
+      core.userData.visualCoreImmutable = true;
+      group.add(core);
+
+      // 2) Receptor arms: organic asymmetry via tilted cylinders
+      const armGeo = new THREE.CylinderGeometry(0.026, 0.014, 0.46, 8, 1, false);
+      const armDirs = [
+        new THREE.Vector3(0.91, 0.34, -0.24),
+        new THREE.Vector3(-0.66, 0.71, 0.32),
+        new THREE.Vector3(0.22, -0.41, 0.95),
+        new THREE.Vector3(-0.34, 0.18, -0.96)
+      ];
+      const armSkews = [
+        { x: 0.25, z: -0.19 },
+        { x: -0.23, z: 0.13 },
+        { x: 0.14, z: 0.26 },
+        { x: -0.19, z: -0.16 }
+      ];
+      const up = new THREE.Vector3(0, 1, 0);
+      const tipPositions = [];
+
+      for (let i = 0; i < armDirs.length; i++) {
+        const dir = armDirs[i].clone().normalize();
+        const arm = new THREE.Mesh(armGeo, receptorMat);
+        arm.userData.isDendrite = true;
+        arm.userData.visualCoreImmutable = true;
+
+        arm.position.copy(dir).multiplyScalar(0.24);
+        arm.quaternion.setFromUnitVectors(up, dir);
+        arm.rotateX(armSkews[i].x);
+        arm.rotateZ(armSkews[i].z);
+        group.add(arm);
+
+        tipPositions.push(dir.clone().multiplyScalar(0.47));
       }
+
+      // 3) Sensor tips (instanced -> 1 mesh)
+      const tipGeo = new THREE.SphereGeometry(0.042, 8, 6);
+      const tipMesh = new THREE.InstancedMesh(tipGeo, coreMat, tipPositions.length);
+      const tmpMatrix = new THREE.Matrix4();
+      for (let i = 0; i < tipPositions.length; i++) {
+        tmpMatrix.makeTranslation(tipPositions[i].x, tipPositions[i].y, tipPositions[i].z);
+        tipMesh.setMatrixAt(i, tmpMatrix);
+      }
+      tipMesh.instanceMatrix.needsUpdate = true;
+      tipMesh.userData.isSensorTipCluster = true;
+      tipMesh.userData.visualCoreImmutable = true;
+      group.add(tipMesh);
+
+      // 4) Sensor ring: single tilted torus
+      const ringGeo = new THREE.TorusGeometry(0.36, 0.012, 8, 22);
+      const ring = new THREE.Mesh(ringGeo, receptorMat);
+      ring.rotation.set(0.72, 0.34, -0.21);
+      ring.userData.isSensorRing = true;
+      ring.userData.visualCoreImmutable = true;
+      group.add(ring);
+
+      // 5) Micro orbs (instanced -> 1 mesh)
+      const microGeo = new THREE.SphereGeometry(0.028, 7, 6);
+      const microMesh = new THREE.InstancedMesh(microGeo, receptorMat, 3);
+      const microOffsets = [
+        new THREE.Vector3(-0.19, -0.07, 0.21),
+        new THREE.Vector3(0.23, 0.11, -0.17),
+        new THREE.Vector3(0.04, 0.24, 0.15)
+      ];
+      for (let i = 0; i < microOffsets.length; i++) {
+        tmpMatrix.makeTranslation(microOffsets[i].x, microOffsets[i].y, microOffsets[i].z);
+        microMesh.setMatrixAt(i, tmpMatrix);
+      }
+      microMesh.instanceMatrix.needsUpdate = true;
+      microMesh.userData.isMicroOrbs = true;
+      microMesh.userData.visualCoreImmutable = true;
+      group.add(microMesh);
 
       group.userData.visualCoreImmutable = true;
       group.userData.nodeGeometryName = 'INPUT_NEURAL_RECEPTOR';

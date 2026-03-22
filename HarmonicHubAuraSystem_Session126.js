@@ -244,7 +244,11 @@ export class HarmonicHubAuraSystem_Session126 {
    * Check if node qualifies as harmony hub
    */
   _isHarmonyHub(node) {
-    const harmony = node.userData?.metrics?.harmony ?? 0;
+    const harmony =
+      node.userData?.metrics?.harmony ??
+      node.userData?.harmonyLevel ??
+      node.userData?.harmony ??
+      0;
     const corruption =
       node.userData?.metrics?.corruption ??
       node.userData?.corruption ??
@@ -260,11 +264,18 @@ export class HarmonicHubAuraSystem_Session126 {
     if (!this.world || !this.world.links) return [];
     
     const connected = [];
+    const nodeKey = this._getNodeKey(node);
+    if (!nodeKey) return connected;
     for (const link of this.world.links) {
-      if (link.nodeA.id === node.id && link.nodeB) {
-        connected.push(link.nodeB);
-      } else if (link.nodeB.id === node.id && link.nodeA) {
-        connected.push(link.nodeA);
+      const nodeA = link?.nodeA || link?.source || link?.from || link?.userData?.nodeA || null;
+      const nodeB = link?.nodeB || link?.target || link?.to || link?.userData?.nodeB || null;
+      if (!nodeA || !nodeB) continue;
+      const nodeAKey = this._getNodeKey(nodeA);
+      const nodeBKey = this._getNodeKey(nodeB);
+      if (nodeAKey === nodeKey) {
+        connected.push(nodeB);
+      } else if (nodeBKey === nodeKey) {
+        connected.push(nodeA);
       }
     }
     return connected;
@@ -290,7 +301,11 @@ export class HarmonicHubAuraSystem_Session126 {
         connectedNodes: new Set(hub.connectedNodes),
         avgPosition: hub.primaryNode.position.clone(),
         avgSynergy: 0,
-        avgHarmony: hub.primaryNode.userData?.harmony ?? 0,
+        avgHarmony:
+          hub.primaryNode.userData?.metrics?.harmony ??
+          hub.primaryNode.userData?.harmonyLevel ??
+          hub.primaryNode.userData?.harmony ??
+          0,
         avgCorruption:
           hub.primaryNode.userData?.metrics?.corruption ??
           hub.primaryNode.userData?.corruption ??
@@ -312,7 +327,15 @@ export class HarmonicHubAuraSystem_Session126 {
           // Update averages
           const count = region.nodes.size;
           region.avgPosition.lerp(otherHub.primaryNode.position, 1 / count);
-          region.avgHarmony = (region.avgHarmony * (count - 1) + (otherHub.primaryNode.userData?.harmony ?? 0)) / count;
+          region.avgHarmony = (
+            region.avgHarmony * (count - 1) +
+            (
+              otherHub.primaryNode.userData?.metrics?.harmony ??
+              otherHub.primaryNode.userData?.harmonyLevel ??
+              otherHub.primaryNode.userData?.harmony ??
+              0
+            )
+          ) / count;
           region.avgCorruption = (
             region.avgCorruption * (count - 1) +
             (
@@ -330,7 +353,9 @@ export class HarmonicHubAuraSystem_Session126 {
       let synergy = 0;
       let linkCount = 0;
       for (const link of this.world?.links ?? []) {
-        if (region.nodes.has(link.nodeA) || region.nodes.has(link.nodeB)) {
+        const nodeA = link?.nodeA || link?.source || link?.from || link?.userData?.nodeA || null;
+        const nodeB = link?.nodeB || link?.target || link?.to || link?.userData?.nodeB || null;
+        if (nodeA && nodeB && (region.nodes.has(nodeA) || region.nodes.has(nodeB))) {
           synergy += link.userData?.synergy ?? 0;
           linkCount++;
         }
@@ -380,7 +405,9 @@ export class HarmonicHubAuraSystem_Session126 {
       
       // Initialize phase offsets for hub nodes
       for (const node of hub.nodes) {
-        hub.phaseOffsets.set(node.id, {
+        const nodeKey = this._getNodeKey(node);
+        if (!nodeKey) continue;
+        hub.phaseOffsets.set(nodeKey, {
           current: Math.random() * Math.PI * 2,
           target: Math.random() * Math.PI * 2,
           offset: (Math.random() - 0.5) * this.config.phaseOffsetVariance,
@@ -391,16 +418,34 @@ export class HarmonicHubAuraSystem_Session126 {
       this.stats.hubsCreated++;
     } else {
       // Update existing hub
+      hub.primaryNode = region.primaryNode;
+      hub.nodes = Array.from(region.nodes);
+      hub.connectedNodes = Array.from(region.connectedNodes);
       hub.position.lerp(region.avgPosition, 0.2);  // Smooth movement
       hub.harmony = hub.harmony * 0.9 + region.avgHarmony * 0.1;
       hub.corruption = hub.corruption * 0.9 + region.avgCorruption * 0.1;
       hub.synergy = hub.synergy * 0.9 + region.avgSynergy * 0.1;
+      hub.fieldRadius = this._calculateFieldRadius(region);
       hub.active = true;
+
+      // Ensure phase offsets exist for all currently assigned hub nodes.
+      for (const node of hub.nodes) {
+        const nodeKey = this._getNodeKey(node);
+        if (!nodeKey) continue;
+        if (!hub.phaseOffsets.has(nodeKey)) {
+          hub.phaseOffsets.set(nodeKey, {
+            current: Math.random() * Math.PI * 2,
+            target: Math.random() * Math.PI * 2,
+            offset: (Math.random() - 0.5) * this.config.phaseOffsetVariance,
+          });
+        }
+      }
     }
     
     // Assign nodes to hub
     for (const node of hub.nodes) {
-      this.nodeToHub.set(node.id, region.hubId);
+      const nodeKey = this._getNodeKey(node);
+      if (nodeKey) this.nodeToHub.set(nodeKey, region.hubId);
     }
   }
   
@@ -427,11 +472,13 @@ export class HarmonicHubAuraSystem_Session126 {
       
       // Update each node's phase in hub
       for (const node of hub.nodes) {
-        const phaseState = hub.phaseOffsets.get(node.id);
+        const nodeKey = this._getNodeKey(node);
+        if (!nodeKey) continue;
+        const phaseState = hub.phaseOffsets.get(nodeKey);
         if (!phaseState) continue;
         
         // Get aura pulse phase
-        const aura = this.nodeAuraSystem?.auras?.get(node.id);
+        const aura = this.nodeAuraSystem?.auras?.get(nodeKey);
         if (!aura) continue;
         
         // Calculate target phase based on hub coherence
@@ -514,16 +561,20 @@ export class HarmonicHubAuraSystem_Session126 {
     
     // Create material
     const material = new THREE.MeshPhongMaterial({
+      color: color,
       emissive: color,
       emissiveIntensity: this.config.fieldGlowIntensity * harmonyInfluence,
       transparent: true,
-      opacity: Math.clamp(opacity, 0.1, 0.8),
-      wireframe: false,
-      side: THREE.BackSide,  // View from inside
+      opacity: Math.max(0.12, Math.min(0.92, opacity)),
+      wireframe: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: true
     });
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(hub.position);
+    mesh.renderOrder = 120;
     
     // Add vertex animation for breathing effect
     this._animateFieldVertices(mesh, hub);
@@ -651,7 +702,7 @@ export class HarmonicHubAuraSystem_Session126 {
     if (!this.nodeAuraSystem?.auras) return;
     
     for (const [nodeId, hub] of this.nodeToHub) {
-      const node = this.world?.nodes?.find(n => n.id === nodeId);
+      const node = this.world?.nodes?.find(n => this._getNodeKey(n) === nodeId);
       const aura = this.nodeAuraSystem.auras.get(nodeId);
       
       if (!node || !aura) continue;
@@ -696,8 +747,6 @@ export class HarmonicHubAuraSystem_Session126 {
    */
   _estimateCameraDistance(position) {
     // Return large value if camera not available (fail-safe)
-    if (!this.scene.getObjectByName('camera')) return 100;
-    
     const camera = this.scene.getObjectByProperty('isCamera', true);
     if (!camera) return 100;
     
@@ -709,6 +758,10 @@ export class HarmonicHubAuraSystem_Session126 {
     if (num < 0) return 0;
     if (num > 1) return 1;
     return num;
+  }
+
+  _getNodeKey(node) {
+    return node?.userData?.nodeId || node?.id || node?.uuid || null;
   }
 
   _getCurrentHarmonyFlow(payload = {}) {
@@ -781,10 +834,16 @@ export class HarmonicHubAuraSystem_Session126 {
    * Get system statistics
    */
   getStats() {
+    let activeHubNodes = 0;
+    for (const hub of this.hubs.values()) {
+      if (hub?.active) activeHubNodes += hub.nodes?.length || 0;
+    }
     return {
       ...this.stats,
       totalHubs: this.hubs.size,
-      activeNodes: this.nodeToHub.size,
+      activeNodes: this.nodeToHub.size,       // Backward-compatible: node-to-hub map size
+      activeHubNodes,                         // Explicit: total nodes belonging to active hubs
+      activeHubCoreNodes: this.stats.activeHubs, // Explicit: count of primary hub cores
       activeWaveInteractions: this.activeWaveInteractions.length,
     };
   }
