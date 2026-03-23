@@ -99,9 +99,15 @@ export class DreamDesert {
     
     this.worldRoot.add(desert);
     
-    // Create collision mesh for desert floor (invisible)
+    // Create collision mesh for desert floor (invisible but raycastable)
+    // Use material with colorWrite=false and depthWrite=false for invisible but raycastable mesh
     const collisionMaterial = new THREE.MeshBasicMaterial({
-      visible: false
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
     });
     const desertCollision = new THREE.Mesh(desertGeometry.clone(), collisionMaterial);
     desertCollision.rotation.x = -Math.PI / 2;
@@ -111,12 +117,24 @@ export class DreamDesert {
       collisionEnabled: true,
       terrainType: 'desertFloor'
     };
+    // Mark as raycastable for ATOMA's raycast system
+    desertCollision.userData.__ALLOW_RAYCAST__ = true;
     this.worldRoot.add(desertCollision);
     this.collisionObjects.push(desertCollision);
     
     // Create geometric dunes with subtle patterns
     this.dunes = [];
     const duneCount = 12;
+    
+    // Reuse collision material for all dunes (invisible but raycastable)
+    const duneCollisionMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide
+    });
     
     for (let i = 0; i < duneCount; i++) {
       const angle = (i / duneCount) * Math.PI * 2;
@@ -152,15 +170,16 @@ export class DreamDesert {
       this.worldRoot.add(dune);
       this.dunes.push(dune);
       
-      // Create collision mesh for dune (invisible)
-      const duneCollision = new THREE.Mesh(duneGeometry.clone(), collisionMaterial);
+      // Create collision mesh for dune (invisible but raycastable)
+      const duneCollision = new THREE.Mesh(duneGeometry.clone(), duneCollisionMaterial);
       duneCollision.position.copy(dune.position);
       duneCollision.rotation.copy(dune.rotation);
       duneCollision.userData = {
         isWalkable: true,
         collisionEnabled: true,
         terrainType: 'dune',
-        height: duneGeometry.parameters.height || 5
+        height: duneGeometry.parameters.height || 5,
+        __ALLOW_RAYCAST__: true
       };
       this.worldRoot.add(duneCollision);
       this.collisionObjects.push(duneCollision);

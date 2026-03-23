@@ -200,6 +200,7 @@ export class PHASE5_CascadePropagationVisuals {
         startTime: Date.now(),
         material: this.getRingMaterial(cascadeType)
       };
+      ringMesh.material = ringMesh.userData.material;
       
       // Update ring appearance
       this.updateRingAppearance(ringMesh);
@@ -426,10 +427,20 @@ export class PHASE5_CascadePropagationVisuals {
   }
 
   spawnCascadePropagationVisual(link, intensity = 1.0, hopIndex = 0) {
-    if (!link) return;
-
-    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
-    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourceNode =
+      link?.source ??
+      link?.sourceNode ??
+      link?.from ??
+      link?.userData?.source ??
+      link?.sourceNode ??
+      null;
+    const targetNode =
+      link?.target ??
+      link?.targetNode ??
+      link?.to ??
+      link?.userData?.target ??
+      link?.targetNode ??
+      null;
     const sourcePosition = sourceNode?.position ?? null;
     const targetPosition = targetNode?.position ?? null;
 

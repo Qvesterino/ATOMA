@@ -33,6 +33,14 @@ export class WaveParticleEmitter_v1 {
       amplitudeSpikeThreshold: config.amplitudeSpikeThreshold ?? 0.20,
       amplitudeEMAAlpha: config.amplitudeEMAAlpha ?? 0.15,
       debugMode: config.debugMode ?? false,
+      debugNodeEmissionLogs: config.debugNodeEmissionLogs ?? false,
+      debugNodeEmissionLogIntervalSec: config.debugNodeEmissionLogIntervalSec ?? 1.0,
+      debugNodeEmissionNodeIds: Array.isArray(config.debugNodeEmissionNodeIds)
+        ? config.debugNodeEmissionNodeIds
+        : null,
+      debugNodeEmissionVisualCodes: Array.isArray(config.debugNodeEmissionVisualCodes)
+        ? config.debugNodeEmissionVisualCodes
+        : null,
     };
 
     // Three.js scene references
@@ -42,12 +50,16 @@ export class WaveParticleEmitter_v1 {
     // Particle pools and systems (per family)
     this.systems = {
       constructiveBurst: null,
+      constructiveBurstVariantB: null,
+      constructiveBurstVariantC: null,
       destructiveChaos: null,
       standingWaveRipple: null,
     };
 
     this.pools = {
       constructiveBurst: [],
+      constructiveBurstVariantB: [],
+      constructiveBurstVariantC: [],
       destructiveChaos: [],
       standingWaveRipple: [],
     };
@@ -55,6 +67,8 @@ export class WaveParticleEmitter_v1 {
     // Active particle counts
     this.activeCount = {
       constructiveBurst: 0,
+      constructiveBurstVariantB: 0,
+      constructiveBurstVariantC: 0,
       destructiveChaos: 0,
       standingWaveRipple: 0,
     };
@@ -71,6 +85,7 @@ export class WaveParticleEmitter_v1 {
       destructiveChaos: config?.gateDelays?.destructiveChaos ?? 0.22,
       standingWaveRipple: config?.gateDelays?.standingWaveRipple ?? 0.35,
     };
+    this.nodeEmissionLogGate = new Map(); // `${channel}:${nodeId}` -> lastLogTimeSec
 
     // EMA tracking for amplitude spikes (per node)
     this.amplitudeEMA = new Map(); // nodeId → emaValue
@@ -106,7 +121,9 @@ export class WaveParticleEmitter_v1 {
       }
 
       // Initialize all 3 particle systems
-      this._initConstructiveBurstSystem();
+      this._initConstructiveBurstSystem('constructiveBurst', this._createConstructiveTexture());
+      this._initConstructiveBurstSystem('constructiveBurstVariantB', this._createConstructiveTextureVariantB());
+      this._initConstructiveBurstSystem('constructiveBurstVariantC', this._createConstructiveTextureVariantC());
       this._initDestructiveChaosSystem();
       if (this.config.standingWaveRippleEnabled) {
         this._initStandingWaveRippleSystem();
@@ -115,6 +132,8 @@ export class WaveParticleEmitter_v1 {
       if (this.config.debugMode) {
         console.log('[WaveParticleEmitter_v1] Initialized 3 particle systems');
         console.log(`  • Constructive Burst: ${this.pools.constructiveBurst.length} particles`);
+        console.log(`  • Constructive Burst B: ${this.pools.constructiveBurstVariantB.length} particles`);
+        console.log(`  • Constructive Burst C: ${this.pools.constructiveBurstVariantC.length} particles`);
         console.log(`  • Destructive Chaos: ${this.pools.destructiveChaos.length} particles`);
         console.log(
           `  • Standing Wave Ripple: ${this.config.standingWaveRippleEnabled ? this.pools.standingWaveRipple.length : 0} particles`
@@ -128,7 +147,7 @@ export class WaveParticleEmitter_v1 {
   /**
    * Create Constructive Burst particle system (cyan-white additive sparks)
    */
-  _initConstructiveBurstSystem() {
+  _initConstructiveBurstSystem(systemKey = 'constructiveBurst', texture = null) {
     const maxParticles = this.config.maxParticlesPerFamily;
     const poolParticles = [];
 
@@ -144,11 +163,16 @@ export class WaveParticleEmitter_v1 {
           mode: 'node',
           streak: new THREE.Vector3(), // Direction for streak effect
           baseColor: new THREE.Color(0x00ffff),
+          formationCenter: new THREE.Vector3(),
+          buildOffset: new THREE.Vector3(),
+          releaseVelocity: new THREE.Vector3(),
+          formationDuration: 0.08,
+          arcStartT: 0,
         },
       });
     }
 
-    this.pools.constructiveBurst = poolParticles;
+    this.pools[systemKey] = poolParticles;
 
     // Create Points geometry and material
     const geometry = new THREE.BufferGeometry();
@@ -164,7 +188,7 @@ export class WaveParticleEmitter_v1 {
       size: 2.0,
       color: 0x00ffff,
       sizeAttenuation: true,
-      map: this._createConstructiveTexture(),
+      map: texture || this._createConstructiveTexture(),
       transparent: true,
       opacity: 0.25,
       depthTest: false,
@@ -176,7 +200,7 @@ export class WaveParticleEmitter_v1 {
     const points = new THREE.Points(geometry, material);
     points.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
     points.frustumCulled = false;
-    this.systems.constructiveBurst = { points, geometry, maxParticles };
+    this.systems[systemKey] = { points, geometry, maxParticles };
     this.scene.add(points);
   }
 
@@ -292,7 +316,9 @@ export class WaveParticleEmitter_v1 {
   }
 
   /**
-   * Create simple particle texture (radial gradient circle)
+   * Create constructive texture as a phase-locked lattice seed.
+   * The sprite should read as a fleeting crystallization of order,
+   * not a generic spark or geometric shard.
    */
   _createConstructiveTexture() {
     const canvas = document.createElement('canvas');
@@ -302,34 +328,255 @@ export class WaveParticleEmitter_v1 {
 
     ctx.clearRect(0, 0, 64, 64);
 
-    const glow = ctx.createRadialGradient(32, 32, 0, 32, 32, 28);
-    glow.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    glow.addColorStop(0.2, 'rgba(255, 255, 255, 0.95)');
-    glow.addColorStop(0.45, 'rgba(210, 245, 255, 0.55)');
-    glow.addColorStop(1, 'rgba(210, 245, 255, 0)');
-    ctx.fillStyle = glow;
+    const ambientGlow = ctx.createRadialGradient(32, 32, 0, 32, 32, 29);
+    ambientGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    ambientGlow.addColorStop(0.2, 'rgba(218, 245, 255, 0.78)');
+    ambientGlow.addColorStop(0.5, 'rgba(142, 228, 255, 0.26)');
+    ambientGlow.addColorStop(1, 'rgba(142, 228, 255, 0)');
+    ctx.fillStyle = ambientGlow;
     ctx.fillRect(0, 0, 64, 64);
 
     ctx.save();
     ctx.translate(32, 32);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.lineWidth = 4;
+    ctx.rotate(Math.PI * 0.18);
+
+    const nodes = [
+      { x: 0, y: 0, r: 4.4, a: 1.0 },
+      { x: -11, y: -6, r: 2.7, a: 0.86 },
+      { x: 11, y: -5, r: 2.5, a: 0.82 },
+      { x: 8, y: 10, r: 2.8, a: 0.88 },
+      { x: -8, y: 11, r: 2.4, a: 0.78 },
+      { x: -16, y: 5, r: 1.9, a: 0.52 },
+      { x: 16, y: 3, r: 1.8, a: 0.48 }
+    ];
+
+    const links = [
+      [0, 1], [0, 2], [0, 3], [0, 4],
+      [1, 2], [1, 4], [2, 3], [3, 4],
+      [1, 5], [2, 6]
+    ];
+
+    ctx.strokeStyle = 'rgba(215, 244, 255, 0.72)';
+    ctx.lineWidth = 1.7;
     ctx.lineCap = 'round';
+    for (const [fromIdx, toIdx] of links) {
+      const from = nodes[fromIdx];
+      const to = nodes[toIdx];
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
+    ctx.lineWidth = 1.1;
     ctx.beginPath();
-    ctx.moveTo(-18, 0);
-    ctx.lineTo(18, 0);
-    ctx.moveTo(0, -18);
-    ctx.lineTo(0, 18);
+    ctx.moveTo(-6, -13);
+    ctx.quadraticCurveTo(0, -17, 7, -12);
+    ctx.moveTo(-5, 14);
+    ctx.quadraticCurveTo(0, 17, 6, 13);
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(210, 245, 255, 0.7)';
-    ctx.lineWidth = 2;
+    for (const node of nodes) {
+      const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.r * 2.4);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${node.a})`);
+      glow.addColorStop(0.35, `rgba(198, 240, 255, ${node.a * 0.82})`);
+      glow.addColorStop(1, 'rgba(198, 240, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+    for (const node of nodes) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+    ctx.lineWidth = 0.9;
     ctx.beginPath();
-    ctx.moveTo(-12, -12);
-    ctx.lineTo(12, 12);
-    ctx.moveTo(-12, 12);
-    ctx.lineTo(12, -12);
+    ctx.arc(0, 0, 13.5, Math.PI * 0.18, Math.PI * 1.42);
     ctx.stroke();
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  /**
+   * Create constructive texture variant B as a harmonic cell.
+   * This complements the lattice seed with a denser, living micro-structure.
+   */
+  _createConstructiveTextureVariantB() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 64, 64);
+
+    const ambientGlow = ctx.createRadialGradient(32, 32, 0, 32, 32, 29);
+    ambientGlow.addColorStop(0, 'rgba(255, 255, 255, 0.92)');
+    ambientGlow.addColorStop(0.26, 'rgba(220, 246, 255, 0.74)');
+    ambientGlow.addColorStop(0.56, 'rgba(120, 226, 255, 0.24)');
+    ambientGlow.addColorStop(1, 'rgba(120, 226, 255, 0)');
+    ctx.fillStyle = ambientGlow;
+    ctx.fillRect(0, 0, 64, 64);
+
+    ctx.save();
+    ctx.translate(32, 32);
+    ctx.rotate(-Math.PI * 0.1);
+
+    const nodes = [
+      { x: 0, y: 0, r: 3.9, a: 1.0 },
+      { x: -9, y: -1, r: 2.5, a: 0.86 },
+      { x: -4, y: -9, r: 2.1, a: 0.72 },
+      { x: 6, y: -8, r: 2.1, a: 0.74 },
+      { x: 10, y: 0, r: 2.5, a: 0.84 },
+      { x: 5, y: 9, r: 2.2, a: 0.76 },
+      { x: -5, y: 8, r: 2.2, a: 0.76 }
+    ];
+
+    const links = [
+      [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 1],
+      [0, 1], [0, 3], [0, 5], [2, 6]
+    ];
+
+    ctx.strokeStyle = 'rgba(223, 247, 255, 0.7)';
+    ctx.lineWidth = 1.55;
+    ctx.lineCap = 'round';
+    for (const [fromIdx, toIdx] of links) {
+      const from = nodes[fromIdx];
+      const to = nodes[toIdx];
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+    ctx.lineWidth = 0.95;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11.5, Math.PI * 0.08, Math.PI * 1.95);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 15.5, Math.PI * 1.12, Math.PI * 1.86);
+    ctx.stroke();
+
+    for (const node of nodes) {
+      const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.r * 2.3);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${node.a})`);
+      glow.addColorStop(0.38, `rgba(205, 243, 255, ${node.a * 0.78})`);
+      glow.addColorStop(1, 'rgba(205, 243, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r * 2.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    for (const node of nodes) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  /**
+   * Create constructive texture variant C as a helical trinity.
+   * This is reserved for extreme synergy peaks and should read as
+   * three coherent strands briefly phase-locking into one moving seed.
+   */
+  _createConstructiveTextureVariantC() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 64, 64);
+
+    const ambientGlow = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+    ambientGlow.addColorStop(0, 'rgba(255, 255, 255, 0.94)');
+    ambientGlow.addColorStop(0.24, 'rgba(224, 242, 255, 0.72)');
+    ambientGlow.addColorStop(0.52, 'rgba(156, 214, 255, 0.28)');
+    ambientGlow.addColorStop(1, 'rgba(156, 214, 255, 0)');
+    ctx.fillStyle = ambientGlow;
+    ctx.fillRect(0, 0, 64, 64);
+
+    ctx.save();
+    ctx.translate(32, 32);
+    ctx.rotate(Math.PI * 0.12);
+
+    const strands = [
+      { offsetX: -7.5, phase: -0.5, alpha: 0.8 },
+      { offsetX: 0, phase: 0.45, alpha: 0.92 },
+      { offsetX: 7.5, phase: 1.25, alpha: 0.78 }
+    ];
+
+    for (const strand of strands) {
+      ctx.strokeStyle = `rgba(224, 244, 255, ${strand.alpha})`;
+      ctx.lineWidth = 1.55;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+
+      for (let y = -15; y <= 15; y += 1) {
+        const waveX = strand.offsetX + Math.sin((y * 0.28) + strand.phase) * 3.2;
+        if (y === -15) {
+          ctx.moveTo(waveX, y);
+        } else {
+          ctx.lineTo(waveX, y);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    const rungYs = [-10, -3, 4, 11];
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+    ctx.lineWidth = 1.05;
+    for (const y of rungYs) {
+      ctx.beginPath();
+      ctx.moveTo(-8.8, y);
+      ctx.quadraticCurveTo(0, y - 2.2, 8.8, y);
+      ctx.stroke();
+    }
+
+    const nodes = [
+      { x: -7.2, y: -11, r: 2.0, a: 0.7 },
+      { x: 0.6, y: -4, r: 2.6, a: 0.95 },
+      { x: 7.4, y: 4.5, r: 2.0, a: 0.74 },
+      { x: -0.8, y: 10.6, r: 2.35, a: 0.86 }
+    ];
+
+    for (const node of nodes) {
+      const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.r * 2.5);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${node.a})`);
+      glow.addColorStop(0.38, `rgba(208, 232, 255, ${node.a * 0.8})`);
+      glow.addColorStop(1, 'rgba(208, 232, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+    for (const node of nodes) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -455,6 +702,8 @@ export class WaveParticleEmitter_v1 {
 
       // Update all 3 particle systems
       this._updateParticleSystem('constructiveBurst', deltaTime);
+      this._updateParticleSystem('constructiveBurstVariantB', deltaTime);
+      this._updateParticleSystem('constructiveBurstVariantC', deltaTime);
       this._updateParticleSystem('destructiveChaos', deltaTime);
       if (this.config.standingWaveRippleEnabled) {
         this._updateParticleSystem('standingWaveRipple', deltaTime);
@@ -492,6 +741,13 @@ export class WaveParticleEmitter_v1 {
       const standingValue = Math.max(standing, MIN_VISIBILITY);
 
       if (constructiveValue >= this.config.constructiveThreshold) {
+        this._debugLogNodeEmission(node, nodeId, 'constructive', {
+          amplitude,
+          constructive: constructiveValue,
+          destructive: destructiveValue,
+          standing: standingValue,
+          threshold: this.config.constructiveThreshold
+        });
         this._emitConstructiveBurst(node, constructiveValue, 'node');
       }
 
@@ -711,32 +967,64 @@ export class WaveParticleEmitter_v1 {
       );
 
       for (let i = 0; i < burstCount; i++) {
-        const particle = this._allocateParticle('constructiveBurst');
+        const preferredSystemType = this._selectConstructiveSystemType(normalizedStrength);
+        const fallbackCandidates = [
+          'constructiveBurst',
+          'constructiveBurstVariantB',
+          'constructiveBurstVariantC'
+        ].filter((systemType) => systemType !== preferredSystemType);
+        let selectedSystemType = preferredSystemType;
+        let particle = this._allocateParticle(selectedSystemType);
+
+        if (!particle) {
+          for (const fallbackSystemType of fallbackCandidates) {
+            particle = this._allocateParticle(fallbackSystemType);
+            if (particle) {
+              selectedSystemType = fallbackSystemType;
+              break;
+            }
+          }
+        }
+
         if (!particle) break;
+
+        particle.data.baseColor.set(this._getConstructiveVariantColor(selectedSystemType));
 
         particle.data.mode = mode;
         particle.data.arcPath = null;
+        particle.data.arcStartT = 0;
+        particle.data.formationDuration = mode === 'link'
+          ? 0.12 + Math.random() * 0.05
+          : 0.07 + Math.random() * 0.04;
 
         if (mode === 'link' && sourcePosition && targetPosition) {
           const arcPath = this._createLinkArcPath(sourcePosition, targetPosition, normalizedStrength);
           const startT = Math.random() * 0.08;
           particle.data.arcPath = arcPath;
+          particle.data.arcStartT = startT;
           particle.data.arcT = startT;
           particle.position.copy(this._sampleQuadraticBezier(arcPath.start, arcPath.control, arcPath.end, startT));
-          particle.velocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, startT)).normalize();
-          particle.velocity.multiplyScalar(6 + Math.random() * 4);
+          particle.data.formationCenter.copy(particle.position);
+          this._applyEmissionOffset(particle.position, mode, 0.12, 0.35, direction);
+          particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
+          particle.data.releaseVelocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, startT)).normalize();
+          particle.data.releaseVelocity.multiplyScalar(6 + Math.random() * 4);
+          particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08);
         } else {
+          particle.data.formationCenter.copy(pos);
           particle.position.copy(pos);
           this._applyEmissionOffset(particle.position, mode, 0.55, 1.2, direction);
+          particle.data.buildOffset.copy(particle.position).sub(particle.data.formationCenter);
 
           const speed = mode === 'link'
             ? 6 + Math.random() * 5
             : 4 + Math.random() * 4;
-          this._setParticleVelocity(particle.velocity, mode, speed, direction, 0.45, 0.2);
+          this._setParticleVelocity(particle.data.releaseVelocity, mode, speed, direction, 0.45, 0.2);
+          particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.12);
           particle.data.arcT = 0;
         }
 
-        particle.data.streak.copy(particle.velocity).normalize();
+        particle.data.streak.copy(particle.data.releaseVelocity).normalize();
         particle.lifetime = 0;
         particle.maxLifetime = mode === 'link'
           ? 0.55 + Math.random() * 0.18
@@ -1001,11 +1289,92 @@ export class WaveParticleEmitter_v1 {
     }
   }
 
+  _debugLogNodeEmission(node, nodeId, channel, values = {}) {
+    if (!this.config.debugNodeEmissionLogs) return;
+
+    const allowNodeIds = this.config.debugNodeEmissionNodeIds;
+    const allowVisualCodes = this.config.debugNodeEmissionVisualCodes;
+    const hasNodeFilter = Array.isArray(allowNodeIds) && allowNodeIds.length > 0;
+    const hasVisualFilter = Array.isArray(allowVisualCodes) && allowVisualCodes.length > 0;
+    if (hasNodeFilter || hasVisualFilter) {
+      const nodeIdStr = String(nodeId);
+      const nodeVisualCode = node?.userData?.visualCode;
+      const visualCodeStr = nodeVisualCode == null ? null : String(nodeVisualCode);
+      const nodeAllowed = hasNodeFilter
+        ? allowNodeIds.some((id) => String(id) === nodeIdStr)
+        : false;
+      const visualAllowed = hasVisualFilter && visualCodeStr != null
+        ? allowVisualCodes.some((code) => String(code) === visualCodeStr)
+        : false;
+      if (!nodeAllowed && !visualAllowed) return;
+    }
+
+    const now = this.time;
+    const gateKey = `${channel}:${nodeId}`;
+    const lastLogTime = this.nodeEmissionLogGate.get(gateKey) ?? -Infinity;
+    const minInterval = Math.max(0.05, Number(this.config.debugNodeEmissionLogIntervalSec) || 0);
+    if (now - lastLogTime < minInterval) return;
+    this.nodeEmissionLogGate.set(gateKey, now);
+
+    const nodeLabel =
+      node?.userData?.nodeName ||
+      node?.userData?.name ||
+      node?.userData?.type ||
+      node?.name ||
+      'unnamed';
+    const pos = node?.position;
+    const posText = pos
+      ? `(${Number(pos.x).toFixed(2)}, ${Number(pos.y).toFixed(2)}, ${Number(pos.z).toFixed(2)})`
+      : '(n/a)';
+
+    const amp = Number(values.amplitude ?? 0).toFixed(3);
+    const c = Number(values.constructive ?? 0).toFixed(3);
+    const d = Number(values.destructive ?? 0).toFixed(3);
+    const s = Number(values.standing ?? 0).toFixed(3);
+    const th = Number(values.threshold ?? 0).toFixed(3);
+
+    console.log(
+      `[WaveParticleEmitter_v1][NODE_EMIT] node=${nodeId} label=${nodeLabel} channel=${channel} `
+      + `constructive=${c} destructive=${d} standing=${s} amplitude=${amp} threshold=${th} pos=${posText}`
+    );
+  }
+
   _clamp01(value) {
     if (!Number.isFinite(value)) return 0;
     if (value < 0) return 0;
     if (value > 1) return 1;
     return value;
+  }
+
+  _isConstructiveSystem(systemType) {
+    return systemType === 'constructiveBurst'
+      || systemType === 'constructiveBurstVariantB'
+      || systemType === 'constructiveBurstVariantC';
+  }
+
+  _selectConstructiveSystemType(normalizedStrength) {
+    const extremePeakT = this._clamp01((normalizedStrength - 0.86) / 0.14);
+    const helicalChance = 0.1 + extremePeakT * 0.26;
+
+    if (normalizedStrength >= 0.86 && Math.random() < helicalChance) {
+      return 'constructiveBurstVariantC';
+    }
+
+    return Math.random() < 0.5
+      ? 'constructiveBurst'
+      : 'constructiveBurstVariantB';
+  }
+
+  _getConstructiveVariantColor(systemType) {
+    if (systemType === 'constructiveBurstVariantB') {
+      return 0x8affea;
+    }
+
+    if (systemType === 'constructiveBurstVariantC') {
+      return 0x9fcfff;
+    }
+
+    return 0x7ffcff;
   }
 
   _resolveEmissionPosition(node) {
@@ -1060,7 +1429,28 @@ export class WaveParticleEmitter_v1 {
 
         // Calculate lifetime alpha (fade out)
         const progress = particle.lifetime / particle.maxLifetime;
-        const alpha = Math.max(0, 1 - progress * progress); // Ease-out fade
+        let alpha = Math.max(0, 1 - progress * progress); // Ease-out fade
+        if (this._isConstructiveSystem(systemType)) {
+          const formationDuration = Math.min(
+            particle.maxLifetime * 0.55,
+            particle.data.formationDuration ?? 0.08
+          );
+          const formationEnd = this._clamp01(formationDuration / Math.max(0.0001, particle.maxLifetime));
+
+          if (progress < formationEnd) {
+            const buildT = progress / Math.max(0.0001, formationEnd);
+            const easedBuild = buildT * buildT * (3 - 2 * buildT);
+            alpha = 0.08 + easedBuild * 0.92;
+          } else {
+            const releaseT = (progress - formationEnd) / Math.max(0.0001, 1 - formationEnd);
+            if (releaseT < 0.3) {
+              alpha = 1.0;
+            } else {
+              const dissolveT = (releaseT - 0.3) / 0.7;
+              alpha = Math.max(0, 1 - dissolveT * dissolveT * 1.08);
+            }
+          }
+        }
 
         // Update position in buffer
         positions[activeIdx * 3] = particle.position.x;
@@ -1074,7 +1464,7 @@ export class WaveParticleEmitter_v1 {
           // Fade toward a denser saturated ember tone
           const endColor = new THREE.Color(0xff2a00);
           finalColor = particle.data.baseColor.clone().lerp(endColor, progress * 0.7);
-        } else if (systemType === 'constructiveBurst') {
+        } else if (this._isConstructiveSystem(systemType)) {
           // Keep a bright white core through most of the lifetime
           const endColor = new THREE.Color(0xffffff);
           finalColor = particle.data.baseColor.clone().lerp(endColor, 0.35 + progress * 0.35);
@@ -1133,9 +1523,24 @@ export class WaveParticleEmitter_v1 {
       const systemType = particle.type;
 
       if (systemType === 'constructiveBurst') {
+        const formationDuration = Math.min(
+          particle.maxLifetime * 0.55,
+          particle.data.formationDuration ?? 0.08
+        );
+
         if (particle.data.mode === 'link' && particle.data.arcPath) {
           const arcPath = particle.data.arcPath;
-          const nextT = Math.min(1, (particle.data.arcT ?? 0) + (deltaTime / Math.max(0.001, particle.maxLifetime)));
+          if (particle.lifetime < formationDuration) {
+            const buildT = particle.lifetime / Math.max(0.0001, formationDuration);
+            const easedBuild = buildT * buildT * (3 - 2 * buildT);
+            const compactFactor = 1 - easedBuild * 0.84;
+            particle.position.copy(particle.data.formationCenter).addScaledVector(particle.data.buildOffset, compactFactor);
+            particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.08 + easedBuild * 0.16);
+            return;
+          }
+
+          const releaseProgress = (particle.lifetime - formationDuration) / Math.max(0.001, particle.maxLifetime - formationDuration);
+          const nextT = particle.data.arcStartT + (1 - particle.data.arcStartT) * this._clamp01(releaseProgress);
           particle.data.arcT = nextT;
           particle.position.copy(this._sampleQuadraticBezier(arcPath.start, arcPath.control, arcPath.end, nextT));
           particle.velocity.copy(this._sampleQuadraticBezierTangent(arcPath.start, arcPath.control, arcPath.end, nextT));
@@ -1145,7 +1550,17 @@ export class WaveParticleEmitter_v1 {
           return;
         }
 
+        if (particle.lifetime < formationDuration) {
+          const buildT = particle.lifetime / Math.max(0.0001, formationDuration);
+          const easedBuild = buildT * buildT * (3 - 2 * buildT);
+          const compactFactor = 1 - easedBuild * 0.82;
+          particle.position.copy(particle.data.formationCenter).addScaledVector(particle.data.buildOffset, compactFactor);
+          particle.velocity.copy(particle.data.releaseVelocity).multiplyScalar(0.1 + easedBuild * 0.18);
+          return;
+        }
+
         // Streak particles: linear motion with drag
+        particle.velocity.lerp(particle.data.releaseVelocity, Math.min(1, deltaTime * 9));
         particle.velocity.multiplyScalar(0.92); // Air resistance
         particle.position.add(
           new THREE.Vector3().copy(particle.velocity).multiplyScalar(deltaTime)
@@ -1241,6 +1656,8 @@ export class WaveParticleEmitter_v1 {
 
       // Clear all maps and pools
       this.pools.constructiveBurst = [];
+      this.pools.constructiveBurstVariantB = [];
+      this.pools.constructiveBurstVariantC = [];
       this.pools.destructiveChaos = [];
       this.pools.standingWaveRipple = [];
       this.emissionGate.constructiveBurst.clear();
@@ -1250,6 +1667,8 @@ export class WaveParticleEmitter_v1 {
 
       this.systems = {
         constructiveBurst: null,
+        constructiveBurstVariantB: null,
+        constructiveBurstVariantC: null,
         destructiveChaos: null,
         standingWaveRipple: null,
       };

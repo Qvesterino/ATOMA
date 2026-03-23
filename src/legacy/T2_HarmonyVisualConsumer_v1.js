@@ -389,6 +389,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     return nextRoot;
   }
 
+  _normalizeHarmonyValue(value) {
+    if (!Number.isFinite(value)) return null;
+    if (value > 1) return Math.max(0, Math.min(1, value / 100));
+    return Math.max(0, Math.min(1, value));
+  }
+
   _resolveNodeHarmonyLevel(node, harmonySystem = this.harmonySystem) {
     const nodeHarmony = harmonySystem?.nodeHarmony;
     const candidateKeys = [node?.id, node?.userData?.nodeId, node?.uuid];
@@ -403,14 +409,17 @@ export class T2_HarmonyVisualConsumer_v1 {
       }
     }
 
-    const shadowHarmony = node?.userData?.harmonyLevel;
-    if (Number.isFinite(shadowHarmony)) return shadowHarmony;
+    const metricsHarmony = this._normalizeHarmonyValue(node?.userData?.metrics?.harmony);
+    if (metricsHarmony !== null) return metricsHarmony;
 
-    const auraStrength = node?.userData?.harmonyAuraStrength;
-    if (Number.isFinite(auraStrength)) return auraStrength;
+    const shadowHarmony = this._normalizeHarmonyValue(node?.userData?.harmonyLevel);
+    if (shadowHarmony !== null) return shadowHarmony;
 
-    const legacyHarmony = node?.userData?.harmony;
-    if (Number.isFinite(legacyHarmony)) return legacyHarmony;
+    const auraStrength = this._normalizeHarmonyValue(node?.userData?.harmonyAuraStrength);
+    if (auraStrength !== null) return auraStrength;
+
+    const legacyHarmony = this._normalizeHarmonyValue(node?.userData?.harmony);
+    if (legacyHarmony !== null) return legacyHarmony;
 
     return 0;
   }
@@ -549,6 +558,10 @@ export class T2_HarmonyVisualConsumer_v1 {
 
   flashHarmonyField(node, options = {}) {
     if (!this.enabled || !node?.uuid) return false;
+
+    if (!this.registry.nodeAuras.has(node.uuid)) {
+      this.registerNode(node);
+    }
 
     const auraData = this.registry.nodeAuras.get(node.uuid);
     if (!auraData) return false;

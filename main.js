@@ -4004,7 +4004,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const resonanceCascadeVisualization = this.resonanceCascadeVisualization || this.resonanceCascade;
             if (resonanceCascadeVisualization && resonanceCascadeVisualization.enabled !== false) {
-                resonanceCascadeVisualization.update(dt, this.time);
+                resonanceCascadeVisualization.update(dt, this.aiNodes?.nodes, this.linkingSystem?.links);
             }
         }, 'visual.resonanceCascadeVisualization');
         
@@ -4354,10 +4354,12 @@ this.setHudDirty('nodeInspect');
         // PHASE 5: MULTI-NETWORK SYNCHRONIZATION
         // ====================================================================
         this.phase5MultiNetworkOrchestrator = null;
-      //  this.phase5InterNetworkConnectionVisuals = null;
+        this.phase5InterNetworkConnectionVisuals = null;
         this.phase5InterNetworkVisualizationBridge = null;
         this.phase5CascadePropagationVisuals = null;
         this.phase5CascadeVisualizationBridge = null;
+        this._multiNetworkThresholdListener = null;
+        this._phase5AutoConnectUnsub = null;
 
         // ====================================================================
         // NODE HIERARCHY SYSTEM v1.0 — Parent-Child Node Relationships
@@ -6696,7 +6698,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.corruptionVisualFX = new CorruptionVisualFX_v1(this.scene, this.aiNodes, false);
 
         // Listen for corruption threshold events
-        this.multiNetworkManager.on((event) => {
+        this._multiNetworkThresholdListener = (event) => {
             if (event?.type === 'corruptionThresholdCrossed') {
                 const node = event.node;
                 if (!node || !node.position) return;
@@ -6720,7 +6722,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     });
                 }
             }
-        });
+        };
+        this.multiNetworkManager.on(this._multiNetworkThresholdListener);
 
         // VFX runtime loader (opt-in)
         this.vfxLoader = new VFXRuntimeLoader({
@@ -7984,6 +7987,66 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     position: { x: 0, y: 0, z: 0 }
                 }
             );
+
+            // Auto-connect all PHASE5 networks when multi-network scenarios become available.
+            const autoConnectPhase5Networks = () => {
+                const orchestrator = this.phase5MultiNetworkOrchestrator;
+                if (!orchestrator?.getAllNetworks || !orchestrator?.getConnections || !orchestrator?.connectNetworks) return;
+                const networks = orchestrator.getAllNetworks();
+                if (!Array.isArray(networks) || networks.length < 2) return;
+
+                const existing = new Set(
+                    (orchestrator.getConnections() || []).map((conn) => `${conn.sourceNetworkId}->${conn.targetNetworkId}`)
+                );
+
+                for (const source of networks) {
+                    for (const target of networks) {
+                        if (!source?.id || !target?.id || source.id === target.id) continue;
+                        const key = `${source.id}->${target.id}`;
+                        if (existing.has(key)) continue;
+                        orchestrator.connectNetworks(source.id, target.id, 0.5);
+                        existing.add(key);
+                    }
+                }
+            };
+            autoConnectPhase5Networks();
+
+            this._phase5AutoConnectUnsub?.();
+            const phase5Manager = this.phase5MultiNetworkOrchestrator?.multiNetworkManager;
+            if (phase5Manager?.onNetworkRegistered) {
+                this._phase5AutoConnectUnsub = phase5Manager.onNetworkRegistered(() => {
+                    autoConnectPhase5Networks();
+                });
+            }
+
+            // Promote PHASE5 orchestrator internals to authoritative runtime stack.
+            const legacyMultiNetworkManager = this.multiNetworkManager;
+            const legacyCorruptionBridge = this.corruptionBridge;
+            const phase5CorruptionBridge = this.phase5MultiNetworkOrchestrator?.corruptionBridge;
+
+            if (phase5Manager && phase5CorruptionBridge) {
+                if (legacyMultiNetworkManager && legacyMultiNetworkManager !== phase5Manager && this._multiNetworkThresholdListener) {
+                    legacyMultiNetworkManager.off?.(this._multiNetworkThresholdListener);
+                }
+                if (this.frameScheduler?.isRegistered?.('simulation.corruptionBridge')) {
+                    this.frameScheduler.unregister('simulation.corruptionBridge');
+                }
+
+                this.multiNetworkManager = phase5Manager;
+                this.corruptionBridge = phase5CorruptionBridge;
+                this.multiNetworkManager.frameScheduler = this.frameScheduler;
+                this.corruptionBridge.frameScheduler = this.frameScheduler;
+                if (this._multiNetworkThresholdListener) {
+                    this.multiNetworkManager.on?.(this._multiNetworkThresholdListener);
+                }
+
+                if (legacyCorruptionBridge && legacyCorruptionBridge !== this.corruptionBridge) {
+                    legacyCorruptionBridge.dispose?.();
+                }
+                if (legacyMultiNetworkManager && legacyMultiNetworkManager !== this.multiNetworkManager) {
+                    legacyMultiNetworkManager.dispose?.();
+                }
+            }
             
             console.log('[main.js] PHASE5_MultiNetworkOrchestrator initialized ✓');
         } catch (err) {
@@ -7994,10 +8057,27 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // PHASE 5: INTER-NETWORK VISUALIZATION BRIDGE
         // ====================================================================
         try {
+            if (!this.phase5InterNetworkConnectionVisuals) {
+                const fallbackState = { timestamp: 0, networks: [], connections: [] };
+                this.phase5InterNetworkConnectionVisuals = {
+                    sync: (networks, connections) => {
+                        fallbackState.timestamp = Date.now();
+                        fallbackState.networks = Array.from(networks?.keys?.() || []);
+                        fallbackState.connections = (connections || []).map((conn) => ({
+                            sourceNetworkId: conn.sourceNetworkId,
+                            targetNetworkId: conn.targetNetworkId,
+                            strength: conn.strength ?? 0
+                        }));
+                    },
+                    update: () => {},
+                    getSnapshot: () => ({ ...fallbackState })
+                };
+            }
+
             this.phase5InterNetworkVisualizationBridge = new PHASE5_InterNetworkVisualizationBridge(
-                this.phase5MultiNetworkOrchestrator,
-                this.phase5CorruptionBridge || null,
-                null  // connectionVisuals: not yet available; bridge runs in data-only mode
+                this.phase5MultiNetworkOrchestrator?.multiNetworkManager || null,
+                this.phase5MultiNetworkOrchestrator?.corruptionBridge || null,
+                this.phase5InterNetworkConnectionVisuals
             );
             console.log('[main.js] PHASE5_InterNetworkVisualizationBridge initialized ✓');
         } catch (err) {
@@ -8058,6 +8138,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     {
                         enableDebug: false,
                         enableLogging: false,
+                        semanticBus: this.semanticBus,
                         corruptionCascadeThreshold: 0.7,
                         threatCascadeThreshold: 0.5,
                         harmonyCascadeThreshold: 0.8,
@@ -8065,7 +8146,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     }
                 );
                 this.phase5CascadeVisualizationBridge.frameScheduler = this.frameScheduler;
-                this.phase5CascadeVisualizationBridge.semanticBus = this.semanticBus;
                 console.log('[main.js] PHASE5_CascadeVisualizationBridge initialized ✓');
             } catch (err) {
                 console.warn('[main.js] PHASE5_CascadeVisualizationBridge initialization failed:', err);
@@ -8081,7 +8161,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (typeof window !== 'undefined') {
             window.PHASE5 = {
                 orchestrator: this.phase5MultiNetworkOrchestrator,
-                cascadeVisuals: this.cascadePropagationVisuals
+                cascadeVisuals: this.cascadePropagationVisuals,
+                interNetworkVisuals: this.phase5InterNetworkConnectionVisuals
             };
             console.log('[PHASE5] Systems activated');
         }
@@ -8477,7 +8558,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 standingWaveThreshold: 0.25,
                 amplitudeSpikeThreshold: 0.12,
                 amplitudeEMAAlpha: 0.15,
-                debugMode: false
+                debugMode: false,
+                // Diagnostic logging for node-origin constructive emissions (temporary).
+                debugNodeEmissionLogs: true,
+                debugNodeEmissionLogIntervalSec: 0.8,
+                debugNodeEmissionNodeIds: [],
+                debugNodeEmissionVisualCodes: [1002]
             });
             this.particleEmitter?.init?.(this.renderer, this.scene);
             console.log('[main.js] WaveParticleEmitter_v1 initialized ✓');

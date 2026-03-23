@@ -41,6 +41,7 @@ export class PHASE5_CascadeVisualizationBridge {
     
     // State tracking
     this.lastProcessedCascadeIndex = 0;
+    this.lastProcessedThreatIndex = 0;
     this.cascadeEventQueue = [];
     this.processedCascadeIds = new Set();
     
@@ -180,9 +181,11 @@ export class PHASE5_CascadeVisualizationBridge {
       }
       
       // Process threat cascades
-      for (const threat of threatHistory) {
+      for (let i = this.lastProcessedThreatIndex; i < threatHistory.length; i++) {
+        const threat = threatHistory[i];
         this.queueCascadeEvent(threat);
       }
+      this.lastProcessedThreatIndex = threatHistory.length;
       
     } catch (err) {
       if (this.config.enableDebug) {
@@ -197,9 +200,11 @@ export class PHASE5_CascadeVisualizationBridge {
   queueCascadeEvent(cascadeData) {
     try {
       if (!cascadeData) return;
+      const normalized = this._normalizeCascadeEvent(cascadeData);
+      if (!normalized) return;
       
       // Generate unique ID to avoid duplicates
-      const cascadeId = `${cascadeData.timestamp}_${cascadeData.sourceNode?.id || Math.random()}`;
+      const cascadeId = this._buildCascadeId(normalized);
       
       if (this.processedCascadeIds.has(cascadeId)) {
         return; // Already processed
@@ -210,7 +215,7 @@ export class PHASE5_CascadeVisualizationBridge {
       // Queue for processing
       this.cascadeEventQueue.push({
         cascadeId: cascadeId,
-        data: cascadeData,
+        data: normalized,
         queuedAt: Date.now(),
         visualized: false
       });
@@ -415,6 +420,7 @@ export class PHASE5_CascadeVisualizationBridge {
       this.processedCascadeIds.clear();
       this.cascadeHistory = [];
       this.lastProcessedCascadeIndex = 0;
+      this.lastProcessedThreatIndex = 0;
       this._eventRefreshRequested = false;
     } catch (err) {
       if (this.config.enableDebug) {
@@ -468,6 +474,87 @@ export class PHASE5_CascadeVisualizationBridge {
     };
   }
 
+  _normalizeCascadeEvent(cascadeData) {
+    if (!cascadeData) return null;
+
+    if (cascadeData.sourceNode?.position) {
+      return {
+        sourceNode: cascadeData.sourceNode,
+        affectedNodes: Array.isArray(cascadeData.affectedNodes) ? cascadeData.affectedNodes : [],
+        cascadeType: cascadeData.cascadeType ?? (cascadeData.isThreatCascade ? 'threat' : (cascadeData.isHealingCascade ? 'harmony' : 'corruption')),
+        strength: Math.max(0, Math.min(1, Number(cascadeData.strength ?? cascadeData.level ?? cascadeData.value ?? 0.5))),
+        depth: Number.isFinite(cascadeData.depth) ? cascadeData.depth : 0,
+        timestamp: Number.isFinite(cascadeData.timestamp) ? cascadeData.timestamp : Date.now(),
+        link: cascadeData.link ?? null,
+        event: cascadeData.event ?? null,
+        rawLinkId: cascadeData.linkId ?? null
+      };
+    }
+
+    const link = cascadeData.link ?? this._findLinkById(cascadeData.linkId);
+    const sourceNode =
+      link?.source ??
+      link?.sourceNode ??
+      link?.from ??
+      link?.userData?.source ??
+      this._findNodeById(cascadeData.nodeId ?? cascadeData.sourceNodeId ?? cascadeData.sourceId ?? null);
+    const targetNode =
+      link?.target ??
+      link?.targetNode ??
+      link?.to ??
+      link?.userData?.target ??
+      null;
+
+    if (!sourceNode?.position && !targetNode?.position) return null;
+
+    const fallbackSource = sourceNode?.position ? sourceNode : targetNode;
+    const strengthRaw = Number(cascadeData.strength ?? cascadeData.level ?? cascadeData.value ?? cascadeData.cascadeStrength ?? 0.5);
+    const normalizedStrength = Number.isFinite(strengthRaw) ? Math.max(0, Math.min(1, strengthRaw)) : 0.5;
+    const normalizedDepth = Number.isFinite(cascadeData.depth ?? cascadeData.cascadeDepth) ? Number(cascadeData.depth ?? cascadeData.cascadeDepth) : 0;
+
+    const inferredType =
+      cascadeData.cascadeType ??
+      (cascadeData.isThreatCascade || cascadeData.event === 'cascade' ? 'threat' : 'corruption');
+
+    return {
+      sourceNode: fallbackSource,
+      affectedNodes: targetNode?.position && sourceNode?.position ? [targetNode] : [],
+      cascadeType: inferredType,
+      strength: normalizedStrength,
+      depth: normalizedDepth,
+      timestamp: Number.isFinite(cascadeData.timestamp) ? cascadeData.timestamp : Date.now(),
+      link: link ?? null,
+      event: cascadeData.event ?? null,
+      rawLinkId: cascadeData.linkId ?? null
+    };
+  }
+
+  _buildCascadeId(cascadeData) {
+    const sourceId =
+      cascadeData?.sourceNode?.id ??
+      cascadeData?.sourceNode?.userData?.nodeId ??
+      cascadeData?.sourceNode?.userData?.id ??
+      'unknown';
+    const linkId =
+      cascadeData?.link?.id ??
+      cascadeData?.link?.uuid ??
+      cascadeData?.rawLinkId ??
+      'nolink';
+    const eventType = cascadeData?.event ?? cascadeData?.cascadeType ?? 'cascade';
+    const depth = Number.isFinite(cascadeData?.depth) ? cascadeData.depth : 0;
+    const timestamp = Number.isFinite(cascadeData?.timestamp) ? cascadeData.timestamp : Date.now();
+    return `${eventType}:${sourceId}:${linkId}:${depth}:${timestamp}`;
+  }
+
+  _findLinkById(linkId) {
+    if (!linkId || !this.linkCorruptionTransmission?.getAllLinks) return null;
+    const links = this.linkCorruptionTransmission.getAllLinks() || [];
+    return links.find((link) => {
+      const candidateId = link?.id ?? link?.uuid;
+      return candidateId === linkId;
+    }) || null;
+  }
+
   _findNodeById(nodeId) {
     if (!nodeId || !Array.isArray(this.aiNodes?.nodes)) return null;
     for (const node of this.aiNodes.nodes) {
@@ -486,5 +573,6 @@ export class PHASE5_CascadeVisualizationBridge {
       }
     }
     this._semanticUnsubscribers.length = 0;
+    this.clear();
   }
 }

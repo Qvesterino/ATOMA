@@ -42,6 +42,7 @@ import * as THREE from 'three';
 const CASCADE_CONFIG = {
   // Propagation speeds
   RADIAL_PROPAGATION_SPEED: 8.0,              // Units per second (spatial)
+  RADIAL_BAND_WIDTH: 2.8,                     // Wavefront thickness in world units
   
   // Temporal parameters
   CASCADE_LIFETIME: 4.0,                      // Seconds before cascade dissipates
@@ -52,6 +53,12 @@ const CASCADE_CONFIG = {
   LINK_RIPPLE_MULTIPLIER: 0.4,                // How much cascade affects links
   LINK_THICKNESS_MULTIPLIER: 0.3,             // How much cascade fattens links
   PARTICLE_EMISSION_MULTIPLIER: 1.5,          // Particle rate scaling
+  NODE_SCALE_MULTIPLIER: 0.05,
+  LINK_SCALE_MULTIPLIER: 0.03,
+  NODE_EMISSIVE_MULTIPLIER: 0.8,
+  LINK_EMISSIVE_MULTIPLIER: 0.65,
+  NODE_OPACITY_MULTIPLIER: 0.16,
+  LINK_OPACITY_MULTIPLIER: 0.18,
 };
 
 /**
@@ -121,6 +128,10 @@ export class ResonanceCascadeVisualization_Session117B {
     // Per-node cascade accumulator
     this.nodeCascadeIntensity = new Map();
     this.linkCascadeIntensity = new Map();
+    this.nodeVisualState = new WeakMap();
+    this.linkVisualState = new WeakMap();
+    this._tmpNodeTint = new THREE.Color(0xff66aa);
+    this._tmpLinkTint = new THREE.Color(0xff8866);
     this._boundHandleCascadeStart = this.handleCascadeStart.bind(this);
     this._boundHandleCascadeHop = this.handleCascadeHop.bind(this);
     this._boundHandleCascadeEnd = this.handleCascadeEnd.bind(this);
@@ -150,6 +161,167 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!link?.userData) return;
     const prev = this.linkCascadeIntensity.get(link) ?? 0;
     this.linkCascadeIntensity.set(link, Math.max(prev, intensity));
+  }
+
+  _distanceToPosition(positionA, positionB) {
+    const dx = (positionA?.x || 0) - (positionB?.x || 0);
+    const dy = (positionA?.y || 0) - (positionB?.y || 0);
+    const dz = (positionA?.z || 0) - (positionB?.z || 0);
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
+  _computeWaveInfluence(distance, cascade) {
+    const bandHalfWidth = CASCADE_CONFIG.RADIAL_BAND_WIDTH * 0.5;
+    const delta = Math.abs(distance - cascade.currentRadius);
+    if (delta > bandHalfWidth) return 0;
+    const falloff = 1.0 - (delta / bandHalfWidth);
+    return cascade.intensity * falloff * cascade.rippleAmplitude;
+  }
+
+  _resolveNodeVisualRoot(node) {
+    return node?.userData?.visualRoot || node?.userData?.nodeRoot || node || null;
+  }
+
+  _resolveLinkVisualRoot(link) {
+    return (
+      link?.userData?.line ||
+      link?.userData?.linkMesh ||
+      link?.userData?.visualRoot ||
+      link?.mesh ||
+      link?.object3D ||
+      null
+    );
+  }
+
+  _getLinkMidpoint(link) {
+    const source = link?.source || link?.sourceNode;
+    const target = link?.target || link?.targetNode;
+    if (!source?.position || !target?.position) return null;
+    return {
+      x: (source.position.x + target.position.x) * 0.5,
+      y: (source.position.y + target.position.y) * 0.5,
+      z: (source.position.z + target.position.z) * 0.5
+    };
+  }
+
+  _forEachMaterial(target, visitor) {
+    if (!target) return;
+    const visitMaterial = (material) => {
+      if (!material) return;
+      visitor(material);
+    };
+
+    if (target.material) {
+      if (Array.isArray(target.material)) {
+        target.material.forEach(visitMaterial);
+      } else {
+        visitMaterial(target.material);
+      }
+    }
+
+    target.traverse?.((child) => {
+      if (!child?.material || child === target) return;
+      if (Array.isArray(child.material)) {
+        child.material.forEach(visitMaterial);
+      } else {
+        visitMaterial(child.material);
+      }
+    });
+  }
+
+  _ensureVisualState(target, stateMap) {
+    if (!target) return null;
+    let state = stateMap.get(target);
+    if (state) return state;
+
+    state = {
+      scale: target.scale?.clone?.() || null,
+      materials: new WeakMap()
+    };
+    stateMap.set(target, state);
+    return state;
+  }
+
+  _ensureMaterialState(material, state) {
+    let materialState = state.materials.get(material);
+    if (materialState) return materialState;
+
+    materialState = {
+      opacity: material.opacity,
+      transparent: material.transparent,
+      emissiveIntensity: material.emissiveIntensity,
+      color: material.color?.clone?.() || null,
+      emissive: material.emissive?.clone?.() || null
+    };
+    state.materials.set(material, materialState);
+    return materialState;
+  }
+
+  _applyVisualCascade(target, intensity, stateMap, tintColor, scaleMultiplier, emissiveMultiplier, opacityMultiplier) {
+    if (!target || intensity <= 0) return;
+
+    const state = this._ensureVisualState(target, stateMap);
+    if (!state) return;
+
+    if (state.scale && target.scale?.copy) {
+      target.scale.copy(state.scale).multiplyScalar(1.0 + intensity * scaleMultiplier);
+    }
+
+    this._forEachMaterial(target, (material) => {
+      const materialState = this._ensureMaterialState(material, state);
+      if (!materialState) return;
+
+      if (material.color && materialState.color) {
+        material.color.copy(materialState.color).lerp(tintColor, intensity * 0.25);
+      }
+
+      if (material.emissive && materialState.emissive) {
+        material.emissive.copy(materialState.emissive).lerp(tintColor, intensity * 0.45);
+      }
+
+      if (typeof material.emissiveIntensity === 'number') {
+        material.emissiveIntensity = (materialState.emissiveIntensity || 0) + intensity * emissiveMultiplier;
+      }
+
+      if (typeof material.opacity === 'number') {
+        material.transparent = true;
+        material.opacity = Math.min(1.0, (materialState.opacity ?? 1.0) + intensity * opacityMultiplier);
+      }
+    });
+  }
+
+  _restoreVisualCascade(target, stateMap) {
+    if (!target) return;
+    const state = stateMap.get(target);
+    if (!state) return;
+
+    if (state.scale && target.scale?.copy) {
+      target.scale.copy(state.scale);
+    }
+
+    this._forEachMaterial(target, (material) => {
+      const materialState = state.materials.get(material);
+      if (!materialState) return;
+
+      if (material.color && materialState.color) {
+        material.color.copy(materialState.color);
+      }
+
+      if (material.emissive && materialState.emissive) {
+        material.emissive.copy(materialState.emissive);
+      }
+
+      if (typeof material.emissiveIntensity === 'number') {
+        material.emissiveIntensity = materialState.emissiveIntensity;
+      }
+
+      if (typeof material.opacity === 'number') {
+        material.opacity = materialState.opacity;
+        material.transparent = materialState.transparent;
+      }
+    });
+
+    stateMap.delete(target);
   }
 
   _spawnCascadeWaveFromEvent(event = {}) {
@@ -225,11 +397,41 @@ export class ResonanceCascadeVisualization_Session117B {
       }
     }
     this.activeCascades = activeCascades;
+
+    if (Array.isArray(nodes) && this.activeCascades.length > 0) {
+      for (const node of nodes) {
+        if (!node?.position || !node?.userData) continue;
+        let influence = 0;
+        for (const cascade of this.activeCascades) {
+          const distance = this._distanceToPosition(node.position, cascade.originPos);
+          influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
+        }
+        if (influence > 0.001) {
+          this._registerNodeVisual(node, influence);
+        }
+      }
+    }
+
+    if (Array.isArray(links) && this.activeCascades.length > 0) {
+      for (const link of links) {
+        const midpoint = this._getLinkMidpoint(link);
+        if (!midpoint || !link?.userData) continue;
+        let influence = 0;
+        for (const cascade of this.activeCascades) {
+          const distance = this._distanceToPosition(midpoint, cascade.originPos);
+          influence = Math.max(influence, this._computeWaveInfluence(distance, cascade));
+        }
+        if (influence > 0.001) {
+          this._registerLinkVisual(link, influence);
+        }
+      }
+    }
     
     // Decay and apply node visuals without scanning network topology.
     for (const [node, value] of this.nodeCascadeIntensity.entries()) {
       const decayed = Math.max(0, value * Math.exp(-deltaTime * 1.35));
       if (!node?.userData || decayed <= 0.001) {
+        this._restoreVisualCascade(this._resolveNodeVisualRoot(node), this.nodeVisualState);
         this.nodeCascadeIntensity.delete(node);
         continue;
       }
@@ -237,12 +439,22 @@ export class ResonanceCascadeVisualization_Session117B {
       node.userData.cascadeIntensity = decayed;
       node.userData.cascadeGlow = decayed * CASCADE_CONFIG.NODE_GLOW_MULTIPLIER;
       node.userData.cascadeRipple = Math.sin(Date.now() * 0.003) * decayed * 0.5;
+      this._applyVisualCascade(
+        this._resolveNodeVisualRoot(node),
+        decayed,
+        this.nodeVisualState,
+        this._tmpNodeTint,
+        CASCADE_CONFIG.NODE_SCALE_MULTIPLIER,
+        CASCADE_CONFIG.NODE_EMISSIVE_MULTIPLIER,
+        CASCADE_CONFIG.NODE_OPACITY_MULTIPLIER
+      );
     }
 
     // Decay and apply link visuals without propagation recursion.
     for (const [link, value] of this.linkCascadeIntensity.entries()) {
       const decayed = Math.max(0, value * Math.exp(-deltaTime * 1.5));
       if (!link?.userData || decayed <= 0.001) {
+        this._restoreVisualCascade(this._resolveLinkVisualRoot(link), this.linkVisualState);
         this.linkCascadeIntensity.delete(link);
         continue;
       }
@@ -251,6 +463,15 @@ export class ResonanceCascadeVisualization_Session117B {
       link.userData.cascadeRipple = decayed * CASCADE_CONFIG.LINK_RIPPLE_MULTIPLIER;
       link.userData.cascadeThickening = decayed * CASCADE_CONFIG.LINK_THICKNESS_MULTIPLIER;
       link.userData.cascadeOscillation = Math.sin(Date.now() * 0.004) * decayed;
+      this._applyVisualCascade(
+        this._resolveLinkVisualRoot(link),
+        decayed,
+        this.linkVisualState,
+        this._tmpLinkTint,
+        CASCADE_CONFIG.LINK_SCALE_MULTIPLIER,
+        CASCADE_CONFIG.LINK_EMISSIVE_MULTIPLIER,
+        CASCADE_CONFIG.LINK_OPACITY_MULTIPLIER
+      );
     }
   }
   
@@ -345,6 +566,12 @@ export class ResonanceCascadeVisualization_Session117B {
 
     // Clear internal state
     this.activeCascades = [];
+    for (const node of this.nodeCascadeIntensity.keys()) {
+      this._restoreVisualCascade(this._resolveNodeVisualRoot(node), this.nodeVisualState);
+    }
+    for (const link of this.linkCascadeIntensity.keys()) {
+      this._restoreVisualCascade(this._resolveLinkVisualRoot(link), this.linkVisualState);
+    }
     this.nodeCascadeIntensity.clear();
     this.linkCascadeIntensity.clear();
     this.semanticBus = null;

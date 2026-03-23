@@ -14,6 +14,75 @@
 
 import * as THREE from 'three';
 
+const CORRUPTION_SEED_VERTEX_SHADER = `
+uniform float uTime;
+uniform float uIntensity;
+
+varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
+varying vec3 vLocalPosition;
+
+void main() {
+  vec3 displacedPosition = position;
+  float waveA = sin(uTime * 4.6 + position.y * 8.0 + position.x * 5.5);
+  float waveB = sin(uTime * 7.8 + position.z * 10.0 - position.y * 6.5);
+  float deformation = (waveA * 0.55 + waveB * 0.45) * mix(0.05, 0.12, clamp(uIntensity, 0.0, 1.0));
+  displacedPosition += normal * deformation;
+
+  vec4 worldPosition = modelMatrix * vec4(displacedPosition, 1.0);
+  vWorldPosition = worldPosition.xyz;
+  vWorldNormal = normalize(mat3(modelMatrix) * normal);
+  vLocalPosition = displacedPosition;
+
+  gl_Position = projectionMatrix * viewMatrix * worldPosition;
+}
+`;
+
+const CORRUPTION_SEED_FRAGMENT_SHADER = `
+uniform float uTime;
+uniform float uIntensity;
+uniform vec3 uBaseColor;
+
+varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
+varying vec3 vLocalPosition;
+
+void main() {
+  vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+  float fresnel = pow(1.0 - abs(dot(normalize(vWorldNormal), viewDir)), 2.4);
+
+  float pulse = 0.72 + 0.28 * sin(uTime * 5.2 + length(vLocalPosition) * 11.0);
+  float flickerA = sin(uTime * 18.0 + vLocalPosition.x * 20.0 + vLocalPosition.y * 14.0);
+  float flickerB = sin(uTime * 27.0 - vLocalPosition.z * 18.0 + vLocalPosition.x * 9.0);
+  float flicker = 0.5 + 0.5 * (flickerA * 0.55 + flickerB * 0.45);
+
+  float radius = length(vLocalPosition);
+  float coreGlow = 1.0 - smoothstep(0.10, 0.62, radius);
+  float edgeLeak = fresnel * (0.55 + flicker * 0.45);
+
+  vec3 chaosShift = vec3(0.62, 0.10, 0.78);
+  vec3 hotColor = mix(uBaseColor, vec3(1.0, 0.26, 0.08), 0.35 + 0.25 * pulse);
+  vec3 chaosColor = mix(hotColor, chaosShift, fresnel * 0.45 + flicker * 0.15);
+
+  float brightness = (coreGlow * 1.2 + edgeLeak * 0.95 + flicker * 0.25) * mix(0.6, 1.2, clamp(uIntensity, 0.0, 1.0));
+  vec3 color = chaosColor * brightness;
+
+  float baseOpacity = mix(0.32, 0.92, clamp(uIntensity, 0.0, 1.0));
+  float opacity = baseOpacity * (0.7 + 0.3 * flicker) * (0.82 + 0.18 * pulse);
+
+  gl_FragColor = vec4(color, opacity);
+}
+`;
+
+function normalizeSeedMetric(value, fallback = 0.5) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  if (numericValue > 1) {
+    return Math.max(0, Math.min(1, numericValue / 100));
+  }
+  return Math.max(0, Math.min(1, numericValue));
+}
+
 export class TIER4_CorruptionFeedbackVisuals {
   constructor(scene, config = {}) {
     this.scene = scene;
@@ -25,6 +94,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       corruptionSeedColor: config.corruptionSeedColor ?? 0xff6600,
       corruptionSeedIntensity: config.corruptionSeedIntensity ?? 0.5,
       corruptionSeedDuration: config.corruptionSeedDuration ?? 0.5,
+      corruptionSeedRotationSpeed: config.corruptionSeedRotationSpeed ?? 1.35,
       
       // Cascade warning
       showCascadeWarning: config.showCascadeWarning ?? true,
@@ -46,10 +116,6 @@ export class TIER4_CorruptionFeedbackVisuals {
     
     // Material pool for reuse
     this.materialPool = {
-      corruptionSeed: new THREE.MeshBasicMaterial({ 
-        color: this.config.corruptionSeedColor,
-        transparent: true
-      }),
       cascadeWarning: new THREE.MeshBasicMaterial({
         color: this.config.cascadeWarningColor,
         transparent: true,
@@ -73,6 +139,23 @@ export class TIER4_CorruptionFeedbackVisuals {
     };
   }
 
+  _createCorruptionSeedMaterial(baseIntensity) {
+    return new THREE.ShaderMaterial({
+      vertexShader: CORRUPTION_SEED_VERTEX_SHADER,
+      fragmentShader: CORRUPTION_SEED_FRAGMENT_SHADER,
+      uniforms: {
+        uTime: { value: 0 },
+        uIntensity: { value: baseIntensity },
+        uBaseColor: { value: new THREE.Color(this.config.corruptionSeedColor) }
+      },
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false
+    });
+  }
+
   setHarmonyFieldConsumer(harmonyFieldConsumer) {
     this.harmonyFieldConsumer = harmonyFieldConsumer ?? null;
   }
@@ -85,9 +168,14 @@ export class TIER4_CorruptionFeedbackVisuals {
     if (!node || !this.config.showCorruptionSeedPulse) return;
     
     try {
+      const corruptionLevel = normalizeSeedMetric(
+        node.userData?.metrics?.corruption ?? node.userData?.corruptionLevel ?? node.userData?.corruption,
+        this.config.corruptionSeedIntensity
+      );
+      const seedIntensity = Math.max(0.5, corruptionLevel);
       const mesh = new THREE.Mesh(
         this.geometryPool.sphere,
-        this.materialPool.corruptionSeed.clone()
+        this._createCorruptionSeedMaterial(seedIntensity)
       );
       
       // Position at node
@@ -106,6 +194,7 @@ export class TIER4_CorruptionFeedbackVisuals {
         type: 'corruptionSeed',
         startTime: Date.now(),
         duration: this.config.corruptionSeedDuration * 1000, // Convert to ms
+        seedIntensity,
         startScale: new THREE.Vector3(0.1, 0.1, 0.1),
         endScale: new THREE.Vector3(0.8, 0.8, 0.8)
       };
@@ -203,19 +292,26 @@ export class TIER4_CorruptionFeedbackVisuals {
       const effect = this.activeCorruptionSeeds[i];
       const elapsed = currentTime - effect.startTime;
       const progress = Math.min(elapsed / effect.duration, 1.0);
+      const shaderTime = elapsed / 1000;
       
       // Scale up
       const scale = effect.startScale.clone()
         .lerp(effect.endScale, progress);
       effect.mesh.scale.copy(scale);
-      
-      // Fade out at end
-      const opacity = Math.max(1.0 - progress, 0);
-      effect.mesh.material.opacity = opacity;
+
+      effect.mesh.rotation.x += deltaTime * this.config.corruptionSeedRotationSpeed;
+      effect.mesh.rotation.y += deltaTime * (this.config.corruptionSeedRotationSpeed * 1.45);
+
+      const fadeBase = Math.pow(Math.max(0, 1.0 - progress), 0.7);
+      const flicker = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(shaderTime * 19.0 + progress * 13.0));
+      const animatedIntensity = Math.max(0, effect.seedIntensity * fadeBase * flicker);
+      effect.mesh.material.uniforms.uTime.value = shaderTime;
+      effect.mesh.material.uniforms.uIntensity.value = animatedIntensity;
       
       // Remove when done
       if (progress >= 1.0) {
         this.scene.remove(effect.mesh);
+        effect.mesh.material.dispose();
         this.activeCorruptionSeeds.splice(i, 1);
       }
     }
@@ -280,7 +376,6 @@ export class TIER4_CorruptionFeedbackVisuals {
     this.clear();
     
     // Dispose materials
-    this.materialPool.corruptionSeed.dispose();
     this.materialPool.cascadeWarning.dispose();
     
     // Dispose geometries
