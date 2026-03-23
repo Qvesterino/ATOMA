@@ -58,6 +58,7 @@ import { ArchetypeVisualDifferentiationSystem_v1 } from './ArchetypeVisualDiffer
 import { patchArchetypeVisuals } from './ArchetypeVisualIntegrationPatch_v1.js';
 import { AtomaAudioSystem } from './AtomaAudioSystem.js';
 import { AtomaAudioModulation } from './AtomaAudioModulation.js';
+import { registerAtomaAudioEventManifest } from './AtomaAudioEventManifest.js';
 import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.js';
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
@@ -4188,51 +4189,7 @@ this.setHudDirty('nodeInspect');
             this.wakeHud('selection');
         });
 
-        // Audio System - Subscribe to gameplay events
-        if (this.audioSystem) {
-            // Node selection/deselection
-            this.semanticBus.subscribe('node.selection', (evt) => {
-                if (!this.audioSystem) return;
-                if (evt.type === 'select') {
-                    console.log('[ATOMA AUDIO] playSelection() triggered');
-                    this.audioSystem.playSelection();
-                } else if (evt.type === 'deselect') {
-                    this.audioSystem.playDeselection();
-                }
-            });
-
-            // Link creation
-            this.semanticBus.subscribe('link.created', () => {
-                if (this.audioSystem) {
-                    console.log('[ATOMA AUDIO] playLinkCreated() triggered');
-                    this.audioSystem.playLinkCreated();
-                }
-            });
-
-            // Link destruction
-            this.semanticBus.subscribe('network.link.destroyed', () => {
-                if (this.audioSystem) {
-                    this.audioSystem.playLinkBroken();
-                }
-            });
-
-            // Synergy activation
-            this.semanticBus.subscribe('node.synergy.high', () => {
-                if (this.audioSystem) {
-                    console.log('[ATOMA AUDIO] playSynergyActive() triggered');
-                    this.audioSystem.playSynergyActive();
-                    this.previousSynergyState = 'active';
-                }
-            });
-
-            // Synergy fading
-            this.semanticBus.subscribe('synergy.fade', () => {
-                if (this.audioSystem) {
-                    this.audioSystem.playSynergyFade();
-                    this.previousSynergyState = 'fading';
-                }
-            });
-        }
+        // Audio routing is bound after audio system construction.
         
         // Phase B Console API
         window.scheduler = {
@@ -4285,8 +4242,79 @@ this.setHudDirty('nodeInspect');
         // ========================================================================
         this.audioSystem = new AtomaAudioSystem();
         console.log('[ATOMA AUDIO] Audio System created');
-        this.audioModulation = new AtomaAudioModulation(this.audioSystem);
+        this.audioModulation = null; // Constructed lazily after first user gesture (autoplay-safe)
         this.previousSynergyState = 'none'; // 'none', 'active', 'fading'
+        this.audioStartInProgress = false;
+        
+        // Early audio diagnostics API (available even if later debug setup is interrupted).
+        window.startAtomaAudio = async () => {
+            if (!this.audioSystem) return false;
+            try {
+                await this.audioSystem.start();
+                if (!this.audioModulation) {
+                    this.audioModulation = new AtomaAudioModulation(this.audioSystem);
+                }
+                if (this.harmonicAudio?.start) {
+                    await this.harmonicAudio.start();
+                }
+                console.log('[ATOMA AUDIO] Manual start successful');
+                return true;
+            } catch (err) {
+                console.error('[ATOMA AUDIO] Manual start failed:', err);
+                return false;
+            }
+        };
+        window.audioStatus = () => ({
+            exists: !!this.audioSystem,
+            initialized: !!this.audioSystem?.initialized,
+            enabled: !!this.audioSystem?.enabled,
+            toneState: (window.Tone?.getContext?.().state ?? 'unknown'),
+            modulationReady: !!this.audioModulation,
+            harmonicReady: !!this.harmonicAudio?.initialized
+        });
+        window.testAudio = (soundName = 'selection') => {
+            const audio = this.audioSystem;
+            if (!audio) return console.warn('[ATOMA AUDIO] audioSystem missing');
+            const sounds = {
+                selection: () => audio.playSelection(),
+                deselection: () => audio.playDeselection(),
+                link: () => audio.playLinkCreated(),
+                unlink: () => audio.playLinkBroken(),
+                synergy_active: () => audio.playSynergyActive(),
+                synergy_fade: () => audio.playSynergyFade()
+            };
+            const fn = sounds[soundName];
+            if (!fn) return console.warn('[ATOMA AUDIO] Unknown sound:', soundName);
+            fn();
+            console.log('[ATOMA AUDIO] testAudio played:', soundName);
+        };
+
+        // Audio System - Canonical manifest-driven routing
+        this.audioEventManifestUnsubscribe = registerAtomaAudioEventManifest({
+            semanticBus: this.semanticBus,
+            audioSystem: this.audioSystem
+        });
+        // Low-latency audio semantics: disable queue aggregation/cooldown for core click/link sounds.
+        this.semanticBus?.eventPolicies?.set('node.selection', {
+            aggregateWithinMs: 0,
+            cooldownMs: 0
+        });
+        this.semanticBus?.eventPolicies?.set('link.created', {
+            aggregateWithinMs: 0,
+            cooldownMs: 0
+        });
+        this.semanticBus?.eventPolicies?.set('network.link.destroyed', {
+            aggregateWithinMs: 0,
+            cooldownMs: 0
+        });
+
+        // Keep synergy state machine aligned with semantic events.
+        this.semanticBus.subscribe('node.synergy.high', () => {
+            this.previousSynergyState = 'active';
+        });
+        this.semanticBus.subscribe('synergy.fade', () => {
+            this.previousSynergyState = 'fading';
+        });
 
         // Event Frequency Audit - Track which events are actually firing
         this.eventCounters = {
@@ -4305,19 +4333,33 @@ this.setHudDirty('nodeInspect');
         const startAudioOnFirstInteraction = async () => {
             if (!this.audioSystem) return;
             if (this.audioSystem.initialized) return;
+            if (this.audioStartInProgress) return;
+            this.audioStartInProgress = true;
 
             try {
                 await this.audioSystem.start();
+                if (!this.audioModulation) {
+                    this.audioModulation = new AtomaAudioModulation(this.audioSystem);
+                }
+                if (this.harmonicAudio?.start) {
+                    await this.harmonicAudio.start();
+                }
+                document.removeEventListener('pointerdown', startAudioOnFirstInteraction);
+                document.removeEventListener('click', startAudioOnFirstInteraction);
+                document.removeEventListener('keydown', startAudioOnFirstInteraction);
                 console.log('[ATOMA AUDIO] AudioContext started successfully');
             } catch (error) {
                 console.error('[Audio] Failed to start AudioContext:', error);
+            } finally {
+                this.audioStartInProgress = false;
             }
         };
+        this.ensureAudioStarted = startAudioOnFirstInteraction;
 
         // Add event listeners for first interaction
-        document.addEventListener('pointerdown', startAudioOnFirstInteraction, { once: true });
-        document.addEventListener('click', startAudioOnFirstInteraction, { once: true });
-        document.addEventListener('keydown', startAudioOnFirstInteraction, { once: true });
+        document.addEventListener('pointerdown', startAudioOnFirstInteraction);
+        document.addEventListener('click', startAudioOnFirstInteraction);
+        document.addEventListener('keydown', startAudioOnFirstInteraction);
 
         // Initialize systems
         this.nodeEditor = null;
@@ -9667,6 +9709,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.updateUndoRedoUI();
             }
         });
+        // SemanticEventBus drain + HUD lanes tick (critical for event-driven audio routing).
+        reg('visualOverlayTick', (dt) => this.runVisualOverlayTick(dt));
 
 
         // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
@@ -11999,6 +12043,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.harmonicAudio = new HarmonicAudioReactivitySystem_Session135(
                     this.camera
                 );
+                if (this.audioSystem?.initialized && this.harmonicAudio.start) {
+                    this.harmonicAudio.start().catch((err) => {
+                        console.warn('[main.js] HarmonicAudioReactivitySystem start failed:', err);
+                    });
+                }
                 console.log('[main.js] HarmonicAudioReactivitySystem initialized ✓');
             }
 
@@ -12439,6 +12488,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Hook audio feedback to selection events
         this.selectionCore.onSelectCallbacks.push((node) => {
+            if (this.audioSystem && !this.audioSystem.initialized) {
+                this.ensureAudioStarted?.()
+                    .then(() => {
+                        if (this.audioSystem?.initialized) this.audioSystem.playSelection();
+                    })
+                    .catch(() => {});
+            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             const payload = {
@@ -12456,6 +12512,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         
         this.selectionCore.onDeselectCallbacks.push((node) => {
+            if (this.audioSystem && !this.audioSystem.initialized) {
+                this.ensureAudioStarted?.()
+                    .then(() => {
+                        if (this.audioSystem?.initialized) this.audioSystem.playDeselection();
+                    })
+                    .catch(() => {});
+            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             this.semanticBus.emit('node.selection', { type: 'deselect', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });

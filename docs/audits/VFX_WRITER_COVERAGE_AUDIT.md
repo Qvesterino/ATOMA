@@ -41,7 +41,7 @@ See detailed table below with specific file locations and line numbers.
 | 14 | `aura.userData.fragmentBends` | `HarmonicHubAuraSystem_Session126.js:498-507` | `HarmonicHubAuraSystem_Session126.js:498` | OK | 🟢 LOW |
 | 15 | `mesh.userData.baseScale` | `HarmonicResonanceCoupling_v1.js:184-189` | `HarmonicResonanceCoupling_v1.js:185` | OK | 🟢 LOW |
 
----
+---;
 
 ## TOP 20 RISKIEST FIELDS (DETAILED)
 

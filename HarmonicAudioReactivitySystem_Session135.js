@@ -25,18 +25,17 @@
 
 export class HarmonicAudioReactivitySystem_Session135 {
     constructor(camera) {
-        // ====================================================================
-        // WEB AUDIO CONTEXT
-        // ====================================================================
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.camera = camera;
+        this.audioContext = null;
+        this.initialized = false;
         
-        // ====================================================================
-        // MASTER VOLUME & STATE
-        // ====================================================================
-        this.masterGain = this.audioContext.createGain();
-        this.masterGain.gain.value = 0.3; // Conservative volume (30% of max)
-        this.masterGain.connect(this.audioContext.destination);
+        this.masterGain = null;
+        this.healingGain = null;
+        this.healingPanner = null;
+        this.ruptureGain = null;
+        this.rupturePanner = null;
+        this.ambientGain = null;
+        this.filterBiquad = null;
         
         this.isActive = true;
         this.networkHarmony = 0.5; // 0 = chaos, 1 = harmony
@@ -49,44 +48,58 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.maxHealingVoices = 3; // Polyphony limit to prevent clutter
         
         this.healingFrequency = 432; // Pure harmonic frequency
-        this.healingGain = this.audioContext.createGain();
-        this.healingGain.gain.value = 0;
-        this.healingGain.connect(this.masterGain);
-        
-        this.healingPanner = this.audioContext.createPanner();
-        this.healingPanner.connect(this.healingGain);
         
         // ====================================================================
         // RUPTURE IMPACT STATE
         // ====================================================================
         this.ruptureOscillators = []; // Multiple frequency ruptures
-        this.ruptureGain = this.audioContext.createGain();
-        this.ruptureGain.gain.value = 0;
-        this.ruptureGain.connect(this.masterGain);
-        
-        this.rupturePanner = this.audioContext.createPanner();
-        this.rupturePanner.connect(this.ruptureGain);
         
         // ====================================================================
         // AMBIENT HUM STATE
         // ====================================================================
         this.ambientOscillator = null;
+        
+        console.log('✓ [S135] HarmonicAudioReactivitySystem constructed (waiting for user interaction)');
+    }
+
+    async start() {
+        if (this.initialized) return;
+
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
+
+        this.masterGain = this.audioContext.createGain();
+        this.masterGain.gain.value = 0.3; // Conservative volume (30% of max)
+        this.masterGain.connect(this.audioContext.destination);
+
+        this.healingGain = this.audioContext.createGain();
+        this.healingGain.gain.value = 0;
+        this.healingGain.connect(this.masterGain);
+
+        this.healingPanner = this.audioContext.createPanner();
+        this.healingPanner.connect(this.healingGain);
+
+        this.ruptureGain = this.audioContext.createGain();
+        this.ruptureGain.gain.value = 0;
+        this.ruptureGain.connect(this.masterGain);
+
+        this.rupturePanner = this.audioContext.createPanner();
+        this.rupturePanner.connect(this.ruptureGain);
+
         this.ambientGain = this.audioContext.createGain();
         this.ambientGain.gain.value = 0.1;
         this.ambientGain.connect(this.masterGain);
-        
-        // Start ambient hum immediately
-        this._startAmbientHum();
-        
-        // ====================================================================
-        // FILTER CHAIN FOR TONAL MODULATION
-        // ====================================================================
+
         this.filterBiquad = this.audioContext.createBiquadFilter();
         this.filterBiquad.type = 'lowpass';
         this.filterBiquad.frequency.value = 2000;
         this.filterBiquad.Q.value = 1;
-        
-        console.log('✓ [S135] HarmonicAudioReactivitySystem initialized');
+
+        this._startAmbientHum();
+        this.initialized = true;
+        console.log('✓ [S135] HarmonicAudioReactivitySystem started');
     }
     
     /**
@@ -94,6 +107,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * Frequency modulated by harmony level
      */
     _startAmbientHum() {
+        if (!this.audioContext || !this.ambientGain) return;
         if (this.ambientOscillator) {
             this.ambientOscillator.stop();
             this.ambientOscillator.disconnect();
@@ -115,7 +129,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {number} intensity - Healing wave strength (0-1)
      */
     triggerHealingTone(position, intensity = 0.7) {
-        if (!this.isActive) return;
+        if (!this.isActive || !this.initialized || !this.audioContext || !this.healingPanner || !this.healingGain) return;
         
         // Stop existing healing tone
         if (this.healingOscillator) {
@@ -158,7 +172,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {number} intensity - Impact severity (0-1)
      */
     triggerRuptureSound(position, intensity = 0.8) {
-        if (!this.isActive) return;
+        if (!this.isActive || !this.initialized || !this.audioContext || !this.rupturePanner || !this.ruptureGain) return;
         
         // Stop existing rupture oscillators
         for (const osc of this.ruptureOscillators) {
@@ -219,6 +233,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {number} corruption - Network corruption level (0-1)
      */
     updateNetworkState(harmony, corruption) {
+        if (!this.initialized || !this.audioContext || !this.ambientGain || !this.filterBiquad) return;
         this.networkHarmony = Math.max(0, Math.min(1, harmony));
         this.networkCorruption = Math.max(0, Math.min(1, corruption));
         
@@ -262,6 +277,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {THREE.Vector3} position - New camera position
      */
     updateCameraPosition(position) {
+        if (!this.initialized || !this.audioContext || !this.camera) return;
         this.camera.position.copy(position);
         
         // Update panner listener position
@@ -282,6 +298,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      */
     setEnabled(enabled) {
         this.isActive = enabled;
+        if (!this.initialized || !this.audioContext || !this.healingGain || !this.ruptureGain || !this.ambientGain) return;
         
         if (!enabled) {
             // Fade out all active sounds
@@ -301,6 +318,7 @@ export class HarmonicAudioReactivitySystem_Session135 {
      * @param {number} volume
      */
     setMasterVolume(volume) {
+        if (!this.masterGain) return;
         this.masterGain.gain.value = Math.max(0, Math.min(1, volume));
     }
     
@@ -326,10 +344,11 @@ export class HarmonicAudioReactivitySystem_Session135 {
                 }
             }
             
-            this.masterGain.disconnect();
-            this.healingGain.disconnect();
-            this.ruptureGain.disconnect();
-            this.ambientGain.disconnect();
+            this.masterGain?.disconnect();
+            this.healingGain?.disconnect();
+            this.ruptureGain?.disconnect();
+            this.ambientGain?.disconnect();
+            this.initialized = false;
             
             console.log('✓ [S135] Audio resources disposed');
         } catch (err) {

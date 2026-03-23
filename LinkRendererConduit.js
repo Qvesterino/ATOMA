@@ -2802,6 +2802,9 @@ export class LinkRendererConduit {
      * Update the geometry and materials of the link
      */
     update(link, deltaTime, time, frameStateOverride = null) {
+        // Canonical wave metrics must be refreshed every link tick because
+        // runtime often uses update(link, ...) path instead of updateAll(...).
+        this._canonicalWriteLinkWaveMetrics(link);
         if (!link.group || !link.group.userData.conduitState) return;
 
         // Canonical RAF time source (behavior-preserving Phase 2A)

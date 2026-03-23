@@ -168,7 +168,7 @@ export class AtomaAudioSystem {
         if (!this.initialized && !isBoot) return;
         // Soft sine ping, slightly high but soft
         // Freq: 880Hz (A5) - High enough to be clear, soft enough to be calm
-        this.selectionSynth.triggerAttackRelease("A5", "32n", undefined, 0.3);
+        this.selectionSynth.triggerAttackRelease("A5", "16n", undefined, 0.42);
     }
 
     // --- TASK 2: Node Deselection (Settling) ---

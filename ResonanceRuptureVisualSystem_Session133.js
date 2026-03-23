@@ -62,13 +62,23 @@ export class ResonanceRuptureVisualSystem_Session133 {
             minTrapLifetime: 1.0,             // Min seconds before rupture possible
 
             // Event-driven rupture pressure
-            eventPressureDecayRate: 0.25,     // Decay per second for per-link event pressure
-            globalStressBiasDecayRate: 0.2,   // Decay per second for network-level stress bias
+            eventPressureDecayRate: 0.18,     // Decay per second for per-link event pressure (slower = longer trigger memory)
+            globalStressBiasDecayRate: 0.14,  // Decay per second for network-level stress bias (slower)
             eventPressureWeight: 0.55,        // Total pressure weight for event pressure
             trapStressWeight: 0.30,           // Total pressure weight for trap stress
             amplitudeWeight: 0.15,            // Total pressure weight for normalized amplitude
             amplitudeNormalizationScale: 1.2, // Amplitude value mapped to normalized 1.0
             hardAmplitudeTrigger: 1.15,       // Failsafe amplitude trigger
+            ruptureCooldownSec: 1.25,         // Global rupture cooldown per link
+
+            // Weighted score trigger (replaces strict hard-gate style conditions)
+            scoreEventWeight: 0.45,
+            scoreStressWeight: 0.30,
+            scoreAmplitudeWeight: 0.15,
+            scoreCorruptionWeight: 0.06,
+            scoreInstabilityWeight: 0.04,
+            ruptureScoreThresholdOffset: -0.05, // Slightly easier than raw threshold
+            softAmplitudeAssistFactor: 0.85,    // Near-threshold amplitude assistance
             
             // Pre-rupture stress visualization
             stressIndicatorOpacity: 0.3,      // Base opacity of stress bands
@@ -410,17 +420,35 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 0,
                 1
             );
+            const ruptureScore = THREE.MathUtils.clamp(
+                eventPressure * this.config.scoreEventWeight +
+                stress * this.config.scoreStressWeight +
+                normalizedAmplitude * this.config.scoreAmplitudeWeight +
+                avgCorruption * this.config.scoreCorruptionWeight +
+                avgInstability * this.config.scoreInstabilityWeight +
+                this.globalStressBias,
+                0,
+                1
+            );
+            const scoreThreshold = THREE.MathUtils.clamp(
+                threshold + this.config.ruptureScoreThresholdOffset,
+                0.25,
+                1.0
+            );
 
-            const stressExceeds = totalPressure > threshold;
-            const amplitudeExceeds = (trap.amplitude || 0) > Math.max(
+            const scoreExceeds = ruptureScore > scoreThreshold;
+            const softAmplitudeAssist =
+                normalizedAmplitude > (this.config.amplitudeRuptureThreshold * this.config.softAmplitudeAssistFactor) &&
+                ruptureScore > (scoreThreshold * 0.9);
+            const amplitudeHardExceeds = (trap.amplitude || 0) > Math.max(
                 this.config.amplitudeRuptureThreshold,
                 this.config.hardAmplitudeTrigger
             );
             const ruptureRecent = this._isRuptureRecent(trapId);
 
-            if ((stressExceeds || amplitudeExceeds) && !ruptureRecent) {
+            if ((scoreExceeds || softAmplitudeAssist || amplitudeHardExceeds) && !ruptureRecent) {
                 // Trigger rupture
-                this._triggerRupture(trap, Math.max(stress, totalPressure), deltaTime);
+                this._triggerRupture(trap, Math.max(stress, totalPressure, ruptureScore), deltaTime);
             }
         });
     }
@@ -430,7 +458,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
      */
     _isRuptureRecent(trapId) {
         const lastRupture = this.ruptureOccurrences.get(trapId) || -10;
-        return this.time - lastRupture < 2.0;  // 2 second cooldown
+        return this.time - lastRupture < this.config.ruptureCooldownSec;
     }
 
     /**

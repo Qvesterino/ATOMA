@@ -34,9 +34,10 @@ export class CascadeEventBridge_v1 {
     this.waveEngine = config.waveEngine || globalThis?.game?.waveInterferenceEngine || null;
     
     this.config = {
-      decayRate: config.decayRate ?? 0.92,
+      decayRate: config.decayRate ?? 0.94,
       minIntensityThreshold: config.minIntensityThreshold ?? 0.01,
       cascadeWaveThreshold: config.cascadeWaveThreshold ?? 0.6, // Threshold for generating waves
+      waveBurstCooldownMs: config.waveBurstCooldownMs ?? 550,
       enabled: config.enabled ?? true
     };
 
@@ -530,8 +531,8 @@ export class CascadeEventBridge_v1 {
     // Initialize last wave burst time if needed
     link.userData._lastWaveBurstTime ??= 0;
 
-    // Check cooldown (800ms)
-    if (now - link.userData._lastWaveBurstTime < 800) {
+    // Check cooldown
+    if (now - link.userData._lastWaveBurstTime < this.config.waveBurstCooldownMs) {
       return; // Skip - still in cooldown
     }
 
