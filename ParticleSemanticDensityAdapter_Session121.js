@@ -98,14 +98,12 @@ export class ParticleSemanticDensityAdapter_Session121 {
     
     // Update each link
     for (const link of links) {
-      if (!link || !link.userData) continue;
+      if (!link) continue;
+      if (!link.userData) link.userData = {};
       
       // Compute intensity and urgency
       const intensity = this._computeIntensity(link, cascadeSystem);
       const urgency = this._computeUrgency(link, conflictSystem, cascadeSystem);
-      
-      // Skip if both are minimal
-      if (intensity < 0.05 && urgency < 0.05) continue;
       
       // Get or create metrics
       const metrics = this._getOrCreateMetrics(link);
@@ -194,11 +192,16 @@ export class ParticleSemanticDensityAdapter_Session121 {
     }
     
     // Source 2: Direct cascade intensity stored in userData
-    if (link.userData?.cascadeIntensity) {
+    if (typeof link.userData?.cascadeIntensity === 'number') {
       intensity = Math.max(intensity, link.userData.cascadeIntensity);
     }
+
+    // Source 3: Shared flowState intensity (fallback)
+    if (typeof link.userData?.flowState?.intensity === 'number') {
+      intensity = Math.max(intensity, link.userData.flowState.intensity);
+    }
     
-    // Source 3: Conflict/corruption state (endpoints)
+    // Source 4: Conflict/corruption state (endpoints)
     if (link.nodes && link.nodes.length >= 2) {
       const nodeA = link.nodes[0];
       const nodeB = link.nodes[1];

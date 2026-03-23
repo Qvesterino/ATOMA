@@ -154,6 +154,14 @@ export class MetricsRuntime_v1 {
             }
         };
 
+        // Canonical field audit (orphan/stale detection for high-impact node fields)
+        this._canonicalFieldAudit = {
+            accumulator: 0,
+            intervalSec: 5.0,
+            staleMs: 4000,
+            lastWarnAtByKey: new Map()
+        };
+
         // Runtime validator (low-frequency, warnings only)
         this.metricValidator = new MetricValidationRuntime(runtimeOptions.metricValidation);
         this._validationAccumulator = 0;
@@ -271,6 +279,8 @@ export class MetricsRuntime_v1 {
                 const id = node?.userData?.nodeId || node?.uuid || node?.id || 'unknown-node';
                 this._sanitizeMetrics(m, id);
             }
+            this._ensureNodeCanonicalFallbacks(nodeList);
+            this._runCanonicalFieldAudit(dt, nodeList);
             this._emitNodeMetricUpdatedEvents(nodeList);
 
             // 3. Network aggregation (fixed-step)
@@ -555,6 +565,112 @@ const adapter = this._createLinkSystemAdapter(
                 metric: changedMetric,
                 value: changedValue
             }, { priority: semanticBus.priority?.NORMAL });
+        }
+    }
+
+    _touchCanonicalWrite(userData, fieldKey) {
+        if (!userData) return;
+        userData.__canonicalWriteAt = userData.__canonicalWriteAt || {};
+        userData.__canonicalWriteAt[fieldKey] = Date.now();
+    }
+
+    _ensureNodeCanonicalFallbacks(nodeList) {
+        if (!Array.isArray(nodeList)) return;
+
+        for (const node of nodeList) {
+            if (!node) continue;
+            node.userData = node.userData || {};
+            const userData = node.userData;
+            const metrics = userData.metrics || {};
+            const stability = this._clamp01(metrics.stability ?? (1 - this._clamp01(userData.instability ?? 0)));
+            const load = this._clamp01(metrics.loadPressure ?? userData.loadPressure ?? userData.pressure ?? 0);
+            const instability = this._clamp01(1 - stability);
+
+            // Harmony stabilization canonical defaults
+            if (typeof userData.harmonyStabilized !== 'boolean') {
+                userData.harmonyStabilized = false;
+            }
+            if (!Number.isFinite(userData.harmonyDampingFactor)) {
+                userData.harmonyDampingFactor = 0;
+            }
+            userData.harmonyDampingFactor = this._clamp01(userData.harmonyDampingFactor);
+
+            // Canonical load aliases for legacy readers
+            userData.loadPressure = load;
+            userData.pressure = load;
+
+            // Legacy instability fallback derived from canonical stability
+            userData.instability = instability;
+
+            this._touchCanonicalWrite(userData, 'harmonyStabilized');
+            this._touchCanonicalWrite(userData, 'harmonyDampingFactor');
+            this._touchCanonicalWrite(userData, 'loadPressure');
+            this._touchCanonicalWrite(userData, 'pressure');
+            this._touchCanonicalWrite(userData, 'instability');
+        }
+    }
+
+    _runCanonicalFieldAudit(deltaTime, nodeList) {
+        this._canonicalFieldAudit.accumulator += deltaTime;
+        if (this._canonicalFieldAudit.accumulator < this._canonicalFieldAudit.intervalSec) {
+            return;
+        }
+        this._canonicalFieldAudit.accumulator = 0;
+
+        if (!Array.isArray(nodeList) || nodeList.length === 0) return;
+
+        const now = Date.now();
+        const fields = [
+            'harmonyStabilized',
+            'harmonyDampingFactor',
+            'loadPressure',
+            'pressure',
+            'instability'
+        ];
+
+        const missingByField = new Map();
+        const staleByField = new Map();
+        fields.forEach((f) => {
+            missingByField.set(f, 0);
+            staleByField.set(f, 0);
+        });
+
+        for (const node of nodeList) {
+            const userData = node?.userData;
+            if (!userData) {
+                fields.forEach((f) => missingByField.set(f, (missingByField.get(f) || 0) + 1));
+                continue;
+            }
+
+            const writeMap = userData.__canonicalWriteAt || {};
+            for (const field of fields) {
+                if (userData[field] === undefined) {
+                    missingByField.set(field, (missingByField.get(field) || 0) + 1);
+                    continue;
+                }
+                const lastWriteAt = Number(writeMap[field] || 0);
+                if (lastWriteAt <= 0 || now - lastWriteAt > this._canonicalFieldAudit.staleMs) {
+                    staleByField.set(field, (staleByField.get(field) || 0) + 1);
+                }
+            }
+        }
+
+        for (const field of fields) {
+            const missing = missingByField.get(field) || 0;
+            const stale = staleByField.get(field) || 0;
+            if (missing <= 0 && stale <= 0) continue;
+
+            const key = `${field}:${missing}:${stale}`;
+            const lastWarnAt = this._canonicalFieldAudit.lastWarnAtByKey.get(key) || 0;
+            if (now - lastWarnAt < this._canonicalFieldAudit.staleMs) continue;
+            this._canonicalFieldAudit.lastWarnAtByKey.set(key, now);
+
+            console.warn('[MetricsRuntime_v1] Canonical field audit warning', {
+                field,
+                missingNodes: missing,
+                staleNodes: stale,
+                totalNodes: nodeList.length
+            });
         }
     }
 

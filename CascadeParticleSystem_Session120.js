@@ -62,6 +62,7 @@ export class CascadeParticleSystem_Session120 {
     this._semanticUnsubscribers = [];
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
+    this._neutralParticleColor = new THREE.Color(0.75, 0.8, 0.9);
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
@@ -346,6 +347,8 @@ export class CascadeParticleSystem_Session120 {
       : Math.max(0, currentCascadeTime - this._lastCascadeTime);
     this._lastCascadeTime = currentCascadeTime;
 
+    this._ensureCanonicalLinkDefaults(links);
+
     // Event-driven spawn only; update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
     
@@ -356,13 +359,23 @@ export class CascadeParticleSystem_Session120 {
   spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
     if (!this.config.enabled || !link) return;
 
+    this._ensureCanonicalLinkDefaults([link]);
+
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
     const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
     const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
     if (!sourcePosition || !targetPosition) return;
 
-    const clampedIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+    const eventIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+    const canonicalIntensity = Math.max(
+      0,
+      Math.min(
+        1,
+        Number(link?.userData?.cascadeIntensity ?? link?.userData?.flowState?.intensity ?? 0) || 0
+      )
+    );
+    const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
     if (clampedIntensity <= 0) return;
 
     const hop = Math.max(0, Number(hopIndex) || 0);
@@ -370,9 +383,14 @@ export class CascadeParticleSystem_Session120 {
     const scaledIntensity = Math.max(0, Math.min(1, clampedIntensity * hopDecay));
     const count = Math.max(1, Math.floor(this.config.baseCascadeParticles * scaledIntensity));
     const currentCascadeTime = this._lastCascadeTime ?? 0;
+    const conflictType =
+      link?.userData?.cascadeConflictType ||
+      link?.userData?.flowState?.type ||
+      'neutral';
+    const shapeIndex = this._getShapeIndexForConflict(conflictType);
+    const flowType = this._determineFlowType(conflictType, scaledIntensity);
 
-    // Canonical cascade particles use harmonic/cyan lane.
-    this._emit(count, link, 0, 'forward', 'resolved_harmony', currentCascadeTime, sourcePosition, targetPosition);
+    this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition);
   }
   
   /**
@@ -383,18 +401,22 @@ export class CascadeParticleSystem_Session120 {
     if (!links) return;
     
     for (const link of links) {
-      if (!link.userData) continue;
+      if (!link) continue;
+      this._ensureCanonicalLinkDefaults([link]);
 
       // Check for cascade activity
       const boost = link.userData.cascadeParticleEmissionBoost ?? 1.0;
       // Read from shared flowState (single source of truth)
       const flowState = link.userData.flowState || {};
-      const intensity = flowState.intensity ?? 0;
+      const intensity = Math.max(
+        flowState.intensity ?? 0,
+        link.userData.cascadeIntensity ?? 0
+      );
 
       if (intensity < 0.1 && boost <= 1.0) continue;
 
       // Determine conflict type (Semantic Shape) from flowState
-      const conflictType = flowState.type ?? 'none';
+      const conflictType = link.userData.cascadeConflictType ?? flowState.type ?? 'neutral';
       const shapeIndex = this._getShapeIndexForConflict(conflictType);
       
       // Determine Flow Type (Semantic Velocity)
@@ -487,7 +509,7 @@ export class CascadeParticleSystem_Session120 {
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
     if (!srcPos || !dstPos) return;
     
-    const color = link?.userData?.cascadeParticleColor || new THREE.Color(1, 1, 1);
+    const color = link?.userData?.cascadeParticleColor || this._neutralParticleColor;
     
     // Session 121: Density & Clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
@@ -687,7 +709,33 @@ export class CascadeParticleSystem_Session120 {
       case 'oscillatory_balance': return 3; // stability (Blobs)
       case 'fatigue_yield': return 0; // Default to arcs
       case 'resolved_harmony': return 0;
+      case 'neutral': return 0;
       default: return 0;
+    }
+  }
+
+  _ensureCanonicalLinkDefaults(links) {
+    if (!Array.isArray(links)) return;
+    for (const link of links) {
+      if (!link) continue;
+      if (!link.userData) link.userData = {};
+      const u = link.userData;
+
+      if (!u.flowState) {
+        u.flowState = {
+          intensity: 0,
+          direction: 1,
+          type: 'neutral',
+          energy: 0
+        };
+      }
+
+      if (typeof u.cascadeIntensity !== 'number') u.cascadeIntensity = 0;
+      if (typeof u.cascadeConflictType !== 'string' || !u.cascadeConflictType) u.cascadeConflictType = 'neutral';
+      if (typeof u.conflictIntensity !== 'number') u.conflictIntensity = 0;
+      if (typeof u.particleIntensity !== 'number') u.particleIntensity = 0;
+      if (typeof u.particleUrgency !== 'number') u.particleUrgency = 0;
+      if (!(u.cascadeParticleColor instanceof THREE.Color)) u.cascadeParticleColor = this._neutralParticleColor.clone();
     }
   }
   

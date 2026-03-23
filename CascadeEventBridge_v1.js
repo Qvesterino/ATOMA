@@ -232,7 +232,8 @@ export class CascadeEventBridge_v1 {
     const links = this.linkingSystem?.links || [];
     
     for (const link of links) {
-      if (!link.userData) continue;
+      if (!link) continue;
+      if (!link.userData) link.userData = {};
       
       // Initialize flowState if needed
       if (!link.userData.flowState) {
@@ -280,6 +281,19 @@ export class CascadeEventBridge_v1 {
       if (flowState.intensity > this.config.cascadeWaveThreshold) {
         this._requestCascadeWaveBurst(link, flowState);
       }
+
+      // Canonical per-link writes (Critical 5 authority fields for cascade/conflict)
+      // Keep legacy keys populated every frame so all downstream readers get values.
+      const canonicalIntensity = Math.max(0, Math.min(1, flowState.intensity ?? 0));
+      const canonicalType = flowState.type || 'resolved_harmony';
+      const canonicalConflict = Math.max(
+        canonicalIntensity,
+        Math.max(0, Math.min(1, flowState.energy ?? 0))
+      );
+
+      link.userData.cascadeIntensity = canonicalIntensity;
+      link.userData.cascadeConflictType = canonicalType;
+      link.userData.conflictIntensity = canonicalConflict;
     }
   }
   

@@ -60,6 +60,15 @@ export class ResonanceRuptureVisualSystem_Session133 {
             phaseDivergenceThreshold: 0.6,    // Phase incoherence triggering rupture
             amplitudeRuptureThreshold: 0.9,   // Max amplitude before rupture
             minTrapLifetime: 1.0,             // Min seconds before rupture possible
+
+            // Event-driven rupture pressure
+            eventPressureDecayRate: 0.25,     // Decay per second for per-link event pressure
+            globalStressBiasDecayRate: 0.2,   // Decay per second for network-level stress bias
+            eventPressureWeight: 0.55,        // Total pressure weight for event pressure
+            trapStressWeight: 0.30,           // Total pressure weight for trap stress
+            amplitudeWeight: 0.15,            // Total pressure weight for normalized amplitude
+            amplitudeNormalizationScale: 1.2, // Amplitude value mapped to normalized 1.0
+            hardAmplitudeTrigger: 1.15,       // Failsafe amplitude trigger
             
             // Pre-rupture stress visualization
             stressIndicatorOpacity: 0.3,      // Base opacity of stress bands
@@ -126,6 +135,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.trapLifetimes = new Map();       // trapId -> time since creation
         this.trapPhaseDivergence = new Map(); // trapId -> phase incoherence
         this.ruptureOccurrences = new Map();  // linkId -> last rupture time
+        this.eventPressureByLink = new Map(); // linkId -> event pressure (0-1)
+        this.lastEventTagByLink = new Map();  // linkId -> last event tag
+        this.globalStressBias = 0;            // network-level event pressure bias
+        this.semanticUnsubscribers = [];      // semantic bus unsubscriber callbacks
+        this.boundSemanticBus = null;
         
         // Object pools
         this.ruptureEventPool = [];
@@ -140,6 +154,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         this.time = 0;
         this.initialized = false;
+        this.neutralCascadeParticleColor = new THREE.Color(0.75, 0.8, 0.9);
     }
 
     /**
@@ -243,6 +258,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         }
         
         this.initialized = true;
+        this._ensureSemanticBindings();
     }
 
     /**
@@ -252,11 +268,16 @@ export class ResonanceRuptureVisualSystem_Session133 {
      */
     update(deltaTime, currentTime) {
         if (!this.initialized) this.setup();
-        
+
         this.time = currentTime;
-        
+        this._ensureSemanticBindings();
+        this._ensureCanonicalLinkDefaults();
+
         // Step 1: Monitor standing waves for stress accumulation
         this._updateStressAccumulation(deltaTime);
+
+        // Step 1.5: Decay semantic event pressure
+        this._updateEventPressure(deltaTime);
         
         // Step 2: Detect rupture conditions
         this._detectRuptureConditions(deltaTime);
@@ -272,6 +293,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Step 6: Manage resonance scars
         this._updateResonanceScars(deltaTime);
+
+        // Step 6.5: Write rupture canonical link metrics
+        this._updateRuptureCanonicalLinkMetrics(deltaTime);
         
         // Step 7: Handle node reactions
         this._updateNodeReactions(deltaTime);
@@ -341,6 +365,22 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             const trapId = trap.linkId;
             const stress = this.stressAccumulation.get(trapId) || 0;
+            const link = this._getLinkById(trapId);
+            const linkCanonicalCascade = typeof link?.userData?.cascadeIntensity === 'number'
+                ? link.userData.cascadeIntensity
+                : 0;
+            const linkCanonicalConflict = typeof link?.userData?.conflictIntensity === 'number'
+                ? link.userData.conflictIntensity
+                : 0;
+            const canonicalPressure = THREE.MathUtils.clamp(
+                Math.max(linkCanonicalCascade, linkCanonicalConflict),
+                0,
+                1
+            );
+            const eventPressure = Math.max(
+                this.eventPressureByLink.get(String(trapId)) || 0,
+                canonicalPressure
+            );
             
             // Get node metrics for modulation
             const nodeA = trap.nodeA || {};
@@ -357,13 +397,30 @@ export class ResonanceRuptureVisualSystem_Session133 {
             threshold = Math.max(0.3, Math.min(1.0, threshold));
             
             // Check rupture conditions
-            const stressExceeds = stress > threshold;
-            const amplitudeExceeds = trap.amplitude > this.config.amplitudeRuptureThreshold;
+            const normalizedAmplitude = THREE.MathUtils.clamp(
+                (trap.amplitude || 0) / this.config.amplitudeNormalizationScale,
+                0,
+                1
+            );
+            const totalPressure = THREE.MathUtils.clamp(
+                eventPressure * this.config.eventPressureWeight +
+                stress * this.config.trapStressWeight +
+                normalizedAmplitude * this.config.amplitudeWeight +
+                this.globalStressBias,
+                0,
+                1
+            );
+
+            const stressExceeds = totalPressure > threshold;
+            const amplitudeExceeds = (trap.amplitude || 0) > Math.max(
+                this.config.amplitudeRuptureThreshold,
+                this.config.hardAmplitudeTrigger
+            );
             const ruptureRecent = this._isRuptureRecent(trapId);
-            
+
             if ((stressExceeds || amplitudeExceeds) && !ruptureRecent) {
                 // Trigger rupture
-                this._triggerRupture(trap, stress, deltaTime);
+                this._triggerRupture(trap, Math.max(stress, totalPressure), deltaTime);
             }
         });
     }
@@ -406,6 +463,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Reset stress
         this.stressAccumulation.set(trapId, 0);
+        this.eventPressureByLink.set(String(trapId), 0);
         
         // Trigger node reactions
         this._triggerNodeReactions(trap.nodeA, rupture.intensity);
@@ -819,10 +877,246 @@ export class ResonanceRuptureVisualSystem_Session133 {
         return fallback;
     }
 
+    _getSemanticBus() {
+        return this.semanticBus || globalThis?.semanticBus || globalThis?.game?.semanticBus || null;
+    }
+
+    _ensureSemanticBindings() {
+        const bus = this._getSemanticBus();
+        if (!bus) return;
+        if (this.boundSemanticBus === bus && this.semanticUnsubscribers.length > 0) return;
+
+        this._unbindSemanticEvents();
+        this.boundSemanticBus = bus;
+        this._bindSemanticEvents(bus);
+    }
+
+    _bindSemanticEvents(bus) {
+        const subscribe = bus?.subscribe?.bind(bus);
+        const on = bus?.on?.bind(bus);
+        const unsubscribe = bus?.unsubscribe?.bind(bus);
+        const off = bus?.off?.bind(bus);
+
+        const bind = (tag) => {
+            const handler = (payload = {}) => this._ingestSemanticPressure(tag, payload);
+            if (typeof on === 'function') {
+                on(tag, handler, { priority: bus?.priority?.NORMAL });
+                this.semanticUnsubscribers.push(() => off?.(tag, handler));
+                return;
+            }
+            if (typeof subscribe === 'function') {
+                const unsub = subscribe(tag, handler, { priority: bus?.priority?.NORMAL });
+                if (typeof unsub === 'function') {
+                    this.semanticUnsubscribers.push(unsub);
+                } else if (typeof unsubscribe === 'function') {
+                    this.semanticUnsubscribers.push(() => unsubscribe(tag, handler));
+                }
+            }
+        };
+
+        bind('link:collapsed');
+        bind('cascade.hop');
+        bind('metric.corruption.spike');
+        bind('metric:corruptionRise');
+        bind('metric:stabilityDrop');
+        bind('metric:loadPressureHigh');
+        bind('network:stressRise');
+    }
+
+    _unbindSemanticEvents() {
+        for (const unsub of this.semanticUnsubscribers) {
+            try {
+                if (typeof unsub === 'function') unsub();
+            } catch (_err) {
+                // no-op
+            }
+        }
+        this.semanticUnsubscribers = [];
+        this.boundSemanticBus = null;
+    }
+
+    _ingestSemanticPressure(tag, payload = {}) {
+        switch (tag) {
+            case 'link:collapsed': {
+                const linkId = this._resolveLinkId(payload);
+                if (linkId !== null) this._addEventPressureToLink(linkId, 1.0, tag);
+                break;
+            }
+            case 'cascade.hop': {
+                const linkId = this._resolveLinkId(payload);
+                if (linkId !== null) this._addEventPressureToLink(linkId, 0.45, tag);
+                break;
+            }
+            case 'metric.corruption.spike': {
+                this._addNodeIncidentLinkPressure(payload, 0.35, tag);
+                break;
+            }
+            case 'metric:corruptionRise': {
+                this._addNodeIncidentLinkPressure(payload, 0.25, tag);
+                break;
+            }
+            case 'metric:stabilityDrop': {
+                this._addPressureToTopTrapLinks(0.2, tag, 4);
+                break;
+            }
+            case 'metric:loadPressureHigh': {
+                this._addPressureToTopTrapLinks(0.22, tag, 4);
+                break;
+            }
+            case 'network:stressRise': {
+                this.globalStressBias = THREE.MathUtils.clamp(this.globalStressBias + 0.18, 0, 0.5);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    _resolveLinkId(payload = {}) {
+        const id = payload?.linkId ?? payload?.link?.id ?? payload?.link?.userData?.id ?? null;
+        return id !== undefined && id !== null ? String(id) : null;
+    }
+
+    _addEventPressureToLink(linkId, amount, tag) {
+        if (linkId === null || linkId === undefined) return;
+        const key = String(linkId);
+        const current = this.eventPressureByLink.get(key) || 0;
+        this.eventPressureByLink.set(key, THREE.MathUtils.clamp(current + amount, 0, 1));
+        this.lastEventTagByLink.set(key, tag);
+    }
+
+    _addNodeIncidentLinkPressure(payload, amount, tag) {
+        const nodeIdRaw =
+            payload?.nodeId ??
+            payload?.sourceNodeId ??
+            payload?.sourceId ??
+            payload?.targetNodeId ??
+            payload?.targetId ??
+            null;
+        if (nodeIdRaw === null || nodeIdRaw === undefined) return;
+        const nodeId = String(nodeIdRaw);
+
+        const links = this.linkingSystem?.links || [];
+        links.forEach((link) => {
+            if (!link) return;
+            const sourceId = this._getNodeId(this._getLinkSource(link));
+            const targetId = this._getNodeId(this._getLinkTarget(link));
+            const sourceMatches = sourceId !== undefined && sourceId !== null && String(sourceId) === nodeId;
+            const targetMatches = targetId !== undefined && targetId !== null && String(targetId) === nodeId;
+            if (!sourceMatches && !targetMatches) return;
+            const linkId = link?.id ?? link?.userData?.id ?? null;
+            if (linkId !== null && linkId !== undefined) {
+                this._addEventPressureToLink(linkId, amount, tag);
+            }
+        });
+    }
+
+    _addPressureToTopTrapLinks(amount, tag, maxLinks = 4) {
+        if (!this.standingWaveTrapSystem) return;
+        const traps = this.standingWaveTrapSystem.oscillationTraps || [];
+        const ranked = traps
+            .filter((trap) => trap?.active && trap?.linkId !== undefined && trap?.linkId !== null)
+            .sort((a, b) => (b?.amplitude || 0) - (a?.amplitude || 0))
+            .slice(0, Math.max(0, maxLinks));
+
+        ranked.forEach((trap) => this._addEventPressureToLink(trap.linkId, amount, tag));
+    }
+
+    _updateEventPressure(deltaTime) {
+        const pressureDecay = this.config.eventPressureDecayRate * deltaTime;
+        this.eventPressureByLink.forEach((value, linkId) => {
+            const next = Math.max(0, value - pressureDecay);
+            if (next <= 0.0001) {
+                this.eventPressureByLink.delete(linkId);
+                this.lastEventTagByLink.delete(linkId);
+                return;
+            }
+            this.eventPressureByLink.set(linkId, next);
+        });
+
+        const biasDecay = this.config.globalStressBiasDecayRate * deltaTime;
+        this.globalStressBias = Math.max(0, this.globalStressBias - biasDecay);
+    }
+
+    _updateRuptureCanonicalLinkMetrics(deltaTime) {
+        const links = this.linkingSystem?.links || [];
+
+        // Baseline decay + guaranteed field existence for all links every frame.
+        links.forEach((link) => {
+            if (!link) return;
+            link.userData ??= {};
+            const prevTear = Number(link.userData.visualTear) || 0;
+            const prevLoss = Number(link.userData.visualCoherenceLoss) || 0;
+            link.userData.visualTear = Math.max(0, prevTear * 0.9);
+            link.userData.visualCoherenceLoss = Math.max(0, prevLoss * 0.92);
+        });
+
+        // Active rupture contribution.
+        this.ruptures.forEach((rupture) => {
+            const link = this._getLinkById(rupture.linkId);
+            if (!link) return;
+            link.userData ??= {};
+
+            const progress = rupture.maxLife > 0 ? THREE.MathUtils.clamp(rupture.life / rupture.maxLife, 0, 1) : 0;
+            const oscillation = Math.abs(Math.sin(this.time * 20));
+            const tear = THREE.MathUtils.clamp((rupture.intensity || 0) * (0.5 + 0.5 * oscillation) * (1 - progress), 0, 1);
+            const coherenceLoss = THREE.MathUtils.clamp((rupture.intensity || 0) * (1 - progress), 0, 1);
+
+            link.userData.visualTear = Math.max(link.userData.visualTear || 0, tear);
+            link.userData.visualCoherenceLoss = Math.max(link.userData.visualCoherenceLoss || 0, coherenceLoss);
+        });
+
+        // Scar contribution keeps slight coherence loss memory.
+        this.resonanceScars.forEach((scar) => {
+            const link = this._getLinkById(scar.linkId);
+            if (!link) return;
+            link.userData ??= {};
+            const age = this.time - scar.birthTime;
+            const progress = this.config.scarDuration > 0
+                ? THREE.MathUtils.clamp(age / this.config.scarDuration, 0, 1)
+                : 1;
+            const scarLoss = THREE.MathUtils.clamp((scar.intensity || 0) * (1 - progress) * 0.6, 0, 1);
+            link.userData.visualCoherenceLoss = Math.max(link.userData.visualCoherenceLoss || 0, scarLoss);
+        });
+    }
+
+    _ensureCanonicalLinkDefaults() {
+        const links = this.linkingSystem?.links || [];
+        links.forEach((link) => {
+            if (!link) return;
+            if (!link.userData) link.userData = {};
+            const userData = link.userData;
+
+            if (!userData.flowState) {
+                userData.flowState = {
+                    intensity: 0,
+                    direction: 1,
+                    type: 'neutral',
+                    energy: 0
+                };
+            }
+
+            if (typeof userData.cascadeIntensity !== 'number') userData.cascadeIntensity = 0;
+            if (typeof userData.cascadeConflictType !== 'string' || !userData.cascadeConflictType) {
+                userData.cascadeConflictType = 'neutral';
+            }
+            if (typeof userData.conflictIntensity !== 'number') userData.conflictIntensity = 0;
+            if (typeof userData.particleIntensity !== 'number') userData.particleIntensity = 0;
+            if (typeof userData.particleUrgency !== 'number') userData.particleUrgency = 0;
+            if (typeof userData.visualTear !== 'number') userData.visualTear = 0;
+            if (typeof userData.visualCoherenceLoss !== 'number') userData.visualCoherenceLoss = 0;
+            if (!(userData.cascadeParticleColor instanceof THREE.Color)) {
+                userData.cascadeParticleColor = this.neutralCascadeParticleColor.clone();
+            }
+        });
+    }
+
     /**
      * Dispose - cleanup
      */
     dispose() {
+        this._unbindSemanticEvents();
+
         // Clean up burst meshes
         this.ruptures.forEach(rupture => {
             if (rupture.burstMesh && rupture.burstMesh.parent) {
@@ -856,6 +1150,9 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.trapLifetimes.clear();
         this.ruptureOccurrences.clear();
         this.nodeReactions.clear();
+        this.eventPressureByLink.clear();
+        this.lastEventTagByLink.clear();
+        this.globalStressBias = 0;
     }
 }
 

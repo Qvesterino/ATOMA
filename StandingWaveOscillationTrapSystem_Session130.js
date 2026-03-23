@@ -163,6 +163,9 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         if (!this.initialized) this.setup();
         
         this.time = currentTime;
+
+        // Canonical wave/resonance defaults before writing this frame.
+        this._resetWaveResonanceCanonical();
         
         // Step 1: Detect standing wave conditions
         this._detectStandingWaveCandidates(deltaTime);
@@ -181,6 +184,9 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         
         // Step 6: Track resolution events
         this._updateResolutionEvents(deltaTime);
+
+        // Step 6.5: Write canonical wave/resonance metrics for downstream readers
+        this._writeWaveResonanceCanonical();
         
         // Step 7: Apply visual effects
         this._applyVisualEffects();
@@ -657,6 +663,75 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         const metricsValue = node.userData?.metrics?.[metric];
         if (typeof metricsValue === 'number') return metricsValue;
         return fallback;
+    }
+
+    _collectNodesForCanonicalWrite() {
+        const collected = [];
+        const seen = new Set();
+
+        const addNode = (node) => {
+            if (!node) return;
+            const id = this._getNodeId(node) ?? node.uuid ?? node.id;
+            if (id === undefined || id === null) return;
+            const key = String(id);
+            if (seen.has(key)) return;
+            seen.add(key);
+            collected.push(node);
+        };
+
+        const aiNodes = Array.isArray(this.aiNodes)
+            ? this.aiNodes
+            : this.aiNodes?.nodes
+                ? this.aiNodes.nodes
+                : this.aiNodes
+                    ? Object.values(this.aiNodes)
+                    : [];
+
+        aiNodes.forEach(addNode);
+
+        const links = this.linkingSystem?.links || [];
+        links.forEach((link) => {
+            addNode(this._getLinkSource(link));
+            addNode(this._getLinkTarget(link));
+        });
+
+        return collected;
+    }
+
+    _resetWaveResonanceCanonical() {
+        const nodes = this._collectNodesForCanonicalWrite();
+        nodes.forEach((node) => {
+            node.userData ??= {};
+            node.userData.waveField ??= {};
+
+            node.userData.resonance = 0;
+            node.userData.waveField.amplitude = 0;
+            node.userData.waveField.phase = 0;
+        });
+    }
+
+    _writeWaveResonanceCanonical() {
+        const activeTraps = this.oscillationTraps.filter((trap) => trap?.active);
+        activeTraps.forEach((trap) => {
+            const normalizedAmplitude = Math.max(0, Math.min(1, (trap.amplitude || 0) / 1.2));
+            const phase = ((trap.phase || 0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+
+            const applyToNode = (node) => {
+                if (!node) return;
+                node.userData ??= {};
+                node.userData.waveField ??= {};
+
+                const currentResonance = Number(node.userData.resonance) || 0;
+                const currentAmplitude = Number(node.userData.waveField.amplitude) || 0;
+
+                node.userData.resonance = Math.max(currentResonance, normalizedAmplitude);
+                node.userData.waveField.amplitude = Math.max(currentAmplitude, normalizedAmplitude);
+                node.userData.waveField.phase = phase;
+            };
+
+            applyToNode(trap.nodeA);
+            applyToNode(trap.nodeB);
+        });
     }
 
     getDebugInfo() {
