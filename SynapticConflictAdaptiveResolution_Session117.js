@@ -14,7 +14,7 @@
  * - Oscillatory balance or equilibrium states
  * 
  * ARCHITECTURE:
- * ✅ Pure visual adapter - reads hub/node/link state, doesn't modify it
+ * ✅ Input/modulator adapter - reads cascade/conflict state, modulates visual effects
  * ✅ Zero per-frame allocations
  * ✅ Deterministic conflict resolution (no randomness)
  * ✅ Smooth temporal adaptation (no snapping)
@@ -23,7 +23,8 @@
  * ✅ No material redefinitions (uniforms only)
  * 
  * CONSTRAINTS:
- * ✅ Adapter-only (reads state, doesn't modify core data)
+ * ✅ Input/modulator only (reads state, does not write conflictIntensity authority)
+ * ✅ conflictIntensity authority: CascadeEventBridge_v1.js (link-based)
  * ✅ Zero gameplay impact
  * ✅ No per-frame allocations
  * ✅ Fully reversible
@@ -391,8 +392,8 @@ export class SynapticConflictAdaptiveResolution_Session117 {
         }
       }
       
-      // Store conflict data on node
-      node.userData.conflictIntensity = maxConflictIntensity;
+      // Store conflict data on node (excluding conflictIntensity which is managed by CascadeEventBridge_v1.js)
+      // This system acts as input/modulator for visual effects, not as authority writer for conflictIntensity
       node.userData.conflictHaloPhaseWobble = conflictHaloPhaseWobble;
       node.userData.conflictState = conflictState;
     }

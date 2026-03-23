@@ -783,6 +783,19 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         this.opposingNodePairs.clear();
         this.lastReflectionTime.clear();
     }
+
+    /**
+     * Rebind after world switch (updates aiNodes, linkingSystem)
+     */
+    rebind(config = {}) {
+        // Update references if provided
+        if (config.aiNodes !== undefined) {
+            this.aiNodes = config.aiNodes;
+        }
+        if (config.linkingSystem !== undefined) {
+            this.linkingSystem = config.linkingSystem;
+        }
+    }
 }
 
 /**

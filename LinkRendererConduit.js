@@ -1883,6 +1883,56 @@ export class LinkRendererConduit {
     }
 
     /**
+     * Canonical writer for link wave metrics (called once per frame for all links)
+     * Ensures waveDirection, waveLength, wavePhaseOffset are always defined
+     * on active links before any readers access them.
+     *
+     * This is the single authoritative source for these metrics - DO NOT write
+     * them elsewhere.
+     */
+    _canonicalWriteLinkWaveMetrics(link) {
+        if (!link) return;
+
+        const sourceNode = link?.source || link?.sourceNode;
+        const targetNode = link?.target || link?.targetNode;
+
+        if (!sourceNode?.position || !targetNode?.position) {
+            // If nodes aren't available, keep existing values (don't delete)
+            return;
+        }
+
+        const sourcePos = sourceNode.position.clone();
+        const targetPos = targetNode.position.clone();
+        const linkVec = new THREE.Vector3().subVectors(targetPos, sourcePos);
+        const linkDist = linkVec.length();
+
+        // Calculate wave metrics
+        const waveDirection = linkDist > 0.0001 ? linkVec.clone().normalize() : new THREE.Vector3(1, 0, 0);
+        const waveLength = Math.max(0.0001, linkDist || 1.0);
+        const wavePhaseOffset = waveLength * 0.25;
+
+        // Write to link.userData (canonical storage)
+        const linkUD = ensureUserData(link);
+        linkUD.waveDirection = waveDirection;
+        linkUD.waveLength = waveLength;
+        linkUD.wavePhaseOffset = wavePhaseOffset;
+
+        // Write to conduit state if available
+        const state = link?.group?.userData?.conduitState;
+        if (state) {
+            state.waveDirection = waveDirection;
+            state.waveLength = waveLength;
+            state.wavePhaseOffset = wavePhaseOffset;
+        }
+
+        // Register with wave shader bridge if available
+        const waveShaderBridge = this.waveShaderBridge || window.game?.waveShaderBridge;
+        if (waveShaderBridge?.registerLinkDirection) {
+            waveShaderBridge.registerLinkDirection(link?.id, waveDirection);
+        }
+    }
+
+    /**
      * Update all links (canonical list) - ensures beads/sparks tick every frame
      */
     updateAll(links, deltaTime, time) {
@@ -1898,6 +1948,11 @@ export class LinkRendererConduit {
             || this.linkSystem?.links
             || this.links
             || [];
+
+        // Canonical write: ensure wave metrics exist for all active links
+        for (const link of list) {
+            this._canonicalWriteLinkWaveMetrics(link);
+        }
 
         this.waveSystem?.update?.(deltaTime);
 
@@ -3230,22 +3285,23 @@ export class LinkRendererConduit {
         // Store link direction for aura modulation later
         const linkUD = ensureUserData(link);
         linkUD.linkDirection = linkDir.clone();
+
+        // Read canonical wave metrics (written by _canonicalWriteLinkWaveMetrics)
+        // These are guaranteed to exist from the updateAll() canonical pass
         const waveDirection = linkUD.waveDirection instanceof THREE.Vector3
             ? linkUD.waveDirection
-            : new THREE.Vector3();
-        waveDirection.copy(linkDir);
-        linkUD.waveDirection = waveDirection;
-        const waveLength = Math.max(0.0001, linkDist || 1.0);
-        const wavePhaseOffset = waveLength * 0.25;
-        linkUD.waveLength = waveLength;
-        linkUD.wavePhaseOffset = wavePhaseOffset;
+            : new THREE.Vector3(1, 0, 0);
+        const waveLength = typeof linkUD.waveLength === 'number'
+            ? Math.max(0.0001, linkUD.waveLength)
+            : Math.max(0.0001, linkDist || 1.0);
+        const wavePhaseOffset = typeof linkUD.wavePhaseOffset === 'number'
+            ? linkUD.wavePhaseOffset
+            : waveLength * 0.25;
+
+        // Sync conduit state from canonical values
         state.waveDirection = waveDirection;
         state.waveLength = waveLength;
         state.wavePhaseOffset = wavePhaseOffset;
-        const waveShaderBridge = this.waveShaderBridge || window.game?.waveShaderBridge;
-        if (waveShaderBridge?.registerLinkDirection) {
-            waveShaderBridge.registerLinkDirection(link?.id, waveDirection);
-        }
 
         const geometryTick = (frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true;
         const segments = geometryTick

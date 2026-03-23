@@ -1154,6 +1154,25 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.lastEventTagByLink.clear();
         this.globalStressBias = 0;
     }
+
+    /**
+     * Rebind after world switch (updates linkingSystem, aiNodes, semanticBus)
+     */
+    rebind(config = {}) {
+        // Update references if provided
+        if (config.linkingSystem !== undefined) {
+            this.linkingSystem = config.linkingSystem;
+        }
+        if (config.aiNodes !== undefined) {
+            this.aiNodes = config.aiNodes;
+        }
+        if (config.semanticBus !== undefined) {
+            this.semanticBus = config.semanticBus;
+        }
+
+        // Re-ensure semantic bindings
+        this._ensureSemanticBindings();
+    }
 }
 
 /**

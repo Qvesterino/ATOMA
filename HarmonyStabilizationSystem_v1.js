@@ -158,13 +158,154 @@ export class HarmonyStabilizationSystem_v1 {
   }
 
   /**
+   * Canonical writer for harmonic node metrics (called once per frame for all nodes)
+   * Ensures harmonicPhase, harmonicHub, harmonicResilience, harmonicCollapse,
+   * harmonicRecovery, isHarmonyAnchor, anchorPulseActive are always defined
+   * on nodes before any readers access them.
+   *
+   * This is the single authoritative source for these metrics - DO NOT write
+   * them elsewhere.
+   *
+   * Maps from NodeHarmonicManager controller values to canonical names:
+   * - harmonicPhase → node.harmonicControllers.sync.hubPhase
+   * - harmonicHub → node.harmonicControllers.sync.hubStrength
+   * - harmonicResilience → node.harmonicControllers.resilience.hubResilience
+   * - harmonicCollapse → node.harmonicControllers.collapse.collapseFactor
+   * - harmonicRecovery → node.harmonicControllers.recovery.recoveryFactor
+   */
+  _canonicalWriteNodeHarmonicMetrics(node) {
+    if (!node) return;
+    node.userData ||= {};
+
+    // Get harmonic controllers if available (from NodeHarmonicManager)
+    const controllers = node.harmonicControllers;
+
+    // Default values (fallbacks)
+    let harmonicPhase = 0;
+    let harmonicHub = 0; // hubStrength
+    let harmonicResilience = 0;
+    let harmonicCollapse = 0;
+    let harmonicRecovery = 0;
+
+    if (controllers) {
+      // Read from sync controller (hubPhase, hubStrength)
+      if (controllers.sync) {
+        harmonicPhase = controllers.sync.hubPhase ?? 0;
+        harmonicHub = controllers.sync.hubStrength ?? 0;
+      }
+
+      // Read from resilience controller
+      if (controllers.resilience) {
+        harmonicResilience = controllers.resilience.hubResilience ?? 0;
+      }
+
+      // Read from collapse controller
+      if (controllers.collapse) {
+        harmonicCollapse = controllers.collapse.collapseFactor ?? 0;
+      }
+
+      // Read from recovery controller
+      if (controllers.recovery) {
+        harmonicRecovery = controllers.recovery.recoveryFactor ?? 0;
+      }
+    }
+
+    // Write canonical values to userData
+    node.userData.harmonicPhase = harmonicPhase;
+    node.userData.harmonicHub = harmonicHub;
+    node.userData.harmonicResilience = harmonicResilience;
+    node.userData.harmonicCollapse = harmonicCollapse;
+    node.userData.harmonicRecovery = harmonicRecovery;
+
+    // isHarmonyAnchor and anchorPulseActive are set by triggerAnchorState()
+    // Ensure they have defaults if not set yet
+    if (typeof node.userData.isHarmonyAnchor !== 'boolean') {
+      node.userData.isHarmonyAnchor = false;
+    }
+    if (typeof node.userData.anchorPulseActive !== 'boolean') {
+      node.userData.anchorPulseActive = false;
+    }
+  }
+
+  /**
+   * Canonical writer for halo/pulse visual metrics (called once per frame for all nodes)
+   * Ensures haloAmplitude, haloFrequency, pulsePhase, pulseCoherence, pulseStreak
+   * are always defined on nodes and active even at low network activity.
+   *
+   * This is the single authoritative source for these metrics - DO NOT write
+   * them elsewhere.
+   *
+   * Key behavior: Effects activate even at low activity by using minimum base values.
+   * Resilience modulates intensity, not presence.
+   */
+  _canonicalWriteHaloPulseMetrics(node) {
+    if (!node) return;
+    node.userData ||= {};
+
+    // Get harmonic controllers if available (from NodeHarmonicManager)
+    const controllers = node.harmonicControllers;
+
+    // Default values (minimums for activation at low activity)
+    let hubResilience = 0;
+    let haloAmplitude = 0.15; // Minimum amplitude ensures visibility
+    let haloFrequency = 1.0; // Base frequency
+    let pulsePhase = 0;
+    let pulseCoherence = 0.3; // Minimum coherence
+    let pulseStreak = 0.2; // Minimum streak consistency
+
+    // Current time for phase calculation
+    const currentTime = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+
+    if (controllers && controllers.resilience) {
+      hubResilience = controllers.resilience.hubResilience ?? 0;
+
+      // Get modulated values from resilience controller if available
+      if (typeof controllers.resilience.getModulatedHaloStability === 'function') {
+        const haloMod = controllers.resilience.getModulatedHaloStability(0.3, 1.0);
+        haloAmplitude = Math.max(0.15, haloMod.amplitude); // Ensure minimum
+        haloFrequency = haloMod.frequency;
+      }
+
+      if (typeof controllers.resilience.getModulatedPulseCoherence === 'function') {
+        const coherenceMod = controllers.resilience.getModulatedPulseCoherence(0.3);
+        pulseCoherence = Math.max(0.3, coherenceMod.syncStrength); // Ensure minimum
+        pulseStreak = coherenceMod.coherenceFactor;
+      }
+    }
+
+    // Pulse phase: always progresses based on time (independent of activity)
+    // Use node-specific phase offset for variety
+    const phaseOffset = node.userData._pulsePhaseOffset ?? (node.id * 123.45) % (Math.PI * 2);
+    const pulseSpeed = 1.0 + hubResilience * 0.5; // Higher resilience = faster pulse
+    pulsePhase = (currentTime * pulseSpeed + phaseOffset) % (Math.PI * 2);
+
+    // Store phase offset for consistency
+    node.userData._pulsePhaseOffset = phaseOffset;
+
+    // Write canonical values to userData
+    node.userData.haloAmplitude = haloAmplitude;
+    node.userData.haloFrequency = haloFrequency;
+    node.userData.pulsePhase = pulsePhase;
+    node.userData.pulseCoherence = pulseCoherence;
+    node.userData.pulseStreak = pulseStreak;
+  }
+
+  /**
    * Main update loop - call once per frame
    */
   updateHarmony(deltaTime = 1/60) {
     if (!this.aiNodes) return;
 
-    // Update all nodes
+    // Canonical write: ensure harmonic metrics exist for all nodes
     const allNodes = this.getAllNodes();
+    if (allNodes && allNodes.length > 0) {
+      for (const node of allNodes) {
+        this._canonicalWriteNodeHarmonicMetrics(node);
+        this._canonicalWriteHaloPulseMetrics(node);
+      }
+    }
+
+    // Update all nodes
     if (allNodes && allNodes.length > 0) {
       for (const node of allNodes) {
         this.updateNodeHarmony(node, deltaTime);

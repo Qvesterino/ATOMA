@@ -6069,6 +6069,49 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.setupChamberEnvironment();
     }
 
+    _rebindWorldLifecycleSystems({
+        linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null,
+        aiNodes = this.aiNodes ?? null,
+        semanticBus = this.semanticBus ?? null,
+        frameScheduler = this.frameScheduler ?? null
+    } = {}) {
+        try {
+            if (this.cascadeEventBridge && typeof this.cascadeEventBridge.rebind === 'function') {
+                this.cascadeEventBridge.rebind({
+                    linkingSystem,
+                    semanticBus,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] CascadeEventBridge rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.resonanceRupture && typeof this.resonanceRupture.rebind === 'function') {
+                this.resonanceRupture.rebind({
+                    linkingSystem,
+                    aiNodes,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] ResonanceRupture rebind failed:', err?.message || err);
+        }
+
+        try {
+            const trapSystem = this.standingWaveTrapSystem || this.standingWaveTrap;
+            if (trapSystem && typeof trapSystem.rebind === 'function') {
+                trapSystem.rebind({
+                    linkingSystem,
+                    aiNodes
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] StandingWaveTrapSystem rebind failed:', err?.message || err);
+        }
+    }
+
     /**
      * Create the ATOMA world
      */
@@ -6085,6 +6128,12 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         try {
             // Cleanup old world event listeners
             this.disposeWorldListeners();
+            this._rebindWorldLifecycleSystems({
+                linkingSystem: null,
+                aiNodes: null,
+                semanticBus: null,
+                frameScheduler: this.frameScheduler ?? null
+            });
 
             const reasonForCreate = reason || this._pendingCreateWorldReason || 'CREATE_WORLD';
             this._pendingCreateWorldReason = null;
@@ -6400,6 +6449,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this._allowRegistryReset = true;
         this.createAINodes(reasonForCreate);
         this.ensureCascadeEventBridge();
+        this._rebindWorldLifecycleSystems();
 
         // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
@@ -9045,6 +9095,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
             this._pendingCreateWorldReason = 'MAP_SWITCH';
             fn();
+            this._rebindWorldLifecycleSystems();
             console.log('[LOADWORLD] after registry', worldId);
         } catch (e) {
             console.error('[LOADWORLD] ERROR', worldId, e);

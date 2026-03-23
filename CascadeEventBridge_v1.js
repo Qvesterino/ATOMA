@@ -291,9 +291,32 @@ export class CascadeEventBridge_v1 {
         Math.max(0, Math.min(1, flowState.energy ?? 0))
       );
 
+      // Synergy collapse state (sync with LinkCorruptionTransmission events)
+      const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+      const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+      const sourceCorruption = sourceNode?.userData?.metrics?.corruption ?? 0;
+      const targetCorruption = targetNode?.userData?.metrics?.corruption ?? 0;
+      const synergy = link?.userData?.synergy?.score ?? 0;
+
+      // synergyCollapse = true if corruption > 0.7 OR synergy > 0.8 (high activity)
+      const wasSynergyCollapse = link.userData.synergyCollapse === true;
+      const isSynergyCollapse = (
+        canonicalIntensity > 0.6 ||
+        sourceCorruption > 0.7 ||
+        targetCorruption > 0.7 ||
+        synergy > 0.8
+      );
+
+      // synergyCascadeTime = start time of collapse (set only on false -> true transition)
+      const currentCascadeTime = (!wasSynergyCollapse && isSynergyCollapse)
+        ? Date.now()
+        : (link.userData.synergyCascadeTime ?? 0);
+
       link.userData.cascadeIntensity = canonicalIntensity;
       link.userData.cascadeConflictType = canonicalType;
       link.userData.conflictIntensity = canonicalConflict;
+      link.userData.synergyCollapse = isSynergyCollapse;
+      link.userData.synergyCascadeTime = currentCascadeTime;
     }
   }
   
@@ -543,6 +566,57 @@ export class CascadeEventBridge_v1 {
     // Clear handlers
     this._boundHandlers = null;
     this._isInitialized = false;
+  }
+
+  /**
+   * Rebind after world switch (updates linkingSystem, semanticBus, frameScheduler)
+   */
+  rebind(config = {}) {
+    // Update references if provided
+    if (config.linkingSystem !== undefined) {
+      this.linkingSystem = config.linkingSystem;
+    }
+    if (config.semanticBus !== undefined) {
+      this.semanticBus = config.semanticBus;
+    }
+    if (config.frameScheduler !== undefined) {
+      this.frameScheduler = config.frameScheduler;
+    }
+
+    // Re-initialize if not already initialized
+    if (!this._isInitialized) {
+      this.init();
+    } else {
+      // Already initialized - just refresh bindings
+      if (!this.semanticBus) {
+        console.warn('[CascadeEventBridge] No semanticBus available - event-driven disabled');
+        return;
+      }
+      
+      if (!this.linkingSystem) {
+        console.warn('[CascadeEventBridge] No linkingSystem provided - cannot update links');
+        return;
+      }
+
+      // Unsubscribe from old events and re-subscribe
+      for (const unsubscribe of this._subscriptions) {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      }
+      this._subscriptions = [];
+
+      // Re-setup and re-subscribe to events
+      this._setupEventHandlers();
+      this._subscribeToEvents();
+
+      // Re-register to FrameScheduler
+      if (this._isRegistered && this.frameScheduler) {
+        this.frameScheduler.unregister('visual.cascadeEventBridge');
+        this._isRegistered = false;
+      }
+      this._registerDecayUpdate();
+    }
   }
 }
 
