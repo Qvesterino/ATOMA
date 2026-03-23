@@ -14,6 +14,7 @@ const DEFAULT_METRICS = {
   loadPressure: 0
 };
 
+
 const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
 const MAX_IMPULSE = 0.25;
 
@@ -421,6 +422,7 @@ function applyArchetypeClamp(node) {
   m.stability = clamp01(m.stability);
   m.corruption = clamp01(m.corruption);
   m.loadPressure = clamp01(m.loadPressure);
+
 }
 
 function installLegacyFieldGuards(node) {

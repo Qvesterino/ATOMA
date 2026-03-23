@@ -121,10 +121,29 @@ export class EnvironmentDomainController {
     this.frameScheduler.register(
       'visual',
       (dt) => {
-        Object.values(this.instances).forEach(sys => {
-          if (sys && typeof sys.update === 'function') {
-            sys.update(dt);
+        Object.entries(this.instances).forEach(([key, sys]) => {
+          if (!sys || typeof sys.update !== 'function') return;
+
+          if (key === 'weatherPack') {
+            sys.update(
+              dt,
+              this.deps.legendaryPack,
+              this.deps.linkingSystem,
+              this.deps.evolutionManager,
+              this.deps.worldEvents
+            );
+            return;
           }
+          if (key === 'emergentThoughtStorms') {
+            sys.update(
+              dt,
+              this.deps.aiNodes,
+              this.deps.linkingSystem
+            );
+            return;
+          }
+
+          sys.update(dt);
         });
       },
       this.schedulerId

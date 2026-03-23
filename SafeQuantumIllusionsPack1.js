@@ -50,6 +50,7 @@ export class SafeQuantumIllusionsPack1 {
     this.quantumStormActive = false;
     this.lastAwakenTime = -10;
     this.highTrafficBurst = false;
+    this.runtimeEnabled = true;
     
     // Screen-space effects container
     this.screenSpaceContainer = new THREE.Group();
@@ -124,8 +125,7 @@ export class SafeQuantumIllusionsPack1 {
    * Main update loop
    */
   update(deltaTime) {
-    // TEMPORARY PATCH: Disable runtime updates to test shader variant churn
-    if (true) return;
+    if (!this.runtimeEnabled) return;
     
     if (!this.scene) return;
     

@@ -112,13 +112,15 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         this.ruptureSystem = ruptureSystem;
         this.healingParticles = healingParticleSystem;
         this.linkingSystem = nodeLinkingSystem;
+        this.enabled = true;
         
         this.config = {
             minRecoveryDuration: 3.0,
             maxRecoveryDuration: 8.0,
             waveExpansionSpeed: 2.0,
             stitchingInterval: 0.05, // High density for "tightening" look
-            maxActiveZones: 10
+            maxActiveZones: 10,
+            updateInterval: 1 / 60
         };
         
         // State tracking
@@ -190,7 +192,6 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     update(deltaTime, time, networkState) {
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         if (!this.enabled) return;
 
         if (this._timeOrigin === undefined) {
@@ -203,14 +204,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         }
 
         const sinceLast = currentVisualTime - this._lastUpdateTime;
-        if (sinceLast < CONFIG.UPDATE_INTERVAL) return;
+        if (sinceLast < this.config.updateInterval) return;
         this._lastUpdateTime = currentVisualTime;
 
         // 1. Detect Rupture Completions
         this._detectRuptureEvents(currentVisualTime);
         
         // 2. Update Recovering Zones
-        this._updateRecoveringZones(networkState, currentVisualTime);
+        this._updateRecoveringZones(networkState || {}, currentVisualTime);
         
         // 3. Update Visuals
         this.waveMaterial.uniforms.uTime.value = currentVisualTime;

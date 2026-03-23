@@ -15,6 +15,16 @@ export class AtomaAudioSystem {
         this.initialized = false;
         this.enabled = true;
         
+        // All Tone.js synths and effects will be created in createSynths()
+        // This prevents AudioContext warning before user gesture
+        console.log('[Audio] System Constructed (Waiting for user interaction)');
+    }
+
+    /**
+     * Create all Tone.js synths and effects.
+     * Called after AudioContext is started (user gesture).
+     */
+    createSynths() {
         // Master Effects
         this.masterLimiter = new Tone.Limiter(-1).toDestination();
         this.masterReverb = new Tone.Reverb({
@@ -131,9 +141,6 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb).start();
         this.synergySynth.disconnect();
         this.synergySynth.connect(this.synergyFilter);
-
-
-        console.log('[Audio] System Constructed (Waiting for user interaction)');
     }
 
     /**
@@ -143,7 +150,12 @@ export class AtomaAudioSystem {
     async start() {
         if (this.initialized) return;
         
+        // First, start the AudioContext (requires user gesture)
         await Tone.start();
+        
+        // Then create all synths and effects after AudioContext is running
+        this.createSynths();
+        
         this.initialized = true;
         console.log('[Audio] AudioContext Started');
         

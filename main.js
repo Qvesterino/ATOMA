@@ -4014,6 +4014,16 @@ class AtomaGame {
             }
         }, 'visual.healingParticles');
         this.frameScheduler.register('visual', (dt) => {
+            if (this.harmonicHealing) {
+                this.harmonicHealing.update(dt, this.time, this.networkState || {});
+            }
+        }, 'visual.harmonicHealing');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.harmonicRecovery) {
+                this.harmonicRecovery.update(dt, this.time, this.networkState || {});
+            }
+        }, 'visual.harmonicRecovery');
+        this.frameScheduler.register('visual', (dt) => {
             if (this.linkTrailParticles) {
                 this.linkTrailParticles.update(dt, this.time);
             }
@@ -4990,6 +5000,12 @@ this.setHudDirty('nodeInspect');
         this.setupResonanceRupture();
 
         // ========================================================================
+        // SESSIONS 134-136: HARMONIC HEALING SYSTEM
+        // Golden healing waves, particle trails, and audio reactivity
+        // ========================================================================
+        this.setupHarmonicHealingSystem();
+
+        // ========================================================================
         // SESSION 138: HARMONIC RECOVERY VISUAL SYSTEM
         // Visualizes network repair after rupture (Coherence Waves, Re-Stitching)
         // ========================================================================
@@ -5157,6 +5173,15 @@ this.setHudDirty('nodeInspect');
          try {
             installNodeVisualFreezeBlockers(this);
             console.log('✅ [main.js] Node Visual Freeze Blockers installed');
+            // === DISABLE NODE VISUAL FREEZE MODE (restore overlays/mutations) ===
+            if (window.__nodeVisualFreezeMode__ && typeof ControlledUnfreezeSystem_v1 !== 'undefined') {
+                ControlledUnfreezeSystem_v1.disableFreezeMode(window.__nodeVisualFreezeMode__);
+                console.log('[main.js] NodeVisualFreezeMode DISABLED via ControlledUnfreezeSystem_v1');
+                // Restore all blocked systems and install mutation safety guards
+                ControlledUnfreezeSystem_v1.restoreBlockedSystems(this);
+                ControlledUnfreezeSystem_v1.installSafetyGuards(this);
+                console.log('[main.js] ControlledUnfreezeSystem: Blocked systems restored and safety guards installed');
+            }
         } catch (err) {
             console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
         }
