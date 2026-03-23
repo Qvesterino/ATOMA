@@ -317,6 +317,14 @@ export class CascadeEventBridge_v1 {
       link.userData.conflictIntensity = canonicalConflict;
       link.userData.synergyCollapse = isSynergyCollapse;
       link.userData.synergyCascadeTime = currentCascadeTime;
+
+      // Stamp canonical writes for cascade fields
+      link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+      link.userData.__canonicalWriteAt.cascadeIntensity = Date.now();
+      link.userData.__canonicalWriteAt.cascadeConflictType = Date.now();
+      link.userData.__canonicalWriteAt.conflictIntensity = Date.now();
+      link.userData.__canonicalWriteAt.synergyCollapse = Date.now();
+      link.userData.__canonicalWriteAt.synergyCascadeTime = Date.now();
     }
   }
   

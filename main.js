@@ -3473,18 +3473,22 @@ class AtomaGame {
                 this.harmonicCycleController.update(dt, harmonicNetworkState);
             }
         }, 'background.harmonicCycleController');
-        this.frameScheduler.register('background', (dt) => {
-            if (this.metricsRuntime_v1) {
-                this.metricsRuntime_v1.runNetworkMetricsAggregator();
-            }
-        }, 'background.networkMetricsAggregator');
-        if (this.frameScheduler?.isRegistered?.('simulation.metricsAggregator') !== true) {
-            this.frameScheduler.register(
-                'simulation',
-                () => this.metricsRuntime_v1?.runNetworkMetricsAggregator?.(),
-                'simulation.metricsAggregator'
-            );
+        // === UPDATE LANE ORDER (Fáza C, bod 14) ===
+        // FrameScheduler order is: realtime -> visual -> simulation -> background.
+        // Keep metrics aggregator in SIMULATION lane (single source, no duplicates).
+        // This guarantees deterministic ordering for simulation readers in the same lane
+        // as long as this registration happens before their registration.
+        if (this.frameScheduler?.isRegistered?.('background.networkMetricsAggregator') === true) {
+            this.frameScheduler.unregister('background.networkMetricsAggregator');
         }
+        if (this.frameScheduler?.isRegistered?.('simulation.metricsAggregator') === true) {
+            this.frameScheduler.unregister('simulation.metricsAggregator');
+        }
+        this.frameScheduler.register(
+            'simulation',
+            () => this.metricsRuntime_v1?.runNetworkMetricsAggregator?.(),
+            'simulation.metricsAggregator'
+        );
         this.frameScheduler.register('background', (dt) => {
             this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {});
         }, 'background.narrativePatterns');
@@ -4217,6 +4221,15 @@ this.setHudDirty('nodeInspect');
                 if (this.audioSystem) {
                     console.log('[ATOMA AUDIO] playSynergyActive() triggered');
                     this.audioSystem.playSynergyActive();
+                    this.previousSynergyState = 'active';
+                }
+            });
+
+            // Synergy fading
+            this.semanticBus.subscribe('synergy.fade', () => {
+                if (this.audioSystem) {
+                    this.audioSystem.playSynergyFade();
+                    this.previousSynergyState = 'fading';
                 }
             });
         }
@@ -6110,6 +6123,44 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] StandingWaveTrapSystem rebind failed:', err?.message || err);
         }
+
+        // Rebind HarmonyStabilizationSystem_v1
+        try {
+            if (this.harmonyStabilizationSystem && typeof this.harmonyStabilizationSystem.rebind === 'function') {
+                this.harmonyStabilizationSystem.rebind({
+                    linkingSystem,
+                    aiNodes,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] HarmonyStabilizationSystem rebind failed:', err?.message || err);
+        }
+
+        // Rebind ParticleSemanticDensityAdapter
+        try {
+            if (this.particleSemanticDensity && typeof this.particleSemanticDensity.rebind === 'function') {
+                this.particleSemanticDensity.rebind({
+                    links: this.links || this.linkingSystem?.links,
+                    conflictSystem: null,
+                    cascadeSystem: this.cascadeEventBridge
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] ParticleSemanticDensityAdapter rebind failed:', err?.message || err);
+        }
+
+        // Rebind LinkRendererConduit
+        try {
+            if (this.linkRendererConduit && typeof this.linkRendererConduit.rebind === 'function') {
+                this.linkRendererConduit.rebind({
+                    linkSystem: this.linkingSystem,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkRendererConduit rebind failed:', err?.message || err);
+        }
     }
 
     /**
@@ -6944,9 +6995,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
         this.linkingSystem.createLink = (sourceNode, targetNode) => {
             const result = originalCreateLink(sourceNode, targetNode);
-            if (this.audioSystem && this.audioSystem.initialized) {
-                this.audioSystem.playLinkCreated();
-            }
             // Create LinkSparkSystem for each link
             if (result && !this.linkSparkSystems) {
                 this.linkSparkSystems = new Map();
@@ -7004,9 +7052,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         const originalRemoveLink = this.linkingSystem.removeLink.bind(this.linkingSystem);
         this.linkingSystem.removeLink = (link) => {
             const result = originalRemoveLink(link);
-            if (this.audioSystem && this.audioSystem.initialized) {
-                this.audioSystem.playLinkBroken();
-            }
             // Proactively clear memory trails so ghosts don't linger when visual update is paused
             if (this.memoryTrails && link?.userData?.id !== undefined) {
                 this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
@@ -9681,14 +9726,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.harmonicNodeResonanceHalosTick?.(this._pendingHarmonicNodeHalosDt);
             }
         });
-        reg('audioSynergyMonitor', () => {
+        reg('audioSynergyMonitor', (dt) => {
+            if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
+                this.audioModulation.update(dt, {
+                    synergy: this.nodeDynamicMetrics.avgSynergy || 0,
+                    harmony: this.nodeDynamicMetrics.avgHarmony || 50,
+                    corruption: this.nodeDynamicMetrics.avgCorruption || 0
+                });
+            }
             if (this.audioSystem && this.nodeDynamicMetrics) {
                 const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
-                if (avgSynergy >= this.synergyActivationThreshold && this.previousSynergyState !== 'active') {
-                    this.audioSystem.playSynergyActive();
+                if (avgSynergy >= this.synergyActivationThreshold) {
                     this.previousSynergyState = 'active';
                 } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'active') {
-                    this.audioSystem.playSynergyFade();
+                    this.semanticBus.emit('synergy.fade', {
+                        synergy: avgSynergy
+                    }, { priority: this.semanticBus.priority.INTERACTIVE });
                     this.previousSynergyState = 'fading';
                 } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'fading') {
                     this.previousSynergyState = 'none';
@@ -10254,15 +10307,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
 
             this.zoneAudioReactivity.update(deltaTime);
-
-            // Audio Modulation - Update with network metrics
-            if (this.audioModulation && this.nodeDynamicMetrics) {
-                this.audioModulation.update(deltaTime, {
-                    synergy: this.nodeDynamicMetrics.avgSynergy || 0,
-                    harmony: this.nodeDynamicMetrics.avgHarmony || 50,
-                    corruption: this.nodeDynamicMetrics.avgCorruption || 0
-                });
-            }
 
             if (this.systemStateOverlay?.regionalHarmonyZones) {
                 const zoneInfluences = this.zoneAudioReactivity.getZoneInfluences();
@@ -11951,11 +11995,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         try {
             // 1. Audio System (Session 135)
             if (!this.harmonicAudio) {
-                // Check if constructor signature matches (scene, linking, nodes)
+                // Session 135 constructor expects camera for spatial audio positioning
                 this.harmonicAudio = new HarmonicAudioReactivitySystem_Session135(
-                    this.scene,
-                    this.linkingSystem,
-                    this.aiNodes
+                    this.camera
                 );
                 console.log('[main.js] HarmonicAudioReactivitySystem initialized ✓');
             }
@@ -12397,9 +12439,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Hook audio feedback to selection events
         this.selectionCore.onSelectCallbacks.push((node) => {
-            if (this.audioSystem && this.audioSystem.initialized) {
-                this.audioSystem.playSelection();
-            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             const payload = {
@@ -12417,9 +12456,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         
         this.selectionCore.onDeselectCallbacks.push((node) => {
-            if (this.audioSystem && this.audioSystem.initialized) {
-                this.audioSystem.playDeselection();
-            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             this.semanticBus.emit('node.selection', { type: 'deselect', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });

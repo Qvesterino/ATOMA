@@ -49,6 +49,12 @@ export class HarmonicAudioReactivitySystem_Session135 {
         this.maxHealingVoices = 3; // Polyphony limit to prevent clutter
         
         this.healingFrequency = 432; // Pure harmonic frequency
+        this.healingGain = this.audioContext.createGain();
+        this.healingGain.gain.value = 0;
+        this.healingGain.connect(this.masterGain);
+        
+        this.healingPanner = this.audioContext.createPanner();
+        this.healingPanner.connect(this.healingGain);
         
         // ====================================================================
         // RUPTURE IMPACT STATE

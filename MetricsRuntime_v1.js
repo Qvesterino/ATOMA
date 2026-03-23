@@ -600,10 +600,20 @@ const adapter = this._createLinkSystemAdapter(
             if (!node) continue;
             node.userData = node.userData || {};
             const userData = node.userData;
-            const metrics = userData.metrics || {};
+            const metrics = userData.metrics || (userData.metrics = {});
+            const harmony = this._clamp01(metrics.harmony ?? userData.harmony ?? userData.harmonyLevel ?? 0);
+            const corruption = this._clamp01(metrics.corruption ?? userData.corruption ?? userData.corruptionLevel ?? 0);
             const stability = this._clamp01(metrics.stability ?? (1 - this._clamp01(userData.instability ?? 0)));
             const load = this._clamp01(metrics.loadPressure ?? userData.loadPressure ?? userData.pressure ?? 0);
             const instability = this._clamp01(1 - stability);
+
+            // Canonical harmony/corruption write + legacy mirrors
+            metrics.harmony = harmony;
+            metrics.corruption = corruption;
+            userData.harmony = harmony;
+            userData.harmonyLevel = harmony;
+            userData.corruption = corruption;
+            userData.corruptionLevel = corruption;
 
             // Harmony stabilization canonical defaults
             if (typeof userData.harmonyStabilized !== 'boolean') {
@@ -618,9 +628,15 @@ const adapter = this._createLinkSystemAdapter(
             userData.loadPressure = load;
             userData.pressure = load;
 
-            // Legacy instability fallback derived from canonical stability
+            // Keep stability/instability readable from both canonical and legacy paths
+            metrics.stability = stability;
+            metrics.instability = instability;
             userData.instability = instability;
 
+            this._touchCanonicalWrite(userData, 'harmony');
+            this._touchCanonicalWrite(userData, 'harmonyLevel');
+            this._touchCanonicalWrite(userData, 'corruption');
+            this._touchCanonicalWrite(userData, 'corruptionLevel');
             this._touchCanonicalWrite(userData, 'harmonyStabilized');
             this._touchCanonicalWrite(userData, 'harmonyDampingFactor');
             this._touchCanonicalWrite(userData, 'loadPressure');
@@ -669,10 +685,20 @@ const adapter = this._createLinkSystemAdapter(
                 userData.metrics.corrupted = corrupted;
             }
 
+            // Particle canonical fallbacks (reader-safe when density adapter is idle)
+            const particleIntensity = Number.isFinite(userData.particleIntensity) ? this._clamp01(userData.particleIntensity) : 0;
+            const particleUrgency = Number.isFinite(userData.particleUrgency) ? this._clamp01(userData.particleUrgency) : 0;
+            userData.particleIntensity = particleIntensity;
+            userData.particleUrgency = particleUrgency;
+            userData.metrics.particleIntensity = particleIntensity;
+            userData.metrics.particleUrgency = particleUrgency;
+
             this._touchCanonicalWrites(userData, [
                 'corruption',
                 'integrity',
-                'corrupted'
+                'corrupted',
+                'particleIntensity',
+                'particleUrgency'
             ]);
         }
     }
@@ -809,6 +835,10 @@ const adapter = this._createLinkSystemAdapter(
             'hubId',
             'activeLinkCount',
             // Core metrics (from NodeMetricEngine.js)
+            'harmony',
+            'harmonyLevel',
+            'corruption',
+            'corruptionLevel',
             'harmonyStabilized',
             'harmonyDampingFactor',
             'loadPressure',

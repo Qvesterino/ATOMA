@@ -1049,6 +1049,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const prevLoss = Number(link.userData.visualCoherenceLoss) || 0;
             link.userData.visualTear = Math.max(0, prevTear * 0.9);
             link.userData.visualCoherenceLoss = Math.max(0, prevLoss * 0.92);
+
+            // Stamp canonical writes for rupture fields
+            link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+            link.userData.__canonicalWriteAt.visualTear = Date.now();
+            link.userData.__canonicalWriteAt.visualCoherenceLoss = Date.now();
         });
 
         // Active rupture contribution.
@@ -1064,6 +1069,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
 
             link.userData.visualTear = Math.max(link.userData.visualTear || 0, tear);
             link.userData.visualCoherenceLoss = Math.max(link.userData.visualCoherenceLoss || 0, coherenceLoss);
+
+            // Stamp canonical writes for rupture fields
+            link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+            link.userData.__canonicalWriteAt.visualTear = Date.now();
+            link.userData.__canonicalWriteAt.visualCoherenceLoss = Date.now();
         });
 
         // Scar contribution keeps slight coherence loss memory.
@@ -1077,6 +1087,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 : 1;
             const scarLoss = THREE.MathUtils.clamp((scar.intensity || 0) * (1 - progress) * 0.6, 0, 1);
             link.userData.visualCoherenceLoss = Math.max(link.userData.visualCoherenceLoss || 0, scarLoss);
+
+            // Stamp canonical writes for rupture fields
+            link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+            link.userData.__canonicalWriteAt.visualTear = Date.now();
+            link.userData.__canonicalWriteAt.visualCoherenceLoss = Date.now();
         });
     }
 

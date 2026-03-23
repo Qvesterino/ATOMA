@@ -217,6 +217,14 @@ export class HarmonyStabilizationSystem_v1 {
     node.userData.harmonicCollapse = harmonicCollapse;
     node.userData.harmonicRecovery = harmonicRecovery;
 
+    // Stamp canonical writes for harmonic node fields
+    node.userData.__canonicalWriteAt = node.userData.__canonicalWriteAt || {};
+    node.userData.__canonicalWriteAt.harmonicPhase = Date.now();
+    node.userData.__canonicalWriteAt.harmonicHub = Date.now();
+    node.userData.__canonicalWriteAt.harmonicResilience = Date.now();
+    node.userData.__canonicalWriteAt.harmonicCollapse = Date.now();
+    node.userData.__canonicalWriteAt.harmonicRecovery = Date.now();
+
     // isHarmonyAnchor and anchorPulseActive are set by triggerAnchorState()
     // Ensure they have defaults if not set yet
     if (typeof node.userData.isHarmonyAnchor !== 'boolean') {
@@ -288,6 +296,172 @@ export class HarmonyStabilizationSystem_v1 {
     node.userData.pulsePhase = pulsePhase;
     node.userData.pulseCoherence = pulseCoherence;
     node.userData.pulseStreak = pulseStreak;
+
+    // Stamp canonical writes for halo/pulse fields
+    node.userData.__canonicalWriteAt = node.userData.__canonicalWriteAt || {};
+    node.userData.__canonicalWriteAt.haloAmplitude = Date.now();
+    node.userData.__canonicalWriteAt.haloFrequency = Date.now();
+    node.userData.__canonicalWriteAt.pulsePhase = Date.now();
+    node.userData.__canonicalWriteAt.pulseCoherence = Date.now();
+    node.userData.__canonicalWriteAt.pulseStreak = Date.now();
+  }
+
+  /**
+   * Canonical writer for harmonic link metrics (called once per frame for all links)
+   * Ensures harmonicPhase, harmonicHub, harmonicResilience, harmonicCollapse,
+   * harmonicRecovery, isHarmonyAnchor, anchorPulseActive are always defined
+   * on links before any readers access them.
+   *
+   * This is the single authoritative source for these metrics - DO NOT write
+   * them elsewhere.
+   *
+   * Key behavior: Link harmonic metrics are derived from endpoint node averages.
+   * This ensures link readers get consistent data even without link-level controllers.
+   */
+  _canonicalWriteLinkHarmonicMetrics(link) {
+    if (!link) return;
+    link.userData ||= {};
+
+    const sourceNode = link.source || link.sourceNode;
+    const targetNode = link.target || link.targetNode;
+
+    // Default values (fallbacks)
+    let harmonicPhase = 0;
+    let harmonicHub = 0;
+    let harmonicResilience = 0;
+    let harmonicCollapse = 0;
+    let harmonicRecovery = 0;
+
+    // Derive from source node if available
+    if (sourceNode?.userData) {
+      harmonicPhase = sourceNode.userData.harmonicPhase ?? 0;
+      harmonicHub = sourceNode.userData.harmonicHub ?? 0;
+      harmonicResilience = sourceNode.userData.harmonicResilience ?? 0;
+      harmonicCollapse = sourceNode.userData.harmonicCollapse ?? 0;
+      harmonicRecovery = sourceNode.userData.harmonicRecovery ?? 0;
+    }
+
+    // Average with target node if available
+    if (targetNode?.userData) {
+      harmonicPhase = (harmonicPhase + (targetNode.userData.harmonicPhase ?? 0)) * 0.5;
+      harmonicHub = (harmonicHub + (targetNode.userData.harmonicHub ?? 0)) * 0.5;
+      harmonicResilience = (harmonicResilience + (targetNode.userData.harmonicResilience ?? 0)) * 0.5;
+      harmonicCollapse = (harmonicCollapse + (targetNode.userData.harmonicCollapse ?? 0)) * 0.5;
+      harmonicRecovery = (harmonicRecovery + (targetNode.userData.harmonicRecovery ?? 0)) * 0.5;
+    }
+
+    // Modulate by link-level harmony
+    const linkHarmonyData = this.linkHarmony.get(link.id);
+    const linkHarmony = linkHarmonyData?.level ?? 0;
+    
+    // Scale harmonic values by link harmony level
+    harmonicHub *= linkHarmony;
+    harmonicResilience *= (0.5 + linkHarmony * 0.5);
+    harmonicCollapse *= (1.0 - linkHarmony * 0.5);
+    harmonicRecovery *= linkHarmony;
+
+    // Write canonical values to userData
+    link.userData.harmonicPhase = harmonicPhase;
+    link.userData.harmonicHub = harmonicHub;
+    link.userData.harmonicResilience = harmonicResilience;
+    link.userData.harmonicCollapse = harmonicCollapse;
+    link.userData.harmonicRecovery = harmonicRecovery;
+
+    // Stamp canonical writes for harmonic link fields
+    link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+    link.userData.__canonicalWriteAt.harmonicPhase = Date.now();
+    link.userData.__canonicalWriteAt.harmonicHub = Date.now();
+    link.userData.__canonicalWriteAt.harmonicResilience = Date.now();
+    link.userData.__canonicalWriteAt.harmonicCollapse = Date.now();
+    link.userData.__canonicalWriteAt.harmonicRecovery = Date.now();
+
+    // isHarmonyAnchor and anchorPulseActive are false by default for links
+    // (only nodes can be anchors, but we set defaults for consistency)
+    if (typeof link.userData.isHarmonyAnchor !== 'boolean') {
+      link.userData.isHarmonyAnchor = false;
+    }
+    if (typeof link.userData.anchorPulseActive !== 'boolean') {
+      link.userData.anchorPulseActive = false;
+    }
+  }
+
+  /**
+   * Canonical writer for halo/pulse visual metrics on links (called once per frame for all links)
+   * Ensures haloAmplitude, haloFrequency, pulsePhase, pulseCoherence, pulseStreak
+   * are always defined on links and active even at low network activity.
+   *
+   * This is the single authoritative source for these metrics - DO NOT write
+   * them elsewhere.
+   *
+   * Key behavior: Link halo/pulse metrics are derived from endpoint node averages.
+   * Resilience modulates intensity, not presence.
+   */
+  _canonicalWriteLinkHaloPulseMetrics(link) {
+    if (!link) return;
+    link.userData ||= {};
+
+    const sourceNode = link.source || link.sourceNode;
+    const targetNode = link.target || link.targetNode;
+
+    // Default values (minimums for activation at low activity)
+    let hubResilience = 0;
+    let haloAmplitude = 0.1; // Lower minimum for links
+    let haloFrequency = 1.0; // Base frequency
+    let pulsePhase = 0;
+    let pulseCoherence = 0.2; // Lower minimum for links
+    let pulseStreak = 0.15; // Lower minimum for links
+
+    // Current time for phase calculation
+    const currentTime = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+
+    // Derive from source node if available
+    if (sourceNode?.userData) {
+      hubResilience = sourceNode.userData.harmonicResilience ?? 0;
+      haloAmplitude = sourceNode.userData.haloAmplitude ?? 0.1;
+      haloFrequency = sourceNode.userData.haloFrequency ?? 1.0;
+      pulseCoherence = sourceNode.userData.pulseCoherence ?? 0.2;
+      pulseStreak = sourceNode.userData.pulseStreak ?? 0.15;
+    }
+
+    // Average with target node if available
+    if (targetNode?.userData) {
+      haloAmplitude = (haloAmplitude + (targetNode.userData.haloAmplitude ?? 0.1)) * 0.5;
+      haloFrequency = (haloFrequency + (targetNode.userData.haloFrequency ?? 1.0)) * 0.5;
+      pulseCoherence = (pulseCoherence + (targetNode.userData.pulseCoherence ?? 0.2)) * 0.5;
+      pulseStreak = (pulseStreak + (targetNode.userData.pulseStreak ?? 0.15)) * 0.5;
+      hubResilience = (hubResilience + (targetNode.userData.harmonicResilience ?? 0)) * 0.5;
+    }
+
+    // Modulate by link-level harmony
+    const linkHarmonyData = this.linkHarmony.get(link.id);
+    const linkHarmony = linkHarmonyData?.level ?? 0;
+    
+    // Scale amplitude by link harmony (0.1 to 0.4 range)
+    haloAmplitude = 0.1 + linkHarmony * 0.3;
+
+    // Pulse phase: always progresses based on time (independent of activity)
+    // Use link-specific phase offset for variety
+    const phaseOffset = link.userData._pulsePhaseOffset ?? ((link.id?.length ?? 0) * 123.45) % (Math.PI * 2);
+    const pulseSpeed = 1.0 + hubResilience * 0.5; // Higher resilience = faster pulse
+    pulsePhase = (currentTime * pulseSpeed + phaseOffset) % (Math.PI * 2);
+
+    // Store phase offset for consistency
+    link.userData._pulsePhaseOffset = phaseOffset;
+
+    // Write canonical values to userData
+    link.userData.haloAmplitude = haloAmplitude;
+    link.userData.haloFrequency = haloFrequency;
+    link.userData.pulsePhase = pulsePhase;
+    link.userData.pulseCoherence = pulseCoherence;
+    link.userData.pulseStreak = pulseStreak;
+
+    // Stamp canonical writes for halo/pulse link fields
+    link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+    link.userData.__canonicalWriteAt.haloAmplitude = Date.now();
+    link.userData.__canonicalWriteAt.haloFrequency = Date.now();
+    link.userData.__canonicalWriteAt.pulsePhase = Date.now();
+    link.userData.__canonicalWriteAt.pulseCoherence = Date.now();
+    link.userData.__canonicalWriteAt.pulseStreak = Date.now();
   }
 
   /**
@@ -305,6 +479,15 @@ export class HarmonyStabilizationSystem_v1 {
       }
     }
 
+    // Canonical write: ensure harmonic metrics exist for all links
+    const allLinks = this.getAllLinks();
+    if (allLinks && allLinks.length > 0) {
+      for (const link of allLinks) {
+        this._canonicalWriteLinkHarmonicMetrics(link);
+        this._canonicalWriteLinkHaloPulseMetrics(link);
+      }
+    }
+
     // Update all nodes
     if (allNodes && allNodes.length > 0) {
       for (const node of allNodes) {
@@ -313,7 +496,6 @@ export class HarmonyStabilizationSystem_v1 {
     }
 
     // Update all links
-    const allLinks = this.getAllLinks();
     if (allLinks && allLinks.length > 0) {
       for (const link of allLinks) {
         this.updateLinkHarmony(link, deltaTime);
@@ -1311,6 +1493,21 @@ export class HarmonyStabilizationSystem_v1 {
       });
     }
     node.userData._prevCorruption = current;
+  }
+
+  /**
+   * Rebind system references after world switch
+   * Updates aiNodes and linkSystem to prevent stale references
+   */
+  rebind({ linkingSystem, aiNodes, semanticBus }) {
+    if (linkingSystem !== undefined) {
+      this.linkSystem = linkingSystem;
+    }
+    if (aiNodes !== undefined) {
+      this.aiNodes = aiNodes;
+    }
+    // semanticBus is not used directly in this system, but we accept it for consistency
+    // debugMode is not updated during rebind to preserve original state
   }
 }
 

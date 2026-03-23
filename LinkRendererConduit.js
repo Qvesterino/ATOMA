@@ -1917,6 +1917,12 @@ export class LinkRendererConduit {
         linkUD.waveLength = waveLength;
         linkUD.wavePhaseOffset = wavePhaseOffset;
 
+        // Stamp canonical writes for wave fields
+        linkUD.__canonicalWriteAt = linkUD.__canonicalWriteAt || {};
+        linkUD.__canonicalWriteAt.waveDirection = Date.now();
+        linkUD.__canonicalWriteAt.waveLength = Date.now();
+        linkUD.__canonicalWriteAt.wavePhaseOffset = Date.now();
+
         // Write to conduit state if available
         const state = link?.group?.userData?.conduitState;
         if (state) {
@@ -4783,5 +4789,20 @@ export class LinkRendererConduit {
         if (this.conduitRoot?.parent) {
             this.conduitRoot.parent.remove(this.conduitRoot);
         }
+    }
+
+    /**
+   * Rebind system references after world switch
+   * Updates linkSystem and frameScheduler to prevent stale references
+   */
+    rebind({ linkSystem, frameScheduler }) {
+        if (linkSystem !== undefined) {
+            this.linkSystem = linkSystem;
+        }
+        if (frameScheduler !== undefined) {
+            this.frameScheduler = frameScheduler;
+        }
+        // scene and camera are not updated during rebind as they typically don't change on world switch
+        // Other internal systems (waveTravelShaderPack, etc.) are not rebindable and assume stable references
     }
 }

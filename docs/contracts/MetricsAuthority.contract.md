@@ -147,3 +147,80 @@ Migration target:
 2. Keep orchestration and publish in `MetricsRuntime_v1`
 3. Keep global metrics as aggregated outputs, not independent truth
 
+## 9. Canonical Schema Freeze (2026-03-23)
+
+Status: LOCKED (source-of-truth for critical VFX metrics)
+
+This section is normative for runtime writer ownership.
+If any file conflicts with this matrix, this matrix wins.
+
+### 9.1 Node Critical Fields
+
+| Field (reader key) | Canonical path | Authority writer | Cadence |
+|---|---|---|---|
+| `stability` | `node.userData.metrics.stability` | `NodeMetricEngine` (via `updateNodeMetrics`) | simulation fixed-step (10 Hz) |
+| `corruption` | `node.userData.metrics.corruption` | `NodeMetricEngine` | simulation fixed-step (10 Hz) |
+| `loadPressure` | `node.userData.metrics.loadPressure` | `NodeMetricEngine` | simulation fixed-step (10 Hz) |
+| `harmony` | `node.userData.metrics.harmony` | `NodeMetricEngine` | simulation fixed-step (10 Hz) |
+| `synergy` | `node.userData.metrics.synergy` | `NodeMetricEngine` (derived only) | simulation fixed-step (10 Hz) |
+| `harmony` (legacy mirror) | `node.userData.harmony` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `harmonyLevel` (legacy mirror) | `node.userData.harmonyLevel` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `corruption` (legacy mirror) | `node.userData.corruption` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `corruptionLevel` (legacy mirror) | `node.userData.corruptionLevel` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `instability` | `node.userData.instability` and `node.userData.metrics.instability` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `harmonyStabilized` | `node.userData.harmonyStabilized` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `harmonyDampingFactor` | `node.userData.harmonyDampingFactor` | `MetricsRuntime_v1._ensureNodeCanonicalFallbacks` | simulation fixed-step (10 Hz) |
+| `clusterMembershipID` | `node.userData.metrics.clusterMembershipID` (+ mirror `userData.clusterMembershipID`) | `MetricsRuntime_v1._canonicalWriteNetworkMetrics` | simulation fixed-step (10 Hz) |
+| `hubId` | `node.userData.metrics.hubId` (+ mirror `userData.hubId`) | `MetricsRuntime_v1._canonicalWriteNetworkMetrics` | simulation fixed-step (10 Hz) |
+| `activeLinkCount` | `node.userData.metrics.activeLinkCount` (+ mirror `userData.activeLinkCount`) | `MetricsRuntime_v1._canonicalWriteNetworkMetrics` | simulation fixed-step (10 Hz) |
+| `resonance` | `node.userData.resonance` | `StandingWaveOscillationTrapSystem_Session130` | visual per-frame |
+| `waveField.amplitude` | `node.userData.waveField.amplitude` | `StandingWaveOscillationTrapSystem_Session130` | visual per-frame |
+| `waveField.phase` | `node.userData.waveField.phase` | `StandingWaveOscillationTrapSystem_Session130` | visual per-frame |
+
+### 9.2 Link Critical Fields
+
+| Field (reader key) | Canonical path | Authority writer | Cadence |
+|---|---|---|---|
+| `waveDirection` | `link.userData.waveDirection` | `LinkRendererConduit._canonicalWriteLinkWaveMetrics` | visual per-frame |
+| `waveLength` | `link.userData.waveLength` | `LinkRendererConduit._canonicalWriteLinkWaveMetrics` | visual per-frame |
+| `wavePhaseOffset` | `link.userData.wavePhaseOffset` | `LinkRendererConduit._canonicalWriteLinkWaveMetrics` | visual per-frame |
+| `cascadeIntensity` | `link.userData.cascadeIntensity` | `CascadeEventBridge_v1._decayUpdate` | visual per-frame |
+| `cascadeConflictType` | `link.userData.cascadeConflictType` | `CascadeEventBridge_v1._decayUpdate` | visual per-frame |
+| `conflictIntensity` | `link.userData.conflictIntensity` | `CascadeEventBridge_v1._decayUpdate` | visual per-frame |
+| `synergyCollapse` | `link.userData.synergyCollapse` | `CascadeEventBridge_v1._decayUpdate` | visual per-frame |
+| `synergyCascadeTime` | `link.userData.synergyCascadeTime` | `CascadeEventBridge_v1._decayUpdate` | edge-triggered value (`false -> true`), stamped per-frame |
+| `particleIntensity` | `link.userData.particleIntensity` | `ParticleSemanticDensityAdapter_Session121.update` | visual per-frame |
+| `particleUrgency` | `link.userData.particleUrgency` | `ParticleSemanticDensityAdapter_Session121.update` | visual per-frame |
+| `particleIntensity`/`particleUrgency` fallback | `link.userData.*` + `link.userData.metrics.*` | `MetricsRuntime_v1._canonicalWriteLinkCorruptionMetrics` | simulation fixed-step (10 Hz), default/stamp safety |
+| `visualTear` | `link.userData.visualTear` | `ResonanceRuptureVisualSystem_Session133._writeRuptureCanonical` | visual per-frame |
+| `visualCoherenceLoss` | `link.userData.visualCoherenceLoss` | `ResonanceRuptureVisualSystem_Session133._writeRuptureCanonical` | visual per-frame |
+| `corruption` | `link.userData.metrics.corruption` (+ mirrors `userData.corruption`, `userData.corruptionLevel`) | `MetricsRuntime_v1._canonicalWriteLinkCorruptionMetrics` | simulation fixed-step (10 Hz) |
+| `integrity` | `link.userData.metrics.integrity` (+ mirror `userData.integrity`) | `MetricsRuntime_v1._canonicalWriteLinkCorruptionMetrics` | simulation fixed-step (10 Hz) |
+| `corrupted` | `link.userData.metrics.corrupted` (+ mirror `userData.corrupted`) | `MetricsRuntime_v1._canonicalWriteLinkCorruptionMetrics` | simulation fixed-step (10 Hz) |
+
+### 9.3 Read Order (mandatory)
+
+Readers must use this order:
+
+1. Canonical metric path (`userData.metrics.*` where defined, or canonical top-level key for wave/rupture/cascade fields)
+2. Legacy mirror (`userData.*`)
+3. Neutral default (`0`, `'neutral'`, or configured default color)
+
+### 9.4 Stamp Policy (mandatory)
+
+Every authority write above must stamp:
+
+`userData.__canonicalWriteAt['<fieldKey>'] = Date.now()`
+
+Flat keys are required for dotted fields:
+
+- `waveField.amplitude`
+- `waveField.phase`
+
+Nested stamp objects are forbidden.
+
+### 9.5 Ambiguity Resolution
+
+- Canonical semantics owner for node base metrics remains `NodeMetricEngine`.
+- `MetricsRuntime_v1` owns canonical fallback/mirror safety and auditability.
+- Visual systems may mirror values for rendering convenience, but that does not change canonical ownership.

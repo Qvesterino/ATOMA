@@ -157,6 +157,11 @@ export class ParticleSemanticDensityAdapter_Session121 {
       link.userData.particleClusterCohesion = metrics.clusterCohesion;
       link.userData.particleClusterRadius = metrics.clusterRadius;
       link.userData.particleUrgencyOscillation = metrics.urgencyOscillation;
+
+      // Stamp canonical writes for particle fields
+      link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
+      link.userData.__canonicalWriteAt.particleIntensity = Date.now();
+      link.userData.__canonicalWriteAt.particleUrgency = Date.now();
       
       // Update stats
       this.stats.activeLinkCount++;
@@ -403,6 +408,23 @@ export class ParticleSemanticDensityAdapter_Session121 {
       }
     }
     this._semanticUnsubscribers.length = 0;
+  }
+
+  /**
+   * Rebind system references after world switch
+   * Updates links, conflictSystem, and cascadeSystem to prevent stale references
+   */
+  rebind({ links, conflictSystem, cascadeSystem }) {
+    if (links !== undefined) {
+      this.links = links;
+    }
+    if (conflictSystem !== undefined) {
+      this.conflictSystem = conflictSystem;
+    }
+    if (cascadeSystem !== undefined) {
+      this.cascadeSystem = cascadeSystem;
+    }
+    // config and semanticBus are not updated during rebind to preserve original state
   }
 }
 

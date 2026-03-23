@@ -235,8 +235,8 @@ export class HarmonicResonanceCoupling_v1 {
   _applyHarmonyColorInfluence(link, resonance) {
     if (!link.mesh || !link.mesh.material || !link.mesh.material.color) return;
     
-    const sourceHarmony = link.source.userData?.harmony || 0.5;
-    const targetHarmony = link.target.userData?.harmony || 0.5;
+    const sourceHarmony = this._readNodeHarmony(link.source, 0.5);
+    const targetHarmony = this._readNodeHarmony(link.target, 0.5);
     
     // Interpolate between source and target harmony colors
     const harmonyLerp = (sourceHarmony + targetHarmony) / 2;
@@ -250,6 +250,18 @@ export class HarmonicResonanceCoupling_v1 {
     const originalColor = link.mesh.material.color;
     originalColor.lerp(harmonyColor, 
       this.config.harmonyColorInfluence * resonance.intensity * 0.2);
+  }
+
+  _readNodeHarmony(node, fallback = 0.5) {
+    const value =
+      node?.userData?.metrics?.harmony ??
+      node?.userData?.harmonyLevel ??
+      node?.userData?.harmony ??
+      fallback;
+    if (!Number.isFinite(value)) return fallback;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
   }
   
   /**

@@ -266,15 +266,8 @@ export class HarmonicHubAuraSystem_Session126 {
    * Check if node qualifies as harmony hub
    */
   _isHarmonyHub(node) {
-    const harmony =
-      node.userData?.metrics?.harmony ??
-      node.userData?.harmonyLevel ??
-      node.userData?.harmony ??
-      0;
-    const corruption =
-      node.userData?.metrics?.corruption ??
-      node.userData?.corruption ??
-      0;
+    const harmony = this._readNodeHarmony(node, 0);
+    const corruption = this._readNodeCorruption(node, 0);
     
     return harmony > corruption && harmony > this.config.harmonyThreshold;
   }
@@ -324,15 +317,8 @@ export class HarmonicHubAuraSystem_Session126 {
         connectedNodes: new Set(hub.connectedNodes),
         avgPosition: primaryPos.clone(),
         avgSynergy: 0,
-        avgHarmony:
-          hub.primaryNode.userData?.metrics?.harmony ??
-          hub.primaryNode.userData?.harmonyLevel ??
-          hub.primaryNode.userData?.harmony ??
-          0,
-        avgCorruption:
-          hub.primaryNode.userData?.metrics?.corruption ??
-          hub.primaryNode.userData?.corruption ??
-          0,
+        avgHarmony: this._readNodeHarmony(hub.primaryNode, 0),
+        avgCorruption: this._readNodeCorruption(hub.primaryNode, 0),
       };
       
       // Find nearby hubs
@@ -353,20 +339,11 @@ export class HarmonicHubAuraSystem_Session126 {
           region.avgPosition.lerp(otherPos, 1 / count);
           region.avgHarmony = (
             region.avgHarmony * (count - 1) +
-            (
-              otherHub.primaryNode.userData?.metrics?.harmony ??
-              otherHub.primaryNode.userData?.harmonyLevel ??
-              otherHub.primaryNode.userData?.harmony ??
-              0
-            )
+            this._readNodeHarmony(otherHub.primaryNode, 0)
           ) / count;
           region.avgCorruption = (
             region.avgCorruption * (count - 1) +
-            (
-              otherHub.primaryNode.userData?.metrics?.corruption ??
-              otherHub.primaryNode.userData?.corruption ??
-              0
-            )
+            this._readNodeCorruption(otherHub.primaryNode, 0)
           ) / count;
           
           used.add(j);
@@ -529,7 +506,7 @@ export class HarmonicHubAuraSystem_Session126 {
         phaseState.current += (phaseState.target - phaseState.current) * convergence;
         
         // Apply slight offset for organic feel
-        const instabilityInfluence = node.userData?.instability ?? 0;
+        const instabilityInfluence = this._readNodeInstability(node, 0);
         phaseState.offset += (Math.random() - 0.5) * instabilityInfluence * 
                             this.config.instabilityPhaseOffsets;
         
@@ -816,6 +793,32 @@ export class HarmonicHubAuraSystem_Session126 {
     if (num < 0) return 0;
     if (num > 1) return 1;
     return num;
+  }
+
+  _readNodeHarmony(node, fallback = 0) {
+    const value =
+      node?.userData?.metrics?.harmony ??
+      node?.userData?.harmonyLevel ??
+      node?.userData?.harmony ??
+      fallback;
+    return this._clamp01(value);
+  }
+
+  _readNodeCorruption(node, fallback = 0) {
+    const value =
+      node?.userData?.metrics?.corruption ??
+      node?.userData?.corruption ??
+      fallback;
+    return this._clamp01(value);
+  }
+
+  _readNodeInstability(node, fallback = 0) {
+    const metrics = node?.userData?.metrics;
+    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : null;
+    const value = stability !== null
+      ? (1 - stability)
+      : (metrics?.instability ?? node?.userData?.instability ?? fallback);
+    return this._clamp01(value);
   }
 
   _getNodeKey(node) {
