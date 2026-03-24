@@ -618,7 +618,7 @@ export class NodeLinking2_3 {
       }
     });
 
-    const intersects = this.raycaster.intersectObjects(nodes);
+    const intersects = this.raycaster.intersectObjects(nodes, false);
     const filtered = filterRaycastIntersections(intersects);
     return filtered.length > 0 ? filtered[0].object : null;
   }

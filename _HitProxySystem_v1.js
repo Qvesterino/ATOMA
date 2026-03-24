@@ -462,7 +462,7 @@ class HitProxySystem {
     }
 
     // Perform raycast
-    const intersections = raycaster.intersectObjects(objects);
+    const intersections = raycaster.intersectObjects(objects, false);
 
     // Filter to only hit-proxies
     const filtered = this.layer.filterIntersections(intersections);

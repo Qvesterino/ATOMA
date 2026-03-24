@@ -40,6 +40,28 @@ const FORBIDDEN_NODE_GEOMETRIES = new Set([
   'TorusGeometry'
 ]);
 
+export const interactiveNodes = [];
+
+function registerInteractiveMesh(mesh) {
+  if (!mesh) return;
+  if (interactiveNodes.includes(mesh)) return;
+  interactiveNodes.push(mesh);
+}
+
+function unregisterInteractiveMesh(mesh) {
+  if (!mesh) return;
+  const idx = interactiveNodes.indexOf(mesh);
+  if (idx === -1) return;
+  interactiveNodes.splice(idx, 1);
+}
+
+function cleanupInteractiveMesh(node) {
+  const mesh = node?.userData?.interactiveMesh;
+  if (!mesh) return;
+  unregisterInteractiveMesh(mesh);
+  delete node.userData.interactiveMesh;
+}
+
 // ===== DEV-ONLY HELPERS: spawn pool vs registry diagnostics =====
 if (typeof window !== 'undefined') {
   window.debugSpawnPools = function() {
@@ -1389,6 +1411,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       const overflow = this.nodes.slice(desiredCount);
       for (const node of overflow) {
         if (!node) continue;
+        cleanupInteractiveMesh(node);
         this.nodesRoot?.remove?.(node);
         this.scene?.remove?.(node);
         const id = node.userData?.nodeId || node.userData?.id;
@@ -3612,7 +3635,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       raycaster.far = 10;
       
       // Check intersection with scene (basic geometry check)
-      const intersects = raycaster.intersectObjects(this.scene.children, true);
+      const intersects = raycaster.intersectObjects(interactiveNodes, false);
       const filtered = filterRaycastIntersections(intersects);
       
       // If we hit something close below, it's likely geometry - bad spawn
@@ -4326,6 +4349,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     newNode.userData._boundsDirty = true;
     newNode.userData.isRaycastTarget = newNode.userData.__nonRenderable === true ? false : true;
     newNode.userData.coreMesh = coreMesh || null;
+    const interactiveMesh = coreMesh || newNode;
+    newNode.userData.interactiveMesh = interactiveMesh;
+    newNode.mesh = newNode.mesh || interactiveMesh;
+    registerInteractiveMesh(interactiveMesh);
     
     // Validate all critical tags are set
     if (!newNode.userData.category) {
@@ -4823,6 +4850,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   
   dispose() {
     this.nodes.forEach(node => {
+      cleanupInteractiveMesh(node);
       this.scene.remove(node);
       
       // ========== UI CATEGORY LEGEND UPDATE ==========
@@ -4855,6 +4883,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this.connections = [];
     this.activeNodes.clear();
     this.materializingNodes.clear();
+    interactiveNodes.length = 0;
     
     // [SESSION 110] Clear registry
     this.nodeRegistry.clear();

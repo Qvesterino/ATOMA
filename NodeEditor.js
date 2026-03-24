@@ -270,7 +270,8 @@ export class NodeEditor {
    */
   updateNodeHover() {
     const intersects = this.raycaster.intersectObjects(
-      this.nodes.map(n => n.mesh)
+      this.nodes.map(n => n.mesh),
+      false
     );
     const filtered = filterRaycastIntersections(intersects);
     
@@ -354,7 +355,8 @@ export class NodeEditor {
     
     const startPos = this.linkSource.mesh.position;
     const intersects = this.raycaster.intersectObjects(
-      this.nodes.map(n => n.mesh).filter(m => m !== this.linkSource.mesh)
+      this.nodes.map(n => n.mesh).filter(m => m !== this.linkSource.mesh),
+      false
     );
     const filtered = filterRaycastIntersections(intersects);
     
@@ -393,7 +395,8 @@ export class NodeEditor {
   handleMouseClick(event) {
     withSelectionContext(() => {
       const intersects = this.raycaster.intersectObjects(
-        this.nodes.map(n => n.mesh)
+        this.nodes.map(n => n.mesh),
+        false
       );
       const filtered = filterRaycastIntersections(intersects);
       
@@ -439,7 +442,8 @@ export class NodeEditor {
   handleMouseDown(event) {
     if (this.selectedNode && !this.isLinking) {
       const intersects = this.raycaster.intersectObjects(
-        this.nodes.map(n => n.mesh)
+        this.nodes.map(n => n.mesh),
+        false
       );
       const filtered = filterRaycastIntersections(intersects);
       
@@ -476,7 +480,8 @@ export class NodeEditor {
     
     // Check if clicking on a link
     const intersects = this.raycaster.intersectObjects(
-      this.links.map(l => l.curve.line)
+      this.links.map(l => l.curve.line),
+      false
     );
     const filtered = filterRaycastIntersections(intersects);
     

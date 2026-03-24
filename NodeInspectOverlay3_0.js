@@ -21,6 +21,7 @@
 
 import { nodeSpawnRegistry } from './NodeSpawnRegistry.js';
 import { spawnAuthorityComplianceGate } from './SpawnAuthorityComplianceGate.js';
+import { interactiveNodes } from './AINodes.js';
 
 export class NodeInspectOverlay3_0 {
   constructor(scene, camera, renderer, languageEngine = null, thoughtStormsSystem = null) {
@@ -140,16 +141,7 @@ export class NodeInspectOverlay3_0 {
     // Perform raycasting
     this.raycaster.setFromCamera(this.mouse, this.camera);
     
-    // Find all nodes in scene
-    const allObjects = [];
-    this.scene.traverse((obj) => {
-      if (obj.userData && obj.userData.category && obj !== this.scene) {
-        allObjects.push(obj);
-      }
-    });
-    
-    // Get intersections
-    const intersects = this.raycaster.intersectObjects(allObjects);
+      const intersects = this.raycaster.intersectObjects(interactiveNodes, false);
     const filtered = filterRaycastIntersections(intersects);
     
     if (filtered.length > 0) {

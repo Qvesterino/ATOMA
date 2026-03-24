@@ -118,6 +118,7 @@ const CONFIG = {
     LIFETIME_MAX: 20.0,
     FADE_IN_DURATION: 0.8,
     FADE_OUT_DURATION: 1.2,
+    ORPHAN_FADE_DURATION: 0.55,
     
     // Memory layer
     MEMORY_SPAWN_CHANCE: 0.15,  // 15% chance to spawn memory trace
@@ -276,10 +277,15 @@ class EnhancedPictogramInstance {
         // Visual
         this.size = CONFIG.SIZE_MEDIUM;
         this.baseOpacity = 0.7;
+        this.isOrphanFading = false;
+        this.orphanFadeAge = 0.0;
+        this.orphanFadeDuration = CONFIG.ORPHAN_FADE_DURATION;
     }
 
     reset() {
         this.active = false;
+        this.isOrphanFading = false;
+        this.orphanFadeAge = 0.0;
         this._setVisibleRecursive(this.mesh, false);
         this.link = null;
         this.currentState = null;
@@ -303,6 +309,8 @@ class EnhancedPictogramInstance {
         this.size = size;
         this.depthOffset = depthOffset;
         this.depthLayer = layer === 'A' ? 0 : (layer === 'B' ? 1 : 2);
+        this.isOrphanFading = false;
+        this.orphanFadeAge = 0.0;
         
         this.linkProgress = Math.random();
         this.lateralPhase = Math.random() * Math.PI * 2;
@@ -349,14 +357,36 @@ class EnhancedPictogramInstance {
         this.updateGeometry();
     }
 
-    update(deltaTime, linkContext, cameraPosition) {
-        // Always attempt spatial update first so position is available immediately
-        this.updatePositionAlongLink(linkContext, cameraPosition);
+    beginOrphanFade() {
+        if (!this.active || this.isOrphanFading) return;
+        this.isOrphanFading = true;
+        this.orphanFadeAge = 0.0;
+        this.link = null;
+        this.linkContextCache = null;
+        this.isMorphing = false;
+        this.targetState = null;
+        this._warnedMissingCurve = false;
+    }
 
-        if (!this.active || !this.link) return;
+    update(deltaTime, linkContext, cameraPosition) {
+        if (!this.active) return;
+        if (!this.isOrphanFading) {
+            // Always attempt spatial update first so position is available immediately
+            this.updatePositionAlongLink(linkContext, cameraPosition);
+        }
+        if (!this.link && !this.isOrphanFading) return;
         this.linkContextCache = linkContext || null;
 
         this.age += deltaTime;
+        if (this.isOrphanFading) {
+            this.orphanFadeAge += deltaTime;
+            this.updateOpacity();
+            this.updateMicroRotation();
+            if (this.orphanFadeAge >= this.orphanFadeDuration) {
+                this.reset();
+            }
+            return;
+        }
 
         // Check lifetime
         if (this.age >= this.lifetime) {
@@ -573,6 +603,13 @@ class EnhancedPictogramInstance {
         const fadeOutStart = this.lifetime - CONFIG.FADE_OUT_DURATION;
         
         let opacity = this.baseOpacity;
+
+        if (this.isOrphanFading) {
+            const fadeProgress = Math.max(0, Math.min(1, this.orphanFadeAge / Math.max(0.001, this.orphanFadeDuration)));
+            opacity *= (1.0 - fadeProgress);
+            this._setOpacityRecursive(this.mesh, Math.max(opacity, 0.0));
+            return;
+        }
 
         // Fade in
         if (this.age < fadeInEnd) {
@@ -1363,12 +1400,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 if (replacement) {
                     pictogram.link = replacement;
                 } else {
-                    pictogram.reset();
-                    return;
+                    pictogram.beginOrphanFade();
                 }
             }
 
-            const linkContext = this.analyzeLinkContext(pictogram.link);
+            const linkContext = pictogram.link ? this.analyzeLinkContext(pictogram.link) : null;
             pictogram.update(deltaTime, linkContext, cameraPos);
 
             // Animate orbital glyph layers: calm drift + occasional metric accent.
@@ -1905,9 +1941,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
             if (!pictogram?.active) return;
             const pictogramLinkId = pictogram._linkKey || this.getLinkKey(pictogram.link);
             if (pictogramLinkId !== linkId) return;
-            pictogram.reset();
-            pictogram._linkKey = null;
-            pictogram._stateKey = null;
+            pictogram.beginOrphanFade();
             cleared += 1;
         });
 
@@ -1917,6 +1951,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkStateCounts.delete(linkId);
         this.linkMetricCounts.delete(linkId);
         this._initializedLinks.delete(linkId);
+        this.invalidateSpawnState();
 
         return cleared;
     }
@@ -1938,9 +1973,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 if (key) clearedLinkIds.add(key);
             }
 
-            pictogram.reset();
-            pictogram._linkKey = null;
-            pictogram._stateKey = null;
+            pictogram.beginOrphanFade();
             cleared += 1;
         });
 
@@ -1953,7 +1986,20 @@ export class LinkSemanticPictogramSystem_Enhanced {
             this._initializedLinks.delete(linkId);
         }
 
+        if (cleared > 0) {
+            this.invalidateSpawnState();
+        }
+
         return cleared;
+    }
+
+    invalidateSpawnState() {
+        this._initializedLinks.clear();
+        this._diagImmediateForced = false;
+        this._inactiveTimer = 0;
+        this._lastRecoveryTime = 0;
+        const liveLinks = this._getLinks();
+        this._lastLinks = Array.isArray(liveLinks) ? [...liveLinks] : [];
     }
 
     dispose() {

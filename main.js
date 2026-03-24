@@ -6811,8 +6811,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
             this.linkingSystem.onLinkRemoved((sourceNode, targetNode) => {
-                this.linkSemanticPictograms?.clearLinkBetweenNodes?.(sourceNode, targetNode);
-                this.linkPictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
+                const pictogramSystem = this.linkSemanticPictograms || this.linkPictogramSystem;
+                pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
                 this.corruptionFeedback?.clearEffectsForNodes?.([sourceNode, targetNode]);
             });
             this.linkingSystem.__visualOrphanCleanupBound = true;
@@ -6898,11 +6898,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             );
             this.frameScheduler.register(
                 'visual',
-                (dt) => this.corruptionFeedback?.update?.(dt),
-                'visual.corruptionFeedback'
-            );
-            this.frameScheduler.register(
-                'visual',
                 (dt) => {
                     if (!this.corruptionVisualFX?.applyCorruptionEffects || !this.aiNodes?.nodes) return;
                     const time = this.time ?? performance.now();
@@ -6946,9 +6941,8 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.corruptionBridge = new PHASE5_CorruptionBridge(this.multiNetworkManager);
         this.corruptionBridge.frameScheduler = this.frameScheduler;
 
-        // Corruption feedback visuals (event-driven; idle until threshold events fire)
-        this.corruptionFeedback = new TIER4_CorruptionFeedbackVisuals(this.scene, { enableDebug: false });
-        this.corruptionFeedback.frameScheduler = this.frameScheduler;
+        // Corruption feedback visuals are owned by tier4GameplayIntegration.visuals.
+        this.corruptionFeedback = null;
         this.corruptionVisualFX = new CorruptionVisualFX_v1(this.scene, this.aiNodes, false);
 
         // Listen for corruption threshold events
@@ -8146,7 +8140,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                     attachRootResolver: () => this.vfxRoot || this.worldRoot || this.scene
                 }
             );
-            this.corruptionFeedback?.setHarmonyFieldConsumer?.(this.t2HarmonyVisualConsumer);
             console.log('[main.js] T2_HarmonyVisualConsumer_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] T2_HarmonyVisualConsumer_v1 initialization failed:', err);
@@ -8195,6 +8188,18 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.tier4GameplayIntegration.ui) {
               this.tier4GameplayIntegration.ui.frameScheduler = this.frameScheduler;
+            }
+
+            const sharedCorruptionFeedback = this.tier4GameplayIntegration.visuals || null;
+            this.corruptionFeedback = sharedCorruptionFeedback;
+            this.corruptionFeedback?.setHarmonyFieldConsumer?.(this.t2HarmonyVisualConsumer);
+
+            const conduitFeedback = this.linkingSystem?.conduitRenderer?.corruptionFeedbackVisuals;
+            if (conduitFeedback && conduitFeedback !== sharedCorruptionFeedback) {
+                conduitFeedback.dispose?.();
+            }
+            if (this.linkingSystem?.conduitRenderer) {
+                this.linkingSystem.conduitRenderer.corruptionFeedbackVisuals = sharedCorruptionFeedback;
             }
         } catch (err) {
             console.warn('[main.js] TIER4_GameplayIntegrationBridge initialization failed:', err);

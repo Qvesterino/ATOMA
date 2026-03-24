@@ -920,11 +920,8 @@ export class LinkRendererConduit {
         this.corruptionMorphing = new LinkCorruptionMorphingSystem();
         this.morphSystem = this.corruptionMorphing;
 
-        // Tier 4 corruption feedback visuals (idle until events wired)
-        this.corruptionFeedbackVisuals = new TIER4_CorruptionFeedbackVisuals(scene, {
-            enableDebug: false
-        });
-        this.corruptionFeedbackVisuals.frameScheduler = this.frameScheduler;
+        // Tier 4 corruption feedback visuals are injected from main.js as a shared authority.
+        this.corruptionFeedbackVisuals = null;
         // 10 Hz threshold-trigger state (link + node crossings)
         this._corruptionFeedbackLinkState = new Map();
         this._corruptionFeedbackNodeState = new Map();

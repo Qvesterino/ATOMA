@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { filterRaycastIntersections, isInteractiveObject } from './CanonicalInteractionFilter.js';
+import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
+import { interactiveNodes } from './AINodes.js';
 
 const logOnce = (key, fn) => {
   if (typeof window === 'undefined') {
@@ -143,11 +144,6 @@ export class SafeMobilityPack4 {
     this._groundRayDirection = new THREE.Vector3(0, -1, 0);
     this._groundRayOrigin = new THREE.Vector3();
     this._groundRaycaster = new THREE.Raycaster();
-    this._raycastTargetsCache = [];
-    this._sceneChildrenSnapshot = [];
-    this._raycastTargetsDirty = true;
-    this._raycastTargetsLastBuildMs = 0;
-    this._raycastTargetsMaxAgeMs = 500;
     
     this.initializeInputHandlers();
     console.log('✓ Safe Mobility Pack 4.0 initialized');
@@ -165,51 +161,14 @@ export class SafeMobilityPack4 {
     return true;
   }
 
-  _isRaycastTargetCacheStale() {
-    if (this._raycastTargetsDirty) return true;
-    if (!this.scene || !this.scene.children) return true;
-    const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if ((nowMs - this._raycastTargetsLastBuildMs) > this._raycastTargetsMaxAgeMs) return true;
-    const children = this.scene.children;
-    if (children.length !== this._sceneChildrenSnapshot.length) return true;
-    for (let i = 0; i < children.length; i++) {
-      if (children[i] !== this._sceneChildrenSnapshot[i]) {
-        return true;
+  _collectValidRaycastTargets() {
+    if (typeof window !== 'undefined') {
+      const proxies = window.hitProxySystem?.registry?.getAllProxies?.();
+      if (Array.isArray(proxies) && proxies.length > 0) {
+        return proxies;
       }
     }
-    return false;
-  }
-
-  _rebuildRaycastTargetCache() {
-    if (!this.scene || !this.scene.children) {
-      this._raycastTargetsCache = [];
-      this._sceneChildrenSnapshot = [];
-      this._raycastTargetsDirty = false;
-      this._raycastTargetsLastBuildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-      return;
-    }
-
-    const targets = [];
-    this.scene.traverse((obj) => {
-      if (!obj || obj === this.scene) return;
-      if (!isInteractiveObject(obj)) return;
-      if (obj.userData?.raycastDisabled === true) return;
-      if (typeof obj.raycast !== 'function') return;
-      if (this._hasInvalidGeometry(obj)) return;
-      targets.push(obj);
-    });
-
-    this._raycastTargetsCache = targets;
-    this._sceneChildrenSnapshot = this.scene.children.slice();
-    this._raycastTargetsDirty = false;
-    this._raycastTargetsLastBuildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  }
-
-  _collectValidRaycastTargets() {
-    if (this._isRaycastTargetCacheStale()) {
-      this._rebuildRaycastTargetCache();
-    }
-    return this._raycastTargetsCache;
+    return interactiveNodes;
   }
   
   /**
@@ -493,7 +452,9 @@ export class SafeMobilityPack4 {
       raycaster.near = 0;
       raycaster.far = this._groundCheckDistance;
       const targets = this._collectValidRaycastTargets();
+      console.log('RAYCAST TARGETS', targets.length);
       const intersects = raycaster.intersectObjects(targets, false);
+      console.log('RAYCAST HITS', intersects.length);
       const filtered = filterRaycastIntersections(intersects);
       
       const wasOnGround = this.state.onGround;
