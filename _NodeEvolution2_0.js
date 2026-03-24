@@ -12,7 +12,7 @@ import * as THREE from 'three';
  * ✓ SAFE: No camera influence, no post-processing changes
  * ✓ SAFE: No recursive loops, no scene regeneration
  * ✓ VISUAL: Progressive enhancement through 4 evolution stages
- * ✓ ORGANIC: Triggered by natural progression (time, synergy, events)
+ * ✓ ORGANIC: Triggered by node-local stability progression
  * 
  * EVOLUTION STAGES:
  * Stage 1 – Base Node (current visual state)
@@ -21,10 +21,7 @@ import * as THREE from 'three';
  * Stage 4 – Rare Ascended (1-3% chance, elegant design)
  * 
  * EVOLUTION TRIGGERS:
- * - Time alive (60-180 seconds per stage)
- * - Synergy count (more links = higher chance)
- * - Colony density (nearby nodes accelerate)
- * - Rare event chance (1-4% base)
+ * - Stability thresholds sustained over time
  * 
  * SAFE PROTECTIONS:
  * - All effects node-local only
@@ -102,21 +99,13 @@ export class NodeEvolution2_0 {
       // EVOLUTION TRIGGER THRESHOLDS
       // ============================================================
       triggers: {
-        // Time-based evolution
-        timeAliveMultiplier: 1.0,  // Base multiplier for time triggers
-        
-        // Synergy-based evolution (more links = higher chance)
-        synergyThresholds: {
-          2: 0.15,  // 2+ links: 15% per frame to evolve
-          3: 0.25,
-          4: 0.35,
-          5: 0.45
+        // Stability-based evolution (primary path)
+        stabilityThresholds: {
+          2: 0.55,
+          3: 0.65,
+          4: 0.75
         },
-        
-        // Colony density acceleration
-        colonyDensityThreshold: 3,  // 3+ nearby nodes
-        colonyDensityMultiplier: 1.3,  // 30% faster evolution
-        colonyProximity: 8  // Check within 8 units
+        stabilityDwellTime: 5
       },
       
       // ============================================================
@@ -144,6 +133,8 @@ export class NodeEvolution2_0 {
         maxEvolutionsPerNode: 4  // Never evolve beyond Stage 4
       }
     };
+
+    this.installDebugAPI();
   }
   
   /**
@@ -171,6 +162,8 @@ export class NodeEvolution2_0 {
       isEvolving: false,
       evolutionProgress: 0,  // 0 to 1 (animation progress)
       lastEvolutionTime: 0,
+      lastStability: 0.5,
+      stabilityTimeAboveThreshold: 0,
       synergyCount: 0,
       linkCount: 0,
       originalScale: node.scale.clone(),
@@ -263,7 +256,59 @@ export class NodeEvolution2_0 {
       
       // Update time in stage
       evolutionState.timeInStage += deltaTime;
+
+      this.debugEvolutionState(evolutionState);
     }
+  }
+
+  debugEvolutionState(evolutionState) {
+    if (typeof window === 'undefined' || !evolutionState?.node) return;
+
+    const targetId = window.__ATOMA_DEBUG_EVOLUTION_NODE_ID;
+    if (!targetId) return;
+
+    const matches = [
+      evolutionState.nodeId,
+      evolutionState.node?.uuid,
+      evolutionState.node?.userData?.nodeId,
+      evolutionState.node?.id
+    ].some((value) => value === targetId);
+
+    if (!matches) return;
+
+    const now = performance.now();
+    const debugState = evolutionState.node.userData.__evolutionDebugState || {
+      lastLogAt: -Infinity,
+      lastStage: evolutionState.currentStage,
+      lastEvolving: evolutionState.isEvolving
+    };
+
+    const stageChanged = debugState.lastStage !== evolutionState.currentStage;
+    const evolvingChanged = debugState.lastEvolving !== evolutionState.isEvolving;
+    const intervalMs = window.__ATOMA_DEBUG_EVOLUTION_INTERVAL_MS ?? 1000;
+    const shouldLog = stageChanged || evolvingChanged || (now - debugState.lastLogAt >= intervalMs);
+
+    if (!shouldLog) return;
+
+    debugState.lastLogAt = now;
+    debugState.lastStage = evolutionState.currentStage;
+    debugState.lastEvolving = evolutionState.isEvolving;
+    evolutionState.node.userData.__evolutionDebugState = debugState;
+
+    console.log('[NodeEvolution2_0][debug]', {
+      nodeId: evolutionState.node.userData?.nodeId || evolutionState.nodeId,
+      uuid: evolutionState.node.uuid,
+      stage: evolutionState.currentStage,
+      timeInStage: Number(evolutionState.timeInStage?.toFixed?.(2) ?? evolutionState.timeInStage),
+      stability: Number(evolutionState.lastStability?.toFixed?.(3) ?? evolutionState.lastStability),
+      stabilityTimeAboveThreshold: Number(
+        evolutionState.stabilityTimeAboveThreshold?.toFixed?.(2) ?? evolutionState.stabilityTimeAboveThreshold
+      ),
+      synergyCount: evolutionState.synergyCount,
+      isEvolving: evolutionState.isEvolving,
+      evolutionProgress: Number(evolutionState.evolutionProgress?.toFixed?.(3) ?? evolutionState.evolutionProgress),
+      mirroredStage: evolutionState.node.userData?.evolutionStage
+    });
   }
   
   /**
@@ -273,43 +318,142 @@ export class NodeEvolution2_0 {
     if (evolutionState.currentStage >= 4) return false;
     if (evolutionState.isConflicted) return false;
     
-    // Get evolution thresholds for current stage
-    const currentStageDef = this.config.stages[evolutionState.currentStage];
-    if (!currentStageDef) return false;
-    
     const nextStage = evolutionState.currentStage + 1;
     const nextStageDef = this.config.stages[nextStage];
     if (!nextStageDef) return false;
-    
-    // ============================================================
-    // TRIGGER 1: TIME-BASED EVOLUTION
-    // ============================================================
-    const timeRequired = currentStageDef.timeToNextStage * this.config.triggers.timeAliveMultiplier;
-    if (evolutionState.timeInStage > timeRequired) {
-      return true;
-    }
-    
-    // ============================================================
-    // TRIGGER 2: SYNERGY-BASED EVOLUTION
-    // ============================================================
-    if (evolutionState.synergyCount > 0) {
-      const synergyChance = this.config.triggers.synergyThresholds[evolutionState.synergyCount] || 0;
-      if (synergyChance > 0 && Math.random() < synergyChance * deltaTime) {
+
+    const stabilityThreshold = this.config.triggers.stabilityThresholds[nextStage];
+    const stabilityDwellTime = this.config.triggers.stabilityDwellTime || 15;
+    const stability = this.getNodeStability(evolutionState.node);
+    evolutionState.lastStability = stability;
+
+    if (Number.isFinite(stabilityThreshold) && stability >= stabilityThreshold) {
+      evolutionState.stabilityTimeAboveThreshold += deltaTime;
+      if (evolutionState.stabilityTimeAboveThreshold >= stabilityDwellTime) {
         return true;
       }
+    } else {
+      evolutionState.stabilityTimeAboveThreshold = 0;
     }
-    
-    // ============================================================
-    // TRIGGER 3: RARE EVENT EVOLUTION
-    // ============================================================
-    if (nextStageDef.requiresRareEvent && nextStage === 4) {
-      const rareChance = nextStageDef.rareChance || 0.02;
-      if (Math.random() < rareChance * deltaTime) {
-        return true;
-      }
-    }
-    
+
     return false;
+  }
+
+  getNodeStability(node) {
+    const candidates = [
+      node?.userData?.metrics?.stability,
+      node?.userData?.gameplayState?.stability,
+      node?.userData?.stability,
+      node?.metrics?.stability
+    ];
+
+    for (const candidate of candidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        return THREE.MathUtils.clamp(value, 0, 1);
+      }
+    }
+
+    return 0.5;
+  }
+
+  installDebugAPI() {
+    if (typeof window === 'undefined') return;
+
+    window.__ATOMA_EVOLUTION_DEBUG__ = {
+      reportNode: (targetId) => this.reportNodeEvolutionState(targetId),
+      listEligibleNodes: () => this.listEligibleNodes(),
+      listNodeStages: () => this.listNodeStages(),
+      setTargetNode: (targetId, intervalMs = 500) => {
+        window.__ATOMA_DEBUG_EVOLUTION_NODE_ID = targetId;
+        window.__ATOMA_DEBUG_EVOLUTION_INTERVAL_MS = intervalMs;
+        console.log('[NodeEvolution2_0][debug] target set', { targetId, intervalMs });
+      },
+      clearTargetNode: () => {
+        delete window.__ATOMA_DEBUG_EVOLUTION_NODE_ID;
+        delete window.__ATOMA_DEBUG_EVOLUTION_INTERVAL_MS;
+        console.log('[NodeEvolution2_0][debug] target cleared');
+      }
+    };
+  }
+
+  resolveEvolutionTargetId(targetId) {
+    if (targetId == null) return null;
+    return String(targetId);
+  }
+
+  matchesEvolutionTarget(evolutionState, targetId) {
+    const normalizedTargetId = this.resolveEvolutionTargetId(targetId);
+    if (!normalizedTargetId || !evolutionState?.node) return false;
+
+    const candidates = [
+      evolutionState.nodeId,
+      evolutionState.node?.uuid,
+      evolutionState.node?.userData?.nodeId,
+      evolutionState.node?.id
+    ];
+
+    return candidates.some((value) => String(value) === normalizedTargetId);
+  }
+
+  getEvolutionSnapshot(evolutionState) {
+    if (!evolutionState?.node) return null;
+
+    const nextStage = Math.min(4, (evolutionState.currentStage || 1) + 1);
+    const threshold = this.config.triggers.stabilityThresholds[nextStage] ?? null;
+    const stability = this.getNodeStability(evolutionState.node);
+    const dwellTime = this.config.triggers.stabilityDwellTime || 5;
+
+    return {
+      nodeId: evolutionState.node.userData?.nodeId || evolutionState.nodeId,
+      uuid: evolutionState.node.uuid,
+      stage: evolutionState.currentStage,
+      mirroredStage: evolutionState.node.userData?.evolutionStage,
+      nextStage: evolutionState.currentStage >= 4 ? null : nextStage,
+      stability: Number(stability.toFixed(4)),
+      requiredStability: threshold == null ? null : Number(threshold.toFixed(2)),
+      timeAboveThreshold: Number((evolutionState.stabilityTimeAboveThreshold || 0).toFixed(2)),
+      requiredDwellTime: dwellTime,
+      isEligibleNow: threshold == null ? false : stability >= threshold,
+      isEvolving: Boolean(evolutionState.isEvolving),
+      timeInStage: Number((evolutionState.timeInStage || 0).toFixed(2))
+    };
+  }
+
+  reportNodeEvolutionState(targetId) {
+    const evolutionState = Array.from(this.registry.nodeEvolutionStates.values()).find((state) =>
+      this.matchesEvolutionTarget(state, targetId)
+    );
+
+    if (!evolutionState) {
+      console.warn('[NodeEvolution2_0][debug] node not found', { targetId });
+      return null;
+    }
+
+    const snapshot = this.getEvolutionSnapshot(evolutionState);
+    console.table([snapshot]);
+    return snapshot;
+  }
+
+  listEligibleNodes() {
+    const snapshots = Array.from(this.registry.nodeEvolutionStates.values())
+      .map((state) => this.getEvolutionSnapshot(state))
+      .filter(Boolean)
+      .filter((snapshot) => snapshot.nextStage !== null && snapshot.isEligibleNow)
+      .sort((left, right) => right.stability - left.stability);
+
+    console.table(snapshots);
+    return snapshots;
+  }
+
+  listNodeStages() {
+    const snapshots = Array.from(this.registry.nodeEvolutionStates.values())
+      .map((state) => this.getEvolutionSnapshot(state))
+      .filter(Boolean)
+      .sort((left, right) => right.stage - left.stage || right.stability - left.stability);
+
+    console.table(snapshots);
+    return snapshots;
   }
   
   /**
@@ -337,6 +481,8 @@ export class NodeEvolution2_0 {
     evolutionState.isEvolving = true;
     evolutionState.evolutionProgress = 0;
     evolutionState.lastEvolutionTime = Date.now();
+
+    this.debugEvolutionState(evolutionState);
     
     console.log(`✓ Node ${evolutionState.nodeId} evolving to Stage ${evolutionState.currentStage + 1}`);
     
@@ -358,6 +504,7 @@ export class NodeEvolution2_0 {
       this.finalizeEvolution(evolutionState);
       evolutionState.isEvolving = false;
       evolutionState.timeInStage = 0;  // Reset time for next stage
+      evolutionState.stabilityTimeAboveThreshold = 0;
       this.registry.totalEvolutionsApplied++;
     } else {
       // Animation in progress - apply progressive effects
@@ -524,6 +671,8 @@ export class NodeEvolution2_0 {
       evolutionState.node.userData.evolutionStage = nextStage;
     }
     evolutionState.isConflicted = false;
+
+    this.debugEvolutionState(evolutionState);
   }
   
   /**
@@ -800,9 +949,11 @@ export class NodeEvolution2_0 {
     });
     
     console.log('\n✓ EVOLUTION TRIGGERS:');
-    console.log(`  • Time-Based: ${this.config.triggers.timeAliveMultiplier}x multiplier`);
-    console.log(`  • Synergy-Based: Up to 45% per frame (5+ links)`);
-    console.log(`  • Rare Event: 2% base chance for Stage 4 (Ascended)`);
+    Object.entries(this.config.triggers.stabilityThresholds).forEach(([stage, threshold]) => {
+      console.log(
+        `  • Stage ${stage}: stability >= ${Number(threshold).toFixed(2)} for ${this.config.triggers.stabilityDwellTime}s`
+      );
+    });
     
     console.log('\n✓ ANIMATION SAFETY:');
     console.log(`  • Max Scale Increase: ${(this.config.animationLimits.maxScaleIncrease * 100).toFixed(0)}%`);

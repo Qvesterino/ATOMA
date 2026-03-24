@@ -144,7 +144,7 @@ export class GlyphLayer4_MultiFusion {
   
   createEvolutionGlyph(node, nodeId) {
     const stage = this.resolveEvolutionStage(node);
-    if (stage < 1 || stage > 3) return null;
+    if (stage < 1 || stage > 4) return null;
     
     const evoGroup = new THREE.Group();
     evoGroup.userData = {
@@ -165,54 +165,30 @@ export class GlyphLayer4_MultiFusion {
       evoGroup.userData.rotationSpeed = 0.6;
       
     } else if (stage === 2) {
-      // Squares (nested wireframe)
-      const geometry = new THREE.BufferGeometry();
-      const positions = [
-        // Outer square
-        -0.15, 0, -0.15,  0.15, 0, -0.15,
-        0.15, 0, -0.15,   0.15, 0, 0.15,
-        0.15, 0, 0.15,    -0.15, 0, 0.15,
-        -0.15, 0, 0.15,   -0.15, 0, -0.15,
-        // Inner square
-        -0.08, 0, -0.08,  0.08, 0, -0.08,
-        0.08, 0, -0.08,   0.08, 0, 0.08,
-        0.08, 0, 0.08,    -0.08, 0, 0.08,
-        -0.08, 0, 0.08,   -0.08, 0, -0.08
-      ];
-      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-      
-      const mat = new THREE.LineBasicMaterial({
-        color: this.colors.gold,
-        transparent: true,
-        opacity: 0.5,
-        fog: false
-      });
-      
-      const lines = new THREE.LineSegments(geometry, mat);
-      lines.userData = { glyphComponent: 'evoSquares' };
-      evoGroup.add(lines);
-      evoGroup.userData.rotationSpeed = 0.4;
+      const harmonicCell = this.createHarmonicCellGlyph();
+      harmonicCell.userData = { glyphComponent: 'evoHarmonicCell' };
+      evoGroup.add(harmonicCell);
+      evoGroup.userData.rotationSpeed = 0.42;
+      evoGroup.userData.cellPulsePhase = Math.random() * Math.PI * 2;
       
     } else if (stage === 3) {
-      // Prism (cone)
-      const geo = new THREE.ConeGeometry(0.12, 0.25, 6);
-      const mat = new THREE.MeshBasicMaterial({
-        color: this.colors.violet,
-        transparent: true,
-        opacity: 0.55,
-        emissive: this.colors.magenta,
-        emissiveIntensity: 0.25,
-        fog: false
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.userData = { glyphComponent: 'evoPrism' };
-      evoGroup.add(mesh);
+      const helicalTrinity = this.createHelicalTrinityGlyph();
+      helicalTrinity.userData = { glyphComponent: 'evoHelicalTrinity' };
+      evoGroup.add(helicalTrinity);
       evoGroup.userData.rotationSpeed = 0.5;
+      evoGroup.userData.trinityPhase = Math.random() * Math.PI * 2;
+
+    } else if (stage === 4) {
+      const resonanceCrown = this.createResonanceCrownFragmentGlyph();
+      resonanceCrown.userData = { glyphComponent: 'evoResonanceCrown' };
+      evoGroup.add(resonanceCrown);
+      evoGroup.userData.rotationSpeed = 0.32;
+      evoGroup.userData.crownPhase = Math.random() * Math.PI * 2;
     }
     
     // Position offset (orbits core)
     evoGroup.userData.orbitPhase = Math.random() * Math.PI * 2;
-    evoGroup.userData.orbitRadius = stage === 1 ? 0.62 : 0.38;
+    evoGroup.userData.orbitRadius = stage === 1 ? 0.62 : stage === 4 ? 0.56 : stage === 3 ? 0.48 : 0.38;
     
     return evoGroup;
   }
@@ -292,18 +268,372 @@ export class GlyphLayer4_MultiFusion {
     return glyphGroup;
   }
 
+  createHarmonicCellGlyph() {
+    const glyphGroup = new THREE.Group();
+    const anchors = [
+      new THREE.Vector3(0.0, 0.2, 0.02),
+      new THREE.Vector3(0.18, 0.08, -0.04),
+      new THREE.Vector3(0.16, -0.12, 0.05),
+      new THREE.Vector3(0.0, -0.2, -0.02),
+      new THREE.Vector3(-0.17, -0.1, 0.04),
+      new THREE.Vector3(-0.15, 0.1, -0.05),
+      new THREE.Vector3(0.06, 0.0, 0.11)
+    ];
+
+    const nodeGeometry = new THREE.SphereGeometry(0.032, 6, 6);
+    const nodeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xbefcff,
+      transparent: true,
+      opacity: 0.78,
+      fog: false,
+      toneMapped: false
+    });
+
+    anchors.forEach((anchor, index) => {
+      const node = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
+      node.position.copy(anchor);
+      node.scale.setScalar(index === 6 ? 0.82 : 1.0);
+      node.userData = {
+        glyphComponent: 'harmonicCellNode',
+        lockGlyphPosition: true,
+        lockGlyphScale: true,
+        cellAnchor: anchor.clone(),
+        pulseOffset: index * 0.5
+      };
+      glyphGroup.add(node);
+    });
+
+    const edgePairs = [
+      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0],
+      [0, 6], [2, 6], [4, 6]
+    ];
+    const edgePositions = [];
+    edgePairs.forEach(([a, b]) => {
+      edgePositions.push(...anchors[a].toArray(), ...anchors[b].toArray());
+    });
+
+    const edgeGeometry = new THREE.BufferGeometry();
+    edgeGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(edgePositions), 3)
+    );
+
+    const edgeLines = new THREE.LineSegments(
+      edgeGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0x7ae8ff,
+        transparent: true,
+        opacity: 0.54,
+        fog: false
+      })
+    );
+    edgeLines.userData = {
+      glyphComponent: 'harmonicCellEdges',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(edgeLines);
+
+    const shellGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0.0, 0.23, 0.0),
+      new THREE.Vector3(0.2, 0.02, 0.04),
+      new THREE.Vector3(0.08, -0.2, -0.03),
+      new THREE.Vector3(-0.16, -0.14, 0.03),
+      new THREE.Vector3(-0.18, 0.07, -0.04),
+      new THREE.Vector3(0.0, 0.23, 0.0)
+    ]);
+
+    const shell = new THREE.Line(
+      shellGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0xe5ffff,
+        transparent: true,
+        opacity: 0.34,
+        fog: false
+      })
+    );
+    shell.rotation.set(Math.PI / 10, Math.PI / 7, -Math.PI / 14);
+    shell.userData = {
+      glyphComponent: 'harmonicCellShell',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(shell);
+
+    glyphGroup.scale.setScalar(0.95);
+    glyphGroup.position.y = 0.04;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
+  createHelicalTrinityGlyph() {
+    const glyphGroup = new THREE.Group();
+
+    const armGeometry = new THREE.CylinderGeometry(0.022, 0.036, 0.26, 6, 1, false);
+    const tipGeometry = new THREE.OctahedronGeometry(0.042, 0);
+
+    const makeArmMaterial = (color, opacity) => new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      fog: false,
+      toneMapped: false
+    });
+
+    const armColors = [0xd8f9ff, 0x8af0ff, 0xd7b6ff];
+
+    for (let index = 0; index < 3; index++) {
+      const armGroup = new THREE.Group();
+      armGroup.userData = {
+        glyphComponent: 'helicalTrinityArm',
+        armIndex: index,
+        lockGlyphPosition: true,
+        lockGlyphScale: true,
+        basePhase: (index / 3) * Math.PI * 2
+      };
+
+      const armMesh = new THREE.Mesh(
+        armGeometry,
+        makeArmMaterial(armColors[index], 0.78)
+      );
+      armMesh.rotation.z = Math.PI / 2;
+      armMesh.userData = {
+        glyphComponent: 'helicalTrinityBeam',
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      armGroup.add(armMesh);
+
+      const tip = new THREE.Mesh(
+        tipGeometry,
+        makeArmMaterial(0xf6fcff, 0.72)
+      );
+      tip.position.x = 0.16;
+      tip.scale.set(0.65, 1.0, 0.65);
+      tip.userData = {
+        glyphComponent: 'helicalTrinityTip',
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      armGroup.add(tip);
+
+      const trailGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.14, 0.0, 0.0),
+        new THREE.Vector3(-0.04, 0.06, 0.0),
+        new THREE.Vector3(0.08, 0.03, 0.0),
+        new THREE.Vector3(0.17, -0.015, 0.0)
+      ]);
+      const trail = new THREE.Line(
+        trailGeometry,
+        new THREE.LineBasicMaterial({
+          color: armColors[index],
+          transparent: true,
+          opacity: 0.5,
+          fog: false
+        })
+      );
+      trail.userData = {
+        glyphComponent: 'helicalTrinityTrail',
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      armGroup.add(trail);
+
+      glyphGroup.add(armGroup);
+    }
+
+    const haloGeometry = new THREE.TorusGeometry(0.18, 0.006, 6, 48, Math.PI * 1.6);
+    const halo = new THREE.Mesh(
+      haloGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xc6fbff,
+        transparent: true,
+        opacity: 0.24,
+        fog: false,
+        wireframe: true
+      })
+    );
+    halo.rotation.set(Math.PI / 2.7, Math.PI / 5, 0);
+    halo.userData = {
+      glyphComponent: 'helicalTrinityHalo',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(halo);
+
+    glyphGroup.scale.setScalar(0.95);
+    glyphGroup.position.y = 0.04;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
+  createResonanceCrownFragmentGlyph() {
+    const glyphGroup = new THREE.Group();
+    const fragmentData = [
+      { angle: -1.45, radius: 0.24, y: 0.16, length: 0.18, tilt: 0.34, color: 0xf8f4d8 },
+      { angle: -0.62, radius: 0.29, y: 0.24, length: 0.24, tilt: 0.18, color: 0xffefb0 },
+      { angle: 0.08, radius: 0.21, y: 0.28, length: 0.17, tilt: -0.12, color: 0xe5fbff },
+      { angle: 0.88, radius: 0.31, y: 0.18, length: 0.22, tilt: -0.26, color: 0xd8f7ff },
+      { angle: 1.7, radius: 0.23, y: 0.11, length: 0.16, tilt: 0.22, color: 0xfff5d1 }
+    ];
+
+    fragmentData.forEach((fragment, index) => {
+      const shardGroup = new THREE.Group();
+      shardGroup.userData = {
+        glyphComponent: 'resonanceCrownShard',
+        shardIndex: index,
+        baseAngle: fragment.angle,
+        baseRadius: fragment.radius,
+        baseHeight: fragment.y,
+        baseTilt: fragment.tilt,
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+
+      const shardGeometry = new THREE.ConeGeometry(0.035, fragment.length, 4);
+      const shardMesh = new THREE.Mesh(
+        shardGeometry,
+        new THREE.MeshBasicMaterial({
+          color: fragment.color,
+          transparent: true,
+          opacity: 0.76,
+          fog: false,
+          toneMapped: false
+        })
+      );
+      shardMesh.rotation.z = Math.PI / 2;
+      shardMesh.userData = {
+        glyphComponent: 'resonanceCrownCore',
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      shardGroup.add(shardMesh);
+
+      const arcGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.09, -0.01, 0.0),
+        new THREE.Vector3(-0.02, 0.03, 0.0),
+        new THREE.Vector3(0.08, 0.0, 0.0)
+      ]);
+      const arc = new THREE.Line(
+        arcGeometry,
+        new THREE.LineBasicMaterial({
+          color: fragment.color,
+          transparent: true,
+          opacity: 0.42,
+          fog: false
+        })
+      );
+      arc.position.y = -0.02;
+      arc.userData = {
+        glyphComponent: 'resonanceCrownArc',
+        lockGlyphPosition: true,
+        lockGlyphScale: true
+      };
+      shardGroup.add(arc);
+
+      glyphGroup.add(shardGroup);
+    });
+
+    const crownBandGeometry = new THREE.TorusGeometry(0.27, 0.008, 6, 72, Math.PI * 1.35);
+    const crownBand = new THREE.Mesh(
+      crownBandGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xfff3c6,
+        transparent: true,
+        opacity: 0.2,
+        fog: false,
+        wireframe: true
+      })
+    );
+    crownBand.rotation.set(Math.PI / 2.5, Math.PI / 12, -Math.PI / 9);
+    crownBand.userData = {
+      glyphComponent: 'resonanceCrownBand',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(crownBand);
+
+    const innerSparkGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.06, 0.02, -0.02),
+      new THREE.Vector3(0.0, 0.06, 0.03),
+      new THREE.Vector3(0.05, -0.01, -0.04),
+      new THREE.Vector3(-0.01, -0.05, 0.02),
+      new THREE.Vector3(-0.06, 0.02, -0.02)
+    ]);
+    const innerSpark = new THREE.Line(
+      innerSparkGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0xe8ffff,
+        transparent: true,
+        opacity: 0.34,
+        fog: false
+      })
+    );
+    innerSpark.rotation.set(Math.PI / 5, Math.PI / 6, 0);
+    innerSpark.userData = {
+      glyphComponent: 'resonanceCrownSpark',
+      lockGlyphPosition: true,
+      lockGlyphScale: true
+    };
+    glyphGroup.add(innerSpark);
+
+    glyphGroup.scale.setScalar(1.0);
+    glyphGroup.position.y = 0.06;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
   resolveEvolutionStage(node) {
     const explicitStage = Number(node?.userData?.evolutionStage);
     if (Number.isFinite(explicitStage) && explicitStage >= 1) {
-      return Math.max(1, Math.min(3, Math.round(explicitStage)));
+      return Math.max(1, Math.min(4, Math.round(explicitStage)));
     }
 
     const tierStage = Number(node?.userData?.evolutionTier);
     if (Number.isFinite(tierStage) && tierStage >= 1) {
-      return Math.max(1, Math.min(3, Math.round(tierStage)));
+      return Math.max(1, Math.min(4, Math.round(tierStage)));
     }
 
     return 1;
+  }
+
+  syncEvolutionGlyphStage(node, nodeId, container, currentEvolutionGlyph) {
+    if (!node || !nodeId || !container || !currentEvolutionGlyph) {
+      return currentEvolutionGlyph;
+    }
+
+    const targetStage = this.resolveEvolutionStage(node);
+    const currentStage = Number(currentEvolutionGlyph.userData?.stage) || 1;
+    if (targetStage === currentStage) {
+      return currentEvolutionGlyph;
+    }
+
+    const replacementGlyph = this.createEvolutionGlyph(node, nodeId);
+    if (!replacementGlyph) {
+      return currentEvolutionGlyph;
+    }
+
+    const preservedOrbitPhase = Number(currentEvolutionGlyph.userData?.orbitPhase);
+    if (Number.isFinite(preservedOrbitPhase)) {
+      replacementGlyph.userData.orbitPhase = preservedOrbitPhase;
+    }
+
+    const preservedRotationY = currentEvolutionGlyph.rotation?.y;
+    if (Number.isFinite(preservedRotationY)) {
+      replacementGlyph.rotation.y = preservedRotationY;
+    }
+
+    container.remove(currentEvolutionGlyph);
+    this._safeAttachGlyph(replacementGlyph, 'GLYPH_LAYER', container, node);
+    this._tuneGlyphVisibility(replacementGlyph);
+
+    return replacementGlyph;
   }
   
   updateEvolutionGlyph(evoGroup, deltaTime) {
@@ -319,6 +649,103 @@ export class GlyphLayer4_MultiFusion {
     
     evoGroup.position.x = Math.cos(angle) * radius;
     evoGroup.position.z = Math.sin(angle) * radius;
+
+    if (evoGroup.userData.stage === 2) {
+      evoGroup.userData.cellPulsePhase += deltaTime * 1.8;
+      const lockPulse = (Math.sin(evoGroup.userData.cellPulsePhase) + 1) * 0.5;
+
+      evoGroup.traverse((child) => {
+        if (child.userData?.glyphComponent === 'harmonicCellNode') {
+          const pulse = (Math.sin(evoGroup.userData.cellPulsePhase + child.userData.pulseOffset) + 1) * 0.5;
+          const scale = 0.8 + pulse * 0.28 + lockPulse * 0.08;
+          child.scale.setScalar(scale);
+          child.material.opacity = 0.52 + pulse * 0.24;
+        }
+
+        if (child.userData?.glyphComponent === 'harmonicCellEdges') {
+          child.material.opacity = 0.28 + lockPulse * 0.34;
+        }
+
+        if (child.userData?.glyphComponent === 'harmonicCellShell') {
+          child.material.opacity = 0.18 + lockPulse * 0.18;
+        }
+      });
+    }
+
+    if (evoGroup.userData.stage === 3) {
+      evoGroup.userData.trinityPhase += deltaTime * 1.35;
+      const phase = evoGroup.userData.trinityPhase;
+      const lockWindow = (Math.sin(phase * 0.75) + 1) * 0.5;
+
+      evoGroup.traverse((child) => {
+        if (child.userData?.glyphComponent === 'helicalTrinityArm') {
+          const armPhase = phase + child.userData.basePhase;
+          const helicalRadius = 0.14 + lockWindow * 0.03;
+          child.position.x = Math.cos(armPhase) * helicalRadius;
+          child.position.z = Math.sin(armPhase) * helicalRadius;
+          child.position.y = Math.sin(armPhase * 1.4) * 0.08;
+          child.rotation.z = armPhase + Math.PI / 2;
+          child.rotation.x = 0.25 + Math.sin(armPhase) * 0.35;
+        }
+
+        if (child.userData?.glyphComponent === 'helicalTrinityBeam') {
+          child.material.opacity = 0.56 + lockWindow * 0.26;
+        }
+
+        if (child.userData?.glyphComponent === 'helicalTrinityTrail') {
+          child.material.opacity = 0.28 + lockWindow * 0.3;
+        }
+
+        if (child.userData?.glyphComponent === 'helicalTrinityTip') {
+          const tipScale = 0.68 + lockWindow * 0.2;
+          child.scale.set(tipScale * 0.65, tipScale, tipScale * 0.65);
+          child.material.opacity = 0.5 + lockWindow * 0.3;
+        }
+
+        if (child.userData?.glyphComponent === 'helicalTrinityHalo') {
+          child.rotation.z += deltaTime * 0.45;
+          child.material.opacity = 0.14 + lockWindow * 0.18;
+        }
+      });
+    }
+
+    if (evoGroup.userData.stage === 4) {
+      evoGroup.userData.crownPhase += deltaTime * 0.72;
+      const phase = evoGroup.userData.crownPhase;
+      const resonance = (Math.sin(phase) + 1) * 0.5;
+
+      evoGroup.traverse((child) => {
+        if (child.userData?.glyphComponent === 'resonanceCrownShard') {
+          const localPhase = phase + child.userData.shardIndex * 0.9;
+          const radiusOffset = Math.sin(localPhase) * 0.018;
+          const angle = child.userData.baseAngle + Math.sin(localPhase * 0.7) * 0.08;
+          const radius = child.userData.baseRadius + radiusOffset;
+          child.position.x = Math.cos(angle) * radius;
+          child.position.z = Math.sin(angle) * radius;
+          child.position.y = child.userData.baseHeight + Math.cos(localPhase * 1.2) * 0.035;
+          child.rotation.z = angle + Math.PI / 2 + child.userData.baseTilt;
+          child.rotation.x = 0.18 + Math.sin(localPhase) * 0.12;
+        }
+
+        if (child.userData?.glyphComponent === 'resonanceCrownCore') {
+          child.material.opacity = 0.56 + resonance * 0.28;
+        }
+
+        if (child.userData?.glyphComponent === 'resonanceCrownArc') {
+          child.material.opacity = 0.18 + resonance * 0.26;
+        }
+
+        if (child.userData?.glyphComponent === 'resonanceCrownBand') {
+          child.rotation.z += deltaTime * 0.12;
+          child.material.opacity = 0.1 + resonance * 0.12;
+        }
+
+        if (child.userData?.glyphComponent === 'resonanceCrownSpark') {
+          child.rotation.y += deltaTime * 0.38;
+          child.material.opacity = 0.16 + resonance * 0.2;
+        }
+      });
+    }
   }
   
   // ============================================================
@@ -1169,11 +1596,15 @@ export class GlyphLayer4_MultiFusion {
     deltaTime = visualDelta;
 
     for (const [nodeId, fusionData] of this.fusionRegistry) {
-      const { fusionGroup, layers } = fusionData;
+      const { fusionGroup, layers, node } = fusionData;
       
       if (!fusionGroup || !fusionGroup.parent) {
         this.removeFusion(nodeId);
         continue;
+      }
+
+      if (layers.evolution) {
+        layers.evolution = this.syncEvolutionGlyphStage(node, nodeId, fusionGroup, layers.evolution);
       }
       
       // Update each layer
@@ -1190,14 +1621,16 @@ export class GlyphLayer4_MultiFusion {
     }
 
     for (const [nodeId, ambientData] of this.ambientOrbitRegistry) {
-      const { ambientGroup, evolution } = ambientData;
+      const { node, ambientGroup } = ambientData;
 
       if (!ambientGroup || !ambientGroup.parent) {
         this.removeAmbientOrbit(nodeId);
         continue;
       }
 
-      if (evolution) this.updateEvolutionGlyph(evolution, deltaTime);
+      ambientData.evolution = this.syncEvolutionGlyphStage(node, nodeId, ambientGroup, ambientData.evolution);
+
+      if (ambientData.evolution) this.updateEvolutionGlyph(ambientData.evolution, deltaTime);
     }
   }
   

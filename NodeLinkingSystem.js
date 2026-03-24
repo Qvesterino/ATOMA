@@ -3812,9 +3812,6 @@ getLinksForNode(node) {
     this._markLinksDirty();
     this._markNodesDirty();
 
-    // Schedule network metrics aggregation outside critical click path.
-    this._scheduleNetworkMetricsAggregation();
-    
     // 4. Register with sub-systems
       this.visuals.registerLink(link.id, link.group);
       
@@ -3857,8 +3854,59 @@ getLinksForNode(node) {
         this.nodeIdToLinks.get(tgtId).push(link);
       }
 
-    // Defer heavy post-link processing outside critical click path.
-    this._schedulePostLinkProcessing(link, sourceNode, targetNode);
+    // Canonical metrics: link creation hook
+    if (_validateBinderNode(sourceNode) && _validateBinderNode(targetNode)) {
+      onLinkCreated(sourceNode, targetNode);
+    } else {
+      console.warn('[NodeLinkingSystem] onLinkCreated skipped - invalid nodes detected');
+    }
+
+    // UI/system callbacks
+    this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+
+    // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)
+    if (this.eventCoordinator) {
+      this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
+    }
+
+    // Canonical semantic event: link created
+    const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
+    if (semanticBus?.emit) {
+      const sourceId = this.getNodeId(sourceNode);
+      const targetId = this.getNodeId(targetNode);
+      const payload = {
+        source: sourceId,
+        target: targetId,
+        linkId: link.id,
+        midpoint: (sourceNode?.position && targetNode?.position)
+          ? {
+              x: (sourceNode.position.x + targetNode.position.x) * 0.5,
+              y: (sourceNode.position.y + targetNode.position.y) * 0.5,
+              z: (sourceNode.position.z + targetNode.position.z) * 0.5
+            }
+          : undefined
+      };
+      semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
+    }
+
+    if (window.ComputeSynergyScore2_0) {
+      try {
+        const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
+        link['synergyScore'] = res?.score || 0.5;
+      } catch (e) {
+        link['synergyScore'] = 0.5;
+      }
+    } else {
+      link['synergyScore'] = 0.5;
+    }
+
+    if (link.id) {
+      this.updateLinkMetrics(link, {
+        corruption: link.corruptionLevel ?? 0,
+        synergy: link['synergyScore'] ?? 0.5,
+        harmony: link.harmonyScore ?? 0
+      });
+    }
     
     // categoryTransitionSystem removed (unused)
     
@@ -7455,91 +7503,6 @@ getLinksForNode(node) {
     return this._resolveNodeById(nodeId);
   }
 
-  _scheduleNetworkMetricsAggregation() {
-    if (this._networkMetricsAggregateScheduled) return;
-    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    if (now < this._networkMetricsAggregateNextAt) return;
-    this._networkMetricsAggregateScheduled = true;
-    const delay = Math.max(0, this._networkMetricsAggregateNextAt - now);
-
-    setTimeout(() => {
-      this._networkMetricsAggregateScheduled = false;
-      const runtime = this.metricsRuntime
-        || (typeof window !== 'undefined' ? window.metricsRuntime : null);
-
-      if (runtime?.runNetworkMetricsAggregator) {
-        try {
-          runtime.runNetworkMetricsAggregator();
-        } catch (e) {
-          console.warn('[NodeLinkingSystem] deferred metrics aggregation failed', e);
-        }
-      }
-
-      const stamp = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-      this._networkMetricsAggregateNextAt = stamp + this._networkMetricsAggregateMinIntervalMs;
-    }, delay);
-  }
-
-  _schedulePostLinkProcessing(link, sourceNode, targetNode) {
-    setTimeout(() => {
-      if (!link || link.active === false) return;
-
-      // Canonical metrics: link creation hook
-      if (_validateBinderNode(sourceNode) && _validateBinderNode(targetNode)) {
-        onLinkCreated(sourceNode, targetNode);
-      } else {
-        console.warn('[NodeLinkingSystem] onLinkCreated skipped - invalid nodes detected');
-      }
-
-      // UI/system callbacks
-      this._fireLinkCreatedCallbacks(sourceNode, targetNode);
-
-      // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)
-      if (this.eventCoordinator) {
-        this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
-      }
-
-      // Canonical semantic event: link created
-      const semanticBus = this.semanticBus || (typeof globalThis !== 'undefined' ? globalThis.semanticBus : null);
-      if (semanticBus?.emit) {
-        const sourceId = this.getNodeId(sourceNode);
-        const targetId = this.getNodeId(targetNode);
-        const payload = {
-          source: sourceId,
-          target: targetId,
-          linkId: link.id,
-          midpoint: (sourceNode?.position && targetNode?.position)
-            ? {
-                x: (sourceNode.position.x + targetNode.position.x) * 0.5,
-                y: (sourceNode.position.y + targetNode.position.y) * 0.5,
-                z: (sourceNode.position.z + targetNode.position.z) * 0.5
-              }
-            : undefined
-        };
-        semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
-      }
-
-      // Synergy & metrics
-      if (window.ComputeSynergyScore2_0) {
-        try {
-          const res = window.ComputeSynergyScore2_0(link, { linkingSystem: this });
-          link['synergyScore'] = res?.score || 0.5;
-        } catch (e) {
-          link['synergyScore'] = 0.5;
-        }
-      } else {
-        link['synergyScore'] = 0.5;
-      }
-
-      if (link.id) {
-        this.updateLinkMetrics(link, {
-          corruption: link.corruptionLevel ?? 0,
-          synergy: link['synergyScore'] ?? 0.5,
-          harmony: link.harmonyScore ?? 0
-        });
-      }
-    }, 0);
-  }
 
   _getNodeLookupMap() {
     const nodes = this.aiNodes?.nodes || [];

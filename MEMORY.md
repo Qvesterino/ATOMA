@@ -106,3 +106,23 @@ This agent:
 - optimizes for multi-year coherence
 
 If uncertainty exists → ask before proposing structural change.
+
+---
+
+## 7️⃣ Audio Interaction Authority
+
+Confirmed runtime authority for node select/deselect is `NodeLinkingSystem`, not `selectionCore`.
+
+- Real selection path:
+  - `handleSingleClick()` -> `setPrimaryNode()` -> `_fireSelectCallbacks()`
+  - `clearPrimaryNode()` -> `_fireDeselectCallbacks()`
+- Stable passive callback API:
+  - `onNodeSelected(callback)`
+  - `onNodeDeselected(callback)`
+  - `onLinkCreated(callback)`
+  - `onLinkRemoved(callback)`
+- `NodeLinkingSystem.prototype.setSelectionCore = function() {};` is a no-op and must not be treated as active runtime selection wiring.
+
+Lesson:
+- Do not inject interaction audio via `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`.
+- Prefer passive listeners on the true runtime authority layer to avoid destabilizing link creation flow.

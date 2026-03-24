@@ -4281,6 +4281,7 @@ this.setHudDirty('nodeInspect');
             const audio = this.audioSystem;
             if (!audio) return console.warn('[ATOMA AUDIO] audioSystem missing');
             const sounds = {
+                hover: () => audio.playHoverEnter?.(),
                 selection: () => audio.playSelection(),
                 deselection: () => audio.playDeselection(),
                 link: () => audio.playLinkCreated(),
@@ -6741,6 +6742,73 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
+        if (this.linkingSystem?.onNodeSelected && !this.linkingSystem.__audioSelectionAuthorityBound) {
+            const playSelectionAudio = (type) => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    if (type === 'select') {
+                        this.audioSystem.playSelection?.();
+                    } else {
+                        this.audioSystem.playDeselection?.();
+                    }
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onNodeSelected(() => playSelectionAudio('select'));
+            this.linkingSystem.onNodeDeselected(() => playSelectionAudio('deselect'));
+            this.linkingSystem.__audioSelectionAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onNodeHoverStart && !this.linkingSystem.__audioHoverAuthorityBound) {
+            const playHoverAudio = () => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    this.audioSystem.playHoverEnter?.();
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onNodeHoverStart(() => playHoverAudio());
+            this.linkingSystem.__audioHoverAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__audioLinkAuthorityBound) {
+            const playLinkAudio = (type) => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    if (type === 'create') {
+                        this.audioSystem.playLinkCreated?.();
+                    } else {
+                        this.audioSystem.playLinkBroken?.();
+                    }
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onLinkCreated(() => playLinkAudio('create'));
+            this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'));
+            this.linkingSystem.__audioLinkAuthorityBound = true;
+        }
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge = this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
             this.linkingSystem.conduitRenderer.waveTravelShaderPack = this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack;
@@ -12579,15 +12647,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupSelectionCore() {
         this.selectionCore = new NodeSelectionCore3_4();
 
-        // Hook audio feedback to selection events
         this.selectionCore.onSelectCallbacks.push((node) => {
-            if (this.audioSystem && !this.audioSystem.initialized) {
-                this.ensureAudioStarted?.()
-                    .then(() => {
-                        if (this.audioSystem?.initialized) this.audioSystem.playSelection();
-                    })
-                    .catch(() => {});
-            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             const payload = {
@@ -12605,13 +12665,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         
         this.selectionCore.onDeselectCallbacks.push((node) => {
-            if (this.audioSystem && !this.audioSystem.initialized) {
-                this.ensureAudioStarted?.()
-                    .then(() => {
-                        if (this.audioSystem?.initialized) this.audioSystem.playDeselection();
-                    })
-                    .catch(() => {});
-            }
             const nodeId = node?.userData?.nodeId || node?.id || node?.uuid;
             const category = node?.userData?.category;
             this.semanticBus.emit('node.selection', { type: 'deselect', nodeId, category }, { priority: this.semanticBus.priority.CRITICAL });
@@ -12620,7 +12673,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
 
         console.log('✓ Selection Core 3.4 initialized (single source of truth)');
-        console.log('✓ Audio feedback hooked to selection events');
+        console.log('✓ Selection Core semantic event bridge active');
     }
 
     /**
@@ -14808,6 +14861,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             
             const audio = window.game.audioSystem;
             const sounds = {
+                'hover': () => audio.playHoverEnter?.(),
                 'selection': () => audio.playSelection(),
                 'deselection': () => audio.playDeselection(),
                 'link': () => audio.playLinkCreated(),

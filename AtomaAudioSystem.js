@@ -73,6 +73,34 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb);
         this.selectionSynth.volume.value = -5; // TEMP: louder selection for runtime verification
 
+        // 1.5 HOVER ENTER (Glyph flyover)
+        this.hoverSynth = new Tone.MonoSynth({
+            oscillator: {
+                type: "triangle"
+            },
+            portamento: 0.05,
+            envelope: {
+                attack: 0.004,
+                decay: 0.11,
+                sustain: 0,
+                release: 0.18
+            },
+            filterEnvelope: {
+                attack: 0.002,
+                decay: 0.12,
+                sustain: 0,
+                release: 0.14,
+                baseFrequency: 650,
+                octaves: 3.2
+            },
+            filter: {
+                type: "bandpass",
+                rolloff: -12,
+                Q: 1.1
+            }
+        }).connect(this.masterReverb);
+        this.hoverSynth.volume.value = -15;
+
         // 2. LINKING (Harmonic Convergence)
         // DuoSynth for phase alignment texture
         this.linkSynth = new Tone.DuoSynth({
@@ -81,24 +109,36 @@ export class AtomaAudioSystem {
             harmonicity: 1.005, // Slight detune for phasing
             voice0: {
                 oscillator: { type: "sine" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.08,
+                    sustain: 0,
+                    release: 0.08
+                },
                 filterEnvelope: {
                     attack: 0.01,
-                    decay: 0.3,
+                    decay: 0.12,
                     sustain: 0,
-                    release: 0.5
+                    release: 0.1
                 }
             },
             voice1: {
                 oscillator: { type: "sine" },
-                filterEnvelope: {
-                    attack: 0.05, // Slightly later for "movement"
-                    decay: 0.3,
+                envelope: {
+                    attack: 0.01,
+                    decay: 0.1,
                     sustain: 0,
-                    release: 0.5
+                    release: 0.1
+                },
+                filterEnvelope: {
+                    attack: 0.02, // Slightly later for "movement"
+                    decay: 0.12,
+                    sustain: 0,
+                    release: 0.1
                 }
             }
         }).connect(this.masterReverb);
-        this.linkSynth.volume.value = -15;
+        this.linkSynth.volume.value = -12;
 
         // 3. UNLINKING (Diffusion)
         // Noise source with lowpass filter sweep
@@ -116,12 +156,12 @@ export class AtomaAudioSystem {
         // Filter for unlinking
         this.unlinkFilter = new Tone.Filter({
             type: "lowpass",
-            frequency: 800,
-            Q: 0.5
+            frequency: 1400,
+            Q: 1.2
         }).connect(this.masterReverb);
         this.unlinkSynth.disconnect();
         this.unlinkSynth.connect(this.unlinkFilter);
-        this.unlinkSynth.volume.value = -18;
+        this.unlinkSynth.volume.value = -7;
 
 
         // 4. SYNERGY (Harmonic Bloom)
@@ -177,17 +217,25 @@ export class AtomaAudioSystem {
         if (!this.initialized && !isBoot) return;
         if (!isBoot && !this.canTrigger('selection', 45)) return;
         // Soft sine ping, slightly high but soft
-        // Freq: 880Hz (A5) - High enough to be clear, soft enough to be calm
-        this.selectionSynth.triggerAttackRelease("A5", "8n", undefined, 0.9);
+        // Slightly lower and softer than before to avoid harshness on small speakers
+        this.selectionSynth.triggerAttackRelease("E5", "8n", undefined, 0.72);
+    }
+
+    // --- TASK 1.5: Node Hover Enter (Glyph Flyover) ---
+    playHoverEnter() {
+        if (!this.initialized) return;
+        if (!this.canTrigger('hoverEnter', 140)) return;
+        const now = Tone.now();
+        this.hoverSynth.triggerAttackRelease("A5", "32n", now, 0.3);
+        this.hoverSynth.triggerAttackRelease("E6", "16n", now + 0.018, 0.2);
     }
 
     // --- TASK 2: Node Deselection (Settling) ---
     playDeselection() {
         if (!this.initialized) return;
         if (!this.canTrigger('deselection', 45)) return;
-        // Lower pitch, softer velocity
-        // Freq: 440Hz (A4) - One octave down, "settling"
-        this.selectionSynth.triggerAttackRelease("A4", "32n", undefined, 0.2);
+        // Lower pitch, still clearly audible for runtime verification
+        this.selectionSynth.triggerAttackRelease("E4", "16n", undefined, 0.45);
     }
 
     // --- TASK 3: Link Creation (Agreement) ---
@@ -197,7 +245,7 @@ export class AtomaAudioSystem {
         // Harmonic interval (Perfect 5th) to signify stability/agreement
         // "C5" + "G5"
         // Slight delay between them handled by synth attack diff, or manually here
-        this.linkSynth.triggerAttackRelease("C5", "8n");
+        this.linkSynth.triggerAttackRelease(["C5", "G5"], "16n");
     }
 
     // --- TASK 4: Link Breaking (Diffusing) ---
@@ -205,8 +253,8 @@ export class AtomaAudioSystem {
         if (!this.initialized) return;
         if (!this.canTrigger('linkBroken', 80)) return;
         // Filtered noise sweep down
-        this.unlinkFilter.frequency.rampTo(100, 0.3);
-        this.unlinkFilter.frequency.value = 800; // Reset start
+        this.unlinkFilter.frequency.value = 1800;
+        this.unlinkFilter.frequency.rampTo(160, 0.14);
         this.unlinkSynth.triggerAttackRelease("16n");
     }
 
