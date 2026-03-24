@@ -123,7 +123,7 @@ export class WaveParticleEmitter_v1 {
       // Initialize all 3 particle systems
       this._initConstructiveBurstSystem('constructiveBurst', this._createConstructiveTexture());
       this._initConstructiveBurstSystem('constructiveBurstVariantB', this._createConstructiveTextureVariantB());
-      this._initConstructiveBurstSystem('constructiveBurstVariantC', this._createConstructiveTextureVariantC());
+      this._initConstructiveBurstSystem(' ', this._createConstructiveTextureVariantC());
       this._initDestructiveChaosSystem();
       if (this.config.standingWaveRippleEnabled) {
         this._initStandingWaveRippleSystem();
@@ -722,6 +722,7 @@ export class WaveParticleEmitter_v1 {
       const MIN_VISIBILITY = 0.1;
       const nodeId = node?.id ?? node?.uuid;
       if (!nodeId) return;
+      if (!this._hasActiveLinks(node)) return;
 
       const waveField =
         waveEngine?.getNodeWaveField?.(nodeId, node) ??
@@ -878,6 +879,20 @@ export class WaveParticleEmitter_v1 {
 
   _resolveEntityId(entity) {
     return entity?.userData?.nodeId || entity?.id || entity?.uuid || entity?.name || null;
+  }
+
+  _getActiveLinkCount(entity) {
+    const metricsCount = entity?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return metricsCount;
+
+    const legacyCount = entity?.userData?.activeLinkCount;
+    if (Number.isFinite(legacyCount)) return legacyCount;
+
+    return 0;
+  }
+
+  _hasActiveLinks(entity) {
+    return this._getActiveLinkCount(entity) > 0;
   }
 
   _resolveLinkEndpoints(link) {

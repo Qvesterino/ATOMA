@@ -468,40 +468,39 @@ export function setupWaveBurstRouter(game) {
 
     function emitIntent(type, payload = {}, eventTag = '') {
         const waveEngine = getWaveEngine();
-        if (!waveEngine || typeof waveEngine.requestBurstIntent !== 'function') return;
+        // DEBUG BYPASS: ak waveEngine existuje → nikdy neblokuj call
+        if (!waveEngine) return;
 
         const nowSec = performance.now() * 0.001;
 
-        const sourcePosition = resolveSourcePosition(payload);
-        if (!sourcePosition) return;
+        // Fallback: ak sourcePosition neexistuje → použijeme payload.center alebo {0,0,0}
+        const sourcePosition = resolveSourcePosition(payload) || payload?.center || { x: 0, y: 0, z: 0 };
 
-        const strength = resolveStrength(payload);
-        if (strength <= 0) return;
+        // Fallback: ak strength neexistuje → minimálne 0.5
+        const safeStrength = Math.max(0.5, resolveStrength(payload) || 0.5);
 
         const resolvedType = resolveType(type, payload, eventTag);
         const sourceId = resolveSourceId(resolvedType, payload, eventTag);
         const cooldownKey = `${resolvedType}:${sourceId}`;
-        if (isOnCooldown(cooldownKey, nowSec)) return;
+        // DEBUG: ignorujeme cooldown
 
         const intentContext = resolveIntentContext(payload, eventTag);
         const boundary = resolveBoundary(resolvedType, payload, eventTag, sourceId);
 
+        const safePosition = {
+            x: Number.isFinite(sourcePosition?.x) ? sourcePosition.x : 0,
+            y: Number.isFinite(sourcePosition?.y) ? sourcePosition.y : 0,
+            z: Number.isFinite(sourcePosition?.z) ? sourcePosition.z : 0
+        };
+
         const intent = {
             type: resolvedType,
             reasonClass: 'semantic_event',
-            strength,
-            sourcePosition: {
-                x: sourcePosition.x,
-                y: sourcePosition.y,
-                z: sourcePosition.z
-            },
+            strength: safeStrength,
+            sourcePosition: safePosition,
             ...boundary,
-            intensity: strength,
-            center: {
-                x: sourcePosition.x,
-                y: sourcePosition.y,
-                z: sourcePosition.z
-            },
+            intensity: safeStrength,
+            center: safePosition,
             sourceId,
             linkId: intentContext.linkId,
             link: intentContext.link,
@@ -516,7 +515,7 @@ export function setupWaveBurstRouter(game) {
             }
         };
 
-        const snapshot = waveEngine.requestBurstIntent(intent);
+        const snapshot = waveEngine.requestBurstIntent?.(intent) ?? null;
         recordIntent({
             timeSec: nowSec,
             semanticEvent: eventTag,
@@ -525,14 +524,14 @@ export function setupWaveBurstRouter(game) {
             sourceId,
             fromRegime: boundary.fromRegime,
             toRegime: boundary.toRegime,
-            intensity: strength,
+            intensity: safeStrength,
             linkId: intentContext.linkId || null,
             travel: intentContext.travel === true,
             accepted: !!snapshot,
             snapshotId: snapshot?.id || null
         });
         if (!snapshot) return;
-        markBurst(cooldownKey, nowSec);
+        // DEBUG: ignorujeme markBurst (cooldown)
     }
 
     function subscribeToEvents() {

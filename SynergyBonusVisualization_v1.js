@@ -140,7 +140,11 @@ export class SynergyBonusVisualization_v1 {
             // =====================================================================
             // EXTRACT SYNERGY SCORE
             // =====================================================================
-            const glowIntensity = link.userData?.visualGlow?.glowIntensity ?? 0;
+            const glowIntensity =
+                link.userData?.synergy?.synergyNorm ??
+                link['synergyScore'] ??
+                link.userData?.synergy?.score ??
+                0;
             const synergyNorm = Math.max(0, Math.min(1, glowIntensity));  // Normalize [0,1]
 
             // =====================================================================

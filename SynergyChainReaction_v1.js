@@ -300,10 +300,12 @@ export class SynergyChainReaction_v1 {
             if (!toNode?.userData) return false;
             if (intensity < this.config.minimumIntensity) return false;
             
-            // Check synergy minimum
-            const synergyBonus = toNode.userData.synergyBonus ?? {};
-            const synergyTier = Math.max(0, Math.min(3, synergyBonus.tier ?? 0));
-            const synergyNorm = synergyTier / 3.0;
+            // Read canonical metrics.synergy (fallback chain)
+            const synergyNorm =
+                toNode.userData?.metrics?.synergy ??
+                toNode.userData?.synergy?.synergyNorm ??
+                toNode.userData?.synergy?.score ??
+                0;
             
             if (synergyNorm < this.config.synergyMinimum) return false;
             
@@ -421,10 +423,12 @@ export class SynergyChainReaction_v1 {
                 return false;  // Already active
             }
             
-            // Check synergy threshold
-            const synergyBonus = node.userData.synergyBonus ?? {};
-            const synergyTier = Math.max(0, Math.min(3, synergyBonus.tier ?? 0));
-            const synergyNorm = synergyTier / 3.0;
+            // Read canonical metrics.synergy (fallback chain)
+            const synergyNorm =
+                node.userData?.metrics?.synergy ??
+                node.userData?.synergy?.synergyNorm ??
+                node.userData?.synergy?.score ??
+                0;
             
             if (synergyNorm < this.config.primaryThreshold) return false;
             
@@ -485,9 +489,12 @@ export class SynergyChainReaction_v1 {
             // State machine transitions
             switch (state.state) {
                 case 'idle':
-                    // Check if should be charged
-                    const synergyBonus = node.userData.synergyBonus ?? {};
-                    const synergyNorm = (synergyBonus.tier ?? 0) / 3.0;
+                    // Read canonical metrics.synergy (fallback chain)
+                    const synergyNorm =
+                        node.userData?.metrics?.synergy ??
+                        node.userData?.synergy?.synergyNorm ??
+                        node.userData?.synergy?.score ??
+                        0;
                     if (synergyNorm >= this.config.primaryThreshold * 0.9) {
                         state.state = 'charged';
                         state.stateTime = 0;
@@ -550,8 +557,11 @@ export class SynergyChainReaction_v1 {
         const startTime = performance.now();
         
         try {
-            // Early return if disabled (safe reanimation)
-            if (!this.enabled) return;
+            // DEBUG: warn if disabled
+            if (!this.enabled) {
+                console.warn('[SynergyChainReaction] still disabled');
+                return;
+            }
             if (!Array.isArray(allNodes) || allNodes.length === 0) return;
 
             // Cadence gate: cap to <=30 Hz regardless of caller rate

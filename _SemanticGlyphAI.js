@@ -256,7 +256,7 @@ export class SemanticGlyphAI {
       // Phase B pilot: semantic computation gated; visuals always applied
       let state = this.semanticState.get(nodeId);
       if (shouldInterpret || !state) {
-        state = this.computeSemanticState(context, nodeId);
+        state = this.computeSemanticState(context, nodeId, node);
         if (state) {
           this.semanticState.set(nodeId, state);
           statesApplied++;
@@ -396,7 +396,7 @@ export class SemanticGlyphAI {
    * Compute semantic state based on context
    * Returns state object with type and parameters
    */
-  computeSemanticState(context, nodeId) {
+  computeSemanticState(context, nodeId, node) {
     // HOVER PATCH: Force hovered state if hoverTarget matches this node
     // This overrides semantic metrics and ensures UX hover indicator is always visible
     if (this.hoverTarget && this.hoverTarget === node) {
@@ -491,7 +491,19 @@ export class SemanticGlyphAI {
    */
   applySemanticVisualsToNode(node, nodeId, state, dt) {
     // Get the glyph fusion for this node from Layer 4.0
-    const fusion = this.glyphLayer4?.fusionRegistry?.get(nodeId);
+    let fusion = this.glyphLayer4?.fusionRegistry?.get(nodeId);
+    if (!fusion) {
+      const ambient = this.glyphLayer4?.ambientOrbitRegistry?.get(nodeId);
+      if (ambient) {
+        fusion = {
+          ...ambient,
+          fusionGroup: ambient.ambientGroup || ambient.visualGroup || null,
+          layers: {
+            evolution: ambient.evolution || null
+          }
+        };
+      }
+    }
     if (!fusion || !fusion.layers) return;
     
     const { type, parameters } = state;
@@ -544,10 +556,11 @@ export class SemanticGlyphAI {
    */
   applyFocusedEffect(fusion, parameters, nodeId, dt) {
     const { focusStrength } = parameters;
+    const primaryGlyph = fusion.layers.core || fusion.layers.evolution;
     
     // Sharpen/increase rotation speed of core glyph
-    if (fusion.layers.core) {
-      const core = fusion.layers.core;
+    if (primaryGlyph) {
+      const core = primaryGlyph;
       // Increase rotation animation speed
       if (!core.userData.semanticRotSpeed) core.userData.semanticRotSpeed = 1;
       core.userData.semanticRotSpeed = THREE.MathUtils.lerp(
@@ -575,9 +588,10 @@ export class SemanticGlyphAI {
    */
   applyStressedEffect(fusion, parameters, nodeId, dt) {
     const { stressLevel } = parameters;
+    const primaryGlyph = fusion.layers.core || fusion.layers.evolution;
     
-    if (fusion.layers.core) {
-      const core = fusion.layers.core;
+    if (primaryGlyph) {
+      const core = primaryGlyph;
       
       // Add wobble to edges
       if (!core.userData.wobblePhase) core.userData.wobblePhase = 0;
@@ -614,8 +628,9 @@ export class SemanticGlyphAI {
    * CALM/IDLE - Slow breathing, minimal rotation
    */
   applyCalmEffect(fusion, parameters, nodeId, dt) {
-    if (fusion.layers.core) {
-      const core = fusion.layers.core;
+    const primaryGlyph = fusion.layers.core || fusion.layers.evolution;
+    if (primaryGlyph) {
+      const core = primaryGlyph;
       
       // Reduce rotation speed dramatically
       if (!core.userData.semanticRotSpeed) core.userData.semanticRotSpeed = 1;
@@ -647,9 +662,10 @@ export class SemanticGlyphAI {
   applyExploringEffect(fusion, parameters, nodeId, dt) {
     const { exploreAmount } = parameters;
     
-    if (fusion.group) {
+    const fusionGroup = fusion.fusionGroup || fusion.group || fusion.visualGroup || fusion.containerGroup || fusion.ambientGroup || null;
+    if (fusionGroup) {
       // Create/update flickering orbiting dots along fake link directions
-      this.updateExploringOrbits(fusion.group, nodeId, exploreAmount, dt);
+      this.updateExploringOrbits(fusionGroup, nodeId, exploreAmount, dt);
     }
   }
   
@@ -659,9 +675,10 @@ export class SemanticGlyphAI {
   applyLeaderEffect(fusion, parameters, nodeId, dt) {
     const { hubDegree } = parameters;
     
-    if (fusion.group) {
+    const fusionGroup = fusion.fusionGroup || fusion.group || fusion.visualGroup || fusion.containerGroup || fusion.ambientGroup || null;
+    if (fusionGroup) {
       // Add crown ring effect
-      this.updateLeaderCrown(fusion.group, nodeId, hubDegree, dt);
+      this.updateLeaderCrown(fusionGroup, nodeId, hubDegree, dt);
     }
   }
   
@@ -671,7 +688,7 @@ export class SemanticGlyphAI {
   applyConflictEffect(fusion, parameters, nodeId, dt) {
     const { conflictStrength } = parameters;
     
-    if (fusion.layers.core && fusion.layers.personality) {
+    if ((fusion.layers.core || fusion.layers.evolution) && fusion.layers.personality) {
       // Split-color effect between two halves
       if (!fusion.userData.splitPhase) fusion.userData.splitPhase = 0;
       fusion.userData.splitPhase += dt * this.config.dualitySplitSpeed;
@@ -679,12 +696,14 @@ export class SemanticGlyphAI {
       const splitAmount = Math.sin(fusion.userData.splitPhase);
       
       // Rotation split: left/right halves rotate in opposite directions
-      if (fusion.layers.core) {
-        fusion.layers.core.rotation.z = splitAmount * 0.1 * conflictStrength;
+      const primaryGlyph = fusion.layers.core || fusion.layers.evolution;
+      if (primaryGlyph) {
+        primaryGlyph.rotation.z = splitAmount * 0.1 * conflictStrength;
       }
       
       // Add center divider line
-      this.addSplitDivider(fusion.group || fusion, nodeId, conflictStrength);
+      const fusionGroup = fusion.fusionGroup || fusion.group || fusion.visualGroup || fusion.containerGroup || fusion;
+      this.addSplitDivider(fusionGroup, nodeId, conflictStrength);
     }
   }
   
@@ -694,8 +713,9 @@ export class SemanticGlyphAI {
   applyClusterSyncEffect(fusion, parameters, nodeId, dt) {
     const { syncAmount } = parameters;
     
-    if (fusion.layers.core) {
-      const core = fusion.layers.core;
+    const primaryGlyph = fusion.layers.core || fusion.layers.evolution;
+    if (primaryGlyph) {
+      const core = primaryGlyph;
       
       // Strong synchronized pulse
       if (!core.userData.syncPhase) core.userData.syncPhase = 0;
@@ -745,8 +765,9 @@ export class SemanticGlyphAI {
     fusion.userData.scanPhase = (fusion.userData.scanPhase + 0.02) % 1;
     
     scanLine.visible = intensity > 0.3;
-    if (scanLine.visible && fusion.group) {
-      scanLine.position.copy(fusion.group.position);
+    const fusionGroup = fusion.fusionGroup || fusion.group || fusion.visualGroup || fusion.containerGroup || fusion.ambientGroup || null;
+    if (scanLine.visible && fusionGroup) {
+      scanLine.position.copy(fusionGroup.position);
       scanLine.position.y += (fusion.userData.scanPhase - 0.5) * 0.4;
       scanLine.material.opacity = intensity * 0.6;
     }

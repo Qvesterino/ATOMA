@@ -58,6 +58,7 @@ export class LinkedGlyphMessaging3_0 {
     
     // Enable/disable messaging
     this.enabled = true;
+    this.frameScheduler = null;
     
     // Active messages on links (linkId → messageArray)
     this.activeMessages = new Map();
@@ -458,9 +459,9 @@ export class LinkedGlyphMessaging3_0 {
    */
   updateMessages(deltaTime) {
     const now = Date.now();
-    const toDelete = [];
     
     this.activeMessages.forEach((messages, linkId) => {
+      const toDelete = [];
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         const age = now - msg.createdAt;
@@ -594,8 +595,9 @@ export class LinkedGlyphMessaging3_0 {
   findReverseLink(link) {
     if (!link) return null;
     
-    const sourceNode = link.nodeB;
-    const targetNode = link.nodeA;
+    const sourceNode = link.sourceNode || link.source || link.nodeA || null;
+    const targetNode = link.targetNode || link.target || link.nodeB || null;
+    if (!sourceNode || !targetNode) return null;
     
     // Search for link with reversed endpoints
     for (const trackedLink of this.trackedLinks.values()) {
@@ -652,6 +654,7 @@ export class LinkedGlyphMessaging3_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes || !linkingSystem) return;
+    if (this.frameScheduler && !this.frameScheduler.shouldRunVisual?.()) return;
 
     // Throttle to ~30 Hz on the visual layer
     this._updateAccum += deltaTime;
@@ -671,8 +674,8 @@ export class LinkedGlyphMessaging3_0 {
         const linkId = link.uuid || link.id || `link-${index}`;
         
         if (!this.trackedLinks.has(linkId)) {
-          const sourceNode = link.nodeA;
-          const targetNode = link.nodeB;
+          const sourceNode = link.sourceNode || link.source || link.nodeA || null;
+          const targetNode = link.targetNode || link.target || link.nodeB || null;
           this.registerLink(link, linkId, sourceNode, targetNode);
         }
       });
@@ -778,6 +781,17 @@ export class LinkedGlyphMessaging3_0 {
     console.log(`Frame Time: ${stats.lastFrameMs} ms`);
     console.log(`Total Frames: ${stats.totalFrames}`);
     console.groupEnd();
+  }
+
+  _resolveLinkEndpoints(link) {
+    if (!link) {
+      return { sourceNode: null, targetNode: null };
+    }
+
+    return {
+      sourceNode: link.sourceNode || link.source || link.nodeA || null,
+      targetNode: link.targetNode || link.target || link.nodeB || null
+    };
   }
 /**
    * Clear all active messages (emergency cleanup)

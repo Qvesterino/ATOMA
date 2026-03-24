@@ -4650,7 +4650,7 @@ export class LinkRendererConduit {
 
         // Clear corruption particles for this link
         if (link && this.corruptionParticles && link.id) {
-            this.corruptionParticles.clearLinkParticles(link.id);
+            this.corruptionParticles.clearLinkParticles(link);
         }
 
         // Dispose trail particle emitter for this link
@@ -4669,6 +4669,10 @@ export class LinkRendererConduit {
         // Clear semantic pictograms for this link immediately on unlink
         if (link && this.pictogramSystem?.clearLink) {
             this.pictogramSystem.clearLink(link);
+        }
+
+        if (link && this.corruptionFeedbackVisuals?.clearEffectsForNodes) {
+            this.corruptionFeedbackVisuals.clearEffectsForNodes([link.source, link.target]);
         }
 
         // Dispose healing particle emitter for this link

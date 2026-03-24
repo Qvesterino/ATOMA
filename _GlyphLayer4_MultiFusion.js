@@ -1492,9 +1492,24 @@ export class GlyphLayer4_MultiFusion {
     return visualGroup;
   }
 
+  _getNodeActiveLinkCount(node) {
+    const metricsCount = node?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return metricsCount;
+
+    const legacyCount = node?.userData?.activeLinkCount;
+    if (Number.isFinite(legacyCount)) return legacyCount;
+
+    return 0;
+  }
+
+  _hasNodeActiveLinks(node) {
+    return this._getNodeActiveLinkCount(node) > 0;
+  }
+
   createAmbientOrbitForNode(node, nodeId) {
     if (!this.ambientOrbitEnabled) return;
     if (!node || !node.parent || !nodeId) return;
+    if (!this._hasNodeActiveLinks(node)) return;
     if (this.ambientOrbitRegistry.has(nodeId)) return;
 
     const visualGroup = this._getOrCreateVisualGroup(node);
@@ -1526,11 +1541,35 @@ export class GlyphLayer4_MultiFusion {
     if (!this.ambientOrbitEnabled) return;
     if (!nodes || nodes.length === 0) return;
 
+    this.reconcileAmbientOrbitGlyphs(nodes);
+  }
+
+  reconcileAmbientOrbitGlyphs(nodes) {
+    if (!this.ambientOrbitEnabled) return;
+    if (!Array.isArray(nodes) || nodes.length === 0) return;
+
+    const activeNodeIds = new Set();
+
     nodes.forEach((node) => {
       const nodeId = node?.userData?.nodeId;
       if (!nodeId) return;
-      this.createAmbientOrbitForNode(node, nodeId);
+
+      if (this._hasNodeActiveLinks(node)) {
+        activeNodeIds.add(nodeId);
+        this.createAmbientOrbitForNode(node, nodeId);
+        return;
+      }
+
+      if (this.ambientOrbitRegistry.has(nodeId)) {
+        this.removeAmbientOrbit(nodeId);
+      }
     });
+
+    for (const nodeId of Array.from(this.ambientOrbitRegistry.keys())) {
+      if (!activeNodeIds.has(nodeId)) {
+        this.removeAmbientOrbit(nodeId);
+      }
+    }
   }
   
   // ============================================================
@@ -1623,7 +1662,7 @@ export class GlyphLayer4_MultiFusion {
     for (const [nodeId, ambientData] of this.ambientOrbitRegistry) {
       const { node, ambientGroup } = ambientData;
 
-      if (!ambientGroup || !ambientGroup.parent) {
+      if (!ambientGroup || !ambientGroup.parent || !this._hasNodeActiveLinks(node)) {
         this.removeAmbientOrbit(nodeId);
         continue;
       }

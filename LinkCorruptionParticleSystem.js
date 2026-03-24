@@ -290,14 +290,29 @@ export class LinkCorruptionParticleSystem {
     this.linkByPair.clear();
   }
 
-  clearLinkParticles(linkId) {
-    const list = this.linkIndices.get(linkId);
-    if (!list) return;
-    for (const idx of list) {
-      this.active[idx] = false;
-      this.linkRefs[idx] = null;
+  clearLinkParticles(linkOrId) {
+    const linkId = typeof linkOrId === 'string' ? linkOrId : linkOrId?.id;
+    const list = linkId ? this.linkIndices.get(linkId) : null;
+    if (list) {
+      for (const idx of list) {
+        this.active[idx] = false;
+        this.linkRefs[idx] = null;
+      }
+      this.linkIndices.delete(linkId);
     }
-    this.linkIndices.delete(linkId);
+
+    const link = typeof linkOrId === 'object' ? linkOrId : null;
+    const pairKey = this._pairKey(
+      link?.sourceNode || link?.nodeA || link?.source,
+      link?.targetNode || link?.nodeB || link?.target
+    );
+    if (pairKey) {
+      this.linkByPair.delete(pairKey);
+    }
+
+    if (list) {
+      this._flagUpdates();
+    }
   }
 
   _trimToTarget(linkId, targetCount) {

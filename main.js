@@ -6809,6 +6809,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'));
             this.linkingSystem.__audioLinkAuthorityBound = true;
         }
+        if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
+            this.linkingSystem.onLinkRemoved((sourceNode, targetNode) => {
+                this.linkSemanticPictograms?.clearLinkBetweenNodes?.(sourceNode, targetNode);
+                this.linkPictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
+                this.corruptionFeedback?.clearEffectsForNodes?.([sourceNode, targetNode]);
+            });
+            this.linkingSystem.__visualOrphanCleanupBound = true;
+        }
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge = this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
             this.linkingSystem.conduitRenderer.waveTravelShaderPack = this.waveTravelShaderPack || this.linkingSystem.conduitRenderer.waveTravelShaderPack;
@@ -8773,20 +8781,20 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Outputs: chainReaction.getActiveReactions() for shader/AI integration
         try {
             this.synergyChainReaction = new SynergyChainReaction_v1({
-                enabled: false,              // default OFF (SRP-1)
-                emitEvents: false,           // only emit when explicitly enabled
+                enabled: true,               // ENABLED for cascade activation
+                emitEvents: true,            // emit cascade events
                 debugEnabled: false,
-                primaryThreshold: 0.75,     // Node synergy to trigger cascade
-                synergyThreshold: 0.75,     // legacy naming (ignored by v1 but kept for parity)
+                primaryThreshold: 0.6,      // Node synergy to trigger cascade (znížené pre debug)
+                synergyThreshold: 0.6,      // legacy naming (znížené pre debug)
                 resonanceSimilarityThreshold: 0.6,  // Resonance compatibility
                 personalityCompatibilityThreshold: 0.5,  // Personality filter
                 synergyMinimum: 0.3,        // Min synergy for propagation
                 minimumIntensity: 0.1,      // Stop cascade below this
-                maxHops: 8,                 // Max chain depth
+                maxHops: 5,                 // Max chain depth (maxDepth: 5)
                 maxReactionsPerFrame: null, // No frame limit
                 maxNodesPerFrame: 30,
                 maxLinksPerFrame: 50,
-                intensityDecayPerHop: 0.82
+                intensityDecayPerHop: 0.75  // propagationFactor: 0.75
             });
             console.log('[main.js] SynergyChainReaction_v1 initialized ✓');
             window.enableSynergyChainReaction = (flag = false) => {
@@ -8805,6 +8813,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         } catch (err) {
             console.warn('[main.js] SynergyChainReaction_v1 failed:', err);
         }
+
+        // === REGISTER SYNERGY CHAIN REACTION UPDATE ===
+        this.frameScheduler.register('simulation', (dt) => {
+            this.synergyChainReaction?.update?.(dt, this.nodes || this.aiNodes?.nodes || []);
+        }, 'simulation.synergyChainReaction');
 
         // ====================================================================
         // WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
@@ -9056,6 +9069,31 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         } catch (err) {
             console.warn('[main.js] NetworkStressAggregator failed:', err);
         }
+
+        // === SYNERGY CASCADE ACTIVATION PATCH ===
+        this.frameScheduler.register('simulation', () => {
+            const links = this.linkSystem?.links || [];
+            if (!links.length) return;
+
+            for (const link of links) {
+                const synergy =
+                    link.userData?.synergy?.score ??
+                    link.userData?.synergy?.synergyNorm ??
+                    0;
+
+                if (synergy > 0.6) {
+                    this.semanticBus?.emit?.('cascade.start', {
+                        linkId: link.id,
+                        strength: synergy,
+                    });
+
+                    this.semanticBus?.emit?.('cascade.hop', {
+                        linkId: link.id,
+                        strength: synergy * 0.8,
+                    });
+                }
+            }
+        }, 'simulation.synergyCascadeActivation');
 
         // ====================================================================
         // METRIC INTERPRETATION LAYER v1 — Visual Signal Interpretation
@@ -11371,6 +11409,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.glyphLayer4.ambientOrbitEnabled = true;
         this.glyphLayer4.createAmbientOrbitGlyphsForNodes(this.aiNodes.nodes);
 
+        if (this.linkingSystem?.onLinkCreated && !this.glyphLayer4.__ambientOrbitLinkBindingInstalled) {
+            const reconcileAmbientOrbits = () => {
+                this.glyphLayer4?.reconcileAmbientOrbitGlyphs?.(this.aiNodes?.nodes || []);
+            };
+
+            this.linkingSystem.onLinkCreated(() => reconcileAmbientOrbits());
+            this.linkingSystem.onLinkRemoved(() => reconcileAmbientOrbits());
+            this.glyphLayer4.__ambientOrbitLinkBindingInstalled = true;
+        }
+
         if (this.aiNodes?.unregisterPostSpawnObserver) {
             this.aiNodes.unregisterPostSpawnObserver('glyph-layer4-ambient-orbit');
         }
@@ -11381,7 +11429,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 (newNode) => {
                     const nodeId = newNode?.userData?.nodeId;
                     if (!newNode || !nodeId || !this.glyphLayer4) return;
-                    this.glyphLayer4.createAmbientOrbitForNode(newNode, nodeId);
+                    this.glyphLayer4.reconcileAmbientOrbitGlyphs?.(this.aiNodes?.nodes || []);
                 },
                 90
             );
@@ -11455,6 +11503,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         this.linkGlyphFlow = new LinkGlyphFlow(this.scene, this.linkingSystem, this.semanticGlyphAI);
+        this.linkGlyphFlow.frameScheduler = this.frameScheduler;
+        this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging || null;
 
         console.log('✓ Link Glyph Flow 1.0 initialized');
         console.log('  - AI communication packets along links');
@@ -11475,6 +11525,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         this.linkedGlyphMessaging = new LinkedGlyphMessaging3_0(this.scene, this.worldRoot, this.semanticGlyphAI);
         this.linkedGlyphMessaging.setEnabled(true);
+        this.linkedGlyphMessaging.frameScheduler = this.frameScheduler;
+        this.linkedGlyphMessaging.linkGlyphFlow = this.linkGlyphFlow || null;
+
+        if (this.linkGlyphFlow) {
+            this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging;
+        }
 
         console.log('✓ Linked Glyph Messaging 3.0 active');
         console.log('  - Ultra symbolic AI language transport');

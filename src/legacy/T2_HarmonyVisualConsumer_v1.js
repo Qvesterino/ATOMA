@@ -100,7 +100,7 @@ export class T2_HarmonyVisualConsumer_v1 {
     this.enabled = true;
     this.config = {
       harmonyFieldThreshold: 0.6,
-      pulseThreshold: 0.93,
+      pulseThreshold: 0.85,
       fieldBaseOpacity: 0.85,
       fieldMaxOpacity: 0.95,
       fieldBaseEmissiveIntensity: 1.5,
@@ -138,7 +138,7 @@ export class T2_HarmonyVisualConsumer_v1 {
       pulseEmitRate: 2.0, // pulses per second from high-harmony nodes
       pulseSpeed: 8.0, // units per second
       pulseRadius: 0.3,
-      pulseColor: new THREE.Color(0x00ffdd),
+      pulseColor: new THREE.Color(0x22ffd8),
       pulseMaxDistance: 50,
       pulseLifetime: 3.0 // seconds
     };
@@ -151,7 +151,7 @@ export class T2_HarmonyVisualConsumer_v1 {
       time: 0,
       attachRoot: null,
       borromeanRingGeometries: this._createBorromeanRingGeometries(),
-      pulseGeometry: new THREE.OctahedronGeometry(this.config.pulseRadius, 0)
+      pulseShardGeometry: new THREE.BoxGeometry(this.config.pulseRadius * 0.15, this.config.pulseRadius * 0.9, this.config.pulseRadius * 0.08)
     };
 
     this._tmpWorldPosition = new THREE.Vector3();
@@ -268,6 +268,100 @@ export class T2_HarmonyVisualConsumer_v1 {
 
   _getNodeKeyCandidates(node) {
     return [node?.uuid, node?.id, node?.userData?.nodeId];
+  }
+
+  _createHealingPulseMesh() {
+    const pulseGroup = new THREE.Group();
+    const shardSpecs = [
+      { position: [0.0, 0.18, 0.0], rotation: [0.0, 0.0, -0.12], scale: [1.0, 1.05, 1.0], opacity: 0.78 },
+      { position: [0.1, 0.1, 0.03], rotation: [0.0, 0.0, -0.55], scale: [0.72, 0.88, 1.0], opacity: 0.62 },
+      { position: [-0.12, 0.04, -0.02], rotation: [0.0, 0.0, 0.48], scale: [0.8, 0.82, 1.0], opacity: 0.58 },
+      { position: [0.12, -0.04, 0.01], rotation: [0.0, 0.0, 0.86], scale: [0.6, 0.68, 1.0], opacity: 0.46 },
+      { position: [-0.08, -0.1, 0.0], rotation: [0.0, 0.0, -0.92], scale: [0.55, 0.62, 1.0], opacity: 0.4 }
+    ];
+
+    const materials = [];
+
+    for (const spec of shardSpecs) {
+      const shardMaterial = new THREE.MeshBasicMaterial({
+        color: this.config.pulseColor,
+        transparent: true,
+        opacity: spec.opacity,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      });
+      shardMaterial.userData = {
+        baseOpacity: spec.opacity
+      };
+
+      const shard = new THREE.Mesh(this.registry.pulseShardGeometry, shardMaterial);
+      shard.position.set(spec.position[0], spec.position[1], spec.position[2]);
+      shard.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
+      shard.scale.set(spec.scale[0], spec.scale[1], spec.scale[2]);
+      shard.userData.isHarmonyHealingPulseShard = true;
+      pulseGroup.add(shard);
+      materials.push(shardMaterial);
+    }
+
+    pulseGroup.userData.isHarmonyHealingPulse = true;
+    pulseGroup.userData.baseOpacity = 0.8;
+    pulseGroup.userData.materials = materials;
+
+    return pulseGroup;
+  }
+
+  _setHealingPulseOpacity(pulseMesh, opacity) {
+    if (!pulseMesh) return;
+
+    const materials = pulseMesh.userData?.materials;
+    if (Array.isArray(materials) && materials.length > 0) {
+      const normalizedOpacity = Math.max(0, Math.min(1, opacity / Math.max(0.001, pulseMesh.userData?.baseOpacity || 0.8)));
+      for (const material of materials) {
+        if (!material) continue;
+        const baseOpacity = material.userData?.baseOpacity ?? material.opacity ?? 0.8;
+        material.opacity = baseOpacity * normalizedOpacity;
+      }
+      return;
+    }
+
+    if (pulseMesh.material) {
+      pulseMesh.material.opacity = opacity;
+    }
+  }
+
+  _disposeHealingPulseMesh(pulseMesh) {
+    if (!pulseMesh) return;
+    pulseMesh.parent?.remove?.(pulseMesh);
+
+    const materials = pulseMesh.userData?.materials;
+    if (Array.isArray(materials)) {
+      for (const material of materials) {
+        material?.dispose?.();
+      }
+      return;
+    }
+
+    pulseMesh.material?.dispose?.();
+  }
+
+  _getNodeActiveLinkCount(node) {
+    const metricsCount = node?.userData?.metrics?.activeLinkCount;
+    if (Number.isFinite(metricsCount)) return metricsCount;
+
+    const legacyCount = node?.userData?.activeLinkCount;
+    if (Number.isFinite(legacyCount)) return legacyCount;
+
+    return 0;
+  }
+
+  _hasNodeActiveLinks(node, activeLinkedNodeKeys = null) {
+    if (this._getNodeActiveLinkCount(node) > 0) {
+      return true;
+    }
+
+    return activeLinkedNodeKeys ? this._isActiveLinkedNode(node, activeLinkedNodeKeys) : false;
   }
 
   _markNodeAsActive(node, activeLinkedNodeKeys) {
@@ -558,6 +652,7 @@ export class T2_HarmonyVisualConsumer_v1 {
 
   flashHarmonyField(node, options = {}) {
     if (!this.enabled || !node?.uuid) return false;
+    if (!this._hasNodeActiveLinks(node)) return false;
 
     if (!this.registry.nodeAuras.has(node.uuid)) {
       this.registerNode(node);
@@ -650,18 +745,8 @@ export class T2_HarmonyVisualConsumer_v1 {
     if (!this.enabled || !fromNode) return;
     const attachRoot = this._syncAttachmentRoot();
     if (!attachRoot) return;
-    
-    const pulseMaterial = new THREE.MeshBasicMaterial({
-      color: this.config.pulseColor,
-      transparent: true,
-      opacity: 0.8,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false
-    });
-    
-    const pulseMesh = new THREE.Mesh(this.registry.pulseGeometry, pulseMaterial);
+
+    const pulseMesh = this._createHealingPulseMesh();
     const sourceObject = this._getNodeAuraParent(fromNode) || fromNode;
     sourceObject.getWorldPosition(this._tmpWorldPosition);
     pulseMesh.position.copy(this._tmpWorldPosition);
@@ -711,6 +796,7 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     if (aiNodes && aiNodes.nodes) {
       const activeNodeSet = new Set();
+      const activeLinkedNodeKeys = this._collectActiveLinkedNodeKeys(resolvedHarmonySystem);
       for (const node of aiNodes.nodes) {
         if (!node.userData) continue;
         activeNodeSet.add(node.uuid);
@@ -724,6 +810,13 @@ export class T2_HarmonyVisualConsumer_v1 {
         const auraParent = this._getNodeAuraParent(node);
         if (auraData.auraGroup?.parent !== auraParent) {
           auraParent?.add?.(auraData.auraGroup);
+        }
+
+        const hasActiveLinks = this._hasNodeActiveLinks(node, activeLinkedNodeKeys);
+        if (!hasActiveLinks) {
+          auraData.auraGroup.visible = false;
+          auraData.lastHarmonyLevel = 0;
+          continue;
         }
         
         const harmonyLevel = this._resolveNodeHarmonyLevel(node, resolvedHarmonySystem);
@@ -770,12 +863,11 @@ export class T2_HarmonyVisualConsumer_v1 {
       const fadeStart = pulse.lifetime * 0.7;
       if (pulse.ageSeconds > fadeStart) {
         const fadeProgress = (pulse.ageSeconds - fadeStart) / (pulse.lifetime - fadeStart);
-        pulse.mesh.material.opacity = 0.8 * (1.0 - fadeProgress);
+        this._setHealingPulseOpacity(pulse.mesh, 0.8 * (1.0 - fadeProgress));
       }
       
       if (pulse.ageSeconds >= pulse.lifetime) {
-        pulse.mesh.parent?.remove(pulse.mesh);
-        pulse.mesh.material.dispose();
+        this._disposeHealingPulseMesh(pulse.mesh);
         this.registry.activeHealingPulses.splice(i, 1);
       }
     }
@@ -811,8 +903,7 @@ export class T2_HarmonyVisualConsumer_v1 {
     this.registry.oasisZones.clear();
     
     this.registry.activeHealingPulses.forEach((pulse) => {
-      pulse.mesh?.parent?.remove?.(pulse.mesh);
-      pulse.mesh?.material?.dispose?.();
+      this._disposeHealingPulseMesh(pulse.mesh);
     });
     this.registry.activeHealingPulses = [];
   }
@@ -820,7 +911,7 @@ export class T2_HarmonyVisualConsumer_v1 {
   dispose() {
     this.cleanup();
     this.registry.borromeanRingGeometries?.forEach?.((geometry) => geometry?.dispose?.());
-    this.registry.pulseGeometry?.dispose?.();
+    this.registry.pulseShardGeometry?.dispose?.();
   }
   
   getStatus() {

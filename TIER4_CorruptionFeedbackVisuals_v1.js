@@ -159,6 +159,46 @@ export class TIER4_CorruptionFeedbackVisuals {
   setHarmonyFieldConsumer(harmonyFieldConsumer) {
     this.harmonyFieldConsumer = harmonyFieldConsumer ?? null;
   }
+
+  _effectMatchesNode(effect, node) {
+    if (!effect || !node) return false;
+    const effectNode = effect.node;
+    return effectNode === node || effectNode?.uuid === node?.uuid;
+  }
+
+  clearEffectsForNode(node) {
+    if (!node) return 0;
+
+    let cleared = 0;
+
+    for (let i = this.activeCorruptionSeeds.length - 1; i >= 0; i--) {
+      const effect = this.activeCorruptionSeeds[i];
+      if (!this._effectMatchesNode(effect, node)) continue;
+      this.scene.remove(effect.mesh);
+      effect.mesh.material.dispose();
+      this.activeCorruptionSeeds.splice(i, 1);
+      cleared += 1;
+    }
+
+    for (let i = this.activeCascadeWarnings.length - 1; i >= 0; i--) {
+      const effect = this.activeCascadeWarnings[i];
+      if (!this._effectMatchesNode(effect, node)) continue;
+      this.scene.remove(effect.mesh);
+      effect.mesh.material.dispose();
+      this.activeCascadeWarnings.splice(i, 1);
+      cleared += 1;
+    }
+
+    return cleared;
+  }
+
+  clearEffectsForNodes(nodes = []) {
+    let cleared = 0;
+    for (const node of nodes) {
+      cleared += this.clearEffectsForNode(node);
+    }
+    return cleared;
+  }
   
   /**
    * Display corruption seed effect on link creation
@@ -192,6 +232,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       const effect = {
         mesh,
         type: 'corruptionSeed',
+        node,
         startTime: Date.now(),
         duration: this.config.corruptionSeedDuration * 1000, // Convert to ms
         seedIntensity,
@@ -234,6 +275,7 @@ export class TIER4_CorruptionFeedbackVisuals {
       const effect = {
         mesh,
         type: 'cascadeWarning',
+        node,
         startTime: Date.now(),
         duration: 1000, // Stays visible for 1 second
         pulseSpeed: this.config.cascadeWarningPulseSpeed

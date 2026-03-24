@@ -761,6 +761,19 @@ export class LinkSemanticPictogramSystem_Enhanced {
         return link.__pictoId;
     }
 
+    _matchesLinkEndpoints(link, nodeA, nodeB) {
+        if (!link || !nodeA || !nodeB) return false;
+
+        const source = link.userData?.nodeA || link.source || link.startNode || null;
+        const target = link.userData?.nodeB || link.target || link.endNode || null;
+        if (!source || !target) return false;
+
+        return (
+            (source === nodeA && target === nodeB) ||
+            (source === nodeB && target === nodeA)
+        );
+    }
+
     // ========================================================================
     // INITIALIZATION
     // ========================================================================
@@ -1904,6 +1917,41 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkStateCounts.delete(linkId);
         this.linkMetricCounts.delete(linkId);
         this._initializedLinks.delete(linkId);
+
+        return cleared;
+    }
+
+    clearLinkBetweenNodes(nodeA, nodeB) {
+        if (!nodeA || !nodeB) return 0;
+
+        let cleared = 0;
+        const clearedLinkIds = new Set();
+
+        this.pictograms.forEach((pictogram) => {
+            if (!pictogram?.active) return;
+            if (!this._matchesLinkEndpoints(pictogram.link, nodeA, nodeB)) return;
+
+            if (pictogram._linkKey) {
+                clearedLinkIds.add(pictogram._linkKey);
+            } else {
+                const key = this.getLinkKey(pictogram.link);
+                if (key) clearedLinkIds.add(key);
+            }
+
+            pictogram.reset();
+            pictogram._linkKey = null;
+            pictogram._stateKey = null;
+            cleared += 1;
+        });
+
+        for (const linkId of clearedLinkIds) {
+            this.linkImportanceScores.delete(linkId);
+            this.linkPictogramCounts.delete(linkId);
+            this.linkSpawnTimers.delete(linkId);
+            this.linkStateCounts.delete(linkId);
+            this.linkMetricCounts.delete(linkId);
+            this._initializedLinks.delete(linkId);
+        }
 
         return cleared;
     }
