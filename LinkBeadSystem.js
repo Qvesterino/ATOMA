@@ -357,7 +357,7 @@ export class LinkBeadPool {
   /**
    * Update all active beads
    */
-  update(deltaTime, onArrival) {
+  update(deltaTime, onArrival, spawnEnabled = true) {
     // Safety check: need a valid curve to proceed
     if (!this.link.curve) {
       // Clear active beads deterministically when curve is missing
@@ -374,9 +374,11 @@ export class LinkBeadPool {
     this.updateEcho(deltaTime, curveLength);
     
     // Spawn new beads
-    this.trySpawn(deltaTime);
+    if (spawnEnabled) {
+      this.trySpawn(deltaTime);
+    }
     // Force at least one bead when none are active (debug visibility)
-    if (this.getActiveBead().length === 0) {
+    if (spawnEnabled && this.getActiveBead().length === 0) {
       this.trySpawn(deltaTime * 3); // triple boost to guarantee spawn
     }
 
@@ -708,14 +710,14 @@ export class LinkBeadVisualizer {
   /**
    * Update all beads
    */
-  update(deltaTime, onArrival) {
+  update(deltaTime, onArrival, spawnEnabled = true) {
     this._fixedAccum += deltaTime;
     if (this._fixedAccum < 0.1) return;
     const step = this._fixedAccum;
     this._fixedAccum = 0;
 
     // Update pool (spawning and bead logic)
-    this.pool.update(step, onArrival);
+    this.pool.update(step, onArrival, spawnEnabled);
     this.pool.invalidateCache(); // Reset cache each frame
     
     // Safety check: need valid curve to render beads

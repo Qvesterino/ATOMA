@@ -116,6 +116,10 @@ export const CONFIG = {
     // - Blocks: opacity, scale, color, emissive, visibility mutations
     // - Effect: Stable node appearance before/after linking
     LOCK_NODE_VISUALS: false,
+
+    // NODE HOVER GLOW
+    // - Enables the cyan hover glow above hovered nodes
+    enableNodeHoverGlow: true,
     
     // NODE INTERACTION AUTHORITY
     // - Raycasting targets invisible interaction meshes ONLY

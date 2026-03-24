@@ -164,7 +164,8 @@ export class LinkPulseDustEmitter {
         progress = 0.0,
         dt = 0.016,
         sourceColor,
-        targetColor
+        targetColor,
+        spawnEnabled = true
     } = {}) {
         if (!this.enabled || !position || !tangent) {
             this.mesh.visible = false;
@@ -187,7 +188,7 @@ export class LinkPulseDustEmitter {
         this.spawnAccumulator += emissionRate * dt;
 
         let touched = false;
-        while (this.spawnAccumulator >= 1.0) {
+        while (spawnEnabled && this.spawnAccumulator >= 1.0) {
             this.spawnAccumulator -= 1.0;
             this._spawnParticle(
                 position,

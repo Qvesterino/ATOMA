@@ -136,6 +136,14 @@ function _validateBinderNode(node) {
   return true;
 }
 
+function getRaycastFarLimit(camera) {
+  const cameraFar = camera?.far;
+  if (Number.isFinite(cameraFar) && cameraFar > 0) {
+    return cameraFar * 1.2;
+  }
+  return 1200;
+}
+
 // Debug-only raycast cost instrumentation (opt-in via window.DEBUG_RAYCAST_COST)
 const RAYCAST_COST_LOG_INTERVAL_MS = 5000;
 const _proxyCandidateScratch = [];
@@ -620,7 +628,7 @@ export class NodeLinkingSystem {
     this.interactionConfig = {
       // Default raycaster far plane: ~1000 units
       // New extended distance for long-range node linking: 4000 units
-      maxLinkingDistance: 4000,
+      maxLinkingDistance: getRaycastFarLimit(camera),
       // Selection buffer for easier node picking (spherecast radius)
       selectionBufferRadius: 0.3,
       // Per-frame update frequency for hover detection
@@ -3017,7 +3025,7 @@ getLinksForNode(node) {
     
     // Update raycaster with extended distance (4x default)
     this.raycaster.setFromCamera(this.mouse, this.camera);
-    this.raycaster.far = this.interactionConfig.maxLinkingDistance;
+    this.raycaster.far = getRaycastFarLimit(this.camera);
     
     // ========================================================================
     // STRATEGY: Direct raycast against node core meshes ONLY
@@ -3296,7 +3304,7 @@ getLinksForNode(node) {
       this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      this.raycaster.far = this.interactionConfig.maxLinkingDistance;
+      this.raycaster.far = getRaycastFarLimit(this.camera);
       
       // ONLY use hit-proxies (visual meshes excluded)
       const hitProxyMeshes = this._getProxyMeshesSnapshot();
@@ -3343,7 +3351,7 @@ getLinksForNode(node) {
       this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
       this.raycaster.setFromCamera(this.mouse, this.camera);
-      this.raycaster.far = this.interactionConfig.maxLinkingDistance;
+      this.raycaster.far = getRaycastFarLimit(this.camera);
 
       // Collect all visible node meshes (direct - no proxies)
       const nodeMeshes = [];

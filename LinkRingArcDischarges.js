@@ -96,7 +96,7 @@ export class LinkRingArcDischarges {
      * @param {THREE.Color} ringColor - Ring color
      * @param {number} ringScale - Ring scale factor
      */
-    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale, harmony = 1.0, corruption = 0.0) {
+    update(curve, ringProgress, synergy, traffic, dt, ringColor, ringScale, harmony = 1.0, corruption = 0.0, spawnEnabled = true) {
         if (!curve) return;
 
         this.currentRingProgress = ringProgress;
@@ -105,7 +105,9 @@ export class LinkRingArcDischarges {
         this.currentHarmony = harmony;
         this.currentCorruption = corruption;
 
-        this.checkAndSpawnArcs(curve, synergy, traffic);
+        if (spawnEnabled) {
+            this.checkAndSpawnArcs(curve, synergy, traffic);
+        }
 
         // Update active arcs (PHASE 4: Smooth Energy Fade)
         this.updateActiveArcs(dt, curve);

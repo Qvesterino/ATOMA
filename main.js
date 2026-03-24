@@ -63,6 +63,7 @@ import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.j
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { DistanceLODController } from './DistanceLODController.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
 import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
@@ -5419,6 +5420,8 @@ hudP05Observer.observe(document.body, {
         );
         this.camera.position.set(0, 2, 5);
 window.__ATOMA_CAMERA__ = this.camera;
+        this.distanceLOD = new DistanceLODController(this.camera);
+window.ATOMA_DISTANCE_LOD = this.distanceLOD;
 window.__ATOMA_SCENE__ = this.scene;
         // Renderer
         this.renderer = new THREE.WebGLRenderer({

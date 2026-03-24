@@ -186,7 +186,7 @@ export class LinkBeadTrailSystem {
      * @param {number} deltaTime - Frame delta
      * @param {Map} beadToMesh - Map of active beads to meshes
      */
-    update(time, deltaTime, beadToMesh, curve = null) {
+    update(time, deltaTime, beadToMesh, curve = null, spawnEnabled = true) {
         this.mesh.material.uniforms.uTime.value = time;
         
         // Guard: ensure beadToMesh is valid and iterable
@@ -194,6 +194,10 @@ export class LinkBeadTrailSystem {
             return;
         }
         
+        if (!spawnEnabled) {
+            return;
+        }
+
         // Accumulate emission count
         // We want constant emission density regardless of framerate
         // particles_to_spawn = emissionRate * dt

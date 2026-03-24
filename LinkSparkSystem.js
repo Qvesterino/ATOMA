@@ -228,7 +228,7 @@ export class LinkSparkSystem {
      * @param {Object} stats - { synergy, traffic, load }
      * @param {THREE.Color} color - Base link color
      */
-    update(time, deltaTime, curve, stats, color) {
+    update(time, deltaTime, curve, stats, color, spawnEnabled = true) {
         // Active particle estimate for debugging
         const geo = this.points?.geometry || this.geometry;
         if (!geo || !geo.attributes?.aSpawnTime || !geo.attributes?.aLifeTime) {
@@ -312,8 +312,10 @@ export class LinkSparkSystem {
         // Burst check (Echo wave or bead arrival simulation)
         // We'll simulate bursts via random chance for now to keep it decoupled
         // Controlled spawn
-        const count = 1;
-        this.spawnBurst(count, time, activity);
+        if (spawnEnabled) {
+            const count = 1;
+            this.spawnBurst(count, time, activity);
+        }
 
         // Opacity scales with activity but never zero
         this.uniforms.uOpacity.value = 1.5; // TEMP visibility boost

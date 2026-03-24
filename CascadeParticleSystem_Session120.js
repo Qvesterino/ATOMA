@@ -62,6 +62,7 @@ export class CascadeParticleSystem_Session120 {
     this._semanticUnsubscribers = [];
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
+    this._tmpMidpoint = new THREE.Vector3();
     this._neutralParticleColor = new THREE.Color(0.75, 0.8, 0.9);
     
     // Cascade hop cooldown tracking (per link)
@@ -358,6 +359,7 @@ export class CascadeParticleSystem_Session120 {
 
   spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
     if (!this.config.enabled || !link) return;
+    if (this._getLinkLODLevel(link) >= 2) return;
 
     this._ensureCanonicalLinkDefaults([link]);
 
@@ -583,6 +585,11 @@ export class CascadeParticleSystem_Session120 {
     for (let i = 0; i < this.config.maxParticles; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
+      if (this._getLinkLODLevel(p.linkRef) >= 3) {
+        p.active = false;
+        positions[i * 3] = 99999;
+        continue;
+      }
       
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
@@ -696,6 +703,21 @@ export class CascadeParticleSystem_Session120 {
       ? node.getWorldPosition(outVec || new THREE.Vector3())
       : node.position;
     return this._isValidWorldPosition(pos) ? pos : null;
+  }
+
+  _getLinkLODLevel(link) {
+    const controller = globalThis?.window?.ATOMA_DISTANCE_LOD;
+    if (!controller || !link) return 0;
+
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+    if (!sourcePosition || !targetPosition) return 0;
+
+    this._tmpMidpoint.copy(sourcePosition).add(targetPosition).multiplyScalar(0.5);
+    const level = controller.getLODLevel(this._tmpMidpoint);
+    return Number.isFinite(level) ? level : 0;
   }
   
   /**

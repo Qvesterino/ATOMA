@@ -897,6 +897,7 @@ export class LinkRendererConduit {
         // Math cache to reduce allocations
         this._vec3 = new THREE.Vector3();
         this._pulseDustWorldPos = new THREE.Vector3();
+        this._lodMidpoint = new THREE.Vector3();
 
         // Node interference management (visual only)
         this.nodeInterferenceManager = new NodeInterferenceManager(scene);
@@ -2464,6 +2465,20 @@ export class LinkRendererConduit {
         }
     }
 
+    _getDistanceLODController() {
+        if (typeof window === 'undefined') return null;
+        return window.ATOMA_DISTANCE_LOD || null;
+    }
+
+    _getLinkLODLevel(start, end) {
+        const controller = this._getDistanceLODController();
+        if (!controller || !start || !end) return 0;
+
+        this._lodMidpoint.copy(start).add(end).multiplyScalar(0.5);
+        const level = controller.getLODLevel(this._lodMidpoint);
+        return Number.isFinite(level) ? level : 0;
+    }
+
     /**
      * Generate procedural gradient texture
      */
@@ -2670,7 +2685,6 @@ export class LinkRendererConduit {
                     material.userData.wavePhaseOffset = wavePhaseOffset;
 
                     this._registerLinkMaterialWithBridge(material);
-                    if (this.waveDynamicsShaderPack?.applyToMaterial) this.waveDynamicsShaderPack.applyToMaterial(material);
                     if (this.travelingWaveFX?.registerMaterial) this.travelingWaveFX.registerMaterial(material, { type: 'link-strand', polarity: 'resonance' });
                     this._attachWaveDirectionUniform(material, directionVec, waveLength, wavePhaseOffset);
 
@@ -2871,8 +2885,8 @@ export class LinkRendererConduit {
 
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
-            if (heavyTick && this.corruptionSpreadAnimator && state.strands) {
-                const spreadState = this.corruptionSpreadAnimator.update(link, visualDelta, state.strands, {
+            if (this.corruptionSpreadAnimator && state.strands) {
+                const spreadState = this.corruptionSpreadAnimator.update(link, deltaTime, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
                     nowMs: performance.now()
                 });
@@ -2933,6 +2947,11 @@ export class LinkRendererConduit {
         const end = targetCenter.clone().addScaledVector(linkDir, -targetRadius * RADIUS_SCALE);
         const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
         const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
+        const lod = this._getLinkLODLevel(start, end);
+        if (lod >= 3) return;
+        const lodVisualScale = lod >= 2 ? 0.3 : 1.0;
+        const lodAllowsParticles = lod < 1;
+        const lodAllowsSecondaryVfx = lod < 2;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
 
@@ -3247,7 +3266,7 @@ export class LinkRendererConduit {
                     state.dockSpray.update(visualTime);
                     const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
                     const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
-                    if (visualTime >= nextSprayTime) {
+                    if (lodAllowsParticles && visualTime >= nextSprayTime) {
                         const payload = state.dockRing.userData.sprayPayload;
                         if (payload) {
                             state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
@@ -3265,11 +3284,11 @@ export class LinkRendererConduit {
                 const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
                 const injectionAnchor = sourcePortPos.clone();
                 const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
-                const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? 0, 0, 1);
+                const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? 0, 0, 1) * lodVisualScale;
                 state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
                 const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
                 const injectionInterval = state.sourceInjectionInterval ?? 0.075;
-                if (visualTime >= nextInjectionTime) {
+                if (lodAllowsParticles && visualTime >= nextInjectionTime) {
                     state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
                     state.sourceInjectionNextTime = visualTime + injectionInterval;
                 }
@@ -3320,6 +3339,11 @@ export class LinkRendererConduit {
         // --- 2. Dynamic Parameters ---
         const synergy = metrics.synergy;
         const trafficLoad = metrics.loadPressure ?? 0;
+        const lodSynergy = synergy * lodVisualScale;
+        const lodTrafficLoad = trafficLoad * lodVisualScale;
+        const lodHarmony = (metrics.harmony ?? 0.5) * lodVisualScale;
+        const lodCorruption = (metrics.corruption ?? 0.0) * lodVisualScale;
+        const lodInstability = (metrics.instability ?? 0.0) * lodVisualScale;
 
         // Collect per-link material patches to apply once per frame (last-wins per property)
         const materialPatches = {
@@ -3368,11 +3392,7 @@ export class LinkRendererConduit {
                 const m = link?.userData?.metrics;
                 if (!m) return;
 
-                if (mat.uniforms.uSynergy) mat.uniforms.uSynergy.value = m.synergy ?? 0;
-                if (mat.uniforms.uHarmony) mat.uniforms.uHarmony.value = m.harmony ?? 0;
-                if (mat.uniforms.uStress) mat.uniforms.uStress.value = 1.0 - (m.stability ?? 1);
                 if (mat.uniforms.uCorruption) mat.uniforms.uCorruption.value = m.corruption ?? 0;
-                if (mat.uniforms.uLoad) mat.uniforms.uLoad.value = m.loadPressure ?? 0;
                 if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
                 if (mat.uniforms.uLocalLoad && !mat.userData?.__uLocalLoadOwnedByEnergyWave) {
                     mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
@@ -3602,7 +3622,7 @@ export class LinkRendererConduit {
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
-            if (heavyTick && emitter) {
+            if (heavyTick && emitter && lodAllowsParticles) {
                 const linkHarmony = metrics.harmony ?? 0.5;
                 const linkCorruption = metrics.corruption ?? 0.2;
 
@@ -3620,7 +3640,7 @@ export class LinkRendererConduit {
             // Shared pool mapping: LinkCorruptionParticleSystem -> corruption trail source.
             if (this.modules.corruptionFX && this.corruptionParticleSystem && runHeavyCorruptionUpdate) {
                 const corruptionLevel = Math.max(0, Math.min(1, metrics.corruption ?? 0));
-                if (corruptionLevel > 0.08) {
+                if (lodAllowsParticles && corruptionLevel > 0.08) {
                     this.trailParticles.emitFromSource?.({
                         type: 'corruption',
                         link,
@@ -3645,7 +3665,7 @@ export class LinkRendererConduit {
                     const linkCorruption = metrics.corruption ?? 0.2;
                     const tintColor = state.baseColorObj || (state.strands?.[0]?.material?.color);
 
-                    if (linkHarmony > linkCorruption) {
+                    if (lodAllowsParticles && linkHarmony > linkCorruption) {
                         emitter.update(
                             visualDelta,
                             visualTime,
@@ -3689,8 +3709,8 @@ export class LinkRendererConduit {
                     const targetColor = this.getCategoryColor(link.target.userData?.category);
                     state.rings.emitRing(link.target.position, new THREE.Color(targetColor), visualTime);
                 }
-            });
-            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve);
+            }, lodAllowsParticles);
+            if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
         }
 
         if (state.rings) state.rings.update(visualTime);
@@ -3710,11 +3730,11 @@ export class LinkRendererConduit {
                 });
             }
 
-            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor);
+            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor, lodAllowsParticles);
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
 
             // Shared pool mapping: LinkSparkSystem -> spark trail source.
-            this.trailParticles?.emitFromSource?.({
+            if (lodAllowsParticles) this.trailParticles?.emitFromSource?.({
                 type: 'spark',
                 link,
                 curve: mainCurve,
@@ -3734,8 +3754,8 @@ export class LinkRendererConduit {
 
             state.pulseRing.update(
                 mainCurve,
-                synergy,
-                trafficLoad,
+                lodSynergy,
+                lodTrafficLoad,
                 visualDelta,
                 sourceColor,
                 targetColor
@@ -3753,7 +3773,8 @@ export class LinkRendererConduit {
                     progress: state.pulseRing.progress,
                     dt: visualDelta,
                     sourceColor,
-                    targetColor
+                    targetColor,
+                    spawnEnabled: lodAllowsParticles
                 });
             }
         }
@@ -3775,24 +3796,25 @@ export class LinkRendererConduit {
             state.arcDischarges.update(
                 mainCurve,
                 state.pulseRing.progress,
-                synergy,
-                trafficLoad,
+                lodSynergy,
+                lodTrafficLoad,
                 visualDelta,
                 ringColor,
                 ringScale,
                 frameState,
-                metrics?.harmony ?? 1.0,
-                metrics?.corruption ?? 0.0
+                lodHarmony,
+                lodCorruption,
+                lodAllowsSecondaryVfx
             );
         }
 
         // --- 8. Visual State Adaptation (Harmony/Corruption/Instability/Synergy Bridge) ---
         if (heavyTick && state.visualStateAdapter) {
             // Extract harmony/corruption/instability/synergy from pre-read metrics
-            const harmonyLevel = metrics.harmony ?? 0.5;
-            const corruptionLevel = metrics.corruption ?? 0.0;
-            const instability = metrics.instability ?? 0.0;
-            const synergyLevel = metrics.synergy ?? 0.5;
+            const harmonyLevel = lodHarmony;
+            const corruptionLevel = lodCorruption;
+            const instability = lodInstability;
+            const synergyLevel = lodSynergy;
 
             state.visualStateAdapter.update(
                 link.group,
@@ -3819,11 +3841,11 @@ export class LinkRendererConduit {
         }
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
-        if (heavyTick && state.directionalStreaks && this.directionalStreaks && this.modules.streaks) {
-            const harmonyLevel = metrics.harmony ?? 0.5;
-            const corruptionLevel = metrics.corruption ?? 0.0;
-            const instability = metrics.instability ?? 0.0;
-            const synergyLevel = metrics.synergy ?? 0.5;
+        if (heavyTick && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodAllowsSecondaryVfx) {
+            const harmonyLevel = lodHarmony;
+            const corruptionLevel = lodCorruption;
+            const instability = lodInstability;
+            const synergyLevel = lodSynergy;
 
             const sourceColor = new THREE.Color(state.baseColor);
             const targetCat = link.target.userData?.category || 'input';
@@ -3894,20 +3916,6 @@ export class LinkRendererConduit {
         }
 
         // Final-pass wave modulation (single authoritative per-link flow path).
-        if (!state.energyWave && LinkEnergyWave) {
-            state.energyWave = new LinkEnergyWave();
-        }
-        if (state.energyWave && this.modules.flow) {
-            const baseEmissiveIntensity = state.strands[0]?.material?.emissiveIntensity || 1.2;
-            state.energyWave.update(
-                state.strands,
-                visualDelta,
-                synergy,
-                trafficLoad,
-                baseEmissiveIntensity
-            );
-            runtime.energyWaveTicks += 1;
-        }
         runtime.lastSynergy = synergy;
         runtime.lastTraffic = trafficLoad;
 
