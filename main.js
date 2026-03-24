@@ -6811,7 +6811,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
         if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
             this.linkingSystem.onLinkRemoved((sourceNode, targetNode) => {
-                const pictogramSystem = this.linkSemanticPictograms || this.linkPictogramSystem;
+                const pictogramSystem =
+                    this.linkingSystem?.conduitRenderer?.pictogramSystem ||
+                    this.linkSemanticPictograms ||
+                    this.linkPictogramSystem;
                 pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
                 this.corruptionFeedback?.clearEffectsForNodes?.([sourceNode, targetNode]);
             });
@@ -6852,6 +6855,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         if (typeof window !== 'undefined') {
             window.__PIC_SYSTEM__ = this.linkingSystem?.conduitRenderer?.pictogramSystem;
             console.warn('[PicDiag] __PIC_SYSTEM__ set from main.js:', !!window.__PIC_SYSTEM__);
+            if (window.__PIC_SYSTEM__) {
+                this.linkSemanticPictograms = window.__PIC_SYSTEM__;
+                this.linkPictogramSystem = window.__PIC_SYSTEM__;
+            }
         }
         // Initialize recursive glyph signal system once linking system is available
         this.setupRecursiveGlyphSignalSystem();
@@ -10127,7 +10134,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // Moved to FrameScheduler visual layer (30 Hz)
         regGuard('linkedGlyphMessaging', 'linkedGlyphMessaging', (dt) => this.linkedGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
         regGuard('recursiveGlyphMessaging', 'recursiveGlyphMessaging', (dt) => this.recursiveGlyphMessaging?.update?.(dt, this.aiNodes, this.linkingSystem));
-        regGuard('linkPictogramSystem', 'linkPictogramSystem', (dt) => this.linkPictogramSystem?.update?.(dt, this.time, this.aiNodes?.nodes));
+        regGuard('linkPictogramSystem', 'linkPictogramSystem', (dt) => {
+            const conduitPictograms = this.linkingSystem?.conduitRenderer?.pictogramSystem || null;
+            if (!this.linkPictogramSystem || this.linkPictogramSystem === conduitPictograms) return;
+            this.linkPictogramSystem.update?.(dt, this.time, this.aiNodes?.nodes);
+        });
         regGuard('narrativePatterns', 'background.narrativePatterns', (dt) => this.narrativePatterns?.update?.(dt, this.aiNodes?.nodes, this.linkingSystem?.links, this.worldMetrics || {}));
         regGuard('hitProxy', 'realtime.hitProxy', (dt) => this.hitProxySystem?.update?.(dt));
         regGuard('t2CorruptionVisualIntegration', 'visual.t2CorruptionVisualIntegration', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links));
@@ -12469,7 +12480,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (!this.linkingSystem) return;
         if (this.linkSemanticPictograms) return;
         try {
-            this.linkSemanticPictograms = new LinkSemanticPictogramSystem_Enhanced(
+            const conduitPictograms = this.linkingSystem?.conduitRenderer?.pictogramSystem || null;
+            this.linkSemanticPictograms = conduitPictograms || new LinkSemanticPictogramSystem_Enhanced(
                 this.scene,
                 this.linkingSystem,
                 this.camera
@@ -12479,6 +12491,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Expose for console debugging
             if (typeof window !== 'undefined') {
                 window.linkSemanticPictograms = this.linkSemanticPictograms;
+                window.__PIC_SYSTEM__ = this.linkSemanticPictograms;
                 window.linkingSystem = this.linkingSystem;
             }
             console.error('[main.js] LinkSemanticPictogramSystem_Enhanced initialized ✓ (semantic pictograms active)');

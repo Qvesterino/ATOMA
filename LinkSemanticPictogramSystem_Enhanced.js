@@ -766,6 +766,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkMetricCounts = new Map(); // linkId -> Map(metric -> count)
         this._initializedLinks = new Set();
         this._lastLinks = [];
+        this._externalLinks = [];
 
         // Update timer
         this.updateTimer = 0.0;
@@ -1006,11 +1007,12 @@ export class LinkSemanticPictogramSystem_Enhanced {
     update(deltaTime, time) {
         if (!this.enabled) return;
         const linksAvailable = this._getLinks?.() || [];
-        if (!linksAvailable.length) {
-            // Try cached links from previous frame
-            if (!this._lastLinks?.length) return;
-        } else {
-            this._lastLinks = linksAvailable;
+        const hasActivePictograms = this.pictograms.some(p => p.active);
+        if (!linksAvailable.length && !this._lastLinks?.length && !hasActivePictograms) {
+            return;
+        }
+        if (linksAvailable.length) {
+            this._lastLinks = [...linksAvailable];
         }
         const links = linksAvailable.length ? linksAvailable : this._lastLinks;
 
@@ -1542,18 +1544,27 @@ export class LinkSemanticPictogramSystem_Enhanced {
         };
     }
 
-    _getLinks() {
-        if (Array.isArray(this._externalLinks) && this._externalLinks.length) {
-            return this._externalLinks;
-        }
-        if (Array.isArray(this._lastLinks) && this._lastLinks.length) {
-            return this._lastLinks;
-        }
-        // Prefer current linkingSystem links; fallback to global live system
+    _getDirectLiveLinks() {
         const local = this.linkingSystem?.links;
         if (Array.isArray(local) && local.length) return local;
         const globalLS = getGlobalLinkSystem();
-        if (globalLS?.links) return globalLS.links;
+        if (Array.isArray(globalLS?.links) && globalLS.links.length) return globalLS.links;
+        return [];
+    }
+
+    _getLinks() {
+        const liveLinks = this._getDirectLiveLinks();
+
+        if (Array.isArray(this._externalLinks) && this._externalLinks.length) {
+            if (!liveLinks.length) return this._externalLinks;
+
+            const liveIds = new Set(liveLinks.map(link => this.getLinkKey(link)).filter(Boolean));
+            const filtered = this._externalLinks.filter(link => liveIds.has(this.getLinkKey(link)));
+            if (filtered.length) return filtered;
+        }
+
+        if (liveLinks.length) return liveLinks;
+        if (Array.isArray(this._lastLinks) && this._lastLinks.length) return this._lastLinks;
         return [];
     }
 
@@ -1951,7 +1962,13 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.linkStateCounts.delete(linkId);
         this.linkMetricCounts.delete(linkId);
         this._initializedLinks.delete(linkId);
-        this.invalidateSpawnState();
+        this._externalLinks = Array.isArray(this._externalLinks)
+            ? this._externalLinks.filter(link => this.getLinkKey(link) !== linkId)
+            : [];
+        this._lastLinks = Array.isArray(this._lastLinks)
+            ? this._lastLinks.filter(link => this.getLinkKey(link) !== linkId)
+            : [];
+        this.invalidateSpawnState(false);
 
         return cleared;
     }
@@ -1986,20 +2003,31 @@ export class LinkSemanticPictogramSystem_Enhanced {
             this._initializedLinks.delete(linkId);
         }
 
+        if (clearedLinkIds.size > 0) {
+            this._externalLinks = Array.isArray(this._externalLinks)
+                ? this._externalLinks.filter(link => !clearedLinkIds.has(this.getLinkKey(link)))
+                : [];
+            this._lastLinks = Array.isArray(this._lastLinks)
+                ? this._lastLinks.filter(link => !clearedLinkIds.has(this.getLinkKey(link)))
+                : [];
+        }
+
         if (cleared > 0) {
-            this.invalidateSpawnState();
+            this.invalidateSpawnState(false);
         }
 
         return cleared;
     }
 
-    invalidateSpawnState() {
+    invalidateSpawnState(refreshFromLive = true) {
         this._initializedLinks.clear();
         this._diagImmediateForced = false;
         this._inactiveTimer = 0;
         this._lastRecoveryTime = 0;
-        const liveLinks = this._getLinks();
-        this._lastLinks = Array.isArray(liveLinks) ? [...liveLinks] : [];
+        if (refreshFromLive) {
+            const liveLinks = this._getDirectLiveLinks();
+            this._lastLinks = Array.isArray(liveLinks) ? [...liveLinks] : [];
+        }
     }
 
     dispose() {
