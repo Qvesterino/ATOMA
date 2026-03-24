@@ -28,6 +28,7 @@ export class LinkCorruptionParticleSystem {
     this.poolSize = POOL_SIZE;
     this.active = new Array(POOL_SIZE).fill(false);
     this.linkRefs = new Array(POOL_SIZE).fill(null);
+    this.detaching = new Array(POOL_SIZE).fill(false);
     this.linkIndices = new Map(); // linkId -> array of pool indices
     this.linkByPair = new Map(); // `${a}|${b}` -> link reference
     this._semanticSubscriptions = [];
@@ -293,9 +294,10 @@ export class LinkCorruptionParticleSystem {
   clearLinkParticles(linkOrId) {
     const linkId = typeof linkOrId === 'string' ? linkOrId : linkOrId?.id;
     const list = linkId ? this.linkIndices.get(linkId) : null;
+    const now = performance.now() * 0.001;
     if (list) {
       for (const idx of list) {
-        this.active[idx] = false;
+        this._detachParticle(idx, now);
         this.linkRefs[idx] = null;
       }
       this.linkIndices.delete(linkId);
@@ -312,6 +314,7 @@ export class LinkCorruptionParticleSystem {
 
     if (list) {
       this._flagUpdates();
+      this.points.visible = true;
     }
   }
 
@@ -323,6 +326,7 @@ export class LinkCorruptionParticleSystem {
       const idx = list.pop();
       if (idx === undefined) break;
       this.active[idx] = false;
+      this.detaching[idx] = false;
       this.linkRefs[idx] = null;
     }
     if (list.length === 0) {
@@ -361,6 +365,7 @@ export class LinkCorruptionParticleSystem {
       this.linkIndices.set(link.id, list);
       this.linkRefs[idx] = link;
       this.active[idx] = true;
+      this.detaching[idx] = false;
 
       // Pick a point on the curve - bias toward higher corruption node
       let t = Math.random();
@@ -446,6 +451,7 @@ export class LinkCorruptionParticleSystem {
       const age = now - start;
       if (age >= life) {
         this.active[idx] = false;
+        this.detaching[idx] = false;
         this.linkRefs[idx] = null;
         list.splice(i, 1);
       }
@@ -459,6 +465,31 @@ export class LinkCorruptionParticleSystem {
     this.material.uniforms.uOpacity.value = 2.2;
     this.material.uniforms.uSizeRange.value.set(4.5, 10.5);
     this.points.visible = true;
+  }
+
+  update(deltaTime = 0.016, time = null) {
+    const now = Number.isFinite(time) ? time * 0.001 : performance.now() * 0.001;
+    this.material.uniforms.uTime.value = now;
+
+    let activeCount = 0;
+    for (let idx = 0; idx < this.poolSize; idx++) {
+      if (!this.active[idx]) continue;
+
+      const start = this.lifeAttr[idx * 2];
+      const life = this.lifeAttr[idx * 2 + 1];
+      const age = now - start;
+
+      if (age >= life) {
+        this.active[idx] = false;
+        this.detaching[idx] = false;
+        this.linkRefs[idx] = null;
+        continue;
+      }
+
+      activeCount += 1;
+    }
+
+    this.points.visible = activeCount > 0;
   }
 
   _acquire() {
@@ -476,6 +507,36 @@ export class LinkCorruptionParticleSystem {
       n.set(0, tangent.z, -tangent.y).normalize();
     }
     return n;
+  }
+
+  _detachParticle(idx, now) {
+    if (!this.active[idx]) return;
+
+    const start = this.lifeAttr[idx * 2];
+    const life = this.lifeAttr[idx * 2 + 1];
+    const age = Math.max(0, now - start);
+    const lifeT = life > 0 ? Math.min(1, age / life) : 1;
+    const jitterAmp = (1.0 - lifeT) * 0.08;
+    const jitterPhase = Math.sin(now * (6.0 + this.seedAttr[idx] * 8.0)) * jitterAmp;
+
+    const i3 = idx * 3;
+    const posX = this.startPos[i3] + this.velocity[i3] * age + this.jitterDir[i3] * jitterPhase;
+    const posY = this.startPos[i3 + 1] + this.velocity[i3 + 1] * age + this.jitterDir[i3 + 1] * jitterPhase;
+    const posZ = this.startPos[i3 + 2] + this.velocity[i3 + 2] * age + this.jitterDir[i3 + 2] * jitterPhase;
+
+    this.startPos[i3] = posX;
+    this.startPos[i3 + 1] = posY;
+    this.startPos[i3 + 2] = posZ;
+    this.velocity[i3] = 0;
+    this.velocity[i3 + 1] = 0;
+    this.velocity[i3 + 2] = 0;
+    this.jitterDir[i3] = 0;
+    this.jitterDir[i3 + 1] = 0;
+    this.jitterDir[i3 + 2] = 0;
+    this.lifeAttr[idx * 2] = now;
+    this.lifeAttr[idx * 2 + 1] = 0.22 + Math.random() * 0.12;
+    this.scaleAttr[idx] *= 0.92;
+    this.detaching[idx] = true;
   }
 
   _readNodeCorruption(node) {
