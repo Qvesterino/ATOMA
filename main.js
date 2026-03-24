@@ -602,6 +602,7 @@ import { setupGpuSanity } from './GpuSanityPass.js';
 // ============================================================================
 import { Phase8RitualVisualOrchestration, RITUAL_VISUAL_CONFIG } from './Phase8RitualVisualOrchestration.js';
 import { Phase8VisualBridge } from './Phase8VisualBridge.js';
+import { NetworkRituals } from './NetworkRituals_v1.js';
 
 // ============================================================================
 // SYNERGY VISUAL EFFECTS — Pure world-space visual feedback
@@ -643,6 +644,7 @@ import { setupHarmonyHealingTestRunner } from './T4004_HARMONY_HEALING_TEST_RUNN
 // ============================================================================
 import { T2_CorruptionVisualIntegration_v1 } from './T2_CorruptionVisualIntegration_v1.js';
 import { T2_HarmonyVisualConsumer_v1 } from './src/legacy/T2_HarmonyVisualConsumer_v1.js';
+import { getGlobalWiringSystem } from './VisualAutoWiringSystem.js';
 
 // ============================================================================
 // TIER 4 GAMEPLAY INTEGRATION — Gameplay Layer
@@ -3721,6 +3723,9 @@ class AtomaGame {
         this.frameScheduler.register('simulation', (dt) => {
             this.tier4GameplayIntegration?.update?.(dt);
         }, 'simulation.tier4GameplayIntegration');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.networkRituals?.updateRituals?.(dt * 1000);
+        }, 'simulation.networkRituals');
 
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
@@ -4294,19 +4299,6 @@ this.setHudDirty('nodeInspect');
             semanticBus: this.semanticBus,
             audioSystem: this.audioSystem
         });
-        // Low-latency audio semantics: disable queue aggregation/cooldown for core click/link sounds.
-        this.semanticBus?.eventPolicies?.set('node.selection', {
-            aggregateWithinMs: 0,
-            cooldownMs: 0
-        });
-        this.semanticBus?.eventPolicies?.set('link.created', {
-            aggregateWithinMs: 0,
-            cooldownMs: 0
-        });
-        this.semanticBus?.eventPolicies?.set('network.link.destroyed', {
-            aggregateWithinMs: 0,
-            cooldownMs: 0
-        });
 
         // Keep synergy state machine aligned with semantic events.
         this.semanticBus.subscribe('node.synergy.high', () => {
@@ -4701,6 +4693,7 @@ this.setHudDirty('nodeInspect');
         // PHASE 8: NETWORK RITUAL VISUAL ORCHESTRATION
         // Pure visual ceremony layer for rituals (no gameplay logic)
         // ====================================================================
+        this.networkRituals = null;                        // Initialized after ritual dependencies ready
         this.phase8VisualBridge = null;                    // Initialized after scene ready
         this.phase8RitualOrchestration = null;             // Initialized after wiring ready
 
@@ -5765,11 +5758,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.worldRoot,
                 this.compositeResonanceFeedback || null
             );
+            this.glyphLayer4.frameScheduler = this.frameScheduler;
         } else {
             this.glyphLayer4?.dispose?.();
             this.glyphLayer4 = null;
         }
         this.setupSemanticGlyphAI();
+        this.setupAmbientOrbitGlyphs();
         this._lastHoverGlyphTarget = null;
         if (this.semanticGlyphAI?.setHoverTarget) {
             this.semanticGlyphAI.setHoverTarget(null);
@@ -6382,6 +6377,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.worldRoot,
                 this.compositeResonanceFeedback || null
             );
+            this.glyphLayer4.frameScheduler = this.frameScheduler;
         } else {
             this.glyphLayer4 = null;
         }
@@ -6546,6 +6542,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
+        this.setupAmbientOrbitGlyphs();
 
         // ====================================================================
         // DEV-ONLY INTEGRITY CHECK: Verify fusion registry coverage
@@ -6754,6 +6751,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.synergyHighwayVisuals3D = null;
         }
         console.log('[main.js] NodeLinkingSystem created');
+        this.wireSelectionAudioToLinkingSystem();
 
         // Corruption transmission gameplay system (non-visual)
         const corruptionTransmission = new LinkCorruptionTransmission_v1(
@@ -7037,16 +7035,27 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
         this.linkingSystem.createLink = (sourceNode, targetNode) => {
             const result = originalCreateLink(sourceNode, targetNode);
+            if (result && this.audioSystem?.initialized) {
+                const now = performance.now();
+                const nextAllowed = this._nextLinkAudioAt ?? 0;
+                if (now >= nextAllowed) {
+                    this._nextLinkAudioAt = now + 90;
+                    setTimeout(() => {
+                        try {
+                            this.audioSystem?.playLinkCreated?.();
+                        } catch (err) {
+                            console.warn('[ATOMA AUDIO] link-created playback failed:', err);
+                        }
+                    }, 0);
+                }
+            }
             // Create LinkSparkSystem for each link
             if (result && !this.linkSparkSystems) {
                 this.linkSparkSystems = new Map();
             }
             if (result && this.linkSparkSystems) {
                 const sparkSystem = new LinkSparkSystem(this.scene, 60);
-                const mesh = sparkSystem.getMesh();
-                this.scene.add(mesh);
                 this.linkSparkSystems.set(result.userData.id, sparkSystem);
-                console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
             }
 
             // LinkTrailEmitter creation moved to LinkRendererConduit (eliminates race condition)
@@ -7094,6 +7103,20 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         const originalRemoveLink = this.linkingSystem.removeLink.bind(this.linkingSystem);
         this.linkingSystem.removeLink = (link) => {
             const result = originalRemoveLink(link);
+            if (result && this.audioSystem?.initialized) {
+                const now = performance.now();
+                const nextAllowed = this._nextUnlinkAudioAt ?? 0;
+                if (now >= nextAllowed) {
+                    this._nextUnlinkAudioAt = now + 90;
+                    setTimeout(() => {
+                        try {
+                            this.audioSystem?.playLinkBroken?.();
+                        } catch (err) {
+                            console.warn('[ATOMA AUDIO] link-broken playback failed:', err);
+                        }
+                    }, 0);
+                }
+            }
             // Proactively clear memory trails so ghosts don't linger when visual update is paused
             if (this.memoryTrails && link?.userData?.id !== undefined) {
                 this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
@@ -8112,6 +8135,63 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         } catch (err) {
             console.warn('[main.js] TIER4_GameplayIntegrationBridge initialization failed:', err);
+        }
+
+        // ====================================================================
+        // PHASE 8: NETWORK RITUAL STACK
+        // Core gameplay rituals + visual bridge + orchestration
+        // ====================================================================
+        try {
+            const ritualsDisabled = Boolean(window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? true);
+            if (ritualsDisabled) {
+                this.networkRituals = null;
+                this.phase8VisualBridge = null;
+                this.phase8RitualOrchestration = null;
+                console.log('[main.js] Phase 8 ritual stack skipped (safety flag: disableMythicRituals)');
+            } else {
+                this.networkRituals = this.networkRituals || new NetworkRituals(
+                    this.linkCorruptionTransmission,
+                    this.tier4GameplayIntegration
+                );
+
+                const phase8Wiring = getGlobalWiringSystem();
+                this.phase8VisualBridge = this.phase8VisualBridge || new Phase8VisualBridge(
+                    phase8Wiring,
+                    {
+                        getNodeRenderables: (nodeIds) => {
+                            if (!Array.isArray(nodeIds) || nodeIds.length === 0) return [];
+                            const targetIds = new Set(nodeIds.filter(Boolean));
+                            return (this.aiNodes?.nodes || []).filter((node) => {
+                                const nodeId = node?.userData?.nodeId || node?.id;
+                                return nodeId && targetIds.has(nodeId);
+                            });
+                        },
+                        getLinkRenderables: (linkIds) => {
+                            if (!Array.isArray(linkIds) || linkIds.length === 0) return [];
+                            const targetIds = new Set(linkIds.filter(Boolean));
+                            return (this.linkingSystem?.links || [])
+                                .filter((link) => {
+                                    const linkId = link?.id || link?.userData?.linkId;
+                                    return linkId && targetIds.has(linkId);
+                                })
+                                .map((link) => link?.group)
+                                .filter(Boolean);
+                        }
+                    }
+                );
+
+                if (!this.phase8RitualOrchestration) {
+                    this.phase8RitualOrchestration = new Phase8RitualVisualOrchestration(
+                        this.phase8VisualBridge,
+                        this.networkRituals
+                    );
+                    this.phase8RitualOrchestration.initialize();
+                }
+
+                console.log('[main.js] Phase 8 ritual stack initialized ✓');
+            }
+        } catch (err) {
+            console.warn('[main.js] Phase 8 ritual stack initialization failed:', err);
         }
 
         // ====================================================================
@@ -11227,6 +11307,32 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
     }
 
+    setupAmbientOrbitGlyphs() {
+        if (!this.glyphLayer4 || !this.aiNodes?.nodes) {
+            return;
+        }
+
+        this.glyphLayer4.frameScheduler = this.frameScheduler;
+        this.glyphLayer4.ambientOrbitEnabled = true;
+        this.glyphLayer4.createAmbientOrbitGlyphsForNodes(this.aiNodes.nodes);
+
+        if (this.aiNodes?.unregisterPostSpawnObserver) {
+            this.aiNodes.unregisterPostSpawnObserver('glyph-layer4-ambient-orbit');
+        }
+
+        if (this.aiNodes?.registerPostSpawnObserver) {
+            this.aiNodes.registerPostSpawnObserver(
+                'glyph-layer4-ambient-orbit',
+                (newNode) => {
+                    const nodeId = newNode?.userData?.nodeId;
+                    if (!newNode || !nodeId || !this.glyphLayer4) return;
+                    this.glyphLayer4.createAmbientOrbitForNode(newNode, nodeId);
+                },
+                90
+            );
+        }
+    }
+
     /**
      * Setup Glyph Fusion Overlay 4.1
      */
@@ -12488,7 +12594,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Hook audio feedback to selection events
         this.selectionCore.onSelectCallbacks.push((node) => {
-            if (this.audioSystem && !this.audioSystem.initialized) {
+            if (this.audioSystem?.initialized) {
+                this.audioSystem.playSelection();
+            } else if (this.audioSystem) {
                 this.ensureAudioStarted?.()
                     .then(() => {
                         if (this.audioSystem?.initialized) this.audioSystem.playSelection();
@@ -12512,7 +12620,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         
         this.selectionCore.onDeselectCallbacks.push((node) => {
-            if (this.audioSystem && !this.audioSystem.initialized) {
+            if (this.audioSystem?.initialized) {
+                this.audioSystem.playDeselection();
+            } else if (this.audioSystem) {
                 this.ensureAudioStarted?.()
                     .then(() => {
                         if (this.audioSystem?.initialized) this.audioSystem.playDeselection();
@@ -12622,10 +12732,48 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
 
-        this.nodeLinking = this.linkingSystem;
+        this.wireSelectionAudioToLinkingSystem();
 
         console.log("✓ NodeLinking2_3 confirmed active");
         console.log('✓ Primary Node System 3.7 initialized (double-click + aura + 2.3 linking)');
+    }
+
+    wireSelectionAudioToLinkingSystem() {
+        const linking = this.linkingSystem;
+        if (!linking) return;
+
+        this.nodeLinking = linking;
+
+        // Runtime selection callbacks from canonical linking system only.
+        // Keep core linking methods untouched to avoid side effects in link hot-path.
+        if (linking.onNodeSelected && !linking.__audioSelectEventHooked) {
+            linking.onNodeSelected((node) => {
+                if (this.audioSystem?.initialized) {
+                    this.audioSystem.playSelection();
+                } else if (this.audioSystem) {
+                    this.ensureAudioStarted?.()
+                        .then(() => {
+                            if (this.audioSystem?.initialized) this.audioSystem.playSelection();
+                        })
+                        .catch(() => {});
+                }
+            });
+            linking.__audioSelectEventHooked = true;
+        }
+        if (linking.onNodeDeselected && !linking.__audioDeselectEventHooked) {
+            linking.onNodeDeselected(() => {
+                if (this.audioSystem?.initialized) {
+                    this.audioSystem.playDeselection();
+                } else if (this.audioSystem) {
+                    this.ensureAudioStarted?.()
+                        .then(() => {
+                            if (this.audioSystem?.initialized) this.audioSystem.playDeselection();
+                        })
+                        .catch(() => {});
+                }
+            });
+            linking.__audioDeselectEventHooked = true;
+        }
     }
 
     /**

@@ -50,6 +50,7 @@ export class GlyphLayer4_MultiFusion {
     
     // Registry: nodeId → { node, layers: { core, evolution, personality, state } }
     this.fusionRegistry = new Map();
+    this.ambientOrbitRegistry = new Map();
     
     // Geometry pools (reusable, no per-frame creation)
     this.geometryPools = {
@@ -108,6 +109,7 @@ export class GlyphLayer4_MultiFusion {
     this.enabled = true;
     this.debugMode = false;
     this.hoverOnlyMode = true;
+    this.ambientOrbitEnabled = false;
     this.hoverNodeId = null;
     
     console.log('✓ ATOMA Glyph Layer 4.0 - Multi-Glyph Fusion initialized');
@@ -141,7 +143,7 @@ export class GlyphLayer4_MultiFusion {
   // ============================================================
   
   createEvolutionGlyph(node, nodeId) {
-    const stage = node.userData?.evolutionStage || 0;
+    const stage = this.resolveEvolutionStage(node);
     if (stage < 1 || stage > 3) return null;
     
     const evoGroup = new THREE.Group();
@@ -157,19 +159,9 @@ export class GlyphLayer4_MultiFusion {
     
     // Stage-specific visuals
     if (stage === 1) {
-      // Diamond (octahedron)
-      const geo = new THREE.OctahedronGeometry(0.12, 1);
-      const mat = new THREE.MeshBasicMaterial({
-        color: this.colors.mint,
-        transparent: true,
-        opacity: 0.5,
-        emissive: this.colors.cyan,
-        emissiveIntensity: 0.2,
-        fog: false
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.userData = { glyphComponent: 'evoDiamond' };
-      evoGroup.add(mesh);
+      const impossibleGlyph = this.createFoldedImpossibleGlyph();
+      impossibleGlyph.userData = { glyphComponent: 'evoFoldedImpossible' };
+      evoGroup.add(impossibleGlyph);
       evoGroup.userData.rotationSpeed = 0.6;
       
     } else if (stage === 2) {
@@ -220,9 +212,98 @@ export class GlyphLayer4_MultiFusion {
     
     // Position offset (orbits core)
     evoGroup.userData.orbitPhase = Math.random() * Math.PI * 2;
-    evoGroup.userData.orbitRadius = 0.25;
+    evoGroup.userData.orbitRadius = stage === 1 ? 0.62 : 0.38;
     
     return evoGroup;
+  }
+
+  createFoldedImpossibleGlyph() {
+    const glyphGroup = new THREE.Group();
+
+    const beamGeometry = new THREE.BoxGeometry(0.24, 0.06, 0.08);
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color: 0xcff6ff,
+      transparent: true,
+      opacity: 0.68,
+      fog: false,
+      toneMapped: false
+    });
+
+    const createBeam = (position, rotation, scale = [1, 1, 1]) => {
+      const beam = new THREE.Mesh(beamGeometry, beamMaterial.clone());
+      beam.position.set(position[0], position[1], position[2]);
+      beam.rotation.set(rotation[0], rotation[1], rotation[2]);
+      beam.scale.set(scale[0], scale[1], scale[2]);
+      beam.userData.lockGlyphPosition = true;
+      beam.userData.lockGlyphScale = true;
+      glyphGroup.add(beam);
+    };
+
+    createBeam([0.0, 0.1, 0.0], [0.0, Math.PI / 4, Math.PI / 9], [1.45, 1.0, 1.0]);
+    createBeam([0.12, -0.02, 0.08], [Math.PI / 2.6, Math.PI / 4, 0.0], [1.2, 0.95, 0.9]);
+    createBeam([-0.08, -0.13, -0.02], [0.0, -Math.PI / 4, -Math.PI / 2.7], [1.15, 0.9, 0.85]);
+
+    const frameGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.16, 0.15, -0.03),
+      new THREE.Vector3(0.0, 0.24, 0.02),
+      new THREE.Vector3(0.18, 0.08, 0.05),
+      new THREE.Vector3(0.08, -0.16, 0.03),
+      new THREE.Vector3(-0.12, -0.2, -0.04),
+      new THREE.Vector3(-0.2, -0.02, -0.06),
+      new THREE.Vector3(-0.16, 0.15, -0.03)
+    ]);
+
+    const frame = new THREE.Line(
+      frameGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0x7fe7ff,
+        transparent: true,
+        opacity: 0.9,
+        fog: false
+      })
+    );
+    frame.rotation.y = Math.PI / 6;
+    frame.rotation.x = -Math.PI / 9;
+    frame.userData.lockGlyphPosition = true;
+    frame.userData.lockGlyphScale = true;
+    glyphGroup.add(frame);
+
+    const knotGeometry = new THREE.TorusKnotGeometry(0.08, 0.012, 64, 8, 2, 3);
+    const knot = new THREE.Mesh(
+      knotGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xf4fbff,
+        transparent: true,
+        opacity: 0.42,
+        fog: false,
+        wireframe: true
+      })
+    );
+    knot.rotation.set(Math.PI / 3.2, Math.PI / 5, Math.PI / 8);
+    knot.userData.lockGlyphPosition = true;
+    knot.userData.lockGlyphScale = true;
+    glyphGroup.add(knot);
+
+    glyphGroup.scale.setScalar(0.9);
+    glyphGroup.position.y = 0.06;
+    glyphGroup.userData.lockGlyphPosition = true;
+    glyphGroup.userData.lockGlyphScale = true;
+
+    return glyphGroup;
+  }
+
+  resolveEvolutionStage(node) {
+    const explicitStage = Number(node?.userData?.evolutionStage);
+    if (Number.isFinite(explicitStage) && explicitStage >= 1) {
+      return Math.max(1, Math.min(3, Math.round(explicitStage)));
+    }
+
+    const tierStage = Number(node?.userData?.evolutionTier);
+    if (Number.isFinite(tierStage) && tierStage >= 1) {
+      return Math.max(1, Math.min(3, Math.round(tierStage)));
+    }
+
+    return 1;
   }
   
   updateEvolutionGlyph(evoGroup, deltaTime) {
@@ -968,6 +1049,62 @@ export class GlyphLayer4_MultiFusion {
     this.stats.totalFusions++;
     this.stats.activeFusions++;
   }
+
+  _getOrCreateVisualGroup(node) {
+    let visualGroup = node.children?.find(child =>
+      child.userData?.isVisualGroup || child.name === 'visualGroup'
+    );
+
+    if (!visualGroup) {
+      visualGroup = new THREE.Group();
+      visualGroup.userData.isVisualGroup = true;
+      visualGroup.name = 'visualGroup';
+      node.add(visualGroup);
+    }
+
+    return visualGroup;
+  }
+
+  createAmbientOrbitForNode(node, nodeId) {
+    if (!this.ambientOrbitEnabled) return;
+    if (!node || !node.parent || !nodeId) return;
+    if (this.ambientOrbitRegistry.has(nodeId)) return;
+
+    const visualGroup = this._getOrCreateVisualGroup(node);
+    const evolutionGlyph = this.createEvolutionGlyph(node, nodeId);
+    if (!evolutionGlyph) return;
+
+    const ambientGroup = new THREE.Group();
+    ambientGroup.userData = {
+      isAmbientOrbitGlyph: true,
+      nodeId,
+      isFusion: true
+    };
+    ambientGroup.name = `ambient_orbit_${nodeId}`;
+    ambientGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('EVOLUTION');
+    visualGroup.add(ambientGroup);
+
+    this._safeAttachGlyph(evolutionGlyph, 'GLYPH_LAYER', ambientGroup, node);
+    this._tuneGlyphVisibility(ambientGroup);
+
+    this.ambientOrbitRegistry.set(nodeId, {
+      node,
+      visualGroup,
+      ambientGroup,
+      evolution: evolutionGlyph
+    });
+  }
+
+  createAmbientOrbitGlyphsForNodes(nodes) {
+    if (!this.ambientOrbitEnabled) return;
+    if (!nodes || nodes.length === 0) return;
+
+    nodes.forEach((node) => {
+      const nodeId = node?.userData?.nodeId;
+      if (!nodeId) return;
+      this.createAmbientOrbitForNode(node, nodeId);
+    });
+  }
   
   // ============================================================
   // BULK CREATION
@@ -1051,6 +1188,17 @@ export class GlyphLayer4_MultiFusion {
         this.updateFallbackGlyph(fusionGroup.children[0], deltaTime);
       }
     }
+
+    for (const [nodeId, ambientData] of this.ambientOrbitRegistry) {
+      const { ambientGroup, evolution } = ambientData;
+
+      if (!ambientGroup || !ambientGroup.parent) {
+        this.removeAmbientOrbit(nodeId);
+        continue;
+      }
+
+      if (evolution) this.updateEvolutionGlyph(evolution, deltaTime);
+    }
   }
   
   // ============================================================
@@ -1088,10 +1236,38 @@ export class GlyphLayer4_MultiFusion {
     this.fusionRegistry.delete(nodeId);
     this.stats.activeFusions--;
   }
+
+  removeAmbientOrbit(nodeId) {
+    const ambientData = this.ambientOrbitRegistry.get(nodeId);
+    if (!ambientData) return;
+
+    const { ambientGroup } = ambientData;
+
+    if (ambientGroup && ambientGroup.parent) {
+      ambientGroup.parent.remove(ambientGroup);
+    }
+
+    ambientGroup.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+
+    this.ambientOrbitRegistry.delete(nodeId);
+  }
   
   cleanup() {
     for (const nodeId of this.fusionRegistry.keys()) {
       this.removeFusion(nodeId);
+    }
+
+    for (const nodeId of this.ambientOrbitRegistry.keys()) {
+      this.removeAmbientOrbit(nodeId);
     }
     
     this.stats = {
@@ -1136,6 +1312,7 @@ export class GlyphLayer4_MultiFusion {
     console.log('Enabled:', this.enabled);
     console.log('Total Fusions Created:', this.stats.totalFusions);
     console.log('Active Fusions:', this.stats.activeFusions);
+    console.log('Ambient Orbit Glyphs:', this.ambientOrbitRegistry.size);
     console.log('Layer Distribution:');
     console.table(this.stats.byLayer);
     console.groupEnd();

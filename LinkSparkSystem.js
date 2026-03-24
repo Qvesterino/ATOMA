@@ -210,7 +210,7 @@ export class LinkSparkSystem {
         applyLinkRenderLayer(this.points, 'LINK_SPARKS');
         const ud = this.points.userData || (Object.defineProperty(this.points, 'userData', { value: {}, writable: true, configurable: true }), this.points.userData);
         Object.assign(ud, { isSparkSystem: true });
-        console.log('SPARK MESH', this.points);
+        if (DEBUG_SPARKS) console.log('SPARK MESH', this.points);
         
         // Add to scene
         this.scene.add(this.points);

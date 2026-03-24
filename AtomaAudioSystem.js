@@ -14,10 +14,19 @@ export class AtomaAudioSystem {
     constructor() {
         this.initialized = false;
         this.enabled = true;
+        this.lastTriggerAt = new Map();
         
         // All Tone.js synths and effects will be created in createSynths()
         // This prevents AudioContext warning before user gesture
         console.log('[Audio] System Constructed (Waiting for user interaction)');
+    }
+
+    canTrigger(key, cooldownMs) {
+        const now = performance.now();
+        const last = this.lastTriggerAt.get(key) ?? -Infinity;
+        if (now - last < cooldownMs) return false;
+        this.lastTriggerAt.set(key, now);
+        return true;
     }
 
     /**
@@ -62,7 +71,7 @@ export class AtomaAudioSystem {
                 Q: 1
             }
         }).connect(this.masterReverb);
-        this.selectionSynth.volume.value = -12;
+        this.selectionSynth.volume.value = -5; // TEMP: louder selection for runtime verification
 
         // 2. LINKING (Harmonic Convergence)
         // DuoSynth for phase alignment texture
@@ -166,14 +175,16 @@ export class AtomaAudioSystem {
     // --- TASK 1: Node Selection (Listening) ---
     playSelection(isBoot = false) {
         if (!this.initialized && !isBoot) return;
+        if (!isBoot && !this.canTrigger('selection', 45)) return;
         // Soft sine ping, slightly high but soft
         // Freq: 880Hz (A5) - High enough to be clear, soft enough to be calm
-        this.selectionSynth.triggerAttackRelease("A5", "16n", undefined, 0.42);
+        this.selectionSynth.triggerAttackRelease("A5", "8n", undefined, 0.9);
     }
 
     // --- TASK 2: Node Deselection (Settling) ---
     playDeselection() {
         if (!this.initialized) return;
+        if (!this.canTrigger('deselection', 45)) return;
         // Lower pitch, softer velocity
         // Freq: 440Hz (A4) - One octave down, "settling"
         this.selectionSynth.triggerAttackRelease("A4", "32n", undefined, 0.2);
@@ -182,6 +193,7 @@ export class AtomaAudioSystem {
     // --- TASK 3: Link Creation (Agreement) ---
     playLinkCreated() {
         if (!this.initialized) return;
+        if (!this.canTrigger('linkCreated', 60)) return;
         // Harmonic interval (Perfect 5th) to signify stability/agreement
         // "C5" + "G5"
         // Slight delay between them handled by synth attack diff, or manually here
@@ -191,6 +203,7 @@ export class AtomaAudioSystem {
     // --- TASK 4: Link Breaking (Diffusing) ---
     playLinkBroken() {
         if (!this.initialized) return;
+        if (!this.canTrigger('linkBroken', 80)) return;
         // Filtered noise sweep down
         this.unlinkFilter.frequency.rampTo(100, 0.3);
         this.unlinkFilter.frequency.value = 800; // Reset start

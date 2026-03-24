@@ -8,30 +8,6 @@
 export const AUDIO_EVENT_MANIFEST = {
     version: '2026-03-23',
     events: {
-        'node.selection': {
-            synth: 'selectionSynth',
-            envelope: { attack: 0.05, decay: 0.1, sustain: 0.0, release: 0.5 },
-            cooldownMs: 40,
-            priority: 'INTERACTIVE',
-            routeByPayload: {
-                select: 'playSelection',
-                deselect: 'playDeselection'
-            }
-        },
-        'link.created': {
-            synth: 'linkSynth',
-            envelope: { attack: 0.01, decay: 0.3, sustain: 0.0, release: 0.5 },
-            cooldownMs: 60,
-            priority: 'INTERACTIVE',
-            action: 'playLinkCreated'
-        },
-        'network.link.destroyed': {
-            synth: 'unlinkSynth',
-            envelope: { attack: 0.01, decay: 0.3, sustain: 0.0, release: 0.0 },
-            cooldownMs: 80,
-            priority: 'INTERACTIVE',
-            action: 'playLinkBroken'
-        },
         'node.synergy.high': {
             synth: 'synergySynth',
             envelope: { attack: 0.5, decay: 1.0, sustain: 0.3, release: 2.0 },

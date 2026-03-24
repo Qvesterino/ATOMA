@@ -87,9 +87,9 @@ const RITUAL_CONFIG = {
   
   // Ritual timing and constraints
   RITUAL_STAGE_DURATION_MS: {
-    CHANNELING: 8000,                       // Time to gather initial resonance
-    RESONANCE: 12000,                       // Time during which participants synchronize
-    RESOLUTION: 4000                        // Time for actual reconstruction cascade
+    channeling: 8000,                       // Time to gather initial resonance
+    resonance: 12000,                       // Time during which participants synchronize
+    resolution: 4000                        // Time for actual reconstruction cascade
   },
   TOTAL_RITUAL_DURATION_MS: 24000,          // ~24 seconds total per ritual
   
@@ -131,6 +131,7 @@ class NetworkRituals {
   constructor(corruptionSystem, gameplaySystem) {
     this.corruptionSystem = corruptionSystem;
     this.gameplaySystem = gameplaySystem;
+    this.listeners = new Map();
     
     // Active rituals by ID
     this.rituals = new Map();
@@ -154,6 +155,35 @@ class NetworkRituals {
     // Event tracking for analysis
     this.eventLog = [];
     this.maxEventLog = 500;
+  }
+
+  on(eventName, handler) {
+    if (!eventName || typeof handler !== 'function') return () => {};
+
+    if (!this.listeners.has(eventName)) {
+      this.listeners.set(eventName, new Set());
+    }
+
+    this.listeners.get(eventName).add(handler);
+    return () => this.off(eventName, handler);
+  }
+
+  off(eventName, handler) {
+    const handlers = this.listeners.get(eventName);
+    if (!handlers) return;
+
+    handlers.delete(handler);
+    if (handlers.size === 0) {
+      this.listeners.delete(eventName);
+    }
+  }
+
+  getActiveRituals() {
+    return Array.from(this.rituals.values()).filter((ritual) =>
+      ritual.stage !== RITUAL_STAGES.COMPLETE &&
+      ritual.stage !== RITUAL_STAGES.FAILED &&
+      ritual.stage !== RITUAL_STAGES.CANCELLED
+    );
   }
 
   /**
@@ -218,12 +248,13 @@ class NetworkRituals {
       costs: costBreakdown,
       loyaltyAdjustments,
       pooledResources: {
-        harmony: 0,
+        harmony: costBreakdown.totalHarmonyCost,
         synergy: 0
       },
       
       // Timing
       stageDurations: RITUAL_CONFIG.RITUAL_STAGE_DURATION_MS,
+      totalDurationMs: RITUAL_CONFIG.TOTAL_RITUAL_DURATION_MS,
       currentStageDuration: 0,
       stageStartTime: null,
       
@@ -270,6 +301,7 @@ class NetworkRituals {
 
     // Transition to CHANNELING immediately
     this._transitionRitualStage(ritualId, RITUAL_STAGES.CHANNELING);
+    this._emitLifecycleEvent('ritual:start', ritual, { success: true });
 
     return {
       success: true,
@@ -363,7 +395,7 @@ class NetworkRituals {
       // Check stage progression
       if (ritual.stageStartTime) {
         const stageElapsed = now - ritual.stageStartTime;
-        const stageDuration = ritual.stageDurations[ritual.stage] || RITUAL_CONFIG.RITUAL_STAGE_DURATION_MS;
+        const stageDuration = ritual.stageDurations[ritual.stage] ?? ritual.totalDurationMs;
         ritual.progress = Math.min(1, stageElapsed / stageDuration);
 
         // Check for stage transition
@@ -429,6 +461,7 @@ class NetworkRituals {
       refundedHarmony: refundAmount.toFixed(2),
       participantCount: ritual.participants.length
     });
+    this._emitLifecycleEvent('ritual:abort', ritual, { success: false, reason: 'cancelled' });
 
     return {
       success: true,
@@ -667,6 +700,10 @@ class NetworkRituals {
       newStage: stage,
       participantCount: ritual.participants.length
     });
+
+    if (stage === RITUAL_STAGES.RESONANCE || stage === RITUAL_STAGES.RESOLUTION) {
+      this._emitLifecycleEvent('ritual:progress', ritual, { success: true });
+    }
   }
 
   /**
@@ -850,6 +887,7 @@ class NetworkRituals {
       reason,
       synergyLost: lossAmount.toFixed(0)
     });
+    this._emitLifecycleEvent('ritual:abort', ritual, { success: false, reason });
   }
 
   /**
@@ -909,6 +947,32 @@ class NetworkRituals {
       participants: ritual.participants.length,
       linksReconstructed: ritual.cascadeReconstructions.length
     });
+    this._emitLifecycleEvent('ritual:complete', ritual, { success: true });
+  }
+
+  _emitLifecycleEvent(eventName, ritual, extra = {}) {
+    const handlers = this.listeners.get(eventName);
+    if (!handlers || handlers.size === 0 || !ritual) return;
+
+    const clusterLinks = this._getClusterLinks(ritual);
+    const payload = {
+      ritual,
+      nodeIds: ritual.participants
+        .map((node) => node?.userData?.nodeId || node?.id)
+        .filter(Boolean),
+      linkIds: clusterLinks
+        .map((link) => link?.id || `${link?.source?.id}-${link?.target?.id}`)
+        .filter(Boolean),
+      ...extra
+    };
+
+    for (const handler of handlers) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.warn('[Phase 8 Ritual] listener error for', eventName, err);
+      }
+    }
   }
 
   /**
@@ -949,7 +1013,8 @@ class NetworkRituals {
   }
 }
 
-// Export for integration
+export { NetworkRituals, RITUAL_CONFIG, RITUAL_STAGES };
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = NetworkRituals;
+  module.exports = { NetworkRituals, RITUAL_CONFIG, RITUAL_STAGES };
 }

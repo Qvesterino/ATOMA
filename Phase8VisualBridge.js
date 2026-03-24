@@ -27,8 +27,10 @@ import {
  * Implements the modifier application interface for ritual orchestration.
  */
 class Phase8VisualBridge {
-  constructor(visualAutoWiringSystem) {
+  constructor(visualAutoWiringSystem, options = {}) {
     this.wiring = visualAutoWiringSystem;
+    this.nodeRenderableResolver = options.getNodeRenderables ?? null;
+    this.linkRenderableResolver = options.getLinkRenderables ?? null;
 
     // Cache: renderableId → { controller, template, baseSignal }
     this.renderableControllerCache = new Map();
@@ -52,7 +54,7 @@ class Phase8VisualBridge {
     if (!controller) return;
 
     // Determine template type
-    const template = getTemplateForRenderable(renderable);
+    const template = getTemplateForRenderable(this._resolveRenderableType(renderable));
     if (!template) return;
 
     // Cache the pairing
@@ -94,7 +96,15 @@ class Phase8VisualBridge {
    * Get node renderables from wiring system.
    */
   getNodeRenderables(nodeIds) {
-    if (!this.wiring || !nodeIds || nodeIds.length === 0) return [];
+    if (!nodeIds || nodeIds.length === 0) return [];
+    if (typeof this.nodeRenderableResolver === 'function') {
+      try {
+        return this.nodeRenderableResolver(nodeIds) ?? [];
+      } catch {
+        return [];
+      }
+    }
+    if (!this.wiring) return [];
     if (typeof this.wiring.getNodeRenderables !== 'function') return [];
 
     try {
@@ -108,7 +118,15 @@ class Phase8VisualBridge {
    * Get link renderables from wiring system.
    */
   getLinkRenderables(linkIds) {
-    if (!this.wiring || !linkIds || linkIds.length === 0) return [];
+    if (!linkIds || linkIds.length === 0) return [];
+    if (typeof this.linkRenderableResolver === 'function') {
+      try {
+        return this.linkRenderableResolver(linkIds) ?? [];
+      } catch {
+        return [];
+      }
+    }
+    if (!this.wiring) return [];
     if (typeof this.wiring.getLinkRenderables !== 'function') return [];
 
     try {
@@ -270,9 +288,17 @@ class Phase8VisualBridge {
     if (!this.wiring) return null;
 
     try {
+      if (this.wiring?.wiringStore?.get) {
+        return this.wiring.wiringStore.get(renderable)?.controller ?? null;
+      }
+
       // Try primary lookup
       if (typeof this.wiring.getControllerForRenderable === 'function') {
         return this.wiring.getControllerForRenderable(renderable);
+      }
+
+      if (typeof this.wiring.getWiring === 'function') {
+        return this.wiring.getWiring(renderable)?.controller ?? null;
       }
 
       // Try alternative lookup
@@ -291,6 +317,38 @@ class Phase8VisualBridge {
       }
     } catch (e) {
       // Silently fail
+    }
+
+    return null;
+  }
+
+  _resolveRenderableType(renderable) {
+    const explicitType = renderable?.userData?.renderableType;
+    if (explicitType) return explicitType;
+
+    if (
+      renderable?.userData?.isLinkVisual === true ||
+      renderable?.userData?.linkId ||
+      renderable?.userData?.conduitState
+    ) {
+      return 'LINK';
+    }
+
+    if (renderable?.source || renderable?.target) {
+      return 'LINK';
+    }
+
+    if (
+      renderable?.userData?.isNode === true ||
+      renderable?.userData?.isNodeRoot === true ||
+      renderable?.userData?.nodeId ||
+      renderable?.userData?.category
+    ) {
+      return 'NODE';
+    }
+
+    if (typeof renderable?.userData?.type === 'string' && renderable.userData.type.toLowerCase().includes('field')) {
+      return 'FIELD';
     }
 
     return null;
