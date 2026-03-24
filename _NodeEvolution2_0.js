@@ -157,11 +157,16 @@ export class NodeEvolution2_0 {
       return true;
     }
     
+    const initialStage = Math.max(
+      1,
+      Math.min(4, Math.round(Number(node.userData?.evolutionStage) || 1))
+    );
+
     // Initialize evolution state for this node
     const evolutionState = {
       nodeId: nodeId,
       node: node,
-      currentStage: 1,
+      currentStage: initialStage,
       timeInStage: 0,
       isEvolving: false,
       evolutionProgress: 0,  // 0 to 1 (animation progress)
@@ -177,6 +182,8 @@ export class NodeEvolution2_0 {
     
     // Store original materials
     this.storeOriginalMaterials(node, evolutionState);
+
+    node.userData.evolutionStage = initialStage;
     
     this.registry.nodeEvolutionStates.set(nodeId, evolutionState);
     return true;
@@ -513,6 +520,9 @@ export class NodeEvolution2_0 {
     
     // Progress to next stage
     evolutionState.currentStage = nextStage;
+    if (evolutionState.node?.userData) {
+      evolutionState.node.userData.evolutionStage = nextStage;
+    }
     evolutionState.isConflicted = false;
   }
   
