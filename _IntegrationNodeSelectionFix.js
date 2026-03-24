@@ -185,6 +185,7 @@ export function patchIntegrationNodeSelection(linkingSystem, aiNodes) {
       }
       
       // Perform raycast
+      globalThis.console?.log?.("[RAYCAST]", "_IntegrationNodeSelectionFix.js", "targets:", meshesToTest.length);
       const intersects = this.raycaster.intersectObjects(meshesToTest, false);
       const filtered = filterRaycastIntersections(intersects);
       

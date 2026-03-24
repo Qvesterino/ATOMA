@@ -3635,6 +3635,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       raycaster.far = 10;
       
       // Check intersection with scene (basic geometry check)
+      globalThis.console?.log?.("[RAYCAST]", "AINodes.js", "targets:", interactiveNodes.length);
       const intersects = raycaster.intersectObjects(interactiveNodes, false);
       const filtered = filterRaycastIntersections(intersects);
       

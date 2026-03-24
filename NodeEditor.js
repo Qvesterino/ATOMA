@@ -269,8 +269,10 @@ export class NodeEditor {
    * Update node hover state
    */
   updateNodeHover() {
+    const targets = this.nodes.map(n => n.mesh);
+    globalThis.console?.log?.("[RAYCAST]", "NodeEditor.js", "targets:", targets.length);
     const intersects = this.raycaster.intersectObjects(
-      this.nodes.map(n => n.mesh),
+      targets,
       false
     );
     const filtered = filterRaycastIntersections(intersects);
@@ -354,8 +356,10 @@ export class NodeEditor {
     }
     
     const startPos = this.linkSource.mesh.position;
+    const targets = this.nodes.map(n => n.mesh).filter(m => m !== this.linkSource.mesh);
+    globalThis.console?.log?.("[RAYCAST]", "NodeEditor.js", "targets:", targets.length);
     const intersects = this.raycaster.intersectObjects(
-      this.nodes.map(n => n.mesh).filter(m => m !== this.linkSource.mesh),
+      targets,
       false
     );
     const filtered = filterRaycastIntersections(intersects);
@@ -394,8 +398,10 @@ export class NodeEditor {
    */
   handleMouseClick(event) {
     withSelectionContext(() => {
+      const targets = this.nodes.map(n => n.mesh);
+      globalThis.console?.log?.("[RAYCAST]", "NodeEditor.js", "targets:", targets.length);
       const intersects = this.raycaster.intersectObjects(
-        this.nodes.map(n => n.mesh),
+        targets,
         false
       );
       const filtered = filterRaycastIntersections(intersects);
@@ -441,8 +447,10 @@ export class NodeEditor {
    */
   handleMouseDown(event) {
     if (this.selectedNode && !this.isLinking) {
+      const targets = this.nodes.map(n => n.mesh);
+      globalThis.console?.log?.("[RAYCAST]", "NodeEditor.js", "targets:", targets.length);
       const intersects = this.raycaster.intersectObjects(
-        this.nodes.map(n => n.mesh),
+        targets,
         false
       );
       const filtered = filterRaycastIntersections(intersects);
@@ -479,8 +487,10 @@ export class NodeEditor {
     }
     
     // Check if clicking on a link
+    const targets = this.links.map(l => l.curve.line);
+    globalThis.console?.log?.("[RAYCAST]", "NodeEditor.js", "targets:", targets.length);
     const intersects = this.raycaster.intersectObjects(
-      this.links.map(l => l.curve.line),
+      targets,
       false
     );
     const filtered = filterRaycastIntersections(intersects);

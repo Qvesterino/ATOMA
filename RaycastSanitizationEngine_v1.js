@@ -517,6 +517,7 @@ export class RaycastSanitizationEngine {
       return this._isGeometrySafeForIntersection(obj.geometry);
     });
     try {
+      globalThis.console?.log?.("[RAYCAST]", "RaycastSanitizationEngine_v1.js", "targets:", safeObjects.length);
       return raycaster.intersectObjects(safeObjects, false);
     } catch (_err) {
       return [];
@@ -530,6 +531,7 @@ export class RaycastSanitizationEngine {
     if (!raycaster || !objects) return [];
     const intersects = [];
     try {
+      globalThis.console?.log?.("[RAYCAST]", "RaycastSanitizationEngine_v1.js", "targets:", objects.length);
       const results = raycaster.intersectObjects(objects, recursive);
       for (const hit of results) {
         if (hit.object && hit.object.geometry) {

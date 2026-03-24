@@ -331,6 +331,7 @@ export class NodeInteractionEngine {
 
     // === STEP 3: RAYCAST FILTER ENFORCEMENT ===
     // Perform raycasting, but enforce interaction authority
+    globalThis.console?.log?.("[RAYCAST]", "NodeInteractionEngine.ts", "targets:", meshes.length);
     const intersections = this.raycaster.intersectObjects(meshes, false);
     
     // Find first valid intersection (on interaction core only)

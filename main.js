@@ -8192,6 +8192,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.tier4GameplayIntegration.visuals) {
               this.tier4GameplayIntegration.visuals.frameScheduler = this.frameScheduler;
+              this.tier4GameplayIntegration.visuals.camera = this.camera;
             }
             if (this.tier4GameplayIntegration.ui) {
               this.tier4GameplayIntegration.ui.frameScheduler = this.frameScheduler;

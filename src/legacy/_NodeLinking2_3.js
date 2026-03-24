@@ -618,6 +618,7 @@ export class NodeLinking2_3 {
       }
     });
 
+    globalThis.console?.log?.("[RAYCAST]", "src/legacy/_NodeLinking2_3.js", "targets:", nodes.length);
     const intersects = this.raycaster.intersectObjects(nodes, false);
     const filtered = filterRaycastIntersections(intersects);
     return filtered.length > 0 ? filtered[0].object : null;

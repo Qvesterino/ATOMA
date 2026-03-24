@@ -141,6 +141,7 @@ export class NodeInspectOverlay3_0 {
     // Perform raycasting
     this.raycaster.setFromCamera(this.mouse, this.camera);
     
+    globalThis.console?.log?.("[RAYCAST]", "NodeInspectOverlay3_0.js", "targets:", interactiveNodes.length);
       const intersects = this.raycaster.intersectObjects(interactiveNodes, false);
     const filtered = filterRaycastIntersections(intersects);
     

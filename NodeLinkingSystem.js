@@ -3035,6 +3035,7 @@ getLinksForNode(node) {
     const previousFallbackFlag = window.__RAYCAST_FALLBACK_ACTIVE === true;
     window.__RAYCAST_FALLBACK_ACTIVE = true;
     const visualStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    globalThis.console?.log?.("[RAYCAST]", "NodeLinkingSystem.js", "targets:", coreMeshes.length);
     const intersects = this.raycaster.intersectObjects(coreMeshes, false);
     const visualElapsed = (typeof performance !== 'undefined')
       ? (performance.now() - visualStart)
@@ -3293,6 +3294,7 @@ getLinksForNode(node) {
         return null;
       }
 
+      globalThis.console?.log?.("[RAYCAST]", "NodeLinkingSystem.js", "targets:", boundedProxies.length);
       const intersects = this.raycaster.intersectObjects(boundedProxies, false);
       const filtered = filterRaycastIntersections(intersects);
       
@@ -3343,6 +3345,7 @@ getLinksForNode(node) {
       if (nodeMeshes.length === 0) return null;
 
       // Raycast directly (temporary recovery only)
+      globalThis.console?.log?.("[RAYCAST]", "NodeLinkingSystem.js", "targets:", nodeMeshes.length);
       const intersects = this.raycaster.intersectObjects(nodeMeshes, false);
       if (intersects.length > 0) {
         // Find parent node
@@ -5353,6 +5356,7 @@ getLinksForNode(node) {
     
     // Raycast ONLY against hit-proxy meshes
     const proxyStart = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    globalThis.console?.log?.("[RAYCAST]", "NodeLinkingSystem.js", "targets:", candidateMeshes.length);
     const intersects = this.raycaster.intersectObjects(candidateMeshes, false);
     const proxyElapsed = (typeof performance !== 'undefined')
       ? (performance.now() - proxyStart)

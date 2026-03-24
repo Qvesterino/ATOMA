@@ -148,6 +148,7 @@ function createSafeProxyRaycaster(hitProxySystem) {
     this.setFromCamera({ x: clientX, y: clientY }, camera);
 
     // Get intersections
+    globalThis.console?.log?.("[RAYCAST]", "_HitProxyIntegrationPatch.js", "targets:", this.__hitProxySystem.registry.getAllProxies().length);
     const intersections = this.intersectObjects(this.__hitProxySystem.registry.getAllProxies(), false);
 
     if (intersections.length === 0) return null;
@@ -373,6 +374,7 @@ export function setupHitProxyDebugAPI() {
       const y = -(clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera({ x, y }, camera);
+      globalThis.console?.log?.("[RAYCAST]", "_HitProxyIntegrationPatch.js", "targets:", window.hitProxySystem.registry.getAllProxies().length);
       const intersections = raycaster.intersectObjects(window.hitProxySystem.registry.getAllProxies(), false);
 
       if (intersections.length > 0) {

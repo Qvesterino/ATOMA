@@ -4183,7 +4183,7 @@ export class LinkRendererConduit {
             if (!linkState.seedLatched &&
                 linkState.lastCorruption < thresholds.linkSeed &&
                 corruption >= thresholds.linkSeed) {
-                this.corruptionFeedbackVisuals.displayCorruptionSeed?.(anchorNode);
+                this.corruptionFeedbackVisuals.displayCorruptionSeed?.(anchorNode, link);
                 linkState.seedLatched = true;
             }
             // Rising cascade crossing
@@ -4232,7 +4232,7 @@ export class LinkRendererConduit {
                 if (!nodeState.seedLatched &&
                     nodeState.lastCorruption < thresholds.nodeSeed &&
                     nodeCorruption >= thresholds.nodeSeed) {
-                    this.corruptionFeedbackVisuals.displayCorruptionSeed?.(node);
+                    this.corruptionFeedbackVisuals.displayCorruptionSeed?.(node, link);
                     nodeState.seedLatched = true;
                 }
                 if (!nodeState.cascadeLatched &&

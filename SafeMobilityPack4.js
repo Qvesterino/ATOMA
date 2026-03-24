@@ -452,9 +452,8 @@ export class SafeMobilityPack4 {
       raycaster.near = 0;
       raycaster.far = this._groundCheckDistance;
       const targets = this._collectValidRaycastTargets();
-      console.log('RAYCAST TARGETS', targets.length);
+      globalThis.console?.log?.("[RAYCAST]", "SafeMobilityPack4.js", "targets:", targets.length);
       const intersects = raycaster.intersectObjects(targets, false);
-      console.log('RAYCAST HITS', intersects.length);
       const filtered = filterRaycastIntersections(intersects);
       
       const wasOnGround = this.state.onGround;

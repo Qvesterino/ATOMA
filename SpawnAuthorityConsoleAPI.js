@@ -181,6 +181,7 @@ export class SpawnAuthorityConsoleAPI {
         }
       });
       
+      globalThis.console?.log?.("[RAYCAST]", "SpawnAuthorityConsoleAPI.js", "targets:", coreMesh ? 1 : 0);
       const intersections = raycaster.intersectObject(coreMesh);
       const selectable = intersections.length > 0 || coreMesh !== null;
       

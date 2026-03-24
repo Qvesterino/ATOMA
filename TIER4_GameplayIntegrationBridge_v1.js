@@ -162,10 +162,11 @@ export class TIER4_GameplayIntegrationBridge {
     const originalOnLinkCreated = this.core.onLinkCreated.bind(this.core);
     this.core.onLinkCreated = (sourceNode, targetNode) => {
       originalOnLinkCreated(sourceNode, targetNode);
+      const link = this.core?.getLink(sourceNode, targetNode);
 
       // Trigger visual feedback
       if (this.visuals && sourceNode) {
-        this.visuals.displayCorruptionSeed(sourceNode);
+        this.visuals.displayCorruptionSeed(sourceNode, link);
         this.visuals.displayHarmonyPulse(targetNode);
       }
 

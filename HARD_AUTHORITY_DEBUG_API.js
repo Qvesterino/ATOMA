@@ -200,6 +200,7 @@ export function setupHardAuthorityDebugAPI() {
       raycaster.ray.origin.copy(window.game.camera.position);
       
       // Try to intersect this node
+      globalThis.console?.log?.("[RAYCAST]", "HARD_AUTHORITY_DEBUG_API.js", "targets:", 1);
       const intersects = raycaster.intersectObject(node, true);
       
       if (intersects.length > 0) {

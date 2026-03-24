@@ -102,14 +102,21 @@ export class TIER4_GameplayIntegrationCore {
     if (!this.linkingSystem?.links) return null;
 
     for (const link of this.linkingSystem.links) {
-      const linkNodes = link.nodes || [];
-      if (linkNodes.length >= 2) {
+      const linkNodes = Array.isArray(link.nodes) ? link.nodes : null;
+      if (linkNodes && linkNodes.length >= 2) {
         const node1 = linkNodes[0];
         const node2 = linkNodes[1];
         if ((node1 === sourceNode && node2 === targetNode) ||
             (node1 === targetNode && node2 === sourceNode)) {
           return link;
         }
+      }
+
+      const node1 = link.source || link.sourceNode || link.from || null;
+      const node2 = link.target || link.targetNode || link.to || null;
+      if ((node1 === sourceNode && node2 === targetNode) ||
+          (node1 === targetNode && node2 === sourceNode)) {
+        return link;
       }
     }
     return null;

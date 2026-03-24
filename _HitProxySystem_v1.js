@@ -462,6 +462,7 @@ class HitProxySystem {
     }
 
     // Perform raycast
+    globalThis.console?.log?.("[RAYCAST]", "_HitProxySystem_v1.js", "targets:", objects.length);
     const intersections = raycaster.intersectObjects(objects, false);
 
     // Filter to only hit-proxies
