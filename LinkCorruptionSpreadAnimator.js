@@ -68,6 +68,10 @@ export class LinkCorruptionSpreadAnimator {
       retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
       forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
       maxCorruptionForSpread: 0.95,   // Cap on corruption visualization
+      dustParticleCount: 18,
+      dustWaveWidth: 0.18,
+      dustHeight: 0.16,
+      dustLateralSpread: 0.06
     };
   }
 
@@ -107,7 +111,8 @@ export class LinkCorruptionSpreadAnimator {
       startTime: performance.now(),
       previousCorruption: 0,
       lastTriggerTime: -Infinity,
-      isAnimating: false
+      isAnimating: false,
+      dust: null
     });
   }
   
@@ -186,8 +191,118 @@ export class LinkCorruptionSpreadAnimator {
       isAnimating: state.isAnimating,
       debugVisibilityBoost: debugCfg.visibilityBoost
     });
+
+    this._updateDustWave(link, state, corruptionLevel);
     
     return state;
+  }
+
+  _ensureDustState(link, state) {
+    if (state.dust || !link?.group) return state.dust;
+
+    const count = this.config.dustParticleCount;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+
+    const material = new THREE.PointsMaterial({
+      color: 0xff5a1f,
+      transparent: true,
+      opacity: 0.0,
+      size: 0.08,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.visible = false;
+    link.group.add(points);
+
+    const seeds = [];
+    for (let i = 0; i < count; i++) {
+      seeds.push({
+        tOffset: i / Math.max(1, count - 1),
+        lateral: (Math.random() - 0.5) * this.config.dustLateralSpread,
+        vertical: Math.random() * this.config.dustHeight,
+        phase: Math.random() * Math.PI * 2,
+        sizeBias: 0.8 + Math.random() * 0.6
+      });
+    }
+
+    state.dust = { points, geometry, material, seeds };
+    return state.dust;
+  }
+
+  _sampleLinkPosition(link, t) {
+    if (link?.curve?.getPointAt) {
+      return link.curve.getPointAt(Math.max(0, Math.min(1, t)));
+    }
+
+    const source = link?.source?.position;
+    const target = link?.target?.position;
+    if (source && target) {
+      return new THREE.Vector3().lerpVectors(source, target, Math.max(0, Math.min(1, t)));
+    }
+
+    return new THREE.Vector3();
+  }
+
+  _computeLinkBasis(link) {
+    const source = link?.source?.position;
+    const target = link?.target?.position;
+    const forward = new THREE.Vector3(1, 0, 0);
+    if (source && target) {
+      forward.subVectors(target, source);
+      if (forward.lengthSq() > 1e-8) forward.normalize();
+    }
+
+    const up = new THREE.Vector3(0, 1, 0);
+    const lateral = new THREE.Vector3().crossVectors(forward, up);
+    if (lateral.lengthSq() <= 1e-8) {
+      lateral.set(1, 0, 0);
+    } else {
+      lateral.normalize();
+    }
+
+    return { up, lateral };
+  }
+
+  _updateDustWave(link, state, corruptionLevel) {
+    const dust = this._ensureDustState(link, state);
+    if (!dust) return;
+
+    const active = state.isAnimating && corruptionLevel >= this.config.spreadStartThreshold;
+    dust.points.visible = active;
+    if (!active) {
+      dust.material.opacity = 0.0;
+      return;
+    }
+
+    const positions = dust.geometry.attributes.position.array;
+    const basis = this._computeLinkBasis(link);
+    const wavePhase = state.wavePhase;
+    const width = this.config.dustWaveWidth;
+
+    for (let i = 0; i < dust.seeds.length; i++) {
+      const seed = dust.seeds[i];
+      const relative = seed.tOffset - wavePhase;
+      const influence = Math.exp(-(relative * relative) / Math.max(0.0001, width * width));
+      const sampleT = Math.max(0, Math.min(1, wavePhase + relative * 0.45));
+      const basePos = this._sampleLinkPosition(link, sampleT);
+      const shimmer = Math.sin(performance.now() * 0.004 + seed.phase + sampleT * 9.0);
+
+      basePos.addScaledVector(basis.up, this.config.dustHeight * (0.35 + influence * 0.85) + shimmer * 0.015);
+      basePos.addScaledVector(basis.lateral, seed.lateral + shimmer * 0.012);
+
+      positions[i * 3 + 0] = basePos.x;
+      positions[i * 3 + 1] = basePos.y;
+      positions[i * 3 + 2] = basePos.z;
+    }
+
+    dust.geometry.attributes.position.needsUpdate = true;
+    dust.material.opacity = Math.min(0.9, 0.18 + corruptionLevel * 0.85);
+    dust.material.size = 0.05 + corruptionLevel * 0.06;
   }
 
   _readCorruptionLevel(link, options = {}) {
@@ -318,6 +433,13 @@ export class LinkCorruptionSpreadAnimator {
    * @param {string} linkId - Link ID to dispose
    */
   disposeLinkAnimation(linkId) {
+    const state = this.animationStates.get(linkId);
+    if (state?.dust) {
+      state.dust.points.parent?.remove(state.dust.points);
+      state.dust.geometry.dispose();
+      state.dust.material.dispose();
+      state.dust = null;
+    }
     this.animationStates.delete(linkId);
   }
   

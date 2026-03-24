@@ -54,11 +54,31 @@ class HitProxyAutoRegistrar {
    * Setup auto-registration hook
    */
   setup() {
-    if (!this.aiNodes || !this.aiNodes.spawnNode) {
-      console.warn('[HitProxyAutoRegistrar] AINodes.spawnNode not available');
+    if (!this.aiNodes) {
+      console.warn('[HitProxyAutoRegistrar] AINodes not available');
       return;
     }
 
+    if (
+      typeof this.aiNodes.createNode === 'function' &&
+      this.aiNodes.__hitProxyAutoRegistrarWrapped !== true
+    ) {
+      const originalCreateNode = this.aiNodes.createNode.bind(this.aiNodes);
+      this.aiNodes.createNode = (...args) => {
+        const node = originalCreateNode(...args);
+        this.registerNodeProxy(node);
+        return node;
+      };
+      this.aiNodes.__hitProxyAutoRegistrarWrapped = true;
+    }
+
+    if (Array.isArray(this.aiNodes.nodes) && this.aiNodes.nodes.length > 0) {
+      for (const node of this.aiNodes.nodes) {
+        this.registerNodeProxy(node);
+      }
+    } else {
+      this.updateReadyGate();
+    }
   }
 
   /**
@@ -69,8 +89,6 @@ class HitProxyAutoRegistrar {
     if (!node) return;
 
     try {
-      this.stats.nodesProcessed++;
-
       // Step 1: Ensure node has ID
       if (!node.userData) {
         node.userData = {};
@@ -81,6 +99,26 @@ class HitProxyAutoRegistrar {
       if (!nodeId) {
         throw new Error('[IdentityLock] Node missing canonical identity (nodeId)');
       }
+
+      const existingRegistration = this.registeredNodes.get(node);
+      if (existingRegistration?.registered === true && existingRegistration.proxy) {
+        this.updateReadyGate();
+        return existingRegistration.proxy;
+      }
+
+      const existingProxy = this.hitProxySystem?.registry?.getProxy?.(nodeId);
+      if (existingProxy) {
+        existingProxy.userData = existingProxy.userData || {};
+        existingProxy.userData.isHitProxy = true;
+        existingProxy.userData.targetNodeId = nodeId;
+        existingProxy.userData.proxyType = 'node';
+        this.registeredNodes.set(node, { proxy: existingProxy, registered: true });
+        this.nodeIdMap.set(nodeId, node);
+        this.updateReadyGate();
+        return existingProxy;
+      }
+
+      this.stats.nodesProcessed++;
 
       // Track node by ID for quick lookup
       this.nodeIdMap.set(nodeId, node);
@@ -114,6 +152,8 @@ class HitProxyAutoRegistrar {
 
       // Update HITPROXY_READY gate
       this.updateReadyGate();
+
+      return proxy;
 
     } catch (err) {
       console.warn('[HitProxyAutoRegistrar] Proxy registration failed:', err);

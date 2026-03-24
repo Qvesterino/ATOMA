@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
-import { interactiveNodes } from './AINodes.js';
 
 const logOnce = (key, fn) => {
   if (typeof window === 'undefined') {
@@ -162,13 +161,8 @@ export class SafeMobilityPack4 {
   }
 
   _collectValidRaycastTargets() {
-    if (typeof window !== 'undefined') {
-      const proxies = window.hitProxySystem?.registry?.getAllProxies?.();
-      if (Array.isArray(proxies) && proxies.length > 0) {
-        return proxies;
-      }
-    }
-    return interactiveNodes;
+    const proxies = window.hitProxySystem?.registry?.getAllProxies?.();
+    return Array.isArray(proxies) ? proxies : [];
   }
   
   /**

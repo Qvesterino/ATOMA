@@ -2601,6 +2601,7 @@ export class LinkRendererConduit {
             wavePhaseOffset: wavePhaseOffset,
             impacts: [],
             __dynamicGeometryInitialized: false,
+            __warnedDirectionalStreaksInactive: false,
             bootstrap: {
                 phase: 0,
                 maxPhase: 9,
@@ -3726,11 +3727,6 @@ export class LinkRendererConduit {
             });
         }
 
-        // Update LinkTrailEmitter (if available)
-        if (heavyTick && state.trails && state.beads && state.beads.beadToMesh) {
-            state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve);
-        }
-
         if (heavyTick && state.pulseRing && this.modules.flow) {
             const targetCat = link.target.userData?.category || 'input';
             const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
@@ -3857,8 +3853,13 @@ export class LinkRendererConduit {
                 }
             }
         } else {
-            if (typeof window !== 'undefined') {
+            if (
+                typeof window !== 'undefined' &&
+                window.__DEBUG_LINK_PARTICLES__ === true &&
+                state.__warnedDirectionalStreaksInactive !== true
+            ) {
                 console.warn('[DirectionalStreaks] NOT UPDATING - state:', !!state.directionalStreaks, 'manager:', !!this.directionalStreaks, 'link:', link.id);
+                state.__warnedDirectionalStreaksInactive = true;
             }
         }
 

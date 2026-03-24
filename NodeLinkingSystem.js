@@ -3216,11 +3216,27 @@ getLinksForNode(node) {
     const cacheFresh =
       cache &&
       cache.registryRef === registry &&
-      (nowMs - cache.builtAtMs) <= cache.ttlMs;
+      (nowMs - cache.builtAtMs) <= cache.ttlMs &&
+      Array.isArray(cache.meshes) &&
+      cache.meshes.length > 0;
 
     if (cacheFresh) return cache.meshes;
 
-    const meshes = registry.getAllProxies() || [];
+    let meshes = registry.getAllProxies() || [];
+    if (meshes.length === 0) {
+      const registrar = window.HitProxyAutoRegistrar;
+      if (registrar && typeof registrar.rebuildProxies === 'function' && registrar.__rebuildInFlight !== true) {
+        registrar.__rebuildInFlight = true;
+        try {
+          registrar.rebuildProxies();
+        } finally {
+          registrar.__rebuildInFlight = false;
+        }
+        meshes = registry.getAllProxies() || [];
+      }
+    }
+    const ready = meshes.length > 0 && meshes.every(mesh => mesh?.userData?.targetNodeId);
+    window.HITPROXY_READY = ready;
     cache.meshes = meshes;
     cache.registryRef = registry;
     cache.builtAtMs = nowMs;
