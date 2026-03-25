@@ -269,7 +269,8 @@ export class SynergyCascadeFXBridge_v1 {
             nodeAuraSystem: null,               // NodeAuraSystem_v1
             linkAuraSystem: null,               // LinkAuraSystem_v1
             nodeShaderActivation: null,         // NodeShaderActivation_v1
-            archetypeShaderModes: null          // ArchetypeShaderModes_v1
+            archetypeShaderModes: null,         // ArchetypeShaderModes_v1
+            travelingWaveFX: null               // SynergyTravelingWaveFX_v1
         };
         
         // Event source (SynergyChainReaction_v1 instance)
@@ -501,7 +502,24 @@ export class SynergyCascadeFXBridge_v1 {
                             intensity: Math.max(0, Math.min(1, intensity ?? 0)),
                             harmonicMode
                         });
-                        
+
+                        // Trigger traveling wave on link material if available
+                        if (this.targetSystems.travelingWaveFX && link) {
+                            const linkMaterial = link?.userData?.__strandMaterial || 
+                                                  link?.userData?.material ||
+                                                  null;
+                            if (linkMaterial) {
+                                const depth = Math.min(8, hopIndex);
+                                const synergyLevel = Math.max(0, Math.min(1, intensity ?? 0.5));
+                                this.targetSystems.travelingWaveFX.triggerWave(
+                                    linkMaterial,
+                                    depth,
+                                    synergyLevel,
+                                    0.8 + synergyLevel * 0.4
+                                );
+                            }
+                        }
+
                         this.processedLinksCount++;
                     } catch (err) {
                         // Continue on individual event errors

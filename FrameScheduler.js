@@ -206,6 +206,30 @@ class FrameScheduler {
     }
 
     /**
+     * Simulation gate - returns true when simulation layer is active.
+     * Systems registered in simulation layer (10Hz) should check this.
+     */
+    shouldRunSimulation() {
+        return true;
+    }
+
+    /**
+     * Realtime gate - returns true when realtime layer is active.
+     * Systems registered in realtime layer (60Hz) should check this.
+     */
+    shouldRunRealtime() {
+        return true;
+    }
+
+    /**
+     * Background gate - returns true when background layer is active.
+     * Systems registered in background layer (2Hz) should check this.
+     */
+    shouldRunBackground() {
+        return true;
+    }
+
+    /**
      * Main tick - called every frame with deltaTime
      * Executes registered functions when their layer's interval is reached
      * 

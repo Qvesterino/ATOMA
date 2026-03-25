@@ -57,19 +57,25 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
   // PRIVATE STATE
   // ═══════════════════════════════════════════════════════════════
-  
+
   let scene = null;
   let camera = null;
   let renderer = null;
   let synergyHighwaysEngine = null;
-  
+  let aiNodes = null;  // Reference to AI nodes for dynamic anchor computation
+
   let group = null;  // Main group containing all highway meshes
   const highwayMeshes = new Map();  // Map<highway.id, mesh>
   const highwayData = new Map();    // Map<highway.id, highway object>
-  
+
+  // Dynamically computed category anchors (updated from node positions)
+  const computedAnchors = new Map();
+
   let elapsedTime = 0;  // For animation
   let enabled = true;
   let debugEnabled = false;
+  let _anchorsLastUpdate = 0;
+  const _anchorUpdateInterval = 2.0;  // Re-compute anchors every 2 seconds
   
   const config = {
     enabled: true,
@@ -159,34 +165,64 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   // ═══════════════════════════════════════════════════════════════
   
   /**
-   * Get category center position
-   * Computes actual center from nodes if available, else uses anchor
+   * Update category anchors from actual node positions
+   * Call periodically or when nodes change significantly
    */
-  function getCategoryPosition(category, aiNodes = null) {
-    // Try to compute from actual node positions first
-    if (aiNodes) {
-      const categoryNodes = aiNodes.filter(node => 
-        node.userData?.category === category
-      );
-      
-      if (categoryNodes.length > 0) {
-        let centerX = 0, centerY = 0, centerZ = 0;
-        categoryNodes.forEach(node => {
-          centerX += node.position.x;
-          centerY += node.position.y;
-          centerZ += node.position.z;
-        });
-        
-        return new (THREE.Vector3 || function() {})(
-          centerX / categoryNodes.length,
-          centerY / categoryNodes.length,
-          centerZ / categoryNodes.length
-        );
+  function updateCategoryAnchorsFromNodes() {
+    if (!aiNodes) return;
+
+    const nodes = Array.isArray(aiNodes) ? aiNodes : (aiNodes?.nodes || []);
+    if (nodes.length === 0) return;
+
+    // Group nodes by category
+    const categoryNodes = new Map();
+    for (const node of nodes) {
+      const category = node?.userData?.category;
+      if (!category) continue;
+
+      if (!categoryNodes.has(category)) {
+        categoryNodes.set(category, []);
       }
+      categoryNodes.get(category).push(node);
     }
-    
-    // Fall back to anchor
-    return categoryAnchors[category] || new (THREE.Vector3 || function() {})(0, 0, 0);
+
+    // Compute center for each category
+    for (const [category, nodeList] of categoryNodes) {
+      if (nodeList.length === 0) continue;
+
+      let centerX = 0, centerY = 0, centerZ = 0;
+      for (const node of nodeList) {
+        centerX += node.position.x;
+        centerY += node.position.y;
+        centerZ += node.position.z;
+      }
+
+      const center = new THREE.Vector3(
+        centerX / nodeList.length,
+        centerY / nodeList.length,
+        centerZ / nodeList.length
+      );
+
+      computedAnchors.set(category, center);
+    }
+
+    if (debugEnabled) {
+      console.log(`[SynergyHighwayVisuals] Updated ${computedAnchors.size} category anchors from nodes`);
+    }
+  }
+
+  /**
+   * Get category center position
+   * Uses computed anchor if available, else falls back to static anchor
+   */
+  function getCategoryPosition(category) {
+    // Priority 1: Use computed anchor from actual nodes
+    if (computedAnchors.has(category)) {
+      return computedAnchors.get(category);
+    }
+
+    // Priority 2: Fall back to static anchor
+    return categoryAnchors[category] || new THREE.Vector3(0, 0, 0);
   }
   
   /**
@@ -483,37 +519,67 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   return {
     /**
      * Initialize visuals system
+     * @param {THREE.Scene} sceneRef - Three.js scene
+     * @param {THREE.Camera} cameraRef - Three.js camera
+     * @param {THREE.Renderer} rendererRef - Three.js renderer
+     * @param {Object} highwaysEngine - SynergyHighways engine instance
+     * @param {Object|Array} nodesRef - Optional AI nodes for dynamic anchors
      */
-    init(sceneRef, cameraRef, rendererRef, highwaysEngine) {
+    init(sceneRef, cameraRef, rendererRef, highwaysEngine, nodesRef = null) {
       scene = sceneRef;
       camera = cameraRef;
       renderer = rendererRef;
       synergyHighwaysEngine = highwaysEngine;
-      
+      aiNodes = nodesRef;
+
       if (!scene) {
         console.error('[SynergyHighwayVisuals] Scene required');
         return false;
       }
-      
+
       // Create group for all highway meshes
       if (!group) {
         group = new (THREE?.Group || function() {})();
         group.name = 'SynergyHighways';
         scene.add(group);
       }
-      
+
+      // Initial anchor computation if nodes provided
+      if (aiNodes) {
+        updateCategoryAnchorsFromNodes();
+      }
+
       console.log('[SynergyHighwayVisuals] Initialized');
       return true;
     },
-    
+
+    /**
+     * Set nodes reference for dynamic category anchor computation
+     */
+    setNodes(nodesRef) {
+      aiNodes = nodesRef;
+      // Immediately compute anchors
+      updateCategoryAnchorsFromNodes();
+      if (debugEnabled) {
+        console.log('[SynergyHighwayVisuals] Nodes reference set, anchors computed');
+      }
+    },
+
     /**
      * Update visuals (call every frame)
      */
     update(deltaTime) {
       if (!enabled || !group) return;
-      
+
       elapsedTime += deltaTime * config.animationSpeed;
-      
+
+      // Periodically update category anchors from node positions
+      _anchorsLastUpdate += deltaTime;
+      if (_anchorsLastUpdate >= _anchorUpdateInterval) {
+        _anchorsLastUpdate = 0;
+        updateCategoryAnchorsFromNodes();
+      }
+
       // Update all highway mesh shader times
       for (const mesh of highwayMeshes.values()) {
         if (mesh.material && mesh.material.uniforms) {
@@ -669,7 +735,35 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       console.log(`Highways: ${this.getHighwayCount()}`);
       console.log(`Total routes: ${stats.highwayCount || 0}`);
       console.log(`Enabled: ${enabled}`);
+      console.log(`Computed anchors: ${computedAnchors.size}`);
       console.log(`Config:`, config);
+    },
+
+    /**
+     * Debug: Print category anchor positions
+     */
+    debugPrintAnchors() {
+      console.log('═══ Category Anchors ═══');
+      if (computedAnchors.size === 0) {
+        console.log('No computed anchors yet (using static fallbacks)');
+      }
+      for (const [category, pos] of computedAnchors) {
+        console.log(`  ${category}: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`);
+      }
+      console.log('Static fallbacks:');
+      for (const [category, pos] of Object.entries(categoryAnchors)) {
+        if (!computedAnchors.has(category)) {
+          console.log(`  ${category}: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) [STATIC]`);
+        }
+      }
+    },
+
+    /**
+     * Force immediate recomputation of category anchors
+     */
+    forceUpdateAnchors() {
+      updateCategoryAnchorsFromNodes();
+      console.log(`[SynergyHighwayVisuals] Forced anchor update: ${computedAnchors.size} categories`);
     },
     
     /**

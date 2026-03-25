@@ -160,6 +160,20 @@ export class LinkSemanticMetricsBridge_v1 {
     }
 
     this.lastUpdatedLinks = updated;
+
+    // DEBUG: Log cascade data flow (enable with window.ATOMA_DEBUG_CASCADE = true)
+    if (typeof window !== 'undefined' && window.ATOMA_DEBUG_CASCADE && updated > 0) {
+      const sample = links.find(l => l?.userData?.cascadeIntensity > 0);
+      if (sample) {
+        console.log('[LinkSemanticMetricsBridge] cascadeIntensity sample:', {
+          linkId: sample.id,
+          cascadeIntensity: sample.userData.cascadeIntensity?.toFixed(3),
+          qualityScore: sample.userData?.quality?.score?.toFixed(1),
+          activeLinks: links.filter(l => l?.userData?.cascadeIntensity > 0.1).length
+        });
+      }
+    }
+
     return updated;
   }
 }

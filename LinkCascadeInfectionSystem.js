@@ -192,6 +192,20 @@ export class LinkCascadeInfectionSystem {
     this.stats.activeLinks = activeLinks;
     this.stats.propagatedLinks = propagatedLinks;
     this.stats.propagatedHops = propagatedHops;
+
+    // DEBUG: Log infection data flow (enable with window.ATOMA_DEBUG_CASCADE = true)
+    if (typeof window !== 'undefined' && window.ATOMA_DEBUG_CASCADE && activeLinks > 0) {
+      const sample = snapshot.entries().next()?.value?.[0];
+      if (sample?.userData?.waveField) {
+        console.log('[LinkCascadeInfectionSystem] waveField sample:', {
+          linkId: sample.id,
+          infection: sample.userData.cascadeInfection?.intensity?.toFixed(3),
+          waveFieldAmplitude: sample.userData.waveField.amplitude?.toFixed(3),
+          propagatedHops: propagatedHops
+        });
+      }
+    }
+
     return this.stats;
   }
 
@@ -288,10 +302,18 @@ export class LinkCascadeInfectionSystem {
     return 0;
   }
 
-  _writeCascadeIntensity(link, intensity) {
+  _writeCascadeIntensity(link, infectionIntensity) {
     if (!link) return;
     if (!link.userData) link.userData = {};
-    link.userData.cascadeIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
+
+    // Read baseline from LinkSemanticMetricsBridge (primary writer)
+    const baseline = Number(link.userData.cascadeIntensity) || 0;
+
+    // Infection can only BOOST the baseline, never replace or reduce it
+    // This preserves the semantic baseline while allowing infection propagation
+    const modulated = Math.max(baseline, Number(infectionIntensity) || 0);
+
+    link.userData.cascadeIntensity = Math.max(0, Math.min(1, modulated));
   }
 
   _writeFallbackWaveField(link, infection) {

@@ -418,10 +418,15 @@ export class WaveShaderBridge_v1 {
                 }
             }
 
-            const waveField = this._resolveWaveField(snapshot);
+            // Resolve entity for fallback
+            const cachedEntity = isLink
+                ? this.linkMaterialToEntity.get(material)
+                : this.nodeMaterialToEntity.get(material);
+
+            const waveField = this._resolveWaveFieldWithFallback(snapshot, cachedEntity);
 
             // Compute target values (normalized 0..1)
-            const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? 0));
+            const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? waveField.amplitude ?? 0));
             const targetConstructive = clamp01(
                 waveField.constructivePower ?? waveField.constructive ?? 0
             );
@@ -429,7 +434,7 @@ export class WaveShaderBridge_v1 {
                 waveField.destructivePower ?? waveField.destructive ?? waveField.destructiveInterference ?? 0
             );
             const targetInterference = clamp01(
-                waveField.interferenceIndex ?? waveField.totalAmplitude ?? 0
+                waveField.interferenceIndex ?? waveField.totalAmplitude ?? waveField.amplitude ?? 0
             );
             const targetStanding = clamp01(
                 waveField.standingWaveFactor ?? waveField.standing ?? 0
@@ -522,6 +527,44 @@ export class WaveShaderBridge_v1 {
             travelPhase: phase,
             sourceCount: 1
         };
+    }
+
+    /**
+     * Resolve waveField from snapshot with fallback to entity.userData.waveField.
+     * This ensures visual systems always have data, even when no burst is active.
+     * @param {Object} snapshot - Burst snapshot from WaveInterferenceEngine
+     * @param {Object} entity - Node or link for fallback
+     * @returns {Object} waveField data
+     */
+    _resolveWaveFieldWithFallback(snapshot, entity) {
+        // Primary: snapshot from active burst
+        const snapshotField = this._resolveWaveField(snapshot);
+        if (snapshotField && Object.keys(snapshotField).length > 0) {
+            return snapshotField;
+        }
+
+        // Fallback: entity.userData.waveField (written by LinkCascadeInfectionSystem, CascadingHarmonicResonanceAmplification)
+        if (entity?.userData?.waveField) {
+            const wf = entity.userData.waveField;
+            return {
+                totalAmplitude: wf.amplitude ?? wf.totalAmplitude ?? 0,
+                amplitude: wf.amplitude ?? 0,
+                constructivePower: wf.constructive ?? wf.constructivePower ?? 0,
+                constructive: wf.constructive ?? 0,
+                destructivePower: wf.destructive ?? wf.destructivePower ?? 0,
+                destructive: wf.destructive ?? 0,
+                destructiveInterference: wf.destructiveInterference ?? wf.destructive ?? 0,
+                interferenceIndex: wf.interferenceIndex ?? wf.amplitude ?? 0,
+                standingWaveFactor: wf.standing ?? wf.standingWaveFactor ?? 0,
+                standing: wf.standing ?? 0,
+                travelPhase: wf.phase ?? wf.travelPhase ?? 0,
+                phase: wf.phase ?? 0,
+                sourceCount: wf.sourceCount ?? 1
+            };
+        }
+
+        // No data available
+        return {};
     }
 
     /**

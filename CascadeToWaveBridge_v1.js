@@ -71,35 +71,51 @@ export class CascadeToWaveBridge_v1 {
     this._boundCascadeHopHandler = (event = {}) => {
       if (!this.enabled) return;
       const waveEngine = this.waveInterferenceEngine;
-      if (!waveEngine?.requestBurstIntent) return;
-
       const intensity = Math.max(0, Math.min(1, Number(event.intensity ?? 0) || 0));
-      const origin = this._resolveOrigin(event);
-      const link = this._resolveLink(event);
-      const contract = this._resolveBurstContract(event, intensity, origin, link);
 
-      waveEngine.requestBurstIntent({
-        type: contract.type,
-        reasonClass: 'semantic_event',
-        sourceId: contract.sourceId,
-        originPosition: origin,
-        sourcePosition: origin,
-        center: origin,
-        fromRegime: contract.fromRegime,
-        toRegime: contract.toRegime,
-        intensity,
-        strength: intensity,
-        linkId: contract.linkId,
-        link,
-        sourceNode: contract.sourceNode,
-        targetNode: contract.targetNode,
-        travel: contract.travel,
-        metadata: {
-          sourceEvent: 'cascade.hop',
-          sourceFamily: 'cascade',
-          regime: contract.regime
-        }
-      });
+      // DEBUG: Log cascade.hop events (enable with window.ATOMA_DEBUG_CASCADE = true)
+      if (typeof window !== 'undefined' && window.ATOMA_DEBUG_CASCADE) {
+        console.log('[CascadeToWaveBridge] cascade.hop received:', {
+          linkId: event.linkId,
+          intensity: intensity.toFixed(3),
+          hasWaveEngine: !!waveEngine?.requestBurstIntent
+        });
+      }
+
+      // Primary path: send burst intent to wave engine
+      if (waveEngine?.requestBurstIntent) {
+        const origin = this._resolveOrigin(event);
+        const link = this._resolveLink(event);
+        const contract = this._resolveBurstContract(event, intensity, origin, link);
+
+        waveEngine.requestBurstIntent({
+          type: contract.type,
+          reasonClass: 'semantic_event',
+          sourceId: contract.sourceId,
+          originPosition: origin,
+          sourcePosition: origin,
+          center: origin,
+          fromRegime: contract.fromRegime,
+          toRegime: contract.toRegime,
+          intensity,
+          strength: intensity,
+          linkId: contract.linkId,
+          link,
+          sourceNode: contract.sourceNode,
+          targetNode: contract.targetNode,
+          travel: contract.travel,
+          metadata: {
+            sourceEvent: 'cascade.hop',
+            sourceFamily: 'cascade',
+            regime: contract.regime
+          }
+        });
+        return;
+      }
+
+      // Fallback path: write waveField directly when wave engine is unavailable
+      // This ensures visual systems always have data
+      this._writeFallbackWaveField(event, intensity);
     };
 
     bus.on('cascade.hop', this._boundCascadeHopHandler);
@@ -190,6 +206,45 @@ export class CascadeToWaveBridge_v1 {
       const targetId = link?.target?.userData?.nodeId ?? link?.target?.userData?.id ?? link?.target?.id ?? link?.targetNodeId ?? null;
       return (fromId === null || sourceId === fromId) && (toId === null || targetId === toId);
     }) || null;
+  }
+
+  /**
+   * Fallback waveField writer when WaveInterferenceEngine is unavailable.
+   * Writes directly to link.userData.waveField so visual systems have data.
+   */
+  _writeFallbackWaveField(event = {}, intensity = 0) {
+    const link = this._resolveLink(event);
+    if (!link) return;
+
+    if (!link.userData) link.userData = {};
+
+    const existing = link.userData.waveField || {};
+    const phase = (Date.now() * 0.001) % (Math.PI * 2);
+
+    // Use MAX to preserve any existing stronger values
+    link.userData.waveField = {
+      amplitude: Math.max(Number(existing.amplitude) || 0, intensity),
+      constructive: Math.max(Number(existing.constructive) || 0, intensity * 0.7),
+      destructive: Math.max(Number(existing.destructive) || 0, intensity * 0.3),
+      standing: Math.max(Number(existing.standing) || 0, intensity * 0.5),
+      phase: Number.isFinite(existing.phase) ? existing.phase : phase
+    };
+
+    // Also write to source/target nodes if available
+    const sourceNode = link?.source || link?.nodeA || link?.sourceNode || null;
+    const targetNode = link?.target || link?.nodeB || link?.targetNode || null;
+
+    [sourceNode, targetNode].forEach((node) => {
+      if (!node?.userData) return;
+      const nodeExisting = node.userData.waveField || {};
+      node.userData.waveField = {
+        amplitude: Math.max(Number(nodeExisting.amplitude) || 0, intensity * 0.6),
+        constructive: Math.max(Number(nodeExisting.constructive) || 0, intensity * 0.5),
+        destructive: Math.max(Number(nodeExisting.destructive) || 0, intensity * 0.2),
+        standing: Math.max(Number(nodeExisting.standing) || 0, intensity * 0.4),
+        phase: Number.isFinite(nodeExisting.phase) ? nodeExisting.phase : phase
+      };
+    });
   }
 }
 

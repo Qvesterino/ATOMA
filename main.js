@@ -969,6 +969,9 @@ import { patchIntegrationNodeSelection, setupIntegrationDebugAPI } from './_Inte
 // ============================================================================
 import { computeSynergyScore } from './ComputeSynergyScore2_0.js';
 import { LinkRecommendationAI1_0 } from './LinkRecommendationAI1_0.js';
+import { LinkMLRecommendationEngine1_0 } from './LinkMLRecommendationEngine1_0.js';
+import { PriorityHistoryEngine1_0 } from './PriorityHistoryEngine1_0.js';
+import { LinkPriorityDecayEngine } from './LinkPriorityDecayEngine.js';
 import { LinkAutomationEngine1_0 } from './LinkAutomationEngine1_0.js';
 
 // ============================================================================
@@ -1475,6 +1478,10 @@ class SemanticEventBus {
         };
     }
     incrementEventCounter(tag, payload) {
+        // Track cascade.hop for VFX pipeline verification
+        if (tag === 'cascade.hop' && typeof window !== 'undefined') {
+            window._cascadeHopCount = (window._cascadeHopCount || 0) + 1;
+        }
         switch (tag) {
             case 'node.selection':
                 if (payload?.type === 'select') {
@@ -6943,7 +6950,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.linkingSystem.onLinkCreated?.(() => this.synergyHighways?.scheduleRebuild?.());
             this.linkingSystem.onLinkRemoved?.(() => this.synergyHighways?.scheduleRebuild?.());
             this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
-            this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.synergyHighways);
+            this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.synergyHighways, this.aiNodes);
             this.synergyHighwayVisuals3D.refreshFromHighways?.();
             this._synergyHighwayRefreshAcc = 0;
         } else {
@@ -7896,11 +7903,68 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // Initialize Link Recommendation AI 1.0 (after linking system ready)
         this.linkRecommendationAI = new LinkRecommendationAI1_0(
             this.linkingSystem,
-            null, // correlationEngine (optional, attached later if available)
-            null, // priorityHistoryEngine (optional, attached later if available)
-            null  // priorityDecayEngine (optional, attached later if available)
+            this.linkCorrelationEngine || null,  // correlationEngine - now connected
+            null, // priorityHistoryEngine (not yet implemented in main.js)
+            null  // priorityDecayEngine (not yet implemented in main.js)
         );
         console.log('[main.js] LinkRecommendationAI1_0 initialized ✓');
+
+        // Attach linkHistoryTracker for enhanced scoring
+        if (this.linkHistoryTracker && this.linkRecommendationAI) {
+            this.linkRecommendationAI.linkHistoryTracker = this.linkHistoryTracker;
+        }
+
+        // === Initialize PriorityHistoryEngine1_0 ===
+        try {
+            this.priorityHistoryEngine = new PriorityHistoryEngine1_0(this.linkingSystem, {
+                maxHistoryPerNode: 100,
+                stabilityWindow: 10,
+                enabled: true
+            });
+            console.log('[main.js] PriorityHistoryEngine1_0 initialized ✓');
+            // Attach to recommendation AI
+            if (this.linkRecommendationAI) {
+                this.linkRecommendationAI.priorityHistoryEngine = this.priorityHistoryEngine;
+            }
+        } catch (err) {
+            console.warn('[main.js] PriorityHistoryEngine1_0 initialization failed:', err.message);
+            this.priorityHistoryEngine = null;
+        }
+
+        // === Initialize LinkPriorityDecayEngine ===
+        try {
+            this.linkPriorityDecayEngine = new LinkPriorityDecayEngine(this.linkingSystem, {
+                enableAgeBased: true,
+                enableIdleBased: true,
+                enableStalenessDetection: true,
+                halfLifeMinutes: 30
+            });
+            console.log('[main.js] LinkPriorityDecayEngine initialized ✓');
+            // Attach to recommendation AI
+            if (this.linkRecommendationAI) {
+                this.linkRecommendationAI.priorityDecayEngine = this.linkPriorityDecayEngine;
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkPriorityDecayEngine initialization failed:', err.message);
+            this.linkPriorityDecayEngine = null;
+        }
+
+        // === Initialize LinkMLRecommendationEngine1_0 ===
+        try {
+            LinkMLRecommendationEngine1_0.init({
+                LinkHistoryTracker1_0: this.linkHistoryTracker,
+                ComputeSynergyScore2_0: computeSynergyScore,
+                SynergyHighways2_0: this.synergyHighways,
+                NodeLinkingSystem: this.linkingSystem,
+                AINodes: this.aiNodes,
+                LinkAutomationMonitor2_0: this.linkAutomationMonitor,
+            });
+            this.linkMLRecommendationEngine = LinkMLRecommendationEngine1_0;
+            console.log('[main.js] LinkMLRecommendationEngine1_0 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkMLRecommendationEngine1_0 initialization failed:', err.message);
+            this.linkMLRecommendationEngine = null;
+        }
         
         // Initialize Link Automation Engine 1.0 (after recommendation AI ready)
         this.linkAutomationEngine = new LinkAutomationEngine1_0(
@@ -9363,6 +9427,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
                 if (this.archetypeShaderModes) {
                     this.synergyCascadeFXBridge.registerTargetSystem('archetypeShaderModes', this.archetypeShaderModes);
+                }
+                if (this.synergyTravelingWaveFX) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('travelingWaveFX', this.synergyTravelingWaveFX);
                 }
                 console.log('[main.js] SynergyCascadeFXBridge target systems registered ✓');
             } catch (err) {
@@ -15862,6 +15929,175 @@ function debugNodeIdentity(node) {
 if (typeof window !== 'undefined') {
     window.getNodeIdentity = getNodeIdentity;
     window.debugNodeIdentity = debugNodeIdentity;
+
+    // ========================================================================
+    // [VFX DATA PIPELINE VERIFICATION] Runtime diagnostics
+    // ========================================================================
+    // Call: window.verifyVFXPipeline() to check data flow
+    // Call: window.ATOMA_DEBUG_CASCADE = true to enable continuous logging
+    window.verifyVFXPipeline = function() {
+        const game = window.game;
+        if (!game) {
+            console.error('[verifyVFXPipeline] window.game not available');
+            return null;
+        }
+
+        const links = game.linkingSystem?.links || [];
+        const nodes = game.aiNodes?.nodes || [];
+        const results = {
+            timestamp: new Date().toISOString(),
+            links: { total: links.length, withCascade: 0, withWaveField: 0, samples: [] },
+            nodes: { total: nodes.length, withWaveField: 0, samples: [] },
+            systems: {},
+            events: {},
+            issues: []
+        };
+
+        // Check link data
+        links.forEach((link, i) => {
+            const ud = link?.userData || {};
+            const hasCascade = typeof ud.cascadeIntensity === 'number' && ud.cascadeIntensity > 0;
+            const hasWaveField = ud.waveField && (ud.waveField.amplitude > 0 || ud.waveField.constructive > 0);
+
+            if (hasCascade) results.links.withCascade++;
+            if (hasWaveField) results.links.withWaveField++;
+
+            if (i < 5 && (hasCascade || hasWaveField)) {
+                results.links.samples.push({
+                    id: link.id,
+                    cascadeIntensity: ud.cascadeIntensity?.toFixed(4),
+                    qualityScore: ud.quality?.score?.toFixed(1),
+                    waveFieldAmplitude: ud.waveField?.amplitude?.toFixed(4),
+                    waveFieldConstructive: ud.waveField?.constructive?.toFixed(4),
+                    infectionIntensity: ud.cascadeInfection?.intensity?.toFixed(4)
+                });
+            }
+        });
+
+        // Check node data
+        nodes.forEach((node, i) => {
+            const ud = node?.userData || {};
+            const hasWaveField = ud.waveField && (ud.waveField.amplitude > 0 || ud.waveField.constructive > 0);
+
+            if (hasWaveField) results.nodes.withWaveField++;
+
+            if (i < 3 && hasWaveField) {
+                results.nodes.samples.push({
+                    nodeId: ud.nodeId,
+                    waveFieldAmplitude: ud.waveField?.amplitude?.toFixed(4),
+                    waveFieldConstructive: ud.waveField?.constructive?.toFixed(4),
+                    cascadeStrength: ud.cascadeStrength?.toFixed(4)
+                });
+            }
+        });
+
+        // Check systems
+        results.systems = {
+            linkQualityCalculator: {
+                present: !!game.linkQualityCalculator,
+                hasFrameScheduler: !!game.linkQualityCalculator?.frameScheduler
+            },
+            linkSemanticMetricsBridge: {
+                present: !!game.linkSemanticMetricsBridge,
+                enabled: game.linkSemanticMetricsBridge?.enabled
+            },
+            linkCascadeInfectionSystem: {
+                present: !!game.linkCascadeInfectionSystem,
+                stats: game.linkCascadeInfectionSystem?.stats || null
+            },
+            cascadeToWaveBridge: {
+                present: !!game.cascadeToWaveBridge,
+                enabled: game.cascadeToWaveBridge?.enabled,
+                hasWaveEngine: !!game.cascadeToWaveBridge?.waveInterferenceEngine
+            },
+            waveInterferenceEngine: {
+                present: !!game.waveInterferenceEngine,
+                enabled: game.waveInterferenceEngine?.enabled,
+                hasActiveBurst: game.waveInterferenceEngine?.isBurstActive?.() ?? false
+            },
+            waveParticleEmitter: {
+                present: !!game.particleEmitter,
+                thresholds: game.particleEmitter?.config ? {
+                    constructive: game.particleEmitter.config.constructiveThreshold,
+                    destructive: game.particleEmitter.config.destructiveThreshold,
+                    standing: game.particleEmitter.config.standingWaveThreshold
+                } : null
+            }
+        };
+
+        // Detect issues
+        if (results.links.total > 0 && results.links.withCascade === 0) {
+            results.issues.push('NO_LINKS_WITH_CASCADE_INTENSITY - LinkSemanticMetricsBridge may not be running');
+        }
+        if (results.links.withCascade > 0 && results.links.withWaveField === 0) {
+            results.issues.push('CASCADE_EXISTS_BUT_NO_WAVEFIELD - LinkCascadeInfectionSystem may not be writing waveField');
+        }
+        if (!results.systems.linkQualityCalculator?.present) {
+            results.issues.push('LINK_QUALITY_CALCULATOR_MISSING');
+        }
+        if (!results.systems.waveInterferenceEngine?.present) {
+            results.issues.push('WAVE_INTERFERENCE_ENGINE_MISSING - CascadeToWaveBridge will use fallback');
+        }
+        if (results.systems.waveParticleEmitter?.thresholds) {
+            const t = results.systems.waveParticleEmitter.thresholds;
+            if (t.constructive > 0.15 || t.destructive > 0.15 || t.standing > 0.2) {
+                results.issues.push(`HIGH_THRESHOLDS - may block emission (c:${t.constructive}, d:${t.destructive}, s:${t.standing})`);
+            }
+        }
+
+        // Print summary
+        console.log('%c[VFX PIPELINE VERIFICATION]', 'color: #00ff00; font-weight: bold; font-size: 14px;');
+        console.log('Links:', results.links);
+        console.log('Nodes:', results.nodes);
+        console.log('Systems:', results.systems);
+        if (results.issues.length > 0) {
+            console.log('%cIssues:', 'color: #ff6600; font-weight: bold;', results.issues);
+        } else {
+            console.log('%cNo issues detected', 'color: #00ff00;');
+        }
+
+        return results;
+    };
+
+    // Track cascade.hop events
+    window._cascadeHopCount = 0;
+    window._cascadeHopLastSecond = 0;
+    window._cascadeHopStartTime = Date.now();
+
+    window.getCascadeHopRate = function() {
+        const elapsed = (Date.now() - window._cascadeHopStartTime) / 1000;
+        return {
+            total: window._cascadeHopCount || 0,
+            elapsed: elapsed.toFixed(1) + 's',
+            rate: ((window._cascadeHopCount || 0) / Math.max(1, elapsed)).toFixed(2) + '/s'
+        };
+    };
+
+    // Quick data check - call from console
+    window.checkCascadeData = function() {
+        const game = window.game;
+        if (!game) return 'game not ready';
+
+        const links = game.linkingSystem?.links || [];
+        const samples = links.slice(0, 5).map(l => ({
+            id: l?.id?.slice(0, 8),
+            cascade: l?.userData?.cascadeIntensity?.toFixed(3) ?? 'null',
+            waveAmp: l?.userData?.waveField?.amplitude?.toFixed(3) ?? 'null',
+            quality: l?.userData?.quality?.score?.toFixed(0) ?? 'null'
+        }));
+
+        const stats = {
+            totalLinks: links.length,
+            withCascade: links.filter(l => (l?.userData?.cascadeIntensity || 0) > 0).length,
+            withWaveField: links.filter(l => (l?.userData?.waveField?.amplitude || 0) > 0).length,
+            cascadeHops: window._cascadeHopCount || 0,
+            samples
+        };
+
+        console.table(samples);
+        console.log('Stats:', stats);
+        return stats;
+    };
 }
 
 // ============================================================================

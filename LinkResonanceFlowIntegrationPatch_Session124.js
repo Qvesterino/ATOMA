@@ -252,8 +252,11 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
 
         // Calculate energy as average of connected node harmony levels
         // This makes links "live" with harmony-driven energy
-        const previousEnergy = link.userData.flowState.energy;
-        link.userData.flowState.energy = (harmonyA * 0.5) + (harmonyB * 0.5);
+        // IMPORTANT: Use MAX to preserve event-driven energy from CascadeEventBridge
+        // CascadeEventBridge is the PRIMARY writer, this patch only BOOSTS
+        const previousEnergy = link.userData.flowState.energy || 0;
+        const harmonyEnergy = (harmonyA * 0.5) + (harmonyB * 0.5);
+        link.userData.flowState.energy = Math.max(previousEnergy, harmonyEnergy);
 
         // Preserve existing flow direction
         // Only update energy, not direction
