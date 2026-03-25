@@ -1,83 +1,41 @@
 # ATOMA -- CORE CONTEXT
 
-This project is called ATOMA.
+This document defines the technical map of ATOMA.
 
-It is a long-running modular browser engine focused on living-system behavior, layered visuals, and emergent network dynamics.
+It describes the active subsystem model, interaction rules, shared authorities, and practical runtime constraints.
 
 ---
 
-## Project Phase
+## Scope
+
+This file owns:
+
+- subsystem map
+- interaction rules
+- authority boundaries
+- runtime and technical constraints
+- practical refactor constraints
+
+This file does not own:
+
+- constitutional priority order
+- project identity narrative
+- historical memory
+
+---
+
+## Phase
 
 `PROJECT_PHASE = EVOLUTION_V2`
+`DOCUMENT_BASELINE = EVOLUTION_V2.2`
 
-ATOMA is in controlled evolution.
-
-The system is expected to improve through new systems, refactors, optimizations, and visual upgrades as long as core identity, compatibility, and authority boundaries remain intact.
-
----
-
-## Working Context
-
-Core working rules:
-
-- always search the codebase before referencing files or functions
-- do not assume file names or locations
-- respect existing architecture and naming conventions
-- preserve compatibility unless there is a concrete reason to change it
-- tie changes to performance, clarity, visual quality, or system coherence
-- warn clearly before risky or intentionally breaking work
-
-This is not a do-less environment.
-This is a controlled-innovation environment.
+ATOMA operates under controlled evolution, subsystem autonomy, and bounded innovation.
 
 ---
 
-## 1. What ATOMA Is
+## Shared Authorities
 
-ATOMA is a living node-based AI simulation and visual system.
-It is not a traditional game.
-
-ATOMA represents:
-
-- nodes as entities with internal state
-- links as living relationships between nodes
-- metrics as invisible forces shaping system behavior
-- visuals as real-time expressions of system state
-
-ATOMA behaves more like an organism or ecosystem than a static application.
-
----
-
-## 2. Technology Stack
-
-- language: JavaScript and TypeScript in active runtime areas
-- rendering: Three.js / WebGL2, with future WebGPU direction
-- architecture: modular, layered, GPU-first
-- rendering style: shader-heavy, low-noise, system-driven
-- tooling: local development environment, npm-based workflows
-- AI: local and hosted LLM support for architecture and implementation work
-
----
-
-## 3. Core Design Constraints
-
-These are non-negotiable:
-
-- preserve ATOMA identity and interpretability
-- preserve shared authorities
-- preserve canonical metrics
-- preserve scheduler timing tiers
-- keep visuals truthful to system state
-- keep subsystem boundaries legible
-
-Evolution is allowed.
-Arbitrary chaos is not.
-
----
-
-## 4. Shared Authorities
-
-Global authorities:
+These systems remain global authorities:
 
 - `FrameScheduler`
 - `MetricsRuntime`
@@ -97,13 +55,18 @@ Scheduler tiers:
 - `30Hz` visual
 - `60Hz` runtime
 
-No subsystem should silently override or duplicate these authorities without concrete reason.
+Clean architecture rule:
+
+- no parallel truth systems
+- no duplicate authorities
+- adapters are acceptable
+- permanent duplication is not
 
 ---
 
-## 5. Subsystem Model
+## Subsystem Map
 
-ATOMA should be reasoned about as autonomous but compatible subsystems:
+ATOMA should be reasoned about through autonomous but compatible subsystems:
 
 - `NODE SYSTEM`
 - `LINK SYSTEM`
@@ -112,180 +75,110 @@ ATOMA should be reasoned about as autonomous but compatible subsystems:
 - `VISUAL FX SYSTEM`
 - `UI SYSTEM`
 
-Rules:
+Each subsystem may be internally refactored, optimized, or modernized inside its own scope.
 
-- each subsystem may be independently refactored
-- each subsystem may improve its internal implementation
-- each subsystem may gain new effects or capabilities in scope
-- subsystem APIs should not be changed without concrete reason
-- unnecessary cross-dependencies should be avoided
+Default interaction rules:
 
-Subsystem autonomy is a design tool for safe evolution.
-
----
-
-## 6. Nodes
-
-Nodes are not simple meshes.
-
-Each node has:
-
-- a core that must remain readable
-- state, metrics, and flags
-- optional aura or supporting effects
-- optional personality or behavior traits
-
-Rules:
-
-- node cores must remain visually legible
-- node visuals should prefer shader and uniform-driven behavior where practical
-- supporting FX must reinforce the node, not bury it
-- node-level effects should remain consistent with metric truth
-
-Representative categories include:
-
-- Input
-- Process
-- Integration
-- Analytics
-- Storage
-- Control
-- Sigma
-- Quantum
-- Emotional
-- Mythic
-- Prime
-- Error
+- do not change another subsystem's API without concrete reason
+- avoid unnecessary cross-dependencies
+- keep authority ownership explicit
+- prefer local improvements before cross-system rewiring
 
 ---
 
-## 7. Links
+## Practical Interaction Rules
 
-Links are living connections, not static lines.
+Before changing a subsystem, confirm:
 
-Links express:
+- which subsystem owns the behavior
+- whether the affected path is active or dormant
+- whether the change touches shared authority
+- whether compatibility must be preserved or migrated
 
-- load
-- direction
-- quality
-- stress and pressure
-- historical memory where relevant
+When risk rises:
 
-Rules:
-
-- links must not visually dominate nodes without reason
-- link visuals must reflect metrics truthfully
-- link logic and link visuals should remain separated by clear responsibility
-- link FX may be layered as long as the hierarchy remains readable
-
-Typical visual vocabulary may include:
-
-1. directional streaks
-2. strands
-3. beads and bead trails
-4. pulse rings
-5. arc discharge events
-6. particle dust or flow emissions
+- reduce the scope
+- stage the work
+- migrate explicitly instead of duplicating authority
 
 ---
 
-## 8. Metrics
+## Legacy Cleanup Mandate
 
-Metrics define system truth.
+If a system is:
 
-Rules:
+- redundant
+- unclear
+- dormant
+- or increases complexity without value
 
-- metrics are computed before visuals respond
-- visuals read metrics and must not invent metric authority
-- propagation should remain deterministic
-- metric meaning must remain coherent across subsystems
+it is valid to:
 
-Local derived values are acceptable.
-Parallel canonical metrics are not.
+- refactor it
+- simplify it
+- or remove it
 
----
+under one of these conditions:
 
-## 9. Visual System
+- system truth is preserved
+- compatibility is preserved
+- or migration is explicit and controlled
 
-Visuals are an interpretation layer and a structural communication layer.
-
-Visual layers include:
-
-- node core materials
-- surface treatments
-- overlays and shell effects
-- links
-- particles and fields
-- atmosphere and postprocessing
-
-Rules:
-
-- visuals should use layered hierarchy: `CORE -> SURFACE -> OVERLAY -> ATMOSPHERE`
-- postprocessing must never destroy readability
-- no visual system may permanently mutate core authority without explicit design intent
-- all visuals should degrade gracefully under performance pressure
-- prefer high impact, low noise
+Legacy should be evaluated by value, not age.
 
 ---
 
-## 10. Performance Contract
+## Runtime Constraints
 
-ATOMA is browser-bound and performance-sensitive.
+ATOMA is browser-native and performance-sensitive.
 
 Rules:
 
 - respect `FrameScheduler` tiers
-- prefer GPU and shader-driven solutions where practical
-- prefer instancing over large per-object overhead
-- avoid per-frame allocations in hot loops
+- keep simulation work in `10Hz`
+- keep visual work in `30Hz`
+- keep runtime responsiveness in `60Hz`
+- prefer GPU and shader-driven execution where practical
 - use LOD and distance-based activation where relevant
 - stage heavy initialization across multiple frames
-- keep effect complexity proportional to its value
-
-Prepare systems for future WebGPU-oriented growth without breaking the current runtime.
+- avoid hot-loop allocations and hidden spawn spikes
 
 ---
 
-## 11. AI Role
+## Rendering Constraints
 
-AI in ATOMA is:
+Visuals should operate as layered interpretation, not as independent gameplay truth.
 
-- co-architect
-- system designer
-- VFX engineer
-- optimization partner
+Rules:
 
-AI may:
-
-- propose new systems
-- refactor existing systems
-- improve architecture
-- optimize runtime behavior
-- improve visual quality
-
-AI must:
-
-- preserve compatibility by default
-- respect core principles
-- keep subsystem boundaries clear
-- avoid duplicate systems
-- avoid meaningless effects
-- justify change through performance, clarity, visual quality, or system coherence
-
-Final project authority remains human.
+- visuals read shared truth, they do not invent it
+- layered hierarchy should remain `CORE -> SURFACE -> OVERLAY -> ATMOSPHERE`
+- postprocessing must not destroy readability
+- node and link structure must remain visually legible
+- stronger effects are acceptable when they improve systemic readability
 
 ---
 
-## 12. Project Goal
+## WebGPU Guard
 
-The goal of ATOMA is not photorealism or arbitrary spectacle.
+Prepare systems for future WebGPU-oriented growth.
 
-The goal is:
+But:
 
-- clarity
-- coherence
-- emergence
-- layered visual intelligence
-- a world that feels alive and reactive
+- never sacrifice current WebGL stability
+- never break the current runtime in the name of future architecture
+- future-facing design must remain compatible with the live browser runtime
 
-ATOMA should feel like observing and shaping a living energetic system.
+---
+
+## Technology Direction
+
+Current direction:
+
+- modular runtime
+- layered rendering
+- GPU-first bias where practical
+- clean subsystem boundaries
+- incremental modernization over uncontrolled rewrites
+
+This file is the practical map for how ATOMA should be changed safely and effectively.

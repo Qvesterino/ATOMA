@@ -75,12 +75,30 @@ export class CascadeToWaveBridge_v1 {
 
       const intensity = Math.max(0, Math.min(1, Number(event.intensity ?? 0) || 0));
       const origin = this._resolveOrigin(event);
+      const link = this._resolveLink(event);
+      const contract = this._resolveBurstContract(event, intensity, origin, link);
 
       waveEngine.requestBurstIntent({
-        type: 'cascade',
-        origin,
+        type: contract.type,
+        reasonClass: 'semantic_event',
+        sourceId: contract.sourceId,
+        originPosition: origin,
+        sourcePosition: origin,
+        center: origin,
+        fromRegime: contract.fromRegime,
+        toRegime: contract.toRegime,
         intensity,
-        regime: intensity > 0.7 ? 'chaotic' : 'harmonic'
+        strength: intensity,
+        linkId: contract.linkId,
+        link,
+        sourceNode: contract.sourceNode,
+        targetNode: contract.targetNode,
+        travel: contract.travel,
+        metadata: {
+          sourceEvent: 'cascade.hop',
+          sourceFamily: 'cascade',
+          regime: contract.regime
+        }
       });
     };
 
@@ -118,6 +136,40 @@ export class CascadeToWaveBridge_v1 {
     }
 
     return sourcePos || targetPos || { x: 0, y: 0, z: 0 };
+  }
+
+  _resolveBurstContract(event = {}, intensity = 0, origin = { x: 0, y: 0, z: 0 }, link = null) {
+    const sourceNode = link?.source || link?.nodeA || link?.sourceNode || null;
+    const targetNode = link?.target || link?.nodeB || link?.targetNode || null;
+    const linkId = event.linkId ?? event.id ?? link?.id ?? link?.userData?.id ?? null;
+    const sourceId = event.fromId ?? sourceNode?.userData?.nodeId ?? sourceNode?.userData?.id ?? sourceNode?.id ?? event.sourceId ?? linkId ?? 'cascade:semantic';
+    const regime = intensity > 0.7 ? 'chaotic' : 'harmonic';
+
+    if (regime === 'chaotic') {
+      return {
+        type: 'corruption',
+        regime,
+        sourceId: `${sourceId}`,
+        linkId,
+        sourceNode,
+        targetNode,
+        travel: true,
+        fromRegime: 'baseline',
+        toRegime: 'rupture'
+      };
+    }
+
+    return {
+      type: 'synergy',
+      regime,
+      sourceId: `${sourceId}`,
+      linkId,
+      sourceNode,
+      targetNode,
+      travel: !!linkId,
+      fromRegime: 'baseline',
+      toRegime: 'collaborative'
+    };
   }
 
   _resolveLink(event = {}) {

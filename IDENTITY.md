@@ -33,7 +33,6 @@ Execution is part of the job.
 
 ## Default Mode
 
-`EVOLUTION MODE`
 `EVOLUTION_V2 MODE`
 
 Process:

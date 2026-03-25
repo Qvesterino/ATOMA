@@ -1,172 +1,94 @@
 # ATOMA_OVERVIEW.md
-Portable Project Memory and Identity Document
 
-## Purpose
+This document defines the identity layer of ATOMA.
 
-This file preserves the identity, intent, and active working model of ATOMA.
-
-Any AI, tool, or developer working in ATOMA must read and respect this document.
-ATOMA is not a generic software project.
-It is a living system with philosophical, systemic, visual, and performance constraints.
+It explains what ATOMA is, what it should feel like, and what kind of system it is trying to become.
 
 ---
 
-## Project Phase
+## Scope
+
+This file owns:
+
+- system identity
+- philosophy
+- product direction
+- visual and systemic target
+
+This file does not own:
+
+- constitutional rule priority
+- detailed subsystem contracts
+- historical facts
+
+---
+
+## Phase
 
 `PROJECT_PHASE = EVOLUTION_V2`
+`DOCUMENT_BASELINE = EVOLUTION_V2.2`
 
-ATOMA is no longer in stabilization mode.
-ATOMA is in controlled evolution.
-
-The project is ready for system improvement, visual innovation, and subsystem refactoring as long as identity, compatibility, and shared authorities are preserved.
+ATOMA is an actively evolving system with controlled ambition.
 
 ---
 
 ## What ATOMA Is
 
-ATOMA is a network-based living system that explores intelligence, relation, pressure, and emergence through nodes, links, metrics, and layered visuals.
+ATOMA is a browser-native living network system.
 
-- nodes represent cognitive or functional units
-- links represent relation, load, tension, pressure, and flow
-- metrics shape state, interpretation, and response
-- visuals express system truth in real time
+It expresses intelligence, relation, pressure, balance, and emergence through:
 
-ATOMA is not about raw optimization alone.
-It is about balance, tension, emergence, and interpretability inside a system that feels alive.
+- nodes
+- links
+- metrics
+- layered visuals
+
+ATOMA is not a generic web application and not a traditional game.
+It should feel like observing and shaping a living energetic system.
 
 ---
 
-## Core Philosophy
+## Identity
 
-These principles must remain true:
+ATOMA should feel:
+
+- alive
+- intelligent
+- reactive
+- layered
+- interpretable
+
+It is not driven by spectacle alone.
+It is driven by systemic presence and readable emergence.
+
+---
+
+## Philosophical Direction
+
+ATOMA values:
 
 - clarity over noise
 - subtlety with purpose
 - meaning over empty spectacle
-- interpretability over visual spam
-- systemic truth over arbitrary decoration
+- emergence over blunt exposition
+- calm when calm is true
+- intensity when intensity is earned
 
-ATOMA should feel calm when calm is true, intense when intensity is earned, and alive at all times.
-
----
-
-## Evolution V2 Direction
-
-ATOMA now operates under controlled innovation.
-
-This means:
-
-- AI may propose or implement new systems
-- AI may refactor existing systems
-- AI may improve architecture, performance, and visual quality
-- AI must preserve compatibility by default
-- AI must respect core principles and shared authorities
-- AI must justify changes through performance, clarity, visual quality, or system coherence
-
-Not allowed:
-
-- random effects without systemic purpose
-- duplicate systems without reason
-- uncontrolled cross-subsystem coupling
-- breaking changes without clear justification
+The system should never feel empty, but it should also never feel loud without reason.
 
 ---
 
-## Core System Concepts
+## Visual Target
 
-### Nodes
+ATOMA must feel like a living energetic system.
 
-Nodes are fundamental entities.
-Each node has:
-
-- category
-- state
-- internal metrics
-- visible presence in the world
-
-Nodes are never purely decorative.
-
-### Links
-
-Links represent living relationships and flow.
-They carry or reflect:
-
-- load
-- pressure
-- quality
-- direction
-- corruption and harmony signals
-
-Links must communicate state clearly, not add noise.
-
-### Metrics
-
-Canonical metrics are:
-
-- `synergy`
-- `harmony`
-- `stability`
-- `corruption`
-- `loadPressure`
-
-Metrics influence:
-
-- visuals
-- behavior
-- system response
-
-Metrics are part of system truth and must remain authoritative.
-
----
-
-## Subsystem Autonomy
-
-ATOMA should be treated as a modular system composed of autonomous subsystems:
-
-- `NODE SYSTEM`
-- `LINK SYSTEM`
-- `METRICS SYSTEM`
-- `WAVE / CASCADE SYSTEM`
-- `VISUAL FX SYSTEM`
-- `UI SYSTEM`
-
-Each subsystem may be improved independently.
-
-Rules:
-
-- a subsystem may be internally refactored
-- its performance and visual quality may be improved
-- new effects may be added inside its own scope
-- APIs of other subsystems should not be changed without concrete reason
-- unnecessary cross-dependencies should be avoided
-
-This is how ATOMA evolves without losing modularity.
-
----
-
-## Shared Authorities
-
-The following systems remain global authorities and must be respected by all subsystems:
-
-- `FrameScheduler`
-- `MetricsRuntime`
-- `VisualHierarchyRegistry`
-
-No subsystem may casually duplicate or override them.
-
----
-
-## Design and Visual Rules
-
-ATOMA visuals should feel like a living energetic system.
-
-Visual target:
+Visual language should be:
 
 - layered
 - purposeful
 - readable
-- physically believable where appropriate
 - high impact, low noise
+- strong enough to feel advanced for the medium
 
 Preferred layer model:
 
@@ -175,85 +97,52 @@ Preferred layer model:
 - `OVERLAY`
 - `ATMOSPHERE`
 
-Visuals are wrong when they:
-
-- hide structure
-- overwhelm nodes or links
-- erase hierarchy
-- communicate nothing
-
-Visuals are right when they make the system easier and deeper to read.
+Every effect must have functional meaning.
+Stronger visual expression is welcome when it improves readability, depth, or systemic presence.
 
 ---
 
-## Performance Contract
+## Browser Excellence Target
 
-ATOMA runs in the browser.
-Performance is a first-class design constraint.
+ATOMA targets a browser-native experience that feels significantly more advanced than ordinary web applications.
 
-Rules:
+It should be technologically impressive for the medium while remaining readable, controllable, and coherent.
 
-- respect `FrameScheduler`
-- keep simulation logic in `10Hz`
-- keep visual systems in `30Hz`
-- keep runtime responsiveness in `60Hz`
-- prefer GPU and shader-driven solutions where relevant
-- use LOD and distance-based activation where relevant
-- initialize heavy systems in staged multi-frame flows
-- scale effect cost to visible value
+The goal is not excess.
+The goal is excellence inside the constraints of the browser.
 
 ---
 
-## Development Model
+## System Goal
 
-Roles:
+ATOMA is about:
 
-- Human (Daniel): final authority
-- AI: co-architect, system designer, VFX engineer, optimization partner
+- systemic truth
+- meaningful pressure and balance
+- visible relation and flow
+- layered world feedback
+- long-horizon evolution
 
-AI is not limited to passive assistance.
-AI is expected to improve the system inside controlled boundaries.
-
-Preferred working model:
-
-- concrete proposals
-- small iterations
-- focused subsystem work
-- explicit reasons for change
-
-Avoid:
-
-- generic explanations
-- broad uncontrolled rewrites
-- abstract innovation without implementation value
+It is not about raw optimization, noise-heavy VFX, or feature accumulation without meaning.
 
 ---
 
-## Sacred Concepts
+## Sacred Identity Elements
 
-These identity-defining concepts must remain intact:
+These identity elements should remain intact:
 
-- synergy / harmony / corruption as meaningful forces
+- meaningful metric-driven behavior
 - network pressure as a felt phenomenon
 - minimal UI philosophy
 - meaningful visual silence
-- long-term systemic evolution
+- coherent long-term evolution
 
-Breaking these breaks ATOMA.
+If these are lost, ATOMA stops feeling like ATOMA.
 
 ---
 
 ## Final Note
 
-ATOMA is an actively evolving living system.
+This file describes what ATOMA is trying to be.
 
-Work should strengthen:
-
-- clarity
-- coherence
-- layered visual power
-- subsystem modularity
-- runtime performance
-
-The goal is not to preserve old constraints.
-The goal is to evolve the system without losing its identity.
+The system should evolve aggressively enough to improve, but never so carelessly that it loses its identity.

@@ -1,58 +1,129 @@
 # CORE_PRINCIPLES -- ATOMA
 
-This document defines the core principles that guide all decisions in ATOMA.
+This document is the constitutional layer of ATOMA.
 
-These principles are non-negotiable.
-They protect identity, coherence, and long-term systemic quality while allowing controlled evolution.
+It defines non-negotiable rules, architectural invariants, and decision priorities.
+It should change rarely and only when the project's constitutional reality truly changes.
 
 ---
 
-## Project Phase
+## Phase
 
 `PROJECT_PHASE = EVOLUTION_V2`
+`DOCUMENT_BASELINE = EVOLUTION_V2.2`
 
-ATOMA is not in stabilization mode.
-ATOMA is in controlled evolution.
-
-The system is expected to improve, modernize, and expand in quality without abandoning its identity.
+ATOMA evolves through controlled innovation, bounded risk, and subsystem discipline.
 
 ---
 
-## 1. ATOMA IS A SYSTEM, NOT A SPECTACLE
+## Constitutional Scope
 
-ATOMA prioritizes systemic meaning over visual noise.
+This file owns:
 
-- visuals communicate state
-- effects support understanding
-- atmosphere strengthens perception of the system
-- nothing exists purely for decoration
+- system truth
+- architectural invariants
+- decision priority order
+- permanent design constraints
 
-If something looks impressive but communicates nothing, it does not belong in ATOMA.
+This file does not own:
 
----
-
-## 2. SUBTLETY, CLARITY, AND MEANING
-
-ATOMA prefers:
-
-- readable signals over noisy signals
-- meaningful layering over flat spectacle
-- emergent communication over UI spam
-- interpretability over raw intensity
-
-Subtlety is still a core value, but subtlety does not mean weakness.
-High impact is valid when it remains readable, purposeful, and low-noise.
+- project identity narrative
+- subsystem maps
+- historical notes
+- workflow tactics
 
 ---
 
-## 3. EVERYTHING MUST HAVE A REASON
+## Constitutional Rules
 
-Every system, metric, visual behavior, and architectural change must answer:
+### 1. System Truth Is Supreme
 
-- Why does this exist?
-- What does it improve?
-- What does it communicate?
-- What would be lost if it were removed?
+The following remain canonical:
+
+- shared authorities: `FrameScheduler`, `MetricsRuntime`, `VisualHierarchyRegistry`
+- canonical metrics: `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`
+- scheduler tiers: `10Hz` simulation, `30Hz` visual, `60Hz` runtime
+
+No subsystem may silently override, fork, or duplicate these truths without an explicit, justified migration.
+
+### 2. Runtime Stability Is Mandatory
+
+Innovation is allowed.
+Breaking the live runtime carelessly is not.
+
+Changes must preserve runtime integrity unless a managed migration or intentional break is explicitly justified.
+
+### 3. Readability And Interpretability Are Core Product Requirements
+
+ATOMA must remain readable as a living system.
+
+- visuals must clarify, not obscure
+- behavior must remain interpretable
+- hierarchy must remain legible
+
+### 4. Compatibility Matters More Than Convenience
+
+Subsystems may evolve independently, but they must remain compatible by default.
+
+API changes, authority shifts, and multi-subsystem impact require deliberate handling.
+
+### 5. Performance Is Part Of Product Quality
+
+Performance is a first-class requirement because ATOMA is browser-native.
+
+- cost must stay proportional to value
+- scalability matters
+- GPU-first execution remains valid where practical
+
+### 6. Visual Ambition Is Allowed Inside Control
+
+ATOMA is not minimal for the sake of minimalism.
+
+Visual ambition is valid when it improves readability, meaning, presence, or systemic expression without collapsing into noise.
+
+### 7. Legacy Has No Constitutional Priority
+
+Legacy preservation is not a valid reason to keep a weak system alive.
+
+If a system is weak, redundant, or structurally unclear, it may be simplified, replaced, or removed under controlled evolution.
+
+---
+
+## Conflict Priority Order
+
+If rules or options conflict, use this priority order:
+
+1. system truth: metrics, scheduler, authority
+2. runtime stability
+3. readability and interpretability
+4. compatibility between subsystems
+5. performance optimization
+6. visual ambition
+7. legacy preservation
+
+Legacy is never a sufficient reason to preserve a weak system.
+
+---
+
+## Clean Architecture Rule
+
+ATOMA must maintain clean architectural authority.
+
+- no parallel truth systems
+- no duplicate authorities
+- adapters are acceptable
+- permanent duplication is not
+
+---
+
+## Controlled Evolution Rule
+
+Innovation must remain bounded by:
+
+- system truth
+- runtime stability
+- compatibility discipline
+- explicit technical reason
 
 Valid reasons include:
 
@@ -61,163 +132,24 @@ Valid reasons include:
 - visual quality
 - system coherence
 
-If no clear reason exists, the feature is suspect.
+Not valid:
+
+- novelty for its own sake
+- decorative noise
+- duplicate architecture
 
 ---
 
-## 4. CONTROLLED INNOVATION, NOT CHAOS
+## Permanent Design Constraints
 
-Innovation is part of ATOMA.
-
-New systems, refactors, visual layers, and optimizations are allowed when they:
-
-- improve performance
-- improve clarity
-- improve visual quality
-- improve system coherence
-
-Not allowed:
-
-- random effects without meaning
-- duplicate systems without reason
-- architectural chaos
-- breaking changes without clear justification
-
----
-
-## 5. BALANCE OVER RAW OPTIMIZATION
-
-ATOMA is not about maximizing values blindly.
-
-- synergy can become unstable in excess
-- harmony is valuable because it is fragile
-- corruption is meaningful, not merely negative
-- stability matters because the system is alive, not static
-
-Optimization without systemic context breaks the system.
-
----
-
-## 6. CALM IS A DESIGN GOAL, NOT A LIMITATION
-
-ATOMA avoids constant stimulation.
-
-- silence is allowed
-- stillness is meaningful
-- change must earn attention
-- intense moments must emerge from systemic truth
-
-The system should feel alive, energetic, and intelligent without collapsing into visual noise.
-
----
-
-## 7. LAYERED VISUAL LANGUAGE
-
-ATOMA visuals should be built in layers:
-
-- `CORE`
-- `SURFACE`
-- `OVERLAY`
-- `ATMOSPHERE`
-
-Each layer must have a readable role.
-Effects should reinforce structure, not bury it.
-
-Preferred target:
-
-- high impact
-- low noise
-- clear hierarchy
-- graceful degradation
-
----
-
-## 8. SUBSYSTEM AUTONOMY
-
-ATOMA evolves through modular subsystems.
-
-Primary mental model:
-
-- `NODE SYSTEM`
-- `LINK SYSTEM`
-- `METRICS SYSTEM`
-- `WAVE / CASCADE SYSTEM`
-- `VISUAL FX SYSTEM`
-- `UI SYSTEM`
-
-Each subsystem may evolve independently.
-Each subsystem must still respect shared global authorities and compatibility boundaries.
-
-Do not create unnecessary cross-dependencies.
-Do not break another subsystem's API without reason.
-
----
-
-## 9. SHARED AUTHORITIES MUST REMAIN CLEAR
-
-The following authorities remain canonical:
-
-- `FrameScheduler`
-- `MetricsRuntime`
-- `VisualHierarchyRegistry`
-
-Canonical metrics remain:
-
-- `synergy`
-- `harmony`
-- `stability`
-- `corruption`
-- `loadPressure`
-
-No system should silently override another system.
-No subsystem should duplicate global authority without concrete justification.
-
----
-
-## 10. PERFORMANCE IS PART OF DESIGN
-
-Performance is not an afterthought.
-ATOMA runs in the browser and must remain scalable.
-
-Rules:
-
-- respect `FrameScheduler` timing tiers: `10Hz` simulation, `30Hz` visual, `60Hz` runtime
-- prefer GPU-driven solutions where practical
-- use LOD and distance-based activation where relevant
-- stage heavy initialization across multiple frames
-- keep shader cost proportional to value
-
----
-
-## 11. AI ROLE
-
-AI is:
-
-- co-architect
-- system designer
-- VFX engineer
-- optimization partner
-
-AI may:
-
-- propose new systems
-- refactor existing systems
-- improve architecture
-- modernize visuals and subsystem structure
-
-AI must:
-
-- preserve compatibility by default
-- respect these core principles
-- tie changes to concrete reasons
-- avoid duplication and meaningless complexity
-
-Final project authority remains human.
+- ATOMA is a system, not a spectacle
+- clarity, subtlety, and meaning remain core values
+- visuals must communicate and reinforce structure
+- high impact is acceptable only when noise remains low
+- browser-native excellence must not sacrifice control
 
 ---
 
 ## Final Note
 
-These principles protect ATOMA from entropy, noise, and incoherent growth.
-
-If a decision violates these principles, it should be redesigned before implementation.
+This file defines what ATOMA must remain true to, even while it evolves.

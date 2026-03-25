@@ -207,16 +207,41 @@ export class RecursiveGlyphMessaging4_0 {
   /**
    * Initialize tracking for a link
    */
+  _resolveLinkEndpoints(linkData = {}) {
+    return {
+      sourceNode:
+        linkData?.sourceNode ||
+        linkData?.source ||
+        linkData?.nodeA ||
+        linkData?.from ||
+        null,
+      targetNode:
+        linkData?.targetNode ||
+        linkData?.target ||
+        linkData?.nodeB ||
+        linkData?.to ||
+        null
+    };
+  }
+
   registerLink(linkId, sourceNode, targetNode) {
+    const resolved = this._resolveLinkEndpoints({ sourceNode, targetNode });
+
     if (!this.trackedLinks.has(linkId)) {
       this.trackedLinks.set(linkId, {
-        sourceNode,
-        targetNode,
+        sourceNode: resolved.sourceNode,
+        targetNode: resolved.targetNode,
         lastChainTime: 0,
         chainCooldown: 2.0  // Min 2 seconds between chains on same link
       });
       
       this.activeChains.set(linkId, []);
+    } else {
+      const trackedLink = this.trackedLinks.get(linkId);
+      if (trackedLink) {
+        trackedLink.sourceNode = trackedLink.sourceNode || resolved.sourceNode;
+        trackedLink.targetNode = trackedLink.targetNode || resolved.targetNode;
+      }
     }
   }
   
@@ -229,6 +254,15 @@ export class RecursiveGlyphMessaging4_0 {
     
     const linkInfo = this.trackedLinks.get(linkId);
     if (!linkInfo) return null;
+
+    const resolved = this._resolveLinkEndpoints({
+      ...linkData,
+      sourceNode: linkInfo.sourceNode,
+      targetNode: linkInfo.targetNode
+    });
+    if (!resolved.sourceNode || !resolved.targetNode) {
+      return null;
+    }
     
     // Check cooldown
     const now = performance.now() * 0.001;
@@ -237,12 +271,12 @@ export class RecursiveGlyphMessaging4_0 {
     }
     
     // Get semantic state from source node
-    const sourceState = this.semanticGlyphAI?.getSemanticState?.(linkInfo.sourceNode) || {};
+    const sourceState = this.semanticGlyphAI?.getSemanticState?.(resolved.sourceNode) || {};
     
     // Create recursive chain
     const chain = this.createRecursiveChain(
-      linkInfo.sourceNode,
-      linkInfo.targetNode,
+      resolved.sourceNode,
+      resolved.targetNode,
       sourceState,
       linkData
     );
@@ -636,7 +670,8 @@ export class RecursiveGlyphMessaging4_0 {
     if (linkingSystem.links) {
       for (const link of linkingSystem.links) {
         if (link.active) {
-          this.registerLink(link.uuid, link.sourceNode, link.targetNode);
+          const resolved = this._resolveLinkEndpoints(link);
+          this.registerLink(link.uuid, resolved.sourceNode, resolved.targetNode);
           
           // Autonomous chain generation (occasionally)
           if (Math.random() < 0.05) {  // 5% chance per frame

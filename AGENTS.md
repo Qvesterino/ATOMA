@@ -79,9 +79,31 @@ If it is not written, it does not exist.
 
 ---
 
+## Documentation Governance
+
+The agent is also the documentation drift detector and documentation steward for ATOMA.
+
+The documentation layer must stay:
+
+- consistent
+- role-separated
+- low-duplication
+- aligned with `EVOLUTION_V2.2`
+
+If drift is detected:
+
+- identify it explicitly
+- propose a precise fix
+- prefer surgical edits over broad rewrites
+
+Never leave a documentation conflict without a proposed resolution.
+
+---
+
 ## Project Phase
 
 `PROJECT_PHASE = EVOLUTION_V2`
+`INNOVATION_MODE = CONTROLLED`
 
 ATOMA is in an active evolution phase with controlled innovation.
 The default posture is forward-moving improvement with compatibility, modularity, and performance discipline.
@@ -96,6 +118,47 @@ These rules are immutable:
 - Preserve runtime stability; do not introduce breaking changes without a concrete reason
 - Preserve canonical metrics: `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`
 - Preserve scheduler frequencies: `10Hz` simulation, `30Hz` visual, `60Hz` runtime
+
+---
+
+## Documentation Role Enforcement
+
+Document responsibilities:
+
+- `CORE_PRINCIPLES.md`: invariants and non-negotiable rules only
+- `ATOMA_OVERVIEW.md`: identity, philosophy, and direction only
+- `ATOMA_CORE_CONTEXT.md`: technical context, subsystems, and interaction rules only
+- `MEMORY.md`: stable facts, historical decisions, and confirmed lessons only
+
+If content belongs elsewhere:
+
+- propose moving it
+- do not duplicate it
+
+References are allowed.
+Rule duplication is not.
+
+---
+
+## Drift Detection Rule
+
+Continuously watch for:
+
+- duplicated rules across `CORE / OVERVIEW / CONTEXT / MEMORY`
+- conflicting instructions
+- content living in the wrong file
+- stale or no-longer-valid documentation
+
+Examples of drift:
+
+- `MEMORY.md` containing philosophy
+- `ATOMA_OVERVIEW.md` containing technical subsystem contracts
+- old stabilization rules surviving next to controlled innovation rules
+
+If drift is found:
+
+- mark the problem
+- propose removal, move, or rewrite
 
 ---
 
@@ -122,6 +185,191 @@ The agent must:
 
 ---
 
+## Workflow Awareness
+
+Before solving a task, mentally classify:
+
+- task type: bugfix, refactor, VFX, or system change
+- task scope: `LOW`, `MEDIUM`, or `HIGH`
+- affected subsystem
+
+Use that classification to choose the workflow.
+
+---
+
+## Workflow Selection
+
+Use one of these flows:
+
+`SIMPLE FLOW`
+
+- for `LOW` tasks
+- rapid execution
+- no unnecessary analysis
+
+`STRUCTURED FLOW`
+
+- for `MEDIUM` tasks
+- short plan
+- implementation
+- targeted check
+
+`CAREFUL FLOW`
+
+- for `HIGH` tasks
+- analysis first
+- design or proposal framing
+- staged implementation
+
+Prefer the lightest workflow that still controls risk.
+
+---
+
+## Evolution Bias
+
+When the system is stable and constraints are respected:
+
+- prefer improvement over preservation
+- prefer clarity over legacy complexity
+- prefer stronger visual expression when it improves readability
+- prefer removing weak or redundant systems over keeping them
+
+The system should not remain static out of caution alone.
+
+If a subsystem is:
+
+- redundant
+- unclear
+- unnecessarily complex
+
+it is valid to simplify, refactor, or remove it within budget.
+
+---
+
+## Innovation Budget
+
+Every task has an implicit innovation budget.
+
+`LOW`
+
+- small adjustments
+- bugfixes
+- visual tweaks
+- local changes without architectural impact
+
+`MEDIUM`
+
+- refactor of one subsystem
+- performance optimization
+- VFX pipeline improvement
+- changes inside one module or subsystem
+
+`HIGH`
+
+- architecture change
+- introduction of a new system
+- coordinated change across multiple subsystems
+
+Default rule:
+
+- if task scope is not specified, use `LOW` or `MEDIUM`
+- use `HIGH` only when explicitly requested or when there is a strong technical reason
+
+---
+
+## Risk Control
+
+Before changing code, mentally evaluate:
+
+- does this affect multiple subsystems?
+- does this change an API?
+- can this break an existing flow?
+- does this increase complexity?
+
+If yes:
+
+- reduce scope
+- or split the work into smaller staged steps
+
+Innovation should scale with confidence, not ambition alone.
+
+Workflow error prevention:
+
+- am I making a larger change than needed?
+- is there a simpler solution?
+- am I crossing subsystem boundaries unnecessarily?
+
+If yes, simplify the workflow before implementing.
+
+---
+
+## Documentation Self-Healing
+
+If the agent detects:
+
+- an outdated rule
+- a conflicting principle
+- duplicate guidance
+- impure memory content
+
+the agent should propose:
+
+- removal
+- move
+- or targeted rewrite
+
+Do not preserve broken documentation structure out of inertia.
+
+---
+
+## Workflow Self-Improvement
+
+After completing a task, evaluate:
+
+- was the solution more complicated than necessary?
+- was the workflow efficient?
+- did avoidable risk appear?
+
+If yes:
+
+- propose a better workflow for similar future tasks
+
+Workflow patterns may be promoted to `MEMORY.md` only when they are repeatable and durable.
+Do not store one-off tactics or experiments.
+
+---
+
+## Change Size Limiter
+
+Prefer:
+
+- small iterations
+- incremental improvement
+- staged multi-step changes
+
+Do not do:
+
+- massive rewrites without reason
+- big-bang refactors
+
+---
+
+## Pipeline Optimization
+
+The agent should continuously optimize its execution pipeline.
+
+Allowed optimizations:
+
+- better task decomposition
+- better step ordering
+- staged changes where staging adds safety
+- removal of unnecessary steps
+- reduced repeated file reads when context is already clear
+
+If the workflow is repetitive or wasteful, tighten it.
+
+---
+
 ## Subsystem Autonomy
 
 ATOMA should evolve through autonomous subsystems with clear ownership boundaries.
@@ -145,6 +393,11 @@ Within a subsystem, the agent must not:
 - change another subsystem's API without a concrete reason
 - reach across subsystem boundaries without need
 - create cross-dependencies that reduce modularity
+
+Subsystem safety rule:
+
+- change only the subsystem the task actually concerns unless broader impact is necessary
+- do not create hidden dependencies between subsystems
 
 ---
 
@@ -182,12 +435,36 @@ Allowed:
 - improving quality of existing effects
 - optimizing shaders, spawn pipeline, and scheduling
 - adding new layers such as aura, overlay, or flow effects
+- refactoring code for performance and readability
+- proposing new VFX or system improvements inside scope
 
 Not allowed:
 
 - random effect sprawl without system purpose
 - duplicate mechanics or duplicate authorities
 - breaking changes without a concrete reason
+- architecture changes without reason
+- ignoring performance constraints
+
+Innovation allowed only when system logic and `CORE_PRINCIPLES.md` remain respected.
+
+---
+
+## Visual Ambition Rule
+
+ATOMA is not minimal for the sake of minimalism.
+
+When justified:
+
+- push visual quality
+- increase depth and layering
+- strengthen presence of effects
+
+Always:
+
+- preserve readability
+- preserve system meaning
+- avoid noise
 
 ---
 
@@ -232,8 +509,25 @@ Use proposals for:
 If multiple valid solutions exist, choose the one that is:
 
 1. simpler
-2. faster
-3. more consistent with the system
+2. safer
+3. faster
+4. more consistent with the system
+
+Controlled boldness rule:
+
+- if impact is local
+- if risk is understood
+- if subsystem boundaries are respected
+
+it is acceptable to be more aggressive within `MEDIUM` budget.
+
+Caution should not block meaningful improvement.
+
+Human alignment rule:
+
+- prefer workflows that are readable to the human
+- easy to review
+- and safe to verify
 
 ---
 
@@ -254,6 +548,20 @@ Ask before acting:
 - against external services
 - with destructive commands
 - with irreversible or unclear impact
+
+---
+
+## Core Protection Rule
+
+`CORE_PRINCIPLES.md` is stable constitutional documentation.
+
+The agent may:
+
+- propose core changes
+
+The agent must not:
+
+- change core principles without explicit approval
 
 ---
 

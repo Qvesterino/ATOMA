@@ -1,140 +1,75 @@
 # MEMORY.md -- ATOMA Resident Persistent Memory
 
-Project: ATOMA
-Nature: Long-term systemic browser engine with layered visual expression
+This document is the stable memory layer of ATOMA.
+
+It stores confirmed facts, durable decisions, and historical notes that should remain useful across sessions.
 
 ---
 
-## Constitutional Reality
+## Scope
 
-ATOMA is governed by:
+This file owns:
 
-- `CORE_PRINCIPLES.md`
-- `ATOMA_OVERVIEW.md`
-- `ATOMA_CORE_CONTEXT.md`
+- stable architectural decisions
+- confirmed invariants
+- historical facts
+- durable lessons
 
-These documents define system identity and architectural direction.
+This file does not own:
+
+- project philosophy
+- subsystem design rules
+- active workflow tactics
 
 ---
 
-## Project Phase
+## Phase Record
 
 `PROJECT_PHASE = EVOLUTION_V2`
+`DOCUMENT_BASELINE = EVOLUTION_V2.2`
 
-ATOMA is in active evolution with controlled innovation and subsystem autonomy.
-
-Long-term direction:
-
-- modernize visuals toward a 2026+ quality bar
-- improve subsystem clarity and maintainability
-- preserve runtime stability while evolving
-- keep browser performance as a first-class constraint
-- let subsystems evolve independently inside shared global rules
+ATOMA is in controlled evolution with subsystem autonomy and bounded innovation.
 
 ---
 
-## Architectural Invariants
+## Confirmed Invariants
 
-The following are canonical:
+The following are confirmed and should be treated as stable:
 
 - Node identity is unified via `node.userData.nodeId`
-- `FrameScheduler` controls timing authority
+- `FrameScheduler` is the timing authority
 - `MetricsRuntime` is the canonical runtime metrics authority
-- `VisualHierarchyRegistry` remains the central visual hierarchy authority
+- `VisualHierarchyRegistry` is the visual hierarchy authority
 - Canonical metrics are `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`
 - Scheduler frequencies remain `10Hz` simulation, `30Hz` visual, `60Hz` runtime
 - WorldRoot and NodeRoot are explicit scene anchors
-- Visual systems must not duplicate metrics logic authority
-- GPU-first rendering discipline remains valid: CPU orchestrates, GPU renders
-
-These are structural decisions, not optional preferences.
+- Visual systems must not become parallel metric authorities
+- GPU-first execution remains the preferred runtime bias where practical
 
 ---
 
-## Shared Authorities
+## Clean Architecture Memory
 
-The following authorities remain global and must be respected by every subsystem:
+Confirmed long-term rule:
 
-- `FrameScheduler` for timing authority
-- `MetricsRuntime` for canonical runtime metrics authority
-- `VisualHierarchyRegistry` for visual hierarchy authority
-
-Canonical metrics remain:
-
-- `synergy`
-- `harmony`
-- `stability`
-- `corruption`
-- `loadPressure`
+- no parallel truth systems
+- no duplicate permanent authorities
+- adapters and migration layers are acceptable
+- permanent architectural duplication is not
 
 ---
 
-## Operating Model
+## Legacy Cleanup Mandate
 
-Human (Daniel) = final authority
-Resident Architect = reasoning and implementation layer
+Confirmed long-term policy:
 
-Default workflow:
-understand -> trace impact -> implement -> verify
+If a system is redundant, unclear, dormant, or adds complexity without value, it is valid to refactor, simplify, or remove it when:
 
-Use proposal mode for:
+- system truth is preserved
+- compatibility is preserved
+- or migration is explicit and controlled
 
-- intentionally breaking changes
-- unclear architecture shifts
-- external-impact actions
-
-Controlled innovation rules:
-
-- every change must have a concrete reason: performance, clarity, or visual quality
-- compatibility should be preserved by default
-- duplicate systems or duplicate authorities are not acceptable without a concrete reason
-
----
-
-## Design Direction
-
-ATOMA should feel like a living, energetic, intelligent ecosystem.
-
-Guidelines:
-
-- visuals are layered: core, surface, overlay, atmosphere
-- effects must be readable, physically believable, and purposeful
-- quality is preferred over quantity
-- new systems should strengthen clarity, not add noise
-- prefer high impact, low noise design
-
----
-
-## Subsystem Autonomy
-
-Primary autonomous subsystems:
-
-- `LINK SYSTEM`: `LinkRendererConduit`, `NodeLinkingSystem`, link VFX
-- `NODE SYSTEM`: `AINodes`, `EnhancedNodeModels`, node visuals
-- `METRICS SYSTEM`: node metrics engines and `MetricsRuntime`
-- `WAVE / CASCADE SYSTEM`: wave interference and cascade FX
-- `UI / HUD SYSTEM`: HUD and presentation layers
-
-Subsystem rule set:
-
-- internal refactors are allowed
-- internal performance and visual improvements are allowed
-- new effects are allowed inside subsystem scope
-- changing another subsystem's API requires a concrete reason
-- unnecessary cross-dependencies should be avoided
-
----
-
-## Engineering Guardrails
-
-- Do not duplicate metric authority
-- Do not violate scheduler authority tiers
-- Do not introduce breaking runtime rewires without concrete reason
-- Do not add noise VFX without a clear systemic role
-- Prefer compatibility-preserving refactors when modernizing old code
-- Optimize for readability, modularity, and browser performance
-- implement distance-based LOD where relevant
-- stage heavy initialization across multiple frames where relevant
+Legacy is not preserved for its own sake.
 
 ---
 
@@ -147,6 +82,7 @@ Removed systems confirmed on 2026-03-03:
 - `NodeSpawnRegistry.js`
 
 Rationale:
+
 - uniqueness enforcement is not part of the active ATOMA model
 
 Legacy systems moved out of the active path on 2026-03-03:
@@ -157,7 +93,7 @@ Legacy systems moved out of the active path on 2026-03-03:
 
 ---
 
-## Audio Interaction Authority
+## Confirmed Runtime Lesson
 
 Confirmed runtime authority for node select and deselect is `NodeLinkingSystem`, not `selectionCore`.
 
@@ -177,5 +113,5 @@ Stable passive callback API:
 
 Lesson:
 
-- Prefer passive listeners on the true runtime authority layer
-- Avoid `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`
+- prefer passive listeners on the true runtime authority layer
+- avoid `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`
