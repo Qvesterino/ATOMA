@@ -99,7 +99,7 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     this.enabled = true;
     this.config = {
-      harmonyFieldThreshold: 0.6,
+      harmonyFieldThreshold: 0.5,
       pulseThreshold: 0.85,
       fieldBaseOpacity: 0.85,
       fieldMaxOpacity: 0.95,
@@ -291,7 +291,7 @@ export class T2_HarmonyVisualConsumer_v1 {
   }
 
   _getNodeKeyCandidates(node) {
-    return [node?.uuid, node?.id, node?.userData?.nodeId];
+    return [node?.userData?.nodeId, node?.uuid];
   }
 
   _createHealingPulseMesh() {
@@ -380,15 +380,26 @@ export class T2_HarmonyVisualConsumer_v1 {
     return 0;
   }
 
+  _getNodeIdentityKey(node) {
+    return node?.userData?.nodeId ?? node?.uuid ?? null;
+  }
+
   _hasNodeActiveLinks(node, activeLinkedNodeKeys = null) {
     if (this._getNodeActiveLinkCount(node) > 0) {
       return true;
     }
 
-    return activeLinkedNodeKeys ? this._isActiveLinkedNode(node, activeLinkedNodeKeys) : false;
+    // ACTIVE-LINK GATING DISABLED FOR NOW
+    // return activeLinkedNodeKeys ? this._isActiveLinkedNode(node, activeLinkedNodeKeys) : false;
+    return true;
   }
 
   _markNodeAsActive(node, activeLinkedNodeKeys) {
+    const identityKey = this._getNodeIdentityKey(node);
+    if (identityKey !== null && identityKey !== undefined) {
+      activeLinkedNodeKeys.add(identityKey);
+    }
+
     for (const key of this._getNodeKeyCandidates(node)) {
       if (key === undefined || key === null) continue;
       activeLinkedNodeKeys.add(key);
@@ -401,6 +412,12 @@ export class T2_HarmonyVisualConsumer_v1 {
     const links = harmonySystem?.linkSystem?.links;
     if (Array.isArray(links)) {
       for (const link of links) {
+        if (link?.sourceNodeId !== undefined && link?.sourceNodeId !== null) {
+          this._tmpActiveLinkedNodeKeys.add(link.sourceNodeId);
+        }
+        if (link?.targetNodeId !== undefined && link?.targetNodeId !== null) {
+          this._tmpActiveLinkedNodeKeys.add(link.targetNodeId);
+        }
         this._markNodeAsActive(link?.source || link?.sourceNode, this._tmpActiveLinkedNodeKeys);
         this._markNodeAsActive(link?.target || link?.targetNode, this._tmpActiveLinkedNodeKeys);
       }
@@ -681,7 +698,8 @@ export class T2_HarmonyVisualConsumer_v1 {
 
   flashHarmonyField(node, options = {}) {
     if (!this.enabled || !node?.uuid) return false;
-    if (!this._hasNodeActiveLinks(node)) return false;
+    // ACTIVE-LINK GATING DISABLED FOR NOW
+    // if (!this._hasNodeActiveLinks(node)) return false;
 
     if (!this.registry.nodeAuras.has(node.uuid)) {
       this.registerNode(node);
@@ -826,7 +844,8 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     if (aiNodes && aiNodes.nodes) {
       const activeNodeSet = new Set();
-      const activeLinkedNodeKeys = this._collectActiveLinkedNodeKeys(resolvedHarmonySystem);
+      // ACTIVE-LINK GATING DISABLED FOR NOW
+      // const activeLinkedNodeKeys = this._collectActiveLinkedNodeKeys(resolvedHarmonySystem);
       for (const node of aiNodes.nodes) {
         if (!node.userData) continue;
         activeNodeSet.add(node.uuid);
@@ -850,23 +869,26 @@ export class T2_HarmonyVisualConsumer_v1 {
           auraData.lastHarmonyLevel = 0;
           continue;
         }
-
-        const hasActiveLinks = this._hasNodeActiveLinks(node, activeLinkedNodeKeys);
-        if (!hasActiveLinks) {
-          auraData.auraGroup.visible = false;
-          auraData.lastHarmonyLevel = 0;
-          continue;
-        }
         
         const harmonyLevel = this._resolveNodeHarmonyLevel(node, resolvedHarmonySystem);
+          // ACTIVE-LINK GATING DISABLED FOR NOW
+          // const hasActiveLinks = this._hasNodeActiveLinks(node, activeLinkedNodeKeys);
+          const hasActiveLinks = true;
+        const hasPulseBoost = !!auraData.pulseBoost?.remaining;
 
-        if (harmonyLevel >= this.config.harmonyFieldThreshold) {
-          const harmonyIntensity = Math.max(
+        if ((harmonyLevel >= this.config.harmonyFieldThreshold || hasPulseBoost) && hasActiveLinks) {
+          const harmonyIntensity = hasPulseBoost
+            ? Math.max(0.35, Math.max(
+                0,
+                Math.min(1, (harmonyLevel - this.config.harmonyFieldThreshold) / (1 - this.config.harmonyFieldThreshold))
+              ))
+            : Math.max(
             0,
             Math.min(1, (harmonyLevel - this.config.harmonyFieldThreshold) / (1 - this.config.harmonyFieldThreshold))
           );
 
           this._updateHarmonyFieldVisual(auraData, deltaTime, harmonyIntensity * lodScale);
+          auraData.auraGroup.visible = true;
 
           if (harmonyLevel >= this.config.pulseThreshold) {
             const pulseInterval = 1.0 / this.config.pulseEmitRate;
