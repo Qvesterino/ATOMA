@@ -1,7 +1,7 @@
 /**
  * Canonical semantic link metrics bridge (0-1 normalized).
  *
- * Quality score is the source of truth; cascadeIntensity is derived from it.
+ * Canonical link metrics are the source of truth; cascade intensity is derived from them.
  */
 
 const NEUTRAL_VALUE = 0.5;
@@ -96,10 +96,7 @@ export class LinkSemanticMetricsBridge_v1 {
         changed = true;
       }
 
-      const qualityScore = Number(link.userData?.quality?.score);
-      const cascadeIntensity = Number.isFinite(qualityScore)
-        ? clamp01(1 - (qualityScore / 100))
-        : 0;
+      const cascadeIntensity = clamp01(synergy);
 
       if (shouldWrite(userData.cascadeIntensity, cascadeIntensity)) {
         userData.cascadeIntensity = cascadeIntensity;

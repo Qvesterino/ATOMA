@@ -723,6 +723,7 @@ export class WaveParticleEmitter_v1 {
       const lodLevel = this._getNodeLODLevel(node);
       const emissionScale = this._getEmissionScaleForLOD(lodLevel);
       if (lodLevel >= 3 || emissionScale <= 0) return;
+      const MIN_WAVE_THRESHOLD = this.config.constructiveThreshold;
       const MIN_CHANNEL = 0.12;
       const MIN_VISIBILITY = 0.1;
       const nodeId = node?.id ?? node?.uuid;
@@ -734,12 +735,16 @@ export class WaveParticleEmitter_v1 {
         node?.userData?.waveField ??
         {};
 
-      const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
+      const wave = waveField;
+      const intensity = wave?.intensity ?? wave?.totalAmplitude ?? wave?.amplitude ?? 0;
+      if (intensity < MIN_WAVE_THRESHOLD) return;
+
+      const amplitude = intensity;
       const source = this._resolveWaveSource(node, waveField);
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
-      let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
-      let destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
-      let standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
+      let constructive = this._clamp01(wave?.constructive ?? wave?.constructivePower ?? 0);
+      let destructive = this._clamp01(wave?.destructive ?? wave?.destructivePower ?? 0);
+      let standing = this._clamp01(wave?.standing ?? wave?.standingWaveFactor ?? 0);
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
@@ -747,8 +752,13 @@ export class WaveParticleEmitter_v1 {
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
+      const emitConstructive = constructiveValue >= this.config.constructiveThreshold;
+      const emitDestructive = destructiveValue >= this.config.destructiveThreshold;
+      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold;
 
-      if (constructiveValue >= this.config.constructiveThreshold) {
+      if (!emitConstructive && !emitDestructive && !emitStanding) return;
+
+      if (emitConstructive) {
         this._debugLogNodeEmission(node, nodeId, 'constructive', {
           amplitude,
           constructive: constructiveValue,
@@ -759,11 +769,11 @@ export class WaveParticleEmitter_v1 {
         this._emitConstructiveBurst(node, constructiveValue, 'node', { source, emissionRateMul });
       }
 
-      if (destructiveValue >= this.config.destructiveThreshold) {
+      if (emitDestructive) {
         this._emitDestructiveChaos(node, destructiveValue, 'node', { source, emissionRateMul });
       }
 
-      if (this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold) {
+      if (emitStanding) {
         this._emitStandingWaveRipple(node, standingValue, 'node', { source, emissionRateMul });
       }
 
@@ -778,6 +788,7 @@ export class WaveParticleEmitter_v1 {
       const lodLevel = this._getLinkLODLevel(link);
       const emissionScale = this._getEmissionScaleForLOD(lodLevel);
       if (lodLevel >= 3 || emissionScale <= 0) return;
+      const MIN_WAVE_THRESHOLD = this.config.constructiveThreshold;
       const MIN_CHANNEL = 0.12;
       const MIN_VISIBILITY = 0.1;
       const MIN_LINK_AMPLITUDE = 0.15;
@@ -794,14 +805,18 @@ export class WaveParticleEmitter_v1 {
       const waveField = this._resolveLinkWaveField(link, linkId, waveEngine);
       if (!waveField) return;
 
-      const amplitude = this._clamp01(waveField.amplitude ?? waveField.totalAmplitude ?? 0);
+      const wave = waveField;
+      const intensity = wave?.intensity ?? wave?.totalAmplitude ?? wave?.amplitude ?? 0;
+      if (intensity < MIN_WAVE_THRESHOLD) return;
+
+      const amplitude = this._clamp01(intensity);
       if (amplitude <= MIN_LINK_AMPLITUDE) return;
       const source = this._resolveWaveSource(link, waveField);
 
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
-      let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
-      let destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
-      let standing = this._clamp01(waveField.standing ?? waveField.standingWaveFactor ?? 0);
+      let constructive = this._clamp01(wave?.constructive ?? wave?.constructivePower ?? 0);
+      let destructive = this._clamp01(wave?.destructive ?? wave?.destructivePower ?? 0);
+      let standing = this._clamp01(wave?.standing ?? wave?.standingWaveFactor ?? 0);
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
@@ -809,6 +824,11 @@ export class WaveParticleEmitter_v1 {
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
+      const emitConstructive = constructiveValue >= this.config.constructiveThreshold;
+      const emitDestructive = destructiveValue >= this.config.destructiveThreshold;
+      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold;
+
+      if (!emitConstructive && !emitDestructive && !emitStanding) return;
       const linkEmitterTarget = {
         id: `wave-link:${linkId}`,
         position: midpoint,
@@ -819,15 +839,15 @@ export class WaveParticleEmitter_v1 {
         source
       };
 
-      if (constructiveValue >= this.config.constructiveThreshold) {
+      if (emitConstructive) {
         this._emitConstructiveBurst(linkEmitterTarget, constructiveValue, 'link', { source, emissionRateMul });
       }
 
-      if (destructiveValue >= this.config.destructiveThreshold) {
+      if (emitDestructive) {
         this._emitDestructiveChaos(linkEmitterTarget, destructiveValue, 'link', { source, emissionRateMul });
       }
 
-      if (this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold) {
+      if (emitStanding) {
         this._emitStandingWaveRipple(linkEmitterTarget, standingValue, 'link', { source, emissionRateMul });
       }
     } catch (err) {

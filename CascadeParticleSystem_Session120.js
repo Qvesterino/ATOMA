@@ -373,10 +373,7 @@ export class CascadeParticleSystem_Session120 {
     const eventIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
     const canonicalIntensity = Math.max(
       0,
-      Math.min(
-        1,
-        Number(link?.userData?.cascadeIntensity ?? link?.userData?.flowState?.intensity ?? 0) || 0
-      )
+      Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0)
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
     if (clampedIntensity < 0.1) return;
@@ -409,12 +406,11 @@ export class CascadeParticleSystem_Session120 {
 
       // Check for cascade activity
       const boost = link.userData.cascadeParticleEmissionBoost ?? 1.0;
-      // Read from shared flowState (single source of truth)
       const flowState = link.userData.flowState || {};
-      const intensity = Math.max(
-        flowState.intensity ?? 0,
-        link.userData.cascadeIntensity ?? 0
-      );
+      const targetIntensity = link.userData.metrics?.synergy ?? 0;
+      const previousIntensity = Number.isFinite(flowState.intensity) ? flowState.intensity : 0;
+      flowState.intensity = previousIntensity + (targetIntensity - previousIntensity) * 0.2;
+      const intensity = flowState.intensity;
 
       if (intensity < 0.1) continue;
 

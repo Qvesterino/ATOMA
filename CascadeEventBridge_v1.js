@@ -249,14 +249,10 @@ export class CascadeEventBridge_v1 {
       const flowState = link.userData.flowState;
       const lifecycle = this._ensureCascadeLifecycle(link);
       const wasActive = lifecycle.active === true;
-      
-      // Calculate target intensity from node cascadeStrength
-      const targetIntensity = this._calculateTargetIntensity(link);
-      
-      // Apply smoothing with lerp (0.2 factor)
-      const lerpFactor = 0.2;
-      flowState.intensity = flowState.intensity + (targetIntensity - flowState.intensity) * lerpFactor;
-      
+
+      const targetIntensity = Math.max(0, Math.min(1, Number(link.userData.metrics?.synergy ?? 0) || 0));
+      flowState.intensity += (targetIntensity - flowState.intensity) * 0.15;
+
       // Clamp to 0-1 range
       flowState.intensity = Math.max(0, Math.min(1, flowState.intensity));
       
@@ -327,24 +323,10 @@ export class CascadeEventBridge_v1 {
   }
   
   /**
-   * Calculate target intensity from node cascadeStrength
+   * Calculate target intensity from canonical link metrics
    */
   _calculateTargetIntensity(link) {
-    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
-    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-    
-    if (!sourceNode || !targetNode) return 0;
-    
-    // Get cascadeStrength from source and target nodes
-    const sourceStrength = sourceNode.userData?.metrics?.cascadeStrength 
-      ?? sourceNode.userData?.cascadeStrength 
-      ?? 0;
-    const targetStrength = targetNode.userData?.metrics?.cascadeStrength 
-      ?? targetNode.userData?.cascadeStrength 
-      ?? 0;
-    
-    // Use max of source and target node cascadeStrength
-    return Math.max(sourceStrength, targetStrength);
+    return Math.max(0, Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0));
   }
   
   /**

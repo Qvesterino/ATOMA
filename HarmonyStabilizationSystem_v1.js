@@ -599,12 +599,11 @@ export class HarmonyStabilizationSystem_v1 {
     // High harmony → Low harmony
     const harmonyFlowRate = this.computeHarmonyFlowRate(sourceNode, targetNode, link);
 
-    // Get source and target harmony levels
-    const sourceHarmony = this.nodeHarmony.get(sourceNode.id)?.level || 0;
-    const targetHarmony = this.nodeHarmony.get(targetNode.id)?.level || 0;
+    // Canonical target harmony level from metrics
+    const targetHarmony = targetNode.userData?.metrics?.harmony ?? 0;
     
-    // Harmony spreads from higher → lower
-    const harmonyDifference = Math.max(0, sourceHarmony - harmonyData.level);
+    // Harmony spreads toward the target harmony level
+    const harmonyDifference = targetHarmony - harmonyData.level;
     
     // Apply category-aware harmony propagation multiplier
     let harmonyMultiplier = 1.0;
