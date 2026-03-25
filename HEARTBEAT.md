@@ -1,93 +1,104 @@
-# HEARTBEAT.md — ATOMA Runtime Alignment
+# HEARTBEAT.md -- ATOMA Runtime Alignment
 
-This file defines the operational mindset for each session.
+This file defines session re-alignment and heartbeat behavior.
 
-The agent does not remember.  
-Each session begins with re-alignment.
+The agent does not remember.
+Each session begins with context restoration.
 
 ---
 
 ## Session Start Alignment
 
-Before any analysis or proposal, internally align with:
+Before substantial work, internally align with:
 
-- ATOMA_CORE_CONTEXT.md
-- CORE_PRINCIPLES.md
-- ATOMA_OVERVIEW.md
-- IDENTITY.md
-- SOUL.md
+- `ATOMA_CORE_CONTEXT.md`
+- `CORE_PRINCIPLES.md`
+- `ATOMA_OVERVIEW.md`
+- `SOUL.md`
+- `IDENTITY.md`
+- `USER.md`
+- `TOOLS.md`
 
-Goal: restore architectural intent.
+Goal:
+
+- restore project direction
+- restore architectural invariants
+- restore current working discipline
 
 ---
 
-## Default Assumptions
+## Active Assumptions
 
 Start every session assuming:
 
-- The system is fragile
-- Hidden or dormant systems may exist
-- Explicit wiring matters
-- Minimal change is safer than ambitious change
+- dormant or partial systems may exist
+- explicit wiring matters
+- performance matters because ATOMA runs in the browser
+- evolution is allowed when core invariants are preserved
 
-Default mode: ARCHITECT MODE
+Default mode: `EVOLUTION_V2 MODE`
 
 ---
 
-## Structural Change Check
+## Pre-Change Check
 
-Before suggesting any structural change, internally verify:
+Before substantial change, verify:
 
-- Does this cross system boundaries?
-- Does this duplicate existing authority?
-- Does this introduce hidden coupling?
-- Is this reversible?
+- architecture anchors remain valid
+- canonical metrics stay canonical
+- scheduler frequency tiers stay intact
+- performance cost is understood
+- compatibility impact is understood
+- subsystem ownership stays clear
+- no unnecessary cross-subsystem dependency is introduced
 
-If uncertain → ask before proposing.
+If impact is unclear, investigate first.
 
 ---
 
 ## Execution Discipline
 
-If implementation is approved:
+During implementation:
 
-- Apply minimal diffs only
-- Do not perform unrelated cleanup
-- Do not expand scope
-- Verify using the lightest valid method
-- Stop after safe confirmation
+- prefer coherent steps
+- keep scope aligned with the task
+- refactor when it improves modularity, readability, or performance
+- verify with the lightest valid method
+- surface real risks explicitly
+- keep changes inside the responsible subsystem unless cross-system work is required
 
-No autonomous refactoring.
-
----
-
-## Risk Awareness (Before Final Response)
-
-Internally confirm:
-
-- No core philosophy violated
-- No unintended visual changes
-- No unintended gameplay changes
-- No performance risk introduced
-
-If any risk exists → state it clearly.
+Do not perform random expansion unrelated to the task.
 
 ---
 
-## Stabilization Behavior
+## Final Risk Check
 
-ATOMA is a slow-growth system.
+Before the final response, confirm:
 
-When the human is:
+- no unintended runtime breakage
+- no accidental metric authority duplication
+- no scheduler rule violation
+- no unbounded performance regression
+- no needless subsystem API drift
+- no accidental parallel system creation
 
-- rushed
-- frustrated
-- pushing aggressive changes
+If a risk remains, state it clearly.
 
-The agent should:
+---
 
-- slow the process
-- structure the problem
-- prefer clarity over speed
+## Heartbeat Behavior
 
-Stable systems are built calmly.
+Heartbeat is for awareness and alignment, not speculative work.
+
+Allowed heartbeat actions:
+
+- read recent memory
+- review project-state documentation
+- detect architectural drift
+- identify stale or conflicting documentation
+
+Do not start unrelated implementation during heartbeat.
+
+If nothing important requires attention, respond:
+
+`HEARTBEAT_OK`

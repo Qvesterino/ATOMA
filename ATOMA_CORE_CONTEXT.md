@@ -1,29 +1,48 @@
-# ATOMA — CORE CONTEXT
+# ATOMA -- CORE CONTEXT
 
 This project is called ATOMA.
 
-It is a long-running, modular game engine project.
+It is a long-running modular browser engine focused on living-system behavior, layered visuals, and emergent network dynamics.
 
-Rules:
+---
 
-- Always search the codebase before referencing files or functions
-- Do not assume file names or locations
-- Prefer minimal, safe changes
-- Do not rewrite systems unless explicitly asked
-- Respect existing architecture and naming conventions
-- Ask before making structural changes if unsure
+## Project Phase
+
+`PROJECT_PHASE = EVOLUTION_V2`
+
+ATOMA is in controlled evolution.
+
+The system is expected to improve through new systems, refactors, optimizations, and visual upgrades as long as core identity, compatibility, and authority boundaries remain intact.
+
+---
+
+## Working Context
+
+Core working rules:
+
+- always search the codebase before referencing files or functions
+- do not assume file names or locations
+- respect existing architecture and naming conventions
+- preserve compatibility unless there is a concrete reason to change it
+- tie changes to performance, clarity, visual quality, or system coherence
+- warn clearly before risky or intentionally breaking work
+
+This is not a do-less environment.
+This is a controlled-innovation environment.
+
+---
 
 ## 1. What ATOMA Is
 
-ATOMA is a living, node-based AI simulation and visual system.
-It is NOT a traditional game.
+ATOMA is a living node-based AI simulation and visual system.
+It is not a traditional game.
 
 ATOMA represents:
 
-- Nodes as entities with internal state
-- Links as living relationships between nodes
-- Metrics (synergy, harmony, corruption, stress) as invisible forces
-- Visuals as real-time expressions of system state
+- nodes as entities with internal state
+- links as living relationships between nodes
+- metrics as invisible forces shaping system behavior
+- visuals as real-time expressions of system state
 
 ATOMA behaves more like an organism or ecosystem than a static application.
 
@@ -31,165 +50,242 @@ ATOMA behaves more like an organism or ecosystem than a static application.
 
 ## 2. Technology Stack
 
-- Language: JavaScript
-- Rendering: Three.js (WebGL2), future WebGPU
-- Architecture: modular, layered, GPU-first
-- Rendering style: shader-heavy, minimal CPU animation
-- Tooling: VS Code, Vite, npm
-- AI: Local LLMs via Ollama
+- language: JavaScript and TypeScript in active runtime areas
+- rendering: Three.js / WebGL2, with future WebGPU direction
+- architecture: modular, layered, GPU-first
+- rendering style: shader-heavy, low-noise, system-driven
+- tooling: local development environment, npm-based workflows
+- AI: local and hosted LLM support for architecture and implementation work
 
 ---
 
-## 3. Core Design Principles
+## 3. Core Design Constraints
 
-These rules are NON-NEGOTIABLE:
+These are non-negotiable:
 
-- Stability > performance
-- Minimal change > large rewrites
-- Additive changes > destructive refactors
-- Visual clarity > visual spectacle
-- GPU does rendering and simulation
-- CPU orchestrates systems and state
+- preserve ATOMA identity and interpretability
+- preserve shared authorities
+- preserve canonical metrics
+- preserve scheduler timing tiers
+- keep visuals truthful to system state
+- keep subsystem boundaries legible
 
-No system should silently override another system.
+Evolution is allowed.
+Arbitrary chaos is not.
 
 ---
 
-## 4. Nodes
+## 4. Shared Authorities
+
+Global authorities:
+
+- `FrameScheduler`
+- `MetricsRuntime`
+- `VisualHierarchyRegistry`
+
+Canonical metrics:
+
+- `synergy`
+- `harmony`
+- `stability`
+- `corruption`
+- `loadPressure`
+
+Scheduler tiers:
+
+- `10Hz` simulation
+- `30Hz` visual
+- `60Hz` runtime
+
+No subsystem should silently override or duplicate these authorities without concrete reason.
+
+---
+
+## 5. Subsystem Model
+
+ATOMA should be reasoned about as autonomous but compatible subsystems:
+
+- `NODE SYSTEM`
+- `LINK SYSTEM`
+- `METRICS SYSTEM`
+- `WAVE / CASCADE SYSTEM`
+- `VISUAL FX SYSTEM`
+- `UI SYSTEM`
+
+Rules:
+
+- each subsystem may be independently refactored
+- each subsystem may improve its internal implementation
+- each subsystem may gain new effects or capabilities in scope
+- subsystem APIs should not be changed without concrete reason
+- unnecessary cross-dependencies should be avoided
+
+Subsystem autonomy is a design tool for safe evolution.
+
+---
+
+## 6. Nodes
 
 Nodes are not simple meshes.
 
 Each node has:
 
-- A core (must ALWAYS remain visible)
-- A state (metrics, flags, phase)
-- Optional aura or effects (never opaque)
-- Personality or behavior traits (optional)
+- a core that must remain readable
+- state, metrics, and flags
+- optional aura or supporting effects
+- optional personality or behavior traits
 
 Rules:
 
-- Node cores must NEVER be hidden by aura, postprocessing, or events
-- Node visuals are controlled by shader uniforms
-- Node animation should be GPU-driven where possible
-Node Category: 
-- Input 
-- Process 
-- Integration 
-- Analytics 
-- Storage 
-- Control 
-- Sigma 
-- Quantum 
-- Emotional 
+- node cores must remain visually legible
+- node visuals should prefer shader and uniform-driven behavior where practical
+- supporting FX must reinforce the node, not bury it
+- node-level effects should remain consistent with metric truth
+
+Representative categories include:
+
+- Input
+- Process
+- Integration
+- Analytics
+- Storage
+- Control
+- Sigma
+- Quantum
+- Emotional
 - Mythic
 - Prime
 - Error
+
 ---
 
-## 5. Links
+## 7. Links
 
 Links are living connections, not static lines.
 
 Links express:
 
-- Load
-- Direction
-- Quality
-- Stress
-- Historical memory (optional)
+- load
+- direction
+- quality
+- stress and pressure
+- historical memory where relevant
 
 Rules:
 
-- Links must not visually dominate nodes
-- Link visuals must reflect metrics truthfully
-- Link logic and visuals are separated systems
+- links must not visually dominate nodes without reason
+- link visuals must reflect metrics truthfully
+- link logic and link visuals should remain separated by clear responsibility
+- link FX may be layered as long as the hierarchy remains readable
 
-Effect: 
-1. Link Directional streaks inside 2. Link strands
-3. Beads and 4. bead trails cycling around strands from node A -> Node B
-5. Pulse ring with 6. Arch discharge triggered on pulse with 7. particle dust emission travelling behind Ring
+Typical visual vocabulary may include:
+
+1. directional streaks
+2. strands
+3. beads and bead trails
+4. pulse rings
+5. arc discharge events
+6. particle dust or flow emissions
 
 ---
 
-## 6. Metrics
+## 8. Metrics
 
-Core metrics include (but are not limited to):
-
-- Synergy
-- Harmony
-- Corruption
-- Stability / network stress
-- Load pressure
+Metrics define system truth.
 
 Rules:
 
-- Metrics are computed first
-- Visuals only READ metrics, never invent them
-- Metrics propagation must be deterministic
+- metrics are computed before visuals respond
+- visuals read metrics and must not invent metric authority
+- propagation should remain deterministic
+- metric meaning must remain coherent across subsystems
+
+Local derived values are acceptable.
+Parallel canonical metrics are not.
 
 ---
 
-## 7. Visual System
+## 9. Visual System
 
-Visuals are an interpretation layer, not gameplay logic.
+Visuals are an interpretation layer and a structural communication layer.
 
 Visual layers include:
 
-- Node core materials
-- Auras and shells (additive, transparent)
-- Links
-- Particles and fields
-- Postprocessing (bloom, fog, distortion)
+- node core materials
+- surface treatments
+- overlays and shell effects
+- links
+- particles and fields
+- atmosphere and postprocessing
 
 Rules:
 
-- Postprocessing must never hide gameplay-critical visuals
-- No visual system may permanently modify core materials
-- All visuals must be safely disableable
+- visuals should use layered hierarchy: `CORE -> SURFACE -> OVERLAY -> ATMOSPHERE`
+- postprocessing must never destroy readability
+- no visual system may permanently mutate core authority without explicit design intent
+- all visuals should degrade gracefully under performance pressure
+- prefer high impact, low noise
 
 ---
 
-## 8. GPU Philosophy
+## 10. Performance Contract
 
-ATOMA is GPU-first.
+ATOMA is browser-bound and performance-sensitive.
 
-- Prefer shaders over CPU animation
-- Prefer instancing over individual meshes
-- Prefer uniform-driven behavior over per-object logic
-- Prepare systems for future WebGPU compute migration
+Rules:
 
----
+- respect `FrameScheduler` tiers
+- prefer GPU and shader-driven solutions where practical
+- prefer instancing over large per-object overhead
+- avoid per-frame allocations in hot loops
+- use LOD and distance-based activation where relevant
+- stage heavy initialization across multiple frames
+- keep effect complexity proportional to its value
 
-## 9. Safety Rules for AI
-
-Any AI assisting on ATOMA must follow:
-
-- Do NOT assume missing files
-- Do NOT invent APIs or systems
-- Do NOT refactor unless explicitly instructed
-- Do NOT touch files not provided
-- Warn before risky changes
-- Ask if context is missing
-
-Silence is preferred over guessing.
+Prepare systems for future WebGPU-oriented growth without breaking the current runtime.
 
 ---
 
-## 10. Project Goal
+## 11. AI Role
 
-The goal of ATOMA is not visual realism.
+AI in ATOMA is:
+
+- co-architect
+- system designer
+- VFX engineer
+- optimization partner
+
+AI may:
+
+- propose new systems
+- refactor existing systems
+- improve architecture
+- optimize runtime behavior
+- improve visual quality
+
+AI must:
+
+- preserve compatibility by default
+- respect core principles
+- keep subsystem boundaries clear
+- avoid duplicate systems
+- avoid meaningless effects
+- justify change through performance, clarity, visual quality, or system coherence
+
+Final project authority remains human.
+
+---
+
+## 12. Project Goal
+
+The goal of ATOMA is not photorealism or arbitrary spectacle.
+
 The goal is:
 
 - clarity
 - coherence
-- emergent behavior
+- emergence
+- layered visual intelligence
 - a world that feels alive and reactive
 
-ATOMA should feel like observing a living system, not playing a scripted game.
-
-## 11.MAPS: 
-1. Fractal valley
-2. Quantum Island
-3. Dream Desert
-4. Sigma RIft Chamber
-5. Chamber
+ATOMA should feel like observing and shaping a living energetic system.

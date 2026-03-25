@@ -26,10 +26,12 @@ export class WaveParticleEmitter_v1 {
     this.config = {
       maxParticlesPerFamily: config.maxParticlesPerFamily ?? 2000,
       emissionRate: config.emissionRate ?? 1.0, // Multiplier on base emission
-      constructiveThreshold: config.constructiveThreshold ?? 0.15,
-      destructiveThreshold: config.destructiveThreshold ?? 0.20,
-      standingWaveThreshold: config.standingWaveThreshold ?? 0.25,
+      constructiveThreshold: config.constructiveThreshold ?? 0.08,
+      destructiveThreshold: config.destructiveThreshold ?? 0.10,
+      standingWaveThreshold: config.standingWaveThreshold ?? 0.12,
       standingWaveRippleEnabled: config.standingWaveRippleEnabled ?? true,
+      cascadeCooldownMultiplier: config.cascadeCooldownMultiplier ?? 0.7,
+      highAmplitudeEmissionMultiplier: config.highAmplitudeEmissionMultiplier ?? 1.5,
       amplitudeSpikeThreshold: config.amplitudeSpikeThreshold ?? 0.20,
       amplitudeEMAAlpha: config.amplitudeEMAAlpha ?? 0.15,
       debugMode: config.debugMode ?? false,
@@ -733,6 +735,7 @@ export class WaveParticleEmitter_v1 {
         {};
 
       const amplitude = waveField.amplitude ?? waveField.totalAmplitude ?? 0;
+      const source = this._resolveWaveSource(node, waveField);
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
       let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
       let destructive = this._clamp01(waveField.destructive ?? waveField.destructivePower ?? 0);
@@ -740,6 +743,7 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
+      const emissionRateMul = amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0;
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
@@ -752,15 +756,15 @@ export class WaveParticleEmitter_v1 {
           standing: standingValue,
           threshold: this.config.constructiveThreshold
         });
-        this._emitConstructiveBurst(node, constructiveValue, 'node');
+        this._emitConstructiveBurst(node, constructiveValue, 'node', { source, emissionRateMul });
       }
 
       if (destructiveValue >= this.config.destructiveThreshold) {
-        this._emitDestructiveChaos(node, destructiveValue, 'node');
+        this._emitDestructiveChaos(node, destructiveValue, 'node', { source, emissionRateMul });
       }
 
       if (this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold) {
-        this._emitStandingWaveRipple(node, standingValue, 'node');
+        this._emitStandingWaveRipple(node, standingValue, 'node', { source, emissionRateMul });
       }
 
       this._processAmplitudeSpike(nodeId, amplitude);
@@ -792,6 +796,7 @@ export class WaveParticleEmitter_v1 {
 
       const amplitude = this._clamp01(waveField.amplitude ?? waveField.totalAmplitude ?? 0);
       if (amplitude <= MIN_LINK_AMPLITUDE) return;
+      const source = this._resolveWaveSource(link, waveField);
 
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
       let constructive = this._clamp01(waveField.constructive ?? waveField.constructivePower ?? 0);
@@ -800,6 +805,7 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
+      const emissionRateMul = amplitude > 0.5 ? this.config.highAmplitudeEmissionMultiplier : 1.0;
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
@@ -809,19 +815,20 @@ export class WaveParticleEmitter_v1 {
         mode: 'link',
         direction: this._resolveLinkDirection(link),
         sourcePosition: sourcePos?.clone?.() ?? null,
-        targetPosition: targetPos?.clone?.() ?? null
+        targetPosition: targetPos?.clone?.() ?? null,
+        source
       };
 
       if (constructiveValue >= this.config.constructiveThreshold) {
-        this._emitConstructiveBurst(linkEmitterTarget, constructiveValue, 'link');
+        this._emitConstructiveBurst(linkEmitterTarget, constructiveValue, 'link', { source, emissionRateMul });
       }
 
       if (destructiveValue >= this.config.destructiveThreshold) {
-        this._emitDestructiveChaos(linkEmitterTarget, destructiveValue, 'link');
+        this._emitDestructiveChaos(linkEmitterTarget, destructiveValue, 'link', { source, emissionRateMul });
       }
 
       if (this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold) {
-        this._emitStandingWaveRipple(linkEmitterTarget, standingValue, 'link');
+        this._emitStandingWaveRipple(linkEmitterTarget, standingValue, 'link', { source, emissionRateMul });
       }
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Link event processing error:', err);
@@ -994,19 +1001,21 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Constructive Burst particles
    */
-  _emitConstructiveBurst(node, strength = 1, modeOverride = null) {
+  _emitConstructiveBurst(node, strength = 1, modeOverride = null, runtimeOptions = {}) {
     try {
       const emissionContext = this._resolveEmissionContext(node, modeOverride);
       if (!emissionContext) return;
 
-      const { mode, pos, direction, emitterId, sourcePosition, targetPosition } = emissionContext;
+      const { mode, pos, direction, emitterId, sourcePosition, targetPosition, source } = emissionContext;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
+      const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
 
       // Check emission gate
       const lastEmission = this.emissionGate.constructiveBurst.get(emitterId) ?? -Infinity;
-      if (now - lastEmission < this.gateDelays.constructiveBurst) {
+      if (now - lastEmission < this.gateDelays.constructiveBurst * sourceCooldownMul) {
         return; // Still in gate
       }
 
@@ -1015,7 +1024,7 @@ export class WaveParticleEmitter_v1 {
       // Emit 3-5 particles per burst
       const burstCount = Math.max(
         1,
-        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * scaled)
+        Math.floor((3 + Math.random() * 2.99) * this.config.emissionRate * emissionRateMul * scaled)
       );
 
       for (let i = 0; i < burstCount; i++) {
@@ -1091,19 +1100,21 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Destructive Chaos particles
    */
-  _emitDestructiveChaos(node, strength = 1, modeOverride = null) {
+  _emitDestructiveChaos(node, strength = 1, modeOverride = null, runtimeOptions = {}) {
     try {
       const emissionContext = this._resolveEmissionContext(node, modeOverride);
       if (!emissionContext) return;
 
-      const { mode, pos, direction, emitterId } = emissionContext;
+      const { mode, pos, direction, emitterId, source } = emissionContext;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
+      const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
 
       // Check emission gate
       const lastEmission = this.emissionGate.destructiveChaos.get(emitterId) ?? -Infinity;
-      if (now - lastEmission < this.gateDelays.destructiveChaos) {
+      if (now - lastEmission < this.gateDelays.destructiveChaos * sourceCooldownMul) {
         return;
       }
 
@@ -1112,7 +1123,7 @@ export class WaveParticleEmitter_v1 {
       // Emit 5-8 chaotic particles
       const burstCount = Math.max(
         1,
-        Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * scaled)
+        Math.floor((5 + Math.random() * 3.99) * this.config.emissionRate * emissionRateMul * scaled)
       );
 
       for (let i = 0; i < burstCount; i++) {
@@ -1149,21 +1160,23 @@ export class WaveParticleEmitter_v1 {
   /**
    * Emit Standing Wave Ripple particles (expanding rings)
    */
-  _emitStandingWaveRipple(node, strength = 1, modeOverride = null) {
+  _emitStandingWaveRipple(node, strength = 1, modeOverride = null, runtimeOptions = {}) {
     try {
       if (!this.config.standingWaveRippleEnabled) return;
 
       const emissionContext = this._resolveEmissionContext(node, modeOverride);
       if (!emissionContext) return;
 
-      const { mode, pos, direction, emitterId } = emissionContext;
+      const { mode, pos, direction, emitterId, source } = emissionContext;
       const now = this.time;
       const normalizedStrength = this._clamp01(strength);
       const scaled = 0.6 + normalizedStrength * 0.8;
+      const emissionRateMul = Number(runtimeOptions.emissionRateMul ?? 1) || 1;
+      const sourceCooldownMul = source === 'cascade' ? this.config.cascadeCooldownMultiplier : 1.0;
 
       // Check emission gate
       const lastEmission = this.emissionGate.standingWaveRipple.get(emitterId) ?? -Infinity;
-      if (now - lastEmission < this.gateDelays.standingWaveRipple) {
+      if (now - lastEmission < this.gateDelays.standingWaveRipple * sourceCooldownMul) {
         return;
       }
 
@@ -1172,7 +1185,7 @@ export class WaveParticleEmitter_v1 {
       // Emit subtle local harmonic cues on nodes and more readable travel cues on links
       const rippleCount = Math.max(
         1,
-        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * scaled)
+        Math.floor(((mode === 'link' ? 1 + Math.random() * 1.99 : 0.85 + Math.random() * 0.75)) * this.config.emissionRate * emissionRateMul * scaled)
       );
 
       for (let i = 0; i < rippleCount; i++) {
@@ -1238,8 +1251,21 @@ export class WaveParticleEmitter_v1 {
       direction,
       emitterId,
       sourcePosition: target?.sourcePosition ?? null,
-      targetPosition: target?.targetPosition ?? null
+      targetPosition: target?.targetPosition ?? null,
+      source: target?.source ?? this._resolveWaveSource(target, target?.userData?.waveField ?? null)
     };
+  }
+
+  _resolveWaveSource(target, waveField = null) {
+    const directSource = waveField?.source;
+    if (typeof directSource === 'string' && directSource) return directSource;
+
+    const userDataSource = target?.userData?.waveField?.source;
+    if (typeof userDataSource === 'string' && userDataSource) return userDataSource;
+
+    if (target?.userData?.cascadeInfection?.active) return 'cascade';
+    if (Number(target?.userData?.cascadeIntensity) > 0) return 'cascade';
+    return 'wave';
   }
 
   _createLinkArcPath(sourcePosition, targetPosition, strength = 1) {

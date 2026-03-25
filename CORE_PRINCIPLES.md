@@ -1,11 +1,20 @@
-# CORE_PRINCIPLES — ATOMA
+# CORE_PRINCIPLES -- ATOMA
 
-This document defines the **core principles** that guide all decisions
-in the ATOMA project.
+This document defines the core principles that guide all decisions in ATOMA.
 
-These principles are **non-negotiable**.
-They exist to protect the identity, coherence, and long-term integrity
-of the system.
+These principles are non-negotiable.
+They protect identity, coherence, and long-term systemic quality while allowing controlled evolution.
+
+---
+
+## Project Phase
+
+`PROJECT_PHASE = EVOLUTION_V2`
+
+ATOMA is not in stabilization mode.
+ATOMA is in controlled evolution.
+
+The system is expected to improve, modernize, and expand in quality without abandoning its identity.
 
 ---
 
@@ -13,93 +22,202 @@ of the system.
 
 ATOMA prioritizes systemic meaning over visual noise.
 
-- Visuals exist to communicate state
-- Effects must serve understanding
-- Nothing exists purely for decoration
+- visuals communicate state
+- effects support understanding
+- atmosphere strengthens perception of the system
+- nothing exists purely for decoration
 
-If something looks impressive but communicates nothing,
-it does not belong in ATOMA.
+If something looks impressive but communicates nothing, it does not belong in ATOMA.
 
 ---
 
-## 2. SUBTLETY OVER EXPLICITNESS
+## 2. SUBTLETY, CLARITY, AND MEANING
 
 ATOMA prefers:
-- gradual change over instant feedback
-- emergent signals over UI warnings
-- interpretation over instruction
 
-The player is expected to *read* the system,
-not be told what is happening.
+- readable signals over noisy signals
+- meaningful layering over flat spectacle
+- emergent communication over UI spam
+- interpretability over raw intensity
+
+Subtlety is still a core value, but subtlety does not mean weakness.
+High impact is valid when it remains readable, purposeful, and low-noise.
 
 ---
 
-## 3. EVERYTHING HAS A REASON
+## 3. EVERYTHING MUST HAVE A REASON
 
-Every system, metric, and visual behavior must answer:
+Every system, metric, visual behavior, and architectural change must answer:
+
 - Why does this exist?
+- What does it improve?
 - What does it communicate?
 - What would be lost if it were removed?
 
-If no clear answer exists, the feature is suspect.
+Valid reasons include:
+
+- performance
+- clarity
+- visual quality
+- system coherence
+
+If no clear reason exists, the feature is suspect.
 
 ---
 
-## 4. BALANCE OVER OPTIMIZATION
+## 4. CONTROLLED INNOVATION, NOT CHAOS
 
-ATOMA is not about maximizing values.
+Innovation is part of ATOMA.
 
-- Synergy can be harmful in excess
-- Harmony is fragile
-- Corruption is meaningful, not just negative
+New systems, refactors, visual layers, and optimizations are allowed when they:
 
-Optimization without context breaks the system.
+- improve performance
+- improve clarity
+- improve visual quality
+- improve system coherence
+
+Not allowed:
+
+- random effects without meaning
+- duplicate systems without reason
+- architectural chaos
+- breaking changes without clear justification
 
 ---
 
-## 5. CALM IS A DESIGN GOAL
+## 5. BALANCE OVER RAW OPTIMIZATION
+
+ATOMA is not about maximizing values blindly.
+
+- synergy can become unstable in excess
+- harmony is valuable because it is fragile
+- corruption is meaningful, not merely negative
+- stability matters because the system is alive, not static
+
+Optimization without systemic context breaks the system.
+
+---
+
+## 6. CALM IS A DESIGN GOAL, NOT A LIMITATION
 
 ATOMA avoids constant stimulation.
 
-- Silence is allowed
-- Stillness is meaningful
-- Change must earn attention
+- silence is allowed
+- stillness is meaningful
+- change must earn attention
+- intense moments must emerge from systemic truth
 
-The system should never feel loud without necessity.
-
----
-
-## 6. SMALL CHANGES, LONG MEMORY
-
-ATOMA evolves through:
-- small, deliberate steps
-- reviewed changes
-- preserved intent
-
-Speed is secondary to coherence.
+The system should feel alive, energetic, and intelligent without collapsing into visual noise.
 
 ---
 
-## 7. AI IS AN ASSISTANT, NOT AN AUTHOR
+## 7. LAYERED VISUAL LANGUAGE
 
-AI tools may:
-- execute
-- analyze
-- review
+ATOMA visuals should be built in layers:
 
-AI tools may not:
-- redefine intent
-- invent core systems
-- override design philosophy
+- `CORE`
+- `SURFACE`
+- `OVERLAY`
+- `ATMOSPHERE`
 
-Final responsibility always lies with the human.
+Each layer must have a readable role.
+Effects should reinforce structure, not bury it.
+
+Preferred target:
+
+- high impact
+- low noise
+- clear hierarchy
+- graceful degradation
 
 ---
 
-## FINAL NOTE
+## 8. SUBSYSTEM AUTONOMY
 
-These principles exist to protect ATOMA
-from entropy, haste, and external pressure.
+ATOMA evolves through modular subsystems.
 
-If a decision violates these principles,
-it should not be implemented.
+Primary mental model:
+
+- `NODE SYSTEM`
+- `LINK SYSTEM`
+- `METRICS SYSTEM`
+- `WAVE / CASCADE SYSTEM`
+- `VISUAL FX SYSTEM`
+- `UI SYSTEM`
+
+Each subsystem may evolve independently.
+Each subsystem must still respect shared global authorities and compatibility boundaries.
+
+Do not create unnecessary cross-dependencies.
+Do not break another subsystem's API without reason.
+
+---
+
+## 9. SHARED AUTHORITIES MUST REMAIN CLEAR
+
+The following authorities remain canonical:
+
+- `FrameScheduler`
+- `MetricsRuntime`
+- `VisualHierarchyRegistry`
+
+Canonical metrics remain:
+
+- `synergy`
+- `harmony`
+- `stability`
+- `corruption`
+- `loadPressure`
+
+No system should silently override another system.
+No subsystem should duplicate global authority without concrete justification.
+
+---
+
+## 10. PERFORMANCE IS PART OF DESIGN
+
+Performance is not an afterthought.
+ATOMA runs in the browser and must remain scalable.
+
+Rules:
+
+- respect `FrameScheduler` timing tiers: `10Hz` simulation, `30Hz` visual, `60Hz` runtime
+- prefer GPU-driven solutions where practical
+- use LOD and distance-based activation where relevant
+- stage heavy initialization across multiple frames
+- keep shader cost proportional to value
+
+---
+
+## 11. AI ROLE
+
+AI is:
+
+- co-architect
+- system designer
+- VFX engineer
+- optimization partner
+
+AI may:
+
+- propose new systems
+- refactor existing systems
+- improve architecture
+- modernize visuals and subsystem structure
+
+AI must:
+
+- preserve compatibility by default
+- respect these core principles
+- tie changes to concrete reasons
+- avoid duplication and meaningless complexity
+
+Final project authority remains human.
+
+---
+
+## Final Note
+
+These principles protect ATOMA from entropy, noise, and incoherent growth.
+
+If a decision violates these principles, it should be redesigned before implementation.

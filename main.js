@@ -224,6 +224,7 @@ import { AIThoughtStorms2_0, setupAIThoughtStormsConsoleAPI } from './_AIThought
 // import { ExtremeLinkVisuals4_0, setupExtremeLinkVisualsV4ConsoleAPI } from './_ExtremeLinkVisuals4_0.js'; // LEGACY
 import { LinkVisualMoodSystem, setupLinkMoodSystemConsoleAPI } from './LinkVisualMoodSystem.js';
 import { LinkSemanticMetricsBridge_v1 } from './LinkSemanticMetricsBridge_v1.js';
+import { LinkCascadeInfectionSystem } from './LinkCascadeInfectionSystem.js';
 // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
 import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
@@ -882,6 +883,7 @@ import { SynergyCascadeFXBridge_v1 } from './SynergyCascadeFXBridge_v1.js';
 // WEEK 25 (BONUS): WAVE INTERFERENCE ENGINE (Multi-Origin Wave System)
 // ============================================================================
 import { WaveInterferenceEngine_v1 } from './WaveInterferenceEngine_v1.js';
+import { CascadeToWaveBridge_v1 } from './CascadeToWaveBridge_v1.js';
 
 // ============================================================================
 // WEEK 25 (BONUS): WAVE SHADER BRIDGE (GPU Uniform Injection)
@@ -5590,6 +5592,20 @@ window.__ATOMA_SCENE__ = this.scene;
             console.warn('[main.js] WaveInterferenceEngine_v1 failed:', err);
         }
 
+        this.cascadeToWaveBridge = null;
+        try {
+            if (this.semanticBus && this.waveInterferenceEngine) {
+                this.cascadeToWaveBridge = new CascadeToWaveBridge_v1({
+                    semanticBus: this.semanticBus,
+                    waveInterferenceEngine: this.waveInterferenceEngine,
+                    linkingSystem: this.linkingSystem
+                }).init();
+            }
+        } catch (err) {
+            console.warn('[main.js] CascadeToWaveBridge_v1 init failed:', err?.message || err);
+            this.cascadeToWaveBridge = null;
+        }
+
         // Initialize Wave Burst Router (event-driven burst triggering)
         this._initWaveBurstRouter = () => {
             if (this.waveBurstRouter) return this.waveBurstRouter;
@@ -6170,6 +6186,29 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         } catch (err) {
             console.warn('[main.js] ResonanceEchoTrailSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.linkCascadeInfectionSystem && typeof this.linkCascadeInfectionSystem.rebind === 'function') {
+                this.linkCascadeInfectionSystem.rebind({
+                    linkingSystem,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkCascadeInfectionSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.cascadeToWaveBridge && typeof this.cascadeToWaveBridge.rebind === 'function') {
+                this.cascadeToWaveBridge.rebind({
+                    linkingSystem,
+                    semanticBus,
+                    waveInterferenceEngine: this.waveInterferenceEngine
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] CascadeToWaveBridge rebind failed:', err?.message || err);
         }
 
         try {
@@ -8065,6 +8104,16 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             console.warn('[main.js] LinkSemanticMetricsBridge_v1 init failed:', err?.message || err);
             this.linkSemanticMetricsBridge = null;
         }
+
+        this.linkCascadeInfectionSystem = null;
+        try {
+            this.linkCascadeInfectionSystem = new LinkCascadeInfectionSystem(this.linkingSystem, {
+                semanticBus: this.semanticBus
+            });
+        } catch (err) {
+            console.warn('[main.js] LinkCascadeInfectionSystem init failed:', err?.message || err);
+            this.linkCascadeInfectionSystem = null;
+        }
         // REMOVED (2026-03-01): LinkMetricsSanityGuard disabled for new visual modules
         this.semanticActivityFilter = null;
         try {
@@ -9881,6 +9930,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // This method exists to satisfy FrameScheduler callbacks.
         if (this.linkSemanticMetricsBridge) {
             this.linkSemanticMetricsBridge.update(deltaTime);
+        }
+        if (this.linkCascadeInfectionSystem) {
+            this.linkCascadeInfectionSystem.update(deltaTime);
         }
         // REMOVED (2026-03-01): LinkMetricsSanityGuard.update() disabled
         // if (this.linkMetricsSanityGuard) {

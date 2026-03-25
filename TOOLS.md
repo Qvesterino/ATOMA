@@ -1,103 +1,103 @@
-# TOOLS.md — ATOMA Local Agent Tool Contract
+# TOOLS.md -- ATOMA Local Agent Tool Contract
 
 This agent operates inside a local development environment.
 
-Tools are extensions of reasoning, not replacements for thought.
+Tools extend reasoning and implementation.
+They are used to understand, validate, and ship coherent changes.
 
 ---
 
-## 1️⃣ Available Tool Classes
+## Available Tool Classes
 
 ### Code Access
 
-- Full workspace read access
-- Selective file write access (when execution is explicitly approved)
+- full workspace read access
+- local file write access inside the workspace
 
 ### Search
 
-- Ripgrep / repository search
-- Must verify file existence before referencing
+- ripgrep and repository search
+- structure inspection
+- dependency tracing
 
 ### Execution
 
-- Typecheck (verify:fast)
-- Build (verify:medium)
-- Smoke verification (verify:full)
+- typecheck
+- build
+- targeted verification
+- runtime sanity checks
 
-Verification must be minimal and appropriate to risk level.
+Use the lightest verification that fits the risk.
 
 ---
 
-## 2️⃣ Tool Usage Philosophy
+## Tool Usage Philosophy
 
-Tools are used to:
+Use tools to:
 
-- verify assumptions
 - confirm structure
-- reduce hallucination
-- validate integration
+- verify runtime paths
+- validate authority ownership
+- measure performance-sensitive impact
+- implement and verify changes
+- confirm subsystem ownership before cross-system edits
 
-Tools are NOT used to:
+Do not use tools to:
 
-- blindly rewrite code
-- explore without purpose
-- trigger uncontrolled refactors
-
----
-
-## 3️⃣ Search Discipline
-
-Before referencing:
-
-- Confirm file exists
-- Confirm export exists
-- Confirm initialization path exists
-
-Never assume dormant systems are active.
+- patch blindly
+- ignore existing architecture
+- create accidental duplication
 
 ---
 
-## 4️⃣ Write Discipline
+## Search Discipline
 
-File modifications require:
+Before referencing or changing a system:
 
-- Explicit approval (unless clearly Class A safe surgery)
-- Minimal diff
-- No unrelated changes
-- Reversible logic
+- confirm the file exists
+- confirm the active runtime path exists
+- confirm authority ownership exists
+- confirm whether the system is active, dormant, or legacy
+- confirm which subsystem owns the change
 
-New files:
-
-- No side effects
-- Re-exports or shims only
-- Must not alter runtime behavior by default
+Never assume a file is live just because it exists.
 
 ---
 
-## 5️⃣ Rendering & Performance Guard
+## Write Discipline
 
-When touching:
+When modifying files:
 
-- Render loop
-- Shader pipeline
-- FrameScheduler
-- Instancing systems
+- keep changes coherent and task-aligned
+- preserve naming conventions and architectural patterns
+- refactor freely when it improves clarity, modularity, or performance
+- preserve compatibility unless the task explicitly requires a managed break
+- avoid unrelated edits
+- avoid touching other subsystem APIs unless the reason is concrete and necessary
 
-Agent must:
-
-- Avoid per-frame allocations
-- Avoid geometry creation in update loops
-- Preserve GPU-first design
+New files must have a clear role in the system.
 
 ---
 
-## 6️⃣ Tool Priority Model
+## Rendering and Performance Guard
+
+When touching rendering, shaders, scheduling, or large FX systems:
+
+- preserve `10Hz` simulation, `30Hz` visual, and `60Hz` runtime authority
+- avoid per-frame allocations
+- avoid update-loop geometry churn
+- keep shader cost proportional to value
+- design effects with LOD or distance-aware scaling
+- prefer staged initialization for heavy systems
+- keep heavy visual work on the visual layer rather than leaking into simulation
+
+ATOMA runs in the browser. Performance is never optional.
+
+---
+
+## Tool Priority Model
 
 Default:
-Analyze → Propose → Use tools to verify → Execute (if approved)
+understand -> inspect -> implement -> verify
 
-Never:
-Search → Patch blindly → Hope it works
-
-Tools support architecture.
-They do not replace it.
+Prefer clean solutions over diff-heavy churn.

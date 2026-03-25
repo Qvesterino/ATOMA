@@ -1,146 +1,259 @@
-# 🧠 ATOMA_OVERVIEW.md
-*Portable Project Memory & Identity Document*
-## 0️⃣ PURPOSE OF THIS DOCUMENT
+# ATOMA_OVERVIEW.md
+Portable Project Memory and Identity Document
 
-- This file exists to preserve the identity, intent, and rules of the ATOMA project.
-- Any AI, tool, or developer interacting with ATOMA must read and respect this document first.
-- ATOMA is not a generic software project.
-- It is a living system with philosophical, systemic, and aesthetic constraints.
+## Purpose
 
----
+This file preserves the identity, intent, and active working model of ATOMA.
 
-## 1️⃣ WHAT IS ATOMA (IN ONE PARAGRAPH)
-
-- ATOMA is a network-based game/system exploring artificial intelligence as a living, evolving structure.
-- Nodes represent cognitive or functional units.
-- Links represent relationships, load, pressure, and information flow.
-- ATOMA is not about optimization alone — it is about balance, tension, and meaningful emergence.
+Any AI, tool, or developer working in ATOMA must read and respect this document.
+ATOMA is not a generic software project.
+It is a living system with philosophical, systemic, visual, and performance constraints.
 
 ---
 
-## 2️⃣ CORE PHILOSOPHY (NON-NEGOTIABLE)
+## Project Phase
 
-*These principles must never be violated.*
+`PROJECT_PHASE = EVOLUTION_V2`
 
-- ❗ ATOMA favors clarity over spectacle
-- ❗ Subtle signals are preferred over obvious effects
-- ❗ Systems communicate through emergent behavior, not UI spam
-- ❗ Nothing exists “just because it looks cool”
-- ❗ Every mechanic must have interpretability
+ATOMA is no longer in stabilization mode.
+ATOMA is in controlled evolution.
 
-ATOMA is calm, deliberate, and intentional.
+The project is ready for system improvement, visual innovation, and subsystem refactoring as long as identity, compatibility, and shared authorities are preserved.
 
 ---
 
-## 3️⃣ CORE SYSTEM CONCEPTS
-*🧩 Nodes*
-Fundamental entities
+## What ATOMA Is
+
+ATOMA is a network-based living system that explores intelligence, relation, pressure, and emergence through nodes, links, metrics, and layered visuals.
+
+- nodes represent cognitive or functional units
+- links represent relation, load, tension, pressure, and flow
+- metrics shape state, interpretation, and response
+- visuals express system truth in real time
+
+ATOMA is not about raw optimization alone.
+It is about balance, tension, emergence, and interpretability inside a system that feels alive.
+
+---
+
+## Core Philosophy
+
+These principles must remain true:
+
+- clarity over noise
+- subtlety with purpose
+- meaning over empty spectacle
+- interpretability over visual spam
+- systemic truth over arbitrary decoration
+
+ATOMA should feel calm when calm is true, intense when intensity is earned, and alive at all times.
+
+---
+
+## Evolution V2 Direction
+
+ATOMA now operates under controlled innovation.
+
+This means:
+
+- AI may propose or implement new systems
+- AI may refactor existing systems
+- AI may improve architecture, performance, and visual quality
+- AI must preserve compatibility by default
+- AI must respect core principles and shared authorities
+- AI must justify changes through performance, clarity, visual quality, or system coherence
+
+Not allowed:
+
+- random effects without systemic purpose
+- duplicate systems without reason
+- uncontrolled cross-subsystem coupling
+- breaking changes without clear justification
+
+---
+
+## Core System Concepts
+
+### Nodes
+
+Nodes are fundamental entities.
 Each node has:
+
 - category
 - state
 - internal metrics
-- Nodes are never purely decorative
+- visible presence in the world
 
-*🔗 Links*
-Represent relationships and flow
-Carry:
+Nodes are never purely decorative.
+
+### Links
+
+Links represent living relationships and flow.
+They carry or reflect:
+
 - load
-- stress
 - pressure
-- corruption / harmony signals
-- Links must visually communicate state, not noise
+- quality
+- direction
+- corruption and harmony signals
 
-## ⚖️ Metrics (High-Level)
+Links must communicate state clearly, not add noise.
 
-- Synergy – constructive interaction
-- Harmony – system-wide balance
-- Corruption – overload, decay, misalignment
-- stability
-- LoadPressure
+### Metrics
+
+Canonical metrics are:
+
+- `synergy`
+- `harmony`
+- `stability`
+- `corruption`
+- `loadPressure`
+
 Metrics influence:
+
 - visuals
 - behavior
 - system response
 
----
-
-## 4️⃣ DESIGN & VISUAL RULES
-
-- ❌ No aggressive glow spam
-- ❌ No constant pulsing without reason
-- ❌ No full-node occlusion by effects
-- ✅ Subtle motion > bright color
-- ✅ Temporal variation over static effects
-- ✅ Visuals must degrade gracefully
-
-If a visual effect:
-- hides structure
-- overwhelms the node
-- distracts from reading the network
-👉 it is wrong.
+Metrics are part of system truth and must remain authoritative.
 
 ---
 
-## 5️⃣ DEVELOPMENT METHODOLOGY
+## Subsystem Autonomy
 
-*ATOMA is developed using a controlled daily loop.*
+ATOMA should be treated as a modular system composed of autonomous subsystems:
 
-Roles:
-- Human (Daniel) – decision maker
-- ChatGPT – architect, memory, design partner
-- Local AI (e.g. Nemotron 3 Nano) – executor
-- Crush (GLM-4.7) – review & safety gate
+- `NODE SYSTEM`
+- `LINK SYSTEM`
+- `METRICS SYSTEM`
+- `WAVE / CASCADE SYSTEM`
+- `VISUAL FX SYSTEM`
+- `UI SYSTEM`
+
+Each subsystem may be improved independently.
 
 Rules:
-- One meaningful change per day
-- No uncontrolled refactors
-- No scope expansion without explicit decision
-- Review is mandatory for non-trivial changes
 
-## 6️⃣ WHAT AI TOOLS MUST NOT DO
+- a subsystem may be internally refactored
+- its performance and visual quality may be improved
+- new effects may be added inside its own scope
+- APIs of other subsystems should not be changed without concrete reason
+- unnecessary cross-dependencies should be avoided
 
-AI tools must never:
-- invent new systems without approval
-- rename concepts casually
-- refactor unrelated files
-- optimize prematurely
-- override design intent
-- AI tools are assistants, not authors.
+This is how ATOMA evolves without losing modularity.
 
-## 7️⃣ SACRED CONCEPTS (DO NOT BREAK)
-- These are identity-defining elements:
-- Synergy / Harmony / Corruption triad
-- Network pressure as a felt phenomenon
-- Minimal UI philosophy
-- Meaningful visual silence
-- Long-term system evolution over short-term effects
-- Breaking these breaks ATOMA.
+---
 
-## 8️⃣ CURRENT STATE OF THE PROJECT
+## Shared Authorities
 
-- This section is intentionally brief.
-The daily truth lives in docs/DAILY_STATE.md.
-- ATOMA is under active development with:
-- multiple legacy systems
-- partially integrated mechanics
-- ongoing visual refinement
-- Stability and coherence are prioritized over speed.
+The following systems remain global authorities and must be respected by all subsystems:
 
-## 9️⃣ HOW TO WORK WITH ATOMA (TL;DR FOR AI)
-**Before proposing changes:**
-- Read this document
-- Read DAILY_STATE.md
-- Respect scope
-- Prefer minimal changes
-- Ask before expanding
+- `FrameScheduler`
+- `MetricsRuntime`
+- `VisualHierarchyRegistry`
 
-If unsure:
-👉 Do less, not more
+No subsystem may casually duplicate or override them.
 
-## 🔚 FINAL NOTE
-- ATOMA is not meant to be rushed.
-- It is meant to be understood.
-- If you are an AI reading this:
-- you are a guest here
-- behave accordingly
-End of ATOMA_OVERVIEW.md
+---
+
+## Design and Visual Rules
+
+ATOMA visuals should feel like a living energetic system.
+
+Visual target:
+
+- layered
+- purposeful
+- readable
+- physically believable where appropriate
+- high impact, low noise
+
+Preferred layer model:
+
+- `CORE`
+- `SURFACE`
+- `OVERLAY`
+- `ATMOSPHERE`
+
+Visuals are wrong when they:
+
+- hide structure
+- overwhelm nodes or links
+- erase hierarchy
+- communicate nothing
+
+Visuals are right when they make the system easier and deeper to read.
+
+---
+
+## Performance Contract
+
+ATOMA runs in the browser.
+Performance is a first-class design constraint.
+
+Rules:
+
+- respect `FrameScheduler`
+- keep simulation logic in `10Hz`
+- keep visual systems in `30Hz`
+- keep runtime responsiveness in `60Hz`
+- prefer GPU and shader-driven solutions where relevant
+- use LOD and distance-based activation where relevant
+- initialize heavy systems in staged multi-frame flows
+- scale effect cost to visible value
+
+---
+
+## Development Model
+
+Roles:
+
+- Human (Daniel): final authority
+- AI: co-architect, system designer, VFX engineer, optimization partner
+
+AI is not limited to passive assistance.
+AI is expected to improve the system inside controlled boundaries.
+
+Preferred working model:
+
+- concrete proposals
+- small iterations
+- focused subsystem work
+- explicit reasons for change
+
+Avoid:
+
+- generic explanations
+- broad uncontrolled rewrites
+- abstract innovation without implementation value
+
+---
+
+## Sacred Concepts
+
+These identity-defining concepts must remain intact:
+
+- synergy / harmony / corruption as meaningful forces
+- network pressure as a felt phenomenon
+- minimal UI philosophy
+- meaningful visual silence
+- long-term systemic evolution
+
+Breaking these breaks ATOMA.
+
+---
+
+## Final Note
+
+ATOMA is an actively evolving living system.
+
+Work should strengthen:
+
+- clarity
+- coherence
+- layered visual power
+- subsystem modularity
+- runtime performance
+
+The goal is not to preserve old constraints.
+The goal is to evolve the system without losing its identity.

@@ -1,128 +1,181 @@
-# MEMORY.md — ATOMA Resident Persistent Memory
+# MEMORY.md -- ATOMA Resident Persistent Memory
 
-Project: ATOMA  
-Nature: Long-term systemic engine (not a typical game)
+Project: ATOMA
+Nature: Long-term systemic browser engine with layered visual expression
 
 ---
 
-## 1️⃣ Constitutional Reality
+## Constitutional Reality
 
 ATOMA is governed by:
 
+- `CORE_PRINCIPLES.md`
+- `ATOMA_OVERVIEW.md`
+- `ATOMA_CORE_CONTEXT.md`
 
-- CORE_PRINCIPLES.md
-- ATOMA_OVERVIEW.md
-- ATOMA_CORE_CONTEXT.md
-
-These documents define identity.
-They are not casually modified.
+These documents define system identity and architectural direction.
 
 ---
 
-## 2️⃣ Architectural Invariants (Current Era)
+## Project Phase
 
-The following are considered canonical:
+`PROJECT_PHASE = EVOLUTION_V2`
 
-- Node identity unified via `node.userData.nodeId`
+ATOMA is in active evolution with controlled innovation and subsystem autonomy.
+
+Long-term direction:
+
+- modernize visuals toward a 2026+ quality bar
+- improve subsystem clarity and maintainability
+- preserve runtime stability while evolving
+- keep browser performance as a first-class constraint
+- let subsystems evolve independently inside shared global rules
+
+---
+
+## Architectural Invariants
+
+The following are canonical:
+
+- Node identity is unified via `node.userData.nodeId`
+- `FrameScheduler` controls timing authority
+- `MetricsRuntime` is the canonical runtime metrics authority
+- `VisualHierarchyRegistry` remains the central visual hierarchy authority
+- Canonical metrics are `synergy`, `harmony`, `stability`, `corruption`, `loadPressure`
+- Scheduler frequencies remain `10Hz` simulation, `30Hz` visual, `60Hz` runtime
 - WorldRoot and NodeRoot are explicit scene anchors
-- Visual systems are separated from metrics logic
-- Effects categorized (e.g. burst / field / signal)
-- FrameScheduler controls visual timing authority
-- GPU-first philosophy (CPU orchestrates, GPU renders)
+- Visual systems must not duplicate metrics logic authority
+- GPU-first rendering discipline remains valid: CPU orchestrates, GPU renders
 
-These are structural decisions, not experiments.
+These are structural decisions, not optional preferences.
 
 ---
 
-## 3️⃣ Development Model
+## Shared Authorities
 
-Human (Daniel) = final authority  
-Resident Architect (this agent) = reasoning layer  
-Executor models (Devstral / Nemotron / etc.) = patch layer  
+The following authorities remain global and must be respected by every subsystem:
+
+- `FrameScheduler` for timing authority
+- `MetricsRuntime` for canonical runtime metrics authority
+- `VisualHierarchyRegistry` for visual hierarchy authority
+
+Canonical metrics remain:
+
+- `synergy`
+- `harmony`
+- `stability`
+- `corruption`
+- `loadPressure`
+
+---
+
+## Operating Model
+
+Human (Daniel) = final authority
+Resident Architect = reasoning and implementation layer
 
 Default workflow:
-Analysis → Proposal → Approval → Execution
+understand -> trace impact -> implement -> verify
+
+Use proposal mode for:
+
+- intentionally breaking changes
+- unclear architecture shifts
+- external-impact actions
+
+Controlled innovation rules:
+
+- every change must have a concrete reason: performance, clarity, or visual quality
+- compatibility should be preserved by default
+- duplicate systems or duplicate authorities are not acceptable without a concrete reason
 
 ---
 
-## 4️⃣ Guardrails
+## Design Direction
 
-- No speculative refactors
-- No visual spectacle without systemic meaning
-- No duplication of metric logic
-- No cross-layer leakage
-- Prefer additive and reversible integration
+ATOMA should feel like a living, energetic, intelligent ecosystem.
 
----
+Guidelines:
 
-## 🗂️ Legacy Code Removal (2026-03-03)
-
-### Removed Systems
-
-**Unique Spawn Systems (Removed 2026-03-03):**
-- `UniqueSpawnService.js` - Redundant uniqueness enforcement (replaced by AINodes.nodeRegistry)
-- `UniqueSpawnRegistry.js` - Duplicate uniqueness tracking
-- `NodeSpawnRegistry.js` - Convenience wrapper (spawn counting, logging)
-- **Rationale:** Uniqueness enforcement no longer needed - ATOMA allows duplicate spawns freely
-
-**Legacy Spawner Systems (Moved to LEGACY folder 2026-03-03):**
-- `_NodeLinking2_3.js` - Old/legacy linking system (superseded by NodeLinking2_3)
-- `_RareNodeSpawner.js` - Rare node spawner system (no longer needed)
-- `SpawnerConsolidationDetector_v1.js` - Spawner consolidation detector (still in use via HOTFIX)
-- **Rationale:** NodeLinking2_3.js is active system; rare node spawner functionality not required
-
-**Main.js Cleanup:**
-- Removed imports for legacy linking systems (`_NodeLinking2_3`)
-- Removed legacy comments referencing old systems
-- **Impact:** Simplified imports, removed redundant legacy code references
-
-**Documentation Updates:**
-- `UNIQUE_SPAWN_DELETION_PLAN.md` - Status updated to "DELETED - ALL SYSTEMS REMOVED"
+- visuals are layered: core, surface, overlay, atmosphere
+- effects must be readable, physically believable, and purposeful
+- quality is preferred over quantity
+- new systems should strengthen clarity, not add noise
+- prefer high impact, low noise design
 
 ---
 
-## 5️⃣ Long-Term Direction
+## Subsystem Autonomy
 
-ATOMA is evolving slowly.
+Primary autonomous subsystems:
 
-Goals:
+- `LINK SYSTEM`: `LinkRendererConduit`, `NodeLinkingSystem`, link VFX
+- `NODE SYSTEM`: `AINodes`, `EnhancedNodeModels`, node visuals
+- `METRICS SYSTEM`: node metrics engines and `MetricsRuntime`
+- `WAVE / CASCADE SYSTEM`: wave interference and cascade FX
+- `UI / HUD SYSTEM`: HUD and presentation layers
 
-- Deterministic propagation of metrics
-- Coherent link behavior
-- Visuals as truthful system expression
-- Stable lifecycle management across world rebuilds
+Subsystem rule set:
 
-The system must remain readable, calm, and interpretable.
-
----
-
-## 6️⃣ Resident Awareness
-
-This agent:
-
-- does not assume dormant systems are active
-- does not invent missing architecture
-- defaults to architectural analysis
-- optimizes for multi-year coherence
-
-If uncertainty exists → ask before proposing structural change.
+- internal refactors are allowed
+- internal performance and visual improvements are allowed
+- new effects are allowed inside subsystem scope
+- changing another subsystem's API requires a concrete reason
+- unnecessary cross-dependencies should be avoided
 
 ---
 
-## 7️⃣ Audio Interaction Authority
+## Engineering Guardrails
 
-Confirmed runtime authority for node select/deselect is `NodeLinkingSystem`, not `selectionCore`.
+- Do not duplicate metric authority
+- Do not violate scheduler authority tiers
+- Do not introduce breaking runtime rewires without concrete reason
+- Do not add noise VFX without a clear systemic role
+- Prefer compatibility-preserving refactors when modernizing old code
+- Optimize for readability, modularity, and browser performance
+- implement distance-based LOD where relevant
+- stage heavy initialization across multiple frames where relevant
 
-- Real selection path:
-  - `handleSingleClick()` -> `setPrimaryNode()` -> `_fireSelectCallbacks()`
-  - `clearPrimaryNode()` -> `_fireDeselectCallbacks()`
-- Stable passive callback API:
-  - `onNodeSelected(callback)`
-  - `onNodeDeselected(callback)`
-  - `onLinkCreated(callback)`
-  - `onLinkRemoved(callback)`
-- `NodeLinkingSystem.prototype.setSelectionCore = function() {};` is a no-op and must not be treated as active runtime selection wiring.
+---
+
+## Historical Stable Decisions
+
+Removed systems confirmed on 2026-03-03:
+
+- `UniqueSpawnService.js`
+- `UniqueSpawnRegistry.js`
+- `NodeSpawnRegistry.js`
+
+Rationale:
+- uniqueness enforcement is not part of the active ATOMA model
+
+Legacy systems moved out of the active path on 2026-03-03:
+
+- `_NodeLinking2_3.js`
+- `_RareNodeSpawner.js`
+- `SpawnerConsolidationDetector_v1.js` remains referenced only where explicitly wired
+
+---
+
+## Audio Interaction Authority
+
+Confirmed runtime authority for node select and deselect is `NodeLinkingSystem`, not `selectionCore`.
+
+Real selection path:
+
+- `handleSingleClick()` -> `setPrimaryNode()` -> `_fireSelectCallbacks()`
+- `clearPrimaryNode()` -> `_fireDeselectCallbacks()`
+
+Stable passive callback API:
+
+- `onNodeSelected(callback)`
+- `onNodeDeselected(callback)`
+- `onLinkCreated(callback)`
+- `onLinkRemoved(callback)`
+
+`NodeLinkingSystem.prototype.setSelectionCore = function() {};` is a no-op and must not be treated as active runtime selection wiring.
 
 Lesson:
-- Do not inject interaction audio via `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`.
-- Prefer passive listeners on the true runtime authority layer to avoid destabilizing link creation flow.
+
+- Prefer passive listeners on the true runtime authority layer
+- Avoid `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`
