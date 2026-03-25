@@ -7,6 +7,7 @@
  * 
  * ARCHITECTURAL CONTRACT:
  * - Canonical metrics: Use SemanticMetricAdapter.getNodeCanonicalMetrics() / getLinkSynergy() / getLinkCorruption()
+ * - Canonical link visual profile: Use SemanticMetricAdapter.getLinkSynergyVisualMetrics()
  * - Runtime visual state: This adapter manages runtime.* paths
  * - NO metric reading logic in this file
  * 
@@ -21,6 +22,7 @@ import {
   getLinkSynergy,
   getLinkCorruption,
   getLinkCanonicalMetrics,
+  getLinkSynergyVisualMetrics,
   clearLegacyWarningCache
 } from '../../SemanticMetricAdapter.js';
 
@@ -271,6 +273,14 @@ export class LinkMetricRuntimeAdapter {
    */
   static getSynergy(link) {
     return getLinkSynergy(link);
+  }
+
+  /**
+   * Get canonical link visual synergy profile (DELEGATED to SemanticMetricAdapter)
+   * @deprecated Use SemanticMetricAdapter.getLinkSynergyVisualMetrics() directly
+   */
+  static getSynergyVisualMetrics(link) {
+    return getLinkSynergyVisualMetrics(link);
   }
 
   /**
@@ -601,7 +611,8 @@ export {
   getNodeCanonicalMetrics,
   getLinkSynergy,
   getLinkCorruption,
-  getLinkCanonicalMetrics
+  getLinkCanonicalMetrics,
+  getLinkSynergyVisualMetrics
 } from '../../SemanticMetricAdapter.js';
 
 // Console API for debugging
@@ -615,6 +626,7 @@ if (typeof window !== 'undefined') {
     getLinkSynergy,
     getLinkCorruption,
     getLinkCanonicalMetrics,
+    getLinkSynergyVisualMetrics,
     clearWarnings: clearLegacyWarningCache
   };
   

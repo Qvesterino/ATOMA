@@ -71,6 +71,7 @@ export class LinkCorruptionSpreadAnimator {
       pulsePauseMs: 3000,             // Requested cadence: spread / pause / spread
       forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
       maxCorruptionForSpread: 0.95,   // Cap on corruption visualization
+      dustTravelSpeed: 0.42,
       dustParticleCount: 18,
       dustWaveWidth: 0.18,
       dustHeight: 0.16,
@@ -155,6 +156,7 @@ export class LinkCorruptionSpreadAnimator {
     
     this.animationStates.set(link.id, {
       wavePhase: 0,
+      dustTravelPhase: 0,
       intensity: 0,
       time: 0,
       startTime: performance.now(),
@@ -237,6 +239,10 @@ export class LinkCorruptionSpreadAnimator {
       state.lastTriggerTime = nowMs;
     }
     state.previousCorruption = corruptionLevel;
+
+    if (sustainEligible || lingerActive) {
+      state.dustTravelPhase = ((state.dustTravelPhase || 0) + deltaTime * this.config.dustTravelSpeed) % 1;
+    }
     
     // Update animation phase (0 to 1, represents wave position)
     if (state.isAnimating) {
@@ -261,7 +267,7 @@ export class LinkCorruptionSpreadAnimator {
       debugVisibilityBoost: debugCfg.visibilityBoost
     });
 
-    this._updateDustWave(link, state, corruptionLevel);
+    this._updateDustWave(link, state, corruptionLevel, { lingerActive, sustainEligible });
     
     return state;
   }
@@ -339,12 +345,14 @@ export class LinkCorruptionSpreadAnimator {
     return { up, lateral };
   }
 
-  _updateDustWave(link, state, corruptionLevel) {
+  _updateDustWave(link, state, corruptionLevel, flags = {}) {
     const dust = this._ensureDustState(link, state);
     if (!dust) return;
 
     const active =
       (state.isAnimating && corruptionLevel >= this.config.spreadStartThreshold) ||
+      flags.sustainEligible ||
+      flags.lingerActive ||
       corruptionLevel > 0.15;
     dust.points.visible = active;
     if (!active) {
@@ -354,14 +362,14 @@ export class LinkCorruptionSpreadAnimator {
 
     const positions = dust.geometry.attributes.position.array;
     const basis = this._computeLinkBasis(link);
-    const wavePhase = state.wavePhase;
+    const travelPhase = state.dustTravelPhase || 0;
     const width = this.config.dustWaveWidth;
 
     for (let i = 0; i < dust.seeds.length; i++) {
       const seed = dust.seeds[i];
-      const relative = seed.tOffset - wavePhase;
+      const relative = seed.tOffset - travelPhase;
       const influence = Math.exp(-(relative * relative) / Math.max(0.0001, width * width));
-      const sampleT = Math.max(0, Math.min(1, wavePhase + relative * 0.45));
+      const sampleT = Math.max(0, Math.min(1, travelPhase + relative * 0.45));
       const basePos = this._sampleLinkPosition(link, sampleT);
       const shimmer = Math.sin(state.time * 4.0 + seed.phase + sampleT * 9.0);
 

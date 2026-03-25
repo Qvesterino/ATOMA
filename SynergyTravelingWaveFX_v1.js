@@ -435,6 +435,11 @@ export class SynergyTravelingWaveFX_v1 {
             waveSpeedBase: config.waveSpeedBase || 4.0,  // 2–8 units/sec
             waveIntensityBase: config.waveIntensityBase || 1.0
         };
+        this.frameScheduler =
+            config.frameScheduler ||
+            config.world?.frameScheduler ||
+            globalThis.frameScheduler ||
+            null;
         this.waveEngine =
             config.waveEngine ||
             config.world?.waveInterferenceEngine ||
@@ -556,7 +561,7 @@ export class SynergyTravelingWaveFX_v1 {
      * Update all active waves
      */
     update(deltaTime) {
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (this.frameScheduler?.shouldRunVisual?.() === false) return;
         
         try {
             const startTime = performance.now();

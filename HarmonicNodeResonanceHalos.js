@@ -317,6 +317,32 @@ export class HarmonicNodeResonanceHalos {
     return null;
   }
 
+  _getDistanceLODController() {
+    return globalThis?.window?.ATOMA_DISTANCE_LOD || null;
+  }
+
+  _getNodeLODLevel(node) {
+    const controller = this._getDistanceLODController();
+    if (!controller || !node?.position) return 0;
+    const level = controller.getLODLevel(node.position);
+    return Number.isFinite(level) ? level : 0;
+  }
+
+  _getHaloLODScale(lodLevel) {
+    if (lodLevel >= 2) return 0.3;
+    if (lodLevel >= 1) return 0.6;
+    return 1.0;
+  }
+
+  _parkHalo(haloData) {
+    if (!haloData?.haloMesh?.material) return;
+    haloData.isActive = false;
+    haloData.currentIntensity = 0;
+    haloData.targetIntensity = 0;
+    haloData.haloMesh.material.emissiveIntensity = 0;
+    this.restoreHaloScale(haloData);
+  }
+
   /**
    * Create or get halo geometry for a given node radius
    */
@@ -422,11 +448,16 @@ export class HarmonicNodeResonanceHalos {
                         this.initializeNodeHalo(nodeId, node, node.scale?.x || 1.0);
         
         if (!haloData) return;
+        const lodLevel = this._getNodeLODLevel(node);
+        if (lodLevel >= 3) {
+          this._parkHalo(haloData);
+          return;
+        }
         
         const hubState = this.getHubState(nodeId, hubSystemData, harmonicManagerData, node);
         const shouldBeActive = this.shouldHaloBeActive(hubState);
         
-        this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime);
+        this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime, this._getHaloLODScale(lodLevel));
         this.applyHaloVisuals(haloData);
         
         if (haloData.isActive) {
@@ -446,11 +477,16 @@ export class HarmonicNodeResonanceHalos {
       const haloData = this.nodeHalos.get(nodeId) ||
                       this.initializeNodeHalo(nodeId, node, node.scale?.x || 1.0);
       if (!haloData) continue;
+      const lodLevel = this._getNodeLODLevel(node);
+      if (lodLevel >= 3) {
+        this._parkHalo(haloData);
+        continue;
+      }
 
       const hubState = this.getHubState(nodeId, hubSystemData, harmonicManagerData, node);
       const shouldBeActive = this.shouldHaloBeActive(hubState);
 
-      this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime);
+      this.updateHaloState(haloData, hubState, shouldBeActive, deltaTime, this._getHaloLODScale(lodLevel));
       this.applyHaloVisuals(haloData);
 
       if (haloData.isActive) {
@@ -589,7 +625,7 @@ export class HarmonicNodeResonanceHalos {
   /**
    * Update halo state (activation, intensity, color, distortion)
    */
-  updateHaloState(haloData, hubState, shouldBeActive, deltaTime) {
+  updateHaloState(haloData, hubState, shouldBeActive, deltaTime, lodScale = 1.0) {
     const easeAmount = Math.min(1, 3 * deltaTime); // Smooth easing
     
     // Update activation
@@ -612,6 +648,7 @@ export class HarmonicNodeResonanceHalos {
       
       // Instability dampens intensity
       targetIntensity *= (1.0 - hubState.instability * 0.4);
+      targetIntensity *= lodScale;
     }
     
     haloData.targetIntensity = targetIntensity;

@@ -178,15 +178,7 @@ export class HarmonicResonanceCoupling_v1 {
    * @private
    */
   _getResonanceSynergy(link) {
-    // Try to read from link's synergy map first
-    if (link.userData?.linkedSynergyMap) {
-      const targetId = link.target.userData?.id;
-      if (targetId && link.userData.linkedSynergyMap.has(targetId)) {
-        return link.userData.linkedSynergyMap.get(targetId);
-      }
-    }
-    
-    // Use canonical metric adapter
+    // Use canonical metric adapter only.
     return getLinkSynergy(link);
   }
   

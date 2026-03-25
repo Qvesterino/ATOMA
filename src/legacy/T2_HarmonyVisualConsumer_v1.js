@@ -162,6 +162,30 @@ export class T2_HarmonyVisualConsumer_v1 {
     this._tmpActiveLinkedNodeKeys = new Set();
   }
 
+  _getDistanceLODController() {
+    return globalThis?.window?.ATOMA_DISTANCE_LOD || null;
+  }
+
+  _getWorldPositionLODLevel(object3d) {
+    const controller = this._getDistanceLODController();
+    if (!controller || !object3d) return 0;
+
+    const position = object3d?.getWorldPosition
+      ? object3d.getWorldPosition(this._tmpWorldPosition)
+      : object3d?.position;
+
+    if (!position) return 0;
+    const level = controller.getLODLevel(position);
+    return Number.isFinite(level) ? level : 0;
+  }
+
+  _getLODScale(lodLevel) {
+    if (lodLevel >= 3) return 0;
+    if (lodLevel >= 2) return 0.3;
+    if (lodLevel >= 1) return 0.6;
+    return 1.0;
+  }
+
   _createBorromeanRingGeometries() {
     const ringRadius = 1.1;
     const tubeRadius = 0.08;
@@ -428,9 +452,10 @@ export class T2_HarmonyVisualConsumer_v1 {
 
     const hueAmplitude = (this.config.fieldHueMax - this.config.fieldHueMin) * 0.5;
     const hueCenter = this.config.fieldHueMin + hueAmplitude;
-    const targetOpacity = (this.config.fieldBaseOpacity + (this.config.fieldMaxOpacity - this.config.fieldBaseOpacity) * harmonyIntensity) * pulseIntensityMultiplier;
+    const lodScale = fieldData.distanceLodScale ?? 1.0;
+    const targetOpacity = (this.config.fieldBaseOpacity + (this.config.fieldMaxOpacity - this.config.fieldBaseOpacity) * harmonyIntensity) * pulseIntensityMultiplier * lodScale;
     const emissiveIntensity = (this.config.fieldBaseEmissiveIntensity +
-      (this.config.fieldMaxEmissiveIntensity - this.config.fieldBaseEmissiveIntensity) * harmonyIntensity) * pulseIntensityMultiplier;
+      (this.config.fieldMaxEmissiveIntensity - this.config.fieldBaseEmissiveIntensity) * harmonyIntensity) * pulseIntensityMultiplier * lodScale;
 
     fieldData.ringMeshes.forEach((ringMesh, index) => {
       const material = fieldData.ringMaterials[index];
@@ -570,6 +595,10 @@ export class T2_HarmonyVisualConsumer_v1 {
       }
 
       if (!zoneMesh) return;
+
+      const zoneLOD = this._getWorldPositionLODLevel(zoneMesh);
+      zoneMesh.visible = this.enabled && zoneLOD < 3;
+      if (zoneLOD >= 3) return;
 
       zoneMesh.visible = this.enabled;
       zoneMesh.position.set(
@@ -743,6 +772,7 @@ export class T2_HarmonyVisualConsumer_v1 {
   
   emitHealingPulse(fromNode, targetPosition = null) {
     if (!this.enabled || !fromNode) return;
+    if (this._getWorldPositionLODLevel(fromNode) >= 3) return;
     const attachRoot = this._syncAttachmentRoot();
     if (!attachRoot) return;
 
@@ -812,6 +842,15 @@ export class T2_HarmonyVisualConsumer_v1 {
           auraParent?.add?.(auraData.auraGroup);
         }
 
+        const lodLevel = this._getWorldPositionLODLevel(node);
+        const lodScale = this._getLODScale(lodLevel);
+        auraData.distanceLodScale = lodScale;
+        if (lodLevel >= 3) {
+          auraData.auraGroup.visible = false;
+          auraData.lastHarmonyLevel = 0;
+          continue;
+        }
+
         const hasActiveLinks = this._hasNodeActiveLinks(node, activeLinkedNodeKeys);
         if (!hasActiveLinks) {
           auraData.auraGroup.visible = false;
@@ -827,7 +866,7 @@ export class T2_HarmonyVisualConsumer_v1 {
             Math.min(1, (harmonyLevel - this.config.harmonyFieldThreshold) / (1 - this.config.harmonyFieldThreshold))
           );
 
-          this._updateHarmonyFieldVisual(auraData, deltaTime, harmonyIntensity);
+          this._updateHarmonyFieldVisual(auraData, deltaTime, harmonyIntensity * lodScale);
 
           if (harmonyLevel >= this.config.pulseThreshold) {
             const pulseInterval = 1.0 / this.config.pulseEmitRate;
@@ -854,6 +893,11 @@ export class T2_HarmonyVisualConsumer_v1 {
     
     for (let i = this.registry.activeHealingPulses.length - 1; i >= 0; i--) {
       const pulse = this.registry.activeHealingPulses[i];
+      if (this._getWorldPositionLODLevel(pulse.mesh) >= 3) {
+        this._disposeHealingPulseMesh(pulse.mesh);
+        this.registry.activeHealingPulses.splice(i, 1);
+        continue;
+      }
       
       pulse.ageSeconds += deltaTime;
 

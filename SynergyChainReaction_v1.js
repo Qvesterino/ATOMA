@@ -27,7 +27,7 @@ import * as THREE from 'three';
  *    - Check synergy value
  *    - Check personality compatibility
  *    - If valid → propagate with decay
- * Note: synergyBonus (if present) is visual-only; gameplay logic must use link.userData.synergy.{score, synergyNorm}.
+ * Note: link.userData.visualMetrics.synergyBonus (if present) is visual-only; gameplay logic must use link.userData.synergy.{score, synergyNorm}.
  * 3. Each hop:
  *    - intensity *= 0.82
  *    - range -= 1

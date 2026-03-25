@@ -60,6 +60,38 @@ export class T2_CorruptionVisualIntegration_v1 {
     
     console.log('[T2_CorruptionVisualIntegration_v1] Initialized (corruption visual wiring)');
   }
+
+  _getDistanceLODController() {
+    return globalThis?.window?.ATOMA_DISTANCE_LOD || null;
+  }
+
+  _getLODLevelAtPosition(position) {
+    const controller = this._getDistanceLODController();
+    if (!controller || !position) return 0;
+    const level = controller.getLODLevel(position);
+    return Number.isFinite(level) ? level : 0;
+  }
+
+  _getLinkLODLevel(link) {
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourceWorldPos = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetWorldPos = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+    if (!sourceWorldPos || !targetWorldPos) return 0;
+    this._tmpPullVector.copy(sourceWorldPos).add(targetWorldPos).multiplyScalar(0.5);
+    return this._getLODLevelAtPosition(this._tmpPullVector);
+  }
+
+  _getParticleLODLevel(particle) {
+    return particle?.position ? this._getLODLevelAtPosition(particle.position) : 0;
+  }
+
+  _getLODScale(lodLevel) {
+    if (lodLevel >= 3) return 0;
+    if (lodLevel >= 2) return 0.3;
+    if (lodLevel >= 1) return 0.6;
+    return 1.0;
+  }
   
   /**
    * Get interpolated color based on corruption level
@@ -148,17 +180,30 @@ export class T2_CorruptionVisualIntegration_v1 {
     
     const linkData = this.registry.linkCorruptionData.get(linkKey);
     if (!linkData) return;
+
+    const lodLevel = this._getLinkLODLevel(link);
+    const lodScale = this._getLODScale(lodLevel);
+    if (lodLevel >= 3) {
+      if (link.userData) {
+        link.userData.enableDistortion = false;
+        link.userData.distortionIntensity = 0;
+        link.userData.corruptionWaveIntensity = 0;
+      }
+      return;
+    }
+
+    const scaledCorruptionLevel = Math.max(0, Math.min(1, corruptionLevel * lodScale));
     
     // T2-002: Apply color tint based on corruption level
-    const corruptionColor = this.getCorruptionColor(corruptionLevel);
+    const corruptionColor = this.getCorruptionColor(scaledCorruptionLevel);
     if (link.material) {
       link.material.color.copy(corruptionColor);
       link.material.emissive?.copy(corruptionColor);
-      link.material.emissiveIntensity = Math.min(0.8, corruptionLevel * 2.0);
+      link.material.emissiveIntensity = Math.min(0.8, scaledCorruptionLevel * 2.0);
     }
     
     // T2-002: Enable distortion shader for corrupted links (>45%)
-    if (corruptionLevel >= this.config.distortionStartThreshold && link.geometry) {
+    if (scaledCorruptionLevel >= this.config.distortionStartThreshold && link.geometry) {
       if (!linkData.distortionEnabled) {
         linkData.distortionEnabled = true;
         // Mark for shader application (handled by CorruptionVisualFX_v1)
@@ -166,7 +211,7 @@ export class T2_CorruptionVisualIntegration_v1 {
       }
       
       // Increase distortion with corruption
-      const distortionFactor = (corruptionLevel - this.config.distortionStartThreshold) / 
+      const distortionFactor = (scaledCorruptionLevel - this.config.distortionStartThreshold) / 
         (this.config.distortionMaxThreshold - this.config.distortionStartThreshold);
       link.userData.distortionIntensity = Math.min(1.0, distortionFactor * 1.5);
     } else {
@@ -177,13 +222,15 @@ export class T2_CorruptionVisualIntegration_v1 {
     }
     
     // T2-002: Trigger particle burst at cascade thresholds
-    const { triggered, burstIntensity } = this.checkCascadeThreshold(corruptionLevel, linkKey);
-    if (triggered) {
-      this.triggerParticleBurst(link, burstIntensity, corruptionLevel);
+    if (lodLevel < 2) {
+      const { triggered, burstIntensity } = this.checkCascadeThreshold(corruptionLevel, linkKey);
+      if (triggered) {
+        this.triggerParticleBurst(link, burstIntensity, corruptionLevel);
+      }
     }
     
     // T2-002: Apply wave/distortion effect at high corruption
-    if (corruptionLevel >= 0.85 && link.userData) {
+    if (scaledCorruptionLevel >= 0.85 && link.userData) {
       // Add temporal wave modulation
       link.userData.corruptionWavePhase = (link.userData.corruptionWavePhase || 0) + deltaTime * 2.0;
       link.userData.corruptionWaveIntensity = Math.sin(link.userData.corruptionWavePhase) * 0.5 + 0.5;
@@ -197,6 +244,7 @@ export class T2_CorruptionVisualIntegration_v1 {
    */
   triggerParticleBurst(link, intensity, corruptionLevel) {
     if (!link || !this.scene) return;
+    if (this._getLinkLODLevel(link) >= 2) return;
     
     const burstJitter = 0.7 + Math.random() * 0.6; // 0.7 -> 1.3
     const burstCount = Math.max(1, Math.ceil(intensity * 5 * burstJitter));
@@ -304,6 +352,9 @@ export class T2_CorruptionVisualIntegration_v1 {
         link?.corruptionLevel ??
         0;
       
+      const lodLevel = this._getLinkLODLevel(link);
+      if (lodLevel >= 3) continue;
+
       // Apply visual effects if corrupted
       if (corruptionLevel > 0.01) {
         this.applyCorruptionVisuals(link, corruptionLevel, deltaTime);
@@ -317,6 +368,12 @@ export class T2_CorruptionVisualIntegration_v1 {
     
     for (let i = burstParticles.length - 1; i >= 0; i--) {
       const particle = burstParticles[i];
+      if (this._getParticleLODLevel(particle) >= 3) {
+        this.scene.remove(particle);
+        particle.geometry.dispose();
+        particle.material.dispose();
+        continue;
+      }
       particle.userData.age += deltaTime;
       const life = Math.max(0.0001, particle.userData.lifetime || 1.0);
       const t = Math.max(0, Math.min(1, particle.userData.age / life));

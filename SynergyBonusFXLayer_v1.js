@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 
 // Private symbol to track patched materials
 const SYNERGY_FX_PATCHED = Symbol('synergyFXPatched');
@@ -8,8 +9,8 @@ const SYNERGY_FX_PATCHED = Symbol('synergyFXPatched');
  * SYNERGY BONUS FX LAYER v1.0
  * 
  * GPU-based visual effects layer that renders synergy flares on high-synergy links.
- * Reads from link.userData.visualMetrics.synergyBonus and applies shader-based visual enhancements.
- * derived visual metric (not gameplay); do not feed gameplay logic with synergyBonus.
+ * Reads canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter and applies shader-based visual enhancements.
+ * derived visual metric (not gameplay); do not feed gameplay logic with link.userData.visualMetrics.synergyBonus.
  * 
  * CORE FEATURES:
  * ✓ 4 synergy tier visualization (NONE → MYTHIC_RESONANCE)
@@ -354,7 +355,7 @@ export class SynergyBonusFXLayer_v1 {
             }
         }
     }
-    
+
     /**
      * Compute visual FX for a single link
      */
@@ -362,8 +363,8 @@ export class SynergyBonusFXLayer_v1 {
         try {
             if (!link?.userData) return;
             
-            const synergyBonus = link.userData?.visualMetrics?.synergyBonus;
-            if (!synergyBonus) return;  // No synergy data, skip
+            const visualProfile = getLinkSynergyVisualMetrics(link);
+            if (!visualProfile) return;
             
             // Get or create FX state
             const fxState = this.getFXState(link);
@@ -371,10 +372,10 @@ export class SynergyBonusFXLayer_v1 {
             // ================================================================
             // EXTRACT SYNERGY DATA
             // ================================================================
-            const tier = Math.max(0, Math.min(3, synergyBonus.tier ?? 0));
-            const pulseStrength = Math.max(0, Math.min(1, synergyBonus.pulseStrength ?? 0));
-            const chromaShift = Math.max(0, Math.min(1, synergyBonus.chromaShift ?? 0));
-            const resonanceRipples = Math.max(0, Math.min(1, synergyBonus.resonanceRipples ?? 0));
+            const tier = Math.max(0, Math.min(3, visualProfile.tier ?? 0));
+            const pulseStrength = Math.max(0, Math.min(1, visualProfile.pulseStrength ?? 0));
+            const chromaShift = Math.max(0, Math.min(1, visualProfile.chromaShift ?? 0));
+            const resonanceRipples = Math.max(0, Math.min(1, visualProfile.resonanceRipples ?? 0));
             
             // ================================================================
             // COMPUTE TARGET VALUES BASED ON TIER
@@ -512,16 +513,16 @@ export class SynergyBonusFXLayer_v1 {
         let count = 0;
         
         for (const link of allLinks) {
-            const sb = link?.userData?.visualMetrics?.synergyBonus;
-            if (!sb) continue;
-            const tier = Math.floor(sb.tier ?? 0);
+            const visualProfile = getLinkSynergyVisualMetrics(link);
+            if (!visualProfile) continue;
+            const tier = Math.floor(visualProfile.tier ?? 0);
             
             stats.totalLinksWithSynergy++;
             stats.byTier[tier] = (stats.byTier[tier] || 0) + 1;
             
-            totalPulse += sb.pulseStrength ?? 0;
-            totalChroma += sb.chromaShift ?? 0;
-            totalRipples += sb.resonanceRipples ?? 0;
+            totalPulse += visualProfile.pulseStrength ?? 0;
+            totalChroma += visualProfile.chromaShift ?? 0;
+            totalRipples += visualProfile.resonanceRipples ?? 0;
             count++;
         }
         

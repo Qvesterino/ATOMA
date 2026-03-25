@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getNodeCanonicalMetrics, getLinkSynergyVisualMetrics, getLinkCorruption } from './SemanticMetricAdapter.js';
 
 /**
  * AI NETWORK RESONANCE FEEDBACK v1.0
@@ -19,14 +20,14 @@ import * as THREE from 'three';
  * 
  * INPUT SOURCES (READ-ONLY):
  * - node.userData.personalityVisual (clarity, resonance, entropy, etc)
- * - node.userData.synergyBonus (Week 19)
+ * - node.userData.synergy.{score, synergyNorm} (canonical synergy input)
  * - node.userData.shaderModeState (Week 16)
  * - node.userData.archetypeEvolution (Week 13)
  * - node.userData.auras (Week 14)
- * Note: synergyBonus is a derived visual metric (not gameplay). Gameplay logic must use link.userData.synergy.{score, synergyNorm}.
+ * Note: link.userData.visualMetrics.synergyBonus is a derived visual metric (not gameplay). Gameplay logic must use link.userData.synergy.{score, synergyNorm}.
  * - node.userData.quality (NodeQualityCalculator)
  * - node.userData.dynamicMetrics (NodeDynamicMetrics)
- * - link.userData.visualMetrics.synergyBonus
+ * - link.userData.synergy.{score, synergyNorm} (canonical input for link resonance)
  * - link.userData.resonanceFeedback (for coherence tracking)
  * 
  * OUTPUT DATA:
@@ -235,7 +236,8 @@ export class ResonanceFeedback_v1 {
             
             // Extract input signals (with safe defaults)
             const personalityVisual = node.userData.personalityVisual ?? {};
-            const synergyBonus = node.userData.synergyBonus ?? {};
+            const canonicalMetrics = getNodeCanonicalMetrics(node) ?? {};
+            const synergy = canonicalMetrics.synergy ?? {};
             const shaderMode = node.userData.shaderModeState ?? {};
             const archetype = node.userData.archetypeEvolution ?? {};
             
@@ -246,7 +248,7 @@ export class ResonanceFeedback_v1 {
             
             // Component 2: Synergy bonus strength (25%)
             const synergyStrength = Math.max(0, Math.min(1,
-                synergyBonus.pulseStrength ?? 0
+                synergy.synergyNorm ?? synergy.score ?? 0
             ));
             
             // Component 3: Anti-entropy (clarity from low entropy) (15%)
@@ -300,7 +302,8 @@ export class ResonanceFeedback_v1 {
             
             const state = this.getNodeState(node);
             const personalityVisual = node.userData.personalityVisual ?? {};
-            const synergyBonus = node.userData.synergyBonus ?? {};
+            const canonicalMetrics = getNodeCanonicalMetrics(node) ?? {};
+            const synergy = canonicalMetrics.synergy ?? {};
             const archetype = node.userData.archetypeEvolution ?? {};
             
             // Calculate local resonance
@@ -322,11 +325,11 @@ export class ResonanceFeedback_v1 {
             
             // Calculate clarity boost from synergy
             state.clarityBoost = Math.max(0, Math.min(1,
-                (synergyBonus.tier ?? 0) / 3.0 * 0.3
+                (Math.floor((synergy.synergyNorm ?? synergy.score ?? 0) * 3) / 3.0) * 0.3
             ));
             
             // Calculate reactive pulse (tier-based)
-            const synergyTier = Math.max(0, Math.min(3, synergyBonus.tier ?? 0));
+            const synergyTier = Math.max(0, Math.min(3, Math.floor((synergy.synergyNorm ?? synergy.score ?? 0) * 3)));
             state.reactivePulse = (synergyTier / 3.0) * 0.7 +
                                   (state.localResonance * 0.3);
             
@@ -359,17 +362,18 @@ export class ResonanceFeedback_v1 {
             if (!link?.userData) return;
             
             const state = this.getLinkState(link);
-            const synergyBonus = link.userData?.visualMetrics?.synergyBonus ?? {};
+            const synergyProfile = getLinkSynergyVisualMetrics(link) ?? {};
+            const linkCorruption = getLinkCorruption(link) ?? {};
             
             // Extract link metrics
             const resonanceLevel = Math.max(0, Math.min(1,
-                synergyBonus.resonanceRipples ?? 0
+                synergyProfile.resonanceRipples ?? 0
             ));
             const synergyTier = Math.max(0, Math.min(3,
-                synergyBonus.tier ?? 0
+                synergyProfile.tier ?? 0
             ));
             const chromaShift = Math.max(0, Math.min(1,
-                synergyBonus.chromaShift ?? 0
+                synergyProfile.chromaShift ?? 0
             ));
             
             // Calculate pulse strength
@@ -380,7 +384,7 @@ export class ResonanceFeedback_v1 {
             state.coherenceBoost = synergyTier * 0.1;
             
             // Calculate stability penalty (from entropy)
-            const entropy = synergyBonus.entropyPenalty ?? 0;
+            const entropy = linkCorruption.entropyPenalty ?? 0;
             state.stabilityPenalty = -(entropy * 0.2);
             
             // Calculate chromatic intensity

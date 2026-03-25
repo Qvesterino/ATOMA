@@ -30,10 +30,12 @@
  * 🔒 CONTRACTS:
  * - Only modifies visual parameters (scale), never node state
  * - Reads avgSynergy from network-level metrics
- * - Reads node.userData.linkedSynergyMap for per-node synergy
+ * - Reads canonical node synergy from SemanticMetricAdapter
  * - Never writes to node.userData.* (read-only)
  * - Never affects game time or deltaTime
  */
+
+import { getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 export class SynergyPulseVisuals_v1 {
   constructor() {
@@ -97,18 +99,15 @@ export class SynergyPulseVisuals_v1 {
   }
   
   /**
-   * Get this node's local synergy by averaging linked connections
+   * Get this node's canonical synergy value.
    * @private
    */
   _getNodeSynergy(node) {
-    // If node has stored synergy info, use it
-    if (node.userData.linkedSynergyMap) {
-      const values = Object.values(node.userData.linkedSynergyMap);
-      if (values.length > 0) {
-        return values.reduce((a, b) => a + (b || 0), 0) / values.length;
-      }
+    const canonical = getNodeCanonicalMetrics(node);
+    if (canonical?.synergy !== undefined) {
+      return Math.max(0, Math.min(1, canonical.synergy));
     }
-    
+
     // Fallback to network average if no local synergy available
     return this.avgSynergy;
   }

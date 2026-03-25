@@ -86,8 +86,8 @@ export class SafeAIWeatherPack {
     // Configuration
     this.config = {
       weatherCheckInterval: 6.0,         // Check every 6 seconds
-      weatherChance: 0.01,               // 1% chance per check
-      minSynergyForWeather: 3.0,         // Minimum synergy to trigger
+      weatherChance: 0.02,               // 2% base chance per check
+      minSynergyForWeather: 0.55,        // Minimum average link synergy to trigger
       maxConcurrentWeather: 1,           // Only 1 weather at a time
       weatherCooldown: 20.0,             // 20 seconds between weather
       windUpdateFrequency: 0.1,          // Update wind vector frequently
@@ -180,39 +180,43 @@ export class SafeAIWeatherPack {
   calculateWeatherPotential(legendaryPack, linkingSystem, evolutionManager) {
     let potential = 0;
     
-    // Base from network synergy
+    // Normalize weather gating against average live link synergy rather than total network size.
+    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
+    let synergyCount = 0;
     let totalSynergy = 0;
-    if (linkingSystem && linkingSystem.links) {
-      linkingSystem.links.forEach(link => {
-        if (link.glowData && link.glowData.synergy) {
-          totalSynergy += link.glowData.synergy;
-        }
-      });
-    }
-    
-    if (totalSynergy < this.config.minSynergyForWeather) {
+    let totalTraffic = 0;
+
+    links.forEach(link => {
+      if (typeof link?.glowData?.synergy === 'number') {
+        totalSynergy += link.glowData.synergy;
+        synergyCount += 1;
+      }
+      if (typeof link?.traffic?.load === 'number') {
+        totalTraffic += link.traffic.load;
+      }
+    });
+
+    const averageSynergy = synergyCount > 0 ? totalSynergy / synergyCount : 0;
+    if (averageSynergy < this.config.minSynergyForWeather) {
       return 0;
     }
     
-    // Scale potential by synergy
-    potential = Math.min(1, totalSynergy * 0.1);
+    // Scale potential by normalized synergy headroom above threshold.
+    potential = THREE.MathUtils.clamp(
+      (averageSynergy - this.config.minSynergyForWeather) / (1 - this.config.minSynergyForWeather),
+      0,
+      1
+    );
     
     // Bonus from legendary nodes
     if (legendaryPack) {
       const legendaryCount = legendaryPack.getActiveLegendaryCount();
-      potential += legendaryCount * 0.2;
+      potential += Math.min(0.3, legendaryCount * 0.15);
     }
     
-    // Bonus from traffic
-    if (linkingSystem && linkingSystem.links) {
-      let totalTraffic = 0;
-      linkingSystem.links.forEach(link => {
-        if (link.traffic && link.traffic.load) {
-          totalTraffic += link.traffic.load;
-        }
-      });
-      potential += Math.min(0.3, totalTraffic * 0.05);
-    }
+    // Bonus from average traffic load to keep large/small networks comparable.
+    const averageTraffic = links.length > 0 ? totalTraffic / links.length : 0;
+    potential += Math.min(0.2, averageTraffic * 0.2);
     
     return Math.min(1, potential);
   }

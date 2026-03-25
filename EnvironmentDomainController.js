@@ -113,6 +113,7 @@ export class EnvironmentDomainController {
         this.environmentRoot,
         d.camera
       );
+    this.instances.environmentalHazards.frameScheduler = this.frameScheduler;
   }
 
   _registerSchedulerHooks() {

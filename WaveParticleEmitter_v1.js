@@ -718,6 +718,9 @@ export class WaveParticleEmitter_v1 {
    */
   _processNodeWaveEvents(node, waveEngine = null) {
     try {
+      const lodLevel = this._getNodeLODLevel(node);
+      const emissionScale = this._getEmissionScaleForLOD(lodLevel);
+      if (lodLevel >= 3 || emissionScale <= 0) return;
       const MIN_CHANNEL = 0.12;
       const MIN_VISIBILITY = 0.1;
       const nodeId = node?.id ?? node?.uuid;
@@ -737,9 +740,9 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
-      const constructiveValue = Math.max(constructive, MIN_VISIBILITY);
-      const destructiveValue = Math.max(destructive, MIN_VISIBILITY);
-      const standingValue = Math.max(standing, MIN_VISIBILITY);
+      const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
+      const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
+      const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
 
       if (constructiveValue >= this.config.constructiveThreshold) {
         this._debugLogNodeEmission(node, nodeId, 'constructive', {
@@ -768,6 +771,9 @@ export class WaveParticleEmitter_v1 {
 
   _processLinkWaveEvents(link, waveEngine = null) {
     try {
+      const lodLevel = this._getLinkLODLevel(link);
+      const emissionScale = this._getEmissionScaleForLOD(lodLevel);
+      if (lodLevel >= 3 || emissionScale <= 0) return;
       const MIN_CHANNEL = 0.12;
       const MIN_VISIBILITY = 0.1;
       const MIN_LINK_AMPLITUDE = 0.15;
@@ -794,9 +800,9 @@ export class WaveParticleEmitter_v1 {
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
-      const constructiveValue = Math.max(constructive, MIN_VISIBILITY);
-      const destructiveValue = Math.max(destructive, MIN_VISIBILITY);
-      const standingValue = Math.max(standing, MIN_VISIBILITY);
+      const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
+      const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
+      const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
       const linkEmitterTarget = {
         id: `wave-link:${linkId}`,
         position: midpoint,
@@ -879,6 +885,37 @@ export class WaveParticleEmitter_v1 {
 
   _resolveEntityId(entity) {
     return entity?.userData?.nodeId || entity?.id || entity?.uuid || entity?.name || null;
+  }
+
+  _getDistanceLODController() {
+    return globalThis?.window?.ATOMA_DISTANCE_LOD || null;
+  }
+
+  _getLODLevelAtPosition(position) {
+    const controller = this._getDistanceLODController();
+    if (!controller || !position) return 0;
+    const level = controller.getLODLevel(position);
+    return Number.isFinite(level) ? level : 0;
+  }
+
+  _getNodeLODLevel(node) {
+    const pos = this._resolveEmissionPosition(node);
+    return pos ? this._getLODLevelAtPosition(pos) : 0;
+  }
+
+  _getLinkLODLevel(link) {
+    const midpoint = this._resolveLinkMidpoint(link);
+    return midpoint ? this._getLODLevelAtPosition(midpoint) : 0;
+  }
+
+  _getParticleLODLevel(particle) {
+    return particle?.position ? this._getLODLevelAtPosition(particle.position) : 0;
+  }
+
+  _getEmissionScaleForLOD(lodLevel) {
+    if (lodLevel >= 2) return 0;
+    if (lodLevel >= 1) return 0.6;
+    return 1.0;
   }
 
   _getActiveLinkCount(entity) {
@@ -1431,6 +1468,10 @@ export class WaveParticleEmitter_v1 {
         const particle = pool[i];
 
         if (!particle.active) continue;
+        if (this._getParticleLODLevel(particle) >= 3) {
+          particle.active = false;
+          continue;
+        }
 
         particle.lifetime += deltaTime;
 

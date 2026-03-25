@@ -259,6 +259,42 @@ export function getLinkCanonicalMetrics(link) {
   };
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * Project canonical link metrics into a stable visual profile.
+ *
+ * Visual consumers can use this instead of legacy submetric objects.
+ */
+export function getLinkSynergyVisualMetrics(link) {
+  const synergy = getLinkSynergy(link);
+  const corruption = getLinkCorruption(link);
+
+  const tier =
+    synergy >= 0.90 ? 3 :
+    synergy >= 0.70 ? 2 :
+    synergy >= 0.40 ? 1 :
+    0;
+
+  const tierName =
+    tier === 1 ? 'SOFT_BOOST' :
+    tier === 2 ? 'STRONG_PULSE' :
+    tier === 3 ? 'MYTHIC_RESONANCE' :
+    'NONE';
+
+  return {
+    synergy,
+    corruption,
+    tier,
+    tierName,
+    pulseStrength: clamp01(synergy * synergy),
+    chromaShift: clamp01(synergy * (1 - corruption * 0.35)),
+    resonanceRipples: clamp01(synergy * (1 - corruption * 0.5))
+  };
+}
+
 // ============================================================================
 // HUD UPDATE FUNCTION (merged from CoreMetricsEngineAdapter)
 // ============================================================================

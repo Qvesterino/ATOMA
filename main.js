@@ -7349,6 +7349,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.linkingSystem,
                 this.camera
             );
+            this.cascadeVisualizer.frameScheduler = this.frameScheduler;
             
             // Configure cascade properties
             this.cascadeVisualizer.config.detectionThreshold = 0.7;
@@ -7960,6 +7961,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 debugMode: false,
             }
         );
+        this.particleEmissionScaler.frameScheduler = this.frameScheduler;
         console.log('[main.js] ParticleEmissionScaler initialized ✓');
 
         // Canonical semantic link metrics bridge (0-1 normalized)
@@ -8039,6 +8041,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                             enabled: true,
                         }
                     );
+                    this.stressBasedParticleScaler.frameScheduler = this.frameScheduler;
                     
                     // Setup console debug API
                     setupStressParticleScalerConsoleAPI(this.stressBasedParticleScaler);
@@ -8641,6 +8644,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 archetypeAuraFX: this.archetypeAuraFX,
                 scene: this.scene,
             });
+            this.archetypeColorFX.frameScheduler = this.frameScheduler;
             console.log('[main.js] ArchetypeColorPaletteSystem_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize ArchetypeColorPaletteSystem_v1:', err);
@@ -8712,11 +8716,11 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // ====================================================================
         // WEEK 19: SYNERGY BONUS VISUALIZATION (High-Synergy Link Effects)
         // ====================================================================
-        // Initialize SynergyBonusVisualization_v1 (compute synergy bonuses for links)
+        // Initialize SynergyBonusVisualization_v1 (compute derived synergy visuals from canonical link.userData.synergy)
         // This system highlights high-synergy links with dynamic visual effects
         // Evaluates 1500+ links in <1ms with multi-tier EMA smoothing
         // Outputs: link.userData.visualMetrics.synergyBonus (tier, pulseStrength, chromaShift, resonanceRipples)
-        // Reads from: visualGlow (synergy score)
+        // Reads from: canonical link.userData.synergy.{score, synergyNorm}
         try {
             this.synergyBonusVisualization = new SynergyBonusVisualization_v1({
                 debugEnabled: false
@@ -8730,10 +8734,10 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // WEEK 19 (ALT): SYNERGY BONUS FX LAYER (GPU-Based Synergy Flares)
         // ====================================================================
         // Initialize SynergyBonusFXLayer_v1 (GPU shader effects on synergy links)
-        // This system reads synergy bonus data and applies shader-based visual flares
+        // This system reads canonical synergy data and applies shader-based visual flares
         // Emissive boosting (10–90%), multi-frequency pulsing (0.5–3 Hz), chroma flares
         // Evaluates 1500+ links in <1ms with per-material shader patches
-        // Reads from: link.userData.visualMetrics.synergyBonus (computed by SynergyBonusVisualization_v1)
+        // Reads from: canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter
         try {
             this.synergyBonusFXLayer = new SynergyBonusFXLayer_v1({
                 maxLinksPerFrame: null,  // No frame limit
@@ -8754,7 +8758,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         // This system provides multi-frequency pulse, chromatic ripples, and flow mapping
         // Works alongside Week 19 FXLayer for layered, expressive synergy visuals
         // Per-material shader patching with dynamic uniform updates
-        // Reads from: link.userData.visualMetrics.synergyBonus (populated by SynergyBonusVisualization_v1)
+        // Reads from: canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter
         try {
             this.synergyResonanceShaderPack = new SynergyResonanceShaderPack_v1({
                 debugEnabled: false,
@@ -10827,6 +10831,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupCinematicUpgrade() {
         this.cinematicUpgrade = new CinematicUpgrade(this.scene, this.camera);
+        this.cinematicUpgrade.frameScheduler = this.frameScheduler;
         this.cinematicUpgrade.initialize();
 
         // Apply color grading
@@ -10838,6 +10843,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupNodeEditor() {
         this.nodeEditor = new NodeEditor(this.scene, this.camera, this.collisionManager);
+        this.nodeEditor.frameScheduler = this.frameScheduler;
 
         // Create demo nodes
         if (window.__ALLOW_EXTERNAL_SPAWN__ === true) {
@@ -10852,6 +10858,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupHazards() {
         this.hazards = new EnvironmentalHazards(this.scene, this.camera);
+        this.hazards.frameScheduler = this.frameScheduler;
 
         // Create demo hazards in Fractal Valley
         if (this.currentMode === 'fractal') {
@@ -10968,6 +10975,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupMemoryTrails() {
         this.memoryTrails = new SafeMemoryTrailsManager(this.scene, this.worldRoot, this.camera);
+        this.memoryTrails.frameScheduler = this.frameScheduler;
 
         // Register read-only world system references
         if (this.aiNodes && this.linkingSystem && this.player && this.personalityFX &&
@@ -11784,6 +11792,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupEmotionalFeed() {
         this.emotionalFeed = new AIEmotionalFeed3_1(this.aiNodes);
+        this.emotionalFeed.frameScheduler = this.frameScheduler;
 
         console.log('✓ Emotional Feed 3.1 initialized (passive display - no interaction)');
     }
@@ -12257,6 +12266,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                                        // I need to ensure healingParticles exists.
                 this.linkingSystem
             );
+            this.harmonicRecovery.frameScheduler = this.frameScheduler;
             
             console.log('[main.js] HarmonicRecoveryVisualSystem initialized ✓');
             console.log('  - Monitors rupture completion');
@@ -12315,6 +12325,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     this.linkingSystem,
                     this.healingParticles // Wires logic to visuals
                 );
+                this.harmonicHealing.frameScheduler = this.frameScheduler;
                 console.log('[main.js] HarmonicHealingVisualSystem initialized (Golden Waves) ✓');
             }
 
@@ -12553,6 +12564,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupHarmonicTopologyLearning() {
         try {
             this.harmonicTopology = new HarmonicTopologyLearningSystem(this.scene);
+            this.harmonicTopology.frameScheduler = this.frameScheduler;
             setupHarmonicTopologyConsoleAPI(this, this.harmonicTopology);
             console.log('[main.js] HarmonicTopologyLearningSystem initialized ✓');
             console.log('[main.js] Features: flow bias, path reinforcement, scar memory, hub maturation');
@@ -12579,6 +12591,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.camera,
                 this.harmonicTopology
             );
+            this.topologyViz.frameScheduler = this.frameScheduler;
             
             setupTopologyBiasVisualizationConsoleAPI(this);
             
@@ -12678,6 +12691,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     setupCompositeGlyphResonanceFeedback() {
         try {
             this.compositeResonanceFeedback = new CompositeGlyphResonanceFeedback();
+            this.compositeResonanceFeedback.frameScheduler = this.frameScheduler;
             
             // Initialize with core systems
             this.compositeResonanceFeedback.initialize(
@@ -13785,6 +13799,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.camera,
                 this.renderer
             );
+            this.linkVisualMoodSystem.frameScheduler = this.frameScheduler;
 
             // Wire up to visual systems
             if (this.neonLinkVisuals) {

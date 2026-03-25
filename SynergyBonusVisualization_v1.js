@@ -6,7 +6,9 @@ import VisualTime from './src/time/VisualTime.js';
  * 
  * GPU-ready visualization system highlighting high-synergy links with
  * special visual effects (brightness, pulsing, chroma waves, resonance ripples).
+ * Canonical input: link.userData.synergy.{score, synergyNorm}.
  * derived visual metric (not gameplay): writes link.userData.visualMetrics.synergyBonus for FX only.
+ * synergyBonus is a visual projection of canonical synergy, never the source of truth.
  * gameplay must read link.userData.synergy.score/synergyNorm instead.
  * 
  * CORE FEATURES:
@@ -138,8 +140,9 @@ export class SynergyBonusVisualization_v1 {
             const state = this.getBonusState(link);
 
             // =====================================================================
-            // EXTRACT SYNERGY SCORE
+            // EXTRACT CANONICAL SYNERGY SCORE
             // =====================================================================
+            // Canonical source of truth: link.userData.synergy.{score, synergyNorm}
             const glowIntensity =
                 link.userData?.synergy?.synergyNorm ??
                 link['synergyScore'] ??
@@ -244,7 +247,7 @@ export class SynergyBonusVisualization_v1 {
                 if (state) {
                     state.smooth(deltaTime);
                     
-                    // Write synergy bonus to visualMetrics for other systems to read
+                    // Write derived synergy visual profile to visualMetrics for other systems to read
                     if (!link.userData.visualMetrics) {
                         link.userData.visualMetrics = {};
                     }

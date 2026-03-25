@@ -8,9 +8,9 @@ NodeLinkingSystem → link.userData.synergy = { score, synergyNorm }
                     ↓
                     [MISSING WRITER]
                     ↓
-                    link.userData.visualGlow = { glowIntensity, ... } ← UNDEFINED
+                  link.userData.synergy = { score, synergyNorm } ← CANONICAL INPUT
                     ↓
-SynergyBonusVisualization_v1 reads link.userData.visualGlow.glowIntensity
+                  SynergyBonusVisualization_v1 reads link.userData.synergy.{score, synergyNorm}
                     ↓
                     Falls back to 0 (line 159: ?? 0)
                     ↓
@@ -23,11 +23,10 @@ SynergyBonusVisualization_v1 reads link.userData.visualGlow.glowIntensity
 
 **`LinkGlowSynergyEngine_v2` is DORMANT and NEVER initialized.**
 
-- `SynergyBonusVisualization_v1.js` (line 159) reads: `link.userData?.visualGlow?.glowIntensity ?? 0`
-- The ONLY writer for `visualGlow` is `LinkGlowSynergyEngine_v2.js` (line 82)
-- `LinkGlowSynergyEngine_v2` is **NOT imported or initialized** in `main.js`
-- Therefore `link.userData.visualGlow` is always `undefined`
-- `SynergyBonusVisualization_v1` receives `glowIntensity = 0`
+- `SynergyBonusVisualization_v1.js` (line 159) reads canonical `link.userData?.synergy?.synergyNorm ?? link['synergyScore'] ?? link.userData?.synergy?.score ?? 0`
+- `NodeLinkingSystem.js` is the active writer for `link.userData.synergy`
+- `LinkGlowSynergyEngine_v2` is not required for the current canonical path
+- `SynergyBonusVisualization_v1` receives the canonical synergy norm
 - All synergy bonus tiers compute as 0 (NONE)
 - VFX systems reading `synergyBonus` get all zeros
 
@@ -41,7 +40,7 @@ SynergyBonusVisualization_v1 reads link.userData.visualGlow.glowIntensity
    - `link.userData.visualGlow = { glowIntensity, synergyNorm, qualityNorm, corruptionPulse }` ✗
 
 3. **SynergyBonusVisualization_v1.js** (active) reads:
-   - `link.userData?.visualGlow?.glowIntensity ?? 0` ← **BREAKING HERE**
+   - `link.userData?.synergy?.synergyNorm ?? link['synergyScore'] ?? link.userData?.synergy?.score ?? 0` ← **CANONICAL HERE**
 
 4. **main.js** initialization:
    - ✗ No import of `LinkGlowSynergyEngine_v2`

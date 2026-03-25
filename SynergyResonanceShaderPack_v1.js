@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 
 // Private symbol to track patched materials
 const RESONANCE_FX_PATCHED = Symbol('resonanceFXPatched');
@@ -11,7 +12,7 @@ const RESONANCE_FX_PATCHED = Symbol('resonanceFXPatched');
  * - Multi-frequency pulse resonance (0.5–3.5 Hz layered waves)
  * - Chromatic ripple distortion (RGB channel separation)
  * - Coherence flow mapping (dynamic band patterns)
- * Reads link.userData.visualMetrics.synergyBonus (derived visual metric, not gameplay).
+ * Reads canonical link.userData.synergy.{score, synergyNorm} via SemanticMetricAdapter.
  * 
  * Works alongside SynergyBonusFXLayer_v1 to create deeper, more expressive effects.
  * 
@@ -402,7 +403,7 @@ export class SynergyResonanceShaderPack_v1 {
     /**
      * Apply resonance effects to a link based on synergy data
      */
-    applyToLink(linkObject, synergyData = {}) {
+    applyToLink(linkObject, visualProfile = {}) {
         try {
             if (!linkObject?.material) return;
             
@@ -411,10 +412,10 @@ export class SynergyResonanceShaderPack_v1 {
             if (!materialState) return;
             
             // Extract synergy data
-            const tier = Math.max(0, Math.min(3, synergyData.tier ?? 0));
-            const pulseStrength = Math.max(0, Math.min(1, synergyData.pulseStrength ?? 0));
-            const chromaShift = Math.max(0, Math.min(1, synergyData.chromaShift ?? 0));
-            const resonanceRipples = Math.max(0, Math.min(1, synergyData.resonanceRipples ?? 0));
+            const tier = Math.max(0, Math.min(3, visualProfile.tier ?? 0));
+            const pulseStrength = Math.max(0, Math.min(1, visualProfile.pulseStrength ?? 0));
+            const chromaShift = Math.max(0, Math.min(1, visualProfile.chromaShift ?? 0));
+            const resonanceRipples = Math.max(0, Math.min(1, visualProfile.resonanceRipples ?? 0));
             
             // Compute resonance parameters based on tier
             const resonance = tier > 0 ? resonanceRipples : 0;
@@ -438,16 +439,16 @@ export class SynergyResonanceShaderPack_v1 {
             console.error('[SynergyResonanceShaderPack_v1] applyToLink failed:', err);
         }
     }
-    
+
     /**
      * Apply resonance effects to all links in a batch
      */
     applyToAllLinks(allLinks = []) {
         try {
             for (const link of allLinks) {
-                const synergyBonus = link?.userData?.visualMetrics?.synergyBonus;
-                if (!synergyBonus) continue;
-                this.applyToLink(link, synergyBonus);
+                const visualProfile = getLinkSynergyVisualMetrics(link);
+                if (!visualProfile) continue;
+                this.applyToLink(link, visualProfile);
             }
         } catch (err) {
             console.error('[SynergyResonanceShaderPack_v1] applyToAllLinks failed:', err);

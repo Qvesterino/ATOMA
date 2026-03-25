@@ -50,6 +50,7 @@ export class SafeQuantumIllusionsPack1 {
     this.quantumStormActive = false;
     this.lastAwakenTime = -10;
     this.highTrafficBurst = false;
+    this.lastLegendaryCount = 0;
     this.runtimeEnabled = true;
     
     // Screen-space effects container
@@ -133,7 +134,7 @@ export class SafeQuantumIllusionsPack1 {
     this.registry.update(deltaTime);
     
     // Update triggering conditions
-    this.updateTriggeringConditions();
+    this.updateTriggeringConditions(deltaTime);
     
     // Generate illusions based on conditions
     this.generateEchoDoubles();
@@ -153,28 +154,41 @@ export class SafeQuantumIllusionsPack1 {
   /**
    * Update triggering conditions from world systems
    */
-  updateTriggeringConditions() {
-    // Get current synergy if available
-    if (this.linkingSystem && typeof this.linkingSystem.getAverageSynergy === 'function') {
-      this.synergy = this.linkingSystem.getAverageSynergy() || 0;
-    }
+  updateTriggeringConditions(deltaTime = 0.016) {
+    this.synergy = this._readAverageLinkSynergy();
     
     // Detect synergy spike
     const synergySpiked = this.synergy > 0.7 && this.lastSynergy <= 0.7;
     this.lastSynergy = this.synergy;
     
-    // Check for quantum weather (if weather system available)
-    if (this.weatherPack && typeof this.weatherPack.getWeatherType === 'function') {
-      const weather = this.weatherPack.getWeatherType?.();
-      this.quantumStormActive = weather === 'quantum' || weather === 'anomaly';
-    }
+    // Read canonical active weather state from the pack's public API or registry.
+    const weatherType =
+      this.weatherPack?.getActiveWeatherType?.() ||
+      this.weatherPack?.registry?.active ||
+      null;
+    const activeEventType =
+      this.worldEvents?.getActiveEventType?.() ||
+      this.worldEvents?.registry?.activeEvent ||
+      null;
+
+    this.quantumStormActive = weatherType === 'QUANTUM_STORM' ||
+      weatherType === 'SIGMA_TURBULENCE' ||
+      activeEventType === 'QUANTUM_ECLIPSE' ||
+      activeEventType === 'SIGMA_INVASION';
     
-    // Check for legendary node awakening
-    if (this.legendaryPack && typeof this.legendaryPack.hasRecentAwakening === 'function') {
-      const wasAwake = this.legendaryPack.hasRecentAwakening?.();
-      if (wasAwake) this.lastAwakenTime = 0;
-      this.lastAwakenTime += 0.016;
+    // Approximate awakening recency from canonical legendary/event state transitions.
+    const legendaryCount =
+      this.legendaryPack?.getActiveLegendaryCount?.() ??
+      Object.keys(this.legendaryPack?.registry || {}).length;
+    const legendarySurge = legendaryCount > this.lastLegendaryCount;
+    const legendaryEventActive = typeof activeEventType === 'string' &&
+      ['QUANTUM_ECLIPSE', 'SIGMA_INVASION', 'COSMIC_PULSE'].includes(activeEventType);
+    if (legendarySurge || legendaryEventActive || synergySpiked) {
+      this.lastAwakenTime = 0;
+    } else {
+      this.lastAwakenTime += deltaTime;
     }
+    this.lastLegendaryCount = legendaryCount;
     
     // Check for high traffic burst
     if (this.linkingSystem && this.linkingSystem.links) {
@@ -186,6 +200,22 @@ export class SafeQuantumIllusionsPack1 {
       }
       this.highTrafficBurst = highTraffic > this.linkingSystem.links.length * 0.3;
     }
+  }
+
+  _readAverageLinkSynergy() {
+    const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+    if (links.length === 0) return 0;
+
+    let total = 0;
+    let count = 0;
+    for (const link of links) {
+      if (typeof link?.glowData?.synergy === 'number') {
+        total += link.glowData.synergy;
+        count += 1;
+      }
+    }
+
+    return count > 0 ? total / count : 0;
   }
   
   /**
