@@ -356,6 +356,7 @@ export class ProceduralHarmonicGlyphGenerator {
         this.scene = scene;
         this.worldRoot = worldRoot;
         this.topologySystem = topologySystem;
+        this.frameScheduler = null;
         this._attachRoot = worldRoot || scene;
         
         // Glyph instances
@@ -420,7 +421,7 @@ export class ProceduralHarmonicGlyphGenerator {
     // ========================================================================
     
     update(deltaTime) {
-        if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+        if (!this.frameScheduler?.shouldRunVisual?.()) return;
 
         if (!this.enabled || !this.topologySystem) return;
         

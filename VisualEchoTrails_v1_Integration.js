@@ -28,11 +28,88 @@ export class VisualEchoTrails_v1_Integration {
     this.linkingSystem = linkingSystem;
     this.neonLinkVisuals = neonLinkVisuals;
     this.echoTrailsSystem = echoTrailsSystem;
+    this.semanticBus = null;
+    this._semanticLinkCreatedHandler = null;
+    this._semanticBusAttached = null;
     
     // Track materials that have been enhanced with echo trails
     this.echoMaterials = new Map(); // linkId → [materials]
     
     this.enabled = true;
+  }
+
+  init({ linkingSystem = this.linkingSystem, semanticBus = null } = {}) {
+    if (linkingSystem) {
+      this.linkingSystem = linkingSystem;
+    }
+    if (semanticBus) {
+      this.semanticBus = semanticBus;
+    }
+    this._bindSemanticBus();
+    return this;
+  }
+
+  rebind({ linkingSystem = this.linkingSystem, semanticBus = this.semanticBus } = {}) {
+    if (semanticBus && semanticBus !== this.semanticBus) {
+      this._unbindSemanticBus();
+      this.semanticBus = semanticBus;
+    }
+    if (linkingSystem) {
+      this.linkingSystem = linkingSystem;
+    }
+    this._bindSemanticBus();
+    return this;
+  }
+
+  _unbindSemanticBus() {
+    if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
+    const bus = this._semanticBusAttached;
+    if (bus?.unsubscribe) {
+      bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+    } else if (bus?.off) {
+      bus.off('link.created', this._semanticLinkCreatedHandler);
+    }
+    this._semanticBusAttached = null;
+    this._semanticLinkCreatedHandler = null;
+  }
+
+  _bindSemanticBus() {
+    const semanticBus = this.semanticBus || this.linkingSystem?.semanticBus || globalThis?.semanticBus || null;
+    if (!semanticBus?.on) return;
+    if (this._semanticLinkCreatedHandler && this._semanticBusAttached === semanticBus) return;
+
+    this._unbindSemanticBus();
+    this.semanticBus = semanticBus;
+    this._semanticBusAttached = semanticBus;
+
+    const resolveLinkFromPayload = (payload = {}) => {
+      const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+      if (payload.linkId !== null && payload.linkId !== undefined) {
+        const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
+        if (byId) return byId;
+      }
+      const source = payload.source ?? null;
+      const target = payload.target ?? null;
+      if (!source || !target) return null;
+      return links.find((link) => {
+        const linkSource = link?.source || link?.nodeA || null;
+        const linkTarget = link?.target || link?.nodeB || null;
+        return linkSource === source && linkTarget === target;
+      }) || null;
+    };
+
+    this._semanticLinkCreatedHandler = (event = {}) => {
+      const payload = {
+        source: event.source ?? null,
+        target: event.target ?? null,
+        linkId: event.linkId ?? event.id ?? null
+      };
+      const link = resolveLinkFromPayload(payload);
+      if (!link) return;
+      this.onLinkCreated(link);
+    };
+
+    semanticBus.on('link.created', this._semanticLinkCreatedHandler);
   }
   
   /**
@@ -279,6 +356,7 @@ export class VisualEchoTrails_v1_Integration {
    * FIX 6: Dispose — restore original materials and clear state for world switch
    */
   dispose() {
+    this._unbindSemanticBus();
     for (const materials of this.echoMaterials.values()) {
       for (const material of materials) {
         if (material) material.dispose();
@@ -289,6 +367,7 @@ export class VisualEchoTrails_v1_Integration {
     this.linkingSystem = null;
     this.neonLinkVisuals = null;
     this.echoTrailsSystem = null;
+    this.semanticBus = null;
   }
 }
 
@@ -320,37 +399,10 @@ export function setupVisualEchoTrailsIntegration(
     });
   }
 
-  const semanticBus = mainInstance?.semanticBus || mainInstance?.linkingSystem?.semanticBus || globalThis?.semanticBus || null;
-  if (semanticBus?.on) {
-    const resolveLinkFromPayload = (payload = {}) => {
-      const links = Array.isArray(mainInstance?.linkingSystem?.links) ? mainInstance.linkingSystem.links : [];
-      if (payload.linkId !== null && payload.linkId !== undefined) {
-        const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
-        if (byId) return byId;
-      }
-      const source = payload.source ?? null;
-      const target = payload.target ?? null;
-      if (!source || !target) return null;
-      return links.find((link) => {
-        const linkSource = link?.source || link?.nodeA || null;
-        const linkTarget = link?.target || link?.nodeB || null;
-        return linkSource === source && linkTarget === target;
-      }) || null;
-    };
-
-    const handleSemanticLinkCreated = (event = {}) => {
-      const payload = {
-        source: event.source ?? null,
-        target: event.target ?? null,
-        linkId: event.linkId ?? event.id ?? null
-      };
-      const link = resolveLinkFromPayload(payload);
-      if (!link) return;
-      integration.onLinkCreated(link);
-    };
-
-    semanticBus.on('link.created', handleSemanticLinkCreated);
-  }
+  integration.init({
+    linkingSystem: mainInstance.linkingSystem,
+    semanticBus: mainInstance?.semanticBus || mainInstance?.linkingSystem?.semanticBus || globalThis?.semanticBus || null
+  });
   
   // Register callbacks for removed links
   if (mainInstance.linkingSystem?.onLinkRemovedCallbacks) {

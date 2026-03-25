@@ -32,10 +32,11 @@ export class RecursiveGlyphSignalSystem {
     this.selectionCore = null;
     this.linkingSystem = null;
     this.semanticBus = null;
+    this._semanticBusAttached = null;
+    this._semanticLinkCreatedHandler = null;
 
     this.attachedSelectionCores = new WeakSet();
     this.attachedLinkingSystems = new WeakSet();
-    this._semanticLinkCreatedHandler = null;
 
     this.isBurstActive = () => false;
     this.isFieldActive = () => false;
@@ -80,6 +81,19 @@ export class RecursiveGlyphSignalSystem {
     };
   }
 
+  init(config = {}) {
+    if (config.semanticGlyphAI) this.semanticGlyphAI = config.semanticGlyphAI;
+    if (config.frameScheduler) this.setFrameScheduler(config.frameScheduler);
+    if (config.selectionCore) this.setSelectionCore(config.selectionCore);
+    if (config.linkingSystem) this.setLinkingSystem(config.linkingSystem);
+    if (config.semanticBus) this.semanticBus = config.semanticBus;
+    if (config.isBurstActive || config.isFieldActive) {
+      this.setDynamicsContext(config);
+    }
+    this._bindSemanticBus();
+    return this;
+  }
+
   setFrameScheduler(frameScheduler) {
     this.frameScheduler = frameScheduler;
     if (!frameScheduler) {
@@ -114,6 +128,7 @@ export class RecursiveGlyphSignalSystem {
   setLinkingSystem(linkingSystem) {
     if (!linkingSystem || this.attachedLinkingSystems.has(linkingSystem)) {
       this.linkingSystem = linkingSystem || this.linkingSystem;
+      this._bindSemanticBus();
       return;
     }
 
@@ -132,17 +147,36 @@ export class RecursiveGlyphSignalSystem {
       });
     }
 
-    const semanticBus = this.semanticBus || linkingSystem?.semanticBus || globalThis?.semanticBus;
-    if (semanticBus?.on && !this._semanticLinkCreatedHandler) {
-      this.semanticBus = semanticBus;
-      this._semanticLinkCreatedHandler = (event = {}) => {
-        const payload = this._normalizeLinkCreatedEvent(event);
-        const { source, target } = payload;
-        if (!source || !target) return;
-        this.triggerResidueSignal(source, target, 'resonance');
-      };
-      semanticBus.on('link.created', this._semanticLinkCreatedHandler);
+    this._bindSemanticBus();
+  }
+
+  _unbindSemanticBus() {
+    if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
+    const bus = this._semanticBusAttached;
+    if (bus?.unsubscribe) {
+      bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+    } else if (bus?.off) {
+      bus.off('link.created', this._semanticLinkCreatedHandler);
     }
+    this._semanticBusAttached = null;
+    this._semanticLinkCreatedHandler = null;
+  }
+
+  _bindSemanticBus() {
+    const semanticBus = this.semanticBus || this.linkingSystem?.semanticBus || globalThis?.semanticBus;
+    if (!semanticBus?.on) return;
+    if (this._semanticLinkCreatedHandler && this._semanticBusAttached === semanticBus) return;
+
+    this._unbindSemanticBus();
+    this.semanticBus = semanticBus;
+    this._semanticBusAttached = semanticBus;
+    this._semanticLinkCreatedHandler = (event = {}) => {
+      const payload = this._normalizeLinkCreatedEvent(event);
+      const { source, target } = payload;
+      if (!source || !target) return;
+      this.triggerResidueSignal(source, target, 'resonance');
+    };
+    semanticBus.on('link.created', this._semanticLinkCreatedHandler);
   }
 
   setDynamicsContext({ isBurstActive = null, isFieldActive = null } = {}) {
@@ -319,10 +353,7 @@ export class RecursiveGlyphSignalSystem {
   }
 
   cleanup() {
-    if (this.semanticBus?.unsubscribe && this._semanticLinkCreatedHandler) {
-      this.semanticBus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
-      this._semanticLinkCreatedHandler = null;
-    }
+    this._unbindSemanticBus();
 
     this.clearAllSignals();
     this._unregisterTick();
@@ -332,6 +363,23 @@ export class RecursiveGlyphSignalSystem {
     }
 
     Object.values(this.sharedGeometry).forEach((geometry) => geometry?.dispose?.());
+  }
+
+  rebind(config = {}) {
+    if (config.semanticBus && config.semanticBus !== this.semanticBus) {
+      this._unbindSemanticBus();
+      this.semanticBus = config.semanticBus;
+    }
+    if (config.frameScheduler) this.setFrameScheduler(config.frameScheduler);
+    if (config.semanticGlyphAI) this.semanticGlyphAI = config.semanticGlyphAI;
+    if (config.selectionCore) this.setSelectionCore(config.selectionCore);
+    if (config.linkingSystem) this.setLinkingSystem(config.linkingSystem);
+    this._bindSemanticBus();
+    return this;
+  }
+
+  dispose() {
+    this.cleanup();
   }
 
   _normalizeLinkCreatedEvent(event = {}) {

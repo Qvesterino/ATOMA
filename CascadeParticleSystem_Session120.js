@@ -359,7 +359,6 @@ export class CascadeParticleSystem_Session120 {
 
   spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
     if (!this.config.enabled || !link) return;
-    if (this._getLinkLODLevel(link) >= 2) return;
 
     this._ensureCanonicalLinkDefaults([link]);
 
@@ -368,6 +367,8 @@ export class CascadeParticleSystem_Session120 {
     const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
     const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
     if (!sourcePosition || !targetPosition) return;
+
+    if (!intensity) intensity = 0;
 
     const eventIntensity = Math.max(0, Math.min(1, Number(intensity) || 0));
     const canonicalIntensity = Math.max(
@@ -378,7 +379,7 @@ export class CascadeParticleSystem_Session120 {
       )
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
-    if (clampedIntensity <= 0) return;
+    if (clampedIntensity < 0.1) return;
 
     const hop = Math.max(0, Number(hopIndex) || 0);
     const hopDecay = Math.pow(this.config.hopDecay, hop);
@@ -415,7 +416,7 @@ export class CascadeParticleSystem_Session120 {
         link.userData.cascadeIntensity ?? 0
       );
 
-      if (intensity < 0.1 && boost <= 1.0) continue;
+      if (intensity < 0.1) continue;
 
       // Determine conflict type (Semantic Shape) from flowState
       const conflictType = link.userData.cascadeConflictType ?? flowState.type ?? 'neutral';
@@ -585,12 +586,6 @@ export class CascadeParticleSystem_Session120 {
     for (let i = 0; i < this.config.maxParticles; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
-      if (this._getLinkLODLevel(p.linkRef) >= 3) {
-        p.active = false;
-        positions[i * 3] = 99999;
-        continue;
-      }
-      
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
       if (age >= p.maxLifetime) {

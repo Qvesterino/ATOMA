@@ -123,6 +123,7 @@ export class MegaGlyphConduit {
 
     // Procedural Harmonic Glyph Generator (emergent identity glyphs)
     this.proceduralHarmonicGlyphGenerator = new ProceduralHarmonicGlyphGenerator(scene);
+    this.proceduralHarmonicGlyphGenerator.frameScheduler = this.frameScheduler;
 
     // Glyph Fusion Zone (zone-based procedural fusion)
     this.glyphFusionZone = new GlyphFusionZone(scene);

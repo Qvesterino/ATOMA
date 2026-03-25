@@ -21,6 +21,9 @@ export class AnimatedLinkFlow {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
+    this.semanticBus = null;
+    this._semanticBusAttached = null;
+    this._semanticLinkCreatedHandler = null;
     
     // Flow system state
     this.flowsByLink = new Map(); // linkId → FlowState
@@ -55,6 +58,82 @@ export class AnimatedLinkFlow {
     // Materials for flow effects
     this.materials = this.createMaterials();
     this.time = 0;
+  }
+
+  init({ linkingSystem = null, semanticBus = null } = {}) {
+    if (linkingSystem) {
+      this.linkingSystem = linkingSystem;
+    }
+    if (semanticBus) {
+      this.semanticBus = semanticBus;
+    }
+    this._bindSemanticBus();
+    return this;
+  }
+
+  rebind({ linkingSystem = null, semanticBus = null } = {}) {
+    if (linkingSystem) {
+      this.linkingSystem = linkingSystem;
+    }
+    if (semanticBus && semanticBus !== this.semanticBus) {
+      this._unbindSemanticBus();
+      this.semanticBus = semanticBus;
+    }
+    this._bindSemanticBus();
+    return this;
+  }
+
+  _unbindSemanticBus() {
+    if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
+    const bus = this._semanticBusAttached;
+    if (bus?.unsubscribe) {
+      bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+    } else if (bus?.off) {
+      bus.off('link.created', this._semanticLinkCreatedHandler);
+    }
+    this._semanticBusAttached = null;
+    this._semanticLinkCreatedHandler = null;
+  }
+
+  _bindSemanticBus() {
+    const semanticBus = this.semanticBus || this.linkingSystem?.semanticBus || globalThis?.semanticBus || null;
+    if (!semanticBus?.on) return;
+    if (this._semanticLinkCreatedHandler && this._semanticBusAttached === semanticBus) return;
+
+    this._unbindSemanticBus();
+    this.semanticBus = semanticBus;
+    this._semanticBusAttached = semanticBus;
+
+    const resolveLinkFromPayload = (payload = {}) => {
+      const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+      if (payload.linkId !== null && payload.linkId !== undefined) {
+        const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
+        if (byId) return byId;
+      }
+
+      const source = payload.source ?? null;
+      const target = payload.target ?? null;
+      if (!source || !target) return null;
+
+      return links.find((link) => {
+        const linkSource = link?.source || link?.nodeA || null;
+        const linkTarget = link?.target || link?.nodeB || null;
+        return linkSource === source && linkTarget === target;
+      }) || null;
+    };
+
+    this._semanticLinkCreatedHandler = (event = {}) => {
+      const payload = {
+        source: event.source ?? null,
+        target: event.target ?? null,
+        linkId: event.linkId ?? event.id ?? null
+      };
+      const link = resolveLinkFromPayload(payload);
+      if (!link) return;
+      this.initializeLinkFlow(link, payload.linkId ?? link?.id ?? link?.userData?.id ?? null);
+    };
+
+    semanticBus.on('link.created', this._semanticLinkCreatedHandler);
   }
   
   /**
@@ -425,6 +504,7 @@ export class AnimatedLinkFlow {
    * Clear all flows and dispose resources
    */
   dispose() {
+    this._unbindSemanticBus();
     for (const [linkId] of this.flowsByLink) {
       this.removeLinkFlow(linkId);
     }
@@ -438,6 +518,7 @@ export class AnimatedLinkFlow {
         material.dispose();
       }
     }
+    this.semanticBus = null;
   }
 }
 
@@ -447,40 +528,6 @@ export class AnimatedLinkFlow {
  */
 export function integrateAnimatedLinkFlow(linkingSystem, scene, camera) {
   const flowSystem = new AnimatedLinkFlow(scene, camera);
-  const semanticBus = linkingSystem?.semanticBus || globalThis?.semanticBus || null;
-
-  const resolveLinkFromPayload = (payload = {}) => {
-    const links = Array.isArray(linkingSystem?.links) ? linkingSystem.links : [];
-    if (payload.linkId !== null && payload.linkId !== undefined) {
-      const byId = links.find((link) => (link?.id ?? link?.userData?.id) === payload.linkId);
-      if (byId) return byId;
-    }
-
-    const source = payload.source ?? null;
-    const target = payload.target ?? null;
-    if (!source || !target) return null;
-
-    return links.find((link) => {
-      const linkSource = link?.source || link?.nodeA || null;
-      const linkTarget = link?.target || link?.nodeB || null;
-      return linkSource === source && linkTarget === target;
-    }) || null;
-  };
-
-  const normalizeLinkCreatedEvent = (event = {}) => {
-    const payload = {
-      source: event.source ?? null,
-      target: event.target ?? null,
-      linkId: event.linkId ?? event.id ?? null
-    };
-    const resolvedLink = resolveLinkFromPayload(payload);
-    if (resolvedLink) {
-      payload.source = payload.source || resolvedLink.source || resolvedLink.nodeA || null;
-      payload.target = payload.target || resolvedLink.target || resolvedLink.nodeB || null;
-      payload.linkId = payload.linkId ?? resolvedLink.id ?? resolvedLink.userData?.id ?? null;
-    }
-    return payload;
-  };
   
   // Hook into link creation
   const originalOnLinkCreated = linkingSystem.onLinkCreatedCallbacks;
@@ -495,22 +542,10 @@ export function integrateAnimatedLinkFlow(linkingSystem, scene, camera) {
   linkingSystem.onLinkRemovedCallbacks.push((linkId) => {
     flowSystem.removeLinkFlow(linkId);
   });
-
-  if (semanticBus?.on) {
-    const handleSemanticLinkCreated = (event = {}) => {
-      const payload = normalizeLinkCreatedEvent(event);
-      const link = resolveLinkFromPayload(payload);
-      if (!link) return;
-      flowSystem.initializeLinkFlow(link, payload.linkId ?? link?.id ?? link?.userData?.id);
-    };
-    semanticBus.on('link.created', handleSemanticLinkCreated);
-
-    const originalDispose = flowSystem.dispose.bind(flowSystem);
-    flowSystem.dispose = () => {
-      semanticBus?.unsubscribe?.('link.created', handleSemanticLinkCreated);
-      originalDispose();
-    };
-  }
+  flowSystem.init({
+    linkingSystem,
+    semanticBus: linkingSystem?.semanticBus || globalThis?.semanticBus || null
+  });
   
   // Store reference for animation loop
   linkingSystem._flowSystem = flowSystem;

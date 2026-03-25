@@ -5,6 +5,32 @@ import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 // Private symbol to track patched materials
 const RESONANCE_FX_PATCHED = Symbol('resonanceFXPatched');
 
+function getConduitLinkMaterials(link) {
+    const materials = [];
+    const conduitState = link?.group?.userData?.conduitState;
+
+    if (conduitState?.skinMesh?.material) {
+        materials.push(conduitState.skinMesh.material);
+    }
+
+    if (Array.isArray(conduitState?.strands)) {
+        for (const strand of conduitState.strands) {
+            if (strand?.material) {
+                materials.push(strand.material);
+            }
+        }
+    }
+
+    if (!materials.length && link?.material) {
+        const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
+        for (const material of legacyMaterials) {
+            if (material) materials.push(material);
+        }
+    }
+
+    return [...new Set(materials)];
+}
+
 /**
  * SYNERGY RESONANCE SHADER PACK v1.0
  * 
@@ -405,11 +431,8 @@ export class SynergyResonanceShaderPack_v1 {
      */
     applyToLink(linkObject, visualProfile = {}) {
         try {
-            if (!linkObject?.material) return;
-            
-            // Get or create material state
-            const materialState = this.getMaterialState(linkObject.material);
-            if (!materialState) return;
+            const materials = getConduitLinkMaterials(linkObject);
+            if (!materials.length) return;
             
             // Extract synergy data
             const tier = Math.max(0, Math.min(3, visualProfile.tier ?? 0));
@@ -425,15 +448,19 @@ export class SynergyResonanceShaderPack_v1 {
             const flowSpeed = tier > 1 ? (tier / 3.0) * this.config.globalFlowSpeed : 0;
             
             // Update uniforms
-            materialState.updateUniforms(
-                tier,
-                resonance,
-                coherence,
-                this._time,
-                multiFreqStr,
-                chromaStr,
-                flowSpeed
-            );
+            for (const material of materials) {
+                const materialState = this.getMaterialState(material);
+                if (!materialState) continue;
+                materialState.updateUniforms(
+                    tier,
+                    resonance,
+                    coherence,
+                    this._time,
+                    multiFreqStr,
+                    chromaStr,
+                    flowSpeed
+                );
+            }
             
         } catch (err) {
             console.error('[SynergyResonanceShaderPack_v1] applyToLink failed:', err);

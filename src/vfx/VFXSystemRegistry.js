@@ -23,7 +23,14 @@ class HarmonyAuraMaterialProvider {
 
 class CompositeGlyphResonanceFeedbackAdapter {
   constructor(ctx = {}) {
-    this.system = new CompositeGlyphResonanceFeedback(ctx);
+    this.system = new CompositeGlyphResonanceFeedback();
+
+    this.system.frameScheduler = ctx.frameScheduler || null;
+    this.system.initialize(
+      ctx.scene || ctx.vfxRoot || null,
+      ctx.camera || null,
+      ctx.network || { aiNodes: ctx.aiNodes, linkingSystem: ctx.linkingSystem }
+    );
   }
 
   update(dt = 0) {

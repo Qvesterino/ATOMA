@@ -5,6 +5,32 @@ import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 // Private symbol to track patched materials
 const SYNERGY_FX_PATCHED = Symbol('synergyFXPatched');
 
+function getConduitLinkMaterials(link) {
+    const materials = [];
+    const conduitState = link?.group?.userData?.conduitState;
+
+    if (conduitState?.skinMesh?.material) {
+        materials.push(conduitState.skinMesh.material);
+    }
+
+    if (Array.isArray(conduitState?.strands)) {
+        for (const strand of conduitState.strands) {
+            if (strand?.material) {
+                materials.push(strand.material);
+            }
+        }
+    }
+
+    if (!materials.length && link?.material) {
+        const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
+        for (const material of legacyMaterials) {
+            if (material) materials.push(material);
+        }
+    }
+
+    return [...new Set(materials)];
+}
+
 /**
  * SYNERGY BONUS FX LAYER v1.0
  * 
@@ -322,10 +348,10 @@ export class SynergyBonusFXLayer_v1 {
     }
     
     /**
-     * Get or create material state for a link's material
+     * Get or create material state for a link's conduit materials
      */
     getMaterialState(link) {
-        const material = link?.material;
+        const material = getConduitLinkMaterials(link)[0];
         if (!material) return null;
         
         if (!this.materialState.has(material)) {
@@ -335,6 +361,30 @@ export class SynergyBonusFXLayer_v1 {
         }
         
         return this.materialState.get(material);
+    }
+
+    /**
+     * Get or create material states for all conduit materials on a link
+     */
+    getMaterialStates(link) {
+        const materials = getConduitLinkMaterials(link);
+        if (!materials.length) return [];
+
+        const states = [];
+        for (const material of materials) {
+            if (!this.materialState.has(material)) {
+                const state = new SynergyMaterialState(material);
+                this.materialState.set(material, state);
+                state.patch();
+            }
+
+            const state = this.materialState.get(material);
+            if (state) {
+                states.push(state);
+            }
+        }
+
+        return states;
     }
     
     /**
@@ -421,8 +471,8 @@ export class SynergyBonusFXLayer_v1 {
             // ================================================================
             // UPDATE SHADER UNIFORMS
             // ================================================================
-            const materialState = this.getMaterialState(link);
-            if (materialState) {
+            const materialStates = this.getMaterialStates(link);
+            for (const materialState of materialStates) {
                 materialState.updateUniforms(
                     fxState.tier,
                     fxState.currentPulse,

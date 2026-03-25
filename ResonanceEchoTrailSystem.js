@@ -269,6 +269,7 @@ export class ResonanceEchoTrailSystem {
         this.updateTimer = 0.0;
         this._timeOrigin = undefined;
         this._lastVisualTime = undefined;
+        this._semanticEventsBound = false;
         this._boundWaveBurstHandler = (burst) => {
             const resolved = this._resolveBurstPayload(burst);
             if (!resolved) return;
@@ -282,15 +283,46 @@ export class ResonanceEchoTrailSystem {
         }
         
         this.enabled = true;
-        this._subscribeSemanticEvents();
+        this.init();
         
         console.log('[ResonanceEchoTrailSystem] Initialized');
     }
 
     _subscribeSemanticEvents() {
-        if (!this.semanticBus?.on) return;
+        if (!this.semanticBus?.on || this._semanticEventsBound) return;
         this.semanticBus.on('wave.burst.lifecycle', this._boundWaveBurstHandler);
         this.semanticBus.on('wave.packet.spawn', this._boundWaveBurstHandler);
+        this._semanticEventsBound = true;
+    }
+
+    _unsubscribeSemanticEvents() {
+        if (!this._semanticEventsBound) return;
+        const bus = this.semanticBus;
+        if (bus?.unsubscribe) {
+            bus.unsubscribe('wave.burst.lifecycle', this._boundWaveBurstHandler);
+            bus.unsubscribe('wave.packet.spawn', this._boundWaveBurstHandler);
+        } else if (bus?.off) {
+            bus.off('wave.burst.lifecycle', this._boundWaveBurstHandler);
+            bus.off('wave.packet.spawn', this._boundWaveBurstHandler);
+        }
+        this._semanticEventsBound = false;
+    }
+
+    init(config = {}) {
+        if (config.semanticBus) {
+            this.semanticBus = config.semanticBus;
+        }
+        this._subscribeSemanticEvents();
+        return this;
+    }
+
+    rebind(config = {}) {
+        if (config.semanticBus && config.semanticBus !== this.semanticBus) {
+            this._unsubscribeSemanticEvents();
+            this.semanticBus = config.semanticBus;
+        }
+        this._subscribeSemanticEvents();
+        return this;
     }
 
     _resolveBurstPayload(event = {}) {
@@ -591,15 +623,8 @@ export class ResonanceEchoTrailSystem {
     }
 
     dispose() {
+        this._unsubscribeSemanticEvents();
         this.resetAll();
-
-        if (this.semanticBus?.unsubscribe) {
-            this.semanticBus.unsubscribe('wave.burst.lifecycle', this._boundWaveBurstHandler);
-            this.semanticBus.unsubscribe('wave.packet.spawn', this._boundWaveBurstHandler);
-        } else if (this.semanticBus?.off) {
-            this.semanticBus.off('wave.burst.lifecycle', this._boundWaveBurstHandler);
-            this.semanticBus.off('wave.packet.spawn', this._boundWaveBurstHandler);
-        }
 
         this.root?.traverse(obj => {
             if (obj.isMesh) {
@@ -616,6 +641,7 @@ export class ResonanceEchoTrailSystem {
             this.root.parent.remove(this.root);
         }
         this.root?.clear?.();
+        this.semanticBus = null;
     }
 }
 

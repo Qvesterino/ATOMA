@@ -1,5 +1,7 @@
 /**
  * Canonical semantic link metrics bridge (0-1 normalized).
+ *
+ * Quality score is the source of truth; cascadeIntensity is derived from it.
  */
 
 const NEUTRAL_VALUE = 0.5;
@@ -92,6 +94,66 @@ export class LinkSemanticMetricsBridge_v1 {
       if (shouldWrite(linkMetrics.synergy, synergy)) {
         linkMetrics.synergy = synergy;
         changed = true;
+      }
+
+      const qualityScore = Number(link.userData?.quality?.score);
+      const cascadeIntensity = Number.isFinite(qualityScore)
+        ? clamp01(1 - (qualityScore / 100))
+        : 0;
+
+      if (shouldWrite(userData.cascadeIntensity, cascadeIntensity)) {
+        userData.cascadeIntensity = cascadeIntensity;
+        changed = true;
+      }
+      if (shouldWrite(linkMetrics.cascadeIntensity, cascadeIntensity)) {
+        linkMetrics.cascadeIntensity = cascadeIntensity;
+        changed = true;
+      }
+
+      const semanticBus = this.linkingSystem?.semanticBus || globalThis?.semanticBus || null;
+      if (semanticBus?.emit) {
+        const isActive = cascadeIntensity > 0.6;
+        const wasActive = userData.__cascadeActive === true;
+        const sourceNode = userData.nodeA || link.source || link.nodeA || null;
+        const targetNode = userData.nodeB || link.target || link.nodeB || null;
+        const center = sourceNode?.position && targetNode?.position
+          ? {
+              x: (sourceNode.position.x + targetNode.position.x) * 0.5,
+              y: (sourceNode.position.y + targetNode.position.y) * 0.5,
+              z: (sourceNode.position.z + targetNode.position.z) * 0.5
+            }
+          : null;
+        const payload = {
+          linkId: link.id,
+          fromId: sourceNode?.id ?? null,
+          toId: targetNode?.id ?? null,
+          sourceNode,
+          targetNode,
+          link,
+          center,
+          intensity: cascadeIntensity,
+          value: cascadeIntensity
+        };
+
+        if (isActive && !wasActive) {
+          semanticBus.emit('cascade.start', payload, {
+            priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+          });
+        }
+
+        if (isActive) {
+          semanticBus.emit('cascade.hop', payload, {
+            priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+          });
+        }
+
+        if (!isActive && wasActive) {
+          semanticBus.emit('cascade.end', payload, {
+            priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+          });
+        }
+
+        userData.__cascadeActive = isActive;
       }
 
       if (changed) updated++;

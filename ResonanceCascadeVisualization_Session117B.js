@@ -135,16 +135,50 @@ export class ResonanceCascadeVisualization_Session117B {
     this._boundHandleCascadeStart = this.handleCascadeStart.bind(this);
     this._boundHandleCascadeHop = this.handleCascadeHop.bind(this);
     this._boundHandleCascadeEnd = this.handleCascadeEnd.bind(this);
-    this._subscribeSemanticBus();
+    this._semanticEventsBound = false;
+    this.init();
     
     console.log('[Session 117B] ResonanceCascadeVisualization initialized ✓');
   }
 
   _subscribeSemanticBus() {
-    if (!this.semanticBus?.on) return;
+    if (!this.semanticBus?.on || this._semanticEventsBound) return;
     this.semanticBus.on('cascade.start', this._boundHandleCascadeStart);
     this.semanticBus.on('cascade.hop', this._boundHandleCascadeHop);
     this.semanticBus.on('cascade.end', this._boundHandleCascadeEnd);
+    this._semanticEventsBound = true;
+  }
+
+  _unsubscribeSemanticBus() {
+    if (!this._semanticEventsBound) return;
+    if (this.semanticBus?.unsubscribe) {
+      this.semanticBus.unsubscribe('cascade.start', this._boundHandleCascadeStart);
+      this.semanticBus.unsubscribe('cascade.hop', this._boundHandleCascadeHop);
+      this.semanticBus.unsubscribe('cascade.end', this._boundHandleCascadeEnd);
+    } else if (this.semanticBus?.off) {
+      this.semanticBus.off('cascade.start', this._boundHandleCascadeStart);
+      this.semanticBus.off('cascade.hop', this._boundHandleCascadeHop);
+      this.semanticBus.off('cascade.end', this._boundHandleCascadeEnd);
+    }
+    this._semanticEventsBound = false;
+  }
+
+  init(config = {}) {
+    if (config.semanticBus && config.semanticBus !== this.semanticBus) {
+      this._unsubscribeSemanticBus();
+      this.semanticBus = config.semanticBus;
+    }
+    this._subscribeSemanticBus();
+    return this;
+  }
+
+  rebind(config = {}) {
+    if (config.semanticBus && config.semanticBus !== this.semanticBus) {
+      this._unsubscribeSemanticBus();
+      this.semanticBus = config.semanticBus;
+    }
+    this._subscribeSemanticBus();
+    return this;
   }
   
   _clamp01(value) {
@@ -436,7 +470,6 @@ export class ResonanceCascadeVisualization_Session117B {
         continue;
       }
       this.nodeCascadeIntensity.set(node, decayed);
-      node.userData.cascadeIntensity = decayed;
       node.userData.cascadeGlow = decayed * CASCADE_CONFIG.NODE_GLOW_MULTIPLIER;
       node.userData.cascadeRipple = Math.sin(Date.now() * 0.003) * decayed * 0.5;
       this._applyVisualCascade(
@@ -459,7 +492,6 @@ export class ResonanceCascadeVisualization_Session117B {
         continue;
       }
       this.linkCascadeIntensity.set(link, decayed);
-      link.userData.cascadeIntensity = decayed;
       link.userData.cascadeRipple = decayed * CASCADE_CONFIG.LINK_RIPPLE_MULTIPLIER;
       link.userData.cascadeThickening = decayed * CASCADE_CONFIG.LINK_THICKNESS_MULTIPLIER;
       link.userData.cascadeOscillation = Math.sin(Date.now() * 0.004) * decayed;
@@ -549,15 +581,7 @@ export class ResonanceCascadeVisualization_Session117B {
   }
 
   dispose() {
-    if (this.semanticBus?.unsubscribe) {
-      this.semanticBus.unsubscribe('cascade.start', this._boundHandleCascadeStart);
-      this.semanticBus.unsubscribe('cascade.hop', this._boundHandleCascadeHop);
-      this.semanticBus.unsubscribe('cascade.end', this._boundHandleCascadeEnd);
-    } else if (this.semanticBus?.off) {
-      this.semanticBus.off('cascade.start', this._boundHandleCascadeStart);
-      this.semanticBus.off('cascade.hop', this._boundHandleCascadeHop);
-      this.semanticBus.off('cascade.end', this._boundHandleCascadeEnd);
-    }
+    this._unsubscribeSemanticBus();
 
     // FIX 4: Remove window.cascadeDebug to prevent leak on world switch
     if (typeof window !== 'undefined') {
@@ -575,6 +599,7 @@ export class ResonanceCascadeVisualization_Session117B {
     this.nodeCascadeIntensity.clear();
     this.linkCascadeIntensity.clear();
     this.semanticBus = null;
+    this._semanticEventsBound = false;
   }
 }
 

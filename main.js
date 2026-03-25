@@ -499,8 +499,6 @@ import { setupCascadeSystemConsoleAPI } from './CascadeSystemConsoleAPI.js';
 // LINK SEMANTIC PICTOGRAM SYSTEM — ENHANCED WITH FUSION (Session 139+)
 // Multi-layer semantic visual language with morphing, depth, flow intelligence, and glyph fusion
 // ============================================================================
-import { LinkSemanticPictogramSystem_Enhanced } from './LinkSemanticPictogramSystem_Enhanced.js';
-
 // ============================================================================
 // HARMONIC RESONANCE FEEDBACK SYSTEM (Session 140+)
 // Composite glyphs emit subtle resonance fields influencing nearby link motion
@@ -1140,6 +1138,10 @@ class SemanticEventBus {
             ['hud.visibility.change', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.INTERACTIVE, windowMs: 700, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120 } }],
             ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }],
             ['link.created', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['cascade.triggered', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['cascade.start', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['cascade.hop', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
+            ['cascade.end', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['network.link.destroyed', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['node.spawned', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 150, aggregateWithinMs: 150, aggregationStrategy: 'latest' }],
             ['network.node.destroyed', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 2000, cooldownMs: 150, aggregateWithinMs: 150, aggregationStrategy: 'latest' }],
@@ -3461,11 +3463,11 @@ class AtomaGame {
                 );
             }
         }, 'background.harmonicTopology');
-        this.frameScheduler.register('background', (dt) => {
+        this.frameScheduler.register('visual', (dt) => {
             if (this.proceduralGlyphGenerator?.enabled) {
                 this.proceduralGlyphGenerator.update(dt);
             }
-        }, 'background.proceduralGlyphGenerator');
+        }, 'visual.proceduralGlyphGenerator');
         this.frameScheduler.register('background', (dt) => {
             if (this.harmonicCycleController?.enabled) {
                 const harmonicNetworkState = {
@@ -6155,6 +6157,47 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         try {
+            if (this.resonanceCascadeVisualization && typeof this.resonanceCascadeVisualization.rebind === 'function') {
+                this.resonanceCascadeVisualization.rebind({ semanticBus });
+            }
+        } catch (err) {
+            console.warn('[main.js] ResonanceCascadeVisualization rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.resonanceEchoTrailSystem && typeof this.resonanceEchoTrailSystem.rebind === 'function') {
+                this.resonanceEchoTrailSystem.rebind({ semanticBus });
+            }
+        } catch (err) {
+            console.warn('[main.js] ResonanceEchoTrailSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.selectedHUD && typeof this.selectedHUD.rebind === 'function') {
+                this.selectedHUD.rebind({
+                    linkingSystem,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] SelectedHUD rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.recursiveGlyphSignalSystem && typeof this.recursiveGlyphSignalSystem.rebind === 'function') {
+                this.recursiveGlyphSignalSystem.rebind({
+                    linkingSystem,
+                    semanticBus,
+                    frameScheduler,
+                    semanticGlyphAI: this.semanticGlyphAI,
+                    selectionCore: this.selectionCore
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] RecursiveGlyphSignalSystem rebind failed:', err?.message || err);
+        }
+
+        try {
             if (this.resonanceRupture && typeof this.resonanceRupture.rebind === 'function') {
                 this.resonanceRupture.rebind({
                     linkingSystem,
@@ -6214,6 +6257,29 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
         } catch (err) {
             console.warn('[main.js] LinkRendererConduit rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.echoTrailsIntegration && typeof this.echoTrailsIntegration.rebind === 'function') {
+                this.echoTrailsIntegration.rebind({
+                    linkingSystem,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] EchoTrailsIntegration rebind failed:', err?.message || err);
+        }
+
+        try {
+            const flowSystem = this.linkingSystem?._flowSystem || this.linkingSystem?.flowSystem || null;
+            if (flowSystem && typeof flowSystem.rebind === 'function') {
+                flowSystem.rebind({
+                    linkingSystem,
+                    semanticBus
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] AnimatedLinkFlow rebind failed:', err?.message || err);
         }
     }
 
@@ -7035,6 +7101,32 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
         // Wave shader stacks: register/patch/apply after nodes exist (pre-link usage)
         try {
+            const getConduitLinkMaterials = (link) => {
+                const materials = [];
+                const conduitState = link?.group?.userData?.conduitState;
+
+                if (conduitState?.skinMesh?.material) {
+                    materials.push(conduitState.skinMesh.material);
+                }
+
+                if (Array.isArray(conduitState?.strands)) {
+                    for (const strand of conduitState.strands) {
+                        if (strand?.material) {
+                            materials.push(strand.material);
+                        }
+                    }
+                }
+
+                if (!materials.length && link?.material) {
+                    const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
+                    for (const material of legacyMaterials) {
+                        if (material) materials.push(material);
+                    }
+                }
+
+                return [...new Set(materials)];
+            };
+
             if (this.waveShaderBridge && this.aiNodes?.nodes) {
                 for (const node of this.aiNodes.nodes) {
                     const mats = node?.material
@@ -7046,9 +7138,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.waveShaderBridge && this.nodeLinking?.links) {
                 for (const link of this.nodeLinking.links) {
-                    const mats = link?.material
-                        ? (Array.isArray(link.material) ? link.material : [link.material])
-                        : [];
+                    const mats = getConduitLinkMaterials(link);
                     mats.forEach(mat => this.waveShaderBridge?.registerLinkMaterial?.(mat, 'DEFAULT'));
                 }
                 console.log('[main.js] Wave Shader Bridge: Link materials registered ✓');
@@ -7069,9 +7159,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.waveShaderMaterialPatch && this.nodeLinking?.links) {
                 for (const link of this.nodeLinking.links) {
-                    const mats = link?.material
-                        ? (Array.isArray(link.material) ? link.material : [link.material])
-                        : [];
+                    const mats = getConduitLinkMaterials(link);
                     mats.forEach(mat => this.waveShaderMaterialPatch?.patch?.(mat, 'SYNERGY'));
                 }
                 console.log('[main.js] Wave Shader Material Patch: Link materials patched ✓');
@@ -7092,9 +7180,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.waveTravelShaderPack && this.nodeLinking?.links) {
                 for (const link of this.nodeLinking.links) {
-                    const mats = link?.material
-                        ? (Array.isArray(link.material) ? link.material : [link.material])
-                        : [];
+                    const mats = getConduitLinkMaterials(link);
                     mats.forEach(mat => this.waveTravelShaderPack?.register?.(mat, 'TRAVEL_INTERFERENCE'));
                 }
                 console.log('[main.js] Wave Travel Shader Pack: Link materials registered ✓');
@@ -7112,9 +7198,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             }
             if (this.waveDynamicsShaderPack && this.nodeLinking?.links) {
                 for (const link of this.nodeLinking.links) {
-                    const mats = link?.material
-                        ? (Array.isArray(link.material) ? link.material : [link.material])
-                        : [];
+                    const mats = getConduitLinkMaterials(link);
                     mats.forEach(mat => this.waveDynamicsShaderPack?.applyToMaterial?.(mat, 'SYNERGY'));
                 }
                 console.log('[main.js] Wave Dynamics Shader Pack: Link materials applied ✓');
@@ -7885,6 +7969,13 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 emasAlpha: 0.2
             }
         );
+        this.linkQualityCalculator.frameScheduler = this.frameScheduler;
+        this.linkQualityCalculator.semanticBus = this.semanticBus;
+        if (this.frameScheduler) {
+            this.frameScheduler.register('simulation', (dt) => {
+                this.linkQualityCalculator?.update?.(dt);
+            }, 'simulation.linkQualityCalculator');
+        }
         console.log('[main.js] LinkQualityCalculator initialized ✓');
         
         // 1. Link Quality Feedback Loop 1.0 - Link outcome evaluation
@@ -9089,31 +9180,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         } catch (err) {
             console.warn('[main.js] NetworkStressAggregator failed:', err);
         }
-
-        // === SYNERGY CASCADE ACTIVATION PATCH ===
-        this.frameScheduler.register('simulation', () => {
-            const links = this.linkSystem?.links || [];
-            if (!links.length) return;
-
-            for (const link of links) {
-                const synergy =
-                    link.userData?.synergy?.score ??
-                    link.userData?.synergy?.synergyNorm ??
-                    0;
-
-                if (synergy > 0.6) {
-                    this.semanticBus?.emit?.('cascade.start', {
-                        linkId: link.id,
-                        strength: synergy,
-                    });
-
-                    this.semanticBus?.emit?.('cascade.hop', {
-                        linkId: link.id,
-                        strength: synergy * 0.8,
-                    });
-                }
-            }
-        }, 'simulation.synergyCascadeActivation');
 
         // ====================================================================
         // METRIC INTERPRETATION LAYER v1 — Visual Signal Interpretation
@@ -12354,7 +12420,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     /**
      * Setup Cascading Rupture & Critical Node Failure Systems (Session 139+)
      * Hybrid visual + mechanical systems for network collapse propagation
-     * DISABLED BY DEFAULT - Enable via console: game.cascadingRuptures.enable()
+     * ACTIVE BY DEFAULT - Disable via console: game.cascadingRuptures.disable()
      */
     setupCascadingRuptureAndFailure() {
         try {
@@ -12496,11 +12562,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.linkSemanticPictograms) return;
         try {
             const conduitPictograms = this.linkingSystem?.conduitRenderer?.pictogramSystem || null;
-            this.linkSemanticPictograms = conduitPictograms || new LinkSemanticPictogramSystem_Enhanced(
-                this.scene,
-                this.linkingSystem,
-                this.camera
-            );
+            if (!conduitPictograms) {
+                console.warn('[main.js] LinkSemanticPictogramSystem not available from conduitRenderer');
+                return;
+            }
+
+            this.linkSemanticPictograms = conduitPictograms;
             // Alias for scheduler hooks
             this.linkPictogramSystem = this.linkSemanticPictograms;
             // Expose for console debugging
@@ -12509,7 +12576,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 window.__PIC_SYSTEM__ = this.linkSemanticPictograms;
                 window.linkingSystem = this.linkingSystem;
             }
-            console.error('[main.js] LinkSemanticPictogramSystem_Enhanced initialized ✓ (semantic pictograms active)');
+            console.error('[main.js] LinkSemanticPictogramSystem initialized ✓ (conduit pictograms active)');
         } catch (err) {
             console.warn('[main.js] LinkSemanticPictogramSystem init error:', err);
         }
@@ -12620,6 +12687,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.worldRoot,
                 this.harmonicTopology
             );
+            this.proceduralGlyphGenerator.frameScheduler = this.frameScheduler;
             
             setupProceduralGlyphConsoleAPI(this);
             

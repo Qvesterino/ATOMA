@@ -70,6 +70,8 @@ export class UISelectedHUD {
         this.linkedCategories = [];
         this.semanticBus = null;
         this._semanticLinkCreatedHandler = null;
+        this._attachedLinkingSystem = null;
+        this._semanticBusAttached = null;
         
         // [LinkPriority v1.0] Track max priority tier of linked nodes
         this.maxLinkedPriorityTier = 0;
@@ -81,6 +83,78 @@ export class UISelectedHUD {
         this._createHudElement();
         this._setupStyles();
         this._init();
+    }
+
+    init({ linkingSystem = null, semanticBus = null } = {}) {
+        if (semanticBus) {
+            this.semanticBus = semanticBus;
+        }
+        if (linkingSystem) {
+            this.setLinkingSystem(linkingSystem);
+        } else {
+            this._bindSemanticBus();
+        }
+        return this;
+    }
+
+    rebind({ linkingSystem = this.linkingSystem, semanticBus = this.semanticBus } = {}) {
+        if (semanticBus && semanticBus !== this.semanticBus) {
+            this._unbindSemanticBus();
+            this.semanticBus = semanticBus;
+        }
+
+        if (linkingSystem && linkingSystem !== this.linkingSystem) {
+            this.linkingSystem = null;
+            this._attachedLinkingSystem = null;
+            this.setLinkingSystem(linkingSystem);
+            return this;
+        }
+
+        this._bindSemanticBus();
+        return this;
+    }
+
+    _unbindSemanticBus() {
+        if (!this._semanticLinkCreatedHandler || !this._semanticBusAttached) return;
+
+        const bus = this._semanticBusAttached;
+        if (bus?.unsubscribe) {
+            bus.unsubscribe('link.created', this._semanticLinkCreatedHandler);
+        } else if (bus?.off) {
+            bus.off('link.created', this._semanticLinkCreatedHandler);
+        }
+
+        this._semanticBusAttached = null;
+        this._semanticLinkCreatedHandler = null;
+    }
+
+    _bindSemanticBus() {
+        const semanticBus = this.semanticBus || this.linkingSystem?.semanticBus || globalThis?.semanticBus;
+        if (!semanticBus?.on) return;
+        if (this._semanticLinkCreatedHandler && this._semanticBusAttached === semanticBus) return;
+
+        this._unbindSemanticBus();
+        this.semanticBus = semanticBus;
+        this._semanticBusAttached = semanticBus;
+        this._semanticLinkCreatedHandler = (event = {}) => {
+            const payload = this._normalizeLinkCreatedEvent(event);
+            const { source, target } = payload;
+            if (!source || !target || !this.selectedNode) return;
+
+            const selectedId = this._resolveNodeId(this.selectedNode);
+            const sourceId = this._resolveNodeId(source);
+            const targetId = this._resolveNodeId(target);
+            const involved =
+                this.selectedNode === source ||
+                this.selectedNode === target ||
+                (selectedId && (selectedId === sourceId || selectedId === targetId));
+
+            if (involved) {
+                this.updateLinkedCategories(this.selectedNode);
+                this.updateDisplay(this.selectedNode);
+            }
+        };
+        semanticBus.on('link.created', this._semanticLinkCreatedHandler);
     }
     
     /**
@@ -177,8 +251,13 @@ export class UISelectedHUD {
             console.warn('[SelectedHUD] setLinkingSystem called with null - ignoring');
             return;
         }
+        if (this.linkingSystem === linkingSystem && this._attachedLinkingSystem === linkingSystem) {
+            this._bindSemanticBus();
+            return;
+        }
         
         this.linkingSystem = linkingSystem;
+        this._attachedLinkingSystem = linkingSystem;
         console.log('[SelectedHUD] ✓ Connected to NodeLinkingSystem');
         
         // Register event listeners to NodeLinkingSystem callbacks
@@ -207,29 +286,7 @@ export class UISelectedHUD {
             }
         });
 
-        const semanticBus = this.semanticBus || linkingSystem?.semanticBus || globalThis?.semanticBus;
-        if (semanticBus?.on && !this._semanticLinkCreatedHandler) {
-            this.semanticBus = semanticBus;
-            this._semanticLinkCreatedHandler = (event = {}) => {
-                const payload = this._normalizeLinkCreatedEvent(event);
-                const { source, target } = payload;
-                if (!source || !target || !this.selectedNode) return;
-
-                const selectedId = this._resolveNodeId(this.selectedNode);
-                const sourceId = this._resolveNodeId(source);
-                const targetId = this._resolveNodeId(target);
-                const involved =
-                    this.selectedNode === source ||
-                    this.selectedNode === target ||
-                    (selectedId && (selectedId === sourceId || selectedId === targetId));
-
-                if (involved) {
-                    this.updateLinkedCategories(this.selectedNode);
-                    this.updateDisplay(this.selectedNode);
-                }
-            };
-            semanticBus.on('link.created', this._semanticLinkCreatedHandler);
-        }
+        this._bindSemanticBus();
         
         // Listen for link removal events
         linkingSystem.onLinkRemoved((source, target) => {
@@ -241,6 +298,18 @@ export class UISelectedHUD {
                 console.log('[SelectedHUD] ✓ Updated display for link removal');
             }
         });
+    }
+
+    dispose() {
+        this._unbindSemanticBus();
+        this.hudElement?.remove?.();
+        this.hudElement = null;
+        this.linkingSystem = null;
+        this._attachedLinkingSystem = null;
+        this._semanticBusAttached = null;
+        this._semanticLinkCreatedHandler = null;
+        this.selectedNode = null;
+        this.linkedCategories = [];
     }
 
     _resolveNodeId(node) {

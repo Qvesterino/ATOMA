@@ -28,7 +28,7 @@ import { LinkExtensionConfig } from './LinkExtensionConfig.js';
 import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import VisualTime from './src/time/VisualTime.js';
-import { LinkSemanticPictogramSystem_Enhanced } from './LinkSemanticPictogramSystem_Enhanced.js';
+import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
 
 if (typeof window !== 'undefined' && !window.__PicDiagConduitModuleLoaded__) {
     console.info('[PicDiag] LinkRendererConduit module loaded');
@@ -985,11 +985,11 @@ export class LinkRendererConduit {
         this.heavyDistance = 60;
 
         // Semantic pictograms (global pool, attached to conduit root)
-        this.pictogramSystem = new LinkSemanticPictogramSystem_Enhanced(
+        this.pictogramSystem = new LinkSemanticPictogramSystem_WithFusion(
             scene,
+            this.conduitRoot,
             this.linkSystem,
-            this.camera,
-            this.conduitRoot
+            this.camera
         );
         // Ensure pictograms stay enabled when driven by FrameScheduler
         this.pictogramSystem.enable?.();

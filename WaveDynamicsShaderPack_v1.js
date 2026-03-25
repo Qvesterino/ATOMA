@@ -4,6 +4,32 @@ import VisualTime from './src/time/VisualTime.js';
 // Private symbol to track patched materials (survives all registration cycles)
 const DYNAMICS_PACK_PATCHED = Symbol('waveDynamicsPackPatched');
 
+function getConduitLinkMaterials(link) {
+    const materials = [];
+    const conduitState = link?.group?.userData?.conduitState;
+
+    if (conduitState?.skinMesh?.material) {
+        materials.push(conduitState.skinMesh.material);
+    }
+
+    if (Array.isArray(conduitState?.strands)) {
+        for (const strand of conduitState.strands) {
+            if (strand?.material) {
+                materials.push(strand.material);
+            }
+        }
+    }
+
+    if (!materials.length && link?.material) {
+        const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
+        for (const material of legacyMaterials) {
+            if (material) materials.push(material);
+        }
+    }
+
+    return [...new Set(materials)];
+}
+
 /**
  * WAVE DYNAMICS SHADER PACK v1.0
  * 
@@ -296,18 +322,11 @@ export class WaveDynamicsShaderPack_v1 {
 
             let count = 0;
 
-            // Apply to link material
-            if (link?.material) {
-                if (Array.isArray(link.material)) {
-                    for (const mat of link.material) {
-                        if (this.applyToMaterial(mat, profile)) {
-                            count++;
-                        }
-                    }
-                } else {
-                    if (this.applyToMaterial(link.material, profile)) {
-                        count++;
-                    }
+            // Apply to conduit materials first, legacy fallback if needed
+            const materials = getConduitLinkMaterials(link);
+            for (const mat of materials) {
+                if (this.applyToMaterial(mat, profile)) {
+                    count++;
                 }
             }
 

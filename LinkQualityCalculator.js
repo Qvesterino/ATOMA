@@ -35,6 +35,7 @@ export class LinkQualityCalculator {
     // Store references
     this.linkingSystem = linkingSystem;
     this.nodeDynamics = nodeDynamics;
+    this.semanticBus = config.semanticBus || null;
     
     // Configuration with sensible defaults
     this.config = {
@@ -149,6 +150,33 @@ export class LinkQualityCalculator {
     quality.load = loadScore;
     quality.corruption = corruptionScore;
     quality.updatedAt = now;
+
+    const currentIntensity = Math.max(0, Math.min(1, 1 - (finalScore / 100)));
+    const previousIntensity = Math.max(0, Math.min(1, 1 - (previousScore / 100)));
+    const sourceNode = link.source || link.sourceNode || link.userData?.nodeA || null;
+    const targetNode = link.target || link.targetNode || link.userData?.nodeB || null;
+    const semanticBus = this.semanticBus || globalThis?.semanticBus || null;
+
+    if (semanticBus?.emit) {
+      const payload = {
+        linkId,
+        fromId: sourceNode?.id ?? null,
+        toId: targetNode?.id ?? null,
+        intensity: currentIntensity
+      };
+
+      if (currentIntensity > 0.6 && previousIntensity < 0.6) {
+        semanticBus.emit('cascade.triggered', payload, {
+          priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+        });
+      }
+
+      if (currentIntensity > 0.3) {
+        semanticBus.emit('cascade.hop', payload, {
+          priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
+        });
+      }
+    }
     
     // ========== 8. UPDATE CACHE ==========
     cache.previousScore = finalScore;

@@ -283,8 +283,7 @@ export class CascadeEventBridge_v1 {
         this._requestCascadeWaveBurst(link, flowState);
       }
 
-      // Canonical per-link writes (Critical 5 authority fields for cascade/conflict)
-      // Keep legacy keys populated every frame so all downstream readers get values.
+      // Canonical per-link writes for flowState-derived conflict metadata.
       const canonicalIntensity = Math.max(0, Math.min(1, flowState.intensity ?? 0));
       const canonicalType = flowState.type || 'resolved_harmony';
       const canonicalConflict = Math.max(
@@ -313,7 +312,6 @@ export class CascadeEventBridge_v1 {
         ? Date.now()
         : (link.userData.synergyCascadeTime ?? 0);
 
-      link.userData.cascadeIntensity = canonicalIntensity;
       link.userData.cascadeConflictType = canonicalType;
       link.userData.conflictIntensity = canonicalConflict;
       link.userData.synergyCollapse = isSynergyCollapse;
@@ -321,7 +319,6 @@ export class CascadeEventBridge_v1 {
 
       // Stamp canonical writes for cascade fields
       link.userData.__canonicalWriteAt = link.userData.__canonicalWriteAt || {};
-      link.userData.__canonicalWriteAt.cascadeIntensity = Date.now();
       link.userData.__canonicalWriteAt.cascadeConflictType = Date.now();
       link.userData.__canonicalWriteAt.conflictIntensity = Date.now();
       link.userData.__canonicalWriteAt.synergyCollapse = Date.now();

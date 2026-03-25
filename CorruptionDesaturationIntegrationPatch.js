@@ -12,6 +12,32 @@
 
 import * as THREE from 'three';
 
+function getConduitLinkMaterials(link) {
+  const materials = [];
+  const conduitState = link?.group?.userData?.conduitState;
+
+  if (conduitState?.skinMesh?.material) {
+    materials.push(conduitState.skinMesh.material);
+  }
+
+  if (Array.isArray(conduitState?.strands)) {
+    for (const strand of conduitState.strands) {
+      if (strand?.material) {
+        materials.push(strand.material);
+      }
+    }
+  }
+
+  if (!materials.length && link?.material) {
+    const legacyMaterials = Array.isArray(link.material) ? link.material : [link.material];
+    for (const material of legacyMaterials) {
+      if (material) materials.push(material);
+    }
+  }
+
+  return [...new Set(materials)];
+}
+
 /**
  * Apply corruption desaturation integration
  * 
@@ -53,8 +79,18 @@ export function applyCorruptionDesaturationIntegration(scene, nodes = [], links 
   }
 
   for (const link of links) {
-    if (link.material && link.material.color) {
-      originalLinkColors.set(link.id, link.material.color.clone());
+    const materials = getConduitLinkMaterials(link);
+    if (!materials.length) continue;
+
+    const snapshots = [];
+    for (const material of materials) {
+      if (material?.color) {
+        snapshots.push({ material, color: material.color.clone() });
+      }
+    }
+
+    if (snapshots.length) {
+      originalLinkColors.set(link.id, snapshots);
     }
   }
 
@@ -100,23 +136,23 @@ export function applyCorruptionDesaturationIntegration(scene, nodes = [], links 
 
       const corruption = link.userData.metrics?.corruption ?? link.userData?.corruption ?? 0;
       
-      // Get original color (base)
-      const originalColor = originalLinkColors.get(link.id);
-      if (!originalColor) continue;
+      // Get original colors (base)
+      const originalMaterials = originalLinkColors.get(link.id);
+      if (!originalMaterials?.length) continue;
 
-      // Get current material
-      const material = link.material;
-      if (!material || !material.color) continue;
+      for (const { material, color: originalColor } of originalMaterials) {
+        if (!material || !material.color) continue;
 
-      // Apply desaturation: lerp from original color to neutral gray
-      // Higher corruption = more desaturated (closer to neutral gray)
-      const desaturatedColor = originalColor.clone().lerp(
-        configOptions.neutralColor,
-        corruption * configOptions.desaturationStrength
-      );
+        // Apply desaturation: lerp from original color to neutral gray
+        // Higher corruption = more desaturated (closer to neutral gray)
+        const desaturatedColor = originalColor.clone().lerp(
+          configOptions.neutralColor,
+          corruption * configOptions.desaturationStrength
+        );
 
-      // Apply to material
-      material.color.copy(desaturatedColor);
+        // Apply to material
+        material.color.copy(desaturatedColor);
+      }
 
       if (configOptions.debugMode) {
         console.log(`[CorruptionDesaturation] Link ${link.id}: corruption=${corruption.toFixed(2)}, desaturation applied`);
@@ -193,8 +229,11 @@ export function applyLinkCorruptionDesaturation(link, originalColor, desaturatio
   // Apply desaturation
   const desaturatedColor = originalColor.clone().lerp(neutralColor, corruption * desaturationStrength);
 
-  // Apply to material
-  if (link.material && link.material.color) {
-    link.material.color.copy(desaturatedColor);
+  // Apply to conduit materials first, legacy material as fallback
+  const materials = getConduitLinkMaterials(link);
+  for (const material of materials) {
+    if (material?.color) {
+      material.color.copy(desaturatedColor);
+    }
   }
 }
