@@ -19,7 +19,7 @@
  * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
  * 
  * DECAY:
- * - cascadeIntensity *= 0.92 per frame (30 Hz on visual layer)
+  * - cascadeIntensity *= 0.92 per frame (simulation lane)
  * - Intensity resets to 0 when below 0.01
  * 
  * @author VFX Technical Director — ATOMA Project Session 120
@@ -131,7 +131,7 @@ export class CascadeEventBridge_v1 {
       return;
     }
     
-    const success = this.frameScheduler.register('visual', this._boundHandlers.decayUpdate, 'visual.cascadeEventBridge');
+    const success = this.frameScheduler.register('simulation', this._boundHandlers.decayUpdate, 'simulation.cascadeEventBridge');
     
     if (success) {
       this._isRegistered = true;
@@ -547,7 +547,7 @@ export class CascadeEventBridge_v1 {
     
     // Unregister from FrameScheduler
     if (this._isRegistered && this.frameScheduler) {
-      this.frameScheduler.unregister('visual.cascadeEventBridge');
+      this.frameScheduler.unregister('simulation.cascadeEventBridge');
       this._isRegistered = false;
     }
 
@@ -600,7 +600,7 @@ export class CascadeEventBridge_v1 {
 
       // Re-register to FrameScheduler
       if (this._isRegistered && this.frameScheduler) {
-        this.frameScheduler.unregister('visual.cascadeEventBridge');
+        this.frameScheduler.unregister('simulation.cascadeEventBridge');
         this._isRegistered = false;
       }
       this._registerDecayUpdate();

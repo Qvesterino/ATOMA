@@ -768,11 +768,36 @@ export class CascadeParticleSystem_Session120 {
    * Mark geometry attributes for update
    */
   _updateGeometry() {
-    this.geometry.attributes.position.needsUpdate = true;
-    this.geometry.attributes.color.needsUpdate = true;
-    this.geometry.attributes.size.needsUpdate = true;
-    this.geometry.attributes.angle.needsUpdate = true;
-    this.geometry.attributes.shapeIndex.needsUpdate = true;
+    const activeCount = this.activeCount;
+    if (activeCount <= 0) {
+      this.geometry.setDrawRange(0, 0);
+      return;
+    }
+
+    const positionAttribute = this.geometry.attributes.position;
+    const colorAttribute = this.geometry.attributes.color;
+    const sizeAttribute = this.geometry.attributes.size;
+    const angleAttribute = this.geometry.attributes.angle;
+    const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
+
+    positionAttribute.updateRange.offset = 0;
+    positionAttribute.updateRange.count = activeCount * positionAttribute.itemSize;
+    colorAttribute.updateRange.offset = 0;
+    colorAttribute.updateRange.count = activeCount * colorAttribute.itemSize;
+    sizeAttribute.updateRange.offset = 0;
+    sizeAttribute.updateRange.count = activeCount * sizeAttribute.itemSize;
+    angleAttribute.updateRange.offset = 0;
+    angleAttribute.updateRange.count = activeCount * angleAttribute.itemSize;
+    shapeIndexAttribute.updateRange.offset = 0;
+    shapeIndexAttribute.updateRange.count = activeCount * shapeIndexAttribute.itemSize;
+
+    positionAttribute.needsUpdate = true;
+    colorAttribute.needsUpdate = true;
+    sizeAttribute.needsUpdate = true;
+    angleAttribute.needsUpdate = true;
+    shapeIndexAttribute.needsUpdate = true;
+
+    this.geometry.setDrawRange(0, activeCount);
   }
   
   /**

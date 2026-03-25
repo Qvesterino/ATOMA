@@ -1284,6 +1284,19 @@ export class LinkRendererConduit {
             sparkPhase,
             sparkCursor: 0,
             sparkMax,
+            sparkStaticAttributes: {
+                aColor: sparkColorAttr,
+                aShape: sparkShapeAttr,
+                aSize: sparkSizeAttr,
+                aAngle: sparkAngleAttr,
+                aSpin: sparkSpinAttr,
+                aDuration: sparkDurationAttr,
+                aGain: sparkGainAttr
+            },
+            sparkDynamicAttributes: {
+                position: sparkPositionAttr,
+                aBirth: sparkBirthAttr
+            },
             positions,
             colors,
             rootT,
@@ -1389,17 +1402,36 @@ export class LinkRendererConduit {
 
         sparkBirth[idx] = visualTime;
         sparkDuration[idx] = randRange(profile.lifeMin, profile.lifeMax) * (0.85 + energyClamped * 0.35);
-        const attrs = filamentState.sparkGeometry?.attributes;
-        if (attrs) {
-            attrs.position.needsUpdate = true;
-            attrs.aColor.needsUpdate = true;
-            attrs.aShape.needsUpdate = true;
-            attrs.aSize.needsUpdate = true;
-            attrs.aAngle.needsUpdate = true;
-            attrs.aSpin.needsUpdate = true;
-            attrs.aBirth.needsUpdate = true;
-            attrs.aDuration.needsUpdate = true;
-            attrs.aGain.needsUpdate = true;
+        const staticAttrs = filamentState.sparkStaticAttributes;
+        if (staticAttrs) {
+            staticAttrs.aColor.updateRange.offset = s;
+            staticAttrs.aColor.updateRange.count = 3;
+            staticAttrs.aShape.updateRange.offset = idx;
+            staticAttrs.aShape.updateRange.count = 1;
+            staticAttrs.aSize.updateRange.offset = idx;
+            staticAttrs.aSize.updateRange.count = 1;
+            staticAttrs.aAngle.updateRange.offset = idx;
+            staticAttrs.aAngle.updateRange.count = 1;
+            staticAttrs.aSpin.updateRange.offset = idx;
+            staticAttrs.aSpin.updateRange.count = 1;
+            staticAttrs.aDuration.updateRange.offset = idx;
+            staticAttrs.aDuration.updateRange.count = 1;
+            staticAttrs.aGain.updateRange.offset = idx;
+            staticAttrs.aGain.updateRange.count = 1;
+            staticAttrs.aColor.needsUpdate = true;
+            staticAttrs.aShape.needsUpdate = true;
+            staticAttrs.aSize.needsUpdate = true;
+            staticAttrs.aAngle.needsUpdate = true;
+            staticAttrs.aSpin.needsUpdate = true;
+            staticAttrs.aDuration.needsUpdate = true;
+            staticAttrs.aGain.needsUpdate = true;
+        }
+
+        const dynamicAttrs = filamentState.sparkDynamicAttributes;
+        if (dynamicAttrs) {
+            dynamicAttrs.aBirth.updateRange.offset = idx;
+            dynamicAttrs.aBirth.updateRange.count = 1;
+            dynamicAttrs.aBirth.needsUpdate = true;
         }
     }
 
@@ -1448,9 +1480,15 @@ export class LinkRendererConduit {
         if (filamentState.sparkMaterial?.uniforms?.uGlobalOpacity) {
             filamentState.sparkMaterial.uniforms.uGlobalOpacity.value = hasLive ? 1.0 : 0.0;
         }
-        const attrs = filamentState.sparkGeometry.attributes;
-        attrs.position.needsUpdate = true;
-        attrs.aBirth.needsUpdate = true;
+        const dynamicAttrs = filamentState.sparkDynamicAttributes;
+        if (dynamicAttrs) {
+            dynamicAttrs.position.updateRange.offset = 0;
+            dynamicAttrs.position.updateRange.count = sparkMax * 3;
+            dynamicAttrs.aBirth.updateRange.offset = 0;
+            dynamicAttrs.aBirth.updateRange.count = sparkMax;
+            dynamicAttrs.position.needsUpdate = true;
+            dynamicAttrs.aBirth.needsUpdate = true;
+        }
     }
 
     _updateStrandFilaments(link, state, ctx = {}) {

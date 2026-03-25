@@ -103,6 +103,7 @@ export class WaveParticleEmitter_v1 {
     this._tmpBezierPoint = new THREE.Vector3();
     this._tmpBezierTangent = new THREE.Vector3();
     this._tmpArcLift = new THREE.Vector3();
+    this._pendingGeometryUploads = new Set();
 
     if (this.config.debugMode) {
       console.log('[WaveParticleEmitter_v1] Constructor initialized', this.config);
@@ -688,6 +689,7 @@ export class WaveParticleEmitter_v1 {
   update(deltaTime, nodes = [], links = [], waveEngine = null) {
     try {
       this.time += deltaTime;
+      this._pendingGeometryUploads.clear();
 
       // Process all nodes for wave-based emission triggers
       if (nodes && Array.isArray(nodes)) {
@@ -710,6 +712,8 @@ export class WaveParticleEmitter_v1 {
       if (this.config.standingWaveRippleEnabled) {
         this._updateParticleSystem('standingWaveRipple', deltaTime);
       }
+
+      this._flushParticleGeometryUpdates();
     } catch (err) {
       console.error('[WaveParticleEmitter_v1] Update error:', err);
     }
@@ -1603,18 +1607,52 @@ export class WaveParticleEmitter_v1 {
 
       this.activeCount[systemType] = activeIdx;
 
-      // Update geometry
-      geometry.attributes.position.needsUpdate = true;
-      geometry.attributes.color.needsUpdate = true;
-      geometry.attributes.alpha.needsUpdate = true;
-      if (geometry.attributes.scale) {
-        geometry.attributes.scale.needsUpdate = true;
+      // Update geometry only for the compact active prefix.
+      const hasActiveParticles = activeIdx > 0;
+      if (hasActiveParticles) {
+        const positionAttribute = geometry.attributes.position;
+        const colorAttribute = geometry.attributes.color;
+        const alphaAttribute = geometry.attributes.alpha;
+        positionAttribute.updateRange.offset = 0;
+        positionAttribute.updateRange.count = activeIdx * positionAttribute.itemSize;
+        colorAttribute.updateRange.offset = 0;
+        colorAttribute.updateRange.count = activeIdx * colorAttribute.itemSize;
+        alphaAttribute.updateRange.offset = 0;
+        alphaAttribute.updateRange.count = activeIdx * alphaAttribute.itemSize;
+
+        if (geometry.attributes.scale) {
+          const scaleAttribute = geometry.attributes.scale;
+          scaleAttribute.updateRange.offset = 0;
+          scaleAttribute.updateRange.count = activeIdx * scaleAttribute.itemSize;
+        }
+
+        this._pendingGeometryUploads.add(geometry);
       }
 
       geometry.setDrawRange(0, activeIdx);
     } catch (err) {
       console.error(`[WaveParticleEmitter_v1] Update system error (${systemType}):`, err);
     }
+  }
+
+  _flushParticleGeometryUpdates() {
+    if (!this._pendingGeometryUploads || this._pendingGeometryUploads.size === 0) return;
+
+    for (const geometry of this._pendingGeometryUploads) {
+      const positionAttribute = geometry.attributes.position;
+      const colorAttribute = geometry.attributes.color;
+      const alphaAttribute = geometry.attributes.alpha;
+
+      if (positionAttribute) positionAttribute.needsUpdate = true;
+      if (colorAttribute) colorAttribute.needsUpdate = true;
+      if (alphaAttribute) alphaAttribute.needsUpdate = true;
+
+      if (geometry.attributes.scale) {
+        geometry.attributes.scale.needsUpdate = true;
+      }
+    }
+
+    this._pendingGeometryUploads.clear();
   }
 
   /**

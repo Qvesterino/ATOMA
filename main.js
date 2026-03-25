@@ -3541,6 +3541,11 @@ class AtomaGame {
             }
         }, 'simulation.fxPerformanceTransition');
         this.frameScheduler.register('simulation', (dt) => {
+            if (this.linkSemanticMetricsBridge) {
+                this.linkSemanticMetricsBridge.update(dt);
+            }
+        }, 'simulation.linkSemanticMetricsBridge');
+        this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticFatigueAdapter && this.aiNodes) {
                 this.synapticFatigueAdapter.updateFatigue(
                     this.aiNodes.nodes || [],
@@ -9995,9 +10000,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     runSlowSemanticTick(deltaTime) {
         // Slow semantic 10 Hz logic currently executed inline in animate() when scheduler is unavailable
         // This method exists to satisfy FrameScheduler callbacks.
-        if (this.linkSemanticMetricsBridge) {
-            this.linkSemanticMetricsBridge.update(deltaTime);
-        }
         if (this.linkCascadeInfectionSystem) {
             this.linkCascadeInfectionSystem.update(deltaTime);
         }
