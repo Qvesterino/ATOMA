@@ -1209,7 +1209,6 @@ class SemanticEventBus {
             ['hud.visibility.change', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 250, aggregateWithinMs: 300, aggregationStrategy: 'latest', escalate: { threshold: 2, toPriority: this.priority.INTERACTIVE, windowMs: 700, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 120 } }],
             ['camera.motion', { decayStages: [{ afterMs: 700, priority: this.priority.NORMAL }], expiresMs: 1800, cooldownMs: 120, aggregateWithinMs: 300, aggregationStrategy: 'sum', escalate: { threshold: 4, toPriority: this.priority.INTERACTIVE, windowMs: 600, maxLevel: 1 }, suppress: { ifOverload: true, maxQueueDepth: 160 } }],
             ['link.created', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
-            ['cascade.triggered', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['cascade.start', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['cascade.hop', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
             ['cascade.end', { decayStages: [{ afterMs: 500, priority: this.priority.NORMAL }], expiresMs: 1500, cooldownMs: 100, aggregateWithinMs: 100, aggregationStrategy: 'latest' }],
@@ -3798,7 +3797,7 @@ class AtomaGame {
             };
 
             emitEvent(tierEvent, payload);
-            emitEvent('cascade.triggered', { ...payload, level: tierEvent });
+            emitEvent('cascade.start', { ...payload, level: tierEvent });
         }, 'simulation.networkStressCascadeBridge');
         this.frameScheduler.register('simulation', (dt) => {
             this.personalityRuntime_v1?.update?.(dt);
@@ -7046,6 +7045,14 @@ window.__ATOMA_SCENE__ = this.scene;
                     targetNode.userData?.harmony ??
                     0
                 );
+                const sourceHarmony = Number(sourceNode.userData?.metrics?.harmony ?? sourceNode.userData?.harmony ?? 0);
+                const targetHarmony = Number(targetNode.userData?.metrics?.harmony ?? targetNode.userData?.harmony ?? 0);
+                const phaseSyncStrength = Math.max(0, Math.min(1, Number.isFinite((sourceIntensity + targetIntensity) * 0.5)
+                    ? (sourceIntensity + targetIntensity) * 0.5
+                    : 0));
+                const phaseSyncStability = Math.max(0, Math.min(1, Number.isFinite((sourceHarmony + targetHarmony) * 0.5)
+                    ? (sourceHarmony + targetHarmony) * 0.5
+                    : 0));
                 const intensity = Math.max(
                     0.18,
                     Math.min(0.85, Number.isFinite((sourceIntensity + targetIntensity) * 0.5)
@@ -7067,8 +7074,11 @@ window.__ATOMA_SCENE__ = this.scene;
                     sourcePosition: sourcePos ? { x: sourcePos.x, y: sourcePos.y, z: sourcePos.z } : null,
                     targetPosition: targetPos ? { x: targetPos.x, y: targetPos.y, z: targetPos.z } : null,
                     center: midpoint,
+                    anchor: midpoint,
                     position: midpoint,
                     origin: midpoint,
+                    phaseSyncStrength,
+                    phaseSyncStability,
                     intensity,
                     value: intensity,
                     hopIndex: 0

@@ -185,6 +185,21 @@ export class ResonanceCascadeVisualization_Session117B {
     return Math.max(0, Math.min(1, Number(value) || 0));
   }
 
+  _resolveCascadeAnchor(event = {}) {
+    const anchor = this._asValidPosition(event?.anchor);
+    if (anchor) return anchor;
+
+    const sourcePos = this._asValidPosition(event?.sourceNode?.position);
+    const targetPos = this._asValidPosition(event?.targetNode?.position);
+    if (!sourcePos || !targetPos) return null;
+
+    return new THREE.Vector3(
+      (sourcePos.x + targetPos.x) * 0.5,
+      (sourcePos.y + targetPos.y) * 0.5,
+      (sourcePos.z + targetPos.z) * 0.5
+    );
+  }
+
   _registerNodeVisual(node, intensity) {
     if (!node?.userData) return;
     const prev = this.nodeCascadeIntensity.get(node) ?? 0;
@@ -361,19 +376,10 @@ export class ResonanceCascadeVisualization_Session117B {
   _spawnCascadeWaveFromEvent(event = {}) {
     if (!this.enabled || !THREE) return;
 
-    const sourcePos =
-      event?.center ||
-      event?.position ||
-      event?.origin ||
-      event?.centerPos ||
-      null;
-
-    const pos = this._asValidPosition(sourcePos);
-    if (!pos) return;
-
     const rawIntensity = event?.intensity ?? event?.value ?? event?.strength ?? 0;
     const impulseIntensity = this._clamp01(rawIntensity);
-    if (impulseIntensity <= 0) return;
+    const pos = this._resolveCascadeAnchor(event);
+    if (impulseIntensity <= 0 || !pos) return;
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
     this.activeCascades.push(cascade);
@@ -390,6 +396,8 @@ export class ResonanceCascadeVisualization_Session117B {
 
   handleCascadeStart(event = {}) {
     const intensity = this._clamp01(event?.intensity ?? event?.value ?? 0);
+    const anchor = this._resolveCascadeAnchor(event);
+    if (intensity <= 0 || !anchor) return;
     this._spawnCascadeWaveFromEvent(event);
     this._registerNodeVisual(event?.sourceNode, intensity);
     this._registerNodeVisual(event?.targetNode, intensity);

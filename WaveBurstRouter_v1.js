@@ -12,9 +12,8 @@ export function setupWaveBurstRouter(game) {
         'link:harmonicLock',
         'metric:harmonyPeak',
         'network:harmonyShift',
-        'cascade.triggered',
-        'harmonic.cascade.start',
         'cascade.start',
+        'harmonic.cascade.start',
         'cascade.hop',
         'metric:stabilityDrop',
         'metric:loadPressureHigh',
@@ -279,7 +278,7 @@ export function setupWaveBurstRouter(game) {
         if (flowType === 'fatigue_yield' || flowType === 'stability') return 'stability';
         if (flowType === 'specialization_drift') return 'synergy';
 
-        if (eventTag === 'cascade.triggered') {
+        if (eventTag === 'cascade.start') {
             return resolveNodeFamily(payload);
         }
 
@@ -567,7 +566,7 @@ export function setupWaveBurstRouter(game) {
         bind('network:harmonyShift', 'harmonic', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
 
         // Cascade gameplay events
-        bind('cascade.triggered', 'cascade', semanticBus.priority?.NORMAL);
+        bind('cascade.start', 'cascade', semanticBus.priority?.NORMAL);
         bind('harmonic.cascade.start', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('cascade.start', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);
         bind('cascade.hop', 'cascade', semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL);

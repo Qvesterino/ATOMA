@@ -537,7 +537,7 @@ export class CascadingHarmonicResonanceAmplification {
         node.userData.metrics.cascadePhase = node._cascadePhase;
 
         if (node._cascadeStrength > 0.65 && semanticBus?.emit) {
-          semanticBus.emit('cascade.triggered', {
+          semanticBus.emit('cascade.start', {
             sourceNode: node.id ?? nodeId,
             strength: node._cascadeStrength,
             position: node?.position
@@ -618,7 +618,7 @@ export class CascadingHarmonicResonanceAmplification {
 
     const intensity = Math.max(0, Math.min(1, currentStrength));
 
-    semanticBus.emit('cascade.triggered', {
+    semanticBus.emit('cascade.start', {
       sourceId: nodeId,
       sourceNode: node,
       sourcePosition: node?.position

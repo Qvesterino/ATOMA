@@ -192,6 +192,13 @@ export class SynergyCascadeVisualizer {
     return Math.max(0, Math.min(1, Number(value) || 0));
   }
 
+  _resolveCascadeActivation(event = {}) {
+    const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
+    const anchor = this._asVector3(event.anchor ?? event.center ?? event.position ?? event.origin);
+    if (intensity <= 0 || !anchor) return null;
+    return { intensity, anchor };
+  }
+
   _getOrCreateCascade(cascadeId, seedIntensity = 0) {
     let cascade = this.activeCascades.find(item => item.id === cascadeId);
     if (cascade) return cascade;
@@ -213,21 +220,23 @@ export class SynergyCascadeVisualizer {
 
   renderCascadeStart(event = {}) {
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
-    const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
+    const activation = this._resolveCascadeActivation(event);
+    if (!activation) return;
+    const { intensity, anchor } = activation;
     this._getOrCreateCascade(cascadeId, intensity);
-    const center = this._asVector3(event.center ?? event.position ?? event.origin);
-    if (center && this.config.visualizations.rippleEffect) {
-      this.createRipple(center, Math.max(0.2, intensity));
+    if (this.config.visualizations.rippleEffect) {
+      this.createRipple(anchor, Math.max(0.2, intensity));
     }
   }
 
   renderCascadeHop(event = {}) {
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
     const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
+    const anchor = this._asVector3(event.anchor ?? event.position ?? event.center ?? event.origin ?? event.targetPosition ?? event.sourcePosition);
     const startPosition = this._asVector3(event.sourcePosition ?? event.fromPosition ?? event.origin ?? event.start);
     const targetPosition = this._asVector3(event.targetPosition ?? event.toPosition ?? event.center ?? event.end);
     const link = event.link ?? event.linkRef ?? null;
-    if (!link && (!startPosition || !targetPosition)) return;
+    if (!link && (!startPosition || !targetPosition) && !anchor) return;
 
     const cascade = this._getOrCreateCascade(cascadeId, intensity);
     cascade.hops.push({
@@ -240,6 +249,10 @@ export class SynergyCascadeVisualizer {
       createdAt: Date.now(),
       completed: false
     });
+
+    if (anchor && this.config.visualizations.rippleEffect) {
+      this.createRipple(anchor, Math.max(0.18, intensity * 0.5));
+    }
   }
 
   renderCascadeEnd(event = {}) {
@@ -698,7 +711,8 @@ export class SynergyCascadeVisualizer {
     const startPayload = {
       id: `manual-${++this.cascadeId}`,
       intensity: this._clamp01(intensity),
-      center: position
+      center: position,
+      anchor: position
     };
     this.renderCascadeStart(startPayload);
   }

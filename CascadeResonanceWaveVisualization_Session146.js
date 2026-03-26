@@ -145,6 +145,9 @@ export class CascadeResonanceWaveVisualization_Session146 {
     if (typeof on !== 'function') return;
 
     const onCascadeStart = (event = {}) => {
+      const activation = this._resolveWaveActivation(event);
+      if (!activation) return;
+
       const sourceNode = this._resolveCascadeEndpoint(
         event.sourceNode ||
         event.source ||
@@ -168,6 +171,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
       this.handleCascadeStart({
         ...event,
+        ...activation,
         sourceNode,
         targetNode
       });
@@ -175,6 +179,8 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
     const onCascadeHop = (event = {}) => {
       if (!event) return;
+      const activation = this._resolveWaveActivation(event);
+      if (!activation) return;
 
       const linkPayload = event.link || event;
       const sourceNode = this._resolveCascadeEndpoint(
@@ -202,12 +208,12 @@ export class CascadeResonanceWaveVisualization_Session146 {
 
       if (!sourceNode || !targetNode) return;
 
-      this.spawnCascadeResonanceWave(
+      this.handleCascadeHop({
+        ...event,
+        ...activation,
         sourceNode,
-        targetNode,
-        event.intensity ?? 1.0,
-        event.hopIndex ?? 0
-      );
+        targetNode
+      });
     };
 
     on('cascade.start', onCascadeStart);
@@ -260,6 +266,78 @@ export class CascadeResonanceWaveVisualization_Session146 {
     }
 
     return this._findNodeById(candidateId) || null;
+  }
+
+  _clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+  }
+
+  _resolveWaveActivation(event = {}) {
+    const phaseSyncStrength = this._clamp01(
+      event?.phaseSyncStrength ??
+      event?.syncStrength ??
+      event?.strength ??
+      event?.intensity ??
+      event?.value ??
+      0
+    );
+    const phaseSyncStability = this._clamp01(
+      event?.phaseSyncStability ??
+      event?.syncStability ??
+      event?.stability ??
+      event?.harmony ??
+      event?.intensity ??
+      event?.value ??
+      0
+    );
+
+    if (phaseSyncStrength <= 0 || phaseSyncStability <= 0) {
+      return null;
+    }
+
+    return {
+      phaseSyncStrength,
+      phaseSyncStability,
+      intensity: this._clamp01(
+        event?.intensity ??
+        event?.value ??
+        ((phaseSyncStrength + phaseSyncStability) * 0.5)
+      )
+    };
+  }
+
+  handleCascadeStart(event = {}) {
+    const activation = this._resolveWaveActivation(event);
+    if (!activation) return;
+    if (activation.phaseSyncStrength < this.config.minPhaseSyncStrength) return;
+    if (activation.phaseSyncStability < this.config.minPhaseSyncStability) return;
+    if (activation.intensity < this.config.minCascadeStrengthTrigger) return;
+
+    if (!event?.sourceNode || !event?.targetNode) return;
+
+    this.spawnCascadeResonanceWave(
+      event.sourceNode,
+      event.targetNode,
+      activation.intensity,
+      event.hopIndex ?? 0
+    );
+  }
+
+  handleCascadeHop(event = {}) {
+    const activation = this._resolveWaveActivation(event);
+    if (!activation) return;
+    if (activation.phaseSyncStrength < this.config.minPhaseSyncStrength) return;
+    if (activation.phaseSyncStability < this.config.minPhaseSyncStability) return;
+    if (activation.intensity < this.config.minCascadeStrengthTrigger) return;
+
+    if (!event?.sourceNode || !event?.targetNode) return;
+
+    this.spawnCascadeResonanceWave(
+      event.sourceNode,
+      event.targetNode,
+      activation.intensity,
+      event.hopIndex ?? 0
+    );
   }
 
   spawnCascadeResonanceWave(sourceNode, targetNode, intensity = 1.0, hopIndex = 0) {

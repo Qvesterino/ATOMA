@@ -166,7 +166,7 @@ export class LinkQualityCalculator {
       };
 
       if (currentIntensity > 0.6 && previousIntensity < 0.6) {
-        semanticBus.emit('cascade.triggered', payload, {
+        semanticBus.emit('cascade.start', payload, {
           priority: semanticBus.priority?.INTERACTIVE ?? semanticBus.priority?.NORMAL
         });
       }
