@@ -54,6 +54,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
 
 export class HarmonicHubAuraSystem_Session126 {
@@ -87,7 +88,7 @@ export class HarmonicHubAuraSystem_Session126 {
       fieldOpacityMin: config.fieldOpacityMin ?? 0.12,
       fieldOpacityMax: config.fieldOpacityMax ?? 0.92,
       fieldWireframe: config.fieldWireframe ?? true,
-      fieldRenderOrder: config.fieldRenderOrder ?? 120,
+      fieldRenderOrder: config.fieldRenderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
       fieldColorBoost: config.fieldColorBoost ?? 1.0,
       fieldEmissiveBoost: config.fieldEmissiveBoost ?? 1.0,
       
@@ -185,6 +186,7 @@ export class HarmonicHubAuraSystem_Session126 {
     // Create resonance field group
     this.fieldGroup = new THREE.Group();
     this.fieldGroup.name = 'harmonic-hub-fields';
+    this.fieldGroup.renderOrder = this.config.fieldRenderOrder;
     this._attachRoot.add(this.fieldGroup);
     this.root = this.fieldGroup;
     this._hubDebugMarkerGeometry = new THREE.SphereGeometry(1, 10, 10);
@@ -200,6 +202,7 @@ export class HarmonicHubAuraSystem_Session126 {
   update(deltaTime) {
     if (!this.config.enabled) return;
     if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    this.stats.phaseLockedNodes = 0;
     // Detect and create harmonic hubs
     this._detectHarmonyHubs();
     
@@ -357,7 +360,7 @@ export class HarmonicHubAuraSystem_Session126 {
         const nodeA = link?.nodeA || link?.source || link?.from || link?.userData?.nodeA || null;
         const nodeB = link?.nodeB || link?.target || link?.to || link?.userData?.nodeB || null;
         if (nodeA && nodeB && (region.nodes.has(nodeA) || region.nodes.has(nodeB))) {
-          synergy += link.userData?.synergy ?? 0;
+          synergy += this._readLinkSynergy(link, 0);
           linkCount++;
         }
       }
@@ -521,8 +524,8 @@ export class HarmonicHubAuraSystem_Session126 {
    * Update resonance field meshes
    */
   _updateResonanceFields() {
-    // Clear previous field meshes
-    this.fieldGroup.clear();
+    // Dispose previous field meshes before rebuilding the transient field scene.
+    this._clearFieldVisuals();
     
     for (const hub of this.hubs.values()) {
       if (!hub.active) continue;
@@ -717,7 +720,7 @@ export class HarmonicHubAuraSystem_Session126 {
       position: hub.position.clone(),
       
       // Interaction strength based on pulse synergy
-      strength: pulse.synergy ?? 0.5,
+      strength: this._readPulseSynergy(pulse, 0.5),
       
       // Duration of effect
       duration: 0.5,
@@ -728,6 +731,31 @@ export class HarmonicHubAuraSystem_Session126 {
     });
     
     this.stats.waveInteractions++;
+  }
+
+  _clearFieldVisuals() {
+    if (!this.fieldGroup) return;
+
+    for (const child of this.fieldGroup.children) {
+      this._disposeFieldObject(child);
+    }
+
+    this.fieldGroup.clear();
+    this.fieldMeshes.clear();
+  }
+
+  _disposeFieldObject(obj) {
+    if (!obj) return;
+
+    if (obj.geometry && obj.geometry !== this._hubDebugMarkerGeometry) {
+      obj.geometry.dispose();
+    }
+
+    if (Array.isArray(obj.material)) {
+      obj.material.forEach((material) => material?.dispose?.());
+    } else {
+      obj.material?.dispose?.();
+    }
   }
   
   /**
@@ -812,6 +840,34 @@ export class HarmonicHubAuraSystem_Session126 {
     return this._clamp01(value);
   }
 
+  _readLinkSynergy(link, fallback = 0) {
+    const synergy = link?.userData?.synergy;
+    const value = Number.isFinite(synergy?.synergyNorm)
+      ? synergy.synergyNorm
+      : Number.isFinite(synergy?.score)
+        ? synergy.score
+        : Number.isFinite(link?.userData?.synergyNorm)
+          ? link.userData.synergyNorm
+          : Number.isFinite(link?.userData?.synergyScore)
+            ? link.userData.synergyScore
+            : typeof synergy === 'number'
+              ? synergy
+              : fallback;
+    return this._clamp01(value);
+  }
+
+  _readPulseSynergy(pulse, fallback = 0.5) {
+    const synergy = pulse?.synergy;
+    const value = Number.isFinite(synergy)
+      ? synergy
+      : Number.isFinite(pulse?.userData?.synergy?.synergyNorm)
+        ? pulse.userData.synergy.synergyNorm
+        : Number.isFinite(pulse?.userData?.synergy?.score)
+          ? pulse.userData.synergy.score
+          : fallback;
+    return this._clamp01(value);
+  }
+
   _readNodeInstability(node, fallback = 0) {
     const metrics = node?.userData?.metrics;
     const stability = Number.isFinite(metrics?.stability) ? metrics.stability : null;
@@ -847,7 +903,10 @@ export class HarmonicHubAuraSystem_Session126 {
     this.config.fieldOpacityMin = 0.45;
     this.config.fieldOpacityMax = 0.98;
     this.config.fieldWireframe = false;
-    this.config.fieldRenderOrder = 240;
+    this.config.fieldRenderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE);
+    if (this.fieldGroup) {
+      this.fieldGroup.renderOrder = this.config.fieldRenderOrder;
+    }
     this.config.fieldColorBoost = 1.35;
     this.config.fieldEmissiveBoost = 1.6;
     this._highVisEnabled = true;
@@ -855,6 +914,9 @@ export class HarmonicHubAuraSystem_Session126 {
 
   disableHighVisDebug() {
     Object.assign(this.config, this._baseVisualConfig);
+    if (this.fieldGroup) {
+      this.fieldGroup.renderOrder = this.config.fieldRenderOrder;
+    }
     this._highVisEnabled = false;
   }
 
@@ -957,12 +1019,9 @@ export class HarmonicHubAuraSystem_Session126 {
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
     }
+    this._clearFieldVisuals();
     this.root?.clear?.();
-    
-    for (const mesh of this.fieldMeshes.values()) {
-      if (mesh.geometry) mesh.geometry.dispose();
-      if (mesh.material) mesh.material.dispose();
-    }
+
     if (this._hubDebugMarkerGeometry) {
       this._hubDebugMarkerGeometry.dispose();
       this._hubDebugMarkerGeometry = null;

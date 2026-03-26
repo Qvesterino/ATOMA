@@ -48,6 +48,8 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -135,6 +137,12 @@ class ResonanceField {
     
     reset() {
         this.active = false;
+        this.compositeGlyph = null;
+        this.strength = 0.0;
+        this.targetStrength = 1.0;
+        this.age = 0.0;
+        this.rampAge = 0.0;
+        this.pulsePhase = 0.0;
         this.influencedLinks.length = 0;
         this.influencedGlyphs.length = 0;
     }
@@ -166,6 +174,9 @@ class ResonanceField {
         } else {
             radius *= (1.0 + harmonyInfluence * (1.0 - CONFIG.CORRUPTION_RADIUS_MULTIPLIER));
         }
+
+        const stabilityScale = 0.9 + (Number.isFinite(this.stability) ? this.stability : 0.5) * 0.2;
+        radius *= stabilityScale;
         
         return Math.max(CONFIG.MIN_RESONANCE_RADIUS, 
                        Math.min(CONFIG.MAX_RESONANCE_RADIUS, radius));
@@ -173,10 +184,12 @@ class ResonanceField {
     
     getPhaseDriftSpeed() {
         const harmonyInfluence = this.harmonyBalance - 0.5;
+        const stability = Number.isFinite(this.stability) ? this.stability : 0.5;
+        const stabilityDampening = 1.0 - Math.max(0.0, stability - 0.5) * 0.25;
         if (harmonyInfluence > 0) {
-            return CONFIG.HARMONY_PHASE_SPEED;
+            return CONFIG.HARMONY_PHASE_SPEED * stabilityDampening;
         } else {
-            return CONFIG.CORRUPTION_PHASE_SPEED;
+            return CONFIG.CORRUPTION_PHASE_SPEED * stabilityDampening;
         }
     }
     
@@ -188,7 +201,9 @@ class ResonanceField {
         const radius = this.getRadius();
         if (distance > radius) return 0.0;
 
-        return this.strength * computeAttenuation(distance, radius);
+        const stability = Number.isFinite(this.stability) ? this.stability : 0.5;
+        const stabilityScale = 0.85 + stability * 0.3;
+        return this.strength * computeAttenuation(distance, radius) * stabilityScale;
     }
     
     // ========================================================================
@@ -197,7 +212,6 @@ class ResonanceField {
     
     update(deltaTime) {
         if (!this.active) return;
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.age += deltaTime;
         this.rampAge += deltaTime;
         
@@ -238,6 +252,7 @@ class ResonanceField {
 export class HarmonicResonanceFeedbackSystem {
     constructor(scene) {
         this.scene = scene;
+        this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE);
         
         // Resonance fields (one per composite glyph)
         this.resonanceFields = [];
@@ -355,11 +370,26 @@ export class HarmonicResonanceFeedbackSystem {
                 if (!hasField && composite.state) {
                     // Create new field for this composite
                     const state = composite.state;
+                    const harmonyBalance = Number.isFinite(state?.harmonyBalance)
+                        ? state.harmonyBalance
+                        : Number.isFinite(state?.harmonBalance)
+                            ? state.harmonBalance
+                            : Number.isFinite(state?.harmony)
+                                ? state.harmony
+                                : 0.5;
+                    const synergy = Number.isFinite(state?.averageSynergy)
+                        ? state.averageSynergy
+                        : Number.isFinite(state?.synergy)
+                            ? state.synergy
+                            : 0.5;
+                    const stability = Number.isFinite(state?.stability)
+                        ? state.stability
+                        : 0.7;
                     this.activateResonanceField(
                         composite,
-                        state.harmonBalance,
-                        state.averageSynergy,
-                        0.7  // Assume reasonable stability
+                        harmonyBalance,
+                        synergy,
+                        stability
                     );
                 }
             }
@@ -461,26 +491,34 @@ export class HarmonicResonanceFeedbackSystem {
     }
     
     getLinkPosition(link) {
-        // Get midpoint of link geometry
-        if (!link.geometry) return null;
-        
-        const positions = link.geometry.attributes.position;
-        if (!positions) return null;
-        
-        // Assume positions array has vertices; get middle point
-        const count = positions.count;
-        const midIndex = Math.floor(count / 2);
-        
-        const x = positions.getX(midIndex);
-        const y = positions.getY(midIndex);
-        const z = positions.getZ(midIndex);
-        
-        const pos = new THREE.Vector3(x, y, z);
-        if (link.parent) {
-            link.parent.updateWorldMatrix(true, false);
-            pos.applyMatrix4(link.parent.matrixWorld);
+        const visualState = this._getLinkVisualState(link);
+        const curve = visualState?.mainCurve?.getPointAt ? visualState.mainCurve
+            : visualState?.curve?.getPointAt ? visualState.curve
+            : null;
+
+        if (curve?.getPointAt) {
+            return curve.getPointAt(0.5, new THREE.Vector3());
         }
-        return pos;
+
+        const endpoints = this._getLinkEndpoints(link);
+        if (endpoints.startPos && endpoints.endPos) {
+            return new THREE.Vector3().addVectors(endpoints.startPos, endpoints.endPos).multiplyScalar(0.5);
+        }
+
+        if (link?.geometry?.attributes?.position) {
+            const positions = link.geometry.attributes.position;
+            const count = positions.count;
+            if (count > 0) {
+                const midIndex = Math.floor(count / 2);
+                return new THREE.Vector3(
+                    positions.getX(midIndex),
+                    positions.getY(midIndex),
+                    positions.getZ(midIndex)
+                );
+            }
+        }
+
+        return null;
     }
     
     // ========================================================================
@@ -494,10 +532,13 @@ export class HarmonicResonanceFeedbackSystem {
             if (!item.link || !item.link.userData) continue;
             
             const userData = item.link.userData;
-            const targetAlignment = (
-                (item.link.userData.metrics?.synergy ?? 0) +
-                (item.link.userData.metrics?.harmony ?? 0)
-            ) * 0.5;
+            const synergyProfile = getLinkSynergyVisualMetrics(item.link) ?? {};
+            const targetAlignment = THREE.MathUtils.clamp(
+                ((Number.isFinite(synergyProfile.synergy) ? synergyProfile.synergy : 0) +
+                 (Number.isFinite(item.link.userData.metrics?.harmony) ? item.link.userData.metrics.harmony : 0)) * 0.5,
+                0,
+                1
+            );
             const previousAlignment = Number.isFinite(userData._alignmentStrength)
                 ? userData._alignmentStrength
                 : targetAlignment;
@@ -508,7 +549,7 @@ export class HarmonicResonanceFeedbackSystem {
             // Phase property typically stored in userData for wave effects
             if (typeof userData.phase === 'number') {
                 const phaseInfluence = alignmentStrength * item.influenceStrength;
-                const targetPhase = field.compositeGlyph.mesh.rotation.z || 0;
+                const targetPhase = field.compositeGlyph?.mesh?.rotation?.z || 0;
                 
                 const phaseDelta = targetPhase - userData.phase;
                 const wrappedDelta = this.wrapAngle(phaseDelta);
@@ -528,6 +569,22 @@ export class HarmonicResonanceFeedbackSystem {
                 }
             }
         }
+    }
+
+    _getLinkVisualState(link) {
+        return link?.group?.userData?.conduitState || null;
+    }
+
+    _getLinkEndpoints(link) {
+        const startNode = link?.sourceNode || link?.source || link?.from || link?.nodeA || null;
+        const endNode = link?.targetNode || link?.target || link?.to || link?.nodeB || null;
+
+        return {
+            startNode,
+            endNode,
+            startPos: startNode?.position || null,
+            endPos: endNode?.position || null
+        };
     }
     
     wrapAngle(angle) {
@@ -609,6 +666,7 @@ export class HarmonicResonanceFeedbackSystem {
     setupDebugVisualization() {
         const container = new THREE.Group();
         container.name = 'ResonanceFieldDebug';
+        container.renderOrder = this.renderOrder;
         this.scene.add(container);
         this.debugFieldVisualization = container;
     }
@@ -635,6 +693,7 @@ export class HarmonicResonanceFeedbackSystem {
             });
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.copy(field.position);
+            mesh.renderOrder = this.renderOrder;
             this.debugFieldVisualization.add(mesh);
         }
     }

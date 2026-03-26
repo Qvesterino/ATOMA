@@ -76,7 +76,7 @@ export class WaveInterferencePatternSystem_Session132 {
             // Interference mesh rendering
             interferenceResolution: 16,       // Segments for interference mesh
             maxInterferenceMeshes: 50,        // Pool size
-            interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder('LINK_WAVES'),
+            interferenceRenderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_WAVES),
             
             // Beat frequency patterns
             beatFrequencyRange: [0.5, 4.0],   // Min-max Hz from frequency differences
@@ -251,9 +251,11 @@ export class WaveInterferencePatternSystem_Session132 {
                 if (this._arePathsConverging(reflection1, reflection2, links)) {
                     // Check phase relationship
                     const phaseDiff = this._calculatePhaseDifference(reflection1, reflection2);
+                    const phaseMatches =
+                        phaseDiff <= this.config.phaseDifferenceThreshold ||
+                        phaseDiff >= (0.5 - this.config.phaseDifferenceThreshold);
                     
-                    if (phaseDiff < this.config.phaseDifferenceThreshold ||
-                        phaseDiff > (0.5 - this.config.phaseDifferenceThreshold)) {
+                    if (phaseMatches) {
                         // Collision detected
                         const convergencePoint = this._findConvergencePoint(reflection1, reflection2, links);
                         
@@ -316,8 +318,32 @@ export class WaveInterferencePatternSystem_Session132 {
         const link2EndId = this._getNodeId(link2Endpoints.endNode);
         
         // Paths converge if they share an endpoint
-        return (link1EndId === link2StartId || link1EndId === link2EndId ||
-                link1StartId === link2StartId || link1StartId === link2EndId);
+        if (link1EndId === link2StartId || link1EndId === link2EndId ||
+            link1StartId === link2StartId || link1StartId === link2EndId) {
+            return true;
+        }
+
+        const threshold = this.config.pathProximityThreshold;
+        const endpointPairs = [
+            [link1End, link2Start],
+            [link1End, link2End],
+            [link1Start, link2Start],
+            [link1Start, link2End]
+        ];
+
+        return endpointPairs.some(([pointA, pointB]) => {
+            if (!pointA || !pointB) return false;
+
+            const distance = typeof pointA.distanceTo === 'function'
+                ? pointA.distanceTo(pointB)
+                : Math.hypot(
+                    (pointA.x ?? 0) - (pointB.x ?? 0),
+                    (pointA.y ?? 0) - (pointB.y ?? 0),
+                    (pointA.z ?? 0) - (pointB.z ?? 0)
+                );
+
+            return distance <= threshold;
+        });
     }
 
     /**
@@ -518,13 +544,21 @@ export class WaveInterferencePatternSystem_Session132 {
             const beatAmplitude = Math.sin(pattern.beatPhase);
             const scaleFactor = zone.intensity * (1 + beatAmplitude * this.config.beatAmplification);
             meshItem.mesh.scale.set(scaleFactor * 0.3, 0.1, scaleFactor * 0.3);
+
+            const material = meshItem.mesh.material;
             
             // Apply material based on interference type
             if (zone.type === 'constructive') {
-                meshItem.mesh.material = this.constructiveMaterial;
+                material.color.copy(this.config.constructiveColor);
+                material.emissive.copy(this.config.constructiveColor);
+                material.roughness = 0.7;
+                material.metalness = 0.3;
                 meshItem.intensity = zone.intensity * this.config.constructiveAmplification;
             } else {
-                meshItem.mesh.material = this.destructiveMaterial;
+                material.color.copy(this.config.destructiveColor);
+                material.emissive.copy(this.config.destructiveColor);
+                material.roughness = 0.9;
+                material.metalness = 0;
                 meshItem.intensity = zone.intensity * this.config.destructiveDamping;
             }
             
@@ -544,6 +578,8 @@ export class WaveInterferencePatternSystem_Session132 {
             
             meshIndex++;
         });
+
+        this.interferenceMeshes = this.interferenceMeshPool.filter(item => item.active);
     }
 
     /**

@@ -45,6 +45,7 @@ export function setupParticleTrailSystem(scene, cascadeParticleSystem, world) {
   
   // Store on world for lifecycle management
   world._particleTrailSystem = trailSystem;
+  world.cascadeParticles = cascadeParticleSystem;
   
   console.log('[Session 122] ParticleTrailSystem integrated with cascade particles');
   
@@ -72,8 +73,7 @@ export function updateParticleTrailSystem(deltaTime, world, cascadeParticleSyste
   
   world._particleTrailSystem.update(
     deltaTime,
-    cascadeParticleSystem.pool,
-    cascadeParticleSystem.activeCount
+    cascadeParticleSystem
   );
 }
 

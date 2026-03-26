@@ -26,6 +26,7 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const COHERENCE_WAVE_VERTEX_SHADER = `
 varying vec2 vUv;
@@ -120,7 +121,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             waveExpansionSpeed: 2.0,
             stitchingInterval: 0.05, // High density for "tightening" look
             maxActiveZones: 10,
-            updateInterval: 1 / 60
+            updateInterval: 1 / 60,
+            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE)
         };
         
         // State tracking
@@ -175,7 +177,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             const mesh = new THREE.Mesh(waveGeo, this.waveMaterial.clone());
             mesh.visible = false;
             mesh.rotation.x = -Math.PI / 2; // Flat on ground-ish
-            mesh.renderOrder = 5; // Below particles
+            mesh.renderOrder = this.config.renderOrder;
             this.scene.add(mesh);
             this.waveMeshPool.push({ mesh, active: false });
         }
@@ -185,7 +187,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         for (let i = 0; i < 20; i++) {
             const mesh = new THREE.Mesh(haloGeo, this.haloMaterial.clone());
             mesh.visible = false;
-            mesh.renderOrder = 6;
+            mesh.renderOrder = this.config.renderOrder;
             this.scene.add(mesh);
             this.haloMeshPool.push({ mesh, active: false });
         }
@@ -194,10 +196,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     update(deltaTime, time, networkState) {
         if (!this.enabled) return;
 
+        const visualNow = Number.isFinite(VisualTime?.now)
+            ? VisualTime.now
+            : (Number.isFinite(time) ? time : 0);
+
         if (this._timeOrigin === undefined) {
-            this._timeOrigin = VisualTime.now;
+            this._timeOrigin = visualNow;
         }
-        const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+        const currentVisualTime = visualNow - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
 
         if (this._lastUpdateTime === undefined) {
             this._lastUpdateTime = currentVisualTime;
@@ -243,8 +249,9 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         const link = this._getLinkById(linkId);
         if (!link) return;
         
-        const start = link.sourceNode?.position || link.from?.position;
-        const end = link.targetNode?.position || link.to?.position;
+        const endpoints = this._getLinkEndpoints(link);
+        const start = endpoints.startPos;
+        const end = endpoints.endPos;
         if (!start || !end) return;
         
         const center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
@@ -256,8 +263,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 active: true,
                 pos: center,
                 linkId: linkId,
-                startNode: link.sourceNode || link.from,
-                endNode: link.targetNode || link.to,
+                startNode: endpoints.startNode,
+                endNode: endpoints.endNode,
                 life: 0,
                 startTime: now,
                 maxLife: this.config.minRecoveryDuration + Math.random() * 2.0,
@@ -266,14 +273,14 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             });
            
             // Trigger Node Halos immediately
-            this._spawnHalo(link.sourceNode || link.from, now);
-            this._spawnHalo(link.targetNode || link.to, now);
+            this._spawnHalo(endpoints.startNode, now);
+            this._spawnHalo(endpoints.endNode, now);
         }
     }
     
     _updateRecoveringZones(state, currentVisualTime) {
-        const harmony = state.harmony || 0.5;
-        const synergy = state.synergy || 0;
+        const harmony = Number.isFinite(state?.harmony) ? state.harmony : 0.5;
+        const synergy = Number.isFinite(state?.synergy) ? state.synergy : 0;
         
         // Filter and update
         this.recoveringZones = this.recoveringZones.filter(zone => {
@@ -311,9 +318,10 @@ export class HarmonicRecoveryVisualSystem_Session138 {
                 // Let's stick to flat XZ plane for "ground ripple" feel, 
                 // or maybe billboarding would be better for visibility.
                 // Re-Stitching is the main 3D element.
-                mesh.lookAt(this.scene.position); // Look at center? No.
-                // For now, simple billboard behavior
-                mesh.lookAt(this.scene.children.find(c => c.isCamera)?.position || new THREE.Vector3(0,0,10));
+                const cameraPosition = this._resolveCameraPosition();
+                if (cameraPosition) {
+                    mesh.lookAt(cameraPosition);
+                }
             }
             
             // 2. Link Re-Stitching (Particles)
@@ -380,8 +388,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             mesh.scale.set(scale, scale, scale);
             
             // Billboard
-            const camera = this.scene.children.find(c => c.isCamera);
-            if (camera) mesh.lookAt(camera.position);
+            const cameraPosition = this._resolveCameraPosition();
+            if (cameraPosition) mesh.lookAt(cameraPosition);
             
             mesh.material.uniforms.uLife.value = progress;
             
@@ -393,7 +401,7 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     _spawnHalo(node, currentVisualTime) {
-        if (!node) return;
+        if (!node?.position) return;
         
         const slot = this.haloMeshPool.findIndex(item => !item.active);
         if (slot !== -1) {
@@ -405,6 +413,33 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             item.mesh.visible = true;
             item.mesh.position.copy(node.position);
         }
+    }
+
+    _getLinkEndpoints(link) {
+        const startNode = link?.sourceNode || link?.source || link?.from || link?.nodeA || null;
+        const endNode = link?.targetNode || link?.target || link?.to || link?.nodeB || null;
+
+        return {
+            startNode,
+            endNode,
+            startPos: startNode?.position || null,
+            endPos: endNode?.position || null
+        };
+    }
+
+    _resolveCameraPosition() {
+        const sceneCamera = this.scene?.getObjectByName?.('camera')?.position;
+        if (sceneCamera) return sceneCamera;
+
+        if (typeof window !== 'undefined' && window.__ATOMA_CAMERA__?.position) {
+            return window.__ATOMA_CAMERA__.position;
+        }
+
+        if (globalThis.__ATOMA_CAMERA__?.position) {
+            return globalThis.__ATOMA_CAMERA__.position;
+        }
+
+        return null;
     }
     
     _getLinkById(linkId) {

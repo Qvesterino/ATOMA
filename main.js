@@ -4095,11 +4095,11 @@ class AtomaGame {
         
         // NEW: Update particle trail system (SESSION 122)
         this.frameScheduler.register('visual', (dt) => {
-            if (this.cascadeParticles) {
+            if (this.cascadeParticleSystem) {
                 updateParticleTrailSystem(
                     dt,
                     this,
-                    this.cascadeParticles
+                    this.cascadeParticleSystem
                 );
             }
         }, 'visual.particleTrailSystem');
@@ -13001,14 +13001,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     haloDestabilizationDuration: 0.5,
                     haloRecoveryRate: 0.8,
                     
-                    harmonyRuputrePrevention: 0.6,
+                    harmonyRupturePrevention: 0.6,
                     corruptionRuptureAcceleration: 0.4,
                     instabilityRuptureEarlier: 0.5,
                     synergyRuptureClarity: 0.7,
                     
                     maxConcurrentRuptures: 5,
                     maxRupturePropagations: 20,
-                    maxResnonanceScarsMeshes: 20,
+                    maxResonanceScarsMeshes: 20,
                     enableLOD: true,
                     lodDistance: 40
                 }

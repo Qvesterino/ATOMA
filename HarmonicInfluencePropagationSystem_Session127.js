@@ -50,11 +50,14 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 // PHASE OFF-1: disable unbounded motion while keeping meshes active
 const MOTION_OFF_PHASE1 = true;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const tempVectorA = new THREE.Vector3();
+const tempVectorB = new THREE.Vector3();
 
 export class HarmonicInfluencePropagationSystem_Session127 {
   constructor(scene, worldRoot, world, harmonicHubSystem, nodeAuraSystem, config = {}) {
@@ -116,13 +119,16 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       
       // Safety
       maxInfluencedNodes: config.maxInfluencedNodes ?? 256,
+      fieldRenderOrder: config.fieldRenderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
     };
     
     this.root = new THREE.Group();
     this.root.name = 'HarmonicInfluencePropagationRoot';
-    this._attachRoot.add(this.root);
+    if (this._attachRoot?.add) {
+      this._attachRoot.add(this.root);
+    }
     
     // Propagation state
     this.propagationSources = new Map();  // hubId → { lastPulseTime, pulseCount }
@@ -161,11 +167,14 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Create groups for rendering
     this.auraGroup = new THREE.Group();
     this.auraGroup.name = 'harmonic-influence-auras';
+    this.auraGroup.renderOrder = this.config.fieldRenderOrder;
     this.root.add(this.auraGroup);
     
     this.flowGroup = new THREE.Group();
     this.flowGroup.name = 'harmonic-influence-flows';
+    this.flowGroup.renderOrder = this.config.fieldRenderOrder;
     this.root.add(this.flowGroup);
+    this.root.renderOrder = this.config.fieldRenderOrder;
     
     // Create reusable geometries
     this._createAuraGeometry();
@@ -180,12 +189,16 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   _createAuraGeometry() {
     // Base icosahedron for aura
     const baseGeo = new THREE.IcosahedronGeometry(1.0, 3);
+    baseGeo.computeBoundingSphere();
+    baseGeo.computeBoundingBox();
     
     // High-quality version
     this.auraGeometry = baseGeo;
     
     // LOD version (fewer segments)
     this.auraGeometryLOD = new THREE.IcosahedronGeometry(1.0, 2);
+    this.auraGeometryLOD.computeBoundingSphere();
+    this.auraGeometryLOD.computeBoundingBox();
   }
   
   /**
@@ -198,6 +211,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       emissiveIntensity: 0.3,
       transparent: true,
       opacity: 0.2,
+      depthWrite: false,
+      blending: this.config.blendMode === 'alpha' ? THREE.NormalBlending : THREE.AdditiveBlending,
       wireframe: false,
       side: THREE.DoubleSide,
     });
@@ -208,7 +223,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   update(deltaTime) {
     if (!this.config.enabled) return;
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
     // Emit propagation pulses from active hubs
     this._emitPropagationPulses(deltaTime);
     
@@ -266,6 +281,14 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   _emitInfluencePulse(hub) {
     // Create initial influence waves from hub to each connected node
     for (const node of hub.nodes) {
+      const sourceMetrics = getNodeCanonicalMetrics(node) ?? {};
+      const sourceHarmony = sourceMetrics.harmony ?? 0;
+      const sourceCorruption = sourceMetrics.corruption ?? 0;
+      const sourceStability = sourceMetrics.stability ?? 0;
+
+      if (sourceHarmony <= sourceCorruption) continue;
+      if (!node?.position) continue;
+
       // Emit wave from this node to all its neighbors
       const connectedNodes = this._getConnectedNodes(node);
       
@@ -273,10 +296,13 @@ export class HarmonicInfluencePropagationSystem_Session127 {
         // Skip if neighbor is also in same hub (internal connection)
         if (hub.nodes.includes(neighbor)) continue;
         
-        // Guard: Only propagate if source node has stabilized harmony level
-        if (!node.userData?.harmonyLevel) continue;
+        if (!neighbor?.position) continue;
+
+        const distance = node.position.distanceTo(neighbor.position);
+        if (distance > this.config.maxPropagationDistance) continue;
         
         const sourceLink = this._findLinkBetweenNodes(node, neighbor);
+        const linkSynergy = getLinkSynergy(sourceLink);
         
         // Create influence wave
         const wave = {
@@ -287,14 +313,16 @@ export class HarmonicInfluencePropagationSystem_Session127 {
           // Timing
           startTime: 0,
           duration: this._calculateWaveDuration(node, neighbor),
+          phaseOffset: (1 - clamp01(sourceStability)) * this.config.instabilityMaxPhaseJitter,
           
           // State
           active: true,
           
           // Metrics (from source node)
-          harmony: getNodeCanonicalMetrics(node).harmony ?? 0,
-          corruption: getNodeCanonicalMetrics(node).corruption ?? 0,
-          synergy: getLinkSynergy(sourceLink),
+          harmony: sourceHarmony,
+          corruption: sourceCorruption,
+          stability: sourceStability,
+          synergy: linkSynergy,
         };
         
         this.activeInfluenceWaves.push(wave);
@@ -311,7 +339,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   _calculateWaveDuration(sourceNode, targetNode) {
     const distance = sourceNode.position.distanceTo(targetNode.position);
-    return distance / this.config.propagationSpeed;
+    const speed = Math.max(this.config.propagationSpeed, 0.001);
+    return Math.max(distance / speed, 0.001);
   }
   
   /**
@@ -389,7 +418,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       const linkId = wave.sourceLink.id || `${wave.sourceNode.id}-${wave.targetNode.id}`;
       
       // Calculate flow progress (0 to 1)
-      const progress = clamp01(wave.startTime / wave.duration);
+      const flowSpeed = this.config.linkFlowSpeed + (wave.synergy ?? 0) * this.config.synergyFlowSpeed;
+      const progress = clamp01((wave.startTime * Math.max(flowSpeed, 0.001)) / wave.duration);
       
       // Store flow state
       this.linkInfluenceState.set(linkId, {
@@ -397,7 +427,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
         progress,
         harmony: wave.harmony,
         corruption: wave.corruption,
+        stability: wave.stability,
         synergy: wave.synergy,
+        phaseOffset: wave.phaseOffset,
       });
     }
   }
@@ -407,23 +439,31 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    */
   _renderInfluenceVisuals() {
     // Clear previous meshes
-    this.auraGroup.clear();
-    this.flowGroup.clear();
+    this._clearGroupMeshes(this.auraGroup, false);
+    this._clearGroupMeshes(this.flowGroup, true);
     
     // Render node auras
+    const nodes = this._getWorldNodes();
+    const nodeLookup = new Map();
+    for (const currentNode of nodes) {
+      const currentNodeId = this._getNodeId(currentNode);
+      if (currentNodeId !== undefined && currentNodeId !== null) {
+        nodeLookup.set(currentNodeId, currentNode);
+      }
+    }
+
     for (const [nodeId, influence] of this.nodeInfluenceState) {
-      const nodes = this._getWorldNodes();
-      const node = nodes.find((n) => this._getNodeId(n) === nodeId);
+      const node = nodeLookup.get(nodeId);
       if (!node) continue;
       
       // Calculate aura properties
-      const node_obj = node;
       const harmony = influence.sourceHarmony;
       const synergy = influence.sourceSynergy;
+      const stability = getNodeCanonicalMetrics(node).stability ?? 0;
       const progress = 1.0 - (influence.life / influence.duration);  // Fade out
       
       // Create aura mesh
-      const auraMesh = this._createNodeAuraMesh(node_obj, harmony, synergy, progress);
+      const auraMesh = this._createNodeAuraMesh(node, harmony, synergy, stability, progress);
       if (auraMesh) {
         this.auraGroup.add(auraMesh);
       }
@@ -441,7 +481,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   /**
    * Create node aura mesh
    */
-  _createNodeAuraMesh(node, harmony, synergy, fadeProgress) {
+  _createNodeAuraMesh(node, harmony, synergy, stability, fadeProgress) {
     if (!node.position) return null;
     
     // Determine LOD level
@@ -455,13 +495,16 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Create mesh
     const geometry = useLOD ? this.auraGeometryLOD : this.auraGeometry;
     const material = this.auraGlowMaterial.clone();
+    material.depthWrite = false;
+    material.blending = this.config.blendMode === 'alpha' ? THREE.NormalBlending : THREE.AdditiveBlending;
     
     // Calculate opacity
     let opacity = this.config.nodeAuraOpacityBase +
                   harmony * this.config.nodeAuraOpacityHarmonyMult;
     
     // Apply corruption damping
-    const corruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
+    const canonical = getNodeCanonicalMetrics(node) ?? {};
+    const corruption = canonical.corruption ?? 0;
     opacity *= (1.0 - corruption * this.config.corruptionDampen);
     
     // Apply LOD suppression
@@ -487,13 +530,12 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    geometry.computeBoundingSphere();
-    geometry.computeBoundingBox();
+    mesh.renderOrder = this.config.fieldRenderOrder;
     mesh.position.copy(node.position);
     mesh.scale.setScalar(baseRadius);
     
     // Apply animation
-    this._animateAuraMesh(mesh, node, harmony, synergy, fadeProgress);
+    this._animateAuraMesh(mesh, node, harmony, synergy, stability, fadeProgress);
     
     return mesh;
   }
@@ -501,7 +543,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   /**
    * Animate aura mesh (vertical drift + radial oscillation)
   */
-  _animateAuraMesh(mesh, node, harmony, synergy, fadeProgress) {
+  _animateAuraMesh(mesh, node, harmony, synergy, stability, fadeProgress) {
     // PHASE OFF-1: disabled aura position drift (will replace with scale breathing / shader displacement)
     if (!MOTION_OFF_PHASE1) {
       // Vertical drift
@@ -517,6 +559,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Apply oscillation as breathing scale
     const breathingScale = 1.0 + oscillation * 0.1;
     mesh.scale.multiplyScalar(breathingScale);
+
+    const instability = 1 - clamp01(stability ?? 0);
+    mesh.rotation.y += Math.sin(time * 0.22 + instability) * this.config.instabilityMaxPhaseJitter * instability * 0.02;
     
     // Rotation drift for organic feel
     mesh.rotation.x += Math.sin(time * 0.3) * 0.01;
@@ -535,10 +580,10 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Get positions
     const startPos = source.position;
     const endPos = target.position;
+    if (!startPos || !endPos) return null;
     
     // Calculate flow position along link
-    const flowPos = new THREE.Vector3()
-      .copy(startPos)
+    const flowPos = tempVectorA.copy(startPos)
       .lerp(endPos, flow.progress);
     
     // Create flow cylinder
@@ -556,6 +601,8 @@ export class HarmonicInfluencePropagationSystem_Session127 {
       emissiveIntensity: 0.4,
       transparent: true,
       opacity: this.config.linkFlowOpacity,
+      depthWrite: false,
+      blending: this.config.blendMode === 'alpha' ? THREE.NormalBlending : THREE.AdditiveBlending,
       wireframe: false,
     });
     
@@ -563,15 +610,37 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     mesh.frustumCulled = false;
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
+    mesh.renderOrder = this.config.fieldRenderOrder;
     mesh.position.copy(flowPos);
     
     // Orient toward flow direction
-    const direction = new THREE.Vector3()
-      .subVectors(endPos, startPos)
-      .normalize();
-    mesh.lookAt(flowPos.clone().add(direction));
+    const direction = tempVectorB.subVectors(endPos, startPos).normalize();
+    mesh.lookAt(tempVectorA.copy(flowPos).add(direction));
     
     return mesh;
+  }
+
+  _clearGroupMeshes(group, disposeGeometry = false) {
+    if (!group?.children?.length) return;
+
+    for (let i = group.children.length - 1; i >= 0; i--) {
+      const child = group.children[i];
+      const material = child?.material;
+
+      if (Array.isArray(material)) {
+        for (const entry of material) {
+          entry?.dispose?.();
+        }
+      } else {
+        material?.dispose?.();
+      }
+
+      if (disposeGeometry) {
+        child?.geometry?.dispose?.();
+      }
+    }
+
+    group.clear();
   }
   
   /**
@@ -681,6 +750,9 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    * Cleanup
    */
   dispose() {
+    this._clearGroupMeshes(this.auraGroup, false);
+    this._clearGroupMeshes(this.flowGroup, true);
+
     if (this.root?.parent) {
       this.root.parent.remove(this.root);
     }
@@ -692,6 +764,7 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     
     this.nodeInfluenceState.clear();
     this.linkInfluenceState.clear();
+    this.propagationSources.clear();
     this.activeInfluenceWaves = [];
   }
 }

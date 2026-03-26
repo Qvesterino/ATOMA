@@ -50,6 +50,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import VisualTime from './src/time/VisualTime.js';
 
 // ============================================================================
@@ -103,9 +104,11 @@ class EchoInstance {
         this.compositeGlyph = null;
         this._spawnTime = 0.0;
         
-        // State for visual modulation (SIMPLIFIED: 2 canonical metrics instead of 3 internal)
+        // State for visual modulation (canonical composite metrics)
         this.harmony = 0.5;      // Canonical: node.userData.metrics.harmony
+        this.synergy = 0.5;      // Canonical: composite.state.synergy
         this.corruption = 0;     // Canonical: node.userData.corruption
+        this.stability = 0.5;    // Canonical: composite.state.stability
     }
     
     reset() {
@@ -114,6 +117,8 @@ class EchoInstance {
         this.compositeGlyph = null;
         this.age = 0.0;
         this.currentOpacity = 0.0;
+        this.synergy = 0.5;
+        this.stability = 0.5;
     }
     
     /**
@@ -124,14 +129,16 @@ class EchoInstance {
      * @param {number} corruption - Canonical corruption (0-1) from node.userData.corruption
      * @param {number} currentVisualTime - Current visual time
      */
-    spawn(position, compositeGeometry, harmony, corruption, currentVisualTime) {
+    spawn(position, compositeGeometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5) {
         this.active = true;
         this.mesh.visible = true;
         this.position.copy(position);
         this.mesh.position.copy(position);
         this.age = 0.0;
         this.harmony = harmony;
+        this.synergy = synergy;
         this.corruption = corruption;
+        this.stability = stability;
         this._spawnTime = currentVisualTime;
         
         // Calculate lifetime based on state
@@ -144,8 +151,11 @@ class EchoInstance {
         
         // Update geometry if provided (for simplified silhouette)
         if (compositeGeometry && compositeGeometry !== this.mesh.geometry) {
+            const nextGeometry = typeof compositeGeometry.clone === 'function'
+                ? compositeGeometry.clone()
+                : compositeGeometry;
             this.mesh.geometry.dispose();
-            this.mesh.geometry = compositeGeometry;
+            this.mesh.geometry = nextGeometry;
         }
     }
     
@@ -153,13 +163,17 @@ class EchoInstance {
     calculateLifetime() {
         let lifetime = CONFIG.BASE_ECHO_LIFETIME;
         
-        // Harmony extends lifetime, corruption shortens it
+        // Harmony and synergy extend lifetime, corruption shortens it
         const harmonyInfluence = this.harmony - this.corruption;
         if (harmonyInfluence > 0) {
             lifetime *= CONFIG.HARMONY_LIFETIME_MULTIPLIER;
         } else {
             lifetime *= CONFIG.CORRUPTION_LIFETIME_MULTIPLIER;
         }
+
+        const synergyScale = 0.9 + Math.max(0, Math.min(1, this.synergy)) * 0.2;
+        const stabilityScale = 0.85 + Math.max(0, Math.min(1, this.stability)) * 0.25;
+        lifetime *= synergyScale * stabilityScale;
         
         // High corruption accelerates decay (replaces stability check)
         if (this.corruption > 0.5) {
@@ -220,7 +234,7 @@ class CompositeGlyphTracker {
             return false;
         }
         
-        this.compositeId = compositeGlyph;
+        this.compositeId = compositeGlyph?.id ?? compositeGlyph?.uuid ?? compositeGlyph ?? null;
         
         // Track position history
         const currentPos = compositeGlyph.mesh.position;
@@ -260,9 +274,11 @@ export class ResonanceEchoTrailSystem {
         this.worldRoot = worldRoot;
         this._attachRoot = worldRoot || scene;
         this.semanticBus = options.semanticBus ?? globalThis.semanticBus ?? null;
+        this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_WAVES);
 
         this.root = new THREE.Group();
         this.root.name = 'ResonanceEchoTrailRoot';
+        this.root.renderOrder = this.renderOrder;
         this._attachRoot.add(this.root);
         
         // Echo pool
@@ -374,12 +390,16 @@ export class ResonanceEchoTrailSystem {
     initializeEchoPool() {
         const container = new THREE.Group();
         container.name = 'ResonanceEchoPool';
+        container.renderOrder = this.renderOrder;
         this.root.add(container);
         this.container = container;
         
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
             // Create simple circular geometry for echo silhouette
             const geometry = new THREE.CircleGeometry(0.4, 8);
+            if (!this.baseGeometry) {
+                this.baseGeometry = geometry.clone();
+            }
             const material = new THREE.MeshBasicMaterial({
                 color: 0xc8c8c8,           // POLISHED: slightly warmer neutral
                 transparent: true,
@@ -390,7 +410,7 @@ export class ResonanceEchoTrailSystem {
             });
             const mesh = new THREE.Mesh(geometry, material);
             mesh.visible = false;
-            mesh.renderOrder = 4;          // POLISHED: mid-ground layer (behind active glyphs/links)
+            mesh.renderOrder = this.renderOrder;
             
             container.add(mesh);
             
@@ -476,19 +496,20 @@ export class ResonanceEchoTrailSystem {
             if (tracker.shouldSpawnEcho(currentVisualTime) && echoSpawnCount < CONFIG.MAX_ECHOES_PER_ZONE) {
                 const state = composite.state;
                 if (state) {
-                    // SIMPLIFIED: Read canonical metrics (harmony, corruption)
-                    const harmony = state.harmony ?? 0.5;
-                    const corruption = state.corruption ?? 0;
+                    const metrics = this._resolveCompositeMetrics(state);
                     
-                    // Calculate spawn chance based on harmony vs corruption
-                    const spawnChance = harmony >= corruption ? 1.0 : harmony * 2;
+                    // Calculate spawn chance from canonical composite metrics.
+                    const harmonyBias = metrics.harmony >= metrics.corruption ? 1.0 : metrics.harmony * 2;
+                    const synergyBoost = 0.8 + metrics.synergy * 0.2;
+                    const stabilityGate = 1.0 - (1.0 - metrics.stability) * CONFIG.STABILITY_SPAWN_REDUCTION;
+                    const spawnChance = THREE.MathUtils.clamp(harmonyBias * synergyBoost * stabilityGate, 0, 1);
                     
                     if (Math.random() < spawnChance) {
                         this.spawnEcho(
                             composite.mesh.position,
                             composite.mesh.geometry,
-                            harmony,
-                            corruption,
+                            metrics.harmony,
+                            metrics.corruption,
                             currentVisualTime
                         );
                         echoSpawnCount++;
@@ -500,12 +521,12 @@ export class ResonanceEchoTrailSystem {
         }
     }
     
-    // SIMPLIFIED: spawnEcho with 2 canonical metrics
-    spawnEcho(position, geometry, harmony, corruption, currentVisualTime) {
+    // Canonical composite metrics: harmony, corruption, synergy, stability
+    spawnEcho(position, geometry, harmony, corruption, currentVisualTime, synergy = 0.5, stability = 0.5) {
         // Find available echo instance
         for (let echo of this.echoInstances) {
             if (!echo.active) {
-                echo.spawn(position, geometry, harmony, corruption, currentVisualTime);
+                echo.spawn(position, geometry, harmony, corruption, currentVisualTime, synergy, stability);
                 return;
             }
         }
@@ -524,21 +545,59 @@ export class ResonanceEchoTrailSystem {
         const currentVisualTime = this._getCurrentVisualTime();
 
         // Use existing pool geometry/material path - no new shaders/materials/pools.
-        const pooledGeometry = this.echoInstances[0]?.mesh?.geometry;
+        const pooledGeometry = this.baseGeometry || this.echoInstances[0]?.mesh?.geometry;
         if (!pooledGeometry) return;
 
-        // SIMPLIFIED: Derive harmony and corruption from intensity
-        // High intensity = high harmony, low corruption
-        const harmony = 0.5 + clampedIntensity * 0.5;
-        const corruption = 0.5 - clampedIntensity * 0.3;
+        const metrics = this._resolveEchoTrailMetrics(clampedIntensity);
 
         this.spawnEcho(
             new THREE.Vector3(x, y, z),
             pooledGeometry,
-            harmony,
-            corruption,
+            metrics.harmony,
+            metrics.corruption,
             currentVisualTime
         );
+    }
+
+    _resolveCompositeMetrics(state = {}) {
+        const harmony = Number.isFinite(state?.harmony)
+            ? state.harmony
+            : Number.isFinite(state?.harmonyLevel)
+                ? state.harmonyLevel
+                : 0.5;
+        const synergy = Number.isFinite(state?.synergy)
+            ? state.synergy
+            : Number.isFinite(state?.synergyNorm)
+                ? state.synergyNorm
+                : 0.5;
+        const corruption = Number.isFinite(state?.corruption)
+            ? state.corruption
+            : Number.isFinite(state?.corruptionLevel)
+                ? state.corruptionLevel
+                : 0;
+        const stability = Number.isFinite(state?.stability)
+            ? state.stability
+            : Number.isFinite(state?.stabilityNorm)
+                ? state.stabilityNorm
+                : 0.5;
+
+        return {
+            harmony: THREE.MathUtils.clamp(harmony, 0, 1),
+            synergy: THREE.MathUtils.clamp(synergy, 0, 1),
+            corruption: THREE.MathUtils.clamp(corruption, 0, 1),
+            stability: THREE.MathUtils.clamp(stability, 0, 1)
+        };
+    }
+
+    _resolveEchoTrailMetrics(intensity = 0.5) {
+        const clampedIntensity = THREE.MathUtils.clamp(Number.isFinite(intensity) ? intensity : 0.5, 0, 1);
+
+        return {
+            harmony: 0.5 + clampedIntensity * 0.5,
+            synergy: 0.35 + clampedIntensity * 0.45,
+            corruption: 0.5 - clampedIntensity * 0.3,
+            stability: 0.4 + clampedIntensity * 0.45
+        };
     }
     
     // ========================================================================
@@ -570,6 +629,7 @@ export class ResonanceEchoTrailSystem {
     setupDebugVisualization() {
         const container = new THREE.Group();
         container.name = 'EchoTrailDebug';
+        container.renderOrder = this.renderOrder;
         this.root.add(container);
         this.debugEchoVisualization = container;
     }
@@ -579,7 +639,14 @@ export class ResonanceEchoTrailSystem {
         
         // Clear old visuals
         while (this.debugEchoVisualization.children.length > 0) {
-            this.debugEchoVisualization.remove(this.debugEchoVisualization.children[0]);
+            const child = this.debugEchoVisualization.children[0];
+            this.debugEchoVisualization.remove(child);
+            child.geometry?.dispose?.();
+            if (Array.isArray(child.material)) {
+                child.material.forEach((mat) => mat?.dispose?.());
+            } else {
+                child.material?.dispose?.();
+            }
         }
         
         // Draw active echoes with spawn points
@@ -595,6 +662,7 @@ export class ResonanceEchoTrailSystem {
             });
             const marker = new THREE.Mesh(markerGeometry, markerMaterial);
             marker.position.copy(echo.position);
+            marker.renderOrder = this.renderOrder;
             this.debugEchoVisualization.add(marker);
             
             // Draw lifetime indicator
@@ -614,6 +682,7 @@ export class ResonanceEchoTrailSystem {
             const ringMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
             const ring = new THREE.Line(ringGeometry, ringMaterial);
             ring.position.copy(echo.position);
+            ring.renderOrder = this.renderOrder;
             this.debugEchoVisualization.add(ring);
         }
     }
@@ -656,6 +725,8 @@ export class ResonanceEchoTrailSystem {
             this.root.parent.remove(this.root);
         }
         this.root?.clear?.();
+        this.baseGeometry?.dispose?.();
+        this.baseGeometry = null;
         this.semanticBus = null;
     }
 }

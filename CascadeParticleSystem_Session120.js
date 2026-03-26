@@ -39,15 +39,15 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 10.0,
-      visualSizeBoost: config.visualSizeBoost ?? 3.2,
+      baseSize: config.baseSize ?? 25.0, // Increased from 10.0 for better visibility
+      visualSizeBoost: config.visualSizeBoost ?? 2.5,
       emissionRate: config.emissionRate ?? 6.0,
       enabled: config.enabled ?? true,
-      debugMode: config.debugMode ?? true,
+      debugMode: config.debugMode ?? false,
       baseCascadeParticles: config.baseCascadeParticles ?? 60,
       hopDecay: config.hopDecay ?? 0.82,
       cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3, // Cooldown in seconds
-      minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.08
+      minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.05 // Lowered threshold
     };
     
     // Texture Atlas Dimensions
@@ -69,7 +69,7 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
-    this._neutralParticleColor = new THREE.Color(1.0, 0.0, 0.0)
+    this._neutralParticleColor = new THREE.Color(1.0, 0.3, 0.1) // Bright orange-red for visibility
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
@@ -144,11 +144,11 @@ export class CascadeParticleSystem_Session120 {
     const shapeIndices = new Float32Array(this.config.maxParticles); // 0-3 for atlas index
     const angles = new Float32Array(this.config.maxParticles); // Rotation
     
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-    this.geometry.setAttribute('shapeIndex', new THREE.BufferAttribute(shapeIndices, 1));
-    this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1));
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('shapeIndex', new THREE.BufferAttribute(shapeIndices, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1).setUsage(THREE.DynamicDrawUsage));
     
     // 3. Initialize Shader Material
     this.material = new THREE.ShaderMaterial({
@@ -172,7 +172,9 @@ export class CascadeParticleSystem_Session120 {
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = clamp(size * (16.0 / max(1.0, -mvPosition.z)), 220.0, 1400.0);
+          // Distance-based size scaling: visible at range, not too huge up close
+          float distanceFactor = 300.0 / max(1.0, -mvPosition.z);
+          gl_PointSize = clamp(size * distanceFactor, 4.0, 200.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -202,13 +204,24 @@ export class CascadeParticleSystem_Session120 {
           
           vec2 atlasUV = (rotUV + vec2(col, row)) / uGridSize;
           
+          // Sample the texture atlas for shape
+          float shapeAlpha = texture2D(uAtlas, atlasUV).r;
+          
+          // Radial glow fallback for visibility
           float radial = 1.0 - smoothstep(0.0, 0.5, length(gl_PointCoord - 0.5));
           float glowMask = smoothstep(0.02, 1.0, radial);
           
-          vec3 finalColor = vec3(1.0, 0.05, 0.05);
-          gl_FragColor = vec4(finalColor, glowMask * 1.35);
+          // Combine shape from atlas with radial glow
+          float combinedAlpha = max(shapeAlpha, glowMask * 0.6);
           
-          if (gl_FragColor.a < 0.04) discard;
+          // Use vertex color (vColor) instead of hardcoded red
+          // Boost saturation for cascade conflict visibility
+          vec3 baseColor = vColor.rgb;
+          vec3 finalColor = baseColor * 1.5 + vec3(0.2, 0.05, 0.05); // Warm tint for cascade feel
+          
+          gl_FragColor = vec4(finalColor, combinedAlpha * 1.2);
+          
+          if (gl_FragColor.a < 0.01) discard;
         }
       `,
       transparent: true,
@@ -221,8 +234,15 @@ export class CascadeParticleSystem_Session120 {
     // 4. Create Mesh
     this.mesh = new THREE.Points(this.geometry, this.material);
     this.mesh.frustumCulled = false; // Always render if active
+    this.mesh.visible = true;
     this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
     this.scene.add(this.mesh);
+    
+    console.log('[CascadeParticleSystem] Initialized and added to scene:', {
+      maxParticles: this.config.maxParticles,
+      meshVisible: this.mesh.visible,
+      geometryAttrs: Object.keys(this.geometry.attributes)
+    });
     
     // 5. Initialize Pool
     this._initPool();
@@ -401,9 +421,17 @@ export class CascadeParticleSystem_Session120 {
     // Update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
 
+    // Polling spawn for continuous cascade emission
+    this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
+
     // Update geometry and helper visuals.
     this._updateGeometry();
     this._updateDebugHelpers(resolvedLinks);
+    
+    // Debug: log active particle count periodically
+    if (this.activeCount > 0 && Math.random() < 0.02) {
+      console.log('[CascadeParticleSystem] Active particles:', this.activeCount, 'links:', resolvedLinks.length);
+    }
   }
 
   spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
@@ -425,7 +453,8 @@ export class CascadeParticleSystem_Session120 {
       Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0)
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
-    if (clampedIntensity < this.config.minimumVisibleIntensity) return;
+    // TEMPORARILY DISABLED: intensity gating to debug spawn issues
+    // if (clampedIntensity < this.config.minimumVisibleIntensity) return;
 
     const hop = Math.max(0, Number(hopIndex) || 0);
     const hopDecay = Math.pow(this.config.hopDecay, hop);
@@ -449,7 +478,9 @@ export class CascadeParticleSystem_Session120 {
     if (!Array.isArray(links) || links.length === 0) return;
     for (const link of links) {
       if (!link?.id || link.active === false) continue;
-      this._spawnFromLifecycleEvent(link, 'updated', currentCascadeTime);
+      // FORCE SPAWN: Bypass metrics, use fixed intensity
+      const intensity = 1.0;
+      this.spawnCascadeParticles(link, intensity, 0);
     }
   }
 
@@ -529,7 +560,8 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _emitFromLinkState(link, linkState, currentCascadeTime) {
-    if (!linkState?.isRelevant) return;
+    // TEMPORARILY DISABLED: isRelevant gating to debug spawn issues
+    // if (!linkState?.isRelevant) return;
 
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
@@ -596,7 +628,12 @@ export class CascadeParticleSystem_Session120 {
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
-    if (!srcPos || !dstPos) return;
+    if (!srcPos || !dstPos) {
+      console.warn('[CascadeParticleSystem] _emit: missing positions', { srcPos, dstPos, linkId: link?.id });
+      return;
+    }
+    
+    console.log('[CascadeParticleSystem] _emit: spawning', count, 'particles at', srcPos, '->', dstPos);
     
     const color = this._neutralParticleColor;
     

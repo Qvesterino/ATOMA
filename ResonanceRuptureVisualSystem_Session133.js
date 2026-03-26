@@ -41,6 +41,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class ResonanceRuptureVisualSystem_Session133 {
     constructor(scene, standingWaveTrapSystem, reflectionSystem, linkingSystem, aiNodes, config = {}) {
@@ -113,7 +114,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             haloRecoveryRate: 0.8,            // How fast halo recovers
             
             // State modulation
-            harmonyRuputrePrevention: 0.6,    // Harmony reduces rupture probability
+            harmonyRupturePrevention: 0.6,    // Harmony reduces rupture probability
             corruptionRuptureAcceleration: 0.4, // Corruption speeds rupture
             instabilityRuptureEarlier: 0.5,   // Instability triggers sooner
             synergyRuptureClarity: 0.7,       // Synergy makes rupture sharper
@@ -126,7 +127,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
             // Performance
             maxConcurrentRuptures: 5,         // Simultaneous ruptures allowed
             maxRupturePropagations: 20,       // Propagation pulses tracked
-            maxResnonanceScarsMeshes: 20,     // Scar mesh pool size
+            maxResonanceScarsMeshes: 20,      // Scar mesh pool size
+            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             enableLOD: true,
             lodDistance: 40,
             ...config
@@ -143,7 +145,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         
         // Tracking
         this.trapLifetimes = new Map();       // trapId -> time since creation
-        this.trapPhaseDivergence = new Map(); // trapId -> phase incoherence
+        this.trapPhaseDivergence = new Map(); // trapId -> { lastPhase, divergence }
         this.ruptureOccurrences = new Map();  // linkId -> last rupture time
         this.eventPressureByLink = new Map(); // linkId -> event pressure (0-1)
         this.lastEventTagByLink = new Map();  // linkId -> last event tag
@@ -253,11 +255,12 @@ export class ResonanceRuptureVisualSystem_Session133 {
         }
         
         // Pre-allocate scar mesh pool
-        for (let i = 0; i < this.config.maxResnonanceScarsMeshes; i++) {
+        const maxScarMeshes = this.config.maxResonanceScarsMeshes ?? 20;
+        for (let i = 0; i < maxScarMeshes; i++) {
             const geometry = new THREE.PlaneGeometry(1, 0.1);
             const mesh = new THREE.Mesh(geometry, this.scarMaterial.clone());
             mesh.visible = false;
-            mesh.renderOrder = 7;
+            mesh.renderOrder = this.config.renderOrder;
             this.scene.add(mesh);
             this.scarMeshPool.push({
                 mesh: mesh,
@@ -326,6 +329,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (!trap.active) return;
             
             const trapId = trap.linkId;
+            const phaseDivergence = this._calculateTrapPhaseDivergence(trapId, trap.phase ?? 0);
             
             // Track trap lifetime
             let lifetime = this.trapLifetimes.get(trapId) || 0;
@@ -345,6 +349,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 
                 // Increase stress with reflection count
                 stressIncrease *= Math.min(1, (trap.reflectionCount || 1) * 0.2);
+
+                // Phase divergence increases accumulated strain once it exceeds the configured threshold.
+                if (phaseDivergence > this.config.phaseDivergenceThreshold) {
+                    stressIncrease *= 1 + (phaseDivergence - this.config.phaseDivergenceThreshold);
+                }
                 
                 stress = Math.min(1, stress + stressIncrease);
             }
@@ -358,6 +367,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (!trapActive) {
                 this.stressAccumulation.delete(trapId);
                 this.trapLifetimes.delete(trapId);
+                this.trapPhaseDivergence.delete(trapId);
             }
         });
     }
@@ -375,13 +385,21 @@ export class ResonanceRuptureVisualSystem_Session133 {
             
             const trapId = trap.linkId;
             const stress = this.stressAccumulation.get(trapId) || 0;
+            const phaseDivergenceState = this.trapPhaseDivergence.get(trapId);
+            const phaseDivergence = phaseDivergenceState?.divergence || 0;
+            const phaseDivergenceBoost = phaseDivergence > this.config.phaseDivergenceThreshold ? phaseDivergence : 0;
             const link = this._getLinkById(trapId);
-            const linkCanonicalCascade = typeof link?.userData?.cascadeIntensity === 'number'
-                ? link.userData.cascadeIntensity
-                : 0;
-            const linkCanonicalConflict = typeof link?.userData?.conflictIntensity === 'number'
-                ? link.userData.conflictIntensity
-                : 0;
+            const flowState = link?.userData?.flowState || {};
+            const linkCanonicalCascade = Number.isFinite(flowState.intensity)
+                ? flowState.intensity
+                : (typeof link?.userData?.cascadeIntensity === 'number'
+                    ? link.userData.cascadeIntensity
+                    : 0);
+            const linkCanonicalConflict = Number.isFinite(flowState.energy)
+                ? flowState.energy
+                : (typeof link?.userData?.conflictIntensity === 'number'
+                    ? link.userData.conflictIntensity
+                    : 0);
             const canonicalPressure = THREE.MathUtils.clamp(
                 Math.max(linkCanonicalCascade, linkCanonicalConflict),
                 0,
@@ -424,6 +442,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
                 eventPressure * this.config.scoreEventWeight +
                 stress * this.config.scoreStressWeight +
                 normalizedAmplitude * this.config.scoreAmplitudeWeight +
+                phaseDivergenceBoost * 0.12 +
                 avgCorruption * this.config.scoreCorruptionWeight +
                 avgInstability * this.config.scoreInstabilityWeight +
                 this.globalStressBias,
@@ -476,13 +495,14 @@ export class ResonanceRuptureVisualSystem_Session133 {
         if (!link) return;
         
         const convergencePoint = this._getLinkTarget(link)?.position;
-        if (!convergencePoint) return;
+        const rupturePoint = this._getLinkCenterPosition(link) || convergencePoint;
+        if (!rupturePoint) return;
         
         // Set up rupture
         rupture.active = true;
         rupture.linkId = trapId;
         rupture.trapId = trapId;
-        rupture.convergencePoint.copy(convergencePoint);
+        rupture.convergencePoint.copy(rupturePoint);
         rupture.life = 0;
         rupture.intensity = Math.min(1, stress * 1.2);
         
@@ -586,7 +606,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const geometry = new THREE.IcosahedronGeometry(0.3, 3);
         const mesh = new THREE.Mesh(geometry, this.ruptureMaterial.clone());
         mesh.position.copy(rupture.convergencePoint);
-        mesh.renderOrder = 12;
+        mesh.renderOrder = this.config.renderOrder;
         this.scene.add(mesh);
         return mesh;
     }
@@ -624,7 +644,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const geo = new THREE.SphereGeometry(0.15, 6, 6);
             const mat = this.propagationMaterial.clone();
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.renderOrder = 10;
+            mesh.renderOrder = this.config.renderOrder;
             this.scene.add(mesh);
             pulse.mesh = mesh;
             
@@ -808,19 +828,36 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const progress = elapsed / this.config.haloDestabilizationDuration;
             
             if (progress >= 1) {
+                const finishedShell = reaction.node?.shell || reaction.node?.holoShell || reaction.node?.userData?.holoShell || null;
+                const finishedMaterial = finishedShell?.material;
+                if (finishedMaterial?.userData?.__ruptureBaseOpacity !== undefined) {
+                    finishedMaterial.opacity = finishedMaterial.userData.__ruptureBaseOpacity;
+                }
                 this.nodeReactions.delete(nodeId);
                 return;
             }
             
             // Apply destabilization to node
-            if (reaction.node && reaction.node.shell) {
-                const material = reaction.node.shell.material;
+            if (reaction.node) {
+                const shell = reaction.node.shell || reaction.node.holoShell || reaction.node.userData?.holoShell || null;
+                const material = shell?.material;
                 if (material) {
                     // Destabilize with jitter
                     const jitter = Math.sin(this.time * 8) * this.config.haloDestabilizationAmount;
                     const recovery = 1 - progress * this.config.haloRecoveryRate;
-                    
-                    material.opacity = (reaction.node.shell.material.opacity || 0.15) + jitter * recovery;
+
+                    material.userData ??= {};
+                    if (material.userData.__ruptureBaseOpacity === undefined) {
+                        material.userData.__ruptureBaseOpacity = Number.isFinite(material.opacity)
+                            ? material.opacity
+                            : 0.15;
+                    }
+
+                    material.opacity = THREE.MathUtils.clamp(
+                        material.userData.__ruptureBaseOpacity + jitter * recovery,
+                        0,
+                        1
+                    );
                 }
             }
         });
@@ -859,13 +896,13 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (!rupture.burstMesh) return;
             
             // Harmony weakens rupture visibility
-            let harmonyFactor = 1 - avgHarmony * this.config.harmonyRuputrePrevention;
+            const harmonyFactor = 1 - avgHarmony * this.config.harmonyRupturePrevention;
             
             // Corruption strengthens rupture
-            let corruptionFactor = 1 + avgCorruption * this.config.corruptionRuptureAcceleration;
+            const corruptionFactor = 1 + avgCorruption * this.config.corruptionRuptureAcceleration;
             
             // Synergy clarifies rupture appearance
-            let synergyFactor = 1 + avgSynergy * this.config.synergyRuptureClarity;
+            const synergyFactor = 1 + avgSynergy * this.config.synergyRuptureClarity;
             
             const modulation = harmonyFactor * corruptionFactor * synergyFactor;
             rupture.burstMesh.material.emissiveIntensity *= modulation;
@@ -892,6 +929,43 @@ export class ResonanceRuptureVisualSystem_Session133 {
 
     _getLinkTarget(link) {
         return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
+    }
+
+    _getLinkCenterPosition(link) {
+        const sourcePosition = this._getLinkSource(link)?.position;
+        const targetPosition = this._getLinkTarget(link)?.position;
+
+        if (!sourcePosition || !targetPosition) return null;
+
+        return new THREE.Vector3().addVectors(sourcePosition, targetPosition).multiplyScalar(0.5);
+    }
+
+    _normalizePhase(phase = 0) {
+        const fullTurn = Math.PI * 2;
+        const normalized = phase % fullTurn;
+        return normalized < 0 ? normalized + fullTurn : normalized;
+    }
+
+    _calculateTrapPhaseDivergence(trapId, phase) {
+        const normalizedPhase = this._normalizePhase(phase);
+        const previousState = this.trapPhaseDivergence.get(trapId);
+        const previousPhase = typeof previousState?.lastPhase === 'number'
+            ? previousState.lastPhase
+            : null;
+
+        let divergence = 0;
+        if (previousPhase !== null) {
+            const delta = Math.abs(normalizedPhase - previousPhase);
+            const wrappedDelta = Math.min(delta, (Math.PI * 2) - delta);
+            divergence = THREE.MathUtils.clamp(wrappedDelta / Math.PI, 0, 1);
+        }
+
+        this.trapPhaseDivergence.set(trapId, {
+            lastPhase: normalizedPhase,
+            divergence
+        });
+
+        return divergence;
     }
 
     _readNodeMetric(node, metric, fallback = 0) {

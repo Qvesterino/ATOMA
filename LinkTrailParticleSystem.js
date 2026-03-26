@@ -26,6 +26,8 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 import { applyLinkRenderLayer } from './LinkRenderLayerPolicy.js';
 
 /**
@@ -359,9 +361,10 @@ export class LinkTrailParticleSystem {
     
     this.noise = new NoiseGenerator();
     this.poolGroup = new THREE.Group();
-    applyLinkRenderLayer(this.poolGroup, 'LINK_PARTICLES');
+    this.renderOrder = applyLinkRenderLayer(this.poolGroup, 'LINK_PARTICLES');
     const udPool = (this.poolGroup && typeof this.poolGroup.userData === 'object' && this.poolGroup.userData) ? this.poolGroup.userData : (() => { try { Object.defineProperty(this.poolGroup, 'userData', { value: {}, writable: true, configurable: true }); } catch (e) {} return this.poolGroup.userData || {}; })();
     Object.assign(udPool, { isTrailParticles: true });
+    this.poolGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
     this.scene.add(this.poolGroup);
     
     // Impact callback (optional, called when particles arrive at destination)
@@ -437,15 +440,16 @@ export class LinkTrailParticleSystem {
    * Called when link is active and flowing
    */
   emitAlongLink(link, curve, linkDirection, emissionRate, time, harmony = 0.5, corruption = 0.2) {
+    const visualProfile = this._resolveLinkVisualProfile(link, harmony, corruption);
     this.emitFromSource({
-      type: 'corruption',
+      type: this._resolveSourceType(visualProfile),
       link,
       curve,
       linkDirection,
       emissionRate,
       time,
-      harmony,
-      corruption
+      harmony: visualProfile.harmony,
+      corruption: visualProfile.corruption
     });
   }
 
@@ -463,6 +467,7 @@ export class LinkTrailParticleSystem {
     if (!curve || emissionRate <= 0) return;
 
     const profile = this.sourceProfiles.get(type) || this.sourceProfiles.get('corruption');
+    const visualProfile = this._resolveLinkVisualProfile(link, harmony, corruption);
     const rate = Math.max(0, emissionRate * (profile?.emissionScale ?? 1.0));
     const dt = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0.016;
     const emitterKey = this._getEmitterKey(type, link, curve);
@@ -487,12 +492,17 @@ export class LinkTrailParticleSystem {
       } else if (profile?.color && profile.color.isColor) {
         particle.color = profile.color.clone();
       } else {
-        particle.color = this._getParticleColorForType(type, harmony, corruption);
+        particle.color = this._getParticleColorForType(
+          type,
+          visualProfile.harmony,
+          visualProfile.corruption,
+          visualProfile.synergy
+        );
       }
 
       const baseScale = profile?.scaleBase ?? 0.06;
       const scaleByCorruption = profile?.scaleByCorruption ?? 0.06;
-      const safeCorruption = Math.max(0, Math.min(1, corruption ?? 0));
+      const safeCorruption = Math.max(0, Math.min(1, visualProfile.corruption ?? 0));
       particle.scale = baseScale + safeCorruption * scaleByCorruption;
       this.active++;
       this.activeByType.set(type, (this.activeByType.get(type) || 0) + 1);
@@ -534,12 +544,16 @@ export class LinkTrailParticleSystem {
   /**
    * Calculate particle color based on link state
    */
-  _getParticleColor(harmony, corruption) {
+  _getParticleColor(harmony, corruption, synergy = null) {
     // Base: neutral gray-white (same as aura)
     let color = new THREE.Color(0xddddee);
 
     // Harmony: shift slightly cool
     color.lerp(new THREE.Color(0xccddff), harmony * 0.2);
+
+    if (Number.isFinite(synergy)) {
+      color.lerp(new THREE.Color(0xe7f7ff), synergy * 0.18);
+    }
 
     // Corruption: shift toward red
     color.lerp(new THREE.Color(0xff6666), corruption * 0.4);
@@ -547,7 +561,7 @@ export class LinkTrailParticleSystem {
     return color;
   }
 
-  _getParticleColorForType(type, harmony, corruption) {
+  _getParticleColorForType(type, harmony, corruption, synergy = null) {
     if (type === 'healing') {
       const base = new THREE.Color(0x9cecff);
       return base.lerp(new THREE.Color(0xc9fff2), Math.max(0, Math.min(1, harmony)));
@@ -556,7 +570,42 @@ export class LinkTrailParticleSystem {
       const base = new THREE.Color(0xffcc88);
       return base.lerp(new THREE.Color(0xfff2aa), Math.max(0, Math.min(1, harmony * 0.6 + 0.2)));
     }
-    return this._getParticleColor(harmony, corruption);
+    return this._getParticleColor(harmony, corruption, synergy);
+  }
+
+  _resolveLinkVisualProfile(link, fallbackHarmony = 0.5, fallbackCorruption = 0.2) {
+    const canonical = getLinkSynergyVisualMetrics(link) ?? {};
+    const harmony = Number.isFinite(link?.userData?.metrics?.harmony)
+      ? link.userData.metrics.harmony
+      : Number.isFinite(link?.userData?.harmony)
+        ? link.userData.harmony
+        : Number.isFinite(canonical.synergy)
+          ? canonical.synergy
+          : fallbackHarmony;
+    const corruption = Number.isFinite(link?.userData?.metrics?.corruption)
+      ? link.userData.metrics.corruption
+      : Number.isFinite(link?.userData?.corruption)
+        ? link.userData.corruption
+        : Number.isFinite(canonical.corruption)
+          ? canonical.corruption
+          : fallbackCorruption;
+
+    return {
+      harmony: Math.max(0, Math.min(1, harmony)),
+      corruption: Math.max(0, Math.min(1, corruption)),
+      synergy: Number.isFinite(canonical.synergy) ? canonical.synergy : null,
+      pulseStrength: Number.isFinite(canonical.pulseStrength) ? canonical.pulseStrength : null,
+      tier: Number.isFinite(canonical.tier) ? canonical.tier : null,
+      tierName: canonical.tierName ?? null,
+      chromaShift: Number.isFinite(canonical.chromaShift) ? canonical.chromaShift : null,
+      resonanceRipples: Number.isFinite(canonical.resonanceRipples) ? canonical.resonanceRipples : null
+    };
+  }
+
+  _resolveSourceType(visualProfile) {
+    if (visualProfile?.corruption >= 0.65) return 'corruption';
+    if (visualProfile?.harmony >= 0.7) return 'healing';
+    return 'spark';
   }
 
   _acquireParticle(type = 'corruption') {
@@ -626,14 +675,21 @@ export class LinkTrailEmitter {
   update(deltaTime, time, curve, linkDirection, harmony = 0.5, corruption = 0.2) {
     if (!this.enabled || !curve) return;
 
+    const visualProfile = this.particleSystem._resolveLinkVisualProfile?.(this.link, harmony, corruption)
+      ?? { harmony, corruption, synergy: null, pulseStrength: null };
+
     // Modulate emission based on link state
     let rate = this.emissionRate;
 
     // High harmony → smoother flow (reduced particle count)
-    rate *= 0.6 + harmony * 0.4;
+    rate *= 0.6 + visualProfile.harmony * 0.4;
 
     // High corruption → chaotic flow (increased particle count)
-    rate *= 1.0 + corruption * 0.8;
+    rate *= 1.0 + visualProfile.corruption * 0.8;
+
+    if (Number.isFinite(visualProfile.pulseStrength)) {
+      rate *= 0.85 + visualProfile.pulseStrength * 0.3;
+    }
 
     // Emit particles
     this.particleSystem.emitFromSource({
@@ -644,8 +700,8 @@ export class LinkTrailEmitter {
       emissionRate: rate,
       deltaTime,
       time,
-      harmony,
-      corruption
+      harmony: visualProfile.harmony,
+      corruption: visualProfile.corruption
     });
   }
 

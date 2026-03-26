@@ -34,6 +34,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class ParticleTrailSystem_Session122 {
   constructor(scene, cascadeSystem, config = {}) {
@@ -66,7 +67,7 @@ export class ParticleTrailSystem_Session122 {
     this.activeTrails = 0;
     
     // Position history for trail curves
-    this.positionHistory = new Map(); // particleId → [pos1, pos2, pos3, ...]
+    this.positionHistory = new Map(); // particleIndex → { spawnTime, lastPosition }
     
     // Resources
     this.trailGeometry = null;
@@ -112,10 +113,8 @@ export class ParticleTrailSystem_Session122 {
         uTrailLifetime: { value: this.config.trailLifetime },
       },
       vertexShader: `
-        #ifdef USE_POINTS
         attribute float size;
         attribute vec3 color;
-        #endif
         attribute float age;
         attribute float length;
         
@@ -128,13 +127,12 @@ export class ParticleTrailSystem_Session122 {
         uniform float uTrailLifetime;
         
         void main() {
-          // Position
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+
           // Size: larger trails are longer streaks
-          #ifdef USE_POINTS
-          gl_PointSize = size * (1.0 + length * 0.3);
-          #endif
+          float distanceScale = 180.0 / max(1.0, -mvPosition.z);
+          gl_PointSize = clamp(size * (1.0 + length * 0.3) * distanceScale, 1.5, 72.0);
           
           // Age-based fade
           float ageFraction = age / uTrailLifetime;
@@ -145,11 +143,7 @@ export class ParticleTrailSystem_Session122 {
           vTrailStretch = length;
           
           // Color inheritance
-          #ifdef USE_POINTS
           vColor = color;
-          #else
-          vColor = vec3(1.0);
-          #endif
         }
       `,
       fragmentShader: `
@@ -179,6 +173,8 @@ export class ParticleTrailSystem_Session122 {
     // 3. Create trail mesh
     this.trailMesh = new THREE.Points(this.trailGeometry, this.trailMaterial);
     this.trailMesh.name = 'ParticleTrails_Session122';
+    this.trailMesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
+    this.trailMesh.frustumCulled = false;
     this.scene.add(this.trailMesh);
     
     // 4. Initialize trail pool
@@ -201,14 +197,22 @@ export class ParticleTrailSystem_Session122 {
    * Update trails each frame
    * Called from main.js update loop
    */
-  update(deltaTime, particles, activeParticleCount) {
+  update(deltaTime, source, activeParticleCount = null) {
     if (!this.config.enabled) return;
+
+    const cascadeSystem = source?.pool ? source : this.cascadeSystem;
+    const particles = Array.isArray(cascadeSystem?.pool) ? cascadeSystem.pool : (Array.isArray(source) ? source : []);
+    const particleCount = Number.isFinite(cascadeSystem?.activeCount)
+      ? Math.min(cascadeSystem.activeCount, particles.length)
+      : Number.isFinite(activeParticleCount)
+        ? Math.min(activeParticleCount, particles.length)
+        : particles.length;
     
     // Decay and update existing trails
     this._updateExistingTrails(deltaTime);
     
     // Spawn new trails from Forward flow particles
-    this._spawnNewTrails(particles, activeParticleCount);
+    this._spawnNewTrails(particles, particleCount, cascadeSystem, deltaTime);
     
     // Update GPU buffers
     this._updateGPUBuffers();
@@ -223,71 +227,71 @@ export class ParticleTrailSystem_Session122 {
    * Update existing trail particles
    */
   _updateExistingTrails(deltaTime) {
-    let activeCount = 0;
-    
-    for (let i = 0; i < this.activeTrails; i++) {
+    let compactIndex = 0;
+
+    for (let i = 0; i < this.trailPool.length; i++) {
       const trail = this.trailPool[i];
       if (!trail.active) continue;
-      
+
       // Update age
       trail.age += deltaTime;
-      
+
       // Fade out and deactivate
       if (trail.age >= trail.lifetime) {
         trail.active = false;
         continue;
       }
-      
-      // Decay opacity (already handled in shader with exponential fade)
-      activeCount++;
+
+      if (compactIndex !== i) {
+        const swap = this.trailPool[compactIndex];
+        this.trailPool[compactIndex] = trail;
+        this.trailPool[i] = swap;
+      }
+
+      compactIndex++;
     }
-    
-    this.activeTrails = activeCount;
+
+    this.activeTrails = compactIndex;
   }
   
   /**
    * Spawn new trails from Forward flow particles
    */
-  _spawnNewTrails(particles, activeParticleCount) {
+  _spawnNewTrails(particles, activeParticleCount, cascadeSystem = null, deltaTime = 0.016) {
     if (activeParticleCount === 0) return;
-    
-    // Get cascade data for flow type identification
-    const cascadeData = this.cascadeSystem?.getLinkMetrics?.();
-    if (!cascadeData) return;
-    
+
     // Spawn trails for Forward particles with probability
     for (let i = 0; i < activeParticleCount; i++) {
+      const particle = particles[i];
+      if (!particle || !particle.active) continue;
+
       // Random emission rate
       if (Math.random() > this.config.trailEmissionRate) continue;
-      
-      // Get particle data from geometry attributes
-      const posAttr = this.cascadeSystem.mesh?.geometry?.getAttribute('position');
-      const colorAttr = this.cascadeSystem.mesh?.geometry?.getAttribute('color');
-      const sizeAttr = this.cascadeSystem.mesh?.geometry?.getAttribute('size');
-      const flowTypeAttr = this.cascadeSystem.mesh?.geometry?.getAttribute('flowType');
-      
-      if (!posAttr || !colorAttr || !flowTypeAttr) continue;
-      
-      // Check if this is a Forward flow particle (flowType = 0)
-      const flowType = flowTypeAttr.array[i];
-      if (flowType !== 0) continue; // Only Forward particles
-      
-      // Get particle data
-      const px = posAttr.array[i * 3];
-      const py = posAttr.array[i * 3 + 1];
-      const pz = posAttr.array[i * 3 + 2];
-      
-      const cr = colorAttr.array[i * 3];
-      const cg = colorAttr.array[i * 3 + 1];
-      const cb = colorAttr.array[i * 3 + 2];
-      
-      const size = sizeAttr.array[i];
+
+      const flowType = particle.flowType ?? 'forward';
+      if (flowType !== 'forward') continue; // Only Forward particles
+
+      const px = particle.position?.x ?? 0;
+      const py = particle.position?.y ?? 0;
+      const pz = particle.position?.z ?? 0;
+      const cr = particle.color?.r ?? 1;
+      const cg = particle.color?.g ?? 1;
+      const cb = particle.color?.b ?? 1;
+      const size = Number.isFinite(particle.size)
+        ? particle.size
+        : Number.isFinite(this.cascadeSystem?.config?.baseSize)
+          ? Math.max(1, this.cascadeSystem.config.baseSize * 0.18)
+          : 1;
       
       // Spawn trail
       this._spawnTrail(
         new THREE.Vector3(px, py, pz),
         new THREE.Color(cr, cg, cb),
-        size
+        size,
+        Number.isFinite(particle.index) ? particle.index : i,
+        Number.isFinite(particle.spawnTime) ? particle.spawnTime : 0,
+        particle,
+        deltaTime
       );
     }
   }
@@ -295,7 +299,7 @@ export class ParticleTrailSystem_Session122 {
   /**
    * Spawn individual trail particle
    */
-  _spawnTrail(position, color, parentSize) {
+  _spawnTrail(position, color, parentSize, particleIndex, spawnTime, particle = null, deltaTime = 0.016) {
     // Find active slot
     let trail = null;
     
@@ -309,24 +313,25 @@ export class ParticleTrailSystem_Session122 {
     
     if (!trail) return;
     
-    // Calculate velocity from position history
-    const historyKey = position.toString();
-    const history = this.positionHistory.get(historyKey) || [];
+    // Calculate motion from stable particle-slot history.
+    const historyState = this.positionHistory.get(particleIndex);
+    const spawnChanged = !historyState || historyState.spawnTime !== spawnTime;
+    const previousPosition = !spawnChanged ? historyState.lastPosition : null;
+
+    const fallbackDirection = this._resolveFallbackDirection(particle);
+    const motionDelta = previousPosition ? position.clone().sub(previousPosition) : null;
+    const motionDistance = motionDelta ? motionDelta.length() : 0;
+    const direction = motionDistance > 1e-6
+      ? motionDelta.clone().multiplyScalar(1 / motionDistance)
+      : fallbackDirection;
+    const speed = motionDistance > 1e-6 ? motionDistance / Math.max(deltaTime, 1e-4) : 0.75;
     
-    let velocity = new THREE.Vector3(0.5, 0.5, 0.5); // Default forward-ish
-    if (history.length > 0) {
-      velocity = position.clone().sub(history[history.length - 1]).normalize();
-    }
-    
-    // Update history
-    history.push(position.clone());
-    if (history.length > this.config.historyFrames) {
-      history.shift();
-    }
-    this.positionHistory.set(historyKey, history);
+    this.positionHistory.set(particleIndex, {
+      spawnTime,
+      lastPosition: position.clone()
+    });
     
     // Trail parameters
-    const speed = velocity.length();
     const trailLength = THREE.MathUtils.clamp(
       speed * this.config.trailLengthFactor,
       this.config.minTrailLength,
@@ -334,12 +339,12 @@ export class ParticleTrailSystem_Session122 {
     );
     
     // Offset trail position slightly behind particle
-    const trailPos = position.clone().addScaledVector(velocity, -trailLength * 0.5);
+    const trailPos = position.clone().addScaledVector(direction, -trailLength * 0.5);
     
     // Setup trail
     trail.position.copy(trailPos);
     trail.prevPosition.copy(position);
-    trail.velocity.copy(velocity);
+    trail.velocity.copy(direction).multiplyScalar(speed);
     trail.color.copy(color);
     trail.age = 0;
     trail.lifetime = this.config.trailLifetime;
@@ -349,6 +354,24 @@ export class ParticleTrailSystem_Session122 {
     
     this.stats.trailsSpawned++;
     this.stats.totalTrailLength += trailLength;
+  }
+
+  _resolveFallbackDirection(particle) {
+    const source = particle?.sourcePosition;
+    const target = particle?.targetPosition;
+
+    if (source?.isVector3 && target?.isVector3) {
+      const direction = target.clone().sub(source);
+      if (direction.lengthSq() > 1e-6) {
+        return direction.normalize();
+      }
+    }
+
+    if (particle?.pathDirection === -1) {
+      return new THREE.Vector3(-1, 0, 0);
+    }
+
+    return new THREE.Vector3(1, 0, 0);
   }
   
   /**

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { projectHudMetrics } from './SemanticMetricAdapter.js';
 
 /**
  * ============================================================================
@@ -128,12 +129,12 @@ export class HealingParticleSystem_Session136 {
         birthTimes.fill(-1000);
         
         this.geometry = new THREE.BufferGeometry();
-        this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        this.geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
-        this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        this.geometry.setAttribute('birthTime', new THREE.BufferAttribute(birthTimes, 1));
-        this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
-        this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('birthTime', new THREE.BufferAttribute(birthTimes, 1).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1).setUsage(THREE.DynamicDrawUsage));
+        this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
         
         this.material = new THREE.ShaderMaterial({
             vertexShader: SPARKLE_VERTEX_SHADER,
@@ -149,7 +150,7 @@ export class HealingParticleSystem_Session136 {
         
         this.mesh = new THREE.Points(this.geometry, this.material);
         this.mesh.frustumCulled = false; // Always update (particles move)
-        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('FX');
+        this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_PARTICLES);
         
         this.scene.add(this.mesh);
     }
@@ -185,14 +186,16 @@ export class HealingParticleSystem_Session136 {
      */
     update(deltaTime, time, networkState, camera) {
         if (!this.mesh) return;
+        if (!this.enabled) return;
         
         // Update uniforms
         this.material.uniforms.uTime.value = time;
         this.lastUpdateTime = time;
+        const canonicalState = projectHudMetrics(networkState || {});
         
         // 1. Process Scars (Sparkles)
         if (this.resonanceRupture && this.resonanceRupture.resonanceScars) {
-            this._processScars(deltaTime, time, networkState, camera);
+            this._processScars(deltaTime, time, canonicalState, camera);
         }
         
         // Note: Healing Trails are handled via external calls to emitHealingTrail()
@@ -204,17 +207,23 @@ export class HealingParticleSystem_Session136 {
      */
     _processScars(deltaTime, time, state, camera) {
         const scars = this.resonanceRupture.resonanceScars;
+        if (!Array.isArray(scars) || scars.length === 0) {
+            this.scarEmissions.clear();
+            return;
+        }
         
         // Modulation based on state
-        const harmony = state.harmony || 0.5;
-        const corruption = state.corruption || 0;
+        const harmony = Number.isFinite(state?.harmonyFlow) ? state.harmonyFlow : 0.5;
+        const corruption = Number.isFinite(state?.corruptionLevel) ? state.corruptionLevel : 0;
         
         // Higher harmony = coherent sparkles
         // Higher corruption = suppressed sparkles
         const emissionRate = this.config.sparkleRate * (1.0 + harmony * 0.5) * (1.0 - corruption);
+        const currentScarIds = new Set();
         
         scars.forEach(scar => {
             const scarId = scar.linkId;
+            currentScarIds.add(scarId);
             let acc = this.scarEmissions.get(scarId) || 0;
             acc += emissionRate * deltaTime * scar.intensity; // Scale by scar intensity
             
@@ -225,10 +234,15 @@ export class HealingParticleSystem_Session136 {
             
             this.scarEmissions.set(scarId, acc);
         });
+
+        for (const scarId of this.scarEmissions.keys()) {
+            if (!currentScarIds.has(scarId)) {
+                this.scarEmissions.delete(scarId);
+            }
+        }
         
-        // Cleanup map for missing scars
-        // (Simplified: assuming map won't grow infinitely huge for now, or clear periodically)
-        if (this.scarEmissions.size > scars.length + 50) {
+        // Safety: keep the map bounded even if scars churn faster than the loop prunes them.
+        if (this.scarEmissions.size > this.config.maxParticles) {
             this.scarEmissions.clear();
         }
     }
@@ -237,7 +251,8 @@ export class HealingParticleSystem_Session136 {
      * Emit a single sparkle from a scar
      */
     _emitScarSparkle(scar, time, state) {
-        const mesh = scar.mesh.mesh;
+        const mesh = scar?.mesh?.mesh;
+        if (!mesh) return;
         
         // Random point on scar mesh (plane)
         // Scar is scaled by link length (x) and width (y)
@@ -258,7 +273,7 @@ export class HealingParticleSystem_Session136 {
         
         // Color: Warm white/gold
         const color = new THREE.Color(1.0, 0.95, 0.8);
-        if (state.harmony > 0.6) color.setHex(0xaaffff); // Cyan tint for high harmony
+        if ((state?.harmonyFlow ?? 0) > 0.6) color.setHex(0xaaffff); // Cyan tint for high harmony
         
         const lifetime = this.config.baseLifetime * (0.8 + Math.random() * 0.4);
         const size = this.config.baseSize * (0.8 + Math.random() * 0.4);
@@ -339,6 +354,7 @@ export class HealingParticleSystem_Session136 {
             this.geometry.dispose();
             this.material.dispose();
         }
+        this.scarEmissions.clear();
         this.enabled = false;
     }
 }

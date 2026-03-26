@@ -38,6 +38,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class StandingWaveVisualRenderer_Session131 {
     constructor(scene, standingWaveTrapSystem, linkingSystem, aiNodes, config = {}) {
@@ -87,6 +88,7 @@ export class StandingWaveVisualRenderer_Session131 {
             maxAntinodeMeshes: 100,           // Pool size for antinode glows
             maxTrapZoneMeshes: 30,            // Pool size for trap zone visualizers
             enableLOD: true,                  // Enable distance-based culling
+            renderOrder: VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_RESONANCE),
             ...config
         };
         
@@ -152,7 +154,7 @@ export class StandingWaveVisualRenderer_Session131 {
             const mesh = new THREE.Mesh(geometry, this.antinodeMaterial.clone());
             mesh.visible = false;
             mesh.frustumCulled = false;
-            mesh.renderOrder = 10;  // Render after main geometry
+            mesh.renderOrder = this.config.renderOrder;
             this.root.add(mesh);
             this.antinodeMeshPool.push({
                 mesh: mesh,
@@ -169,7 +171,7 @@ export class StandingWaveVisualRenderer_Session131 {
             const mesh = new THREE.Mesh(geometry, this.trapZoneMaterial.clone());
             mesh.visible = false;
             mesh.frustumCulled = false;
-            mesh.renderOrder = 5;
+            mesh.renderOrder = this.config.renderOrder;
             this.root.add(mesh);
             this.trapZoneMeshPool.push({
                 mesh: mesh,
