@@ -199,6 +199,63 @@ export class SynergyCascadeVisualizer {
     return { intensity, anchor };
   }
 
+  _getNodeLinks(nodeOrId) {
+    const linkingSystem = this.linkingSystem;
+    if (!linkingSystem || !nodeOrId) return [];
+
+    if (typeof linkingSystem.getNodeLinks === 'function') {
+      const links = linkingSystem.getNodeLinks(nodeOrId);
+      if (Array.isArray(links)) return links;
+    }
+
+    if (typeof linkingSystem.getLinksForNode === 'function') {
+      const links = linkingSystem.getLinksForNode(nodeOrId);
+      if (Array.isArray(links)) return links;
+    }
+
+    return [];
+  }
+
+  _hasLinkedNode(nodeOrId) {
+    return this._getNodeLinks(nodeOrId).length > 0;
+  }
+
+  _eventHasLinkedNode(event = {}) {
+    const nodeCandidates = [
+      event.node,
+      event.sourceNode,
+      event.targetNode,
+      event.source,
+      event.target,
+      event.nodeId,
+      event.sourceNodeId,
+      event.targetNodeId,
+      event.sourceId,
+      event.targetId
+    ];
+
+    for (const candidate of nodeCandidates) {
+      if (!candidate) continue;
+      if (typeof candidate === 'string' || typeof candidate === 'number') {
+        if (this._hasLinkedNode(candidate)) return true;
+        continue;
+      }
+
+      if (this._hasLinkedNode(candidate)) return true;
+
+      const resolvedId =
+        candidate?.userData?.nodeId ??
+        candidate?.userData?.id ??
+        candidate?.id ??
+        candidate?.uuid ??
+        null;
+
+      if (resolvedId && this._hasLinkedNode(resolvedId)) return true;
+    }
+
+    return false;
+  }
+
   _getOrCreateCascade(cascadeId, seedIntensity = 0) {
     let cascade = this.activeCascades.find(item => item.id === cascadeId);
     if (cascade) return cascade;
@@ -219,6 +276,7 @@ export class SynergyCascadeVisualizer {
   }
 
   renderCascadeStart(event = {}) {
+    if (!this._eventHasLinkedNode(event)) return;
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
     const activation = this._resolveCascadeActivation(event);
     if (!activation) return;
@@ -230,6 +288,7 @@ export class SynergyCascadeVisualizer {
   }
 
   renderCascadeHop(event = {}) {
+    if (!this._eventHasLinkedNode(event) && !event.link && !event.linkRef) return;
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
     const intensity = this._clamp01(event.intensity ?? event.value ?? 1);
     const anchor = this._asVector3(event.anchor ?? event.position ?? event.center ?? event.origin ?? event.targetPosition ?? event.sourcePosition);

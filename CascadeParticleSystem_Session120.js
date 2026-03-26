@@ -40,13 +40,15 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 25.0,  // DEBUG: ZVÄČŠENÉ (original 4.0)
-      emissionRate: config.emissionRate ?? 5.0,  // DEBUG: ZVÝŠENÉ (original 1.0)
+      baseSize: config.baseSize ?? 32.0,
+      visualSizeBoost: config.visualSizeBoost ?? 3.2,
+      emissionRate: config.emissionRate ?? 6.0,
       enabled: config.enabled ?? true,
-      debugMode: config.debugMode ?? true,  // DEBUG: ZAPNUTÉ
-      baseCascadeParticles: config.baseCascadeParticles ?? 20,  // DEBUG: ZVÝŠENÉ (original 8)
+      debugMode: config.debugMode ?? true,
+      baseCascadeParticles: config.baseCascadeParticles ?? 60,
       hopDecay: config.hopDecay ?? 0.82,
-      cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3 // Cooldown in seconds
+      cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3, // Cooldown in seconds
+      minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.08
     };
     
     // Texture Atlas Dimensions
@@ -63,10 +65,16 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
-    this._neutralParticleColor = new THREE.Color(0.4, 0.1, 0.7)  // DEBUG: MAGENTA (original: 0.75, 0.8, 0.9)
+    this._neutralParticleColor = new THREE.Color(1.0, 0.0, 0.0)
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
+    this._debugHelpers = null;
+    this._debugMarkerPool = [];
+    this._debugMarkerCount = config.debugMarkerCount ?? 24;
+    this._debugSourceMarkers = [];
+    this._debugTargetMarkers = [];
+    this._debugParticleMarkers = [];
     
     // Periodic burst timer (DEBUG: každé 4 sekundy)
     this._periodicBurstInterval = 4.0;  // sekundy
@@ -148,7 +156,7 @@ export class CascadeParticleSystem_Session120 {
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_PointSize = clamp(size * (16.0 / max(1.0, -mvPosition.z)), 22.0, 140.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -178,26 +186,31 @@ export class CascadeParticleSystem_Session120 {
           
           vec2 atlasUV = (rotUV + vec2(col, row)) / uGridSize;
           
-          vec4 texColor = texture2D(uAtlas, atlasUV);
+          float radial = 1.0 - smoothstep(0.0, 0.5, length(gl_PointCoord - 0.5));
+          float glowMask = smoothstep(0.02, 1.0, radial);
           
-          gl_FragColor = vec4(vColor, 1.0) * texColor;
+          vec3 finalColor = vec3(1.0, 0.05, 0.05);
+          gl_FragColor = vec4(finalColor, glowMask * 1.35);
           
-          if (gl_FragColor.a < 0.05) discard;
+          if (gl_FragColor.a < 0.04) discard;
         }
       `,
       transparent: true,
       depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
       blending: THREE.AdditiveBlending,
     });
     
     // 4. Create Mesh
     this.mesh = new THREE.Points(this.geometry, this.material);
     this.mesh.frustumCulled = false; // Always render if active
-    this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_CASCADE');
+    this.mesh.renderOrder = 299;
     this.scene.add(this.mesh);
     
     // 5. Initialize Pool
     this._initPool();
+    this._initDebugHelpers();
   }
   
   /**
@@ -347,8 +360,9 @@ export class CascadeParticleSystem_Session120 {
     // DEBUG: Log každých 60 framov (~1 sekundu)
     if (!this._debugFrameCount) this._debugFrameCount = 0;
     this._debugFrameCount++;
+    const resolvedLinks = this._resolveActiveLinks(links);
     if (this._debugFrameCount % 60 === 0) {
-      console.log('[Session 120] update() called - links:', links?.length ?? 0, 'deltaTime:', deltaTime?.toFixed(3));
+      console.log('[Session 120] update() called - links:', resolvedLinks?.length ?? 0, 'deltaTime:', deltaTime?.toFixed(3));
     }
     
     if (this._cascadeTimeOrigin === undefined) {
@@ -360,22 +374,23 @@ export class CascadeParticleSystem_Session120 {
       : Math.max(0, currentCascadeTime - this._lastCascadeTime);
     this._lastCascadeTime = currentCascadeTime;
 
-    this._ensureCanonicalLinkDefaults(links);
+    this._ensureCanonicalLinkDefaults(resolvedLinks);
 
     // Event-driven spawn only; update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
     
     // Polling-based spawn for continuous activity (Session 120 fix)
-    this._spawnParticles(cascadeDelta, links, currentCascadeTime);
+    this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
     
     // DEBUG: Periodic burst každé 4 sekundy
     if (currentCascadeTime - this._lastPeriodicBurstTime >= this._periodicBurstInterval) {
       this._lastPeriodicBurstTime = currentCascadeTime;
-      this._triggerPeriodicBurst(links, currentCascadeTime);
+      this._triggerPeriodicBurst(resolvedLinks, currentCascadeTime);
     }
     
     // Update geometry
     this._updateGeometry();
+    this._updateDebugHelpers(resolvedLinks);
   }
 
   spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
@@ -397,7 +412,7 @@ export class CascadeParticleSystem_Session120 {
       Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0)
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
-    if (clampedIntensity < 0.40) return;  // DEBUG: znížené z 0.1 na 0.40
+    if (clampedIntensity < this.config.minimumVisibleIntensity) return;
 
     const hop = Math.max(0, Number(hopIndex) || 0);
     const hopDecay = Math.pow(this.config.hopDecay, hop);
@@ -433,7 +448,7 @@ export class CascadeParticleSystem_Session120 {
       flowState.intensity = previousIntensity + (targetIntensity - previousIntensity) * 0.2;
       const intensity = flowState.intensity;
 
-      if (intensity < 0.40) continue;  // DEBUG: znížené z 0.1 na 0.40
+      if (intensity < this.config.minimumVisibleIntensity) continue;
 
       // Determine conflict type (Semantic Shape) from flowState
       const conflictType = link.userData.cascadeConflictType ?? flowState.type ?? 'neutral';
@@ -566,7 +581,7 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
     
-    const color = link?.userData?.cascadeParticleColor || this._neutralParticleColor;
+    const color = this._neutralParticleColor;
     
     // Session 121: Density & Clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
@@ -672,7 +687,7 @@ export class CascadeParticleSystem_Session120 {
       // Fade out size
       const lifeRatio = age / p.maxLifetime;
       const fade = Math.sin(lifeRatio * Math.PI); // Smooth arc
-      sizes[i] = this.config.baseSize * fade;
+      sizes[i] = this.config.baseSize * this.config.visualSizeBoost * fade;
       
       // Rotate based on conflict type
       if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
@@ -700,11 +715,11 @@ export class CascadeParticleSystem_Session120 {
     }
     
     // Advance progress
-    let speed = 0.5; // Base speed (link length fraction per sec)
+    let speed = 0.03; // Base speed (link length fraction per sec)
     
     if (p.flowType === 'oscillatory') {
       // Wiggle back and forth
-      const osc = Math.sin(currentCascadeTime * 0.01) * 0.01;
+      const osc = Math.sin(currentCascadeTime * 0.01) * 0.0015;
       p.pathProgress += osc;
     } else {
       // Forward or Backflow
@@ -755,7 +770,6 @@ export class CascadeParticleSystem_Session120 {
       !Number.isFinite(pos.y) ||
       !Number.isFinite(pos.z)
     ) return false;
-    if (pos.lengthSq() < 0.0001) return false;
     return true;
   }
 
@@ -819,7 +833,97 @@ export class CascadeParticleSystem_Session120 {
       if (typeof u.conflictIntensity !== 'number') u.conflictIntensity = 0;
       if (typeof u.particleIntensity !== 'number') u.particleIntensity = 0;
       if (typeof u.particleUrgency !== 'number') u.particleUrgency = 0;
-      if (!(u.cascadeParticleColor instanceof THREE.Color)) u.cascadeParticleColor = this._neutralParticleColor.clone();
+      u.cascadeParticleColor = this._neutralParticleColor.clone();
+    }
+  }
+
+  _resolveActiveLinks(links) {
+    if (Array.isArray(links) && links.length > 0) {
+      return links;
+    }
+
+    const candidates = [
+      globalThis?.window?.game?.linkingSystem?.links,
+      globalThis?.window?.game?.nodeLinking?.links,
+      globalThis?.window?.linkingSystem?.links,
+      globalThis?.game?.linkingSystem?.links,
+      globalThis?.game?.nodeLinking?.links
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate) && candidate.length > 0) {
+        return candidate;
+      }
+    }
+
+    return Array.isArray(links) ? links : [];
+  }
+
+  _initDebugHelpers() {
+    if (!this.config.debugMode || !this.scene) return;
+
+    this._debugHelpers = new THREE.Group();
+    this._debugHelpers.name = 'CascadeParticleSystem_DebugHelpers';
+    this.scene.add(this._debugHelpers);
+
+    const particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false });
+    const sourceMat = new THREE.MeshBasicMaterial({ color: 0xff4fd8, transparent: true, opacity: 0.95, depthTest: false });
+    const targetMat = new THREE.MeshBasicMaterial({ color: 0x4ffff0, transparent: true, opacity: 0.95, depthTest: false });
+    const particleGeo = new THREE.SphereGeometry(0.22, 8, 8);
+    const endpointGeo = new THREE.SphereGeometry(0.3, 10, 10);
+
+    for (let i = 0; i < this._debugMarkerCount; i++) {
+      const particle = new THREE.Mesh(particleGeo, particleMat.clone());
+      particle.visible = false;
+      this._debugParticleMarkers.push(particle);
+      this._debugHelpers.add(particle);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      const src = new THREE.Mesh(endpointGeo, sourceMat.clone());
+      const dst = new THREE.Mesh(endpointGeo, targetMat.clone());
+      src.visible = false;
+      dst.visible = false;
+      this._debugSourceMarkers.push(src);
+      this._debugTargetMarkers.push(dst);
+      this._debugHelpers.add(src);
+      this._debugHelpers.add(dst);
+    }
+  }
+
+  _updateDebugHelpers(links) {
+    if (!this._debugHelpers) return;
+
+    const activeParticles = this.pool.filter(p => p.active);
+    for (let i = 0; i < this._debugParticleMarkers.length; i++) {
+      const marker = this._debugParticleMarkers[i];
+      const particle = activeParticles[i];
+      if (particle) {
+        marker.visible = true;
+        marker.position.copy(particle.position);
+        marker.scale.setScalar(Math.max(0.08, this.config.baseSize * 0.08));
+      } else {
+        marker.visible = false;
+      }
+    }
+
+    for (let i = 0; i < this._debugSourceMarkers.length; i++) {
+      const src = this._debugSourceMarkers[i];
+      const dst = this._debugTargetMarkers[i];
+      const link = links?.[i];
+      if (link) {
+        const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+        const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+        const sourcePos = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+        const targetPos = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+        src.visible = !!sourcePos;
+        dst.visible = !!targetPos;
+        if (sourcePos) src.position.copy(sourcePos);
+        if (targetPos) dst.position.copy(targetPos);
+      } else {
+        src.visible = false;
+        dst.visible = false;
+      }
     }
   }
   

@@ -4077,7 +4077,9 @@ class AtomaGame {
         }, 'visual.cascadeParticleColorTinting');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleSystem) {
-                const links = this.linkingSystem?.links || this.nodeLinking?.links || [];
+                const primaryLinks = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : null;
+                const fallbackLinks = Array.isArray(this.nodeLinking?.links) ? this.nodeLinking.links : [];
+                const links = (primaryLinks && primaryLinks.length > 0) ? primaryLinks : fallbackLinks;
                 this.cascadeParticleSystem.update(dt, links);
             }
         }, 'visual.cascadeParticleSystem');
@@ -10012,10 +10014,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this,
                 {
                     enabled: true,
-                    debugMode: false,
+                    debugMode: true,
                     maxParticles: 3000,
-                    emissionRate: 1.0,
-                    baseSize: 4.0
+                    emissionRate: 6.0,
+                    baseSize: 32.0,
+                    visualSizeBoost: 3.2,
+                    baseCascadeParticles: 60
                 }
             );
             
