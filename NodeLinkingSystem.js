@@ -480,9 +480,11 @@ export class NodeLinkingSystem {
     this.onHoverStartCallbacks = [];
     this.onHoverEndCallbacks = [];
     
-    // Link creation/removal callbacks (for UISelectedHUD link event notification)
+    // Link lifecycle callbacks (for UISelectedHUD and visual subsystems)
     this.onLinkCreatedCallbacks = [];
+    this.onLinkUpdatedCallbacks = [];
     this.onLinkRemovedCallbacks = [];
+    this.onLinkDestroyedCallbacks = [];
     
     this.raycaster = new THREE.Raycaster();
     // Align raycaster layer with hit-proxy interaction layer (default 10)
@@ -1831,10 +1833,10 @@ export class NodeLinkingSystem {
   /**
    * Fire link creation callbacks (for UISelectedHUD link event notification)
    */
-  _fireLinkCreatedCallbacks(source, target) {
+  _fireLinkCreatedCallbacks(source, target, link = null) {
     for (const callback of this.onLinkCreatedCallbacks) {
       try {
-        callback(source, target);
+        callback(source, target, link);
       } catch (err) {
         console.warn('Error in link created callback:', err);
       }
@@ -1842,14 +1844,40 @@ export class NodeLinkingSystem {
   }
 
   /**
-   * Fire link removal callbacks (for UISelectedHUD link event notification)
+   * Fire link updated callbacks
    */
-  _fireLinkRemovedCallbacks(source, target) {
+  _fireLinkUpdatedCallbacks(link) {
+    for (const callback of this.onLinkUpdatedCallbacks) {
+      try {
+        callback(link);
+      } catch (err) {
+        console.warn('Error in link updated callback:', err);
+      }
+    }
+  }
+
+  /**
+  * Fire link removal callbacks (for UISelectedHUD link event notification)
+  */
+  _fireLinkRemovedCallbacks(source, target, link = null) {
     for (const callback of this.onLinkRemovedCallbacks) {
       try {
-        callback(source, target);
+        callback(source, target, link);
       } catch (err) {
         console.warn('Error in link removed callback:', err);
+      }
+    }
+  }
+
+  /**
+   * Fire link destroyed callbacks
+   */
+  _fireLinkDestroyedCallbacks(link) {
+    for (const callback of this.onLinkDestroyedCallbacks) {
+      try {
+        callback(link);
+      } catch (err) {
+        console.warn('Error in link destroyed callback:', err);
       }
     }
   }
@@ -1864,11 +1892,29 @@ export class NodeLinkingSystem {
   }
 
   /**
-   * Register callback for link removal events
+   * Register callback for link update events
    */
+  onLinkUpdated(callback) {
+    if (typeof callback === 'function') {
+      this.onLinkUpdatedCallbacks.push(callback);
+    }
+  }
+
+  /**
+  * Register callback for link removal events
+  */
   onLinkRemoved(callback) {
     if (typeof callback === 'function') {
       this.onLinkRemovedCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * Register callback for link destruction events
+   */
+  onLinkDestroyed(callback) {
+    if (typeof callback === 'function') {
+      this.onLinkDestroyedCallbacks.push(callback);
     }
   }
   
@@ -4250,7 +4296,7 @@ getLinksForNode(node) {
     }
 
     // UI/system callbacks
-    this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+    this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
 
     // [Phase 2] Trigger Event Coordinator (suppresses node auras during link creation)
     if (this.eventCoordinator) {
@@ -4348,7 +4394,7 @@ getLinksForNode(node) {
       }
       LinkEmissionPulsingSystem.initializeLinkEmissionPulsing(link, link.traffic.load);
 
-      this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+      this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
       if (this.eventCoordinator) {
         this.eventCoordinator.onLinkEvent(sourceNode, targetNode);
       }
@@ -4771,7 +4817,7 @@ getLinksForNode(node) {
     }
     
     // Fire link creation callback (for UI updates)
-    this._fireLinkCreatedCallbacks(sourceNode, targetNode);
+    this._fireLinkCreatedCallbacks(sourceNode, targetNode, link);
     
     // Initial curve update
     this.updateLinkCurve(link);
@@ -6475,6 +6521,8 @@ getLinksForNode(node) {
         window.glyphSystem.updateNodeSynergy(targetNodeId, normalized.synergy);
       }
     }
+
+    this._fireLinkUpdatedCallbacks(link);
   }
   
   /**
@@ -7072,7 +7120,8 @@ getLinksForNode(node) {
     }
     
     // Fire link removal callback (for UI updates) - do this BEFORE disposal
-    this._fireLinkRemovedCallbacks(link.source, link.target);
+    this._fireLinkRemovedCallbacks(link.source, link.target, link);
+    this._fireLinkDestroyedCallbacks(link);
     
     // [Session 20 FIX] Notify tracking systems on link removal
     if (window.linkHistoryTracker) {

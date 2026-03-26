@@ -36,7 +36,6 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
     this.scene = scene;
-    this.semanticBus = config.semanticBus ?? globalThis?.semanticBus ?? null;
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
@@ -61,7 +60,12 @@ export class CascadeParticleSystem_Session120 {
     
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
-    this._semanticUnsubscribers = [];
+    this._activeLinks = [];
+    this._activeLinkIdSet = new Set();
+    this._pendingLinkEvents = [];
+    this._linkLifecycleSource = null;
+    this._linkLifecycleUnsubscribers = [];
+    this._linkSpawnState = new Map();
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
@@ -75,10 +79,6 @@ export class CascadeParticleSystem_Session120 {
     this._debugSourceMarkers = [];
     this._debugTargetMarkers = [];
     this._debugParticleMarkers = [];
-    
-    // Periodic burst timer (DEBUG: každé 4 sekundy)
-    this._periodicBurstInterval = 4.0;  // sekundy
-    this._lastPeriodicBurstTime = 0;
 
     // Resources
     this.geometry = null;
@@ -88,26 +88,44 @@ export class CascadeParticleSystem_Session120 {
     
     // Init
     this.init();
-    this._setupSemanticSubscriptions();
-    
   }
 
-  _setupSemanticSubscriptions() {
-    if (!this.semanticBus) return;
-    const on = this.semanticBus.on?.bind(this.semanticBus);
-    if (typeof on !== 'function') return;
+  attachLinkLifecycleSource(linkingSystem) {
+    if (!linkingSystem || this._linkLifecycleSource === linkingSystem) return;
 
-    const onCascadeHop = (event = {}) => {
-      this.spawnCascadeParticles(event.link, event.intensity, event.hopIndex);
-    };
+    this._linkLifecycleSource = linkingSystem;
 
-    on('cascade.hop', onCascadeHop);
+    const createdHandler = (source, target, link) => this.handleLinkCreated(link || source || target || null);
+    const updatedHandler = (link) => this.handleLinkUpdated(link);
+    const destroyedHandler = (link) => this.handleLinkDestroyed(link);
 
-    if (typeof this.semanticBus.off === 'function') {
-      this._semanticUnsubscribers.push(() => this.semanticBus.off('cascade.hop', onCascadeHop));
-    } else if (typeof this.semanticBus.unsubscribe === 'function') {
-      this._semanticUnsubscribers.push(() => this.semanticBus.unsubscribe('cascade.hop', onCascadeHop));
+    if (typeof linkingSystem.onLinkCreated === 'function') {
+      linkingSystem.onLinkCreated(createdHandler);
     }
+    if (typeof linkingSystem.onLinkUpdated === 'function') {
+      linkingSystem.onLinkUpdated(updatedHandler);
+    }
+    if (typeof linkingSystem.onLinkDestroyed === 'function') {
+      linkingSystem.onLinkDestroyed(destroyedHandler);
+    } else if (typeof linkingSystem.onLinkRemoved === 'function') {
+      linkingSystem.onLinkRemoved((source, target, link) => destroyedHandler(link || source || target || null));
+    }
+  }
+
+  handleLinkCreated(link) {
+    if (!link?.id) return;
+    this._pendingLinkEvents.push({ type: 'created', link });
+  }
+
+  handleLinkUpdated(link) {
+    if (!link?.id) return;
+    this._pendingLinkEvents.push({ type: 'updated', link });
+  }
+
+  handleLinkDestroyed(link) {
+    const linkId = link?.id || link?.uuid || link?.name;
+    if (!linkId) return;
+    this._pendingLinkEvents.push({ type: 'destroyed', link, linkId });
   }
   
   /**
@@ -354,32 +372,36 @@ export class CascadeParticleSystem_Session120 {
   /**
    * Update Loop
    */
-  update(deltaTime, links) {
-    const resolvedLinks = this._resolveActiveLinks(links);
+  update(deltaTime, activeLinks) {
+    const resolvedLinks = this._resolveActiveLinks(activeLinks);
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
     }
-    const currentCascadeTime = VisualTime.now - this._cascadeTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const currentCascadeTime = VisualTime.now - this._cascadeTimeOrigin; // canonical VisualTime source
     const cascadeDelta = this._lastCascadeTime === undefined
       ? 0
       : Math.max(0, currentCascadeTime - this._lastCascadeTime);
     this._lastCascadeTime = currentCascadeTime;
 
+    this._activeLinks = resolvedLinks;
+    this._activeLinkIdSet = new Set(
+      resolvedLinks
+        .map((link) => link?.id)
+        .filter((id) => id !== undefined && id !== null)
+    );
+
     this._ensureCanonicalLinkDefaults(resolvedLinks);
 
-    // Event-driven spawn only; update existing active particles.
+    // Process lifecycle events first so newly created/updated links can emit immediately.
+    this._flushPendingLinkEvents(currentCascadeTime);
+
+    // Safety net: if lifecycle callbacks missed a link, treat first-seen active links as created.
+    this._syncFirstSeenActiveLinks(resolvedLinks, currentCascadeTime);
+
+    // Update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
-    
-    // Polling-based spawn for continuous activity (Session 120 fix)
-    this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
-    
-    // DEBUG: Periodic burst každé 4 sekundy
-    if (currentCascadeTime - this._lastPeriodicBurstTime >= this._periodicBurstInterval) {
-      this._lastPeriodicBurstTime = currentCascadeTime;
-      this._triggerPeriodicBurst(resolvedLinks, currentCascadeTime);
-    }
-    
-    // Update geometry
+
+    // Update geometry and helper visuals.
     this._updateGeometry();
     this._updateDebugHelpers(resolvedLinks);
   }
@@ -421,137 +443,150 @@ export class CascadeParticleSystem_Session120 {
   }
   
   /**
-   * Spawn particles based on cascade intensity and emission boost
-   * Respects density multiplier from Session 121
+   * Spawn particles only from active link lifecycle changes.
    */
   _spawnParticles(deltaTime, links, currentCascadeTime) {
-    if (!links) return;
-    
+    if (!Array.isArray(links) || links.length === 0) return;
     for (const link of links) {
-      if (!link) continue;
-      this._ensureCanonicalLinkDefaults([link]);
+      if (!link?.id || link.active === false) continue;
+      this._spawnFromLifecycleEvent(link, 'updated', currentCascadeTime);
+    }
+  }
 
-      // Check for cascade activity
-      const boost = link.userData.cascadeParticleEmissionBoost ?? 1.0;
-      const flowState = link.userData.flowState || {};
-      const targetIntensity = link.userData.metrics?.synergy ?? 0;
-      const previousIntensity = Number.isFinite(flowState.intensity) ? flowState.intensity : 0;
-      flowState.intensity = previousIntensity + (targetIntensity - previousIntensity) * 0.2;
-      const intensity = flowState.intensity;
+  _flushPendingLinkEvents(currentCascadeTime) {
+    if (!this._pendingLinkEvents.length) return;
 
-      if (intensity < this.config.minimumVisibleIntensity) continue;
+    const events = this._pendingLinkEvents.splice(0, this._pendingLinkEvents.length);
+    for (const event of events) {
+      const link = event?.link;
+      const linkId = event?.linkId || link?.id || link?.uuid || link?.name;
+      if (!linkId) continue;
 
-      // Determine conflict type (Semantic Shape) from flowState
-      const conflictType = link.userData.cascadeConflictType ?? flowState.type ?? 'neutral';
-      const shapeIndex = this._getShapeIndexForConflict(conflictType);
-      
-      // Determine Flow Type (Semantic Velocity)
-      // This could be driven by hub dominance logic, but for now:
-      // High conflict + low progress = Oscillatory
-      // Dominant flow = Forward
-      const flowType = this._determineFlowType(conflictType, intensity);
-      
-      // Session 121: Density Multiplier
-      // Scales emission based on intensity (from ParticleSemanticDensityAdapter)
-      const densityMultiplier = link.userData.particleDensityMultiplier ?? 1.0;
-      
-      // Calculate emission count
-      // Base * Boost * DensityMultiplier * DeltaTime
-      const rate = this.config.emissionRate * 10 * boost * intensity * densityMultiplier;
-      const count = Math.floor(rate * deltaTime + Math.random()); // Probabilistic emission
-      
-      if (count > 0) {
-        this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime);
-        
-        // Emit cascade.hop event for CascadeResonanceWaveVisualization
-        this._emitCascadeHop(link, intensity, conflictType);
+      if (event.type === 'destroyed') {
+        this._linkSpawnState.delete(linkId);
+        this.clearLink(linkId);
+        continue;
       }
+
+      if (!link || link.active === false || !this._activeLinkIdSet.has(linkId)) {
+        continue;
+      }
+
+      this._spawnFromLifecycleEvent(link, event.type, currentCascadeTime);
     }
   }
-  
-  /**
-   * DEBUG: Periodic burst každé 4 sekundy pre všetky aktívne linky
-   */
-  _triggerPeriodicBurst(links, currentCascadeTime) {
-    if (!links) return;
-    
-    let spawnedCount = 0;
+
+  _syncFirstSeenActiveLinks(links, currentCascadeTime) {
     for (const link of links) {
-      if (!link) continue;
-      
-      const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
-      const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-      const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
-      const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
-      
-      if (!sourcePosition || !targetPosition) continue;
-      
-      // Spawn burst pre každú linku
-      const burstCount = this.config.baseCascadeParticles;
-      const conflictType = link?.userData?.cascadeConflictType || 'neutral';
-      const shapeIndex = this._getShapeIndexForConflict(conflictType);
-      const flowType = this._determineFlowType(conflictType, 0.5);
-      
-      this._emit(burstCount, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition);
+      if (!link?.id || this._linkSpawnState.has(link.id)) continue;
+      this._spawnFromLifecycleEvent(link, 'created', currentCascadeTime);
     }
-    
   }
-  
-  /**
-   * Emit cascade.hop event for CascadeResonanceWaveVisualization
-   * Throttled to prevent event spam (0.3s cooldown per link)
-   */
-  _emitCascadeHop(link, intensity, conflictType) {
-    if (!this.semanticBus || !this.semanticBus.emit) return;
-    
-    const linkId = link.id || link.uuid || link.name;
-    if (!linkId) return;
-    
-    const now = performance.now() / 1000; // Convert to seconds
-    
-    // Check cooldown (0.3s default)
-    const lastHopTime = this._linkHopCooldowns.get(linkId) || 0;
-    const cooldownElapsed = now - lastHopTime;
-    
-    if (cooldownElapsed < this.config.cascadeHopCooldown) {
-      return; // Skip - still in cooldown
+
+  _spawnFromLifecycleEvent(link, eventType, currentCascadeTime) {
+    if (!link?.id || link.active === false) return;
+
+    this._ensureCanonicalLinkDefaults([link]);
+    const currentState = this._getCascadeLinkState(link);
+    if (!currentState.isRelevant) {
+      this._linkSpawnState.set(link.id, currentState);
+      return;
     }
-    
-    // Update last hop time
-    this._linkHopCooldowns.set(linkId, now);
-    
-    // Get source and target nodes
+
+    const previousState = this._linkSpawnState.get(link.id);
+    const previousSignature = previousState?.signature ?? null;
+    const cooldown = this.config.cascadeHopCooldown ?? 0.3;
+    const lastSpawnTime = previousState?.lastSpawnTime ?? -Infinity;
+    const shouldIgnoreCooldown = eventType === 'created';
+
+    if (eventType === 'updated' && previousSignature === currentState.signature) {
+      this._linkSpawnState.set(link.id, {
+        ...currentState,
+        lastSpawnTime,
+        lastEventType: eventType,
+        hasSpawned: previousState?.hasSpawned ?? false
+      });
+      return;
+    }
+
+    if (!shouldIgnoreCooldown && currentCascadeTime - lastSpawnTime < cooldown) {
+      this._linkSpawnState.set(link.id, {
+        ...currentState,
+        lastSpawnTime,
+        lastEventType: eventType,
+        hasSpawned: previousState?.hasSpawned ?? false
+      });
+      return;
+    }
+
+    this._emitFromLinkState(link, currentState, currentCascadeTime);
+    this._linkSpawnState.set(link.id, {
+      ...currentState,
+      lastSpawnTime: currentCascadeTime,
+      lastEventType: eventType,
+      hasSpawned: true
+    });
+  }
+
+  _emitFromLinkState(link, linkState, currentCascadeTime) {
+    if (!linkState?.isRelevant) return;
+
     const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
     const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
-    
-    if (!sourceNode || !targetNode) return;
-
-    // Calculate midpoint position
     const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
     const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
     if (!sourcePosition || !targetPosition) return;
-    const midpoint = {
-      x: (sourcePosition.x + targetPosition.x) * 0.5,
-      y: (sourcePosition.y + targetPosition.y) * 0.5,
-      z: (sourcePosition.z + targetPosition.z) * 0.5
+
+    const count = Math.max(1, Math.floor(this.config.baseCascadeParticles * linkState.intensity));
+    if (count <= 0) return;
+
+    this._emit(
+      count,
+      link,
+      linkState.shapeIndex,
+      linkState.flowType,
+      linkState.conflictType,
+      currentCascadeTime,
+      sourcePosition,
+      targetPosition
+    );
+  }
+
+  _getLinkSpawnState(link) {
+    if (!link?.id) return null;
+    return this._linkSpawnState.get(link.id) || null;
+  }
+
+  _getCascadeLinkState(link) {
+    const u = link?.userData || {};
+    const flowState = u.flowState || {};
+    const cascadeIntensity = Number(u.cascadeIntensity ?? flowState.intensity ?? u.metrics?.synergy ?? 0) || 0;
+    const normalizedIntensity = Math.max(0, Math.min(1, cascadeIntensity));
+    const conflictType = u.cascadeConflictType || flowState.type || 'neutral';
+    const boost = Number(u.cascadeParticleEmissionBoost ?? 1.0) || 1.0;
+    const density = Number(u.particleDensityMultiplier ?? 1.0) || 1.0;
+    const relevantIntensity = normalizedIntensity * boost * density;
+    const isRelevant = relevantIntensity >= this.config.minimumVisibleIntensity;
+    const shapeIndex = this._getShapeIndexForConflict(conflictType);
+    const flowType = this._determineFlowType(conflictType, relevantIntensity);
+    const signature = [
+      link?.active === false ? '0' : '1',
+      conflictType,
+      shapeIndex,
+      flowType,
+      Math.round(relevantIntensity * 20),
+      Math.round(boost * 10),
+      Math.round(density * 10)
+    ].join('|');
+
+    return {
+      signature,
+      intensity: relevantIntensity,
+      conflictType,
+      shapeIndex,
+      flowType,
+      isRelevant
     };
-
-    // Validate event data before emitting
-    if (!midpoint) return;
-    if (!Number.isFinite(intensity)) return;
-    if (intensity <= 0) return;
-
-    // Emit cascade.hop event
-    this.semanticBus.emit('cascade.hop', {
-      link: link, // Include link object for backward compatibility
-      linkId: linkId,
-      sourceId: sourceNode.id || sourceNode.uuid,
-      targetId: targetNode.id || targetNode.uuid,
-      position: midpoint,
-      intensity: intensity,
-      conflictType: conflictType,
-      timestamp: now
-    }, { priority: this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL });
   }
   
   /**
@@ -807,25 +842,8 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _resolveActiveLinks(links) {
-    if (Array.isArray(links) && links.length > 0) {
-      return links;
-    }
-
-    const candidates = [
-      globalThis?.window?.game?.linkingSystem?.links,
-      globalThis?.window?.game?.nodeLinking?.links,
-      globalThis?.window?.linkingSystem?.links,
-      globalThis?.game?.linkingSystem?.links,
-      globalThis?.game?.nodeLinking?.links
-    ];
-
-    for (const candidate of candidates) {
-      if (Array.isArray(candidate) && candidate.length > 0) {
-        return candidate;
-      }
-    }
-
-    return Array.isArray(links) ? links : [];
+    if (!Array.isArray(links) || links.length === 0) return [];
+    return links.filter((link) => link && link.active !== false);
   }
 
   _initDebugHelpers() {

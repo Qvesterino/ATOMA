@@ -1545,7 +1545,13 @@ class SemanticEventBus {
     incrementEventCounter(tag, payload) {
         // Track cascade.hop for VFX pipeline verification
         if (tag === 'cascade.hop' && typeof window !== 'undefined') {
-            window._cascadeHopCount = (window._cascadeHopCount || 0) + 1;
+            const now = performance.now();
+            const lastSampleAt = window._cascadeHopLastSampleAt || 0;
+            const sampleWindowMs = 250;
+            if (now - lastSampleAt >= sampleWindowMs) {
+                window._cascadeHopCount = (window._cascadeHopCount || 0) + 1;
+                window._cascadeHopLastSampleAt = now;
+            }
         }
         switch (tag) {
             case 'node.selection':
@@ -4080,7 +4086,10 @@ class AtomaGame {
                 const primaryLinks = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : null;
                 const fallbackLinks = Array.isArray(this.nodeLinking?.links) ? this.nodeLinking.links : [];
                 const links = (primaryLinks && primaryLinks.length > 0) ? primaryLinks : fallbackLinks;
-                this.cascadeParticleSystem.update(dt, links);
+                const activeLinks = Array.isArray(links)
+                    ? links.filter((link) => link && link.active !== false)
+                    : [];
+                this.cascadeParticleSystem.update(dt, activeLinks);
             }
         }, 'visual.cascadeParticleSystem');
         
@@ -10021,18 +10030,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     baseCascadeParticles: 60
                 }
             );
+            const lifecycleSource = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
+            this.cascadeParticleSystem?.attachLinkLifecycleSource?.(lifecycleSource);
             
         } catch (err) {
-        }
-
-        // ========================================================================
-        // CASCADE EVENT BRIDGE (SESSION 120)
-        // Connects SemanticEventBus events to CascadeParticleSystem
-        // ========================================================================
-        try {
-            this.ensureCascadeEventBridge();
-        } catch (err) {
-            console.warn('[main.js] CascadeEventBridge initialization failed:', err);
         }
 
         // ========================================================================
@@ -13192,7 +13193,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
                 this.cascadingRuptures.onCascadeHop = (fromNode, toNode, energy, link, hopIndex = 0) => {
                     if (link) {
-                        this.cascadeParticleSystem?.spawnCascadeParticles?.(link, energy ?? 0, hopIndex);
+                        if (!link.userData) link.userData = {};
+                        link.userData.cascadeIntensity = Math.max(
+                            Number(link.userData.cascadeIntensity ?? 0) || 0,
+                            Number(energy ?? 0) || 0
+                        );
+                        link.userData.cascadeConflictType = link.userData.cascadeConflictType || 'destructive';
+                        link.userData.flowState = link.userData.flowState || {};
+                        link.userData.flowState.intensity = Math.max(
+                            Number(link.userData.flowState.intensity ?? 0) || 0,
+                            Number(energy ?? 0) || 0
+                        );
+                        link.userData.flowState.type = link.userData.flowState.type || 'destructive';
+                        this.cascadeParticleSystem?.handleLinkUpdated?.(link);
                     }
                     this.semanticBus?.emit?.(
                         'cascade.hop',
