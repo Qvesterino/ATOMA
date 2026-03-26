@@ -15,13 +15,13 @@
  * FEATURES:
  * 1. GLOBAL STATE ANALYZER
  *    - Scans nodes every 5-10s (throttled)
- *    - Computes aggregate metrics (harmony, stability, clarity, energy)
+ *    - Computes aggregate metrics (harmony, stability, clarity, loadPressure)
  *    - Derives global mood label (7 mood types)
  * 
  * 2. WORLD EVENT TYPES
  *    - HARMONIC_CALM: Warm sky, gentle light shafts
  *    - FOCUSED_ANALYSIS: Crisp contrast, data particles
- *    - RADIANT_STORM: Pulsing arcs, energy surges
+ *    - RADIANT_STORM: Pulsing arcs, load-pressure surges
  *    - QUANTUM_CHAOS: Nebula patterns, distortion waves
  *    - UMBRA_PRESSURE: Dark fog, shadow bands
  *    - ECHO_DRIFT: Horizontal streaks, memory winds
@@ -243,8 +243,8 @@ export class WorldPersonalityController {
       if (metrics) {
         totalHarmony += metrics.harmonyAffinity || 0;
         totalStability += metrics.stability || 0;
-        totalClarity += metrics.clarity || 0;
-        totalEnergy += metrics.energyOutput || 0;
+        totalClarity += metrics.stability || 0;
+        totalEnergy += metrics.loadPressure || 0;
         validNodeCount++;
       }
       
@@ -311,7 +311,7 @@ export class WorldPersonalityController {
   /**
    * Determine mood label from aggregated metrics
    */
-  determineMoodLabel(harmony, stability, clarity, energy, personalityCount) {
+  determineMoodLabel(harmony, stability, clarity, loadPressure, personalityCount) {
     // Check for ASCENDED_ALIGNMENT (many ascended/mythic nodes)
     const ascendedCount = personalityCount['ASCENDED_MYTHIC'] || 0;
     if (ascendedCount >= 3) {
@@ -328,8 +328,8 @@ export class WorldPersonalityController {
       return 'FOCUSED_ANALYSIS';
     }
 
-    // RADIANT_STORM: high energy, mid-low stability
-    if (energy > 75 && stability > 20 && stability < 50) {
+    // RADIANT_STORM: high load pressure, mid-low stability
+    if (loadPressure > 75 && stability > 20 && stability < 50) {
       return 'RADIANT_STORM';
     }
 
@@ -338,13 +338,13 @@ export class WorldPersonalityController {
       return 'QUANTUM_CHAOS';
     }
 
-    // UMBRA_PRESSURE: mid energy, low stability, low harmony
-    if (energy > 40 && energy < 70 && stability < 40 && harmony < 50) {
+    // UMBRA_PRESSURE: mid load pressure, low stability, low harmony
+    if (loadPressure > 40 && loadPressure < 70 && stability < 40 && harmony < 50) {
       return 'UMBRA_PRESSURE';
     }
     
-    // ECHO_DRIFT: low energy, mid harmony
-    if (energy < 45 && harmony > 40 && harmony < 70) {
+    // ECHO_DRIFT: low load pressure, mid harmony
+    if (loadPressure < 45 && harmony > 40 && harmony < 70) {
       return 'ECHO_DRIFT';
     }
     
@@ -355,12 +355,12 @@ export class WorldPersonalityController {
   /**
    * Calculate mood intensity based on metric extremes
    */
-  calculateMoodIntensity(harmony, stability, clarity, energy) {
+  calculateMoodIntensity(harmony, stability, clarity, loadPressure) {
     // Intensity is based on how extreme metrics are
     const harmonySigma = Math.abs(harmony - 60) / 60; // 60 is mid-range
     const stabilitySigma = (100 - stability) / 100; // Lower stability = higher intensity
     const claritySigma = Math.abs(clarity - 60) / 60;
-    const energySigma = Math.abs(energy - 60) / 60;
+    const energySigma = Math.abs(loadPressure - 60) / 60;
     
     const avgSigma = (harmonySigma + stabilitySigma + claritySigma + energySigma) / 4;
     

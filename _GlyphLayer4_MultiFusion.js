@@ -760,7 +760,7 @@ export class GlyphLayer4_MultiFusion {
       { name: 'harmony', value: metrics.harmony || 0 },
       { name: 'stability', value: metrics.stability || 0 },
       { name: 'corruption', value: metrics.corruption || 0 },
-      { name: 'clarity', value: metrics.clarity || 0 }
+      { name: 'clarity', value: metrics.stability || 0 }
     ];
     
     // Find highest

@@ -103,10 +103,9 @@ class EchoInstance {
         this.compositeGlyph = null;
         this._spawnTime = 0.0;
         
-        // State for visual modulation
-        this.harmonyBalance = 0.5;
-        this.stability = 0.5;
-        this.synergy = 0.5;
+        // State for visual modulation (SIMPLIFIED: 2 canonical metrics instead of 3 internal)
+        this.harmony = 0.5;      // Canonical: node.userData.metrics.harmony
+        this.corruption = 0;     // Canonical: node.userData.corruption
     }
     
     reset() {
@@ -117,15 +116,22 @@ class EchoInstance {
         this.currentOpacity = 0.0;
     }
     
-    spawn(position, compositeGeometry, harmonyBalance, stability, synergy, currentVisualTime) {
+    /**
+     * Spawn echo with canonical metrics
+     * @param {THREE.Vector3} position - Spawn position
+     * @param {THREE.BufferGeometry} compositeGeometry - Geometry to use
+     * @param {number} harmony - Canonical harmony (0-1) from node.userData.metrics.harmony
+     * @param {number} corruption - Canonical corruption (0-1) from node.userData.corruption
+     * @param {number} currentVisualTime - Current visual time
+     */
+    spawn(position, compositeGeometry, harmony, corruption, currentVisualTime) {
         this.active = true;
         this.mesh.visible = true;
         this.position.copy(position);
         this.mesh.position.copy(position);
         this.age = 0.0;
-        this.harmonyBalance = harmonyBalance;
-        this.stability = stability;
-        this.synergy = synergy;
+        this.harmony = harmony;
+        this.corruption = corruption;
         this._spawnTime = currentVisualTime;
         
         // Calculate lifetime based on state
@@ -143,21 +149,22 @@ class EchoInstance {
         }
     }
     
+    // SIMPLIFIED: calculateLifetime using only 2 canonical metrics
     calculateLifetime() {
         let lifetime = CONFIG.BASE_ECHO_LIFETIME;
         
-        // Harmony modulation
-        const harmonyInfluence = this.harmonyBalance - 0.5;
+        // Harmony extends lifetime, corruption shortens it
+        const harmonyInfluence = this.harmony - this.corruption;
         if (harmonyInfluence > 0) {
             lifetime *= CONFIG.HARMONY_LIFETIME_MULTIPLIER;
         } else {
             lifetime *= CONFIG.CORRUPTION_LIFETIME_MULTIPLIER;
         }
         
-        // Stability impact (instability accelerates decay)
-        if (this.stability < 0.5) {
-            const instabilityFactor = this.stability * 2; // 0-1
-            lifetime *= (0.7 + instabilityFactor * 0.3); // 0.7-1.0 multiplier
+        // High corruption accelerates decay (replaces stability check)
+        if (this.corruption > 0.5) {
+            const corruptionFactor = 1.0 - (this.corruption - 0.5); // 0.5-1.0
+            lifetime *= (0.7 + corruptionFactor * 0.3); // 0.7-1.0 multiplier
         }
         
         return Math.max(CONFIG.MIN_ECHO_LIFETIME, Math.min(CONFIG.MAX_ECHO_LIFETIME, lifetime));
@@ -469,17 +476,19 @@ export class ResonanceEchoTrailSystem {
             if (tracker.shouldSpawnEcho(currentVisualTime) && echoSpawnCount < CONFIG.MAX_ECHOES_PER_ZONE) {
                 const state = composite.state;
                 if (state) {
-                    // Calculate spawn reduction based on instability
-                    const stabilityFactor = state.stability !== undefined ? state.stability : 0.7;
-                    const spawnChance = stabilityFactor >= 0.5 ? 1.0 : stabilityFactor * 2;
+                    // SIMPLIFIED: Read canonical metrics (harmony, corruption)
+                    const harmony = state.harmony ?? 0.5;
+                    const corruption = state.corruption ?? 0;
+                    
+                    // Calculate spawn chance based on harmony vs corruption
+                    const spawnChance = harmony >= corruption ? 1.0 : harmony * 2;
                     
                     if (Math.random() < spawnChance) {
                         this.spawnEcho(
                             composite.mesh.position,
                             composite.mesh.geometry,
-                            state.harmonBalance,
-                            stabilityFactor,
-                            state.averageSynergy,
+                            harmony,
+                            corruption,
                             currentVisualTime
                         );
                         echoSpawnCount++;
@@ -491,16 +500,18 @@ export class ResonanceEchoTrailSystem {
         }
     }
     
-    spawnEcho(position, geometry, harmonyBalance, stability, synergy, currentVisualTime) {
+    // SIMPLIFIED: spawnEcho with 2 canonical metrics
+    spawnEcho(position, geometry, harmony, corruption, currentVisualTime) {
         // Find available echo instance
         for (let echo of this.echoInstances) {
             if (!echo.active) {
-                echo.spawn(position, geometry, harmonyBalance, stability, synergy, currentVisualTime);
+                echo.spawn(position, geometry, harmony, corruption, currentVisualTime);
                 return;
             }
         }
     }
 
+    // SIMPLIFIED: spawnEchoTrail with canonical metrics derived from intensity
     spawnEchoTrail(center, intensity = 0.5) {
         if (!this.enabled || !center || this.echoInstances.length === 0) return;
 
@@ -516,12 +527,16 @@ export class ResonanceEchoTrailSystem {
         const pooledGeometry = this.echoInstances[0]?.mesh?.geometry;
         if (!pooledGeometry) return;
 
+        // SIMPLIFIED: Derive harmony and corruption from intensity
+        // High intensity = high harmony, low corruption
+        const harmony = 0.5 + clampedIntensity * 0.5;
+        const corruption = 0.5 - clampedIntensity * 0.3;
+
         this.spawnEcho(
             new THREE.Vector3(x, y, z),
             pooledGeometry,
-            0.5 + clampedIntensity * 0.5, // harmonyBalance
-            0.5 + clampedIntensity * 0.3, // stability
-            clampedIntensity,             // synergy
+            harmony,
+            corruption,
             currentVisualTime
         );
     }

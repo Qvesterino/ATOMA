@@ -71,14 +71,6 @@ export function getNodeCanonicalMetrics(node) {
     metrics.loadRatio
   );
 
-  // Legacy energy → inverse load (kept for backward compatibility; same behavior as legacy compatibility layer)
-  if (loadPressure === undefined && typeof metrics.energy === 'number') {
-    loadPressure = 1 - metrics.energy;
-  }
-  if (loadPressure === undefined && typeof metrics.energyNorm === 'number') {
-    loadPressure = 1 - metrics.energyNorm;
-  }
-
   // Return canonical name; keep legacy alias for compatibility with existing consumers.
   return {
     synergy,

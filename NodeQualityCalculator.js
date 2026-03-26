@@ -163,8 +163,8 @@ export class NodeQualityCalculator {
     quality.metrics = {
       stability: internal,
       harmony: energyComponent,
-      clarity: loadComponent,
-      energy: corruptionComponent,
+      loadPressure: loadComponent,
+      corruption: corruptionComponent,
       loadPenalty: 100 - this._computeLoadRatio(node) * 100,
       corruptionPenalty: this._getMetricValue(node, 'corruption', 0),
       linkQualityAvg: this._computeAvgLinkQuality(node),
@@ -175,7 +175,7 @@ export class NodeQualityCalculator {
   
   /**
    * Component 1: Internal Stability (30%)
-   * Combines stability, harmony, and clarity from node metrics
+   * Combines stability, harmony, and load pressure from node metrics
    * @private
    */
   _computeInternalStability(node) {
@@ -187,7 +187,7 @@ export class NodeQualityCalculator {
     // Extract normalized values (0–100)
     const stabilityScore = this._getMetricValue(node, 'stability', 50);
     const harmonyScore = this._getMetricValue(node, 'harmony', 50);
-    const clarityScore = this._getMetricValue(node, 'clarity', 50);
+    const clarityScore = stabilityScore;
     
     // Weighted combination
     const internal =
@@ -391,14 +391,14 @@ export class NodeQualityCalculator {
       score: 50,
       level: 'Weak',
       metrics: {
-        stability: 50,
-        harmony: 50,
-        clarity: 50,
-        energy: 50,
-        loadPenalty: 50,
-        corruptionPenalty: 50,
-        linkQualityAvg: 50,
-        linkQualityMin: 50,
+      stability: 50,
+      harmony: 50,
+      loadPressure: 50,
+      corruption: 50,
+      loadPenalty: 50,
+      corruptionPenalty: 50,
+      linkQualityAvg: 50,
+      linkQualityMin: 50,
       },
       updatedAt: Date.now(),
     };
@@ -475,8 +475,7 @@ export class NodeQualityCalculator {
       scorePercentage: (quality.score / 100).toFixed(2),
       components: {
         internalStability: (quality.metrics.stability ?? 50).toFixed(1),
-        energy: (quality.metrics.energy ?? 50).toFixed(1),
-        loadStress: (quality.metrics.clarity ?? 50).toFixed(1),
+        loadPressure: (quality.metrics.loadPressure ?? 50).toFixed(1),
         corruption: (quality.metrics.corruptionPenalty ?? 50).toFixed(1),
         linkQualityAverage: (quality.metrics.linkQualityAvg ?? 50).toFixed(1),
         linkQualityMinimum: (quality.metrics.linkQualityMin ?? 50).toFixed(1),

@@ -398,34 +398,40 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     }
 
     /**
-     * Update trap amplitude based on node metrics
+     * SIMPLIFIED: Update trap amplitude using only 2 canonical metrics
+     * Reads: harmony, corruption
+     * Derived: instability = corruption * (1 - harmony), synergy = harmony * (1 - corruption * 0.5)
      */
     _updateTrapAmplitude(trap) {
         if (!trap.nodeA || !trap.nodeB) return;
         
+        // CANONICAL METRIC 1: harmony (0-1)
         const harmonyA = this._readNodeMetric(trap.nodeA, 'harmony', 0.5);
         const harmonyB = this._readNodeMetric(trap.nodeB, 'harmony', 0.5);
-        const corruptionA = this._readNodeMetric(trap.nodeA, 'corruption', 0.5);
-        const corruptionB = this._readNodeMetric(trap.nodeB, 'corruption', 0.5);
-        const instabilityA = this._readNodeMetric(trap.nodeA, 'instability', 0);
-        const instabilityB = this._readNodeMetric(trap.nodeB, 'instability', 0);
-        const synergyAvg =
-            (this._readNodeMetric(trap.nodeA, 'synergy', 0.5) + this._readNodeMetric(trap.nodeB, 'synergy', 0.5)) * 0.5;
+        const avgHarmony = (harmonyA + harmonyB) * 0.5;
+        
+        // CANONICAL METRIC 2: corruption (0-1)
+        const corruptionA = this._readNodeMetric(trap.nodeA, 'corruption', 0);
+        const corruptionB = this._readNodeMetric(trap.nodeB, 'corruption', 0);
+        const avgCorruption = (corruptionA + corruptionB) * 0.5;
+        
+        // DERIVED: instability from corruption (high corruption = high instability)
+        const avgInstability = avgCorruption * (1 - avgHarmony * 0.5);
+        
+        // DERIVED: synergy from harmony (high harmony = high synergy)
+        const synergyAvg = avgHarmony * (1 - avgCorruption * 0.5);
         
         // Base amplitude
         const baseAmplitude = this.config.standingWaveAmplitude;
         let amplitude = baseAmplitude;
         
         // Harmony weakens the trap
-        const avgHarmony = (harmonyA + harmonyB) * 0.5;
         amplitude *= (1 - avgHarmony * this.config.harmonyDamping);
         
         // Corruption stabilizes (maintains amplitude)
-        const avgCorruption = (corruptionA + corruptionB) * 0.5;
         amplitude *= (1 + avgCorruption * (this.config.corruptionStabilization - 1));
         
-        // Instability causes wobble
-        const avgInstability = (instabilityA + instabilityB) * 0.5;
+        // Instability causes wobble (derived from corruption)
         amplitude *= (1 + Math.sin(this.time * 2) * avgInstability * this.config.instabilityWobble);
         
         // Stored trap energy amplifies standing-wave oscillation.
@@ -435,12 +441,12 @@ export class StandingWaveOscillationTrapSystem_Session130 {
     }
 
     /**
-     * Update trap state based on conditions (emerging, stable, wobbling, resolving)
+     * SIMPLIFIED: Update trap state using only 2 canonical metrics
      */
     _updateTrapState(trap) {
         const lifespan = this.time - trap.birthTime;
         
-        // Natural damping
+        // CANONICAL: harmony for damping calculation
         const harmonyAvg =
             (this._readNodeMetric(trap.nodeA, 'harmony', 0.5) + this._readNodeMetric(trap.nodeB, 'harmony', 0.5)) * 0.5;
         trap.damping = lifespan * this.config.dampingRate * (1 + harmonyAvg * 0.5);
@@ -457,9 +463,12 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 trap.state = 'stable';
             }
         } else {
+            // DERIVED: instability from corruption (high corruption = high instability)
+            const corruptionAvg =
+                (this._readNodeMetric(trap.nodeA, 'corruption', 0) + this._readNodeMetric(trap.nodeB, 'corruption', 0)) * 0.5;
+            const instabilityAvg = corruptionAvg * (1 - harmonyAvg * 0.5);
+            
             // Check for collapse condition
-            const instabilityAvg =
-                (this._readNodeMetric(trap.nodeA, 'instability', 0) + this._readNodeMetric(trap.nodeB, 'instability', 0)) * 0.5;
             if (instabilityAvg > this.config.collapseTriggerInstability) {
                 this._initializeResolution(trap, 'collapse');
                 trap.state = 'resolving';

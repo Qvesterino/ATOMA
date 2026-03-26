@@ -264,7 +264,6 @@ import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
 import { LegacyDebugConeCleanup } from './_LegacyDebugConeCleanup.js';
 // import { FractalHexMarker } from './_FractalHexMarker.js'; // DISABLED - legacy debug system
 import { LegacyGlyphCleanup } from './_LegacyGlyphCleanup.js';
-import { AtomaGlyphSystem3_0 } from './_AtomaGlyphSystem3_0.js';
 import { AtomaGlyphSystem4_0 } from './_AtomaGlyphSystem4_0.js';
 import { GlyphLayer4_MultiFusion } from './_GlyphLayer4_MultiFusion.js';
 import { SemanticGlyphAI } from './_SemanticGlyphAI.js';
@@ -297,7 +296,8 @@ import { LinkDegradationSystem } from './LinkDegradationSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
 import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
-import { updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
+import { mountAIAutomationHUD, updateAIAutomationHUD } from './AIAutomationHUD.js';
+import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
 import { getSharedPostProcessingPipeline } from './PostProcessing.js';
 
 const ENABLE_SELECTED_NODE_BADGE = false;
@@ -329,8 +329,6 @@ window.__DEBUG_FRAME_BUDGET_MS = 3.0;         // max time allowed for heavy syst
 window.__DEBUG_FRAME_BUDGET_LOG = true;       // log offenders
 window.__DBG_SPIKE_TRACE = false;             // set true to enable RAF spike tracing
 window.__DBG_SPIKE_TRACE_THRESHOLD_MS = 200;  // frame duration threshold in ms
-import { mountVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
-
 // Lightweight parasitic HUD guard: remove unused fullscreen overlays if present
 document.addEventListener('DOMContentLoaded', () => {
     const softGate = Boolean(window.ATOMA_FLAGS?.safety?.disableParasiticHUDs);
@@ -4016,11 +4014,6 @@ class AtomaGame {
             }
         }, 'semantic.slow10Hz');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.glyphSystem) {
-                this.glyphSystem.update(dt);
-            }
-        }, 'visual.glyphSystem');
-        this.frameScheduler.register('visual', (dt) => {
             if (this.glyphSystem4 && this.aiNodes) {
                 this.glyphSystem4.update(dt, this.aiNodes.nodes);
             }
@@ -4815,8 +4808,6 @@ this.setHudDirty('nodeInspect');
         this.fractalHexMarker = null; // Initialized after scene ready
 
         // ATOMA Glyph System 3.0 (unified glyph framework)
-        this.glyphSystem = null; // Initialized after scene ready
-
         // ATOMA Glyph System 4.0 (animated meaning edition)
         this.glyphSystem4 = null; // Initialized after scene ready
 
@@ -4824,12 +4815,11 @@ this.setHudDirty('nodeInspect');
         this.glyphLayer4 = null; // Initialized after scene ready
         // Glyph stack policy:
         // - Keep Layer4 (hover/semantic pipeline)
-        // - Disable legacy/full marker stacks (GlyphSystem3 + GlyphSystem4)
-        this.enableGlyphSystem3 = false;
+        // - Disable legacy/full marker stacks (GlyphSystem4)
         this.enableGlyphSystem4 = false;
         this.enableGlyphLayer4 = true;
+        this.enableGlyphLayer4FullVisuals = true;
         if (this.enableGlyphLayer4) {
-            this.enableGlyphSystem3 = false;
             this.enableGlyphSystem4 = false;
         }
 
@@ -5800,19 +5790,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.scene,
             this.camera
         );
-// Mount Variant B – AI Status HUD
-mountVariantBAdvisorHUD(document.body);
+        // Mount AI HUDs
+        mountAIAutomationHUD(document.body);
+        mountVariantBAdvisorHUD(document.body);
 
-// UI DEBUG – Variant B Advisor (temporary)
-window.__ATOMA_AI_ADVISOR__ = {
-  stability: 0.72,
-  risk: 0.18,
-  recovery: 'LOW',
-  insight: 'System stable. No intervention required.'
-};
-
-// First paint
-updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
+        // Initial paint (live reports are refreshed on the simulation scheduler)
+        this._refreshAIHudReports?.();
 
         // Initialize World Personality Controller 2.0 (after scene/camera/renderer ready)
         this.worldPersonalityController = new WorldPersonalityController(
@@ -5860,13 +5843,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         });
         staleGlyphRoots.forEach((root) => root.parent?.remove(root));
 
-        if (this.enableGlyphSystem3) {
-            this.glyphSystem = new AtomaGlyphSystem3_0(this.scene);
-        } else {
-            this.glyphSystem?.dispose?.();
-            this.glyphSystem = null;
-        }
-
         if (this.enableGlyphSystem4) {
             this.glyphSystem4 = new AtomaGlyphSystem4_0(this.scene, this.camera);
         } else {
@@ -5883,12 +5859,14 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
                 this.compositeResonanceFeedback || null
             );
             this.glyphLayer4.frameScheduler = this.frameScheduler;
+            this.glyphLayer4.hoverOnlyMode = !this.enableGlyphLayer4FullVisuals;
         } else {
             this.glyphLayer4?.dispose?.();
             this.glyphLayer4 = null;
         }
         this.setupSemanticGlyphAI();
         this.setupAmbientOrbitGlyphs();
+        this.setupGlyphLayer4Fusions();
         this._lastHoverGlyphTarget = null;
         if (this.semanticGlyphAI?.setHoverTarget) {
             this.semanticGlyphAI.setHoverTarget(null);
@@ -6270,6 +6248,20 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         }
 
         try {
+            if (this.cascadeResonanceWave && typeof this.cascadeResonanceWave.rebind === 'function') {
+                this.cascadeResonanceWave.rebind({
+                    cascadeSystem: this.harmonicCascadeAmplification ?? this.cascadeSystem ?? null,
+                    harmonicHubSystem: this.harmonicHubAuraSystem ?? null,
+                    linkResonanceSystem: this.linkResonanceSystem || this.harmonicResonanceCoupling || null,
+                    semanticBus,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] CascadeResonanceWaveVisualization rebind failed:', err?.message || err);
+        }
+
+        try {
             if (this.resonanceEchoTrailSystem && typeof this.resonanceEchoTrailSystem.rebind === 'function') {
                 this.resonanceEchoTrailSystem.rebind({ semanticBus });
             }
@@ -6441,6 +6433,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             if (this.vfxLoader) {
                 this.vfxLoader.onWorldSwitch(reasonForCreate);
             }
+            this.registerVisualGlyphSchedulers?.();
 
             // Reset CanonicalTemplate3_StressVisuals on world switch
             if (this.canonicalTemplate3_StressVisuals) {
@@ -6685,7 +6678,6 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.environmentDomain.init();
         this.hazards = this.environmentDomain?.instances?.environmentalHazards || null;
         if (this.hazards && this.currentMode === 'fractal') {
-            this.hazards.createElectricalStorm(new THREE.Vector3(40, 15, 40), 25, 0.8);
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
 
@@ -9884,10 +9876,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
 
             if (this.cascadeResonanceWave) {
-                this.cascadeResonanceWave.cascadeSystem = cascadeSystem;
-                this.cascadeResonanceWave.harmonicHubSystem = harmonicHubSystem;
-                this.cascadeResonanceWave.linkResonanceSystem = linkResonanceSystem;
-                this.cascadeResonanceWave.frameScheduler = this.frameScheduler;
+                this.cascadeResonanceWave.rebind({
+                    cascadeSystem,
+                    harmonicHubSystem,
+                    linkResonanceSystem,
+                    semanticBus: this.semanticBus,
+                    frameScheduler: this.frameScheduler
+                });
                 this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
                 return;
             }
@@ -9901,7 +9896,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     debugMode: false
                 }
             );
-            this.cascadeResonanceWave.frameScheduler = this.frameScheduler;
+            this.cascadeResonanceWave.rebind({
+                cascadeSystem,
+                harmonicHubSystem,
+                linkResonanceSystem,
+                semanticBus: this.semanticBus,
+                frameScheduler: this.frameScheduler
+            });
             this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
             
             console.log('[main.js] CascadeResonanceWaveVisualization initialized ✓');
@@ -10064,7 +10065,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.semanticGlyphAI?.setHoverTarget) {
             this.semanticGlyphAI.setHoverTarget(node);
         }
-        if (this.glyphLayer4?.setHoverNode) {
+        if (this.glyphLayer4?.hoverOnlyMode && this.glyphLayer4?.setHoverNode) {
             this.glyphLayer4.setHoverNode(node);
         }
     }
@@ -10296,6 +10297,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
         regGuard('nodeInteraction', 'realtime.nodeInteraction', (dt) => this.nodeInteractionEngine?.update?.(dt));
         regGuard('metricsRuntime_v1', 'simulation.metricsRuntime_v1', (dt) => this.metricsRuntime_v1?.update?.(dt));
+        regGuard('aiHudReports', 'simulation.aiHudReports', () => this._refreshAIHudReports?.());
         regGuard('personalityRuntime_v1', 'simulation.personalityRuntime_v1', (dt) => this.personalityRuntime_v1?.update?.(dt));
         regGuard('personalityVisualAdapter', 'visual.personalityVisualAdapter', (dt) => this.personalityVisualAdapter?.update?.(dt));
 
@@ -11135,7 +11137,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         // Create demo hazards in Fractal Valley
         if (this.currentMode === 'fractal') {
-            this.hazards.createElectricalStorm(new THREE.Vector3(40, 15, 40), 25, 0.8);
             this.hazards.createGravitationalAnomaly(new THREE.Vector3(-40, 10, -40), 20, 0.6);
         }
     }
@@ -11735,6 +11736,311 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 90
             );
         }
+    }
+
+    setupGlyphLayer4Fusions() {
+        if (!this.glyphLayer4 || !this.aiNodes?.nodes) {
+            return;
+        }
+
+        if (this.glyphLayer4.hoverOnlyMode) {
+            if (this.aiNodes?.unregisterPostSpawnObserver) {
+                this.aiNodes.unregisterPostSpawnObserver('glyph-layer4-fusions');
+            }
+            return;
+        }
+
+        this.glyphLayer4.createGlyphFusionsForNodes(this.aiNodes.nodes);
+
+        if (this.aiNodes?.unregisterPostSpawnObserver) {
+            this.aiNodes.unregisterPostSpawnObserver('glyph-layer4-fusions');
+        }
+
+        if (this.aiNodes?.registerPostSpawnObserver) {
+            this.aiNodes.registerPostSpawnObserver(
+                'glyph-layer4-fusions',
+                (newNode) => {
+                    const nodeId = newNode?.userData?.nodeId;
+                    if (!newNode || !nodeId || !this.glyphLayer4 || this.glyphLayer4.hoverOnlyMode) return;
+                    this.glyphLayer4.createGlyphFusion(newNode, nodeId);
+                },
+                80
+            );
+        }
+    }
+
+    _getHudSelectedNode() {
+        return (
+            this.linkingSystem?.primaryNode ||
+            this.linkingSystem?.selectedNode ||
+            this.selectionCore?.primaryNode ||
+            this.selectionCore?.selectedNode ||
+            window?.game?.selectedNode ||
+            null
+        );
+    }
+
+    _clampHud01(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return 0;
+        return Math.max(0, Math.min(1, numeric));
+    }
+
+    _buildHudMetricsSnapshot() {
+        const liveMetrics = window?.__ATOMA_LIVE_METRICS__ || {};
+        const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+        const totalLinks = links.length;
+        const degradationStats = this.linkDegradationSystem?.getDegradationStatistics?.() || null;
+        const stressFallback = Number.isFinite(this.networkStressAggregator?.getStress?.())
+            ? this._clampHud01((this.networkStressAggregator.getStress() || 0) / 100)
+            : 0;
+
+        const networkSynergy = this._clampHud01(liveMetrics.networkSynergy ?? 0);
+        const harmonyFlow = this._clampHud01(liveMetrics.harmonyFlow ?? 0);
+        const networkStress = this._clampHud01(
+            Number.isFinite(liveMetrics.networkStress) ? liveMetrics.networkStress : stressFallback
+        );
+        const corruptionLevel = this._clampHud01(liveMetrics.corruptionLevel ?? 0);
+        const loadPressure = this._clampHud01(liveMetrics.loadPressure ?? 0);
+        const stability = this._clampHud01(1 - networkStress);
+        const risk = this._clampHud01((networkStress * 0.55) + (corruptionLevel * 0.3) + (loadPressure * 0.15));
+
+        const recoveryReady = risk >= 0.75
+            ? 'CRITICAL'
+            : risk >= 0.5
+                ? 'LOW'
+                : stability >= 0.75
+                    ? 'HIGH'
+                    : 'MEDIUM';
+
+        const networkState = risk >= 0.75
+            ? 'critical'
+            : risk >= 0.5
+                ? 'stressed'
+                : stability >= 0.75
+                    ? 'stable'
+                    : 'watch';
+
+        const linksCollapsed = Number.isFinite(degradationStats?.linksCriticallyStrained)
+            ? degradationStats.linksCriticallyStrained
+            : 0;
+
+        const cascadeHopCount = Number.isFinite(window?._cascadeHopCount) ? window._cascadeHopCount : 0;
+        const cascadeHopRate = typeof window?.getCascadeHopRate === 'function'
+            ? window.getCascadeHopRate()
+            : null;
+        const cascadeLinks = links.filter((link) => Number.isFinite(link?.userData?.cascadeIntensity) && link.userData.cascadeIntensity > 0);
+        const cascadeIntensityLive = Number.isFinite(liveMetrics.cascadeIntensity) ? liveMetrics.cascadeIntensity : null;
+        const cascadeIntensityAverage = Number.isFinite(cascadeIntensityLive)
+            ? this._clampHud01(cascadeIntensityLive)
+            : this._clampHud01(
+                cascadeLinks.length > 0
+                    ? cascadeLinks.reduce((sum, link) => sum + (link?.userData?.cascadeIntensity || 0), 0) / cascadeLinks.length
+                    : 0
+            );
+        const cascadeIntensityPeak = this._clampHud01(
+            cascadeLinks.reduce((max, link) => Math.max(max, link?.userData?.cascadeIntensity || 0), 0)
+        );
+
+        const waveBurstState = typeof window?.getWaveInterferenceBurstState === 'function'
+            ? window.getWaveInterferenceBurstState()
+            : null;
+        const waveBurstSnapshot = waveBurstState?.activeSnapshot || null;
+        const waveBurstMetrics = waveBurstState?.metrics || null;
+        const waveBurstRouterStatus = this.waveBurstRouter?.getStatus?.() || null;
+        const waveBurstRecentIntents = this.waveBurstRouter?.getRecentIntents?.(3) || [];
+        const waveBurstLabel = waveBurstSnapshot
+            ? `${waveBurstSnapshot.type}${waveBurstSnapshot.sourceId ? ` · ${waveBurstSnapshot.sourceId}` : ''}`
+            : waveBurstMetrics?.activeBurstType
+                ? `${waveBurstMetrics.activeBurstType} · idle`
+                : 'idle';
+        const waveFieldLabel = waveBurstMetrics?.activeBurstType
+            ? `${waveBurstMetrics.activeBurstType} · ${waveBurstMetrics.fieldSuppressed ? 'suppressed' : 'open'}`
+            : 'idle';
+
+        const observation = {
+            cascadeHop: `${Number(cascadeHopCount).toLocaleString()} total · ${cascadeHopRate?.rate || '0/s'}`,
+            cascadeIntensity: `${Math.round(cascadeIntensityAverage * 100)}% avg · ${Math.round(cascadeIntensityPeak * 100)}% peak · ${cascadeLinks.length}/${totalLinks} links`,
+            waveBurst: `${waveBurstLabel} · cooldowns ${waveBurstRouterStatus?.activeCooldownKeys ?? 0} · intents ${waveBurstRecentIntents.length}`,
+            waveField: `${waveFieldLabel} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0}`
+        };
+
+        const selectedNode = this._getHudSelectedNode();
+        const selectedNodeName = selectedNode?.userData?.name || selectedNode?.name || selectedNode?.id || 'none';
+
+        return {
+            liveMetrics,
+            selectedNode,
+            selectedNodeName,
+            totalLinks,
+            linksCollapsed,
+            stability,
+            risk,
+            recoveryReady,
+            networkState,
+            networkSynergy,
+            harmonyFlow,
+            networkStress,
+            corruptionLevel,
+            loadPressure,
+            observation,
+            generatedAt: Date.now()
+        };
+    }
+
+    _buildVariantBAdvisorReport(snapshot = null) {
+        const hudSnapshot = snapshot || this._buildHudMetricsSnapshot();
+        const topCandidate = this._getTopLinkRecommendation(hudSnapshot.selectedNode);
+        const insight = topCandidate
+            ? `${hudSnapshot.selectedNodeName} → ${topCandidate.name} (${Math.round(topCandidate.score * 100)}% fit)`
+            : hudSnapshot.selectedNode
+                ? `${hudSnapshot.selectedNodeName}: awaiting fresh recommendation pass.`
+                : 'No primary node selected.';
+
+        return {
+            meta: {
+                mode: 'LIVE_ADVISOR',
+                generatedAt: hudSnapshot.generatedAt,
+                source: 'metricsRuntime_v1'
+            },
+            snapshot: {
+                linksCreated: hudSnapshot.totalLinks,
+                linksCollapsed: hudSnapshot.linksCollapsed,
+                recoveryReady: hudSnapshot.recoveryReady
+            },
+            network: {
+                state: hudSnapshot.networkState
+            },
+            stability: hudSnapshot.stability,
+            risk: hudSnapshot.risk,
+            recovery: hudSnapshot.recoveryReady,
+            insight
+        };
+    }
+
+    _getTopLinkRecommendation(selectedNode = null) {
+        if (!selectedNode || !this.linkRecommendationAI?.updateRecommendations) {
+            return null;
+        }
+
+        try {
+            this.linkRecommendationAI.updateRecommendations(selectedNode);
+        } catch (err) {
+            console.warn('[main.js] LinkRecommendationAI update failed:', err?.message || err);
+        }
+
+        const candidateScores = this.linkRecommendationAI?.candidateScores;
+        if (!candidateScores || candidateScores.size === 0) {
+            return null;
+        }
+
+        let topCandidate = null;
+        for (const entry of candidateScores.values()) {
+            if (!entry?.node) continue;
+            if (!topCandidate || (entry.score ?? 0) > topCandidate.score) {
+                topCandidate = entry;
+            }
+        }
+
+        if (!topCandidate?.node) {
+            return null;
+        }
+
+        return {
+            name: topCandidate.node.userData?.name || topCandidate.node.name || topCandidate.node.id || 'candidate',
+            score: Number.isFinite(topCandidate.score) ? topCandidate.score : 0,
+            confidence: Number.isFinite(topCandidate.confidence) ? topCandidate.confidence : 0,
+            bonuses: topCandidate.bonuses || {},
+            reasonVector: topCandidate.reasonVector || null
+        };
+    }
+
+    _buildAIAutomationReport(snapshot = null) {
+        const hudSnapshot = snapshot || this._buildHudMetricsSnapshot();
+        const candidateScores = this.linkRecommendationAI?.candidateScores;
+        const recommendations = [];
+
+        if (candidateScores && candidateScores.size > 0) {
+            const sortedCandidates = Array.from(candidateScores.values())
+                .filter((entry) => entry?.node)
+                .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+                .slice(0, 4);
+
+            sortedCandidates.forEach((entry, index) => {
+                const candidateName = entry.node.userData?.name || entry.node.name || entry.node.id || `node-${index}`;
+                const severity = (entry.score ?? 0) >= 0.85
+                    ? 'critical'
+                    : (entry.score ?? 0) >= 0.7
+                        ? 'warn'
+                        : 'info';
+
+                const signals = [
+                    `Score ${(Math.round((entry.score ?? 0) * 100))}%`,
+                    Number.isFinite(entry.confidence) ? `Confidence ${Math.round(entry.confidence * 100)}%` : null,
+                    `Target category ${entry.node.userData?.category || 'unknown'}`
+                ].filter(Boolean);
+
+                const bonusKeys = entry.bonuses
+                    ? Object.entries(entry.bonuses).filter(([, enabled]) => Boolean(enabled)).map(([key]) => key)
+                    : [];
+
+                recommendations.push({
+                    id: `candidate:${candidateName}:${index}`,
+                    severity,
+                    message: `${candidateName} is a ${Math.round((entry.score ?? 0) * 100)}% fit`,
+                    reasoning: {
+                        signals,
+                        snapshotRefs: [
+                            `selected:${hudSnapshot.selectedNodeName}`,
+                            `links:${hudSnapshot.totalLinks}`,
+                            `risk:${Math.round(hudSnapshot.risk * 100)}%`
+                        ],
+                        note: bonusKeys.length > 0 ? `Bonuses: ${bonusKeys.join(', ')}` : 'No extra bonuses detected.'
+                    }
+                });
+            });
+        } else if (hudSnapshot.selectedNode) {
+            recommendations.push({
+                id: 'recommendation:pending',
+                severity: 'info',
+                message: `Waiting for recommendations for ${hudSnapshot.selectedNodeName}`,
+                reasoning: {
+                    signals: ['Selected node is present', 'Recommendation cache not populated yet'],
+                    snapshotRefs: [`selected:${hudSnapshot.selectedNodeName}`],
+                    note: 'Recommendations are refreshed on the 10Hz simulation tick.'
+                }
+            });
+        }
+
+        return {
+            meta: {
+                mode: 'AUTOMATION_LIVE',
+                generatedAt: hudSnapshot.generatedAt,
+                source: 'metricsRuntime_v1 + linkRecommendationAI'
+            },
+            snapshot: {
+                linksCreated: hudSnapshot.totalLinks,
+                linksCollapsed: hudSnapshot.linksCollapsed,
+                recoveryReady: hudSnapshot.recoveryReady
+            },
+            network: {
+                state: hudSnapshot.networkState
+            },
+            observation: hudSnapshot.observation,
+            recommendations
+        };
+    }
+
+    _refreshAIHudReports() {
+        const snapshot = this._buildHudMetricsSnapshot();
+
+        const advisorReport = this._buildVariantBAdvisorReport(snapshot);
+        window.__ATOMA_AI_ADVISOR__ = advisorReport;
+        updateVariantBAdvisorHUD(advisorReport);
+
+        const automationReport = this._buildAIAutomationReport(snapshot);
+        window.__ATOMA_AI_AUTOMATION_REPORT__ = automationReport;
+        updateAIAutomationHUD(automationReport);
     }
 
     /**

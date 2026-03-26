@@ -22,7 +22,7 @@
  */
 
 import * as THREE from 'three';
-import VisualTime from './src/time/VisualTime.js';
+import VisualTime from '../time/VisualTime.js';
 
 export class AtomaGlyphSystem3_0 {
   constructor(scene) {

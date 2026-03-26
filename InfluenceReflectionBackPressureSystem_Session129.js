@@ -177,17 +177,37 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             // READ-ONLY checks (no state modification)
             const harmony = this._readNodeMetric(node, 'harmony', 0.5);
             const corruption = this._readNodeMetric(node, 'corruption', 0.5);
+            const stability = this._readNodeMetric(node, 'stability', 1);
             const instability = this._readNodeMetric(node, 'instability', 0);
+            const loadPressure = this._readNodeMetric(node, 'loadPressure', 0);
+            const activeLinkCount = Number(
+                node?.activeLinkCount ??
+                node?.userData?.activeLinkCount ??
+                node?.userData?.metrics?.activeLinkCount ??
+                0
+            ) || 0;
             const isGated = node.gated || node.resistant || node.userData?.gated || node.userData?.resistant || false;
             
-            // Resistance metrics
-            const isResistant = (harmony < corruption) || (instability > 0.7) || isGated;
+            // Canonical resistance gate:
+            // - needs real topology (at least one connected link)
+            // - load pressure or instability must be meaningfully elevated
+            // - keep legacy harmony/corruption differential as a fallback signal
+            const hasTopology = activeLinkCount > 0;
+            const canonicalResistance =
+                (loadPressure >= 0.5) ||
+                (stability <= 0.5) ||
+                (instability >= 0.45) ||
+                (harmony < corruption);
+            const isResistant = isGated || (hasTopology && canonicalResistance);
             
             if (isResistant) {
                 const resistance = Math.min(1, 
-                    (corruption - harmony) * 0.5 +  // Corruption differential
-                    instability * 0.3 +               // Instability contribution
-                    (isGated ? 0.4 : 0)              // Gated bonus
+                    Math.max(0, (loadPressure - 0.35)) * 0.55 +
+                    Math.max(0, (0.65 - stability)) * 0.35 +
+                    Math.max(0, (corruption - harmony)) * 0.25 +
+                    instability * 0.15 +
+                    (hasTopology ? 0.1 : 0) +
+                    (isGated ? 0.4 : 0)
                 );
                 
                 this.resistantNodes.set(nodeId, {
@@ -196,7 +216,10 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
                     resistance: resistance,
                     harmony: harmony,
                     corruption: corruption,
+                    stability: stability,
                     instability: instability,
+                    loadPressure: loadPressure,
+                    activeLinkCount: activeLinkCount,
                     isGated: isGated
                 });
             }
@@ -314,7 +337,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
     _emitReflectionPulses(deltaTime) {
         this.pressureZones.forEach(zone => {
             // Emit pulse when intensity peaks
-            if (zone.intensity > 0.6 && (!zone.lastPulseTime || this.time - zone.lastPulseTime > 0.5)) {
+            if (zone.intensity > 0.45 && (!zone.lastPulseTime || this.time - zone.lastPulseTime > 0.45)) {
                 // Acquire pooled reflection pulse
                 const pulse = this.reflectionPulsePool.find(p => !p.active);
                 

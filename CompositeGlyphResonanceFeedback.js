@@ -177,48 +177,50 @@ class ResonanceInfluenceZone {
         this.debugVectors = [];
     }
     
+    // SIMPLIFIED: updateFromCompositeState using only 2 canonical metrics
     updateFromCompositeState(networkState) {
         // Read-only: extract state without mutation
         if (!this.compositeGlyph || !this.compositeGlyph.mesh) return;
         
         this.position.copy(this.compositeGlyph.mesh.position);
         
-        // Extract modulation factors from network state
+        // Extract canonical metrics from glyph data
         const glyphData = this.compositeGlyph.glyphData || {};
-        const regionIndex = this.compositeGlyph.regionIndex || 0;
+        
+        // CANONICAL METRIC 1: harmony (0-1)
+        // Read from: glyphData.harmony, glyphData.harmonyDominance, or composite state
+        const harmony = glyphData.harmony ?? glyphData.harmonyDominance ?? 0.5;
+        
+        // CANONICAL METRIC 2: corruption (0-1)
+        // Read from: glyphData.corruption, glyphData.corruptionLevel
+        const corruption = glyphData.corruption ?? glyphData.corruptionLevel ?? 0;
+        
+        // DERIVED: synergy from harmony (high harmony = high synergy coherence)
+        const synergyCoherence = harmony * (1 - corruption * 0.5);
+        
+        // DERIVED: stability from harmony vs corruption balance
+        const stabilityIndex = Math.abs(harmony - (1 - corruption));
         
         // Harmony effect: expand and enhance
-        this.harmonyModulation = 1.0;
-        if (glyphData.harmonyDominance !== undefined) {
-            this.harmonyModulation = 1.0 + (glyphData.harmonyDominance * CONFIG.HARMONY_ENHANCEMENT);
-        }
+        this.harmonyModulation = 1.0 + (harmony * CONFIG.HARMONY_ENHANCEMENT);
         
         // Corruption effect: shrink and suppress
-        this.corruptionModulation = 1.0;
-        if (glyphData.corruptionLevel !== undefined) {
-            this.corruptionModulation = 1.0 - (glyphData.corruptionLevel * CONFIG.CORRUPTION_SUPPRESSION);
-            this.corruptionModulation = Math.max(0.4, this.corruptionModulation);
-        }
+        this.corruptionModulation = 1.0 - (corruption * CONFIG.CORRUPTION_SUPPRESSION);
+        this.corruptionModulation = Math.max(0.4, this.corruptionModulation);
         
-        // Synergy effect: clarify and smooth
-        this.synergyBoost = 1.0;
-        if (glyphData.synergyCoherence !== undefined) {
-            this.synergyBoost = 1.0 + (glyphData.synergyCoherence * CONFIG.SYNERGY_COHERENCE_BOOST);
-        }
+        // Synergy effect: derived from harmony (clarify and smooth)
+        this.synergyBoost = 1.0 + (synergyCoherence * CONFIG.SYNERGY_COHERENCE_BOOST);
         
-        // stability effect: dampen all effects
-        this.stabilityFactor = 1.0;
-        if (glyphData.stabilityIndex !== undefined) {
-            this.stabilityFactor = 1.0 - (glyphData.stabilityIndex * CONFIG.STABILITY_WEAKENING_FACTOR);
-            this.stabilityFactor = Math.max(0.3, this.stabilityFactor);
-        }
+        // Stability effect: derived from harmony-corruption balance
+        this.stabilityFactor = 1.0 - (stabilityIndex * CONFIG.STABILITY_WEAKENING_FACTOR);
+        this.stabilityFactor = Math.max(0.3, this.stabilityFactor);
         
         // Calculate effective influence radius
         const baseRadius = CONFIG.BASE_INFLUENCE_RADIUS;
         const harmonyRadius = baseRadius * CONFIG.HARMONY_RADIUS_MULTIPLIER * this.harmonyModulation;
         const corruptionRadius = baseRadius * CONFIG.CORRUPTION_RADIUS_MULTIPLIER * this.corruptionModulation;
         
-        this.influenceRadius = THREE.MathUtils.lerp(corruptionRadius, harmonyRadius, 0.5);
+        this.influenceRadius = THREE.MathUtils.lerp(corruptionRadius, harmonyRadius, harmony);
         this.influenceRadius *= this.stabilityFactor;
     }
     

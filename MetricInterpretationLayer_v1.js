@@ -74,7 +74,7 @@ class MetricInterpretationLayer_v1 {
       
       const rawStats = {
         corruption: node.userData?.metrics?.corruption ?? 0,
-        integrity: node.userData.integrity || 1,
+        integrity: node.userData?.metrics?.stability ?? 1,
         harmony: node.userData?.metrics?.harmony ?? 0.5,
         synergy: node.userData?.metrics?.synergy ?? 0,
         networkStress: this._computeNetworkStress(node)

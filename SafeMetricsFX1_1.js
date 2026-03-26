@@ -344,7 +344,7 @@ export class SafeMetricsFX1_1 {
     }
 
     const energyThreshold = 80;
-    const energyValue = metrics.energy || 0;
+    const energyValue = metrics.loadPressure ?? 0;
 
     // Ensure baseline is captured
     ensureMetricsBaseline(node);

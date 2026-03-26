@@ -252,8 +252,8 @@ export class EmergentThoughtStorms5_0 {
       totalSynergy += metrics.synergy || 0;
       totalHarmony += metrics.harmony || 0;
       totalCorruption += metrics.corruption || 0;
-      totalSability += metrics.stability || 0;
-      totalClarity += metrics.clarity || 0;
+      totalStability += metrics.stability || 0;
+      totalClarity += metrics.stability || 0;
     }
     
     const count = linkedNodes.length || 1;
@@ -360,7 +360,7 @@ export class EmergentThoughtStorms5_0 {
     }
     
     // Ascended storm (high clarity + consciousness)
-    if (metrics.clarity > 0.8 && metrics.synergy > 0.7) {
+    if (metrics.stability > 0.8 && metrics.synergy > 0.7) {
       return 'ascended';
     }
     

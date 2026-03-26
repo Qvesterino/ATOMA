@@ -756,9 +756,20 @@ export class WaveParticleEmitter_v1 {
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
-      const emitConstructive = constructiveValue >= this.config.constructiveThreshold;
-      const emitDestructive = destructiveValue >= this.config.destructiveThreshold;
-      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold;
+      
+      // SIMPLIFIED: Dynamic thresholds based on canonical metrics
+      // cascadeIntensity lowers constructive threshold (more constructive particles during cascade)
+      // corruption lowers destructive threshold (more destructive particles when corrupted)
+      const cascadeIntensity = Number(node?.userData?.cascadeIntensity) || 0;
+      const corruption = Number(node?.userData?.corruption) || Number(node?.userData?.corruptionLevel) || 0;
+      
+      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5);
+      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3);
+      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3);
+      
+      const emitConstructive = constructiveValue >= constructiveThreshold;
+      const emitDestructive = destructiveValue >= destructiveThreshold;
+      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= standingThreshold;
 
       if (!emitConstructive && !emitDestructive && !emitStanding) return;
 
@@ -828,9 +839,18 @@ export class WaveParticleEmitter_v1 {
       const constructiveValue = Math.max(constructive, MIN_VISIBILITY) * emissionScale;
       const destructiveValue = Math.max(destructive, MIN_VISIBILITY) * emissionScale;
       const standingValue = Math.max(standing, MIN_VISIBILITY) * emissionScale;
-      const emitConstructive = constructiveValue >= this.config.constructiveThreshold;
-      const emitDestructive = destructiveValue >= this.config.destructiveThreshold;
-      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= this.config.standingWaveThreshold;
+      
+      // SIMPLIFIED: Dynamic thresholds based on canonical metrics from link
+      const cascadeIntensity = Number(link?.userData?.cascadeIntensity) || 0;
+      const corruption = Number(link?.userData?.corruption) || Number(link?.source?.userData?.corruption) || 0;
+      
+      const constructiveThreshold = this.config.constructiveThreshold * (1 - cascadeIntensity * 0.5);
+      const destructiveThreshold = this.config.destructiveThreshold * (1 - corruption * 0.3);
+      const standingThreshold = this.config.standingWaveThreshold * (1 - cascadeIntensity * 0.3);
+      
+      const emitConstructive = constructiveValue >= constructiveThreshold;
+      const emitDestructive = destructiveValue >= destructiveThreshold;
+      const emitStanding = this.config.standingWaveRippleEnabled && standingValue >= standingThreshold;
 
       if (!emitConstructive && !emitDestructive && !emitStanding) return;
       const linkEmitterTarget = {

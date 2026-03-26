@@ -208,7 +208,7 @@ export class AIEmotionalFeed3_1 {
       metrics.harmony = this.aiNodes.metrics.harmony || 0.5;
       metrics.stability = this.aiNodes.metrics.stability || 0.3;
       metrics.corruption = this.aiNodes.metrics.corruption || 0.2;
-      metrics.clarity = this.aiNodes.metrics.clarity || 0.6;
+      metrics.stability = this.aiNodes.metrics.stability || 0.6;
       metrics.load = this.aiNodes.metrics.load || 0.4;
     }
     
@@ -242,7 +242,7 @@ export class AIEmotionalFeed3_1 {
     }
     
     // High clarity
-    if (metrics.clarity > 0.7) {
+    if (metrics.stability > 0.7) {
       states.push('clarity');
     }
     
@@ -282,7 +282,7 @@ export class AIEmotionalFeed3_1 {
     let suffix = '';
     if (metrics.corruption > 0.6) {
       suffix = ' [corrupted]';
-    } else if (metrics.clarity > 0.8) {
+    } else if (metrics.stability > 0.8) {
       suffix = ' [crystalline]';
     } else if (metrics.stability > 0.7) {
       suffix = ' [turbulent]';

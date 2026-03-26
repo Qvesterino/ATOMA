@@ -15,6 +15,7 @@ import * as HudCollapseSystem from './HudCollapseSystem1_0.js';
 
 function createStyles() {
   const style = document.createElement('style');
+  style.id = 'ai-automation-hud-style';
   style.textContent = `
     #ai-automation-hud {
       position: absolute;
@@ -115,6 +116,32 @@ function createStyles() {
     #ai-automation-hud .ai-empty {
       color: rgba(120, 160, 180, 0.45);
       font-style: italic;
+    }
+
+    #ai-automation-hud .ai-observation-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    #ai-automation-hud .ai-observation-row {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      gap: 8px;
+      align-items: start;
+    }
+
+    #ai-automation-hud .ai-observation-key {
+      color: rgba(120, 160, 180, 0.75);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 9px;
+    }
+
+    #ai-automation-hud .ai-observation-value {
+      color: rgba(190, 239, 255, 0.9);
+      word-break: break-word;
     }
 
     /* UI ONLY – Recommendation severity visualization */
@@ -298,10 +325,25 @@ function createHUD() {
 
       <div class="ai-section">
         <div class="ai-section-title">Observation</div>
-        <div class="ai-line ai-line-network-state">Network State:</div>
-        <span class="ai-bullet ai-muted">• Observing topology</span>
-        <span class="ai-bullet ai-muted">• No authority</span>
-        <span class="ai-bullet ai-muted">• No execution</span>
+        <div class="ai-line ai-line-network-state">Network State: <span class="ai-muted ai-network-state-value">--</span></div>
+        <div class="ai-observation-grid">
+          <div class="ai-line ai-observation-row" data-observation-key="cascadeHop">
+            <span class="ai-observation-key">cascade.hop</span>
+            <span class="ai-observation-value">--</span>
+          </div>
+          <div class="ai-line ai-observation-row" data-observation-key="cascadeIntensity">
+            <span class="ai-observation-key">cascadeIntensity</span>
+            <span class="ai-observation-value">--</span>
+          </div>
+          <div class="ai-line ai-observation-row" data-observation-key="waveBurst">
+            <span class="ai-observation-key">waveBurst</span>
+            <span class="ai-observation-value">--</span>
+          </div>
+          <div class="ai-line ai-observation-row" data-observation-key="waveField">
+            <span class="ai-observation-key">waveField</span>
+            <span class="ai-observation-value">--</span>
+          </div>
+        </div>
       </div>
 
       <div class="ai-section">
@@ -335,9 +377,136 @@ function createTooltip() {
 const ackState = new Map(); // recId -> 'ack' | 'dismiss'
 const IGNORE_THRESHOLD = 3;
 
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function buildFallbackAutomationReport() {
+  const liveMetrics = window?.__ATOMA_LIVE_METRICS__ || {};
+  const stress = clamp01(liveMetrics.networkStress ?? 0);
+  const corruption = clamp01(liveMetrics.corruptionLevel ?? 0);
+  const load = clamp01(liveMetrics.loadPressure ?? 0);
+  const stability = clamp01(1 - stress);
+  const risk = clamp01((stress * 0.55) + (corruption * 0.3) + (load * 0.15));
+
+  const recoveryReady = risk >= 0.75
+    ? 'CRITICAL'
+    : risk >= 0.5
+      ? 'LOW'
+      : stability >= 0.75
+        ? 'HIGH'
+        : 'MEDIUM';
+
+  const selectedNode = window?.game?.linkingSystem?.primaryNode || window?.game?.selectedNode || null;
+  const recommendationAI = window?.game?.linkRecommendationAI || null;
+  const candidateScores = recommendationAI?.candidateScores;
+  const recommendations = [];
+  const observation = buildFallbackObservationData();
+
+  if (selectedNode && candidateScores?.size > 0) {
+    const sortedCandidates = Array.from(candidateScores.values())
+      .filter((entry) => entry?.node)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 4);
+
+    sortedCandidates.forEach((entry, index) => {
+      const candidateName = entry.node.userData?.name || entry.node.name || entry.node.id || `node-${index}`;
+      recommendations.push({
+        id: `candidate:${candidateName}:${index}`,
+        severity: (entry.score ?? 0) >= 0.85 ? 'critical' : (entry.score ?? 0) >= 0.7 ? 'warn' : 'info',
+        message: `${candidateName} is a ${Math.round((entry.score ?? 0) * 100)}% fit`,
+        reasoning: {
+          signals: [
+            `Score ${Math.round((entry.score ?? 0) * 100)}%`,
+            Number.isFinite(entry.confidence) ? `Confidence ${Math.round(entry.confidence * 100)}%` : null,
+            `Target category ${entry.node.userData?.category || 'unknown'}`
+          ].filter(Boolean),
+          snapshotRefs: [
+            `selected:${selectedNode.userData?.name || selectedNode.name || selectedNode.id || 'none'}`,
+            `risk:${Math.round(risk * 100)}%`
+          ],
+          note: 'Fallback automation report derived from live engine state.'
+        }
+      });
+    });
+  }
+
+  return {
+    meta: {
+      mode: 'LIVE_FALLBACK',
+      generatedAt: Date.now(),
+      source: 'window.__ATOMA_LIVE_METRICS__'
+    },
+    snapshot: {
+      linksCreated: liveMetrics.linkCount ?? 0,
+      linksCollapsed: 0,
+      recoveryReady
+    },
+    network: {
+      state: risk >= 0.75 ? 'critical' : risk >= 0.5 ? 'stressed' : stability >= 0.75 ? 'stable' : 'watch'
+    },
+    observation,
+    recommendations
+  };
+}
+
+function buildFallbackObservationData() {
+  const liveMetrics = window?.__ATOMA_LIVE_METRICS__ || {};
+  const links = Array.isArray(window?.game?.linkingSystem?.links) ? window.game.linkingSystem.links : [];
+  const totalLinks = links.length;
+  const cascadeLinks = links.filter((link) => Number.isFinite(link?.userData?.cascadeIntensity) && link.userData.cascadeIntensity > 0);
+  const cascadeHopCount = Number.isFinite(window?._cascadeHopCount) ? window._cascadeHopCount : 0;
+  const cascadeHopRate = typeof window?.getCascadeHopRate === 'function' ? window.getCascadeHopRate() : null;
+  const cascadeIntensityLive = Number.isFinite(liveMetrics.cascadeIntensity) ? liveMetrics.cascadeIntensity : null;
+  const cascadeIntensityAverage = Number.isFinite(cascadeIntensityLive)
+    ? clamp01(cascadeIntensityLive)
+    : clamp01(
+        cascadeLinks.length > 0
+          ? cascadeLinks.reduce((sum, link) => sum + (link?.userData?.cascadeIntensity || 0), 0) / cascadeLinks.length
+          : 0
+      );
+  const cascadeIntensityPeak = clamp01(
+    cascadeLinks.reduce((max, link) => Math.max(max, link?.userData?.cascadeIntensity || 0), 0)
+  );
+
+  const waveBurstState = typeof window?.getWaveInterferenceBurstState === 'function'
+    ? window.getWaveInterferenceBurstState()
+    : null;
+  const waveBurstSnapshot = waveBurstState?.activeSnapshot || null;
+  const waveBurstMetrics = waveBurstState?.metrics || null;
+  const waveBurstRouterStatus = window?.game?.waveBurstRouter?.getStatus?.() || null;
+  const waveBurstRecentIntents = window?.game?.waveBurstRouter?.getRecentIntents?.(3) || [];
+  const waveBurstLabel = waveBurstSnapshot
+    ? `${waveBurstSnapshot.type}${waveBurstSnapshot.sourceId ? ` · ${waveBurstSnapshot.sourceId}` : ''}`
+    : waveBurstMetrics?.activeBurstType
+      ? `${waveBurstMetrics.activeBurstType} · idle`
+      : 'idle';
+  const waveFieldLabel = waveBurstMetrics?.activeBurstType
+    ? `${waveBurstMetrics.activeBurstType} · ${waveBurstMetrics.fieldSuppressed ? 'suppressed' : 'open'}`
+    : 'idle';
+
+  return {
+    cascadeHop: `${Number(cascadeHopCount).toLocaleString()} total · ${cascadeHopRate?.rate || '0/s'}`,
+    cascadeIntensity: `${Math.round(cascadeIntensityAverage * 100)}% avg · ${Math.round(cascadeIntensityPeak * 100)}% peak · ${cascadeLinks.length}/${totalLinks} links`,
+    waveBurst: `${waveBurstLabel} · cooldowns ${waveBurstRouterStatus?.activeCooldownKeys ?? 0} · intents ${waveBurstRecentIntents.length}`,
+    waveField: `${waveFieldLabel} · lifecycle ${waveBurstMetrics?.lifecycleEventsTracked ?? 0}`
+  };
+}
+
 export function mountAIAutomationHUD(rootElement) {
   const target = rootElement || document.body;
   if (!target) return;
+
+  document.querySelectorAll('#ai-automation-hud').forEach((node) => node.remove());
+  document.querySelectorAll('.ai-reco-tooltip').forEach((node) => node.remove());
+
+  const existingStyle = document.getElementById('ai-automation-hud-style');
+  if (existingStyle) {
+    existingStyle.remove();
+  }
+
   const style = createStyles();
   const hud = createHUD();
   const tooltip = createTooltip();
@@ -360,10 +529,23 @@ export function mountAIAutomationHUD(rootElement) {
 
 export default mountAIAutomationHUD;
 
+function getAutomationHudRoot() {
+  const huds = Array.from(document.querySelectorAll('#ai-automation-hud'));
+  if (huds.length === 0) {
+    return null;
+  }
+
+  if (huds.length > 1) {
+    huds.slice(0, -1).forEach((node) => node.remove());
+  }
+
+  return huds[huds.length - 1];
+}
+
 // READ-ONLY AI HUD BINDING
 // No authority. No execution. Debug / QA only.
 export function updateAIAutomationHUD(report) {
-  const hud = document.getElementById('ai-automation-hud');
+  const hud = getAutomationHudRoot();
   if (!hud) return;
 
   const safe = (path, fallback = '--') => {
@@ -376,6 +558,8 @@ export function updateAIAutomationHUD(report) {
     }
   };
 
+  const source = report ?? window?.__ATOMA_AI_AUTOMATION_REPORT__ ?? buildFallbackAutomationReport();
+
   const statusEl = hud.querySelector('.ai-line-status');
   const modeEl = hud.querySelector('.ai-line-mode');
   const lastUpdateEl = hud.querySelector('.ai-line-last-update');
@@ -383,32 +567,50 @@ export function updateAIAutomationHUD(report) {
   const linksCollapsedEl = hud.querySelector('.ai-line-links-collapsed');
   const recoveryReadyEl = hud.querySelector('.ai-line-recovery-ready');
   const networkStateEl = hud.querySelector('.ai-line-network-state');
+  const networkStateValueEl = hud.querySelector('.ai-network-state-value');
   const recommendationsEl = hud.querySelector('.ai-recommendations');
   const tooltip = document.querySelector('.ai-reco-tooltip');
+  const observation = source?.observation ?? buildFallbackObservationData();
 
-  const mode = safe(() => report?.meta?.mode);
+  const mode = safe(() => source?.meta?.mode);
   const lastUpdate = safe(() => {
-    const ts = report?.meta?.generatedAt;
+    const ts = source?.meta?.generatedAt;
     return ts ? new Date(ts).toLocaleTimeString() : '--';
   });
-  const linksCreated = safe(() => report?.snapshot?.linksCreated);
-  const linksCollapsed = safe(() => report?.snapshot?.linksCollapsed);
-  const recoveryReady = safe(() => report?.snapshot?.recoveryReady);
-  const networkState = safe(() => report?.network?.state);
+  const linksCreated = safe(() => source?.snapshot?.linksCreated);
+  const linksCollapsed = safe(() => source?.snapshot?.linksCollapsed);
+  const recoveryReady = safe(() => source?.snapshot?.recoveryReady);
+  const networkState = safe(() => source?.network?.state);
 
-  if (statusEl) statusEl.textContent = `Status: ${report ? 'ENABLED' : 'DISABLED'}`;
+  if (statusEl) statusEl.textContent = `Status: ${source ? 'ENABLED' : 'DISABLED'}`;
   if (modeEl) modeEl.textContent = `Mode: ${mode}`;
   if (lastUpdateEl) lastUpdateEl.textContent = `Last Update: ${lastUpdate}`;
   if (linksCreatedEl) linksCreatedEl.textContent = `Links Created: ${linksCreated}`;
   if (linksCollapsedEl) linksCollapsedEl.textContent = `Links Collapsed: ${linksCollapsed}`;
   if (recoveryReadyEl) recoveryReadyEl.textContent = `Recovery Ready: ${recoveryReady}`;
   if (networkStateEl) networkStateEl.textContent = `Network State: ${networkState}`;
+  if (networkStateValueEl) networkStateValueEl.textContent = networkState;
+
+  const observationKeys = ['cascadeHop', 'cascadeIntensity', 'waveBurst', 'waveField'];
+  observationKeys.forEach((key) => {
+    const row = hud.querySelector(`[data-observation-key="${key}"]`);
+    const valueEl = row?.querySelector('.ai-observation-value');
+    if (valueEl) {
+      valueEl.textContent = observation?.[key] ?? '--';
+    }
+  });
 
   if (recommendationsEl) {
     // UI-only fade-out for resolved recommendations
     // No authority, no execution, no engine interaction
     const allowedSev = ['info', 'warn', 'critical'];
-    const recs = Array.isArray(report?.recommendations) ? report.recommendations : [];
+    const recs = Array.isArray(source?.recommendations) ? source.recommendations : [];
+
+    recommendationsEl.querySelectorAll('.ai-empty').forEach((node) => {
+      if (!node.classList.contains('ai-reco')) {
+        node.remove();
+      }
+    });
 
     // Build a map of existing DOM nodes keyed by id
     const existing = new Map();
@@ -574,9 +776,11 @@ export function updateAIAutomationHUD(report) {
     const hasActive = recs.length > 0;
     const hasNodes = recommendationsEl.querySelector('.ai-reco');
     const hasResolving = recommendationsEl.querySelector('.ai-reco.resolving');
-    if (!hasActive && !hasNodes && !hasResolving) {
+    const hasEmpty = recommendationsEl.querySelector('.ai-empty');
+    if (!hasActive && !hasNodes && !hasResolving && !hasEmpty) {
       const empty = document.createElement('div');
       empty.className = 'ai-line ai-empty';
+      empty.dataset.aiEmptyState = 'recommendations';
       empty.textContent = 'No recommendations available.';
       recommendationsEl.appendChild(empty);
     }
@@ -647,7 +851,7 @@ function attachAckControls(node, id) {
 // Observation does not imply intent, action, or judgment.
 // UI-only mood shift based on dismissals (session-only, no authority).
 function applyIgnoredMood() {
-  const hud = document.getElementById('ai-automation-hud');
+  const hud = getAutomationHudRoot();
   if (!hud) return;
   const note = hud.querySelector('.ai-hud-observation-line');
 

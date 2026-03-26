@@ -179,13 +179,64 @@ function getSafeText(value) {
   return value ? String(value) : "—";
 }
 
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function buildFallbackAdvisorData() {
+  const liveMetrics = window?.__ATOMA_LIVE_METRICS__ || {};
+  const stress = clamp01(liveMetrics.networkStress ?? 0);
+  const corruption = clamp01(liveMetrics.corruptionLevel ?? 0);
+  const load = clamp01(liveMetrics.loadPressure ?? 0);
+  const stability = clamp01(1 - stress);
+  const risk = clamp01((stress * 0.55) + (corruption * 0.3) + (load * 0.15));
+
+  const recovery = risk >= 0.75
+    ? 'CRITICAL'
+    : risk >= 0.5
+      ? 'LOW'
+      : stability >= 0.75
+        ? 'HIGH'
+        : 'MEDIUM';
+
+  const networkState = risk >= 0.75
+    ? 'critical'
+    : risk >= 0.5
+      ? 'stressed'
+      : stability >= 0.75
+        ? 'stable'
+        : 'watch';
+
+  return {
+    meta: {
+      mode: 'LIVE_FALLBACK',
+      generatedAt: Date.now(),
+      source: 'window.__ATOMA_LIVE_METRICS__'
+    },
+    snapshot: {
+      linksCreated: liveMetrics.linkCount ?? 0,
+      linksCollapsed: 0,
+      recoveryReady: recovery
+    },
+    network: {
+      state: networkState
+    },
+    stability,
+    risk,
+    recovery,
+    insight: 'Live metrics fallback in use.'
+  };
+}
+
 export function updateVariantBAdvisorHUD(data) {
   const container = document.querySelector('[data-hud-variant="b-advisor"]');
   if (!container) {
     return;
   }
 
-  const source = data ?? window?.__ATOMA_AI_ADVISOR__;
+  const source = data ?? window?.__ATOMA_AI_ADVISOR__ ?? buildFallbackAdvisorData();
   if (!source) {
     const fallbackKeys = container.querySelectorAll("[data-variant-value]");
     fallbackKeys.forEach((node) => {

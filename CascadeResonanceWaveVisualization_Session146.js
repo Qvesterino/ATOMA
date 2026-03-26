@@ -113,18 +113,65 @@ export class CascadeResonanceWaveVisualization_Session146 {
     };
 
     this._semanticUnsubscribers = [];
+    this._semanticBusRef = null;
+    this._semanticSubscribed = false;
     this._subscribeCascadeEvents();
   }
 
+  _clearCascadeSubscriptions() {
+    for (const unsub of this._semanticUnsubscribers) {
+      try {
+        unsub?.();
+      } catch (_) {
+        // noop
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
+    this._semanticBusRef = null;
+    this._semanticSubscribed = false;
+  }
+
   _subscribeCascadeEvents() {
-    const on = this.semanticBus?.on?.bind(this.semanticBus);
+    const bus = this.semanticBus || null;
+    if (!bus) return;
+
+    if (this._semanticSubscribed && this._semanticBusRef === bus) {
+      return;
+    }
+
+    this._clearCascadeSubscriptions();
+
+    const on = bus?.on?.bind(bus);
     if (typeof on !== 'function') return;
 
     const onCascadeHop = (event = {}) => {
-      if (!event || !event.link) return;
+      if (!event) return;
 
-      const sourceNode = event.link.source || event.link.sourceNode;
-      const targetNode = event.link.target || event.link.targetNode;
+      const linkPayload = event.link || event;
+      const sourceNode = this._resolveCascadeEndpoint(
+        linkPayload?.source ||
+        linkPayload?.sourceNode ||
+        linkPayload?.from ||
+        event.sourceNode ||
+        event.fromNode ||
+        event.sourceId ||
+        event.sourceNodeId ||
+        event.fromId,
+        event.sourceNodeId ?? event.sourceId ?? event.fromId ?? null
+      );
+      const targetNode = this._resolveCascadeEndpoint(
+        linkPayload?.target ||
+        linkPayload?.targetNode ||
+        linkPayload?.to ||
+        event.targetNode ||
+        event.toNode ||
+        event.targetId ||
+        event.targetNodeId ||
+        event.toId,
+        event.targetNodeId ?? event.targetId ?? event.toId ?? null
+      );
+
+      if (!sourceNode || !targetNode) return;
 
       this.spawnCascadeResonanceWave(
         sourceNode,
@@ -135,21 +182,59 @@ export class CascadeResonanceWaveVisualization_Session146 {
     };
 
     on('cascade.hop', onCascadeHop);
+    this._semanticBusRef = bus;
+    this._semanticSubscribed = true;
 
-    if (typeof this.semanticBus?.off === 'function') {
-      this._semanticUnsubscribers.push(() => this.semanticBus.off('cascade.hop', onCascadeHop));
-    } else if (typeof this.semanticBus?.unsubscribe === 'function') {
-      this._semanticUnsubscribers.push(() => this.semanticBus.unsubscribe('cascade.hop', onCascadeHop));
+    if (typeof bus?.off === 'function') {
+      this._semanticUnsubscribers.push(() => bus.off('cascade.hop', onCascadeHop));
+    } else if (typeof bus?.unsubscribe === 'function') {
+      this._semanticUnsubscribers.push(() => bus.unsubscribe('cascade.hop', onCascadeHop));
     }
+  }
+
+  rebind(config = {}) {
+    if (config.cascadeSystem !== undefined) {
+      this.cascadeSystem = config.cascadeSystem;
+    }
+    if (config.harmonicHubSystem !== undefined) {
+      this.harmonicHubSystem = config.harmonicHubSystem;
+    }
+    if (config.linkResonanceSystem !== undefined) {
+      this.linkResonanceSystem = config.linkResonanceSystem;
+    }
+    if (config.semanticBus !== undefined) {
+      this.semanticBus = config.semanticBus;
+    }
+    if (config.frameScheduler !== undefined) {
+      this.frameScheduler = config.frameScheduler;
+    }
+
+    this._subscribeCascadeEvents();
+    return this;
   }
 
   _resolveNodeId(node) {
     return node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
   }
 
+  _resolveCascadeEndpoint(endpoint, endpointId = null) {
+    if (endpoint && typeof endpoint === 'object') {
+      return endpoint;
+    }
+
+    const candidateId = endpointId ?? endpoint;
+    if (candidateId === null || candidateId === undefined) {
+      return null;
+    }
+
+    return this._findNodeById(candidateId) || null;
+  }
+
   spawnCascadeResonanceWave(sourceNode, targetNode, intensity = 1.0, hopIndex = 0) {
-    const sourceId = this._resolveNodeId(sourceNode);
-    const targetId = this._resolveNodeId(targetNode);
+    const resolvedSource = this._resolveCascadeEndpoint(sourceNode);
+    const resolvedTarget = this._resolveCascadeEndpoint(targetNode);
+    const sourceId = this._resolveNodeId(resolvedSource) ?? this._resolveNodeId(sourceNode);
+    const targetId = this._resolveNodeId(resolvedTarget) ?? this._resolveNodeId(targetNode);
     if (!sourceId || !targetId) return;
 
     const waveKey = `${sourceId}-${targetId}`;
@@ -193,6 +278,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
     
     // Event-driven mode: no proximity scanning, no cascadeSystem/hub polling triggers.
     this._decayAllWaves(deltaTime);
+    this._bootstrapWaveFromActiveHubs();
 
     let totalInfluence = 0;
     let waveCount = 0;
@@ -222,6 +308,50 @@ export class CascadeResonanceWaveVisualization_Session146 {
         `time=${this.stats.lastUpdateTime.toFixed(2)}ms`
       );
     }
+  }
+
+  _bootstrapWaveFromActiveHubs() {
+    if (this.activeWaves.size > 0) return false;
+    if (!this.harmonicHubSystem?.hubs || typeof this.harmonicHubSystem.hubs.values !== 'function') return false;
+
+    const activeHubs = Array.from(this.harmonicHubSystem.hubs.values()).filter((hub) => hub && hub.active !== false);
+    if (activeHubs.length < 2) return false;
+
+    const sortedHubs = activeHubs
+      .slice()
+      .sort((a, b) => (Number(b.synergy) || 0) - (Number(a.synergy) || 0));
+
+    const hubA = sortedHubs[0];
+    const hubB = sortedHubs.find((hub) => this._resolveNodeId(hub?.primaryNode ?? hub?.nodes?.[0]) !== this._resolveNodeId(hubA?.primaryNode ?? hubA?.nodes?.[0]))
+      ?? sortedHubs[1];
+
+    const sourceNode = hubA?.primaryNode ?? hubA?.nodes?.[0] ?? null;
+    const targetNode = hubB?.primaryNode ?? hubB?.nodes?.[0] ?? null;
+    const sourceId = this._resolveNodeId(sourceNode);
+    const targetId = this._resolveNodeId(targetNode);
+    if (!sourceId || !targetId) return false;
+    if (sourceId === targetId) return false;
+
+    const now = performance.now();
+    const bootstrapKey = `${sourceId}-${targetId}`;
+    if (this._bootstrapWaveKey === bootstrapKey && now < (this._bootstrapWaveCooldownUntil ?? 0)) {
+      return false;
+    }
+
+    const avgHubStrength = Math.max(0, Math.min(1, ((Number(hubA?.synergy) || 0) + (Number(hubB?.synergy) || 0)) * 0.5));
+    const avgHubHarmony = Math.max(0, Math.min(1, ((Number(hubA?.harmony) || 0) + (Number(hubB?.harmony) || 0)) * 0.5));
+    const bootstrapIntensity = Math.max(
+      this.config.waveInfluenceMin,
+      Math.min(
+        this.config.waveInfluenceMax,
+        0.2 + avgHubStrength * 0.35 + avgHubHarmony * 0.25
+      )
+    );
+
+    this.spawnCascadeResonanceWave(sourceNode, targetNode, bootstrapIntensity, 0);
+    this._bootstrapWaveKey = bootstrapKey;
+    this._bootstrapWaveCooldownUntil = now + 750;
+    return true;
   }
 
   _resolvePairCascadeData(pair) {
@@ -291,12 +421,22 @@ export class CascadeResonanceWaveVisualization_Session146 {
   }
 
   _findNodeById(nodeId) {
-    const nodes = this.cascadeSystem?.world?.nodes;
-    if (!Array.isArray(nodes)) return null;
-    for (const node of nodes) {
-      const candidateId = node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
-      if (candidateId === nodeId) return node;
+    const candidateSources = [
+      this.cascadeSystem?.world?.nodes,
+      this.harmonicHubSystem?.world?.nodes,
+      this.linkResonanceSystem?.world?.nodes,
+      globalThis?.game?.aiNodes?.nodes,
+      globalThis?.aiNodes?.nodes
+    ];
+
+    for (const nodes of candidateSources) {
+      if (!Array.isArray(nodes)) continue;
+      for (const node of nodes) {
+        const candidateId = node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+        if (candidateId === nodeId) return node;
+      }
     }
+
     return null;
   }
 
@@ -463,14 +603,7 @@ export class CascadeResonanceWaveVisualization_Session146 {
    */
   dispose() {
     this.activeWaves.clear();
-    for (const unsub of this._semanticUnsubscribers) {
-      try {
-        unsub?.();
-      } catch (_) {
-        // noop
-      }
-    }
-    this._semanticUnsubscribers.length = 0;
+    this._clearCascadeSubscriptions();
   }
 }
 

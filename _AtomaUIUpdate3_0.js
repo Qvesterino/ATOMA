@@ -222,10 +222,10 @@ export class AtomaUIUpdate3_0 {
     
     for (const node of nodes) {
       const metrics = node.userData?.metrics || {};
-      const synergy = metrics.synergy ?? metrics.energy ?? 0;
+      const synergy = metrics.synergy ?? 0;
       sumSynergy += synergy;
       sumStability += metrics.stability || 0;
-      sumClarity += metrics.clarity || 0;
+      sumClarity += metrics.stability || 0;
       sumHarmony += metrics.harmony || 0;
       sumCorruption += metrics.corruption || 0;
     }
