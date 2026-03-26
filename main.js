@@ -4077,7 +4077,8 @@ class AtomaGame {
         }, 'visual.cascadeParticleColorTinting');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleSystem) {
-                this.cascadeParticleSystem.update(dt, this.time);
+                const links = this.linkingSystem?.links || this.nodeLinking?.links || [];
+                this.cascadeParticleSystem.update(dt, links);
             }
         }, 'visual.cascadeParticleSystem');
         
@@ -4320,8 +4321,8 @@ this.setHudDirty('nodeInspect');
         console.log('  API: scheduler.registerTestSystems()');
         console.log('  API: scheduler.stats() | scheduler.listSystems() | scheduler.clear()');
         
-        this.currentMode = 'fractal'; // Default: Fractal Valley
-        this.currentTheme = 'fractal';
+        this.currentMode = 'quantum'; // Default: Quantum Island
+        this.currentTheme = 'quantum';
         this.worldRegistry = {
             fractal: () => this.initFractalWorld(),
             quantum: () => this.initQuantumWorld(),
@@ -4959,7 +4960,7 @@ this.setHudDirty('nodeInspect');
         // ========================================================================
         this.debugHUD = new AtomaDebugHUD_1_0();
         
-        this.createWorld();
+        this.createWorld('MAP_SWITCH');
         this.setupVisualSuperpack();
         this.setupCinematicUpgrade();
         this.setupNodeEditor();
@@ -5179,8 +5180,89 @@ this.setHudDirty('nodeInspect');
             window.atomaDebug = {
                 reflection: this.influenceReflection,
                 trap: this.standingWaveTrap || this.standingWaveTrapSystem,
+                renderer: this.standingWaveRenderer || null,
                 rupture: this.resonanceRupture
             };
+
+            const ensureWaveDebugOverlay = () => {
+                if (!window.document) return null;
+                let overlay = window.document.getElementById('wave-debug-overlay');
+                if (overlay) return overlay;
+
+                overlay = window.document.createElement('div');
+                overlay.id = 'wave-debug-overlay';
+                overlay.setAttribute('aria-live', 'polite');
+                overlay.style.cssText = [
+                    'position:fixed',
+                    'top:12px',
+                    'right:12px',
+                    'z-index:2147483647',
+                    'padding:8px 10px',
+                    'border:1px solid rgba(120,220,255,0.45)',
+                    'border-radius:8px',
+                    'background:rgba(5,10,18,0.78)',
+                    'color:#bdf6ff',
+                    'font:600 12px/1.2 Consolas, monospace',
+                    'letter-spacing:0.04em',
+                    'box-shadow:0 6px 24px rgba(0,0,0,0.35)',
+                    'pointer-events:none',
+                    'white-space:pre'
+                ].join(';');
+                overlay.textContent = 'R:0 | T:0 | A:0';
+                const mountPoint = window.document.body || window.document.documentElement;
+                mountPoint?.appendChild?.(overlay);
+                return overlay;
+            };
+
+            const readWaveDebugState = () => {
+                const dbg = window.atomaDebug || {};
+                const activeLinks = Array.isArray(this.linkingSystem?.links)
+                    ? this.linkingSystem.links.filter((link) => link && link.active !== false).length
+                    : 0;
+                const reflectionActive =
+                    dbg.reflection?.reflectionPulsePool?.filter?.((p) => p?.active)?.length ??
+                    dbg.reflection?.reflectionPulses?.filter?.((p) => p?.active)?.length ??
+                    0;
+                const resistantNodes = dbg.reflection?.resistantNodes?.size ?? 0;
+                const pressureZones = dbg.reflection?.pressureZones?.length ?? 0;
+                const traps =
+                    dbg.trap?.getActiveTraps?.()?.length ??
+                    dbg.trap?.oscillationTraps?.filter?.((t) => t?.active)?.length ??
+                    0;
+                const antinodeMeshes =
+                    dbg.renderer?.antinodeMeshPool?.filter?.((entry) => entry?.active && entry?.mesh?.visible)?.length ??
+                    0;
+
+                return { activeLinks, resistantNodes, pressureZones, reflectionActive, traps, antinodeMeshes };
+            };
+
+            const updateWaveDebugOverlay = () => {
+                const dbg = window.atomaDebug || {};
+                dbg.reflection = this.influenceReflection;
+                dbg.trap = this.standingWaveTrap || this.standingWaveTrapSystem;
+                dbg.renderer = this.standingWaveRenderer || null;
+                dbg.rupture = this.resonanceRupture;
+                window.atomaDebug = dbg;
+
+                const state = readWaveDebugState();
+
+                const overlay = ensureWaveDebugOverlay();
+                if (overlay) {
+                    overlay.textContent = `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`;
+                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, traps=${state.traps}, antinodes=${state.antinodeMeshes}`;
+                }
+
+                return state;
+            };
+
+            updateWaveDebugOverlay();
+
+            window.waveDebugStatus = () => updateWaveDebugOverlay();
+            window.waveDebugState = () => readWaveDebugState();
+
+            if (!window._atomaWaveDebugOverlayProbe) {
+                window._atomaWaveDebugOverlayProbe = setInterval(updateWaveDebugOverlay, 250);
+            }
 
             if (!window._atomaPipelineProbe) {
                 window._atomaPipelineProbe = setInterval(() => {
@@ -5354,6 +5436,7 @@ this.setHudDirty('nodeInspect');
         //     installShaderFreezeGuard(this.renderer);
         // }
 
+        this._startupWorldRefreshPending = true;
         this.configureSystemRegistry();
         this.animate();
 
@@ -6194,12 +6277,14 @@ window.__ATOMA_SCENE__ = this.scene;
 
     initSigmaWorld() {
         this.currentMode = 'sigma';
+        this.currentTheme = 'sigma';
         this.createWorld('MAP_SWITCH');
         this.setupSigmaRiftEnvironment?.();
     }
 
     initDesertWorld() {
         this.currentMode = 'desert';
+        this.currentTheme = 'desert';
         this.createWorld('MAP_SWITCH');
         this.setupDreamDesertEnvironment();
     }
@@ -6207,18 +6292,21 @@ window.__ATOMA_SCENE__ = this.scene;
 
     initQuantumWorld() {
         this.currentMode = 'quantum';
+        this.currentTheme = 'quantum';
         this.createWorld('MAP_SWITCH');
         this.setupQuantumIslandEnvironment();
     }
 
     initFractalWorld() {
         this.currentMode = 'fractal';
+        this.currentTheme = 'fractal';
         this.createWorld('MAP_SWITCH');
         this.setupFractalValleyEnvironment();
     }
 
     initChamberWorld() {
         this.currentMode = 'chamber';
+        this.currentTheme = 'chamber';
         this.createWorld('MAP_SWITCH');
         this.setupChamberEnvironment();
     }
@@ -6229,6 +6317,22 @@ window.__ATOMA_SCENE__ = this.scene;
         semanticBus = this.semanticBus ?? null,
         frameScheduler = this.frameScheduler ?? null
     } = {}) {
+        try {
+            if (this.influenceReflection && typeof this.influenceReflection.rebind === 'function') {
+                this.influenceReflection.rebind({
+                    scene: this.scene,
+                    world: this.world,
+                    harmonicInfluenceSystem: this.harmonicInfluencePropagation,
+                    aiNodes,
+                    linkingSystem,
+                    semanticBus,
+                    frameScheduler
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] InfluenceReflectionBackPressureSystem rebind failed:', err?.message || err);
+        }
+
         try {
             if (this.cascadeEventBridge && typeof this.cascadeEventBridge.rebind === 'function') {
                 this.cascadeEventBridge.rebind({
@@ -6242,25 +6346,22 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            if (this.standingWaveTrap && typeof this.standingWaveTrap.rebind === 'function') {
+                this.standingWaveTrap.rebind({
+                    aiNodes,
+                    linkingSystem
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] StandingWaveTrapSystem rebind failed:', err?.message || err);
+        }
+
+        try {
             if (this.resonanceCascadeVisualization && typeof this.resonanceCascadeVisualization.rebind === 'function') {
                 this.resonanceCascadeVisualization.rebind({ semanticBus });
             }
         } catch (err) {
             console.warn('[main.js] ResonanceCascadeVisualization rebind failed:', err?.message || err);
-        }
-
-        try {
-            if (this.cascadeResonanceWave && typeof this.cascadeResonanceWave.rebind === 'function') {
-                this.cascadeResonanceWave.rebind({
-                    cascadeSystem: this.harmonicCascadeAmplification ?? this.cascadeSystem ?? null,
-                    harmonicHubSystem: this.harmonicHubAuraSystem ?? null,
-                    linkResonanceSystem: this.linkResonanceSystem || this.harmonicResonanceCoupling || null,
-                    semanticBus,
-                    frameScheduler
-                });
-            }
-        } catch (err) {
-            console.warn('[main.js] CascadeResonanceWaveVisualization rebind failed:', err?.message || err);
         }
 
         try {
@@ -9725,6 +9826,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.worldResetFix.cleanOldScene();
 
             this.currentMode = worldId;
+            this.currentTheme = worldId;
 
             this._pendingCreateWorldReason = 'MAP_SWITCH';
             fn();
@@ -9869,7 +9971,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             semanticBus: this.semanticBus,
             decayRate: 0.92,
             minIntensityThreshold: 0.01,
-            cascadeWaveThreshold: 0.6,
+            cascadeWaveThreshold: 0.3,
             cascadeWaveCooldown: 1.0,
             enabled: true
         };
@@ -9904,6 +10006,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     setupCascadeParticleSystem() {
+        console.error('[DEBUG] setupCascadeParticleSystem() CALLED ✓✓✓');
         try {
             this.cascadeParticleSystem = setupCascadeParticleSystem(
                 this,
@@ -9916,9 +10019,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             );
             
-            console.log('[main.js] CascadeParticleSystem initialized ✓');
+            console.error('[DEBUG] CascadeParticleSystem initialized ✓');
         } catch (err) {
-            console.warn('[main.js] CascadeParticleSystem initialization failed:', err);
+            console.error('[DEBUG] CascadeParticleSystem FAILED:', err);
         }
 
         // ========================================================================
@@ -10643,6 +10746,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.updateValidator?.startFrame();
         requestAnimationFrame(() => this.animate());
         window.__enforceProxyVisualLock?.();
+
+        if (this._startupWorldRefreshPending) {
+            this._startupWorldRefreshPending = false;
+            const startupMode = this.currentMode || 'quantum';
+            console.log('[main.js] Startup world refresh ->', startupMode);
+            this.loadWorld(startupMode);
+            return;
+        }
 
         const t0 = performance.now();
         const tracingSpike = window.__DBG_SPIKE_TRACE === true;
@@ -12641,14 +12752,14 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 this.linkingSystem,
                 {
-                    reflectionCountThreshold: 3,
-                    detectionWindow: 1.5,
-                    netFlowThreshold: 0.1,
-                    phaseConsistencyThreshold: 0.7,
+                    reflectionCountThreshold: 1,
+                    detectionWindow: 1.0,
+                    netFlowThreshold: 0.15,
+                    phaseConsistencyThreshold: 0.58,
                     trapCenterOffset: 0.5,
-                    trapRadiusBase: 0.15,
-                    standingWaveAmplitude: 0.8,
-                    beatFrequencyBase: 2.0,
+                    trapRadiusBase: 0.2,
+                    standingWaveAmplitude: 1.1,
+                    beatFrequencyBase: 2.2,
                     harmonyDamping: 0.5,
                     corruptionStabilization: 0.7,
                     instabilityWobble: 0.4,
@@ -12688,21 +12799,21 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 {
                     antinodeRadius: 0.25,
-                    antinodeOpacityBase: 0.4,
-                    antinodeGlowIntensity: 1.8,
-                    antinodeLODDistance: 30,
+                    antinodeOpacityBase: 0.65,
+                    antinodeGlowIntensity: 3.0,
+                    antinodeLODDistance: 80,
                     
                     bandThickness: 0.05,
                     bandTransitionSmoothing: 0.3,
-                    brightBandOpacity: 0.25,
-                    dimBandOpacity: 0.08,
+                    brightBandOpacity: 0.45,
+                    dimBandOpacity: 0.15,
                     
                     trapZoneThickness: 0.1,
-                    trapZoneOpacityBase: 0.15,
-                    trapZoneGlowFactor: 0.8,
+                    trapZoneOpacityBase: 0.28,
+                    trapZoneGlowFactor: 1.2,
                     
                     haloPulseFrequency: 3.0,
-                    haloPulseAmount: 0.15,
+                    haloPulseAmount: 0.25,
                     
                     dampingFadeRate: 0.5,
                     breakthroughAcceleration: 2.0,

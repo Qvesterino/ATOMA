@@ -164,6 +164,42 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         this.resistantNodes.clear();
         
         if (!this.aiNodes) return;
+
+        const activeLinks = Array.isArray(this.linkingSystem?.links)
+            ? this.linkingSystem.links.filter((link) => link && link.active !== false)
+            : [];
+
+        const registerResistantNode = (node, linkedByCount = 1) => {
+            if (!node) return;
+
+            const nodeId = this._getNodeId(node);
+            if (nodeId === undefined || nodeId === null) return;
+            if (this.resistantNodes.has(nodeId)) return;
+
+            const harmony = this._readNodeMetric(node, 'harmony', 0.5);
+            const corruption = this._readNodeMetric(node, 'corruption', 0.5);
+            const stability = this._readNodeMetric(node, 'stability', 1);
+            const instability = this._readNodeMetric(node, 'instability', 0);
+            const loadPressure = this._readNodeMetric(node, 'loadPressure', 0);
+
+            this.resistantNodes.set(nodeId, {
+                nodeId,
+                node,
+                resistance: 0.65,
+                harmony,
+                corruption,
+                stability,
+                instability,
+                loadPressure,
+                activeLinkCount: linkedByCount,
+                isGated: false
+            });
+        };
+
+        for (const link of activeLinks) {
+            registerResistantNode(this._getLinkSource(link), 1);
+            registerResistantNode(this._getLinkTarget(link), 1);
+        }
         
         // Iterate through all nodes
         const nodes = Array.isArray(this.aiNodes) ? this.aiNodes : 
@@ -180,33 +216,23 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             const stability = this._readNodeMetric(node, 'stability', 1);
             const instability = this._readNodeMetric(node, 'instability', 0);
             const loadPressure = this._readNodeMetric(node, 'loadPressure', 0);
-            const activeLinkCount = Number(
-                node?.activeLinkCount ??
-                node?.userData?.activeLinkCount ??
-                node?.userData?.metrics?.activeLinkCount ??
-                0
-            ) || 0;
             const isGated = node.gated || node.resistant || node.userData?.gated || node.userData?.resistant || false;
             
-            // Canonical resistance gate:
-            // - needs real topology (at least one connected link)
-            // - load pressure or instability must be meaningfully elevated
-            // - keep legacy harmony/corruption differential as a fallback signal
+            const activeLinkCount = this._getNodeTopologyCountFromLinks(node, activeLinks);
             const hasTopology = activeLinkCount > 0;
-            const canonicalResistance =
-                (loadPressure >= 0.5) ||
-                (stability <= 0.5) ||
-                (instability >= 0.45) ||
-                (harmony < corruption);
-            const isResistant = isGated || (hasTopology && canonicalResistance);
+            const isResistant = isGated || hasTopology;
             
             if (isResistant) {
+                const stressSignal = Math.max(
+                    loadPressure,
+                    1 - stability,
+                    instability,
+                    Math.max(0, corruption - harmony)
+                );
                 const resistance = Math.min(1, 
-                    Math.max(0, (loadPressure - 0.35)) * 0.55 +
-                    Math.max(0, (0.65 - stability)) * 0.35 +
-                    Math.max(0, (corruption - harmony)) * 0.25 +
-                    instability * 0.15 +
-                    (hasTopology ? 0.1 : 0) +
+                    0.35 +
+                    stressSignal * 0.45 +
+                    (hasTopology ? 0.2 : 0) +
                     (isGated ? 0.4 : 0)
                 );
                 
@@ -226,13 +252,45 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         });
     }
 
+    _getNodeTopologyCountFromLinks(node, activeLinks = []) {
+        if (!node || !Array.isArray(activeLinks) || activeLinks.length === 0) {
+            return 0;
+        }
+
+        const nodeId = this._getNodeId(node);
+        let linkCount = 0;
+
+        for (const link of activeLinks) {
+            if (!link) continue;
+
+            const sourceNode = this._getLinkSource(link);
+            const targetNode = this._getLinkTarget(link);
+            if (sourceNode === node || targetNode === node) {
+                linkCount += 1;
+                continue;
+            }
+
+            const sourceId = this._getNodeId(sourceNode) ?? link?.sourceNodeId ?? link?.sourceId ?? link?.nodeA ?? null;
+            const targetId = this._getNodeId(targetNode) ?? link?.targetNodeId ?? link?.targetId ?? link?.nodeB ?? null;
+
+            if (nodeId !== null && nodeId !== undefined) {
+                const nodeKey = String(nodeId);
+                if (String(sourceId) === nodeKey || String(targetId) === nodeKey) {
+                    linkCount += 1;
+                }
+            }
+        }
+
+        return linkCount;
+    }
+
     /**
      * Track influence traveling along links toward resistant nodes
      */
     _updateIncomingInfluence() {
         this.incomingInfluence.clear();
         
-        if (!this.harmonicInfluenceSystem || !this.linkingSystem) return;
+        if (!this.linkingSystem) return;
         
         // Get all links from linking system
         const links = this.linkingSystem.links || [];
@@ -241,24 +299,18 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             if (!link || !link.id) return;
             
             const targetNodeId = this._getNodeId(this._getLinkTarget(link));
-            
-            // Check if target is resistant
-            if (this.resistantNodes.has(targetNodeId)) {
-                const sourceNodeId = this._getNodeId(this._getLinkSource(link));
-                
-                // Look up influence intensity on this link
-                const influenceIntensity = this._getInfluenceIntensity(link);
-                
-                if (influenceIntensity > 0.05) {
-                    this.incomingInfluence.set(link.id, {
-                        linkId: link.id,
-                        link: link,
-                        sourceNode: sourceNodeId,
-                        targetNode: targetNodeId,
-                        intensity: influenceIntensity,
-                        time: this.time
-                    });
-                }
+            const sourceNodeId = this._getNodeId(this._getLinkSource(link));
+            const influenceIntensity = this._getInfluenceIntensity(link);
+
+            if (influenceIntensity > 0.01) {
+                this.incomingInfluence.set(link.id, {
+                    linkId: link.id,
+                    link: link,
+                    sourceNode: sourceNodeId,
+                    targetNode: targetNodeId,
+                    intensity: influenceIntensity,
+                    time: this.time
+                });
             }
         });
     }
@@ -268,10 +320,25 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
      */
     _getInfluenceIntensity(link) {
         if (!link) return 0;
+
+        const flowIntensity = Number(
+            link?.userData?.flowState?.intensity ??
+            link?.userData?.cascadeIntensity ??
+            link?.userData?.energy ??
+            link?.userData?.metrics?.synergy ??
+            0
+        ) || 0;
+        if (flowIntensity > 0) {
+            return flowIntensity;
+        }
         
         // Try to read from harmonic influence system if available
         if (this.harmonicInfluenceSystem && this.harmonicInfluenceSystem.getLinkInfluence) {
             return this.harmonicInfluenceSystem.getLinkInfluence(link.id) || 0;
+        }
+
+        if (link.active !== false) {
+            return 0.25;
         }
         
         // Fallback: estimate from link metrics if available
@@ -282,6 +349,38 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
         }
         
         return 0;
+    }
+
+    rebind(config = {}) {
+        if (config.scene !== undefined) {
+            this.scene = config.scene;
+        }
+        if (config.world !== undefined) {
+            this.world = config.world;
+        }
+        if (config.harmonicInfluenceSystem !== undefined) {
+            this.harmonicInfluenceSystem = config.harmonicInfluenceSystem;
+        }
+        if (config.aiNodes !== undefined) {
+            this.aiNodes = config.aiNodes;
+        }
+        if (config.linkingSystem !== undefined) {
+            this.linkingSystem = config.linkingSystem;
+        }
+        if (config.frameScheduler !== undefined) {
+            this.frameScheduler = config.frameScheduler;
+        }
+        if (config.semanticBus !== undefined) {
+            this.semanticBus = config.semanticBus;
+        }
+
+        this.resistantNodes.clear();
+        this.incomingInfluence.clear();
+        this.pressureZones.length = 0;
+        this.reflectionPulses.length = 0;
+        this.surfaceRipples.length = 0;
+
+        return this;
     }
 
     /**
@@ -311,23 +410,20 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             }
             
             // Update pressure intensity based on incoming influence
-            const resistantMetrics = this.resistantNodes.get(inf.targetNode);
-            if (resistantMetrics) {
-                // Modulate by state
-                let baseIntensity = inf.intensity * resistantMetrics.resistance;
-                
-                // Harmony reduces pressure
-                baseIntensity *= (1 - resistantMetrics.harmony * this.config.harmonyDamping);
-                
-                // Corruption increases pressure
-                baseIntensity *= (1 + resistantMetrics.corruption * (this.config.corruptionBoost - 1));
-                
-                // Instability triggers earlier
-                const timeFactor = Math.max(0.5, 1 - resistantMetrics.instability * this.config.instabilitySpeedup);
-                
-                // Smooth buildup
-                zone.intensity = Math.min(1, zone.intensity + deltaTime * 0.8 * baseIntensity / timeFactor);
-            }
+            const targetNode = this._getLinkTarget(inf.link);
+            const harmony = this._readNodeMetric(targetNode, 'harmony', 0.5);
+            const corruption = this._readNodeMetric(targetNode, 'corruption', 0.5);
+            const stability = this._readNodeMetric(targetNode, 'stability', 1);
+            const instability = this._readNodeMetric(targetNode, 'instability', 0);
+
+            let baseIntensity = Math.max(inf.intensity, 0.25);
+            baseIntensity *= (1 - harmony * this.config.harmonyDamping);
+            baseIntensity *= (1 + corruption * (this.config.corruptionBoost - 1));
+
+            const timeFactor = Math.max(0.5, 1 - instability * this.config.instabilitySpeedup);
+            const stabilityBoost = Math.max(0.8, 1 - stability * 0.2);
+
+            zone.intensity = Math.min(1, zone.intensity + deltaTime * 2.5 * baseIntensity * stabilityBoost / timeFactor);
         });
     }
 
@@ -337,7 +433,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
     _emitReflectionPulses(deltaTime) {
         this.pressureZones.forEach(zone => {
             // Emit pulse when intensity peaks
-            if (zone.intensity > 0.45 && (!zone.lastPulseTime || this.time - zone.lastPulseTime > 0.45)) {
+            if (zone.intensity > 0.08 && (!zone.lastPulseTime || this.time - zone.lastPulseTime > 0.2)) {
                 // Acquire pooled reflection pulse
                 const pulse = this.reflectionPulsePool.find(p => !p.active);
                 
@@ -439,6 +535,60 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
 
     _getNodeId(node) {
         return node?.id ?? node?.userData?.nodeId ?? node?.userData?.id;
+    }
+
+    _getNodeTopologyCount(node) {
+        const apiLinks =
+            typeof this.linkingSystem?.getNodeLinks === 'function'
+                ? this.linkingSystem.getNodeLinks(node)
+                : typeof this.linkingSystem?.getLinksForNode === 'function'
+                    ? this.linkingSystem.getLinksForNode(node)
+                    : null;
+        if (Array.isArray(apiLinks) && apiLinks.length > 0) {
+            return apiLinks.length;
+        }
+
+        const directCount = Number(
+            node?.activeLinkCount ??
+            node?.userData?.activeLinkCount ??
+            node?.userData?.metrics?.activeLinkCount ??
+            node?.linkCount ??
+            node?.userData?.linkCount ??
+            node?.userData?.metrics?.linkCount ??
+            0
+        ) || 0;
+        if (directCount > 0) {
+            return directCount;
+        }
+
+        const localCount = Number(
+            node?.connectedLinks?.length ??
+            node?.links?.length ??
+            node?.userData?.connectedLinks?.length ??
+            node?.userData?.links?.length ??
+            0
+        ) || 0;
+        if (localCount > 0) {
+            return localCount;
+        }
+
+        const nodeId = this._getNodeId(node);
+        if (!nodeId || !Array.isArray(this.linkingSystem?.links)) {
+            return 0;
+        }
+
+        let linkCount = 0;
+        for (const link of this.linkingSystem.links) {
+            if (!link) continue;
+
+            const sourceId = this._getNodeId(link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null);
+            const targetId = this._getNodeId(link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null);
+            if (sourceId === nodeId || targetId === nodeId) {
+                linkCount += 1;
+            }
+        }
+
+        return linkCount;
     }
 
     _getLinkSource(link) {

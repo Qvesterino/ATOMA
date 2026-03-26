@@ -149,8 +149,8 @@ export function createNodeAuraMaterial(config = {}) {
       // Directional flow vector (normalize link direction or use normal)
       vec3 flowDir = normalize(uLinkDirection);
       
-      // Base noise position (with time evolution)
-      vec3 noisePos = position + uTime * 0.3;
+      // Base noise position (STATIC - no time evolution to prevent shaking)
+      vec3 noisePos = position;
       
       // Apply directional bias: noise flows along flow axis
       // Creates streaming, flame-like deformation
@@ -188,21 +188,18 @@ export function createNodeAuraMaterial(config = {}) {
       float hintCompression = mix(1.0, 1.0 - uHintStrength * 0.5, uHintStrength);
       
       // ========================================================================
-      // FLAME BREATHING (SLOW OSCILLATION)
+      // FLAME BREATHING (DISABLED - static aura)
       // ========================================================================
-      // Very slow, subtle rise and fall of entire aura
-      // Harmony makes breathing more pronounced (resonance)
-      float breathingPhase = uTime * 0.3;  // ~3.3 second cycle
-      float breathing = sin(breathingPhase) * 0.08;  // ±0.08
-      breathing *= mix(1.0, 1.5, uHarmony);  // Harmony enhances breathing
+      // All motion disabled to prevent shaking/drifting
+      float breathing = 0.0;
       
-      // Wave influence → subtle additional oscillation
-      float waveOscillation = sin(uTime * 2.0 + uWaveInfluence * 6.28) * 0.15;
+      // Wave influence (DISABLED - was causing oscillation)
+      float waveOscillation = 0.0;
       
       // Final displacement: ridged noise + state modulation
       float displacementFactor = ridgedNoise * uDisplacement * motionFactor * hintCompression;
-      displacementFactor += waveOscillation * 0.1;
-      displacementFactor += breathing;  // Add breathing oscillation
+      displacementFactor += waveOscillation * 0.0;  // DISABLED - was causing shaking
+      displacementFactor += breathing;  // Add breathing oscillation (now0.0)
       
       // --- LINK BIRTH ENHANCEMENT ---
       // Add directional pulse toward link when justLinked (uLinkBirthIntensity > 0)
@@ -253,13 +250,10 @@ export function createNodeAuraMaterial(config = {}) {
       displacementFactor += uImpactDisplacement;
       
       // ========================================================================
-      // LINK-AURA CONTINUITY: FLAME BENDING
+      // LINK-AURA CONTINUITY (DISABLED - static aura)
       // ========================================================================
-      // Flame folds subtly bend toward link connection points
-      // Creates visual continuity: flames pulled into link
-      float linkBendInfluence = max(0.0, dot(normalize(position), normalize(uLinkDirection)));
-      float linkBend = linkBendInfluence * 0.15;  // Subtle bending
-      displacementFactor += linkBend;
+      // Link bending disabled to prevent drifting
+      float linkBend = 0.0;
       
       vec3 displaced = position + normalize(normal) * (ridgedNoise + linkBirthPulse + linkRemovalPulse + linkBend) * displacementFactor;
       
@@ -306,6 +300,11 @@ export function createNodeAuraMaterial(config = {}) {
       // Corruption influence: add red tint before desaturation (from EnergyVisualProfile)
       auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uCorruption * 0.4);  // corruptionColor, nodeBlend 0.4
       auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
+
+      // Temporary debug wave tint: make resonance wave clearly visible
+      float waveDebug = clamp(uWaveInfluence, 0.0, 1.0);
+      auraColor = mix(auraColor, vec3(0.0, 0.95, 1.0), waveDebug * 0.85);
+      auraColor += vec3(0.15, 0.4, 1.0) * waveDebug * 0.35;
       
       // --- PARTICLE IMPACT COLOR BIASES ---
       // Corruption particles arriving: enhance red tint (energy absorption)
@@ -337,6 +336,7 @@ export function createNodeAuraMaterial(config = {}) {
       // Opacity modulation
       float opacity = uOpacity * (0.7 + rim * 0.3);
       opacity *= (0.8 + vDisplacementFactor * 0.2);
+      opacity = min(1.0, opacity + waveDebug * 0.3);
       
       gl_FragColor = vec4(auraColor, opacity);
     }

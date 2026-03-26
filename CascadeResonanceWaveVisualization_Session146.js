@@ -74,21 +74,21 @@ export class CascadeResonanceWaveVisualization_Session146 {
     this.config = {
       // Wave oscillation
       waveOscillationPeriod: config.waveOscillationPeriod ?? 3.0,  // Seconds
-      waveInfluenceMin: config.waveInfluenceMin ?? 0.03,           // 3% minimum
-      waveInfluenceMax: config.waveInfluenceMax ?? 0.08,           // 8% maximum
+      waveInfluenceMin: config.waveInfluenceMin ?? 0.65,           // Debug-visible minimum
+      waveInfluenceMax: config.waveInfluenceMax ?? 1.0,            // Debug-visible maximum
       
       // Wave trigger conditions
-      minPhaseSyncStrength: config.minPhaseSyncStrength ?? 0.1,    // Min phase delta for wave
-      minPhaseSyncStability: config.minPhaseSyncStability ?? 0.15, // Min convergence strength
-      minCascadeStrengthTrigger: config.minCascadeStrengthTrigger ?? 0.35,
+      minPhaseSyncStrength: config.minPhaseSyncStrength ?? 0.04,    // Min phase delta for wave
+      minPhaseSyncStability: config.minPhaseSyncStability ?? 0.04, // Min convergence strength
+      minCascadeStrengthTrigger: config.minCascadeStrengthTrigger ?? 0.15,
       
       // Temporal modulation
-      linkPhaseCompression: config.linkPhaseCompression ?? 0.06,   // Link phase tightening
-      auraNoiseReduction: config.auraNoiseReduction ?? 0.04,       // Aura randomness reduction
+      linkPhaseCompression: config.linkPhaseCompression ?? 0.2,    // Link phase tightening
+      auraNoiseReduction: config.auraNoiseReduction ?? 0.14,       // Aura randomness reduction
       
       // Wave decay
-      waveDecayRate: config.waveDecayRate ?? 0.88,                 // Auto-decay speed
-      waveDissolveThreshold: config.waveDissolveThreshold ?? 0.05, // Threshold to completely fade
+      waveDecayRate: config.waveDecayRate ?? 0.94,                 // Auto-decay speed
+      waveDissolveThreshold: config.waveDissolveThreshold ?? 0.02, // Threshold to completely fade
       
       // Safety
       enabled: config.enabled ?? true,

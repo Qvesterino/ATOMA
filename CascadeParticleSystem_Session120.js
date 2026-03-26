@@ -40,11 +40,11 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 4.0,
-      emissionRate: config.emissionRate ?? 1.0,
+      baseSize: config.baseSize ?? 25.0,  // DEBUG: ZVÄČŠENÉ (original 4.0)
+      emissionRate: config.emissionRate ?? 5.0,  // DEBUG: ZVÝŠENÉ (original 1.0)
       enabled: config.enabled ?? true,
-      debugMode: config.debugMode ?? false,
-      baseCascadeParticles: config.baseCascadeParticles ?? 8,
+      debugMode: config.debugMode ?? true,  // DEBUG: ZAPNUTÉ
+      baseCascadeParticles: config.baseCascadeParticles ?? 20,  // DEBUG: ZVÝŠENÉ (original 8)
       hopDecay: config.hopDecay ?? 0.82,
       cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3 // Cooldown in seconds
     };
@@ -63,10 +63,14 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
-    this._neutralParticleColor = new THREE.Color(0.75, 0.8, 0.9);
+    this._neutralParticleColor = new THREE.Color(0.4, 0.1, 0.7)  // DEBUG: MAGENTA (original: 0.75, 0.8, 0.9)
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
+    
+    // Periodic burst timer (DEBUG: každé 4 sekundy)
+    this._periodicBurstInterval = 4.0;  // sekundy
+    this._lastPeriodicBurstTime = 0;
 
     // Resources
     this.geometry = null;
@@ -78,7 +82,8 @@ export class CascadeParticleSystem_Session120 {
     this.init();
     this._setupSemanticSubscriptions();
     
-    console.log('[Session 120] CascadeParticleSystem initialized');
+    console.error('[DEBUG] Session 120 CascadeParticleSystem CONSTRUCTOR ✓✓✓');
+    console.error('[DEBUG] Config:', JSON.stringify(this.config));
   }
 
   _setupSemanticSubscriptions() {
@@ -339,6 +344,13 @@ export class CascadeParticleSystem_Session120 {
    * Update Loop
    */
   update(deltaTime, links) {
+    // DEBUG: Log každých 60 framov (~1 sekundu)
+    if (!this._debugFrameCount) this._debugFrameCount = 0;
+    this._debugFrameCount++;
+    if (this._debugFrameCount % 60 === 0) {
+      console.log('[Session 120] update() called - links:', links?.length ?? 0, 'deltaTime:', deltaTime?.toFixed(3));
+    }
+    
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
     }
@@ -352,6 +364,15 @@ export class CascadeParticleSystem_Session120 {
 
     // Event-driven spawn only; update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
+    
+    // Polling-based spawn for continuous activity (Session 120 fix)
+    this._spawnParticles(cascadeDelta, links, currentCascadeTime);
+    
+    // DEBUG: Periodic burst každé 4 sekundy
+    if (currentCascadeTime - this._lastPeriodicBurstTime >= this._periodicBurstInterval) {
+      this._lastPeriodicBurstTime = currentCascadeTime;
+      this._triggerPeriodicBurst(links, currentCascadeTime);
+    }
     
     // Update geometry
     this._updateGeometry();
@@ -376,7 +397,7 @@ export class CascadeParticleSystem_Session120 {
       Math.min(1, Number(link?.userData?.metrics?.synergy ?? 0) || 0)
     );
     const clampedIntensity = Math.max(eventIntensity, canonicalIntensity);
-    if (clampedIntensity < 0.1) return;
+    if (clampedIntensity < 0.40) return;  // DEBUG: znížené z 0.1 na 0.40
 
     const hop = Math.max(0, Number(hopIndex) || 0);
     const hopDecay = Math.pow(this.config.hopDecay, hop);
@@ -412,7 +433,7 @@ export class CascadeParticleSystem_Session120 {
       flowState.intensity = previousIntensity + (targetIntensity - previousIntensity) * 0.2;
       const intensity = flowState.intensity;
 
-      if (intensity < 0.1) continue;
+      if (intensity < 0.40) continue;  // DEBUG: znížené z 0.1 na 0.40
 
       // Determine conflict type (Semantic Shape) from flowState
       const conflictType = link.userData.cascadeConflictType ?? flowState.type ?? 'neutral';
@@ -440,6 +461,39 @@ export class CascadeParticleSystem_Session120 {
         this._emitCascadeHop(link, intensity, conflictType);
       }
     }
+  }
+  
+  /**
+   * DEBUG: Periodic burst každé 4 sekundy pre všetky aktívne linky
+   */
+  _triggerPeriodicBurst(links, currentCascadeTime) {
+    console.error('[DEBUG] _triggerPeriodicBurst called, links:', links?.length ?? 0);
+    if (!links) {
+      console.error('[DEBUG] links is null/undefined!');
+      return;
+    }
+    
+    let spawnedCount = 0;
+    for (const link of links) {
+      if (!link) continue;
+      
+      const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+      const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+      const sourcePosition = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+      const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+      
+      if (!sourcePosition || !targetPosition) continue;
+      
+      // Spawn burst pre každú linku
+      const burstCount = this.config.baseCascadeParticles;
+      const conflictType = link?.userData?.cascadeConflictType || 'neutral';
+      const shapeIndex = this._getShapeIndexForConflict(conflictType);
+      const flowType = this._determineFlowType(conflictType, 0.5);
+      
+      this._emit(burstCount, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition);
+    }
+    
+    console.log('[CascadeParticleSystem] Periodic burst triggered for', links?.length || 0, 'links');
   }
   
   /**
@@ -504,9 +558,13 @@ export class CascadeParticleSystem_Session120 {
    * Respects density clustering parameters from Session 121
    */
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
+    console.error('[DEBUG] _emit called, count:', count, 'link:', link?.id || link?.uuid || 'no-id');
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
-    if (!srcPos || !dstPos) return;
+    if (!srcPos || !dstPos) {
+      console.error('[DEBUG] _emit: srcPos or dstPos is null!', !!srcPos, !!dstPos);
+      return;
+    }
     
     const color = link?.userData?.cascadeParticleColor || this._neutralParticleColor;
     
@@ -517,7 +575,11 @@ export class CascadeParticleSystem_Session120 {
     
     for (let i = 0; i < count; i++) {
       const p = this._allocateParticle();
-      if (!p) return; // Pool full
+      if (!p) {
+        console.error('[DEBUG] _emit: pool full, cannot allocate particle', i, '/', count);
+        return; // Pool full
+      }
+      console.error('[DEBUG] _emit: allocated particle', i, 'active:', p.active);
       
       p.active = true;
       p.lifetime = 0;
@@ -574,6 +636,15 @@ export class CascadeParticleSystem_Session120 {
    */
   _updateParticles(deltaTime, currentCascadeTime) {
     let activeCount = 0;
+    
+    // DEBUG: Count active particles before update
+    let activeBefore = 0;
+    for (const p of this.pool) {
+      if (p.active) activeBefore++;
+    }
+    if (activeBefore > 0) {
+      console.error('[DEBUG] _updateParticles: active particles before update:', activeBefore);
+    }
     
     const positions = this.geometry.attributes.position.array;
     const sizes = this.geometry.attributes.size.array;

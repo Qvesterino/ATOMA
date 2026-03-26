@@ -549,7 +549,7 @@ const adapter = this._createLinkSystemAdapter(
             let changedValue = null;
             const synergyValue = this._clamp01(metrics.synergy);
 
-            if (synergyValue > 0.72 && this._canEmitNodeCooldown(node, 'nodeSynergyHigh', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) {
+            if (synergyValue > 0.60 && this._canEmitNodeCooldown(node, 'nodeSynergyHigh', nowMs, NODE_METRIC_UPDATED_COOLDOWN_MS)) {
                 semanticBus.emit('node.synergy.high', {
                     nodeId,
                     synergy: synergyValue,

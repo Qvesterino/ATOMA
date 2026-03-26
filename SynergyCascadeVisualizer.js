@@ -60,7 +60,7 @@ export class SynergyCascadeVisualizer {
       baseIntensity: 1.0,            // Legacy debug setting (visual only system)
       decayPerHop: 0.75,             // Legacy debug setting (visual only system)
       propagationSpeed: 2.0,         // Speed of cascade traveling along link (units/sec)
-      waveWidth: 0.3,                // Width of cascade wave front
+      waveWidth: 0.42,               // Width of cascade wave front
       
       // Visual effects
       visualizations: {
@@ -72,14 +72,14 @@ export class SynergyCascadeVisualizer {
       },
       
       // Particle system
-      particleCount: 8,               // Particles per active cascade
-      particleSpeed: 1.5,             // Multiplier on propagation speed
-      particleLifetime: 2.0,          // Seconds
+      particleCount: 14,              // Particles per active cascade
+      particleSpeed: 1.2,             // Multiplier on propagation speed
+      particleLifetime: 1.45,         // Seconds
       
       // Color scheme
-      cascadeColor: new THREE.Color(0xffff00), // Yellow for cascade energy
-      waveColor: new THREE.Color(0x00ffff),    // Cyan for wave front
-      fadeColor: new THREE.Color(0xff00ff),    // Magenta for decay
+      cascadeColor: new THREE.Color(0xffb11a), // Warm amber for cascade body
+      waveColor: new THREE.Color(0xfff3c4),    // Bright gold for pulse head
+      fadeColor: new THREE.Color(0xff6f22),    // Ember orange for fade / dust
       
       // Performance
       batchSize: 30,                  // Update cascades in batches
@@ -398,10 +398,23 @@ export class SynergyCascadeVisualizer {
       // Highlight wave position with brighter color
       const distance = Math.abs(wavePos - 0.5) * 2; // Distance from center
       const waveBrightness = Math.max(0, 1.0 - (distance / waveWidth));
+      const headStrength = Math.min(1, waveIntensity * (0.65 + waveBrightness * 0.8));
+      const tailStrength = Math.min(1, (history.trailIntensity || 0) * 0.85);
+
+      if (baseMaterial.color) {
+        baseMaterial.color.copy(this.config.cascadeColor).lerp(this.config.waveColor, headStrength);
+      }
       
       if (baseMaterial.emissive) {
         baseMaterial.emissive.copy(this.config.waveColor);
-        baseMaterial.emissiveIntensity = Math.max(0, waveBrightness * waveIntensity);
+        baseMaterial.emissiveIntensity = Math.max(
+          baseMaterial.emissiveIntensity || 0,
+          (waveBrightness * waveIntensity * 3.2) + (tailStrength * 1.2)
+        );
+      }
+
+      if (baseMaterial.opacity !== undefined) {
+        baseMaterial.opacity = Math.min(1.0, (baseMaterial.opacity || 0.75) + headStrength * 0.12 + tailStrength * 0.05);
       }
     }
   }
@@ -414,19 +427,25 @@ export class SynergyCascadeVisualizer {
     
     const material = link.mesh.material;
     const cascadeIntensity = propagation.intensity;
+    history.trailIntensity = Math.max((history.trailIntensity || 0) * 0.92, cascadeIntensity);
+    const trailIntensity = history.trailIntensity;
     
     // Enhance glow based on cascade intensity
+    if (material.color) {
+      material.color.copy(this.config.cascadeColor).lerp(this.config.fadeColor, Math.min(1, trailIntensity * 0.8));
+    }
+
     if (material.emissive) {
       const baseColor = this.config.cascadeColor.clone();
       
       // Blend cascadeColor based on intensity
-      material.emissive.copy(baseColor);
-      material.emissiveIntensity = Math.max(material.emissiveIntensity || 0, cascadeIntensity * 1.5);
+      material.emissive.copy(baseColor).lerp(this.config.fadeColor, Math.min(1, trailIntensity * 0.7));
+      material.emissiveIntensity = Math.max(material.emissiveIntensity || 0, cascadeIntensity * 2.2 + trailIntensity * 1.1);
     }
     
     // Increase opacity slightly during cascade
     if (material.opacity !== undefined) {
-      material.opacity = Math.min(1.0, (material.opacity || 0.75) + cascadeIntensity * 0.2);
+      material.opacity = Math.min(1.0, (material.opacity || 0.75) + cascadeIntensity * 0.22 + trailIntensity * 0.08);
     }
   }
   
@@ -453,7 +472,7 @@ export class SynergyCascadeVisualizer {
       shimmerColor.lerp(this.config.waveColor, shimmerWave * 0.5 + 0.5);
       
       material.emissive.copy(shimmerColor);
-      material.emissiveIntensity = shimmerAmount * 2.0;
+      material.emissiveIntensity = shimmerAmount * 2.6;
     }
   }
   
@@ -461,7 +480,7 @@ export class SynergyCascadeVisualizer {
    * Spawn directional flow particles along cascade path
    */
   spawnFlowParticles(propagation, cascade) {
-    const particleCount = Math.ceil(this.config.particleCount * propagation.intensity);
+    const particleCount = Math.ceil(this.config.particleCount * propagation.intensity * 0.85);
     const startPos = propagation.startPosition
       ?? propagation.startNode?.position
       ?? propagation.link?.source?.position
@@ -471,6 +490,14 @@ export class SynergyCascadeVisualizer {
       ?? propagation.link?.target?.position
       ?? null;
     if (!this._isValidWorldPosition(startPos) || !this._isValidWorldPosition(targetPos)) return;
+
+    const forward = new THREE.Vector3().subVectors(targetPos, startPos);
+    if (forward.lengthSq() <= 1e-8) return;
+    forward.normalize();
+    const side = Math.abs(forward.y) < 0.9
+      ? new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
+      : new THREE.Vector3().crossVectors(forward, new THREE.Vector3(1, 0, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(side, forward).normalize();
     
     for (let i = 0; i < particleCount; i++) {
       const particle = this.getPooledParticle();
@@ -478,13 +505,16 @@ export class SynergyCascadeVisualizer {
       if (!particle) break; // No more particles available
       
       // Calculate particle position
-      const lerpPos = propagation.position + Math.random() * 0.1 - 0.05; // Slight randomness
+      const lerpPos = Math.max(0, Math.min(1, propagation.position - Math.random() * 0.18));
       
       const position = new THREE.Vector3().lerpVectors(
         startPos,
         targetPos,
         Math.max(0, Math.min(1, lerpPos))
       );
+      const driftAmount = 0.04 + Math.random() * 0.08;
+      position.addScaledVector(side, (Math.random() - 0.5) * driftAmount);
+      position.addScaledVector(up, (Math.random() - 0.5) * driftAmount * 0.6);
       
       // Initialize particle
       particle.position.copy(position);
@@ -495,9 +525,14 @@ export class SynergyCascadeVisualizer {
         targetPos,
         startPos
       ).normalize().multiplyScalar(this.config.particleSpeed * propagation.intensity);
+      particle.drift = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.12,
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.12
+      );
       
       particle.intensity = propagation.intensity;
-      particle.color = this.config.cascadeColor.clone();
+      particle.color = this.config.cascadeColor.clone().lerp(this.config.fadeColor, Math.random() * 0.65);
       
       this.cascadeParticles.push(particle);
     }
@@ -516,6 +551,9 @@ export class SynergyCascadeVisualizer {
       
       // Update position
       particle.position.addScaledVector(particle.velocity, deltaTime);
+      if (particle.drift) {
+        particle.position.addScaledVector(particle.drift, deltaTime);
+      }
       
       // Fade out
       const fadeRatio = 1.0 - (particle.age / particle.lifetime);
@@ -529,10 +567,13 @@ export class SynergyCascadeVisualizer {
       // Update particle mesh
       if (particle.mesh) {
         particle.mesh.position.copy(particle.position);
-        particle.mesh.material.opacity = fadeRatio * 0.8;
+        if (particle.mesh.material.color && particle.color) {
+          particle.mesh.material.color.copy(particle.color).lerp(this.config.fadeColor, 1.0 - fadeRatio);
+        }
+        particle.mesh.material.opacity = Math.min(1.0, fadeRatio * 0.88 * particle.intensity + 0.08);
         
         // Size decreases with age
-        const scale = 1.0 - (particle.age / particle.lifetime) * 0.5;
+        const scale = 0.9 - (particle.age / particle.lifetime) * 0.45;
         particle.mesh.scale.setScalar(scale);
       }
     }
@@ -547,8 +588,8 @@ export class SynergyCascadeVisualizer {
     const ripple = {
       center: position.clone(),
       startRadius: 0,
-      maxRadius: 3.0 + intensity * 2.0,
-      lifetime: 1.0,
+      maxRadius: 3.6 + intensity * 2.4,
+      lifetime: 1.05,
       age: 0,
       intensity: intensity,
       mesh: null
@@ -561,7 +602,7 @@ export class SynergyCascadeVisualizer {
     
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
-      const x = Math.cos(angle) * 0.01; // Start small
+      const x = Math.cos(angle) * 0.02; // Start small
       const z = Math.sin(angle) * 0.01;
       ringPoints.push(new THREE.Vector3(x, 0.01, z));
     }
@@ -569,10 +610,10 @@ export class SynergyCascadeVisualizer {
     ringGeometry.setFromPoints(ringPoints);
     
     const rippleMaterial = new THREE.LineBasicMaterial({
-      color: this.config.cascadeColor,
+      color: this.config.waveColor,
       linewidth: 2,
       transparent: true,
-      opacity: intensity * 0.8
+      opacity: Math.min(1.0, intensity * 0.9)
     });
     
     const rippleLine = new THREE.Line(ringGeometry, rippleMaterial);
@@ -623,10 +664,13 @@ export class SynergyCascadeVisualizer {
     }
     
     if (this.cascadeParticles.length < this.maxPoolSize) {
-      const geometry = new THREE.SphereGeometry(0.05, 4, 4);
+      const geometry = new THREE.SphereGeometry(0.035, 5, 5);
       const material = new THREE.MeshBasicMaterial({
-        color: this.config.cascadeColor,
-        transparent: true
+        color: this.config.fadeColor,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
       const mesh = new THREE.Mesh(geometry, material);
       this.scene.add(mesh);
@@ -634,6 +678,7 @@ export class SynergyCascadeVisualizer {
       return {
         position: new THREE.Vector3(),
         velocity: new THREE.Vector3(),
+        drift: new THREE.Vector3(),
         mesh: mesh,
         active: false,
         lifetime: 0,
@@ -672,9 +717,19 @@ export class SynergyCascadeVisualizer {
     // Clean up cascade history for completed links
     for (const [link, history] of this.cascadeHistory.entries()) {
       if (link && link.mesh && link.mesh.material) {
-        // Reset link material to default
-        if (link.mesh.material.emissiveIntensity !== undefined) {
-          link.mesh.material.emissiveIntensity = 0;
+        const material = link.mesh.material;
+        history.trailIntensity = Math.max(0, (history.trailIntensity || 0) * 0.9);
+
+        // Keep a soft afterglow instead of hard reset
+        if (material.emissiveIntensity !== undefined) {
+          material.emissiveIntensity = Math.max(
+            0,
+            (material.emissiveIntensity || 0) * 0.88 + (history.trailIntensity || 0) * 0.5
+          );
+        }
+
+        if (material.opacity !== undefined) {
+          material.opacity = Math.min(1.0, (material.opacity || 0.75) + (history.trailIntensity || 0) * 0.03);
         }
       }
     }

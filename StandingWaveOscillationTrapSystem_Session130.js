@@ -273,24 +273,9 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         if (history.reflections.length < this.config.reflectionCountThreshold) {
             return false;
         }
-        
-        // Calculate phase consistency
-        const phases = history.reflections.map(r => r.phase);
-        const phaseVariance = this._calculatePhaseConsistency(phases);
-        
-        if (phaseVariance < this.config.phaseConsistencyThreshold) {
-            return false;
-        }
-        
-        // Check net flow (should be near zero for standing wave)
-        const netFlow = this._calculateNetFlow(linkId, history);
-        
-        if (Math.abs(netFlow) > this.config.netFlowThreshold) {
-            return false;
-        }
-        
-        // All conditions met
-        return true;
+
+        const avgIntensity = history.reflections.reduce((sum, reflection) => sum + (reflection.intensity ?? 0), 0) / history.reflections.length;
+        return avgIntensity >= 0.1;
     }
 
     /**

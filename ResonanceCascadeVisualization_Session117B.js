@@ -49,16 +49,16 @@ const CASCADE_CONFIG = {
   RIPPLE_FREQUENCY: 2.0,                      // Hz for ripple oscillation
   
   // Intensity modulation
-  NODE_GLOW_MULTIPLIER: 0.6,                  // How much cascade affects node glow
-  LINK_RIPPLE_MULTIPLIER: 0.4,                // How much cascade affects links
-  LINK_THICKNESS_MULTIPLIER: 0.3,             // How much cascade fattens links
-  PARTICLE_EMISSION_MULTIPLIER: 1.5,          // Particle rate scaling
-  NODE_SCALE_MULTIPLIER: 0.05,
-  LINK_SCALE_MULTIPLIER: 0.03,
-  NODE_EMISSIVE_MULTIPLIER: 0.8,
-  LINK_EMISSIVE_MULTIPLIER: 0.65,
-  NODE_OPACITY_MULTIPLIER: 0.16,
-  LINK_OPACITY_MULTIPLIER: 0.18,
+  NODE_GLOW_MULTIPLIER: 1.8,                  // How much cascade affects node glow
+  LINK_RIPPLE_MULTIPLIER: 1.2,                // How much cascade affects links
+  LINK_THICKNESS_MULTIPLIER: 0.8,             // How much cascade fattens links
+  PARTICLE_EMISSION_MULTIPLIER: 3.2,          // Particle rate scaling
+  NODE_SCALE_MULTIPLIER: 0.18,
+  LINK_SCALE_MULTIPLIER: 0.12,
+  NODE_EMISSIVE_MULTIPLIER: 3.5,
+  LINK_EMISSIVE_MULTIPLIER: 2.8,
+  NODE_OPACITY_MULTIPLIER: 0.35,
+  LINK_OPACITY_MULTIPLIER: 0.35,
 };
 
 /**
@@ -98,10 +98,9 @@ class CascadeWave {
     
     // Update radial propagation
     this.currentRadius += CASCADE_CONFIG.RADIAL_PROPAGATION_SPEED * deltaTime;
-    
-    // Update ripple oscillation
-    this.ripplePhase += CASCADE_CONFIG.RIPPLE_FREQUENCY * 2 * Math.PI * deltaTime;
-    this.rippleAmplitude = Math.sin(this.ripplePhase) * 0.3 + 0.5; // 0.2-0.8
+
+    // Keep ripple amplitude stable to avoid visible pulsing.
+    this.rippleAmplitude = 0.72;
   }
   
   /**
@@ -130,8 +129,8 @@ export class ResonanceCascadeVisualization_Session117B {
     this.linkCascadeIntensity = new Map();
     this.nodeVisualState = new WeakMap();
     this.linkVisualState = new WeakMap();
-    this._tmpNodeTint = new THREE.Color(0xff66aa);
-    this._tmpLinkTint = new THREE.Color(0xff8866);
+    this._tmpNodeTint = new THREE.Color(0x4b1f78);
+    this._tmpLinkTint = new THREE.Color(0x6a2ca0);
     this._boundHandleCascadeStart = this.handleCascadeStart.bind(this);
     this._boundHandleCascadeHop = this.handleCascadeHop.bind(this);
     this._boundHandleCascadeEnd = this.handleCascadeEnd.bind(this);
@@ -191,13 +190,25 @@ export class ResonanceCascadeVisualization_Session117B {
 
     const sourcePos = this._asValidPosition(event?.sourceNode?.position);
     const targetPos = this._asValidPosition(event?.targetNode?.position);
-    if (!sourcePos || !targetPos) return null;
+    if (sourcePos && targetPos) {
+      return new THREE.Vector3(
+        (sourcePos.x + targetPos.x) * 0.5,
+        (sourcePos.y + targetPos.y) * 0.5,
+        (sourcePos.z + targetPos.z) * 0.5
+      );
+    }
 
-    return new THREE.Vector3(
-      (sourcePos.x + targetPos.x) * 0.5,
-      (sourcePos.y + targetPos.y) * 0.5,
-      (sourcePos.z + targetPos.z) * 0.5
-    );
+    const linkSourcePos = this._asValidPosition(event?.link?.source?.position ?? event?.link?.sourceNode?.position);
+    const linkTargetPos = this._asValidPosition(event?.link?.target?.position ?? event?.link?.targetNode?.position);
+    if (linkSourcePos && linkTargetPos) {
+      return new THREE.Vector3(
+        (linkSourcePos.x + linkTargetPos.x) * 0.5,
+        (linkSourcePos.y + linkTargetPos.y) * 0.5,
+        (linkSourcePos.z + linkTargetPos.z) * 0.5
+      );
+    }
+
+    return new THREE.Vector3(0, 0, 0);
   }
 
   _registerNodeVisual(node, intensity) {
@@ -210,6 +221,18 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!link?.userData) return;
     const prev = this.linkCascadeIntensity.get(link) ?? 0;
     this.linkCascadeIntensity.set(link, Math.max(prev, intensity));
+  }
+
+  _nodeHasLinks(node) {
+    if (!node) return false;
+    const linkCount = Number(
+      node?.userData?.linkCount ??
+      node?.linkCount ??
+      node?.userData?.activeLinkCount ??
+      node?.userData?.metrics?.linkCount ??
+      0
+    );
+    return Number.isFinite(linkCount) && linkCount > 0;
   }
 
   _distanceToPosition(positionA, positionB) {
@@ -321,20 +344,20 @@ export class ResonanceCascadeVisualization_Session117B {
       if (!materialState) return;
 
       if (material.color && materialState.color) {
-        material.color.copy(materialState.color).lerp(tintColor, intensity * 0.25);
+        material.color.copy(materialState.color).lerp(tintColor, Math.min(1.0, intensity * 0.85 + 0.15));
       }
 
       if (material.emissive && materialState.emissive) {
-        material.emissive.copy(materialState.emissive).lerp(tintColor, intensity * 0.45);
+        material.emissive.copy(materialState.emissive).lerp(tintColor, Math.min(1.0, intensity * 0.95 + 0.2));
       }
 
       if (typeof material.emissiveIntensity === 'number') {
-        material.emissiveIntensity = (materialState.emissiveIntensity || 0) + intensity * emissiveMultiplier;
+        material.emissiveIntensity = (materialState.emissiveIntensity || 0) + intensity * emissiveMultiplier * 1.4;
       }
 
       if (typeof material.opacity === 'number') {
         material.transparent = true;
-        material.opacity = Math.min(1.0, (materialState.opacity ?? 1.0) + intensity * opacityMultiplier);
+        material.opacity = Math.min(1.0, (materialState.opacity ?? 1.0) + intensity * opacityMultiplier * 1.25);
       }
     });
   }
@@ -376,10 +399,10 @@ export class ResonanceCascadeVisualization_Session117B {
   _spawnCascadeWaveFromEvent(event = {}) {
     if (!this.enabled || !THREE) return;
 
-    const rawIntensity = event?.intensity ?? event?.value ?? event?.strength ?? 0;
-    const impulseIntensity = this._clamp01(rawIntensity);
+    const rawIntensity = event?.intensity ?? event?.value ?? event?.strength ?? 1;
+    const impulseIntensity = Math.max(0.35, this._clamp01(rawIntensity));
     const pos = this._resolveCascadeAnchor(event);
-    if (impulseIntensity <= 0 || !pos) return;
+    if (!pos) return;
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
     this.activeCascades.push(cascade);
@@ -395,19 +418,27 @@ export class ResonanceCascadeVisualization_Session117B {
   }
 
   handleCascadeStart(event = {}) {
-    const intensity = this._clamp01(event?.intensity ?? event?.value ?? 0);
+    const intensity = Math.max(0.35, this._clamp01(event?.intensity ?? event?.value ?? event?.strength ?? 1));
     const anchor = this._resolveCascadeAnchor(event);
-    if (intensity <= 0 || !anchor) return;
     this._spawnCascadeWaveFromEvent(event);
-    this._registerNodeVisual(event?.sourceNode, intensity);
-    this._registerNodeVisual(event?.targetNode, intensity);
+    if (this._nodeHasLinks(event?.sourceNode) || event?.link) {
+      this._registerNodeVisual(event?.sourceNode, intensity);
+    }
+    if (this._nodeHasLinks(event?.targetNode) || event?.link) {
+      this._registerNodeVisual(event?.targetNode, intensity);
+    }
     this._registerLinkVisual(event?.link, intensity);
   }
 
   handleCascadeHop(event = {}) {
-    const intensity = this._clamp01(event?.intensity ?? event?.value ?? 0);
-    this._registerNodeVisual(event?.sourceNode, intensity);
-    this._registerNodeVisual(event?.targetNode, intensity);
+    const intensity = Math.max(0.25, this._clamp01(event?.intensity ?? event?.value ?? event?.strength ?? 1));
+    this._spawnCascadeWaveFromEvent(event);
+    if (this._nodeHasLinks(event?.sourceNode) || event?.link) {
+      this._registerNodeVisual(event?.sourceNode, intensity);
+    }
+    if (this._nodeHasLinks(event?.targetNode) || event?.link) {
+      this._registerNodeVisual(event?.targetNode, intensity);
+    }
     this._registerLinkVisual(event?.link, intensity);
   }
 
@@ -443,6 +474,7 @@ export class ResonanceCascadeVisualization_Session117B {
     if (Array.isArray(nodes) && this.activeCascades.length > 0) {
       for (const node of nodes) {
         if (!node?.position || !node?.userData) continue;
+        if (!this._nodeHasLinks(node)) continue;
         let influence = 0;
         for (const cascade of this.activeCascades) {
           const distance = this._distanceToPosition(node.position, cascade.originPos);
@@ -479,7 +511,7 @@ export class ResonanceCascadeVisualization_Session117B {
       }
       this.nodeCascadeIntensity.set(node, decayed);
       node.userData.cascadeGlow = decayed * CASCADE_CONFIG.NODE_GLOW_MULTIPLIER;
-      node.userData.cascadeRipple = Math.sin(Date.now() * 0.003) * decayed * 0.5;
+      node.userData.cascadeRipple = decayed * 0.16;
       this._applyVisualCascade(
         this._resolveNodeVisualRoot(node),
         decayed,
@@ -502,7 +534,7 @@ export class ResonanceCascadeVisualization_Session117B {
       this.linkCascadeIntensity.set(link, decayed);
       link.userData.cascadeRipple = decayed * CASCADE_CONFIG.LINK_RIPPLE_MULTIPLIER;
       link.userData.cascadeThickening = decayed * CASCADE_CONFIG.LINK_THICKNESS_MULTIPLIER;
-      link.userData.cascadeOscillation = Math.sin(Date.now() * 0.004) * decayed;
+      link.userData.cascadeOscillation = decayed * 0.08;
       this._applyVisualCascade(
         this._resolveLinkVisualRoot(link),
         decayed,
