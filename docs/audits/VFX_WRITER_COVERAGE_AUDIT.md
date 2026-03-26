@@ -7,44 +7,6 @@
 
 ---
 
-## EXECUTION BACKLOG (CANONICAL + RUNTIME)
-
-Legend:
-- `Writer Active`: `YES` = canonical writer exists and runs in registered update path.
-- `Reader Active`: `YES` = VFX reader exists in active runtime path.
-- `Visible Trigger Observed`: `YES/NO/NOT_TESTED` from runtime smoke (Quantum, 2 links, 2026-03-23).
-- `Fix Owner`: file/system that should own next fix if status is not fully green.
-
-| Submetric | Writer Active | Reader Active | Visible Trigger Observed | Fix Owner | Notes |
-|---|---|---|---|---|---|
-| `link.userData.cascadeIntensity` | YES | YES | YES | `CascadeEventBridge_v1.js` | Canonical per-frame write + observed non-zero in Quantum smoke. |
-| `link.userData.cascadeConflictType` | YES | YES | YES | `CascadeEventBridge_v1.js` | Canonical per-frame write observed. |
-| `link.userData.conflictIntensity` | YES | YES | YES | `CascadeEventBridge_v1.js` | Canonical per-frame write observed. |
-| `link.userData.synergyCollapse` | YES | YES | YES | `CascadeEventBridge_v1.js` | Canonical per-frame write observed. |
-| `link.userData.synergyCascadeTime` | YES | YES | YES | `CascadeEventBridge_v1.js` | Start-time semantics fixed (false->true transition). |
-| `link.userData.particleIntensity` | YES | YES | YES | `ParticleSemanticDensityAdapter_Session121.js` + `MetricsRuntime_v1.js` | Primary writer + runtime fallback/stamp safety. |
-| `link.userData.particleUrgency` | YES | YES | YES | `ParticleSemanticDensityAdapter_Session121.js` + `MetricsRuntime_v1.js` | Primary writer + runtime fallback/stamp safety. |
-| `link.userData.visualTear` | YES | YES | NO | `ResonanceRuptureVisualSystem_Session133.js` | Canonical writer active, but rupture burst was not observed in last smoke run. |
-| `link.userData.visualCoherenceLoss` | YES | YES | NO | `ResonanceRuptureVisualSystem_Session133.js` | Same as `visualTear`; needs stronger runtime trigger pass. |
-| `link.userData.waveDirection` | YES | YES | YES | `LinkRendererConduit.js` | Fixed per-link tick stamping in `update(link, ...)`; verified fresh on Quantum smoke. |
-| `link.userData.waveLength` | YES | YES | YES | `LinkRendererConduit.js` | Same as above. |
-| `link.userData.wavePhaseOffset` | YES | YES | YES | `LinkRendererConduit.js` | Same as above. |
-| `node.userData.resonance` | YES | YES | NO | `StandingWaveOscillationTrapSystem_Session130.js` | Canonical writer active, but non-zero visual trigger not observed in short smoke window. |
-| `node.userData.waveField.amplitude` | YES | YES | NO | `StandingWaveOscillationTrapSystem_Session130.js` | Writer active; needs dedicated standing-wave trigger scenario. |
-| `node.userData.waveField.phase` | YES | YES | NO | `StandingWaveOscillationTrapSystem_Session130.js` | Writer active; needs dedicated standing-wave trigger scenario. |
-| `node.userData.metrics.harmony` | YES | YES | YES | `NodeMetricEngine.js` + `MetricsRuntime_v1.js` | Canonical base metric + fallback/mirror in runtime. |
-| `node.userData.metrics.corruption` | YES | YES | YES | `NodeMetricEngine.js` + `MetricsRuntime_v1.js` | Canonical base metric + fallback/mirror in runtime. |
-| `node.userData.harmonyLevel` | YES | YES | YES | `MetricsRuntime_v1.js` | Legacy mirror guaranteed each simulation tick. |
-| `node.userData.corruptionLevel` | YES | YES | YES | `MetricsRuntime_v1.js` | Legacy mirror guaranteed each simulation tick. |
-| `node.userData.instability` | YES | YES | YES | `MetricsRuntime_v1.js` | Canonical sync (`metrics.stability` -> instability) active and stamped. |
-
-### Open Items (Highest Impact)
-1. Force/observe rupture visual trigger (`visualTear > 0`) in a deterministic smoke scenario.
-2. Add dedicated standing-wave smoke scenario to observe non-zero `resonance` + `waveField.*`.
-3. Keep this table as the primary execution checklist; close rows only after runtime proof.
-
----
-
 ## EXECUTIVE SUMMARY
 
 ### KEY FINDINGS:
@@ -79,7 +41,7 @@ See detailed table below with specific file locations and line numbers.
 | 14 | `aura.userData.fragmentBends` | `HarmonicHubAuraSystem_Session126.js:498-507` | `HarmonicHubAuraSystem_Session126.js:498` | OK | 🟢 LOW |
 | 15 | `mesh.userData.baseScale` | `HarmonicResonanceCoupling_v1.js:184-189` | `HarmonicResonanceCoupling_v1.js:185` | OK | 🟢 LOW |
 
----;
+---
 
 ## TOP 20 RISKIEST FIELDS (DETAILED)
 

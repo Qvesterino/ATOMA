@@ -52,6 +52,9 @@ export class SynapticGatingAdapter_v1 {
     
     // Caching (avoid recomputation)
     this.nodeGateCache = new Map();  // nodeId → { gateStrength, lastUpdate }
+    this.dirtyNodeIds = new Set();
+    this._lastUpdateTime = null;
+    this._lastUpdateResult = { gateMap: new Map(), dirtyNodeIds: new Set() };
     this.cacheExpiry = 100;           // ms (refresh every frame roughly)
     
     // Console API
@@ -64,17 +67,25 @@ export class SynapticGatingAdapter_v1 {
    * Compute gate strength for all nodes
    * Call once per frame at START of pulse processing
    * 
-   * Returns: Map<nodeId, gateStrength>
+    * Returns: { gateMap, dirtyNodeIds }
    */
-  updateNodeGates(nodes = []) {
-    if (!this.enabled) return new Map();
+  updateNodeGates(nodes = [], currentTime = Date.now()) {
+    if (!this.enabled) {
+      return { gateMap: this.nodeGateMap || new Map(), dirtyNodeIds: this.dirtyNodeIds || new Set() };
+    }
+
+    if (this._lastUpdateTime === currentTime) {
+      return this._lastUpdateResult;
+    }
     
     const gateMap = new Map();
+    const dirtyNodeIds = new Set();
     const now = Date.now();
     const total = nodes.length;
     if (total === 0) {
       this.nodeGateMap = gateMap;
-      return gateMap;
+      this.dirtyNodeIds = dirtyNodeIds;
+      return { gateMap, dirtyNodeIds };
     }
 
     const maxPerTick = Math.max(1, Math.min(this.maxNodesPerTick, total));
@@ -102,6 +113,10 @@ export class SynapticGatingAdapter_v1 {
           const nodeId = node.id || node.uuid || node.name;
           if (nodeId) {
             const gateStrength = this.computeGateStrength(node);
+            const cached = this.nodeGateCache.get(nodeId);
+            if (!cached || Math.abs(cached.gateStrength - gateStrength) > 1e-4) {
+              dirtyNodeIds.add(nodeId);
+            }
             this.nodeGateCache.set(nodeId, {
               gateStrength,
               lastUpdate: now
@@ -118,7 +133,10 @@ export class SynapticGatingAdapter_v1 {
 
     this._nodeCursor = (this._nodeCursor + processed) % total;
     this.nodeGateMap = gateMap;
-    return gateMap;
+    this.dirtyNodeIds = dirtyNodeIds;
+    this._lastUpdateTime = currentTime;
+    this._lastUpdateResult = { gateMap, dirtyNodeIds };
+    return this._lastUpdateResult;
   }
 
   /**

@@ -1297,6 +1297,7 @@ export class LinkRendererConduit {
                 position: sparkPositionAttr,
                 aBirth: sparkBirthAttr
             },
+            sparkPendingAttributes: new Set(),
             positions,
             colors,
             rootT,
@@ -1315,6 +1316,21 @@ export class LinkRendererConduit {
             vMid: new THREE.Vector3(),
             vEnd: new THREE.Vector3(),
             vTangent: new THREE.Vector3(),
+
+    _queueSparkAttributeUpload(filamentState, attribute) {
+        if (!filamentState?.sparkPendingAttributes || !attribute) return;
+        filamentState.sparkPendingAttributes.add(attribute);
+    }
+
+    _flushSparkAttributeUploads(filamentState) {
+        const pendingAttributes = filamentState?.sparkPendingAttributes;
+        if (!pendingAttributes || pendingAttributes.size === 0) return;
+
+        for (const attribute of pendingAttributes) {
+            attribute.needsUpdate = true;
+        }
+        pendingAttributes.clear();
+    }
             vTangent2: new THREE.Vector3(),
             vNormal: new THREE.Vector3(),
             vBinormal: new THREE.Vector3(),
@@ -1418,20 +1434,20 @@ export class LinkRendererConduit {
             staticAttrs.aDuration.updateRange.count = 1;
             staticAttrs.aGain.updateRange.offset = idx;
             staticAttrs.aGain.updateRange.count = 1;
-            staticAttrs.aColor.needsUpdate = true;
-            staticAttrs.aShape.needsUpdate = true;
-            staticAttrs.aSize.needsUpdate = true;
-            staticAttrs.aAngle.needsUpdate = true;
-            staticAttrs.aSpin.needsUpdate = true;
-            staticAttrs.aDuration.needsUpdate = true;
-            staticAttrs.aGain.needsUpdate = true;
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aColor);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aShape);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aSize);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aAngle);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aSpin);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aDuration);
+            this._queueSparkAttributeUpload(filamentState, staticAttrs.aGain);
         }
 
         const dynamicAttrs = filamentState.sparkDynamicAttributes;
         if (dynamicAttrs) {
             dynamicAttrs.aBirth.updateRange.offset = idx;
             dynamicAttrs.aBirth.updateRange.count = 1;
-            dynamicAttrs.aBirth.needsUpdate = true;
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
         }
     }
 
@@ -1486,9 +1502,11 @@ export class LinkRendererConduit {
             dynamicAttrs.position.updateRange.count = sparkMax * 3;
             dynamicAttrs.aBirth.updateRange.offset = 0;
             dynamicAttrs.aBirth.updateRange.count = sparkMax;
-            dynamicAttrs.position.needsUpdate = true;
-            dynamicAttrs.aBirth.needsUpdate = true;
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.position);
+            this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
         }
+
+        this._flushSparkAttributeUploads(filamentState);
     }
 
     _updateStrandFilaments(link, state, ctx = {}) {

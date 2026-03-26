@@ -110,20 +110,49 @@ export class SynapticSpecializationAdapter_v1 {
    * @param {number} deltaTime - Frame delta in seconds
    * @param {number} currentTime - Current time in ms
    */
-  updateSpecialization(nodes = [], nodeGateMap = new Map(), deltaTime = 0.016, currentTime = 0) {
+  updateSpecialization(nodes = [], nodeGateMap = new Map(), deltaTime = 0.016, currentTime = 0, dirtyNodeIds = null) {
     if (!this.enabled) return;
 
     this.nodeGateMap = nodeGateMap;
 
     try {
-      // Update each node's specialization
-      for (const node of nodes) {
-        if (!node || !node.userData) continue;
+      const dirtyIds = dirtyNodeIds instanceof Set
+        ? dirtyNodeIds
+        : Array.isArray(dirtyNodeIds)
+          ? new Set(dirtyNodeIds)
+          : null;
 
-        const nodeId = node.id || node.uuid || node.name;
-        if (!nodeId) continue;
+      if (dirtyIds) {
+        const candidateIds = new Set(dirtyIds);
+        for (const [nodeId, biasState] of this.nodeBiasMap) {
+          if (!nodeId) continue;
+          if (Math.abs(biasState?.bias ?? 0) > 1e-4 || (biasState?.stability ?? 0) > 0) {
+            candidateIds.add(nodeId);
+          }
+        }
 
-        this.updateNodeSpecialization(node, nodeId, deltaTime, currentTime);
+        const nodeById = new Map();
+        for (const node of nodes) {
+          if (!node || !node.userData) continue;
+          const nodeId = node.id || node.uuid || node.name;
+          if (nodeId) nodeById.set(nodeId, node);
+        }
+
+        for (const nodeId of candidateIds) {
+          const node = nodeById.get(nodeId);
+          if (!node) continue;
+          this.updateNodeSpecialization(node, nodeId, deltaTime, currentTime);
+        }
+      } else {
+        // Update each node's specialization
+        for (const node of nodes) {
+          if (!node || !node.userData) continue;
+
+          const nodeId = node.id || node.uuid || node.name;
+          if (!nodeId) continue;
+
+          this.updateNodeSpecialization(node, nodeId, deltaTime, currentTime);
+        }
       }
 
       if (this.debugMode && Math.random() < 0.01) {

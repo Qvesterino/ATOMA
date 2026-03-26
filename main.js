@@ -81,6 +81,71 @@ import { RenderCostProfile } from './RenderCostProfile.js';
 import { sanitizeTransmission, findTransmissionMaterials } from './src/render/TransmissionSanitizer.js';
 import { installMaterialDebugGuard } from './src/metrics/MaterialDebugGuard_v1.js';
 
+function createMetricDirtyQueue() {
+    const nodeIds = new Set();
+    const linkIds = new Set();
+
+    return {
+        markNode(nodeId) {
+            if (nodeId !== undefined && nodeId !== null) {
+                nodeIds.add(String(nodeId));
+            }
+        },
+        markNodes(ids) {
+            if (!ids) return;
+            for (const nodeId of ids) {
+                this.markNode(nodeId);
+            }
+        },
+        markLink(linkId) {
+            if (linkId !== undefined && linkId !== null) {
+                linkIds.add(String(linkId));
+            }
+        },
+        markLinks(ids) {
+            if (!ids) return;
+            for (const linkId of ids) {
+                this.markLink(linkId);
+            }
+        },
+        snapshotNodeIds() {
+            return new Set(nodeIds);
+        },
+        snapshotLinkIds() {
+            return new Set(linkIds);
+        },
+        clearNodes() {
+            nodeIds.clear();
+        },
+        clearLinks() {
+            linkIds.clear();
+        },
+        clear() {
+            nodeIds.clear();
+            linkIds.clear();
+        },
+        get nodeCount() {
+            return nodeIds.size;
+        },
+        get linkCount() {
+            return linkIds.size;
+        }
+    };
+}
+
+function getCachedVisualMetrics(scope = globalThis) {
+    const liveMetrics = scope?.__ATOMA_LIVE_METRICS__;
+    if (!liveMetrics) return null;
+
+    return {
+        avgSynergy: Number.isFinite(liveMetrics.networkSynergy) ? liveMetrics.networkSynergy : 0,
+        avgHarmony: Number.isFinite(liveMetrics.harmonyFlow) ? liveMetrics.harmonyFlow : 0,
+        avgCorruption: Number.isFinite(liveMetrics.corruptionLevel) ? liveMetrics.corruptionLevel : 0,
+        avgStability: Number.isFinite(liveMetrics.networkStress) ? Math.max(0, 1 - liveMetrics.networkStress) : 0,
+        avgLoadPressure: Number.isFinite(liveMetrics.loadPressure) ? liveMetrics.loadPressure : 0
+    };
+}
+
 if (typeof window !== 'undefined') {
     // Link growth reactivation defaults
     window.ATOMA_LINK_SPAWN_ENABLED = true;
@@ -3297,6 +3362,9 @@ class AtomaGame {
         this.materialRegistry = materialRegistry;
         this.semanticBus = new SemanticEventBus();
         window.semanticBus = this.semanticBus;
+        this.metricDirtyQueue = globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ || createMetricDirtyQueue();
+        globalThis.__ATOMA_METRIC_DIRTY_QUEUE__ = this.metricDirtyQueue;
+        window.__ATOMA_METRIC_DIRTY_QUEUE__ = this.metricDirtyQueue;
         
         // ========================================================================
         // ATOMA EVENT FIRE FREQUENCY AUDIT
@@ -3540,6 +3608,9 @@ class AtomaGame {
                 this.fxPerformanceTransition.update(dt);
             }
         }, 'simulation.fxPerformanceTransition');
+        this.frameScheduler.register('simulation', () => {
+            this.metricDirtyQueue?.clear();
+        }, 'simulation.metricDirtyQueueReset');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.linkSemanticMetricsBridge) {
                 this.linkSemanticMetricsBridge.update(dt);
@@ -3547,21 +3618,33 @@ class AtomaGame {
         }, 'simulation.linkSemanticMetricsBridge');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticFatigueAdapter && this.aiNodes) {
+                const currentTimeMs = this.time * 1000;
+                const gatingResult = this.synapticGatingAdapter?.updateNodeGates(this.aiNodes.nodes || [], currentTimeMs) || null;
+                this.metricDirtyQueue?.markNodes(gatingResult?.dirtyNodeIds || this.synapticGatingAdapter?.dirtyNodeIds || null);
+                const dirtyNodeIds = this.metricDirtyQueue?.snapshotNodeIds() || gatingResult?.dirtyNodeIds || null;
                 this.synapticFatigueAdapter.updateFatigue(
                     this.aiNodes.nodes || [],
-                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    gatingResult?.gateMap || this.synapticGatingAdapter?.nodeGateMap || new Map(),
                     dt,
-                    this.time * 1000
+                    currentTimeMs,
+                    dirtyNodeIds
                 );
             }
         }, 'simulation.synapticFatigueAdapter');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticSpecializationAdapter && this.aiNodes) {
+                const currentTimeMs = this.time * 1000;
+                const gatingResult = this.synapticGatingAdapter?.nodeGateMap
+                    ? { gateMap: this.synapticGatingAdapter.nodeGateMap, dirtyNodeIds: this.synapticGatingAdapter.dirtyNodeIds }
+                    : this.synapticGatingAdapter?.updateNodeGates(this.aiNodes.nodes || [], currentTimeMs) || null;
+                this.metricDirtyQueue?.markNodes(gatingResult?.dirtyNodeIds || this.synapticGatingAdapter?.dirtyNodeIds || null);
+                const dirtyNodeIds = this.metricDirtyQueue?.snapshotNodeIds() || gatingResult?.dirtyNodeIds || null;
                 this.synapticSpecializationAdapter.updateSpecialization(
                     this.aiNodes.nodes || [],
-                    this.synapticGatingAdapter?.nodeGateMap || new Map(),
+                    gatingResult?.gateMap || this.synapticGatingAdapter?.nodeGateMap || new Map(),
                     dt,
-                    this.time * 1000
+                    currentTimeMs,
+                    dirtyNodeIds
                 );
             }
         }, 'simulation.synapticSpecializationAdapter');
@@ -3619,7 +3702,7 @@ class AtomaGame {
         }, 'simulation.linkPersonalityStateMachine');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticGatingAdapter && this.aiNodes) {
-                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || []);
+                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || [], this.time * 1000);
             }
         }, 'simulation.synapticGatingAdapter');
         this.frameScheduler.register('simulation', (dt) => {
@@ -9899,9 +9982,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     visualNetworkTimeElasticityTick(deltaTime) {
         // Update visual network time elasticity (visual time reversal when avgSynergy > 0.85 for 5s)
-        if (this.visualNetworkTimeElasticity && this.nodeDynamicMetrics) {
-            // Get average synergy from network metrics
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+        if (this.visualNetworkTimeElasticity) {
+            const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
+            const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
             this.visualNetworkTimeElasticity.setAverageSynergy(avgSynergy);
             this.visualNetworkTimeElasticity.update(deltaTime, this.time);
             
@@ -9912,9 +9995,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     synergyPulseVisualsTick(deltaTime) {
         // Update synergy pulse visuals (soft breathing pulse when synergy > 0.6)
-        if (this.synergyPulseVisuals && this.nodeDynamicMetrics) {
-            // Get average synergy from network metrics
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+        if (this.synergyPulseVisuals) {
+            const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
+            const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
             this.synergyPulseVisuals.setAverageSynergy(avgSynergy);
             this.synergyPulseVisuals.update(deltaTime, this.time);
         }
@@ -9922,8 +10005,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
     harmonicResonanceCouplingTick(deltaTime) {
         // Update harmonic resonance coupling (synergy-driven link resonance particles & effects)
-        if (this.harmonicResonanceCoupling && this.nodeDynamicMetrics) {
-            const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+        if (this.harmonicResonanceCoupling) {
+            const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
+            const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
             this.harmonicResonanceCoupling.update(deltaTime, avgSynergy);
         }
     }
@@ -10175,7 +10259,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('echoTrailsIntegration', () => {
             // FIX 5: Removed hard gate on nodeDynamicMetrics — falls back to 0.0 if absent
             if (this.echoTrailsIntegration) {
-                const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+                const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
+                const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
                 const visualTime = window.VISUAL_TIME ?? this.time;
                 this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
             }

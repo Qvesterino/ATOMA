@@ -106,7 +106,7 @@ export class SynapticFatigueAdapter_v1 {
    * @param {number} deltaTime - Frame delta in seconds
    * @param {number} currentTime - Current time in ms
    */
-  updateFatigue(nodes = [], nodeGateMap = new Map(), deltaTime = 0.016, currentTime = 0) {
+  updateFatigue(nodes = [], nodeGateMap = new Map(), deltaTime = 0.016, currentTime = 0, dirtyNodeIds = null) {
     if (!this.enabled) return;
 
     this.currentFrameTime = currentTime;
@@ -122,30 +122,51 @@ export class SynapticFatigueAdapter_v1 {
       const nodeCount = nodes.length;
       if (nodeCount === 0) return;
 
-      // Process cyclic batch: from cursor up to maxNodesPerTick
-      const maxToProcess = Math.min(this.maxNodesPerTick, nodeCount);
-      let processedCount = 0;
+      const dirtyIds = dirtyNodeIds instanceof Set
+        ? dirtyNodeIds
+        : Array.isArray(dirtyNodeIds)
+          ? new Set(dirtyNodeIds)
+          : null;
 
-      // Process from cursor to end of array (or up to maxNodesPerTick)
-      const firstSegmentEnd = Math.min(this._nodeCursor + maxToProcess, nodeCount);
-      for (let i = this._nodeCursor; i < firstSegmentEnd; i++) {
-        const node = nodes[i];
-        if (!node || !node.userData) {
-          processedCount++;
-          continue;
+      if (dirtyIds) {
+        const candidateIds = new Set(dirtyIds);
+        for (const [nodeId, state] of this.nodeFatigueMap) {
+          if (!nodeId) continue;
+          if ((state?.fatigue ?? 0) > 0 || state?.isRecovering) {
+            candidateIds.add(nodeId);
+          }
+        }
+        for (const [nodeId, pulseCount] of this.nodeOutgoingPulseCount) {
+          if (nodeId && (pulseCount ?? 0) > 0) {
+            candidateIds.add(nodeId);
+          }
+        }
+        for (const [nodeId, reliefState] of this.nodeReliefPulseState) {
+          if (nodeId && reliefState?.active) {
+            candidateIds.add(nodeId);
+          }
         }
 
-        const nodeId = node.id || node.uuid || node.name;
-        if (nodeId) {
+        const nodeById = new Map();
+        for (const node of nodes) {
+          if (!node || !node.userData) continue;
+          const nodeId = node.id || node.uuid || node.name;
+          if (nodeId) nodeById.set(nodeId, node);
+        }
+
+        for (const nodeId of candidateIds) {
+          const node = nodeById.get(nodeId);
+          if (!node) continue;
           this.updateNodeFatigue(node, nodeId, deltaTime, currentTime);
         }
-        processedCount++;
-      }
+      } else {
+        // Process cyclic batch: from cursor up to maxNodesPerTick
+        const maxToProcess = Math.min(this.maxNodesPerTick, nodeCount);
+        let processedCount = 0;
 
-      // If we wrapped around, process remaining nodes from start
-      if (processedCount < maxToProcess) {
-        const remainingToProcess = maxToProcess - processedCount;
-        for (let i = 0; i < remainingToProcess; i++) {
+        // Process from cursor to end of array (or up to maxNodesPerTick)
+        const firstSegmentEnd = Math.min(this._nodeCursor + maxToProcess, nodeCount);
+        for (let i = this._nodeCursor; i < firstSegmentEnd; i++) {
           const node = nodes[i];
           if (!node || !node.userData) {
             processedCount++;
@@ -158,10 +179,28 @@ export class SynapticFatigueAdapter_v1 {
           }
           processedCount++;
         }
-      }
 
-      // Advance cursor with modulo wrap
-      this._nodeCursor = (this._nodeCursor + processedCount) % nodeCount;
+        // If we wrapped around, process remaining nodes from start
+        if (processedCount < maxToProcess) {
+          const remainingToProcess = maxToProcess - processedCount;
+          for (let i = 0; i < remainingToProcess; i++) {
+            const node = nodes[i];
+            if (!node || !node.userData) {
+              processedCount++;
+              continue;
+            }
+
+            const nodeId = node.id || node.uuid || node.name;
+            if (nodeId) {
+              this.updateNodeFatigue(node, nodeId, deltaTime, currentTime);
+            }
+            processedCount++;
+          }
+        }
+
+        // Advance cursor with modulo wrap
+        this._nodeCursor = (this._nodeCursor + processedCount) % nodeCount;
+      }
 
       if (this.debugMode && Math.random() < 0.01) {
         this.logFatigueStatus();

@@ -154,6 +154,13 @@ export class LinkSemanticMetricsBridge_v1 {
       }
 
       if (changed) updated++;
+
+      if (changed) {
+        const metricDirtyQueue = this.linkingSystem?.metricDirtyQueue || globalThis?.__ATOMA_METRIC_DIRTY_QUEUE__ || null;
+        if (metricDirtyQueue?.markLink) {
+          metricDirtyQueue.markLink(link.id ?? userData.linkId ?? userData.link?.id ?? null);
+        }
+      }
     }
 
     this.lastUpdatedLinks = updated;
