@@ -10008,24 +10008,21 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     setupCascadeParticleSystem() {
-        console.error('[DEBUG] setupCascadeParticleSystem() CALLED ✓✓✓');
         try {
             this.cascadeParticleSystem = setupCascadeParticleSystem(
                 this,
                 {
                     enabled: true,
                     debugMode: true,
-                    maxParticles: 3000,
+                    maxParticles: 100,
                     emissionRate: 6.0,
-                    baseSize: 32.0,
+                    baseSize: 10.0,
                     visualSizeBoost: 3.2,
                     baseCascadeParticles: 60
                 }
             );
             
-            console.error('[DEBUG] CascadeParticleSystem initialized ✓');
         } catch (err) {
-            console.error('[DEBUG] CascadeParticleSystem FAILED:', err);
         }
 
         // ========================================================================

@@ -40,7 +40,7 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 32.0,
+      baseSize: config.baseSize ?? 10.0,
       visualSizeBoost: config.visualSizeBoost ?? 3.2,
       emissionRate: config.emissionRate ?? 6.0,
       enabled: config.enabled ?? true,
@@ -90,8 +90,6 @@ export class CascadeParticleSystem_Session120 {
     this.init();
     this._setupSemanticSubscriptions();
     
-    console.error('[DEBUG] Session 120 CascadeParticleSystem CONSTRUCTOR ✓✓✓');
-    console.error('[DEBUG] Config:', JSON.stringify(this.config));
   }
 
   _setupSemanticSubscriptions() {
@@ -156,7 +154,7 @@ export class CascadeParticleSystem_Session120 {
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = clamp(size * (16.0 / max(1.0, -mvPosition.z)), 22.0, 140.0);
+          gl_PointSize = clamp(size * (16.0 / max(1.0, -mvPosition.z)), 220.0, 1400.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -205,7 +203,7 @@ export class CascadeParticleSystem_Session120 {
     // 4. Create Mesh
     this.mesh = new THREE.Points(this.geometry, this.material);
     this.mesh.frustumCulled = false; // Always render if active
-    this.mesh.renderOrder = 299;
+    this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
     this.scene.add(this.mesh);
     
     // 5. Initialize Pool
@@ -357,14 +355,7 @@ export class CascadeParticleSystem_Session120 {
    * Update Loop
    */
   update(deltaTime, links) {
-    // DEBUG: Log každých 60 framov (~1 sekundu)
-    if (!this._debugFrameCount) this._debugFrameCount = 0;
-    this._debugFrameCount++;
     const resolvedLinks = this._resolveActiveLinks(links);
-    if (this._debugFrameCount % 60 === 0) {
-      console.log('[Session 120] update() called - links:', resolvedLinks?.length ?? 0, 'deltaTime:', deltaTime?.toFixed(3));
-    }
-    
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
     }
@@ -482,11 +473,7 @@ export class CascadeParticleSystem_Session120 {
    * DEBUG: Periodic burst každé 4 sekundy pre všetky aktívne linky
    */
   _triggerPeriodicBurst(links, currentCascadeTime) {
-    console.error('[DEBUG] _triggerPeriodicBurst called, links:', links?.length ?? 0);
-    if (!links) {
-      console.error('[DEBUG] links is null/undefined!');
-      return;
-    }
+    if (!links) return;
     
     let spawnedCount = 0;
     for (const link of links) {
@@ -508,7 +495,6 @@ export class CascadeParticleSystem_Session120 {
       this._emit(burstCount, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition);
     }
     
-    console.log('[CascadeParticleSystem] Periodic burst triggered for', links?.length || 0, 'links');
   }
   
   /**
@@ -573,13 +559,9 @@ export class CascadeParticleSystem_Session120 {
    * Respects density clustering parameters from Session 121
    */
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
-    console.error('[DEBUG] _emit called, count:', count, 'link:', link?.id || link?.uuid || 'no-id');
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
-    if (!srcPos || !dstPos) {
-      console.error('[DEBUG] _emit: srcPos or dstPos is null!', !!srcPos, !!dstPos);
-      return;
-    }
+    if (!srcPos || !dstPos) return;
     
     const color = this._neutralParticleColor;
     
@@ -590,11 +572,7 @@ export class CascadeParticleSystem_Session120 {
     
     for (let i = 0; i < count; i++) {
       const p = this._allocateParticle();
-      if (!p) {
-        console.error('[DEBUG] _emit: pool full, cannot allocate particle', i, '/', count);
-        return; // Pool full
-      }
-      console.error('[DEBUG] _emit: allocated particle', i, 'active:', p.active);
+      if (!p) return; // Pool full
       
       p.active = true;
       p.lifetime = 0;
@@ -651,16 +629,7 @@ export class CascadeParticleSystem_Session120 {
    */
   _updateParticles(deltaTime, currentCascadeTime) {
     let activeCount = 0;
-    
-    // DEBUG: Count active particles before update
-    let activeBefore = 0;
-    for (const p of this.pool) {
-      if (p.active) activeBefore++;
-    }
-    if (activeBefore > 0) {
-      console.error('[DEBUG] _updateParticles: active particles before update:', activeBefore);
-    }
-    
+
     const positions = this.geometry.attributes.position.array;
     const sizes = this.geometry.attributes.size.array;
     const angles = this.geometry.attributes.angle.array;
@@ -901,7 +870,7 @@ export class CascadeParticleSystem_Session120 {
       if (particle) {
         marker.visible = true;
         marker.position.copy(particle.position);
-        marker.scale.setScalar(Math.max(0.08, this.config.baseSize * 0.08));
+        marker.scale.setScalar(Math.max(0.25, this.config.baseSize * 0.001));
       } else {
         marker.visible = false;
       }
@@ -1010,7 +979,6 @@ export function setupCascadeParticleSystem(game, options = {}) {
     game.cascadeParticleSystem = system;
     return system;
   } catch (err) {
-    console.error('Failed to init CascadeParticleSystem:', err);
     return null;
   }
 }
