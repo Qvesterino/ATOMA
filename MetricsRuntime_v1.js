@@ -626,6 +626,11 @@ const adapter = this._createLinkSystemAdapter(
 
             // Canonical load aliases for legacy readers
             userData.loadPressure = load;
+            metrics.loadPressure = load;
+            metrics.load = load;
+            metrics.loadRatio = load;
+            userData.load = load;
+            userData.loadRatio = load;
             userData.pressure = load;
 
             // Keep stability/instability readable from both canonical and legacy paths
@@ -640,6 +645,8 @@ const adapter = this._createLinkSystemAdapter(
             this._touchCanonicalWrite(userData, 'harmonyStabilized');
             this._touchCanonicalWrite(userData, 'harmonyDampingFactor');
             this._touchCanonicalWrite(userData, 'loadPressure');
+            this._touchCanonicalWrite(userData, 'load');
+            this._touchCanonicalWrite(userData, 'loadRatio');
             this._touchCanonicalWrite(userData, 'pressure');
             this._touchCanonicalWrite(userData, 'instability');
         }

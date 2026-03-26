@@ -199,15 +199,15 @@ export function setBidirectionalFlow(enabled, world) {
  * Apply harmony integration to link resonance flow system
  * 
  * This function connects LinkResonanceFlowSystem with HarmonyStabilizationSystem
- * by updating link.userData.flowState.energy with the average harmony of connected nodes.
+ * by computing a read-only harmony snapshot from connected nodes.
  * 
  * @param {Object} linkResonanceFlowSystem - LinkResonanceFlowSystem_Session124 instance
  * @param {Object} world - World object containing links
  * 
  * Integration points:
- * - Updates link.userData.flowState.energy with harmony levels
+ * - Computes harmony-derived energy without mutating flowState.energy
  * - Preserves existing flow direction
- * - Makes links "live" with harmony-driven energy
+ * - Returns a read-only snapshot for consumers that need harmonic context
  */
 export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem, world) {
   if (!linkResonanceFlowSystem) {
@@ -223,11 +223,12 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
   // Store reference to world for updates
   linkResonanceFlowSystem.world = world;
 
-  // Add method to update link flow state with harmony
+  // Add method to compute link flow harmony without mutating the canonical flow state
   if (!linkResonanceFlowSystem.updateLinkFlowEnergy) {
     linkResonanceFlowSystem.updateLinkFlowEnergy = function(links) {
-      if (!links) return;
+      if (!links) return [];
 
+      const snapshots = [];
       for (const link of links) {
         if (!link || !link.userData) continue;
 
@@ -241,29 +242,20 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
         const harmonyA = nodeA.userData?.harmonyLevel ?? 0;
         const harmonyB = nodeB.userData?.harmonyLevel ?? 0;
 
-        // Initialize flowState if not exists
-        if (!link.userData.flowState) {
-          link.userData.flowState = {
-            energy: 0,
-            direction: 1, // 1 = forward, -1 = backward
-            lastUpdateTime: Date.now()
-          };
-        }
-
-        // Calculate energy as average of connected node harmony levels
-        // This makes links "live" with harmony-driven energy
-        // IMPORTANT: Use MAX to preserve event-driven energy from CascadeEventBridge
-        // CascadeEventBridge is the PRIMARY writer, this patch only BOOSTS
-        const previousEnergy = link.userData.flowState.energy || 0;
+        // Calculate energy as an observation only; do not write it back.
         const harmonyEnergy = (harmonyA * 0.5) + (harmonyB * 0.5);
-        link.userData.flowState.energy = Math.max(previousEnergy, harmonyEnergy);
 
-        // Preserve existing flow direction
-        // Only update energy, not direction
-        // Direction is controlled by the pulse system
-
-        link.userData.flowState.lastUpdateTime = Date.now();
+        snapshots.push({
+          linkId: link.id ?? link.userData?.linkId ?? null,
+          harmonyA,
+          harmonyB,
+          harmonyEnergy,
+          flowDirection: link.userData.flowState?.direction ?? 1,
+          lastUpdateTime: link.userData.flowState?.lastUpdateTime ?? null
+        });
       }
+
+      return snapshots;
     };
   }
 
@@ -272,7 +264,7 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
   linkResonanceFlowSystem.update = function(deltaTime, links, camera) {
     // Update link flow energy with harmony levels
     if (this.updateLinkFlowEnergy && links) {
-      this.updateLinkFlowEnergy(links);
+      this.lastHarmonySnapshots = this.updateLinkFlowEnergy(links);
     }
 
     // Call original update
@@ -280,7 +272,7 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
   };
 
   console.log('[LinkResonanceFlowHarmonyIntegration] Integration applied successfully');
-  console.log('[LinkResonanceFlowHarmonyIntegration] - Link flow energy will be driven by harmony levels');
+  console.log('[LinkResonanceFlowHarmonyIntegration] - Link flow harmony is now read-only');
   console.log('[LinkResonanceFlowHarmonyIntegration] - Existing flow direction preserved');
 
   return linkResonanceFlowSystem;

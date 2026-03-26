@@ -11,11 +11,13 @@ const DEFAULT_METRICS = {
   harmony: 0,
   stability: 1,
   corruption: 0,
-  loadPressure: 0
+  loadPressure: 0,
+  load: 0,
+  loadRatio: 0
 };
 
 
-const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure'];
+const LEGACY_KEYS = ['synergy', 'harmony', 'stability', 'corruption', 'loadPressure', 'load', 'loadRatio'];
 const MAX_IMPULSE = 0.25;
 
 // TODO: Replace placeholder step sizes with design-approved values.
@@ -250,9 +252,24 @@ function writeMetric(metrics, key, nextValue, targetId = 'unknown-node') {
   const after = clamp01(nextValue);
   if (before === after) return;
   metrics[key] = after;
+  if (key === 'loadPressure') {
+    metrics.load = after;
+    metrics.loadRatio = after;
+  }
   traceMetricMutation('NodeMetricEngine', `node.${key}`, before, after, targetId);
   emitNodeMetricUpdated(key, after, targetId);
   emitSemanticMetricEvent(key, before, after, targetId);
+}
+
+function syncLoadAliases(node) {
+  if (!node?.userData?.metrics) return;
+  const metrics = node.userData.metrics;
+  const loadPressure = clamp01(metrics.loadPressure ?? 0);
+  metrics.loadPressure = loadPressure;
+  metrics.load = loadPressure;
+  metrics.loadRatio = loadPressure;
+  node.userData.load = loadPressure;
+  node.userData.loadRatio = loadPressure;
 }
 
 function getNodeId(node) {
@@ -422,6 +439,10 @@ function applyArchetypeClamp(node) {
   m.stability = clamp01(m.stability);
   m.corruption = clamp01(m.corruption);
   m.loadPressure = clamp01(m.loadPressure);
+  m.load = m.loadPressure;
+  m.loadRatio = m.loadPressure;
+  node.userData.load = m.loadPressure;
+  node.userData.loadRatio = m.loadPressure;
 
 }
 
@@ -442,7 +463,14 @@ function installLegacyFieldGuards(node) {
           console.warn('LEGACY METRIC WRITE BLOCKED', { key });
           const metrics = this.metrics;
           if (metrics) {
-            metrics[key] = clamp01(typeof v === 'number' ? v : DEFAULT_METRICS[key]);
+            const next = clamp01(typeof v === 'number' ? v : DEFAULT_METRICS[key]);
+            if (key === 'load' || key === 'loadRatio') {
+              metrics.loadPressure = next;
+              metrics.load = next;
+              metrics.loadRatio = next;
+            } else {
+              metrics[key] = next;
+            }
           }
         }
       });
@@ -458,6 +486,17 @@ function ensureMetrics(node) {
   if (node.userData.metrics) {
     installLegacyFieldGuards(node);
     node.userData.metrics = wrapMetricsWithGuard(node.userData.metrics);
+    const seededLoadPressure = Number.isFinite(node.userData.metrics.loadPressure)
+      ? node.userData.metrics.loadPressure
+      : (Number.isFinite(node.userData.metrics.load)
+          ? node.userData.metrics.load
+          : (Number.isFinite(node.userData.metrics.loadRatio)
+              ? node.userData.metrics.loadRatio
+              : 0));
+    node.userData.metrics.loadPressure = clamp01(seededLoadPressure);
+    node.userData.metrics.load = node.userData.metrics.loadPressure;
+    node.userData.metrics.loadRatio = node.userData.metrics.loadPressure;
+    syncLoadAliases(node);
     return node.userData.metrics;
   }
   const metrics = (node.userData.metrics = {});
@@ -466,6 +505,7 @@ function ensureMetrics(node) {
   }
   node.userData.metrics = wrapMetricsWithGuard(metrics);
   installLegacyFieldGuards(node);
+  syncLoadAliases(node);
   return node.userData.metrics;
 }
 
@@ -541,6 +581,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     writeMetric(m, 'corruption', next.corruption, id);
     writeMetric(m, 'loadPressure', next.loadPressure, id);
     applyArchetypeClamp(node);
+    syncLoadAliases(node);
   }
 
   if (activeLinks.length) {
@@ -617,6 +658,8 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
         SYNERGY_RESONANCE.maxStabilityPerTick,
         idB
       );
+      syncLoadAliases(nodeA);
+      syncLoadAliases(nodeB);
     }
   }
 
@@ -624,6 +667,7 @@ export function updateNodeMetrics(nodesInput, linkSystem, dt = FIXED_TICK_BASE) 
     if (!activeNodes.has(node)) continue;
     deriveSynergy(node, dtScale);
     applyArchetypeClamp(node);
+    syncLoadAliases(node);
   }
 
   for (const node of nodes) {
@@ -690,6 +734,7 @@ export function applyMetricImpulse(node, deltas = {}, options = {}) {
   }
   deriveSynergy(node);
   applyArchetypeClamp(node);
+  syncLoadAliases(node);
 }
 
 /**
@@ -699,23 +744,24 @@ export function applyMetricImpulse(node, deltas = {}, options = {}) {
 export function setMetric(node, metric, value, options = {}) {
   if (!node || !metric) return;
   if (!LEGACY_KEYS.includes(metric)) return;
+  const canonicalMetric = (metric === 'load' || metric === 'loadRatio') ? 'loadPressure' : metric;
   const source = options?.source || 'unknown';
   if (shouldBlockUnlinkedWrite(node, source)) {
-    warnUnlinkedWriteBlocked(node, metric, source, 'setMetric');
+    warnUnlinkedWriteBlocked(node, canonicalMetric, source, 'setMetric');
     return;
   }
-  if (metric === 'synergy') {
-    console.warn('DERIVED_METRIC_WRITE_BLOCKED', { key: metric, nodeId: getNodeId(node) });
+  if (canonicalMetric === 'synergy') {
+    console.warn('DERIVED_METRIC_WRITE_BLOCKED', { key: canonicalMetric, nodeId: getNodeId(node) });
     return;
   }
   const m = ensureMetrics(node);
   if (!m) return;
   const id = getNodeId(node);
-  if (Object.prototype.hasOwnProperty.call(node.userData, metric) && node.userData[metric] !== undefined) {
-    console.warn('LEGACY METRIC WRITE BLOCKED', { key: metric, nodeId: id });
+  if (Object.prototype.hasOwnProperty.call(node.userData, canonicalMetric) && node.userData[canonicalMetric] !== undefined) {
+    console.warn('LEGACY METRIC WRITE BLOCKED', { key: canonicalMetric, nodeId: id });
   }
-  const rawValue = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[metric];
-  const currentValue = Number.isFinite(m[metric]) ? m[metric] : DEFAULT_METRICS[metric];
+  const rawValue = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_METRICS[canonicalMetric];
+  const currentValue = Number.isFinite(m[canonicalMetric]) ? m[canonicalMetric] : DEFAULT_METRICS[canonicalMetric];
   const isUnlinked = !isNodeMetricActiveLinked(node);
   const sourceKey = String(source).toLowerCase();
   let unlinkedFactor = UNLINKED_DAMPING_FACTOR;
@@ -732,9 +778,10 @@ export function setMetric(node, metric, value, options = {}) {
   }
 
   const after = clamp01(nextValue);
-  writeMetric(m, metric, after, id);
+  writeMetric(m, canonicalMetric, after, id);
   deriveSynergy(node);
   applyArchetypeClamp(node);
+  syncLoadAliases(node);
 }
 
 /**
@@ -782,6 +829,8 @@ export function onLinkCreated(nodeA, nodeB, linkContext) {
   
   applyArchetypeClamp(nodeA);
   applyArchetypeClamp(nodeB);
+  syncLoadAliases(nodeA);
+  syncLoadAliases(nodeB);
 }
 
 
@@ -802,6 +851,8 @@ export function onLinkRemoved(nodeA, nodeB) {
   }
   applyArchetypeClamp(nodeA);
   applyArchetypeClamp(nodeB);
+  syncLoadAliases(nodeA);
+  syncLoadAliases(nodeB);
 }
 
 /**
@@ -818,4 +869,5 @@ export function onOverload(node, overloadAmount = 0) {
   adjust(m, 'stability', -amt * STEP.overloadStabilityLoss, id);
   deriveSynergy(node);
   applyArchetypeClamp(node);
+  syncLoadAliases(node);
 }

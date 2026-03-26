@@ -67,7 +67,8 @@ import { DistanceLODController } from './DistanceLODController.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
 import { installVFXConsoleAPI } from './src/vfx/VFXConsoleAPI.js';
-import PHASE5_MultiNetworkManager from './PHASE5_MultiNetworkManager_v1.js';
+// PHASE5 CONSOLIDATED: MultiNetworkCore replaces Manager + Sync + Orchestrator
+import { PHASE5_MultiNetworkManager, PHASE5_NetworkSynchronization, PHASE5_MultiNetworkOrchestrator } from './PHASE5_MultiNetworkCore.js';
 import PHASE5_CorruptionBridge from './PHASE5_CorruptionBridge_v1.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
@@ -728,13 +729,15 @@ import { TIER4_GameplayFeedbackUI } from './TIER4_GameplayFeedbackUI_v1.js';
 // ✅ P5-004: Inter-Network Connection Visuals (visual network flow)
 // ✅ P5-005: Cascade Propagation Visuals (expanding rings on cascades)
 // ============================================================================
-import { PHASE5_MultiNetworkOrchestrator } from './PHASE5_MultiNetworkOrchestrator_v1.js';
-//import { PHASE5_InterNetworkConnectionVisuals } from './PHASE5_InterNetworkConnectionVisuals_v1.js';
-import { PHASE5_InterNetworkVisualizationBridge } from './PHASE5_InterNetworkVisualizationBridge_v1.js';
+// CONSOLIDATED: PHASE5_MultiNetworkOrchestrator now imported from PHASE5_MultiNetworkCore.js (line 70)
+// CONSOLIDATED: All cascade visuals now imported from PHASE5_CascadeVisuals.js
+import { 
+  PHASE5_CascadePropagationVisuals,
+  PHASE5_CascadeVisualizationBridge,
+  PHASE5_InterNetworkVisualizationBridge
+} from './PHASE5_CascadeVisuals.js';
 
 const VISUAL_SYSTEMS_ENABLED = true;
-import { PHASE5_CascadePropagationVisuals } from './PHASE5_CascadePropagationVisuals_v1.js';
-import { PHASE5_CascadeVisualizationBridge } from './PHASE5_CascadeVisualizationBridge_v1.js';
 
 // ============================================================================
 // DEFENSIVE HARDENING PATCH v1.0 (Session 24)
@@ -6998,6 +7001,83 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem.onLinkCreated(() => playLinkAudio('create'));
             this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'));
             this.linkingSystem.__audioLinkAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__tripleCascadeVisualBridgeBound) {
+            this.linkingSystem.onLinkCreated((sourceNode, targetNode) => {
+                if (!this.semanticBus?.emit || !sourceNode || !targetNode) return;
+
+                const sourcePos = sourceNode.position || sourceNode.userData?.position || null;
+                const targetPos = targetNode.position || targetNode.userData?.position || null;
+                const hasValidSourcePos =
+                    sourcePos &&
+                    Number.isFinite(Number(sourcePos.x)) &&
+                    Number.isFinite(Number(sourcePos.y)) &&
+                    Number.isFinite(Number(sourcePos.z));
+                const hasValidTargetPos =
+                    targetPos &&
+                    Number.isFinite(Number(targetPos.x)) &&
+                    Number.isFinite(Number(targetPos.y)) &&
+                    Number.isFinite(Number(targetPos.z));
+                const midpoint = hasValidSourcePos && hasValidTargetPos
+                    ? {
+                        x: (Number(sourcePos.x) + Number(targetPos.x)) * 0.5,
+                        y: (Number(sourcePos.y) + Number(targetPos.y)) * 0.5,
+                        z: (Number(sourcePos.z) + Number(targetPos.z)) * 0.5
+                    }
+                    : (hasValidSourcePos ? {
+                        x: Number(sourcePos.x),
+                        y: Number(sourcePos.y),
+                        z: Number(sourcePos.z)
+                    } : (hasValidTargetPos ? {
+                        x: Number(targetPos.x),
+                        y: Number(targetPos.y),
+                        z: Number(targetPos.z)
+                    } : null));
+
+                const sourceIntensity = Number(
+                    sourceNode.userData?.metrics?.synergy ??
+                    sourceNode.userData?.synergy ??
+                    sourceNode.userData?.harmony ??
+                    0
+                );
+                const targetIntensity = Number(
+                    targetNode.userData?.metrics?.synergy ??
+                    targetNode.userData?.synergy ??
+                    targetNode.userData?.harmony ??
+                    0
+                );
+                const intensity = Math.max(
+                    0.18,
+                    Math.min(0.85, Number.isFinite((sourceIntensity + targetIntensity) * 0.5)
+                        ? (sourceIntensity + targetIntensity) * 0.5
+                        : 0.25)
+                );
+                const cascadeId = sourceNode.userData?.nodeId && targetNode.userData?.nodeId
+                    ? `link-${sourceNode.userData.nodeId}-${targetNode.userData.nodeId}`
+                    : `link-${sourceNode.uuid || sourceNode.id || 'source'}-${targetNode.uuid || targetNode.id || 'target'}`;
+                const payload = {
+                    id: cascadeId,
+                    cascadeId,
+                    sourceNode,
+                    targetNode,
+                    source: sourceNode.userData?.nodeId ?? sourceNode.id ?? sourceNode.uuid ?? null,
+                    target: targetNode.userData?.nodeId ?? targetNode.id ?? targetNode.uuid ?? null,
+                    sourceNodeId: sourceNode.userData?.nodeId ?? sourceNode.id ?? sourceNode.uuid ?? null,
+                    targetNodeId: targetNode.userData?.nodeId ?? targetNode.id ?? targetNode.uuid ?? null,
+                    sourcePosition: sourcePos ? { x: sourcePos.x, y: sourcePos.y, z: sourcePos.z } : null,
+                    targetPosition: targetPos ? { x: targetPos.x, y: targetPos.y, z: targetPos.z } : null,
+                    center: midpoint,
+                    position: midpoint,
+                    origin: midpoint,
+                    intensity,
+                    value: intensity,
+                    hopIndex: 0
+                };
+                const priority = this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL;
+                this.semanticBus.emit('cascade.start', payload, { priority });
+                this.semanticBus.emit('cascade.hop', payload, { priority });
+            });
+            this.linkingSystem.__tripleCascadeVisualBridgeBound = true;
         }
         if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
             this.linkingSystem.onLinkRemoved((sourceNode, targetNode) => {

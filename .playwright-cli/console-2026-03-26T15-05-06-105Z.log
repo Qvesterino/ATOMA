@@ -1,0 +1,36 @@
+[    1607ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    1607ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    1614ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[    1730ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[    1829ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[    4686ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[    4702ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[    4702ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[   23068ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[   23193ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[   25896ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[   25902ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[  970392ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  970393ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  970396ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[  970690ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[  970774ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[  971737ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[  971747ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[  971747ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[  983680ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[  983783ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[  984245ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[  984249ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[ 1132352ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[ 1132353ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[ 1132358ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[ 1132478ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ 1132616ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ 1133588ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[ 1133595ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[ 1133595ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[ 1135715ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ 1135825ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ 1136205ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[ 1136208ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30

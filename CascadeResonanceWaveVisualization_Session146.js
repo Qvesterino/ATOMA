@@ -144,6 +144,35 @@ export class CascadeResonanceWaveVisualization_Session146 {
     const on = bus?.on?.bind(bus);
     if (typeof on !== 'function') return;
 
+    const onCascadeStart = (event = {}) => {
+      const sourceNode = this._resolveCascadeEndpoint(
+        event.sourceNode ||
+        event.source ||
+        event.from ||
+        event.sourceId ||
+        event.sourceNodeId ||
+        event.fromId,
+        event.sourceNodeId ?? event.sourceId ?? event.fromId ?? null
+      );
+      const targetNode = this._resolveCascadeEndpoint(
+        event.targetNode ||
+        event.target ||
+        event.to ||
+        event.targetId ||
+        event.targetNodeId ||
+        event.toId,
+        event.targetNodeId ?? event.targetId ?? event.toId ?? null
+      );
+
+      if (!sourceNode || !targetNode) return;
+
+      this.handleCascadeStart({
+        ...event,
+        sourceNode,
+        targetNode
+      });
+    };
+
     const onCascadeHop = (event = {}) => {
       if (!event) return;
 
@@ -181,13 +210,16 @@ export class CascadeResonanceWaveVisualization_Session146 {
       );
     };
 
+    on('cascade.start', onCascadeStart);
     on('cascade.hop', onCascadeHop);
     this._semanticBusRef = bus;
     this._semanticSubscribed = true;
 
     if (typeof bus?.off === 'function') {
+      this._semanticUnsubscribers.push(() => bus.off('cascade.start', onCascadeStart));
       this._semanticUnsubscribers.push(() => bus.off('cascade.hop', onCascadeHop));
     } else if (typeof bus?.unsubscribe === 'function') {
+      this._semanticUnsubscribers.push(() => bus.unsubscribe('cascade.start', onCascadeStart));
       this._semanticUnsubscribers.push(() => bus.unsubscribe('cascade.hop', onCascadeHop));
     }
   }

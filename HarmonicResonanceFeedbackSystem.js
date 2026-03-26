@@ -96,6 +96,11 @@ const CONFIG = {
     DEBUG_DRAW_FIELDS: false
 };
 
+function computeAttenuation(distance, radius) {
+    if (!Number.isFinite(distance) || !Number.isFinite(radius) || radius <= 0) return 0;
+    return Math.max(0, 1 - distance / radius);
+}
+
 // ============================================================================
 // RESONANCE FIELD STATE
 // ============================================================================
@@ -166,24 +171,6 @@ class ResonanceField {
                        Math.min(CONFIG.MAX_RESONANCE_RADIUS, radius));
     }
     
-    getAlignmentStrength() {
-        let strength = CONFIG.BASE_ALIGNMENT_STRENGTH;
-        
-        // Harmony boost
-        const harmonyInfluence = this.harmonyBalance - 0.5;
-        if (harmonyInfluence > 0) {
-            strength *= CONFIG.HARMONY_ALIGNMENT_BOOST;
-        } else {
-            strength *= CONFIG.CORRUPTION_ALIGNMENT_DAMPEN;
-        }
-        
-        // Synergy boost
-        const synergyInfluence = Math.max(0, this.synergy - 0.5) * 2.0; // 0-1
-        strength += synergyInfluence * CONFIG.SYNERGY_ALIGNMENT_BOOST * 0.1;
-        
-        return Math.min(1.0, strength);
-    }
-    
     getPhaseDriftSpeed() {
         const harmonyInfluence = this.harmonyBalance - 0.5;
         if (harmonyInfluence > 0) {
@@ -200,12 +187,8 @@ class ResonanceField {
     getInfluenceAtDistance(distance) {
         const radius = this.getRadius();
         if (distance > radius) return 0.0;
-        
-        // Gaussian-like falloff
-        const normalized = distance / radius;
-        const falloff = Math.exp(-CONFIG.RESONANCE_DECAY_POWER * normalized * normalized);
-        
-        return this.strength * falloff;
+
+        return this.strength * computeAttenuation(distance, radius);
     }
     
     // ========================================================================
@@ -505,13 +488,21 @@ export class HarmonicResonanceFeedbackSystem {
     // ========================================================================
     
     applyLinkInfluence(field, deltaTime) {
-        const alignmentStrength = field.getAlignmentStrength();
         const phaseDriftSpeed = field.getPhaseDriftSpeed();
         
         for (let item of field.influencedLinks) {
             if (!item.link || !item.link.userData) continue;
             
             const userData = item.link.userData;
+            const targetAlignment = (
+                (item.link.userData.metrics?.synergy ?? 0) +
+                (item.link.userData.metrics?.harmony ?? 0)
+            ) * 0.5;
+            const previousAlignment = Number.isFinite(userData._alignmentStrength)
+                ? userData._alignmentStrength
+                : targetAlignment;
+            const alignmentStrength = previousAlignment + (targetAlignment - previousAlignment) * 0.1;
+            userData._alignmentStrength = alignmentStrength;
             
             // Apply phase alignment
             // Phase property typically stored in userData for wave effects
