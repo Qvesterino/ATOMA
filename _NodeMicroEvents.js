@@ -633,26 +633,31 @@ export class NodeMicroEvents {
    * Check for metric-based additive events
    */
   checkMetricEvents(node, metrics) {
+    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : 0;
+    const harmony = Number.isFinite(metrics?.harmony) ? metrics.harmony : 0;
+    const synergy = Number.isFinite(metrics?.synergy) ? metrics.synergy : 0;
+    const loadPressure = Number.isFinite(metrics?.loadPressure) ? metrics.loadPressure : 0;
+
     // High stability: jitter burst
-    if (metrics.stabilityFactor > 60) {
+    if (stability > 0.6) {
       this.createJitterBurst(node);
       this.logEvent(node, 'jitter_burst');
     }
     
     // High harmony: glowing resonance ring
-    if (metrics.harmonyAffinity > 70) {
+    if (harmony > 0.7) {
       this.createHarmonyRing(node);
       this.logEvent(node, 'harmony_ring');
     }
     
     // High clarity: glyph spark
-    if (metrics.clarity > 80) {
+    if (synergy > 0.8) {
       this.createClaritySpark(node);
       this.logEvent(node, 'clarity_spark');
     }
     
     // High energy: core overpulse
-    if (metrics.energyOutput > 80) {
+    if (loadPressure > 0.8) {
       this.createCorePulse(node);
       this.logEvent(node, 'core_overpulse');
     }
@@ -750,12 +755,14 @@ export class NodeMicroEvents {
     
     const personality = node.userData?.personality?.type;
     const metrics = node.userData?.metrics;
+    const stability = Number.isFinite(metrics?.stability) ? metrics.stability : 0;
     
     if (!personality || !metrics) return;
     
     nearby.forEach(nearbyNode => {
       const nearbyPersonality = nearbyNode.userData?.personality?.type;
       const nearbyMetrics = nearbyNode.userData?.metrics;
+      const nearbyStability = Number.isFinite(nearbyMetrics?.stability) ? nearbyMetrics.stability : 0;
       
       if (!nearbyPersonality || !nearbyMetrics) return;
       
@@ -766,7 +773,7 @@ export class NodeMicroEvents {
       }
       
       // Both high stability: chaos spark
-      if (metrics.stabilityFactor > 80 && nearbyMetrics.stabilityFactor > 80) {
+      if (stability > 0.8 && nearbyStability > 0.8) {
         this.createChaosSpark(node, nearbyNode);
         this.logEvent(node, 'chaos_spark');
       }

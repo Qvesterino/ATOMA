@@ -3,14 +3,16 @@
  * ============================================================================
  * EVENT BRIDGE FOR CASCADE PARTICLE SYSTEM
  * 
- * Connects SemanticEventBus events to CascadeParticleSystem by updating
- * link.userData.cascadeIntensity and link.userData.cascadeConflictType.
+ * Connects SemanticEventBus events to cascade state by updating
+ * link.userData.flowState, link.userData.cascadeIntensity, and
+ * link.userData.cascadeConflictType.
  * 
  * FEATURES:
  * - Event-driven cascade intensity updates
- * - Automatic decay of cascade effects
+ * - On-demand maintenance tick for decay and lifecycle cleanup
  * - Conflict type classification based on event semantics
- * - FrameScheduler integration for decay mechanism
+ * - Emits cascade.hop semantic intents for downstream wave/VFX systems
+ * - Maintenance tick owned centrally by main.js
  * 
  * EVENT MAPPINGS:
  * - 'node.synergy.high' → cascadeIntensity = max(current, 0.7), conflictType = 'specialization_drift'
@@ -19,7 +21,7 @@
  * - 'node.hover' → cascadeIntensity = max(current, 0.3), conflictType = 'oscillatory_balance'
  * 
  * DECAY:
-  * - cascadeIntensity *= 0.92 per frame (simulation lane)
+ * - cascadeIntensity decays on the maintenance tick (dt-scaled, visual lane)
  * - Intensity resets to 0 when below 0.01
  * 
  * @author VFX Technical Director — ATOMA Project Session 120
@@ -30,13 +32,10 @@ export class CascadeEventBridge_v1 {
   constructor(config = {}) {
     this.linkingSystem = config.linkingSystem || null;
     this.semanticBus = config.semanticBus || globalThis?.semanticBus || null;
-    this.frameScheduler = config.frameScheduler || globalThis?.frameScheduler || null;
-    this.waveEngine = config.waveEngine || globalThis?.game?.waveInterferenceEngine || null;
-    
     this.config = {
       decayRate: config.decayRate ?? 0.94,
       minIntensityThreshold: config.minIntensityThreshold ?? 0.01,
-      cascadeWaveThreshold: config.cascadeWaveThreshold ?? 0.6, // Threshold for generating waves
+      cascadeWaveThreshold: config.cascadeWaveThreshold ?? 0.6,
       waveBurstCooldownMs: config.waveBurstCooldownMs ?? 550,
       enabled: config.enabled ?? true
     };
@@ -44,9 +43,10 @@ export class CascadeEventBridge_v1 {
     // Event subscriptions
     this._subscriptions = [];
     this._boundHandlers = null;
+    this._dirtyLinks = new Set();
+    this._activeLinks = new Set();
 
     // State
-    this._isRegistered = false;
     this._isInitialized = false;
     this._cascadeSequence = 0;
   }
@@ -69,7 +69,7 @@ export class CascadeEventBridge_v1 {
     
     this._setupEventHandlers();
     this._subscribeToEvents();
-    this._registerDecayUpdate();
+    this._primeCascadeTrackingFromExistingLinks();
     
     this._isInitialized = true;
   }
@@ -122,22 +122,35 @@ export class CascadeEventBridge_v1 {
     }
   }
   
-  /**
-   * Register decay update to FrameScheduler
-   */
-  _registerDecayUpdate() {
-    if (!this.frameScheduler) {
-      console.warn('[CascadeEventBridge] No frameScheduler available - decay disabled');
-      return;
+  _queueCascadeLink(link) {
+    if (!link) return;
+
+    this._dirtyLinks.add(link);
+    this._activeLinks.add(link);
+  }
+
+  _primeCascadeTrackingFromExistingLinks() {
+    const links = this.linkingSystem?.links || [];
+    let hasActiveLinks = false;
+
+    for (const link of links) {
+      if (!link?.userData) continue;
+
+      const flowState = link.userData.flowState;
+      const intensity = Number(flowState?.intensity ?? 0) || 0;
+      const energy = Number(flowState?.energy ?? 0) || 0;
+      const isActive = (
+        intensity > this.config.minIntensityThreshold ||
+        energy > this.config.minIntensityThreshold ||
+        link.userData.synergyCollapse === true
+      );
+
+      if (isActive) {
+        this._activeLinks.add(link);
+        hasActiveLinks = true;
+      }
     }
-    
-    const success = this.frameScheduler.register('simulation', this._boundHandlers.decayUpdate, 'simulation.cascadeEventBridge');
-    
-    if (success) {
-      this._isRegistered = true;
-    } else {
-      console.warn('[CascadeEventBridge] Failed to register to frameScheduler');
-    }
+
   }
   
   /**
@@ -157,6 +170,11 @@ export class CascadeEventBridge_v1 {
       const flowState = link.userData.flowState;
       flowState.intensity = Math.max(flowState.intensity ?? 0, 0.7);
       flowState.type = 'specialization_drift';
+      this._queueCascadeLink(link);
+
+      if ((flowState.intensity ?? 0) >= this.config.cascadeWaveThreshold) {
+        this._emitCascadeHop(link, flowState);
+      }
     }
   }
   
@@ -178,6 +196,11 @@ export class CascadeEventBridge_v1 {
       flowState.intensity = Math.max(flowState.intensity ?? 0, 0.9);
       flowState.type = 'corruption';
       flowState.energy = Math.max(flowState.energy ?? 0, 0.8);
+      this._queueCascadeLink(link);
+
+      if ((flowState.intensity ?? 0) >= this.config.cascadeWaveThreshold) {
+        this._emitCascadeHop(link, flowState);
+      }
     }
   }
   
@@ -200,6 +223,8 @@ export class CascadeEventBridge_v1 {
       flowState.type = 'destructive';
       flowState.energy = 1.0;
       flowState.direction = -1.0; // Collapse causes backflow
+      this._queueCascadeLink(link);
+      this._emitCascadeHop(link, flowState);
     }
   }
   
@@ -221,6 +246,7 @@ export class CascadeEventBridge_v1 {
       flowState.intensity = Math.max(flowState.intensity ?? 0, 0.3);
       flowState.type = 'oscillatory_balance';
       flowState.energy = Math.max(flowState.energy ?? 0, 0.4);
+      this._queueCascadeLink(link);
     }
   }
   
@@ -229,13 +255,26 @@ export class CascadeEventBridge_v1 {
    */
   _decayUpdate(deltaTime) {
     if (!this.config.enabled) return;
-    
-    const links = this.linkingSystem?.links || [];
-    
+
+    const dirtyLinks = this._dirtyLinks;
+    const activeLinks = this._activeLinks;
+    if (dirtyLinks.size === 0 && activeLinks.size === 0) {
+      return;
+    }
+
+    const links = new Set([...dirtyLinks, ...activeLinks]);
+    dirtyLinks.clear();
+
+    const nextActiveLinks = new Set();
+    const tickSeconds = Number.isFinite(deltaTime) && deltaTime > 0 ? deltaTime : 0.1;
+    const baseTickSeconds = 0.1;
+    const intensityBlend = 1 - Math.pow(1 - 0.15, tickSeconds / baseTickSeconds);
+    const energyDecayFactor = Math.pow(Math.max(0, Math.min(1, this.config.decayRate + 0.05)), tickSeconds / baseTickSeconds);
+
     for (const link of links) {
       if (!link) continue;
       if (!link.userData) link.userData = {};
-      
+
       // Initialize flowState if needed
       if (!link.userData.flowState) {
         link.userData.flowState = {
@@ -245,47 +284,36 @@ export class CascadeEventBridge_v1 {
           energy: 0.0
         };
       }
-      
+
       const flowState = link.userData.flowState;
       const lifecycle = this._ensureCascadeLifecycle(link);
       const wasActive = lifecycle.active === true;
 
       const targetIntensity = Math.max(0, Math.min(1, Number(link.userData.metrics?.synergy ?? 0) || 0));
-      flowState.intensity += (targetIntensity - flowState.intensity) * 0.15;
+      flowState.intensity += (targetIntensity - flowState.intensity) * intensityBlend;
 
       // Clamp to 0-1 range
       flowState.intensity = Math.max(0, Math.min(1, flowState.intensity));
-      
+
       // Reset to 0 when below threshold
       if (flowState.intensity < this.config.minIntensityThreshold) {
         flowState.intensity = 0;
       }
 
-      if (wasActive && flowState.intensity <= 0) {
-        this._emitCascadeEnd(link, flowState);
-      }
-      
       // Decay energy (slower decay for continuous field)
       if (flowState.energy > 0) {
-        flowState.energy = flowState.energy * (this.config.decayRate + 0.05);
-        
+        flowState.energy = flowState.energy * energyDecayFactor;
+
         if (flowState.energy < this.config.minIntensityThreshold) {
           flowState.energy = 0;
         }
       }
-      
-      // Generate wave burst if intensity is high enough
-      if (flowState.intensity > this.config.cascadeWaveThreshold) {
-        this._requestCascadeWaveBurst(link, flowState);
-      }
 
       // Canonical per-link writes for flowState-derived conflict metadata.
       const canonicalIntensity = Math.max(0, Math.min(1, flowState.intensity ?? 0));
+      const canonicalEnergy = Math.max(0, Math.min(1, flowState.energy ?? 0));
       const canonicalType = flowState.type || 'resolved_harmony';
-      const canonicalConflict = Math.max(
-        canonicalIntensity,
-        Math.max(0, Math.min(1, flowState.energy ?? 0))
-      );
+      const canonicalConflict = Math.max(canonicalIntensity, canonicalEnergy);
 
       // Synergy collapse state (sync with LinkCorruptionTransmission events)
       const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
@@ -303,10 +331,19 @@ export class CascadeEventBridge_v1 {
         synergy > 0.8
       );
 
+      const isActiveNow = (
+        canonicalConflict > this.config.minIntensityThreshold ||
+        isSynergyCollapse
+      );
+
       // synergyCascadeTime = start time of collapse (set only on false -> true transition)
       const currentCascadeTime = (!wasSynergyCollapse && isSynergyCollapse)
         ? Date.now()
         : (link.userData.synergyCascadeTime ?? 0);
+
+      if (wasActive && !isActiveNow) {
+        this._emitCascadeEnd(link, flowState);
+      }
 
       link.userData.cascadeConflictType = canonicalType;
       link.userData.conflictIntensity = canonicalConflict;
@@ -319,7 +356,17 @@ export class CascadeEventBridge_v1 {
       link.userData.__canonicalWriteAt.conflictIntensity = Date.now();
       link.userData.__canonicalWriteAt.synergyCollapse = Date.now();
       link.userData.__canonicalWriteAt.synergyCascadeTime = Date.now();
+
+      if (canonicalIntensity > this.config.cascadeWaveThreshold) {
+        this._emitCascadeHop(link, flowState);
+      }
+
+      if (isActiveNow) {
+        nextActiveLinks.add(link);
+      }
     }
+
+    this._activeLinks = nextActiveLinks;
   }
   
   /**
@@ -491,11 +538,9 @@ export class CascadeEventBridge_v1 {
   }
   
   /**
-   * Request wave burst from WaveInterferenceEngine for cascade activity
+   * Emit cascade.hop semantic intent for downstream wave/VFX systems.
    */
-  _requestCascadeWaveBurst(link, flowState) {
-    if (!this.waveEngine || !this.waveEngine.requestBurstIntent) return;
-
+  _emitCascadeHop(link, flowState) {
     const linkId = link.id || link.uuid || link.name;
     if (!linkId) return;
 
@@ -515,7 +560,7 @@ export class CascadeEventBridge_v1 {
       return; // Skip - still in cooldown
     }
 
-    // Validate flowState data before requesting burst
+    // Validate flowState data before emitting hop intent
     if (!Number.isFinite(flowState.intensity)) return;
     if (flowState.intensity <= 0) return;
 
@@ -544,12 +589,8 @@ export class CascadeEventBridge_v1 {
       }
     }
     this._subscriptions = [];
-    
-    // Unregister from FrameScheduler
-    if (this._isRegistered && this.frameScheduler) {
-      this.frameScheduler.unregister('simulation.cascadeEventBridge');
-      this._isRegistered = false;
-    }
+    this._dirtyLinks.clear();
+    this._activeLinks.clear();
 
     // Clear handlers
     this._boundHandlers = null;
@@ -557,7 +598,7 @@ export class CascadeEventBridge_v1 {
   }
 
   /**
-   * Rebind after world switch (updates linkingSystem, semanticBus, frameScheduler)
+   * Rebind after world switch (updates linkingSystem, semanticBus)
    */
   rebind(config = {}) {
     // Update references if provided
@@ -566,9 +607,6 @@ export class CascadeEventBridge_v1 {
     }
     if (config.semanticBus !== undefined) {
       this.semanticBus = config.semanticBus;
-    }
-    if (config.frameScheduler !== undefined) {
-      this.frameScheduler = config.frameScheduler;
     }
 
     // Re-initialize if not already initialized
@@ -593,17 +631,13 @@ export class CascadeEventBridge_v1 {
         }
       }
       this._subscriptions = [];
+      this._dirtyLinks.clear();
+      this._activeLinks.clear();
 
       // Re-setup and re-subscribe to events
       this._setupEventHandlers();
       this._subscribeToEvents();
-
-      // Re-register to FrameScheduler
-      if (this._isRegistered && this.frameScheduler) {
-        this.frameScheduler.unregister('simulation.cascadeEventBridge');
-        this._isRegistered = false;
-      }
-      this._registerDecayUpdate();
+      this._primeCascadeTrackingFromExistingLinks();
     }
   }
 }

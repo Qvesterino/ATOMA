@@ -23,6 +23,8 @@
  * 
  * NO GAMEPLAY CHANGES, NO ALLOCATIONS, PURELY VISUAL
  * Pure visual storytelling about territorial authority and competition.
+ * Derived visual state lives under node.userData.visualState.dominance.
+ * Legacy alias node.userData.dominanceVisuals mirrors that branch for compatibility.
  * 
  * State-Driven Dominance:
  * - Deterministic: same state → same dominance
@@ -369,9 +371,10 @@ export class CompetitionDominanceAdapter_v1 {
    */
   applyVisualEffects(node, state, worldState) {
     if (!node.userData) node.userData = {};
-    if (!node.userData.dominanceVisuals) node.userData.dominanceVisuals = {};
+    if (!node.userData.visualState) node.userData.visualState = {};
+    if (!node.userData.visualState.dominance) node.userData.visualState.dominance = {};
 
-    const visuals = node.userData.dominanceVisuals;
+    const visuals = node.userData.visualState.dominance;
 
     if (state.isDominant) {
       // ✅ DOMINANT NODE
@@ -411,14 +414,16 @@ export class CompetitionDominanceAdapter_v1 {
     // Store state for shader/VFX consumption
     visuals.dominanceLevel = state.dominanceLevel;
     visuals.lastUpdate = Date.now();
+    node.userData.dominanceVisuals = visuals;
   }
 
   /**
    * Clear dominance effects (node not competing)
    */
   clearDominanceEffects(node) {
-    if (node.userData && node.userData.dominanceVisuals) {
-      node.userData.dominanceVisuals = {
+    if (node.userData) {
+      if (!node.userData.visualState) node.userData.visualState = {};
+      node.userData.visualState.dominance = {
         haloClarity: 1.0,
         pulseCoherence: 1.0,
         phaseAuthority: 0,
@@ -426,6 +431,7 @@ export class CompetitionDominanceAdapter_v1 {
         dominanceLevel: 0,
         role: 'neutral',
       };
+      node.userData.dominanceVisuals = node.userData.visualState.dominance;
     }
   }
 

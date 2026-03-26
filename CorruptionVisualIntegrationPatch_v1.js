@@ -29,10 +29,39 @@ import { CorruptionVisualFX_v1 } from './CorruptionVisualFX_v1.js';
 function readNodeCorruptionLevel(node) {
   return (
     node?.userData?.metrics?.corruption ??
-    node?.userData?.corruption ??
     node?.userData?.gameplay?.corruptionLevel ??
+    node?.userData?.corruptionLevel ??
+    node?.userData?.corruption ??
     0
   );
+}
+
+function ensureCorruptionBranches(node) {
+  if (!node?.userData) return null;
+  const userData = node.userData;
+  if (!userData.metrics) userData.metrics = {};
+  if (!userData.gameplay) userData.gameplay = {};
+  if (!userData.visualState) userData.visualState = {};
+  return userData;
+}
+
+function writeCanonicalCorruption(node, value, isCorrupted = null) {
+  const userData = ensureCorruptionBranches(node);
+  if (!userData) return;
+
+  const normalized = Math.max(0, Math.min(1, Number(value) || 0));
+  userData.metrics.corruption = normalized;
+
+  // Compatibility mirror for legacy consumers while canonical data lives in metrics.
+  userData.corruption = normalized;
+  userData.corruptionLevel = normalized;
+  userData.gameplay.corruptionLevel = normalized;
+  userData.visualState.corruptionLevel = normalized;
+
+  if (isCorrupted !== null) {
+    userData.gameplay.isCorrupted = !!isCorrupted;
+    userData.visualState.isCorrupted = !!isCorrupted;
+  }
 }
 
 /**
@@ -205,18 +234,17 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
    */
   aiNodesInstance.increaseCorruption = function(node, amount = 0.1) {
     if (node && node.userData) {
-      if (!node.userData.gameplay) node.userData.gameplay = {};
-      const previousCorruption = node.userData.gameplay.corruptionLevel || 0;
-      node.userData.gameplay.corruptionLevel = Math.min(1,
-        (node.userData.gameplay.corruptionLevel || 0) + amount);
+      const previousCorruption = readNodeCorruptionLevel(node);
+      const nextCorruption = Math.min(1, previousCorruption + amount);
+      writeCanonicalCorruption(node, nextCorruption, nextCorruption > 0);
 
       // PATCH 4: Emit event if threshold crossed
-      if (previousCorruption < 0.35 && node.userData.gameplay.corruptionLevel >= 0.35) {
+      if (previousCorruption < 0.35 && nextCorruption >= 0.35) {
         if (this.multiNetworkManager && typeof this.multiNetworkManager.emitEvent === 'function') {
           this.multiNetworkManager.emitEvent({
             type: 'corruptionThresholdCrossed',
             node: node,
-            value: node.userData.gameplay.corruptionLevel
+            value: nextCorruption
           });
         }
       }
@@ -228,9 +256,8 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
    */
   aiNodesInstance.decreaseCorruption = function(node, amount = 0.1) {
     if (node && node.userData) {
-      if (!node.userData.gameplay) node.userData.gameplay = {};
-      node.userData.gameplay.corruptionLevel = Math.max(0,
-        (node.userData.gameplay.corruptionLevel || 0) - amount);
+      const nextCorruption = Math.max(0, readNodeCorruptionLevel(node) - amount);
+      writeCanonicalCorruption(node, nextCorruption, nextCorruption > 0);
     }
   };
 
@@ -239,8 +266,8 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
    */
   aiNodesInstance.setCorruptionLevel = function(node, level) {
     if (node && node.userData) {
-      if (!node.userData.gameplay) node.userData.gameplay = {};
-      node.userData.gameplay.corruptionLevel = Math.max(0, Math.min(1, level));
+      const nextCorruption = Math.max(0, Math.min(1, level));
+      writeCanonicalCorruption(node, nextCorruption, nextCorruption > 0);
     }
   };
 
@@ -249,9 +276,7 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
    */
   aiNodesInstance.cleanNode = function(node) {
     if (node && node.userData) {
-      if (!node.userData.gameplay) node.userData.gameplay = {};
-      node.userData.gameplay.corruptionLevel = 0;
-      node.userData.gameplay.isCorrupted = false;
+      writeCanonicalCorruption(node, 0, false);
     }
   };
 
@@ -259,7 +284,7 @@ export function patchAINodesWithCorruptionFX(aiNodesInstance, debugMode = false)
    * Get corruption level of a node
    */
   aiNodesInstance.getCorruptionLevel = function(node) {
-    return node?.userData?.gameplay?.corruptionLevel || 0;
+    return readNodeCorruptionLevel(node);
   };
 
   if (debugMode) {

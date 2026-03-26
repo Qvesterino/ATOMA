@@ -3617,6 +3617,11 @@ class AtomaGame {
             }
         }, 'simulation.linkSemanticMetricsBridge');
         this.frameScheduler.register('simulation', (dt) => {
+            if (this.synapticGatingAdapter && this.aiNodes) {
+                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || [], this.time * 1000);
+            }
+        }, 'simulation.synapticGatingAdapter');
+        this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticFatigueAdapter && this.aiNodes) {
                 const currentTimeMs = this.time * 1000;
                 const gatingResult = this.synapticGatingAdapter?.updateNodeGates(this.aiNodes.nodes || [], currentTimeMs) || null;
@@ -3648,6 +3653,9 @@ class AtomaGame {
                 );
             }
         }, 'simulation.synapticSpecializationAdapter');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.cascadeEventBridge?._decayUpdate?.(dt);
+        }, 'simulation.cascadeEventBridge');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.linkCorruptionTransmission) {
                 this.linkCorruptionTransmission.updateTransmission(dt);
@@ -3700,11 +3708,6 @@ class AtomaGame {
                 this.linkPersonalityStateMachine.update(dt, this.nodeLinking.links || []);
             }
         }, 'simulation.linkPersonalityStateMachine');
-        this.frameScheduler.register('simulation', (dt) => {
-            if (this.synapticGatingAdapter && this.aiNodes) {
-                this.synapticGatingAdapter.updateNodeGates(this.aiNodes.nodes || [], this.time * 1000);
-            }
-        }, 'simulation.synapticGatingAdapter');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.influenceAttenuationAbsorption) {
                 this.influenceAttenuationAbsorption.update(dt, this.time);
@@ -3830,7 +3833,6 @@ class AtomaGame {
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
         this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
-        this.frameScheduler.register('visual', this.synergyChainReactionTick.bind(this), 'visual.synergyChainReaction');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         this.frameScheduler.register('visual', (dt) => {
             this.corruptionAuraDesaturation?.update?.(dt);
@@ -3843,11 +3845,6 @@ class AtomaGame {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
             }
         }, 'visual.metricsVisualFX');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyBonusVisualization && this.nodeLinking) {
-                this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
-            }
-        }, 'visual.synergyBonusVisualization');
         this.frameScheduler.register('visual', (dt) => {
             if (this.synergyBonusFXLayer && this.nodeLinking) {
                 this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
@@ -3878,14 +3875,11 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.archetypeShaderModes?.update?.(dt), 'visual.archetypeShaderModes');
         this.frameScheduler.register('visual', (dt) => this.nodeShaderActivation?.update?.(dt), 'visual.nodeShaderActivation');
         this.frameScheduler.register('visual', (dt) => this.glyphLayer4?.update?.(dt), 'visual.glyphLayer4');
-        this.frameScheduler.register('visual', () => this.updateHoverGlyphTarget?.(), 'visual.semanticHoverGlyph');
         this.frameScheduler.register('visual', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes), 'visual.semanticGlyphAI');
         this.frameScheduler.register('visual', (dt) => this.glyphFusionOverlay?.update?.(dt), 'visual.glyphFusionOverlay');
         this.frameScheduler.register('visual', (dt) => this.linkedGlyphSync?.update?.(dt, this.aiNodes, this.linkingSystem), 'visual.linkedGlyphSync');
         this.frameScheduler.register('visual', (dt) => this.cascadePropagationVisuals?.update?.(dt), 'visual.cascadePropagation');
         this.frameScheduler.register('visual', () => this.cascadePropagationVisuals?.checkCascadeEvents?.(), 'visual.phase5CascadeEventCheck');
-        this.frameScheduler.register('visual', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'visual.phase5CascadeVisualizationBridge');
-        this.frameScheduler.register('visual', (dt) => this.preCascadeVisualHint?.update?.(dt), 'visual.preCascadeVisualHint');
         this.frameScheduler.register('visual', (dt) => this.evolvingLinkFX?.update?.(dt, null, null), 'visual.evolvingLinkFX');
         this.frameScheduler.register('visual', (dt) => this.linkVisualMoodSystem?.update?.(dt), 'visual.linkVisualMoodSystem');
         this.frameScheduler.register('visual', () => { if (this.linkDebugMode?.enabled) this.linkDebugMode.updateDebugVisuals(); }, 'visual.linkDebugMode');
@@ -6472,6 +6466,7 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
 
             // NEW: Dispose cascade event bridge
             if (this.cascadeEventBridge && typeof this.cascadeEventBridge.dispose === 'function') {
+                this._unregisterCascadeEventBridgeTick();
                 this.cascadeEventBridge.dispose();
                 console.log('[main.js] CascadeEventBridge disposed');
             }
@@ -9017,6 +9012,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
             this.synergyBonusVisualization = new SynergyBonusVisualization_v1({
                 debugEnabled: false
             });
+            if (this.linkingSystem?.conduitRenderer) {
+                this.linkingSystem.conduitRenderer.synergyBonusVisualization = this.synergyBonusVisualization;
+            }
             console.log('[main.js] SynergyBonusVisualization_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] SynergyBonusVisualization_v1 failed:', err);
@@ -9130,6 +9128,9 @@ updateVariantBAdvisorHUD(window.__ATOMA_AI_ADVISOR__);
         this.frameScheduler.register('simulation', (dt) => {
             this.synergyChainReaction?.update?.(dt, this.nodes || this.aiNodes?.nodes || []);
         }, 'simulation.synergyChainReaction');
+        this.frameScheduler.register('simulation', () => this.updateHoverGlyphTarget?.(), 'simulation.semanticHoverGlyph');
+        this.frameScheduler.register('simulation', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt), 'simulation.phase5CascadeVisualizationBridge');
+        this.frameScheduler.register('simulation', (dt) => this.preCascadeVisualHint?.update?.(dt), 'simulation.preCascadeVisualHint');
 
         // ====================================================================
         // WEEK 22B: SYNERGY CASCADE FX BRIDGE (Cascade → Shader Effects)
@@ -9784,8 +9785,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         return {
             linkingSystem: this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking,
             semanticBus: this.semanticBus,
-            frameScheduler: this.frameScheduler,
-            waveEngine: this.waveInterferenceEngine,
             decayRate: 0.92,
             minIntensityThreshold: 0.01,
             cascadeWaveThreshold: 0.6,
@@ -9794,15 +9793,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         };
     }
 
+    _unregisterCascadeEventBridgeTick() {
+        if (!this.frameScheduler) return;
+        if (this.frameScheduler.isRegistered?.('simulation.cascadeEventBridge') !== true) return;
+        this.frameScheduler.unregister('simulation.cascadeEventBridge');
+    }
+
     ensureCascadeEventBridge() {
         try {
             const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking;
-            if (!linkingSystem || !this.semanticBus || !this.frameScheduler) {
+            if (!linkingSystem || !this.semanticBus) {
                 return false;
             }
 
             // Idempotent rebind: always dispose stale/previous instance first to avoid duplicate subscriptions.
             if (this.cascadeEventBridge && typeof this.cascadeEventBridge.dispose === 'function') {
+                this._unregisterCascadeEventBridgeTick();
                 this.cascadeEventBridge.dispose();
             }
 
@@ -10302,11 +10308,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('archetypeShaderModes', 'visual.archetypeShaderModes', (dt) => this.archetypeShaderModes?.update?.(dt));
         regGuard('nodeShaderActivation', 'visual.nodeShaderActivation', (dt) => this.nodeShaderActivation?.update?.(dt));
 
-        regGuard('synergyBonusVisualization', 'visual.synergyBonusVisualization', (dt) => {
-            if (this.synergyBonusVisualization && this.nodeLinking) {
-                this.synergyBonusVisualization.update(dt, this.nodeLinking.links || []);
-            }
-        });
         regGuard('synergyBonusFXLayer', 'visual.synergyBonusFXLayer', (dt) => {
             if (this.synergyBonusFXLayer && this.nodeLinking) {
                 this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
@@ -10405,7 +10406,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase8RitualOrchestration', 'visual.phase8RitualOrchestration', (dt) => this.phase8RitualOrchestration?.update?.(dt * 1000));
         regGuard('mythicSeedGlyph', 'visual.mythicSeedGlyph', (dt) => this.mythicSeedGlyph?.update?.(dt, this.camera));
         regGuard('glyphLayer4', 'visual.glyphLayer4', (dt) => this.glyphLayer4?.update?.(dt));
-        regGuard('semanticHoverGlyph', 'visual.semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
+        regGuard('semanticHoverGlyph', 'simulation.semanticHoverGlyph', () => this.updateHoverGlyphTarget?.());
         regGuard('semanticGlyphAI', 'visual.semanticGlyphAI', (dt) => this.semanticGlyphAI?.update?.(dt, this.aiNodes?.nodes));
         regGuard('glyphFusionOverlay', 'visual.glyphFusionOverlay', (dt) => this.glyphFusionOverlay?.update?.(dt));
 
@@ -10427,8 +10428,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('phase5MultiNetworkOrchestrator', 'simulation.phase5MultiNetworkOrchestrator', (dt) => this.phase5MultiNetworkOrchestrator?.update?.(dt));
         regGuard('phase5InterNetworkVisualizationBridge', 'visual.phase5InterNetworkVisualizationBridge', (dt) => this.phase5InterNetworkVisualizationBridge?.update?.(dt));
         regGuard('cascadePropagationVisuals', 'visual.cascadePropagation', (dt) => this.cascadePropagationVisuals?.update?.(dt));
-        regGuard('phase5CascadeVisualizationBridge', 'visual.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
-        regGuard('preCascadeVisualHint', 'visual.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
+        regGuard('phase5CascadeVisualizationBridge', 'simulation.phase5CascadeVisualizationBridge', (dt) => this.phase5CascadeVisualizationBridge?.update?.(dt));
+        regGuard('preCascadeVisualHint', 'simulation.preCascadeVisualHint', (dt) => this.preCascadeVisualHint?.update?.(dt));
         regGuard('nodeHierarchyBridge', 'simulation.nodeHierarchyBridge', () => this.nodeHierarchyBridge?.update?.());
         regGuard('legendaryPack', 'visual.legendaryPack', (dt) => this.legendaryPack?.update?.(dt, this.scene, this.camera, this.renderer));
         regGuard('legendaryLinkFX', 'visual.legendaryLinkFX', (dt) => this.legendaryLinkFX?.update?.(dt, this.scene, this.camera, this.renderer));

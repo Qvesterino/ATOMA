@@ -216,6 +216,49 @@ export class SynergyBonusVisualization_v1 {
     }
 
     /**
+     * Update a single link's derived synergy visuals.
+     * This is the canonical per-link path used by LinkRendererConduit.
+     */
+    updateLink(link, deltaTime = 0.016, visualTime = null) {
+        try {
+            if (!link || !link.userData) {
+                return;
+            }
+
+            if (visualTime !== null && Number.isFinite(visualTime)) {
+                this.globalTime = visualTime;
+            }
+
+            this.computeBonusForLink(link, deltaTime);
+
+            const state = this.getBonusState(link);
+            if (!state) {
+                return;
+            }
+
+            state.smooth(deltaTime);
+
+            if (!link.userData.visualMetrics) {
+                link.userData.visualMetrics = {};
+            }
+            link.userData.visualMetrics.synergyBonus = {
+                tier: state.tier,
+                tierName: state.tierName,
+                pulseStrength: state.currentPulseStrength,
+                chromaShift: state.currentChromaShift,
+                resonanceRipples: state.currentResonanceRipples,
+                lastUpdate: state.lastUpdate
+            };
+
+            this.processedLinksCount++;
+        } catch (err) {
+            if (this.debugEnabled) {
+                console.error('[SynergyBonusVisualization] updateLink error:', err);
+            }
+        }
+    }
+
+    /**
      * Main update loop: Process all links
      * @param {number} deltaTime - Frame time delta (seconds)
      * @param {Array} allLinks - All link objects to process
@@ -237,31 +280,7 @@ export class SynergyBonusVisualization_v1 {
         try {
             // Process each link
             for (const link of allLinks) {
-                if (!link) continue;
-
-                // Compute bonus state
-                this.computeBonusForLink(link, visualDelta);
-
-                // Get state and apply smoothing
-                const state = this.getBonusState(link);
-                if (state) {
-                    state.smooth(deltaTime);
-                    
-                    // Write derived synergy visual profile to visualMetrics for other systems to read
-                    if (!link.userData.visualMetrics) {
-                        link.userData.visualMetrics = {};
-                    }
-                    link.userData.visualMetrics.synergyBonus = {
-                        tier: state.tier,
-                        tierName: state.tierName,
-                        pulseStrength: state.currentPulseStrength,
-                        chromaShift: state.currentChromaShift,
-                        resonanceRipples: state.currentResonanceRipples,
-                        lastUpdate: state.lastUpdate
-                    };
-                    
-                    this.processedLinksCount++;
-                }
+                this.updateLink(link, visualDelta, currentTime);
             }
 
         } catch (err) {

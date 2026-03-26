@@ -13,9 +13,9 @@
  * Integration points:
  * 1. AINodes.harmonySystem - Main system instance
  * 2. AINodes.updateNodeHarmony(deltaTime) - Call in main loop
- * 3. Node.userData.harmonyLevel - Harmony value (0-1)
- * 4. Node.userData.harmonyVisualState - Visual parameters
- * 5. Link.userData.harmonyLevel - Link harmony (0-1)
+ * 3. Canonical writes: Node.userData.harmonyLevel / Link.userData.harmonyLevel
+ * 4. Derived visual state: Node.userData.harmonyVisualState / Link.userData.harmonyVisualState
+ * 5. Read-only consumers should prefer harmonyLevel and treat visual state as presentation data
  * 
  * USAGE:
  * 

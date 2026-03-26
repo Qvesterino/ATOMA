@@ -46,7 +46,7 @@
  * Renders visual feedback from HarmonyStabilizationSystem_v1 runtime data
  * 
  * ✅ RENDERING ONLY — Zero gameplay logic
- * ✅ Read-only consumer of harmony.harmonyLevel from HarmonyStabilizationSystem_v1
+ * ✅ Read-only consumer of canonical harmony state from HarmonyStabilizationSystem_v1
  * ✅ Three visual features:
  *    1. Cyan aura around high-harmony nodes (0.6–1.0)
  *    2. Oasis zones as soft radial bloom (visual zone markers)
@@ -547,15 +547,6 @@ export class T2_HarmonyVisualConsumer_v1 {
 
     const metricsHarmony = this._normalizeHarmonyValue(node?.userData?.metrics?.harmony);
     if (metricsHarmony !== null) return metricsHarmony;
-
-    const shadowHarmony = this._normalizeHarmonyValue(node?.userData?.harmonyLevel);
-    if (shadowHarmony !== null) return shadowHarmony;
-
-    const auraStrength = this._normalizeHarmonyValue(node?.userData?.harmonyAuraStrength);
-    if (auraStrength !== null) return auraStrength;
-
-    const legacyHarmony = this._normalizeHarmonyValue(node?.userData?.harmony);
-    if (legacyHarmony !== null) return legacyHarmony;
 
     return 0;
   }

@@ -25,8 +25,13 @@ export function setupLinkMicroImpulseIntegration(game) {
   // =========================================================================
   const setupTimeout = setTimeout(() => {
     try {
+      if (game.semanticBus) {
+        adapter.setSemanticBus(game.semanticBus);
+      }
+
       // Hook into NodeLinking system if available
       if (game.nodeLinking) {
+        adapter.setLinkingSystem(game.nodeLinking);
         adapter.setEventSource(game.nodeLinking);
         console.log('[LinkMicroImpulseIntegration] Connected to NodeLinkingSystem ✓');
       } else {

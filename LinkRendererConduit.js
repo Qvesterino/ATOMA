@@ -1034,6 +1034,7 @@ export class LinkRendererConduit {
 
         // Link State Visual Language Integration
         this.linkStateVisualLanguage = null;
+        this.synergyBonusVisualization = null;
     }
 
     _beginStrandOwnershipFrame(state, metrics, visualTime) {
@@ -1316,21 +1317,6 @@ export class LinkRendererConduit {
             vMid: new THREE.Vector3(),
             vEnd: new THREE.Vector3(),
             vTangent: new THREE.Vector3(),
-
-    _queueSparkAttributeUpload(filamentState, attribute) {
-        if (!filamentState?.sparkPendingAttributes || !attribute) return;
-        filamentState.sparkPendingAttributes.add(attribute);
-    }
-
-    _flushSparkAttributeUploads(filamentState) {
-        const pendingAttributes = filamentState?.sparkPendingAttributes;
-        if (!pendingAttributes || pendingAttributes.size === 0) return;
-
-        for (const attribute of pendingAttributes) {
-            attribute.needsUpdate = true;
-        }
-        pendingAttributes.clear();
-    }
             vTangent2: new THREE.Vector3(),
             vNormal: new THREE.Vector3(),
             vBinormal: new THREE.Vector3(),
@@ -1347,6 +1333,21 @@ export class LinkRendererConduit {
             cSparkOut: new THREE.Color()
         };
         return state.strandFilaments;
+    }
+
+    _queueSparkAttributeUpload(filamentState, attribute) {
+        if (!filamentState?.sparkPendingAttributes || !attribute) return;
+        filamentState.sparkPendingAttributes.add(attribute);
+    }
+
+    _flushSparkAttributeUploads(filamentState) {
+        const pendingAttributes = filamentState?.sparkPendingAttributes;
+        if (!pendingAttributes || pendingAttributes.size === 0) return;
+
+        for (const attribute of pendingAttributes) {
+            attribute.needsUpdate = true;
+        }
+        pendingAttributes.clear();
     }
 
     _spawnStrandTipSpark(filamentState, origin, direction, visualTime, energy = 1, options = {}) {
@@ -2902,6 +2903,7 @@ export class LinkRendererConduit {
 
         this._advanceLinkBootstrap(link, state);
         state.metrics = metrics;
+        this.synergyBonusVisualization?.updateLink?.(link, visualDelta, visualTime);
         const strandOwnerState = this._beginStrandOwnershipFrame(state, metrics, visualTime);
         const runtime = state.__runtime || (state.__runtime = {
             updateCalls: 0,

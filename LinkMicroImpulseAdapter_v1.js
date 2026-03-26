@@ -11,12 +11,10 @@
  * - Graceful degradation if methods missing
  * 
  * TRIGGER EVENTS:
- * ✓ linkCreated — Success flash along link
- * ✓ pulseReached — Tiny arc when pulse hits node
- * ✓ harmonicLock — Resonance shimmer on link
- * ✓ synergyThreshold — Intensity boost visible
- * ✓ corruptionSpread — Jittery asymmetric flashes
- * ✓ influenceExpanded — Directional glow pulse
+ * ✓ link.created — Success flash along link
+ * ✓ link:synergyThreshold — Intensity boost visible
+ * ✓ link:harmonicLock — Resonance shimmer on link
+ * ✓ network:corruptionSpread — Jittery asymmetric flashes
  * 
  * VISUAL FORM:
  * - Duration: 40–120 ms
@@ -291,6 +289,9 @@ export class LinkMicroImpulseAdapter {
     this.factory = new ImpulseFactory();
     this.manager = new ImpulseManager(scene, this.factory);
     this.eventSource = null;
+    this.linkingSystem = null;
+    this.semanticBus = null;
+    this._semanticUnsubscribers = [];
     this.enabled = true;
     this.debugMode = false;
     this.lastLinkCreatedTime = new Map();
@@ -301,6 +302,21 @@ export class LinkMicroImpulseAdapter {
     if (!source) return;
     this.eventSource = source;
     this.hookEventListeners();
+    if (!this.semanticBus && source.semanticBus) {
+      this.setSemanticBus(source.semanticBus);
+    }
+  }
+
+  setLinkingSystem(linkingSystem) {
+    if (!linkingSystem) return;
+    this.linkingSystem = linkingSystem;
+  }
+
+  setSemanticBus(semanticBus) {
+    if (!semanticBus || this.semanticBus === semanticBus) return;
+    this._unhookSemanticBusListeners();
+    this.semanticBus = semanticBus;
+    this.hookSemanticBusListeners();
   }
 
   hookEventListeners() {
@@ -308,20 +324,100 @@ export class LinkMicroImpulseAdapter {
 
     if (typeof this.eventSource.addEventListener === 'function') {
       this.eventSource.addEventListener('linkCreated', (e) => this.onLinkCreated(e));
-      this.eventSource.addEventListener('pulseReached', (e) => this.onPulseReached(e));
-      this.eventSource.addEventListener('harmonicLock', (e) => this.onHarmonicLock(e));
-      this.eventSource.addEventListener('synergyThreshold', (e) => this.onSynergyThreshold(e));
-      this.eventSource.addEventListener('corruptionSpread', (e) => this.onCorruptionSpread(e));
-      this.eventSource.addEventListener('influenceExpanded', (e) => this.onInfluenceExpanded(e));
       if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Hooked via addEventListener');
       return;
     }
   }
 
-  onLinkCreated(event) {
-    if (!this.enabled || !event?.detail?.link) return;
+  hookSemanticBusListeners() {
+    if (!this.semanticBus) return;
 
-    const link = event.detail.link;
+    const subscribeFn =
+      (typeof this.semanticBus.subscribe === 'function' && this.semanticBus.subscribe.bind(this.semanticBus)) ||
+      (typeof this.semanticBus.on === 'function' && this.semanticBus.on.bind(this.semanticBus)) ||
+      null;
+    const unsubscribeFn =
+      (typeof this.semanticBus.unsubscribe === 'function' && this.semanticBus.unsubscribe.bind(this.semanticBus)) ||
+      (typeof this.semanticBus.off === 'function' && this.semanticBus.off.bind(this.semanticBus)) ||
+      null;
+
+    if (!subscribeFn) return;
+
+    const bind = (tag, handler) => {
+      const unsub = subscribeFn(tag, handler, { priority: this.semanticBus.priority?.NORMAL });
+      if (typeof unsub === 'function') {
+        this._semanticUnsubscribers.push(unsub);
+      } else if (unsubscribeFn) {
+        this._semanticUnsubscribers.push(() => unsubscribeFn(tag, handler));
+      }
+    };
+
+    bind('link.created', (payload) => this.onLinkCreated({ detail: this._normalizePayload(payload) }));
+    bind('link:synergyThreshold', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
+    bind('link:harmonicLock', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
+    bind('network:corruptionSpread', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
+    bind('metric:synergySpike', (payload) => this.onSynergyThreshold({ detail: this._normalizePayload(payload) }));
+    bind('metric:harmonyPeak', (payload) => this.onHarmonicLock({ detail: this._normalizePayload(payload) }));
+    bind('metric:corruptionRise', (payload) => this.onCorruptionSpread({ detail: this._normalizePayload(payload) }));
+
+    if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Hooked via semanticBus');
+  }
+
+  _unhookSemanticBusListeners() {
+    if (!Array.isArray(this._semanticUnsubscribers) || this._semanticUnsubscribers.length === 0) return;
+    for (const unsubscribe of this._semanticUnsubscribers) {
+      try {
+        unsubscribe?.();
+      } catch (_) {
+        // ignore legacy unsubscribe failures
+      }
+    }
+    this._semanticUnsubscribers.length = 0;
+  }
+
+  _normalizePayload(event) {
+    if (event && typeof event === 'object' && 'detail' in event) {
+      return event.detail || {};
+    }
+    return event || {};
+  }
+
+  _resolveLink(payload) {
+    const candidate = payload?.link || payload?.detail?.link || null;
+    if (candidate) return candidate;
+
+    const linkId = payload?.linkId || payload?.id || payload?.link?.id || null;
+    if (!linkId) return null;
+
+    if (this.linkingSystem?.links && Array.isArray(this.linkingSystem.links)) {
+      return this.linkingSystem.links.find((link) => {
+        const id = link?.userData?.id || link?.id || link?.uuid;
+        return id === linkId;
+      }) || null;
+    }
+
+    if (typeof this.linkingSystem?._findLinkById === 'function') {
+      return this.linkingSystem._findLinkById(linkId);
+    }
+
+    return null;
+  }
+
+  _extractState(payload, fallback = {}) {
+    const detail = this._normalizePayload(payload);
+    return {
+      harmony: Number.isFinite(detail?.state?.harmony) ? detail.state.harmony : (Number.isFinite(detail?.harmony) ? detail.harmony : fallback.harmony ?? 1.0),
+      synergy: Number.isFinite(detail?.state?.synergy) ? detail.state.synergy : (Number.isFinite(detail?.synergy) ? detail.synergy : fallback.synergy ?? 0.5),
+      corruption: Number.isFinite(detail?.state?.corruption) ? detail.state.corruption : (Number.isFinite(detail?.corruption) ? detail.corruption : fallback.corruption ?? 0.0)
+    };
+  }
+
+  onLinkCreated(event) {
+    if (!this.enabled) return;
+    const detail = this._normalizePayload(event);
+    const link = this._resolveLink(detail);
+    if (!link) return;
+
     const linkId = link.userData?.id || link.uuid;
     const now = Date.now();
 
@@ -331,7 +427,12 @@ export class LinkMicroImpulseAdapter {
     }
     this.lastLinkCreatedTime.set(linkId, now);
 
-    const state = event.detail.state || { harmony: 1.0, synergy: 0.5, corruption: 0.0 };
+    const metricFallback = link?.userData?.metrics || link?.userData || {};
+    const state = this._extractState(detail, {
+      harmony: Number.isFinite(metricFallback.harmony) ? metricFallback.harmony : 1.0,
+      synergy: Number.isFinite(metricFallback.synergy) ? metricFallback.synergy : 0.5,
+      corruption: Number.isFinite(metricFallback.corruption) ? metricFallback.corruption : 0.0
+    });
     this.linkStateCache.set(linkId, state);
 
     const shape = state.harmony > 0.7 ? 'arc' : 'zigzag';
@@ -347,37 +448,18 @@ export class LinkMicroImpulseAdapter {
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Link created impulse', linkId);
   }
 
-  onPulseReached(event) {
-    if (!this.enabled || !event?.detail?.link) return;
-
-    const link = event.detail.link;
-    const state = this.linkStateCache.get(link.userData?.id || link.uuid) || {
-      harmony: 1.0,
-      synergy: 0.5,
-      corruption: 0.0,
-    };
-
-    this.manager.spawn(link, {
-      shape: 'arc',
-      duration: 60,
-      intensity: 0.8,
-      harmony: state.harmony,
-      synergy: state.synergy,
-      corruption: state.corruption,
-    });
-
-    if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Pulse reached impulse');
-  }
-
   onHarmonicLock(event) {
-    if (!this.enabled || !event?.detail?.link) return;
+    if (!this.enabled) return;
+    const detail = this._normalizePayload(event);
+    const link = this._resolveLink(detail);
+    if (!link) return;
 
-    const link = event.detail.link;
-    const state = event.detail.state || {
-      harmony: 1.0,
-      synergy: 0.5,
-      corruption: 0.0,
-    };
+    const metricFallback = link?.userData?.metrics || link?.userData || {};
+    const state = this._extractState(detail, {
+      harmony: Number.isFinite(detail?.value) ? detail.value : (Number.isFinite(metricFallback.harmony) ? metricFallback.harmony : 1.0),
+      synergy: Number.isFinite(metricFallback.synergy) ? metricFallback.synergy : 0.5,
+      corruption: Number.isFinite(metricFallback.corruption) ? metricFallback.corruption : 0.0,
+    });
 
     this.manager.spawn(link, {
       shape: 'arc',
@@ -392,14 +474,17 @@ export class LinkMicroImpulseAdapter {
   }
 
   onSynergyThreshold(event) {
-    if (!this.enabled || !event?.detail?.link) return;
+    if (!this.enabled) return;
+    const detail = this._normalizePayload(event);
+    const link = this._resolveLink(detail);
+    if (!link) return;
 
-    const link = event.detail.link;
-    const state = event.detail.state || {
-      harmony: 1.0,
-      synergy: 0.8,
-      corruption: 0.0,
-    };
+    const metricFallback = link?.userData?.metrics || link?.userData || {};
+    const state = this._extractState(detail, {
+      harmony: Number.isFinite(metricFallback.harmony) ? metricFallback.harmony : 1.0,
+      synergy: Number.isFinite(detail?.value) ? detail.value : (Number.isFinite(metricFallback.synergy) ? metricFallback.synergy : 0.8),
+      corruption: Number.isFinite(metricFallback.corruption) ? metricFallback.corruption : 0.0,
+    });
 
     this.manager.spawn(link, {
       shape: 'spark',
@@ -414,14 +499,17 @@ export class LinkMicroImpulseAdapter {
   }
 
   onCorruptionSpread(event) {
-    if (!this.enabled || !event?.detail?.link) return;
+    if (!this.enabled) return;
+    const detail = this._normalizePayload(event);
+    const link = this._resolveLink(detail);
+    if (!link) return;
 
-    const link = event.detail.link;
-    const state = event.detail.state || {
-      harmony: 0.5,
-      synergy: 0.3,
-      corruption: 0.8,
-    };
+    const metricFallback = link?.userData?.metrics || link?.userData || {};
+    const state = this._extractState(detail, {
+      harmony: Number.isFinite(metricFallback.harmony) ? metricFallback.harmony : 0.5,
+      synergy: Number.isFinite(metricFallback.synergy) ? metricFallback.synergy : 0.3,
+      corruption: Number.isFinite(detail?.value) ? detail.value : (Number.isFinite(metricFallback.corruption) ? metricFallback.corruption : 0.8),
+    });
 
     this.manager.spawn(link, {
       shape: 'zigzag',
@@ -433,28 +521,6 @@ export class LinkMicroImpulseAdapter {
     });
 
     if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Corruption spread impulse');
-  }
-
-  onInfluenceExpanded(event) {
-    if (!this.enabled || !event?.detail?.link) return;
-
-    const link = event.detail.link;
-    const state = event.detail.state || {
-      harmony: 1.0,
-      synergy: 0.6,
-      corruption: 0.0,
-    };
-
-    this.manager.spawn(link, {
-      shape: 'arc',
-      duration: 90,
-      intensity: 1.1,
-      harmony: state.harmony,
-      synergy: state.synergy,
-      corruption: state.corruption,
-    });
-
-    if (this.debugMode) console.log('[LinkMicroImpulseAdapter] Influence expanded impulse');
   }
 
   update() {
@@ -474,6 +540,7 @@ export class LinkMicroImpulseAdapter {
     this.manager.clear();
     this.linkStateCache.clear();
     this.lastLinkCreatedTime.clear();
+    this._unhookSemanticBusListeners();
   }
 
   dispose() {
@@ -481,6 +548,8 @@ export class LinkMicroImpulseAdapter {
     this.factory = null;
     this.manager = null;
     this.eventSource = null;
+    this.linkingSystem = null;
+    this.semanticBus = null;
   }
 }
 
