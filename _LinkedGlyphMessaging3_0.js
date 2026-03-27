@@ -48,6 +48,8 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getLinkCanonicalMetrics, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 export class LinkedGlyphMessaging3_0 {
   constructor(scene, worldRoot, semanticGlyphAI) {
@@ -75,6 +77,7 @@ export class LinkedGlyphMessaging3_0 {
     this.messageContainer = new THREE.Group();
     this.messageContainer.userData.isMessaging = true;
     this.messageContainer.name = 'LinkedGlyphMessaging_Messages';
+    this.messageContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
     attachRoot.add(this.messageContainer);
     this.root = this.messageContainer;
 
@@ -202,6 +205,7 @@ export class LinkedGlyphMessaging3_0 {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.isMessageGlyph = true;
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
     return mesh;
   }
   
@@ -244,14 +248,16 @@ export class LinkedGlyphMessaging3_0 {
    * Generate a message word from node semantic state
    */
   generateMessageWord(node, messageType = 'STATE') {
-    if (!node || !node.userData) return null;
-    
-    // Extract semantic state from node
-    const synergy = node.userData?.metrics?.synergy ?? 0.5;
-    const corruption = node.userData?.metrics?.corruption ?? 0;
-    const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData?.metrics?.harmony ?? 0;
-    const load = node.userData?.metrics?.loadPressure ?? 0;
+    if (!node) return null;
+
+    const nodeMetrics = messageType === 'LINK' ? {} : (getNodeCanonicalMetrics(node) ?? {});
+    const linkMetrics = messageType === 'LINK' ? (getLinkCanonicalMetrics(node) ?? {}) : {};
+
+    const synergy = linkMetrics.synergy ?? nodeMetrics.synergy ?? 0.5;
+    const corruption = linkMetrics.corruption ?? nodeMetrics.corruption ?? 0;
+    const stability = messageType === 'LINK' ? 0 : (nodeMetrics.stability ?? 0);
+    const harmony = messageType === 'LINK' ? 0 : (nodeMetrics.harmony ?? 0);
+    const loadPressure = messageType === 'LINK' ? 0 : (nodeMetrics.loadPressure ?? 0);
     
     // Determine glyph count (more glyphs for complex states)
     const complexity = Math.abs(synergy - corruption) * 5;
@@ -262,7 +268,7 @@ export class LinkedGlyphMessaging3_0 {
       type: messageType,
       glyphs: [],
       role: this.determineGlyphRole(node, messageType),
-      semanticVector: { synergy, corruption, stability, harmony, load }
+      semanticVector: { synergy, corruption, stability, harmony, loadPressure }
     };
     
     // Generate individual glyphs for this word
@@ -288,10 +294,11 @@ export class LinkedGlyphMessaging3_0 {
    * Determine the role of a glyph based on context
    */
   determineGlyphRole(node, messageType) {
-    const synergy = node.userData?.metrics?.synergy ?? 0.5;
-    const corruption = node.userData?.metrics?.corruption ?? 0;
-    const stability = node.userData?.metrics?.stability ?? 0;
-    const harmony = node.userData?.metrics?.harmony ?? 0;
+    const canonical = getNodeCanonicalMetrics(node) ?? {};
+    const synergy = canonical.synergy ?? 0.5;
+    const corruption = canonical.corruption ?? 0;
+    const stability = canonical.stability ?? 0;
+    const harmony = canonical.harmony ?? 0;
     
     if (messageType === 'SUBJECT') {
       return 'SUBJECT'; // Identity
@@ -317,8 +324,6 @@ export class LinkedGlyphMessaging3_0 {
    * Select glyph type based on semantic role
    */
   selectGlyphType(messageType, index, count) {
-    const types = ['triangle', 'lotus', 'shard', 'diamond', 'ring', 'dot'];
-    
     if (messageType === 'SUBJECT') {
       return ['dot', 'shard', 'diamond'][index % 3];
     } else if (messageType === 'STATE') {
@@ -356,12 +361,26 @@ export class LinkedGlyphMessaging3_0 {
    */
   buildMessage(sourceNode, targetNode, linkData) {
     if (!sourceNode || !targetNode) return null;
+
+    const sourceMetrics = getNodeCanonicalMetrics(sourceNode) ?? {};
+    const targetMetrics = getNodeCanonicalMetrics(targetNode) ?? {};
+    const linkMetrics = getLinkCanonicalMetrics(linkData.link) ?? {};
     
     // Create sentence: subject + state + link + context (simplified to phrase)
     const message = {
       sourceNode,
       targetNode,
-      linkData,
+      linkData: {
+        ...linkData,
+        sourceMetrics,
+        targetMetrics,
+        linkMetrics,
+        synergy: linkMetrics.synergy ?? linkData.synergy ?? 0.5,
+        corruption: linkMetrics.corruption ?? linkData.corruption ?? 0
+      },
+      sourceMetrics,
+      targetMetrics,
+      linkMetrics,
       words: [],
       createdAt: Date.now(),
       startPosition: sourceNode.position.clone(),
@@ -388,6 +407,7 @@ export class LinkedGlyphMessaging3_0 {
   createMessageMeshes(message) {
     const group = new THREE.Group();
     group.userData.isMessageGroup = true;
+    group.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
     
     let offsetY = 0;
     
@@ -437,13 +457,12 @@ export class LinkedGlyphMessaging3_0 {
     if (this.stats.messagesActive >= this.config.maxTotalMessages) return;
     
     // Build message
+    const linkMetrics = getLinkCanonicalMetrics(link);
     const message = this.buildMessage(sourceNode, targetNode, {
       link,
       linkId,
-      synergy: link.userData?.synergy?.score ?? link?.synergyScore ?? 0.5,
-      corruption: link.corruption || 0,
-      stability: link.stability || 0,
-      harmony: link.harmony || 0
+      synergy: linkMetrics.synergy,
+      corruption: linkMetrics.corruption
     });
     
     if (!message) return;
@@ -513,11 +532,11 @@ export class LinkedGlyphMessaging3_0 {
     speed += linkData.synergy * this.config.messageSpeeedBoostFromSynergy;
     
     // Reduction from stability
-    const stabilityFactor = 1 - linkData.stability * this.config.messageSpeeedReductionFromStability;
+    const stabilityFactor = 1 - (linkData.sourceMetrics?.stability ?? 0) * this.config.messageSpeeedReductionFromStability;
     speed *= Math.max(0.5, stabilityFactor);
     
     // Acceleration from harmony
-    speed *= (1 + linkData.harmony * 0.2);
+    speed *= (1 + (linkData.sourceMetrics?.harmony ?? 0) * 0.2);
     
     return Math.max(0.5, speed);
   }
@@ -536,13 +555,13 @@ export class LinkedGlyphMessaging3_0 {
     message.meshGroup.position.copy(currentPos);
     
     // Add jitter from stability
-    const jitter = message.linkData.stability * this.config.jitterFromStability;
+    const jitter = (message.sourceMetrics?.stability ?? 0) * this.config.jitterFromStability;
     message.meshGroup.position.x += (Math.random() - 0.5) * jitter;
     message.meshGroup.position.y += (Math.random() - 0.5) * jitter;
     message.meshGroup.position.z += (Math.random() - 0.5) * jitter;
     
     // Add distortion from corruption
-    const distortion = message.linkData.corruption * this.config.distortionFromCorruption;
+    const distortion = (message.linkData.corruption ?? 0) * this.config.distortionFromCorruption;
     message.meshGroup.rotation.x += (Math.random() - 0.5) * distortion;
     message.meshGroup.rotation.y += (Math.random() - 0.5) * distortion;
     
@@ -601,7 +620,7 @@ export class LinkedGlyphMessaging3_0 {
     
     // Search for link with reversed endpoints
     for (const trackedLink of this.trackedLinks.values()) {
-      if (trackedLink.sourceNode === sourceNode && trackedLink.targetNode === targetNode) {
+      if (trackedLink.sourceNode === targetNode && trackedLink.targetNode === sourceNode) {
         return trackedLink.link;
       }
     }
@@ -621,10 +640,8 @@ export class LinkedGlyphMessaging3_0 {
       messageType: message.words[1]?.role || 'NEUTRAL',
       sourceSemanticState: message.words[1]?.semanticVector || {},
       linkQuality: {
-        synergy: message.linkData.synergy,
-        corruption: message.linkData.corruption,
-        stability: message.linkData.stability,
-        harmony: message.linkData.harmony
+        synergy: message.linkData.synergy ?? 0.5,
+        corruption: message.linkData.corruption ?? 0
       }
     };
     
@@ -654,7 +671,7 @@ export class LinkedGlyphMessaging3_0 {
    */
   update(deltaTime, aiNodes, linkingSystem) {
     if (!this.enabled || !aiNodes || !linkingSystem) return;
-    if (this.frameScheduler && !this.frameScheduler.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
     // Throttle to ~30 Hz on the visual layer
     this._updateAccum += deltaTime;
@@ -682,7 +699,7 @@ export class LinkedGlyphMessaging3_0 {
     }
     
     // Generate new messages based on timing
-    this.generateNewMessages(linkingSystem);
+    this.generateNewMessages(linkingSystem, deltaTime);
     
     // Update all active messages
     this.updateMessages(deltaTime);
@@ -695,12 +712,11 @@ export class LinkedGlyphMessaging3_0 {
   /**
    * Generate new messages on active links
    */
-  generateNewMessages(linkingSystem) {
-    const now = Date.now();
-    const interval = 1000 / this.config.messageGenerationHz;
+  generateNewMessages(linkingSystem, deltaTime) {
+    const interval = 1 / this.config.messageGenerationHz;
     
     this.generationTimers.forEach((timer, linkId) => {
-      this.generationTimers.set(linkId, timer + (interval / 1000));
+      const nextTimer = timer + deltaTime;
       
       const trackData = this.trackedLinks.get(linkId);
       if (!trackData) return;
@@ -708,7 +724,7 @@ export class LinkedGlyphMessaging3_0 {
       const messages = this.activeMessages.get(linkId) || [];
       
       // Generate message if timer reached
-      if (this.generationTimers.get(linkId) >= interval / 1000) {
+      if (nextTimer >= interval) {
         if (messages.length < this.config.maxMessagesPerLink) {
           this.spawnMessage(
             trackData.link,
@@ -716,8 +732,12 @@ export class LinkedGlyphMessaging3_0 {
             trackData.sourceNode,
             trackData.targetNode
           );
-          this.generationTimers.set(linkId, 0);
+          this.generationTimers.set(linkId, nextTimer - interval);
+        } else {
+          this.generationTimers.set(linkId, interval);
         }
+      } else {
+        this.generationTimers.set(linkId, nextTimer);
       }
     });
   }
@@ -732,7 +752,10 @@ export class LinkedGlyphMessaging3_0 {
     this.activeMessages.clear();
     this.trackedLinks.clear();
     this.generationTimers.clear();
+    this.interpretationCache.clear();
     this.stats.messagesActive = 0;
+    this.stats.linksActive = 0;
+    this._updateAccum = 0;
     console.log('✓ Linked Glyph Messaging 3.0 cleaned up');
   }
   
@@ -793,7 +816,8 @@ export class LinkedGlyphMessaging3_0 {
       targetNode: link.targetNode || link.target || link.nodeB || null
     };
   }
-/**
+
+  /**
    * Clear all active messages (emergency cleanup)
    */
   clearAllMessages() {
@@ -807,14 +831,9 @@ export class LinkedGlyphMessaging3_0 {
   }
 
   dispose() {
-    this.clearAllMessages();
+    this.cleanup();
     this.trackedLinks.clear();
     this.generationTimers.clear();
-
-    if (this.root?.parent) {
-      this.root.parent.remove(this.root);
-    }
-    this.root?.clear?.();
 
     this.messageContainer?.traverse(obj => {
       if (obj.isMesh) {
@@ -826,5 +845,10 @@ export class LinkedGlyphMessaging3_0 {
         }
       }
     });
+
+    if (this.root?.parent) {
+      this.root.parent.remove(this.root);
+    }
+    this.root?.clear?.();
   }
 }

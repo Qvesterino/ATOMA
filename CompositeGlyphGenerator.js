@@ -22,14 +22,31 @@
 
 import * as THREE from 'three';
 import * as BufferGeometryUtils from './src/utils/BufferGeometryUtils.js';
+import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // ============================================================================
 // COMPOSITE GEOMETRY BUILDER
 // ============================================================================
 
 export class CompositeGlyphGenerator {
-    constructor() {
+    constructor(scene = null, camera = null, network = null) {
         this.cache = new Map(); // compositeSig -> geometry
+        this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
+        this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
+
+        if (scene || camera || network) {
+            this.initializeResonanceFeedback(scene, camera, network);
+        }
+    }
+
+    initializeResonanceFeedback(scene, camera, network = null) {
+        if (!this.resonanceFeedback) {
+            this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
+        }
+
+        this.resonanceFeedback.initialize(scene, camera, network);
+        return this.resonanceFeedback;
     }
 
     /**
@@ -38,8 +55,10 @@ export class CompositeGlyphGenerator {
     generateComposite(sourceTypes, semanticContext) {
         if (!sourceTypes || sourceTypes.length < 2) return null;
 
+        const context = this._resolveContextMetrics(semanticContext);
+
         // Create signature for caching
-        const sig = this.createSignature(sourceTypes, semanticContext);
+        const sig = this.createSignature(sourceTypes, context);
         if (this.cache.has(sig)) {
             return this.cache.get(sig);
         }
@@ -48,14 +67,15 @@ export class CompositeGlyphGenerator {
         let geometry = null;
 
         if (sourceTypes.length === 2) {
-            geometry = this.generateDualFusion(sourceTypes, semanticContext);
+            geometry = this.generateDualFusion(sourceTypes, context);
         } else if (sourceTypes.length === 3) {
-            geometry = this.generateTripleFusion(sourceTypes, semanticContext);
+            geometry = this.generateTripleFusion(sourceTypes, context);
         } else {
-            geometry = this.generateMultipleFusion(sourceTypes, semanticContext);
+            geometry = this.generateMultipleFusion(sourceTypes, context);
         }
 
         if (geometry) {
+            this._tagCompositeGeometry(geometry, context, sourceTypes);
             this.cache.set(sig, geometry);
         }
 
@@ -63,10 +83,11 @@ export class CompositeGlyphGenerator {
     }
 
     createSignature(sourceTypes, context) {
+        const metrics = this._resolveContextMetrics(context);
         const types = sourceTypes.slice().sort().join('|');
-        const harmony = Math.round(context.harmony * 10);
-        const corruption = Math.round(context.corruption * 10);
-        const synergy = Math.round(context.synergy * 10);
+        const harmony = Math.round(metrics.harmony * 10);
+        const corruption = Math.round(metrics.corruption * 10);
+        const synergy = Math.round(metrics.synergy * 10);
         return `${types}_h${harmony}_c${corruption}_s${synergy}`;
     }
 
@@ -98,19 +119,7 @@ export class CompositeGlyphGenerator {
         group.add(connectors);
 
         // Merge into single geometry
-        const geometries = [];
-        group.traverse(child => {
-            if (child.geometry) {
-                geometries.push(child.geometry);
-            }
-        });
-
-        if (geometries.length === 0) return null;
-
-        const merged = BufferGeometryUtils.mergeGeometries(geometries);
-        merged.rotateX(-Math.PI / 2); // Face up
-
-        return merged;
+        return this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
@@ -141,16 +150,7 @@ export class CompositeGlyphGenerator {
         group.add(connectors);
 
         // Merge
-        const geometries = [];
-        group.traverse(child => {
-            if (child.geometry) {
-                geometries.push(child.geometry);
-            }
-        });
-
-        if (geometries.length === 0) return null;
-
-        return BufferGeometryUtils.mergeGeometries(geometries);
+        return this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
@@ -170,7 +170,7 @@ export class CompositeGlyphGenerator {
         group.add(core);
 
         // Circular arrangement of sub-glyphs
-        const count = Math.min(sources.length, 6); // Cap at 6 for clarity
+        const count = Math.min(sources.length, 6); // Cap at 6 for readability
         for (let i = 0; i < count; i++) {
             const angle = (i / count) * Math.PI * 2;
             const subGlyph = this.createSubGlyph(sources[i], context, angle);
@@ -182,16 +182,7 @@ export class CompositeGlyphGenerator {
         group.add(connectors);
 
         // Merge
-        const geometries = [];
-        group.traverse(child => {
-            if (child.geometry) {
-                geometries.push(child.geometry);
-            }
-        });
-
-        if (geometries.length === 0) return null;
-
-        return BufferGeometryUtils.mergeGeometries(geometries);
+        return this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
@@ -200,11 +191,12 @@ export class CompositeGlyphGenerator {
 
     createCoreGlyph(sources, context) {
         // Create blended symbol from source glyphs
+        const metrics = this._resolveContextMetrics(context);
         const points = [];
         const segments = 32;
 
         // Blend between circular and more complex shapes based on harmony
-        const harmonyFactor = context.harmony - context.corruption;
+        const harmonyFactor = metrics.harmony - metrics.corruption;
 
         for (let i = 0; i <= segments; i++) {
             const angle = (i / segments) * Math.PI * 2;
@@ -213,8 +205,8 @@ export class CompositeGlyphGenerator {
             let radius = 0.3;
 
             // Add complexity based on synergy
-            const synergy = context.synergy || 0;
-            const ripple = Math.sin(angle * 3 + this.hashFromContext(context)) * synergy * 0.1;
+            const synergy = metrics.synergy || 0;
+            const ripple = Math.sin(angle * 3 + this.hashFromContext(metrics)) * synergy * 0.1;
             radius += ripple;
 
             // Harmony creates smooth curves, corruption creates angular
@@ -247,6 +239,7 @@ export class CompositeGlyphGenerator {
     // ========================================================================
 
     createSubGlyph(sourceType, context, angle) {
+        const metrics = this._resolveContextMetrics(context);
         // Create simplified version of source glyph
         const points = [];
         const segments = 16;
@@ -283,6 +276,7 @@ export class CompositeGlyphGenerator {
         mesh.position.x = Math.cos(angle) * orbitRadius;
         mesh.position.z = Math.sin(angle) * orbitRadius;
         mesh.geometry.rotateX(-Math.PI / 2);
+        mesh.userData.compositeContext = metrics;
 
         return mesh;
     }
@@ -382,7 +376,8 @@ export class CompositeGlyphGenerator {
 
     applySemanticInfluence(geometry, context) {
         // Modify geometry scale/complexity based on context
-        const harmonyFactor = context.harmony - context.corruption;
+        const metrics = this._resolveContextMetrics(context);
+        const harmonyFactor = metrics.harmony - metrics.corruption;
 
         if (harmonyFactor > 0.3) {
             // Harmony-dominant: smooth, expand
@@ -393,7 +388,7 @@ export class CompositeGlyphGenerator {
         }
 
         // Synergy influences structure coherence
-        if (context.synergy > 0.6) {
+        if (metrics.synergy > 0.6) {
             // High synergy: more legible
             geometry.scale(1.05, 1.05, 1.05);
         }
@@ -407,9 +402,96 @@ export class CompositeGlyphGenerator {
 
     hashFromContext(context) {
         // Simple hash from context for deterministic randomness
-        const h1 = Math.sin(context.harmony * 12.9898) * 43758.5453;
-        const h2 = Math.sin(context.corruption * 78.233) * 43758.5453;
+        const metrics = this._resolveContextMetrics(context);
+        const h1 = Math.sin(metrics.harmony * 12.9898) * 43758.5453;
+        const h2 = Math.sin(metrics.corruption * 78.233) * 43758.5453;
         return (h1 + h2) - Math.floor(h1 + h2);
+    }
+
+    _resolveContextMetrics(context = {}) {
+        const clamp01 = (value) => Math.max(0, Math.min(1, value));
+        const read = (fallback, ...values) => {
+            for (const value of values) {
+                if (typeof value === 'number' && Number.isFinite(value)) return value;
+            }
+            return fallback;
+        };
+
+        return {
+            harmony: clamp01(read(0.5,
+                context.harmony,
+                context.harmonyBalance,
+                context.harmonyLevel,
+                context.harmonyFlow,
+                context.avgHarmony
+            )),
+            corruption: clamp01(read(0,
+                context.corruption,
+                context.corruptionLevel,
+                context.corruptionNorm,
+                context.avgCorruption
+            )),
+            synergy: clamp01(read(0.5,
+                context.synergy,
+                context.synergyNorm,
+                context.networkSynergy,
+                context.averageSynergy,
+                context.avgSynergy
+            )),
+            stability: clamp01(read(0.5,
+                context.stability,
+                context.stabilityNorm,
+                context.avgStability
+            )),
+            loadPressure: clamp01(read(0,
+                context.loadPressure,
+                context.loadNorm,
+                context.avgLoadPressure
+            ))
+        };
+    }
+
+    _mergeCompositeGroup(group, context) {
+        if (!group) return null;
+
+        group.updateMatrixWorld(true);
+
+        const geometries = [];
+        try {
+            group.traverse((child) => {
+                if (!child?.isMesh || !child.geometry) return;
+
+                const transformedGeometry = child.geometry.clone();
+                transformedGeometry.applyMatrix4(child.matrixWorld);
+                geometries.push(transformedGeometry);
+            });
+
+            if (geometries.length === 0) return null;
+
+            const merged = BufferGeometryUtils.mergeGeometries(geometries);
+            if (!merged) return null;
+
+            return this._tagCompositeGeometry(merged, context);
+        } finally {
+            for (const geometry of geometries) {
+                geometry.dispose();
+            }
+        }
+    }
+
+    _tagCompositeGeometry(geometry, context, sourceTypes = []) {
+        if (!geometry) return null;
+
+        geometry.userData ??= {};
+        geometry.userData.layerId = VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
+        geometry.userData.renderOrder = this.renderOrder;
+        geometry.userData.semanticContext = this._resolveContextMetrics(context);
+        geometry.userData.sourceTypes = Array.isArray(sourceTypes) ? sourceTypes.slice() : [];
+        geometry.rotateX(-Math.PI / 2);
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
+
+        return geometry;
     }
 
     // ========================================================================
@@ -421,6 +503,7 @@ export class CompositeGlyphGenerator {
             geometry.dispose();
         });
         this.cache.clear();
+        this.resonanceFeedback?.dispose?.();
         console.log('[CompositeGlyphGenerator] Disposed');
     }
 }

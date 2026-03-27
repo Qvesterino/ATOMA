@@ -30,6 +30,9 @@ export class LinkSemanticPictogramSystem_WithFusion {
 
         // Composite glyph generator
         this.compositeGlyphGenerator = new CompositeGlyphGenerator();
+        this.compositeGlyphGenerator.initializeResonanceFeedback(scene, camera, {
+            linkingSystem
+        });
 
         // Fusion zone manager
         this.fusionZoneManager = new GlyphFusionZoneManager(

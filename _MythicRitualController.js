@@ -51,6 +51,7 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 import { MythicRitualPlayer } from './_MythicRitualPlayer.js';
 
@@ -96,6 +97,8 @@ export class MythicRitualController {
     
     // Ritual visuals
     this.ritualVisuals = new Map();
+    this._ritualVisualId = 0;
+    this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_WORLD_OVERLAY);
     
     // HUD element
     this.ritualHUD = null;
@@ -126,6 +129,11 @@ export class MythicRitualController {
    * Initialize ritual HUD
    */
   initializeHUD() {
+    if (typeof document === 'undefined') return;
+    if (this.ritualHUD?.parentNode) {
+      this.ritualHUD.parentNode.removeChild(this.ritualHUD);
+    }
+
     this.ritualHUD = document.createElement('div');
     this.ritualHUD.id = 'mythic-ritual-hud';
     this.ritualHUD.style.cssText = `
@@ -160,11 +168,17 @@ export class MythicRitualController {
     if (!MythicRitualController.ENABLED) return;
     
     if (!nodes || nodes.length === 0) return;
-    if (this.skipRituals) return;
+    const now = Date.now() / 1000;
+    if (this.skipRituals && now < this.skipRitualsUntil) return;
+    if (this.skipRituals && now >= this.skipRitualsUntil) {
+      this.skipRituals = false;
+      this.skipRitualsUntil = 0;
+    }
     
     // Performance check
     if (deltaTime > 0.05) {
       this.skipRituals = true;
+      this.skipRitualsUntil = now + 5.0;
       console.warn('Mythic Rituals: Skipping due to low FPS');
       return;
     }
@@ -266,10 +280,10 @@ export class MythicRitualController {
     if (this.semanticBus) {
       this.semanticBus.emit('semantic.ritual.started', {
         ritualType: ritualType,
-        targetNodeId: nodes?.length > 0 ? nodes[0].userData.id : null,
-        nodes: nodes?.map(n => n.userData.id),
+        targetNodeId: this._getNodeId(nodes?.[0]),
+        nodes: nodes?.map((node) => this._getNodeId(node)).filter((id) => id !== null && id !== undefined) ?? [],
         timestamp: performance.now()
-      }, { priority: this.semanticBus.priority.INTERACTIVE });
+        }, { priority: this.semanticBus.priority?.INTERACTIVE });
       console.log(`✓ Ritual started event emitted: ${ritualType}`);
     }
     
@@ -350,6 +364,7 @@ export class MythicRitualController {
     
     const beam = new THREE.Mesh(beamGeometry, beamMaterial);
     beam.position.set(0, 50, 0);
+    beam.renderOrder = this.renderOrder;
     beam.userData.isRitualFX = true;
     this.scene.add(beam);
     
@@ -374,6 +389,7 @@ export class MythicRitualController {
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.rotation.x = Math.PI / 2;
       ring.position.y = i * 5;
+      ring.renderOrder = this.renderOrder;
       ring.userData.isRitualFX = true;
       this.scene.add(ring);
       
@@ -404,6 +420,7 @@ export class MythicRitualController {
     
     const fissure = new THREE.Mesh(fissureGeometry, fissureMaterial);
     fissure.position.set(0, 40, 0);
+    fissure.renderOrder = this.renderOrder;
     fissure.userData.isRitualFX = true;
     this.scene.add(fissure);
     
@@ -428,6 +445,7 @@ export class MythicRitualController {
       
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
       ring.position.set(0, 20 + i * 10, 0);
+      ring.renderOrder = this.renderOrder;
       ring.userData.isRitualFX = true;
       this.scene.add(ring);
       
@@ -464,6 +482,7 @@ export class MythicRitualController {
       beam.position.copy(dir.clone().multiplyScalar(0.5));
       beam.lookAt(0, 0, 0);
       beam.rotateX(Math.PI / 2);
+      beam.renderOrder = this.renderOrder;
       beam.userData.isRitualFX = true;
       this.scene.add(beam);
       
@@ -486,6 +505,7 @@ export class MythicRitualController {
     
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
     sphere.position.set(0, 5, 0);
+    sphere.renderOrder = this.renderOrder;
     sphere.userData.isRitualFX = true;
     this.scene.add(sphere);
     
@@ -524,6 +544,7 @@ export class MythicRitualController {
     });
     
     const spiral = new THREE.Line(spiralGeometry, spiralMaterial);
+    spiral.renderOrder = this.renderOrder;
     spiral.userData.isRitualFX = true;
     this.scene.add(spiral);
     
@@ -549,6 +570,7 @@ export class MythicRitualController {
       const bolt = new THREE.Mesh(boltGeometry, boltMaterial);
       const angle = (i / 5) * Math.PI * 2;
       bolt.position.set(Math.cos(angle) * 20, 15, Math.sin(angle) * 20);
+      bolt.renderOrder = this.renderOrder;
       bolt.userData.isRitualFX = true;
       this.scene.add(bolt);
       
@@ -595,6 +617,7 @@ export class MythicRitualController {
       const mandala = new THREE.Mesh(geometry, material);
       mandala.rotation.x = Math.PI / 2;
       mandala.position.y = 10;
+      mandala.renderOrder = this.renderOrder;
       mandala.userData.isRitualFX = true;
       this.scene.add(mandala);
       
@@ -627,6 +650,7 @@ export class MythicRitualController {
       const wave = new THREE.Mesh(waveGeometry, waveMaterial);
       wave.rotation.x = Math.PI / 2;
       wave.position.y = 5;
+      wave.renderOrder = this.renderOrder;
       wave.userData.isRitualFX = true;
       this.scene.add(wave);
       
@@ -673,10 +697,12 @@ export class MythicRitualController {
     });
     
     const particles = new THREE.Points(geometry, material);
+    particles.renderOrder = this.renderOrder;
     particles.userData.isRitualFX = true;
     this.scene.add(particles);
     
-    this.ritualVisuals.set('particle_burst', {
+    const burstKey = `particle_burst_${this._ritualVisualId++}`;
+    this.ritualVisuals.set(burstKey, {
       object: particles,
       type: 'particles',
       targetOpacity: 0.8,
@@ -972,8 +998,8 @@ export class MythicRitualController {
     const intensity = this.getPhaseIntensity();
     
     nodes.forEach(node => {
-      if (!node.material) return;
-      if (!node.material.emissiveIntensity !== undefined) return;
+      if (!node?.material) return;
+      if (node.material.emissiveIntensity === undefined) return;
       
       // Phase 3 Guard: Only boost glows if node visual is ready
       if (!node?.userData?.visualReady) return;
@@ -1026,7 +1052,7 @@ export class MythicRitualController {
     
     // Restore node glow
     this.nodeGlowBoosts.forEach((boost, uuid) => {
-      const node = this.scene.children.find(obj => obj.uuid === uuid);
+      const node = this.scene?.getObjectByProperty?.('uuid', uuid);
       if (node && node.material && node.material.emissiveIntensity !== undefined) {
         node.material.emissiveIntensity = boost.original;
       }
@@ -1065,6 +1091,8 @@ export class MythicRitualController {
    * Update HUD
    */
   updateHUD(deltaTime) {
+    if (!this.ritualHUD) return;
+
     if (this.activeRitual && this.ritualPhase !== 'NONE') {
       // Show HUD
       const targetOpacity = this.ritualPhase === 'INIT' ? 1.0 : 
@@ -1117,10 +1145,17 @@ export class MythicRitualController {
    */
   destroy() {
     this.cancelRitual();
+    if (this.ritualPlayer?.destroy) {
+      this.ritualPlayer.destroy();
+    }
     
     // Remove HUD
     if (this.ritualHUD && this.ritualHUD.parentNode) {
       this.ritualHUD.parentNode.removeChild(this.ritualHUD);
     }
+  }
+
+  _getNodeId(node) {
+    return node?.id ?? node?.userData?.id ?? node?.userData?.nodeId ?? null;
   }
 }

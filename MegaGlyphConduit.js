@@ -117,6 +117,10 @@ export class MegaGlyphConduit {
 
     // Composite Glyph Generator (procedural fusion geometry)
     this.compositeGlyphGenerator = new CompositeGlyphGenerator();
+    this.compositeGlyphGenerator.initializeResonanceFeedback(scene, camera, {
+      aiNodes: this.aiNodes,
+      linkingSystem: this.linkingSystem
+    });
 
     // Composite Glyph Resonance Feedback (visual feedback adapter)
     this.compositeResonanceFeedback = new CompositeGlyphResonanceFeedback(scene);

@@ -33,6 +33,20 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function normalizeSemanticValue(value, fallback = 0) {
+  const resolved = value ?? fallback;
+  if (typeof resolved !== 'number' || !Number.isFinite(resolved)) {
+    return fallback;
+  }
+
+  return clamp01(resolved > 1 ? resolved / 100 : resolved);
+}
 
 export class GlyphFusionOverlay4_1 {
   constructor(scene, worldRoot, semanticGlyphAI, semanticBus) {
@@ -46,6 +60,7 @@ export class GlyphFusionOverlay4_1 {
     this.fusionContainer = new THREE.Group();
     this.fusionContainer.userData.isFusionOverlay4 = true;
     this.fusionContainer.name = 'GlyphFusionOverlay4_1';
+    this.fusionContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_NODE_MULTIFUSION);
     attachRoot.add(this.fusionContainer);
     this.root = this.fusionContainer;
     
@@ -64,6 +79,12 @@ export class GlyphFusionOverlay4_1 {
     };
     
     this.materialPools = new Map();
+    this._poolCursor = {
+      rings: 0,
+      planes: 0,
+      petals: 0,
+      hexagons: 0
+    };
     
     // Configuration
     this.config = {
@@ -227,7 +248,8 @@ export class GlyphFusionOverlay4_1 {
   
   handleSemanticStateChanged(evt) {
     // Update fusion form based on new state
-    this.updateFusionForm(evt.nodeId, evt.toState, evt.parameters, evt.context);
+    const meaningType = evt.toState || evt.state || evt.meaningType || evt.type || 'neutral';
+    this.updateFusionForm(evt.nodeId, meaningType, evt.parameters || {}, evt.context || {});
   }
   
   handleClusterSync(evt) {
@@ -266,7 +288,7 @@ export class GlyphFusionOverlay4_1 {
   getMaterial(color, opacity = 0.7) {
     const key = `${color}_${opacity}`;
     if (this.materialPools.has(key)) {
-      return this.materialPools.get(key);
+      return this.materialPools.get(key).clone();
     }
     
     const material = new THREE.MeshBasicMaterial({
@@ -278,7 +300,7 @@ export class GlyphFusionOverlay4_1 {
     });
     
     this.materialPools.set(key, material);
-    return material;
+    return material.clone();
   }
   
   /**
@@ -296,6 +318,7 @@ export class GlyphFusionOverlay4_1 {
     const fusionGroup = new THREE.Group();
     fusionGroup.userData.isFusionGlyph = true;
     fusionGroup.userData.nodeId = nodeId;
+    fusionGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_NODE_MULTIFUSION);
     node.add(fusionGroup);
     
     // Initialize animation state
@@ -421,48 +444,57 @@ export class GlyphFusionOverlay4_1 {
       fusionData.fusionGroup.scale.setScalar(breathScale);
     }
   }
+
+  _resolveFusionSignals(meaningType, parameters = {}, context = {}) {
+    const canonical = context.canonical ?? context.metrics ?? context.semanticMetrics ?? context;
+    const inferredTier = context.glyphTier ?? parameters.glyphTier ?? (meaningType === 'leader' ? 3 : meaningType === 'focused' ? 3 : meaningType === 'cluster-sync' ? 2 : 1);
+
+    return {
+      synergy: normalizeSemanticValue(canonical?.synergy ?? context.synergy ?? parameters.focusStrength ?? parameters.hubDegree ?? parameters.syncAmount ?? parameters.exploreAmount),
+      harmony: normalizeSemanticValue(canonical?.harmony ?? context.harmony ?? parameters.calmness ?? parameters.syncAmount),
+      corruption: normalizeSemanticValue(canonical?.corruption ?? context.corruption ?? parameters.conflictStrength ?? parameters.stressLevel),
+      stability: normalizeSemanticValue(canonical?.stability ?? context.stability ?? context.glyphStability ?? parameters.calmness),
+      loadPressure: normalizeSemanticValue(canonical?.loadPressure ?? canonical?.load ?? context.loadPressure ?? context.load ?? parameters.stressLevel),
+      glyphEmotion: normalizeSemanticValue(context.glyphEmotion ?? parameters.glyphEmotion ?? parameters.focusStrength ?? parameters.exploreAmount ?? parameters.syncAmount ?? 0.5),
+      glyphStability: normalizeSemanticValue(context.glyphStability ?? parameters.glyphStability ?? canonical?.stability),
+      glyphTier: Math.max(1, Math.min(3, Math.round(inferredTier)))
+    };
+  }
   
   /**
    * Compute fusion intensity from semantic state
    */
   computeFusionIntensity(meaningType, parameters, context) {
-    // Base intensity on semantic state complexity
-    let intensity = 0.5;  // Base
+    const signals = this._resolveFusionSignals(meaningType, parameters, context);
+    let intensity = 0.35;
     
     switch (meaningType) {
       case 'focused':
-        // Clarity drives intensity
-        intensity = 0.3 + (context.clarity / 100) * 0.5;
+        intensity = 0.25 + signals.synergy * 0.35 + signals.harmony * 0.2 + signals.glyphEmotion * 0.15;
         break;
       case 'stressed':
-        // Stress drives intensity
-        intensity = 0.4 + (parameters.stressLevel || 0.5) * 0.5;
+        intensity = 0.35 + signals.corruption * 0.3 + signals.loadPressure * 0.25 + (1 - signals.stability) * 0.15;
         break;
       case 'calm':
-        // Calm has medium intensity
-        intensity = 0.4;
+        intensity = 0.3 + signals.harmony * 0.3 + signals.stability * 0.2;
         break;
       case 'exploring':
-        // Exploring has higher intensity
-        intensity = 0.6 + (parameters.exploreAmount || 0.5) * 0.3;
+        intensity = 0.4 + signals.glyphEmotion * 0.25 + signals.glyphTier * 0.08 + signals.synergy * 0.15;
         break;
       case 'leader':
-        // Leadership drives high intensity
-        intensity = 0.5 + (parameters.hubDegree || 0.5) * 0.4;
+        intensity = 0.45 + signals.synergy * 0.25 + signals.harmony * 0.2 + signals.glyphTier * 0.1;
         break;
       case 'conflict':
-        // Conflict has high intensity
-        intensity = 0.7 + (parameters.conflictStrength || 0.5) * 0.2;
+        intensity = 0.55 + signals.corruption * 0.3 + (1 - signals.harmony) * 0.1;
         break;
       case 'cluster-sync':
-        // Cluster sync is very intense
-        intensity = 0.8 + (parameters.syncAmount || 0.5) * 0.2;
+        intensity = 0.55 + signals.synergy * 0.25 + signals.harmony * 0.25 + signals.glyphStability * 0.1;
         break;
       default:
-        intensity = 0.3;
+        intensity = 0.25 + signals.glyphEmotion * 0.2 + signals.glyphStability * 0.15;
     }
     
-    return Math.min(1, intensity);
+    return clamp01(intensity);
   }
   
   /**
@@ -690,17 +722,15 @@ export class GlyphFusionOverlay4_1 {
    * Get semantic color based on context
    */
   getSemanticColor(context) {
-    const clarity = context.clarity || 50;
-    const harmony = context.harmony || 50;
-    const corruption = context.corruption || 0;
-    const stability = context.stability || 0;
-    
-    // Determine dominant color from metrics
-    if (clarity > 70) return this.colors.focused;
-    if (corruption > 60) return this.colors.conflict;
-    if (stability > 60) return this.colors.stressed;
-    if (harmony > 70) return this.colors.calm;
-    
+    const meaningType = context.meaningType || context.stateType || context.type || 'neutral';
+    const signals = this._resolveFusionSignals(meaningType, context.parameters || {}, context);
+
+    if (signals.corruption > 0.65) return this.colors.conflict;
+    if (signals.loadPressure > 0.7) return this.colors.stressed;
+    if (signals.synergy > 0.7 && signals.harmony > 0.65) return this.colors.focused;
+    if (signals.harmony > 0.7 && signals.stability > 0.6) return this.colors.calm;
+    if (signals.glyphTier >= 3 || signals.glyphEmotion > 0.65) return this.colors.leader;
+
     return this.colors.exploring;
   }
   
@@ -773,7 +803,9 @@ export class GlyphFusionOverlay4_1 {
     // Remove all meshes
     for (const mesh of meshes) {
       fusionGroup.remove(mesh);
+      mesh.material?.dispose?.();
     }
+    meshes.length = 0;
     
     // Remove group from node
     if (fusionGroup.parent) {
@@ -871,10 +903,12 @@ export class GlyphFusionOverlay4_1 {
     // Compute fusion intensity
     const intensity = this.computeFusionIntensity(meaningType, parameters, context);
     animState.currentFadeTarget = intensity;
+    fusionData.intensity = intensity;
+    fusionData.context = context;
     
     // Update/create fusion meshes if intensity > 0.1
     if (intensity > 0.1) {
-      this.updateFusionMeshes(nodeId, meaningType, intensity, context, 0.016);
+      this.updateFusionMeshes(nodeId, meaningType, intensity, { ...context, meaningType, parameters }, 0.016);
     }
   }
   
@@ -901,7 +935,7 @@ export class GlyphFusionOverlay4_1 {
     if (!fusionData || !animState) return;
     
     // Update fusion form to ascended (same as focused)
-    this.updateFusionForm(nodeId, 'focused', { clarity: 1.0 }, {});
+    this.updateFusionForm(nodeId, 'focused', { focusStrength: 1.0, glyphEmotion: 1.0, glyphTier: 3, glyphStability: 1.0 }, {});
   }
   
   /**
@@ -915,7 +949,7 @@ export class GlyphFusionOverlay4_1 {
     
     // Ritual state maps to stressed/conflict
     const meaningType = state === 'active' ? 'stressed' : 'conflict';
-    this.updateFusionForm(nodeId, meaningType, { stressLevel: 0.8, confictStrength: 0.8 }, {});
+    this.updateFusionForm(nodeId, meaningType, { stressLevel: 0.8, conflictStrength: 0.8, glyphEmotion: 0.8, glyphTier: 2, glyphStability: 0.3 }, {});
   }
   
   /**
@@ -986,6 +1020,8 @@ export class GlyphFusionOverlay4_1 {
     
     // Clear existing meshes
     for (const mesh of fusionData.meshes) {
+      fusionGroup.remove(mesh);
+      mesh.material?.dispose?.();
       mesh.visible = false;
     }
     fusionData.meshes = [];
@@ -993,35 +1029,35 @@ export class GlyphFusionOverlay4_1 {
     // Create form based on meaning type
     switch (meaningType) {
       case 'focused':
-        this.createFocusedForm(fusionGroup, intensity, nodeId);
+        this.createFocusedForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'stressed':
-        this.createStressedForm(fusionGroup, intensity, nodeId);
+        this.createStressedForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'calm':
-        this.createCalmForm(fusionGroup, intensity, nodeId);
+        this.createCalmForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'exploring':
-        this.createExploringForm(fusionGroup, intensity, nodeId);
+        this.createExploringForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'leader':
-        this.createLeaderForm(fusionGroup, intensity, nodeId);
+        this.createLeaderForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'conflict':
-        this.createConflictForm(fusionGroup, intensity, nodeId);
+        this.createConflictForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       case 'cluster-sync':
-        this.createClusterSyncForm(fusionGroup, intensity, nodeId);
+        this.createClusterSyncForm(fusionGroup, fusionData.meshes, intensity, nodeId);
         break;
       default:
-        this.createNeutralForm(fusionGroup, intensity, nodeId);
+        this.createNeutralForm(fusionGroup, fusionData.meshes, intensity, nodeId);
     }
   }
   
   /**
    * Create focused form (dual-rings)
    */
-  createFocusedForm(fusionGroup, intensity, nodeId) {
+  createFocusedForm(fusionGroup, meshes, intensity, nodeId) {
     const ring1 = this.getReusableMesh('rings', this.colors.focused);
     const ring2 = this.getReusableMesh('rings', this.colors.focused);
     
@@ -1029,7 +1065,7 @@ export class GlyphFusionOverlay4_1 {
       ring1.rotation.x = Math.PI / 2;
       ring1.visible = true;
       fusionGroup.add(ring1);
-      fusionGroup.meshes.push(ring1);
+      meshes.push(ring1);
       ring1.userData.rotationAxis = 'z';
     }
     
@@ -1038,7 +1074,7 @@ export class GlyphFusionOverlay4_1 {
       ring2.rotation.y = Math.PI / 4;
       ring2.visible = true;
       fusionGroup.add(ring2);
-      fusionGroup.meshes.push(ring2);
+      meshes.push(ring2);
       ring2.userData.rotationAxis = 'z';
     }
   }
@@ -1046,7 +1082,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create stressed form (tri-fold)
    */
-  createStressedForm(fusionGroup, intensity, nodeId) {
+  createStressedForm(fusionGroup, meshes, intensity, nodeId) {
     const plane1 = this.getReusableMesh('planes', this.colors.stressed);
     const plane2 = this.getReusableMesh('planes', this.colors.stressed);
     const plane3 = this.getReusableMesh('planes', this.colors.stressed);
@@ -1058,7 +1094,7 @@ export class GlyphFusionOverlay4_1 {
         plane.rotation.y = Math.cos(angle) * 0.5;
         plane.visible = true;
         fusionGroup.add(plane);
-        fusionGroup.meshes.push(plane);
+        meshes.push(plane);
         plane.userData.rotationAxis = 'z';
       }
     });
@@ -1067,7 +1103,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create calm form (lotus)
    */
-  createCalmForm(fusionGroup, intensity, nodeId) {
+  createCalmForm(fusionGroup, meshes, intensity, nodeId) {
     for (let i = 0; i < 6; i++) {
       const petal = this.getReusableMesh('petals', this.colors.calm);
       if (petal) {
@@ -1077,7 +1113,7 @@ export class GlyphFusionOverlay4_1 {
         petal.rotation.y = angle;
         petal.visible = true;
         fusionGroup.add(petal);
-        fusionGroup.meshes.push(petal);
+        meshes.push(petal);
         petal.userData.rotationAxis = 'y';
       }
     }
@@ -1086,7 +1122,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create exploring form (orbiting dots)
    */
-  createExploringForm(fusionGroup, intensity, nodeId) {
+  createExploringForm(fusionGroup, meshes, intensity, nodeId) {
     for (let i = 0; i < 4; i++) {
       const hex = this.getReusableMesh('hexagons', this.colors.exploring);
       if (hex) {
@@ -1096,7 +1132,7 @@ export class GlyphFusionOverlay4_1 {
         hex.rotation.y = angle;
         hex.visible = true;
         fusionGroup.add(hex);
-        fusionGroup.meshes.push(hex);
+        meshes.push(hex);
         hex.userData.rotationAxis = 'y';
       }
     }
@@ -1105,7 +1141,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create leader form (crown halo)
    */
-  createLeaderForm(fusionGroup, intensity, nodeId) {
+  createLeaderForm(fusionGroup, meshes, intensity, nodeId) {
     for (let i = 0; i < 4; i++) {
       const ring = this.getReusableMesh('rings', this.colors.leader);
       if (ring) {
@@ -1115,7 +1151,7 @@ export class GlyphFusionOverlay4_1 {
         ring.position.z = Math.sin(angle) * 0.08;
         ring.visible = true;
         fusionGroup.add(ring);
-        fusionGroup.meshes.push(ring);
+        meshes.push(ring);
         ring.userData.rotationAxis = 'y';
       }
     }
@@ -1124,7 +1160,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create conflict form (cross-planes)
    */
-  createConflictForm(fusionGroup, intensity, nodeId) {
+  createConflictForm(fusionGroup, meshes, intensity, nodeId) {
     const plane1 = this.getReusableMesh('planes', this.colors.conflict);
     const plane2 = this.getReusableMesh('planes', this.colors.conflict);
     
@@ -1132,7 +1168,7 @@ export class GlyphFusionOverlay4_1 {
       plane1.rotation.y = Math.PI / 4;
       plane1.visible = true;
       fusionGroup.add(plane1);
-      fusionGroup.meshes.push(plane1);
+      meshes.push(plane1);
       plane1.userData.rotationAxis = 'z';
     }
     
@@ -1140,7 +1176,7 @@ export class GlyphFusionOverlay4_1 {
       plane2.rotation.y = -Math.PI / 4;
       plane2.visible = true;
       fusionGroup.add(plane2);
-      fusionGroup.meshes.push(plane2);
+      meshes.push(plane2);
       plane2.userData.rotationAxis = 'z';
     }
   }
@@ -1148,7 +1184,7 @@ export class GlyphFusionOverlay4_1 {
   /**
    * Create cluster-sync form (hexagon-orbital)
    */
-  createClusterSyncForm(fusionGroup, intensity, nodeId) {
+  createClusterSyncForm(fusionGroup, meshes, intensity, nodeId) {
     for (let i = 0; i < 4; i++) {
       const hex = this.getReusableMesh('hexagons', this.colors['cluster-sync']);
       if (hex) {
@@ -1158,7 +1194,7 @@ export class GlyphFusionOverlay4_1 {
         hex.rotation.y = angle;
         hex.visible = true;
         fusionGroup.add(hex);
-        fusionGroup.meshes.push(hex);
+        meshes.push(hex);
         hex.userData.rotationAxis = 'y';
       }
     }
@@ -1178,8 +1214,12 @@ export class GlyphFusionOverlay4_1 {
     const pool = this.geometryPools[poolType];
     if (!pool || pool.length === 0) return null;
     
-    const mesh = pool.shift();
-    mesh.material = this.getMaterial(color);
+    const cursor = this._poolCursor[poolType] ?? 0;
+    const geometry = pool[cursor % pool.length];
+    this._poolCursor[poolType] = cursor + 1;
+
+    const mesh = new THREE.Mesh(geometry, this.getMaterial(color));
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_NODE_MULTIFUSION);
     return mesh;
   }
   
@@ -1216,6 +1256,16 @@ export class GlyphFusionOverlay4_1 {
     // Dispose materials
     for (const material of this.materialPools.values()) {
       material.dispose();
+    }
+
+    const disposedGeometries = new Set();
+    for (const pool of Object.values(this.geometryPools)) {
+      for (const geometry of pool) {
+        if (geometry && !disposedGeometries.has(geometry)) {
+          disposedGeometries.add(geometry);
+          geometry.dispose();
+        }
+      }
     }
     
     // Remove master container

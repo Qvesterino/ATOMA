@@ -25,20 +25,13 @@
  * @version 1.0.0
  */
 
-let THREE = null;
+import * as THREE from 'three';
 
-// Defer palette initialization until THREE is available
+// Defer palette initialization until module scope is ready
 let CASCADE_COLOR_PALETTE = null;
 
 function initializePalette() {
   if (CASCADE_COLOR_PALETTE) return; // Already initialized
-  
-  THREE =
-    (typeof window !== 'undefined' && window.THREE) ||
-    (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-    null;
-
-  if (!THREE) return; // Still not available
 
   /**
    * Color palette for different conflict types and cascade intensities

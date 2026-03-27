@@ -21,6 +21,8 @@
  */
 
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -208,6 +210,7 @@ export class GlyphFusionZoneManager {
     initializeCompositeGlyphPool() {
         const container = new THREE.Group();
         container.name = 'CompositeGlyphPool';
+        container.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         this._attachRoot.add(container);
         this.container = container;
         this.root = container;
@@ -224,6 +227,7 @@ export class GlyphFusionZoneManager {
             });
             const mesh = new THREE.Mesh(geometry, material);
             mesh.visible = false;
+            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
 
             container.add(mesh);
 
@@ -333,14 +337,17 @@ export class GlyphFusionZoneManager {
             const nodeA = link.userData.nodeA;
             const nodeB = link.userData.nodeB;
 
-            const avgHarmony = ((nodeA?.userData?.harmony || 0) + (nodeB?.userData?.harmony || 0)) / 2;
-            const avgCorruption = ((nodeA?.userData?.corruption || 0) + (nodeB?.userData?.corruption || 0)) / 2;
-            const synergy = link.userData?.synergy?.score ?? 0;
+            const nodeAMetrics = getNodeCanonicalMetrics(nodeA) ?? {};
+            const nodeBMetrics = getNodeCanonicalMetrics(nodeB) ?? {};
+            const avgHarmony = ((nodeAMetrics.harmony ?? 0) + (nodeBMetrics.harmony ?? 0)) / 2;
+            const avgCorruption = ((nodeAMetrics.corruption ?? 0) + (nodeBMetrics.corruption ?? 0)) / 2;
+            const avgStability = ((nodeAMetrics.stability ?? 0.5) + (nodeBMetrics.stability ?? 0.5)) / 2;
+            const synergy = getLinkSynergy(link);
 
             harmonySum += avgHarmony;
             corruptionSum += avgCorruption;
             synergySum += synergy;
-            count++;
+            count += 1;
         });
 
         const harmonyBalance = harmonySum / Math.max(count, 1);
@@ -357,7 +364,9 @@ export class GlyphFusionZoneManager {
             isInHarmonicHub: isInHarmonicHub,
             harmony: harmonyBalance,
             corruption: corruptionBalance,
-            synergy: averageSynergy
+            synergy: averageSynergy,
+            stability: avgStability,
+            loadPressure: Math.max(0, Math.min(1, 1.0 - harmonyBalance))
         };
     }
 
@@ -443,10 +452,14 @@ export class GlyphFusionZoneManager {
         const sourceTypes = zone.sourceGlyphs.map(g => g.currentState).filter(s => s);
 
         // Generate composite geometry
+        const harmonyBalance = zone.harmonBalance ?? zone.harmonyBalance ?? 0.5;
         const context = {
-            harmony: zone.harmonBalance,
-            corruption: 1.0 - zone.harmonBalance,
-            synergy: zone.averageSynergy
+            harmonyBalance,
+            harmony: harmonyBalance,
+            corruption: 1.0 - harmonyBalance,
+            synergy: zone.averageSynergy,
+            stability: Math.max(0, Math.min(1, 1.0 - (zone.corruptionBalance ?? (1.0 - harmonyBalance)))),
+            loadPressure: Math.max(0, Math.min(1, zone.corruptionBalance ?? (1.0 - harmonyBalance)))
         };
 
         const geometry = this.compositeGlyphGenerator.generateComposite(sourceTypes, context);
@@ -458,7 +471,7 @@ export class GlyphFusionZoneManager {
 
         // Create new mesh with generated geometry
         const material = new THREE.MeshBasicMaterial({
-            color: this.getCompositeColor(zone.harmonBalance),
+            color: this.getCompositeColor(harmonyBalance),
             transparent: true,
             opacity: 0.0,  // Will fade in
             side: THREE.DoubleSide,
@@ -468,6 +481,8 @@ export class GlyphFusionZoneManager {
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.copy(zone.node.position);
         mesh.position.y += 0.9;  // Center above node
+        mesh.renderOrder = geometry.userData?.renderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
+        mesh.userData.visualLayer = geometry.userData?.layerId ?? VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
 
         this.container.add(mesh);
 

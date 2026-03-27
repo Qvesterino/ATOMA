@@ -35,13 +35,7 @@
  * ============================================================================
  */
 
-let THREE_SAFE = null;
-THREE_SAFE =
-  (typeof window !== 'undefined' && window.THREE) ||
-  (typeof globalThis !== 'undefined' && globalThis.THREE) ||
-  null;
-
-const THREE = THREE_SAFE;
+import * as THREE from 'three';
 
 /**
  * Configuration for conflict detection and resolution
@@ -466,6 +460,17 @@ export function setupSynapticConflictSystem(game, options = {}) {
     
     // Setup console debugging
     game.synapticConflict.setupConsoleAPI();
+
+    if (game.frameScheduler?.register) {
+      if (game.frameScheduler?.isRegistered?.('visual.synapticConflictResolution')) {
+        game.frameScheduler.unregister('visual.synapticConflictResolution');
+      }
+
+      game.frameScheduler.register('visual', (dt) => {
+        if (!game.synapticConflict?.enabled) return;
+        game.synapticConflict.update(dt, game.aiNodes?.nodes || []);
+      }, 'visual.synapticConflictResolution');
+    }
     
     return game.synapticConflict;
   } catch (err) {

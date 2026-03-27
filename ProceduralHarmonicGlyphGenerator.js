@@ -43,6 +43,8 @@
  */
 
 import * as THREE from 'three';
+import { GlyphAnimationModulator } from './GlyphAnimationModulator.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -358,6 +360,7 @@ export class ProceduralHarmonicGlyphGenerator {
         this.topologySystem = topologySystem;
         this.frameScheduler = null;
         this._attachRoot = worldRoot || scene;
+        this.glyphAnimationModulator = null;
         
         // Glyph instances
         this.glyphInstances = [];
@@ -378,6 +381,25 @@ export class ProceduralHarmonicGlyphGenerator {
         
         console.log('[ProceduralHarmonicGlyphGenerator] Initialized');
     }
+
+    setGlyphAnimationModulator(modulator) {
+        if (modulator && !(modulator instanceof GlyphAnimationModulator)) {
+            console.warn('[ProceduralHarmonicGlyphGenerator] Ignoring invalid GlyphAnimationModulator binding');
+            return null;
+        }
+
+        this.glyphAnimationModulator = modulator || null;
+
+        if (this.glyphAnimationModulator) {
+            for (const glyph of this.glyphInstances) {
+                if (glyph.active) {
+                    this.glyphAnimationModulator.registerGlyph(glyph, glyph.regionHash);
+                }
+            }
+        }
+
+        return this.glyphAnimationModulator;
+    }
     
     // ========================================================================
     // GLYPH POOL INITIALIZATION
@@ -386,6 +408,7 @@ export class ProceduralHarmonicGlyphGenerator {
     initializeGlyphPool() {
         const container = new THREE.Group();
         container.name = 'ProceduralGlyphPool';
+        container.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
         this._attachRoot.add(container);
         this.container = container;
         this.root = container;
@@ -406,7 +429,7 @@ export class ProceduralHarmonicGlyphGenerator {
             
             const line = new THREE.Line(geometry, material);
             line.visible = false;
-            line.renderOrder = 3;  // Mid-layer (behind echoes, above topology)
+            line.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
             
             container.add(line);
             
@@ -421,7 +444,7 @@ export class ProceduralHarmonicGlyphGenerator {
     // ========================================================================
     
     update(deltaTime) {
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
         if (!this.enabled || !this.topologySystem) return;
         
@@ -467,17 +490,18 @@ export class ProceduralHarmonicGlyphGenerator {
     
     qualifiesForGlyph(region) {
         // POLISHED: Conservative thresholds for rare glyph emergence
+        if (!region) return false;
         
         // Must have sufficient learning
-        if (region.flowStrength < CONFIG.MIN_LEARNING_STRENGTH) return false;
+        if ((region.flowStrength ?? 0) < CONFIG.MIN_LEARNING_STRENGTH) return false;
         
         // Must be a matured hub
-        if (!region.isMaturedHub || region.hubAge < CONFIG.MIN_HUB_AGE_SECONDS) {
+        if (!region.isMaturedHub || (region.hubAge ?? 0) < CONFIG.MIN_HUB_AGE_SECONDS) {
             return false;
         }
         
         // Must have reinforced links
-        if (region.reinforcedLinks.size === 0) return false;
+        if (!region.reinforcedLinks || region.reinforcedLinks.size === 0) return false;
         
         // Check average reinforcement
         let avgReinforcement = 0;
@@ -489,7 +513,7 @@ export class ProceduralHarmonicGlyphGenerator {
         if (avgReinforcement < CONFIG.MIN_REINFORCEMENT_LEVEL) return false;
         
         // Harmony preference (glyphs emerge in harmony, suppressed by corruption)
-        if (region.harmonyHistory && region.harmonyHistory.length > 5) {
+        if (Array.isArray(region.harmonyHistory) && Array.isArray(region.corruptionHistory) && region.harmonyHistory.length > 5 && region.corruptionHistory.length > 5) {
             const avgHarmony = region.harmonyHistory.reduce((a, b) => a + b) / region.harmonyHistory.length;
             const avgCorruption = region.corruptionHistory.reduce((a, b) => a + b) / region.corruptionHistory.length;
             
@@ -527,6 +551,8 @@ export class ProceduralHarmonicGlyphGenerator {
         
         // Initialize glyph
         glyphInstance.initialize(region.center, hash, procedureParams);
+
+        this.glyphAnimationModulator?.registerGlyph?.(glyphInstance, hash);
         
         // Register
         this.glyphsByRegion.set(hash, glyphInstance);
@@ -536,6 +562,7 @@ export class ProceduralHarmonicGlyphGenerator {
     
     deriveProcedureParameters(region) {
         // Generate parameters from topology data
+        const flowBias = region.flowBias?.clone?.() ?? new THREE.Vector3(0, 0, 0);
         
         // Seed from position (consistent per region)
         const seed = Math.abs(
@@ -563,8 +590,8 @@ export class ProceduralHarmonicGlyphGenerator {
         const glyphType = this.selectGlyphType(region, seed);
         
         // Flow direction from topology bias
-        const flowDirection = region.flowBias.length() > 0.01
-            ? region.flowBias.normalize().clone()
+        const flowDirection = flowBias.lengthSq() > 0.0001
+            ? flowBias.normalize()
             : new THREE.Vector3(0, 0, 1);
         
         // Learning strength (normalized)
@@ -606,6 +633,7 @@ export class ProceduralHarmonicGlyphGenerator {
         // Remove glyphs for inactive regions
         for (let [hash, glyph] of this.glyphsByRegion.entries()) {
             if (!activeHashes.has(hash)) {
+                this.glyphAnimationModulator?.unregisterGlyph?.(glyph);
                 glyph.reset();
                 this.glyphsByRegion.delete(hash);
             }
@@ -636,6 +664,7 @@ export class ProceduralHarmonicGlyphGenerator {
     
     resetAll() {
         for (let glyph of this.glyphInstances) {
+            this.glyphAnimationModulator?.unregisterGlyph?.(glyph);
             glyph.reset();
         }
         this.glyphsByRegion.clear();
@@ -672,6 +701,7 @@ export class ProceduralHarmonicGlyphGenerator {
     dispose() {
         this.resetAll();
         this.geometryGenerator.clearCache();
+        this.glyphAnimationModulator = null;
         
         for (let glyph of this.glyphInstances) {
             if (glyph.mesh) {
@@ -684,6 +714,10 @@ export class ProceduralHarmonicGlyphGenerator {
             this.root.parent.remove(this.root);
         }
         this.root?.clear?.();
+    }
+
+    cleanup() {
+        this.dispose();
     }
 }
 

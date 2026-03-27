@@ -83,6 +83,12 @@
    *   LINK_BEADS         (245)   — Traveling particles along links
  *   LINK_IMPACTS       (250)   — Transient hit effects at nodes
  *   LINK_PARTICLES     (260)   — Ambient particle effects (trail/healing/corruption)
+ *
+ *   GLYPH LAYERS (300-330):
+ *   GLYPH_NODE_MULTIFUSION (300) — Multi-node glyph fusion core
+ *   GLYPH_COMPOSITE        (310) — Composite glyph assemblies
+ *   GLYPH_HARMONIC         (320) — Harmonic glyph resonance layers
+ *   GLYPH_FUSION_ZONE      (330) — Glyph fusion field / overlap zone
  *   
  *   WORLD LAYERS (400+):
  *   WORLD_BACKGROUND   (400)   — Background world effects
@@ -154,6 +160,15 @@ export class VisualHierarchyRegistry {
   static LAYER_LINK_RESONANCE = 'LINK_RESONANCE';
 
   // ========================================================================
+  // GLYPH LAYER IDENTIFIERS (Immutable constants)
+  // ========================================================================
+
+  static LAYER_GLYPH_NODE_MULTIFUSION = 'GLYPH_NODE_MULTIFUSION';
+  static LAYER_GLYPH_COMPOSITE = 'GLYPH_COMPOSITE';
+  static LAYER_GLYPH_HARMONIC = 'GLYPH_HARMONIC';
+  static LAYER_GLYPH_FUSION_ZONE = 'GLYPH_FUSION_ZONE';
+
+  // ========================================================================
   // WORLD / UI / DEBUG IDENTIFIERS
   // ========================================================================
   static LAYER_WORLD_BACKGROUND = 'WORLD_BACKGROUND';
@@ -212,6 +227,18 @@ export class VisualHierarchyRegistry {
   };
 
   // ========================================================================
+  // GLYPH RENDER ORDER VALUES (Immutable)
+  // Range: 300-330 (above links, below world layers)
+  // ========================================================================
+
+  static GLYPH_LAYER_ORDER = {
+    NODE_MULTIFUSION: 300,
+    COMPOSITE: 310,
+    HARMONIC: 320,
+    FUSION_ZONE: 330
+  };
+
+  // ========================================================================
   // WORLD / UI / DEBUG RENDER ORDER VALUES
   // ========================================================================
   static WORLD_LAYER_ORDER = {
@@ -263,6 +290,12 @@ export class VisualHierarchyRegistry {
       return this.LINK_LAYER_ORDER[linkLayerName];
     }
 
+    // Glyph layers (map GLYPH_NODE_MULTIFUSION → NODE_MULTIFUSION)
+    const glyphLayerName = layerId.replace('GLYPH_', '');
+    if (this.GLYPH_LAYER_ORDER[glyphLayerName] !== undefined) {
+      return this.GLYPH_LAYER_ORDER[glyphLayerName];
+    }
+
     // World layers
     if (this.WORLD_LAYER_ORDER[layerId] !== undefined) {
       return this.WORLD_LAYER_ORDER[layerId];
@@ -307,6 +340,14 @@ export class VisualHierarchyRegistry {
         type: 'link' 
       }));
 
+    const glyphLayers = Object.entries(this.GLYPH_LAYER_ORDER)
+      .sort(([, a], [, b]) => a - b)
+      .map(([id, renderOrder]) => ({
+        id: `GLYPH_${id}`,
+        renderOrder,
+        type: 'glyph'
+      }));
+
     const worldLayers = Object.entries(this.WORLD_LAYER_ORDER)
       .sort(([, a], [, b]) => a - b)
       .map(([id, renderOrder]) => ({ id, renderOrder, type: 'world' }));
@@ -322,12 +363,14 @@ export class VisualHierarchyRegistry {
     return {
       node: nodeLayers,
       link: linkLayers,
+      glyph: glyphLayers,
       world: worldLayers,
       ui: uiLayers,
       debug: debugLayers,
       all: [
         ...nodeLayers,
         ...linkLayers,
+        ...glyphLayers,
         ...worldLayers,
         ...uiLayers,
         ...debugLayers

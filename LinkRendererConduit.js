@@ -1421,20 +1421,13 @@ export class LinkRendererConduit {
         sparkDuration[idx] = randRange(profile.lifeMin, profile.lifeMax) * (0.85 + energyClamped * 0.35);
         const staticAttrs = filamentState.sparkStaticAttributes;
         if (staticAttrs) {
-            staticAttrs.aColor.updateRange.offset = s;
-            staticAttrs.aColor.updateRange.count = 3;
-            staticAttrs.aShape.updateRange.offset = idx;
-            staticAttrs.aShape.updateRange.count = 1;
-            staticAttrs.aSize.updateRange.offset = idx;
-            staticAttrs.aSize.updateRange.count = 1;
-            staticAttrs.aAngle.updateRange.offset = idx;
-            staticAttrs.aAngle.updateRange.count = 1;
-            staticAttrs.aSpin.updateRange.offset = idx;
-            staticAttrs.aSpin.updateRange.count = 1;
-            staticAttrs.aDuration.updateRange.offset = idx;
-            staticAttrs.aDuration.updateRange.count = 1;
-            staticAttrs.aGain.updateRange.offset = idx;
-            staticAttrs.aGain.updateRange.count = 1;
+            staticAttrs.aColor.addUpdateRange(s, 3);
+            staticAttrs.aShape.addUpdateRange(idx, 1);
+            staticAttrs.aSize.addUpdateRange(idx, 1);
+            staticAttrs.aAngle.addUpdateRange(idx, 1);
+            staticAttrs.aSpin.addUpdateRange(idx, 1);
+            staticAttrs.aDuration.addUpdateRange(idx, 1);
+            staticAttrs.aGain.addUpdateRange(idx, 1);
             this._queueSparkAttributeUpload(filamentState, staticAttrs.aColor);
             this._queueSparkAttributeUpload(filamentState, staticAttrs.aShape);
             this._queueSparkAttributeUpload(filamentState, staticAttrs.aSize);
@@ -1446,8 +1439,7 @@ export class LinkRendererConduit {
 
         const dynamicAttrs = filamentState.sparkDynamicAttributes;
         if (dynamicAttrs) {
-            dynamicAttrs.aBirth.updateRange.offset = idx;
-            dynamicAttrs.aBirth.updateRange.count = 1;
+            dynamicAttrs.aBirth.addUpdateRange(idx, 1);
             this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
         }
     }
@@ -1499,10 +1491,8 @@ export class LinkRendererConduit {
         }
         const dynamicAttrs = filamentState.sparkDynamicAttributes;
         if (dynamicAttrs) {
-            dynamicAttrs.position.updateRange.offset = 0;
-            dynamicAttrs.position.updateRange.count = sparkMax * 3;
-            dynamicAttrs.aBirth.updateRange.offset = 0;
-            dynamicAttrs.aBirth.updateRange.count = sparkMax;
+            dynamicAttrs.position.addUpdateRange(0, sparkMax * 3);
+            dynamicAttrs.aBirth.addUpdateRange(0, sparkMax);
             this._queueSparkAttributeUpload(filamentState, dynamicAttrs.position);
             this._queueSparkAttributeUpload(filamentState, dynamicAttrs.aBirth);
         }

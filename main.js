@@ -621,6 +621,12 @@ import { GlyphAnimationModulator, setupGlyphAnimationConsoleAPI } from './GlyphA
 import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
 
 // ============================================================================
+// SYNAPTIC CONFLICT ADAPTIVE RESOLUTION (Session 117)
+// Visual adapter for competing harmonic hubs and phase interference
+// ============================================================================
+import { setupSynapticConflictSystem } from './SynapticConflictAdaptiveResolution_Session117.js';
+
+// ============================================================================
 // SESSION 108+: LINK MICRO-IMPULSES (Event-Driven Electrical Nervous Responses)
 // ============================================================================
 import { setupLinkMicroImpulseIntegration } from './LinkMicroImpulseIntegrationSetup.js';
@@ -4073,9 +4079,12 @@ class AtomaGame {
         }, 'visual.cascadeParticleEmissionBoost');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleColorTinting) {
+                const links = Array.isArray(this.linkingSystem?.links) && this.linkingSystem.links.length > 0
+                    ? this.linkingSystem.links
+                    : (this.nodeLinking?.links || []);
                 this.cascadeParticleColorTinting.update(
                     dt,
-                    this.nodeLinking?.links || [],
+                    links,
                     this.cascadeVisualizer || this.harmonicCascadeAmplification || null,
                     this.conflictSystem || null
                 );
@@ -5180,6 +5189,7 @@ this.setHudDirty('nodeInspect');
         this.setupHarmonicResonanceFeedback();
         this.setupResonanceEchoTrails();
         this.setupHarmonicTopologyLearning();
+        this.setupSynapticConflictSystem();
         this.setupTopologyBiasVisualization();
         this.setupProceduralHarmonicGlyphs();
         this.setupRegionalHarmonicCycles();
@@ -13369,6 +13379,32 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     /**
+     * Setup Synaptic Conflict Adaptive Resolution (Session 117)
+     * Visual adapter for harmonic hub competition and phase interference
+     */
+    setupSynapticConflictSystem() {
+        try {
+            if (!this.harmonicTopology) {
+                console.warn('[main.js] Topology not ready, skipping synaptic conflict adapter');
+                return;
+            }
+
+            this.synapticConflict = setupSynapticConflictSystem(this, {
+                enabled: true,
+                debugMode: false
+            });
+            if (this.synapticConflict) {
+                this.conflictSystem = this.synapticConflict;
+            }
+
+            console.log('[main.js] SynapticConflictAdaptiveResolution initialized ✓');
+            console.log('[main.js] Features: phase beating, interference, fatigue yield, equilibrium drift');
+        } catch (err) {
+            console.warn('[main.js] SynapticConflictAdaptiveResolution init error:', err);
+        }
+    }
+
+    /**
      * Setup Topology Bias Visualization Layer (Session 140+)
      * Renders topology bias vectors and flow fields as dedicated visual layer
      * Makes learned space perception visible through subtle directional hints
@@ -13468,6 +13504,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.glyphAnimationModulator = new GlyphAnimationModulator(
                 this.harmonicCycleController
             );
+
+            this.proceduralGlyphGenerator?.setGlyphAnimationModulator?.(this.glyphAnimationModulator);
             
             setupGlyphAnimationConsoleAPI(this);
             

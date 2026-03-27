@@ -6,7 +6,7 @@
  * Creates pulsing directional energy flows along links that:
  * - Travel from source to destination node
  * - Pulse speed modulated by synergy and activity
- * - Intensity reflects link quality and energy
+ * - Intensity reflects the canonical link visual profile
  * - Multiple pulses travel simultaneously
  * - Color matches link state (harmony, corruption, synergy)
  * - Creates visual sense of "energy flowing through network"
@@ -15,7 +15,7 @@
  * 1. Directional Pulses: Energy packets traveling along links
  * 2. Synergy Reactivity: Pulse speed increases with link synergy
  * 3. Multi-Pulse Support: Multiple energy packets per link
- * 4. Quality Encoding: Pulse intensity reflects link quality
+ * 4. Profile Encoding: Pulse intensity reflects canonical link metrics
  * 5. State Colors: Corruption/Harmony modulation
  * 6. Bidirectional Flow: Can show energy in both directions
  * 7. Pulse Spawning: Triggered by network activity
@@ -34,8 +34,9 @@
 
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
+import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
-import { getLinkSynergy } from './SemanticMetricAdapter.js';
+import { getLinkSynergy, getLinkSynergyVisualMetrics } from './SemanticMetricAdapter.js';
 
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
@@ -115,6 +116,7 @@ export class LinkResonanceFlowSystem_Session124 {
     // Create pulse rendering group
     this.pulseGroup = new THREE.Group();
     this.pulseGroup.name = 'LinkResonancePulses_Session124';
+    this.pulseGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     this.scene.add(this.pulseGroup);
     
     // Pre-allocate pulse meshes for efficient rendering
@@ -239,7 +241,8 @@ export class LinkResonanceFlowSystem_Session124 {
     
     const linkId = link.id;
     const synergy = getLinkSynergy(link);
-    const quality = link.userData.quality ?? 0.5;
+    const visualProfile = getLinkSynergyVisualMetrics(link) ?? {};
+    const corruption = visualProfile.corruption ?? 0;
     
     // Get or create pulse pool for this link
     if (!this.linkPulses.has(linkId)) {
@@ -268,7 +271,7 @@ export class LinkResonanceFlowSystem_Session124 {
       ),
       
       intensity: Math.max(0.3, Math.min(1.0,
-        this.config.baseIntensity + quality * this.config.qualityIntensityFactor
+        this.config.baseIntensity + (visualProfile.pulseStrength ?? synergy) * this.config.qualityIntensityFactor
       )),
       
       // State
@@ -281,8 +284,8 @@ export class LinkResonanceFlowSystem_Session124 {
       
       // Metrics
       synergy,
-      quality,
-      corruption: link.userData.corruption ?? 0,
+      corruption,
+      visualProfile,
     };
     
     pulses.push(pulse);
@@ -300,7 +303,8 @@ export class LinkResonanceFlowSystem_Session124 {
       
       // Update position along link
       const travelDistance = pulse.speed * deltaVisual;
-      pulse.position += pulse.direction * (travelDistance / pulse.link.length);
+      const linkLength = this._getLinkLength(pulse.link);
+      pulse.position += pulse.direction * (travelDistance / linkLength);
       
       // Update lifetime
       pulse.life += deltaVisual;
@@ -375,12 +379,13 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   _getPulseColor(pulse) {
     let color = new THREE.Color();
+    const synergy = pulse.visualProfile?.synergy ?? pulse.synergy ?? 0.5;
     
     // Base color by synergy state
-    if (pulse.synergy > 0.7) {
+    if (synergy > 0.7) {
       // High synergy: bright cyan
       color.setHSL(0.5, 1.0, 0.6);
-    } else if (pulse.synergy > 0.4) {
+    } else if (synergy > 0.4) {
       // Medium synergy: green
       color.setHSL(0.33, 0.8, 0.55);
     } else {
@@ -389,9 +394,10 @@ export class LinkResonanceFlowSystem_Session124 {
     }
     
     // Modulate by corruption
-    if (pulse.corruption > 0.3) {
+    const corruption = pulse.visualProfile?.corruption ?? pulse.corruption ?? 0;
+    if (corruption > 0.3) {
       const corruptRed = new THREE.Color(0xff4444);
-      color.lerp(corruptRed, pulse.corruption * 0.6);
+      color.lerp(corruptRed, corruption * 0.6);
     }
     
     return color;
@@ -431,10 +437,29 @@ export class LinkResonanceFlowSystem_Session124 {
     material.uniforms = THREE.UniformsUtils.clone(this.pulseMaterialTemplate.uniforms);
     
     const mesh = new THREE.Mesh(this.pulseMeshGeometry, material);
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
     tagAllowedSphere(mesh, { role: 'vfx', source: 'LinkResonanceFlowSystem_Session124._createPulseMesh' });
     clampSphere(mesh);
     mesh.visible = false;
     return mesh;
+  }
+
+  _getLinkLength(link) {
+    const length = Number(link?.length);
+    if (Number.isFinite(length) && length > 0) {
+      return length;
+    }
+
+    const nodeA = link?.nodeA?.position;
+    const nodeB = link?.nodeB?.position;
+    if (nodeA?.distanceTo && nodeB) {
+      const computedLength = nodeA.distanceTo(nodeB);
+      if (Number.isFinite(computedLength) && computedLength > 0) {
+        return computedLength;
+      }
+    }
+
+    return 1.0;
   }
   
   /**

@@ -69,6 +69,7 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceWorldPos = new THREE.Vector3();
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
+    this._tmpParticleColor = new THREE.Color();
     this._neutralParticleColor = new THREE.Color(1.0, 0.3, 0.1) // Bright orange-red for visibility
     
     // Cascade hop cooldown tracking (per link)
@@ -238,7 +239,7 @@ export class CascadeParticleSystem_Session120 {
     this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
     this.scene.add(this.mesh);
     
-    console.log('[CascadeParticleSystem] Initialized and added to scene:', {
+    console.warn('[CascadeParticleSystem] Initialized and added to scene:', {
       maxParticles: this.config.maxParticles,
       meshVisible: this.mesh.visible,
       geometryAttrs: Object.keys(this.geometry.attributes)
@@ -429,8 +430,22 @@ export class CascadeParticleSystem_Session120 {
     this._updateDebugHelpers(resolvedLinks);
     
     // Debug: log active particle count periodically
-    if (this.activeCount > 0 && Math.random() < 0.02) {
-      console.log('[CascadeParticleSystem] Active particles:', this.activeCount, 'links:', resolvedLinks.length);
+    // Log active particle status periodically
+    if (this.activeCount > 0 && Math.random() < 0.05) {
+      const posAttr = this.geometry.attributes.position;
+      const sizeAttr = this.geometry.attributes.size;
+      // Find first active particle's position
+      let firstActiveIdx = -1;
+      for (let i = 0; i < this.pool.length; i++) {
+        if (this.pool[i].active) { firstActiveIdx = i; break; }
+      }
+      const idx = firstActiveIdx >= 0 ? firstActiveIdx : 0;
+      console.warn('[CascadeParticleSystem] Active:', this.activeCount,
+        '| mesh.visible:', this.mesh?.visible,
+        '| inScene:', this.scene?.children.includes(this.mesh),
+        '| firstActiveIdx:', firstActiveIdx,
+        '| pos[' + idx + ']:', posAttr.array[idx*3].toFixed(2), posAttr.array[idx*3+1].toFixed(2), posAttr.array[idx*3+2].toFixed(2),
+        '| size[' + idx + ']:', sizeAttr.array[idx].toFixed(2));
     }
   }
 
@@ -633,9 +648,21 @@ export class CascadeParticleSystem_Session120 {
       return;
     }
     
-    console.log('[CascadeParticleSystem] _emit: spawning', count, 'particles at', srcPos, '->', dstPos);
+    // Validate positions are finite numbers
+    if (!Number.isFinite(srcPos.x) || !Number.isFinite(srcPos.y) || !Number.isFinite(srcPos.z) ||
+        !Number.isFinite(dstPos.x) || !Number.isFinite(dstPos.y) || !Number.isFinite(dstPos.z)) {
+      console.warn('[CascadeParticleSystem] _emit: INVALID positions - NaN or Infinity detected', {
+        src: { x: srcPos.x, y: srcPos.y, z: srcPos.z },
+        dst: { x: dstPos.x, y: dstPos.y, z: dstPos.z }
+      });
+      return;
+    }
     
-    const color = this._neutralParticleColor;
+    console.warn('[CascadeParticleSystem] _emit: spawning', count, 'particles | src:',
+      srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
+      '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
+    
+    const color = this._resolveParticleColor(link);
     
     // Session 121: Density & Clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
@@ -652,8 +679,9 @@ export class CascadeParticleSystem_Session120 {
       p.spawnTime = currentCascadeTime;
       
       p.linkRef = link;
-      if (srcPos) p.sourcePosition.copy(srcPos);
-      if (dstPos) p.targetPosition.copy(dstPos);
+      // CRITICAL: Copy values, not references! srcPos/dstPos are reused temp vectors
+      if (srcPos) p.sourcePosition.set(srcPos.x, srcPos.y, srcPos.z);
+      if (dstPos) p.targetPosition.set(dstPos.x, dstPos.y, dstPos.z);
       p.shapeIndex = shapeIndex;
       p.conflictType = conflictType;
       p.flowType = flowType;
@@ -706,19 +734,29 @@ export class CascadeParticleSystem_Session120 {
     const sizes = this.geometry.attributes.size.array;
     const angles = this.geometry.attributes.angle.array;
     
+    let diedFromAge = 0;
+    let diedFromUpdate = 0;
+    
     for (let i = 0; i < this.config.maxParticles; i++) {
       const p = this.pool[i];
       if (!p.active) continue;
+      
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
       if (age >= p.maxLifetime) {
         p.active = false;
-        // Move out of view
         positions[i * 3] = 99999;
+        diedFromAge++;
         continue;
       }
       
       this._updateSingleParticle(p, deltaTime, currentCascadeTime);
+      
+      if (!p.active) {
+        diedFromUpdate++;
+        positions[i * 3] = 99999;
+        continue;
+      }
       
       // Update Attributes
       positions[i * 3] = p.position.x;
@@ -735,13 +773,17 @@ export class CascadeParticleSystem_Session120 {
         angles[i] += deltaTime * 5.0; // Spin fast for chaos
       } else {
         // Align with path (approximation)
-        angles[i] = 0; 
+        angles[i] = 0;
       }
       
       activeCount++;
     }
     
     this.activeCount = activeCount;
+    
+    if (diedFromAge > 0 || diedFromUpdate > 0) {
+      console.warn('[CascadeParticleSystem] Particle deaths - age:', diedFromAge, 'update:', diedFromUpdate, 'surviving:', activeCount);
+    }
   }
   
   /**
@@ -751,6 +793,10 @@ export class CascadeParticleSystem_Session120 {
   _updateSingleParticle(p, deltaTime, currentCascadeTime) {
     const hasEndpoints = this._isValidWorldPosition(p.sourcePosition) && this._isValidWorldPosition(p.targetPosition);
     if (!hasEndpoints) {
+      console.warn('[CascadeParticleSystem] Particle dying: invalid endpoints', {
+        src: p.sourcePosition ? { x: p.sourcePosition.x, y: p.sourcePosition.y, z: p.sourcePosition.z } : null,
+        dst: p.targetPosition ? { x: p.targetPosition.x, y: p.targetPosition.y, z: p.targetPosition.z } : null
+      });
       p.active = false;
       return;
     }
@@ -769,6 +815,7 @@ export class CascadeParticleSystem_Session120 {
     
     // Check bounds
     if (p.pathProgress < 0 || p.pathProgress > 1) {
+      // Particle reached end of path - natural death, don't log
       p.active = false;
       return;
     }
@@ -874,8 +921,33 @@ export class CascadeParticleSystem_Session120 {
       if (typeof u.conflictIntensity !== 'number') u.conflictIntensity = 0;
       if (typeof u.particleIntensity !== 'number') u.particleIntensity = 0;
       if (typeof u.particleUrgency !== 'number') u.particleUrgency = 0;
-      u.cascadeParticleColor = this._neutralParticleColor.clone();
+      if (!(u.cascadeParticleColor && u.cascadeParticleColor.isColor)) {
+        u.cascadeParticleColor = this._neutralParticleColor.clone();
+      }
+      if (!u.cascadeParticleColorRGB && u.cascadeParticleColor?.isColor) {
+        u.cascadeParticleColorRGB = {
+          r: u.cascadeParticleColor.r,
+          g: u.cascadeParticleColor.g,
+          b: u.cascadeParticleColor.b
+        };
+      }
     }
+  }
+
+  _resolveParticleColor(link) {
+    const color = this._tmpParticleColor;
+    const tintColor = link?.userData?.cascadeParticleColor;
+
+    if (tintColor?.isColor) {
+      return color.copy(tintColor);
+    }
+
+    const tintRGB = link?.userData?.cascadeParticleColorRGB;
+    if (tintRGB && Number.isFinite(tintRGB.r) && Number.isFinite(tintRGB.g) && Number.isFinite(tintRGB.b)) {
+      return color.setRGB(tintRGB.r, tintRGB.g, tintRGB.b);
+    }
+
+    return color.copy(this._neutralParticleColor);
   }
 
   _resolveActiveLinks(links) {
@@ -979,24 +1051,15 @@ export class CascadeParticleSystem_Session120 {
     const angleAttribute = this.geometry.attributes.angle;
     const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
 
-    positionAttribute.updateRange.offset = 0;
-    positionAttribute.updateRange.count = activeCount * positionAttribute.itemSize;
-    colorAttribute.updateRange.offset = 0;
-    colorAttribute.updateRange.count = activeCount * colorAttribute.itemSize;
-    sizeAttribute.updateRange.offset = 0;
-    sizeAttribute.updateRange.count = activeCount * sizeAttribute.itemSize;
-    angleAttribute.updateRange.offset = 0;
-    angleAttribute.updateRange.count = activeCount * angleAttribute.itemSize;
-    shapeIndexAttribute.updateRange.offset = 0;
-    shapeIndexAttribute.updateRange.count = activeCount * shapeIndexAttribute.itemSize;
-
+    // Update full buffer - particles are at arbitrary pool indices, not contiguous from 0
     positionAttribute.needsUpdate = true;
     colorAttribute.needsUpdate = true;
     sizeAttribute.needsUpdate = true;
     angleAttribute.needsUpdate = true;
     shapeIndexAttribute.needsUpdate = true;
 
-    this.geometry.setDrawRange(0, activeCount);
+    // Draw ALL particles - inactive ones are positioned at 99999 (off-screen)
+    this.geometry.setDrawRange(0, this.config.maxParticles);
   }
   
   /**

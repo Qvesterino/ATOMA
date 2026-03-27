@@ -1633,17 +1633,13 @@ export class WaveParticleEmitter_v1 {
         const positionAttribute = geometry.attributes.position;
         const colorAttribute = geometry.attributes.color;
         const alphaAttribute = geometry.attributes.alpha;
-        positionAttribute.updateRange.offset = 0;
-        positionAttribute.updateRange.count = activeIdx * positionAttribute.itemSize;
-        colorAttribute.updateRange.offset = 0;
-        colorAttribute.updateRange.count = activeIdx * colorAttribute.itemSize;
-        alphaAttribute.updateRange.offset = 0;
-        alphaAttribute.updateRange.count = activeIdx * alphaAttribute.itemSize;
+        positionAttribute.addUpdateRange(0, activeIdx * positionAttribute.itemSize);
+        colorAttribute.addUpdateRange(0, activeIdx * colorAttribute.itemSize);
+        alphaAttribute.addUpdateRange(0, activeIdx * alphaAttribute.itemSize);
 
         if (geometry.attributes.scale) {
           const scaleAttribute = geometry.attributes.scale;
-          scaleAttribute.updateRange.offset = 0;
-          scaleAttribute.updateRange.count = activeIdx * scaleAttribute.itemSize;
+          scaleAttribute.addUpdateRange(0, activeIdx * scaleAttribute.itemSize);
         }
 
         this._pendingGeometryUploads.add(geometry);
