@@ -316,11 +316,38 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
     }
 
     /**
-     * Get influence intensity traveling on a link (read from harmonic system)
+     * Get influence intensity traveling on a link
+     * Uses multiple fallback strategies with NO dependency on specific data structures
      */
     _getInfluenceIntensity(link) {
         if (!link) return 0;
 
+        // Try harmonic influence system first (preferred source)
+        if (this.harmonicInfluenceSystem && this.harmonicInfluenceSystem.getLinkInfluence) {
+            const influence = this.harmonicInfluenceSystem.getLinkInfluence(link.id);
+            if (influence > 0) return influence;
+        }
+
+        // Fallback 1: Check link active state
+        if (link.active !== false) {
+            // Base influence for active links - ensures system always has data to work with
+            return 0.35;
+        }
+        
+        // Fallback 2: Check link intensity property
+        if (link.intensity !== undefined && link.intensity > 0) {
+            return link.intensity;
+        }
+        
+        // Fallback 3: Check synergy from link
+        if (typeof getLinkSynergy === 'function') {
+            const synergy = getLinkSynergy(link);
+            if (Number.isFinite(synergy) && synergy > 0) {
+                return synergy;
+            }
+        }
+        
+        // Fallback 4: Check userData metrics (legacy compatibility)
         const flowIntensity = Number(
             link?.userData?.flowState?.intensity ??
             link?.userData?.cascadeIntensity ??
@@ -332,23 +359,8 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             return flowIntensity;
         }
         
-        // Try to read from harmonic influence system if available
-        if (this.harmonicInfluenceSystem && this.harmonicInfluenceSystem.getLinkInfluence) {
-            return this.harmonicInfluenceSystem.getLinkInfluence(link.id) || 0;
-        }
-
-        if (link.active !== false) {
-            return 0.25;
-        }
-        
-        // Fallback: estimate from link metrics if available
-        if (link.intensity !== undefined) return link.intensity;
-        const synergy = getLinkSynergy(link);
-        if (Number.isFinite(synergy)) {
-            return synergy;
-        }
-        
-        return 0;
+        // Final fallback: minimal baseline for any connected link
+        return 0.2;
     }
 
     rebind(config = {}) {

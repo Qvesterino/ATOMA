@@ -45,16 +45,17 @@ export class CascadeParticleSystem_Session120 {
       emissionRate: config.emissionRate ?? 4.8,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
+      perLinkCap: config.perLinkCap ?? 20,
       baseCascadeParticles: config.baseCascadeParticles ?? 60,
       hopDecay: config.hopDecay ?? 0.82,
       cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3, // Cooldown in seconds
       minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.05, // Lowered threshold
       distanceSize: {
-        perspectiveBase: config.distanceSize?.perspectiveBase ?? 180.0,
-        falloffRate: config.distanceSize?.falloffRate ?? 0.0135,
-        falloffExponent: config.distanceSize?.falloffExponent ?? 1.45,
-        minPointSize: config.distanceSize?.minPointSize ?? 1.5,
-        maxPointSize: config.distanceSize?.maxPointSize ?? 28.0
+        perspectiveBase: config.distanceSize?.perspectiveBase ?? 10.0,
+        falloffRate: config.distanceSize?.falloffRate ?? 0.0,
+        falloffExponent: config.distanceSize?.falloffExponent ?? 1.0,
+        minPointSize: config.distanceSize?.minPointSize ?? 1.0,
+        maxPointSize: config.distanceSize?.maxPointSize ?? 20.0
       },
       lod: {
         enabled: config.lod?.enabled ?? true,
@@ -206,12 +207,9 @@ export class CascadeParticleSystem_Session120 {
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          // Stronger distance falloff so far particles visibly shrink instead of staying billboard-large.
-          float viewDistance = max(1.0, length(mvPosition.xyz));
+          // Spark/Healing-style distance attenuation: reliable screen-space shrink with depth.
           float perspectiveFactor = uDistanceSizeBase / max(1.0, -mvPosition.z);
-          float distanceFalloff = clamp(exp(-viewDistance * uDistanceFalloffRate), 0.05, 1.0);
-          float shrinkCurve = pow(distanceFalloff, uDistanceFalloffExponent);
-          gl_PointSize = clamp(size * perspectiveFactor * shrinkCurve, uMinPointSize, uMaxPointSize);
+          gl_PointSize = clamp(size * perspectiveFactor, uMinPointSize, uMaxPointSize);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -549,13 +547,15 @@ export class CascadeParticleSystem_Session120 {
       const emissionInterval = this._getEmissionInterval(linkState);
       const lastSpawnTime = spawnState?.lastSpawnTime ?? -Infinity;
       if (currentCascadeTime - lastSpawnTime < emissionInterval) continue;
-      this._emitFromLinkState(link, linkState, currentCascadeTime);
-      this._linkSpawnState.set(link.id, {
-        ...linkState,
-        lastSpawnTime: currentCascadeTime,
-        lastEventType: spawnState?.hasSpawned ? 'topup' : 'fallback',
-        hasSpawned: true
-      });
+      const emitted = this._emitFromLinkState(link, linkState, currentCascadeTime);
+      if (emitted > 0) {
+        this._linkSpawnState.set(link.id, {
+          ...linkState,
+          lastSpawnTime: currentCascadeTime,
+          lastEventType: spawnState?.hasSpawned ? 'topup' : 'fallback',
+          hasSpawned: true
+        });
+      }
     }
   }
 
@@ -578,7 +578,16 @@ export class CascadeParticleSystem_Session120 {
         continue;
       }
 
-      this._spawnFromLifecycleEvent(link, event.type, currentCascadeTime);
+      const emitted = this._spawnFromLifecycleEvent(link, event.type, currentCascadeTime);
+      if (emitted > 0) {
+        const currentState = this._getCascadeLinkState(link, this._currentCamera);
+        this._linkSpawnState.set(linkId, {
+          ...currentState,
+          lastSpawnTime: currentCascadeTime,
+          lastEventType: event.type,
+          hasSpawned: true
+        });
+      }
     }
   }
 
@@ -590,13 +599,13 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _spawnFromLifecycleEvent(link, eventType, currentCascadeTime) {
-    if (!link?.id || link.active === false) return;
+    if (!link?.id || link.active === false) return 0;
 
     this._ensureCanonicalLinkDefaults([link]);
     const currentState = this._getCascadeLinkState(link, this._currentCamera);
     if (!currentState.isRelevant) {
       this._linkSpawnState.set(link.id, currentState);
-      return;
+      return 0;
     }
 
     const previousState = this._linkSpawnState.get(link.id);
@@ -612,7 +621,7 @@ export class CascadeParticleSystem_Session120 {
         lastEventType: eventType,
         hasSpawned: previousState?.hasSpawned ?? false
       });
-      return;
+      return 0;
     }
 
     if (!shouldIgnoreCooldown && currentCascadeTime - lastSpawnTime < cooldown) {
@@ -622,16 +631,26 @@ export class CascadeParticleSystem_Session120 {
         lastEventType: eventType,
         hasSpawned: previousState?.hasSpawned ?? false
       });
-      return;
+      return 0;
     }
 
-    this._emitFromLinkState(link, currentState, currentCascadeTime);
-    this._linkSpawnState.set(link.id, {
-      ...currentState,
-      lastSpawnTime: currentCascadeTime,
-      lastEventType: eventType,
-      hasSpawned: true
-    });
+    const emitted = this._emitFromLinkState(link, currentState, currentCascadeTime);
+    if (emitted > 0) {
+      this._linkSpawnState.set(link.id, {
+        ...currentState,
+        lastSpawnTime: currentCascadeTime,
+        lastEventType: eventType,
+        hasSpawned: true
+      });
+    } else {
+      this._linkSpawnState.set(link.id, {
+        ...currentState,
+        lastSpawnTime,
+        lastEventType: eventType,
+        hasSpawned: previousState?.hasSpawned ?? false
+      });
+    }
+    return emitted;
   }
 
   _emitFromLinkState(link, linkState, currentCascadeTime) {
@@ -644,10 +663,11 @@ export class CascadeParticleSystem_Session120 {
     const targetPosition = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
     if (!sourcePosition || !targetPosition) return;
 
-    const count = Math.max(1, Math.floor(this.config.baseCascadeParticles * linkState.intensity));
-    if (count <= 0) return;
+    const desiredCount = Math.max(1, Math.floor(this.config.baseCascadeParticles * linkState.intensity));
+    const count = this._clampSpawnCountToLink(link, desiredCount);
+    if (count <= 0) return 0;
 
-    this._emit(
+    return this._emit(
       count,
       link,
       linkState.shapeIndex,
@@ -658,6 +678,27 @@ export class CascadeParticleSystem_Session120 {
       targetPosition,
       linkState
     );
+  }
+
+  _getActiveParticleCountForLink(linkId) {
+    if (!linkId) return 0;
+    let active = 0;
+    for (let i = 0; i < this.config.maxParticles; i++) {
+      const p = this.pool[i];
+      if (p.active && p.linkRef?.id === linkId) {
+        active++;
+      }
+    }
+    return active;
+  }
+
+  _clampSpawnCountToLink(link, desiredCount) {
+    const linkId = link?.id;
+    if (!linkId) return 0;
+    const cap = Math.max(1, Math.floor(Number(this.config.perLinkCap ?? 20) || 20));
+    const active = this._getActiveParticleCountForLink(linkId);
+    const available = Math.max(0, cap - active);
+    return Math.max(0, Math.min(desiredCount, available));
   }
 
   _getLinkSpawnState(link) {
@@ -769,6 +810,11 @@ export class CascadeParticleSystem_Session120 {
    * Respects density clustering parameters from Session 121
    */
   _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null, lodState = null) {
+    const cappedCount = this._clampSpawnCountToLink(link, count);
+    if (cappedCount <= 0) {
+      return 0;
+    }
+
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
     if (!srcPos || !dstPos) {
@@ -800,10 +846,10 @@ export class CascadeParticleSystem_Session120 {
     const targetColor = this._resolveCategoryColor(targetCategory, this._neutralParticleColor, this._tmpTargetCategoryColor);
     const opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? lodState?.lodOpacity ?? 1) || 1));
     
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < cappedCount; i++) {
       const p = this._allocateParticle();
-      if (!p) return; // Pool full
-      
+      if (!p) return i; // Pool full
+
       p.active = true;
       p.lifetime = 0;
       p.maxLifetime = 1.8 + Math.random() * 1.2;
@@ -859,6 +905,8 @@ export class CascadeParticleSystem_Session120 {
       // Initial update to set position
       this._updateSingleParticle(p, 0, currentCascadeTime);
     }
+
+    return cappedCount;
   }
   
   /**

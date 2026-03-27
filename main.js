@@ -6421,7 +6421,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     semanticBus,
                     frameScheduler,
                     semanticGlyphAI: this.semanticGlyphAI,
-                    selectionCore: this.selectionCore
+                    selectionCore: linkingSystem
                 });
             }
         } catch (err) {
@@ -6450,6 +6450,32 @@ window.__ATOMA_SCENE__ = this.scene;
             }
         } catch (err) {
             console.warn('[main.js] StandingWaveTrapSystem rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.standingWaveRenderer && typeof this.standingWaveRenderer.rebind === 'function') {
+                this.standingWaveRenderer.rebind({
+                    scene: this.scene,
+                    standingWaveTrapSystem: this.standingWaveTrap,
+                    linkingSystem,
+                    aiNodes
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] StandingWaveVisualRenderer rebind failed:', err?.message || err);
+        }
+
+        try {
+            if (this.waveInterference && typeof this.waveInterference.rebind === 'function') {
+                this.waveInterference.rebind({
+                    scene: this.scene,
+                    standingWaveTrapSystem: this.standingWaveTrap,
+                    linkingSystem,
+                    aiNodes
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] WaveInterferencePatternSystem rebind failed:', err?.message || err);
         }
 
         // Rebind HarmonyStabilizationSystem_v1
@@ -7074,7 +7100,17 @@ window.__ATOMA_SCENE__ = this.scene;
                     .catch(() => {});
             };
 
-            this.linkingSystem.onNodeSelected(() => playSelectionAudio('select'));
+            this.linkingSystem.onNodeSelected((node) => {
+                playSelectionAudio('select');
+
+                if (!this._recursiveGlyphSignalFirstSelectLogged) {
+                    this._recursiveGlyphSignalFirstSelectLogged = true;
+                    console.error(
+                        '[DEBUG][RecursiveGlyphSignalSystem] first NodeLinkingSystem select received:',
+                        node?.userData?.name || node?.name || node?.id || node?.uuid || 'node'
+                    );
+                }
+            });
             this.linkingSystem.onNodeDeselected(() => playSelectionAudio('deselect'));
             this.linkingSystem.__audioSelectionAuthorityBound = true;
         }
@@ -9814,13 +9850,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     emissionRate: 4.8,
                     baseSize: 4.8,
                     visualSizeBoost: 1.6,
-                    baseCascadeParticles: 60,
+                    baseCascadeParticles: 20,
                     distanceSize: {
-                        perspectiveBase: 180.0,
-                        falloffRate: 0.0135,
-                        falloffExponent: 1.45,
-                        minPointSize: 1.5,
-                        maxPointSize: 28.0
+                        perspectiveBase: 10.0,
+                        falloffRate: 0.0,
+                        falloffExponent: 1.0,
+                        minPointSize: 1.0,
+                        maxPointSize: 20.0
                     },
                     lod: {
                         enabled: true,
@@ -12210,6 +12246,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             return;
         }
 
+        this._recursiveGlyphSignalBootstrapPingSent = false;
+        if (this._recursiveGlyphSignalBootstrapTimer) {
+            clearTimeout(this._recursiveGlyphSignalBootstrapTimer);
+            this._recursiveGlyphSignalBootstrapTimer = null;
+        }
+
         if (!this.recursiveGlyphSignalSystem) {
             this.recursiveGlyphSignalSystem = new RecursiveGlyphSignalSystem(this.scene, {
                 camera: this.camera,
@@ -12220,19 +12262,66 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
 
         this.recursiveGlyphSignalSystem.setSemanticGlyphAI(this.semanticGlyphAI);
         this.recursiveGlyphSignalSystem.setFrameScheduler(this.frameScheduler);
-        this.recursiveGlyphSignalSystem.setSelectionCore(this.selectionCore);
+        this.recursiveGlyphSignalSystem.setSelectionCore(this.linkingSystem);
         this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         this.recursiveGlyphSignalSystem.setDynamicsContext({
             isBurstActive: () => Boolean(this.emergentThoughtStorms?.activeStorms?.size),
             isFieldActive: () => Boolean(this.regionalEquilibrium?.regions?.size)
         });
         this.recursiveGlyphSignalSystem.setEnabled(true);
+        this._recursiveGlyphSignalFirstSelectLogged = false;
 
         console.log('✓ Recursive Glyph Signal System active');
         console.log('  - SIGNAL-layer recursive glyph language');
         console.log('  - Triggered by attention and local meaning events');
         console.log('  - Silent by default, auto-clears after communication');
         console.log('  - Uses dynamic tick registration (no idle global glyph loop)');
+
+        this._scheduleRecursiveGlyphSignalBootstrapPing();
+    }
+
+    _getRecursiveGlyphSignalBootstrapNode() {
+        const selectedNode =
+            this.linkingSystem?.selectedNode ||
+            this.selectionCore?.selectedNode ||
+            this._getHudSelectedNode?.() ||
+            window?.game?.selectedNode ||
+            null;
+
+        if (selectedNode?.position) {
+            return selectedNode;
+        }
+
+        const nodes = Array.isArray(this.aiNodes?.nodes) ? this.aiNodes.nodes : [];
+        return (
+            nodes.find((node) => node?.position && node?.visible !== false && !node?.userData?.hidden && !node?.userData?.isHidden) ||
+            nodes.find((node) => node?.position) ||
+            null
+        );
+    }
+
+    _scheduleRecursiveGlyphSignalBootstrapPing(attempt = 0) {
+        if (this._recursiveGlyphSignalBootstrapPingSent) return;
+        if (!this.recursiveGlyphSignalSystem?.enabled) return;
+
+        const node = this._getRecursiveGlyphSignalBootstrapNode();
+        if (node && typeof this.recursiveGlyphSignalSystem.triggerAttentionSignal === 'function') {
+            const emitted = this.recursiveGlyphSignalSystem.triggerAttentionSignal(node, 'selection');
+            if (emitted) {
+                this._recursiveGlyphSignalBootstrapPingSent = true;
+                console.log('[main.js] RecursiveGlyphSignalSystem bootstrap ping emitted:', node?.userData?.name || node?.name || node?.id || node?.uuid || 'node');
+                return;
+            }
+        }
+
+        if (attempt >= 8) {
+            console.warn('[main.js] RecursiveGlyphSignalSystem bootstrap ping skipped: no eligible node found');
+            return;
+        }
+
+        this._recursiveGlyphSignalBootstrapTimer = setTimeout(() => {
+            this._scheduleRecursiveGlyphSignalBootstrapPing(attempt + 1);
+        }, 250);
     }
 
 

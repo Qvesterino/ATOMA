@@ -704,6 +704,31 @@ export class WaveInterferencePatternSystem_Session132 {
     }
 
     /**
+     * Rebind to new scene/world after world switch
+     * @param {Object} params - New references
+     */
+    rebind({ scene, standingWaveTrapSystem, linkingSystem, aiNodes } = {}) {
+        if (scene) this.scene = scene;
+        if (standingWaveTrapSystem) this.standingWaveTrapSystem = standingWaveTrapSystem;
+        if (linkingSystem) this.linkingSystem = linkingSystem;
+        if (aiNodes) this.aiNodes = aiNodes;
+        
+        // Clear stale state
+        this.interferenceZones = [];
+        this.collisionPairs = [];
+        this.interferenceMeshes = [];
+        this.beatPatterns = [];
+        this.interferenceLifecycles = [];
+        this.waveCollisionHistory.clear();
+        this.constructiveZones.clear();
+        this.destructiveZones.clear();
+        this.phaseRelationships.clear();
+        this.zoneLifecycles.clear();
+        
+        console.log('[WaveInterferencePatternSystem] Rebound to new world');
+    }
+    
+    /**
      * Dispose - cleanup
      */
     dispose() {

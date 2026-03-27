@@ -447,13 +447,37 @@ export class LinkedGlyphMessaging3_0 {
   }
 
   _selectClusterMotionVariant(message, wordIndex) {
-    const variants = ['coil', 'sweep', 'fracture'];
     const synergy = message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5;
     const corruption = message.linkMetrics?.corruption ?? message.sourceMetrics?.corruption ?? 0;
     const harmony = message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0;
-    const selector = Math.abs(Math.sin(message.seed * 5.31 + wordIndex * 1.87 + synergy * 2.6 + corruption * 3.3 + harmony * 1.4));
-    const roleBias = wordIndex === 0 ? 0 : wordIndex === 1 ? 1 : wordIndex === 2 ? 2 : 1;
-    return variants[(Math.floor(selector * variants.length) + roleBias) % variants.length];
+    const scheme = message.clusterMotionScheme || this._selectClusterMotionScheme(message, synergy, corruption, harmony);
+    return scheme[wordIndex % scheme.length];
+  }
+
+  _selectClusterMotionScheme(message, synergy, corruption, harmony) {
+    const orderSeed = Math.abs(Math.floor(message.seed * 1000 + synergy * 97 + corruption * 131 + harmony * 173));
+    const commonSchemes = [
+      ['coil', 'sweep', 'fracture', 'crown'],
+      ['coil', 'crown', 'sweep', 'lattice'],
+      ['sweep', 'coil', 'lattice', 'fracture'],
+      ['fracture', 'coil', 'sweep', 'lattice'],
+      ['lattice', 'coil', 'sweep', 'fracture'],
+      ['coil', 'fracture', 'sweep', 'lattice'],
+    ];
+
+    const sacredSchemes = [
+      ['crown', 'sweep', 'fracture', 'lattice'],
+      ['sweep', 'crown', 'coil', 'fracture'],
+      ['fracture', 'lattice', 'crown', 'coil'],
+      ['crown', 'coil', 'lattice', 'sweep']
+    ];
+
+    const sacredChance = Math.min(0.22, Math.max(0.04, 0.06 + synergy * 0.08 + harmony * 0.06 - corruption * 0.05));
+    const sacredSeed = Math.abs(Math.sin(orderSeed * 0.00091 + synergy * 1.7 + harmony * 1.3 - corruption * 2.1));
+    const useSacredScheme = sacredSeed < sacredChance;
+    const schemes = useSacredScheme ? sacredSchemes : commonSchemes;
+
+    return schemes[orderSeed % schemes.length];
   }
 
   _applyClusterMotionVariant(basePosition, message, variant, wordIndex, progress, settlePhase, rolePulse) {
@@ -464,21 +488,49 @@ export class LinkedGlyphMessaging3_0 {
 
     switch (variant) {
       case 'coil':
-        motion.x += Math.cos(t + phase) * 0.022 * strength;
-        motion.y += Math.sin(t * 1.18 + phase) * 0.017 * strength;
-        motion.z += Math.sin(t * 0.82 + phase) * 0.01 * strength;
+        motion.x += Math.cos(phase * 4.9 + t * 0.8) * 0.018 * strength;
+        motion.y += (progress - 0.5) * 0.046 * strength + Math.sin(phase * 4.1 + t * 0.55) * 0.004 * strength;
+        motion.z += Math.sin(phase * 4.9 + t * 0.8) * 0.018 * strength;
         break;
       case 'sweep':
-        motion.x += Math.sin(t * 0.64 + phase) * 0.028 * strength;
-        motion.y += Math.cos(t * 0.42 + phase) * 0.012 * strength;
-        motion.z += Math.cos(t * 0.95 + phase) * 0.008 * strength;
+        motion.x += (progress - 0.5) * 0.06 * strength + Math.sin(t * 0.32 + phase * 0.5) * 0.01 * strength;
+        motion.y += Math.sin(t * 0.26 + phase * 0.75) * 0.012 * strength;
+        motion.z += Math.cos(t * 0.38 + phase * 0.42) * 0.014 * strength;
         break;
       case 'fracture':
       default: {
-        const step = Math.sin(t * 2.8 + phase);
-        motion.x += (step > 0 ? 1 : -1) * 0.018 * strength;
-        motion.y += Math.sin(t * 1.9 + phase) * 0.014 * strength;
-        motion.z += Math.cos(t * 2.2 + phase) * 0.012 * strength;
+        const fracturePhase = t * 5.6 + phase * 1.6;
+        const burst = Math.sin(fracturePhase);
+        const shardPulse = 0.034 + Math.abs(Math.sin(t * 3.1 + phase * 1.9)) * 0.026;
+        motion.x += Math.sign(burst) * shardPulse * strength;
+        motion.y += Math.sign(Math.sin(fracturePhase * 0.93 + message.seed)) * 0.022 * strength;
+        motion.z += Math.sign(Math.cos(fracturePhase * 1.07 + message.seed * 0.5)) * 0.024 * strength;
+        motion.x += Math.sin(fracturePhase * 2.0 + message.seed) * 0.008 * strength;
+        motion.y += Math.cos(fracturePhase * 1.7 + message.seed * 0.3) * 0.007 * strength;
+        motion.z += Math.sin(fracturePhase * 2.3 + message.seed * 0.7) * 0.007 * strength;
+        break;
+      }
+      case 'crown': {
+        const crownPhase = phase * 1.05 + t * 0.42;
+        const crownLift = Math.pow(Math.max(0, Math.sin(crownPhase)), 1.45);
+        const crownRadius = 0.01 + crownLift * 0.014;
+        const crownSymmetry = Math.cos(crownPhase * 2.0);
+        motion.x += Math.cos(crownPhase) * crownRadius * strength;
+        motion.y += crownLift * 0.048 * strength + 0.008 * strength;
+        motion.z += Math.sin(crownPhase) * crownRadius * 0.72 * strength;
+        motion.x += crownSymmetry * 0.003 * strength;
+        motion.z += Math.sin(crownPhase * 1.5 + message.seed * 0.35) * 0.003 * strength;
+        break;
+      }
+      case 'lattice': {
+        const latticePhase = t * 0.82 + phase * 1.8;
+        const facetStep = Math.round(Math.sin(latticePhase * 1.7) * 2.0) * 0.5;
+        const snapX = Math.round(Math.sin(latticePhase) * 2.0) * 0.008;
+        const snapY = Math.round(Math.cos(latticePhase * 0.92) * 2.0) * 0.009;
+        const snapZ = Math.round(Math.sin(latticePhase * 1.18) * 2.0) * 0.008;
+        motion.x += snapX * strength + facetStep * 0.0025 * strength;
+        motion.y += snapY * strength + Math.max(0, facetStep) * 0.0055 * strength;
+        motion.z += snapZ * strength - facetStep * 0.0015 * strength;
         break;
       }
     }
@@ -807,6 +859,12 @@ export class LinkedGlyphMessaging3_0 {
     };
 
     message.flightPattern = this._selectMessageFlightPattern(message);
+    message.clusterMotionScheme = this._selectClusterMotionScheme(
+      message,
+      message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5,
+      message.linkMetrics?.corruption ?? message.sourceMetrics?.corruption ?? 0,
+      message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0
+    );
     
     // Generate words
     message.words.push(this.generateMessageWord(sourceNode, 'SUBJECT'));
@@ -1044,7 +1102,7 @@ export class LinkedGlyphMessaging3_0 {
       const rolePattern = flightPattern.mode;
       const rolePulse = rolePattern === 'spiral' ? 1 : rolePattern === 'arc' ? 0.85 : rolePattern === 'zigzag' ? 1.25 : rolePattern === 'flare' ? 0.95 : 0.8;
       const motionVariant = wordGroup.userData.motionVariant || this._selectClusterMotionVariant(message, wordIndex);
-      const variantPulse = motionVariant === 'coil' ? 1.05 : motionVariant === 'sweep' ? 0.9 : 1.2;
+      const variantPulse = motionVariant === 'coil' ? 1.15 : motionVariant === 'sweep' ? 0.9 : motionVariant === 'fracture' ? 1.45 : motionVariant === 'crown' ? 1.05 : 0.98;
       wordGroup.position.copy(basePosition);
       const variantOffset = this._applyClusterMotionVariant(
         new THREE.Vector3(),
@@ -1056,23 +1114,68 @@ export class LinkedGlyphMessaging3_0 {
         rolePulse * variantPulse
       );
       wordGroup.position.add(variantOffset);
-      wordGroup.position.x += Math.sin(driftPhase) * 0.01 * (1 - settlePhase) * rolePulse;
-      wordGroup.position.y += Math.cos(driftPhase * 0.9) * 0.01 * (1 - settlePhase) * rolePulse + settleBias;
-      wordGroup.position.z += Math.sin(driftPhase * 0.7) * 0.006 * (1 - settlePhase) * rolePulse;
+      const microDrift = motionVariant === 'coil' ? 0.006 : motionVariant === 'sweep' ? 0.011 : motionVariant === 'fracture' ? 0.024 : motionVariant === 'crown' ? 0.009 : 0.012;
+      const latticeLock = motionVariant === 'lattice' ? 0.45 : 1;
+      wordGroup.position.x += Math.sin(driftPhase) * microDrift * (1 - settlePhase) * rolePulse * latticeLock;
+      wordGroup.position.y += Math.cos(driftPhase * 0.9) * (microDrift * 0.9) * (1 - settlePhase) * rolePulse * latticeLock + settleBias;
+      wordGroup.position.z += Math.sin(driftPhase * 0.7) * (microDrift * 0.65) * (1 - settlePhase) * rolePulse * latticeLock;
       wordGroup.rotation.y = Math.sin(driftPhase) * 0.035 * (1 - settlePhase);
-      wordGroup.rotation.z += (wordIndex === 2 ? 0.08 : 0.02) * (1 - settlePhase) + (flightPattern.mode === 'arc' && wordIndex === 0 ? 0.03 : 0) + (motionVariant === 'fracture' ? 0.04 : 0);
-      wordGroup.scale.setScalar(1.04 + enterPhase * 0.04 + settlePhase * 0.08 - dissolvePhase * 0.08 + (motionVariant === 'coil' ? 0.02 : motionVariant === 'fracture' ? 0.04 : 0));
+      wordGroup.rotation.z += (wordIndex === 2 ? 0.08 : 0.02) * (1 - settlePhase) + (flightPattern.mode === 'arc' && wordIndex === 0 ? 0.03 : 0) + (motionVariant === 'fracture' ? 0.14 : motionVariant === 'sweep' ? 0.01 : motionVariant === 'crown' ? 0.028 : 0.022);
+      wordGroup.scale.setScalar(1.04 + enterPhase * 0.04 + settlePhase * 0.08 - dissolvePhase * 0.1 + (motionVariant === 'coil' ? 0.018 : motionVariant === 'fracture' ? 0.05 : motionVariant === 'crown' ? 0.032 : motionVariant === 'lattice' ? 0.02 : 0.012));
+      if (motionVariant === 'fracture') {
+        const fracturePhase = this.globalTime * 2.1 + message.seed + wordIndex * 1.33;
+        const shardSplit = Math.sign(Math.sin(fracturePhase * 2.7));
+        wordGroup.position.x += shardSplit * 0.022 * (1 - settlePhase) * rolePulse;
+        wordGroup.position.y += Math.sin(fracturePhase * 2.2) * 0.02 * (1 - settlePhase) * rolePulse;
+        wordGroup.position.z += Math.cos(fracturePhase * 2.9) * 0.018 * (1 - settlePhase) * rolePulse;
+        wordGroup.rotation.x = Math.sin(fracturePhase * 2.4) * 0.09 * (1 - settlePhase);
+        wordGroup.rotation.y = Math.cos(fracturePhase * 2.6) * 0.08 * (1 - settlePhase);
+        wordGroup.rotation.z += Math.sin(fracturePhase * 3.1) * 0.06 * (1 - settlePhase);
+      }
+      if (motionVariant === 'lattice') {
+        const latticeStep = Math.round((this.globalTime * 1.4 + message.seed + wordIndex * 0.7) % 4);
+        const facetTilt = latticeStep === 0 ? -0.06 : latticeStep === 1 ? 0.03 : latticeStep === 2 ? 0.08 : -0.015;
+        wordGroup.rotation.x = facetTilt * (1 - settlePhase);
+        wordGroup.rotation.y = facetTilt * 0.65 * (1 - settlePhase);
+        wordGroup.scale.setScalar(1.03 + enterPhase * 0.03 + settlePhase * 0.06 - dissolvePhase * 0.06);
+      }
     });
     
     // Breathing animation on individual glyphs
     message.meshes.forEach((mesh, index) => {
       const glyph = mesh.userData.glyphData || {};
+      const wordGroup = message.wordGroups[mesh.userData.wordIndex];
+      const meshVariant = wordGroup?.userData.motionVariant || 'coil';
       const phase = (this.globalTime + index * 0.2 + message.seed) * this.config.glyphBreathingSpeed;
       const breathScale = 1.0 + Math.sin(phase) * this.config.glyphBreathingAmplitude;
       mesh.scale.setScalar(glyph.scale * 0.6 * breathScale * (0.96 + settlePhase * 0.08));
       mesh.rotation.x = (glyph.rotation?.x || 0) + Math.sin(phase * 0.7) * 0.035 * (1 - settlePhase);
       mesh.rotation.y = (glyph.rotation?.y || 0) + Math.cos(phase * 0.6) * 0.035 * (1 - settlePhase);
       mesh.rotation.z = (glyph.rotation?.z || 0) + settlePhase * 0.1 + (message.linkData.corruption ?? 0) * 0.14;
+      if (meshVariant === 'lattice') {
+        const latticePhase = phase * 1.2 + mesh.userData.wordIndex * 0.65;
+        const latticeSnap = 0.006 + Math.sin(latticePhase * 1.5) * 0.0012;
+        const latticeFacet = Math.round(Math.sin(latticePhase * 2.0) * 2.0) * 0.0018;
+        mesh.position.set(
+          (glyph.offset?.x || 0) + Math.round(Math.sin(latticePhase) * 2.0) * latticeSnap + latticeFacet,
+          (glyph.offset?.y || 0) + Math.round(Math.cos(latticePhase * 0.9) * 2.0) * latticeSnap * 0.95 + Math.max(0, latticeFacet) * 0.8,
+          (glyph.offset?.z || 0) + Math.round(Math.sin(latticePhase * 1.2) * 2.0) * latticeSnap * 0.55 - latticeFacet * 0.35
+        );
+        mesh.scale.setScalar(glyph.scale * 0.52 * breathScale * (0.94 + settlePhase * 0.05));
+        mesh.rotation.z = (glyph.rotation?.z || 0) + Math.round(Math.sin(latticePhase * 2.4) * 2.0) * 0.03 + settlePhase * 0.08;
+      } else if (meshVariant === 'fracture') {
+        const fracturePhase = phase * 2.5 + mesh.userData.wordIndex * 0.9;
+        const shardJitter = 0.01 + Math.abs(Math.sin(fracturePhase * 2.1)) * 0.012;
+        mesh.position.set(
+          (glyph.offset?.x || 0) + Math.sign(Math.sin(fracturePhase * 2.3 + message.seed)) * shardJitter,
+          (glyph.offset?.y || 0) + Math.sign(Math.cos(fracturePhase * 2.0 + message.seed)) * shardJitter * 0.85,
+          (glyph.offset?.z || 0) + Math.sign(Math.sin(fracturePhase * 1.7 + message.seed)) * shardJitter * 0.7
+        );
+        mesh.scale.setScalar(glyph.scale * 0.5 * breathScale * (0.93 + settlePhase * 0.04));
+        mesh.rotation.x = (glyph.rotation?.x || 0) + Math.sin(fracturePhase * 2.0) * 0.09 * (1 - settlePhase);
+        mesh.rotation.y = (glyph.rotation?.y || 0) + Math.cos(fracturePhase * 2.2) * 0.08 * (1 - settlePhase);
+        mesh.rotation.z = (glyph.rotation?.z || 0) + Math.sin(fracturePhase * 2.8) * 0.07 * (1 - settlePhase) + (message.linkData.corruption ?? 0) * 0.18;
+      }
       mesh.material.opacity = (glyph.opacity ?? 0.9) * (0.84 + settlePhase * 0.1) * (1 - dissolvePhase * 0.82);
     });
     

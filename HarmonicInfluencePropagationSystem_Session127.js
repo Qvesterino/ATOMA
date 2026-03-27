@@ -729,11 +729,24 @@ export class HarmonicInfluencePropagationSystem_Session127 {
 
   /**
    * Read-only accessor for current link influence progress
+   * Returns active wave progress if available, otherwise returns baseline for active links
    */
   getLinkInfluence(linkId) {
+    // Check if we have active wave data for this link
     const flow = this.linkInfluenceState.get(linkId);
-    if (!flow) return 0;
-    return Math.max(0.05, flow.progress);
+    if (flow) {
+      return Math.max(0.05, flow.progress);
+    }
+    
+    // Fallback: check if this is an active link and return baseline influence
+    const links = this._getWorldLinks();
+    const link = links.find(l => l && (l.id === linkId || l.linkId === linkId));
+    if (link && link.active !== false) {
+      // Return baseline influence for active links without active waves
+      return 0.25;
+    }
+    
+    return 0;
   }
   
   /**

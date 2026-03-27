@@ -843,6 +843,29 @@ export class StandingWaveVisualRenderer_Session131 {
     }
 
     /**
+     * Rebind to new scene/world after world switch
+     * @param {Object} params - New references
+     */
+    rebind({ scene, standingWaveTrapSystem, linkingSystem, aiNodes, attachRoot } = {}) {
+        if (scene) this.scene = scene;
+        if (standingWaveTrapSystem) this.standingWaveTrapSystem = standingWaveTrapSystem;
+        if (linkingSystem) this.linkingSystem = linkingSystem;
+        if (aiNodes) this.aiNodes = aiNodes;
+        if (attachRoot) this.attachRoot = attachRoot;
+        
+        // Re-attach root to new scene
+        this._ensureAttachRoot();
+        
+        // Clear stale state
+        this.linkMaterialMap.clear();
+        this.nodePulsePhases.clear();
+        this.linkWaveStates.clear();
+        this.resolutionAnimators.clear();
+        
+        console.log('[StandingWaveVisualRenderer] Rebound to new world');
+    }
+    
+    /**
      * Dispose - cleanup
      */
     dispose() {

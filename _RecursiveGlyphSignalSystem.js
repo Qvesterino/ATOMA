@@ -215,7 +215,7 @@ export class RecursiveGlyphSignalSystem {
       return false;
     }
 
-    if (this._isCluttered(node, reason)) {
+    if (reason !== 'selection' && this._isCluttered(node, reason)) {
       this.stats.culledByClutter++;
       return false;
     }
@@ -685,9 +685,13 @@ export class RecursiveGlyphSignalSystem {
 
   _resolveAnchorPosition(signal) {
     if (signal.anchorNode?.position) {
-      return new THREE.Vector3()
-        .copy(signal.anchorNode.position)
-        .add(signal.anchorOffset || new THREE.Vector3());
+      const worldPosition = new THREE.Vector3();
+      if (typeof signal.anchorNode.getWorldPosition === 'function') {
+        signal.anchorNode.getWorldPosition(worldPosition);
+      } else {
+        worldPosition.copy(signal.anchorNode.position);
+      }
+      return worldPosition.add(signal.anchorOffset || new THREE.Vector3());
     }
     if (signal.anchorPoint) {
       return signal.anchorPoint;
