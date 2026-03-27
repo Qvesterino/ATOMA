@@ -39,8 +39,8 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 25.0, // Increased from 10.0 for better visibility
-      visualSizeBoost: config.visualSizeBoost ?? 2.5,
+      baseSize: config.baseSize ?? 6.0,
+      visualSizeBoost: config.visualSizeBoost ?? 1.6,
       emissionRate: config.emissionRate ?? 6.0,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
@@ -173,9 +173,12 @@ export class CascadeParticleSystem_Session120 {
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          // Distance-based size scaling: visible at range, not too huge up close
-          float distanceFactor = 300.0 / max(1.0, -mvPosition.z);
-          gl_PointSize = clamp(size * distanceFactor, 4.0, 200.0);
+          // Stronger distance falloff so far particles visibly shrink instead of staying billboard-large.
+          float viewDistance = max(1.0, length(mvPosition.xyz));
+          float perspectiveFactor = 180.0 / max(1.0, -mvPosition.z);
+          float distanceFalloff = clamp(exp(-viewDistance * 0.0180), 0.02, 1.0);
+          float shrinkCurve = pow(distanceFalloff, 1.8);
+          gl_PointSize = clamp(size * perspectiveFactor * shrinkCurve, 1.5, 24.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -218,9 +221,9 @@ export class CascadeParticleSystem_Session120 {
           // Use vertex color (vColor) instead of hardcoded red
           // Boost saturation for cascade conflict visibility
           vec3 baseColor = vColor.rgb;
-          vec3 finalColor = baseColor * 1.5 + vec3(0.2, 0.05, 0.05); // Warm tint for cascade feel
+          vec3 finalColor = baseColor * 1.15 + vec3(0.08, 0.02, 0.02); // Warm tint for cascade feel
           
-          gl_FragColor = vec4(finalColor, combinedAlpha * 1.2);
+          gl_FragColor = vec4(finalColor, combinedAlpha * 0.78);
           
           if (gl_FragColor.a < 0.01) discard;
         }
@@ -229,7 +232,7 @@ export class CascadeParticleSystem_Session120 {
       depthWrite: false,
       depthTest: false,
       toneMapped: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
     
     // 4. Create Mesh
@@ -423,7 +426,7 @@ export class CascadeParticleSystem_Session120 {
     // Update existing active particles.
     this._updateParticles(cascadeDelta, currentCascadeTime);
 
-    // Polling spawn for continuous cascade emission
+    // Fallback spawn for links that have not yet emitted through lifecycle callbacks.
     this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
 
     // Update geometry and helper visuals.
@@ -495,15 +498,25 @@ export class CascadeParticleSystem_Session120 {
   }
   
   /**
-   * Spawn particles only from active link lifecycle changes.
+   * Fallback spawn for active links that have not yet emitted via lifecycle callbacks.
    */
   _spawnParticles(deltaTime, links, currentCascadeTime) {
     if (!Array.isArray(links) || links.length === 0) return;
     for (const link of links) {
       if (!link?.id || link.active === false) continue;
-      // FORCE SPAWN: Bypass metrics, use fixed intensity
-      const intensity = 1.0;
-      this.spawnCascadeParticles(link, intensity, 0);
+      const linkState = this._getCascadeLinkState(link);
+      if (!linkState.isRelevant) continue;
+      const spawnState = this._linkSpawnState.get(link.id);
+      const emissionInterval = this._getEmissionInterval(linkState);
+      const lastSpawnTime = spawnState?.lastSpawnTime ?? -Infinity;
+      if (currentCascadeTime - lastSpawnTime < emissionInterval) continue;
+      this._emitFromLinkState(link, linkState, currentCascadeTime);
+      this._linkSpawnState.set(link.id, {
+        ...linkState,
+        lastSpawnTime: currentCascadeTime,
+        lastEventType: spawnState?.hasSpawned ? 'topup' : 'fallback',
+        hasSpawned: true
+      });
     }
   }
 
@@ -615,7 +628,17 @@ export class CascadeParticleSystem_Session120 {
   _getCascadeLinkState(link) {
     const u = link?.userData || {};
     const flowState = u.flowState || {};
-    const cascadeIntensity = Number(u.cascadeIntensity ?? flowState.intensity ?? u.metrics?.synergy ?? 0) || 0;
+    const canonicalIntensitySources = [
+      u.cascadeIntensity,
+      flowState.intensity,
+      u.metrics?.synergy,
+      u.synergy?.score,
+      link?.synergyScore
+    ];
+    const cascadeIntensity = canonicalIntensitySources.reduce((max, value) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(max, numeric) : max;
+    }, 0);
     const normalizedIntensity = Math.max(0, Math.min(1, cascadeIntensity));
     const conflictType = u.cascadeConflictType || flowState.type || 'neutral';
     const boost = Number(u.cascadeParticleEmissionBoost ?? 1.0) || 1.0;
@@ -642,6 +665,13 @@ export class CascadeParticleSystem_Session120 {
       flowType,
       isRelevant
     };
+  }
+
+  _getEmissionInterval(linkState) {
+    const intensity = Math.max(0, Math.min(1, Number(linkState?.intensity ?? 0) || 0));
+    const baseRate = Math.max(0.5, Number(this.config.emissionRate) || 0.5);
+    const intensityRate = baseRate * (0.35 + intensity * 0.95);
+    return Math.max(0.14, Math.min(0.65, 1 / Math.max(0.5, intensityRate)));
   }
   
   /**
@@ -683,7 +713,7 @@ export class CascadeParticleSystem_Session120 {
       
       p.active = true;
       p.lifetime = 0;
-      p.maxLifetime = 0.5 + Math.random() * 0.5;
+      p.maxLifetime = 1.8 + Math.random() * 1.2;
       p.spawnTime = currentCascadeTime;
       
       p.linkRef = link;

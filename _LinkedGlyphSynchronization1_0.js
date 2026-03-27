@@ -112,13 +112,22 @@ export class LinkedGlyphSynchronization1_0 {
     console.log('  - Corruption adds phase inversion');
     console.log('  - Use debugGlyphSync() to inspect');
   }
+
+  _resolveLinkEndpoints(link, sourceNode = null, targetNode = null) {
+    return {
+      sourceNode: sourceNode || link?.sourceNode || link?.source || link?.nodeA || null,
+      targetNode: targetNode || link?.targetNode || link?.target || link?.nodeB || null
+    };
+  }
   
   /**
    * Register a link for synchronization
    * Called when a new link is created
    */
-  registerLink(link, linkId) {
+  registerLink(link, linkId, sourceNode = null, targetNode = null) {
     if (this.linkSyncState.has(linkId)) return;
+
+    const endpoints = this._resolveLinkEndpoints(link, sourceNode, targetNode);
     
     // Calculate initial sync parameters
     const syncData = this.calculateLinkSyncParameters(link);
@@ -128,8 +137,8 @@ export class LinkedGlyphSynchronization1_0 {
       linkId,
       ...syncData,
       createdAt: Date.now(),
-      nodeA_Id: link.nodeA?.userData?.nodeId || link.nodeA?.uuid || 'unknown',
-      nodeB_Id: link.nodeB?.userData?.nodeId || link.nodeB?.uuid || 'unknown',
+      nodeA_Id: endpoints.sourceNode?.userData?.nodeId || endpoints.sourceNode?.uuid || 'unknown',
+      nodeB_Id: endpoints.targetNode?.userData?.nodeId || endpoints.targetNode?.uuid || 'unknown',
       updateCounter: 0
     });
     
@@ -243,7 +252,7 @@ export class LinkedGlyphSynchronization1_0 {
    * Call every frame from main game loop
    */
   update(deltaTime, aiNodes, linkingSystem) {
-    if (!this.enabled || !aiNodes || !linkingSystem) return;
+    if (!this.enabled || !aiNodes) return;
     
     const startTime = performance.now();
     
@@ -264,22 +273,12 @@ export class LinkedGlyphSynchronization1_0 {
     this.stats.mediumSyncCount = 0;
     this.stats.looseSyncCount = 0;
     
-    // Process each link in linking system
-    if (linkingSystem.links && Array.isArray(linkingSystem.links)) {
-      linkingSystem.links.forEach((link, index) => {
-        const linkId = link.uuid || link.id || `link-${index}`;
-        
-        // Register if new
-        if (!this.linkSyncState.has(linkId)) {
-          this.registerLink(link, linkId);
-        }
-        
-        // Update sync for this link
-        this.updateLinkSync(link, linkId, aiNodes);
-        
-        this.stats.linksProcessed++;
-      });
-    }
+    // Process only states handed off by LinkedGlyphMessaging3_0
+    this.linkSyncState.forEach((syncData, linkId) => {
+      if (!syncData?.link) return;
+      this.updateLinkSync(syncData.link, linkId, aiNodes);
+      this.stats.linksProcessed++;
+    });
     
     // Apply synchronized animations to all nodes
     this.applySynchronizedAnimations(aiNodes);

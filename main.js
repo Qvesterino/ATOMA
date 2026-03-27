@@ -228,7 +228,7 @@ import { DreamDepthEffectManager } from './DreamDepthEffectManager.js';
 import { SafeMobilityPack4 } from './SafeMobilityPack4.js';
 import { NodeVisuals4_0 } from './_NodeVisuals4_0.js';
 import { setupSimulationInvariantEnforcement } from './_SIMULATION_INVARIANT_ENFORCEMENT.js';
-import { setupSimulationAuditHelpers } from './_TASK_AUDIT_DEBUG_HELPERS.js';
+// REMOVED: _TASK_AUDIT_DEBUG_HELPERS - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { setupRareNodeVerificationTracker } from './_TASK_3_RARE_NODE_VERIFICATION.js';
 import { NodeEvolution2_0 } from './_NodeEvolution2_0.js';
 import { SafeNodeArchetypesPack } from './_SafeNodeArchetypesPack.js';
@@ -295,7 +295,7 @@ import { SemanticActivityFilter_v1 } from './SemanticActivityFilter_v1.js';
 import { LinkQualityCalculator } from './LinkQualityCalculator.js';
 import { LinkDegradationSystem } from './LinkDegradationSystem.js';
 import { NetworkStressAggregator, setupNetworkStressAggregatorConsoleAPI } from './NetworkStressAggregator.js';
-import { NodeShellSizeAuthority } from './NodeShellSizeAuthority.js';
+// REMOVED: NodeShellSizeAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { ParticleEmissionScaler } from './ParticleEmissionScaler.js';
 import { mountAIAutomationHUD, updateAIAutomationHUD } from './AIAutomationHUD.js';
 import { mountVariantBAdvisorHUD, updateVariantBAdvisorHUD } from './ui/hud/VariantBAdvisorHUD.js';
@@ -404,7 +404,7 @@ import { AtomaLanguageEngine3_0, setupAtomaLanguageEngine3ConsoleAPI } from './_
 // REMOVED (2026-03-01): CompleteVisualLock disabled for new visual modules
 // import { setupCompleteVisualLock, teardownCompleteVisualLock } from './_VisualLockCompleteIntegration.js';
 
-import { HologramShellAuthoritySystem } from './HologramShellAuthoritySystem.js';
+// REMOVED: HologramShellAuthoritySystem - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
 import { VisualAudit } from './VisualAudit.js';
 import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY_SYSTEM.js';
@@ -757,8 +757,8 @@ import { applyAllDefensivePatches } from './DefensiveHardeningPatch_v1.js';
 // NODE CORE MATERIAL AUTHORITY SYSTEM v1.0 (Session 26)
 // Ensures node core holographic materials can NEVER be overridden by auras
 // Material-driven solution (NOT depth-buffer hacks)
+// REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // ============================================================================
-import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
 
 // ============================================================================
 // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26)
@@ -5983,6 +5983,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Coordinates animations across linked nodes
         this.linkedGlyphSync = new LinkedGlyphSynchronization1_0(this.scene);
         this.linkedGlyphSync.setEnabled(true);
+        this.linkedGlyphMessaging?.setLinkedGlyphSync?.(this.linkedGlyphSync);
         console.log('✓ Linked Glyph Synchronization 1.0 active — Linked glyphs now coordinated');
 
         // Setup initial environment (Sigma Rift)
@@ -7816,95 +7817,8 @@ window.__ATOMA_SCENE__ = this.scene;
         } catch (err) {
             console.warn('[main.js] INTEGRATION Node Selection Fix failed:', err);
         }
-        // ====================================================================
-        // HOLOGRAM SHELL AUTHORITY SYSTEM v1.0 (SESSION 46)
-        // Ensures shells never obscure node cores
-        // ====================================================================
-        try {
-            this.hologramShellAuthority = new HologramShellAuthoritySystem({
-                enabled: true,
-                debugMode: false,
-                shellRenderOrder: -500,
-                maxShellOpacity: 0.5
-            });
-            
-            // Process all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    this.hologramShellAuthority.processShellGroup(node);
-                }
-            }
-
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'hologram-shell-authority',
-                    (newNode) => {
-                        if (newNode && this.hologramShellAuthority) {
-                            this.hologramShellAuthority.processShellGroup(newNode);
-                        }
-                    },
-                    35
-                );
-            }
-            
-            // Setup debug API
-            if (window.HologramShellAuthorityDebug) {
-                window.HologramShellAuthorityDebug.init(this.hologramShellAuthority);
-            }
-            
-            console.log('[main.js] Hologram Shell Authority System initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Hologram Shell Authority System initialization failed:', err.message);
-        }
-        
-        // ====================================================================
-        // [SESSION 90] NODE SHELL SIZE AUTHORITY v1.0
-        // Enforce static shell sizes derived ONLY from node category and tier
-        // Decouple shell scale from network metrics (load, stress, corruption)
-        // ====================================================================
-        try {
-            this.nodeShellSizeAuthority = new NodeShellSizeAuthority({
-                baseShellSize: 1.0,
-                minShellSize: 0.6,
-                maxShellSize: 1.5,
-                enabled: true,
-                debugMode: false,
-                minEnforceIntervalMs: 250,
-                tierMultipliers: {
-                    1: 0.9,
-                    2: 1.0,
-                    3: 1.1,
-                    4: 1.2,
-                    5: 1.3,
-                }
-            });
-            
-            // Register all existing nodes
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    const category = node.userData?.category || 'crystal';
-                    const tier = node.userData?.evolutionTier || 2;
-                    this.nodeShellSizeAuthority.registerNode(node, category, tier);
-                }
-            }
-            
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'node-shell-size-registration',
-                    (newNode) => {
-                        if (!newNode || !this.nodeShellSizeAuthority) return;
-                        const category = newNode.userData?.category || 'crystal';
-                        const tier = newNode.userData?.evolutionTier || 2;
-                        this.nodeShellSizeAuthority.registerNode(newNode, category, tier);
-                    },
-                    40
-                );
-            }
-            
-            console.log('[main.js] Node Shell Size Authority initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] Node Shell Size Authority initialization failed:', err.message);
-        }
+        // REMOVED (2026-03-27): HologramShellAuthoritySystem - moved to LEGACY/LOCK and POLICIES to delete
+        // REMOVED (2026-03-27): NodeShellSizeAuthority - moved to LEGACY/LOCK and POLICIES to delete
         
         // ====================================================================
         // VISUAL INTERACTION ISOLATION PATCH v2.0 - CRITICAL FIX (SESSION 46)
@@ -7931,71 +7845,7 @@ window.__ATOMA_SCENE__ = this.scene;
         } catch (err) {
             console.warn('[main.js] Visual Interaction Isolation Patch v2.0 failed:', err.message);
         }
-        
-        // ====================================================================
-        // NODE CORE MATERIAL AUTHORITY SYSTEM v1.0 (Session 26)
-        // Material-driven solution: ensures cores are NEVER overridden by auras
-        // ====================================================================
-        try {
-            if (typeof NodeCoreMaterialAuthority !== 'function') {
-                console.error('[main.js] NodeCoreMaterialAuthority invalid export:', NodeCoreMaterialAuthority);
-            } else {
-                this.nodeCoreAuthority = new NodeCoreMaterialAuthority();
-                
-                // Register all existing nodes
-                if (this.aiNodes?.nodes) {
-                    for (const node of this.aiNodes.nodes) {
-                        this.nodeCoreAuthority.registerNodeCore(node);
-                    }
-                }
-                
-                // Register post-spawn observer (single ordered pipeline)
-                if (this.aiNodes?.registerPostSpawnObserver) {
-                    this.aiNodes.registerPostSpawnObserver(
-                        'node-core-material-authority',
-                        (newNode) => {
-                            if (newNode && this.nodeCoreAuthority) {
-                                this.nodeCoreAuthority.registerNodeCore(newNode);
-                            }
-                        },
-                        30
-                    );
-                }
-                
-                // [SESSION 56 FORENSIC FIX] Register observer for link events
-                // DISABLED: correctPostLinkLayering was calling undefined function (import was disabled)
-                // This was mutating renderOrder and aura opacity POST-LINK
-                // Visual authority lock: Base state is immutable, only FX layers are added
-                if (this.linkingSystem && this.linkingSystem.registerObserver) {
-                    this.linkingSystem.registerObserver({
-                        onLinkCreated: (link) => {
-                            try {
-                                // Re-assert core materials after link creation
-                                if (link?.nodes?.[0]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[0]);
-                                if (link?.nodes?.[1]) this.nodeCoreAuthority?.assertCoreOnLink(link.nodes[1]);
-                                
-                                // DISABLED (Session 56): Defensive layering correction was calling undefined function
-                                // if (link?.nodes?.[0]) correctPostLinkLayering(link.nodes[0]);
-                                // if (link?.nodes?.[1]) correctPostLinkLayering(link.nodes[1]);
-                            } catch (e) {
-                                // Silent failure
-                            }
-                        }
-                    });
-                }
-                
-                // Setup console API for debugging (optional)
-                if (typeof setupNodeCoreAuthorityConsoleAPI === 'function') {
-                    window.debugCoreAuthority = setupNodeCoreAuthorityConsoleAPI(this.nodeCoreAuthority);
-                } else {
-                    console.log('[main.js] CoreAuthority console API not installed (optional)');
-                }
-                
-                console.log('[main.js] NodeCoreMaterialAuthority initialized ✓');
-            }
-        } catch (err) {
-            console.warn('[main.js] NodeCoreMaterialAuthority initialization failed:', err);
-        }
+        // REMOVED (2026-03-27): NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete
         
         // ====================================================================
         // EVENT VISUAL SUPPRESSION SYSTEM v1.0 (Session 26) - DEACTIVATED
@@ -9962,8 +9812,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     debugMode: false,
                     maxParticles: 100,
                     emissionRate: 6.0,
-                    baseSize: 10.0,
-                    visualSizeBoost: 3.2,
+                    baseSize: 6.0,
+                    visualSizeBoost: 1.6,
                     baseCascadeParticles: 60
                 }
             );
@@ -12281,6 +12131,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.linkedGlyphMessaging.setEnabled(true);
         this.linkedGlyphMessaging.frameScheduler = this.frameScheduler;
         this.linkedGlyphMessaging.linkGlyphFlow = this.linkGlyphFlow || null;
+        this.linkedGlyphMessaging.setLinkedGlyphSync?.(this.linkedGlyphSync || null);
 
         if (this.linkGlyphFlow) {
             this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging;

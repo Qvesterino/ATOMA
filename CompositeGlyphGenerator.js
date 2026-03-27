@@ -129,6 +129,10 @@ export class CompositeGlyphGenerator {
         const connectors = this.createConnectorStrokes(subGlyph1.position, subGlyph2.position);
         group.add(connectors);
 
+        // Outer silhouette and internal detail ribs
+        const silhouette = this.createSilhouetteDetailGroup(sources, context);
+        group.add(silhouette);
+
         // Merge into single geometry
         return this._mergeCompositeGroup(group, context);
     }
@@ -159,6 +163,9 @@ export class CompositeGlyphGenerator {
         // Triangular connector frame
         const connectors = this.createTriangularFrame();
         group.add(connectors);
+
+        const silhouette = this.createSilhouetteDetailGroup(sources, context);
+        group.add(silhouette);
 
         // Merge
         return this._mergeCompositeGroup(group, context);
@@ -192,6 +199,9 @@ export class CompositeGlyphGenerator {
         const connectors = this.createCircularFrame(count);
         group.add(connectors);
 
+        const silhouette = this.createSilhouetteDetailGroup(sources, context);
+        group.add(silhouette);
+
         // Merge
         return this._mergeCompositeGroup(group, context);
     }
@@ -204,29 +214,34 @@ export class CompositeGlyphGenerator {
         // Create blended symbol from source glyphs
         const metrics = this._resolveContextMetrics(context);
         const points = [];
-        const segments = 32;
+        const segments = 40;
 
         // Blend between circular and more complex shapes based on harmony
         const harmonyFactor = metrics.harmony - metrics.corruption;
+        const signature = this.hashFromContext(metrics);
 
         for (let i = 0; i <= segments; i++) {
             const angle = (i / segments) * Math.PI * 2;
             
             // Base radius
-            let radius = 0.3;
+            let radius = 0.32;
 
             // Add complexity based on synergy
             const synergy = metrics.synergy || 0;
-            const ripple = Math.sin(angle * 3 + this.hashFromContext(metrics)) * synergy * 0.1;
+            const ripple = Math.sin(angle * 4 + signature * Math.PI * 2) * synergy * 0.11;
             radius += ripple;
+
+            // Source-retained silhouette asymmetry
+            radius += Math.cos(angle * 6 + signature * 7.0) * 0.025;
+            radius += Math.sin(angle * 8 + signature * 3.0) * 0.015;
 
             // Harmony creates smooth curves, corruption creates angular
             if (harmonyFactor > 0) {
                 // Smooth: circular with soft modulation
-                radius *= (1 + Math.sin(angle * 2) * 0.15);
+                radius *= (1 + Math.sin(angle * 2) * 0.18 + Math.sin(angle * 6) * 0.05);
             } else {
                 // Angular: pointy modulation
-                radius *= (1 + Math.cos(angle * 4) * 0.2);
+                radius *= (1 + Math.cos(angle * 4) * 0.22 + Math.sin(angle * 8) * 0.04);
             }
 
             points.push(new THREE.Vector2(
@@ -253,11 +268,67 @@ export class CompositeGlyphGenerator {
         const metrics = this._resolveContextMetrics(context);
         // Create simplified version of source glyph
         const points = [];
-        const segments = 16;
+        const segments = 20;
 
         // Smaller radius (quarter size of core)
-        const radius = 0.15;
-        const orbitRadius = 0.35;
+        const radius = 0.16;
+        const orbitRadius = 0.37;
+        const sourceLabel = String(sourceType || '').toUpperCase();
+
+        if (sourceLabel.includes('RING') || sourceLabel.includes('CIRCLE')) {
+            const outer = new THREE.Shape();
+            const outerRadius = radius * 1.1;
+            const innerRadius = radius * 0.52;
+            for (let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                const modulation = 1 + Math.sin(theta * 4 + this.hashFromContext(metrics)) * 0.08;
+                const x = Math.cos(theta) * outerRadius * modulation;
+                const y = Math.sin(theta) * outerRadius * modulation;
+                if (i === 0) {
+                    outer.moveTo(x, y);
+                } else {
+                    outer.lineTo(x, y);
+                }
+            }
+            const hole = new THREE.Path();
+            for (let i = segments; i >= 0; i--) {
+                const theta = (i / segments) * Math.PI * 2;
+                const modulation = 1 + Math.cos(theta * 3 + this.hashFromContext(metrics)) * 0.05;
+                const x = Math.cos(theta) * innerRadius * modulation;
+                const y = Math.sin(theta) * innerRadius * modulation;
+                if (i === segments) {
+                    hole.moveTo(x, y);
+                } else {
+                    hole.lineTo(x, y);
+                }
+            }
+            outer.holes.push(hole);
+
+            const geometry = new THREE.ShapeGeometry(outer);
+            const mesh = new THREE.Mesh(geometry);
+            mesh.position.x = Math.cos(angle) * orbitRadius;
+            mesh.position.z = Math.sin(angle) * orbitRadius;
+            mesh.userData.compositeContext = metrics;
+            return mesh;
+        }
+
+        if (sourceLabel.includes('CHEVRON') || sourceLabel.includes('ARROW')) {
+            const tip = radius * 1.35;
+            const base = radius * 0.95;
+            points.push(new THREE.Vector2(-base * 0.85, -base * 0.65));
+            points.push(new THREE.Vector2(0, -base * 0.15));
+            points.push(new THREE.Vector2(tip, 0));
+            points.push(new THREE.Vector2(0, base * 0.15));
+            points.push(new THREE.Vector2(-base * 0.85, base * 0.65));
+
+            const shape = new THREE.Shape(points);
+            const geometry = new THREE.ShapeGeometry(shape);
+            const mesh = new THREE.Mesh(geometry);
+            mesh.position.x = Math.cos(angle) * orbitRadius;
+            mesh.position.z = Math.sin(angle) * orbitRadius;
+            mesh.userData.compositeContext = metrics;
+            return mesh;
+        }
 
         // Create simplified shape that vaguely resembles source
         for (let i = 0; i <= segments; i++) {
@@ -272,7 +343,7 @@ export class CompositeGlyphGenerator {
                 shapeModulation = 0.3; // More angular
             }
 
-            const modulation = Math.cos(theta * 3) * shapeModulation + 1;
+            const modulation = Math.cos(theta * 3) * shapeModulation + 1 + Math.sin(theta * 5 + this.hashFromContext(metrics)) * 0.05;
             const x = Math.cos(theta) * radius * modulation;
             const y = Math.sin(theta) * radius * modulation;
 
@@ -290,6 +361,61 @@ export class CompositeGlyphGenerator {
         mesh.userData.compositeContext = metrics;
 
         return mesh;
+    }
+
+    createSilhouetteDetailGroup(sources, context) {
+        const group = new THREE.Group();
+        const metrics = this._resolveContextMetrics(context);
+        const sourceCount = Math.max(2, Array.isArray(sources) ? sources.length : 2);
+        const shellRadius = 0.44 + metrics.synergy * 0.05;
+        const shellThickness = 0.055 + metrics.harmony * 0.015;
+        const accentColor = this.getCompositeAccentColor(metrics.harmony);
+
+        const shellGeometry = new THREE.RingGeometry(shellRadius - shellThickness, shellRadius, Math.max(12, sourceCount * 2));
+        const shellMaterial = new THREE.MeshBasicMaterial({
+            color: accentColor,
+            transparent: true,
+            opacity: 0.16 + metrics.harmony * 0.06,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+        shell.position.z = 0.01;
+        group.add(shell);
+
+        const ribMaterial = new THREE.MeshBasicMaterial({
+            color: accentColor,
+            transparent: true,
+            opacity: 0.22,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            toneMapped: false
+        });
+
+        const ribLength = shellRadius * 1.08;
+        const ribWidth = 0.026;
+        const ribDepth = 0.03;
+        const ribGeometry = new THREE.BoxGeometry(ribLength, ribWidth, ribDepth);
+        const ribCount = metrics.harmony > metrics.corruption ? 4 : 3;
+
+        for (let i = 0; i < ribCount; i++) {
+            const angle = (i / ribCount) * Math.PI * 2 + (this.hashFromContext(metrics) * Math.PI * 0.5);
+            const rib = new THREE.Mesh(ribGeometry, ribMaterial);
+            rib.position.set(Math.cos(angle) * 0.08, Math.sin(angle) * 0.08, 0.02);
+            rib.rotation.z = angle;
+            group.add(rib);
+        }
+
+        return group;
+    }
+
+    getCompositeAccentColor(harmonyBalance) {
+        const baseColor = new THREE.Color(this.getCompositeColor(harmonyBalance));
+        const highlight = harmonyBalance >= 0.5
+            ? new THREE.Color(0xeef7ff)
+            : new THREE.Color(0xfff0d6);
+        return baseColor.lerp(highlight, 0.62).getHex();
     }
 
     // ========================================================================
@@ -498,7 +624,6 @@ export class CompositeGlyphGenerator {
         geometry.userData.renderOrder = this.renderOrder;
         geometry.userData.semanticContext = this._resolveContextMetrics(context);
         geometry.userData.sourceTypes = Array.isArray(sourceTypes) ? sourceTypes.slice() : [];
-        geometry.rotateX(-Math.PI / 2);
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
 

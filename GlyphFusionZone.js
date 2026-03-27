@@ -172,7 +172,7 @@ class CompositeGlyphInstance {
 
         // Slow rotation
         this.rotationPhase += deltaTime * CONFIG.COMPOSITE_ROTATION_SPEED;
-        this.mesh.rotation.z = Math.sin(this.rotationPhase) * 0.02;
+        this.mesh.rotation.y = Math.sin(this.rotationPhase) * 0.02;
     }
 }
 
@@ -505,16 +505,20 @@ export class GlyphFusionZoneManager {
             transparent: true,
             opacity: 0.0,  // Will fade in
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: false,
+            toneMapped: false
         });
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.copy(zone.node.position);
         mesh.position.y += 0.9;  // Center above node
+        mesh.scale.setScalar(CONFIG.COMPOSITE_SIZE_MULTIPLIER);
         mesh.renderOrder = geometry.userData?.renderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         mesh.userData.visualLayer = geometry.userData?.layerId ?? VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
         mesh.userData.isCompositeGlyph = true;
         mesh.userData.compositeId = compositeId;
+
+        this._decorateCompositeGlyph(mesh, geometry, harmonyBalance, context);
 
         this.container.add(mesh);
 
@@ -540,6 +544,71 @@ export class GlyphFusionZoneManager {
         zone.compositeGlyph = composite;
 
         this.compositeGlyphGenerator?.resonanceFeedback?.registerCompositeGlyph?.(composite);
+    }
+
+    _decorateCompositeGlyph(mesh, geometry, harmonyBalance, context) {
+        if (!mesh || !geometry) return;
+
+        const outlineColor = this.getCompositeAccentColor(harmonyBalance);
+        const shellGeometry = geometry.clone();
+        const shellMaterial = new THREE.MeshBasicMaterial({
+            color: outlineColor,
+            transparent: true,
+            opacity: 0.14,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+        shell.scale.setScalar(1.06);
+        shell.position.z = -0.012;
+        shell.renderOrder = mesh.renderOrder - 1;
+        shell.userData.isCompositeShell = true;
+        mesh.add(shell);
+
+        const edgesGeometry = new THREE.EdgesGeometry(geometry, 18);
+        const edgesMaterial = new THREE.LineBasicMaterial({
+            color: outlineColor,
+            transparent: true,
+            opacity: 0.65,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+        edges.renderOrder = mesh.renderOrder + 1;
+        edges.userData.isCompositeOutline = true;
+        mesh.add(edges);
+
+        const k = this._createCompositeKeystone(context, harmonyBalance, outlineColor);
+        if (k) {
+            mesh.add(k);
+        }
+    }
+
+    _createCompositeKeystone(context, harmonyBalance, color) {
+        const metrics = this._resolveContextMetrics(context);
+        const group = new THREE.Group();
+        const bladeCount = metrics.harmony > metrics.corruption ? 4 : 3;
+        const bladeMaterial = new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.22 + harmonyBalance * 0.08,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const bladeGeometry = new THREE.BoxGeometry(0.025, 0.16, 0.03);
+
+        for (let i = 0; i < bladeCount; i++) {
+            const angle = (i / bladeCount) * Math.PI * 2 + (metrics.synergy * Math.PI * 0.25);
+            const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+            blade.position.set(Math.cos(angle) * 0.15, Math.sin(angle) * 0.15, 0.03);
+            blade.rotation.z = angle;
+            group.add(blade);
+        }
+
+        group.userData.isCompositeKeystone = true;
+        return group;
     }
 
     getCompositeColor(harmonyBalance) {

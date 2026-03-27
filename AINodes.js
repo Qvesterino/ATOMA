@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
-import { freezeNodeCoreState } from './NodeCoreMaterialAuthority.js';
+// REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+// Stub function for compatibility
+const freezeNodeCoreState = (nodeModel) => { /* no-op */ };
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // Legacy aura overlays kill-switch

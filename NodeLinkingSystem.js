@@ -60,7 +60,10 @@ import {
 } from './UndoRedoSystem.js';
 import { onLinkCreated, onLinkRemoved, applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';
 import { EnhancedNodeModels } from './EnhancedNodeModels.js';
-import { captureNodeCoreState, restoreNodeCoreState } from './NodeCoreMaterialAuthority.js';
+// REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+// Stub functions for compatibility
+const captureNodeCoreState = (nodeModel) => null;
+const restoreNodeCoreState = (nodeModel, state) => { /* no-op */ };
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 function ensureUserData(obj) {

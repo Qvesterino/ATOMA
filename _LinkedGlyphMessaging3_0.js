@@ -56,6 +56,7 @@ export class LinkedGlyphMessaging3_0 {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    this.linkedGlyphSync = null;
     const attachRoot = worldRoot || scene;
     
     // Enable/disable messaging
@@ -231,21 +232,48 @@ export class LinkedGlyphMessaging3_0 {
     
     this.generationTimers.set(linkId, 0);
     this.activeMessages.set(linkId, []);
+
+    this.linkedGlyphSync?.registerLink?.(link, linkId, sourceNode, targetNode);
   }
   
   /**
    * Unregister a link from messaging
    */
   unregisterLink(linkId) {
+    const tracked = this.trackedLinks.get(linkId);
+
     // Clean up all messages on this link
     const messages = this.activeMessages.get(linkId);
     if (messages) {
       messages.forEach(msg => this.despawnMessage(msg));
       this.activeMessages.delete(linkId);
     }
+
+    if (tracked) {
+      this.linkedGlyphSync?.unregisterLink?.(linkId);
+    }
     
     this.trackedLinks.delete(linkId);
     this.generationTimers.delete(linkId);
+  }
+
+  setLinkedGlyphSync(linkedGlyphSync) {
+    this.linkedGlyphSync = linkedGlyphSync || null;
+
+    if (!this.linkedGlyphSync) {
+      return null;
+    }
+
+    for (const trackedLink of this.trackedLinks.values()) {
+      this.linkedGlyphSync.registerLink?.(
+        trackedLink.link,
+        trackedLink.linkId,
+        trackedLink.sourceNode,
+        trackedLink.targetNode
+      );
+    }
+
+    return this.linkedGlyphSync;
   }
   
   /**
@@ -752,9 +780,10 @@ export class LinkedGlyphMessaging3_0 {
    * Cleanup on world transition
    */
   cleanup() {
-    this.activeMessages.forEach((messages, linkId) => {
-      messages.forEach(msg => this.despawnMessage(msg));
-    });
+    for (const linkId of [...this.trackedLinks.keys()]) {
+      this.unregisterLink(linkId);
+    }
+
     this.activeMessages.clear();
     this.trackedLinks.clear();
     this.generationTimers.clear();

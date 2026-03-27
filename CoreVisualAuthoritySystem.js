@@ -41,7 +41,11 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
-import { NodeCoreMaterialAuthority } from './NodeCoreMaterialAuthority.js';
+// REMOVED: NodeCoreMaterialAuthority - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+// Stub for compatibility
+const NodeCoreMaterialAuthority = {
+  lockCoreMaterial: (material, freeze) => { /* no-op */ }
+};
 
 // Render-order lockdown flag
 const RENDER_AUTHORITY_LOCKDOWN = true;

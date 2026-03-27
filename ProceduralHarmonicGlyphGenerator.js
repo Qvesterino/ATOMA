@@ -94,6 +94,9 @@ const CONFIG = {
 class ProceduralGlyphInstance {
     constructor() {
         this.mesh = null;
+        this.primaryLine = null;
+        this.silhouetteLine = null;
+        this.detailLine = null;
         this.active = false;
         this.position = new THREE.Vector3();
         this.regionHash = null;
@@ -114,15 +117,40 @@ class ProceduralGlyphInstance {
         this.flowDirection = new THREE.Vector3(0, 0, 1);
         this.learningStrength = 0.5;
         this.hubStability = 0.5;
+        this.baseScale = CONFIG.GLYPH_SCALE;
     }
     
     reset() {
         this.active = false;
         if (this.mesh) {
             this.mesh.visible = false;
+            this.mesh.rotation.set(0, 0, 0);
+            this.mesh.scale.setScalar(1);
         }
         this.age = 0.0;
         this.emergeProgress = 0.0;
+    }
+
+    setVisualLayers(root, primaryLine, silhouetteLine, detailLine) {
+        this.mesh = root;
+        this.primaryLine = primaryLine || null;
+        this.silhouetteLine = silhouetteLine || null;
+        this.detailLine = detailLine || null;
+    }
+
+    setGeometrySet(primaryGeometry, silhouetteGeometry, detailGeometry) {
+        this._replaceGeometry(this.primaryLine, primaryGeometry);
+        this._replaceGeometry(this.silhouetteLine, silhouetteGeometry);
+        this._replaceGeometry(this.detailLine, detailGeometry);
+    }
+
+    _replaceGeometry(line, geometry) {
+        if (!line || !geometry) return;
+        if (line.geometry && line.geometry !== geometry) {
+            line.geometry.dispose();
+        }
+        line.geometry = geometry;
+        line.frustumCulled = false;
     }
     
     initialize(position, regionHash, procedureParams) {
@@ -139,6 +167,7 @@ class ProceduralGlyphInstance {
         this.flowDirection.copy(procedureParams.flowDirection);
         this.learningStrength = procedureParams.learningStrength;
         this.hubStability = procedureParams.hubStability;
+        this.baseScale = procedureParams.baseScale ?? CONFIG.GLYPH_SCALE;
         
         this.age = 0.0;
         this.emergeProgress = 0.0;
@@ -146,6 +175,7 @@ class ProceduralGlyphInstance {
         if (this.mesh) {
             this.mesh.visible = true;
             this.mesh.position.copy(position);
+            this.mesh.scale.setScalar(this.baseScale);
         }
     }
     
@@ -163,9 +193,23 @@ class ProceduralGlyphInstance {
             : 1 - Math.pow(-2 * this.emergeProgress + 2, 3) / 2;
         
         // Update opacity
-        if (this.mesh && this.mesh.material) {
-            this.mesh.material.opacity = this.targetOpacity * easedProgress;
+        const opacity = this.targetOpacity * easedProgress;
+        this._applyLayerOpacity(this.primaryLine, opacity);
+        this._applyLayerOpacity(this.silhouetteLine, opacity * 0.34);
+        this._applyLayerOpacity(this.detailLine, opacity * 0.82);
+
+        if (this.mesh) {
+            const pulse = 1.0 + Math.sin(this.age * 0.72 + this.seed * Math.PI * 2) * 0.018 * (0.35 + this.complexity * 0.65);
+            this.mesh.scale.setScalar(this.baseScale * pulse);
+            this.mesh.rotation.y = Math.sin(this.age * 0.28 + this.seed * 4.0) * 0.05;
         }
+    }
+
+    _applyLayerOpacity(line, opacity) {
+        if (!line?.material) return;
+        line.material.opacity = opacity;
+        line.material.transparent = true;
+        line.material.depthWrite = false;
     }
     
     getAge() {
@@ -180,6 +224,17 @@ class ProceduralGlyphInstance {
 class ProceduralGeometryGenerator {
     constructor() {
         this.geometryCache = new Map();  // hash -> geometry
+    }
+
+    generateLayerGeometries(procedureParams) {
+        const primary = this.generateGeometry(procedureParams);
+        if (!primary) return null;
+
+        return {
+            primary,
+            silhouette: this.createSilhouetteGeometry(primary, procedureParams),
+            detail: this.createDetailGeometry(primary, procedureParams)
+        };
     }
     
     generateGeometry(procedureParams) {
@@ -214,6 +269,56 @@ class ProceduralGeometryGenerator {
         // Cache geometry
         this.geometryCache.set(hash, geometry.clone());
         
+        return geometry;
+    }
+
+    createSilhouetteGeometry(baseGeometry, params) {
+        if (!baseGeometry) return null;
+
+        const geometry = baseGeometry.clone();
+        const signature = params.seed * 13.37 + params.complexity * 7.1 + params.asymmetryFactor * 5.3;
+        const scale = 1.08 + params.complexity * 0.04;
+
+        geometry.scale(scale, scale, scale);
+        geometry.rotateY((signature % 0.5) * 0.15 - 0.0375);
+        geometry.translate(0, 0.01 + params.hubStability * 0.012, 0);
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
+
+        return geometry;
+    }
+
+    createDetailGeometry(baseGeometry, params) {
+        if (!baseGeometry) return null;
+
+        const geometry = baseGeometry.clone();
+        const position = geometry.attributes.position;
+        if (!position) return geometry;
+
+        const array = position.array;
+        const seedPhase = params.seed * 31.4159;
+        const complexityPhase = params.complexity * 17.0;
+
+        for (let i = 0; i < position.count; i++) {
+            const index = i * 3;
+            const x = array[index];
+            const y = array[index + 1];
+            const z = array[index + 2];
+            const radial = Math.max(0.0001, Math.sqrt(x * x + z * z));
+            const detailWave = Math.sin(i * 0.65 + seedPhase) * 0.012 + Math.cos(i * 0.41 + complexityPhase) * 0.009;
+            const asymmetryWave = params.asymmetryFactor * Math.sin(i * 0.33 + seedPhase * 0.5) * 0.01;
+            const lift = (Math.sin(i * 0.27 + seedPhase) * 0.003) + (params.hubStability * 0.003);
+            const scale = 0.96 + detailWave + asymmetryWave;
+            array[index] = x * scale + (x / radial) * detailWave * 0.22;
+            array[index + 1] = y + lift;
+            array[index + 2] = z * scale + (z / radial) * detailWave * 0.22;
+        }
+
+        position.needsUpdate = true;
+        geometry.rotateY(0.035 + params.asymmetryFactor * 0.12);
+        geometry.computeBoundingSphere();
+        geometry.computeBoundingBox();
+
         return geometry;
     }
     
@@ -414,27 +519,55 @@ export class ProceduralHarmonicGlyphGenerator {
         this.root = container;
         
         for (let i = 0; i < CONFIG.GLYPH_POOL_SIZE; i++) {
-            // Create line-based glyph geometry
-            const geometry = new THREE.BufferGeometry();
+            const root = new THREE.Group();
+            root.visible = false;
+            root.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
+
+            const baseGeometry = new THREE.BufferGeometry();
             const positions = new Float32Array([0, 0, 0, 0, 0, 0]);
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            
-            const material = new THREE.LineBasicMaterial({
+            baseGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const primaryMaterial = new THREE.LineBasicMaterial({
                 color: CONFIG.GLYPH_COLOR,
                 transparent: true,
                 opacity: CONFIG.GLYPH_OPACITY,
                 fog: false,
                 depthWrite: false
             });
-            
-            const line = new THREE.Line(geometry, material);
-            line.visible = false;
-            line.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
-            
-            container.add(line);
+
+            const silhouetteMaterial = new THREE.LineBasicMaterial({
+                color: 0xf5f5f5,
+                transparent: true,
+                opacity: CONFIG.GLYPH_OPACITY * 0.28,
+                fog: false,
+                depthWrite: false
+            });
+
+            const detailMaterial = new THREE.LineBasicMaterial({
+                color: 0xd0d0d0,
+                transparent: true,
+                opacity: CONFIG.GLYPH_OPACITY * 0.6,
+                fog: false,
+                depthWrite: false
+            });
+
+            const primaryLine = new THREE.Line(baseGeometry.clone(), primaryMaterial);
+            const silhouetteLine = new THREE.Line(baseGeometry.clone(), silhouetteMaterial);
+            const detailLine = new THREE.Line(baseGeometry.clone(), detailMaterial);
+            primaryLine.renderOrder = root.renderOrder + 1;
+            silhouetteLine.renderOrder = root.renderOrder;
+            detailLine.renderOrder = root.renderOrder + 2;
+            primaryLine.frustumCulled = false;
+            silhouetteLine.frustumCulled = false;
+            detailLine.frustumCulled = false;
+
+            root.add(silhouetteLine);
+            root.add(detailLine);
+            root.add(primaryLine);
+            container.add(root);
             
             const instance = new ProceduralGlyphInstance();
-            instance.mesh = line;
+            instance.setVisualLayers(root, primaryLine, silhouetteLine, detailLine);
             this.glyphInstances.push(instance);
         }
     }
@@ -543,11 +676,15 @@ export class ProceduralHarmonicGlyphGenerator {
         const procedureParams = this.deriveProcedureParameters(region);
         
         // Generate geometry
-        const geometry = this.geometryGenerator.generateGeometry(procedureParams);
-        
-        // Update glyph mesh
-        glyphInstance.mesh.geometry.dispose();
-        glyphInstance.mesh.geometry = geometry;
+        const layerGeometries = this.geometryGenerator.generateLayerGeometries(procedureParams);
+        if (!layerGeometries?.primary) return;
+
+        // Update glyph visuals
+        glyphInstance.setGeometrySet(
+            layerGeometries.primary,
+            layerGeometries.silhouette,
+            layerGeometries.detail
+        );
         
         // Initialize glyph
         glyphInstance.initialize(region.center, hash, procedureParams);
@@ -704,10 +841,18 @@ export class ProceduralHarmonicGlyphGenerator {
         this.glyphAnimationModulator = null;
         
         for (let glyph of this.glyphInstances) {
-            if (glyph.mesh) {
-                glyph.mesh.geometry.dispose();
-                glyph.mesh.material.dispose();
-            }
+            glyph.mesh?.traverse?.((child) => {
+                if (child.geometry) {
+                    child.geometry.dispose();
+                }
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach((material) => material?.dispose?.());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
         }
 
         if (this.root?.parent) {

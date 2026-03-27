@@ -52,10 +52,10 @@ export class StandingWaveVisualRenderer_Session131 {
         // Configuration
         this.config = {
             // Antinode visualization
-            antinodeRadius: 0.25,             // Radius of antinode glow sphere
-            antinodeOpacityBase: 0.4,         // Base opacity of antinode glow
-            antinodeGlowIntensity: 1.8,       // Emissive multiplier
-            antinodeLODDistance: 30,          // Distance culling threshold
+            antinodeRadius: 1.5,              // Radius of antinode glow sphere (visible scale)
+            antinodeOpacityBase: 0.6,         // Base opacity of antinode glow
+            antinodeGlowIntensity: 2.5,       // Intensity multiplier for additive blending
+            antinodeLODDistance: 50,          // Distance culling threshold
             
             // Interference bands
             bandThickness: 0.05,              // Thickness of bright/dim bands
@@ -65,8 +65,8 @@ export class StandingWaveVisualRenderer_Session131 {
             
             // Trap zone rendering
             trapZoneThickness: 0.1,           // Visual thickness of trap zone boundary
-            trapZoneOpacityBase: 0.15,        // Base opacity of trap zone
-            trapZoneGlowFactor: 0.8,          // Glow intensity multiplier
+            trapZoneOpacityBase: 0.25,        // Base opacity of trap zone
+            trapZoneGlowFactor: 1.2,          // Glow intensity multiplier
             trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
             
             // Wave material modification
@@ -124,28 +124,24 @@ export class StandingWaveVisualRenderer_Session131 {
         this.root.name = 'StandingWaveVisualRendererRoot';
         this._ensureAttachRoot();
         
-        // Create antinode glow material
-        this.antinodeMaterial = new THREE.MeshStandardMaterial({
-            emissive: new THREE.Color(0.6, 0.8, 1.0),
-            emissiveIntensity: this.config.antinodeGlowIntensity,
-            roughness: 0.9,
-            metalness: 0,
+        // Create antinode glow material - use MeshBasicMaterial with additive blending for proper glow
+        this.antinodeMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0.6, 0.8, 1.0),
             transparent: true,
             opacity: this.config.antinodeOpacityBase,
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
         
-        // Create trap zone material (subtle glow plane)
-        this.trapZoneMaterial = new THREE.MeshStandardMaterial({
+        // Create trap zone material - use MeshBasicMaterial with additive blending for glow
+        this.trapZoneMaterial = new THREE.MeshBasicMaterial({
             color: this.config.trapZoneColor,
-            emissive: this.config.trapZoneColor,
-            emissiveIntensity: this.config.trapZoneGlowFactor * 0.5,
             transparent: true,
             opacity: this.config.trapZoneOpacityBase,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.8
+            blending: THREE.AdditiveBlending
         });
         
         // Pre-allocate antinode glow pool
@@ -418,7 +414,9 @@ export class StandingWaveVisualRenderer_Session131 {
                 
                 antinode.intensity = trap.amplitude * localIntensity;
                 antinode.mesh.material.opacity = this.config.antinodeOpacityBase * antinode.intensity;
-                antinode.mesh.material.emissiveIntensity = this.config.antinodeGlowIntensity * antinode.intensity;
+                // For MeshBasicMaterial with additive blending, modulate color intensity
+                const colorIntensity = Math.min(1, this.config.antinodeGlowIntensity * antinode.intensity);
+                antinode.mesh.material.color.setRGB(0.6 * colorIntensity, 0.8 * colorIntensity, 1.0 * colorIntensity);
                 
                 antinodeIndex++;
             }
@@ -465,17 +463,23 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneMesh.mesh.lookAt(centerPos.clone().add(tangent));
             trapZoneMesh.mesh.rotateX(Math.PI * 0.5);  // Face perpendicular to link
             
-            // Scale trap zone
-            const zoneRadius = (zone.radiusEnd - zone.radiusStart) * linkLength * 0.5;
-            trapZoneMesh.mesh.scale.set(zoneRadius * 2, 0.01, zoneRadius * 2);
+            // Scale trap zone - use proper world-space scaling based on link length
+            const zoneRadius = Math.max(1, (zone.radiusEnd - zone.radiusStart) * linkLength * 0.5);
+            const zoneHeight = Math.max(0.5, linkLength * (zone.radiusEnd - zone.radiusStart));
+            trapZoneMesh.mesh.scale.set(zoneRadius * 2, zoneHeight, zoneRadius * 2);
             
             // Update material properties
             const material = trapZoneMesh.mesh.material;
             material.opacity = this.config.trapZoneOpacityBase * zone.intensity;
             
-            // Add pulsing effect
+            // Add pulsing effect - modulate color for MeshBasicMaterial with additive blending
             const pulse = Math.sin(this.time * zone.frequency * Math.PI * 2) * 0.3 + 0.7;
-            material.emissiveIntensity = this.config.trapZoneGlowFactor * pulse * zone.intensity;
+            const colorIntensity = Math.min(1, this.config.trapZoneGlowFactor * pulse * zone.intensity);
+            material.color.setRGB(
+                this.config.trapZoneColor.r * colorIntensity,
+                this.config.trapZoneColor.g * colorIntensity,
+                this.config.trapZoneColor.b * colorIntensity
+            );
             
             zoneIndex++;
         });
