@@ -6598,6 +6598,16 @@ window.__ATOMA_SCENE__ = this.scene;
                 console.log('[main.js] ParticleTrailSystem disposed');
             }
 
+            if (this.cascadeParticleEmissionBoost?.clearWorldState) {
+                this.cascadeParticleEmissionBoost.clearWorldState();
+            }
+            if (this.cascadeParticleColorTinting?.clearWorldState) {
+                this.cascadeParticleColorTinting.clearWorldState();
+            }
+            if (this.particleSemanticDensity?.clearWorldState) {
+                this.particleSemanticDensity.clearWorldState();
+            }
+
             // NEW: Dispose cascade particle systems
             if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.dispose === 'function') {
                 this.cascadeParticleSystem.dispose();

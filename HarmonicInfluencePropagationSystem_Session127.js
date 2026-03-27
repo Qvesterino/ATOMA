@@ -735,15 +735,22 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     // Check if we have active wave data for this link
     const flow = this.linkInfluenceState.get(linkId);
     if (flow) {
-      return Math.max(0.05, flow.progress);
+      return Math.max(0, flow.progress);
     }
     
-    // Fallback: check if this is an active link and return baseline influence
+    // Fallback: use canonical link data if available.
     const links = this._getWorldLinks();
     const link = links.find(l => l && (l.id === linkId || l.linkId === linkId));
-    if (link && link.active !== false) {
-      // Return baseline influence for active links without active waves
-      return 0.25;
+    if (link) {
+      const canonicalInfluence = Number(
+        link?.userData?.flowState?.intensity ??
+        link?.userData?.cascadeIntensity ??
+        link?.userData?.metrics?.synergy ??
+        0
+      ) || 0;
+      if (canonicalInfluence > 0) {
+        return canonicalInfluence;
+      }
     }
     
     return 0;

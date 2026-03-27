@@ -196,11 +196,6 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             });
         };
 
-        for (const link of activeLinks) {
-            registerResistantNode(this._getLinkSource(link), 1);
-            registerResistantNode(this._getLinkTarget(link), 1);
-        }
-        
         // Iterate through all nodes
         const nodes = Array.isArray(this.aiNodes) ? this.aiNodes : 
                       this.aiNodes.nodes ? this.aiNodes.nodes : 
@@ -220,7 +215,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             
             const activeLinkCount = this._getNodeTopologyCountFromLinks(node, activeLinks);
             const hasTopology = activeLinkCount > 0;
-            const isResistant = isGated || hasTopology;
+            const isResistant = isGated || instability > 0.3 || corruption > harmony || loadPressure > 0.6;
             
             if (isResistant) {
                 const stressSignal = Math.max(
@@ -328,18 +323,12 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             if (influence > 0) return influence;
         }
 
-        // Fallback 1: Check link active state
-        if (link.active !== false) {
-            // Base influence for active links - ensures system always has data to work with
-            return 0.35;
-        }
-        
-        // Fallback 2: Check link intensity property
+        // Fallback 1: Check canonical link intensity properties
         if (link.intensity !== undefined && link.intensity > 0) {
             return link.intensity;
         }
         
-        // Fallback 3: Check synergy from link
+        // Fallback 2: Check synergy from link
         if (typeof getLinkSynergy === 'function') {
             const synergy = getLinkSynergy(link);
             if (Number.isFinite(synergy) && synergy > 0) {
@@ -347,7 +336,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             }
         }
         
-        // Fallback 4: Check userData metrics (legacy compatibility)
+        // Fallback 3: Check userData metrics (legacy compatibility)
         const flowIntensity = Number(
             link?.userData?.flowState?.intensity ??
             link?.userData?.cascadeIntensity ??
@@ -359,8 +348,7 @@ export class InfluenceReflectionBackPressureSystem_Session129 {
             return flowIntensity;
         }
         
-        // Final fallback: minimal baseline for any connected link
-        return 0.2;
+        return 0;
     }
 
     rebind(config = {}) {

@@ -571,6 +571,17 @@ export class CascadeParticleColorTinting_Session119 {
     this._semanticUnsubscribers.length = 0;
     this._cascadeEventState.clear();
   }
+
+  clearWorldState() {
+    this.linkColorTinters.clear();
+    this._cascadeEventState.clear();
+    this.stats.activeColorTints = 0;
+    this.stats.conflictTypeDistribution = {};
+  }
+
+  reset() {
+    this.clearWorldState();
+  }
 }
 
 /**

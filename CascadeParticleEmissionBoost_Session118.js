@@ -349,6 +349,18 @@ export class CascadeParticleEmissionBoost_Session118 {
     }
     this._semanticUnsubscribers.length = 0;
   }
+
+  clearWorldState() {
+    this.linkBoosters.clear();
+    this.stats.activeBoosts = 0;
+    this.stats.totalEmissionMultiplier = 0.0;
+    this.stats.peakEmissionMultiplier = 1.0;
+    this._eventDrivenRefreshRequested = false;
+  }
+
+  reset() {
+    this.clearWorldState();
+  }
 }
 
 /**

@@ -410,6 +410,19 @@ export class ParticleSemanticDensityAdapter_Session121 {
     this._semanticUnsubscribers.length = 0;
   }
 
+  clearWorldState() {
+    this.linkMetrics.clear();
+    this.stats.activeLinkCount = 0;
+    this.stats.avgIntensity = 0;
+    this.stats.avgUrgency = 0;
+    this.stats.densityEvents = 0;
+    this._semanticRefreshRequested = false;
+  }
+
+  reset() {
+    this.clearWorldState();
+  }
+
   /**
    * Rebind system references after world switch
    * Updates links, conflictSystem, and cascadeSystem to prevent stale references

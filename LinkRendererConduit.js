@@ -4755,7 +4755,9 @@ export class LinkRendererConduit {
     updatePictograms(deltaTime, time) {
         if (this.pictogramSystem?.enabled) {
             try {
-                this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), this.camera);
+                // Pass aiNodes for fusion zone detection (was incorrectly passing camera)
+                const aiNodes = this.linkSystem?.aiNodes?.nodes || null;
+                this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), aiNodes);
             } catch {
             }
         }

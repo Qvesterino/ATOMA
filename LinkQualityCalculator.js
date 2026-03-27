@@ -80,6 +80,28 @@ export class LinkQualityCalculator {
       this._updateLinkQuality(link, deltaTime, now);
     }
   }
+
+  calculateCascadeIntensity(link) {
+    if (!link?.userData?.quality) return 0;
+
+    const q = link.userData.quality;
+
+    // normalized 0-1
+    const qualityNorm = (q.score ?? 100) / 100;
+    const corruptionNorm = (q.corruption ?? 0) / 100;
+
+    // low quality + high corruption = high cascade intensity
+    const base = 1 - qualityNorm;
+    let intensity = (base * 0.7) + (corruptionNorm * 0.3);
+
+    intensity = Math.max(0, Math.min(1, intensity));
+
+    if (intensity < 0.05) {
+      intensity *= 0.5;
+    }
+
+    return Math.max(0, Math.min(1, intensity));
+  }
   
   /**
    * Update quality score for a single link
@@ -150,6 +172,12 @@ export class LinkQualityCalculator {
     quality.load = loadScore;
     quality.corruption = corruptionScore;
     quality.updatedAt = now;
+
+    const intensity = this.calculateCascadeIntensity(link);
+    link.userData.cascadeIntensity = intensity;
+
+    // Safe boost to help links clear downstream emission thresholds.
+    link.userData.cascadeParticleEmissionBoost = 1.0 + intensity * 0.8;
 
     const currentIntensity = Math.max(0, Math.min(1, 1 - (finalScore / 100)));
     const previousIntensity = Math.max(0, Math.min(1, 1 - (previousScore / 100)));

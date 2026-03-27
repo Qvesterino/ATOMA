@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { getLinkSynergy, getNodeCanonicalMetrics } from './SemanticMetricAdapter.js';
+import { NeuralConvergenceSingularity } from './NeuralConvergenceSingularity.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -135,8 +136,9 @@ class FusionZoneState {
 // ============================================================================
 
 class CompositeGlyphInstance {
-    constructor(mesh) {
-        this.mesh = mesh;
+    constructor(singularity) {
+        this.singularity = singularity;  // NeuralConvergenceSingularity instance
+        this.mesh = singularity.group;   // Reference to group for compatibility
         this.active = false;
         this.state = null;  // Reference to parent FusionZoneState
         this.progress = 0.0;  // 0-1 fade in
@@ -145,34 +147,49 @@ class CompositeGlyphInstance {
 
     reset() {
         this.active = false;
-        this.mesh.visible = false;
+        if (this.singularity) {
+            this.singularity.deactivate();
+        }
         this.state = null;
     }
 
-    spawn(mesh, state) {
+    spawn(position, state) {
         this.active = true;
         this.state = state;
-        this.mesh = mesh;
         this.progress = 0.0;
         this.rotationPhase = Math.random() * Math.PI * 2;
-        this.mesh.visible = true;
+        
+        // Activate singularity with context
+        if (this.singularity) {
+            const context = {
+                harmony: state?.harmonyBalance ?? 0.5,
+                corruption: state?.corruptionBalance ?? 0,
+                synergy: state?.averageSynergy ?? 0.5,
+                connectedNodes: state?.nodes ?? []
+            };
+            this.singularity.activate(position, context);
+        }
     }
 
-    update(deltaTime) {
+    update(deltaTime, cameraPosition = null) {
         if (!this.active || !this.state) return;
         if (this.frameScheduler?.shouldRunSimulation && !this.frameScheduler.shouldRunSimulation()) return;
+        
         // Fade in during synthesis
         if (this.progress < 1.0) {
             this.progress += deltaTime / CONFIG.SYNTHESIS_DURATION;
         }
 
-        // Update material opacity
-        const opacity = CONFIG.COMPOSITE_OPACITY * this.progress;
-        this.mesh.material.opacity = opacity;
-
-        // Slow rotation
-        this.rotationPhase += deltaTime * CONFIG.COMPOSITE_ROTATION_SPEED;
-        this.mesh.rotation.y = Math.sin(this.rotationPhase) * 0.02;
+        // Update singularity
+        if (this.singularity) {
+            const context = {
+                harmony: this.state?.harmonyBalance ?? 0.5,
+                corruption: this.state?.corruptionBalance ?? 0,
+                synergy: this.state?.averageSynergy ?? 0.5,
+                cameraPosition
+            };
+            this.singularity.update(deltaTime, context);
+        }
     }
 }
 
@@ -220,22 +237,26 @@ export class GlyphFusionZoneManager {
         this.root = container;
 
         for (let i = 0; i < CONFIG.POOL_SIZE; i++) {
-            // Placeholder geometry (will be replaced on fusion)
-            const geometry = new THREE.PlaneGeometry(1, 1);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0xb0b0b0,
-                transparent: true,
-                opacity: 0.85,
-                side: THREE.DoubleSide,
-                depthWrite: false
+            // NEW: Neural Convergence Singularity instead of placeholder plane
+            const singularity = new NeuralConvergenceSingularity(this.scene, {
+                coreRadius: 0.12,
+                coreDetail: 3,
+                orbitalStreams: 4,
+                orbitalParticlesPerStream: 16,
+                tendrilCount: 3,
+                tendrilLength: 0.8,
+                riftOuterRadius: 0.5,
+                pulseInterval: 3.0,
+                enableOrbitalStreams: true,
+                enableTendrils: true,
+                enableRift: true,
+                enablePulses: true
             });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.visible = false;
-            mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
+            
+            singularity.group.visible = false;
+            container.add(singularity.group);
 
-            container.add(mesh);
-
-            const instance = new CompositeGlyphInstance(mesh);
+            const instance = new CompositeGlyphInstance(singularity);
             this.compositeGlyphs.push(instance);
         }
     }
@@ -487,10 +508,7 @@ export class GlyphFusionZoneManager {
             loadPressure: Math.max(0, Math.min(1, zone.corruptionBalance ?? (1.0 - harmonyBalance)))
         };
 
-        const geometry = this.compositeGlyphGenerator.generateComposite(sourceTypes, context);
-        if (!geometry) return;
-
-        // Get or create composite glyph mesh
+        // Get or create composite glyph (now NeuralConvergenceSingularity)
         const composite = this.compositeGlyphs.find(c => !c.active);
         if (!composite) return;
 
@@ -499,32 +517,19 @@ export class GlyphFusionZoneManager {
             .map((glyph) => glyph?.node?.uuid || glyph?.node?.userData?.id || glyph?.link?.userData?.nodeA?.uuid || glyph?.link?.userData?.nodeB?.uuid)
             .filter(Boolean);
 
-        // Create new mesh with generated geometry
-        const material = new THREE.MeshBasicMaterial({
-            color: this.getCompositeColor(harmonyBalance),
-            transparent: true,
-            opacity: 0.0,  // Will fade in
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            toneMapped: false
-        });
+        // Position for singularity
+        const position = zone.node.position.clone();
+        position.y += 0.5;  // Center above node
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.copy(zone.node.position);
-        mesh.position.y += 0.9;  // Center above node
-        mesh.scale.setScalar(CONFIG.COMPOSITE_SIZE_MULTIPLIER);
-        mesh.renderOrder = geometry.userData?.renderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
-        mesh.userData.visualLayer = geometry.userData?.layerId ?? VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
-        mesh.userData.isCompositeGlyph = true;
-        mesh.userData.compositeId = compositeId;
+        // Prepare context for singularity activation
+        const singularityContext = {
+            harmony: harmonyBalance,
+            corruption: context.corruption,
+            synergy: zone.averageSynergy ?? 0.5,
+            connectedNodes: zone.nodes ?? []
+        };
 
-        this._decorateCompositeGlyph(mesh, geometry, harmonyBalance, context);
-
-        this.container.add(mesh);
-
-        // Replace placeholder mesh
-        const oldMesh = composite.mesh;
-        composite.mesh = mesh;
+        // Store metadata
         composite.id = compositeId;
         composite.sourceNodeIds = sourceNodeIds;
         composite.glyphData = {
@@ -535,13 +540,16 @@ export class GlyphFusionZoneManager {
             synergyCoherence: zone.averageSynergy ?? 0.5,
             stabilityIndex: context.stability ?? 0.5
         };
-        if (oldMesh && oldMesh.parent) {
-            oldMesh.parent.remove(oldMesh);
-        }
 
-        composite.spawn(mesh, zone);
-        zone.compositeMesh = mesh;
+        // Activate the Neural Convergence Singularity
+        composite.spawn(position, {
+            ...zone,
+            harmonyBalance,
+            ...context
+        });
+
         zone.compositeGlyph = composite;
+        zone.compositeMesh = composite.mesh;
 
         this.compositeGlyphGenerator?.resonanceFeedback?.registerCompositeGlyph?.(composite);
     }
@@ -664,9 +672,12 @@ export class GlyphFusionZoneManager {
     // ========================================================================
 
     updateCompositeGlyphs(deltaTime) {
+        // Get camera position for LOD
+        const cameraPosition = this.scene?.camera?.position ?? null;
+        
         this.compositeGlyphs.forEach(composite => {
             if (!composite.active) return;
-            composite.update(deltaTime);
+            composite.update(deltaTime, cameraPosition);
         });
     }
 
@@ -676,7 +687,15 @@ export class GlyphFusionZoneManager {
 
     dispose() {
         this.zones.forEach(z => z.reset());
-        this.compositeGlyphs.forEach(c => c.reset());
+        
+        // Dispose singularities properly
+        this.compositeGlyphs.forEach(c => {
+            if (c.singularity) {
+                c.singularity.dispose();
+            }
+            c.reset();
+        });
+        
         this.nodeZoneMap.clear();
 
         if (this.root?.parent) {

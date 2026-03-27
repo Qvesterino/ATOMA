@@ -39,6 +39,7 @@
 
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
 
 export class StandingWaveVisualRenderer_Session131 {
     constructor(scene, standingWaveTrapSystem, linkingSystem, aiNodes, config = {}) {
@@ -52,9 +53,15 @@ export class StandingWaveVisualRenderer_Session131 {
         // Configuration
         this.config = {
             // Antinode visualization
-            antinodeRadius: 1.5,              // Radius of antinode glow sphere (visible scale)
-            antinodeOpacityBase: 0.6,         // Base opacity of antinode glow
-            antinodeGlowIntensity: 2.5,       // Intensity multiplier for additive blending
+            antinodeRadius: 1.5,              // Radius of antinode halo ring (visible scale)
+            antinodeOpacityBase: 0.38,        // Base opacity of antinode glow
+            antinodeGlowIntensity: 1.45,      // Intensity multiplier for additive blending
+            antinodeCooldownSeconds: 0.18,    // Minimum time before an antinode is re-primed
+            antinodeFadeSeconds: 0.42,        // Fade-out time when the trap weakens
+            antinodePulseFrequency: 1.9,      // Soft pulse speed for the ring glow
+            antinodeColorBlend: 0.22,         // Blend toward the link wave color
+            antinodeScaleBase: 0.44,          // Base scale of the ring mesh
+            antinodeScaleBoost: 0.11,         // Extra scale at higher intensity
             antinodeLODDistance: 50,          // Distance culling threshold
             
             // Interference bands
@@ -109,6 +116,11 @@ export class StandingWaveVisualRenderer_Session131 {
         this.trapZoneMaterial = null;
         this.interferenceShader = null;
         this.root = null;
+        this._antinodeDirection = new THREE.Vector3(0, 0, 1);
+        this._antinodeQuat = new THREE.Quaternion();
+        this._antinodeColorA = new THREE.Color();
+        this._antinodeColorB = new THREE.Color();
+        this._antinodeColorC = new THREE.Color();
         
         this.time = 0;
         this.initialized = false;
@@ -126,9 +138,10 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Create antinode glow material - use MeshBasicMaterial with additive blending for proper glow
         this.antinodeMaterial = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(0.6, 0.8, 1.0),
+            color: new THREE.Color(0.35, 0.82, 1.0),
             transparent: true,
-            opacity: this.config.antinodeOpacityBase,
+            opacity: Math.min(0.45, this.config.antinodeOpacityBase),
+            wireframe: true,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -146,7 +159,12 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Pre-allocate antinode glow pool
         for (let i = 0; i < this.config.maxAntinodeMeshes; i++) {
-            const geometry = new THREE.IcosahedronGeometry(this.config.antinodeRadius, 3);
+            const geometry = new THREE.TorusGeometry(
+                Math.max(0.08, this.config.antinodeRadius * 0.48),
+                Math.max(0.02, this.config.antinodeRadius * 0.14),
+                6,
+                14
+            );
             const mesh = new THREE.Mesh(geometry, this.antinodeMaterial.clone());
             mesh.visible = false;
             mesh.frustumCulled = false;
@@ -156,8 +174,13 @@ export class StandingWaveVisualRenderer_Session131 {
                 mesh: mesh,
                 active: false,
                 position: new THREE.Vector3(),
-                intensity: 1,
-                birthTime: 0
+                intensity: 0,
+                opacity: 0,
+                birthTime: 0,
+                lastSeenTime: 0,
+                nextRefreshTime: 0,
+                slotKey: null,
+                phaseSeed: i * 0.73
             });
         }
         
@@ -346,16 +369,11 @@ export class StandingWaveVisualRenderer_Session131 {
      * Render antinode glow meshes
      */
     _updateAntinodeGlows(deltaTime) {
-        // Deactivate all antinodes first
-        this.antinodeMeshPool.forEach(antinode => {
-            antinode.active = false;
-            antinode.mesh.visible = false;
-        });
-        
         if (!this.standingWaveTrapSystem) return;
         
         const traps = this.standingWaveTrapSystem.oscillationTraps || [];
         const patterns = this.standingWaveTrapSystem.interferencePatterns || [];
+        const touchedSlots = new Set();
         
         let antinodeIndex = 0;
         
@@ -403,24 +421,89 @@ export class StandingWaveVisualRenderer_Session131 {
                 // Acquire antinode from pool
                 const antinode = this.antinodeMeshPool[antinodeIndex];
                 if (!antinode) break;
+                const slotKey = `${trap.linkId}:${i}`;
+                const isNewSlot = antinode.slotKey !== slotKey;
+                antinode.slotKey = slotKey;
+
+                if (isNewSlot || this.time >= antinode.nextRefreshTime) {
+                    antinode.birthTime = this.time;
+                    antinode.nextRefreshTime = this.time + this.config.antinodeCooldownSeconds;
+                }
                 
                 antinode.active = true;
                 antinode.mesh.visible = true;
                 antinode.mesh.position.copy(antinodeWorldPos);
+                antinode.lastSeenTime = this.time;
+                touchedSlots.add(antinodeIndex);
+
+                if (typeof linkCurve.getTangentAt === 'function') {
+                    const tangent = linkCurve.getTangentAt(Math.max(0, Math.min(1, t)));
+                    if (tangent && tangent.lengthSq() > 1e-8) {
+                        antinode.mesh.quaternion.setFromUnitVectors(this._antinodeDirection, tangent.normalize());
+                    }
+                }
                 
                 // Calculate intensity (bright at antinodes, dim between)
                 const beatPhase = pattern.beatPhase || 0;
                 const localIntensity = Math.abs(Math.sin(beatPhase + i * Math.PI));
-                
-                antinode.intensity = trap.amplitude * localIntensity;
-                antinode.mesh.material.opacity = this.config.antinodeOpacityBase * antinode.intensity;
-                // For MeshBasicMaterial with additive blending, modulate color intensity
-                const colorIntensity = Math.min(1, this.config.antinodeGlowIntensity * antinode.intensity);
-                antinode.mesh.material.color.setRGB(0.6 * colorIntensity, 0.8 * colorIntensity, 1.0 * colorIntensity);
+                const targetIntensity = trap.amplitude * localIntensity;
+                const smoothFactor = 1 - Math.exp(-Math.max(0.001, deltaTime) * 10.0);
+                antinode.intensity += (targetIntensity - antinode.intensity) * smoothFactor;
+
+                const age = Math.max(0, this.time - antinode.birthTime);
+                const attack = Math.min(1, age / 0.12);
+                const pulse = 0.76 + (Math.sin((age * this.config.antinodePulseFrequency * Math.PI * 2) + antinode.phaseSeed) * 0.24);
+                const displayIntensity = Math.max(0, antinode.intensity * attack * pulse);
+
+                const color = this._resolveAntinodeColor(link, this._antinodeColorC);
+                const colorIntensity = Math.min(0.72, 0.22 + displayIntensity * this.config.antinodeGlowIntensity * 0.42);
+                antinode.mesh.material.color.copy(color).multiplyScalar(colorIntensity);
+                antinode.mesh.material.opacity = Math.min(0.32, this.config.antinodeOpacityBase * displayIntensity);
+                antinode.mesh.scale.setScalar(this.config.antinodeScaleBase + (displayIntensity * this.config.antinodeScaleBoost));
                 
                 antinodeIndex++;
             }
         });
+
+        this.antinodeMeshPool.forEach((antinode, index) => {
+            if (!antinode.active || touchedSlots.has(index)) return;
+
+            const fadeAge = Math.max(0, this.time - antinode.lastSeenTime);
+            const fade = Math.max(0, 1 - (fadeAge / this.config.antinodeFadeSeconds));
+            antinode.intensity *= Math.max(0, 1 - (deltaTime * 4.0));
+
+            if (fade <= 0.02 || antinode.intensity <= 0.01) {
+                antinode.active = false;
+                antinode.mesh.visible = false;
+                antinode.mesh.material.opacity = 0;
+                return;
+            }
+
+            antinode.mesh.material.opacity *= fade;
+            antinode.mesh.scale.multiplyScalar(0.995);
+        });
+    }
+
+    _resolveAntinodeColor(link, outColor = new THREE.Color()) {
+        const sourceCategory = link?.sourceNode?.userData?.category
+            || link?.source?.userData?.category
+            || link?.from?.userData?.category
+            || link?.userData?.sourceCategory
+            || null;
+        const targetCategory = link?.targetNode?.userData?.category
+            || link?.target?.userData?.category
+            || link?.to?.userData?.category
+            || link?.userData?.targetCategory
+            || sourceCategory;
+
+        const sourceColor = resolveLinkCategoryColor(sourceCategory, this.config.waveColor, this._antinodeColorA);
+        const targetColor = resolveLinkCategoryColor(targetCategory, sourceColor, this._antinodeColorB);
+
+        return outColor
+            .copy(sourceColor)
+            .lerp(targetColor, 0.5)
+            .lerp(this.config.waveColor, this.config.antinodeColorBlend)
+            .multiplyScalar(0.88);
     }
 
     /**
