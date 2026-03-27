@@ -1066,14 +1066,25 @@ export class CascadeParticleSystem_Session120 {
    * Cleanup
    */
   dispose() {
-    for (const unsub of this._semanticUnsubscribers) {
+    const unsubscribers = Array.isArray(this._linkLifecycleUnsubscribers)
+      ? this._linkLifecycleUnsubscribers
+      : [];
+    for (const unsub of unsubscribers) {
       try {
         unsub?.();
       } catch (_) {
         // noop
       }
     }
-    this._semanticUnsubscribers.length = 0;
+    if (Array.isArray(this._linkLifecycleUnsubscribers)) {
+      this._linkLifecycleUnsubscribers.length = 0;
+    }
+    if (Array.isArray(this._pendingLinkEvents)) {
+      this._pendingLinkEvents.length = 0;
+    }
+    if (this._linkSpawnState instanceof Map) {
+      this._linkSpawnState.clear();
+    }
     
     // Clear cascade hop cooldowns
     this._linkHopCooldowns.clear();

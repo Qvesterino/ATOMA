@@ -374,12 +374,6 @@ export class NodePersonalitySystem2_0 {
    * CALM_ANALYST: Smooth slow breathing, very slow rotation
    */
   applyCalmAnalystMotion(node, state, intensity) {
-    if (!node.scale) return;
-
-    // Slow breathing scale (±2-3%)
-    const breathScale = 1.0 + Math.sin(state.breathPhase) * 0.02 * intensity;
-    node.scale.setScalar(breathScale * 0.9); // 0.9 is base scale
-
     // Very slow Y-axis rotation
     if (node.rotation) {
       node.rotation.y += 0.0005 * intensity;
@@ -407,12 +401,6 @@ export class NodePersonalitySystem2_0 {
    * RADIANT_OPTIMIZER: Stronger core pulsing, focus intensity
    */
   applyRadiantOptimizerMotion(node, state, intensity) {
-    if (!node.scale) return;
-
-    // Stronger pulse (±3-5%)
-    const pulseScale = 1.0 + Math.sin(state.pulsePhase) * 0.04 * intensity;
-    node.scale.setScalar(pulseScale * 0.9);
-
     // Faster rotation
     if (node.rotation) {
       node.rotation.y += 0.001 * intensity;
@@ -423,14 +411,7 @@ export class NodePersonalitySystem2_0 {
    * FRACTAL_DREAMER: Irregular twitches, shifting phases
    */
   applyFractalDreamerMotion(node, state, intensity) {
-    // REMOVED: Irregular rotation twitches - performance optimization
-    // Keep only smooth sinus-based breathing scale
-
-    // Smooth scale variations (deterministic, no jitter)
-    if (node.scale) {
-      const scaleVar = 1.0 + Math.sin(state.breathPhase) * 0.03 * intensity;
-      node.scale.setScalar(scaleVar * 0.9);
-    }
+    // Node size stays fixed; only non-size effects remain.
   }
 
   /**
@@ -442,22 +423,13 @@ export class NodePersonalitySystem2_0 {
   applyQuantumTricksterMotion(node, state, intensity) {
     // REMOVED: All random jitter effects for performance optimization
     // QuantumTrickster now uses calm, deterministic motion
-    if (node.scale) {
-      const breathScale = 1.0 + Math.sin(state.breathPhase) * 0.02 * intensity;
-      node.scale.setScalar(breathScale * 0.9);
-    }
+    // Node size stays fixed.
   }
 
   /**
    * UMBRA_SENTINEL: Minimal movement, heavy breathing
    */
   applyUmbraSentinelMotion(node, state, intensity) {
-    if (!node.scale) return;
-
-    // Very slow, heavy breathing
-    const breathScale = 1.0 + Math.sin(state.breathPhase * 0.5) * 0.015 * intensity;
-    node.scale.setScalar(breathScale * 0.9);
-
     // Almost no rotation (very slow)
     if (node.rotation) {
       node.rotation.y += 0.0002 * intensity;
@@ -475,12 +447,6 @@ export class NodePersonalitySystem2_0 {
       node.position.x = node.userData.basePosition.x + driftX;
       node.position.z = node.userData.basePosition.z + driftZ;
     }
-
-    // Soft scale breathing
-    if (node.scale) {
-      const breathScale = 1.0 + Math.sin(state.breathPhase * 0.8) * 0.02 * intensity;
-      node.scale.setScalar(breathScale * 0.9);
-    }
   }
 
   /**
@@ -491,12 +457,6 @@ export class NodePersonalitySystem2_0 {
     if (node.rotation) {
       node.rotation.y += 0.0006 * intensity;
     }
-
-    // Subtle scale pulse (very controlled)
-    if (node.scale) {
-      const pulseScale = 1.0 + Math.sin(state.pulsePhase * 1.2) * 0.018 * intensity;
-      node.scale.setScalar(pulseScale * 0.9);
-    }
   }
 
   /**
@@ -505,12 +465,6 @@ export class NodePersonalitySystem2_0 {
   applyConvergenceNexusMotion(node, state, intensity) {
     // Combine multiple subtle effects at half intensity
     const reducedIntensity = intensity * 0.5;
-
-    // Breathing
-    if (node.scale) {
-      const breathScale = 1.0 + Math.sin(state.breathPhase) * 0.02 * reducedIntensity;
-      node.scale.setScalar(breathScale * 0.9);
-    }
 
     // Rotation on multiple axes
     if (node.rotation) {
@@ -528,12 +482,6 @@ export class NodePersonalitySystem2_0 {
       node.rotation.x += 0.0004 * intensity;
       node.rotation.y += 0.0006 * intensity;
       node.rotation.z += 0.0002 * intensity;
-    }
-
-    // Elegant scale pulse
-    if (node.scale) {
-      const pulseScale = 1.0 + Math.sin(state.pulsePhase * 0.8) * 0.04 * intensity;
-      node.scale.setScalar(pulseScale * 0.9);
     }
 
     // Soft vertical drift

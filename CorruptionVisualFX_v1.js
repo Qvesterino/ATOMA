@@ -70,7 +70,7 @@ export class CorruptionVisualFX_v1 {
     }
     
     // Visual state tracking
-    this.nodeVisualState = new Map(); // node -> { jitterOffset, particleEmitTime, etc }
+    this.nodeVisualState = new Map(); // node -> { particleEmitTime, glowBaseIntensity, etc }
     this.activeParticles = [];
     
     // Performance settings
@@ -154,12 +154,8 @@ export class CorruptionVisualFX_v1 {
     }
 
     const state = {
-      jitterOffset: new (THREE?.Vector3 || Object)(0, 0, 0),
-      jitterFrequency: Math.random() * 0.5 + 0.5,
-      jitterPhase: Math.random() * Math.PI * 2,
       lastParticleEmitTime: 0,
       particleEmitRate: 0,
-      originalPosition: nodeModel.position?.clone?.() || { x: 0, y: 0, z: 0 },
       shaderApplied: false,
       glowBaseIntensity: 0.3
     };
@@ -198,11 +194,6 @@ export class CorruptionVisualFX_v1 {
 
     // Apply glow flicker
     this.applyGlowFlicker(nodeModel, corruptionLevel, visualNow, visualState);
-
-    // Apply mesh jitter
-    if (THREE && corruptionLevel > 0.15) {
-      this.applyMeshJitter(nodeModel, corruptionLevel, visualNow, visualState);
-    }
 
     // Spawn chaos particles
     if (this._hasCascadeCorruptionLink(nodeModel) && corruptionLevel > CASCADE_CORRUPTION_THRESHOLD) {
@@ -557,31 +548,6 @@ export class CorruptionVisualFX_v1 {
 
     delete mesh.userData[CORRUPTION_BINDING];
     delete mesh[CORRUPTION_ORIGINAL_ON_BEFORE_RENDER];
-  }
-
-  /**
-   * Apply subtle mesh jitter/micro-shake
-   */
-  applyMeshJitter(nodeModel, corruptionLevel, time, visualState) {
-    if (!THREE || !nodeModel.position) return;
-
-    // VisualTime ensures jitter uses RAF-aligned time to avoid scheduler quantization.
-    const t = this.visualTime.now;
-
-    // Amplitude scales with corruption (very subtle)
-    const jitterAmplitude = corruptionLevel * 0.007;
-
-    // Compute jitter offset using sine waves at different frequencies
-    const jitterX = Math.sin(t * visualState.jitterFrequency + visualState.jitterPhase) * jitterAmplitude;
-    const jitterY = Math.sin(t * (visualState.jitterFrequency * 0.7) + visualState.jitterPhase + 1) * jitterAmplitude;
-    const jitterZ = Math.sin(t * (visualState.jitterFrequency * 1.3) + visualState.jitterPhase + 2) * jitterAmplitude;
-
-    // Keep node anchored; no per-frame additive position changes
-    if (!nodeModel.userData.originalPosition) {
-      nodeModel.userData.originalPosition = nodeModel.position.clone();
-    }
-    const basePos = nodeModel.userData.originalPosition;
-    nodeModel.position.set(basePos.x, basePos.y, basePos.z);
   }
 
   /**

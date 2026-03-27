@@ -77,7 +77,9 @@ export class LinkedGlyphMessaging3_0 {
     this.messageContainer = new THREE.Group();
     this.messageContainer.userData.isMessaging = true;
     this.messageContainer.name = 'LinkedGlyphMessaging_Messages';
-    this.messageContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
+    this.messageContainer.renderOrder = VisualHierarchyRegistry.getRenderOrder(
+      VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
+    );
     attachRoot.add(this.messageContainer);
     this.root = this.messageContainer;
 
@@ -205,7 +207,9 @@ export class LinkedGlyphMessaging3_0 {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.isMessageGlyph = true;
-    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
+    mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(
+      VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
+    );
     return mesh;
   }
   
@@ -407,7 +411,9 @@ export class LinkedGlyphMessaging3_0 {
   createMessageMeshes(message) {
     const group = new THREE.Group();
     group.userData.isMessageGroup = true;
-    group.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC);
+    group.renderOrder = VisualHierarchyRegistry.getRenderOrder(
+      VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
+    );
     
     let offsetY = 0;
     

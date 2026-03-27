@@ -4,7 +4,7 @@
  * Handles animation updates for the three new INPUT sensory geometries:
  * 1. SENSORY_GATE — Frame drift + slow rotation
  * 2. LISTENING_CROWN — Independent spine sway + crown rotation
- * 3. PERCEPTION_BLOOM — Breathing scale + slow rotation
+ * 3. PERCEPTION_BLOOM — Slow rotation with rigid transform
  * 
  * Integration:
  * Call animateInputSensoryNode(node, time) once per frame in EnhancedNodeModels.animate()
@@ -138,11 +138,10 @@ function animateListeningCrown(node, elapsed) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Animate PERCEPTION_BLOOM: Breathing scale + slow rotation
- * - Entire structure breathing in/out (±1% scale variation)
+ * Animate PERCEPTION_BLOOM: Slow rotation + rigid transform
  * - Entire structure rotates extremely slowly
  * - Petals maintain fixed position (rigid transform)
- * - Creates hypnotic "awareness unfolding" effect
+ * - Creates hypnotic "awareness unfolding" effect without changing node size
  */
 function animatePerceptionBloom(node, elapsed) {
   const seconds = elapsed / 1000;
@@ -151,21 +150,11 @@ function animatePerceptionBloom(node, elapsed) {
   if (!petals) return;
 
   const rotationSpeed = node.userData.bloomRotationSpeed || 0.02;
-  const breathAmount = node.userData.bloomBreathAmount || 0.01;
 
   // Overall rotation: extremely slow, Y axis only
   node.rotation.y = seconds * rotationSpeed;
 
-  // Unified breathing for entire bloom structure
-  // ±1% scale variation creates hypnotic effect
-  const breathPhase = seconds * 0.5; // 0.5 Hz breathing
-  const breathScale = 1 + Math.sin(breathPhase) * breathAmount;
-
-  // Apply breathing to entire node
-  node.scale.set(breathScale, breathScale, breathScale);
-
   // Petals themselves do NOT move (rigid)
-  // But they inherit the breathing through parent scale
 }
 
 /**

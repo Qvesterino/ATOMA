@@ -1916,11 +1916,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     this._variantCounterByCategory[counterKey] = counter + 1;
     if (rotationStore) rotationStore[counterKey] = this._variantCounterByCategory[counterKey];
     nodeModel.position.copy(position);
-    const spawnNodeScale = (typeof window !== 'undefined' && Number.isFinite(window.ATOMA_NODE_SPAWN_SCALE))
-      ? window.ATOMA_NODE_SPAWN_SCALE
-      : 1.0;
-    nodeModel.scale.setScalar(spawnNodeScale);
-    debugCheckGeometry(nodeModel, 'after_scale');
+    debugCheckGeometry(nodeModel, 'after_spawn');
     
     // [SPAWN AUTHORITY] Apply pre-determined spawn options
     if (options && options.isExtreme) {
@@ -3744,7 +3740,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       }
     };
 
-    // Keep child state untouched; only enforce root visibility and sane scale.
+    // Keep child state untouched; only enforce root visibility and report bad scale.
     node.visible = true;
     // TEMP DEBUG: prevent frustum culling on spawned node root to diagnose disappearing visuals
     node.frustumCulled = false;
@@ -3752,9 +3748,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
       !Number.isFinite(node.scale?.x) ||
       !Number.isFinite(node.scale?.y) ||
       !Number.isFinite(node.scale?.z);
-    if (!Number.isFinite(node.scale.x) || node.scale.x <= 0) node.scale.x = 1;
-    if (!Number.isFinite(node.scale.y) || node.scale.y <= 0) node.scale.y = 1;
-    if (!Number.isFinite(node.scale.z) || node.scale.z <= 0) node.scale.z = 1;
     if (node.layers && node.layers.mask === 0) {
       try {
         node.layers.mask = 1; // layer 0 only
@@ -4515,8 +4508,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
    * Caller must ensure effectOrchestrator exists on scene or AINodes instance.
    */
   materializeNode(node) {
-    // Root scale is owned by spawn baseline authority; materialization is visual-only.
-    const stableRootScale = node.scale.clone();
     node.userData.materializeProgress = 0;
     node.userData.isMaterializing = true;
     
@@ -4537,7 +4528,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
           
           // Ease for child-only visual fade.
           const easeProgress = 1 - Math.pow(1 - progress, 3);
-          node.scale.copy(stableRootScale);
           
           // Fade in glow layers
           if (node.userData.vfxGlow) {
@@ -4572,7 +4562,6 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     } else {
       // Fallback: if orchestrator not available, complete immediately
       console.warn('[AINodes] effectOrchestrator not available, skipping materialization animation');
-      node.scale.copy(stableRootScale);
       node.userData.isMaterializing = false;
       this.materializingNodes.delete(node);
     }

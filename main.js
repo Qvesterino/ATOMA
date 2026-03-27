@@ -5029,7 +5029,11 @@ this.setHudDirty('nodeInspect');
         this.setupGlyphFusionOverlay();
         this.setupProceduralMeaningEngine();
         this.setupLinkGlyphFlow();
-        this.setupLinkedGlyphMessaging();
+        try {
+            this.setupLinkedGlyphMessaging();
+        } catch (err) {
+            console.warn('[main.js] LinkedGlyphMessaging setup failed, continuing cascade bootstrap:', err);
+        }
         this.setupRecursiveGlyphMessaging();
         this.setupRecursiveGlyphSignalSystem();
         this.registerVisualGlyphSchedulers(); // move glyph/link language systems to FrameScheduler visual (30Hz)
@@ -6566,13 +6570,13 @@ window.__ATOMA_SCENE__ = this.scene;
 
             // NEW: Dispose particle trail system (SESSION 122)
             if (this._particleTrailSystem && typeof cleanupParticleTrailSystem === 'function') {
-                cleanupParticleTrailSystem();
+                cleanupParticleTrailSystem(this);
                 console.log('[main.js] ParticleTrailSystem disposed');
             }
 
             // NEW: Dispose cascade particle systems
-            if (this.cascadeParticles && typeof this.cascadeParticles.dispose === 'function') {
-                this.cascadeParticles.dispose();
+            if (this.cascadeParticleSystem && typeof this.cascadeParticleSystem.dispose === 'function') {
+                this.cascadeParticleSystem.dispose();
                 console.log('[main.js] CascadeParticleSystem disposed');
             }
              
@@ -10032,7 +10036,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this,
                 {
                     enabled: true,
-                    debugMode: true,
+                    debugMode: false,
                     maxParticles: 100,
                     emissionRate: 6.0,
                     baseSize: 10.0,
@@ -10040,6 +10044,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     baseCascadeParticles: 60
                 }
             );
+            this.cascadeParticles = this.cascadeParticleSystem; // compatibility alias
             const lifecycleSource = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
             this.cascadeParticleSystem?.attachLinkLifecycleSource?.(lifecycleSource);
             
@@ -10053,7 +10058,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         try {
             this._particleTrailSystem = setupParticleTrailSystem(
                 this.scene,
-                this.cascadeParticles,
+                this.cascadeParticleSystem,
                 this
             );
             

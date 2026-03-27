@@ -479,15 +479,6 @@ export class NodeStateMachine {
       node.material.opacity = visual.opacity;
     }
 
-    // FIX: Use absolute scaling from base scale to prevent drift
-    if (typeof visual.scale !== 'undefined') {
-      if (!node.userData.baseScale) {
-        node.userData.baseScale = node.scale.x || 1.0;
-      }
-      const absoluteScale = node.userData.baseScale * visual.scale;
-      node.scale.setScalar(absoluteScale);
-    }
-
     // Apply rotation
     if (visual.rotation) {
       node.rotation.x += visual.rotation.x || 0;
@@ -572,14 +563,7 @@ export const PresetStates = {
    */
   active: () => new StateDefinition('active', {
     onEnter: (node) => {
-      // FIX: Use absolute scaling from base scale to prevent drift
-      if (node.scale) {
-        if (!node.userData.baseScale) {
-          node.userData.baseScale = node.scale.x || 1.0;
-        }
-        const absoluteScale = node.userData.baseScale * 1.1;
-        node.scale.setScalar(absoluteScale);
-      }
+      // Node size stays fixed; active state now affects only non-size visuals.
     },
     onUpdate: (node, elapsed) => {
       // Pulsing glow
@@ -589,12 +573,7 @@ export const PresetStates = {
       }
     },
     onExit: (node) => {
-      // FIX: Restore to base scale to prevent drift
-      if (node.scale) {
-        if (node.userData.baseScale) {
-          node.scale.setScalar(node.userData.baseScale);
-        }
-      }
+      // Node size stays fixed.
     },
     guards: [
       {

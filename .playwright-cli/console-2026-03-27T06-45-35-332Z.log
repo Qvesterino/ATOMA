@@ -1,0 +1,14 @@
+Total messages: 59 (Errors: 8, Warnings: 3)
+Returning 11 messages for level "warning"
+
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30

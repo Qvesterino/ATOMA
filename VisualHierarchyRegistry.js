@@ -279,6 +279,10 @@ export class VisualHierarchyRegistry {
    *   mesh.renderOrder = strandOrder;
    */
   static getRenderOrder(layerId) {
+    if (typeof layerId !== 'string' || !layerId) {
+      return 0;
+    }
+
     // Node layers
     if (this.NODE_LAYER_ORDER[layerId] !== undefined) {
       return this.NODE_LAYER_ORDER[layerId];

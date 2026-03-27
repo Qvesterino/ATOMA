@@ -13,7 +13,7 @@
  * 
  * Visual Behavior:
  * - Network Stress: Ambient field turbulence, color shift (cool → red)
- * - Load Pressure: Node jitter, connector emphasis, pulse rate
+ * - Load Pressure: Connector emphasis and pulse rate
  * 
  * Data Sources (Read-Only):
  * - networkStress: from LinkCorruptionTransmission_v1.computeNetworkStress()
@@ -21,7 +21,7 @@
  * 
  * Visual Output:
  * - Background ambient effect (dynamic color, turbulence)
- * - Per-node stress overlay (jitter, pulse acceleration)
+ * - Per-node stress overlay (connector emphasis, pulse acceleration)
  */
 
 export class CanonicalTemplate3_StressVisuals {
@@ -84,15 +84,8 @@ export class CanonicalTemplate3_StressVisuals {
     if (!this.nodeStressMap.has(nodeId)) {
       this.nodeStressMap.set(nodeId, {
         loadPressure: 0,
-        node: node,
-        jitterAccel: 0,
-        pulsePhase: Math.random() * Math.PI * 2
+        node: node
       });
-      
-      // Store original position
-      if (node.position && !node.userData.originalPosition) {
-        node.userData.originalPosition = node.position.clone();
-      }
     }
   }
 
@@ -108,12 +101,6 @@ export class CanonicalTemplate3_StressVisuals {
     
     if (this.nodeStressMap.has(nodeId)) {
       const stressData = this.nodeStressMap.get(nodeId);
-      
-      // Restore original position
-      if (node.userData && node.userData.originalPosition) {
-        node.position.copy(node.userData.originalPosition);
-        delete node.userData.originalPosition;
-      }
       
       // Clear stress-related userData
       if (node.userData) {
@@ -142,15 +129,8 @@ export class CanonicalTemplate3_StressVisuals {
     if (!this.nodeStressMap.has(nodeId)) {
       this.nodeStressMap.set(nodeId, {
         loadPressure: 0,
-        node: node,
-        jitterAccel: 0,
-        pulsePhase: Math.random() * Math.PI * 2
+        node: node
       });
-      
-      // Store original position
-      if (node.position && !node.userData.originalPosition) {
-        node.userData.originalPosition = node.position.clone();
-      }
     }
 
     const stressData = this.nodeStressMap.get(nodeId);
@@ -229,17 +209,16 @@ export class CanonicalTemplate3_StressVisuals {
   /**
    * Update per-node stress overlay visuals
    * 
-   * Communicates local node load through:
-   * - Subtle jitter/vibration of node geometry
-   * - Faster pulse rate
-   * - Connector emphasis (ports glow)
+  * Communicates local node load through:
+  * - Faster pulse rate
+  * - Connector emphasis (ports glow)
    */
   updateNodeStressOverlays(deltaTime) {
     // Remove stale nodes (nodes that no longer exist in scene)
     const staleNodeIds = [];
     
     for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
-      const { node, loadPressure, jitterAccel, pulsePhase } = stressData;
+      const { node, loadPressure } = stressData;
       
       // Check if node still exists and is in scene
       if (!node || !node.parent) {
@@ -248,32 +227,6 @@ export class CanonicalTemplate3_StressVisuals {
       }
       
       if (!node.userData) continue;
-
-      // === JITTER EFFECT ===
-      // Higher load = more vibration
-      const maxJitterAmount = 0.02; // Maximum displacement
-      const jitterAmount = loadPressure * maxJitterAmount;
-
-      if (jitterAmount > 0 && node.position) {
-        // Smooth random jitter (using sine waves at different frequencies)
-        const jitterX = Math.sin(this.elapsedTime * 12.5) * jitterAmount;
-        const jitterY = Math.sin(this.elapsedTime * 15.0 + 1) * jitterAmount;
-        const jitterZ = Math.sin(this.elapsedTime * 18.3 + 2) * jitterAmount;
-
-        // Store original position if not already stored
-        if (!node.userData.originalPosition) {
-          node.userData.originalPosition = node.position.clone();
-        }
-
-        // Apply jitter to position
-        node.position.copy(node.userData.originalPosition);
-        node.position.x += jitterX;
-        node.position.y += jitterY;
-        node.position.z += jitterZ;
-      } else if (node.userData.originalPosition) {
-        // Restore original position when load is low
-        node.position.copy(node.userData.originalPosition);
-      }
 
       // === PULSE ACCELERATION ===
       // Higher load = faster pulse rate in visual materials
@@ -355,19 +308,14 @@ export class CanonicalTemplate3_StressVisuals {
 
   /**
    * Reset system state (call on world switch)
-   * Clears all node tracking and restores original positions
+  * Clears all node tracking and stress state
    */
   reset() {
-    // Restore all tracked node positions
+    // Clear tracked stress state
     for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
       const { node } = stressData;
       
-      if (node && node.userData && node.userData.originalPosition) {
-        // Restore original position
-        node.position.copy(node.userData.originalPosition);
-        
-        // Clear stress-related userData
-        delete node.userData.originalPosition;
+      if (node && node.userData) {
         delete node.userData.stressPulseRate;
         delete node.userData.stressPulsePhase;
         delete node.userData.stressIntensity;
@@ -390,17 +338,14 @@ export class CanonicalTemplate3_StressVisuals {
 
   /**
    * Dispose system and clean up all resources
-   * Restores all node positions and clears all state
+  * Clears all state and disposes the system
    */
   dispose() {
-    // Restore all node positions (same as reset)
+    // Clear tracked stress state (same as reset)
     for (const [nodeId, stressData] of this.nodeStressMap.entries()) {
       const { node } = stressData;
       
-      if (node && node.userData && node.userData.originalPosition) {
-        node.position.copy(node.userData.originalPosition);
-        
-        delete node.userData.originalPosition;
+      if (node && node.userData) {
         delete node.userData.stressPulseRate;
         delete node.userData.stressPulsePhase;
         delete node.userData.stressIntensity;

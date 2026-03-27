@@ -49,7 +49,6 @@ export class AIConsciousnessLayer {
       particleDensity: 0.8,
       threadCount: 0.6,         // Filaments per link
       pulseSpeed: 0.5,          // Thought travel speed
-      oscillationAmplitude: 0.03,
       fieldDistortionStrength: 0.02,
       globalFieldScale: 15,
       debugMode: false,
@@ -227,11 +226,6 @@ export class AIConsciousnessLayer {
       const t = i / segments;
       // Cubic Bézier interpolation
       const p = this._cubicBezier(posA, controlPoint1, controlPoint2, posB, t);
-      
-      // Add micro-oscillation for "breathing" effect
-      const osc = Math.sin(this.time * 2 + i * 0.3) * this.config.oscillationAmplitude;
-      p.addScaledVector(this._getOrthogonal(posA, posB), osc);
-      
       points.push(p);
     }
     
@@ -251,15 +245,6 @@ export class AIConsciousnessLayer {
       mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y,
       mt2 * mt * p0.z + 3 * mt2 * t * p1.z + 3 * mt * t2 * p2.z + t2 * t * p3.z
     );
-  }
-  
-  /**
-   * Get orthogonal vector for oscillation
-   */
-  _getOrthogonal(p0, p1) {
-    const dir = p1.clone().sub(p0).normalize();
-    const perp = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
-    return perp.length() > 0 ? perp : new THREE.Vector3(1, 0, 0);
   }
   
   /**
@@ -537,10 +522,7 @@ export class AIConsciousnessLayer {
       // Interpolate position along link
       pulse.position.lerpVectors(pulse.startPos, pulse.endPos, pulse.progress);
       
-      // Add subtle oscillation
-      const oscillation = Math.sin(this.time * 3 + i) * 0.1;
       pulse.mesh.position.copy(pulse.position);
-      pulse.mesh.position.y += oscillation;
       
       // Update opacity
       pulse.mesh.material.opacity = pulse.life * 0.6;
@@ -572,7 +554,6 @@ export class AIConsciousnessLayer {
       
       // Animate particles in circular pattern
       const rotationSpeed = 1.5;
-      const bobAmount = Math.sin(this.time * 2) * 0.3;
       
       for (const particle of pattern.particles) {
         const basePos = particle.userData.basePos;
@@ -580,7 +561,7 @@ export class AIConsciousnessLayer {
         const radius = particle.userData.radius * (0.8 + Math.sin(this.time) * 0.2);
         
         particle.position.x = basePos.x + Math.cos(angle) * radius;
-        particle.position.y = basePos.y + bobAmount;
+        particle.position.y = basePos.y;
         particle.position.z = basePos.z + Math.sin(angle) * radius;
         
         // Rotate particle

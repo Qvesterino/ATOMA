@@ -1,0 +1,11 @@
+Total messages: 47 (Errors: 8, Warnings: 3)
+Returning 8 messages for level "error"
+
+[ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30

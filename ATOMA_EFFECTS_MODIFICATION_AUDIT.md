@@ -609,6 +609,16 @@
 - Stress jitter vs Original position restoration
 - Vyriešené: Threshold-based (loadPressure > 0.7)
 
+### 6. Resolved Node-Size Scale Mutations
+
+Nasledujúce systémy už v kóde nemutujú veľkosť hlavného node mesh-u:
+- NodePersonalitySystem2_0.js
+- NodePersonality2_0.js
+- NodeStateMachine_v1.js
+- HarmonicResonanceCoupling_v1.js
+- InputSensoryAnimationPatch.js
+- AINodes.js
+
 ---
 
 ## Doporčenia

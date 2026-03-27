@@ -1,0 +1,78 @@
+[    1746ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    1746ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[    1755ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[    1877ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[    2005ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[    2504ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1 @ http://127.0.0.1:8000/main.js:30
+[    2505ms] TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1
+[    3219ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[    3234ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[    3234ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[   91811ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[   91812ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[   91815ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[   91900ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[   92040ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[   92498ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1 @ http://127.0.0.1:8000/main.js:30
+[   92498ms] TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1
+[   92855ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[   92863ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[   92863ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30
+[  152047ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  152047ms] [WARNING] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio @ https://esm.sh/standardized-audio-context@25.3.77/es2022/standardized-audio-context.mjs:3
+[  152051ms] [WARNING] [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE. @ http://127.0.0.1:8000/CorruptionVisualFX_v1.js:32
+[  152134ms] [ERROR] [PicDiag] NodeLinkingSystem constructed @ http://127.0.0.1:8000/main.js:30
+[  152307ms] [ERROR] [Unfreeze] Freeze mode instance not found @ http://127.0.0.1:8000/main.js:30
+[  152820ms] [ERROR] [LOADWORLD] ERROR quantum TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1 @ http://127.0.0.1:8000/main.js:30
+[  152821ms] TypeError: this._semanticUnsubscribers is not iterable
+    at CascadeParticleSystem_Session120.dispose (http://127.0.0.1:8000/CascadeParticleSystem_Session120.js:1069:30)
+    at AtomaGame.createWorld (http://127.0.0.1:8000/main.js:6575:44)
+    at AtomaGame.initQuantumWorld (http://127.0.0.1:8000/main.js:6317:14)
+    at quantum (http://127.0.0.1:8000/main.js:4348:33)
+    at AtomaGame.loadWorld (http://127.0.0.1:8000/main.js:9853:13)
+    at AtomaGame.animate (http://127.0.0.1:8000/main.js:10767:18)
+    at new AtomaGame (http://127.0.0.1:8000/main.js:5462:14)
+    at http://127.0.0.1:8000/main.js:16764:1
+[  153158ms] [ERROR] [SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15} @ http://127.0.0.1:8000/main.js:30
+[  153167ms] [ERROR] [PicDiag] frameScheduler visual.linkingSystem tick @ http://127.0.0.1:8000/main.js:30
+[  153167ms] [ERROR] [PicDiag] updatePictograms entry @ http://127.0.0.1:8000/main.js:30

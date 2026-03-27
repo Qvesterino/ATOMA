@@ -400,8 +400,7 @@ export class NodePersonality2_0 {
     if (!node.userData.personalityOriginals) {
       node.userData.personalityOriginals = {
         originalGlow: node.userData.glowIntensity || 1.0,
-        originalEmissive: node.userData.emissiveIntensity || 1.0,
-        originalScale: node.scale.clone()
+        originalEmissive: node.userData.emissiveIntensity || 1.0
       };
     }
     
@@ -859,7 +858,6 @@ export class NodePersonality2_0 {
       const originals = personality.node.userData.personalityOriginals;
       personality.node.userData.glowIntensity = originals.originalGlow;
       personality.node.userData.emissiveIntensity = originals.originalEmissive;
-      personality.node.scale.copy(originals.originalScale);
     }
     
     return true;

@@ -187,22 +187,14 @@ export class HarmonicResonanceCoupling_v1 {
    * @private
    */
   _applyNodeShimmer(node, resonance, isTarget) {
-    if (!node || !node.scale) return;
+    if (!node) return;
     
     // Calculate shimmer based on resonance phase
     const phaseOffset = isTarget ? this.config.phaseShiftAmount : 0;
     const shimmer = 1 + Math.sin(resonance.phase + phaseOffset) * 
       this.config.shimmerIntensity * resonance.intensity;
     
-    // FIX: Apply gentle scale modulation using absolute scaling from base scale
-    const coreNode = node.userData?.coreMesh || node;
-    if (coreNode && coreNode.scale) {
-      if (!coreNode.userData.baseScale) {
-        coreNode.userData.baseScale = coreNode.scale.x || 1.0;
-      }
-      const absoluteScale = coreNode.userData.baseScale * shimmer;
-      coreNode.scale.setScalar(absoluteScale);
-    }
+    // Node size remains fixed; resonance continues through non-size visuals.
   }
   
   /**
