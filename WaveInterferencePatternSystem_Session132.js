@@ -136,30 +136,24 @@ export class WaveInterferencePatternSystem_Session132 {
     setup() {
         if (this.initialized) return;
         
-        // Create constructive interference material (bright, gold)
-        this.constructiveMaterial = new THREE.MeshStandardMaterial({
+        // Create constructive interference material (bright, gold) - additive blending for glow
+        this.constructiveMaterial = new THREE.MeshBasicMaterial({
             color: this.config.constructiveColor,
-            emissive: this.config.constructiveColor,
-            emissiveIntensity: this.config.constructiveGlow,
             transparent: true,
             opacity: this.config.constructiveOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.7,
-            metalness: 0.3
+            blending: THREE.AdditiveBlending
         });
         
-        // Create destructive interference material (dark, dim)
-        this.destructiveMaterial = new THREE.MeshStandardMaterial({
+        // Create destructive interference material (dark, dim) - additive blending for subtle glow
+        this.destructiveMaterial = new THREE.MeshBasicMaterial({
             color: this.config.destructiveColor,
-            emissive: this.config.destructiveColor,
-            emissiveIntensity: this.config.destructiveGlow,
             transparent: true,
             opacity: this.config.destructiveOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.9,
-            metalness: 0
+            blending: THREE.AdditiveBlending
         });
         
         // Pre-allocate interference mesh pool
@@ -540,25 +534,30 @@ export class WaveInterferencePatternSystem_Session132 {
             // Position mesh at convergence point
             meshItem.mesh.position.copy(zone.convergencePoint);
             
-            // Scale based on intensity and beat
+            // Scale based on intensity and beat - use proper world-space scale
             const beatAmplitude = Math.sin(pattern.beatPhase);
-            const scaleFactor = zone.intensity * (1 + beatAmplitude * this.config.beatAmplification);
-            meshItem.mesh.scale.set(scaleFactor * 0.3, 0.1, scaleFactor * 0.3);
+            const scaleFactor = Math.max(0.5, zone.intensity * (1 + beatAmplitude * this.config.beatAmplification));
+            // CylinderGeometry(1,1,1) creates a cylinder with radius1 and height1- scale appropriately
+            meshItem.mesh.scale.set(scaleFactor * 1.5, scaleFactor * 2.0, scaleFactor * 1.5);
 
             const material = meshItem.mesh.material;
             
-            // Apply material based on interference type
+            // Apply material based on interference type - MeshBasicMaterial with additive blending
             if (zone.type === 'constructive') {
-                material.color.copy(this.config.constructiveColor);
-                material.emissive.copy(this.config.constructiveColor);
-                material.roughness = 0.7;
-                material.metalness = 0.3;
+                const colorIntensity = Math.min(1, this.config.constructiveGlow * zone.intensity);
+                material.color.setRGB(
+                    this.config.constructiveColor.r * colorIntensity,
+                    this.config.constructiveColor.g * colorIntensity,
+                    this.config.constructiveColor.b * colorIntensity
+                );
                 meshItem.intensity = zone.intensity * this.config.constructiveAmplification;
             } else {
-                material.color.copy(this.config.destructiveColor);
-                material.emissive.copy(this.config.destructiveColor);
-                material.roughness = 0.9;
-                material.metalness = 0;
+                const colorIntensity = Math.min(1, this.config.destructiveGlow * zone.intensity);
+                material.color.setRGB(
+                    this.config.destructiveColor.r * colorIntensity,
+                    this.config.destructiveColor.g * colorIntensity,
+                    this.config.destructiveColor.b * colorIntensity
+                );
                 meshItem.intensity = zone.intensity * this.config.destructiveDamping;
             }
             
@@ -602,12 +601,21 @@ export class WaveInterferencePatternSystem_Session132 {
         
         meshItem.mesh.material.opacity = baseOpacity * opacityFactor;
         
-        // Modulate emissive intensity
+        // Modulate color intensity for MeshBasicMaterial with additive blending
         const baseGlow = meshItem.zone.type === 'constructive'
             ? this.config.constructiveGlow
             : this.config.destructiveGlow;
         
-        meshItem.mesh.material.emissiveIntensity = baseGlow * opacityFactor;
+        const baseColor = meshItem.zone.type === 'constructive'
+            ? this.config.constructiveColor
+            : this.config.destructiveColor;
+        
+        const colorIntensity = Math.min(1, baseGlow * opacityFactor);
+        meshItem.mesh.material.color.setRGB(
+            baseColor.r * colorIntensity,
+            baseColor.g * colorIntensity,
+            baseColor.b * colorIntensity
+        );
     }
 
     /**
@@ -662,7 +670,16 @@ export class WaveInterferencePatternSystem_Session132 {
             const modulation = harmonyFactor * corruptionFactor * (1 + instabilityNoise) * (1 + synergyFactor);
             
             material.opacity *= modulation;
-            material.emissiveIntensity *= modulation;
+            // For MeshBasicMaterial with additive blending, modulate color intensity
+            const baseColor = meshItem.zone.type === 'constructive'
+                ? this.config.constructiveColor
+                : this.config.destructiveColor;
+            const colorIntensity = Math.min(1, modulation);
+            material.color.setRGB(
+                baseColor.r * colorIntensity,
+                baseColor.g * colorIntensity,
+                baseColor.b * colorIntensity
+            );
         });
     }
 

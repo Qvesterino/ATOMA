@@ -296,7 +296,11 @@ export class GlyphFusionOverlay4_1 {
       transparent: true,
       opacity: opacity,
       fog: false,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      blending: THREE.AdditiveBlending
     });
     
     this.materialPools.set(key, material);
@@ -789,6 +793,30 @@ export class GlyphFusionOverlay4_1 {
       const nodeId = node.userData?.index !== undefined ? node.userData.index : i;
       this.createFusionGlyph(node, nodeId);
     }
+  }
+
+  resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, semanticGlyphAI = this.semanticGlyphAI, semanticBus = this.semanticBus, aiNodes = null } = {}) {
+    this.scene = scene;
+    this.worldRoot = worldRoot;
+    this.semanticGlyphAI = semanticGlyphAI;
+    this.semanticBus = semanticBus;
+
+    const attachRoot = this.worldRoot || this.scene;
+    if (this.fusionContainer && attachRoot && this.fusionContainer.parent !== attachRoot) {
+      this.fusionContainer.parent?.remove(this.fusionContainer);
+      attachRoot.add(this.fusionContainer);
+    }
+
+    this.cleanup();
+
+    const nodes = Array.isArray(aiNodes)
+      ? aiNodes
+      : (Array.isArray(aiNodes?.nodes) ? aiNodes.nodes : null);
+    if (nodes) {
+      this.initializeForNodes(nodes);
+    }
+
+    return this;
   }
   
   /**

@@ -39,7 +39,7 @@ export class CascadeParticleSystem_Session120 {
     
     this.config = {
       maxParticles: config.maxParticles ?? 3000,
-      baseSize: config.baseSize ?? 6.0,
+      baseSize: config.baseSize ?? 4.8,
       visualSizeBoost: config.visualSizeBoost ?? 1.6,
       emissionRate: config.emissionRate ?? 6.0,
       enabled: config.enabled ?? true,
@@ -70,6 +70,8 @@ export class CascadeParticleSystem_Session120 {
     this._tmpTargetWorldPos = new THREE.Vector3();
     this._tmpMidpoint = new THREE.Vector3();
     this._tmpParticleColor = new THREE.Color();
+    this._tmpSourceCategoryColor = new THREE.Color();
+    this._tmpTargetCategoryColor = new THREE.Color();
     this._neutralParticleColor = new THREE.Color(1.0, 0.3, 0.1) // Bright orange-red for visibility
     
     // Cascade hop cooldown tracking (per link)
@@ -379,6 +381,8 @@ export class CascadeParticleSystem_Session120 {
         velocity: new THREE.Vector3(),
         // Link reference for path following
         linkRef: null,
+        sourceColor: new THREE.Color(1, 1, 1),
+        targetColor: new THREE.Color(1, 1, 1),
         sourcePosition: new THREE.Vector3(),
         targetPosition: new THREE.Vector3(),
         pathProgress: 0, // 0-1 along link
@@ -706,6 +710,10 @@ export class CascadeParticleSystem_Session120 {
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
     const clusterRadius = link?.userData?.particleClusterRadius ?? 0.2;
     const urgencyOscillation = link?.userData?.particleUrgencyOscillation ?? 0;
+    const sourceCategory = link?.source?.userData?.category || link?.sourceNode?.userData?.category || 'input';
+    const targetCategory = link?.target?.userData?.category || link?.targetNode?.userData?.category || sourceCategory;
+    const sourceColor = this._resolveCategoryColor(sourceCategory, this._neutralParticleColor, this._tmpSourceCategoryColor);
+    const targetColor = this._resolveCategoryColor(targetCategory, this._neutralParticleColor, this._tmpTargetCategoryColor);
     
     for (let i = 0; i < count; i++) {
       const p = this._allocateParticle();
@@ -723,6 +731,8 @@ export class CascadeParticleSystem_Session120 {
       p.shapeIndex = shapeIndex;
       p.conflictType = conflictType;
       p.flowType = flowType;
+      p.sourceColor.copy(sourceColor);
+      p.targetColor.copy(targetColor);
       
       // Position along link: respects clustering
       // High cohesion = spawn particles closer together (cluster formation)
@@ -747,15 +757,16 @@ export class CascadeParticleSystem_Session120 {
         (Math.random() - 0.5) * offsetAmt
       );
       
-      // Color
-      const colors = this.geometry.attributes.color.array;
-      colors[p.index * 3] = color.r;
-      colors[p.index * 3 + 1] = color.g;
-      colors[p.index * 3 + 2] = color.b;
-      
       // Shape
       const shapes = this.geometry.attributes.shapeIndex.array;
       shapes[p.index] = shapeIndex;
+
+      // Prime initial color immediately so the first frame already reflects the category gradient.
+      const colors = this.geometry.attributes.color.array;
+      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, p.pathProgress);
+      colors[p.index * 3] = this._tmpParticleColor.r;
+      colors[p.index * 3 + 1] = this._tmpParticleColor.g;
+      colors[p.index * 3 + 2] = this._tmpParticleColor.b;
       
       // Initial update to set position
       this._updateSingleParticle(p, 0, currentCascadeTime);
@@ -769,6 +780,7 @@ export class CascadeParticleSystem_Session120 {
     let activeCount = 0;
 
     const positions = this.geometry.attributes.position.array;
+    const colors = this.geometry.attributes.color.array;
     const sizes = this.geometry.attributes.size.array;
     const angles = this.geometry.attributes.angle.array;
     
@@ -805,6 +817,14 @@ export class CascadeParticleSystem_Session120 {
       const lifeRatio = age / p.maxLifetime;
       const fade = Math.sin(lifeRatio * Math.PI); // Smooth arc
       sizes[i] = this.config.baseSize * this.config.visualSizeBoost * fade;
+
+      // Category-aware gradient color along the link path.
+      const pathT = Math.max(0, Math.min(1, p.pathProgress));
+      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, pathT);
+      const colorPulse = 0.88 + (1.0 - lifeRatio) * 0.12;
+      colors[i * 3] = this._tmpParticleColor.r * colorPulse;
+      colors[i * 3 + 1] = this._tmpParticleColor.g * colorPulse;
+      colors[i * 3 + 2] = this._tmpParticleColor.b * colorPulse;
       
       // Rotate based on conflict type
       if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
@@ -986,6 +1006,28 @@ export class CascadeParticleSystem_Session120 {
     }
 
     return color.copy(this._neutralParticleColor);
+  }
+
+  _resolveCategoryColor(category, fallbackColor = this._neutralParticleColor, outColor = this._tmpParticleColor) {
+    const palette = {
+      input: 0x00ddff,
+      process: 0xffaa00,
+      integration: 0x00ff88,
+      analytics: 0xaa00ff,
+      storage: 0x88ccff,
+      control: 0xff0088,
+      quantum: 0x00ffff,
+      sigma: 0x00ff00,
+      emotional: 0xff8800,
+      mythic: 0x9933ff,
+      prime: 0xffd700,
+      error: 0xffffff
+    };
+    const hex = palette[String(category || '').toLowerCase()] || null;
+    if (hex !== null) {
+      return outColor.setHex(hex);
+    }
+    return outColor.copy(fallbackColor);
   }
 
   _resolveActiveLinks(links) {

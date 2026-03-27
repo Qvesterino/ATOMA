@@ -9812,7 +9812,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     debugMode: false,
                     maxParticles: 100,
                     emissionRate: 6.0,
-                    baseSize: 6.0,
+                    baseSize: 4.8,
                     visualSizeBoost: 1.6,
                     baseCascadeParticles: 60
                 }
@@ -11686,11 +11686,32 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         try {
+            if (this.semanticGlyphAI?.dispose) {
+                this.semanticGlyphAI.dispose();
+            }
+
             this.semanticGlyphAI = new SemanticGlyphAI(
                 this.scene,
                 this.worldRoot,
                 this.glyphLayer4
             );
+
+            this.linkedGlyphSync?.resetForWorldSwitch?.();
+            this.linkedGlyphMessaging?.resetForWorldSwitch?.({
+                scene: this.scene,
+                worldRoot: this.worldRoot,
+                semanticGlyphAI: this.semanticGlyphAI,
+                linkedGlyphSync: this.linkedGlyphSync || null
+            });
+            this.glyphFusionOverlay?.resetForWorldSwitch?.({
+                scene: this.scene,
+                worldRoot: this.worldRoot,
+                semanticGlyphAI: this.semanticGlyphAI,
+                semanticBus: this.semanticBus,
+                aiNodes: this.aiNodes
+            });
+
+            this.linkedGlyphMessaging?.setLinkedGlyphSync?.(this.linkedGlyphSync || null);
 
             // Hover-only mode: no post-spawn global fusion registration.
         } catch (error) {

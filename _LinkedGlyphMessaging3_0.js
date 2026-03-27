@@ -203,7 +203,11 @@ export class LinkedGlyphMessaging3_0 {
       color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
       transparent: true,
       opacity: 0.9,
-      fog: false
+      fog: false,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      blending: THREE.AdditiveBlending
     });
     
     const mesh = new THREE.Mesh(geometry, material);
@@ -274,6 +278,28 @@ export class LinkedGlyphMessaging3_0 {
     }
 
     return this.linkedGlyphSync;
+  }
+
+  resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, semanticGlyphAI = this.semanticGlyphAI, linkedGlyphSync = this.linkedGlyphSync } = {}) {
+    this.scene = scene;
+    this.worldRoot = worldRoot;
+    this.semanticGlyphAI = semanticGlyphAI;
+    this.linkedGlyphSync = linkedGlyphSync || null;
+
+    const attachRoot = this.worldRoot || this.scene;
+    if (this.messageContainer && attachRoot && this.messageContainer.parent !== attachRoot) {
+      this.messageContainer.parent?.remove(this.messageContainer);
+      attachRoot.add(this.messageContainer);
+    }
+
+    this.cleanup();
+
+    if (this.linkedGlyphSync) {
+      this.setLinkedGlyphSync(this.linkedGlyphSync);
+    }
+
+    this.root = this.messageContainer;
+    return this;
   }
   
   /**

@@ -166,6 +166,21 @@ export class LinkedGlyphSynchronization1_0 {
   unregisterLink(linkId) {
     this.linkSyncState.delete(linkId);
   }
+
+  resetForWorldSwitch() {
+    this.linkSyncState.clear();
+    this.nodePhaseAlignment.clear();
+    this.globalTime = 0;
+    this.lastSyncUpdateTime = 0;
+    this.stats.linksProcessed = 0;
+    this.stats.syncedPairs = 0;
+    this.stats.perfectSyncCount = 0;
+    this.stats.mediumSyncCount = 0;
+    this.stats.looseSyncCount = 0;
+    this.stats.lastFrameTime = 0;
+    this.stats.totalFrames = 0;
+    return this;
+  }
   
   /**
    * Calculate sync parameters for a link

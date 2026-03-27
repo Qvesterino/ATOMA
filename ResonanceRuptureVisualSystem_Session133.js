@@ -175,54 +175,44 @@ export class ResonanceRuptureVisualSystem_Session133 {
     setup() {
         if (this.initialized) return;
         
-        // Create stress indicator material (red, tension)
-        this.stressMaterial = new THREE.MeshStandardMaterial({
+        // Create stress indicator material (red, tension) - additive blending for glow
+        this.stressMaterial = new THREE.MeshBasicMaterial({
             color: new THREE.Color(1.0, 0.3, 0.2),  // Red-orange
-            emissive: new THREE.Color(1.0, 0.3, 0.2),
-            emissiveIntensity: 0.8,
             transparent: true,
             opacity: this.config.stressIndicatorOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.5
+            blending: THREE.AdditiveBlending
         });
         
-        // Create rupture burst material (bright orange-red)
-        this.ruptureMaterial = new THREE.MeshStandardMaterial({
+        // Create rupture burst material (bright orange-red) - additive blending for glow
+        this.ruptureMaterial = new THREE.MeshBasicMaterial({
             color: this.config.ruptureBurstColor,
-            emissive: this.config.ruptureBurstColor,
-            emissiveIntensity: this.config.ruptureBurstGlow,
             transparent: true,
             opacity: 0.6,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.3,
-            metalness: 0.5
+            blending: THREE.AdditiveBlending
         });
         
-        // Create propagation pulse material
-        this.propagationMaterial = new THREE.MeshStandardMaterial({
+        // Create propagation pulse material - additive blending for glow
+        this.propagationMaterial = new THREE.MeshBasicMaterial({
             color: this.config.ruptureBurstColor,
-            emissive: this.config.ruptureBurstColor,
-            emissiveIntensity: 1.5,
             transparent: true,
             opacity: 0.4,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.4,
-            metalness: 0.4
+            blending: THREE.AdditiveBlending
         });
         
-        // Create resonance scar material (purple-bruise)
-        this.scarMaterial = new THREE.MeshStandardMaterial({
+        // Create resonance scar material (purple-bruise) - additive blending for subtle glow
+        this.scarMaterial = new THREE.MeshBasicMaterial({
             color: this.config.scarColor,
-            emissive: this.config.scarColor,
-            emissiveIntensity: 0.2,
             transparent: true,
             opacity: this.config.scarOpacity,
             side: THREE.DoubleSide,
             depthWrite: false,
-            roughness: 0.9
+            blending: THREE.AdditiveBlending
         });
         
         // Pre-allocate rupture event pool
@@ -254,10 +244,11 @@ export class ResonanceRuptureVisualSystem_Session133 {
             });
         }
         
-        // Pre-allocate scar mesh pool
+        // Pre-allocate scar mesh pool - use proper base geometry, scale at runtime
         const maxScarMeshes = this.config.maxResonanceScarsMeshes ?? 20;
         for (let i = 0; i < maxScarMeshes; i++) {
-            const geometry = new THREE.PlaneGeometry(1, 0.1);
+            // Base geometry of 1x1, will be scaled appropriately at runtime
+            const geometry = new THREE.PlaneGeometry(1, 1);
             const mesh = new THREE.Mesh(geometry, this.scarMaterial.clone());
             mesh.visible = false;
             mesh.renderOrder = this.config.renderOrder;
@@ -575,8 +566,13 @@ export class ResonanceRuptureVisualSystem_Session133 {
             if (rupture.burstMesh) {
                 const progress = rupture.life / rupture.maxLife;
                 rupture.burstMesh.material.opacity = rupture.intensity * (1 - progress);
-                rupture.burstMesh.material.emissiveIntensity = 
-                    this.config.ruptureBurstGlow * (1 - progress);
+                // For MeshBasicMaterial with additive blending, modulate color intensity
+                const colorIntensity = Math.min(1, this.config.ruptureBurstGlow * (1 - progress));
+                rupture.burstMesh.material.color.setRGB(
+                    this.config.ruptureBurstColor.r * colorIntensity,
+                    this.config.ruptureBurstColor.g * colorIntensity,
+                    this.config.ruptureBurstColor.b * colorIntensity
+                );
                 
                 // Scale burst outward
                 const scale = 1 + progress * 2;
@@ -762,9 +758,10 @@ export class ResonanceRuptureVisualSystem_Session133 {
             scarMesh.mesh.lookAt(endPos);
             scarMesh.mesh.rotateX(Math.PI * 0.5);
             
-            // Scale to link length
+            // Scale to link length with proper world-space dimensions
             const linkLength = startPos.distanceTo(endPos);
-            scarMesh.mesh.scale.set(linkLength * 0.5, 0.1, 1);
+            // X = width along link, Y = thickness (perpendicular), Z = height
+            scarMesh.mesh.scale.set(Math.max(1, linkLength * 0.8), Math.max(0.5, linkLength * 0.1), 1);
         }
         
         this.resonanceScars.push({
@@ -905,7 +902,15 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const synergyFactor = 1 + avgSynergy * this.config.synergyRuptureClarity;
             
             const modulation = harmonyFactor * corruptionFactor * synergyFactor;
-            rupture.burstMesh.material.emissiveIntensity *= modulation;
+            // For MeshBasicMaterial with additive blending, modulate color intensity
+            const baseColor = this.config.ruptureBurstColor;
+            const currentIntensity = rupture.burstMesh.material.opacity;
+            const colorIntensity = Math.min(1, currentIntensity * modulation);
+            rupture.burstMesh.material.color.setRGB(
+                baseColor.r * colorIntensity,
+                baseColor.g * colorIntensity,
+                baseColor.b * colorIntensity
+            );
         });
         
         // Modulate scars — opacity is managed by _updateResonanceScars; skip per-frame multiplication here
