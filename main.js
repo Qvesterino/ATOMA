@@ -4098,7 +4098,7 @@ class AtomaGame {
                 const activeLinks = Array.isArray(links)
                     ? links.filter((link) => link && link.active !== false)
                     : [];
-                this.cascadeParticleSystem.update(dt, activeLinks);
+                this.cascadeParticleSystem.update(dt, activeLinks, this.camera);
             }
         }, 'visual.cascadeParticleSystem');
         
@@ -9811,10 +9811,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     enabled: true,
                     debugMode: false,
                     maxParticles: 100,
-                    emissionRate: 6.0,
+                    emissionRate: 4.8,
                     baseSize: 4.8,
                     visualSizeBoost: 1.6,
-                    baseCascadeParticles: 60
+                    baseCascadeParticles: 60,
+                    distanceSize: {
+                        perspectiveBase: 180.0,
+                        falloffRate: 0.0135,
+                        falloffExponent: 1.45,
+                        minPointSize: 1.5,
+                        maxPointSize: 28.0
+                    },
+                    lod: {
+                        enabled: true,
+                        nearDistance: 14.0,
+                        farDistance: 42.0,
+                        minDensity: 0.42,
+                        minOpacity: 0.55
+                    }
                 }
             );
             this.cascadeParticles = this.cascadeParticleSystem; // compatibility alias

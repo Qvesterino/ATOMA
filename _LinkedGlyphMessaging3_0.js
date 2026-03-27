@@ -172,7 +172,7 @@ export class LinkedGlyphMessaging3_0 {
   /**
    * Create a minimal glyph mesh (triangle, shard, diamond, etc)
    */
-  createMiniGlyph(type = 'shard') {
+  createMiniGlyph(type = 'shard', color = null, opacity = 0.9) {
     let geometry;
     
     // Use simple geometries for performance
@@ -200,9 +200,9 @@ export class LinkedGlyphMessaging3_0 {
     }
     
     const material = new THREE.MeshBasicMaterial({
-      color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
+      color: color || new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
       transparent: true,
-      opacity: 0.9,
+      opacity,
       fog: false,
       depthWrite: false,
       depthTest: true,
@@ -216,6 +216,323 @@ export class LinkedGlyphMessaging3_0 {
       VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
     );
     return mesh;
+  }
+
+  _clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+  }
+
+  _getRoleStyle(messageType, sourceMetrics = {}, linkMetrics = {}, targetMetrics = {}) {
+    const styleMap = {
+      SUBJECT: {
+        baseColor: new THREE.Color(0x8fe9ff),
+        accentColor: new THREE.Color(0xffffff),
+        corruptionColor: new THREE.Color(0xffb366),
+        harmonyColor: new THREE.Color(0xb9f4ff),
+        shapeOrder: ['dot', 'diamond', 'shard'],
+        baseScale: 0.28,
+        spacing: 0.19,
+        lift: 0.06,
+        depth: 0.03,
+        pitch: 0.02,
+        yaw: 0.0,
+        roll: 0.08,
+        rollJitter: 0.12,
+        opacity: 0.95
+      },
+      STATE: {
+        baseColor: new THREE.Color(0xd48cff),
+        accentColor: new THREE.Color(0xffe1ff),
+        corruptionColor: new THREE.Color(0xff7a93),
+        harmonyColor: new THREE.Color(0xf5d2ff),
+        shapeOrder: ['lotus', 'shard', 'lotus', 'shard'],
+        baseScale: 0.26,
+        spacing: 0.17,
+        lift: 0.09,
+        depth: 0.04,
+        pitch: 0.03,
+        yaw: 0.08,
+        roll: 0.12,
+        rollJitter: 0.18,
+        opacity: 0.9
+      },
+      TENDENCY: {
+        baseColor: new THREE.Color(0xffc96a),
+        accentColor: new THREE.Color(0xfff1c9),
+        corruptionColor: new THREE.Color(0xff8d4a),
+        harmonyColor: new THREE.Color(0xffe9a3),
+        shapeOrder: ['triangle', 'shard', 'triangle'],
+        baseScale: 0.27,
+        spacing: 0.2,
+        lift: 0.07,
+        depth: 0.05,
+        pitch: -0.05,
+        yaw: 0.18,
+        roll: -0.1,
+        rollJitter: 0.16,
+        opacity: 0.94
+      },
+      CONTEXT: {
+        baseColor: new THREE.Color(0x7ef0c7),
+        accentColor: new THREE.Color(0xd7fff0),
+        corruptionColor: new THREE.Color(0xb3a3ff),
+        harmonyColor: new THREE.Color(0xecfffb),
+        shapeOrder: ['ring', 'diamond', 'ring', 'diamond'],
+        baseScale: 0.24,
+        spacing: 0.16,
+        lift: 0.08,
+        depth: 0.045,
+        pitch: 0.0,
+        yaw: -0.04,
+        roll: 0.05,
+        rollJitter: 0.1,
+        opacity: 0.88
+      },
+      LINK: {
+        baseColor: new THREE.Color(0x93bbff),
+        accentColor: new THREE.Color(0xe7f2ff),
+        corruptionColor: new THREE.Color(0xff9a9a),
+        harmonyColor: new THREE.Color(0xdbe8ff),
+        shapeOrder: ['diamond', 'shard', 'diamond'],
+        baseScale: 0.25,
+        spacing: 0.18,
+        lift: 0.06,
+        depth: 0.04,
+        pitch: 0.04,
+        yaw: 0.12,
+        roll: 0.1,
+        rollJitter: 0.12,
+        opacity: 0.9
+      }
+    };
+
+    const style = styleMap[messageType] || styleMap.CONTEXT;
+    const synergy = this._clamp01(linkMetrics.synergy ?? sourceMetrics.synergy ?? targetMetrics.synergy ?? 0.5);
+    const corruption = this._clamp01(linkMetrics.corruption ?? sourceMetrics.corruption ?? targetMetrics.corruption ?? 0);
+    const harmony = this._clamp01(sourceMetrics.harmony ?? targetMetrics.harmony ?? linkMetrics.harmony ?? 0);
+    const stability = this._clamp01(sourceMetrics.stability ?? targetMetrics.stability ?? linkMetrics.stability ?? 0.5);
+
+    const color = style.baseColor.clone().lerp(style.accentColor, harmony * 0.24 + synergy * 0.16);
+    if (corruption > 0) {
+      color.lerp(style.corruptionColor, corruption * 0.28);
+    }
+    color.offsetHSL(0, 0, (harmony * 0.06) + (synergy * 0.03) - (corruption * 0.05));
+
+    return {
+      ...style,
+      color,
+      synergy,
+      corruption,
+      harmony,
+      stability
+    };
+  }
+
+  _getGlyphBlueprint(messageType, index, count, style, metrics = {}) {
+    const centeredIndex = index - ((count - 1) * 0.5);
+    const progress = count <= 1 ? 0.5 : index / (count - 1);
+    const spread = style.spacing;
+    const liftWave = Math.sin((progress - 0.5) * Math.PI) * style.lift;
+    const depthWave = Math.cos(index * 1.6 + (metrics.synergy || 0) * 2.0) * style.depth;
+    const shape = style.shapeOrder[index % style.shapeOrder.length];
+    const color = style.color.clone();
+    const scaleBoost = 0.88 + (1.0 - Math.abs(progress - 0.5)) * 0.18 + (metrics.synergy || 0) * 0.08 + (metrics.harmony || 0) * 0.05 - (metrics.corruption || 0) * 0.06;
+
+    if ((metrics.corruption || 0) > 0) {
+      color.lerp(style.corruptionColor, (metrics.corruption || 0) * 0.22);
+    }
+
+    if ((metrics.harmony || 0) > 0) {
+      color.lerp(style.harmonyColor, (metrics.harmony || 0) * 0.16);
+    }
+
+    return {
+      type: shape,
+      color,
+      scale: Math.max(0.12, style.baseScale * scaleBoost),
+      opacity: style.opacity * (0.94 + (metrics.harmony || 0) * 0.05 - (metrics.corruption || 0) * 0.07),
+      offset: new THREE.Vector3(centeredIndex * spread, liftWave, depthWave),
+      rotation: new THREE.Euler(
+        style.pitch + liftWave * 0.14,
+        style.yaw + centeredIndex * 0.05,
+        style.roll + (index % 2 === 0 ? -1 : 1) * style.rollJitter
+      )
+    };
+  }
+
+  _getSeededClusterNoise(seed, index, axis = 0) {
+    const value = Math.sin(seed * 12.9898 + index * 78.233 + axis * 37.719) * 43758.5453;
+    return (value - Math.floor(value)) * 2 - 1;
+  }
+
+  _getWordClusterOffset(message, wordIndex, style) {
+    const angle = message.seed * 0.52 + wordIndex * 1.72 + (wordIndex % 2 === 0 ? 0.5 : -0.34);
+    const radius = 0.14 + wordIndex * 0.016 + style.spacing * 0.12;
+    const scatter = 0.09 + style.corruption * 0.05 + (1 - style.stability) * 0.03;
+    const center = new THREE.Vector3(
+      Math.cos(message.seed * 0.33) * 0.05,
+      Math.sin(message.seed * 0.21) * 0.03,
+      0
+    );
+
+    return new THREE.Vector3(
+      center.x + Math.cos(angle) * radius + this._getSeededClusterNoise(message.seed, wordIndex, 0) * scatter,
+      center.y + Math.sin(angle * 0.9) * radius * 0.66 + this._getSeededClusterNoise(message.seed, wordIndex, 1) * scatter * 0.7,
+      center.z + Math.sin(angle * 1.27) * 0.03 + this._getSeededClusterNoise(message.seed, wordIndex, 2) * 0.02
+    );
+  }
+
+  _selectMessageFlightPattern(message) {
+    const synergy = message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5;
+    const corruption = message.linkMetrics?.corruption ?? message.sourceMetrics?.corruption ?? 0;
+    const harmony = message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0;
+    const modes = ['spiral', 'arc', 'zigzag', 'flare', 'drift'];
+    const selector = Math.abs(Math.sin(message.seed * 7.13 + synergy * 3.1 + corruption * 4.7 + harmony * 2.2));
+    const mode = modes[Math.floor(selector * modes.length) % modes.length];
+
+    return {
+      mode,
+      twist: 0.03 + synergy * 0.04 + harmony * 0.02,
+      wobble: 0.018 + corruption * 0.02,
+      spread: 0.02 + harmony * 0.01,
+      flutter: 0.012 + corruption * 0.015,
+      driftBias: new THREE.Vector3(
+        this._getSeededClusterNoise(message.seed, 0, 3) * 0.012,
+        this._getSeededClusterNoise(message.seed, 1, 3) * 0.012,
+        this._getSeededClusterNoise(message.seed, 2, 3) * 0.01
+      ),
+      phase: message.seed * 0.5 + synergy * 3.0
+    };
+  }
+
+  _applyFlightPatternToPosition(basePos, message, pattern, progress, settlePhase) {
+    const t = progress * Math.PI * 2;
+    const driftScale = (1 - settlePhase) * (0.03 + pattern.spread);
+    const wobble = pattern.wobble * (1 - settlePhase);
+    const out = basePos.clone();
+
+    switch (pattern.mode) {
+      case 'spiral':
+        out.x += Math.cos(t + pattern.phase) * driftScale;
+        out.y += Math.sin(t * 1.2 + pattern.phase) * driftScale * 0.75;
+        out.z += Math.sin(t * 0.7 + pattern.phase) * driftScale * 0.35;
+        break;
+      case 'arc':
+        out.x += Math.sin(t * 0.5 + pattern.phase) * driftScale * 1.4;
+        out.y += Math.sin(t + pattern.phase) * driftScale * 0.6;
+        out.z += Math.cos(t * 0.8 + pattern.phase) * driftScale * 0.25;
+        break;
+      case 'zigzag':
+        out.x += (Math.sin(t * 3.0 + pattern.phase) > 0 ? 1 : -1) * driftScale * 0.55;
+        out.y += Math.sin(t * 1.7 + pattern.phase) * driftScale * 0.35;
+        out.z += Math.cos(t * 2.2 + pattern.phase) * driftScale * 0.22;
+        break;
+      case 'flare':
+        out.x += Math.sin(t * 1.1 + pattern.phase) * driftScale * 0.9;
+        out.y += Math.cos(t * 2.1 + pattern.phase) * driftScale * 0.55;
+        out.z += Math.sin(t * 1.9 + pattern.phase) * driftScale * 0.28;
+        break;
+      case 'drift':
+      default:
+        out.x += pattern.driftBias.x + Math.sin(t * 0.8 + pattern.phase) * driftScale * 0.5;
+        out.y += pattern.driftBias.y + Math.cos(t * 0.9 + pattern.phase) * driftScale * 0.35;
+        out.z += pattern.driftBias.z + Math.sin(t * 0.6 + pattern.phase) * driftScale * 0.18;
+        break;
+    }
+
+    out.x += this._getSeededClusterNoise(message.seed, 0, 0) * wobble;
+    out.y += this._getSeededClusterNoise(message.seed, 1, 0) * wobble;
+    out.z += this._getSeededClusterNoise(message.seed, 2, 0) * wobble * 0.7;
+    return out;
+  }
+
+  _selectClusterMotionVariant(message, wordIndex) {
+    const variants = ['coil', 'sweep', 'fracture'];
+    const synergy = message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5;
+    const corruption = message.linkMetrics?.corruption ?? message.sourceMetrics?.corruption ?? 0;
+    const harmony = message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0;
+    const selector = Math.abs(Math.sin(message.seed * 5.31 + wordIndex * 1.87 + synergy * 2.6 + corruption * 3.3 + harmony * 1.4));
+    const roleBias = wordIndex === 0 ? 0 : wordIndex === 1 ? 1 : wordIndex === 2 ? 2 : 1;
+    return variants[(Math.floor(selector * variants.length) + roleBias) % variants.length];
+  }
+
+  _applyClusterMotionVariant(basePosition, message, variant, wordIndex, progress, settlePhase, rolePulse) {
+    const t = this.globalTime * 1.05 + message.seed * 0.7 + wordIndex * 0.83;
+    const phase = progress * Math.PI * 2;
+    const motion = basePosition.clone();
+    const strength = (1 - settlePhase) * rolePulse;
+
+    switch (variant) {
+      case 'coil':
+        motion.x += Math.cos(t + phase) * 0.022 * strength;
+        motion.y += Math.sin(t * 1.18 + phase) * 0.017 * strength;
+        motion.z += Math.sin(t * 0.82 + phase) * 0.01 * strength;
+        break;
+      case 'sweep':
+        motion.x += Math.sin(t * 0.64 + phase) * 0.028 * strength;
+        motion.y += Math.cos(t * 0.42 + phase) * 0.012 * strength;
+        motion.z += Math.cos(t * 0.95 + phase) * 0.008 * strength;
+        break;
+      case 'fracture':
+      default: {
+        const step = Math.sin(t * 2.8 + phase);
+        motion.x += (step > 0 ? 1 : -1) * 0.018 * strength;
+        motion.y += Math.sin(t * 1.9 + phase) * 0.014 * strength;
+        motion.z += Math.cos(t * 2.2 + phase) * 0.012 * strength;
+        break;
+      }
+    }
+
+    return motion;
+  }
+
+  _createMessageAura(group, style) {
+    const auraMeshes = [];
+    const auraOrder = VisualHierarchyRegistry.getRenderOrder(
+      VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
+    ) - 1;
+
+    const makeAuraMaterial = (opacity) => new THREE.MeshBasicMaterial({
+      color: style.color.clone(),
+      transparent: true,
+      opacity,
+      fog: false,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.04, 6, 6),
+      makeAuraMaterial(style.opacity * 0.22)
+    );
+    core.userData.isMessageAura = true;
+    core.userData.baseOpacity = core.material.opacity;
+    core.renderOrder = auraOrder;
+    group.add(core);
+    auraMeshes.push(core);
+
+    for (let i = 0; i < 3; i++) {
+      const fragment = new THREE.Mesh(
+        new THREE.SphereGeometry(0.018 + i * 0.002, 5, 5),
+        makeAuraMaterial(style.opacity * (0.09 + i * 0.03))
+      );
+      fragment.userData.isMessageAura = true;
+      fragment.userData.baseOpacity = fragment.material.opacity;
+      fragment.renderOrder = auraOrder;
+      const fragmentAngle = i * 2.2 + this._getSeededClusterNoise(style.synergy || 0.5, i, 0) * 0.5;
+      fragment.position.set(
+        Math.cos(fragmentAngle) * (0.18 + i * 0.03),
+        Math.sin(fragmentAngle * 0.8) * 0.1,
+        Math.sin(fragmentAngle * 1.25) * 0.04
+      );
+      group.add(fragment);
+      auraMeshes.push(fragment);
+    }
+
+    return auraMeshes;
   }
   
   /**
@@ -308,39 +625,54 @@ export class LinkedGlyphMessaging3_0 {
   generateMessageWord(node, messageType = 'STATE') {
     if (!node) return null;
 
-    const nodeMetrics = messageType === 'LINK' ? {} : (getNodeCanonicalMetrics(node) ?? {});
-    const linkMetrics = messageType === 'LINK' ? (getLinkCanonicalMetrics(node) ?? {}) : {};
+    const linkMetrics = (messageType === 'TENDENCY' || messageType === 'LINK') ? (getLinkCanonicalMetrics(node) ?? {}) : {};
+    const nodeMetrics = (messageType === 'TENDENCY' || messageType === 'LINK') ? {} : (getNodeCanonicalMetrics(node) ?? {});
 
     const synergy = linkMetrics.synergy ?? nodeMetrics.synergy ?? 0.5;
     const corruption = linkMetrics.corruption ?? nodeMetrics.corruption ?? 0;
-    const stability = messageType === 'LINK' ? 0 : (nodeMetrics.stability ?? 0);
-    const harmony = messageType === 'LINK' ? 0 : (nodeMetrics.harmony ?? 0);
-    const loadPressure = messageType === 'LINK' ? 0 : (nodeMetrics.loadPressure ?? 0);
+    const stability = nodeMetrics.stability ?? 0.5;
+    const harmony = nodeMetrics.harmony ?? linkMetrics.harmony ?? 0;
+    const loadPressure = nodeMetrics.loadPressure ?? 0;
+    const resolvedMetrics = {
+      synergy,
+      corruption,
+      stability,
+      harmony,
+      loadPressure
+    };
+
+    const roleStyle = this._getRoleStyle(messageType, nodeMetrics, linkMetrics, nodeMetrics);
+    const baseCountByRole = {
+      SUBJECT: 3,
+      STATE: 4,
+      TENDENCY: 3,
+      CONTEXT: 4,
+      LINK: 3
+    };
+    const baseCount = baseCountByRole[messageType] ?? 3;
+    const complexityBoost = (synergy > 0.72 ? 1 : 0) + (harmony > 0.7 ? 1 : 0) - (corruption > 0.65 ? 1 : 0);
+    const glyphCount = Math.max(3, Math.min(5, baseCount + complexityBoost));
     
     // Determine glyph count (more glyphs for complex states)
-    const complexity = Math.abs(synergy - corruption) * 5;
-    const glyphCount = Math.max(1, Math.min(5, Math.ceil(1 + complexity)));
-    
     // Create word structure
     const word = {
       type: messageType,
       glyphs: [],
       role: this.determineGlyphRole(node, messageType),
-      semanticVector: { synergy, corruption, stability, harmony, loadPressure }
+      semanticVector: resolvedMetrics,
+      style: roleStyle
     };
     
     // Generate individual glyphs for this word
     for (let i = 0; i < glyphCount; i++) {
+      const blueprint = this._getGlyphBlueprint(messageType, i, glyphCount, roleStyle, resolvedMetrics);
       const glyph = {
-        type: this.selectGlyphType(messageType, i, glyphCount),
-        color: this.selectGlyphColor(synergy, corruption, harmony),
-        scale: 0.8 + Math.random() * 0.4,
-        rotation: Math.random() * Math.PI * 2,
-        offset: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.3,
-          (Math.random() - 0.5) * 0.3,
-          (Math.random() - 0.5) * 0.3
-        )
+        type: blueprint.type,
+        color: blueprint.color,
+        scale: blueprint.scale,
+        rotation: blueprint.rotation,
+        offset: blueprint.offset,
+        opacity: blueprint.opacity
       };
       word.glyphs.push(glyph);
     }
@@ -398,19 +730,41 @@ export class LinkedGlyphMessaging3_0 {
   /**
    * Select glyph color based on semantic state
    */
-  selectGlyphColor(synergy, corruption, harmony) {
+  selectGlyphColor(synergy, corruption, harmony, messageType = 'STATE') {
     const color = new THREE.Color();
-    
-    if (synergy > 0.7) {
-      color.setHSL(0.5, 0.8, 0.6); // Cyan (strong connection)
-    } else if (corruption > 0.6) {
-      color.setHSL(0.05, 0.9, 0.55); // Red/orange (corruption)
-    } else if (harmony > 0.7) {
-      color.setHSL(0.8, 0.8, 0.6); // Magenta (harmony)
-    } else {
-      color.setHSL(0.2 + Math.random() * 0.2, 0.6, 0.6); // Random yellow-green
+    switch (messageType) {
+      case 'SUBJECT':
+        color.setHex(0x8fe9ff);
+        break;
+      case 'STATE':
+        color.setHex(0xd48cff);
+        break;
+      case 'TENDENCY':
+        color.setHex(0xffc96a);
+        break;
+      case 'CONTEXT':
+        color.setHex(0x7ef0c7);
+        break;
+      case 'LINK':
+        color.setHex(0x93bbff);
+        break;
+      default:
+        color.setHex(0xb7b7ff);
+        break;
     }
-    
+
+    if (harmony > 0) {
+      color.lerp(new THREE.Color(0xffffff), harmony * 0.12);
+    }
+
+    if (synergy > 0.7) {
+      color.lerp(new THREE.Color(0xbffcff), 0.12);
+    }
+
+    if (corruption > 0.6) {
+      color.lerp(new THREE.Color(0xff9c6a), 0.16);
+    }
+
     return color;
   }
   
@@ -440,18 +794,25 @@ export class LinkedGlyphMessaging3_0 {
       targetMetrics,
       linkMetrics,
       words: [],
+      wordGroups: [],
+      auraMeshes: [],
       createdAt: Date.now(),
       startPosition: sourceNode.position.clone(),
       endPosition: targetNode.position.clone(),
       progress: 0,  // 0 to 1
       meshes: [],   // Grouped glyph meshes
+      seed: Math.random() * Math.PI * 2,
+      flightPattern: null,
       totalLifetime: this.config.messageLifetimeSec * 1000
     };
+
+    message.flightPattern = this._selectMessageFlightPattern(message);
     
     // Generate words
     message.words.push(this.generateMessageWord(sourceNode, 'SUBJECT'));
     message.words.push(this.generateMessageWord(sourceNode, 'STATE'));
-    message.words.push(this.generateMessageWord(linkData.link, 'LINK'));
+    message.words.push(this.generateMessageWord(linkData.link, 'TENDENCY'));
+    message.words.push(this.generateMessageWord(targetNode, 'CONTEXT'));
     
     // Create visual representation
     this.createMessageMeshes(message);
@@ -465,39 +826,58 @@ export class LinkedGlyphMessaging3_0 {
   createMessageMeshes(message) {
     const group = new THREE.Group();
     group.userData.isMessageGroup = true;
+    group.userData.isMessageSentence = true;
     group.renderOrder = VisualHierarchyRegistry.getRenderOrder(
       VisualHierarchyRegistry.LAYER_GLYPH_HARMONIC || 'GLYPH_HARMONIC'
     );
-    
-    let offsetY = 0;
+
+    const sentenceStyle = this._getRoleStyle(
+      'CONTEXT',
+      message.sourceMetrics,
+      message.linkMetrics,
+      message.targetMetrics
+    );
+    message.auraMeshes = this._createMessageAura(group, sentenceStyle);
     
     // Render each word as grouped glyphs
     message.words.forEach((word, wordIndex) => {
+      const wordGroup = new THREE.Group();
+      wordGroup.userData.isMessageWord = true;
+      wordGroup.userData.wordType = word.type;
+      wordGroup.userData.motionVariant = this._selectClusterMotionVariant(message, wordIndex);
+      wordGroup.userData.basePosition = this._getWordClusterOffset(message, wordIndex, sentenceStyle);
+      wordGroup.position.copy(wordGroup.userData.basePosition);
+      wordGroup.rotation.z = wordIndex === 2 ? 0.14 : (wordIndex === 1 ? -0.04 : 0.0);
+      wordGroup.renderOrder = group.renderOrder + 1;
+
       word.glyphs.forEach((glyph, glyphIndex) => {
         // Create glyph mesh
-        const mesh = this.createMiniGlyph(glyph.type);
+        const mesh = this.createMiniGlyph(glyph.type, glyph.color, glyph.opacity);
         
         // Set position with slight stagger
         mesh.position.set(
-          glyphIndex * 0.15 - (word.glyphs.length * 0.075),
-          offsetY + glyph.offset.y,
+          glyph.offset.x,
+          glyph.offset.y,
           glyph.offset.z
         );
         
         // Set color
         mesh.material.color.copy(glyph.color);
-        mesh.scale.setScalar(glyph.scale * 0.3); // Mini size
+        mesh.scale.setScalar(glyph.scale * 0.6); // Mini size (2x of previous)
+        mesh.rotation.set(glyph.rotation.x, glyph.rotation.y, glyph.rotation.z);
         
         // Store animation data
         mesh.userData.glyphData = glyph;
         mesh.userData.wordIndex = wordIndex;
         mesh.userData.glyphIndex = glyphIndex;
+        mesh.userData.wordType = word.type;
         
-        group.add(mesh);
+        wordGroup.add(mesh);
         message.meshes.push(mesh);
       });
       
-      offsetY += 0.12;
+      group.add(wordGroup);
+      message.wordGroups.push(wordGroup);
     });
     
     // Add to scene
@@ -611,28 +991,89 @@ export class LinkedGlyphMessaging3_0 {
     const startPos = message.startPosition;
     const endPos = message.endPosition;
     const currentPos = startPos.clone().lerp(endPos, message.progress);
+    const enterPhase = this._clamp01(message.progress / 0.18);
+    const settlePhase = this._clamp01((message.progress - 0.18) / 0.52);
+    const dissolvePhase = this._clamp01((message.progress - 0.76) / 0.24);
+    const clusterDrift = (1 - settlePhase) * 0.04;
+    const flightPattern = message.flightPattern || this._selectMessageFlightPattern(message);
     
     message.meshGroup.position.copy(currentPos);
+    const flightT = Math.min(1, Math.max(0, message.progress));
+    const flightOffset = this._applyFlightPatternToPosition(
+      new THREE.Vector3(),
+      message,
+      flightPattern,
+      flightT,
+      settlePhase
+    );
+    message.meshGroup.position.add(flightOffset.multiplyScalar(clusterDrift));
+    message.meshGroup.rotation.z = Math.sin(this.globalTime * 1.2 + message.seed) * 0.03 + settlePhase * 0.06 + (flightPattern.mode === 'zigzag' ? 0.05 : 0);
+    message.meshGroup.scale.setScalar(
+      0.92 + enterPhase * 0.08 + settlePhase * 0.08 - dissolvePhase * 0.12
+    );
     
     // Add jitter from stability
     const jitter = (message.sourceMetrics?.stability ?? 0) * this.config.jitterFromStability;
-    message.meshGroup.position.x += (Math.random() - 0.5) * jitter;
-    message.meshGroup.position.y += (Math.random() - 0.5) * jitter;
-    message.meshGroup.position.z += (Math.random() - 0.5) * jitter;
+    message.meshGroup.position.x += (Math.sin(this.globalTime * 2.2 + message.seed) * 0.5) * jitter * (1 - settlePhase) * 0.3;
+    message.meshGroup.position.y += (Math.cos(this.globalTime * 1.7 + message.seed) * 0.5) * jitter * (1 - settlePhase) * 0.3;
+    message.meshGroup.position.z += (Math.sin(this.globalTime * 1.4 + message.seed * 0.7) * 0.5) * jitter * (1 - settlePhase) * 0.22;
     
     // Add distortion from corruption
     const distortion = (message.linkData.corruption ?? 0) * this.config.distortionFromCorruption;
-    message.meshGroup.rotation.x += (Math.random() - 0.5) * distortion;
-    message.meshGroup.rotation.y += (Math.random() - 0.5) * distortion;
+    message.meshGroup.rotation.x = Math.sin(this.globalTime * 0.8 + message.seed) * distortion * 0.18;
+    message.meshGroup.rotation.y = Math.cos(this.globalTime * 0.7 + message.seed) * distortion * 0.18;
     
     // Global rotation animation
-    message.meshGroup.rotation.z += this.config.glyphRotationSpeed * deltaTime;
+    message.meshGroup.rotation.z += this.config.glyphRotationSpeed * deltaTime * (0.15 + enterPhase * 0.08);
+
+    // Aura layers: keep them subtle so the cluster still feels hand-formed.
+    message.auraMeshes.forEach((mesh, index) => {
+      if (!mesh?.material) return;
+      mesh.rotation.z += deltaTime * (0.08 + index * 0.03);
+      mesh.rotation.x = Math.sin(this.globalTime * 0.62 + index + message.seed) * 0.03;
+      const auraPulse = 0.94 + Math.sin(this.globalTime * 1.8 + index + message.seed) * 0.04;
+      mesh.scale.setScalar(1 + enterPhase * 0.04 + settlePhase * 0.08 - dissolvePhase * 0.08 + (index === 0 ? 0.02 : 0));
+      mesh.material.opacity = (mesh.userData.baseOpacity || mesh.material.opacity) * auraPulse * (0.24 + settlePhase * 0.18) * (1 - dissolvePhase * 0.55);
+    });
+
+    // Word groups stay clustered, but each role occupies a different emotional pocket.
+    message.wordGroups.forEach((wordGroup, wordIndex) => {
+      const basePosition = wordGroup.userData.basePosition || new THREE.Vector3();
+      const driftPhase = this.globalTime * 1.15 + message.seed + wordIndex * 0.74;
+      const settleBias = wordIndex === 0 ? 0.0 : wordIndex === 1 ? 0.015 : wordIndex === 2 ? -0.008 : 0.01;
+      const rolePattern = flightPattern.mode;
+      const rolePulse = rolePattern === 'spiral' ? 1 : rolePattern === 'arc' ? 0.85 : rolePattern === 'zigzag' ? 1.25 : rolePattern === 'flare' ? 0.95 : 0.8;
+      const motionVariant = wordGroup.userData.motionVariant || this._selectClusterMotionVariant(message, wordIndex);
+      const variantPulse = motionVariant === 'coil' ? 1.05 : motionVariant === 'sweep' ? 0.9 : 1.2;
+      wordGroup.position.copy(basePosition);
+      const variantOffset = this._applyClusterMotionVariant(
+        new THREE.Vector3(),
+        message,
+        motionVariant,
+        wordIndex,
+        message.progress,
+        settlePhase,
+        rolePulse * variantPulse
+      );
+      wordGroup.position.add(variantOffset);
+      wordGroup.position.x += Math.sin(driftPhase) * 0.01 * (1 - settlePhase) * rolePulse;
+      wordGroup.position.y += Math.cos(driftPhase * 0.9) * 0.01 * (1 - settlePhase) * rolePulse + settleBias;
+      wordGroup.position.z += Math.sin(driftPhase * 0.7) * 0.006 * (1 - settlePhase) * rolePulse;
+      wordGroup.rotation.y = Math.sin(driftPhase) * 0.035 * (1 - settlePhase);
+      wordGroup.rotation.z += (wordIndex === 2 ? 0.08 : 0.02) * (1 - settlePhase) + (flightPattern.mode === 'arc' && wordIndex === 0 ? 0.03 : 0) + (motionVariant === 'fracture' ? 0.04 : 0);
+      wordGroup.scale.setScalar(1.04 + enterPhase * 0.04 + settlePhase * 0.08 - dissolvePhase * 0.08 + (motionVariant === 'coil' ? 0.02 : motionVariant === 'fracture' ? 0.04 : 0));
+    });
     
     // Breathing animation on individual glyphs
     message.meshes.forEach((mesh, index) => {
-      const phase = (this.globalTime + index * 0.2) * this.config.glyphBreathingSpeed;
+      const glyph = mesh.userData.glyphData || {};
+      const phase = (this.globalTime + index * 0.2 + message.seed) * this.config.glyphBreathingSpeed;
       const breathScale = 1.0 + Math.sin(phase) * this.config.glyphBreathingAmplitude;
-      mesh.scale.setScalar(mesh.userData.glyphData.scale * 0.3 * breathScale);
+      mesh.scale.setScalar(glyph.scale * 0.6 * breathScale * (0.96 + settlePhase * 0.08));
+      mesh.rotation.x = (glyph.rotation?.x || 0) + Math.sin(phase * 0.7) * 0.035 * (1 - settlePhase);
+      mesh.rotation.y = (glyph.rotation?.y || 0) + Math.cos(phase * 0.6) * 0.035 * (1 - settlePhase);
+      mesh.rotation.z = (glyph.rotation?.z || 0) + settlePhase * 0.1 + (message.linkData.corruption ?? 0) * 0.14;
+      mesh.material.opacity = (glyph.opacity ?? 0.9) * (0.84 + settlePhase * 0.1) * (1 - dissolvePhase * 0.82);
     });
     
     // Fade out as message completes
@@ -641,6 +1082,11 @@ export class LinkedGlyphMessaging3_0 {
       const fadeAlpha = 1.0 - ((message.progress - fadeStart) / (1.0 - fadeStart));
       message.meshes.forEach(mesh => {
         mesh.material.opacity = fadeAlpha * 0.9;
+      });
+      message.auraMeshes.forEach(mesh => {
+        if (mesh?.material) {
+          mesh.material.opacity = (mesh.userData.baseOpacity || mesh.material.opacity) * fadeAlpha;
+        }
       });
     }
   }
@@ -719,11 +1165,21 @@ export class LinkedGlyphMessaging3_0 {
       this.messageContainer.remove(message.meshGroup);
       
       // Clean up geometries and materials
-      message.meshes.forEach(mesh => {
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) mesh.material.dispose();
+      message.meshGroup.traverse(obj => {
+        if (!obj.isMesh) return;
+        obj.geometry?.dispose?.();
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => mat?.dispose?.());
+        } else {
+          obj.material?.dispose?.();
+        }
       });
     }
+
+    message.meshes.length = 0;
+    message.wordGroups?.length && (message.wordGroups.length = 0);
+    message.auraMeshes?.length && (message.auraMeshes.length = 0);
+    message.meshGroup = null;
   }
   
   /**

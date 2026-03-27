@@ -163,6 +163,7 @@ export class Bead {
     this.size = size;
     this.radius = BEAD_CONFIG.sizes[size];
     this.speed = speed; // units per second along curve
+    this.link = null;
     
     this.t = 0; // Parameter on curve [0, 1]
     this.age = 0; // Time since spawn
@@ -205,6 +206,7 @@ export class Bead {
     this.laneIndex = 0;
     this.laneJitter = 0;
     this.laneCount = 4;
+    this.link = null;
   }
 }
 
@@ -346,6 +348,7 @@ export class LinkBeadPool {
         bead.laneCount = laneCount;
         bead.laneIndex = Math.floor(Math.random() * laneCount); // follow one braid lane
         bead.laneJitter = (Math.random() - 0.5) * 0.12;         // low jitter, avoid side drift
+        bead.link = this.link;
         
         return true;
       }
@@ -522,7 +525,7 @@ export class BeadRenderer {
     const beadsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_BEADS');
     mesh.renderOrder = beadsOrder;
     const ud = mesh.userData || (Object.defineProperty(mesh, 'userData', { value: {}, writable: true, configurable: true }), mesh.userData);
-    Object.assign(ud, { bead: bead, isBead: true });
+    Object.assign(ud, { bead: bead, isBead: true, link: this.link });
     
     // Apply optional visual effects (disabled by default)
     applyBeadEffects(mesh);

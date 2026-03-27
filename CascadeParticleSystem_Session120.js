@@ -32,6 +32,7 @@
 import * as THREE from 'three';
 import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
 
 export class CascadeParticleSystem_Session120 {
   constructor(scene, config = {}) {
@@ -41,13 +42,27 @@ export class CascadeParticleSystem_Session120 {
       maxParticles: config.maxParticles ?? 3000,
       baseSize: config.baseSize ?? 4.8,
       visualSizeBoost: config.visualSizeBoost ?? 1.6,
-      emissionRate: config.emissionRate ?? 6.0,
+      emissionRate: config.emissionRate ?? 4.8,
       enabled: config.enabled ?? true,
       debugMode: config.debugMode ?? false,
       baseCascadeParticles: config.baseCascadeParticles ?? 60,
       hopDecay: config.hopDecay ?? 0.82,
       cascadeHopCooldown: config.cascadeHopCooldown ?? 0.3, // Cooldown in seconds
-      minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.05 // Lowered threshold
+      minimumVisibleIntensity: config.minimumVisibleIntensity ?? 0.05, // Lowered threshold
+      distanceSize: {
+        perspectiveBase: config.distanceSize?.perspectiveBase ?? 180.0,
+        falloffRate: config.distanceSize?.falloffRate ?? 0.0135,
+        falloffExponent: config.distanceSize?.falloffExponent ?? 1.45,
+        minPointSize: config.distanceSize?.minPointSize ?? 1.5,
+        maxPointSize: config.distanceSize?.maxPointSize ?? 28.0
+      },
+      lod: {
+        enabled: config.lod?.enabled ?? true,
+        nearDistance: config.lod?.nearDistance ?? 14.0,
+        farDistance: config.lod?.farDistance ?? 42.0,
+        minDensity: config.lod?.minDensity ?? 0.42,
+        minOpacity: config.lod?.minOpacity ?? 0.55
+      }
     };
     
     // Texture Atlas Dimensions
@@ -73,6 +88,7 @@ export class CascadeParticleSystem_Session120 {
     this._tmpSourceCategoryColor = new THREE.Color();
     this._tmpTargetCategoryColor = new THREE.Color();
     this._neutralParticleColor = new THREE.Color(1.0, 0.3, 0.1) // Bright orange-red for visibility
+    this._currentCamera = null;
     
     // Cascade hop cooldown tracking (per link)
     this._linkHopCooldowns = new Map(); // linkId -> lastHopTime
@@ -143,12 +159,14 @@ export class CascadeParticleSystem_Session120 {
     
     const positions = new Float32Array(this.config.maxParticles * 3);
     const colors = new Float32Array(this.config.maxParticles * 3);
+    const opacities = new Float32Array(this.config.maxParticles);
     const sizes = new Float32Array(this.config.maxParticles);
     const shapeIndices = new Float32Array(this.config.maxParticles); // 0-3 for atlas index
     const angles = new Float32Array(this.config.maxParticles); // Rotation
     
     this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('shapeIndex', new THREE.BufferAttribute(shapeIndices, 1).setUsage(THREE.DynamicDrawUsage));
     this.geometry.setAttribute('angle', new THREE.BufferAttribute(angles, 1).setUsage(THREE.DynamicDrawUsage));
@@ -157,30 +175,43 @@ export class CascadeParticleSystem_Session120 {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         uAtlas: { value: this.textureAtlas },
-        uGridSize: { value: this.gridSize }
+        uGridSize: { value: this.gridSize },
+        uDistanceSizeBase: { value: this.config.distanceSize.perspectiveBase },
+        uDistanceFalloffRate: { value: this.config.distanceSize.falloffRate },
+        uDistanceFalloffExponent: { value: this.config.distanceSize.falloffExponent },
+        uMinPointSize: { value: this.config.distanceSize.minPointSize },
+        uMaxPointSize: { value: this.config.distanceSize.maxPointSize }
       },
       vertexShader: `
         attribute float size;
         attribute vec3 color;
+        attribute float opacity;
         attribute float shapeIndex;
         attribute float angle;
+        uniform float uDistanceSizeBase;
+        uniform float uDistanceFalloffRate;
+        uniform float uDistanceFalloffExponent;
+        uniform float uMinPointSize;
+        uniform float uMaxPointSize;
         
         varying vec3 vColor;
+        varying float vOpacity;
         varying float vShapeIndex;
         varying float vAngle;
         
         void main() {
           vColor = color;
+          vOpacity = opacity;
           vShapeIndex = shapeIndex;
           vAngle = angle;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           // Stronger distance falloff so far particles visibly shrink instead of staying billboard-large.
           float viewDistance = max(1.0, length(mvPosition.xyz));
-          float perspectiveFactor = 180.0 / max(1.0, -mvPosition.z);
-          float distanceFalloff = clamp(exp(-viewDistance * 0.0180), 0.02, 1.0);
-          float shrinkCurve = pow(distanceFalloff, 1.8);
-          gl_PointSize = clamp(size * perspectiveFactor * shrinkCurve, 1.5, 24.0);
+          float perspectiveFactor = uDistanceSizeBase / max(1.0, -mvPosition.z);
+          float distanceFalloff = clamp(exp(-viewDistance * uDistanceFalloffRate), 0.05, 1.0);
+          float shrinkCurve = pow(distanceFalloff, uDistanceFalloffExponent);
+          gl_PointSize = clamp(size * perspectiveFactor * shrinkCurve, uMinPointSize, uMaxPointSize);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -189,6 +220,7 @@ export class CascadeParticleSystem_Session120 {
         uniform float uGridSize;
         
         varying vec3 vColor;
+        varying float vOpacity;
         varying float vShapeIndex;
         varying float vAngle;
         
@@ -225,7 +257,7 @@ export class CascadeParticleSystem_Session120 {
           vec3 baseColor = vColor.rgb;
           vec3 finalColor = baseColor * 1.15 + vec3(0.08, 0.02, 0.02); // Warm tint for cascade feel
           
-          gl_FragColor = vec4(finalColor, combinedAlpha * 0.78);
+          gl_FragColor = vec4(finalColor, combinedAlpha * 0.78 * vOpacity);
           
           if (gl_FragColor.a < 0.01) discard;
         }
@@ -388,6 +420,7 @@ export class CascadeParticleSystem_Session120 {
         pathProgress: 0, // 0-1 along link
         pathDirection: 1, // 1 or -1
         pathOffset: new THREE.Vector3(), // Lateral offset
+        opacityScale: 1.0,
         // Semantic Data
         conflictType: 'none',
         flowType: 'forward', // forward, backflow, oscillatory
@@ -400,8 +433,9 @@ export class CascadeParticleSystem_Session120 {
   /**
    * Update Loop
    */
-  update(deltaTime, activeLinks) {
+  update(deltaTime, activeLinks, camera = null) {
     const resolvedLinks = this._resolveActiveLinks(activeLinks);
+    this._currentCamera = camera ?? null;
     this._ensureMeshAttached();
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
@@ -428,7 +462,7 @@ export class CascadeParticleSystem_Session120 {
     this._syncFirstSeenActiveLinks(resolvedLinks, currentCascadeTime);
 
     // Update existing active particles.
-    this._updateParticles(cascadeDelta, currentCascadeTime);
+    this._updateParticles(cascadeDelta, currentCascadeTime, this._currentCamera);
 
     // Fallback spawn for links that have not yet emitted through lifecycle callbacks.
     this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
@@ -464,7 +498,7 @@ export class CascadeParticleSystem_Session120 {
     }
   }
 
-  spawnCascadeParticles(link, intensity = 0, hopIndex = 0) {
+  spawnCascadeParticles(link, intensity = 0, hopIndex = 0, camera = null) {
     if (!this.config.enabled || !link) return;
 
     this._ensureCanonicalLinkDefaults([link]);
@@ -497,8 +531,9 @@ export class CascadeParticleSystem_Session120 {
       'neutral';
     const shapeIndex = this._getShapeIndexForConflict(conflictType);
     const flowType = this._determineFlowType(conflictType, scaledIntensity);
+    const lod = this._getCascadeLinkLod(link, camera ?? this._currentCamera);
 
-    this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition);
+    this._emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition, targetPosition, lod);
   }
   
   /**
@@ -508,7 +543,7 @@ export class CascadeParticleSystem_Session120 {
     if (!Array.isArray(links) || links.length === 0) return;
     for (const link of links) {
       if (!link?.id || link.active === false) continue;
-      const linkState = this._getCascadeLinkState(link);
+      const linkState = this._getCascadeLinkState(link, this._currentCamera);
       if (!linkState.isRelevant) continue;
       const spawnState = this._linkSpawnState.get(link.id);
       const emissionInterval = this._getEmissionInterval(linkState);
@@ -558,7 +593,7 @@ export class CascadeParticleSystem_Session120 {
     if (!link?.id || link.active === false) return;
 
     this._ensureCanonicalLinkDefaults([link]);
-    const currentState = this._getCascadeLinkState(link);
+    const currentState = this._getCascadeLinkState(link, this._currentCamera);
     if (!currentState.isRelevant) {
       this._linkSpawnState.set(link.id, currentState);
       return;
@@ -620,7 +655,8 @@ export class CascadeParticleSystem_Session120 {
       linkState.conflictType,
       currentCascadeTime,
       sourcePosition,
-      targetPosition
+      targetPosition,
+      linkState
     );
   }
 
@@ -629,7 +665,7 @@ export class CascadeParticleSystem_Session120 {
     return this._linkSpawnState.get(link.id) || null;
   }
 
-  _getCascadeLinkState(link) {
+  _getCascadeLinkState(link, camera = null) {
     const u = link?.userData || {};
     const flowState = u.flowState || {};
     const canonicalIntensitySources = [
@@ -647,7 +683,10 @@ export class CascadeParticleSystem_Session120 {
     const conflictType = u.cascadeConflictType || flowState.type || 'neutral';
     const boost = Number(u.cascadeParticleEmissionBoost ?? 1.0) || 1.0;
     const density = Number(u.particleDensityMultiplier ?? 1.0) || 1.0;
-    const relevantIntensity = normalizedIntensity * boost * density;
+    const lod = this._getCascadeLinkLod(link, camera);
+    const lodDensity = Math.max(0.15, Math.min(1, Number(lod?.densityScale ?? 1) || 1));
+    const lodOpacity = Math.max(0.15, Math.min(1, Number(lod?.opacityScale ?? 1) || 1));
+    const relevantIntensity = normalizedIntensity * boost * density * lodDensity;
     const isRelevant = relevantIntensity >= this.config.minimumVisibleIntensity;
     const shapeIndex = this._getShapeIndexForConflict(conflictType);
     const flowType = this._determineFlowType(conflictType, relevantIntensity);
@@ -658,7 +697,8 @@ export class CascadeParticleSystem_Session120 {
       flowType,
       Math.round(relevantIntensity * 20),
       Math.round(boost * 10),
-      Math.round(density * 10)
+      Math.round(density * 10),
+      Math.round(lodDensity * 10)
     ].join('|');
 
     return {
@@ -667,7 +707,53 @@ export class CascadeParticleSystem_Session120 {
       conflictType,
       shapeIndex,
       flowType,
-      isRelevant
+      isRelevant,
+      densityScale: lodDensity,
+      opacityScale: lodOpacity,
+      distanceScale: lod?.distanceScale ?? 1
+    };
+  }
+
+  _getCascadeLinkLod(link, camera = null) {
+    const lodConfig = this.config.lod || {};
+    if (!lodConfig.enabled || !camera?.position) {
+      return {
+        distanceScale: 1,
+        densityScale: 1,
+        opacityScale: 1,
+        distance: 0
+      };
+    }
+
+    const sourceNode = link?.source ?? link?.sourceNode ?? link?.from ?? null;
+    const targetNode = link?.target ?? link?.targetNode ?? link?.to ?? null;
+    const sourcePos = this._resolveWorldPosition(sourceNode, this._tmpSourceWorldPos);
+    const targetPos = this._resolveWorldPosition(targetNode, this._tmpTargetWorldPos);
+    if (!sourcePos || !targetPos) {
+      return {
+        distanceScale: 1,
+        densityScale: 1,
+        opacityScale: 1,
+        distance: 0
+      };
+    }
+
+    this._tmpMidpoint.lerpVectors(sourcePos, targetPos, 0.5);
+    const distance = camera.position.distanceTo(this._tmpMidpoint);
+    const near = Math.max(0.001, Number(lodConfig.nearDistance) || 0.001);
+    const far = Math.max(near + 0.001, Number(lodConfig.farDistance) || near + 0.001);
+    const t = Math.max(0, Math.min(1, (distance - near) / (far - near)));
+    const smooth = t * t * (3 - 2 * t);
+    const minDensity = Math.max(0.05, Math.min(1, Number(lodConfig.minDensity) || 1));
+    const minOpacity = Math.max(0.05, Math.min(1, Number(lodConfig.minOpacity) || 1));
+    const densityScale = 1 - (1 - minDensity) * smooth;
+    const opacityScale = 1 - (1 - minOpacity) * smooth;
+
+    return {
+      distanceScale: 1 - smooth,
+      densityScale,
+      opacityScale,
+      distance
     };
   }
 
@@ -682,7 +768,7 @@ export class CascadeParticleSystem_Session120 {
    * Emit N particles for a link
    * Respects density clustering parameters from Session 121
    */
-  _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null) {
+  _emit(count, link, shapeIndex, flowType, conflictType, currentCascadeTime, sourcePosition = null, targetPosition = null, lodState = null) {
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
     if (!srcPos || !dstPos) {
@@ -704,8 +790,6 @@ export class CascadeParticleSystem_Session120 {
       srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
       '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
     
-    const color = this._resolveParticleColor(link);
-    
     // Session 121: Density & Clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
     const clusterRadius = link?.userData?.particleClusterRadius ?? 0.2;
@@ -714,6 +798,7 @@ export class CascadeParticleSystem_Session120 {
     const targetCategory = link?.target?.userData?.category || link?.targetNode?.userData?.category || sourceCategory;
     const sourceColor = this._resolveCategoryColor(sourceCategory, this._neutralParticleColor, this._tmpSourceCategoryColor);
     const targetColor = this._resolveCategoryColor(targetCategory, this._neutralParticleColor, this._tmpTargetCategoryColor);
+    const opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? lodState?.lodOpacity ?? 1) || 1));
     
     for (let i = 0; i < count; i++) {
       const p = this._allocateParticle();
@@ -733,6 +818,7 @@ export class CascadeParticleSystem_Session120 {
       p.flowType = flowType;
       p.sourceColor.copy(sourceColor);
       p.targetColor.copy(targetColor);
+      p.opacityScale = opacityScale;
       
       // Position along link: respects clustering
       // High cohesion = spawn particles closer together (cluster formation)
@@ -763,10 +849,12 @@ export class CascadeParticleSystem_Session120 {
 
       // Prime initial color immediately so the first frame already reflects the category gradient.
       const colors = this.geometry.attributes.color.array;
+      const opacities = this.geometry.attributes.opacity.array;
       this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, p.pathProgress);
       colors[p.index * 3] = this._tmpParticleColor.r;
       colors[p.index * 3 + 1] = this._tmpParticleColor.g;
       colors[p.index * 3 + 2] = this._tmpParticleColor.b;
+      opacities[p.index] = p.opacityScale;
       
       // Initial update to set position
       this._updateSingleParticle(p, 0, currentCascadeTime);
@@ -776,11 +864,12 @@ export class CascadeParticleSystem_Session120 {
   /**
    * Update all active particles
    */
-  _updateParticles(deltaTime, currentCascadeTime) {
+  _updateParticles(deltaTime, currentCascadeTime, camera = null) {
     let activeCount = 0;
 
     const positions = this.geometry.attributes.position.array;
     const colors = this.geometry.attributes.color.array;
+    const opacities = this.geometry.attributes.opacity.array;
     const sizes = this.geometry.attributes.size.array;
     const angles = this.geometry.attributes.angle.array;
     
@@ -796,6 +885,7 @@ export class CascadeParticleSystem_Session120 {
       if (age >= p.maxLifetime) {
         p.active = false;
         positions[i * 3] = 99999;
+        opacities[i] = 0;
         diedFromAge++;
         continue;
       }
@@ -805,6 +895,7 @@ export class CascadeParticleSystem_Session120 {
       if (!p.active) {
         diedFromUpdate++;
         positions[i * 3] = 99999;
+        opacities[i] = 0;
         continue;
       }
       
@@ -812,10 +903,14 @@ export class CascadeParticleSystem_Session120 {
       positions[i * 3] = p.position.x;
       positions[i * 3 + 1] = p.position.y;
       positions[i * 3 + 2] = p.position.z;
+
+      const lodState = this._getCascadeLinkLod(p.linkRef, camera ?? this._currentCamera);
+      p.opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? p.opacityScale ?? 1) || 1));
+      opacities[i] = p.opacityScale;
       
       // Fade out size
       const lifeRatio = age / p.maxLifetime;
-      const fade = Math.sin(lifeRatio * Math.PI); // Smooth arc
+      const fade = Math.sin(lifeRatio * Math.PI) * (0.88 + p.opacityScale * 0.12); // Smooth arc
       sizes[i] = this.config.baseSize * this.config.visualSizeBoost * fade;
 
       // Category-aware gradient color along the link path.
@@ -1009,25 +1104,7 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _resolveCategoryColor(category, fallbackColor = this._neutralParticleColor, outColor = this._tmpParticleColor) {
-    const palette = {
-      input: 0x00ddff,
-      process: 0xffaa00,
-      integration: 0x00ff88,
-      analytics: 0xaa00ff,
-      storage: 0x88ccff,
-      control: 0xff0088,
-      quantum: 0x00ffff,
-      sigma: 0x00ff00,
-      emotional: 0xff8800,
-      mythic: 0x9933ff,
-      prime: 0xffd700,
-      error: 0xffffff
-    };
-    const hex = palette[String(category || '').toLowerCase()] || null;
-    if (hex !== null) {
-      return outColor.setHex(hex);
-    }
-    return outColor.copy(fallbackColor);
+    return resolveLinkCategoryColor(category, fallbackColor, outColor);
   }
 
   _resolveActiveLinks(links) {
@@ -1127,6 +1204,7 @@ export class CascadeParticleSystem_Session120 {
 
     const positionAttribute = this.geometry.attributes.position;
     const colorAttribute = this.geometry.attributes.color;
+    const opacityAttribute = this.geometry.attributes.opacity;
     const sizeAttribute = this.geometry.attributes.size;
     const angleAttribute = this.geometry.attributes.angle;
     const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
@@ -1134,6 +1212,7 @@ export class CascadeParticleSystem_Session120 {
     // Update full buffer - particles are at arbitrary pool indices, not contiguous from 0
     positionAttribute.needsUpdate = true;
     colorAttribute.needsUpdate = true;
+    opacityAttribute.needsUpdate = true;
     sizeAttribute.needsUpdate = true;
     angleAttribute.needsUpdate = true;
     shapeIndexAttribute.needsUpdate = true;

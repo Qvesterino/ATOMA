@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import { resolveLinkCategoryColor } from './LinkCategoryColorContract.js';
 
 /**
  * GPU-Driven Particle Trail System for Beads
@@ -127,6 +128,8 @@ export class LinkBeadTrailSystem {
         this._tmpLaneBinormal = new THREE.Vector3();
         this._tmpLanePos = new THREE.Vector3();
         this._tmpColor = new THREE.Color();
+        this._tmpSourceCategoryColor = new THREE.Color();
+        this._tmpTargetCategoryColor = new THREE.Color();
         
         // Configuration
         this.config = {
@@ -230,6 +233,9 @@ export class LinkBeadTrailSystem {
             const beadPos = mesh.position;
             const beadColor = mesh.material?.color;
             const beadEmissive = mesh.material?.emissive;
+            const beadLink = bead?.link || mesh.userData?.link || null;
+            const sourceCategory = beadLink?.source?.userData?.category || beadLink?.sourceNode?.userData?.category || null;
+            const targetCategory = beadLink?.target?.userData?.category || beadLink?.targetNode?.userData?.category || sourceCategory;
             const previous = this._prevBeadPos.get(bead) || beadPos.clone();
             const dir = this._tmpDir;
             if (hasCurve && typeof bead?.t === 'number') {
@@ -241,7 +247,12 @@ export class LinkBeadTrailSystem {
             dir.normalize();
             this._prevBeadPos.set(bead, beadPos.clone());
 
-            if (beadColor?.isColor) {
+            if (sourceCategory || targetCategory) {
+                const srcColor = resolveLinkCategoryColor(sourceCategory, beadColor, this._tmpSourceCategoryColor);
+                const dstColor = resolveLinkCategoryColor(targetCategory, srcColor, this._tmpTargetCategoryColor);
+                const beadT = hasCurve && typeof bead?.t === 'number' ? Math.max(0.0, Math.min(1.0, bead.t)) : 0.5;
+                this._tmpColor.copy(srcColor).lerp(dstColor, beadT);
+            } else if (beadColor?.isColor) {
                 this._tmpColor.copy(beadColor);
                 if (beadEmissive?.isColor) {
                     this._tmpColor.lerp(beadEmissive, 0.22);

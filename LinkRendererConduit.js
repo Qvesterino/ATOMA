@@ -29,6 +29,7 @@ import { ImpactManagerCollection } from './NodeImpactManager.js';
 import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import VisualTime from './src/time/VisualTime.js';
 import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
+import { getLinkCategoryHex } from './LinkCategoryColorContract.js';
 
 function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
     if (!curve?.getLength) return minSeg;
@@ -4096,13 +4097,7 @@ export class LinkRendererConduit {
     }
 
     getCategoryColor(category) {
-        const colors = {
-            'input': 0x00ddff, 'process': 0xffaa00, 'integration': 0x00ff88,
-            'analytics': 0xaa00ff, 'storage': 0x88ccff, 'control': 0xff0088,
-            'quantum': 0x00ffff, 'sigma': 0x00ff00, 'emotional': 0xff8800,
-            'mythic': 0x9933ff, 'prime': 0xffd700, 'error': 0xffffff
-        };
-        return colors[category] || 0xcccccc;
+        return getLinkCategoryHex(category, 0xcccccc);
     }
 
     _getNodeId(node) {
