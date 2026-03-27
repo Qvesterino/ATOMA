@@ -30,11 +30,6 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 import VisualTime from './src/time/VisualTime.js';
 import { LinkSemanticPictogramSystem_WithFusion } from './LinkSemanticPictogramSystem_WithFusion.js';
 
-if (typeof window !== 'undefined' && !window.__PicDiagConduitModuleLoaded__) {
-    console.info('[PicDiag] LinkRendererConduit module loaded');
-    window.__PicDiagConduitModuleLoaded__ = true;
-}
-
 function computeSegmentsFromLength(curve, density = 8, minSeg = 12, maxSeg = 200) {
     if (!curve?.getLength) return minSeg;
     const length = curve.getLength();
@@ -850,9 +845,7 @@ export class LinkRendererConduit {
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
-        this._picDiagCount = 0;
         if (typeof window !== 'undefined') {
-            console.info('[PicDiag] Conduit constructed');
             window.__ConduitRenderer__ = this;
         }
         this._nodeMetricCache = new Map();
@@ -1000,7 +993,6 @@ export class LinkRendererConduit {
         if (typeof window !== 'undefined') {
             if (window.__PIC_SYSTEM__ && window.__PIC_SYSTEM__ !== this.pictogramSystem) {
                 if (!window.__PIC_SYSTEM_OVERWRITE_WARNED__) {
-                    console.warn('[PicDiag] __PIC_SYSTEM__ overwritten (new conduit instance)');
                     window.__PIC_SYSTEM_OVERWRITE_WARNED__ = true;
                 }
             }
@@ -1990,10 +1982,6 @@ export class LinkRendererConduit {
         if (FORCE_VISUAL_DEBUG) {
             console.warn('[DEBUG MODE ACTIVE] Visual systems are overridden');
         }
-        if (this._picDiagCount < 3) {
-            console.log('[PicDiag] updateAll tick', this._picDiagCount + 1);
-            this._picDiagCount += 1;
-        }
 
         const list = links
             || this.linkSystem?.links
@@ -2123,29 +2111,7 @@ export class LinkRendererConduit {
             });
         }
 
-        if (!this._picDiagLogged) {
-            if (!this.pictogramSystem) {
-                console.warn('[PicDiag] pictogramSystem missing');
-                this._picDiagLogged = true;
-            } else if (!this.pictogramSystem.enabled) {
-                console.warn('[PicDiag] pictogramSystem disabled');
-                this._picDiagLogged = true;
-            }
-        }
         if (run30 && this.pictogramSystem?.enabled) {
-            if (!this._picDiagLogged) {
-                const ps = this.pictogramSystem;
-                const pictos = ps?.pictograms || [];
-                const active = pictos.filter(p => p.active).length;
-                const firstActive = pictos.find(p => p.active);
-                console.log('[PicDiag] links:', list.length,
-                    'pool:', pictos.length,
-                    'active:', active,
-                    'containerChildren:', ps?.container?.children?.length,
-                    'spiralRadius:', firstActive?.spiralRadius,
-                    'envelope:', firstActive?.link?.visualEnvelopeRadius);
-                this._picDiagLogged = true;
-            }
             this.pictogramSystem.update(deltaTime, time, this.camera);
         }
 
@@ -4793,14 +4759,9 @@ export class LinkRendererConduit {
      */
     updatePictograms(deltaTime, time) {
         if (this.pictogramSystem?.enabled) {
-            if (!this._picDiagTicked) {
-                console.error('[PicDiag] updatePictograms entry');
-                this._picDiagTicked = true;
-            }
             try {
                 this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), this.camera);
-            } catch (err) {
-                console.error('[PicDiag] pictogram update error', err);
+            } catch {
             }
         }
     }

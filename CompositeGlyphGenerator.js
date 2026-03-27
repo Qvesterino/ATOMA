@@ -31,6 +31,9 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class CompositeGlyphGenerator {
     constructor(scene = null, camera = null, network = null) {
+        this.scene = scene;
+        this.camera = camera;
+        this.network = network;
         this.cache = new Map(); // compositeSig -> geometry
         this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
@@ -41,12 +44,20 @@ export class CompositeGlyphGenerator {
     }
 
     initializeResonanceFeedback(scene, camera, network = null) {
+        this.scene = scene ?? this.scene;
+        this.camera = camera ?? this.camera;
+        this.network = network ?? this.network;
+
         if (!this.resonanceFeedback) {
             this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
         }
 
-        this.resonanceFeedback.initialize(scene, camera, network);
+        this.resonanceFeedback.initialize(this.scene, this.camera, this.network);
         return this.resonanceFeedback;
+    }
+
+    resetForWorldSwitch(scene, camera, network = null) {
+        return this.initializeResonanceFeedback(scene, camera, network);
     }
 
     /**

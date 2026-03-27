@@ -7,7 +7,7 @@
  * Performance: Zero mercy, all checks, every frame
  */
 
-import { enforceRenderHierarchy, isProtectedMesh } from './AbsoluteLinkStateNuclearLock.js';
+// REMOVED: AbsoluteLinkStateNuclearLock import - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 /**
  * 🎬 FRAME ENFORCEMENT: Run every render frame

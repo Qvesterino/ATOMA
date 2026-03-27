@@ -9,7 +9,11 @@
  * - RenderOrder and depth settings correct
  */
 
-import { hasValidLinkTarget, getLinkTarget } from './LinkStateVisualLock.js';
+// REMOVED: LinkStateVisualLock import - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+// Stub functions for compatibility
+const hasValidLinkTarget = (mesh) => mesh?.userData?.linkTarget != null;
+const getLinkTarget = (mesh) => mesh?.userData?.linkTarget || null;
+
 import { isProtectedFromLinkState } from './LinkTargetContract.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 

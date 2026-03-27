@@ -47,6 +47,35 @@ export class LinkSemanticPictogramSystem_WithFusion {
         console.log('[WithFusion] Initialized with fusion support');
     }
 
+    resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, camera = this.camera, linkingSystem = this.linkingSystem, aiNodes = null } = {}) {
+        this.scene = scene || this.scene;
+        this.worldRoot = worldRoot || this.worldRoot;
+        this.camera = camera || this.camera;
+        this.linkingSystem = linkingSystem || this.linkingSystem;
+
+        if (this.pictogramSystem) {
+            this.pictogramSystem.scene = this.scene;
+            this.pictogramSystem.camera = this.camera;
+            this.pictogramSystem.linkingSystem = this.linkingSystem;
+        }
+
+        this.compositeGlyphGenerator?.resetForWorldSwitch?.(
+            this.scene,
+            this.camera,
+            { linkingSystem: this.linkingSystem, aiNodes }
+        );
+
+        this.fusionZoneManager?.resetForWorldSwitch?.({
+            scene: this.scene,
+            worldRoot: this.worldRoot,
+            camera: this.camera,
+            linkingSystem: this.linkingSystem,
+            aiNodes
+        });
+
+        return this;
+    }
+
     // ========================================================================
     // UPDATE
     // ========================================================================

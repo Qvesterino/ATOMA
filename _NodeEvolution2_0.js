@@ -570,17 +570,6 @@ export class NodeEvolution2_0 {
    */
   applyEvolutionToNode(node, glowIntensity, emissiveScale, ringOpacity, scale, stageDef) {
     // ============================================================
-    // SAFETY: Preserve position
-    // ============================================================
-    const originalPos = node.position.clone();
-    
-    // Update scale (with safety limit)
-    node.scale.setScalar(scale);
-    
-    // Restore position (prevent drift)
-    node.position.copy(originalPos);
-    
-    // ============================================================
     // Apply visual effects to children
     // ============================================================
     node.traverse((child) => {
@@ -886,23 +875,7 @@ export class NodeEvolution2_0 {
     const node = evolutionState.node;
     
     // ============================================================
-    // LOCK 1: Enforce position (prevent drift)
-    // ============================================================
-    if (node.userData.originalPosition) {
-      node.position.copy(node.userData.originalPosition);
-    }
-    
-    // ============================================================
-    // LOCK 2: Enforce scale limits
-    // ============================================================
-    const maxScale = this.config.animationLimits.maxScaleIncrease;
-    const currentScale = node.scale.x;
-    if (currentScale > maxScale) {
-      node.scale.setScalar(maxScale);
-    }
-    
-    // ============================================================
-    // LOCK 3: Zero rotation (prevent camera distortion)
+    // LOCK 1: Zero rotation (prevent camera distortion)
     // ============================================================
     if (node.userData.lockRotation) {
       node.rotation.set(0, 0, 0);

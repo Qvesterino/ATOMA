@@ -187,62 +187,8 @@ export function createNodeAuraMaterial(config = {}) {
       // Cascade hints → compress displacement
       float hintCompression = mix(1.0, 1.0 - uHintStrength * 0.5, uHintStrength);
       
-      // ========================================================================
-      // FLAME BREATHING (DISABLED - static aura)
-      // ========================================================================
-      // All motion disabled to prevent shaking/drifting
-      float breathing = 0.0;
-      
-      // Wave influence (DISABLED - was causing oscillation)
-      float waveOscillation = 0.0;
-      
       // Final displacement: ridged noise + state modulation
       float displacementFactor = ridgedNoise * uDisplacement * motionFactor * hintCompression;
-      displacementFactor += waveOscillation * 0.0;  // DISABLED - was causing shaking
-      displacementFactor += breathing;  // Add breathing oscillation (now0.0)
-      
-      // --- LINK BIRTH ENHANCEMENT ---
-      // Add directional pulse toward link when justLinked (uLinkBirthIntensity > 0)
-      float linkBirthPulse = 0.0;
-      if (uLinkBirthIntensity > 0.0) {
-        // Directional bias: dot product of normal toward link direction
-        float linkBias = max(0.0, dot(normalize(normal), normalize(uLinkDirection)));
-        
-        // Ease-in for 100-150ms, gentle decay for 500-700ms
-        float birthPhase = mod(uTime * 2.5, 1.0); // Total cycle ~400ms
-        float easeIn = smoothstep(0.0, 0.3, birthPhase);
-        float decay = mix(1.0, 0.0, smoothstep(0.3, 1.0, birthPhase));
-        
-        // Directional stretching toward link
-        linkBirthPulse = easeIn * decay * 0.35 * linkBias;
-        
-        // Radial ripple: expanding wave from center outward
-        float rippleTime = mod(uTime * 2.0, 1.5);
-        float rippleWave = sin(rippleTime * 3.14159) * exp(-rippleTime * 2.0);
-        linkBirthPulse += rippleWave * 0.15;
-      }
-      
-      // --- LINK REMOVAL DISSIPATION ---
-      // Opposite of birth: contraction inward with dissipation ripple
-      float linkRemovalPulse = 0.0;
-      if (uLinkRemovalIntensity > 0.0) {
-        // Contraction phase: aura shrinks inward quickly
-        float removalPhase = mod(uTime * 3.0, 1.0); // Slightly faster than birth
-        float contractIn = smoothstep(1.0, 0.0, removalPhase); // Reverse: 1 → 0
-        float dissipate = mix(1.0, 0.0, smoothstep(0.4, 1.0, removalPhase));
-        
-        // Inward contraction: pull away from link direction
-        float linkBiasInward = max(0.0, dot(normalize(normal), normalize(-uLinkDirection)));
-        linkRemovalPulse = contractIn * dissipate * -0.4 * linkBiasInward; // Negative for inward
-        
-        // Dissipation ripple: collapsing wave from outside inward
-        float rippleTimeRemoval = mod(uTime * 2.5, 1.2);
-        float rippleWaveRemoval = cos(rippleTimeRemoval * 3.14159) * exp(-rippleTimeRemoval * 2.5);
-        linkRemovalPulse -= rippleWaveRemoval * 0.12;
-      }
-      
-      displacementFactor += linkBirthPulse * uLinkBirthIntensity;
-      displacementFactor += linkRemovalPulse * uLinkRemovalIntensity;
       
       // --- PARTICLE IMPACT EFFECTS ---
       // Subtle deformation from particle arrivals (corruption/harmony)
@@ -255,7 +201,7 @@ export function createNodeAuraMaterial(config = {}) {
       // Link bending disabled to prevent drifting
       float linkBend = 0.0;
       
-      vec3 displaced = position + normalize(normal) * (ridgedNoise + linkBirthPulse + linkRemovalPulse + linkBend) * displacementFactor;
+      vec3 displaced = position + normalize(normal) * (ridgedNoise + linkBend) * displacementFactor;
       
       vNormal = normalize(normalMatrix * normal);
       vPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
@@ -301,11 +247,6 @@ export function createNodeAuraMaterial(config = {}) {
       auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uCorruption * 0.4);  // corruptionColor, nodeBlend 0.4
       auraColor = mix(auraColor, vec3(0.2, 0.8, 1.0), uSynergy * 0.25);
 
-      // Temporary debug wave tint: make resonance wave clearly visible
-      float waveDebug = clamp(uWaveInfluence, 0.0, 1.0);
-      auraColor = mix(auraColor, vec3(0.0, 0.95, 1.0), waveDebug * 0.85);
-      auraColor += vec3(0.15, 0.4, 1.0) * waveDebug * 0.35;
-      
       // --- PARTICLE IMPACT COLOR BIASES ---
       // Corruption particles arriving: enhance red tint (energy absorption)
       auraColor = mix(auraColor, vec3(1.0, 0.4, 0.4), uImpactCorruptionBias * 0.5);
@@ -336,7 +277,7 @@ export function createNodeAuraMaterial(config = {}) {
       // Opacity modulation
       float opacity = uOpacity * (0.7 + rim * 0.3);
       opacity *= (0.8 + vDisplacementFactor * 0.2);
-      opacity = min(1.0, opacity + waveDebug * 0.3);
+      opacity = min(1.0, opacity);
       
       gl_FragColor = vec4(auraColor, opacity);
     }

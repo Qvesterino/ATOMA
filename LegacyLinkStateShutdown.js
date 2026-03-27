@@ -5,7 +5,7 @@
  * Any attempt to mutate non-linkTarget meshes is BLOCKED with warnings.
  */
 
-import { getAbsoluteLinkTarget, isProtectedMesh, blockIllegalMutation } from './AbsoluteLinkStateNuclearLock.js';
+// REMOVED: AbsoluteLinkStateNuclearLock import - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 /**
  * 🛑 PROTECTED MATERIAL MUTATION INTERCEPTOR (OPTIMIZED - 2026-03-01)

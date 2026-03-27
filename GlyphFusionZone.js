@@ -92,6 +92,9 @@ class FusionZoneState {
     }
 
     reset() {
+        if (this.compositeGlyph?.reset) {
+            this.compositeGlyph.reset();
+        }
         this.active = false;
         this.node = null;
         this.sourceGlyphs.length = 0;
@@ -103,6 +106,7 @@ class FusionZoneState {
         if (this.compositeMesh) {
             this.compositeMesh.visible = false;
         }
+        this.compositeMesh = null;
         this.memoryTraces.length = 0;
     }
 
@@ -156,7 +160,7 @@ class CompositeGlyphInstance {
 
     update(deltaTime) {
         if (!this.active || !this.state) return;
-        if (!this.frameScheduler?.shouldRunSimulation?.()) return;
+        if (this.frameScheduler?.shouldRunSimulation && !this.frameScheduler.shouldRunSimulation()) return;
         // Fade in during synthesis
         if (this.progress < 1.0) {
             this.progress += deltaTime / CONFIG.SYNTHESIS_DURATION;
@@ -234,6 +238,27 @@ export class GlyphFusionZoneManager {
             const instance = new CompositeGlyphInstance(mesh);
             this.compositeGlyphs.push(instance);
         }
+    }
+
+    resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, camera = null, linkingSystem = null, aiNodes = null } = {}) {
+        this.scene = scene || this.scene;
+        this.worldRoot = worldRoot || this.worldRoot;
+        this._attachRoot = this.worldRoot || this.scene;
+
+        if (this.container && this._attachRoot && this.container.parent !== this._attachRoot) {
+            this.container.parent?.remove(this.container);
+            this._attachRoot.add(this.container);
+        }
+
+        if (this.compositeGlyphGenerator?.resetForWorldSwitch) {
+            this.compositeGlyphGenerator.resetForWorldSwitch(
+                this.scene,
+                camera || this.compositeGlyphGenerator.camera || null,
+                { linkingSystem, aiNodes }
+            );
+        }
+
+        return this;
     }
 
     // ========================================================================
@@ -469,6 +494,11 @@ export class GlyphFusionZoneManager {
         const composite = this.compositeGlyphs.find(c => !c.active);
         if (!composite) return;
 
+        const compositeId = zone.node?.uuid || zone.node?.userData?.id || zone.node?.id || `composite-${Date.now().toString(36)}`;
+        const sourceNodeIds = zone.sourceGlyphs
+            .map((glyph) => glyph?.node?.uuid || glyph?.node?.userData?.id || glyph?.link?.userData?.nodeA?.uuid || glyph?.link?.userData?.nodeB?.uuid)
+            .filter(Boolean);
+
         // Create new mesh with generated geometry
         const material = new THREE.MeshBasicMaterial({
             color: this.getCompositeColor(harmonyBalance),
@@ -483,18 +513,33 @@ export class GlyphFusionZoneManager {
         mesh.position.y += 0.9;  // Center above node
         mesh.renderOrder = geometry.userData?.renderOrder ?? VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         mesh.userData.visualLayer = geometry.userData?.layerId ?? VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
+        mesh.userData.isCompositeGlyph = true;
+        mesh.userData.compositeId = compositeId;
 
         this.container.add(mesh);
 
         // Replace placeholder mesh
         const oldMesh = composite.mesh;
         composite.mesh = mesh;
+        composite.id = compositeId;
+        composite.sourceNodeIds = sourceNodeIds;
+        composite.glyphData = {
+            harmony: harmonyBalance,
+            harmonyDominance: harmonyBalance,
+            corruption: 1.0 - harmonyBalance,
+            corruptionLevel: 1.0 - harmonyBalance,
+            synergyCoherence: zone.averageSynergy ?? 0.5,
+            stabilityIndex: context.stability ?? 0.5
+        };
         if (oldMesh && oldMesh.parent) {
             oldMesh.parent.remove(oldMesh);
         }
 
         composite.spawn(mesh, zone);
         zone.compositeMesh = mesh;
+        zone.compositeGlyph = composite;
+
+        this.compositeGlyphGenerator?.resonanceFeedback?.registerCompositeGlyph?.(composite);
     }
 
     getCompositeColor(harmonyBalance) {
@@ -528,6 +573,10 @@ export class GlyphFusionZoneManager {
         // Hide composite glyph
         if (zone.compositeMesh) {
             zone.compositeMesh.visible = false;
+        }
+
+        if (zone.compositeGlyph?.id) {
+            this.compositeGlyphGenerator?.resonanceFeedback?.unregisterCompositeGlyph?.(zone.compositeGlyph.id);
         }
 
         // Reset zone after separation

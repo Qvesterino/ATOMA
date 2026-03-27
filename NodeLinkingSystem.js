@@ -546,21 +546,12 @@ export class NodeLinkingSystem {
     if (typeof window !== 'undefined') {
       window.linkingSystem = this;
     }
-    console.error('[PicDiag] NodeLinkingSystem constructed');
 
-    // PicDiag heartbeat: log once after init and attempt a pictogram tick
     if (typeof window !== 'undefined') {
       setTimeout(() => {
-        console.info('[PicDiag] heartbeat', {
-          worldReady: this.worldReady,
-          links: this.links?.length || 0,
-          conduit: !!this.conduitRenderer,
-          pictogramSystem: !!this.conduitRenderer?.pictogramSystem
-        });
         try {
           this.conduitRenderer?.updatePictograms?.(0, performance.now());
-        } catch (err) {
-          console.error('[PicDiag] heartbeat pictogram tick error', err);
+        } catch {
         }
       }, 1500);
     }
@@ -5465,11 +5456,7 @@ getLinksForNode(node) {
     if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
       try {
         this.conduitRenderer.updatePictograms(deltaTime, time);
-      } catch (err) {
-        if (!this._picDiagErrorLogged) {
-          console.error('[PicDiag] pictogram tick error', err);
-          this._picDiagErrorLogged = true;
-        }
+      } catch {
       }
     }
 

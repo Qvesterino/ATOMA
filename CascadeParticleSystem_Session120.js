@@ -395,6 +395,7 @@ export class CascadeParticleSystem_Session120 {
    */
   update(deltaTime, activeLinks) {
     const resolvedLinks = this._resolveActiveLinks(activeLinks);
+    this._ensureMeshAttached();
     if (this._cascadeTimeOrigin === undefined) {
       this._cascadeTimeOrigin = VisualTime.now;
     }
@@ -446,6 +447,13 @@ export class CascadeParticleSystem_Session120 {
         '| firstActiveIdx:', firstActiveIdx,
         '| pos[' + idx + ']:', posAttr.array[idx*3].toFixed(2), posAttr.array[idx*3+1].toFixed(2), posAttr.array[idx*3+2].toFixed(2),
         '| size[' + idx + ']:', sizeAttr.array[idx].toFixed(2));
+    }
+  }
+
+  _ensureMeshAttached() {
+    if (!this.scene || !this.mesh) return;
+    if (this.mesh.parent !== this.scene) {
+      this.scene.add(this.mesh);
     }
   }
 

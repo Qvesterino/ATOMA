@@ -33,11 +33,6 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createPictogramMaterial } from './LinkPictogramLibrary.js';
 import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
-if (typeof window !== 'undefined' && !window.__PicDiagModuleLoaded__) {
-    console.info('[PicDiag] LinkSemanticPictogramSystem_Enhanced module loaded');
-    window.__PicDiagModuleLoaded__ = true;
-}
-
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -548,10 +543,6 @@ class EnhancedPictogramInstance {
                 basePos.lerpVectors(nodeA.position, nodeB.position, t);
                 tangent.subVectors(nodeB.position, nodeA.position).normalize();
             } else {
-                if (!this._warnedMissingCurve) {
-                    console.warn('[PicDiag] NO CURVE OR NODES', this.link?.id || this.link?.uuid);
-                    this._warnedMissingCurve = true;
-                }
                 return;
             }
         }
@@ -775,11 +766,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this.geometryCache = new Map();
         this.initializeGeometryCache();
 
-        console.info('[PicDiag] Pictogram system constructed');
-        this._diagLogged = false;
-        this._debugSpawnLogged = false;
-        this._diagOnceLinks = false;
-        this._spawnDiagLast = 0;
         this._inactiveTimer = 0;
         this._lastRecoveryTime = 0;
     }
@@ -1024,10 +1010,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
             (this.linkingSystem?.links?.length || 0) === 0 &&
             (globalLS.links?.length || 0) > 0
         ) {
-            console.warn('[PicDiag] rebind pictogram linkingSystem to live instance', {
-                from: this.linkingSystem?.__debugId,
-                to: globalLS.__debugId
-            });
             this.linkingSystem = globalLS;
             this.__debugId = this.__debugId || `pictos-${Date.now().toString(36)}`;
         }
@@ -1056,11 +1038,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const linkCount = this._getLinks().length;
         const worldReady = this.linkingSystem?.worldReady === true;
         const activeCount = this.pictograms.filter(p => p.active).length;
-        if (!this._diagOnceLinks && linkCount > 0) {
-            console.info('[PicDiag] links available', { sys: this.__debugId, links: linkCount });
-            this._diagOnceLinks = true;
-        }
-
         // Emergency: if links exist but nothing active, force one spawn immediately (once)
         if (worldReady && linkCount > 0 && activeCount === 0 && !this._diagImmediateForced) {
             const firstLink = this.linkingSystem.links[0];
@@ -1075,10 +1052,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
                     'loadPressure'
                 );
                 this._diagImmediateForced = true;
-                console.warn('[PicDiag] forced single spawn recovery (immediate)', {
-                    sysId: this.__debugId,
-                    linkId: firstLink.uuid || firstLink.id
-                });
             }
         }
     }
@@ -1245,22 +1218,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 this._lastRecoveryTime = nowMs;
                 this._inactiveTimer = 0;
                 spawnedThisTick += 1;
-                console.warn('[PicDiag] forced single spawn recovery', {
-                    sysId: this.__debugId,
-                    linkId: firstLink.uuid || firstLink.id
-                });
             }
-        }
-
-        if (!this._spawnDiagLast || nowMs - this._spawnDiagLast >= 1000) {
-            console.info('[PicDiag] spawn tick', {
-                sysId: this.__debugId,
-                worldReady,
-                linkCount,
-                spawnedThisTick,
-                activeCount
-            });
-            this._spawnDiagLast = nowMs;
         }
 
         // Maintain minimum global active pictograms while links exist
@@ -1281,19 +1239,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
         // Throttled diagnostics (1x/s) to trace visibility issues
         const nowDiag = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        if (!this._diagLast || nowDiag - this._diagLast > 1000) {
-            console.info('[PicDiag] state', {
-                sys: this.__debugId,
-                linkSys: this.linkingSystem?.__debugId,
-                links: linkCount,
-                worldReady,
-                active: activeCount,
-                pool: this.pictograms.length,
-                containerVisible: this.container?.visible,
-                containerRO: this.container?.renderOrder
-            });
-            this._diagLast = nowDiag;
-        }
 
         // Safety: keep container visible
         if (this.container && this.container.visible === false) {

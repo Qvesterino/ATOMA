@@ -262,7 +262,7 @@ import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
-import { LegacyDebugConeCleanup } from './_LegacyDebugConeCleanup.js';
+// REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 // import { FractalHexMarker } from './_FractalHexMarker.js'; // DISABLED - legacy debug system
 import { LegacyGlyphCleanup } from './_LegacyGlyphCleanup.js';
 import { AtomaGlyphSystem4_0 } from './_AtomaGlyphSystem4_0.js';
@@ -408,9 +408,9 @@ import { HologramShellAuthoritySystem } from './HologramShellAuthoritySystem.js'
 import { setupVisualInteractionIsolation_v2, setupRaycastInteractionFiltering } from './VisualInteractionIsolationPatch_v2_CRITICAL_FIX.js';
 import { VisualAudit } from './VisualAudit.js';
 import { initializeHardInteractionAuthority } from './HARD_INTERACTION_AUTHORITY_SYSTEM.js';
-import { setupHardAuthorityDebugAPI } from './HARD_AUTHORITY_DEBUG_API.js';
+// REMOVED: HARD_AUTHORITY_DEBUG_API - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { NodeVisualIntegrityFix } from './NodeVisualIntegrityFix.js';
-import { ControlledUnfreezeSystem_v1, setupControlledUnfreeze } from './ControlledUnfreezeSystem_v1.js';
+// REMOVED: ControlledUnfreezeSystem_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 // ============================================================================
 // SESSION 105: LINK METRICS TO VISUAL BRIDGE (Real-time network metrics)
@@ -654,7 +654,7 @@ import { CompetitionDominanceAdapter_v1, setupCompetitionDominanceIntegration } 
 // REMOVED: setupEmergencyVisualStabilization from './HOTFIX_EmergencyVisualStabilization_v1.js'
 // Legacy spawner consolidation moved to LEGACY folder (2026-03-03)
 // Legacy rare node spawner moved to LEGACY folder (2026-03-03)
-import { installNodeVisualFreezeBlockers } from './NodeVisualFreezeBlockers_v1.js';
+// REMOVED: NodeVisualFreezeBlockers_v1 - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 import { NodeLinkedAuraSystem } from './NodeLinkedAuraSystem.js';
 import { setupLinkEligibilityGate } from './LinkEligibilityGate_v1.js';
 import { setupLinkDebugMode } from './LinkDebugMode_v1.js';
@@ -810,7 +810,7 @@ import { CoreMaterialMutationTestSuite, setupCoreMaterialTestSuiteConsoleAPI } f
 // Enforces immutability of core material properties at runtime
 // Prevents opacity/transparent/depthWrite/emissive degradation
 // ============================================================================
-import { CoreMaterialPropertyLock, setupCoreMaterialPropertyLockConsoleAPI } from './CoreMaterialPropertyLock.js';
+// REMOVED: CoreMaterialPropertyLock - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
 // ============================================================================
 // NODE HIERARCHY SYSTEM v1.0 — Parent-Child Node Relationships
@@ -5421,25 +5421,10 @@ this.setHudDirty('nodeInspect');
         }
         
         // ========================================================================
-        // SESSION 99: INSTALL NODE VISUAL FREEZE BLOCKERS
+        // SESSION 99: NODE VISUAL FREEZE BLOCKERS - REMOVED (2026-03-27)
         // ========================================================================
-        // After ALL systems are initialized, install blockers to prevent
-        // reactive systems from modifying node visuals
-         try {
-            installNodeVisualFreezeBlockers(this);
-            console.log('✅ [main.js] Node Visual Freeze Blockers installed');
-            // === DISABLE NODE VISUAL FREEZE MODE (restore overlays/mutations) ===
-            if (window.__nodeVisualFreezeMode__ && typeof ControlledUnfreezeSystem_v1 !== 'undefined') {
-                ControlledUnfreezeSystem_v1.disableFreezeMode(window.__nodeVisualFreezeMode__);
-                console.log('[main.js] NodeVisualFreezeMode DISABLED via ControlledUnfreezeSystem_v1');
-                // Restore all blocked systems and install mutation safety guards
-                ControlledUnfreezeSystem_v1.restoreBlockedSystems(this);
-                ControlledUnfreezeSystem_v1.installSafetyGuards(this);
-                console.log('[main.js] ControlledUnfreezeSystem: Blocked systems restored and safety guards installed');
-            }
-        } catch (err) {
-            console.warn('⚠ Node Visual Freeze Blockers installation error:', err);
-        }
+        // Freeze/Unfreeze systems moved to LEGACY/LOCK and POLICIES to delete
+        // Node visuals are now managed through standard authority systems
         
         // ========================================================================
         // SESSION 104: HARD INTERACTION AUTHORITY SYSTEM
@@ -5449,9 +5434,7 @@ this.setHudDirty('nodeInspect');
             this.hardInteractionAuthority = initializeHardInteractionAuthority(this);
             console.log('🔒 [main.js] Hard Interaction Authority System initialized ✓');
             
-            // Initialize debug API for testing
-            setupHardAuthorityDebugAPI();
-            console.log('🔍 [main.js] Hard Authority Debug API ready (use reportSystemStatus())');
+            // REMOVED: setupHardAuthorityDebugAPI - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
         } catch (err) {
             console.warn('⚠ Hard Interaction Authority System initialization error:', err);
         }
@@ -5931,8 +5914,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Remove all old debug markers and yellow triangles
         this.mythicSeedGlyph.removeOldMarkers();
 
-        // Initialize Legacy Debug Cone Cleanup (after scene ready)
-        this.legacyConeCleanup = new LegacyDebugConeCleanup(this.scene);
+        // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
 
         // Initialize Legacy Glyph Cleanup 1.0 (after scene ready)
         // This removes ALL old 2D cyan hexagon debug markers and legacy slots
@@ -6508,6 +6490,21 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         try {
+            const pictogramSystem = this.linkSemanticPictograms || this.linkPictogramSystem || this.linkingSystem?.conduitRenderer?.pictogramSystem || null;
+            if (pictogramSystem && typeof pictogramSystem.resetForWorldSwitch === 'function') {
+                pictogramSystem.resetForWorldSwitch({
+                    scene: this.scene,
+                    worldRoot: this.worldRoot,
+                    camera: this.camera,
+                    linkingSystem,
+                    aiNodes
+                });
+            }
+        } catch (err) {
+            console.warn('[main.js] LinkSemanticPictogramSystem resetForWorldSwitch failed:', err?.message || err);
+        }
+
+        try {
             if (this.echoTrailsIntegration && typeof this.echoTrailsIntegration.rebind === 'function') {
                 this.echoTrailsIntegration.rebind({
                     linkingSystem,
@@ -6906,14 +6903,10 @@ window.__ATOMA_SCENE__ = this.scene;
         }
 
         // ====================================================================
-        // CONTROLLED UNFREEZE SYSTEM: Safe reactivation of visual systems
+        // CONTROLLED UNFREEZE SYSTEM: REMOVED (2026-03-27)
         // ====================================================================
-        try {
-            setupControlledUnfreeze(this);
-            console.log('[main.js] ControlledUnfreezeSystem initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] ControlledUnfreezeSystem initialization failed:', err);
-        }
+        // Moved to LEGACY/LOCK and POLICIES to delete
+        
         console.log('[CREATEWORLD] end', {
             reason,
             mode: this.currentMode,
@@ -7257,10 +7250,8 @@ window.__ATOMA_SCENE__ = this.scene;
         );
         this.corruptionTransmission = corruptionTransmission;
         this.aiNodes.linkCorruption = corruptionTransmission;
-        // PicDiag: expose pictogram system globally for inspection
         if (typeof window !== 'undefined') {
             window.__PIC_SYSTEM__ = this.linkingSystem?.conduitRenderer?.pictogramSystem;
-            console.warn('[PicDiag] __PIC_SYSTEM__ set from main.js:', !!window.__PIC_SYSTEM__);
             if (window.__PIC_SYSTEM__) {
                 this.linkSemanticPictograms = window.__PIC_SYSTEM__;
                 this.linkPictogramSystem = window.__PIC_SYSTEM__;
@@ -7273,10 +7264,6 @@ window.__ATOMA_SCENE__ = this.scene;
                 'visual',
                 (dt) => {
                     if (this.linkingSystem && this.linkingSystem.isReady === true) {
-                        if (!this._picDiagFSLogged) {
-                            console.error('[PicDiag] frameScheduler visual.linkingSystem tick');
-                            this._picDiagFSLogged = true;
-                        }
                         this.linkingSystem.update(dt, this.time);
                     }
                 },
@@ -8123,73 +8110,9 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         
         // ====================================================================
-        // CORE MATERIAL PROPERTY LOCK v1.0 (Session 30 - Hard Enforcement)
-        // Enforces immutability of core material properties at runtime
+        // CORE MATERIAL PROPERTY LOCK v1.0 - REMOVED (2026-03-27)
         // ====================================================================
-        try {
-            this.coreMaterialPropertyLock = new CoreMaterialPropertyLock({
-                debugEnabled: false,
-                enforceOnFrame: false,
-                violationDetectionEnabled: true,
-            });
-            setupCoreMaterialPropertyLockConsoleAPI(this.coreMaterialPropertyLock);
-            
-            // Initialize tracking map for iteration
-            this.coreMaterialPropertyLock.initializeTrackingMap();
-            
-            // Register all node core materials with the lock
-            if (this.aiNodes?.nodes) {
-                for (const node of this.aiNodes.nodes) {
-                    // Traverse node to find all core materials
-                    node.traverse((child) => {
-                        if (child.isMesh && child.material) {
-                            // Check if this is a core mesh (marked with isNodeCore flag)
-                            if (child.userData?.isNodeCore || 
-                                child.name?.toLowerCase().includes('core') ||
-                                child.userData?.vfxType?.includes('core')) {
-                                
-                                // Register core material for locking
-                                this.coreMaterialPropertyLock.registerCoreMaterial(
-                                    child.material,
-                                    node.userData?.id || 'unknown'
-                                );
-                                
-                                // Add to tracking map for frame enforcement
-                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
-                            }
-                        }
-                    });
-                }
-            }
-
-            if (this.aiNodes?.registerPostSpawnObserver) {
-                this.aiNodes.registerPostSpawnObserver(
-                    'core-material-property-lock',
-                    (newNode) => {
-                        if (!newNode || !this.coreMaterialPropertyLock) return;
-                        newNode.traverse((child) => {
-                            if (!child.isMesh || !child.material) return;
-                            if (
-                                child.userData?.isNodeCore ||
-                                child.name?.toLowerCase().includes('core') ||
-                                child.userData?.vfxType?.includes('core')
-                            ) {
-                                this.coreMaterialPropertyLock.registerCoreMaterial(
-                                    child.material,
-                                    newNode.userData?.id || 'unknown'
-                                );
-                                this.coreMaterialPropertyLock.addToTrackingMap(child.material);
-                            }
-                        });
-                    },
-                    55
-                );
-            }
-            
-            console.log('[main.js] CoreMaterialPropertyLock initialized ✓');
-        } catch (err) {
-            console.warn('[main.js] CoreMaterialPropertyLock initialization failed:', err);
-        }
+        // Moved to LEGACY/LOCK and POLICIES to delete
         
         // Initialize Link Recommendation AI 1.0 (after linking system ready)
         this.linkRecommendationAI = new LinkRecommendationAI1_0(
@@ -10047,6 +9970,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.cascadeParticles = this.cascadeParticleSystem; // compatibility alias
             const lifecycleSource = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
             this.cascadeParticleSystem?.attachLinkLifecycleSource?.(lifecycleSource);
+            if (this.cascadeParticleSystem?.mesh && this.scene && !this.cascadeParticleSystem.mesh.parent) {
+                this.scene.add(this.cascadeParticleSystem.mesh);
+            }
             
         } catch (err) {
         }
@@ -10061,6 +9987,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.cascadeParticleSystem,
                 this
             );
+            if (this._particleTrailSystem?.trailMesh && this.scene && !this._particleTrailSystem.trailMesh.parent) {
+                this.scene.add(this._particleTrailSystem.trailMesh);
+            }
             
             if (this._particleTrailSystem) {
                 console.log('[main.js] ParticleTrailSystem_Session122 initialized ✓');

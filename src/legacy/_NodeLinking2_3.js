@@ -10,7 +10,10 @@
 import * as THREE from 'three';
 import { filterRaycastIntersections } from './CanonicalInteractionFilter.js';
 import { SafeNodeUnlinking3_3 } from './_SafeNodeUnlinking3_3.js';
-import { getLinkTarget, hasValidLinkTarget } from './LinkStateVisualLock.js';
+// REMOVED: LinkStateVisualLock import - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
+// Stub functions for compatibility
+const hasValidLinkTarget = (mesh) => mesh?.userData?.linkTarget != null;
+const getLinkTarget = (mesh) => mesh?.userData?.linkTarget || null;
 
 const VARIANT_PROPS = ['transparent', 'depthWrite', 'depthTest', 'blending', 'alphaTest', 'side'];
 const VARIANT_DEBUG_FLAG = '__ATOMA_DEBUG_VARIANTS';

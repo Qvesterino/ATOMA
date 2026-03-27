@@ -912,8 +912,6 @@ export class NodeMicroEvents {
         break;
       
       case 'breathing_shift':
-        const breathScale = visual.originalScale + Math.sin(progress * Math.PI * 2) * visual.breathDepth;
-        visual.node.scale.setScalar(breathScale);
         break;
       
       case 'resonance_halo':
@@ -923,10 +921,6 @@ export class NodeMicroEvents {
         break;
       
       case 'synchronized_pulse':
-        // FIX: Ensure scale is computed from base scale to prevent drift
-        const baseScale = visual.node.userData.baseScale || visual.originalScale;
-        const syncScale = baseScale + Math.sin(progress * Math.PI) * 0.04;
-        visual.node.scale.setScalar(syncScale);
         break;
       
       case 'fractal_shimmer':
@@ -967,10 +961,6 @@ export class NodeMicroEvents {
         break;
       
       case 'drifting_gesture':
-        const driftAmount = Math.sin(progress * Math.PI);
-        visual.node.position.copy(visual.originalPosition).add(
-          visual.driftOffset.clone().multiplyScalar(driftAmount)
-        );
         break;
       
       case 'glyph_flash':
@@ -981,10 +971,6 @@ export class NodeMicroEvents {
         break;
       
       case 'balanced_oscillation':
-        // FIX: Ensure scale is computed from base scale to prevent drift
-        const baseOscScale = visual.node.userData.baseScale || visual.originalScale;
-        const oscScale = baseOscScale + Math.sin(progress * Math.PI * 3) * visual.oscillationDepth;
-        visual.node.scale.setScalar(oscScale);
         break;
       
       case 'ascended_flare':
@@ -996,13 +982,6 @@ export class NodeMicroEvents {
         break;
       
       case 'jitter_burst':
-        // STABILITY FIX: Replace random per-frame jitter with smooth sine waves
-        // Uses deterministic phase offsets to ensure consistent patterns
-        const jitterDecay = (1 - progress);  // Fade out over duration
-        const jitterX = Math.sin(progress * Math.PI * 3.0 + visual.phaseX) * visual.jitterIntensity * 0.4 * jitterDecay;
-        const jitterY = Math.sin(progress * Math.PI * 2.5 + visual.phaseY) * visual.jitterIntensity * 0.3 * jitterDecay;
-        const jitterZ = Math.sin(progress * Math.PI * 4.0 + visual.phaseZ) * visual.jitterIntensity * 0.4 * jitterDecay;
-        visual.node.position.copy(visual.originalPosition).add(new THREE.Vector3(jitterX, jitterY, jitterZ));
         break;
       
       case 'harmony_ring':
@@ -1050,16 +1029,6 @@ export class NodeMicroEvents {
   cleanupVisual(visual) {
     // Reset node properties
     if (visual.node) {
-      // Reset scale
-      if (visual.originalScale !== undefined) {
-        visual.node.scale.setScalar(visual.originalScale);
-      }
-      
-      // Reset position
-      if (visual.originalPosition) {
-        visual.node.position.copy(visual.originalPosition);
-      }
-      
       // Reset intensity
       if (visual.originalIntensity !== undefined && visual.node.material.emissiveIntensity !== undefined) {
         visual.node.material.emissiveIntensity = visual.originalIntensity;
