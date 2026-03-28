@@ -178,6 +178,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         
         // Step 4: Manage trap zones geometry
         this._updateTrapZones(deltaTime);
+        this.visualRenderer?.syncTrapZones?.(deltaTime);
         
         // Step 5: Calculate interference patterns
         this._updateInterferencePatterns(deltaTime);

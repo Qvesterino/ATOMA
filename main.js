@@ -3844,7 +3844,6 @@ class AtomaGame {
 
         this.frameScheduler.register('realtime', this.runCameraControllerTick.bind(this), 'realtime.cameraController');
         this.frameScheduler.register('realtime', this.runPlayerControllerTick.bind(this), 'realtime.playerController');
-        this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         this.frameScheduler.register('visual', this.runNodeAuraSystemTick.bind(this), 'visual.nodeAuraSystem');
         this.frameScheduler.register('visual', (dt) => {
             this.corruptionAuraDesaturation?.update?.(dt);
@@ -4224,11 +4223,6 @@ class AtomaGame {
                 this.waveInterferenceEngine.update(dt);
             }
         }, 'simulation.waveInterferenceEngine');
-        this.frameScheduler.register('visual', (dt) => {
-            if (this.standingWaveRenderer) {
-                this.standingWaveRenderer.update(dt, this.time);
-            }
-        }, 'visual.waveStandingRenderer');
         this.frameScheduler.register('visual', (dt) => {
             const wavePatternSystem = this.wavePatternSystem || this.waveInterference;
             if (wavePatternSystem) {
@@ -5155,6 +5149,8 @@ this.setHudDirty('nodeInspect');
         // Renders mesh visuals for standing wave patterns
         // ========================================================================
         this.setupStandingWaveRenderer();
+        this.standingWaveTrap.visualRenderer = this.standingWaveRenderer;
+        this.standingWaveTrapSystem.visualRenderer = this.standingWaveRenderer;
 
         // ========================================================================
         // SESSION 146: NODE LINKED AURA RENDERER
@@ -7361,6 +7357,11 @@ window.__ATOMA_SCENE__ = this.scene;
                 },
                 'visual.linkingSystem'
             );
+            this.frameScheduler.register('visual', (dt) => {
+                if (this.standingWaveRenderer) {
+                    this.standingWaveRenderer.update(dt, this.time);
+                }
+            }, 'visual.waveStandingRenderer');
             this.frameScheduler.register(
                 'simulation',
                 (dt) => this.linkingSystem?.runSimulationMaintenance?.(dt),
@@ -7417,6 +7418,7 @@ window.__ATOMA_SCENE__ = this.scene;
         if (this.frameScheduler && this.linkingSystem?.processNodeTargeting) {
             this.frameScheduler.register('visual', () => this.linkingSystem.processNodeTargeting(), 'node.targeting');
         }
+        this.frameScheduler.register('visual', (dt) => this.runRenderTick(dt), 'renderer.render');
         if (this.recursiveGlyphSignalSystem) {
             this.recursiveGlyphSignalSystem.setLinkingSystem(this.linkingSystem);
         }
@@ -8598,7 +8600,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // Core gameplay rituals + visual bridge + orchestration
         // ====================================================================
         try {
-            const ritualsDisabled = Boolean(window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? true);
+            const ritualsDisabled = Boolean(window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? false);
             if (ritualsDisabled) {
                 this.networkRituals = null;
                 this.phase8VisualBridge = null;
@@ -8643,6 +8645,8 @@ window.__ATOMA_SCENE__ = this.scene;
                     );
                     this.phase8RitualOrchestration.initialize();
                 }
+
+                this._setupRitualAutoTrigger();
 
                 console.log('[main.js] Phase 8 ritual stack initialized ✓');
             }
@@ -11107,6 +11111,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.__renderWarningLogged = false;
         }
         try {
+            this.standingWaveRenderer?.syncTrapZones?.(deltaTime);
             this.renderer.render(this.scene, this.camera);
         } catch (err) {
             if (!this.__renderWarningLogged) {
@@ -11189,6 +11194,134 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             'playerController.update',
             performance.now() - start
         );
+    }
+
+    _setupRitualAutoTrigger() {
+        if (!this.networkRituals) return;
+
+        this._ritualAutoTriggerState = {
+            lastCheck: 0,
+            checkInterval: 5000,
+            lastTrigger: 0,
+            minTriggerCooldown: 60000,
+            corruptionThreshold: 0.4,
+            minHarmonyRequired: 0.3,
+            minParticipants: 3,
+        };
+
+        const checkAndTrigger = () => {
+            if (!this.networkRituals || !this.aiNodes?.nodes) return;
+
+            const now = Date.now();
+            const state = this._ritualAutoTriggerState;
+
+            if (now - state.lastCheck < state.checkInterval) return;
+            state.lastCheck = now;
+
+            if (now - state.lastTrigger < state.minTriggerCooldown) return;
+
+            const activeRituals = this.networkRituals.getActiveRituals();
+            if (activeRituals.length > 0) return;
+
+            const nodes = this.aiNodes.nodes;
+            const eligibleNodes = nodes.filter(node => {
+                const harmony = node.userData?.harmonyLevel ?? 0;
+                return harmony >= state.minHarmonyRequired;
+            });
+
+            if (eligibleNodes.length < state.minParticipants) return;
+
+            let highCorruptionLinks = 0;
+            const links = this.linkingSystem?.links || [];
+            for (const link of links) {
+                const corruption = link.userData?.corruptionLevel ?? 0;
+                if (corruption >= state.corruptionThreshold) {
+                    highCorruptionLinks++;
+                }
+            }
+
+            if (highCorruptionLinks < 2) return;
+
+            const connectedClusters = this._findRitualClusters(eligibleNodes);
+            if (connectedClusters.length === 0) return;
+
+            const cluster = connectedClusters[0];
+            if (cluster.length < state.minParticipants) return;
+
+            const epicenter = cluster[0];
+            const participants = cluster.slice(1, Math.min(cluster.length, 5));
+
+            const result = this.networkRituals.initiateRitual(epicenter, participants);
+
+            if (result.success) {
+                state.lastTrigger = now;
+                console.log('[Phase 8 Auto-Trigger] Ritual initiated:', result.ritualId);
+
+                if (this.semanticBus) {
+                    this.semanticBus.emit('ritual.autoTriggered', {
+                        ritualId: result.ritualId,
+                        epicenterId: epicenter.id,
+                        participantCount: participants.length,
+                    }, { priority: this.semanticBus.priority?.NORMAL });
+                }
+            }
+        };
+
+        if (this.frameScheduler) {
+            this.frameScheduler.register('background', checkAndTrigger, 'background.ritualAutoTrigger');
+        }
+    }
+
+    _findRitualClusters(eligibleNodes) {
+        if (!this.linkingSystem?.links) return [];
+
+        const adjacency = new Map();
+        for (const node of eligibleNodes) {
+            adjacency.set(node.id, new Set());
+        }
+
+        for (const link of this.linkingSystem.links) {
+            const sourceId = link.source?.id;
+            const targetId = link.target?.id;
+
+            if (adjacency.has(sourceId) && adjacency.has(targetId)) {
+                adjacency.get(sourceId).add(targetId);
+                adjacency.get(targetId).add(sourceId);
+            }
+        }
+
+        const clusters = [];
+        const visited = new Set();
+
+        for (const node of eligibleNodes) {
+            if (visited.has(node.id)) continue;
+
+            const cluster = [];
+            const queue = [node];
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (visited.has(current.id)) continue;
+
+                visited.add(current.id);
+                cluster.push(current);
+
+                const neighbors = adjacency.get(current.id) || new Set();
+                for (const neighborId of neighbors) {
+                    if (!visited.has(neighborId)) {
+                        const neighborNode = eligibleNodes.find(n => n.id === neighborId);
+                        if (neighborNode) queue.push(neighborNode);
+                    }
+                }
+            }
+
+            if (cluster.length >= 3) {
+                clusters.push(cluster);
+            }
+        }
+
+        clusters.sort((a, b) => b.length - a.length);
+        return clusters;
     }
 
     /**

@@ -66,6 +66,9 @@ export class StandingWaveVisualRenderer_Session131 {
             antinodeColorBlend: 0.22,         // Blend toward the link wave color
             antinodeScaleBase: 0.44,          // Base scale of the ring mesh
             antinodeScaleBoost: 0.11,         // Extra scale at higher intensity
+            antinodeSegmentCount: 6,          // Broken Möbius segment count
+            antinodeSegmentGap: 0.08,         // Gap between segments
+            antinodeSegmentTwist: 0.42,       // Phase mismatch twist amount
             antinodeLODDistance: 50,          // Distance culling threshold
             
             // Interference bands
@@ -75,9 +78,16 @@ export class StandingWaveVisualRenderer_Session131 {
             dimBandOpacity: 0.08,            // Opacity of dim zones
             
             // Trap zone rendering
-            trapZoneThickness: 0.1,           // Visual thickness of trap zone boundary
-            trapZoneOpacityBase: 0.25,        // Base opacity of trap zone
-            trapZoneGlowFactor: 1.2,          // Glow intensity multiplier
+            trapZoneThickness: 0.08,          // Visual thickness of trap zone boundary
+            trapZoneOpacityBase: 0.22,        // Base opacity of trap zone
+            trapZoneGlowFactor: 1.25,         // Glow intensity multiplier
+            trapZoneFadeSeconds: 0.35,        // Grace period before a trap zone fully retires
+            trapZoneSingularityScale: 0.72,    // Overall composite size multiplier
+            trapZoneCoreRadius: 0.13,          // Inner singularity core radius
+            trapZoneOrbitRadius: 0.36,         // Primary orbital ring radius
+            trapZoneHaloRadius: 0.62,          // Event-horizon disc radius
+            trapZoneOrbitSpeed: 1.15,          // Orbit rotation speed
+            trapZonePulseFrequency: 2.25,      // Trap zone pulse frequency
             trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
             
             // Wave material modification
@@ -117,7 +127,12 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Material cache
         this.antinodeMaterial = null;
+        this.antinodeShellMaterial = null;
         this.trapZoneMaterial = null;
+        this.trapZoneCoreMaterial = null;
+        this.trapZoneHaloMaterial = null;
+        this.trapZoneRingMaterial = null;
+        this.trapZoneShockMaterial = null;
         this.interferenceShader = null;
         this.root = null;
         this._antinodeDirection = new THREE.Vector3(0, 0, 1);
@@ -128,6 +143,8 @@ export class StandingWaveVisualRenderer_Session131 {
         
         this.time = 0;
         this.initialized = false;
+        this.trapZoneUpdateCount = 0;
+        this.lastTrapZoneRenderCount = 0;
     }
 
     /**
@@ -150,6 +167,14 @@ export class StandingWaveVisualRenderer_Session131 {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        this.antinodeShellMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0.82, 0.96, 1.0),
+            transparent: true,
+            opacity: Math.min(0.18, this.config.antinodeOpacityBase * 0.42),
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
         
         // Create trap zone material - use MeshBasicMaterial with additive blending for glow
         this.trapZoneMaterial = new THREE.MeshBasicMaterial({
@@ -160,22 +185,81 @@ export class StandingWaveVisualRenderer_Session131 {
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
+        this.trapZoneCoreMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0.04, 0.02, 0.08),
+            transparent: true,
+            opacity: 0.88,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            depthTest: true
+        });
+        this.trapZoneHaloMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0.92, 0.9, 1.0),
+            transparent: true,
+            opacity: 0.12,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        this.trapZoneRingMaterial = new THREE.MeshBasicMaterial({
+            color: this.config.trapZoneColor.clone(),
+            transparent: true,
+            opacity: 0.24,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            wireframe: true
+        });
+        this.trapZoneShockMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0.95, 0.92, 1.0),
+            transparent: true,
+            opacity: 0.14,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
         
         // Pre-allocate antinode glow pool
         for (let i = 0; i < this.config.maxAntinodeMeshes; i++) {
-            const geometry = new THREE.TorusGeometry(
-                Math.max(0.08, this.config.antinodeRadius * 0.48),
-                Math.max(0.02, this.config.antinodeRadius * 0.14),
-                6,
-                14
+            const group = new THREE.Group();
+            group.name = `StandingWaveAntinode_${i}`;
+            group.visible = false;
+            group.frustumCulled = false;
+            group.renderOrder = this.config.renderOrder;
+
+            const segmentCount = Math.max(5, Math.min(7, this.config.antinodeSegmentCount));
+            const segmentArc = (Math.PI * 2 / segmentCount) * (1 - this.config.antinodeSegmentGap);
+            const segmentRadius = Math.max(0.08, this.config.antinodeRadius * 0.48);
+            const tubeRadius = Math.max(0.02, this.config.antinodeRadius * 0.11);
+            const segments = [];
+            for (let s = 0; s < segmentCount; s++) {
+                const geo = new THREE.TorusGeometry(segmentRadius, tubeRadius, 6, 14, segmentArc);
+                const segMesh = new THREE.Mesh(geo, this.antinodeMaterial.clone());
+                segMesh.visible = true;
+                segMesh.frustumCulled = false;
+                segMesh.renderOrder = this.config.renderOrder;
+                segMesh.rotation.z = (s / segmentCount) * Math.PI * 2;
+                segMesh.rotation.x = (s % 2 === 0 ? 0.48 : -0.48);
+                segMesh.position.z = (s % 2 === 0 ? 0.03 : -0.03);
+                group.add(segMesh);
+                segments.push(segMesh);
+            }
+
+            const shell = new THREE.Mesh(
+                new THREE.SphereGeometry(Math.max(0.06, this.config.antinodeRadius * 0.24), 10, 10),
+                this.antinodeShellMaterial.clone()
             );
-            const mesh = new THREE.Mesh(geometry, this.antinodeMaterial.clone());
-            mesh.visible = false;
-            mesh.frustumCulled = false;
-            mesh.renderOrder = this.config.renderOrder;
-            this.root.add(mesh);
+            shell.visible = true;
+            shell.frustumCulled = false;
+            shell.renderOrder = this.config.renderOrder;
+            group.add(shell);
+
+            this.root.add(group);
             this.antinodeMeshPool.push({
-                mesh: mesh,
+                mesh: group,
+                group: group,
+                segments: segments,
+                shellMesh: shell,
                 active: false,
                 position: new THREE.Vector3(),
                 intensity: 0,
@@ -186,23 +270,84 @@ export class StandingWaveVisualRenderer_Session131 {
                 nextRefreshTime: 0,
                 slotKey: null,
                 linkId: null,
-                phaseSeed: i * 0.73
+                phaseSeed: i * 0.73,
+                twistSeed: i * 0.19
             });
         }
         
         // Pre-allocate trap zone pool
         for (let i = 0; i < this.config.maxTrapZoneMeshes; i++) {
-            const geometry = new THREE.PlaneGeometry(1, 1, 4, 4);
-            const mesh = new THREE.Mesh(geometry, this.trapZoneMaterial.clone());
-            mesh.visible = false;
-            mesh.frustumCulled = false;
-            mesh.renderOrder = this.config.renderOrder;
-            this.root.add(mesh);
+            const group = new THREE.Group();
+            group.name = `StandingWaveTrapZone_${i}`;
+            group.visible = false;
+            group.frustumCulled = false;
+            group.renderOrder = this.config.renderOrder;
+
+            const core = new THREE.Mesh(
+                new THREE.SphereGeometry(Math.max(0.08, this.config.trapZoneCoreRadius), 18, 18),
+                this.trapZoneCoreMaterial.clone()
+            );
+            core.frustumCulled = false;
+            core.renderOrder = this.config.renderOrder;
+
+            const orbitA = new THREE.Mesh(
+                new THREE.TorusGeometry(Math.max(0.18, this.config.trapZoneOrbitRadius), 0.028, 5, 30),
+                this.trapZoneRingMaterial.clone()
+            );
+            orbitA.frustumCulled = false;
+            orbitA.renderOrder = this.config.renderOrder;
+            orbitA.rotation.x = Math.PI * 0.5;
+
+            const orbitB = new THREE.Mesh(
+                new THREE.TorusGeometry(Math.max(0.14, this.config.trapZoneOrbitRadius * 0.78), 0.022, 4, 28),
+                this.trapZoneRingMaterial.clone()
+            );
+            orbitB.frustumCulled = false;
+            orbitB.renderOrder = this.config.renderOrder;
+            orbitB.rotation.y = Math.PI * 0.33;
+
+            const halo = new THREE.Mesh(
+                new THREE.RingGeometry(
+                    Math.max(0.24, this.config.trapZoneHaloRadius * 0.54),
+                    Math.max(0.42, this.config.trapZoneHaloRadius),
+                    60,
+                    1
+                ),
+                this.trapZoneHaloMaterial.clone()
+            );
+            halo.frustumCulled = false;
+            halo.renderOrder = this.config.renderOrder;
+            halo.rotation.x = -Math.PI * 0.5;
+
+            const shock = new THREE.Mesh(
+                new THREE.RingGeometry(Math.max(0.30, this.config.trapZoneOrbitRadius * 0.9), Math.max(0.44, this.config.trapZoneOrbitRadius * 1.42), 48, 1),
+                this.trapZoneShockMaterial.clone()
+            );
+            shock.frustumCulled = false;
+            shock.renderOrder = this.config.renderOrder;
+            shock.rotation.x = -Math.PI * 0.5;
+
+            group.add(core);
+            group.add(orbitA);
+            group.add(orbitB);
+            group.add(halo);
+            group.add(shock);
+            this.root.add(group);
+
             this.trapZoneMeshPool.push({
-                mesh: mesh,
+                mesh: group,
+                group: group,
+                coreMesh: core,
+                orbitAMesh: orbitA,
+                orbitBMesh: orbitB,
+                haloMesh: halo,
+                shockMesh: shock,
                 active: false,
                 linkId: null,
-                intensity: 1
+                intensity: 1,
+                lastSeenTime: 0,
+                pulseSeed: i * 0.91,
+                spinPhase: i * 0.27
             });
         }
         
@@ -237,6 +382,18 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Step 6: Handle resolution animations
         this._updateResolutionAnimations(deltaTime);
+    }
+
+    /**
+     * Sync only trap-zone meshes from the latest trap-system state.
+     * Used by the trap system after it finishes a simulation tick so the
+     * next render pass sees the freshest zone geometry.
+     */
+    syncTrapZones(deltaTime = 0.016) {
+        if (!this.initialized) this.setup();
+        this._ensureAttachRoot();
+        this.time = this.time || 0;
+        this._updateTrapZones(deltaTime);
     }
 
     /**
@@ -440,22 +597,24 @@ export class StandingWaveVisualRenderer_Session131 {
                 
                 if (this.time >= antinode.expireTime) {
                     antinode.active = false;
+                    antinode.group.visible = false;
                     antinode.mesh.visible = false;
-                    antinode.mesh.material.opacity = 0;
-                    antinode.mesh.scale.setScalar(this.config.antinodeScaleBase);
+                    this._setAntinodeMeshOpacity(antinode, 0);
+                    antinode.group.scale.setScalar(this.config.antinodeScaleBase);
                     continue;
                 }
 
                 antinode.active = true;
+                antinode.group.visible = true;
                 antinode.mesh.visible = true;
-                antinode.mesh.position.copy(antinodeWorldPos);
+                antinode.group.position.copy(antinodeWorldPos);
                 antinode.lastSeenTime = this.time;
                 touchedSlots.add(antinodeIndex);
 
                 if (typeof linkCurve.getTangentAt === 'function') {
                     const tangent = linkCurve.getTangentAt(Math.max(0, Math.min(1, t)));
                     if (tangent && tangent.lengthSq() > 1e-8) {
-                        antinode.mesh.quaternion.setFromUnitVectors(this._antinodeDirection, tangent.normalize());
+                        antinode.group.quaternion.setFromUnitVectors(this._antinodeDirection, tangent.normalize());
                     }
                 }
                 
@@ -481,11 +640,17 @@ export class StandingWaveVisualRenderer_Session131 {
 
                 const color = this._resolveAntinodeColor(link, this._antinodeColorC);
                 const colorIntensity = Math.min(0.72, 0.22 + displayIntensity * this.config.antinodeGlowIntensity * 0.42);
-                antinode.mesh.material.color.copy(color).multiplyScalar(colorIntensity);
+                const shellTint = color.clone().lerp(new THREE.Color(0.96, 0.98, 1.0), 0.65);
+                this._setAntinodeMeshColor(antinode, color, shellTint, colorIntensity);
                 const dissolveFlicker = 0.88 + (0.12 * Math.sin(breakupPhase * 1.9));
-                antinode.mesh.material.opacity = Math.min(0.32, this.config.antinodeOpacityBase * displayIntensity * dissolveFlicker);
+                this._setAntinodeMeshOpacity(
+                    antinode,
+                    Math.min(0.32, this.config.antinodeOpacityBase * displayIntensity * dissolveFlicker)
+                );
                 const scaleJitter = 1 + (dissolveProgress * this.config.antinodeDissolveScaleJitter * Math.sin(breakupPhase * 0.83));
-                antinode.mesh.scale.setScalar((this.config.antinodeScaleBase + (displayIntensity * this.config.antinodeScaleBoost)) * scaleJitter);
+                const antinodeScale = (this.config.antinodeScaleBase + (displayIntensity * this.config.antinodeScaleBoost)) * scaleJitter;
+                antinode.group.scale.setScalar(antinodeScale);
+                this._poseBrokenAntinodeSegments(antinode, pulsePhase, displayIntensity, dissolveProgress);
                 
                 antinodeIndex++;
             }
@@ -500,13 +665,14 @@ export class StandingWaveVisualRenderer_Session131 {
 
             if (fade <= 0.02 || antinode.intensity <= 0.01) {
                 antinode.active = false;
+                antinode.group.visible = false;
                 antinode.mesh.visible = false;
-                antinode.mesh.material.opacity = 0;
+                this._setAntinodeMeshOpacity(antinode, 0);
                 return;
             }
 
-            antinode.mesh.material.opacity *= fade;
-            antinode.mesh.scale.multiplyScalar(0.995);
+            this._setAntinodeMeshOpacity(antinode, (antinode.shellMesh?.material?.opacity ?? 0) * fade);
+            antinode.group.scale.multiplyScalar(0.995);
         });
     }
 
@@ -520,9 +686,10 @@ export class StandingWaveVisualRenderer_Session131 {
             if (slotLinkId !== linkId) return;
 
             antinode.active = false;
+            antinode.group.visible = false;
             antinode.mesh.visible = false;
-            antinode.mesh.material.opacity = 0;
-            antinode.mesh.scale.setScalar(this.config.antinodeScaleBase);
+            this._setAntinodeMeshOpacity(antinode, 0);
+            antinode.group.scale.setScalar(this.config.antinodeScaleBase);
             antinode.lastSeenTime = now;
             antinode.expireTime = now;
             antinode.nextRefreshTime = now + this.config.antinodeCooldownSeconds;
@@ -566,22 +733,84 @@ export class StandingWaveVisualRenderer_Session131 {
             .multiplyScalar(0.88);
     }
 
+    _setAntinodeMeshColor(antinode, wireColor, shellColor, intensity) {
+        const segments = Array.isArray(antinode?.segments) ? antinode.segments : [];
+        const normalized = Math.max(0, Math.min(1, intensity));
+        segments.forEach((segment, index) => {
+            if (!segment?.material) return;
+            const tint = 0.84 + (index * 0.03) + (normalized * 0.12);
+            segment.material.color.copy(wireColor).multiplyScalar(tint);
+        });
+
+        if (antinode?.shellMesh?.material) {
+            antinode.shellMesh.material.color.copy(shellColor);
+        }
+    }
+
+    _setAntinodeMeshOpacity(antinode, opacity) {
+        const segments = Array.isArray(antinode?.segments) ? antinode.segments : [];
+        const clamped = Math.max(0, Math.min(0.45, opacity));
+        segments.forEach((segment, index) => {
+            if (!segment?.material) return;
+            const phaseOffset = 0.84 + (index * 0.025);
+            segment.material.opacity = clamped * phaseOffset;
+        });
+        if (antinode?.shellMesh?.material) {
+            antinode.shellMesh.material.opacity = Math.min(0.18, clamped * 0.42);
+        }
+    }
+
+    _poseBrokenAntinodeSegments(antinode, pulsePhase, displayIntensity, dissolveProgress) {
+        const segments = Array.isArray(antinode?.segments) ? antinode.segments : [];
+        const segmentCount = Math.max(1, segments.length);
+        const twist = this.config.antinodeSegmentTwist || 0.35;
+        segments.forEach((segment, index) => {
+            if (!segment) return;
+            const localPhase = pulsePhase + (index / segmentCount) * Math.PI * 2;
+            const phaseLift = Math.sin(localPhase * 0.83 + antinode.twistSeed) * 0.18;
+            const phaseShift = Math.cos(localPhase * 1.17 + antinode.twistSeed) * 0.11;
+            segment.rotation.z = (index / segmentCount) * Math.PI * 2 + (displayIntensity * 0.04);
+            segment.rotation.x = ((index % 2 === 0) ? 0.52 : -0.52) + (phaseLift * twist);
+            segment.rotation.y = (index % 3 - 1) * 0.08 + (phaseShift * twist);
+            segment.position.z = ((index % 2 === 0) ? 0.04 : -0.04) + (dissolveProgress * 0.03 * Math.sin(localPhase * 1.31));
+            segment.scale.setScalar(0.96 + (Math.sin(localPhase * 1.37) * 0.04));
+        });
+
+        if (antinode?.shellMesh) {
+            antinode.shellMesh.rotation.y = pulsePhase * 0.28;
+            antinode.shellMesh.rotation.z = pulsePhase * -0.19;
+            antinode.shellMesh.scale.setScalar(0.94 + (displayIntensity * 0.16));
+        }
+    }
+
     /**
      * Render trap zone visualizations
      */
     _updateTrapZones(deltaTime) {
-        // Deactivate all trap zones first
-        this.trapZoneMeshPool.forEach(zone => {
-            zone.active = false;
-            zone.mesh.visible = false;
-        });
-        
+        this.trapZoneUpdateCount++;
         if (!this.standingWaveTrapSystem) return;
         
-        const trapZones = this.standingWaveTrapSystem.trapZones || [];
+        const trapZones = Array.isArray(this.standingWaveTrapSystem.trapZones)
+            ? this.standingWaveTrapSystem.trapZones
+            : [];
+        const activeTraps = Array.isArray(this.standingWaveTrapSystem.oscillationTraps)
+            ? this.standingWaveTrapSystem.oscillationTraps.filter((trap) => trap?.active && (Number(trap?.amplitude) || 0) >= 0.05)
+            : [];
+        const zoneDescriptors = trapZones.length > 0 ? trapZones : activeTraps.map((trap) => ({
+            linkId: trap.linkId,
+            trapCenter: this.standingWaveTrapSystem.config?.trapCenterOffset ?? 0.5,
+            radiusStart: Math.max(0, 0.5 - (Number(trap.trapRadius) || 0) * 0.5),
+            radiusEnd: Math.min(1, 0.5 + (Number(trap.trapRadius) || 0) * 0.5),
+            intensity: Number(trap.amplitude) || 0,
+            frequency: Number(trap.frequency) || 0,
+            phase: Number(trap.phase) || 0,
+            state: trap.state ?? 'unknown'
+        }));
         let zoneIndex = 0;
+        const touchedIndices = new Set();
+        let renderedCount = 0;
         
-        trapZones.forEach(zone => {
+        zoneDescriptors.forEach(zone => {
             if (zoneIndex >= this.config.maxTrapZoneMeshes) return;
             
             const link = this._getLinkById(zone.linkId);
@@ -592,40 +821,136 @@ export class StandingWaveVisualRenderer_Session131 {
             const centerPos = linkCurve?.getPointAt?.(centerT) || null;
             const tangent = linkCurve?.getTangentAt?.(centerT) || null;
             const linkLength = this._estimateLinkLength(linkCurve, link);
-            if (!centerPos || !tangent || !linkLength) return;
+            if (!centerPos || !linkLength) return;
+            const safeTangent = (tangent && tangent.lengthSq() > 1e-8)
+                ? tangent.clone().normalize()
+                : new THREE.Vector3(1, 0, 0);
             
             // Acquire trap zone mesh from pool
             const trapZoneMesh = this.trapZoneMeshPool[zoneIndex];
             if (!trapZoneMesh) return;
             
             trapZoneMesh.active = true;
-            trapZoneMesh.mesh.visible = true;
-            trapZoneMesh.mesh.position.copy(centerPos);
+            trapZoneMesh.group.visible = true;
+            trapZoneMesh.lastSeenTime = this.time;
+            trapZoneMesh.linkId = zone.linkId;
+            trapZoneMesh.group.position.copy(centerPos);
             
-            // Orient mesh along local link tangent rather than node-to-node chord.
-            trapZoneMesh.mesh.lookAt(centerPos.clone().add(tangent));
-            trapZoneMesh.mesh.rotateX(Math.PI * 0.5);  // Face perpendicular to link
-            
-            // Scale trap zone - use proper world-space scaling based on link length
-            const zoneRadius = Math.max(1, (zone.radiusEnd - zone.radiusStart) * linkLength * 0.5);
-            const zoneHeight = Math.max(0.5, linkLength * (zone.radiusEnd - zone.radiusStart));
-            trapZoneMesh.mesh.scale.set(zoneRadius * 2, zoneHeight, zoneRadius * 2);
-            
-            // Update material properties
-            const material = trapZoneMesh.mesh.material;
-            material.opacity = this.config.trapZoneOpacityBase * zone.intensity;
-            
-            // Add pulsing effect - modulate color for MeshBasicMaterial with additive blending
-            const pulse = Math.sin(this.time * zone.frequency * Math.PI * 2) * 0.3 + 0.7;
-            const colorIntensity = Math.min(1, this.config.trapZoneGlowFactor * pulse * zone.intensity);
-            material.color.setRGB(
-                this.config.trapZoneColor.r * colorIntensity,
-                this.config.trapZoneColor.g * colorIntensity,
-                this.config.trapZoneColor.b * colorIntensity
+            // Orient singularity along the local link tangent rather than node-to-node chord.
+            trapZoneMesh.group.lookAt(centerPos.clone().add(safeTangent));
+            trapZoneMesh.group.rotateX(Math.PI * 0.5);  // Face perpendicular to link
+
+            const zoneSpan = Math.max(0.12, zone.radiusEnd - zone.radiusStart);
+            const zoneRadius = Math.max(0.38, (zoneSpan * linkLength * 0.26) + (zone.intensity * 0.08));
+            const singularityScale = Math.max(
+                0.48,
+                Math.min(1.85, zoneRadius * this.config.trapZoneSingularityScale)
             );
+            const pulsePhase = (this.time * Math.max(0.35, zone.frequency * this.config.trapZonePulseFrequency) * Math.PI * 2)
+                + trapZoneMesh.pulseSeed;
+            const pulse = 0.6 + (Math.sin(pulsePhase) * 0.4);
+            const warpPulse = 0.5 + (Math.sin(pulsePhase * 1.37) * 0.5);
+            const fadeStrength = Math.max(0.16, Math.min(1, zone.intensity * 0.34));
+            const squash = 0.84 + (warpPulse * 0.22);
+            trapZoneMesh.group.scale.set(
+                singularityScale * (0.9 + (pulse * 0.09)),
+                singularityScale * squash,
+                singularityScale * (0.86 + (pulse * 0.12))
+            );
+
+            // Core singularity
+            if (trapZoneMesh.coreMesh) {
+                trapZoneMesh.coreMesh.scale.setScalar(0.72 + (zone.intensity * 0.05));
+                trapZoneMesh.coreMesh.rotation.y = pulsePhase * 0.35;
+                trapZoneMesh.coreMesh.material.opacity = Math.min(0.98, 0.82 + (zone.intensity * 0.04));
+                trapZoneMesh.coreMesh.material.color.setRGB(
+                    0.03 + (zone.intensity * 0.02),
+                    0.015 + (zone.intensity * 0.008),
+                    0.06 + (zone.intensity * 0.03)
+                );
+            }
+
+            // Primary orbital ring
+            if (trapZoneMesh.orbitAMesh) {
+                trapZoneMesh.orbitAMesh.rotation.z = pulsePhase * this.config.trapZoneOrbitSpeed;
+                trapZoneMesh.orbitAMesh.rotation.x = Math.PI * 0.5 + (warpPulse * 0.25);
+                trapZoneMesh.orbitAMesh.scale.setScalar(0.88 + (zone.intensity * 0.1));
+                trapZoneMesh.orbitAMesh.material.opacity = this.config.trapZoneOpacityBase * 0.82 * fadeStrength;
+                trapZoneMesh.orbitAMesh.material.color.setRGB(
+                    this.config.trapZoneColor.r * (0.72 + pulse * 0.28),
+                    this.config.trapZoneColor.g * (0.76 + pulse * 0.24),
+                    this.config.trapZoneColor.b * (0.95 + pulse * 0.05)
+                );
+            }
+
+            // Secondary ring / singularity halo
+            if (trapZoneMesh.orbitBMesh) {
+                trapZoneMesh.orbitBMesh.rotation.y = pulsePhase * -0.61;
+                trapZoneMesh.orbitBMesh.rotation.z = pulsePhase * 0.28;
+                trapZoneMesh.orbitBMesh.scale.setScalar(0.96 + (pulse * 0.14));
+                trapZoneMesh.orbitBMesh.material.opacity = this.config.trapZoneOpacityBase * 0.62 * fadeStrength;
+                trapZoneMesh.orbitBMesh.material.color.setRGB(
+                    0.86 + (pulse * 0.14),
+                    0.92 + (pulse * 0.08),
+                    1.0
+                );
+            }
+
+            if (trapZoneMesh.haloMesh) {
+                trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.16;
+                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.12));
+                trapZoneMesh.haloMesh.material.opacity = Math.min(0.2, this.config.trapZoneOpacityBase * 0.42 * fadeStrength * (0.75 + pulse * 0.25));
+                trapZoneMesh.haloMesh.material.color.setRGB(
+                    0.88 + (pulse * 0.08),
+                    0.9 + (pulse * 0.06),
+                    1.0
+                );
+            }
+
+            // Shock ring: expansion / collapse cue.
+            if (trapZoneMesh.shockMesh) {
+                trapZoneMesh.shockMesh.rotation.z = pulsePhase * 0.18;
+                trapZoneMesh.shockMesh.scale.setScalar(1.08 + (pulse * 0.24));
+                trapZoneMesh.shockMesh.material.opacity = Math.min(0.18, this.config.trapZoneOpacityBase * 0.5 * fadeStrength * pulse);
+                trapZoneMesh.shockMesh.material.color.setRGB(
+                    0.96,
+                    0.94 + (pulse * 0.06),
+                    1.0
+                );
+            }
             
+            touchedIndices.add(zoneIndex);
+            renderedCount++;
             zoneIndex++;
         });
+
+        this.trapZoneMeshPool.forEach((zone, index) => {
+            if (!zone || touchedIndices.has(index)) return;
+            if (!zone.active) return;
+
+            const age = Math.max(0, this.time - (zone.lastSeenTime || 0));
+            const fade = Math.max(0, 1 - (age / Math.max(0.001, this.config.trapZoneFadeSeconds)));
+            if (fade <= 0.02) {
+                zone.active = false;
+                zone.group.visible = false;
+                if (zone.coreMesh?.material) zone.coreMesh.material.opacity = 0;
+                if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity = 0;
+                if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity = 0;
+                if (zone.haloMesh?.material) zone.haloMesh.material.opacity = 0;
+                if (zone.shockMesh?.material) zone.shockMesh.material.opacity = 0;
+                return;
+            }
+
+            zone.group.visible = true;
+            zone.group.scale.multiplyScalar(0.995);
+            if (zone.coreMesh?.material) zone.coreMesh.material.opacity *= fade;
+            if (zone.orbitAMesh?.material) zone.orbitAMesh.material.opacity *= fade;
+            if (zone.orbitBMesh?.material) zone.orbitBMesh.material.opacity *= fade;
+            if (zone.haloMesh?.material) zone.haloMesh.material.opacity *= fade;
+            if (zone.shockMesh?.material) zone.shockMesh.material.opacity *= fade;
+        });
+
+        this.lastTrapZoneRenderCount = renderedCount;
     }
 
     /**
@@ -966,7 +1291,7 @@ export class StandingWaveVisualRenderer_Session131 {
         const trapSystem = this.standingWaveTrapSystem;
         const activeTraps = trapSystem?.getActiveTraps?.() || trapSystem?.oscillationTraps?.filter?.((trap) => trap?.active) || [];
         const activeAntinodes = this.antinodeMeshPool.filter((entry) => entry?.active && entry.mesh?.visible).length;
-        const activeTrapZones = this.trapZoneMeshPool.filter((entry) => entry?.active && entry.mesh?.visible).length;
+        const activeTrapZones = this.trapZoneMeshPool.filter((entry) => entry?.active && entry.group?.visible).length;
         const standingLinks = Array.from(this.linkMaterialMap.values()).filter((entry) => entry?.isStanding).length;
 
         return {
@@ -978,6 +1303,8 @@ export class StandingWaveVisualRenderer_Session131 {
             interferencePatternCount: trapSystem?.interferencePatterns?.length || 0,
             activeAntinodeMeshes: activeAntinodes,
             activeTrapZoneMeshes: activeTrapZones,
+            trapZoneUpdateCount: this.trapZoneUpdateCount,
+            lastTrapZoneRenderCount: this.lastTrapZoneRenderCount,
             standingLinkCount: standingLinks,
             pooledAntinodeMeshes: this.antinodeMeshPool.length,
             pooledTrapZoneMeshes: this.trapZoneMeshPool.length,
@@ -1028,14 +1355,26 @@ export class StandingWaveVisualRenderer_Session131 {
         
         // Clean up trap zone meshes
         this.trapZoneMeshPool.forEach(zone => {
-            if (zone.mesh && zone.mesh.parent) {
-                zone.mesh.parent.remove(zone.mesh);
+            const trapRoot = zone.group || zone.mesh;
+            if (trapRoot && trapRoot.parent) {
+                trapRoot.parent.remove(trapRoot);
             }
-            if (zone.mesh.geometry) {
-                zone.mesh.geometry.dispose();
-            }
-            if (zone.mesh.material) {
-                zone.mesh.material.dispose();
+            if (trapRoot?.traverse) {
+                trapRoot.traverse((child) => {
+                    if (child.geometry) {
+                        child.geometry.dispose();
+                    }
+                    if (child.material) {
+                        child.material.dispose();
+                    }
+                });
+            } else {
+                if (trapRoot?.geometry) {
+                    trapRoot.geometry.dispose();
+                }
+                if (trapRoot?.material) {
+                    trapRoot.material.dispose();
+                }
             }
         });
         this.trapZoneMeshPool = [];
@@ -1044,8 +1383,23 @@ export class StandingWaveVisualRenderer_Session131 {
         if (this.antinodeMaterial) {
             this.antinodeMaterial.dispose();
         }
+        if (this.antinodeShellMaterial) {
+            this.antinodeShellMaterial.dispose();
+        }
         if (this.trapZoneMaterial) {
             this.trapZoneMaterial.dispose();
+        }
+        if (this.trapZoneCoreMaterial) {
+            this.trapZoneCoreMaterial.dispose();
+        }
+        if (this.trapZoneHaloMaterial) {
+            this.trapZoneHaloMaterial.dispose();
+        }
+        if (this.trapZoneRingMaterial) {
+            this.trapZoneRingMaterial.dispose();
+        }
+        if (this.trapZoneShockMaterial) {
+            this.trapZoneShockMaterial.dispose();
         }
         
         // Clear maps

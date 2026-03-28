@@ -49,26 +49,26 @@ const FORCE_VISUAL_DEBUG = true;
 const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
-    COUNT_PER_STRAND: 28,
-    BASE_OPACITY: 0.38,
-    RADIAL_PUSH: 1.22,
-    LENGTH_SCALE: 1.72,
-    SWAY_SPEED: 3.7,
-    SWAY_AMOUNT: 0.72,
-    TRAVEL_SPEED: 0.062,
-    DETACH_SPEED: 2.6,
-    DETACH_BOOST: 0.24,
-    FLOW_LEAN: 1.32,
-    RADIAL_LEAN: 0.48,
-    BRIDGE_SHARE: 0.42,
-    BRIDGE_FORWARD: 0.16,
-    BRIDGE_TWIST: 1.38,
+    COUNT_PER_STRAND: 32,
+    BASE_OPACITY: 0.42,
+    RADIAL_PUSH: 1.16,
+    LENGTH_SCALE: 1.8,
+    SWAY_SPEED: 3.95,
+    SWAY_AMOUNT: 0.64,
+    TRAVEL_SPEED: 0.068,
+    DETACH_SPEED: 2.8,
+    DETACH_BOOST: 0.28,
+    FLOW_LEAN: 1.38,
+    RADIAL_LEAN: 0.44,
+    BRIDGE_SHARE: 0.46,
+    BRIDGE_FORWARD: 0.19,
+    BRIDGE_TWIST: 1.52,
     BRIDGE_CLING: 1.0,
-    BRIDGE_CURVE: 0.66,
-    BRIDGE_HOP_SPEED: 1.55,
-    MICRO_JUMP_SHARE: 0.2,
-    MICRO_JUMP_CURVE: 0.86,
-    MICRO_JUMP_SPEED: 5.2
+    BRIDGE_CURVE: 0.72,
+    BRIDGE_HOP_SPEED: 1.7,
+    MICRO_JUMP_SHARE: 0.24,
+    MICRO_JUMP_CURVE: 0.96,
+    MICRO_JUMP_SPEED: 5.8
 };
 const WAVE_SPARK_GLYPH = {
     SLIVER: 0,
@@ -83,10 +83,10 @@ const WAVE_SPARK_RATIOS = {
     bridgeContact: [0.25, 0.40, 0.30, 0.05]
 };
 const WAVE_SPARK_PROFILE = [
-    { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 7.0, sizeMax: 13.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.10 },
-    { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 8.0, sizeMax: 14.0, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.10 },
-    { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 9.0, sizeMax: 16.0, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.15 },
-    { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.0, sizeMax: 11.0, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.60 }
+    { lifeMin: 0.18, lifeMax: 0.32, sizeMin: 7.0, sizeMax: 13.0, speedMin: 0.95, speedMax: 1.45, spinMin: -1.2, spinMax: 1.2, gainMin: 0.55, gainMax: 0.85, accentMix: 0.20, hotMix: 0.14 },
+    { lifeMin: 0.22, lifeMax: 0.38, sizeMin: 8.0, sizeMax: 14.0, speedMin: 0.72, speedMax: 1.08, spinMin: -1.8, spinMax: 1.8, gainMin: 0.42, gainMax: 0.70, accentMix: 0.45, hotMix: 0.14 },
+    { lifeMin: 0.14, lifeMax: 0.26, sizeMin: 9.0, sizeMax: 16.0, speedMin: 0.82, speedMax: 1.20, spinMin: -2.1, spinMax: 2.1, gainMin: 0.48, gainMax: 0.78, accentMix: 0.50, hotMix: 0.20 },
+    { lifeMin: 0.09, lifeMax: 0.18, sizeMin: 6.0, sizeMax: 11.0, speedMin: 1.15, speedMax: 1.85, spinMin: -2.8, spinMax: 2.8, gainMin: 0.65, gainMax: 1.0, accentMix: 0.15, hotMix: 0.72 }
 ];
 const weightedPickIndex = (weights) => {
     let total = 0;
@@ -225,6 +225,56 @@ const hashString32 = (value = '') => {
 const seededNoise = (seed) => {
     const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
     return x - Math.floor(x);
+};
+
+const applyStrandThicknessProfile = (geometry, baseRadius, profile = {}) => {
+    const positionAttr = geometry?.attributes?.position;
+    const normalAttr = geometry?.attributes?.normal;
+    const uvAttr = geometry?.attributes?.uv;
+    if (!positionAttr || !normalAttr || !uvAttr || !Number.isFinite(baseRadius) || baseRadius <= 0) {
+        return geometry;
+    }
+
+    const positions = positionAttr.array;
+    const normals = normalAttr.array;
+    const uvs = uvAttr.array;
+
+    const bellyCenter = Number.isFinite(profile.bellyCenter) ? profile.bellyCenter : 0.52;
+    const bellyWidth = Math.max(0.05, Number.isFinite(profile.bellyWidth) ? profile.bellyWidth : 0.18);
+    const edgeTaper = Math.max(0.02, Number.isFinite(profile.edgeTaper) ? profile.edgeTaper : 0.10);
+    const taperFloor = Number.isFinite(profile.taperFloor) ? profile.taperFloor : 0.34;
+    const bulge = Number.isFinite(profile.bulge) ? profile.bulge : 0.18;
+    const ribCount = Math.max(1, profile.ribCount | 0);
+    const ribStrength = Number.isFinite(profile.ribStrength) ? profile.ribStrength : 0.10;
+    const ribBias = Number.isFinite(profile.ribBias) ? profile.ribBias : 0.0;
+    const asymmetry = Number.isFinite(profile.asymmetry) ? profile.asymmetry : 0.0;
+    const twist = Number.isFinite(profile.twist) ? profile.twist : 0.0;
+
+    for (let index = 0; index < positions.length; index += 3) {
+        const uvIndex = (index / 3) * 2;
+        const u = uvs[uvIndex] ?? 0;
+        const v = uvs[uvIndex + 1] ?? 0.5;
+
+        const edgeDistance = Math.min(u, 1.0 - u);
+        const edgeBlend = edgeDistance < edgeTaper ? edgeDistance / edgeTaper : 1.0;
+        const tipScale = taperFloor + (1.0 - taperFloor) * edgeBlend;
+        const bellyScale = 1.0 + bulge * Math.exp(-Math.pow((u - bellyCenter) / bellyWidth, 2.0));
+        const ribScale = 1.0 + ribStrength * Math.sin((u * Math.PI * 2.0 * ribCount) + twist);
+        const ribScale2 = 1.0 + (ribStrength * 0.45) * Math.sin((u * Math.PI * 2.0 * (ribCount + 1.5)) + twist * 1.7);
+        const sideScale = 1.0 + asymmetry * (v - 0.5) + ribBias * Math.sin((v * Math.PI * 2.0) + twist * 0.6);
+        const scale = Math.max(0.2, Math.min(1.55, tipScale * bellyScale * ribScale * ribScale2 * sideScale));
+        const delta = baseRadius * (scale - 1.0);
+
+        positions[index] += normals[index] * delta;
+        positions[index + 1] += normals[index + 1] * delta;
+        positions[index + 2] += normals[index + 2] * delta;
+    }
+
+    positionAttr.needsUpdate = true;
+    geometry.computeVertexNormals();
+    normalAttr.needsUpdate = true;
+    geometry.computeBoundingSphere();
+    return geometry;
 };
 
 // Lightweight dock spray system (per-link, instanced points)
@@ -1518,8 +1568,8 @@ export class LinkRendererConduit {
         const instability = clamp01(1.0 - (metrics.stability ?? 1));
         material.opacity = THREE.MathUtils.clamp(
             STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.22 + corruption * 0.28 + synergy * 0.12,
-            0.28,
-            0.96
+            0.3,
+            0.98
         );
         this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
@@ -1728,14 +1778,14 @@ export class LinkRendererConduit {
                 cBase.set(0xffffff);
             }
 
-            const startGain = (isMicroJump ? (0.38 + jumpVisibility * 0.42) : (isBridge ? 0.62 : 0.70)) + load * 0.44 + pulse * 0.26;
-            const midGain = (isMicroJump ? (0.46 + jumpVisibility * 0.40) : (isBridge ? 0.72 : 0.80)) + harmony * 0.30 + pulse * 0.20;
-            const tipGain = (isMicroJump ? (0.56 + jumpVisibility * 0.40) : (isBridge ? 0.82 : 0.94)) + harmony * 0.32 + detach * 0.72;
+            const startGain = (isMicroJump ? (0.34 + jumpVisibility * 0.38) : (isBridge ? 0.58 : 0.66)) + load * 0.40 + pulse * 0.22;
+            const midGain = (isMicroJump ? (0.42 + jumpVisibility * 0.36) : (isBridge ? 0.68 : 0.76)) + harmony * 0.28 + pulse * 0.18;
+            const tipGain = (isMicroJump ? (0.60 + jumpVisibility * 0.42) : (isBridge ? 0.86 : 1.0)) + harmony * 0.30 + detach * 0.78;
             cTip.copy(cBase).lerp(
                 COLOR_WHITE,
-                THREE.MathUtils.clamp((isMicroJump ? (0.25 + jumpVisibility * 0.5) : (isBridge ? 0.42 : 0.58)) + detach * 0.55 + corruption * 0.25, 0.0, 1.0)
+                THREE.MathUtils.clamp((isMicroJump ? (0.3 + jumpVisibility * 0.46) : (isBridge ? 0.48 : 0.64)) + detach * 0.58 + corruption * 0.28, 0.0, 1.0)
             );
-            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.32 + jumpVisibility * 0.38) : (isBridge ? 0.62 : 0.48));
+            cMid.copy(cBase).lerp(cTip, isMicroJump ? (0.36 + jumpVisibility * 0.34) : (isBridge ? 0.66 : 0.54));
 
             colors[p] = cBase.r * startGain;
             colors[p + 1] = cBase.g * startGain;
@@ -1752,7 +1802,7 @@ export class LinkRendererConduit {
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
-            const sparkChanceGate = isMicroJump ? (0.89 + (1.0 - jumpVisibility) * 0.05) : 0.964;
+            const sparkChanceGate = isMicroJump ? (0.88 + (1.0 - jumpVisibility) * 0.05) : 0.958;
             const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
             if ((detach > 0.14 || (isMicroJump && jumpVisibility > 0.82)) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
@@ -1778,7 +1828,7 @@ export class LinkRendererConduit {
                         harmony,
                         corruption,
                         load,
-                        hotBoost: isMicroJump ? 0.22 : 0.14
+                        hotBoost: isMicroJump ? 0.3 : 0.2
                     }
                 );
             }
@@ -1801,7 +1851,7 @@ export class LinkRendererConduit {
                         harmony,
                         corruption,
                         load,
-                        hotBoost: 0.12
+                        hotBoost: 0.18
                     }
                 );
             }
@@ -3564,6 +3614,18 @@ export class LinkRendererConduit {
                 this.config.radialSegments,
                 false
             );
+            applyStrandThicknessProfile(mesh.geometry, this.config.strandRadius, {
+                bellyCenter: 0.40 + seededNoise((i + 1) * 0.19) * 0.22,
+                bellyWidth: 0.14 + seededNoise((i + 3) * 0.23) * 0.11,
+                edgeTaper: 0.06 + seededNoise((i + 5) * 0.29) * 0.08,
+                taperFloor: 0.28 + seededNoise((i + 7) * 0.31) * 0.14,
+                bulge: 0.12 + seededNoise((i + 11) * 0.37) * 0.15,
+                ribCount: 2 + (i % 3),
+                ribStrength: 0.06 + seededNoise((i + 13) * 0.41) * 0.08,
+                ribBias: (seededNoise((i + 17) * 0.43) - 0.5) * 0.12,
+                asymmetry: (seededNoise((i + 19) * 0.47) - 0.5) * 0.18,
+                twist: seededNoise((i + 23) * 0.53) * Math.PI * 2.0
+            });
             if (state.strandDepthPasses && state.strandDepthPasses[i]) {
                 state.strandDepthPasses[i].geometry = mesh.geometry;
             }

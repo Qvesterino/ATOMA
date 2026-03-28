@@ -1,0 +1,85 @@
+{
+  "label": "after-unlink",
+  "nodeCount": 15,
+  "linkCount": 6,
+  "linkIds": [
+    "link-4",
+    "link-5",
+    "link-6",
+    "link-7",
+    "link-8",
+    "link-9"
+  ],
+  "wave": {
+    "activeLinks": 6,
+    "resistantNodes": 10,
+    "pressureZones": 10,
+    "reflectionActive": 30,
+    "pressureZonesActive": 10,
+    "traps": 10,
+    "primaryTrapState": "stable",
+    "primaryTrapRadius": 1,
+    "activeTrapAmplitude": 2.811725825115825,
+    "activeTrapAverageAmplitude": 2.515072715579143,
+    "antinodeMeshes": 0
+  },
+  "reflectionPulses": 30,
+  "pressureZones": 10,
+  "firstTrap": {
+    "state": "stable",
+    "amplitude": 2.5474216194958017,
+    "trapRadius": 1,
+    "frequency": 85.80000000000001,
+    "reflectionCount": 73
+  },
+  "standingWaveRendererState": {
+    "activeAntinodes": 0,
+    "activeTrapZones": 0,
+    "linkMaterials": 6,
+    "trapZones": 10,
+    "interferencePatterns": 10
+  },
+  "resonanceRuptureState": {
+    "ruptures": 2,
+    "propagationPulses": 0,
+    "resonanceScars": 0,
+    "preRuptureZones": 8
+  },
+  "harmonicRecoveryState": {
+    "recoveringZones": 0,
+    "waveMeshes": 0,
+    "haloMeshes": 0
+  },
+  "resonanceEchoTrailState": {
+    "activeEchoes": 14,
+    "debugMarkers": 0
+  },
+  "harmonicHubAuraState": {
+    "activeHubs": 1,
+    "fieldChildren": 1,
+    "activeWaveInteractions": 16
+  },
+  "harmonicInfluencePropagationState": {
+    "activePropagationWaves": 0,
+    "activeFlows": 0,
+    "auraChildren": 0,
+    "flowChildren": 0
+  },
+  "cascadeParticleState": {
+    "activeCount": 100,
+    "meshVisible": true,
+    "inScene": true,
+    "poolSize": 100
+  },
+  "cascadeVisualizerState": {
+    "activeCascades": 0,
+    "particlesActive": 0,
+    "ripples": 0,
+    "cascadeHistory": 0
+  },
+  "rawActiveCounts": {
+    "activeLinks": 6,
+    "visibleAntinodes": 0,
+    "visibleTrapZones": 0
+  }
+}

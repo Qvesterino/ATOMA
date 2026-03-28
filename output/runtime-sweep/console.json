@@ -1,0 +1,10 @@
+{
+  "consoleErrors": [
+    "[SemanticGlyphAI] Integrity mismatch: fusionRegistry.size !== aiNodes.nodes.length {fusionCount: 0, nodeCount: 15, missing: 15}"
+  ],
+  "consoleLogs": [
+    "warn: The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio",
+    "warn: The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio",
+    "warn: [CorruptionVisualFX_v1] THREE not detected – enabling SAFE MODE."
+  ]
+}
