@@ -182,6 +182,10 @@ class TrailParticle {
     this.energyIntensity = 1.0;  // [0-1] brightness modulation
     this.thicknessModulation = 1.0;  // [0-1] scale modulation
     this.trailVisibility = 1.0;  // [0-1] combined visibility envelope
+
+    // Scratch buffers avoid per-frame allocations in hot path.
+    this._frameScratch = new THREE.Vector3();
+    this._brightenedColor = new THREE.Color();
   }
 
   reset() {
@@ -211,8 +215,10 @@ class TrailParticle {
 
   update(deltaTime, time, noise) {
     if (!this.active) return false;
+    const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
+    const safeTime = Number.isFinite(time) ? time : 0;
 
-    this.age += deltaTime;
+    this.age += safeDelta;
     if (this.age >= this.lifetime) {
       this.reset();
       return false;
@@ -275,7 +281,7 @@ class TrailParticle {
       const noiseVal = noise.multiOctaveNoise(
         curvePos.x * 0.5,
         curvePos.y * 0.5,
-        curvePos.z * 0.5 + time
+        curvePos.z * 0.5 + safeTime
       );
 
       // Apply perpendicular offset based on noise
@@ -301,7 +307,7 @@ class TrailParticle {
       if (this.mesh.material) {
         // Energy intensity brightens the particle without bloom
         // Applied through color brightness, not additive blending
-        const brightened = new THREE.Color(this.color);
+        const brightened = this._brightenedColor.copy(this.color);
         brightened.multiplyScalar(this.energyIntensity);
         
         this.mesh.material.color.copy(brightened);
@@ -322,8 +328,8 @@ class TrailParticle {
     const delta = 0.001;
     const p1 = this.curve.getPointAt(Math.max(0, t - delta));
     const p2 = this.curve.getPointAt(Math.min(1, t + delta));
-    
-    return p2.clone().sub(p1).normalize();
+
+    return this._frameScratch.copy(p2).sub(p1).normalize();
   }
 
   emit(startPos, link, curve, lifetime = 1.0, sourceType = 'corruption') {
@@ -650,7 +656,7 @@ export class LinkTrailParticleSystem {
     this.emitAccumulators.clear();
     this.material.dispose();
     this.geometry.dispose();
-    this.scene.remove(this.poolGroup);
+    this.scene?.remove?.(this.poolGroup);
   }
 }
 

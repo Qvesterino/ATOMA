@@ -5534,11 +5534,6 @@ getLinksForNode(node) {
     this.cameraDirty = false;
   }
 
-  // Backward compatibility alias (no behavior change)
-  processRaycast() {
-    return this.processNodeTargeting();
-  }
-
   /**
    * Build per-link frame state for visual systems (single source of metrics/time).
    */
@@ -5836,11 +5831,6 @@ getLinksForNode(node) {
     this.crosshairRaycastStats.executed++;
   }
 
-  // Backward compatibility alias (no behavior change)
-  updateCrosshairTargeting() {
-    return this.updateCrosshairNodeTargeting();
-  }
-  
   /**
    * Trigger crosshair pulse feedback (called on link creation/removal/incompatibility)
    */

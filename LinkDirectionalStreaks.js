@@ -203,6 +203,7 @@ export class LinkDirectionalStreaks {
     update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, instability = 0.0, baseColor = null, targetColor = null, link = null, time = 0, specialization = 0) {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
         if (!curve) return; // Defensive: no curve, skip
+        const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
         
         const state = linkGroup.userData.conduitState;
         const streaks = state.directionalStreaks;
@@ -270,7 +271,8 @@ export class LinkDirectionalStreaks {
         const activeStreakCount = Math.ceil(this.config.streakCountMin + (synergyVisual * (this.config.streakCountMax - this.config.streakCountMin)));
         
         // Harmony controls length and brightness
-        const curveLength = curve.getLength ? curve.getLength() : 10;
+        const curveLengthRaw = curve.getLength ? curve.getLength() : 10;
+        const curveLength = Number.isFinite(curveLengthRaw) && curveLengthRaw > 1e-6 ? curveLengthRaw : 10;
 
         const physicalLength = THREE.MathUtils.clamp(curveLength * 0.08, 0.8, 3.0);
 
@@ -312,7 +314,7 @@ export class LinkDirectionalStreaks {
         
         for (let i = 0; i < streakCountToProcess; i++) {
             // Advance age
-            streaks.ages[i] += deltaTime;
+            streaks.ages[i] += safeDelta;
             
             // Compute lifetime for this streak
             const baseLifetime = 2.0;
@@ -331,7 +333,7 @@ export class LinkDirectionalStreaks {
             streaks.speeds[i] = speedMultiplier * 0.45; // 0.8 is base speed factor
             
             // Advance offset along curve
-            streaks.offsets[i] += (streaks.speeds[i] * deltaTime);
+            streaks.offsets[i] += (streaks.speeds[i] * safeDelta);
             
             // Wrap if exceeded curve
             if (streaks.offsets[i] > 1.0) {
@@ -506,7 +508,7 @@ export class LinkDirectionalStreaks {
             // Log opacity for debugging (throttled to 1 per second)
             if (typeof window !== 'undefined') {
                 this._streakOpacityLogTime = this._streakOpacityLogTime || 0;
-                this._streakOpacityLogTime += deltaTime;
+                this._streakOpacityLogTime += safeDelta;
                 if (this._streakOpacityLogTime > 1.0) {
                     console.log('[DirectionalStreaks] Opacity:', baseOpacity.toFixed(3), 'instability:', instability.toFixed(3), 'harmony:', harmony.toFixed(3), 'synergy:', synergy.toFixed(3));
                     this._streakOpacityLogTime = 0;

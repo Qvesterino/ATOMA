@@ -152,7 +152,7 @@ export class LinkCorruptionSpreadAnimator {
    * @param {Object} link - The link object
    */
   initializeLink(link) {
-    if (!link.id) return;
+    if (link?.id === null || link?.id === undefined) return;
     
     this.animationStates.set(link.id, {
       wavePhase: 0,
@@ -178,11 +178,12 @@ export class LinkCorruptionSpreadAnimator {
    * @returns {Object} Animation state
    */
   update(link, deltaTime, strands, options = {}) {
-    if (!link.id || !strands || strands.length === 0) return null;
+    if (link?.id === null || link?.id === undefined || !strands || strands.length === 0) return null;
+    const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
     
     const corruptionLevel = Math.min(this.config.maxCorruptionForSpread, this._readCorruptionLevel(link, options));
     
-    const nowMs = Number.isFinite(options?.nowMs) ? options.nowMs : performance.now();
+    const nowMs = Number.isFinite(options?.nowMs) ? options.nowMs : ((performance?.now?.() ?? Date.now()));
     
     let state = this.animationStates.get(link.id);
     if (!state) {
@@ -190,7 +191,7 @@ export class LinkCorruptionSpreadAnimator {
       state = this.animationStates.get(link.id);
     }
 
-    state.time = (state.time || 0) + deltaTime;
+    state.time = (state.time || 0) + safeDelta;
     
     if (corruptionLevel <= 0 && !state?.isAnimating) {
       return null;
@@ -241,7 +242,7 @@ export class LinkCorruptionSpreadAnimator {
     state.previousCorruption = corruptionLevel;
 
     if (sustainEligible || lingerActive) {
-      state.dustTravelPhase = ((state.dustTravelPhase || 0) + deltaTime * this.config.dustTravelSpeed) % 1;
+      state.dustTravelPhase = ((state.dustTravelPhase || 0) + safeDelta * this.config.dustTravelSpeed) % 1;
     }
     
     // Update animation phase (0 to 1, represents wave position)

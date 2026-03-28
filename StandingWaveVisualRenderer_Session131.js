@@ -91,6 +91,9 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneSecondaryOrbitTilt: 0.07,  // Secondary torus tilt amount
             trapZoneSecondaryOrbitDrift: 0.03, // Secondary torus drift amount
             trapZoneSecondaryOrbitMaxDelta: Math.PI * 0.055, // ~10 degrees max deviation
+            trapZoneLoadPressureStart: 0.35,   // Start of visibly pressurized trap state
+            trapZoneOverloadThreshold: 0.65,   // Overload state threshold
+            trapZonePressureBoost: 0.14,       // Light intensity boost under load
             trapZonePulseFrequency: 2.25,      // Trap zone pulse frequency
             trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
             
@@ -295,7 +298,7 @@ export class StandingWaveVisualRenderer_Session131 {
             core.renderOrder = this.config.renderOrder;
 
             const orbitA = new THREE.Mesh(
-                new THREE.TorusGeometry(Math.max(0.18, this.config.trapZoneOrbitRadius), 0.028, 5, 30),
+                new THREE.TorusGeometry(Math.max(0.18, this.config.trapZoneOrbitRadius), 0.028, 4, 18),
                 this.trapZoneRingMaterial.clone()
             );
             orbitA.frustumCulled = false;
@@ -303,7 +306,7 @@ export class StandingWaveVisualRenderer_Session131 {
             orbitA.rotation.x = Math.PI * 0.5;
 
             const orbitB = new THREE.Mesh(
-                new THREE.TorusGeometry(Math.max(0.14, this.config.trapZoneOrbitRadius * 0.78), 0.022, 4, 28),
+                new THREE.TorusGeometry(Math.max(0.14, this.config.trapZoneOrbitRadius * 0.78), 0.022, 3, 14),
                 this.trapZoneRingMaterial.clone()
             );
             orbitB.frustumCulled = false;
@@ -314,7 +317,7 @@ export class StandingWaveVisualRenderer_Session131 {
                 new THREE.RingGeometry(
                     Math.max(0.24, this.config.trapZoneHaloRadius * 0.54),
                     Math.max(0.42, this.config.trapZoneHaloRadius),
-                    60,
+                    40,
                     1
                 ),
                 this.trapZoneHaloMaterial.clone()
@@ -324,7 +327,7 @@ export class StandingWaveVisualRenderer_Session131 {
             halo.rotation.x = -Math.PI * 0.5;
 
             const shock = new THREE.Mesh(
-                new THREE.RingGeometry(Math.max(0.30, this.config.trapZoneOrbitRadius * 0.9), Math.max(0.44, this.config.trapZoneOrbitRadius * 1.42), 48, 1),
+                new THREE.RingGeometry(Math.max(0.30, this.config.trapZoneOrbitRadius * 0.9), Math.max(0.44, this.config.trapZoneOrbitRadius * 1.42), 32, 1),
                 this.trapZoneShockMaterial.clone()
             );
             shock.frustumCulled = false;
@@ -833,6 +836,13 @@ export class StandingWaveVisualRenderer_Session131 {
             // Acquire trap zone mesh from pool
             const trapZoneMesh = this.trapZoneMeshPool[zoneIndex];
             if (!trapZoneMesh) return;
+
+            const loadPressure = this._readLinkLoadPressure(link, zone);
+            const pressureStart = Math.max(0.01, this.config.trapZoneLoadPressureStart ?? 0.35);
+            const overloadStart = Math.max(pressureStart + 0.01, this.config.trapZoneOverloadThreshold ?? 0.65);
+            const pressureMix = this._clamp01((loadPressure - pressureStart) / (overloadStart - pressureStart));
+            const overloadMix = this._clamp01((loadPressure - overloadStart) / (1.0 - overloadStart));
+            const pressureBoost = (pressureMix * 0.18) + (overloadMix * 0.28);
             
             trapZoneMesh.active = true;
             trapZoneMesh.group.visible = true;
@@ -855,7 +865,7 @@ export class StandingWaveVisualRenderer_Session131 {
             const pulse = 0.6 + (Math.sin(pulsePhase) * 0.4);
             const warpPulse = 0.5 + (Math.sin(pulsePhase * 1.37) * 0.5);
             const fadeStrength = Math.max(0.16, Math.min(1, zone.intensity * 0.34));
-            const squash = 0.84 + (warpPulse * 0.22);
+            const squash = 0.86 + (warpPulse * 0.18);
             trapZoneMesh.group.scale.set(
                 singularityScale * (0.9 + (pulse * 0.09)),
                 singularityScale * squash,
@@ -864,9 +874,9 @@ export class StandingWaveVisualRenderer_Session131 {
 
             // Core singularity
             if (trapZoneMesh.coreMesh) {
-                trapZoneMesh.coreMesh.scale.setScalar(0.72 + (zone.intensity * 0.05));
+                trapZoneMesh.coreMesh.scale.setScalar(0.72 + (zone.intensity * 0.05) + pressureBoost * 0.05);
                 trapZoneMesh.coreMesh.rotation.y = pulsePhase * 0.35;
-                trapZoneMesh.coreMesh.material.opacity = Math.min(0.98, 0.82 + (zone.intensity * 0.04));
+                trapZoneMesh.coreMesh.material.opacity = Math.min(0.98, 0.82 + (zone.intensity * 0.04) + pressureBoost * 0.06);
                 trapZoneMesh.coreMesh.material.color.setRGB(
                     0.03 + (zone.intensity * 0.02),
                     0.015 + (zone.intensity * 0.008),
@@ -878,8 +888,8 @@ export class StandingWaveVisualRenderer_Session131 {
             if (trapZoneMesh.orbitAMesh) {
                 trapZoneMesh.orbitAMesh.rotation.z = pulsePhase * this.config.trapZoneOrbitSpeed;
                 trapZoneMesh.orbitAMesh.rotation.x = Math.PI * 0.5 + (warpPulse * 0.25);
-                trapZoneMesh.orbitAMesh.scale.setScalar(0.88 + (zone.intensity * 0.1));
-                trapZoneMesh.orbitAMesh.material.opacity = this.config.trapZoneOpacityBase * 0.82 * fadeStrength;
+                trapZoneMesh.orbitAMesh.scale.setScalar(0.88 + (zone.intensity * 0.08) + pressureBoost * 0.03);
+                trapZoneMesh.orbitAMesh.material.opacity = Math.max(0.03, this.config.trapZoneOpacityBase * (0.86 + pressureBoost) * fadeStrength);
                 trapZoneMesh.orbitAMesh.material.color.setRGB(
                     this.config.trapZoneColor.r * (0.72 + pulse * 0.28),
                     this.config.trapZoneColor.g * (0.76 + pulse * 0.24),
@@ -896,11 +906,11 @@ export class StandingWaveVisualRenderer_Session131 {
                 const baseX = trapZoneMesh.orbitAMesh?.rotation.x ?? (Math.PI * 0.5);
                 const baseY = trapZoneMesh.orbitAMesh?.rotation.y ?? 0;
                 const baseZ = trapZoneMesh.orbitAMesh?.rotation.z ?? 0;
-                trapZoneMesh.orbitBMesh.rotation.x = baseX + Math.sin(secondaryPhase * 0.84 + 0.26) * maxDelta * 0.58 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
-                trapZoneMesh.orbitBMesh.rotation.y = baseY + Math.sin(secondaryPhase * 0.74 + 0.71) * maxDelta * 0.42;
-                trapZoneMesh.orbitBMesh.rotation.z = baseZ + Math.sin(secondaryPhase * 0.66 + 1.18) * maxDelta * 0.34;
-                trapZoneMesh.orbitBMesh.scale.setScalar(0.92 + (pulse * 0.03));
-                trapZoneMesh.orbitBMesh.material.opacity = this.config.trapZoneOpacityBase * 0.54 * fadeStrength;
+                trapZoneMesh.orbitBMesh.rotation.x = baseX + Math.sin(secondaryPhase * 0.84 + 0.26) * maxDelta * 0.46 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
+                trapZoneMesh.orbitBMesh.rotation.y = baseY + Math.sin(secondaryPhase * 0.74 + 0.71) * maxDelta * 0.34;
+                trapZoneMesh.orbitBMesh.rotation.z = baseZ + Math.sin(secondaryPhase * 0.66 + 1.18) * maxDelta * 0.26;
+                trapZoneMesh.orbitBMesh.scale.setScalar(0.92 + (pulse * 0.02));
+                trapZoneMesh.orbitBMesh.material.opacity = Math.max(0.02, this.config.trapZoneOpacityBase * (0.5 + pressureBoost * 0.35) * fadeStrength);
                 trapZoneMesh.orbitBMesh.material.color.setRGB(
                     0.88 + (pulse * 0.12),
                     0.93 + (pulse * 0.05),
@@ -910,7 +920,7 @@ export class StandingWaveVisualRenderer_Session131 {
 
             if (trapZoneMesh.haloMesh) {
                 trapZoneMesh.haloMesh.rotation.z = pulsePhase * 0.16;
-                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.12));
+                trapZoneMesh.haloMesh.scale.setScalar(1.0 + (pulse * 0.1));
                 trapZoneMesh.haloMesh.material.opacity = Math.min(0.2, this.config.trapZoneOpacityBase * 0.42 * fadeStrength * (0.75 + pulse * 0.25));
                 trapZoneMesh.haloMesh.material.color.setRGB(
                     0.88 + (pulse * 0.08),
@@ -922,7 +932,7 @@ export class StandingWaveVisualRenderer_Session131 {
             // Shock ring: expansion / collapse cue.
             if (trapZoneMesh.shockMesh) {
                 trapZoneMesh.shockMesh.rotation.z = pulsePhase * 0.18;
-                trapZoneMesh.shockMesh.scale.setScalar(1.08 + (pulse * 0.24));
+                trapZoneMesh.shockMesh.scale.setScalar(1.08 + (pulse * 0.2));
                 trapZoneMesh.shockMesh.material.opacity = Math.min(0.18, this.config.trapZoneOpacityBase * 0.5 * fadeStrength * pulse);
                 trapZoneMesh.shockMesh.material.color.setRGB(
                     0.96,
@@ -1166,6 +1176,26 @@ export class StandingWaveVisualRenderer_Session131 {
 
     _getLinkVisualState(link) {
         return link?.group?.userData?.conduitState || null;
+    }
+
+    _clamp01(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return 0;
+        if (numeric < 0) return 0;
+        if (numeric > 1) return 1;
+        return numeric;
+    }
+
+    _readLinkLoadPressure(link, zone = null) {
+        const metrics = link?.userData?.metrics || {};
+        return this._clamp01(
+            metrics.loadPressure ??
+            link?.userData?.loadPressure ??
+            link?.userData?.loadNorm ??
+            zone?.loadPressure ??
+            zone?.intensity ??
+            0
+        );
     }
 
     _getLinkCurve(link) {

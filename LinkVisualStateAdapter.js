@@ -78,6 +78,7 @@ export class LinkVisualStateAdapter {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
 
         const state = linkGroup.userData.conduitState;
+        const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
 
         // Clamp values to safe ranges
         harmonyLevel = Math.max(0, Math.min(1, harmonyLevel));
@@ -86,15 +87,15 @@ export class LinkVisualStateAdapter {
         synergy = synergy !== undefined ? Math.max(0, Math.min(1, synergy)) : 0.5;
 
         // Update temporal phases for corruption/instability effects
-        this.corruptionPhase += deltaTime * (2.0 + corruptionLevel * 3.0);
-        this.instabilityPhase += deltaTime * (1.5 + instability * 2.5);
+        this.corruptionPhase += safeDelta * (2.0 + corruptionLevel * 3.0);
+        this.instabilityPhase += safeDelta * (1.5 + instability * 2.5);
         
         // Update synergy rhythm phase (independent, clean rhythm)
-        this.synergyPhase += deltaTime * (1.0 + synergy * 2.0) * STRAND_ART.PULSE_SPEED;
+        this.synergyPhase += safeDelta * (1.0 + synergy * 2.0) * STRAND_ART.PULSE_SPEED;
 
         // === UPDATE DECAY TRACKER ===
         // Track cumulative corruption exposure over time
-        this.decayTracker.update(corruptionLevel, harmonyLevel, deltaTime);
+        this.decayTracker.update(corruptionLevel, harmonyLevel, safeDelta);
 
         // Apply effects to each subsystem
         this.applyStrandEffects(state.strands, harmonyLevel, corruptionLevel, instability, synergy);

@@ -65,12 +65,13 @@ export class LinkEnergyWave {
     update(strands, deltaTime, synergy = 0.5, traffic = 0, baseEmissiveIntensity = 1.2) {
         const DEBUG_WAVE_VISIBLE = true;
         if (!strands || strands.length === 0) return;
+        const safeDelta = Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
         const safeSynergy = Math.max(0, Math.min(1, Number.isFinite(synergy) ? synergy : 0.5));
         const safeTraffic = Math.max(0, Math.min(1, Number.isFinite(traffic) ? traffic : 0));
         const safeBase = Math.max(this.config.minimumBaseEmissive, Number.isFinite(baseEmissiveIntensity) ? baseEmissiveIntensity : 0);
 
         // Advance global wave time
-        this.flowTime += deltaTime;
+        this.flowTime += safeDelta;
 
         // Calculate wave parameters
         const speedMult = 1.0 + (safeTraffic * this.config.trafficBoost) + (safeSynergy * this.config.synergyBoost);

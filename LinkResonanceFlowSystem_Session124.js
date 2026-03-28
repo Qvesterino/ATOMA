@@ -38,6 +38,20 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const _linkIdSeedCache = new Map();
+const getLinkSeed = (linkId) => {
+  if (linkId === null || linkId === undefined) return 0;
+  const key = String(linkId);
+  const cached = _linkIdSeedCache.get(key);
+  if (cached !== undefined) return cached;
+  let seed = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  const normalized = seed / 0xFFFFFFFF;
+  _linkIdSeedCache.set(key, normalized);
+  return normalized;
+};
 
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
@@ -172,7 +186,7 @@ export class LinkResonanceFlowSystem_Session124 {
     this.pulseGroup = new THREE.Group();
     this.pulseGroup.name = 'LinkResonancePulses_Session124';
     this.pulseGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('LINK_RESONANCE');
-    this.scene.add(this.pulseGroup);
+    this.scene?.add?.(this.pulseGroup);
     
     // Pre-allocate pulse meshes for efficient rendering
     this._initializePulseMeshes();
@@ -225,17 +239,18 @@ export class LinkResonanceFlowSystem_Session124 {
    * Update resonance flow system each frame
    */
   update(deltaTime, links, camera) {
-    if (!this.config.enabled || !links) return;
+    if (!this.config.enabled || !Array.isArray(links) || links.length === 0) return;
 
     if (this._timeOrigin === undefined) {
-      this._timeOrigin = VisualTime.now;
+      this._timeOrigin = Number.isFinite(VisualTime.now) ? VisualTime.now : ((performance?.now?.() ?? Date.now()) / 1000);
     }
     const currentFrameId = VisualTime.frameId ?? 0;
     if (this._lastUpdateFrameId === currentFrameId) {
       return;
     }
     this._lastUpdateFrameId = currentFrameId;
-    const currentVisualTime = VisualTime.now - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
+    const visualNow = Number.isFinite(VisualTime.now) ? VisualTime.now : ((performance?.now?.() ?? Date.now()) / 1000);
+    const currentVisualTime = visualNow - this._timeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
     const deltaVisual = this._lastVisualTime !== undefined ? currentVisualTime - this._lastVisualTime : 0;
     this._lastVisualTime = currentVisualTime;
 
@@ -265,7 +280,7 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   _updateSpawning(currentVisualTime, links) {
     for (const link of links) {
-      if (!link || !link.userData) continue;
+      if (!link || !link.userData || link.id === null || link.id === undefined) continue;
       
       const linkId = link.id;
       const metrics = this._readLinkPressureMetrics(link);
@@ -304,7 +319,8 @@ export class LinkResonanceFlowSystem_Session124 {
   _spawnPulse(link) {
     if (this.globalPulses.length >= this.config.maxTotalPulses) return;
     
-    const linkId = link.id;
+    const linkId = link?.id ?? link?.linkId;
+    if (linkId === null || linkId === undefined) return;
     const metrics = this._readLinkPressureMetrics(link);
     const loadPressure = metrics.loadPressure;
     const corruption = metrics.corruption;
@@ -411,7 +427,7 @@ export class LinkResonanceFlowSystem_Session124 {
       // Lazily allocate mesh once per pulse lifetime
       if (!pulse.mesh) {
         pulse.mesh = this.pulseMeshPool.pop() || this._createPulseMesh();
-        this.pulseGroup.add(pulse.mesh);
+        this.pulseGroup?.add?.(pulse.mesh);
       }
       
       // Get world position along link
@@ -419,6 +435,7 @@ export class LinkResonanceFlowSystem_Session124 {
       const direction = this._getLinkDirection(pulse.link, pulse.direction);
       const overloadMix = pulse.overloadMix ?? 0;
       const bandMix = pulse.bandMix ?? 0;
+      const linkSeed = getLinkSeed(pulse.linkId);
       
       // Calculate pulse appearance
       const color = this._getPulseColor(pulse);
@@ -432,9 +449,9 @@ export class LinkResonanceFlowSystem_Session124 {
       // Apply transforms and uniforms
       pulse.mesh.visible = true;
       pulse.mesh.position.set(
-        worldPos.x + Math.sin(pulse.life * 21.0 + pulse.linkId * 0.17) * jitter,
-        worldPos.y + Math.cos(pulse.life * 17.0 + pulse.linkId * 0.11) * jitter * 0.65,
-        worldPos.z + Math.sin(pulse.life * 19.0 + pulse.linkId * 0.13) * jitter * 0.72
+        worldPos.x + Math.sin(pulse.life * 21.0 + linkSeed * 6.283185307179586) * jitter,
+        worldPos.y + Math.cos(pulse.life * 17.0 + linkSeed * 4.1887902047863905) * jitter * 0.65,
+        worldPos.z + Math.sin(pulse.life * 19.0 + linkSeed * 8.377580409572781) * jitter * 0.72
       );
       pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
 
@@ -666,6 +683,7 @@ export class LinkResonanceFlowSystem_Session124 {
    * Update LOD based on camera distance
    */
   _updateLOD(camera) {
+    if (!camera?.position?.distanceTo) return;
     // Could suppress pulses on distant links
     // For now, basic distance check
     const threshold = this.config.lodDistanceThreshold;
@@ -703,7 +721,7 @@ export class LinkResonanceFlowSystem_Session124 {
         if (!pulse.active) {
           if (pulse.mesh) {
             pulse.mesh.visible = false;
-            this.pulseGroup.remove(pulse.mesh);
+            this.pulseGroup?.remove?.(pulse.mesh);
             this.pulseMeshPool.push(pulse.mesh);
             delete pulse.mesh;
           }
@@ -723,7 +741,7 @@ export class LinkResonanceFlowSystem_Session124 {
       if (!pulse.active) {
         if (pulse.mesh) {
           pulse.mesh.visible = false;
-          this.pulseGroup.remove(pulse.mesh);
+          this.pulseGroup?.remove?.(pulse.mesh);
           this.pulseMeshPool.push(pulse.mesh);
           delete pulse.mesh;
         }
@@ -849,7 +867,7 @@ export class LinkResonanceFlowSystem_Session124 {
    */
   dispose() {
     if (this.pulseGroup) {
-      this.scene.remove(this.pulseGroup);
+      this.scene?.remove?.(this.pulseGroup);
     }
     for (const pulse of this.globalPulses) {
       this._releasePulseMesh(pulse);

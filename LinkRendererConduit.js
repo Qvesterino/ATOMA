@@ -21,8 +21,7 @@ import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js'
 import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
-import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
-import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './shaders/LinkStateVisualLanguage.js';
+import { linkStateVertexShaderSimple, linkStateFragmentShaderSimple } from './LinkStateVisualLanguageIntegration.js';
 import { LinkTrailParticleSystem, LinkTrailEmitter } from './LinkTrailParticleSystem.js';
 import { LinkHealingParticleSystem, LinkHealingEmitter } from './LinkHealingParticleSystem.js';
 import { LinkExtensionConfig } from './LinkExtensionConfig.js';
@@ -46,7 +45,7 @@ const remap = (v, in0, in1, out0, out1) => {
     const t = clamp01((v - in0) / (in1 - in0));
     return out0 + (out1 - out0) * t;
 };
-const FORCE_VISUAL_DEBUG = true;
+const FORCE_VISUAL_DEBUG = false;
 const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
@@ -893,7 +892,6 @@ export class LinkRendererConduit {
         this.frameScheduler = frameScheduler;
         this.travelingWaveFX = null; // optional synergy traveling-wave shader patcher
         this.waveTravelShaderPack = waveTravelPack;
-        this.waveSystem = this.waveTravelShaderPack;
         this.conduitRoot = new THREE.Group();
         this.conduitRoot.name = 'LinkRendererConduitRoot';
         (parentGroup || this.scene)?.add(this.conduitRoot);
@@ -947,7 +945,6 @@ export class LinkRendererConduit {
 
         // Harmonic synchronization management (visual only)
         this.nodeHarmonicManager = new NodeHarmonicManager(scene);
-        this.harmonicManager = this.nodeHarmonicManager;
 
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
@@ -966,15 +963,12 @@ export class LinkRendererConduit {
 
         // Corruption spread animation system (visual only)
         this.corruptionSpreadAnimator = new LinkCorruptionSpreadAnimator();
-        this.corruptionAnimator = this.corruptionSpreadAnimator; // backward compat
 
         // Corruption particle system (visual only)
         this.corruptionParticleSystem = new LinkCorruptionParticleSystem(scene);
-        this.corruptionParticles = this.corruptionParticleSystem; // backward compat
 
         // Corruption morphing system (visual deformation)
         this.corruptionMorphing = new LinkCorruptionMorphingSystem();
-        this.morphSystem = this.corruptionMorphing;
 
         // Tier 4 corruption feedback visuals are injected from main.js as a shared authority.
         this.corruptionFeedbackVisuals = null;
@@ -1025,7 +1019,6 @@ export class LinkRendererConduit {
 
         // Healing particle system (visual only) - reverse flow, harmony-driven
         this.healingParticles = new LinkHealingParticleSystem(scene, 250);
-        this.linkHealingParticles = this.healingParticles; // alias for clarity
 
         // Healing emitters per link
         this.healingEmitters = new Map();
@@ -1069,7 +1062,6 @@ export class LinkRendererConduit {
         this._setupParticleCallbacks();
 
         // Optional synergy traveling-wave shader adapter (set externally)
-        this.travelingWaveFX = this.travelingWaveFX || null;
 
         // Cached VFX input (reused each frame)
         this._vfxInput = {
@@ -1086,8 +1078,6 @@ export class LinkRendererConduit {
         this._impactMaterialPool = new Map();
         this._impactPoolMaxSize = 20;
 
-        // Link State Visual Language Integration
-        this.linkStateVisualLanguage = null;
         this.synergyBonusVisualization = null;
     }
 
@@ -2066,16 +2056,16 @@ export class LinkRendererConduit {
             this._canonicalWriteLinkWaveMetrics(link);
         }
 
-        this.waveSystem?.update?.(deltaTime);
+        this.waveTravelShaderPack?.update?.(deltaTime);
 
-        if (this.morphSystem?.update) {
-            this.morphSystem.update(deltaTime, list);
+        if (this.corruptionMorphing?.update) {
+            this.corruptionMorphing.update(deltaTime, list);
         }
 
         let frameHarmony = 0.5;
         let frameCorruption = 0;
         let frameInstability = 0;
-        if (this.harmonicManager?.update || this.nodeInterferenceManager?.update) {
+        if (this.nodeHarmonicManager?.update || this.nodeInterferenceManager?.update) {
             let sumHarmony = 0;
             let sumCorruption = 0;
             let sumInstability = 0;
@@ -2094,8 +2084,8 @@ export class LinkRendererConduit {
             frameInstability = count > 0 ? sumInstability * inv : 0;
         }
 
-        if (this.harmonicManager?.update) {
-            this.harmonicManager.update(
+        if (this.nodeHarmonicManager?.update) {
+            this.nodeHarmonicManager.update(
                 list,
                 frameHarmony,
                 frameCorruption,
@@ -2895,8 +2885,8 @@ export class LinkRendererConduit {
                 if (!state.visualStateAdapter && LinkVisualStateAdapter) {
                     state.visualStateAdapter = new LinkVisualStateAdapter();
                 }
-                if (this.corruptionAnimator && link.id) {
-                    this.corruptionAnimator.initializeLink(link);
+                if (this.corruptionSpreadAnimator && link.id) {
+                    this.corruptionSpreadAnimator.initializeLink(link);
                 }
                 if (this.trailParticles && link.id && !this.trailEmitters.has(link.id)) {
                     const emitter = new LinkTrailEmitter(link, this.trailParticles, 'corruption');
@@ -5193,13 +5183,13 @@ export class LinkRendererConduit {
         }
 
         // Dispose corruption animation state
-        if (link && this.corruptionAnimator && link.id) {
-            this.corruptionAnimator.disposeLinkAnimation(link.id);
+        if (link && this.corruptionSpreadAnimator && link.id) {
+            this.corruptionSpreadAnimator.disposeLinkAnimation(link.id);
         }
 
         // Clear corruption particles for this link
-        if (link && this.corruptionParticles && link.id) {
-            this.corruptionParticles.clearLinkParticles(link);
+        if (link && this.corruptionParticleSystem && link.id) {
+            this.corruptionParticleSystem.clearLinkParticles(link);
         }
 
         // Dispose trail particle emitter for this link

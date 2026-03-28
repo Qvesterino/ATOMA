@@ -84,6 +84,7 @@ export class LinkHealingParticleSystem {
     this.pool = new HealingPool(poolSize);
     this.onParticleArrival = null;
     this.pendingRequests = [];
+    this._radialScratch = new THREE.Vector3();
 
     // Geometry
     this.positions = new Float32Array(poolSize * 3);
@@ -303,6 +304,7 @@ export class LinkHealingParticleSystem {
   }
 
   update(deltaTime, time) {
+    const safeTime = Number.isFinite(time) ? time : ((performance?.now?.() ?? Date.now()) * 0.001);
     // Process queued emissions with per-link cap
     if (this.pendingRequests.length) {
       // Build current active per link
@@ -351,7 +353,7 @@ export class LinkHealingParticleSystem {
       this.pendingRequests.length = 0;
     }
 
-    this.material.uniforms.uTime.value = time;
+    this.material.uniforms.uTime.value = safeTime;
     this.material.uniforms.uOpacity.value = 2.5;
     this.points.visible = true;
     let anyActive = false;
@@ -360,7 +362,7 @@ export class LinkHealingParticleSystem {
       if (!this.pool.active[i]) continue;
       anyActive = true;
       const life = this.pool.life[i];
-      const age = time - this.pool.startTime[i];
+      const age = safeTime - this.pool.startTime[i];
       if (age >= life) {
         this.pool.deactivate(i);
         continue;
@@ -384,7 +386,7 @@ export class LinkHealingParticleSystem {
       this.pool.binormal[i].crossVectors(tan, this.pool.normal[i]).normalize();
 
       const ang = this.pool.orbitPhase[i] + this.pool.orbitSpeed[i] * age;
-      const radialDir = new THREE.Vector3()
+      const radialDir = this._radialScratch
         .copy(this.pool.normal[i]).multiplyScalar(Math.cos(ang))
         .addScaledVector(this.pool.binormal[i], Math.sin(ang))
         .normalize();
@@ -406,7 +408,7 @@ export class LinkHealingParticleSystem {
       // arrival detection near source end
       if (!this.pool.arrived[i] && t <= 0.05 && this.onParticleArrival) {
         this.pool.arrived[i] = true;
-        this.onParticleArrival({ index: i }, this.pool.link[i], time);
+        this.onParticleArrival({ index: i }, this.pool.link[i], safeTime);
       }
     }
 
@@ -425,7 +427,7 @@ export class LinkHealingParticleSystem {
   }
 
   dispose() {
-    this.scene.remove(this.points);
+    this.scene?.remove?.(this.points);
     this.geometry.dispose();
     this.material.dispose();
   }
