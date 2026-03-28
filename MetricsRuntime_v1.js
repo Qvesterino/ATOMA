@@ -246,7 +246,6 @@ export class MetricsRuntime_v1 {
 
     _step(dt) {
         try {
-            console.log("SIM TICK", typeof performance !== 'undefined' ? performance.now() : Date.now());
             // 1. Update individual metrics systems (fixed-step)
             if (this.systems.nodeDynamicMetrics?.update) {
                 this.systems.nodeDynamicMetrics.update(dt);
@@ -435,7 +434,6 @@ const adapter = this._createLinkSystemAdapter(
      * Used by FrameScheduler.background layer for 2Hz execution
      */
     runNetworkMetricsAggregator() {
-        console.log("ATOMA METRICS AGGREGATOR RUNNING");
         if (!this.useNetworkMetricsAggregator) return;
         try {
             this._runNetworkMetricsAggregator();
@@ -601,8 +599,9 @@ const adapter = this._createLinkSystemAdapter(
             node.userData = node.userData || {};
             const userData = node.userData;
             const metrics = userData.metrics || (userData.metrics = {});
-            const harmony = this._clamp01(metrics.harmony ?? userData.harmony ?? userData.harmonyLevel ?? 0);
-            const corruption = this._clamp01(metrics.corruption ?? userData.corruption ?? userData.corruptionLevel ?? 0);
+            // Priority: harmonyLevel (HarmonyStabilizationSystem) > harmony > metrics.harmony
+            const harmony = this._clamp01(userData.harmonyLevel ?? userData.harmony ?? metrics.harmony ?? 0);
+            const corruption = this._clamp01(userData.corruptionLevel ?? userData.corruption ?? metrics.corruption ?? 0);
             const stability = this._clamp01(metrics.stability ?? (1 - this._clamp01(userData.instability ?? 0)));
             const load = this._clamp01(metrics.loadPressure ?? userData.loadPressure ?? userData.pressure ?? 0);
             const instability = this._clamp01(1 - stability);

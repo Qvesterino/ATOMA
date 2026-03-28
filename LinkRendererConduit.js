@@ -2113,7 +2113,8 @@ export class LinkRendererConduit {
         }
 
         if (run30 && this.pictogramSystem?.enabled) {
-            this.pictogramSystem.update(deltaTime, time, this.camera);
+            this.pictogramSystem.syncRuntimeDependencies?.(this.linkSystem, this.camera);
+            this.pictogramSystem.update(deltaTime, time, this.linkSystem?.aiNodes?.nodes || null);
         }
 
         // Shared healing particle system update
@@ -4755,7 +4756,7 @@ export class LinkRendererConduit {
     updatePictograms(deltaTime, time) {
         if (this.pictogramSystem?.enabled) {
             try {
-                // Pass aiNodes for fusion zone detection (was incorrectly passing camera)
+                this.pictogramSystem.syncRuntimeDependencies?.(this.linkSystem, this.camera);
                 const aiNodes = this.linkSystem?.aiNodes?.nodes || null;
                 this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), aiNodes);
             } catch {

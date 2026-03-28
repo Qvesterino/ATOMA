@@ -14,6 +14,7 @@ export class World {
     this.worldRoot = worldRoot;
     this.worldDecorations = [];
     this.ripples = [];
+    this.collisionObjects = [];
     
     this.createChamberFloor();
     this.createSingularity();
@@ -41,6 +42,7 @@ export class World {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
     this.worldRoot.add(floor);
+    this.collisionObjects.push(floor);
     
     // Thin holographic ring at edge
     const ringGeometry = new THREE.RingGeometry(
@@ -153,6 +155,7 @@ export class World {
       platform.rotation.y = angle + Math.PI / 2;
       
       this.worldRoot.add(platform);
+      this.collisionObjects.push(platform);
       
       // Add thin neon edge
       const edgeGeometry = new THREE.EdgesGeometry(platformGeometry);
@@ -179,9 +182,19 @@ export class World {
         floatSpeed: 0.3 + Math.random() * 0.2,
         floatOffset: Math.random() * Math.PI * 2
       };
-      
-      this.worldRoot.add(platform);
     }
+  }
+
+  getCollisionObjects() {
+    return this.collisionObjects;
+  }
+
+  getMovementBounds() {
+    return {
+      type: 'circle',
+      center: new THREE.Vector3(0, 0, 0),
+      radius: Math.max(1, CONFIG.chamber.radius - 0.75)
+    };
   }
   
   /**

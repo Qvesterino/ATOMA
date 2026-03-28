@@ -15,6 +15,7 @@ export class SigmaRiftChamber {
     this.worldRoot = worldRoot;
     this.camera = camera;
     this.animatedObjects = [];
+    this.collisionObjects = [];
     this.chamberRadius = 60;
     this.chamberHeight = 50;
     this.riftHeight = 18;
@@ -265,6 +266,7 @@ export class SigmaRiftChamber {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
     this.worldRoot.add(floor);
+    this.collisionObjects.push(floor);
     
     const patternRadius = this.chamberRadius * 0.8;
     const hexRadius = 2;
@@ -532,6 +534,7 @@ export class SigmaRiftChamber {
     monolith.position.set(x, y, z);
     monolith.rotation.y = angle;
     this.worldRoot.add(monolith);
+    this.collisionObjects.push(monolith);
     
     const edgeGeometry = new THREE.EdgesGeometry(geometry);
     const pos = edgeGeometry.attributes?.position?.array;
@@ -565,6 +568,18 @@ export class SigmaRiftChamber {
       object: monolith,
       type: 'monolith'
     });
+  }
+
+  getCollisionObjects() {
+    return this.collisionObjects;
+  }
+
+  getMovementBounds() {
+    return {
+      type: 'circle',
+      center: new THREE.Vector3(0, 0, 0),
+      radius: Math.max(1, this.chamberRadius - 1.5)
+    };
   }
   
   createHolographicRings() {

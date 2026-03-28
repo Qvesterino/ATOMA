@@ -529,6 +529,10 @@ export class DreamDesert {
       this.glitchPlanes.push(plane);
     }
   }
+
+  getCollisionObjects() {
+    return this.collisionObjects;
+  }
   
   /**
    * Update dream desert animations

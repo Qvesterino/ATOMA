@@ -18,12 +18,13 @@ export class QuantumIsland {
     this.filaments = [];
     this.glitchRibbons = [];
     this.fractalPatterns = [];
+    this.collisionObjects = [];
     
     // Session 112+: Initialize map reference plane from config
     this.initializeMapConfig();
     this.initializeReferencePlane();
     
-    this.createIsland();
+        this.createIsland();
     this.createVortexVoid();
     this.createOrbitingRocks();
     this.createFilaments();
@@ -100,6 +101,7 @@ export class QuantumIsland {
     this.island = new THREE.Mesh(islandGeometry, islandMaterial);
     this.island.position.y = 0;
     this.worldRoot.add(this.island);
+    this.collisionObjects.push(this.island);
     
     // Neon edge highlights
     const edgeCount = 32;

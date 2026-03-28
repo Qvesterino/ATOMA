@@ -13,12 +13,20 @@ class PlayerController {
     this.jumpForce = options.jumpForce || 15;
     this.gravity = options.gravity || 30;
     this.groundLevel = options.groundLevel || 1; // Assuming base ground is at y=0, player bottom at y=0.4
+    this.collisionProvider = options.collisionProvider || null;
+    this.worldBoundsProvider = options.worldBoundsProvider || null;
+    this.groundProbeHeight = options.groundProbeHeight || 120;
+    this.maxStepHeight = options.maxStepHeight || 1.25;
+    this.collisionEpsilon = options.collisionEpsilon || 0.02;
 
     // State
     this.velocity = new THREE.Vector3();
     this.isOnGround = true;
     this.canJump = true;
     this.keys = {};
+    this._raycaster = new THREE.Raycaster();
+    this._rayOrigin = new THREE.Vector3();
+    this._rayDirection = new THREE.Vector3(0, -1, 0);
 
     // Setup input handlers
     this.setupInput();
@@ -37,24 +45,103 @@ class PlayerController {
     });
   }
 
+  getCollisionObjects() {
+    const source = typeof this.collisionProvider === 'function'
+      ? this.collisionProvider()
+      : this.collisionProvider;
+
+    if (!Array.isArray(source) || source.length === 0) {
+      return [];
+    }
+
+    return source;
+  }
+
+  getMovementBounds() {
+    if (typeof this.worldBoundsProvider !== 'function') {
+      return null;
+    }
+
+    return this.worldBoundsProvider() || null;
+  }
+
+  getGroundLevelAt(x, z, collisionObjects) {
+    if (!collisionObjects.length) {
+      return this.groundLevel;
+    }
+
+    this._rayOrigin.set(x, this.player.position.y + this.groundProbeHeight, z);
+    this._raycaster.set(this._rayOrigin, this._rayDirection);
+
+    const hits = this._raycaster.intersectObjects(collisionObjects, false);
+    if (!hits.length) {
+      return this.groundLevel;
+    }
+
+    const groundLevel = hits[0].point.y + this.groundLevel;
+    return groundLevel;
+  }
+
+  isWithinMovementBounds(x, z, bounds) {
+    if (!bounds) {
+      return true;
+    }
+
+    const centerX = bounds.center?.x ?? bounds.x ?? 0;
+    const centerZ = bounds.center?.z ?? bounds.z ?? 0;
+    const radius = bounds.radius ?? bounds.limit ?? null;
+
+    if (bounds.type === 'circle' && Number.isFinite(radius)) {
+      const dx = x - centerX;
+      const dz = z - centerZ;
+      return (dx * dx + dz * dz) <= (radius * radius);
+    }
+
+    return true;
+  }
+
+  canMoveTo(x, z, currentGroundLevel, collisionObjects, bounds, allowVerticalStep = false) {
+    if (!this.isWithinMovementBounds(x, z, bounds)) {
+      return false;
+    }
+
+    const targetGroundLevel = this.getGroundLevelAt(x, z, collisionObjects);
+    if (!Number.isFinite(targetGroundLevel)) {
+      return false;
+    }
+
+    if (allowVerticalStep) {
+      return true;
+    }
+
+    return (targetGroundLevel - currentGroundLevel) <= this.maxStepHeight;
+  }
+
   /**
    * Updates the player's state, velocity, and position.
    * @param {number} deltaTime Time elapsed since the last frame.
    * @param {number} cameraRotation The current horizontal rotation (yaw) of the active camera.
    */
   update(deltaTime, cameraRotation) {
-    // Apply gravity
-    // Check if the player's base (center y - half height approx) is above ground
-    // Note: Player model base is roughly at world y = player.position.y
-    if (this.player.position.y > this.groundLevel) {
+    const collisionObjects = this.getCollisionObjects();
+    const movementBounds = this.getMovementBounds();
+    const currentGroundLevel = this.getGroundLevelAt(
+      this.player.position.x,
+      this.player.position.z,
+      collisionObjects
+    );
+
+    const onGround = this.player.position.y <= (currentGroundLevel + this.collisionEpsilon);
+    if (onGround) {
+      this.player.position.y = currentGroundLevel;
+      if (this.velocity.y < 0) {
+        this.velocity.y = 0;
+      }
+      this.isOnGround = true;
+      this.canJump = true;
+    } else {
       this.velocity.y -= this.gravity * deltaTime;
       this.isOnGround = false;
-    } else {
-      // Clamp player to ground level and reset vertical velocity
-      this.velocity.y = Math.max(0, this.velocity.y); // Stop downward velocity, allow upward (jump)
-      this.player.position.y = this.groundLevel;
-      this.isOnGround = true;
-      this.canJump = true; // Can jump again once grounded
     }
 
     // Handle jumping
@@ -107,12 +194,55 @@ class PlayerController {
     this.velocity.x = moveDirection.x * currentMoveSpeed;
     this.velocity.z = moveDirection.z * currentMoveSpeed;
 
+    const baseGroundLevel = currentGroundLevel;
+    const proposedX = this.player.position.x + this.velocity.x * deltaTime;
+    if (this.canMoveTo(
+      proposedX,
+      this.player.position.z,
+      baseGroundLevel,
+      collisionObjects,
+      movementBounds,
+      !this.isOnGround
+    )) {
+      this.player.position.x = proposedX;
+    }
+
+    const groundAfterX = this.getGroundLevelAt(
+      this.player.position.x,
+      this.player.position.z,
+      collisionObjects
+    );
+    const proposedZ = this.player.position.z + this.velocity.z * deltaTime;
+    if (this.canMoveTo(
+      this.player.position.x,
+      proposedZ,
+      groundAfterX,
+      collisionObjects,
+      movementBounds,
+      !this.isOnGround
+    )) {
+      this.player.position.z = proposedZ;
+    }
 
     // --- Update Player Position ---
     // Apply calculated velocity scaled by deltaTime
-    this.player.position.x += this.velocity.x * deltaTime;
     this.player.position.y += this.velocity.y * deltaTime; // Vertical velocity already includes gravity effect
-    this.player.position.z += this.velocity.z * deltaTime;
+
+    const updatedGroundLevel = this.getGroundLevelAt(
+      this.player.position.x,
+      this.player.position.z,
+      collisionObjects
+    );
+    if (this.player.position.y <= updatedGroundLevel + this.collisionEpsilon) {
+      this.player.position.y = updatedGroundLevel;
+      if (this.velocity.y < 0) {
+        this.velocity.y = 0;
+      }
+      this.isOnGround = true;
+      this.canJump = true;
+    } else {
+      this.isOnGround = false;
+    }
 
   }
 
