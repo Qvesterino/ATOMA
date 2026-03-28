@@ -2632,6 +2632,7 @@ export class LinkRendererConduit {
             impacts: [],
             __dynamicGeometryInitialized: false,
             __warnedDirectionalStreaksInactive: false,
+            __directionalStreaksAccum: 0,
             bootstrap: {
                 phase: 0,
                 maxPhase: 9,
@@ -3349,7 +3350,12 @@ export class LinkRendererConduit {
         const segments = geometryTick
             ? computeSegmentsFromLength(mainCurve)
             : (state.strandSegments || computeSegmentsFromLength(mainCurve));
-        const frames = geometryTick ? mainCurve.computeFrenetFrames(segments, false) : null;
+        let frames = state.__cachedFrenetFrames || null;
+        if (geometryTick) {
+            frames = mainCurve.computeFrenetFrames(segments, false);
+            state.__cachedFrenetFrames = frames;
+            state.__cachedFrenetSegments = segments;
+        }
         frameState.geometry.frames = frames;
 
         // --- 2. Dynamic Parameters ---
@@ -3389,8 +3395,10 @@ export class LinkRendererConduit {
         const noiseBase = 0.005 * (1.0 - synergy);
         // Denser strand marks with length-scaled count to avoid sparse long links.
         const overlaySegmentCount = THREE.MathUtils.clamp(24.0 + (linkDist * 1.2), 28.0, 88.0);
+        const runDynamicStrands = geometryTick && lodAllowsSecondaryVfx;
 
-        state.strands.forEach((mesh, i) => {
+        if (runDynamicStrands) {
+            state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
                 // Phase LRC-SAFE-CORE
                 // Do NOT modify core node material
@@ -3443,14 +3451,6 @@ export class LinkRendererConduit {
                 const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
                 const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
                 mergePatch(materialPatches.strands, mesh, { opacity: mesh.material.opacity, emissiveIntensity, owner: 'opacityStage' });
-            }
-
-            if (!geometryTick) {
-                // Runtime cost guard: avoid per-frame TubeGeometry rebuild churn.
-                if (mesh.material && mesh.material.linewidth !== undefined) {
-                    mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
-                }
-                return;
             }
 
             // Generate helical path
@@ -3523,20 +3523,23 @@ export class LinkRendererConduit {
             if (mesh.material && mesh.material.linewidth !== undefined) {
                 mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
             }
-        });
+            });
+        }
 
-        this._updateStrandFilaments(link, state, {
-            mainCurve,
-            frames,
-            segments,
-            geometryTick,
-            metrics,
-            visualTime,
-            activeRadius,
-            twistPhase,
-            noiseBase,
-            linkDist
-        });
+        if (runDynamicStrands) {
+            this._updateStrandFilaments(link, state, {
+                mainCurve,
+                frames,
+                segments,
+                geometryTick,
+                metrics,
+                visualTime,
+                activeRadius,
+                twistPhase,
+                noiseBase,
+                linkDist
+            });
+        }
 
         // --- 4. Aura Skin Update (Unified Shader Material) ---
         if (state.skinMesh && this.modules.aura) {
@@ -3858,36 +3861,42 @@ export class LinkRendererConduit {
 
         // --- 9. Directional Energy Streaks (Synergy-driven flow visualization) ---
         if (heavyTick && state.directionalStreaks && this.directionalStreaks && this.modules.streaks && lodAllowsSecondaryVfx) {
-            const harmonyLevel = lodHarmony;
-            const corruptionLevel = lodCorruption;
-            const instability = lodInstability;
-            const synergyLevel = lodSynergy;
+            const streakInterval = lod <= 0 ? (1 / 15) : (1 / 10);
+            state.__directionalStreaksAccum = (state.__directionalStreaksAccum || 0) + visualDelta;
+            if (state.__directionalStreaksAccum >= streakInterval) {
+                const streakDelta = state.__directionalStreaksAccum;
+                state.__directionalStreaksAccum = 0;
+                const harmonyLevel = lodHarmony;
+                const corruptionLevel = lodCorruption;
+                const instability = lodInstability;
+                const synergyLevel = lodSynergy;
 
-            const sourceColor = new THREE.Color(state.baseColor);
-            const targetCat = link.target.userData?.category || 'input';
-            const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
+                const sourceColor = new THREE.Color(state.baseColor);
+                const targetCat = link.target.userData?.category || 'input';
+                const targetColor = new THREE.Color(this.getCategoryColor(targetCat));
 
-            try {
-                this.directionalStreaks.update(
-                    link.group,
-                    mainCurve,
-                    visualDelta, // Phase 2A: canonical VisualTime delta
-                    synergyLevel,
-                    harmonyLevel,
-                    corruptionLevel,
-                    instability,
-                    sourceColor,
-                    targetColor,
-                    link,
-                    visualTime,  // Time source: VisualTime (canonical)
-                    frameState
-                );
-                if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                    console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'instability:', instability);
-                }
-            } catch (err) {
-                if (typeof window !== 'undefined') {
-                    console.error('[DirectionalStreaks][EXCEPTION]', err);
+                try {
+                    this.directionalStreaks.update(
+                        link.group,
+                        mainCurve,
+                        streakDelta, // Cadenced update with accumulated canonical VisualTime delta
+                        synergyLevel,
+                        harmonyLevel,
+                        corruptionLevel,
+                        instability,
+                        sourceColor,
+                        targetColor,
+                        link,
+                        visualTime,  // Time source: VisualTime (canonical)
+                        frameState
+                    );
+                    if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
+                        console.debug('[StreaksTick]', link.id, 'synergy:', synergyLevel, 'harmony:', harmonyLevel, 'corruption:', corruptionLevel, 'instability:', instability);
+                    }
+                } catch (err) {
+                    if (typeof window !== 'undefined') {
+                        console.error('[DirectionalStreaks][EXCEPTION]', err);
+                    }
                 }
             }
         } else {

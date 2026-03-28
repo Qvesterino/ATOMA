@@ -110,6 +110,10 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Initialize node harmony if not already tracked
+   * 
+   * [PHASE 1 FIX] Single Source of Truth:
+   * - harmonyLevel is stored in node.userData.harmonyLevel (canonical)
+   * - internal map stores only transient state (velocity, timestamps)
    */
   initializeNodeHarmony(node) {
     if (!node || !node.userData) return null;
@@ -117,8 +121,37 @@ export class HarmonyStabilizationSystem_v1 {
     const nodeId = node.id || `node_${Math.random()}`;
     
     if (!this.nodeHarmony.has(nodeId)) {
+      // Initialize canonical userData.harmonyLevel first
+      if (typeof node.userData.harmonyLevel !== 'number') {
+        // Seed initial harmony - base 0.5 like other metrics (DEFAULT_METRICS)
+        let initialHarmony = 0.5; // Base seed (same as DEFAULT_METRICS)
+        const archetype = node.userData?.archetype;
+        if (archetype === 'harmony' || archetype === 'resonance') {
+          initialHarmony = 0.7;
+        } else if (archetype === 'prime' || archetype === 'sigma') {
+          initialHarmony = 0.6;
+        } else if (archetype === 'chaos' || archetype === 'error') {
+          initialHarmony = 0.3;
+        } else {
+          // Small random variation around 0.5
+          initialHarmony = 0.45 + Math.random() * 0.15; // 0.45-0.6
+        }
+        node.userData.harmonyLevel = initialHarmony;
+        // Sync to userData.metrics.harmony for downstream consumers
+        if (node.userData.metrics) {
+          node.userData.metrics.harmony = initialHarmony;
+        }
+      }
+      if (typeof node.userData.isHarmonyAnchor !== 'boolean') {
+        node.userData.isHarmonyAnchor = false;
+      }
+      if (typeof node.userData.anchorPulseActive !== 'boolean') {
+        node.userData.anchorPulseActive = false;
+      }
+      
+      // Internal map for transient state only (NOT level)
       this.nodeHarmony.set(nodeId, {
-        level: 0,
+        // level is NOW stored in node.userData.harmonyLevel - DO NOT duplicate here
         velocity: 0,
         lastUpdateTime: Date.now(),
         pulseActive: false,
@@ -126,8 +159,8 @@ export class HarmonyStabilizationSystem_v1 {
         oasisActive: false,
         healingRate: 0,
         node: node,
-        nodeId: nodeId,
-        isAnchor: false
+        nodeId: nodeId
+        // isAnchor is NOW stored in node.userData.isHarmonyAnchor - DO NOT duplicate here
       });
     }
 
@@ -136,6 +169,10 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Initialize link harmony if not already tracked
+   * 
+   * [PHASE 1 FIX] Single Source of Truth:
+   * - harmonyLevel is stored in link.userData.harmonyLevel (canonical)
+   * - internal map stores only transient state (velocity, flowDirection, flowRate)
    */
   initializeLinkHarmony(link) {
     if (!link || !link.userData) return null;
@@ -143,8 +180,21 @@ export class HarmonyStabilizationSystem_v1 {
     const linkId = link.id || `${link.source?.id || 'unknown'}-${link.target?.id || 'unknown'}`;
     
     if (!this.linkHarmony.has(linkId)) {
+      // Initialize canonical userData.harmonyLevel first
+      if (typeof link.userData.harmonyLevel !== 'number') {
+        // Seed initial harmony - base 0.5 like other metrics
+        const synergy = link.userData?.synergy?.score ?? link.userData?.synergyScore ?? 0.5;
+        const initialHarmony = 0.4 + synergy * 0.3 + Math.random() * 0.1; // 0.4-0.8
+        link.userData.harmonyLevel = initialHarmony;
+        // Sync to userData.metrics.harmony for downstream consumers
+        if (link.userData.metrics) {
+          link.userData.metrics.harmony = initialHarmony;
+        }
+      }
+      
+      // Internal map for transient state only (NOT level)
       this.linkHarmony.set(linkId, {
-        level: 0,
+        // level is NOW stored in link.userData.harmonyLevel - DO NOT duplicate here
         velocity: 0,
         flowDirection: 'forward', // forward or backward
         flowRate: 0,
@@ -350,9 +400,8 @@ export class HarmonyStabilizationSystem_v1 {
       harmonicRecovery = (harmonicRecovery + (targetNode.userData.harmonicRecovery ?? 0)) * 0.5;
     }
 
-    // Modulate by link-level harmony
-    const linkHarmonyData = this.linkHarmony.get(link.id);
-    const linkHarmony = linkHarmonyData?.level ?? 0;
+    // [PHASE 1 FIX] Read link harmony from canonical source
+    const linkHarmony = link.userData?.harmonyLevel ?? 0;
     
     // Scale harmonic values by link harmony level
     harmonicHub *= linkHarmony;
@@ -432,9 +481,8 @@ export class HarmonyStabilizationSystem_v1 {
       hubResilience = (hubResilience + (targetNode.userData.harmonicResilience ?? 0)) * 0.5;
     }
 
-    // Modulate by link-level harmony
-    const linkHarmonyData = this.linkHarmony.get(link.id);
-    const linkHarmony = linkHarmonyData?.level ?? 0;
+    // [PHASE 1 FIX] Read link harmony from canonical source
+    const linkHarmony = link.userData?.harmonyLevel ?? 0;
     
     // Scale amplitude by link harmony (0.1 to 0.4 range)
     haloAmplitude = 0.1 + linkHarmony * 0.3;
@@ -462,6 +510,14 @@ export class HarmonyStabilizationSystem_v1 {
     link.userData.__canonicalWriteAt.pulsePhase = Date.now();
     link.userData.__canonicalWriteAt.pulseCoherence = Date.now();
     link.userData.__canonicalWriteAt.pulseStreak = Date.now();
+  }
+
+  /**
+   * Main update loop - alias for safeTick compatibility
+   * safeTick in main.js looks for update(), tick(), or process()
+   */
+  update(deltaTime = 1/60) {
+    this.updateHarmony(deltaTime);
   }
 
   /**
@@ -517,10 +573,16 @@ export class HarmonyStabilizationSystem_v1 {
    * [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
    * - Higher node synergy accelerates harmony regeneration after cascades
    * - Recovery boost applied to all harmony-based recovery rates
+   * 
+   * [PHASE 1 FIX] Single Source of Truth:
+   * - Reads/Writes level from/to node.userData.harmonyLevel (canonical)
    */
   updateNodeHarmony(node, deltaTime) {
     const harmonyData = this.initializeNodeHarmony(node);
     if (!harmonyData) return;
+
+    // [PHASE 1 FIX] Read level from canonical source
+    let level = node.userData.harmonyLevel ?? 0;
 
     // Check if node has corruption to counter
     const nodeCorruption = node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0;
@@ -538,9 +600,15 @@ export class HarmonyStabilizationSystem_v1 {
     }
     const recoveryBoost = 1.0 + Math.min(avgSynergy * 0.5, 0.5); // 100% to 150% speed
     
+    // SKIP UPDATE for unlinked nodes - they maintain their seeded harmony
+    // Only apply decay/increase to nodes that are part of the network
+    if (linkCount === 0) {
+      return;
+    }
+    
     // Harmony healing: gradually reduce corruption
-    if (harmonyData.level > 0) {
-      let healAmount = harmonyData.level * 0.1 * deltaTime; // Up to 10% corruption/sec
+    if (level > 0) {
+      let healAmount = level * 0.1 * deltaTime; // Up to 10% corruption/sec
       healAmount *= recoveryBoost; // [Tier 4.9] Accelerate corruption decay on nodes
       if (nodeCorruption > 0) {
         setNodeCorruption(node, Math.max(0, nodeCorruption - healAmount), { source: 'harmony-stabilization' });
@@ -551,28 +619,50 @@ export class HarmonyStabilizationSystem_v1 {
     // Harmony level changes from:
     // 1. External sources (player actions, harmony pulses)
     // 2. Harmony flow from linked nodes
-    // 3. Decay if no maintenance
+    // 3. Natural equilibrium toward 0.5 (like other metrics)
     
     // Get inbound harmony flow from connected nodes
     const inboundFlow = this.computeInboundHarmonyFlow(node);
-    let harmonyIncrease = inboundFlow * deltaTime * 0.05; // Slower than corruption
-    harmonyIncrease *= recoveryBoost; // [Tier 4.9] Accelerate harmony regeneration
     
-    // Natural decay if no input
-    const decayRate = 0.02; // Lose 2% harmony per second if not maintained
-    let harmonyDecay = Math.max(0, harmonyData.level * decayRate * deltaTime);
-    harmonyDecay /= recoveryBoost; // [Tier 4.9] Reduce decay rate with high synergy (faster net recovery)
+    // Calculate TARGET harmony (not instant value)
+    // Base target is 0.5 (equilibrium), modified by inbound flow
+    let targetHarmony = 0.5; // Natural equilibrium
+    targetHarmony += inboundFlow * 0.3; // Flow can boost toward 0.8
+    targetHarmony = Math.max(0.1, Math.min(0.95, targetHarmony));
     
-    // Update harmony level
-    harmonyData.level = Math.max(0, Math.min(1.0, harmonyData.level + harmonyIncrease - harmonyDecay));
+    // GRADUAL LERP toward target (not instant)
+    // Rate: ~10% of distance per second (similar to other metrics)
+    const lerpRate = 0.1 * recoveryBoost;
+    const distance = targetHarmony - level;
+    const lerpAmount = distance * lerpRate * deltaTime;
+    
+    // Apply lerp (gradual change toward target)
+    level = level + lerpAmount;
+    
+    // Small natural decay to prevent stagnation at extremes
+    const decayRate = 0.005; // 0.5% per second (much slower than before)
+    if (level > 0.7) {
+      level -= level * decayRate * deltaTime;
+    }
+    
+    // [PHASE 1 FIX] Update canonical source
+    level = Math.max(0, Math.min(1.0, level));
+    node.userData.harmonyLevel = level;
+    
+    // Sync to userData.metrics.harmony for downstream consumers (HarmonicHubAuraSystem, etc.)
+    if (node.userData.metrics) {
+      node.userData.metrics.harmony = level;
+    }
+    
+    // Store velocity in internal map (transient state)
     harmonyData.velocity = (harmonyIncrease - harmonyDecay) / (deltaTime + 0.001);
     harmonyData.lastUpdateTime = Date.now();
 
     // Check harmony thresholds
-    this.checkHarmonyThresholds(node, harmonyData);
+    this.checkHarmonyThresholds(node, { level });
 
     // Apply visual effects
-    this.applyNodeHarmonyVisuals(node, harmonyData.level, Date.now() / 1000);
+    this.applyNodeHarmonyVisuals(node, level, Date.now() / 1000);
   }
 
   /**
@@ -580,6 +670,9 @@ export class HarmonyStabilizationSystem_v1 {
    * [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
    * - Higher link synergy accelerates harmony regeneration after cascades
    * - Recovery boost applied to all harmony spread rates
+   * 
+   * [PHASE 1 FIX] Single Source of Truth:
+   * - Reads/Writes level from/to link.userData.harmonyLevel (canonical)
    */
   updateLinkHarmony(link, deltaTime) {
     const harmonyData = this.initializeLinkHarmony(link);
@@ -589,6 +682,9 @@ export class HarmonyStabilizationSystem_v1 {
     const targetNode = link.target || link.targetNode;
     
     if (!sourceNode || !targetNode) return;
+
+    // [PHASE 1 FIX] Read level from canonical source
+    let level = link.userData.harmonyLevel ?? 0;
 
     // [Tier 4.9] SYNERGY-DRIVEN RECOVERY ACCELERATION
     // Compute recovery boost from this link's synergy
@@ -603,7 +699,7 @@ export class HarmonyStabilizationSystem_v1 {
     const targetHarmony = targetNode.userData?.metrics?.harmony ?? 0;
     
     // Harmony spreads toward the target harmony level
-    const harmonyDifference = targetHarmony - harmonyData.level;
+    const harmonyDifference = targetHarmony - level;
     
     // Apply category-aware harmony propagation multiplier
     let harmonyMultiplier = 1.0;
@@ -615,29 +711,39 @@ export class HarmonyStabilizationSystem_v1 {
     let harmonyIncrease = harmonyDifference * harmonyFlowRate * harmonyMultiplier * deltaTime * 0.1;
     harmonyIncrease *= recoveryBoost; // [Tier 4.9] Accelerate harmony regeneration on links
     
-    // Smooth update
-    harmonyData.level = Math.min(1.0, harmonyData.level + harmonyIncrease);
+    // [PHASE 1 FIX] Update canonical source
+    level = Math.min(1.0, level + harmonyIncrease);
+    link.userData.harmonyLevel = level;
+    
+    // Sync to userData.metrics.harmony for downstream consumers
+    if (link.userData.metrics) {
+      link.userData.metrics.harmony = level;
+    }
+    
+    // Store velocity in internal map (transient state)
     harmonyData.velocity = harmonyIncrease / (deltaTime + 0.001);
     harmonyData.lastUpdateTime = Date.now();
 
     // Link harmony reduces link corruption
-    if (harmonyData.level > 0.2 && this.aiNodes.linkCorruption) {
+    if (level > 0.2 && this.aiNodes.linkCorruption) {
       const linkCorruptionData = this.aiNodes.linkCorruption.linkCorruption.get(link.id);
       if (linkCorruptionData) {
         // Harmony directly reduces corruption on the link
         // [Tier 4.9] Apply synergy-driven recovery acceleration
-        let harmonyReduction = harmonyData.level * 0.05 * deltaTime;
+        let harmonyReduction = level * 0.05 * deltaTime;
         harmonyReduction *= recoveryBoost; // [Tier 4.9] Accelerate corruption decay with high synergy
         linkCorruptionData.level = Math.max(0, linkCorruptionData.level - harmonyReduction);
       }
     }
 
     // Apply visual effects
-    this.applyLinkHarmonyVisuals(link, harmonyData.level, Date.now() / 1000);
+    this.applyLinkHarmonyVisuals(link, level, Date.now() / 1000);
   }
 
   /**
    * Compute inbound harmony flow to a node (from all connected sources)
+   * 
+   * [PHASE 1 FIX] Reads level from link.userData.harmonyLevel (canonical)
    */
   computeInboundHarmonyFlow(node) {
     if (!node || !this.linkSystem) return 0;
@@ -650,7 +756,9 @@ export class HarmonyStabilizationSystem_v1 {
       const harmonyData = this.linkHarmony.get(link.id);
       
       if (sourceNode && harmonyData) {
-        totalFlow += harmonyData.level * harmonyData.flowRate;
+        // [PHASE 1 FIX] Read level from canonical source
+        const level = link.userData.harmonyLevel ?? 0;
+        totalFlow += level * harmonyData.flowRate;
       }
     }
 
@@ -842,6 +950,8 @@ export class HarmonyStabilizationSystem_v1 {
   /**
    * Trigger a harmony pulse from a node
    * Cleanses nearby links and reduces corruption in connected nodes
+   * 
+   * [PHASE 1 FIX] Reads level from node.userData.harmonyLevel (canonical)
    */
   triggerHarmonyPulse(sourceNode, radius = 2.0, intensity = 0.5) {
     if (!sourceNode) return;
@@ -849,13 +959,16 @@ export class HarmonyStabilizationSystem_v1 {
     const harmonyData = this.initializeNodeHarmony(sourceNode);
     if (!harmonyData) return;
 
+    // [PHASE 1 FIX] Read level from canonical source
+    const level = sourceNode.userData.harmonyLevel ?? 0;
+
     const pulse = {
       sourceNode: sourceNode,
       sourcePos: sourceNode.position || { x: 0, y: 0, z: 0 },
       startTime: Date.now(),
       duration: 1.0,  // 1 second pulse
       radius: radius,
-      intensity: Math.min(1.0, harmonyData.level * intensity),
+      intensity: Math.min(1.0, level * intensity),
       active: true
     };
 
@@ -873,6 +986,8 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Apply immediate pulse effect
+   * 
+   * [PHASE 1 FIX] Writes level to node.userData.harmonyLevel and link.userData.harmonyLevel (canonical)
    */
   appliesPulseEffect(pulse) {
     const allNodes = this.getAllNodes();
@@ -888,11 +1003,9 @@ export class HarmonyStabilizationSystem_v1 {
           if (node.userData) {
           setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - pulse.intensity * 0.3), { source: 'harmony-stabilization' });
           this._emitCorruptionThreshold(node);
-            // Boost harmony
-            const harmonyData = this.initializeNodeHarmony(node);
-            if (harmonyData) {
-              harmonyData.level = Math.min(1.0, harmonyData.level + pulse.intensity * 0.2);
-            }
+            // [PHASE 1 FIX] Write level to canonical source
+            const currentLevel = node.userData.harmonyLevel ?? 0;
+            node.userData.harmonyLevel = Math.min(1.0, currentLevel + pulse.intensity * 0.2);
         }
       }
     }
@@ -918,11 +1031,9 @@ export class HarmonyStabilizationSystem_v1 {
               linkData.level = Math.max(0, linkData.level - pulse.intensity * 0.2);
             }
           }
-          // Boost link harmony
-          const harmonyData = this.initializeLinkHarmony(link);
-          if (harmonyData) {
-            harmonyData.level = Math.min(1.0, harmonyData.level + pulse.intensity * 0.3);
-          }
+          // [PHASE 1 FIX] Write level to canonical source
+          const currentLevel = link.userData.harmonyLevel ?? 0;
+          link.userData.harmonyLevel = Math.min(1.0, currentLevel + pulse.intensity * 0.3);
         }
       }
     }
@@ -930,6 +1041,8 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Update active harmony pulses
+   * 
+   * [PHASE 1 FIX] Reads isAnchor and level from node.userData (canonical)
    */
   updateHarmonyPulses(deltaTime) {
     for (let i = this.activePulses.length - 1; i >= 0; i--) {
@@ -944,8 +1057,11 @@ export class HarmonyStabilizationSystem_v1 {
     // Apply continuous effects from anchor nodes
     const allNodes = this.getAllNodes();
     for (const node of allNodes) {
-      const harmonyData = this.nodeHarmony.get(node.id);
-      if (harmonyData && harmonyData.isAnchor && harmonyData.level >= 1.0) {
+      // [PHASE 1 FIX] Read isAnchor and level from canonical source
+      const isAnchor = node.userData?.isHarmonyAnchor ?? false;
+      const level = node.userData?.harmonyLevel ?? 0;
+      
+      if (isAnchor && level >= 1.0) {
         // Continuous anchor pulse (weaker)
         const anchorPulse = {
           sourceNode: node,
@@ -963,12 +1079,15 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Update oasis zones (clusters of harmony nodes)
+   * 
+   * [PHASE 1 FIX] Reads level from node.userData.harmonyLevel (canonical)
    */
   updateOasisZones(deltaTime) {
     const allNodes = this.getAllNodes();
     const harmonyNodes = allNodes.filter(n => {
-      const hdata = this.nodeHarmony.get(n.id);
-      return hdata && hdata.level > 0.5;
+      // [PHASE 1 FIX] Read level from canonical source
+      const level = n.userData?.harmonyLevel ?? 0;
+      return level > 0.5;
     });
 
     if (harmonyNodes.length < 2) return;
@@ -985,11 +1104,17 @@ export class HarmonyStabilizationSystem_v1 {
         
         const zoneId = `oasis_${cluster[0].id}_${cluster[1].id}`;
         
+        // [PHASE 1 FIX] Read level from canonical source
+        let totalLevel = 0;
+        for (const n of cluster) {
+          totalLevel += n.userData?.harmonyLevel ?? 0;
+        }
+        
         const zone = {
           nodes: new Set(cluster),
           centerPos: centroid,
           radius: radius,
-          intensity: cluster.reduce((sum, n) => sum + (this.nodeHarmony.get(n.id)?.level || 0), 0) / cluster.length
+          intensity: totalLevel / cluster.length
         };
 
         this.oasisZones.set(zoneId, zone);
@@ -1067,6 +1192,8 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Apply oasis zone effects
+   * 
+   * [PHASE 1 FIX] Writes level to node.userData.harmonyLevel (canonical)
    */
   applyOasisEffects(zone, deltaTime) {
     const allNodes = this.getAllNodes();
@@ -1078,11 +1205,9 @@ export class HarmonyStabilizationSystem_v1 {
         // Reduce corruption
         setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - zone.intensity * 0.01 * deltaTime), { source: 'harmony-stabilization' });
         this._emitCorruptionThreshold(node);
-        // Boost harmony
-        const harmonyData = this.initializeNodeHarmony(node);
-        if (harmonyData) {
-          harmonyData.level = Math.min(1.0, harmonyData.level + zone.intensity * 0.005 * deltaTime);
-        }
+        // [PHASE 1 FIX] Read/Write level from/to canonical source
+        const currentLevel = node.userData.harmonyLevel ?? 0;
+        node.userData.harmonyLevel = Math.min(1.0, currentLevel + zone.intensity * 0.005 * deltaTime);
       }
     }
 
@@ -1175,7 +1300,7 @@ export class HarmonyStabilizationSystem_v1 {
     const canonicalHarmony = (typeof node?.harmony === 'number') ? node.harmony : level;
     node.userData.harmonyLevel = canonicalHarmony;
     if (!PHASE_C3_METRIC_WRITE_LOCK && node.userData.harmonyLevel !== undefined) {
-      console.debug("HarmonyLevel", node.id || node.userData?.nodeId, node.userData.harmonyLevel);
+      
     }
     node.userData.isHarmonized = level > 0.2;
   }
@@ -1226,28 +1351,38 @@ export class HarmonyStabilizationSystem_v1 {
     const canonicalHarmony = (typeof link?.harmony === 'number') ? link.harmony : level;
     link.userData.harmonyLevel = canonicalHarmony;
     if (!PHASE_C3_METRIC_WRITE_LOCK && link.userData.harmonyLevel !== undefined) {
-      console.debug("HarmonyLevel", link.id || `${link.source?.id}-${link.target?.id}`, link.userData.harmonyLevel);
+      
     }
   }
 
   /**
    * Manually set node harmony level
+   * 
+   * [PHASE 1 FIX] Writes to node.userData.harmonyLevel (canonical)
    */
   setNodeHarmony(node, level) {
     const harmonyData = this.initializeNodeHarmony(node);
-    if (harmonyData) {
-      harmonyData.level = Math.max(0, Math.min(1, level));
-    }
+    const clampedLevel = Math.max(0, Math.min(1, level));
+    
+    // [PHASE 1 FIX] Write to canonical source
+    node.userData.harmonyLevel = clampedLevel;
+    
+    // harmonyData exists for transient state only
   }
 
   /**
    * Manually set link harmony level
+   * 
+   * [PHASE 1 FIX] Writes to link.userData.harmonyLevel (canonical)
    */
   setLinkHarmony(link, level) {
     const harmonyData = this.initializeLinkHarmony(link);
-    if (harmonyData) {
-      harmonyData.level = Math.max(0, Math.min(1, level));
-    }
+    const clampedLevel = Math.max(0, Math.min(1, level));
+    
+    // [PHASE 1 FIX] Write to canonical source
+    link.userData.harmonyLevel = clampedLevel;
+    
+    // harmonyData exists for transient state only
   }
 
   /**
@@ -1349,17 +1484,24 @@ export class HarmonyStabilizationSystem_v1 {
 
   /**
    * Get harmony info for a node
+   * 
+   * [PHASE 1 FIX] Reads level from node.userData.harmonyLevel (canonical)
    */
   getNodeHarmonyInfo(node) {
     const harmonyData = this.nodeHarmony.get(node.id) || this.initializeNodeHarmony(node);
     if (!harmonyData) return null;
 
+    // [PHASE 1 FIX] Read level from canonical source
+    const level = node.userData.harmonyLevel ?? 0;
+    const isAnchor = node.userData.isHarmonyAnchor ?? false;
+    const pulseActive = node.userData.anchorPulseActive ?? false;
+
     return {
       nodeId: harmonyData.nodeId,
-      harmonyLevel: harmonyData.level.toFixed(3),
+      harmonyLevel: level.toFixed(3),
       velocity: harmonyData.velocity.toFixed(3),
-      isAnchor: harmonyData.isAnchor,
-      pulseActive: harmonyData.pulseActive
+      isAnchor: isAnchor,
+      pulseActive: pulseActive
     };
   }
 
@@ -1419,20 +1561,17 @@ export class HarmonyStabilizationSystem_v1 {
         let maxNodeHarmony = 0;
         let anchors = 0;
 
+        // [PHASE 1 FIX] Read from canonical source (userData)
         for (const node of allNodes) {
-          const hdata = this.nodeHarmony.get(node.id);
-          if (hdata) {
-            totalNodeHarmony += hdata.level;
-            maxNodeHarmony = Math.max(maxNodeHarmony, hdata.level);
-            if (hdata.isAnchor) anchors++;
-          }
+          const level = node.userData?.harmonyLevel ?? 0;
+          totalNodeHarmony += level;
+          maxNodeHarmony = Math.max(maxNodeHarmony, level);
+          if (node.userData?.isHarmonyAnchor ?? false) anchors++;
         }
 
         for (const link of allLinks) {
-          const hdata = this.linkHarmony.get(link.id);
-          if (hdata) {
-            totalLinkHarmony += hdata.level;
-          }
+          const level = link.userData?.harmonyLevel ?? 0;
+          totalLinkHarmony += level;
         }
 
         const stats = {
@@ -1459,6 +1598,7 @@ export class HarmonyStabilizationSystem_v1 {
       },
 
       // Get network harmony level (average harmony across all nodes)
+      // [PHASE 1 FIX] Reads from canonical source (userData)
       getNetworkHarmony: () => {
         const allNodes = this.aiNodes?.nodes || [];
         if (allNodes.length === 0) return 0;
@@ -1466,7 +1606,8 @@ export class HarmonyStabilizationSystem_v1 {
         let totalHarmony = 0;
 
         for (const node of allNodes) {
-          const harmony = this.nodeHarmony.get(node.id)?.level || node.userData?.harmony || 0;
+          // [PHASE 1 FIX] Read from canonical source
+          const harmony = node.userData?.harmonyLevel ?? node.userData?.harmony ?? 0;
           totalHarmony += harmony;
         }
 

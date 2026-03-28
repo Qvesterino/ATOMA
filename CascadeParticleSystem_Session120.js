@@ -274,11 +274,13 @@ export class CascadeParticleSystem_Session120 {
     this.mesh.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_LINK_CASCADE);
     this.scene.add(this.mesh);
     
-    console.warn('[CascadeParticleSystem] Initialized and added to scene:', {
-      maxParticles: this.config.maxParticles,
-      meshVisible: this.mesh.visible,
-      geometryAttrs: Object.keys(this.geometry.attributes)
-    });
+    if (this.config.debugMode) {
+      console.warn('[CascadeParticleSystem] Initialized and added to scene:', {
+        maxParticles: this.config.maxParticles,
+        meshVisible: this.mesh.visible,
+        geometryAttrs: Object.keys(this.geometry.attributes)
+      });
+    }
     
     // 5. Initialize Pool
     this._initPool();
@@ -471,7 +473,7 @@ export class CascadeParticleSystem_Session120 {
     
     // Debug: log active particle count periodically
     // Log active particle status periodically
-    if (this.activeCount > 0 && Math.random() < 0.05) {
+    if (this.config.debugMode && this.activeCount > 0 && Math.random() < 0.05) {
       const posAttr = this.geometry.attributes.position;
       const sizeAttr = this.geometry.attributes.size;
       // Find first active particle's position
@@ -818,23 +820,29 @@ export class CascadeParticleSystem_Session120 {
     const srcPos = sourcePosition ?? this._resolveWorldPosition(link?.source ?? link?.sourceNode ?? link?.from ?? null, this._tmpSourceWorldPos);
     const dstPos = targetPosition ?? this._resolveWorldPosition(link?.target ?? link?.targetNode ?? link?.to ?? null, this._tmpTargetWorldPos);
     if (!srcPos || !dstPos) {
-      console.warn('[CascadeParticleSystem] _emit: missing positions', { srcPos, dstPos, linkId: link?.id });
+      if (this.config.debugMode) {
+        console.warn('[CascadeParticleSystem] _emit: missing positions', { srcPos, dstPos, linkId: link?.id });
+      }
       return;
     }
     
     // Validate positions are finite numbers
     if (!Number.isFinite(srcPos.x) || !Number.isFinite(srcPos.y) || !Number.isFinite(srcPos.z) ||
         !Number.isFinite(dstPos.x) || !Number.isFinite(dstPos.y) || !Number.isFinite(dstPos.z)) {
-      console.warn('[CascadeParticleSystem] _emit: INVALID positions - NaN or Infinity detected', {
-        src: { x: srcPos.x, y: srcPos.y, z: srcPos.z },
-        dst: { x: dstPos.x, y: dstPos.y, z: dstPos.z }
-      });
+      if (this.config.debugMode) {
+        console.warn('[CascadeParticleSystem] _emit: INVALID positions - NaN or Infinity detected', {
+          src: { x: srcPos.x, y: srcPos.y, z: srcPos.z },
+          dst: { x: dstPos.x, y: dstPos.y, z: dstPos.z }
+        });
+      }
       return;
     }
     
-    console.warn('[CascadeParticleSystem] _emit: spawning', count, 'particles | src:',
-      srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
-      '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
+    if (this.config.debugMode) {
+      console.warn('[CascadeParticleSystem] _emit: spawning', count, 'particles | src:',
+        srcPos.x.toFixed(2), srcPos.y.toFixed(2), srcPos.z.toFixed(2),
+        '| dst:', dstPos.x.toFixed(2), dstPos.y.toFixed(2), dstPos.z.toFixed(2));
+    }
     
     // Session 121: Density & Clustering
     const clusterCohesion = link?.userData?.particleClusterCohesion ?? 0;
@@ -982,7 +990,7 @@ export class CascadeParticleSystem_Session120 {
     
     this.activeCount = activeCount;
     
-    if (diedFromAge > 0 || diedFromUpdate > 0) {
+    if (this.config.debugMode && (diedFromAge > 0 || diedFromUpdate > 0)) {
       console.warn('[CascadeParticleSystem] Particle deaths - age:', diedFromAge, 'update:', diedFromUpdate, 'surviving:', activeCount);
     }
   }
@@ -994,10 +1002,12 @@ export class CascadeParticleSystem_Session120 {
   _updateSingleParticle(p, deltaTime, currentCascadeTime) {
     const hasEndpoints = this._isValidWorldPosition(p.sourcePosition) && this._isValidWorldPosition(p.targetPosition);
     if (!hasEndpoints) {
-      console.warn('[CascadeParticleSystem] Particle dying: invalid endpoints', {
-        src: p.sourcePosition ? { x: p.sourcePosition.x, y: p.sourcePosition.y, z: p.sourcePosition.z } : null,
-        dst: p.targetPosition ? { x: p.targetPosition.x, y: p.targetPosition.y, z: p.targetPosition.z } : null
-      });
+      if (this.config.debugMode) {
+        console.warn('[CascadeParticleSystem] Particle dying: invalid endpoints', {
+          src: p.sourcePosition ? { x: p.sourcePosition.x, y: p.sourcePosition.y, z: p.sourcePosition.z } : null,
+          dst: p.targetPosition ? { x: p.targetPosition.x, y: p.targetPosition.y, z: p.targetPosition.z } : null
+        });
+      }
       p.active = false;
       return;
     }

@@ -388,6 +388,13 @@ export class NeuralConvergenceSingularity {
         this.corruption = 0.0;
         this.synergy = 0.5;
         this.connectedNodes = [];
+        this.orbitAnchor = new THREE.Vector3();
+        this.orbitRadius = 0.42;
+        this.orbitHeight = 0.08;
+        this.orbitSpeed = 0.6;
+        this.orbitPhase = Math.random() * Math.PI * 2;
+        this.orbitBobPhase = Math.random() * Math.PI * 2;
+        this.orbitEnabled = true;
         
         // Time tracking
         this.time = 0;
@@ -742,9 +749,23 @@ export class NeuralConvergenceSingularity {
         this.group.visible = true;
         
         if (position) {
-            this.position.copy(position);
-            this.group.position.copy(position);
+            this.orbitAnchor.copy(position);
         }
+
+        if (context.orbitAnchor instanceof THREE.Vector3) {
+            this.orbitAnchor.copy(context.orbitAnchor);
+        } else if (context.orbitAnchor && typeof context.orbitAnchor === 'object' && typeof context.orbitAnchor.x === 'number') {
+            this.orbitAnchor.set(context.orbitAnchor.x, context.orbitAnchor.y, context.orbitAnchor.z);
+        }
+
+        this.orbitRadius = context.orbitRadius ?? this.orbitRadius;
+        this.orbitHeight = context.orbitHeight ?? this.orbitHeight;
+        this.orbitSpeed = context.orbitSpeed ?? this.orbitSpeed;
+        this.orbitPhase = context.orbitPhase ?? this.orbitPhase;
+        this.orbitBobPhase = context.orbitBobPhase ?? this.orbitBobPhase;
+        this.orbitEnabled = context.orbitEnabled ?? true;
+
+        this._updateOrbitPosition(0);
         
         // Set initial state
         this.harmony = context.harmony ?? 0.5;
@@ -769,8 +790,15 @@ export class NeuralConvergenceSingularity {
             pulse.active = false;
             pulse.mesh.visible = false;
         });
-        
+
         this.connectedNodes = [];
+        this.orbitAnchor.set(0, 0, 0);
+        this.orbitRadius = 0.42;
+        this.orbitHeight = 0.08;
+        this.orbitSpeed = 0.6;
+        this.orbitPhase = Math.random() * Math.PI * 2;
+        this.orbitBobPhase = Math.random() * Math.PI * 2;
+        this.orbitEnabled = true;
     }
     
     // ========================================================================
@@ -786,6 +814,18 @@ export class NeuralConvergenceSingularity {
         if (context.harmony !== undefined) this.harmony = context.harmony;
         if (context.corruption !== undefined) this.corruption = context.corruption;
         if (context.synergy !== undefined) this.synergy = context.synergy;
+        if (context.orbitEnabled !== undefined) this.orbitEnabled = context.orbitEnabled;
+        if (context.orbitRadius !== undefined) this.orbitRadius = context.orbitRadius;
+        if (context.orbitHeight !== undefined) this.orbitHeight = context.orbitHeight;
+        if (context.orbitSpeed !== undefined) this.orbitSpeed = context.orbitSpeed;
+        if (context.orbitPhase !== undefined) this.orbitPhase = context.orbitPhase;
+        if (context.orbitAnchor instanceof THREE.Vector3) {
+            this.orbitAnchor.copy(context.orbitAnchor);
+        } else if (context.orbitAnchor && typeof context.orbitAnchor === 'object' && typeof context.orbitAnchor.x === 'number') {
+            this.orbitAnchor.set(context.orbitAnchor.x, context.orbitAnchor.y, context.orbitAnchor.z);
+        }
+
+        this._updateOrbitPosition(deltaTime);
         
         // Update LOD
         this.updateLOD(context.cameraPosition);
@@ -1007,16 +1047,39 @@ export class NeuralConvergenceSingularity {
     
     setPosition(x, y, z) {
         if (x instanceof THREE.Vector3) {
-            this.position.copy(x);
+            this.orbitAnchor.copy(x);
         } else {
-            this.position.set(x, y, z);
+            this.orbitAnchor.set(x, y, z);
         }
-        this.group.position.copy(this.position);
+        this._updateOrbitPosition(0);
     }
     
     setConnectedNodes(nodes) {
         this.connectedNodes = nodes;
         this.updateTendrilTargets();
+    }
+
+    _updateOrbitPosition(deltaTime) {
+        if (!this.orbitEnabled) {
+            this.position.copy(this.orbitAnchor);
+            this.group.position.copy(this.position);
+            return;
+        }
+
+        this.orbitPhase += deltaTime * this.orbitSpeed;
+        this.orbitBobPhase += deltaTime * (this.orbitSpeed * 1.35);
+
+        const angle = this.orbitPhase;
+        const bob = Math.sin(this.orbitBobPhase) * this.orbitHeight;
+        const radius = this.orbitRadius;
+
+        this.position.set(
+            this.orbitAnchor.x + Math.cos(angle) * radius,
+            this.orbitAnchor.y + bob,
+            this.orbitAnchor.z + Math.sin(angle) * radius * 0.85
+        );
+        this.group.position.copy(this.position);
+        this.group.rotation.y = angle + Math.PI / 2;
     }
     
     // ========================================================================

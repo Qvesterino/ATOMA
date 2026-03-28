@@ -599,9 +599,8 @@ const adapter = this._createLinkSystemAdapter(
             node.userData = node.userData || {};
             const userData = node.userData;
             const metrics = userData.metrics || (userData.metrics = {});
-            // Priority: harmonyLevel (HarmonyStabilizationSystem) > harmony > metrics.harmony
-            const harmony = this._clamp01(userData.harmonyLevel ?? userData.harmony ?? metrics.harmony ?? 0);
-            const corruption = this._clamp01(userData.corruptionLevel ?? userData.corruption ?? metrics.corruption ?? 0);
+            const harmony = this._clamp01(metrics.harmony ?? userData.harmony ?? userData.harmonyLevel ?? 0);
+            const corruption = this._clamp01(metrics.corruption ?? userData.corruption ?? userData.corruptionLevel ?? 0);
             const stability = this._clamp01(metrics.stability ?? (1 - this._clamp01(userData.instability ?? 0)));
             const load = this._clamp01(metrics.loadPressure ?? userData.loadPressure ?? userData.pressure ?? 0);
             const instability = this._clamp01(1 - stability);

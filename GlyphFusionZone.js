@@ -147,10 +147,33 @@ class CompositeGlyphInstance {
 
     reset() {
         this.active = false;
+        this._clearGeneratedCompositeVisual();
         if (this.singularity) {
             this.singularity.deactivate();
         }
         this.state = null;
+    }
+
+    _clearGeneratedCompositeVisual() {
+        if (!this.mesh) return;
+
+        const generatedRoot = this.mesh.getObjectByName('GeneratedCompositeGlyph');
+        if (!generatedRoot) return;
+
+        generatedRoot.traverse((child) => {
+            if (child.geometry) {
+                child.geometry.dispose();
+            }
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach((material) => material?.dispose?.());
+                } else {
+                    child.material.dispose?.();
+                }
+            }
+        });
+
+        generatedRoot.parent?.remove(generatedRoot);
     }
 
     spawn(position, state) {
@@ -440,7 +463,7 @@ export class GlyphFusionZoneManager {
             }
 
             // Update source glyph behavior
-            this.updateSourceGlyphBehavior(zone);
+            this.updateSourceGlyphBehavior(zone, deltaTime);
 
             // Check if should separate
             if (zone.age >= zone.lifetime) {
@@ -454,7 +477,7 @@ export class GlyphFusionZoneManager {
         });
     }
 
-    updateSourceGlyphBehavior(zone) {
+    updateSourceGlyphBehavior(zone, deltaTime) {
         const progress = Math.min(zone.phaseProgress / CONFIG.APPROACH_DURATION, 1.0);
 
         zone.sourceGlyphs.forEach((glyph, index) => {
@@ -495,7 +518,16 @@ export class GlyphFusionZoneManager {
         if (!zone.sourceGlyphs || zone.sourceGlyphs.length < 2) return;
 
         // Extract source glyph types
-        const sourceTypes = zone.sourceGlyphs.map(g => g.currentState).filter(s => s);
+        const sourceTypes = zone.sourceGlyphs
+            .map((glyph, index) =>
+                glyph?.currentState ||
+                glyph?.semanticState ||
+                glyph?.glyphType ||
+                glyph?.link?.userData?.semanticType ||
+                glyph?.link?.userData?.type ||
+                `GLYPH_${index + 1}`
+            )
+            .filter(Boolean);
 
         // Generate composite geometry
         const harmonyBalance = zone.harmonBalance ?? zone.harmonyBalance ?? 0.5;
@@ -517,16 +549,21 @@ export class GlyphFusionZoneManager {
             .map((glyph) => glyph?.node?.uuid || glyph?.node?.userData?.id || glyph?.link?.userData?.nodeA?.uuid || glyph?.link?.userData?.nodeB?.uuid)
             .filter(Boolean);
 
-        // Position for singularity
-        const position = zone.node.position.clone();
-        position.y += 0.5;  // Center above node
+        // Position/orbit anchor for singularity
+        const anchorPosition = zone.node.position.clone();
+        anchorPosition.y += 0.5;  // Keep the orbit centered above the node
 
         // Prepare context for singularity activation
         const singularityContext = {
             harmony: harmonyBalance,
             corruption: context.corruption,
             synergy: zone.averageSynergy ?? 0.5,
-            connectedNodes: zone.nodes ?? []
+            connectedNodes: zone.nodes ?? [],
+            orbitAnchor: anchorPosition,
+            orbitRadius: zone.orbitRadius ?? 0.42,
+            orbitHeight: zone.orbitHeight ?? 0.08,
+            orbitSpeed: zone.orbitSpeed ?? 0.6,
+            orbitPhase: zone.orbitPhase ?? Math.random() * Math.PI * 2
         };
 
         // Store metadata
@@ -542,16 +579,53 @@ export class GlyphFusionZoneManager {
         };
 
         // Activate the Neural Convergence Singularity
-        composite.spawn(position, {
+        composite.spawn(anchorPosition, {
             ...zone,
+            ...singularityContext,
             harmonyBalance,
             ...context
         });
+
+        // Attach the generated composite geometry so the fusion result is visible in runtime.
+        const generatedGeometry = this.compositeGlyphGenerator?.generateComposite?.(sourceTypes, context) || null;
+        if (generatedGeometry && composite.mesh) {
+            this._attachGeneratedCompositeVisual(composite, generatedGeometry, harmonyBalance, context);
+        }
 
         zone.compositeGlyph = composite;
         zone.compositeMesh = composite.mesh;
 
         this.compositeGlyphGenerator?.resonanceFeedback?.registerCompositeGlyph?.(composite);
+    }
+
+    _attachGeneratedCompositeVisual(composite, geometry, harmonyBalance, context) {
+        if (!composite?.mesh || !geometry) return;
+
+        composite._clearGeneratedCompositeVisual?.();
+
+        const generatedRoot = new THREE.Group();
+        generatedRoot.name = 'GeneratedCompositeGlyph';
+        generatedRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
+        generatedRoot.userData.isGeneratedCompositeVisual = true;
+
+        const runtimeGeometry = geometry.clone();
+        const fillMaterial = new THREE.MeshBasicMaterial({
+            color: this.getCompositeColor(harmonyBalance),
+            transparent: true,
+            opacity: CONFIG.COMPOSITE_OPACITY,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            toneMapped: false
+        });
+        const fillMesh = new THREE.Mesh(runtimeGeometry, fillMaterial);
+        fillMesh.position.y = 0.02;
+        fillMesh.renderOrder = generatedRoot.renderOrder;
+        fillMesh.userData.isGeneratedCompositeVisual = true;
+        generatedRoot.add(fillMesh);
+
+        this._decorateCompositeGlyph(generatedRoot, runtimeGeometry, harmonyBalance, context);
+
+        composite.mesh.add(generatedRoot);
     }
 
     _decorateCompositeGlyph(mesh, geometry, harmonyBalance, context) {
@@ -591,6 +665,47 @@ export class GlyphFusionZoneManager {
         if (k) {
             mesh.add(k);
         }
+    }
+
+    _resolveContextMetrics(context = {}) {
+        const clamp01 = (value) => Math.max(0, Math.min(1, value));
+        const read = (fallback, ...values) => {
+            for (const value of values) {
+                if (typeof value === 'number' && Number.isFinite(value)) return value;
+            }
+            return fallback;
+        };
+
+        return {
+            harmony: clamp01(read(0.5,
+                context.harmony,
+                context.harmonyBalance,
+                context.harmonyLevel,
+                context.harmonyFlow,
+                context.avgHarmony
+            )),
+            corruption: clamp01(read(0,
+                context.corruption,
+                context.corruptionLevel,
+                context.corruptionNorm,
+                context.avgCorruption
+            )),
+            synergy: clamp01(read(0.5,
+                context.synergy,
+                context.synergyNorm,
+                context.networkSynergy,
+                context.averageSynergy,
+                context.avgSynergy
+            ))
+        };
+    }
+
+    getCompositeAccentColor(harmonyBalance) {
+        const baseColor = new THREE.Color(this.getCompositeColor(harmonyBalance));
+        const highlight = harmonyBalance >= 0.5
+            ? new THREE.Color(0xeef7ff)
+            : new THREE.Color(0xfff0d6);
+        return baseColor.lerp(highlight, 0.62).getHex();
     }
 
     _createCompositeKeystone(context, harmonyBalance, color) {

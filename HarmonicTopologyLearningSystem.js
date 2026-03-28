@@ -243,9 +243,9 @@ class TopologyRegion {
     // HUB MATURATION
     // ========================================================================
     
-    recordHubActivity(synergy) {
+    recordHubActivity(synergy, deltaTime = 0) {
         if (!this.isMaturedHub) {
-            this.hubAge += 0.016;  // Assume ~60 FPS frame
+            this.hubAge += Math.max(0, deltaTime);
             this.hubSynergyAccumulation += synergy;
             
             if (this.hubAge > CONFIG.HUB_MATURATION_THRESHOLD) {
@@ -272,7 +272,6 @@ class TopologyRegion {
     
     update(deltaTime) {
         if (!this.active) return;
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.age += deltaTime;
         this.flowAge += deltaTime;
         
@@ -382,7 +381,7 @@ export class HarmonicTopologyLearningSystem {
     // LEARNING INTEGRATION
     // ========================================================================
     
-    recordCompositeGlyphSynthesis(compositeGlyph, harmonyBalance, synergy) {
+    recordCompositeGlyphSynthesis(compositeGlyph, harmonyBalance, synergy, deltaTime = 0) {
         if (!this.enabled || !compositeGlyph || !compositeGlyph.mesh) return;
         
         const position = compositeGlyph.mesh.position;
@@ -390,7 +389,7 @@ export class HarmonicTopologyLearningSystem {
         if (!region) return;
         
         // Record hub activity
-        region.recordHubActivity(synergy);
+        region.recordHubActivity(synergy, deltaTime);
         
         // Record harmonic flow (radial from glyph)
         if (synergy > 0.5) {
@@ -484,7 +483,7 @@ export class HarmonicTopologyLearningSystem {
         this.updateRegions(deltaTime);
         
         // Record learning from active systems
-        this.recordSystemsActivity(fusionZoneManager, linkingSystem);
+        this.recordSystemsActivity(fusionZoneManager, linkingSystem, deltaTime);
         
         // Coarse updates (every 5 seconds)
         this.lastCoarseUpdate += deltaTime;
@@ -513,7 +512,7 @@ export class HarmonicTopologyLearningSystem {
         }
     }
     
-    recordSystemsActivity(fusionZoneManager, linkingSystem) {
+    recordSystemsActivity(fusionZoneManager, linkingSystem, deltaTime = 0) {
         if (!fusionZoneManager || !fusionZoneManager.compositeGlyphs) return;
         
         // Record composite glyph synthesis
@@ -523,7 +522,8 @@ export class HarmonicTopologyLearningSystem {
             this.recordCompositeGlyphSynthesis(
                 composite,
                 composite.state.harmonBalance,
-                composite.state.averageSynergy
+                composite.state.averageSynergy,
+                deltaTime
             );
         }
     }

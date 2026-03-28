@@ -169,23 +169,32 @@ export class HarmonicHealingVisualSystem_Session134 {
         const targetNode = wave.endNode;
         const healingPower = wave.intensity * 0.1; // 10% max reduction per wave
 
-        // Heal Node Corruption
-        if (targetNode && typeof targetNode.corruption !== 'undefined') {
-            targetNode.corruption = Math.max(0, targetNode.corruption - healingPower);
-            
-            // Optional: Trigger node's internal update if needed
-            // if (targetNode.updateVisuals) targetNode.updateVisuals();
+        // Heal Node Corruption (canonical path: userData.metrics.corruption)
+        if (targetNode && targetNode.userData) {
+            if (!targetNode.userData.metrics) targetNode.userData.metrics = {};
+            const currentCorruption = targetNode.userData.metrics.corruption ?? targetNode.userData.corruption ?? 0;
+            targetNode.userData.metrics.corruption = Math.max(0, currentCorruption - healingPower);
+            // Sync legacy path
+            if (typeof targetNode.userData.corruption !== 'undefined') {
+                targetNode.userData.corruption = targetNode.userData.metrics.corruption;
+            }
         }
 
-        // Heal Link Stability (if link has stats)
+        // Heal Link Stability (canonical path: userData.metrics.stability)
         const link = wave.link;
-        if (link && typeof link.stability !== 'undefined') {
-            link.stability = Math.min(1.0, link.stability + healingPower);
+        if (link && link.userData) {
+            if (!link.userData.metrics) link.userData.metrics = {};
+            const currentStability = link.userData.metrics.stability ?? link.userData.stability ?? 0.5;
+            link.userData.metrics.stability = Math.min(1.0, currentStability + healingPower);
+            // Sync legacy path
+            if (typeof link.userData.stability !== 'undefined') {
+                link.userData.stability = link.userData.metrics.stability;
+            }
         }
         
         // Log occasionally for debug
         if (Math.random() < 0.01) {
-            console.log(`✨ Healed Node ${targetNode.id} by ${healingPower.toFixed(3)}`);
+            console.log(`✨ Healed Node ${targetNode?.id} by ${healingPower.toFixed(3)}`);
         }
     }
     

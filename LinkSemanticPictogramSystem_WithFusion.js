@@ -47,6 +47,24 @@ export class LinkSemanticPictogramSystem_WithFusion {
         console.log('[WithFusion] Initialized with fusion support');
     }
 
+    syncRuntimeDependencies(linkingSystem = this.linkingSystem, camera = this.camera) {
+        if (linkingSystem) {
+            this.linkingSystem = linkingSystem;
+        }
+        if (camera) {
+            this.camera = camera;
+        }
+
+        if (this.pictogramSystem) {
+            this.pictogramSystem.linkingSystem = this.linkingSystem;
+            this.pictogramSystem.camera = this.camera;
+        }
+
+        if (this.compositeGlyphGenerator) {
+            this.compositeGlyphGenerator.camera = this.camera;
+        }
+    }
+
     resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, camera = this.camera, linkingSystem = this.linkingSystem, aiNodes = null } = {}) {
         this.scene = scene || this.scene;
         this.worldRoot = worldRoot || this.worldRoot;
@@ -83,16 +101,22 @@ export class LinkSemanticPictogramSystem_WithFusion {
     update(deltaTime, time, aiNodes = null) {
         if (!this.enabled) return;
 
+        const resolvedAiNodes = Array.isArray(aiNodes)
+            ? aiNodes
+            : (this.linkingSystem?.aiNodes?.nodes || null);
+
+        this.syncRuntimeDependencies(this.linkingSystem, this.camera);
+
         // Update base pictogram system
         this.pictogramSystem.update(deltaTime, time);
 
         // Update fusion zones with pictogram data
-        if (aiNodes) {
+        if (resolvedAiNodes) {
             this.fusionZoneManager.update(
                 deltaTime,
                 this.pictogramSystem.pictograms,
                 this.linkingSystem,
-                aiNodes
+                resolvedAiNodes
             );
         }
     }

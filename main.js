@@ -4064,7 +4064,9 @@ class AtomaGame {
         }, 'visual.particleEmissionScaler');
         this.frameScheduler.register('visual', (dt) => {
             if (this.particleSemanticDensity) {
-                this.particleSemanticDensity.update(dt, this.time);
+                const links = this.nodeLinking?.links || this.linkingSystem?.links || [];
+                const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
+                this.particleSemanticDensity.update(dt, links, this.conflictSystem || null, cascadeSystem);
             }
         }, 'visual.particleSemanticDensity');
         this.frameScheduler.register('visual', (dt) => {
@@ -4072,7 +4074,7 @@ class AtomaGame {
             if (boostSystem) {
                 const links = this.nodeLinking?.links;
                 if (Array.isArray(links) && links.length > 0) {
-                    const cascadeSystem = this.cascadeVisualizer || null;
+                    const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
                     boostSystem.update(dt, links, cascadeSystem);
                 }
             }
@@ -6265,7 +6267,9 @@ window.__ATOMA_SCENE__ = this.scene;
             moveSpeed: CONFIG.player.moveSpeed, // Already set to 15 (250% of 6)
             jumpForce: CONFIG.player.jumpForce,
             gravity: CONFIG.player.gravity,
-            groundLevel: 1
+            groundLevel: 1,
+            collisionProvider: () => this.activeWorld?.getCollisionObjects?.() ?? this.activeWorld?.collisionObjects ?? [],
+            worldBoundsProvider: () => this.activeWorld?.getMovementBounds?.() ?? null
         });
 
         // Setup first-person camera
@@ -9933,6 +9937,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     frameScheduler: this.frameScheduler
                 });
                 this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
+                this._wireCascadeParticlePipeline(cascadeSystem);
                 return;
             }
 
@@ -9953,10 +9958,34 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 frameScheduler: this.frameScheduler
             });
             this.cascadeResonanceWaveVisualization = this.cascadeResonanceWave;
+
+            this._wireCascadeParticlePipeline(cascadeSystem);
             
             console.log('[main.js] CascadeResonanceWaveVisualization initialized ✓');
         } catch (err) {
             console.warn('[main.js] CascadeResonanceWaveVisualization initialization failed:', err);
+        }
+    }
+
+    _wireCascadeParticlePipeline(cascadeSystem) {
+        const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking ?? null;
+
+        if (this.cascadeParticleEmissionBoost) {
+            this.cascadeParticleEmissionBoost.semanticBus = this.semanticBus ?? this.cascadeParticleEmissionBoost.semanticBus;
+            console.log('[main.js] CascadeParticleEmissionBoost wired to cascade pipeline ✓');
+        }
+
+        if (this.cascadeParticleColorTinting) {
+            this.cascadeParticleColorTinting.semanticBus = this.semanticBus ?? this.cascadeParticleColorTinting.semanticBus;
+            console.log('[main.js] CascadeParticleColorTinting wired to cascade pipeline ✓');
+        }
+
+        if (this.cascadeParticleSystem && linkingSystem) {
+            this.cascadeParticleSystem.attachLinkLifecycleSource(linkingSystem);
+            if (this.cascadeParticleSystem.mesh && this.scene && !this.cascadeParticleSystem.mesh.parent) {
+                this.scene.add(this.cascadeParticleSystem.mesh);
+            }
+            console.log('[main.js] CascadeParticleSystem wired to cascade pipeline ✓');
         }
     }
 
@@ -13083,6 +13112,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
 
+            // PATCH: Connect resonance rupture to cascading rupture system (rebind after init)
+            if (this.resonanceRupture) {
+                this.resonanceRupture.cascadingRuptureSystem = this.cascadingRuptures;
+                console.log('[main.js] ResonanceRupture → CascadingRuptureSystem wired ✓');
+            }
+
             // Initialize critical node failure system (link severing)
             this.criticalNodeFailure = new CriticalNodeFailureSystem(
                 this.scene,
@@ -13174,7 +13209,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                             dt,
                             this.time,
                             this.cascadingRuptures,
-                            this.harmonySystem
+                            this.harmonyStabilizationSystem
                         );
                     }
                 }, 'simulation.cascadingRuptures');
