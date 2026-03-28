@@ -5475,6 +5475,13 @@ getLinksForNode(node) {
         }
       }
 
+      this.conduitRenderer.updateLinkResonanceFlow?.(
+        deltaTime,
+        time,
+        this.links,
+        this.camera
+      );
+
       const networkMetrics = this.aiNodes?.nodeDynamicMetrics || this.nodeDynamicMetrics || {};
       const avgHarmony = Number.isFinite(networkMetrics.avgHarmony) ? networkMetrics.avgHarmony : 0.5;
       const avgCorruption = Number.isFinite(networkMetrics.avgCorruption) ? networkMetrics.avgCorruption : 0.0;

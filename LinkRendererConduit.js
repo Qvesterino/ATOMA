@@ -18,6 +18,7 @@ import { LinkDirectionalStreaks } from './LinkDirectionalStreaks.js';
 import { LinkCorruptionSpreadAnimator } from './LinkCorruptionSpreadAnimator.js';
 import { LinkCorruptionParticleSystem } from './LinkCorruptionParticleSystem.js';
 import { LinkCorruptionMorphingSystem } from './LinkCorruptionMorphingSystem.js';
+import { LinkResonanceFlowSystem_Session124 } from './LinkResonanceFlowSystem_Session124.js';
 import { TIER4_CorruptionFeedbackVisuals } from './TIER4_CorruptionFeedbackVisuals_v1.js';
 import { createLinkAuraMaterial, createLinkAuraGeometry } from './shaders/LinkAuraShader.js';
 import { LinkStateVisualLanguageIntegration } from './LinkStateVisualLanguageIntegration.js';
@@ -951,6 +952,18 @@ export class LinkRendererConduit {
         // Directional energy streaks system (visual only)
         this.directionalStreaks = new LinkDirectionalStreaks(scene);
 
+        // Directional resonance flow system (visual only)
+        this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
+            scene,
+            this.linkSystem,
+            {
+                enabled: true,
+                debugMode: false
+            }
+        );
+        this.linkResonanceFlowSystem.world = this.linkSystem;
+        this.linkResonanceSystem = this.linkResonanceFlowSystem; // backward-compatible alias
+
         // Corruption spread animation system (visual only)
         this.corruptionSpreadAnimator = new LinkCorruptionSpreadAnimator();
         this.corruptionAnimator = this.corruptionSpreadAnimator; // backward compat
@@ -1076,6 +1089,19 @@ export class LinkRendererConduit {
         // Link State Visual Language Integration
         this.linkStateVisualLanguage = null;
         this.synergyBonusVisualization = null;
+    }
+
+    updateLinkResonanceFlow(deltaTime, time, links = null, camera = null) {
+        if (!this.linkResonanceFlowSystem) return;
+
+        const resolvedLinks = links || this.linkSystem?.links || this.links || [];
+        const resolvedCamera = camera || this.camera || null;
+
+        this.linkResonanceFlowSystem.update(
+            deltaTime,
+            resolvedLinks,
+            resolvedCamera
+        );
     }
 
     _beginStrandOwnershipFrame(state, metrics, visualTime) {
@@ -2086,6 +2112,8 @@ export class LinkRendererConduit {
                 frameInstability
             );
         }
+
+        this.updateLinkResonanceFlow(deltaTime, time, list, this.camera);
 
         // Cadence gating
         this._acc30 += deltaTime;
@@ -5192,6 +5220,10 @@ export class LinkRendererConduit {
             this.pictogramSystem.clearLink(link);
         }
 
+        if (link && this.linkResonanceFlowSystem?.clearLink) {
+            this.linkResonanceFlowSystem.clearLink(link);
+        }
+
         if (link && this.corruptionFeedbackVisuals?.clearEffectsForNodes) {
             this.corruptionFeedbackVisuals.clearEffectsForNodes([link.source, link.target]);
         }
@@ -5305,6 +5337,11 @@ export class LinkRendererConduit {
         if (this.healingEmitters) {
             this.healingEmitters.clear();
         }
+        if (this.linkResonanceFlowSystem) {
+            this.linkResonanceFlowSystem.dispose();
+            this.linkResonanceFlowSystem = null;
+            this.linkResonanceSystem = null;
+        }
         if (this.flowTexture) {
             this.flowTexture.dispose();
         }
@@ -5326,6 +5363,9 @@ export class LinkRendererConduit {
         }
         if (frameScheduler !== undefined) {
             this.frameScheduler = frameScheduler;
+        }
+        if (this.linkResonanceFlowSystem) {
+            this.linkResonanceFlowSystem.world = this.linkSystem;
         }
         // scene and camera are not updated during rebind as they typically don't change on world switch
         // Other internal systems (waveTravelShaderPack, etc.) are not rebindable and assume stable references

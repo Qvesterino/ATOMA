@@ -10174,6 +10174,16 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     }
 
     linkResonanceFlowSystemTick(deltaTime) {
+        if (this.linkRendererConduit?.updateLinkResonanceFlow) {
+            this.linkRendererConduit.updateLinkResonanceFlow(
+                deltaTime,
+                VisualTime.now,
+                this.linkingSystem?.links || [],
+                this.camera
+            );
+            return;
+        }
+
         if (this.linkResonanceFlowSystem && this.linkingSystem) {
             const links = this.linkingSystem.links || [];
             const camera = this.camera;
@@ -14457,23 +14467,31 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupLinkResonanceFlowSystem() {
         try {
-            this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
-                this.scene,
-                this.world || { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
-                {
-                    baseSpawnRate: 2.0,
-                    synergySpawnBoost: 1.5,
-                    pulseSpeedBase: 1.0,
-                    pulseSpeedSynergyMult: 0.8,
-                    pulseRadiusBase: 0.3,
-                    pulseMaxRadius: 0.8,
-                    pulseGlowIntensity: 1.5,
-                    pulseLifetime: 2.0,
-                    maxPulsesPerLink: 8,
-                    maxTotalPulses: 1024,
-                    enabled: true,
-                }
-            );
+            const conduitResonanceSystem = this.linkRendererConduit?.linkResonanceFlowSystem
+                || this.linkRendererConduit?.linkResonanceSystem
+                || null;
+
+            if (conduitResonanceSystem) {
+                this.linkResonanceFlowSystem = conduitResonanceSystem;
+            } else {
+                this.linkResonanceFlowSystem = new LinkResonanceFlowSystem_Session124(
+                    this.scene,
+                    this.world || { aiNodes: this.aiNodes, linkingSystem: this.linkingSystem },
+                    {
+                        baseSpawnRate: 2.0,
+                        synergySpawnBoost: 1.5,
+                        pulseSpeedBase: 1.0,
+                        pulseSpeedSynergyMult: 0.8,
+                        pulseRadiusBase: 0.3,
+                        pulseMaxRadius: 0.8,
+                        pulseGlowIntensity: 1.5,
+                        pulseLifetime: 2.0,
+                        maxPulsesPerLink: 8,
+                        maxTotalPulses: 1024,
+                        enabled: true,
+                    }
+                );
+            }
             // Canonical alias for downstream systems expecting linkResonanceSystem contract.
             this.linkResonanceSystem = this.linkResonanceFlowSystem;
 

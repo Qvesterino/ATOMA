@@ -215,6 +215,10 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
     return;
   }
 
+  if (linkResonanceFlowSystem.__harmonyIntegrationApplied) {
+    return linkResonanceFlowSystem;
+  }
+
   if (!world || !world.links) {
     console.error('[LinkResonanceFlowHarmonyIntegration] world.links is required');
     return;
@@ -270,6 +274,8 @@ export function applyLinkResonanceFlowHarmonyIntegration(linkResonanceFlowSystem
     // Call original update
     return originalUpdate(deltaTime, links, camera);
   };
+
+  linkResonanceFlowSystem.__harmonyIntegrationApplied = true;
 
   console.log('[LinkResonanceFlowHarmonyIntegration] Integration applied successfully');
   console.log('[LinkResonanceFlowHarmonyIntegration] - Link flow harmony is now read-only');

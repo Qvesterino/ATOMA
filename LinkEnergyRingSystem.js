@@ -61,12 +61,31 @@ export class LinkEnergyRingSystem {
         });
     }
 
-    _pickBurstVariantIndex(family, context = {}, variantCount = 3) {
+    _pickWeightedIndex(weights, seedText) {
+        let total = 0;
+        for (let i = 0; i < weights.length; i += 1) {
+            total += Math.max(0, Number.isFinite(weights[i]) ? weights[i] : 0);
+        }
+        if (total <= 0) return 0;
+
+        let cursor = (hashString32(seedText) / 0xffffffff) * total;
+        for (let i = 0; i < weights.length; i += 1) {
+            cursor -= Math.max(0, Number.isFinite(weights[i]) ? weights[i] : 0);
+            if (cursor <= 0) return i;
+        }
+        return Math.max(0, weights.length - 1);
+    }
+
+    _pickBurstVariantIndex(family, context = {}, variants = 3) {
+        const profiles = Array.isArray(variants)
+            ? variants
+            : Array.from({ length: Math.max(1, variants | 0) }, () => ({}));
+        const variantCount = profiles.length;
         const metrics = context.metrics || {};
         const category = String(context.category || 'default').toLowerCase();
         const nodeId = context.nodeId ?? context.node?.id ?? context.node?.uuid ?? '';
         const time = Number.isFinite(context.time) ? context.time : 0;
-        const seed = hashString32([
+        const seedText = [
             family,
             category,
             nodeId,
@@ -75,31 +94,39 @@ export class LinkEnergyRingSystem {
             Math.floor(clamp01(metrics.harmony ?? 0) * 1000),
             Math.floor(clamp01(metrics.corruption ?? 0) * 1000),
             Math.floor(clamp01(metrics.stability ?? (1 - clamp01(metrics.instability ?? 0))) * 1000)
-        ].join('|'));
+        ].join('|');
 
-        const biasBucket = (() => {
+        const synergy = clamp01(metrics.synergy ?? 0);
+        const harmony = clamp01(metrics.harmony ?? 0);
+        const corruption = clamp01(metrics.corruption ?? 0);
+
+        const weights = profiles.map((profile, index) => {
+            let weight = Number.isFinite(profile?.weight) ? profile.weight : 1;
+            const tag = String(profile?.tag || profile?.name || '').toLowerCase();
+
             if (family === 'mythic') {
-                const synergy = clamp01(metrics.synergy ?? 0);
-                if (synergy > 0.88) return 2;
-                if (synergy > 0.74) return 1;
-                return 0;
+                if (synergy >= 0.97 && (tag.includes('apotheosis') || tag.includes('halo'))) weight *= 8.0;
+                else if (synergy >= 0.90 && (tag.includes('seed') || tag.includes('benediction'))) weight *= 4.0;
+                else if (synergy >= 0.82 && (tag.includes('crown') || tag.includes('triune'))) weight *= 2.4;
+                else weight *= 1.0 + synergy * 0.5 + index * 0.04;
+            } else if (family === 'fracture') {
+                if (corruption >= 0.97 && (tag.includes('null') || tag.includes('rift'))) weight *= 8.0;
+                else if (corruption >= 0.90 && (tag.includes('corona') || tag.includes('rupture'))) weight *= 4.0;
+                else if (corruption >= 0.82 && (tag.includes('bloom') || tag.includes('split'))) weight *= 2.4;
+                else weight *= 1.0 + corruption * 0.5 + index * 0.04;
+            } else if (family === 'cathedral') {
+                if (harmony >= 0.97 && (tag.includes('sanctum') || tag.includes('spire'))) weight *= 8.0;
+                else if (harmony >= 0.90 && (tag.includes('vault') || tag.includes('lantern'))) weight *= 4.0;
+                else if (harmony >= 0.82 && (tag.includes('monument') || tag.includes('nave'))) weight *= 2.4;
+                else weight *= 1.0 + harmony * 0.5 + index * 0.04;
+            } else {
+                weight *= 1.0 + index * 0.03;
             }
-            if (family === 'fracture') {
-                const corruption = clamp01(metrics.corruption ?? 0);
-                if (corruption > 0.9) return 2;
-                if (corruption > 0.76) return 1;
-                return 0;
-            }
-            if (family === 'cathedral') {
-                const harmony = clamp01(metrics.harmony ?? 0);
-                if (harmony > 0.9) return 2;
-                if (harmony > 0.76) return 1;
-                return 0;
-            }
-            return 0;
-        })();
 
-        return (seed + biasBucket) % Math.max(1, variantCount);
+            return weight;
+        });
+
+        return this._pickWeightedIndex(weights, seedText) % Math.max(1, variantCount);
     }
 
     _finalizeBurst(burst, time, color, family, motionProfile, sharedGeometries) {
@@ -119,14 +146,32 @@ export class LinkEnergyRingSystem {
         return burst;
     }
 
+    _configureFirstFrameAccent(mesh, options = {}) {
+        if (!mesh) return mesh;
+        const userData = (mesh.userData && typeof mesh.userData === 'object') ? mesh.userData : {};
+        mesh.userData = userData;
+        userData.role = options.role || userData.role || 'accent';
+        userData.phase = Number.isFinite(options.phase) ? options.phase : Math.random() * Math.PI * 2;
+        userData.phaseShift = Number.isFinite(options.phaseShift) ? options.phaseShift : (userData.phaseShift ?? 0);
+        userData.spin = options.spin?.clone ? options.spin.clone() : (userData.spin || new THREE.Vector3());
+        userData.accentWindow = Math.max(0.01, Number.isFinite(options.window) ? options.window : 0.12);
+        userData.accentBoost = Number.isFinite(options.boost) ? options.boost : 0.55;
+        userData.baseScale = options.baseScale?.clone ? options.baseScale.clone() : mesh.scale.clone();
+        userData.accentScale = options.accentScale?.clone ? options.accentScale.clone() : mesh.scale.clone();
+        mesh.scale.copy(userData.accentScale);
+        mesh.frustumCulled = false;
+        return mesh;
+    }
+
     _buildMythicBurst(palette, time, color, context = {}) {
         const burst = new THREE.Group();
         burst.name = 'MythicBurst';
 
-        const variantIndex = this._pickBurstVariantIndex('mythic', context, 3);
         const profiles = [
             {
-                name: 'Reliquary',
+                name: 'AureateReliquary',
+                tag: 'aureateReliquary',
+                weight: 1.0,
                 loopConfigs: [
                     { name: 'MythicLoopA', rotation: new THREE.Euler(0.60, 0.18, 0.58), scale: new THREE.Vector3(1.00, 0.72, 0.98), position: new THREE.Vector3(0.02, 0.00, 0.00), opacity: 0.72, spin: new THREE.Vector3(0.03, 0.02, 0.03), phaseShift: 0.0 },
                     { name: 'MythicLoopB', rotation: new THREE.Euler(-0.14, 1.56, 0.92), scale: new THREE.Vector3(0.96, 0.68, 1.02), position: new THREE.Vector3(-0.03, 0.015, 0.02), opacity: 0.64, spin: new THREE.Vector3(0.025, 0.03, 0.02), phaseShift: 1.7 },
@@ -157,7 +202,9 @@ export class LinkEnergyRingSystem {
                 sharedGeometries: new Set([this.baseGeometry, this.outerHaloGeometry, this.coreGeometry, this.crownSpikeGeometry, this.sealGeometry])
             },
             {
-                name: 'CrownedTriad',
+                name: 'TriuneCrown',
+                tag: 'triuneCrown',
+                weight: 1.1,
                 loopConfigs: [
                     { name: 'MythicLoopA', rotation: new THREE.Euler(0.54, 0.10, 0.46), scale: new THREE.Vector3(1.04, 0.68, 1.00), position: new THREE.Vector3(0.03, 0.00, 0.00), opacity: 0.70, spin: new THREE.Vector3(0.028, 0.022, 0.025), phaseShift: 0.2 },
                     { name: 'MythicLoopB', rotation: new THREE.Euler(-0.20, 1.50, 0.82), scale: new THREE.Vector3(0.92, 0.62, 1.08), position: new THREE.Vector3(-0.05, 0.03, 0.02), opacity: 0.60, spin: new THREE.Vector3(0.022, 0.028, 0.018), phaseShift: 1.6 },
@@ -189,7 +236,9 @@ export class LinkEnergyRingSystem {
                 sharedGeometries: new Set([this.baseGeometry, this.outerHaloGeometry, this.crownSpikeGeometry])
             },
             {
-                name: 'AureateSeed',
+                name: 'SeedOfBenediction',
+                tag: 'seedOfBenediction',
+                weight: 1.35,
                 loopConfigs: [
                     { name: 'MythicLoopA', rotation: new THREE.Euler(0.72, 0.24, 0.56), scale: new THREE.Vector3(0.98, 0.62, 1.04), position: new THREE.Vector3(0.02, 0.01, 0.00), opacity: 0.76, spin: new THREE.Vector3(0.02, 0.02, 0.03), phaseShift: 0.1 },
                     { name: 'MythicLoopC', rotation: new THREE.Euler(1.48, 0.20, -0.18), scale: new THREE.Vector3(0.90, 0.66, 0.96), position: new THREE.Vector3(-0.02, -0.04, -0.02), opacity: 0.68, spin: new THREE.Vector3(0.018, 0.022, 0.026), phaseShift: 2.8 }
@@ -217,10 +266,52 @@ export class LinkEnergyRingSystem {
                 pulseDepth: 0.18,
                 roleBias: { loop: 1.0, core: 1.12, halo: 0.74, seed: 1.06, seal: 0.98, spike: 1.04 },
                 sharedGeometries: new Set([this.baseGeometry, this.outerHaloGeometry, this.sealGeometry, this.crownSpikeGeometry])
+            },
+            {
+                name: 'ApotheosisHalo',
+                tag: 'apotheosisHalo',
+                weight: 1.75,
+                loopConfigs: [
+                    { name: 'MythicLoopA', rotation: new THREE.Euler(0.82, 0.16, 0.64), scale: new THREE.Vector3(1.10, 0.78, 1.08), position: new THREE.Vector3(0.04, 0.02, 0.00), opacity: 0.78, spin: new THREE.Vector3(0.03, 0.02, 0.03), phaseShift: 0.0 },
+                    { name: 'MythicLoopB', rotation: new THREE.Euler(-0.12, 1.46, 0.98), scale: new THREE.Vector3(1.00, 0.72, 1.10), position: new THREE.Vector3(-0.04, 0.02, 0.03), opacity: 0.70, spin: new THREE.Vector3(0.024, 0.03, 0.022), phaseShift: 1.4 },
+                    { name: 'MythicLoopC', rotation: new THREE.Euler(1.66, 0.28, -0.22), scale: new THREE.Vector3(0.96, 0.76, 1.02), position: new THREE.Vector3(0.0, -0.02, -0.02), opacity: 0.74, spin: new THREE.Vector3(0.022, 0.026, 0.03), phaseShift: 2.8 },
+                    { name: 'MythicLoopD', rotation: new THREE.Euler(0.28, 0.86, 1.22), scale: new THREE.Vector3(0.72, 0.46, 0.68), position: new THREE.Vector3(0.04, 0.16, 0.04), opacity: 0.58, spin: new THREE.Vector3(0.014, 0.018, 0.022), phaseShift: 4.1 },
+                    { name: 'MythicLoopE', rotation: new THREE.Euler(-0.48, 0.66, -0.38), scale: new THREE.Vector3(0.58, 0.34, 0.64), position: new THREE.Vector3(-0.02, -0.14, 0.02), opacity: 0.52, spin: new THREE.Vector3(0.012, 0.014, 0.016), phaseShift: 5.1 }
+                ],
+                halo: { scale: new THREE.Vector3(1.34, 0.96, 1.42), rotation: new THREE.Euler(0.98, 0.24, 0.74), opacity: 0.44, spin: new THREE.Vector3(0.02, 0.026, 0.03) },
+                core: 'sun',
+                coreScale: new THREE.Vector3(0.52, 0.52, 0.52),
+                coreRotation: new THREE.Euler(0.34, 0.28, 0.12),
+                coreOpacity: 0.92,
+                coreSpin: new THREE.Vector3(0.03, 0.025, 0.022),
+                seedScale: new THREE.Vector3(0.84, 0.70, 0.94),
+                seedRotation: new THREE.Euler(0.22, 0.48, 0.18),
+                seedOpacity: 0.96,
+                seedSpin: new THREE.Vector3(0.028, 0.024, 0.03),
+                crownCount: 10,
+                crownRadius: 1.02,
+                crownHeight: 0.06,
+                duration: 1.22,
+                baseScale: 0.06,
+                maxScale: 5.35,
+                fadeStart: 0.44,
+                opacityBase: 0.76,
+                rotation: new THREE.Vector3(0.014, 0.026, 0.012),
+                silhouetteScale: new THREE.Vector3(0.88, 1.34, 0.90),
+                silhouetteWindow: 0.18,
+                silhouetteTwist: new THREE.Vector3(0.18, 0.10, 0.26),
+                accentWindow: 0.12,
+                accentBoost: 0.72,
+                pulseSpeed: 5.2,
+                pulseDepth: 0.22,
+                roleBias: { loop: 1.0, core: 1.24, halo: 1.12, seed: 1.2, seal: 0.84, spike: 1.16, sun: 1.28, flare: 1.3 },
+                sharedGeometries: new Set([this.baseGeometry, this.outerHaloGeometry, this.crownSpikeGeometry, this.sealGeometry])
             }
         ];
 
+        const variantIndex = this._pickBurstVariantIndex('mythic', context, profiles);
         const profile = profiles[variantIndex];
+        burst.name = `MythicBurst_${profile.name}`;
         const ringMaterials = {
             loopA: this._createBurstMaterial(palette.gold, 0.7),
             loopB: this._createBurstMaterial(palette.violet, 0.62),
@@ -270,6 +361,30 @@ export class LinkEnergyRingSystem {
         burst.add(halo);
 
         const buildCoreSymbol = () => {
+            if (profile.coreType === 'sun') {
+                const root = new THREE.Group();
+                root.name = 'MythicApotheosisSun';
+
+                const sun = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), ringMaterials.core);
+                sun.rotation.set(0.26, 0.34, 0.16);
+                sun.userData = { role: 'core', baseOpacity: 0.96, spin: new THREE.Vector3(0.026, 0.024, 0.03), phase: Math.random() * Math.PI * 2 };
+                root.add(sun);
+
+                const equator = new THREE.Mesh(this.baseGeometry, ringMaterials.halo);
+                equator.scale.set(0.42, 0.14, 0.42);
+                equator.rotation.set(1.54, 0.22, 0.18);
+                equator.userData = { role: 'halo', baseOpacity: 0.58, spin: new THREE.Vector3(0.018, 0.022, 0.02), phase: Math.random() * Math.PI * 2 };
+                root.add(equator);
+
+                const flareRing = new THREE.Mesh(this.outerHaloGeometry, ringMaterials.spike);
+                flareRing.scale.set(0.62, 0.26, 0.62);
+                flareRing.rotation.set(0.86, 0.42, 0.28);
+                flareRing.userData = { role: 'spike', baseOpacity: 0.66, spin: new THREE.Vector3(0.02, 0.018, 0.024), phase: Math.random() * Math.PI * 2 };
+                root.add(flareRing);
+
+                return root;
+            }
+
             if (profile.core === 'prism') {
                 const prism = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.5, 6, 1, true), ringMaterials.core);
                 prism.name = 'MythicCorePrism';
@@ -314,6 +429,55 @@ export class LinkEnergyRingSystem {
         };
 
         burst.add(buildCoreSymbol());
+
+        if (profile.name === 'ApotheosisHalo') {
+            const flareRing = new THREE.Mesh(this.outerHaloGeometry, ringMaterials.spike);
+            flareRing.name = 'MythicHeroFlareRing_ApotheosisHalo';
+            flareRing.rotation.set(1.56, 0.48, 0.18);
+            flareRing.scale.set(1.48, 0.34, 1.48);
+            this._configureFirstFrameAccent(flareRing, {
+                role: 'flare',
+                window: profile.accentWindow,
+                boost: profile.accentBoost,
+                baseScale: new THREE.Vector3(1.02, 0.24, 1.02),
+                accentScale: new THREE.Vector3(1.48, 0.34, 1.48),
+                phaseShift: 0.35,
+                spin: new THREE.Vector3(0.014, 0.018, 0.02)
+            });
+            burst.add(flareRing);
+
+            const flareRayA = new THREE.Mesh(this.crownSpikeGeometry, ringMaterials.gold);
+            flareRayA.name = 'MythicHeroFlareRayA_ApotheosisHalo';
+            flareRayA.position.set(0.62, 0.05, 0.02);
+            flareRayA.rotation.set(0.28, 1.34, 1.04);
+            flareRayA.scale.set(1.22, 0.84, 1.22);
+            this._configureFirstFrameAccent(flareRayA, {
+                role: 'flare',
+                window: profile.accentWindow,
+                boost: 0.58,
+                baseScale: new THREE.Vector3(0.74, 0.56, 0.74),
+                accentScale: new THREE.Vector3(1.22, 0.84, 1.22),
+                phaseShift: 1.0,
+                spin: new THREE.Vector3(0.018, 0.014, 0.02)
+            });
+            burst.add(flareRayA);
+
+            const flareRayB = new THREE.Mesh(this.crownSpikeGeometry, ringMaterials.ivory);
+            flareRayB.name = 'MythicHeroFlareRayB_ApotheosisHalo';
+            flareRayB.position.set(-0.42, 0.12, -0.18);
+            flareRayB.rotation.set(0.22, -0.82, -1.12);
+            flareRayB.scale.set(1.04, 0.76, 1.04);
+            this._configureFirstFrameAccent(flareRayB, {
+                role: 'flare',
+                window: profile.accentWindow,
+                boost: 0.52,
+                baseScale: new THREE.Vector3(0.66, 0.52, 0.66),
+                accentScale: new THREE.Vector3(1.04, 0.76, 1.04),
+                phaseShift: 1.55,
+                spin: new THREE.Vector3(0.016, 0.012, 0.018)
+            });
+            burst.add(flareRayB);
+        }
 
         if (profile.name !== 'AureateSeed') {
             const seal = new THREE.Mesh(this.sealGeometry, ringMaterials.spike);
@@ -378,10 +542,11 @@ export class LinkEnergyRingSystem {
         const burst = new THREE.Group();
         burst.name = 'FractureBurst';
 
-        const variantIndex = this._pickBurstVariantIndex('fracture', context, 3);
         const profiles = [
             {
                 name: 'NeonRupture',
+                tag: 'neonRupture',
+                weight: 1.15,
                 splitCount: 2,
                 splitScale: [new THREE.Vector3(0.96, 0.68, 1.18), new THREE.Vector3(1.02, 0.74, 0.94)],
                 splitRotation: [new THREE.Euler(-0.34, 0.42, -0.18), new THREE.Euler(0.58, 1.42, 0.76)],
@@ -407,7 +572,9 @@ export class LinkEnergyRingSystem {
                 sharedGeometries: new Set()
             },
             {
-                name: 'SplitRingBloom',
+                name: 'ShatterBloom',
+                tag: 'shatterBloom',
+                weight: 1.0,
                 splitCount: 3,
                 splitScale: [new THREE.Vector3(0.98, 0.70, 1.12), new THREE.Vector3(1.02, 0.76, 0.96), new THREE.Vector3(0.88, 0.66, 1.08)],
                 splitRotation: [new THREE.Euler(0.76, 0.22, 0.58), new THREE.Euler(-0.24, 1.12, -0.42), new THREE.Euler(1.28, -0.16, 0.88)],
@@ -435,6 +602,8 @@ export class LinkEnergyRingSystem {
             },
             {
                 name: 'RuptureCorona',
+                tag: 'ruptureCorona',
+                weight: 1.35,
                 splitCount: 4,
                 splitScale: [new THREE.Vector3(1.04, 0.74, 1.02), new THREE.Vector3(0.94, 0.66, 1.10), new THREE.Vector3(0.86, 0.70, 0.92), new THREE.Vector3(0.72, 0.52, 0.78)],
                 splitRotation: [new THREE.Euler(0.52, 0.18, 0.34), new THREE.Euler(-0.28, 1.48, -0.12), new THREE.Euler(1.18, 0.42, 0.82), new THREE.Euler(0.18, 0.92, 1.24)],
@@ -457,10 +626,46 @@ export class LinkEnergyRingSystem {
                 pulseDepth: 0.26,
                 roleBias: { split: 1.02, shard: 1.2, crack: 0.84, core: 1.16, rupture: 1.14, seed: 0.98 },
                 sharedGeometries: new Set()
+            },
+            {
+                name: 'NullRift',
+                tag: 'nullRift',
+                weight: 1.75,
+                splitCount: 5,
+                splitScale: [new THREE.Vector3(1.08, 0.72, 1.12), new THREE.Vector3(1.0, 0.68, 1.02), new THREE.Vector3(0.92, 0.64, 1.08), new THREE.Vector3(0.84, 0.60, 0.90), new THREE.Vector3(0.76, 0.54, 0.82)],
+                splitRotation: [new THREE.Euler(0.62, 0.12, 0.42), new THREE.Euler(-0.24, 1.42, -0.22), new THREE.Euler(1.26, 0.24, 0.94), new THREE.Euler(0.18, 0.86, 1.14), new THREE.Euler(-0.56, 0.44, -0.82)],
+                splitPosition: [new THREE.Vector3(0.14, 0.0, 0.03), new THREE.Vector3(-0.04, 0.04, -0.03), new THREE.Vector3(-0.1, -0.06, 0.08), new THREE.Vector3(0.02, 0.12, -0.08), new THREE.Vector3(0.0, -0.12, 0.04)],
+                splitArc: [Math.PI * 0.68, Math.PI * 0.78, Math.PI * 0.64, Math.PI * 0.72, Math.PI * 0.58],
+                splitRadius: [0.5, 0.44, 0.38, 0.32, 0.26],
+                crackLines: [
+                    [new THREE.Vector3(-0.22, 0.04, -0.06), new THREE.Vector3(-0.06, 0.16, 0.1), new THREE.Vector3(0.14, -0.02, 0.04)],
+                    [new THREE.Vector3(-0.16, -0.12, 0.12), new THREE.Vector3(0.0, 0.06, -0.14), new THREE.Vector3(0.2, 0.16, 0.08)],
+                    [new THREE.Vector3(-0.08, 0.0, -0.16), new THREE.Vector3(0.08, -0.14, 0.02), new THREE.Vector3(0.22, 0.06, 0.12)]
+                ],
+                shardCount: 14,
+                shardRadius: 0.74,
+                coreType: 'rift',
+                duration: 0.96,
+                baseScale: 0.062,
+                maxScale: 4.95,
+                fadeStart: 0.36,
+                opacityBase: 0.84,
+                rotation: new THREE.Vector3(0.058, 0.076, 0.042),
+                silhouetteScale: new THREE.Vector3(1.22, 0.80, 0.86),
+                silhouetteWindow: 0.22,
+                silhouetteTwist: new THREE.Vector3(-0.14, 0.26, -0.22),
+                accentWindow: 0.10,
+                accentBoost: 0.78,
+                pulseSpeed: 9.2,
+                pulseDepth: 0.3,
+                roleBias: { split: 1.02, shard: 1.26, crack: 0.84, core: 1.18, rupture: 1.22, seed: 0.92, void: 1.1, sideShard: 1.34 },
+                sharedGeometries: new Set()
             }
         ];
 
+        const variantIndex = this._pickBurstVariantIndex('fracture', context, profiles);
         const profile = profiles[variantIndex];
+        burst.name = `FractureBurst_${profile.name}`;
         const ringMaterials = {
             splitA: this._createBurstMaterial(new THREE.Color(0x48f0ff).lerp(palette.source, 0.18), 0.82),
             splitB: this._createBurstMaterial(new THREE.Color(0xff54d6).lerp(palette.source, 0.12), 0.76),
@@ -504,6 +709,33 @@ export class LinkEnergyRingSystem {
         });
 
         const buildCoreSymbol = () => {
+            if (profile.coreType === 'rift') {
+                const root = new THREE.Group();
+                root.name = 'FractureRiftCore';
+
+                const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.14, 0.032, 36, 8, 2, 3), ringMaterials.core);
+                knot.rotation.set(0.6, -0.24, 0.18);
+                knot.scale.set(1.0, 0.9, 1.05);
+                knot.userData = { role: 'core', baseOpacity: 0.98, spin: new THREE.Vector3(0.05, 0.06, 0.04), phase: Math.random() * Math.PI * 2 };
+                root.add(knot);
+
+                const voidRing = new THREE.Mesh(this.baseGeometry, ringMaterials.rupture);
+                voidRing.scale.set(0.44, 0.1, 0.44);
+                voidRing.rotation.set(1.54, 0.3, 0.2);
+                voidRing.userData = { role: 'void', baseOpacity: 0.66, spin: new THREE.Vector3(0.024, 0.03, 0.026), phase: Math.random() * Math.PI * 2 };
+                root.add(voidRing);
+
+                const slit = buildTube([
+                    new THREE.Vector3(-0.16, -0.04, 0.0),
+                    new THREE.Vector3(-0.02, 0.1, 0.08),
+                    new THREE.Vector3(0.16, -0.02, -0.04)
+                ], 0.012, 12, 4, false, ringMaterials.rupture);
+                slit.rotation.set(0.22, 0.34, 0.72);
+                root.add(slit);
+
+                return root;
+            }
+
             if (profile.coreType === 'ruptureSeed') {
                 const root = new THREE.Group();
                 root.name = 'FractureRuptureSeed';
@@ -548,6 +780,32 @@ export class LinkEnergyRingSystem {
             burst.add(coreSymbol);
         }
 
+        if (profile.name === 'NullRift') {
+            const accentSpecs = [
+                { name: 'FractureHeroSideShardA_NullRift', position: new THREE.Vector3(0.72, 0.18, 0.08), rotation: new THREE.Euler(0.98, 0.22, 0.14), scale: new THREE.Vector3(1.26, 1.34, 1.06), opacity: 0.92 },
+                { name: 'FractureHeroSideShardB_NullRift', position: new THREE.Vector3(0.88, -0.02, 0.02), rotation: new THREE.Euler(0.84, 0.48, -0.18), scale: new THREE.Vector3(1.12, 1.18, 0.96), opacity: 0.86 },
+                { name: 'FractureHeroSideShardC_NullRift', position: new THREE.Vector3(0.58, 0.28, -0.08), rotation: new THREE.Euler(1.08, -0.12, 0.28), scale: new THREE.Vector3(0.98, 1.08, 0.92), opacity: 0.82 }
+            ];
+            for (const [index, spec] of accentSpecs.entries()) {
+                const shard = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.038, 0.44, 6, 1, true), index === 0 ? ringMaterials.rupture : ringMaterials.shard);
+                shard.name = spec.name;
+                shard.position.copy(spec.position);
+                shard.rotation.copy(spec.rotation);
+                shard.scale.copy(spec.scale);
+                this._configureFirstFrameAccent(shard, {
+                    role: 'sideShard',
+                    window: profile.accentWindow,
+                    boost: profile.accentBoost,
+                    baseScale: spec.scale.clone().multiplyScalar(0.62),
+                    accentScale: spec.scale,
+                    phaseShift: 0.6 + index * 0.42,
+                    spin: new THREE.Vector3(0.024, 0.032, 0.02)
+                });
+                shard.material.opacity = spec.opacity;
+                burst.add(shard);
+            }
+        }
+
         const shardAngles = [];
         for (let i = 0; i < profile.shardCount; i++) {
             shardAngles.push((i / profile.shardCount) * Math.PI * 2);
@@ -589,10 +847,11 @@ export class LinkEnergyRingSystem {
         const burst = new THREE.Group();
         burst.name = 'CathedralBurst';
 
-        const variantIndex = this._pickBurstVariantIndex('cathedral', context, 3);
         const profiles = [
             {
                 name: 'CathedralMonument',
+                tag: 'cathedralMonument',
+                weight: 1.05,
                 ringHeights: [0.24, 0.0, -0.24],
                 ringScales: [new THREE.Vector3(1.08, 0.18, 1.08), new THREE.Vector3(1.0, 0.16, 1.0), new THREE.Vector3(0.92, 0.14, 0.92)],
                 ringRotations: [new THREE.Euler(1.52, 0.08, 0.24), new THREE.Euler(1.52, 0.18, 0.24), new THREE.Euler(1.52, 0.28, 0.24)],
@@ -614,6 +873,8 @@ export class LinkEnergyRingSystem {
             },
             {
                 name: 'CathedralNave',
+                tag: 'cathedralNave',
+                weight: 1.0,
                 ringHeights: [0.30, 0.10, -0.10, -0.30],
                 ringScales: [new THREE.Vector3(1.12, 0.18, 1.12), new THREE.Vector3(1.04, 0.16, 1.04), new THREE.Vector3(0.98, 0.14, 0.98), new THREE.Vector3(0.88, 0.13, 0.88)],
                 ringRotations: [new THREE.Euler(1.56, 0.04, 0.18), new THREE.Euler(1.52, 0.14, 0.24), new THREE.Euler(1.50, 0.24, 0.28), new THREE.Euler(1.48, 0.34, 0.32)],
@@ -635,6 +896,8 @@ export class LinkEnergyRingSystem {
             },
             {
                 name: 'CathedralVault',
+                tag: 'cathedralVault',
+                weight: 1.35,
                 ringHeights: [0.20, -0.18],
                 ringScales: [new THREE.Vector3(1.16, 0.2, 1.16), new THREE.Vector3(0.98, 0.15, 0.98)],
                 ringRotations: [new THREE.Euler(1.46, 0.16, 0.2), new THREE.Euler(1.58, 0.36, 0.34)],
@@ -653,10 +916,40 @@ export class LinkEnergyRingSystem {
                 pulseDepth: 0.14,
                 roleBias: { ring: 1.0, pillar: 0.84, arch: 0.94, core: 1.1, lattice: 1.04 },
                 sharedGeometries: new Set([this.baseGeometry])
+            },
+            {
+                name: 'SanctumSpire',
+                tag: 'sanctumSpire',
+                weight: 1.75,
+                ringHeights: [0.34, 0.16, 0.0, -0.16, -0.34],
+                ringScales: [new THREE.Vector3(1.18, 0.2, 1.18), new THREE.Vector3(1.1, 0.18, 1.1), new THREE.Vector3(1.0, 0.16, 1.0), new THREE.Vector3(0.92, 0.14, 0.92), new THREE.Vector3(0.84, 0.12, 0.84)],
+                ringRotations: [new THREE.Euler(1.58, 0.02, 0.16), new THREE.Euler(1.54, 0.1, 0.2), new THREE.Euler(1.52, 0.18, 0.24), new THREE.Euler(1.5, 0.28, 0.28), new THREE.Euler(1.48, 0.38, 0.32)],
+                pillarCount: 12,
+                pillarRadius: 0.58,
+                pillarHeight: 1.18,
+                archCount: 4,
+                coreType: 'spire',
+                duration: 1.32,
+                baseScale: 0.08,
+                maxScale: 5.35,
+                fadeStart: 0.72,
+                opacityBase: 0.58,
+                rotation: new THREE.Vector3(0.01, 0.016, 0.008),
+                silhouetteScale: new THREE.Vector3(1.10, 1.42, 1.10),
+                silhouetteWindow: 0.20,
+                silhouetteTwist: new THREE.Vector3(0.06, 0.18, 0.04),
+                accentWindow: 0.11,
+                accentBoost: 0.64,
+                pulseSpeed: 1.8,
+                pulseDepth: 0.08,
+                roleBias: { ring: 1.0, pillar: 0.74, arch: 0.88, core: 1.2, sanctum: 1.16, spire: 1.28, lantern: 1.06, stroke: 1.24 },
+                sharedGeometries: new Set([this.baseGeometry])
             }
         ];
 
+        const variantIndex = this._pickBurstVariantIndex('cathedral', context, profiles);
         const profile = profiles[variantIndex];
+        burst.name = `CathedralBurst_${profile.name}`;
         const ringMaterials = {
             stone: this._createBurstMaterial(new THREE.Color(0xe6dfd0).lerp(palette.source, 0.08), 0.56),
             gold: this._createBurstMaterial(new THREE.Color(0xe7c46a).lerp(palette.source, 0.12), 0.72),
@@ -723,6 +1016,32 @@ export class LinkEnergyRingSystem {
         });
 
         const buildCoreSymbol = () => {
+            if (profile.coreType === 'spire') {
+                const root = new THREE.Group();
+                root.name = 'CathedralSanctumSpire';
+
+                const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.16, 0.78, 8, 1, true), ringMaterials.core);
+                spire.position.y = 0.12;
+                spire.rotation.set(0.0, 0.18, 0.0);
+                spire.userData = { role: 'spire', baseOpacity: 0.92, spin: new THREE.Vector3(0.012, 0.014, 0.01), phase: Math.random() * Math.PI * 2 };
+                root.add(spire);
+
+                const cap = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), ringMaterials.gold);
+                cap.position.y = 0.46;
+                cap.scale.set(0.9, 1.1, 0.9);
+                cap.rotation.set(0.28, 0.14, -0.08);
+                cap.userData = { role: 'core', baseOpacity: 0.86, spin: new THREE.Vector3(0.014, 0.016, 0.012), phase: Math.random() * Math.PI * 2 };
+                root.add(cap);
+
+                const sanctumRing = new THREE.Mesh(this.outerHaloGeometry, ringMaterials.ivory);
+                sanctumRing.scale.set(0.48, 0.18, 0.48);
+                sanctumRing.rotation.set(1.54, 0.22, 0.16);
+                sanctumRing.userData = { role: 'sanctum', baseOpacity: 0.62, spin: new THREE.Vector3(0.012, 0.014, 0.012), phase: Math.random() * Math.PI * 2 };
+                root.add(sanctumRing);
+
+                return root;
+            }
+
             if (profile.coreType === 'lantern') {
                 const root = new THREE.Group();
                 root.name = 'CathedralLantern';
@@ -765,6 +1084,47 @@ export class LinkEnergyRingSystem {
         };
 
         burst.add(buildCoreSymbol());
+
+        if (profile.name === 'SanctumSpire') {
+            const strokeCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(-0.58, 0.16, -0.04),
+                new THREE.Vector3(-0.32, 0.42, 0.08),
+                new THREE.Vector3(-0.04, 0.56, 0.12),
+                new THREE.Vector3(0.26, 0.42, 0.06),
+                new THREE.Vector3(0.52, 0.18, -0.02)
+            ], false);
+            const crownStroke = new THREE.Mesh(new THREE.TubeGeometry(strokeCurve, 22, 0.018, 5, false), ringMaterials.gold);
+            crownStroke.name = 'CathedralHeroCrownStroke_SanctumSpire';
+            crownStroke.position.set(0.18, 0.08, 0.06);
+            crownStroke.rotation.set(0.06, 0.22, 0.18);
+            crownStroke.scale.set(1.18, 1.12, 1.14);
+            this._configureFirstFrameAccent(crownStroke, {
+                role: 'stroke',
+                window: profile.accentWindow,
+                boost: profile.accentBoost,
+                baseScale: new THREE.Vector3(0.84, 0.82, 0.84),
+                accentScale: new THREE.Vector3(1.18, 1.12, 1.14),
+                phaseShift: 0.45,
+                spin: new THREE.Vector3(0.01, 0.012, 0.008)
+            });
+            burst.add(crownStroke);
+
+            const crownPin = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.042, 0.26, 6, 1, true), ringMaterials.ivory);
+            crownPin.name = 'CathedralHeroCrownPin_SanctumSpire';
+            crownPin.position.set(0.58, 0.30, 0.16);
+            crownPin.rotation.set(0.42, 0.68, 0.16);
+            crownPin.scale.set(1.04, 0.92, 1.04);
+            this._configureFirstFrameAccent(crownPin, {
+                role: 'stroke',
+                window: profile.accentWindow,
+                boost: 0.5,
+                baseScale: new THREE.Vector3(0.76, 0.68, 0.76),
+                accentScale: new THREE.Vector3(1.04, 0.92, 1.04),
+                phaseShift: 1.1,
+                spin: new THREE.Vector3(0.01, 0.01, 0.01)
+            });
+            burst.add(crownPin);
+        }
 
         return this._finalizeBurst(
             burst,
@@ -845,12 +1205,19 @@ export class LinkEnergyRingSystem {
             } else {
                 // Animate
                 // Scale: Cubic ease-out for snappy expansion
+                const motion = data.motionProfile || {};
                 const easeProgress = 1.0 - Math.pow(1.0 - progress, 3);
                 const currentScale = data.baseScale + (data.maxScale - data.baseScale) * easeProgress;
-                burst.scale.setScalar(currentScale);
+                const silhouetteScale = motion.silhouetteScale || null;
+                const silhouetteWindow = Math.max(0.01, motion.silhouetteWindow ?? 0.18);
+                const silhouetteMix = silhouetteScale ? (1.0 - clamp01(progress / silhouetteWindow)) : 0.0;
+                const silhouetteEase = silhouetteMix * silhouetteMix * (3.0 - 2.0 * silhouetteMix);
+                const sx = silhouetteScale ? ((1.0 - silhouetteEase) + silhouetteScale.x * silhouetteEase) : 1.0;
+                const sy = silhouetteScale ? ((1.0 - silhouetteEase) + silhouetteScale.y * silhouetteEase) : 1.0;
+                const sz = silhouetteScale ? ((1.0 - silhouetteEase) + silhouetteScale.z * silhouetteEase) : 1.0;
+                burst.scale.set(currentScale * sx, currentScale * sy, currentScale * sz);
 
                 // Opacity: Fade out quickly at the end
-                const motion = data.motionProfile || {};
                 const roleBiasTable = motion.roleBias || {};
                 const fadeStart = motion.fadeStart ?? 0.52;
                 const opacityBase = motion.opacityBase ?? 0.68;
@@ -869,7 +1236,20 @@ export class LinkEnergyRingSystem {
                     const pulseSpeed = motion.pulseSpeed ?? 4.0;
                     const pulseDepth = motion.pulseDepth ?? 0.16;
                     const pulse = (1.0 - pulseDepth) + pulseDepth * Math.sin(progress * Math.PI * pulseSpeed + phase + phaseShift);
-                    child.material.opacity = opacity * roleBias * pulse;
+                    const accentWindow = Math.max(0.0, child.userData?.accentWindow ?? 0.0);
+                    const accentMix = accentWindow > 0.0 ? (1.0 - clamp01(progress / accentWindow)) : 0.0;
+                    const accentEase = accentMix * accentMix * (3.0 - 2.0 * accentMix);
+                    if (child.userData?.accentScale && child.userData?.baseScale) {
+                        const baseScale = child.userData.baseScale;
+                        const accentScale = child.userData.accentScale;
+                        child.scale.set(
+                            baseScale.x + (accentScale.x - baseScale.x) * accentEase,
+                            baseScale.y + (accentScale.y - baseScale.y) * accentEase,
+                            baseScale.z + (accentScale.z - baseScale.z) * accentEase
+                        );
+                    }
+                    const accentBoost = Number.isFinite(child.userData?.accentBoost) ? child.userData.accentBoost : 0.0;
+                    child.material.opacity = opacity * roleBias * pulse * (1.0 + accentBoost * accentEase);
                 }
 
                 // Rotation (subtle spin)
