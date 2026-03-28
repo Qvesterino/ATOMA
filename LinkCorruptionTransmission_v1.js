@@ -46,8 +46,8 @@ THREE_SAFE =
 
 const THREE = THREE_SAFE;
 
-// Phase C.3: corruption & harmony writes disabled
-// Link transmission is now evaluation-only.
+// Phase C.3: metric impulse emission is gated by this flag for quieter mode.
+// Core corruption/integrity propagation still updates canonical maps and syncs `link.userData`.
 const PHASE_C3_METRIC_WRITE_LOCK = true;
  
 /**
@@ -777,6 +777,28 @@ export class LinkCorruptionTransmission_v1 {
   }
 
   /**
+   * Keep link.userData metrics aligned with the canonical corruption/integrity maps.
+   * Overrides allow forcing values when the canonical data has been cleared.
+   */
+  _syncLinkUserDataMetrics(link, overrides = {}) {
+    if (!link || !link.userData) return null;
+
+    const linkId = link.id || `${link.source?.id || 'unknown'}-${link.target?.id || 'unknown'}`;
+    const corruptionData = this.linkCorruption.get(linkId);
+    const integrityData = this.linkIntegrity.get(linkId);
+
+    const corruptionLevel = overrides.corruptionLevel ?? corruptionData?.level ?? 0;
+    const integrity = overrides.integrity ?? integrityData?.integrity ?? LINK_INTEGRITY_THRESHOLDS.INTEGRITY_MAX;
+    const integrityState = overrides.integrityState ?? integrityData?.state ?? 'healthy';
+
+    link.userData.corruptionLevel = corruptionLevel;
+    link.userData.integrity = integrity;
+    link.userData.integrityState = integrityState;
+
+    return { corruptionLevel, integrity, integrityState };
+  }
+
+  /**
    * Main update loop - call once per frame
    */
   updateTransmission(deltaTime = 1/60) {
@@ -854,8 +876,6 @@ export class LinkCorruptionTransmission_v1 {
           : undefined
       });
     }
-    const targetCorruption = targetNode.userData?.corruption || 0;
-    
     // Corruption spreads from higher → lower
     const corruptionDifference = Math.max(0, sourceCorruption - linkData.level);
     
@@ -877,20 +897,15 @@ export class LinkCorruptionTransmission_v1 {
     // Relaxation decay to prevent permanent link corruption accumulation.
     // Runs after propagation update every cycle.
     const DECAY_RATE = 0.05;
-    const decayedLevel = Math.max(
-      0,
-      (link.userData?.corruptionLevel ?? linkData.level) - DECAY_RATE * deltaTime
-    );
+    const decayedLevel = Math.max(0, linkData.level - DECAY_RATE * deltaTime);
     linkData.level = decayedLevel;
-    if (link.userData) {
-      link.userData.corruptionLevel = decayedLevel;
-    }
 
     // Check cascade thresholds
     this.checkCascadeThresholds(link, linkData);
 
     // Apply visual effects
     this.applyLinkCorruptionVisuals(link, linkData.level, Date.now() / 1000);
+    this._syncLinkUserDataMetrics(link);
   }
 
   /**
@@ -923,6 +938,7 @@ export class LinkCorruptionTransmission_v1 {
     // Skip if already collapsed
     if (this.collapsedLinks.has(linkId)) {
       integrityData.state = 'collapsed';
+      this._syncLinkUserDataMetrics(link);
       return;
     }
     
@@ -1040,6 +1056,8 @@ export class LinkCorruptionTransmission_v1 {
         degradationRate
       });
     }
+
+    this._syncLinkUserDataMetrics(link);
   }
 
   /**
@@ -1220,6 +1238,8 @@ export class LinkCorruptionTransmission_v1 {
         networkStress: eligibility.networkStress
       });
     }
+
+    this._syncLinkUserDataMetrics(link);
 
     // Debug logging
     if (this.debugMode) {
@@ -3298,6 +3318,7 @@ export class LinkCorruptionTransmission_v1 {
       linkData.level = Math.max(0, Math.min(1, level));
       linkData.cascadeThresholdsCrossed.clear(); // Reset cascades
       this.checkCascadeThresholds(link, linkData);
+      this._syncLinkUserDataMetrics(link);
     }
   }
 
@@ -3389,6 +3410,52 @@ export class LinkCorruptionTransmission_v1 {
         age: (Date.now() - e.timestamp) / 1000
       }))
     };
+  }
+
+  /**
+   * Get aggregate network corruption from tracked link state.
+   * Public API used by UI/bridge consumers.
+   *
+   * @returns {number} Average link corruption in [0, 1]
+   */
+  getNetworkCorruption() {
+    const allLinks = this.getAllLinks();
+    if (!allLinks || allLinks.length === 0) return 0;
+
+    let totalCorruption = 0;
+    let countedLinks = 0;
+
+    for (const link of allLinks) {
+      const linkId = link?.id || `${link?.source?.id || 'unknown'}-${link?.target?.id || 'unknown'}`;
+      const linkData = this.linkCorruption.get(linkId) || this.initializeLink(link);
+      if (!linkData) continue;
+
+      totalCorruption += Math.max(0, Math.min(1, Number(linkData.level) || 0));
+      countedLinks++;
+    }
+
+    if (countedLinks === 0) return 0;
+    return totalCorruption / countedLinks;
+  }
+
+  /**
+   * Get recent cascade event history.
+   * Public API for visual bridges and diagnostics.
+   *
+   * @returns {Array<object>}
+   */
+  getCascadeHistory() {
+    return Array.isArray(this.cascadeHistory) ? [...this.cascadeHistory] : [];
+  }
+
+  /**
+   * Get recent threat cascade event history.
+   * Public API for visual bridges and diagnostics.
+   *
+   * @returns {Array<object>}
+   */
+  getThreatCascadeHistory() {
+    return Array.isArray(this.threatCascadeHistory) ? [...this.threatCascadeHistory] : [];
   }
 
   /**
@@ -3879,6 +3946,14 @@ export class LinkCorruptionTransmission_v1 {
       // Reset all corruption
       resetNetwork: () => {
         this.linkCorruption.clear();
+        const allLinks = this.getAllLinks();
+        for (const link of allLinks) {
+          this._syncLinkUserDataMetrics(link, {
+            corruptionLevel: 0,
+            integrity: LINK_INTEGRITY_THRESHOLDS.INTEGRITY_MAX,
+            integrityState: 'healthy'
+          });
+        }
         console.log('[LinkCorruptionTransmission] Network reset');
       },
 
@@ -3922,6 +3997,7 @@ export class LinkCorruptionTransmission_v1 {
         if (linkData) {
           linkData.level = Math.max(0, linkData.level - amount);
           console.log(`[LinkCorruptionTransmission] Link healed by ${amount.toFixed(3)}`);
+          this._syncLinkUserDataMetrics(link);
         }
       },
 

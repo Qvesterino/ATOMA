@@ -3874,7 +3874,21 @@ export class LinkRendererConduit {
                 this.triggerNodeImpact(state, link.target, bead);
                 if (bead.size === 'large' && state.rings) {
                     const targetColor = this.getCategoryColor(link.target.userData?.category);
-                    state.rings.emitRing(link.target.position, new THREE.Color(targetColor), visualTime);
+                    const targetCategory = link.target.userData?.category || 'default';
+                    const targetMetrics = link.target.userData?.metrics || metrics || {};
+                    const burstFamily = this._getLargeBeadBurstFamily(targetCategory, targetMetrics);
+                    state.rings.emitRing(
+                        link.target.position,
+                        new THREE.Color(targetColor),
+                        visualTime,
+                        burstFamily,
+                        {
+                            category: targetCategory,
+                            nodeId: link.target.userData?.nodeId ?? link.target.id ?? null,
+                            metrics: targetMetrics,
+                            time: visualTime
+                        }
+                    );
                 }
             }, lodAllowsParticles);
             if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
@@ -4267,6 +4281,27 @@ export class LinkRendererConduit {
 
     getCategoryColor(category) {
         return getLinkCategoryHex(category, 0xcccccc);
+    }
+
+    _getLargeBeadBurstFamily(category, metrics = {}) {
+        const normalizedCategory = String(category || 'default').toLowerCase();
+        const corruption = clamp01(metrics.corruption ?? 0);
+        const harmony = clamp01(metrics.harmony ?? 0);
+        const synergy = clamp01(metrics.synergy ?? 0);
+
+        if ((normalizedCategory === 'mythic' || normalizedCategory === 'prime') || synergy >= 0.72) {
+            return 'mythic';
+        }
+
+        if ((normalizedCategory === 'error' || normalizedCategory === 'quantum') || corruption >= 0.7) {
+            return 'fracture';
+        }
+
+        if ((normalizedCategory === 'storage' || normalizedCategory === 'control' || normalizedCategory === 'analytics') || harmony >= 0.7) {
+            return 'cathedral';
+        }
+
+        return 'cathedral';
     }
 
     _getNodeId(node) {

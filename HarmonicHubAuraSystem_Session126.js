@@ -4,8 +4,11 @@
  * HARMONIC HUB AURA SYNCHRONIZATION SYSTEM
  * 
  * Creates shared resonance fields where multiple harmonic hubs (nodes with
- * 2+ active links AND harmony > corruption) partially merge their auras into
- * zones of collective consciousness without modifying underlying geometry.
+ * 2+ active links) spawn when global harmony > 0.55.
+ * 
+ * SPAWN CONDITIONS (simplified):
+ * - Global harmony > 0.55 (from CoreMetricsCalculator)
+ * - Node has 2+ linked connections
  * 
  * CORE PHILOSOPHY:
  * Individual nodes remain visually distinct with their own auras.
@@ -13,7 +16,7 @@
  * Space itself begins to resonate and synchronize.
  * 
  * FEATURES:
- * 1. Harmonic Hub Detection: Identifies qualifying nodes (2+ links, harmony > corruption)
+ * 1. Harmonic Hub Detection: Identifies qualifying nodes (2+ links, global harmony > 0.55)
  * 2. Shared Resonance Fields: Procedural volumetric meshes spanning between hubs
  * 3. Phase Synchronization: Aura pulses gradually phase-lock with smooth elasticity
  * 4. Wave Interaction: Pulses propagate through shared field with interference patterns
@@ -34,7 +37,7 @@
  * ✅ Failure-safe (graceful degradation on missing data)
  * 
  * DEFINITIONS:
- * - Harmonic Hub: Node with 2+ connected links AND harmony > corruption
+ * - Harmonic Hub: Node with 2+ connected links (spawns when global harmony > 0.55)
  * - Hub Influence Radius: Based on harmonic field strength (0.8 + synergy * 0.6)
  * - Resonance Field: Volumetric or surface mesh spanning hub nodes
  * - Phase Synchronization: Gradual alignment of aura pulse cycles (elastic, not rigid)
@@ -69,10 +72,10 @@ export class HarmonicHubAuraSystem_Session126 {
     this.coreMetricsCalculator = config.coreMetricsCalculator || null;
     
     this.config = {
-      // Hub qualification
+      // Hub qualification (simplified: global harmony > 0.55 + linked nodes)
       minLinksForHub: config.minLinksForHub ?? 2,
-      harmonyThreshold: config.harmonyThreshold ?? 0.3,  // harmony > corruption
-      maxHubDistance: config.maxHubDistance ?? 12.0,     // Max dist between hub nodes
+      globalHarmonyThreshold: 0.55,
+      maxHubDistance: config.maxHubDistance ?? 12.0,
       
       // Resonance field
       fieldMinRadius: config.fieldMinRadius ?? 0.8,
@@ -224,21 +227,19 @@ export class HarmonicHubAuraSystem_Session126 {
   
   /**
    * Detect and create harmonic hubs
+   * Simplified spawn: global harmony > 0.55 + linked nodes
    */
   _detectHarmonyHubs() {
     if (!this.world || !this.world.nodes) return;
     
-    // Clear previous hub assignments
+    const globalHarmony = this._getGlobalHarmony();
+    if (globalHarmony <= 0.55) return;
+    
     this.nodeToHub.clear();
     
-    // Find harmonic hubs
     const potentialHubs = [];
     
     for (const node of this.world.nodes) {
-      // Check if node qualifies as hub
-      if (!this._isHarmonyHub(node)) continue;
-      
-      // Get connected nodes
       const connectedNodes = this._getConnectedNodes(node);
       if (connectedNodes.length < this.config.minLinksForHub) continue;
       
@@ -267,12 +268,18 @@ export class HarmonicHubAuraSystem_Session126 {
   
   /**
    * Check if node qualifies as harmony hub
+   * @deprecated - spawn now controlled by global harmony > 0.55
    */
   _isHarmonyHub(node) {
-    const harmony = this._readNodeHarmony(node, 0);
-    const corruption = this._readNodeCorruption(node, 0);
-    
-    return harmony > corruption && harmony > this.config.harmonyThreshold;
+    return this._getGlobalHarmony() > 0.55;
+  }
+  
+  _getGlobalHarmony() {
+    if (this.coreMetricsCalculator) {
+      const metrics = this.coreMetricsCalculator.getMetrics();
+      if (Number.isFinite(metrics?.harmony)) return this._clamp01(metrics.harmony);
+    }
+    return 0;
   }
   
   /**

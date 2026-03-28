@@ -3,6 +3,11 @@
  * ==================================
  * Synergy-driven visual coupling between linked nodes
  * 
+ * 🎵 SPAWN CONDITIONS (simplified):
+ * - Per-node harmony > 0.50
+ * - Per-node synergy > 0.50
+ * - linkedNodes >= 2
+ * 
  * 🎵 WHAT IT DOES:
  * When two linked nodes have high synergy, they "resonate" together:
  * - Visual resonance particles flow between nodes
@@ -17,11 +22,9 @@
  * - Non-invasive to existing systems
  * - <1ms overhead per link update
  * 
- * ⚡ RESONANCE MECHANICS:
- * Frequency = baseFrequency + (synergy × frequencyAmplitude)
- * - Low synergy (0.3): subtle 2 Hz pulse
- * - Medium synergy (0.6): 3 Hz coupling
- * - High synergy (0.9): strong 5 Hz resonance
+ * ⚡ RESONANCE MECHANICS (simplified):
+ * Both nodes must meet: harmony > 0.50, synergy > 0.50, linkedNodes >= 2
+ * Frequency = baseFrequency + (intensity × frequencyAmplitude)
  * 
  * 📊 VISUAL FEEDBACK:
  * 1. Resonance Particles: Energy packets flowing source → target → source
@@ -51,14 +54,15 @@ export class HarmonicResonanceCoupling_v1 {
     
     // Configuration
     this.config = {
+      // Spawn conditions (simplified)
+      minHarmony: 0.50,
+      minSynergy: 0.50,
+      minLinkedNodes: 2,
+      
       // Frequency modulation (Hz)
       baseFrequency: 2.0,
       maxFrequency: 5.0,
       frequencyAmplitude: 3.0,
-      
-      // Resonance strength
-      minSynergyThreshold: 0.3,  // Resonance starts here
-      maxSynergyThreshold: 0.9,  // Full resonance at this level
       
       // Particle system
       particleEmissionRate: 0.02,    // Particles per frame per link
@@ -140,26 +144,20 @@ export class HarmonicResonanceCoupling_v1 {
   _updateResonancePair(resonance, deltaTime) {
     const { link } = resonance;
     
-    // Calculate synergy for this link
+    if (!this._qualifiesForResonance(link.source) || 
+        !this._qualifiesForResonance(link.target)) {
+      resonance.intensity = 0;
+      return;
+    }
+    
     const synergy = this._getResonanceSynergy(link);
-    
-    // Clamp to threshold range
-    const thresholdMin = this.config.minSynergyThreshold;
-    const thresholdMax = this.config.maxSynergyThreshold;
-    const normalizedSynergy = Math.max(0, Math.min(1, 
-      (synergy - thresholdMin) / (thresholdMax - thresholdMin)
-    ));
-    
-    // Update resonance intensity (smooth exponential easing)
-    const targetIntensity = normalizedSynergy;
+    const targetIntensity = Math.max(0, Math.min(1, synergy));
     resonance.intensity = resonance.intensity * 0.85 + targetIntensity * 0.15;
     
-    // Only apply resonance if above minimum
     if (resonance.intensity < 0.01) return;
     
-    // Calculate resonance frequency based on synergy
     resonance.frequency = this.config.baseFrequency + 
-      (normalizedSynergy * this.config.frequencyAmplitude);
+      (resonance.intensity * this.config.frequencyAmplitude);
     
     // Update phase (for synchronized animation)
     resonance.phase += resonance.frequency * deltaTime * Math.PI * 2;
@@ -246,6 +244,35 @@ export class HarmonicResonanceCoupling_v1 {
     if (value < 0) return 0;
     if (value > 1) return 1;
     return value;
+  }
+  
+  _readNodeSynergy(node, fallback = 0) {
+    const value =
+      node?.userData?.metrics?.synergy ??
+      node?.userData?.synergy ??
+      node?.userData?.synergyScore ??
+      fallback;
+    if (!Number.isFinite(value)) return fallback;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
+  }
+  
+  _getLinkedNodeCount(node) {
+    if (!this.nodeLinkingSystem?.getLinksForNode) return 0;
+    const links = this.nodeLinkingSystem.getLinksForNode(node);
+    return links?.length ?? 0;
+  }
+  
+  _qualifiesForResonance(node) {
+    if (!node) return false;
+    const harmony = this._readNodeHarmony(node, 0);
+    const synergy = this._readNodeSynergy(node, 0);
+    const linkedCount = this._getLinkedNodeCount(node);
+    
+    return harmony > this.config.minHarmony &&
+           synergy > this.config.minSynergy &&
+           linkedCount >= this.config.minLinkedNodes;
   }
   
   /**
@@ -361,14 +388,13 @@ export class HarmonicResonanceCoupling_v1 {
   static setupConsoleAPI() {
     window.HarmonicResonanceCoupling_v1 = {
       getDebugInfo: () => {
-        // Would be called on instance - placeholder
         console.log('Call instance.getDebugInfo() for details');
       },
-      setFrequency: (base, max, amplitude) => {
-        console.log(`Setting frequencies: base=${base}, max=${max}, amplitude=${amplitude}`);
+      setFrequency: (base, amplitude) => {
+        console.log(`Setting frequencies: base=${base}, amplitude=${amplitude}`);
       },
-      setSynergyThresholds: (min, max) => {
-        console.log(`Setting thresholds: min=${min}, max=${max}`);
+      setSpawnConditions: (harmony, synergy, linkedNodes) => {
+        console.log(`Setting spawn conditions: harmony>${harmony}, synergy>${synergy}, linkedNodes>=${linkedNodes}`);
       }
     };
   }
