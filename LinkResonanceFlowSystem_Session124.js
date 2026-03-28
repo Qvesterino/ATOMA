@@ -37,6 +37,8 @@ import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { tagAllowedSphere, clampSphere } from './VisualSpherePolicy.js';
 
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
 export class LinkResonanceFlowSystem_Session124 {
   constructor(scene, world, config = {}) {
     this.scene = scene;

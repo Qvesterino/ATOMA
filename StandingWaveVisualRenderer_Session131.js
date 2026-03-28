@@ -87,9 +87,10 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneOrbitRadius: 0.36,         // Primary orbital ring radius
             trapZoneHaloRadius: 0.62,          // Event-horizon disc radius
             trapZoneOrbitSpeed: 1.15,          // Orbit rotation speed
-            trapZoneSecondaryOrbitSpeed: 0.42, // Secondary torus motion speed
-            trapZoneSecondaryOrbitTilt: 0.16,  // Secondary torus tilt amount
-            trapZoneSecondaryOrbitDrift: 0.08, // Secondary torus drift amount
+            trapZoneSecondaryOrbitSpeed: 0.82, // Secondary torus motion speed
+            trapZoneSecondaryOrbitTilt: 0.07,  // Secondary torus tilt amount
+            trapZoneSecondaryOrbitDrift: 0.03, // Secondary torus drift amount
+            trapZoneSecondaryOrbitMaxDelta: Math.PI * 0.055, // ~10 degrees max deviation
             trapZonePulseFrequency: 2.25,      // Trap zone pulse frequency
             trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
             
@@ -888,12 +889,17 @@ export class StandingWaveVisualRenderer_Session131 {
 
             // Secondary ring / singularity halo
             if (trapZoneMesh.orbitBMesh) {
-                const secondaryPhase = pulsePhase * this.config.trapZoneSecondaryOrbitSpeed;
-                const secondaryDrift = Math.sin(secondaryPhase * 1.31 + trapZoneMesh.pulseSeed) * this.config.trapZoneSecondaryOrbitDrift;
-                trapZoneMesh.orbitBMesh.rotation.y = secondaryPhase * -0.5;
-                trapZoneMesh.orbitBMesh.rotation.z = secondaryPhase * 0.18;
-                trapZoneMesh.orbitBMesh.rotation.x = Math.PI * 0.22 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
-                trapZoneMesh.orbitBMesh.scale.setScalar(0.94 + (pulse * 0.08));
+                const primaryPhase = pulsePhase * this.config.trapZoneOrbitSpeed;
+                const secondaryPhase = primaryPhase * this.config.trapZoneSecondaryOrbitSpeed;
+                const maxDelta = this.config.trapZoneSecondaryOrbitMaxDelta;
+                const secondaryDrift = Math.sin(secondaryPhase * 0.62 + trapZoneMesh.pulseSeed) * this.config.trapZoneSecondaryOrbitDrift;
+                const baseX = trapZoneMesh.orbitAMesh?.rotation.x ?? (Math.PI * 0.5);
+                const baseY = trapZoneMesh.orbitAMesh?.rotation.y ?? 0;
+                const baseZ = trapZoneMesh.orbitAMesh?.rotation.z ?? 0;
+                trapZoneMesh.orbitBMesh.rotation.x = baseX + Math.sin(secondaryPhase * 0.84 + 0.26) * maxDelta * 0.58 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
+                trapZoneMesh.orbitBMesh.rotation.y = baseY + Math.sin(secondaryPhase * 0.74 + 0.71) * maxDelta * 0.42;
+                trapZoneMesh.orbitBMesh.rotation.z = baseZ + Math.sin(secondaryPhase * 0.66 + 1.18) * maxDelta * 0.34;
+                trapZoneMesh.orbitBMesh.scale.setScalar(0.92 + (pulse * 0.03));
                 trapZoneMesh.orbitBMesh.material.opacity = this.config.trapZoneOpacityBase * 0.54 * fadeStrength;
                 trapZoneMesh.orbitBMesh.material.color.setRGB(
                     0.88 + (pulse * 0.12),
