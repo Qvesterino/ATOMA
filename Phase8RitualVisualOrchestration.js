@@ -241,6 +241,7 @@ class Phase8RitualVisualOrchestration {
     // Transition to active stage
     state.stage = 'RITUAL_ACTIVE';
     state.stageStartTime = performance.now();
+    state.startTime = state.stageStartTime;
 
     // Clear pre-ritual modifiers and apply active modifiers
     this._clearModifiersForRitual(ritualId);
@@ -275,6 +276,7 @@ class Phase8RitualVisualOrchestration {
 
     state.stage = 'COMPLETION';
     state.stageStartTime = performance.now();
+    state.startTime = state.stageStartTime;
     state.success = success;
 
     // Clear active modifiers
@@ -513,6 +515,7 @@ class Phase8RitualVisualOrchestration {
         const modifier = effect.modifier;
         modifier.phaseOffset = this.globalRitualPhase;
         modifier.progress = state.progress;
+        this._applyModifierToRenderable(renderable, modifier);
       }
     }
   }

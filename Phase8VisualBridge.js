@@ -37,6 +37,9 @@ class Phase8VisualBridge {
 
     // Active ritual modifiers: renderableId → { ritualId, modifier }
     this.activeModifiers = new Map();
+
+    // Direct-render fallback baseline cache when no controller wiring exists.
+    this.renderableBaselineCache = new Map();
   }
 
   /**
@@ -51,7 +54,6 @@ class Phase8VisualBridge {
 
     // Get controller for this renderable
     const controller = this._getControllerForRenderable(renderable);
-    if (!controller) return;
 
     // Determine template type
     const template = getTemplateForRenderable(this._resolveRenderableType(renderable));
@@ -71,8 +73,12 @@ class Phase8VisualBridge {
       modifier,
     });
 
-    // Apply template-specific modifications
-    this._applyTemplateModification(controller, template, modifier, renderable);
+    if (controller && typeof controller.setModifier === 'function') {
+      this._applyTemplateModification(controller, template, modifier, renderable);
+      return;
+    }
+
+    this._applyDirectRenderableModification(renderable, template, modifier);
   }
 
   /**
@@ -364,9 +370,9 @@ class Phase8VisualBridge {
     const { controller, template } = cached;
 
     try {
-      if (typeof controller.clearModifier === 'function') {
+      if (controller && typeof controller.clearModifier === 'function') {
         controller.clearModifier();
-      } else if (typeof controller.setModifier === 'function') {
+      } else if (controller && typeof controller.setModifier === 'function') {
         // Fallback: set null/identity modifier
         controller.setModifier({
           intensityMultiplier: 1.0,
@@ -379,8 +385,119 @@ class Phase8VisualBridge {
       // Silently ignore
     }
 
+    if (!controller) {
+      this._restoreDirectRenderableBaseline(renderableId, cached.renderable);
+    }
+
     this.activeModifiers.delete(renderableId);
     this.renderableControllerCache.delete(renderableId);
+  }
+
+  _applyDirectRenderableModification(renderable, template, modifier) {
+    if (!renderable) return;
+
+    const renderableId = renderable.id || renderable.uuid;
+    if (!renderableId) return;
+
+    const baseline = this._captureDirectRenderableBaseline(renderableId, renderable);
+    const progress = Number.isFinite(modifier?.progress) ? modifier.progress : 1.0;
+    const envelope = typeof modifier?.envelope === 'function'
+      ? modifier.envelope(progress)
+      : 1.0;
+    const phase = Number.isFinite(modifier?.phaseOffset) ? modifier.phaseOffset : 0;
+    const waveOscillation = modifier?.waveRipple ? Math.sin(phase * Math.PI * 2) * 0.03 : 0;
+    const intensity = Math.max(0.85, Math.min(1.5, modifier?.intensityMultiplier ?? 1.0));
+    const radius = Math.max(0.95, Math.min(1.25, modifier?.radiusScale ?? 1.0));
+    const settledScale = 1 + ((radius - 1) * 0.4) + waveOscillation;
+
+    renderable.scale.set(
+      baseline.scale.x * settledScale,
+      baseline.scale.y * (1 + ((radius - 1) * 0.18)),
+      baseline.scale.z * settledScale
+    );
+
+    const opacityMultiplier = Math.max(0.35, Math.min(1.4, envelope * (0.9 + (intensity - 1) * 0.6)));
+    const emissiveMultiplier = Math.max(0.75, Math.min(1.8, envelope * intensity));
+
+    for (const materialState of baseline.materials) {
+      const { material, opacity, emissiveIntensity } = materialState;
+      if (!material) continue;
+
+      if (typeof opacity === 'number' && Number.isFinite(opacity) && 'opacity' in material) {
+        material.opacity = Math.max(0.03, Math.min(1, opacity * opacityMultiplier));
+        if ('transparent' in material && material.opacity < 0.999) {
+          material.transparent = true;
+        }
+        material.needsUpdate = true;
+      }
+
+      if (typeof emissiveIntensity === 'number' && Number.isFinite(emissiveIntensity) && 'emissiveIntensity' in material) {
+        material.emissiveIntensity = Math.max(0, emissiveIntensity * emissiveMultiplier);
+      }
+
+      if (template === CANONICAL_TEMPLATE.STRESS_TURBULENCE && 'wireframe' in material) {
+        material.wireframe = materialState.wireframe;
+      }
+    }
+  }
+
+  _captureDirectRenderableBaseline(renderableId, renderable) {
+    let cached = this.renderableBaselineCache.get(renderableId);
+    if (cached) return cached;
+
+    cached = {
+      scale: renderable.scale.clone(),
+      materials: this._collectRenderableMaterials(renderable).map((material) => ({
+        material,
+        opacity: typeof material?.opacity === 'number' ? material.opacity : null,
+        emissiveIntensity: typeof material?.emissiveIntensity === 'number' ? material.emissiveIntensity : null,
+        wireframe: typeof material?.wireframe === 'boolean' ? material.wireframe : null,
+      })),
+    };
+
+    this.renderableBaselineCache.set(renderableId, cached);
+    return cached;
+  }
+
+  _restoreDirectRenderableBaseline(renderableId, renderable) {
+    const baseline = this.renderableBaselineCache.get(renderableId);
+    if (!baseline || !renderable) return;
+
+    renderable.scale.copy(baseline.scale);
+
+    for (const materialState of baseline.materials) {
+      const { material, opacity, emissiveIntensity, wireframe } = materialState;
+      if (!material) continue;
+      if (typeof opacity === 'number' && 'opacity' in material) {
+        material.opacity = opacity;
+      }
+      if (typeof emissiveIntensity === 'number' && 'emissiveIntensity' in material) {
+        material.emissiveIntensity = emissiveIntensity;
+      }
+      if (typeof wireframe === 'boolean' && 'wireframe' in material) {
+        material.wireframe = wireframe;
+      }
+      material.needsUpdate = true;
+    }
+
+    this.renderableBaselineCache.delete(renderableId);
+  }
+
+  _collectRenderableMaterials(renderable) {
+    const materials = [];
+    const seen = new Set();
+
+    renderable.traverse?.((child) => {
+      const candidate = child?.material;
+      const candidateList = Array.isArray(candidate) ? candidate : [candidate];
+      for (const material of candidateList) {
+        if (!material || seen.has(material.uuid)) continue;
+        seen.add(material.uuid);
+        materials.push(material);
+      }
+    });
+
+    return materials;
   }
 
   /**
@@ -409,6 +526,7 @@ class Phase8VisualBridge {
     }
     this.activeModifiers.clear();
     this.renderableControllerCache.clear();
+    this.renderableBaselineCache.clear();
   }
 }
 

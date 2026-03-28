@@ -157,6 +157,72 @@ class NetworkRituals {
     this.maxEventLog = 500;
   }
 
+  _getNodeId(node) {
+    return node?.userData?.nodeId || node?.id || node?.uuid || null;
+  }
+
+  _getLinkId(link) {
+    return link?.id || link?.userData?.linkId || `${link?.source?.id || 'unknown'}-${link?.target?.id || 'unknown'}`;
+  }
+
+  _ensureLinkState(link) {
+    if (!link || !this.corruptionSystem) return null;
+
+    const linkId = this._getLinkId(link);
+    if (!linkId) return null;
+
+    if (typeof this.corruptionSystem.initializeLink === 'function') {
+      try {
+        this.corruptionSystem.initializeLink(link);
+      } catch (err) {
+        console.warn('[Phase 8 Ritual] initializeLink failed for', linkId, err);
+      }
+    }
+
+    const corruptionData = this.corruptionSystem.linkCorruption?.get?.(linkId) || null;
+    const integrityData = this.corruptionSystem.linkIntegrity?.get?.(linkId) || null;
+
+    return { linkId, corruptionData, integrityData };
+  }
+
+  _getLinkRuntimeState(link) {
+    const state = this._ensureLinkState(link);
+    if (!state) return null;
+
+    const corruptionLevel = Number(state.corruptionData?.level ?? link?.userData?.corruptionLevel ?? 0);
+    const integrityRaw = Number(state.integrityData?.integrity ?? 100);
+    const normalizedIntegrity = integrityRaw > 1 ? integrityRaw / 100 : integrityRaw;
+    const collapsed = state.integrityData?.state === 'collapsed' || this.corruptionSystem?.collapsedLinks?.has?.(state.linkId) === true;
+
+    return {
+      linkId: state.linkId,
+      corruptionLevel: Math.max(0, Math.min(1, corruptionLevel)),
+      integrity: Math.max(0, Math.min(100, integrityRaw)),
+      normalizedIntegrity: Math.max(0, Math.min(1, normalizedIntegrity)),
+      state: state.integrityData?.state || (collapsed ? 'collapsed' : 'healthy'),
+      collapsed,
+      corruptionData: state.corruptionData,
+      integrityData: state.integrityData,
+    };
+  }
+
+  _syncLinkUserData(link, runtimeState) {
+    if (!link) return;
+    if (!link.userData) link.userData = {};
+
+    if (runtimeState) {
+      link.userData.corruptionLevel = runtimeState.corruptionLevel;
+      link.userData.integrity = runtimeState.normalizedIntegrity;
+      link.userData.integrityState = runtimeState.state;
+    }
+  }
+
+  _deriveIntegrityState(integrity) {
+    if (integrity <= 8) return 'collapsed';
+    if (integrity <= 15) return 'unstable';
+    return 'healthy';
+  }
+
   on(eventName, handler) {
     if (!eventName || typeof handler !== 'function') return () => {};
 
@@ -235,6 +301,7 @@ class NetworkRituals {
     const ritualId = `ritual_${++this.ritualIdCounter}_${Date.now()}`;
     const ritual = {
       id: ritualId,
+      type: 'network_reconstruction',
       epicenter: epicenterNode,
       participants: allNodes,
       clusterId,
@@ -255,6 +322,7 @@ class NetworkRituals {
       // Timing
       stageDurations: RITUAL_CONFIG.RITUAL_STAGE_DURATION_MS,
       totalDurationMs: RITUAL_CONFIG.TOTAL_RITUAL_DURATION_MS,
+      duration: RITUAL_CONFIG.TOTAL_RITUAL_DURATION_MS,
       currentStageDuration: 0,
       stageStartTime: null,
       
@@ -838,26 +906,61 @@ class NetworkRituals {
     if (!this.corruptionSystem) return { success: false };
 
     const linkId = link.id || `${link.source?.id}-${link.target?.id}`;
-    const linkState = this.corruptionSystem.getLinkState(linkId);
+    const runtimeState = this._getLinkRuntimeState(link);
+    if (!runtimeState) return { success: false };
 
-    if (!linkState) return { success: false };
+    const corruptionBefore = runtimeState.corruptionLevel;
+    const integrityBefore = runtimeState.integrity;
 
-    // Attempt reconstruction using existing system
-    const sourceNode = link.source;
-    const result = this.corruptionSystem.rebuildLink(linkId, sourceNode, {
-      cascadeMultiplier: RITUAL_CONFIG.SECONDARY_REBUILD_COST_MULTIPLIER
-    });
+    // Collapsed links must go through the real reconstruction API.
+    if (runtimeState.collapsed && typeof this.corruptionSystem.rebuildCollapsedLink === 'function') {
+      const result = this.corruptionSystem.rebuildCollapsedLink(link);
+      if (!result?.success) {
+        return { success: false, reason: result?.reason || 'rebuildCollapsedLink failed' };
+      }
 
-    if (result.success && result.newIntegrity >= RITUAL_CONFIG.CASCADE_RECONSTRUCTION_THRESHOLD) {
+      const updatedState = this._getLinkRuntimeState(link);
+      this._syncLinkUserData(link, updatedState);
+
       return {
         success: true,
-        corruptionBefore: linkState.level,
-        corruptionAfter: result.newCorruption,
-        integrityGain: result.newIntegrity - (linkState.integrity || 0)
+        corruptionBefore,
+        corruptionAfter: updatedState?.corruptionLevel ?? corruptionBefore,
+        integrityGain: (updatedState?.integrity ?? integrityBefore) - integrityBefore
       };
     }
 
-    return { success: false };
+    // Live links are restored by writing into the active corruption/integrity state maps.
+    if (!runtimeState.corruptionData || !runtimeState.integrityData) {
+      return { success: false, reason: 'missing live link state' };
+    }
+
+    if (corruptionBefore <= 0.01 && runtimeState.normalizedIntegrity >= 0.99) {
+      return { success: false, reason: 'link already healthy' };
+    }
+
+    const healingBudget = Math.max(0.08, Math.min(0.35, (costPerLink / 100) * 1.4));
+    const healedAmount = Math.min(corruptionBefore, healingBudget);
+    const integrityGain = Math.max(4, healedAmount * 32);
+
+    runtimeState.corruptionData.level = Math.max(0, corruptionBefore - healedAmount);
+    runtimeState.corruptionData.velocity = 0;
+    runtimeState.integrityData.integrity = Math.min(100, integrityBefore + integrityGain);
+    runtimeState.integrityData.state = this._deriveIntegrityState(runtimeState.integrityData.integrity);
+
+    const updatedState = this._getLinkRuntimeState(link);
+    this._syncLinkUserData(link, updatedState);
+
+    if ((updatedState?.normalizedIntegrity ?? 0) < RITUAL_CONFIG.CASCADE_RECONSTRUCTION_THRESHOLD) {
+      return { success: false, reason: 'reconstruction threshold not met' };
+    }
+
+    return {
+      success: true,
+      corruptionBefore,
+      corruptionAfter: updatedState?.corruptionLevel ?? corruptionBefore,
+      integrityGain: (updatedState?.integrity ?? integrityBefore) - integrityBefore
+    };
   }
 
   /**
@@ -958,10 +1061,10 @@ class NetworkRituals {
     const payload = {
       ritual,
       nodeIds: ritual.participants
-        .map((node) => node?.userData?.nodeId || node?.id)
+        .map((node) => this._getNodeId(node))
         .filter(Boolean),
       linkIds: clusterLinks
-        .map((link) => link?.id || `${link?.source?.id}-${link?.target?.id}`)
+        .map((link) => this._getLinkId(link))
         .filter(Boolean),
       ...extra
     };

@@ -193,6 +193,7 @@ if (typeof window !== 'undefined') {
         hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? true,
         hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? true,
         disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? true,
+        disablePhase8NetworkRituals: window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS ?? false,
         disableNuclearLock: true
       }
     };
@@ -3342,6 +3343,7 @@ class AtomaGame {
         //   🔥 DISABLE MYTHIC RITUALS
         // ================================
         window.ATOMA_DISABLE_MYTHIC_RITUALS = window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? true;
+        window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS = window.ATOMA_FLAGS?.safety?.disablePhase8NetworkRituals ?? false;
         console.log('🔥 [AtomaGame] Mythic Rituals globally disabled');
         
         this.clock = new THREE.Clock();
@@ -8600,12 +8602,12 @@ window.__ATOMA_SCENE__ = this.scene;
         // Core gameplay rituals + visual bridge + orchestration
         // ====================================================================
         try {
-            const ritualsDisabled = Boolean(window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? false);
+            const ritualsDisabled = Boolean(window.ATOMA_FLAGS?.safety?.disablePhase8NetworkRituals ?? false);
             if (ritualsDisabled) {
                 this.networkRituals = null;
                 this.phase8VisualBridge = null;
                 this.phase8RitualOrchestration = null;
-                console.log('[main.js] Phase 8 ritual stack skipped (safety flag: disableMythicRituals)');
+                console.log('[main.js] Phase 8 ritual stack skipped (safety flag: disablePhase8NetworkRituals)');
             } else {
                 this.networkRituals = this.networkRituals || new NetworkRituals(
                     this.linkCorruptionTransmission,
@@ -8647,6 +8649,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 }
 
                 this._setupRitualAutoTrigger();
+                this._setupPhase8RitualDebugAPI();
 
                 console.log('[main.js] Phase 8 ritual stack initialized ✓');
             }
@@ -8820,6 +8823,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 if (typeof window !== 'undefined') {
                     window._cascadeVisuals = this.cascadePropagationVisuals;
                 }
+                this._setupPhase8ToPhase5CascadeBridge();
                 console.log('[main.js] PHASE5_CascadePropagationVisuals initialized ✓');
             } catch (err) {
                 console.warn('[main.js] PHASE5_CascadePropagationVisuals initialization failed:', err);
@@ -11234,7 +11238,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             let highCorruptionLinks = 0;
             const links = this.linkingSystem?.links || [];
             for (const link of links) {
-                const corruption = link.userData?.corruptionLevel ?? 0;
+                const linkId = link?.id || link?.userData?.linkId;
+                const liveCorruption = linkId
+                    ? this.linkCorruptionTransmission?.linkCorruption?.get?.(linkId)?.level
+                    : null;
+                const corruption = liveCorruption ?? link.userData?.corruptionLevel ?? 0;
                 if (corruption >= state.corruptionThreshold) {
                     highCorruptionLinks++;
                 }
@@ -11270,6 +11278,327 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         if (this.frameScheduler) {
             this.frameScheduler.register('background', checkAndTrigger, 'background.ritualAutoTrigger');
         }
+    }
+
+    _setupPhase8RitualDebugAPI() {
+        if (typeof window === 'undefined') return;
+
+        const game = this;
+        window.PHASE8_RITUAL = {
+            start(epicenterId, participantIds = []) {
+                return game._debugStartPhase8Ritual(epicenterId, participantIds);
+            },
+
+            startAuto(options = {}) {
+                return game._debugStartPhase8RitualAuto(options);
+            },
+
+            cancel(ritualId = null) {
+                return game._debugCancelPhase8Ritual(ritualId);
+            },
+
+            status(ritualId = null) {
+                return game._debugGetPhase8RitualStatus(ritualId);
+            },
+
+            list() {
+                return game.networkRituals?.getActiveRituals?.().map((ritual) => ({
+                    ritualId: ritual.id,
+                    stage: ritual.stage,
+                    progress: ritual.progress,
+                    participantIds: ritual.participants.map((node) => game._getRuntimeNodeId(node)),
+                    clusterId: ritual.clusterId,
+                })) ?? [];
+            },
+
+            stats() {
+                return {
+                    network: game.networkRituals?.getNetworkRitualStats?.() ?? null,
+                    orchestration: game.phase8RitualOrchestration?.getStats?.() ?? null,
+                    bridge: game.phase8VisualBridge?.getStats?.() ?? null,
+                    autoTrigger: game._ritualAutoTriggerState ?? null,
+                };
+            },
+
+            pickAuto(options = {}) {
+                return game._debugSelectPhase8Cluster(options);
+            },
+
+            triggerCompletionCascade(options = {}) {
+                return game._debugTriggerPhase8CascadePreview('harmony', options);
+            },
+
+            triggerFailureCascade(options = {}) {
+                return game._debugTriggerPhase8CascadePreview('threat', options);
+            },
+
+            help() {
+                return [
+                    'PHASE8_RITUAL.start(epicenterId, [participantId1, participantId2, ...])',
+                    'PHASE8_RITUAL.startAuto({ minParticipants: 3, maxParticipants: 5, minHarmonyRequired: 0.3 })',
+                    'PHASE8_RITUAL.cancel(ritualId)',
+                    'PHASE8_RITUAL.cancel() // cancels first active ritual',
+                    'PHASE8_RITUAL.status(ritualId)',
+                    'PHASE8_RITUAL.status() // returns all active ritual states',
+                    'PHASE8_RITUAL.list()',
+                    'PHASE8_RITUAL.stats()',
+                    'PHASE8_RITUAL.pickAuto() // preview auto-selected cluster',
+                    'PHASE8_RITUAL.triggerCompletionCascade({ epicenterId?, participantIds?, strength? })',
+                    'PHASE8_RITUAL.triggerFailureCascade({ epicenterId?, participantIds?, strength? })'
+                ].join('\n');
+            }
+        };
+    }
+
+    _setupPhase8ToPhase5CascadeBridge() {
+        this._phase8ToPhase5CascadeBridgeCleanup?.();
+        this._phase8ToPhase5CascadeBridgeCleanup = null;
+
+        if (!this.networkRituals || !this.cascadePropagationVisuals) {
+            return;
+        }
+
+        const forwardToCascadeVisuals = (event, cascadeType) => {
+            const cascadeData = this._buildPhase8CascadeVisualPayload(event, cascadeType);
+            if (!cascadeData) return;
+            this.cascadePropagationVisuals.triggerCascade(cascadeData);
+        };
+
+        const unsubscribers = [
+            this.networkRituals.on('ritual:complete', (event) => {
+                forwardToCascadeVisuals(event, 'harmony');
+            }),
+            this.networkRituals.on('ritual:abort', (event) => {
+                forwardToCascadeVisuals(event, 'threat');
+            })
+        ].filter((unsubscribe) => typeof unsubscribe === 'function');
+
+        this._phase8ToPhase5CascadeBridgeCleanup = () => {
+            for (const unsubscribe of unsubscribers) {
+                try {
+                    unsubscribe();
+                } catch (_) {}
+            }
+        };
+    }
+
+    _buildPhase8CascadeVisualPayload(event, cascadeType) {
+        if (!event?.ritual) return null;
+
+        const ritual = event.ritual;
+        const epicenter = ritual.epicenter || this._resolvePhase8NodeById(this._getRuntimeNodeId(ritual.epicenter));
+        const participantNodes = (event.nodeIds || [])
+            .map((nodeId) => this._resolvePhase8NodeById(nodeId))
+            .filter(Boolean);
+
+        const sourceNode = epicenter || participantNodes[0] || null;
+        const sourcePosition = sourceNode?.position || null;
+        if (!sourcePosition) return null;
+
+        const targetNodes = participantNodes.filter((node) => node && node !== sourceNode);
+        const reconstructedLinks = Array.isArray(ritual.cascadeReconstructions) ? ritual.cascadeReconstructions.length : 0;
+        const participantCount = Array.isArray(ritual.participants) ? ritual.participants.length : targetNodes.length + 1;
+
+        let cascadeStrength;
+        if (cascadeType === 'harmony') {
+            cascadeStrength = Math.max(
+                0.4,
+                Math.min(1.0, 0.32 + reconstructedLinks * 0.14 + participantCount * 0.06)
+            );
+        } else {
+            cascadeStrength = Math.max(
+                0.35,
+                Math.min(0.9, 0.38 + participantCount * 0.05)
+            );
+        }
+
+        return {
+            sourceNodeId: this._getRuntimeNodeId(sourceNode),
+            sourcePosition,
+            cascadeType,
+            cascadeStrength: Number.isFinite(event?.cascadeStrength)
+                ? event.cascadeStrength
+                : cascadeStrength,
+            depth: 0,
+            targetNodes
+        };
+    }
+
+    _getRuntimeNodeId(node) {
+        return node?.userData?.nodeId || node?.id || node?.uuid || null;
+    }
+
+    _resolvePhase8NodeById(nodeId) {
+        if (!nodeId) return null;
+        return (this.aiNodes?.nodes || []).find((node) => {
+            const runtimeId = this._getRuntimeNodeId(node);
+            return runtimeId === nodeId;
+        }) || null;
+    }
+
+    _debugSelectPhase8Cluster(options = {}) {
+        const minParticipants = Math.max(2, Math.floor(options.minParticipants ?? 3));
+        const maxParticipants = Math.max(minParticipants, Math.floor(options.maxParticipants ?? 5));
+        const minHarmonyRequired = Number.isFinite(options.minHarmonyRequired)
+            ? options.minHarmonyRequired
+            : (this._ritualAutoTriggerState?.minHarmonyRequired ?? 0.3);
+
+        const eligibleNodes = (this.aiNodes?.nodes || []).filter((node) => {
+            const harmony = node?.userData?.harmonyLevel ?? 0;
+            return harmony >= minHarmonyRequired;
+        });
+
+        const clusters = this._findRitualClusters(eligibleNodes)
+            .filter((cluster) => cluster.length >= minParticipants)
+            .sort((a, b) => b.length - a.length);
+
+        const cluster = clusters[0] || null;
+        if (!cluster) {
+            return {
+                success: false,
+                reason: 'No eligible ritual cluster found',
+                eligibleNodes: eligibleNodes.length,
+                minParticipants,
+                minHarmonyRequired,
+            };
+        }
+
+        const epicenter = cluster[0];
+        const participants = cluster.slice(1, Math.min(cluster.length, maxParticipants));
+
+        return {
+            success: true,
+            epicenterId: this._getRuntimeNodeId(epicenter),
+            participantIds: participants.map((node) => this._getRuntimeNodeId(node)),
+            clusterSize: cluster.length,
+            eligibleNodes: eligibleNodes.length,
+            minParticipants,
+            minHarmonyRequired,
+        };
+    }
+
+    _debugStartPhase8Ritual(epicenterId, participantIds = []) {
+        if (!this.networkRituals) {
+            return { success: false, reason: 'Phase 8 ritual system not initialized' };
+        }
+
+        const epicenter = this._resolvePhase8NodeById(epicenterId);
+        if (!epicenter) {
+            return { success: false, reason: `Epicenter node not found: ${epicenterId}` };
+        }
+
+        const participants = [];
+        for (const participantId of participantIds) {
+            const node = this._resolvePhase8NodeById(participantId);
+            if (!node) {
+                return { success: false, reason: `Participant node not found: ${participantId}` };
+            }
+            if (node !== epicenter && !participants.includes(node)) {
+                participants.push(node);
+            }
+        }
+
+        const result = this.networkRituals.initiateRitual(epicenter, participants);
+        if (result.success) {
+            console.log('[Phase 8 Debug API] Ritual started:', result);
+        }
+        return result;
+    }
+
+    _debugStartPhase8RitualAuto(options = {}) {
+        const selection = this._debugSelectPhase8Cluster(options);
+        if (!selection.success) return selection;
+        return this._debugStartPhase8Ritual(selection.epicenterId, selection.participantIds);
+    }
+
+    _debugCancelPhase8Ritual(ritualId = null) {
+        if (!this.networkRituals) {
+            return { success: false, reason: 'Phase 8 ritual system not initialized' };
+        }
+
+        const activeRituals = this.networkRituals.getActiveRituals?.() ?? [];
+        const targetRitual = ritualId
+            ? activeRituals.find((ritual) => ritual.id === ritualId) || this.networkRituals.rituals?.get?.(ritualId)
+            : activeRituals[0];
+
+        if (!targetRitual) {
+            return { success: false, reason: ritualId ? `Ritual not found: ${ritualId}` : 'No active ritual to cancel' };
+        }
+
+        return this.networkRituals.cancelRitual(targetRitual.id);
+    }
+
+    _debugGetPhase8RitualStatus(ritualId = null) {
+        if (!this.networkRituals) {
+            return { success: false, reason: 'Phase 8 ritual system not initialized' };
+        }
+
+        if (ritualId) {
+            return this.networkRituals.getRitualStatus(ritualId);
+        }
+
+        const activeRituals = this.networkRituals.getActiveRituals?.() ?? [];
+        return {
+            success: true,
+            activeRituals: activeRituals.map((ritual) => this.networkRituals.getRitualStatus(ritual.id)),
+            orchestration: this.phase8RitualOrchestration?.getStats?.() ?? null,
+            bridge: this.phase8VisualBridge?.getStats?.() ?? null,
+        };
+    }
+
+    _debugTriggerPhase8CascadePreview(cascadeType, options = {}) {
+        if (!this.cascadePropagationVisuals) {
+            return { success: false, reason: 'Phase 5 cascade propagation visuals not initialized' };
+        }
+
+        let epicenterId = options.epicenterId ?? null;
+        let participantIds = Array.isArray(options.participantIds) ? options.participantIds.filter(Boolean) : [];
+
+        if (!epicenterId) {
+            const selection = this._debugSelectPhase8Cluster(options);
+            if (!selection.success) return selection;
+            epicenterId = selection.epicenterId;
+            if (participantIds.length === 0) {
+                participantIds = selection.participantIds;
+            }
+        }
+
+        const epicenter = this._resolvePhase8NodeById(epicenterId);
+        if (!epicenter) {
+            return { success: false, reason: `Epicenter node not found: ${epicenterId}` };
+        }
+
+        const participants = participantIds
+            .map((participantId) => this._resolvePhase8NodeById(participantId))
+            .filter((node) => node && node !== epicenter);
+
+        const syntheticEvent = {
+            ritual: {
+                epicenter,
+                participants: [epicenter, ...participants],
+                cascadeReconstructions: new Array(
+                    Math.max(0, Math.floor(options.reconstructedLinks ?? participants.length))
+                ).fill(null)
+            },
+            nodeIds: [epicenter, ...participants].map((node) => this._getRuntimeNodeId(node)),
+            cascadeStrength: Number.isFinite(options.strength) ? options.strength : undefined
+        };
+
+        const cascadeData = this._buildPhase8CascadeVisualPayload(syntheticEvent, cascadeType);
+        if (!cascadeData) {
+            return { success: false, reason: 'Failed to build cascade payload' };
+        }
+
+        this.cascadePropagationVisuals.triggerCascade(cascadeData);
+
+        return {
+            success: true,
+            cascadeType,
+            sourceNodeId: cascadeData.sourceNodeId,
+            participantIds: participants.map((node) => this._getRuntimeNodeId(node)),
+            cascadeStrength: cascadeData.cascadeStrength,
+            targetCount: cascadeData.targetNodes.length
+        };
     }
 
     _findRitualClusters(eligibleNodes) {

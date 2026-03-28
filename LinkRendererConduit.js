@@ -4501,12 +4501,81 @@ export class LinkRendererConduit {
         const beadSize = bead?.size || 'medium';
         const variantRand = Math.random();
         const jitterRand = Math.random();
+        const impactOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
+        const meshMaterial = this._getImpactMaterial(color);
 
         // Create impact geometry based on category
         const group = new THREE.Group();
-        let geometry;
 
-        const chooseVariant = (variants, r) => variants[Math.floor(r * variants.length) % variants.length];
+        const styleImpactRoot = (root) => {
+            root.traverse((obj) => {
+                if (!(obj?.isMesh || obj?.isLine || obj?.isLineSegments || obj?.isPoints)) return;
+                obj.frustumCulled = false;
+                TransparentStateAuthority.apply(obj, 'additive', { renderOrder: impactOrder });
+                ensureUserData(obj);
+                obj.userData.__depthAuthorityLocked = true;
+            });
+            return root;
+        };
+
+        const buildTorusArc = (radius, tube, arc, radialSegments = 8, tubularSegments = 32) =>
+            new THREE.Mesh(new THREE.TorusGeometry(radius, tube, radialSegments, tubularSegments, arc), meshMaterial);
+
+        const buildTube = (points, radius, tubularSegments = 28, radialSegments = 6, closed = false) => {
+            const curve = new THREE.CatmullRomCurve3(points, closed);
+            return new THREE.Mesh(new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, closed), meshMaterial);
+        };
+
+        const makeTwistedRibbon = () => {
+            const pts = [];
+            const r = 0.4;
+            for (let i = 0; i <= 32; i++) {
+                const t = (i / 32) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(t) * r, 0, Math.sin(t) * r));
+            }
+            const curve = new THREE.CatmullRomCurve3(pts, true);
+            return new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.05, 5, true), meshMaterial);
+        };
+
+        const makeStarPrism = () => {
+            const prism = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.45, 6, 1, true), meshMaterial);
+            prism.rotation.y = Math.PI / 12;
+            return prism;
+        };
+
+        const makeGyroideDisk = () => new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.12, 12, 1, true), meshMaterial);
+
+        const makeDoubleDiscs = () => {
+            const root = new THREE.Group();
+            root.name = 'DoubleDiscs';
+
+            const discA = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.1, 14, 1, true), meshMaterial);
+            discA.rotation.x = Math.PI * 0.5;
+            discA.position.y = 0.05;
+            root.add(discA);
+
+            const discB = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.52, 0.08, 14, 1, true), meshMaterial);
+            discB.rotation.x = Math.PI * 0.5;
+            discB.position.y = -0.05;
+            discB.rotation.z = Math.PI / 4;
+            root.add(discB);
+
+            return styleImpactRoot(root);
+        };
+
+        const makeLemniscate = () => {
+            const pts = [];
+            const a = 0.38;
+            for (let i = 0; i <= 40; i++) {
+                const t = (i / 40) * Math.PI * 2;
+                const x = a * Math.sin(t);
+                const z = a * Math.sin(t) * Math.cos(t);
+                pts.push(new THREE.Vector3(x, 0, z));
+            }
+            const curve = new THREE.CatmullRomCurve3(pts, true);
+            return new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.045, 6, true), meshMaterial);
+        };
+
         const makeCrateredSphere = () => {
             const g = new THREE.IcosahedronGeometry(0.5, 1);
             const pos = g.attributes.position;
@@ -4521,8 +4590,9 @@ export class LinkRendererConduit {
             }
             pos.needsUpdate = true;
             g.computeVertexNormals();
-            return g;
+            return new THREE.Mesh(g, meshMaterial);
         };
+
         const makeSpikedHalo = () => {
             const g = new THREE.IcosahedronGeometry(0.45, 1);
             const pos = g.attributes.position;
@@ -4537,8 +4607,9 @@ export class LinkRendererConduit {
             }
             pos.needsUpdate = true;
             g.computeVertexNormals();
-            return g;
+            return new THREE.Mesh(g, meshMaterial);
         };
+
         const makeWaveSlice = () => {
             const g = new THREE.PlaneGeometry(1.1, 1.1, 10, 4);
             const pos = g.attributes.position;
@@ -4550,143 +4621,346 @@ export class LinkRendererConduit {
             }
             pos.needsUpdate = true;
             g.computeVertexNormals();
-            return g;
+            return new THREE.Mesh(g, meshMaterial);
         };
-        const makeLemniscate = () => {
-            const pts = [];
-            const a = 0.38;
-            for (let i = 0; i <= 40; i++) {
-                const t = (i / 40) * Math.PI * 2;
-                const x = a * Math.sin(t);
-                const z = a * Math.sin(t) * Math.cos(t);
-                pts.push(new THREE.Vector3(x, 0, z));
+
+        const makeBrokenMobius = () => {
+            const root = new THREE.Group();
+            root.name = 'BrokenMobius';
+
+            const upper = buildTorusArc(0.5, 0.08, Math.PI * 1.38, 10, 54);
+            upper.rotation.set(0.72, 0.18, 0.58);
+            upper.scale.set(1.16, 0.72, 1.02);
+            root.add(upper);
+
+            const lower = buildTorusArc(0.42, 0.05, Math.PI * 0.92, 8, 44);
+            lower.position.set(0.07, -0.03, 0.02);
+            lower.rotation.set(-0.42, 0.34, -0.16);
+            lower.scale.set(0.98, 0.66, 1.18);
+            root.add(lower);
+
+            const seam = buildTube([
+                new THREE.Vector3(-0.38, 0.02, 0.02),
+                new THREE.Vector3(-0.12, 0.16, 0.1),
+                new THREE.Vector3(0.12, -0.1, -0.04),
+                new THREE.Vector3(0.4, 0.06, 0.0)
+            ], 0.022, 18, 5, false);
+            seam.rotation.set(0.18, -0.42, 0.84);
+            root.add(seam);
+
+            return styleImpactRoot(root);
+        };
+
+        const makeBraidedFluxRing = () => {
+            const root = new THREE.Group();
+            root.name = 'BraidedFluxRing';
+
+            const braidA = buildTube([
+                new THREE.Vector3(0.44, 0, 0),
+                new THREE.Vector3(0.28, 0.1, 0.34),
+                new THREE.Vector3(-0.12, 0.05, 0.46),
+                new THREE.Vector3(-0.42, -0.02, 0.14),
+                new THREE.Vector3(-0.18, -0.08, -0.34),
+                new THREE.Vector3(0.26, 0.02, -0.4),
+                new THREE.Vector3(0.44, 0, 0)
+            ], 0.04, 28, 6, true);
+            braidA.rotation.set(0.5, 0.1, 0.34);
+            root.add(braidA);
+
+            const braidB = buildTube([
+                new THREE.Vector3(0.42, 0.06, 0),
+                new THREE.Vector3(0.1, -0.1, 0.4),
+                new THREE.Vector3(-0.32, 0.04, 0.28),
+                new THREE.Vector3(-0.28, 0.16, -0.24),
+                new THREE.Vector3(0.12, -0.02, -0.42),
+                new THREE.Vector3(0.42, 0.06, 0)
+            ], 0.04, 28, 6, true);
+            braidB.rotation.set(-0.36, 0.42, -0.28);
+            root.add(braidB);
+
+            const fluxCore = buildTorusArc(0.16, 0.055, Math.PI * 2, 8, 28);
+            fluxCore.rotation.set(0.28, 0.48, 0.16);
+            root.add(fluxCore);
+
+            return styleImpactRoot(root);
+        };
+
+        const makePhaseCage = () => {
+            const root = new THREE.Group();
+            root.name = 'PhaseCage';
+
+            const cageRingTop = buildTorusArc(0.48, 0.035, Math.PI * 2, 8, 40);
+            cageRingTop.position.y = 0.22;
+            cageRingTop.rotation.set(1.52, 0.12, 0.28);
+            root.add(cageRingTop);
+
+            const cageRingBottom = buildTorusArc(0.48, 0.035, Math.PI * 2, 8, 40);
+            cageRingBottom.position.y = -0.22;
+            cageRingBottom.rotation.set(1.52, 0.12, 0.28);
+            root.add(cageRingBottom);
+
+            const verticalAngles = [0, Math.PI * 0.33, Math.PI * 0.66, Math.PI * 0.99, Math.PI * 1.32, Math.PI * 1.65];
+            for (let i = 0; i < verticalAngles.length; i++) {
+                const angle = verticalAngles[i];
+                const x = Math.cos(angle) * 0.44;
+                const z = Math.sin(angle) * 0.44;
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.03, 0.48, 6, 1, true), meshMaterial);
+                pillar.position.set(x, 0, z);
+                pillar.rotation.set(0.12 + (i * 0.04), angle * 0.2, 0.34);
+                root.add(pillar);
             }
-            const curve = new THREE.CatmullRomCurve3(pts, true);
-            return new THREE.TubeGeometry(curve, 40, 0.045, 6, true);
+
+            const cageCore = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), meshMaterial);
+            cageCore.scale.set(0.78, 1.12, 0.9);
+            cageCore.rotation.set(0.36, 0.18, -0.24);
+            root.add(cageCore);
+
+            return styleImpactRoot(root);
         };
-        const makeTwistedRibbon = () => {
-            const pts = [];
-            const r = 0.4;
-            for (let i = 0; i <= 32; i++) {
-                const t = (i / 32) * Math.PI * 2;
-                pts.push(new THREE.Vector3(Math.cos(t) * r, 0, Math.sin(t) * r));
+
+        const makeHarmonicCell = () => {
+            const root = new THREE.Group();
+            root.name = 'HarmonicCell';
+
+            const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.44, 1), meshMaterial);
+            shell.scale.set(1.0, 0.88, 1.12);
+            shell.rotation.set(0.28, -0.36, 0.18);
+            root.add(shell);
+
+            const inner = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), meshMaterial);
+            inner.scale.set(0.86, 1.08, 0.74);
+            inner.rotation.set(-0.22, 0.2, -0.14);
+            root.add(inner);
+
+            const ringA = buildTorusArc(0.34, 0.03, Math.PI * 2, 8, 36);
+            ringA.rotation.set(Math.PI * 0.5, 0.22, 0.12);
+            root.add(ringA);
+
+            const ringB = buildTorusArc(0.34, 0.03, Math.PI * 2, 8, 36);
+            ringB.rotation.set(0.14, Math.PI * 0.5, 0.34);
+            root.add(ringB);
+
+            const ringC = buildTorusArc(0.34, 0.03, Math.PI * 2, 8, 36);
+            ringC.rotation.set(0.26, 0.18, Math.PI * 0.5);
+            root.add(ringC);
+
+            return styleImpactRoot(root);
+        };
+
+        const makePhaseLockedLatticeSeed = () => {
+            const root = new THREE.Group();
+            root.name = 'PhaseLockedLatticeSeed';
+
+            const seedCore = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), meshMaterial);
+            seedCore.scale.set(1.0, 0.82, 1.18);
+            seedCore.rotation.set(0.52, -0.24, 0.14);
+            root.add(seedCore);
+
+            const rings = [
+                [0, Math.PI * 0.5, 0.18],
+                [Math.PI * 0.5, 0, -0.22],
+                [0.22, 0.18, Math.PI * 0.5]
+            ];
+            for (const [x, y, z] of rings) {
+                const ring = buildTorusArc(0.36, 0.024, Math.PI * 2, 8, 32);
+                ring.rotation.set(x, y, z);
+                root.add(ring);
             }
-            const curve = new THREE.CatmullRomCurve3(pts, true);
-            return new THREE.TubeGeometry(curve, 32, 0.05, 5, true);
+
+            const latticeAxes = [
+                new THREE.Vector3(0.42, 0.16, 0.0),
+                new THREE.Vector3(-0.34, 0.22, 0.18),
+                new THREE.Vector3(0.12, -0.28, 0.36),
+                new THREE.Vector3(0.06, 0.36, -0.24)
+            ];
+            latticeAxes.forEach((v, i) => {
+                const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.024, v.length() + 0.08, 6, 1, true), meshMaterial);
+                rod.position.copy(v.clone().multiplyScalar(0.5));
+                rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.clone().normalize());
+                rod.rotation.z += i * 0.12;
+                root.add(rod);
+            });
+
+            return styleImpactRoot(root);
         };
-        const makeStarPrism = () => {
-            const g = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 6, 1, true);
-            g.rotateY(Math.PI / 12);
-            return g;
+
+        const makeHelicalTrinity = () => {
+            const root = new THREE.Group();
+            root.name = 'HelicalTrinity';
+
+            const buildHelix = (phase, height = 0.86, radius = 0.34) => {
+                const pts = [];
+                for (let i = 0; i <= 28; i++) {
+                    const t = (i / 28) * Math.PI * 2;
+                    pts.push(new THREE.Vector3(
+                        Math.cos(t + phase) * radius,
+                        (i / 28 - 0.5) * height,
+                        Math.sin(t + phase) * radius
+                    ));
+                }
+                return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false), 28, 0.04, 6, false), meshMaterial);
+            };
+
+            const helixA = buildHelix(0.0, 0.9, 0.34);
+            helixA.rotation.set(0.22, 0.0, 0.18);
+            root.add(helixA);
+
+            const helixB = buildHelix((Math.PI * 2) / 3, 0.9, 0.34);
+            helixB.rotation.set(-0.18, 0.3, -0.26);
+            root.add(helixB);
+
+            const helixC = buildHelix((Math.PI * 4) / 3, 0.9, 0.34);
+            helixC.rotation.set(0.34, -0.22, 0.32);
+            root.add(helixC);
+
+            const trinityCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), meshMaterial);
+            trinityCore.scale.set(0.84, 1.08, 0.92);
+            root.add(trinityCore);
+
+            return styleImpactRoot(root);
         };
-        const makeGyroideDisk = () => new THREE.CylinderGeometry(0.55, 0.35, 0.12, 12, 1, true);
-        const makeDoubleDiscs = () => new THREE.CylinderGeometry(0.55, 0.45, 0.1, 14, 1, true);
-        const makeHexFrame = () => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 6, 1, true);
 
-        switch (category) {
-            case 'input':
-                geometry = chooseVariant([
-                    new THREE.RingGeometry(0.35, 0.5, 24),
-                    new THREE.TorusKnotGeometry(0.34, 0.06, 46, 7, 3, 2), // triquetra/pretzel
-                    new THREE.DodecahedronGeometry(0.45, 0),
-                    makeWaveSlice()
-                ], variantRand);
-                break;
-            case 'process':
-                geometry = chooseVariant([
-                    makeStarPrism(),
-                    makeWaveSlice(),
-                    new THREE.TorusKnotGeometry(0.32, 0.08, 40, 7)
-                ], variantRand);
-                break;
-            case 'control':
-                geometry = chooseVariant([
-                    new THREE.OctahedronGeometry(0.6, 0),
-                    new THREE.TetrahedronGeometry(0.65, 0),
-                    new THREE.DodecahedronGeometry(0.55, 0),
-                    makeLemniscate()
-                ], variantRand);
-                break;
-            case 'storage':
-                geometry = chooseVariant([
-                    makeGyroideDisk(),
-                    makeDoubleDiscs(),
-                    new THREE.CapsuleGeometry(0.32, 0.22, 6, 10)
-                ], variantRand);
-                break;
-            case 'analytics':
-                geometry = chooseVariant([
-                    new THREE.RingGeometry(0.32, 0.5, 18),
-                    new THREE.IcosahedronGeometry(0.5, 0),
-                    makeHexFrame()
-                ], variantRand);
-                break;
-            case 'integration':
-                geometry = chooseVariant([
-                    makeTwistedRibbon(),
-                    new THREE.TorusKnotGeometry(0.28, 0.07, 40, 6),
-                    new THREE.DodecahedronGeometry(0.5, 1)
-                ], variantRand);
-                break;
-            case 'emotional':
-                geometry = chooseVariant([
-                    new THREE.OctahedronGeometry(0.55, 1),
-                    makeLemniscate(),
-                    new THREE.TorusKnotGeometry(0.28, 0.08, 48, 6)
-                ], variantRand);
-                break;
-            case 'sigma':
-                geometry = chooseVariant([
-                    new THREE.OctahedronGeometry(0.55, 1),
-                    makeSpikedHalo(),
-                    new THREE.CapsuleGeometry(0.38, 0.18, 6, 8)
-                ], variantRand);
-                break;
-            case 'quantum':
-                geometry = chooseVariant([
-                    makeCrateredSphere(),
-                    new THREE.OctahedronGeometry(0.5, 1),
-                    new THREE.IcosahedronGeometry(0.45, 1)
-                ], variantRand);
-                break;
-            case 'prime':
-                geometry = chooseVariant([
-                    new THREE.DodecahedronGeometry(0.55, 0),
-                    new THREE.TorusKnotGeometry(0.32, 0.09, 40, 5)
-                ], variantRand);
-                break;
-            case 'error':
-                geometry = chooseVariant([
-                    new THREE.IcosahedronGeometry(0.55, 0),
-                    new THREE.TetrahedronGeometry(0.6, 1),
-                    makeCrateredSphere()
-                ], variantRand);
-                break;
-            case 'mythic':
-                geometry = chooseVariant([
-                    new THREE.TorusKnotGeometry(0.35, 0.08, 48, 6),
-                    new THREE.IcosahedronGeometry(0.6, 1)
-                ], variantRand);
-                break;
-            default:
-                geometry = chooseVariant([
-                    new THREE.IcosahedronGeometry(0.6, 1),
-                    new THREE.SphereGeometry(0.55, 14, 10),
-                    new THREE.TorusKnotGeometry(0.32, 0.08, 48, 6)
-                ], variantRand);
-        }
+        const makeResonancePetals = () => {
+            const root = new THREE.Group();
+            root.name = 'ResonancePetals';
 
-        // PHASE S-5: Variant properties set at creation time, then frozen
-        // NO runtime mutations to transparent, depthWrite, depthTest, side, blending allowed
-        const meshMaterial = this._getImpactMaterial(color);
-        const mesh = new THREE.Mesh(geometry, meshMaterial);
-        mesh.frustumCulled = false;
-        const impactOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
-        TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: impactOrder });
-        ensureUserData(mesh);
-        mesh.userData.__depthAuthorityLocked = true;
+            const heart = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), meshMaterial);
+            heart.scale.set(1.0, 1.12, 0.86);
+            heart.rotation.set(0.4, 0.2, 0.1);
+            root.add(heart);
 
-        group.add(mesh);
+            const petalCount = 6 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < petalCount; i++) {
+                const t = (i / petalCount) * Math.PI * 2;
+                const petalCurve = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0.0, 0.0, 0.0),
+                    new THREE.Vector3(Math.cos(t) * 0.16, 0.08 + Math.sin(t * 2.0) * 0.02, Math.sin(t) * 0.16),
+                    new THREE.Vector3(Math.cos(t) * 0.42, 0.2 + Math.sin(t * 2.0) * 0.04, Math.sin(t) * 0.42),
+                    new THREE.Vector3(Math.cos(t) * 0.54, 0.08, Math.sin(t) * 0.54)
+                ], false);
+                const petal = new THREE.Mesh(new THREE.TubeGeometry(petalCurve, 18, 0.028, 5, false), meshMaterial);
+                petal.rotation.set(0.18, t, 0.48);
+                root.add(petal);
+            }
+
+            return styleImpactRoot(root);
+        };
+
+        const makeResonanceCrownFragment = () => {
+            const root = new THREE.Group();
+            root.name = 'ResonanceCrownFragment';
+
+            const crownArc = buildTorusArc(0.46, 0.04, Math.PI * 1.46, 8, 52);
+            crownArc.rotation.set(0.58, -0.16, 0.42);
+            root.add(crownArc);
+
+            const spikeAngles = [0, 0.6, 1.2, 1.8, 2.35, 2.92, 3.52, 4.08, 4.68, 5.24];
+            for (let i = 0; i < spikeAngles.length; i++) {
+                const angle = spikeAngles[i];
+                const spike = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.05, 0.22 + (i % 3) * 0.05, 6, 1, true), meshMaterial);
+                spike.position.set(Math.cos(angle) * 0.46, 0.12 + (i % 2) * 0.04, Math.sin(angle) * 0.46);
+                spike.rotation.set(0.55 + (i * 0.05), angle * 0.25, 0.18);
+                root.add(spike);
+            }
+
+            const shard = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), meshMaterial);
+            shard.position.set(0.02, -0.06, 0.04);
+            shard.scale.set(1.08, 0.86, 1.2);
+            shard.rotation.set(-0.28, 0.44, -0.16);
+            root.add(shard);
+
+            return styleImpactRoot(root);
+        };
+
+        const makeFoldedImpossibleGlyph = () => {
+            const root = new THREE.Group();
+            root.name = 'FoldedImpossibleGlyph';
+
+            const foldA = buildTube([
+                new THREE.Vector3(-0.42, -0.08, 0.0),
+                new THREE.Vector3(-0.18, 0.14, 0.18),
+                new THREE.Vector3(0.08, 0.06, 0.22),
+                new THREE.Vector3(0.26, -0.2, 0.06),
+                new THREE.Vector3(0.44, 0.04, -0.04)
+            ], 0.034, 22, 6, false);
+            foldA.rotation.set(0.52, -0.22, 0.48);
+            root.add(foldA);
+
+            const foldB = buildTube([
+                new THREE.Vector3(-0.34, 0.32, -0.04),
+                new THREE.Vector3(-0.08, 0.06, -0.2),
+                new THREE.Vector3(0.14, -0.12, -0.12),
+                new THREE.Vector3(0.34, 0.18, 0.14)
+            ], 0.03, 20, 6, false);
+            foldB.rotation.set(-0.28, 0.46, -0.34);
+            root.add(foldB);
+
+            const glyphCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), meshMaterial);
+            glyphCore.scale.set(0.88, 0.74, 1.18);
+            glyphCore.rotation.set(0.26, -0.2, 0.08);
+            root.add(glyphCore);
+
+            const glyphCap = buildTorusArc(0.2, 0.02, Math.PI * 1.2, 8, 24);
+            glyphCap.rotation.set(0.92, 0.34, -0.18);
+            glyphCap.position.set(0.02, 0.08, 0.02);
+            root.add(glyphCap);
+
+            return styleImpactRoot(root);
+        };
+
+        const makeBorromeanBurst = () => {
+            const root = new THREE.Group();
+            root.name = 'BorromeanBurst';
+
+            const ringA = buildTorusArc(0.36, 0.045, Math.PI * 2, 8, 44);
+            ringA.rotation.set(0.62, 0.18, 0.12);
+            root.add(ringA);
+
+            const ringB = buildTorusArc(0.36, 0.045, Math.PI * 2, 8, 44);
+            ringB.rotation.set(-0.08, 1.55, 0.5);
+            root.add(ringB);
+
+            const ringC = buildTorusArc(0.36, 0.045, Math.PI * 2, 8, 44);
+            ringC.rotation.set(1.46, 0.12, -0.38);
+            root.add(ringC);
+
+            const burstCount = 8;
+            for (let i = 0; i < burstCount; i++) {
+                const angle = (i / burstCount) * Math.PI * 2;
+                const shard = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.03, 0.24 + (i % 3) * 0.05, 6, 1, true), meshMaterial);
+                shard.position.set(Math.cos(angle) * 0.1, Math.sin(angle * 2.0) * 0.06, Math.sin(angle) * 0.1);
+                shard.rotation.set(0.6 + (i * 0.08), angle, 0.32);
+                root.add(shard);
+            }
+
+            return styleImpactRoot(root);
+        };
+
+        const makeImpactRoot = (selectedCategory) => {
+            const builders = {
+                input: [makeWaveSlice, makeTwistedRibbon, makePhaseLockedLatticeSeed],
+                process: [makeBraidedFluxRing, makeHelicalTrinity, makeDoubleDiscs],
+                control: [makePhaseCage, makeStarPrism, makeGyroideDisk],
+                storage: [makeHarmonicCell, makeDoubleDiscs, makeCrateredSphere],
+                analytics: [makeGyroideDisk, makePhaseLockedLatticeSeed, makeWaveSlice],
+                integration: [makeLemniscate, makeHelicalTrinity, makeBraidedFluxRing],
+                emotional: [makeResonancePetals, makeWaveSlice, makeLemniscate],
+                sigma: [makeResonanceCrownFragment, makeSpikedHalo, makePhaseCage],
+                quantum: [makeFoldedImpossibleGlyph, makeBrokenMobius, makeLemniscate],
+                prime: [makeBorromeanBurst, makeResonanceCrownFragment, makeStarPrism],
+                error: [makeFoldedImpossibleGlyph, makeCrateredSphere, makeBrokenMobius],
+                mythic: [makeBorromeanBurst, makeResonancePetals, makeSpikedHalo],
+                default: [makeTwistedRibbon, makeWaveSlice, makeDoubleDiscs]
+            };
+
+            const picked = chooseVariant(builders[selectedCategory] ?? builders.default, variantRand);
+            return picked();
+        };
+
+        const chooseVariant = (variants, r) => variants[Math.floor(r * variants.length) % variants.length];
+        const impactRoot = makeImpactRoot(category);
+
+        group.add(impactRoot);
         group.position.copy(node.position);
 
         const scaleMult = beadSize === 'large' ? 1.5 : (beadSize === 'small' ? 0.5 : 1.0);
@@ -4700,7 +4974,7 @@ export class LinkRendererConduit {
             (Math.random() - 0.5) * 0.3
         );
 
-        Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: mesh });
+        Object.assign(ensureUserData(group), { age: 0, duration: 0.5, maxScale: 2.0 * scaleMult, mesh: impactRoot });
 
         this.conduitRoot.add(group);
         state.impacts.push(group);
@@ -4708,6 +4982,28 @@ export class LinkRendererConduit {
 
     updateImpacts(state, dt) {
         if (!state.impacts) return;
+        const setImpactOpacity = (root, opacity) => {
+            if (!root) return;
+            if (typeof root.traverse === 'function') {
+                root.traverse((obj) => {
+                    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                    for (const material of materials) {
+                        if (material && typeof material.opacity === 'number') {
+                            material.opacity = opacity;
+                        }
+                    }
+                });
+                return;
+            }
+
+            const materials = Array.isArray(root.material) ? root.material : [root.material];
+            for (const material of materials) {
+                if (material && typeof material.opacity === 'number') {
+                    material.opacity = opacity;
+                }
+            }
+        };
+
         for (let i = state.impacts.length - 1; i >= 0; i--) {
             const grp = state.impacts[i];
             const data = grp.userData;
@@ -4716,9 +5012,17 @@ export class LinkRendererConduit {
 
             if (p >= 1) {
                 if (grp.parent) grp.parent.remove(grp);
+                const returnedMaterials = new Set();
                 grp.traverse(o => {
                     if(o.geometry) o.geometry.dispose();
-                    if(o.material) this._returnImpactMaterial(o.material);
+                    if(o.material) {
+                        const materials = Array.isArray(o.material) ? o.material : [o.material];
+                        for (const material of materials) {
+                            if (!material || returnedMaterials.has(material)) continue;
+                            returnedMaterials.add(material);
+                            this._returnImpactMaterial(material);
+                        }
+                    }
                 });
                 state.impacts.splice(i, 1);
             } else {
@@ -4727,7 +5031,7 @@ export class LinkRendererConduit {
                 if (data.mesh) {
                     // Fade-in then fade-out: transparent at start/end, visible only during active pulse
                     const pulseAlpha = Math.sin(Math.PI * Math.min(1, Math.max(0, p)));
-                    data.mesh.material.opacity = 0.55 * pulseAlpha;
+                    setImpactOpacity(data.mesh, 0.55 * pulseAlpha);
                 }
                 grp.rotation.z += dt * 2;
                 grp.rotation.y += dt;

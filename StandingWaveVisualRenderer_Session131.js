@@ -87,6 +87,9 @@ export class StandingWaveVisualRenderer_Session131 {
             trapZoneOrbitRadius: 0.36,         // Primary orbital ring radius
             trapZoneHaloRadius: 0.62,          // Event-horizon disc radius
             trapZoneOrbitSpeed: 1.15,          // Orbit rotation speed
+            trapZoneSecondaryOrbitSpeed: 0.42, // Secondary torus motion speed
+            trapZoneSecondaryOrbitTilt: 0.16,  // Secondary torus tilt amount
+            trapZoneSecondaryOrbitDrift: 0.08, // Secondary torus drift amount
             trapZonePulseFrequency: 2.25,      // Trap zone pulse frequency
             trapZoneColor: new THREE.Color(0.7, 0.8, 1.0),  // Pale blue
             
@@ -885,13 +888,16 @@ export class StandingWaveVisualRenderer_Session131 {
 
             // Secondary ring / singularity halo
             if (trapZoneMesh.orbitBMesh) {
-                trapZoneMesh.orbitBMesh.rotation.y = pulsePhase * -0.61;
-                trapZoneMesh.orbitBMesh.rotation.z = pulsePhase * 0.28;
-                trapZoneMesh.orbitBMesh.scale.setScalar(0.96 + (pulse * 0.14));
-                trapZoneMesh.orbitBMesh.material.opacity = this.config.trapZoneOpacityBase * 0.62 * fadeStrength;
+                const secondaryPhase = pulsePhase * this.config.trapZoneSecondaryOrbitSpeed;
+                const secondaryDrift = Math.sin(secondaryPhase * 1.31 + trapZoneMesh.pulseSeed) * this.config.trapZoneSecondaryOrbitDrift;
+                trapZoneMesh.orbitBMesh.rotation.y = secondaryPhase * -0.5;
+                trapZoneMesh.orbitBMesh.rotation.z = secondaryPhase * 0.18;
+                trapZoneMesh.orbitBMesh.rotation.x = Math.PI * 0.22 + (secondaryDrift * this.config.trapZoneSecondaryOrbitTilt);
+                trapZoneMesh.orbitBMesh.scale.setScalar(0.94 + (pulse * 0.08));
+                trapZoneMesh.orbitBMesh.material.opacity = this.config.trapZoneOpacityBase * 0.54 * fadeStrength;
                 trapZoneMesh.orbitBMesh.material.color.setRGB(
-                    0.86 + (pulse * 0.14),
-                    0.92 + (pulse * 0.08),
+                    0.88 + (pulse * 0.12),
+                    0.93 + (pulse * 0.05),
                     1.0
                 );
             }
