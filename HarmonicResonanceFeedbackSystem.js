@@ -112,6 +112,7 @@ class ResonanceField {
         this.active = false;
         this.position = new THREE.Vector3();
         this.compositeGlyph = null;  // Reference to composite glyph instance
+        this.debugMesh = null;
         
         // Current strength
         this.strength = 0.0;           // 0-1 (ramps up/down)
@@ -145,6 +146,9 @@ class ResonanceField {
         this.pulsePhase = 0.0;
         this.influencedLinks.length = 0;
         this.influencedGlyphs.length = 0;
+        if (this.debugMesh) {
+            this.debugMesh.visible = false;
+        }
     }
     
     initialize(compositeGlyph, harmonyBalance, synergy, stability) {
@@ -266,6 +270,8 @@ export class HarmonicResonanceFeedbackSystem {
         
         // Debug
         this.debugFieldVisualization = null;
+        this.debugFieldGeometry = null;
+        this.debugFieldMaterial = null;
         if (CONFIG.DEBUG_DRAW_FIELDS) {
             this.setupDebugVisualization();
         }
@@ -664,19 +670,39 @@ export class HarmonicResonanceFeedbackSystem {
     // ========================================================================
     
     setupDebugVisualization() {
+        this.ensureDebugResources();
+
         const container = new THREE.Group();
         container.name = 'ResonanceFieldDebug';
         container.renderOrder = this.renderOrder;
         this.scene.add(container);
         this.debugFieldVisualization = container;
     }
+
+    ensureDebugResources() {
+        if (!this.debugFieldGeometry) {
+            this.debugFieldGeometry = new THREE.SphereGeometry(1, 16, 16);
+        }
+
+        if (!this.debugFieldMaterial) {
+            this.debugFieldMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.2,
+                wireframe: true
+            });
+        }
+    }
     
     updateDebugVisualization() {
         if (!this.debugFieldVisualization) return;
-        
-        // Clear old visuals
-        while (this.debugFieldVisualization.children.length > 0) {
-            this.debugFieldVisualization.remove(this.debugFieldVisualization.children[0]);
+
+        this.ensureDebugResources();
+
+        for (let field of this.resonanceFields) {
+            if (field.debugMesh) {
+                field.debugMesh.visible = false;
+            }
         }
         
         // Draw active field spheres
@@ -684,17 +710,18 @@ export class HarmonicResonanceFeedbackSystem {
             if (!field.active || field.strength < 0.01) continue;
             
             const radius = field.getRadius();
-            const geometry = new THREE.SphereGeometry(radius, 16, 16);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                transparent: true,
-                opacity: field.strength * 0.2,
-                wireframe: true
-            });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.copy(field.position);
-            mesh.renderOrder = this.renderOrder;
-            this.debugFieldVisualization.add(mesh);
+
+            if (!field.debugMesh) {
+                field.debugMesh = new THREE.Mesh(this.debugFieldGeometry, this.debugFieldMaterial.clone());
+                field.debugMesh.frustumCulled = false;
+                this.debugFieldVisualization.add(field.debugMesh);
+            }
+
+            field.debugMesh.visible = true;
+            field.debugMesh.position.copy(field.position);
+            field.debugMesh.scale.setScalar(radius);
+            field.debugMesh.renderOrder = this.renderOrder;
+            field.debugMesh.material.opacity = field.strength * 0.2;
         }
     }
     

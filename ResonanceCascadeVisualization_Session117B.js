@@ -184,6 +184,21 @@ export class ResonanceCascadeVisualization_Session117B {
     return Math.max(0, Math.min(1, Number(value) || 0));
   }
 
+  _resolveLinkId(linkOrId) {
+    if (!linkOrId) return null;
+    if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
+      return String(linkOrId);
+    }
+
+    return (
+      linkOrId.userData?.id ??
+      linkOrId.userData?.linkId ??
+      linkOrId.id ??
+      linkOrId.uuid ??
+      null
+    );
+  }
+
   _resolveCascadeAnchor(event = {}) {
     const anchor = this._asValidPosition(event?.anchor);
     if (anchor) return anchor;
@@ -209,6 +224,38 @@ export class ResonanceCascadeVisualization_Session117B {
     }
 
     return new THREE.Vector3(0, 0, 0);
+  }
+
+  _getLinkEndpoints(linkOrId, sourceNode = null, targetNode = null) {
+    const link = (linkOrId && typeof linkOrId === 'object') ? linkOrId : null;
+    const sourcePos = this._asValidPosition(
+      sourceNode?.position ??
+      link?.source?.position ??
+      link?.sourceNode?.position ??
+      link?.nodeA?.position
+    );
+    const targetPos = this._asValidPosition(
+      targetNode?.position ??
+      link?.target?.position ??
+      link?.targetNode?.position ??
+      link?.nodeB?.position
+    );
+
+    return { sourcePos, targetPos };
+  }
+
+  _distanceToSegment(point, start, end) {
+    if (!point || !start || !end) return Infinity;
+    const segment = new THREE.Vector3().subVectors(end, start);
+    const segmentLengthSq = segment.lengthSq();
+    if (segmentLengthSq <= 1e-8) {
+      return point.distanceTo(start);
+    }
+
+    const toPoint = new THREE.Vector3().subVectors(point, start);
+    const t = Math.max(0, Math.min(1, toPoint.dot(segment) / segmentLengthSq));
+    const closest = new THREE.Vector3().copy(start).addScaledVector(segment, t);
+    return point.distanceTo(closest);
   }
 
   _registerNodeVisual(node, intensity) {
@@ -405,7 +452,12 @@ export class ResonanceCascadeVisualization_Session117B {
     if (!pos) return;
 
     const cascade = new CascadeWave(pos, impulseIntensity, 'radial');
+    cascade.linkRef = event?.link ?? event?.linkRef ?? null;
+    cascade.linkId = this._resolveLinkId(cascade.linkRef);
+    cascade.sourceNodeId = event?.sourceNodeId ?? event?.sourceNode?.userData?.nodeId ?? event?.sourceNode?.id ?? event?.sourceNode?.uuid ?? null;
+    cascade.targetNodeId = event?.targetNodeId ?? event?.targetNode?.userData?.nodeId ?? event?.targetNode?.id ?? event?.targetNode?.uuid ?? null;
     this.activeCascades.push(cascade);
+    return cascade;
   }
 
   _asValidPosition(value) {
@@ -450,6 +502,68 @@ export class ResonanceCascadeVisualization_Session117B {
     if (sourceNode && this.nodeCascadeIntensity.has(sourceNode)) this.nodeCascadeIntensity.set(sourceNode, 0);
     if (targetNode && this.nodeCascadeIntensity.has(targetNode)) this.nodeCascadeIntensity.set(targetNode, 0);
     if (link && this.linkCascadeIntensity.has(link)) this.linkCascadeIntensity.set(link, 0);
+  }
+
+  _cascadeMatchesLink(cascade, linkRef, linkId, sourcePos = null, targetPos = null) {
+    if (!cascade) return false;
+
+    if (linkRef && cascade.linkRef === linkRef) {
+      return true;
+    }
+
+    const cascadeLinkId = cascade.linkId != null ? String(cascade.linkId) : null;
+    const normalizedLinkId = linkId != null ? String(linkId) : null;
+    if (cascadeLinkId && normalizedLinkId && cascadeLinkId === normalizedLinkId) {
+      return true;
+    }
+
+    if (sourcePos && targetPos && cascade.originPos) {
+      const segmentLength = sourcePos.distanceTo(targetPos);
+      const maxDistance = Math.max(0.65, Math.min(3.0, segmentLength * 0.12));
+      if (this._distanceToSegment(cascade.originPos, sourcePos, targetPos) <= maxDistance) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  clearLink(linkOrId, sourceNode = null, targetNode = null) {
+    const linkRef = (linkOrId && typeof linkOrId === 'object') ? linkOrId : null;
+    const linkId = this._resolveLinkId(linkOrId);
+    const { sourcePos, targetPos } = this._getLinkEndpoints(linkOrId, sourceNode, targetNode);
+
+    if (sourceNode || targetNode || linkRef) {
+      this.handleCascadeEnd({
+        sourceNode,
+        targetNode,
+        link: linkRef,
+        linkId,
+        sourceNodeId: sourceNode?.userData?.nodeId ?? sourceNode?.id ?? sourceNode?.uuid ?? null,
+        targetNodeId: targetNode?.userData?.nodeId ?? targetNode?.id ?? targetNode?.uuid ?? null
+      });
+    }
+
+    if (linkRef || linkId || sourcePos || targetPos) {
+      this.activeCascades = this.activeCascades.filter((cascade) =>
+        !this._cascadeMatchesLink(cascade, linkRef, linkId, sourcePos, targetPos)
+      );
+    }
+
+    if (linkRef && this.linkCascadeIntensity.has(linkRef)) {
+      this.linkCascadeIntensity.delete(linkRef);
+    }
+
+    if (linkId) {
+      for (const [link, value] of [...this.linkCascadeIntensity.entries()]) {
+        const trackedLinkId = this._resolveLinkId(link);
+        if (trackedLinkId && String(trackedLinkId) === String(linkId)) {
+          this.linkCascadeIntensity.delete(link);
+        }
+      }
+    }
+
+    return this.activeCascades.length;
   }
   
   /**

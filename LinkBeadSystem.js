@@ -456,10 +456,12 @@ export class BeadRenderer {
       large: new THREE.IcosahedronGeometry(BEAD_CONFIG.sizes.large, 4)
     };
     
-    // Compute bounding volumes for culling stability
+    // Bounds are not needed here because bead meshes disable frustum culling.
     Object.values(this.geometries).forEach(geo => {
-      geo.computeBoundingSphere();
-      geo.computeBoundingBox();
+      if (geo) {
+        geo.boundingSphere = null;
+        geo.boundingBox = null;
+      }
     });
     
     // PHASE S-5: Variant properties set at creation time, then frozen

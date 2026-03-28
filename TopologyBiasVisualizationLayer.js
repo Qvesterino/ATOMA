@@ -90,6 +90,7 @@ class BiasVectorInstance {
     constructor() {
         this.position = new THREE.Vector3();
         this.direction = new THREE.Vector3(0, 0, 1);
+        this._visibleDirectionScratch = new THREE.Vector3();
         this.strength = 0.0;             // 0-1: How visible
         this.age = 0.0;
         this.active = false;
@@ -136,18 +137,18 @@ class BiasVectorInstance {
     }
     
     // Get effective direction with drift
-    getVisibleDirection() {
+    getVisibleDirection(target = new THREE.Vector3()) {
         // Subtle drift: random walk in direction space
         const drift = Math.sin(this.age * CONFIG.VECTOR_DRIFT_SPEED) * 
                       CONFIG.VECTOR_DRIFT_AMOUNT;
         
-        const driftVec = new THREE.Vector3(
+        const driftVec = this._visibleDirectionScratch.set(
             Math.cos(drift),
             0,
             Math.sin(drift)
         ).normalize();
         
-        return this.direction.clone().add(driftVec.multiplyScalar(0.1)).normalize();
+        return target.copy(this.direction).add(driftVec.multiplyScalar(0.1)).normalize();
     }
     
     // Get effective opacity
@@ -250,6 +251,9 @@ export class TopologyBiasVisualizationLayer {
         this.biasVectorMesh = null;
         this.biasVectorGeometry = null;
         this.biasVectorMaterial = null;
+        this.biasVectorStart = new THREE.Vector3();
+        this.biasVectorEnd = new THREE.Vector3();
+        this.biasVectorDirection = new THREE.Vector3();
         this.updateBiasVectorTimer = 0;
         
         // Flow field system
@@ -257,6 +261,7 @@ export class TopologyBiasVisualizationLayer {
         this.flowFieldMesh = null;
         this.flowFieldGeometry = null;
         this.flowFieldMaterial = null;
+        this.flowFieldLookTarget = new THREE.Vector3();
         this.updateFlowFieldTimer = 0;
         
         // Interaction tracking
@@ -333,7 +338,7 @@ export class TopologyBiasVisualizationLayer {
             // Activate with region's flow bias
             instance.activate(
                 region.center,
-                region.flowBias.length() > 0.01 ? region.flowBias : new THREE.Vector3(0, 0, 1),
+                region.flowBias.length() > 0.01 ? region.flowBias : this.biasVectorDirection.set(0, 0, 1),
                 region.flowStrength
             );
             
@@ -354,25 +359,25 @@ export class TopologyBiasVisualizationLayer {
         if (this.debugBiasVectors) {
             this.rebuildBiasVectorDebugVisualization();
         } else {
-            this.biasVectorContainer.clear();
+            this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
         }
     }
     
     rebuildBiasVectorDebugVisualization() {
-        this.biasVectorContainer.clear();
+        this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
         
         for (let instance of this.biasVectorInstances) {
             if (!instance.active) continue;
             
             // Create debug vector
             const length = instance.getVisibleLength();
-            const direction = instance.getVisibleDirection();
+            const direction = instance.getVisibleDirection(this.biasVectorDirection);
             const opacity = instance.getEffectiveOpacity();
             
             // Tapered line geometry
             const geometry = new THREE.BufferGeometry();
-            const start = instance.position.clone();
-            const end = start.clone().add(direction.clone().multiplyScalar(length));
+            const start = this.biasVectorStart.copy(instance.position);
+            const end = this.biasVectorEnd.copy(direction).multiplyScalar(length).add(start);
             
             const positions = new Float32Array([
                 start.x, start.y, start.z,
@@ -381,17 +386,9 @@ export class TopologyBiasVisualizationLayer {
             
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             
-            // Create line with soft appearance
-            const material = new THREE.LineBasicMaterial({
-                color: 0x00FFFF,
-                opacity: Math.max(0.05, opacity),
-                transparent: true,
-                fog: false,
-                linewidth: 1,
-                depthWrite: false  // POLISHED: Prevent z-fighting with links
-            });
-            
-            const line = new THREE.Line(geometry, material);
+            const line = new THREE.Line(geometry, this.biasVectorMaterial);
+            line.material.opacity = Math.max(0.05, opacity);
+            line.frustumCulled = false;
             line.renderOrder = -5;  // POLISHED: Render behind links (background layer)
             this.biasVectorContainer.add(line);
         }
@@ -457,6 +454,37 @@ export class TopologyBiasVisualizationLayer {
         this.flowFieldContainer = new THREE.Group();
         this.flowFieldContainer.name = 'topology-flow-fields';
         this.root.add(this.flowFieldContainer);
+
+        this.flowFieldGeometry = new THREE.PlaneGeometry(1, 1);
+    }
+
+    clearDebugContainer(container, sharedGeometries = [], sharedMaterials = []) {
+        if (!container) return;
+
+        const sharedGeometrySet = new Set(sharedGeometries);
+        const sharedMaterialSet = new Set(sharedMaterials);
+
+        while (container.children.length > 0) {
+            const child = container.children[container.children.length - 1];
+
+            if (child?.geometry && !sharedGeometrySet.has(child.geometry)) {
+                child.geometry.dispose();
+            }
+
+            if (child?.material) {
+                if (Array.isArray(child.material)) {
+                    for (const material of child.material) {
+                        if (material && !sharedMaterialSet.has(material)) {
+                            material.dispose();
+                        }
+                    }
+                } else if (!sharedMaterialSet.has(child.material)) {
+                    child.material.dispose();
+                }
+            }
+
+            container.remove(child);
+        }
     }
     
     updateFlowFields(deltaTime, networkState) {
@@ -515,19 +543,18 @@ export class TopologyBiasVisualizationLayer {
         if (this.debugFlowFields) {
             this.rebuildFlowFieldDebugVisualization();
         } else {
-            this.flowFieldContainer.clear();
+            this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         }
     }
     
     rebuildFlowFieldDebugVisualization() {
-        this.flowFieldContainer.clear();
+        this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         
         for (let [cellId, cell] of this.flowFieldCells) {
             if (cell.flowStrength < 0.05) continue;
             
             // Create grid cell visualization
             const size = CONFIG.FLOW_FIELD_RESOLUTION;
-            const geometry = new THREE.PlaneGeometry(size, size);
             
             // Color based on flow strength and clarity
             const color = new THREE.Color();
@@ -544,16 +571,17 @@ export class TopologyBiasVisualizationLayer {
                 fog: false
             });
             
-            const mesh = new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(this.flowFieldGeometry, material);
+            mesh.scale.set(size, size, 1);
+            mesh.frustumCulled = false;
             mesh.position.copy(cell.center);
             mesh.position.y = 0.1;  // Slight height offset
             mesh.rotationOrder = 'YXZ';
             
             // Orient with flow direction
             if (cell.flowDirection.length() > 0.1) {
-                mesh.lookAt(
-                    mesh.position.clone().add(cell.flowDirection)
-                );
+                this.flowFieldLookTarget.copy(mesh.position).add(cell.flowDirection);
+                mesh.lookAt(this.flowFieldLookTarget);
             }
             
             this.flowFieldContainer.add(mesh);
@@ -644,7 +672,7 @@ export class TopologyBiasVisualizationLayer {
     toggleBiasVectorDebug() {
         this.debugBiasVectors = !this.debugBiasVectors;
         if (!this.debugBiasVectors) {
-            this.biasVectorContainer.clear();
+            this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
         }
         console.log('[Topology Viz] Bias vectors debug:', this.debugBiasVectors);
         return this.debugBiasVectors;
@@ -653,7 +681,7 @@ export class TopologyBiasVisualizationLayer {
     toggleFlowFieldDebug() {
         this.debugFlowFields = !this.debugFlowFields;
         if (!this.debugFlowFields) {
-            this.flowFieldContainer.clear();
+            this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         }
         console.log('[Topology Viz] Flow fields debug:', this.debugFlowFields);
         return this.debugFlowFields;
@@ -665,8 +693,8 @@ export class TopologyBiasVisualizationLayer {
         
         // Clear visuals when disabled
         if (!this.enabled) {
-            this.biasVectorContainer.clear();
-            this.flowFieldContainer.clear();
+            this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
+            this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         }
         
         return this.enabled;
@@ -688,10 +716,11 @@ export class TopologyBiasVisualizationLayer {
     // ========================================================================
     
     dispose() {
-        this.biasVectorContainer.clear();
-        this.flowFieldContainer.clear();
+        this.clearDebugContainer(this.biasVectorContainer, [], [this.biasVectorMaterial]);
+        this.clearDebugContainer(this.flowFieldContainer, [this.flowFieldGeometry], []);
         
         this.biasVectorMaterial?.dispose();
+        this.flowFieldGeometry?.dispose();
         this.flowFieldMaterial?.dispose();
         
         this.biasVectorInstances = [];

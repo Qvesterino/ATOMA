@@ -170,7 +170,221 @@ export class AINarrativePatterns6_0 {
       frameTime: 0,
       clustersProcessed: 0,
       activeNarratives: 0,
-      transitionsThisFrame: 0
+      transitionsThisFrame: 0,
+      messagesReceived: 0,
+      fusionsReceived: 0,
+      proceduralGlyphsReceived: 0
+    };
+    
+    // Event-driven narrative triggers
+    this.pendingNarrativeEvents = [];
+  }
+  
+  /**
+   * EVENT: Called when LinkedGlyphMessaging3_0 spawns a message
+   * Triggers narrative pattern based on message semantic state
+   */
+  onMessageSpawned(message, linkId, linkData) {
+    if (!this.enabled || !message) return;
+    
+    this.stats.messagesReceived++;
+    
+    const synergy = message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5;
+    const harmony = message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0;
+    const corruption = message.linkMetrics?.corruption ?? 0;
+    
+    // Find or create narrative for source node's cluster
+    const sourceNode = message.sourceNode;
+    if (!sourceNode) return;
+    
+    const clusterId = this.findClusterForNode(sourceNode);
+    if (!clusterId) return;
+    
+    const narrative = this.narrativeStates.get(clusterId);
+    if (!narrative) return;
+    
+    // Influence narrative based on message semantics
+    if (synergy > 0.7) {
+      narrative.tension = Math.min(1, narrative.tension + 0.05);
+    }
+    if (corruption > 0.6) {
+      narrative.corruptionBias = Math.min(1, (narrative.corruptionBias || 0) + 0.08);
+      // High corruption may trigger CORRUPTION_SAGA motif
+      if (narrative.phase === 'RISING' && corruption > 0.7) {
+        this._queueMotifShift(clusterId, 'CORRUPTION_SAGA');
+      }
+    }
+    if (harmony > 0.7) {
+      narrative.harmonyBias = Math.min(1, (narrative.harmonyBias || 0) + 0.06);
+      // High harmony may trigger RISING_HARMONY motif
+      if (narrative.phase === 'INTRO' && harmony > 0.8) {
+        this._queueMotifShift(clusterId, 'RISING_HARMONY');
+      }
+    }
+    
+    // Record event for potential episode triggers
+    this.pendingNarrativeEvents.push({
+      type: 'message',
+      clusterId,
+      timestamp: Date.now(),
+      synergy,
+      harmony,
+      corruption
+    });
+  }
+  
+  /**
+   * EVENT: Called when GlyphFusionZone starts fusion at a node
+   * Triggers narrative climax or special fusion motif
+   */
+  onGlyphFusion(node, glyphs, context) {
+    if (!this.enabled || !node) return;
+    
+    this.stats.fusionsReceived++;
+    
+    const clusterId = this.findClusterForNode(node);
+    if (!clusterId) return;
+    
+    const narrative = this.narrativeStates.get(clusterId);
+    if (!narrative) return;
+    
+    // Fusion events are significant - boost tension
+    narrative.tension = Math.min(1, narrative.tension + 0.15);
+    
+    // Multiple glyphs fusing is a narrative climax moment
+    const glyphCount = glyphs?.length || 0;
+    if (glyphCount >= 3) {
+      // Major fusion - push toward CLIMAX
+      if (narrative.phase === 'RISING') {
+        narrative.tension = Math.max(narrative.tension, this.config.climaxThreshold - 0.1);
+      }
+      
+      // Trigger ASCENSION_TALE for harmonious fusion
+      const harmony = context?.harmony ?? 0.5;
+      if (harmony > 0.6) {
+        this._queueMotifShift(clusterId, 'ASCENSION_TALE');
+      }
+    }
+    
+    // Record fusion event
+    this.pendingNarrativeEvents.push({
+      type: 'fusion',
+      clusterId,
+      timestamp: Date.now(),
+      glyphCount,
+      harmony: context?.harmony ?? 0.5,
+      corruption: context?.corruption ?? 0
+    });
+  }
+  
+  /**
+   * EVENT: Called when ProceduralHarmonicGlyphGenerator spawns a glyph
+   * Represents deep learning milestone - triggers narrative evolution
+   */
+  onProceduralGlyphSpawned(glyph, region) {
+    if (!this.enabled || !glyph) return;
+    
+    this.stats.proceduralGlyphsReceived++;
+    
+    // Procedural glyphs represent learning milestones
+    // Find nearest cluster based on glyph position
+    const glyphPos = glyph.position || glyph.mesh?.position;
+    if (!glyphPos) return;
+    
+    const clusterId = this.findClusterForPosition(glyphPos);
+    if (!clusterId) return;
+    
+    const narrative = this.narrativeStates.get(clusterId);
+    if (!narrative) return;
+    
+    // Procedural glyph = learning milestone = coherence boost
+    narrative.coherence = Math.min(1, narrative.coherence + 0.1);
+    
+    // Learning strength influences motif
+    const learningStrength = glyph.learningStrength ?? region?.flowStrength ?? 0.5;
+    const hubStability = glyph.hubStability ?? region?.stability ?? 0.5;
+    
+    if (learningStrength > 0.7 && hubStability > 0.6) {
+      // Strong learning + stable hub = QUIET_RECOVERY or RISING_HARMONY
+      if (narrative.phase === 'CLIMAX' || narrative.phase === 'RESOLVE') {
+        this._queueMotifShift(clusterId, 'QUIET_RECOVERY');
+      } else if (narrative.phase === 'INTRO') {
+        this._queueMotifShift(clusterId, 'RISING_HARMONY');
+      }
+    }
+    
+    // Record procedural glyph event
+    this.pendingNarrativeEvents.push({
+      type: 'procedural',
+      clusterId,
+      timestamp: Date.now(),
+      learningStrength,
+      hubStability
+    });
+  }
+  
+  /**
+   * Queue a motif shift for a cluster (applied during next update)
+   */
+  _queueMotifShift(clusterId, motifId) {
+    const narrative = this.narrativeStates.get(clusterId);
+    if (!narrative) return;
+    
+    // Don't shift too frequently
+    const now = Date.now();
+    const lastShift = narrative.lastMotifShift || 0;
+    if (now - lastShift < 3000) return; // 3 second cooldown
+    
+    narrative.pendingMotif = motifId;
+    narrative.lastMotifShift = now;
+  }
+  
+  /**
+   * Find cluster ID for a given node
+   */
+  findClusterForNode(node) {
+    if (!node) return null;
+    const nodeId = node.id || node.uuid;
+    
+    for (const [clusterId, narrative] of this.narrativeStates.entries()) {
+      if (narrative.nodeIds?.includes(nodeId)) {
+        return clusterId;
+      }
+    }
+    return null;
+  }
+  
+  /**
+   * Find cluster ID for a given position
+   */
+  findClusterForPosition(position) {
+    if (!position) return null;
+    
+    let closestCluster = null;
+    let closestDist = Infinity;
+    
+    for (const [clusterId, narrative] of this.narrativeStates.entries()) {
+      if (!narrative.centerPos) continue;
+      
+      const dist = position.distanceTo?.(narrative.centerPos) ?? Infinity;
+      if (dist < closestDist && dist < 5) { // Within 5 units
+        closestDist = dist;
+        closestCluster = clusterId;
+      }
+    }
+    
+    return closestCluster;
+  }
+  
+  /**
+   * Get integration stats
+   */
+  getIntegrationStats() {
+    return {
+      messagesReceived: this.stats.messagesReceived,
+      fusionsReceived: this.stats.fusionsReceived,
+      proceduralGlyphsReceived: this.stats.proceduralGlyphsReceived,
+      pendingEvents: this.pendingNarrativeEvents.length
     };
   }
   
@@ -336,7 +550,9 @@ export class AINarrativePatterns6_0 {
       corruptionBias: 0.0,
       harmonyBias: 0.5,
       lastUpdateTime: performance.now(),
-      phaseProgress: 0  // 0–1 for smooth transitions
+      phaseProgress: 0,  // 0–1 for smooth transitions
+      nodeIds: cluster.nodes?.map(n => n.id || n.uuid) || [],
+      centerPos: cluster.centerPos?.clone?.() || null
     };
     
     this.narrativeStates.set(clusterId, narrative);
@@ -454,6 +670,17 @@ export class AINarrativePatterns6_0 {
       0.5 + metrics.harmony * 0.5,
       0.05
     );
+    
+    // Process pending motif shifts from events
+    if (narrative.pendingMotif) {
+      narrative.motifId = narrative.pendingMotif;
+      narrative.pendingMotif = null;
+      // Add to history
+      const history = this.motifHistory.get(narrative.id) || [];
+      history.push(narrative.motifId);
+      if (history.length > 10) history.shift();
+      this.motifHistory.set(narrative.id, history);
+    }
   }
   
   /**

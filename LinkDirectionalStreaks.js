@@ -58,6 +58,23 @@ export class LinkDirectionalStreaks {
         this._vec3_2 = new THREE.Vector3();
         this._color = new THREE.Color();
         this._hsl = {};
+        this._defaultStreakColor = new THREE.Color(0x00ff88);
+
+        // Hot-path ribbon caches
+        this._ribbonPoint = new THREE.Vector3();
+        this._ribbonPoint2 = new THREE.Vector3();
+        this._ribbonTangent = new THREE.Vector3();
+        this._ribbonTangent2 = new THREE.Vector3();
+        this._ribbonCrossAxis = new THREE.Vector3();
+        this._ribbonNormal = new THREE.Vector3();
+        this._ribbonFallbackUp = new THREE.Vector3();
+        this._ribbonPreviousCenter = new THREE.Vector3();
+        this._ribbonPreviousTop = new THREE.Vector3();
+        this._ribbonPreviousBottom = new THREE.Vector3();
+        this._ribbonV1 = new THREE.Vector3();
+        this._ribbonV2 = new THREE.Vector3();
+        this._ribbonV3 = new THREE.Vector3();
+        this._ribbonV4 = new THREE.Vector3();
         
         // Pulse wave injection system
         this.pulseInjector = new LinkPulseWaveInjector();
@@ -124,8 +141,6 @@ export class LinkDirectionalStreaks {
         const geometry = new THREE.BufferGeometry();
         const mesh = new THREE.Mesh(geometry, material);
         mesh.frustumCulled = false;
-        geometry.computeBoundingSphere();
-        geometry.computeBoundingBox();
         const directionalOrder = VisualHierarchyRegistry.getRenderOrder('LINK_DIRECTIONAL');
         mesh.renderOrder = directionalOrder;
         linkGroup.add(mesh);
@@ -277,6 +292,20 @@ export class LinkDirectionalStreaks {
         const corridorRadius = this._computeCorridorRadius(state);
         const maxCenterStep = Math.max(0.6, corridorRadius * 3.0);
         const maxEdgeStep = Math.max(0.8, corridorRadius * 3.5);
+        const pointOnCurve = this._ribbonPoint;
+        const pointOnCurve2 = this._ribbonPoint2;
+        const tangent = this._ribbonTangent;
+        const tangent2 = this._ribbonTangent2;
+        const crossAxis = this._ribbonCrossAxis;
+        const perpendicular = this._ribbonNormal;
+        const previousCenter = this._ribbonPreviousCenter;
+        const previousTop = this._ribbonPreviousTop;
+        const previousBottom = this._ribbonPreviousBottom;
+        const v1 = this._ribbonV1;
+        const v2 = this._ribbonV2;
+        const v3 = this._ribbonV3;
+        const v4 = this._ribbonV4;
+        const pulsePositions = pulseEffectData?.positions || null;
         
         // Cap at actual streak count
         const streakCountToProcess = Math.min(activeStreakCount, streaks.count);
@@ -342,32 +371,26 @@ export class LinkDirectionalStreaks {
             );
             
             let previousPairStart = -1;
-            let previousCenter = null;
-            let previousTop = null;
-            let previousBottom = null;
+            let previousPairValid = false;
             
             for (let j = 0; j <= segmentsInStreak; j++) {
                 const t = streakStart + ((j / segmentsInStreak) * (streakEnd - streakStart));
                 
                 // Sample curve point
-                const pointOnCurve = curve.getPointAt(Math.max(0, Math.min(1, t)));
+                curve.getPointAt(Math.max(0, Math.min(1, t)), pointOnCurve);
                 if (!this._isFiniteVector(pointOnCurve)) {
                     previousPairStart = -1;
-                    previousCenter = null;
-                    previousTop = null;
-                    previousBottom = null;
+                    previousPairValid = false;
                     continue;
                 }
                 
                 const idx = Math.min(frameSegments, Math.max(0, Math.round(t * frameSegments)));
 
                 // Tangent for orientation (approximate via nearby points)
-                const tangent = this._sampleCurveTangent(curve, t, frames.tangents?.[idx]);
-                if (!this._isFiniteVector(tangent)) {
+                const tangentResult = this._sampleCurveTangent(curve, t, frames.tangents?.[idx], tangent);
+                if (!this._isFiniteVector(tangentResult)) {
                     previousPairStart = -1;
-                    previousCenter = null;
-                    previousTop = null;
-                    previousBottom = null;
+                    previousPairValid = false;
                     continue;
                 }
                 
@@ -377,20 +400,16 @@ export class LinkDirectionalStreaks {
                 widthFactor = Math.max(0.35, widthFactor); // Never too thin, but narrower
                 
                 // Keep streak centered on the main spline, but require a stable width axis.
-                const perpendicular = this._getStableRibbonNormal(frames, idx, tangent);
-                if (!perpendicular) {
+                const perpendicularResult = this._getStableRibbonNormal(frames, idx, tangentResult, perpendicular);
+                if (!perpendicularResult) {
                     previousPairStart = -1;
-                    previousCenter = null;
-                    previousTop = null;
-                    previousBottom = null;
+                    previousPairValid = false;
                     continue;
                 }
-                const crossAxis = new THREE.Vector3().crossVectors(tangent, perpendicular).normalize();
+                crossAxis.crossVectors(tangentResult, perpendicularResult).normalize();
                 if (!this._isFiniteVector(crossAxis) || crossAxis.lengthSq() <= 1e-8) {
                     previousPairStart = -1;
-                    previousCenter = null;
-                    previousTop = null;
-                    previousBottom = null;
+                    previousPairValid = false;
                     continue;
                 }
                 
@@ -398,7 +417,7 @@ export class LinkDirectionalStreaks {
                 // Check if any pulse waves affect this streak position
                 const pulseEffect = this.pulseInjector.getStreakPulseEffect(
                     t,  // Position on curve (0-1)
-                    pulseEffectData?.positions || [],
+                    pulsePositions,
                     harmony,
                     linkGroup,  // For harmonic hub phase sync
                     time,
@@ -411,11 +430,8 @@ export class LinkDirectionalStreaks {
         ribbonWidth = THREE.MathUtils.clamp(ribbonWidth, 0.01, corridorRadius * 0.85);
         
         // Top edge
-        const v1 = this._clampVertexToCorridor(
-            pointOnCurve.clone().addScaledVector(perpendicular, ribbonWidth * 0.5),
-            pointOnCurve,
-            corridorRadius
-        );
+        v1.copy(pointOnCurve).addScaledVector(perpendicularResult, ribbonWidth * 0.5);
+        this._clampVertexToCorridor(v1, pointOnCurve, corridorRadius);
         
         // --- GUARD: Skip invalid v1 vertices ---
         if (!Number.isFinite(v1.x) || !Number.isFinite(v1.y) || !Number.isFinite(v1.z)) {
@@ -423,27 +439,18 @@ export class LinkDirectionalStreaks {
         }
         
         // Bottom edge
-        const v2 = this._clampVertexToCorridor(
-            pointOnCurve.clone().addScaledVector(perpendicular, -ribbonWidth * 0.5),
-            pointOnCurve,
-            corridorRadius
-        );
+        v2.copy(pointOnCurve).addScaledVector(perpendicularResult, -ribbonWidth * 0.5);
+        this._clampVertexToCorridor(v2, pointOnCurve, corridorRadius);
         
         // --- GUARD: Skip invalid v2 vertices ---
         if (!Number.isFinite(v2.x) || !Number.isFinite(v2.y) || !Number.isFinite(v2.z)) {
             continue;
         }
         
-        const v3 = this._clampVertexToCorridor(
-            pointOnCurve.clone().addScaledVector(crossAxis, ribbonWidth * 0.36),
-            pointOnCurve,
-            corridorRadius
-        );
-        const v4 = this._clampVertexToCorridor(
-            pointOnCurve.clone().addScaledVector(crossAxis, -ribbonWidth * 0.36),
-            pointOnCurve,
-            corridorRadius
-        );
+        v3.copy(pointOnCurve).addScaledVector(crossAxis, ribbonWidth * 0.36);
+        this._clampVertexToCorridor(v3, pointOnCurve, corridorRadius);
+        v4.copy(pointOnCurve).addScaledVector(crossAxis, -ribbonWidth * 0.36);
+        this._clampVertexToCorridor(v4, pointOnCurve, corridorRadius);
 
             const pairStart = vertexCursor;
             this._writeVertexTriplet(vertexCursor, v1, v2, v3, v4);
@@ -451,9 +458,7 @@ export class LinkDirectionalStreaks {
 
         if (
             previousPairStart >= 0 &&
-            previousCenter &&
-            previousTop &&
-            previousBottom &&
+            previousPairValid &&
             pointOnCurve.distanceTo(previousCenter) <= maxCenterStep &&
             v1.distanceTo(previousTop) <= maxEdgeStep &&
             v2.distanceTo(previousBottom) <= maxEdgeStep
@@ -471,9 +476,10 @@ export class LinkDirectionalStreaks {
         }
 
         previousPairStart = pairStart;
-        previousCenter = pointOnCurve.clone();
-        previousTop = v1.clone();
-        previousBottom = v2.clone();
+        previousPairValid = true;
+        previousCenter.copy(pointOnCurve);
+        previousTop.copy(v1);
+        previousBottom.copy(v2);
         }
         }
         
@@ -530,16 +536,19 @@ export class LinkDirectionalStreaks {
      * Compute curve tangent at parameter t (approximate)
      * @private
      */
-    _sampleCurveTangent(curve, t, fallbackTangent = null) {
+    _sampleCurveTangent(curve, t, fallbackTangent = null, out = null) {
         const delta = 0.001;
-        const p1 = curve.getPointAt(Math.max(0, t - delta));
-        const p2 = curve.getPointAt(Math.min(1, t + delta));
-        const tangent = p2.clone().sub(p1);
+        const p1 = this._ribbonPoint;
+        const p2 = this._ribbonPoint2;
+        curve.getPointAt(Math.max(0, t - delta), p1);
+        curve.getPointAt(Math.min(1, t + delta), p2);
+        const tangent = out || this._ribbonTangent;
+        tangent.copy(p2).sub(p1);
         if (tangent.lengthSq() > 1e-8) {
             return tangent.normalize();
         }
         if (fallbackTangent && this._isFiniteVector(fallbackTangent) && fallbackTangent.lengthSq() > 1e-8) {
-            return fallbackTangent.clone().normalize();
+            return tangent.copy(fallbackTangent).normalize();
         }
         return null;
     }
@@ -571,50 +580,91 @@ export class LinkDirectionalStreaks {
         positionAttribute.needsUpdate = true;
         indexAttribute.needsUpdate = true;
         streaks.geometry.setDrawRange(0, indexCount);
-        streaks.geometry.computeBoundingSphere();
-        streaks.geometry.computeBoundingBox();
 
         // Update material color with state (ENHANCED: Session 115 color dynamics)
         if (streaks.material) {
             if (!streaks?.material?.color || !streaks?.material?.emissive) return;
-            let color = (baseColor && baseColor.isColor) ? baseColor.clone() : new THREE.Color(0x00ff88);
+            const colorState = streaks.__colorState || (streaks.__colorState = {
+                baseHex: -1,
+                targetHex: -1,
+                harmonyKey: -1,
+                corruptionKey: -1,
+                synergyKey: -1,
+                specializationKey: -1,
+                gradientBrightnessKey: -1,
+                gradientSaturationKey: -1,
+                pulseSaturationKey: -1
+            });
 
-            // Lerp toward target if provided
-            if (targetColor && targetColor.isColor) {
-                color.lerp(targetColor, 0.3);
+            const resolvedBaseColor = (baseColor && baseColor.isColor) ? baseColor : this._defaultStreakColor;
+            const resolvedTargetColor = (targetColor && targetColor.isColor) ? targetColor : null;
+            const baseHex = resolvedBaseColor.getHex();
+            const targetHex = resolvedTargetColor ? resolvedTargetColor.getHex() : -1;
+            const colorCacheScale = 120;
+            const harmonyKey = Math.round(harmony * colorCacheScale);
+            const corruptionKey = Math.round(corruption * colorCacheScale);
+            const synergyKey = Math.round(synergy * colorCacheScale);
+            const specializationKey = Math.round((specialization + 1.0) * colorCacheScale);
+            const gradientBrightnessKey = Math.round((gradientSample?.brightness ?? 1.0) * colorCacheScale);
+            const gradientSaturationKey = Math.round((gradientSample?.saturation ?? 1.0) * colorCacheScale);
+            const pulseSaturationKey = Math.round((pulseEffectData?.saturation ?? 0) * colorCacheScale);
+            const colorDirty =
+                colorState.baseHex !== baseHex ||
+                colorState.targetHex !== targetHex ||
+                colorState.harmonyKey !== harmonyKey ||
+                colorState.corruptionKey !== corruptionKey ||
+                colorState.synergyKey !== synergyKey ||
+                colorState.specializationKey !== specializationKey ||
+                colorState.gradientBrightnessKey !== gradientBrightnessKey ||
+                colorState.gradientSaturationKey !== gradientSaturationKey ||
+                colorState.pulseSaturationKey !== pulseSaturationKey;
+
+            if (colorDirty) {
+                let color = this._color;
+                color.copy(resolvedBaseColor);
+
+                // Lerp toward target if provided
+                if (resolvedTargetColor) {
+                    color.lerp(resolvedTargetColor, 0.3);
+                }
+
+                // === NEW (Session 115): Apply color dynamics based on harmony + specialization ===
+                const dynamicColor = this.colorDynamics.computeStreakColor(
+                    color,
+                    harmony,
+                    specialization,
+                    corruption,
+                    synergy
+                );
+                color.copy(dynamicColor);
+
+                if (gradientSample) {
+                    color.multiplyScalar(gradientSample.brightness || 1.0);
+                    color.getHSL(this._hsl);
+                    this._hsl.s = THREE.MathUtils.clamp(this._hsl.s * (gradientSample.saturation || 1.0), 0, 1);
+                    color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
+                }
+
+                // Apply pulse saturation boost (on top of color dynamics)
+                if (pulseEffectData && pulseEffectData.hasPulse && pulseEffectData.saturation > 0) {
+                    color.getHSL(this._hsl);
+                    this._hsl.s = Math.min(1.0, this._hsl.s + pulseEffectData.saturation);
+                    color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
+                }
+
+                streaks.material.color.copy(color);
+                streaks.material.emissive.copy(color);
+
+                colorState.baseHex = baseHex;
+                colorState.targetHex = targetHex;
+                colorState.harmonyKey = harmonyKey;
+                colorState.corruptionKey = corruptionKey;
+                colorState.synergyKey = synergyKey;
+                colorState.specializationKey = specializationKey;
+                colorState.gradientBrightnessKey = gradientBrightnessKey;
+                colorState.gradientSaturationKey = gradientSaturationKey;
+                colorState.pulseSaturationKey = pulseSaturationKey;
             }
-
-            // === NEW (Session 115): Apply color dynamics based on harmony + specialization ===
-            // This computes dynamic colors considering:
-            // - Harmony: brightness and saturation
-            // - Specialization: hue shifts (warm for excitatory, cool for inhibitory)
-            // - Corruption: desaturation and color noise
-            // - Synergy: intensity modulation
-            const dynamicColor = this.colorDynamics.computeStreakColor(
-                color,
-                harmony,           // 0-1
-                specialization,    // -1 to +1
-                corruption,        // 0-1
-                synergy            // 0-1
-            );
-            color.copy(dynamicColor);
-
-            if (gradientSample) {
-                color.multiplyScalar(gradientSample.brightness || 1.0);
-                color.getHSL(this._hsl);
-                this._hsl.s = THREE.MathUtils.clamp(this._hsl.s * (gradientSample.saturation || 1.0), 0, 1);
-                color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
-            }
-
-            // Apply pulse saturation boost (on top of color dynamics)
-            if (pulseEffectData && pulseEffectData.hasPulse && pulseEffectData.saturation > 0) {
-                color.getHSL(this._hsl);
-                this._hsl.s = Math.min(1.0, this._hsl.s + pulseEffectData.saturation);
-                color.setHSL(this._hsl.h, this._hsl.s, this._hsl.l);
-            }
-
-            streaks.material.color.copy(color);
-            streaks.material.emissive.copy(color);
         }
     }
 
@@ -623,7 +673,7 @@ export class LinkDirectionalStreaks {
         return THREE.MathUtils.clamp((activeRadius * 2.25) + 0.08, 0.18, 0.55);
     }
 
-    _getStableRibbonNormal(frames, idx, tangent) {
+    _getStableRibbonNormal(frames, idx, tangent, out = null) {
         const candidates = [
             frames?.normals?.[idx],
             frames?.normals?.[idx - 1],
@@ -638,14 +688,17 @@ export class LinkDirectionalStreaks {
                 continue;
             }
 
-            const axis = candidate.clone().addScaledVector(tangent, -candidate.dot(tangent));
+            const axis = out || this._ribbonNormal;
+            axis.copy(candidate).addScaledVector(tangent, -candidate.dot(tangent));
             if (axis.lengthSq() > 1e-8) {
                 return axis.normalize();
             }
         }
 
-        const fallbackUp = Math.abs(tangent.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-        const axis = fallbackUp.addScaledVector(tangent, -fallbackUp.dot(tangent));
+        const fallbackUp = this._ribbonFallbackUp;
+        fallbackUp.set(Math.abs(tangent.y) < 0.9 ? 0 : 1, Math.abs(tangent.y) < 0.9 ? 1 : 0, 0);
+        const axis = out || this._ribbonNormal;
+        axis.copy(fallbackUp).addScaledVector(tangent, -fallbackUp.dot(tangent));
         if (axis.lengthSq() > 1e-8) {
             return axis.normalize();
         }
@@ -681,8 +734,6 @@ export class LinkDirectionalStreaks {
             geometry.setIndex(null);
         }
         geometry.setDrawRange(0, 0);
-        geometry.computeBoundingSphere();
-        geometry.computeBoundingBox();
     }
 
     _writeVertexTriplet(baseVertexIndex, v1, v2, v3, v4) {

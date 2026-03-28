@@ -232,6 +232,7 @@ export class GlyphFusionZoneManager {
         this.worldRoot = worldRoot;
         this._attachRoot = worldRoot || scene;
         this.compositeGlyphGenerator = compositeGlyphGenerator;
+        this.narrativePatterns = null;
 
         // Fusion zones
         this.zones = [];
@@ -250,6 +251,16 @@ export class GlyphFusionZoneManager {
         this.updateTimer = 0.0;
 
         console.log('[GlyphFusionZoneManager] Initialized');
+    }
+    
+    setNarrativePatterns(narrativePatterns) {
+        this.narrativePatterns = narrativePatterns || null;
+        
+        if (this.narrativePatterns) {
+            console.log('✓ GlyphFusionZoneManager linked to AINarrativePatterns6_0');
+        }
+        
+        return this.narrativePatterns;
     }
 
     // ========================================================================
@@ -395,6 +406,11 @@ export class GlyphFusionZoneManager {
             // Initiate fusion
             const context = this.calculateFusionContext(glyphsAtNode);
             zone.initiateFusion(node, glyphsAtNode.map(g => g.glyph), links, context);
+            
+            // Notify AINarrativePatterns6_0 about fusion event
+            if (this.narrativePatterns?.enabled) {
+                this.narrativePatterns.onGlyphFusion(node, glyphsAtNode.map(g => g.glyph), context);
+            }
         });
     }
 

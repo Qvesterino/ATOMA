@@ -20,8 +20,6 @@ export class LinkEnergyRingSystem {
         this.scene = scene;
         this.rings = [];
         this.baseGeometry = new THREE.TorusGeometry(1, 0.1, 8, 32);
-        this.baseGeometry.computeBoundingSphere();
-        this.baseGeometry.computeBoundingBox();
     }
 
     /**

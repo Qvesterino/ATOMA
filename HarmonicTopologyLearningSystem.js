@@ -327,6 +327,13 @@ export class HarmonicTopologyLearningSystem {
         
         // Debug visualization
         this.debugVisualization = null;
+        this.debugMarkerGeometry = null;
+        this.debugMarkerMaterial = null;
+        this.debugScarGeometry = null;
+        this.debugScarMaterial = null;
+        this.debugLineMaterial = null;
+        this.debugFlowEndPoint = new THREE.Vector3();
+        this.debugScarPosition = new THREE.Vector3();
         if (CONFIG.DEBUG_DRAW_TOPOLOGY) {
             this.setupDebugVisualization();
         }
@@ -494,6 +501,9 @@ export class HarmonicTopologyLearningSystem {
         
         // Update debug visualization
         if (CONFIG.DEBUG_DRAW_TOPOLOGY) {
+            if (!this.debugVisualization) {
+                this.setupDebugVisualization();
+            }
             this.updateDebugVisualization();
         }
     }
@@ -560,40 +570,88 @@ export class HarmonicTopologyLearningSystem {
     // ========================================================================
     
     setupDebugVisualization() {
+        this.ensureDebugResources();
+
         const container = new THREE.Group();
         container.name = 'TopologyDebug';
         this.scene.add(container);
         this.debugVisualization = container;
     }
+
+    ensureDebugResources() {
+        if (!this.debugMarkerGeometry) {
+            this.debugMarkerGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        }
+
+        if (!this.debugMarkerMaterial) {
+            this.debugMarkerMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.5
+            });
+        }
+
+        if (!this.debugScarGeometry) {
+            this.debugScarGeometry = new THREE.SphereGeometry(0.5, 8, 8);
+        }
+
+        if (!this.debugScarMaterial) {
+            this.debugScarMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.4
+            });
+        }
+
+        if (!this.debugLineMaterial) {
+            this.debugLineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
+        }
+    }
+
+    clearDebugVisualization() {
+        if (!this.debugVisualization) return;
+
+        while (this.debugVisualization.children.length > 0) {
+            const child = this.debugVisualization.children[this.debugVisualization.children.length - 1];
+
+            if (child && child.geometry && child.geometry !== this.debugMarkerGeometry && child.geometry !== this.debugScarGeometry) {
+                child.geometry.dispose();
+            }
+
+            if (child && child.material && child.material !== this.debugMarkerMaterial && child.material !== this.debugScarMaterial && child.material !== this.debugLineMaterial) {
+                if (Array.isArray(child.material)) {
+                    for (let material of child.material) {
+                        material.dispose();
+                    }
+                } else {
+                    child.material.dispose();
+                }
+            }
+
+            this.debugVisualization.remove(child);
+        }
+    }
     
     updateDebugVisualization() {
         if (!this.debugVisualization) return;
+        this.ensureDebugResources();
         
         // Clear old visuals
-        while (this.debugVisualization.children.length > 0) {
-            this.debugVisualization.remove(this.debugVisualization.children[0]);
-        }
+        this.clearDebugVisualization();
         
         // Draw active regions
         for (let region of this.topologyRegions) {
             if (!region.active) continue;
             
             // Region center marker
-            const markerGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-            const markerMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                transparent: true,
-                opacity: 0.5
-            });
-            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            const marker = new THREE.Mesh(this.debugMarkerGeometry, this.debugMarkerMaterial);
+            marker.frustumCulled = false;
             marker.position.copy(region.center);
             this.debugVisualization.add(marker);
             
             // Flow bias vector
             if (CONFIG.DEBUG_SHOW_REINFORCEMENT && region.flowStrength > 0.01) {
-                const endPoint = region.center.clone().add(
-                    region.flowBias.clone().multiplyScalar(2)
-                );
+                const endPoint = this.debugFlowEndPoint.copy(region.flowBias).multiplyScalar(2).add(region.center);
                 const geometry = new THREE.BufferGeometry();
                 geometry.setAttribute('position', new THREE.BufferAttribute(
                     new Float32Array([
@@ -601,21 +659,17 @@ export class HarmonicTopologyLearningSystem {
                         endPoint.x, endPoint.y, endPoint.z
                     ]), 3
                 ));
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
-                const line = new THREE.Line(geometry, lineMaterial);
+                const line = new THREE.Line(geometry, this.debugLineMaterial);
+                line.frustumCulled = false;
                 this.debugVisualization.add(line);
             }
             
             // Scar visualization
             if (CONFIG.DEBUG_SHOW_SCARS && region.scarIntensity > 0.01) {
-                const scarPos = region.center.clone().add(region.scarCenterOffset);
-                const scarGeometry = new THREE.SphereGeometry(0.5, 8, 8);
-                const scarMaterial = new THREE.MeshBasicMaterial({
-                    color: 0xff0000,
-                    transparent: true,
-                    opacity: region.scarIntensity * 0.4
-                });
-                const scarMesh = new THREE.Mesh(scarGeometry, scarMaterial);
+                const scarPos = this.debugScarPosition.copy(region.center).add(region.scarCenterOffset);
+                const scarMesh = new THREE.Mesh(this.debugScarGeometry, this.debugScarMaterial.clone());
+                scarMesh.frustumCulled = false;
+                scarMesh.material.opacity = region.scarIntensity * 0.4;
                 scarMesh.position.copy(scarPos);
                 this.debugVisualization.add(scarMesh);
             }

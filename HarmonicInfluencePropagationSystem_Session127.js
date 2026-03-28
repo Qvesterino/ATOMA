@@ -189,16 +189,12 @@ export class HarmonicInfluencePropagationSystem_Session127 {
   _createAuraGeometry() {
     // Base icosahedron for aura
     const baseGeo = new THREE.IcosahedronGeometry(1.0, 3);
-    baseGeo.computeBoundingSphere();
-    baseGeo.computeBoundingBox();
     
     // High-quality version
     this.auraGeometry = baseGeo;
     
     // LOD version (fewer segments)
     this.auraGeometryLOD = new THREE.IcosahedronGeometry(1.0, 2);
-    this.auraGeometryLOD.computeBoundingSphere();
-    this.auraGeometryLOD.computeBoundingBox();
   }
   
   /**
@@ -608,8 +604,6 @@ export class HarmonicInfluencePropagationSystem_Session127 {
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
-    geometry.computeBoundingSphere();
-    geometry.computeBoundingBox();
     mesh.renderOrder = this.config.fieldRenderOrder;
     mesh.position.copy(flowPos);
     

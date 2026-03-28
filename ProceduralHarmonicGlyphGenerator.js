@@ -52,18 +52,18 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const CONFIG = {
     // GLYPH GENERATION THRESHOLDS
-    MIN_LEARNING_STRENGTH: 0.4,        // Minimum topology strength to generate
-    MIN_HUB_AGE_SECONDS: 45.0,         // Hub must exist 45s before glyph spawns
-    MIN_REINFORCEMENT_LEVEL: 0.5,      // Minimum link reinforcement required
+    MIN_LEARNING_STRENGTH: 0.3,        // Minimum topology strength to generate (lowered for visibility)
+    MIN_HUB_AGE_SECONDS: 30.0,         // Hub must exist 30s before glyph spawns (lowered for visibility)
+    MIN_REINFORCEMENT_LEVEL: 0.4,      // Minimum link reinforcement required (lowered for visibility)
     
     // GENERATION RATES
     GLYPH_GENERATION_CHECK_INTERVAL: 5.0,  // Check every 5 seconds
-    GLYPH_EMERGE_DURATION: 3.0,            // Time to reach full opacity
+    GLYPH_EMERGE_DURATION: 2.0,            // Time to reach full opacity (faster)
     
     // VISUAL PROPERTIES
-    GLYPH_SCALE: 1.2,                      // Base size of glyphs
-    GLYPH_OPACITY: 0.45,                   // Soft presence (45%)
-    GLYPH_COLOR: 0xd8d8d8,                 // Warm neutral grey
+    GLYPH_SCALE: 1.4,                      // Base size of glyphs (increased)
+    GLYPH_OPACITY: 0.65,                   // More visible (was 0.45)
+    GLYPH_COLOR: 0x66ddff,                 // Cyan/teal instead of grey
     GLYPH_MATERIAL_DEPTH: 0.08,            // Slight material depth
     
     // GEOMETRY GENERATION
@@ -467,6 +467,7 @@ export class ProceduralHarmonicGlyphGenerator {
         this.frameScheduler = null;
         this._attachRoot = worldRoot || scene;
         this.glyphAnimationModulator = null;
+        this.narrativePatterns = null;
         
         // Glyph instances
         this.glyphInstances = [];
@@ -486,6 +487,16 @@ export class ProceduralHarmonicGlyphGenerator {
         this.enabled = true;
         
         console.log('[ProceduralHarmonicGlyphGenerator] Initialized');
+    }
+    
+    setNarrativePatterns(narrativePatterns) {
+        this.narrativePatterns = narrativePatterns || null;
+        
+        if (this.narrativePatterns) {
+            console.log('✓ ProceduralHarmonicGlyphGenerator linked to AINarrativePatterns6_0');
+        }
+        
+        return this.narrativePatterns;
     }
 
     setGlyphAnimationModulator(modulator) {
@@ -700,6 +711,11 @@ export class ProceduralHarmonicGlyphGenerator {
         
         // Register
         this.glyphsByRegion.set(hash, glyphInstance);
+        
+        // Notify AINarrativePatterns6_0 about procedural glyph spawn
+        if (this.narrativePatterns?.enabled) {
+            this.narrativePatterns.onProceduralGlyphSpawned(glyphInstance, region);
+        }
         
         console.log(`[Procedural Glyph] Generated ${procedureParams.glyphType} glyph at region`, region.center);
     }

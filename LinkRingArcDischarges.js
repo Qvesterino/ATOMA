@@ -208,8 +208,6 @@ export class LinkRingArcDischarges {
 
         const line = new THREE.Line(geometry, material);
         line.frustumCulled = false;
-        geometry.computeBoundingSphere();
-        geometry.computeBoundingBox();
         const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
         line.renderOrder = arcsOrder;
         this.group.add(line);
@@ -249,8 +247,6 @@ export class LinkRingArcDischarges {
                     });
                     const branchLine = new THREE.Line(branchGeometry, branchMaterial);
                     branchLine.frustumCulled = false;
-                    branchGeometry.computeBoundingSphere();
-                    branchGeometry.computeBoundingBox();
                     branchLine.renderOrder = arcsOrder;
                     this.group.add(branchLine);
                     this.activeArcs.push({
@@ -464,8 +460,6 @@ export class LinkRingArcDischarges {
         // Create line mesh
         const line = new THREE.Line(geometry, material);
         line.frustumCulled = false;
-        geometry.computeBoundingSphere();
-        geometry.computeBoundingBox();
         const arcsOrder = VisualHierarchyRegistry.getRenderOrder('LINK_ARCS');
         line.renderOrder = arcsOrder;
         this.group.add(line);
@@ -518,8 +512,6 @@ export class LinkRingArcDischarges {
                 
                 const branchLine = new THREE.Line(branchGeometry, branchMaterial);
                 branchLine.frustumCulled = false;
-                branchGeometry.computeBoundingSphere();
-                branchGeometry.computeBoundingBox();
                 branchLine.renderOrder = arcsOrder;
                 this.group.add(branchLine);
                 

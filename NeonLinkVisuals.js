@@ -937,18 +937,14 @@ export class NeonLinkVisuals {
     
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    
-    // Create main line with shader-driven stress visualization
     const lineColor = new THREE.Color(color);
     const lineMaterial = useSharedMaterial ? sharedMaterials.neonLine : this.materials.neonLine.clone();
     if (!useSharedMaterial) {
       lineMaterial.uniforms.uColor.value.copy(lineColor);
     }
-    
+
     const line = new THREE.Line(geometry, lineMaterial);
     line.frustumCulled = false;
-    geometry.computeBoundingSphere();
-    geometry.computeBoundingBox();
     if (useSharedMaterial) {
       this._ensureLinkUniformStore(line, 'neonLine', {
         uColor: lineColor,
@@ -964,20 +960,18 @@ export class NeonLinkVisuals {
       logSharedMaterialUsage();
     }
     group.add(line);
-    
+
     // Add ghost line (remains simple for preview feedback)
     const glowGeometry = new THREE.BufferGeometry();
     glowGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    
+
     const glowMaterial = useSharedMaterial ? sharedMaterials.ghostLine : this.materials.ghostLine.clone();
     if (!useSharedMaterial) {
       glowMaterial.uniforms.uColor.value = new THREE.Color(color);
     }
-    
+
     const glowLine = new THREE.Line(glowGeometry, glowMaterial);
     glowLine.frustumCulled = false;
-    glowGeometry.computeBoundingSphere();
-    glowGeometry.computeBoundingBox();
     glowLine.position.z += 0.01; // Slight offset to prevent z-fighting
     if (useSharedMaterial) {
       this._ensureLinkUniformStore(glowLine, 'ghostLine', {
@@ -991,7 +985,7 @@ export class NeonLinkVisuals {
       logSharedMaterialUsage();
     }
     group.add(glowLine);
-    
+
     // Store metadata for animation
     Object.assign(ensureUserData(group), {
       type: 'neonCurve',
@@ -1008,12 +1002,10 @@ export class NeonLinkVisuals {
       link: link || null,
       priorityState: link ? this._getPriorityVisualState(link) : null
     });
-    
-    // [LinkPriority v1.0 PACK 1.1] Apply priority effects immediately if link provided
+
     if (link && link.priority) {
       this.applyPriorityEffects(group, link);
     }
-    
     return group;
   }
   
@@ -1751,8 +1743,6 @@ export class NeonLinkVisuals {
     
     const line = new THREE.Line(geometry, material);
     line.frustumCulled = false;
-    geometry.computeBoundingSphere();
-    geometry.computeBoundingBox();
     if (useSharedMaterial) {
       const type = isValid ? 'ghostValid' : 'ghostInvalid';
       const colorSeed = isValid ? DEFAULT_VALID_COLOR.clone() : DEFAULT_INVALID_COLOR.clone();

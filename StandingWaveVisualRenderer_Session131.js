@@ -56,9 +56,13 @@ export class StandingWaveVisualRenderer_Session131 {
             antinodeRadius: 1.5,              // Radius of antinode halo ring (visible scale)
             antinodeOpacityBase: 0.38,        // Base opacity of antinode glow
             antinodeGlowIntensity: 1.45,      // Intensity multiplier for additive blending
-            antinodeCooldownSeconds: 0.18,    // Minimum time before an antinode is re-primed
-            antinodeFadeSeconds: 0.42,        // Fade-out time when the trap weakens
+            antinodeCooldownSeconds: 5.0,     // Minimum time before an antinode can reappear
+            antinodeLifetimeSeconds: 2.6,     // Time before the torus starts dissolving
+            antinodeFadeSeconds: 0.42,        // Fade-out time once the torus starts dissolving
             antinodePulseFrequency: 1.9,      // Soft pulse speed for the ring glow
+            antinodeDissolveNoiseFrequency: 12.0, // High-frequency breakup during fadeout
+            antinodeDissolveNoiseAmount: 0.42,     // Strength of breakup modulation
+            antinodeDissolveScaleJitter: 0.075,    // Small size wobble while dissolving
             antinodeColorBlend: 0.22,         // Blend toward the link wave color
             antinodeScaleBase: 0.44,          // Base scale of the ring mesh
             antinodeScaleBoost: 0.11,         // Extra scale at higher intensity
@@ -177,9 +181,11 @@ export class StandingWaveVisualRenderer_Session131 {
                 intensity: 0,
                 opacity: 0,
                 birthTime: 0,
+                expireTime: 0,
                 lastSeenTime: 0,
                 nextRefreshTime: 0,
                 slotKey: null,
+                linkId: null,
                 phaseSeed: i * 0.73
             });
         }
@@ -424,12 +430,22 @@ export class StandingWaveVisualRenderer_Session131 {
                 const slotKey = `${trap.linkId}:${i}`;
                 const isNewSlot = antinode.slotKey !== slotKey;
                 antinode.slotKey = slotKey;
+                antinode.linkId = trap.linkId;
 
                 if (isNewSlot || this.time >= antinode.nextRefreshTime) {
                     antinode.birthTime = this.time;
+                    antinode.expireTime = this.time + this.config.antinodeLifetimeSeconds;
                     antinode.nextRefreshTime = this.time + this.config.antinodeCooldownSeconds;
                 }
                 
+                if (this.time >= antinode.expireTime) {
+                    antinode.active = false;
+                    antinode.mesh.visible = false;
+                    antinode.mesh.material.opacity = 0;
+                    antinode.mesh.scale.setScalar(this.config.antinodeScaleBase);
+                    continue;
+                }
+
                 antinode.active = true;
                 antinode.mesh.visible = true;
                 antinode.mesh.position.copy(antinodeWorldPos);
@@ -453,13 +469,23 @@ export class StandingWaveVisualRenderer_Session131 {
                 const age = Math.max(0, this.time - antinode.birthTime);
                 const attack = Math.min(1, age / 0.12);
                 const pulse = 0.76 + (Math.sin((age * this.config.antinodePulseFrequency * Math.PI * 2) + antinode.phaseSeed) * 0.24);
-                const displayIntensity = Math.max(0, antinode.intensity * attack * pulse);
+                const fadeWindow = Math.max(0.001, this.config.antinodeFadeSeconds);
+                const dissolve = Math.max(0, Math.min(1, (antinode.expireTime - this.time) / fadeWindow));
+                const dissolveProgress = 1 - dissolve;
+                const breakupPhase = (age * this.config.antinodeDissolveNoiseFrequency * Math.PI * 2)
+                    + (antinode.phaseSeed * 17.0)
+                    + (i * 1.618);
+                const breakupNoise = 0.5 + (0.5 * Math.sin(breakupPhase) * Math.sin(breakupPhase * 1.37));
+                const breakup = 1 - (dissolveProgress * this.config.antinodeDissolveNoiseAmount * breakupNoise);
+                const displayIntensity = Math.max(0, antinode.intensity * attack * pulse * dissolve * Math.max(0.18, breakup));
 
                 const color = this._resolveAntinodeColor(link, this._antinodeColorC);
                 const colorIntensity = Math.min(0.72, 0.22 + displayIntensity * this.config.antinodeGlowIntensity * 0.42);
                 antinode.mesh.material.color.copy(color).multiplyScalar(colorIntensity);
-                antinode.mesh.material.opacity = Math.min(0.32, this.config.antinodeOpacityBase * displayIntensity);
-                antinode.mesh.scale.setScalar(this.config.antinodeScaleBase + (displayIntensity * this.config.antinodeScaleBoost));
+                const dissolveFlicker = 0.88 + (0.12 * Math.sin(breakupPhase * 1.9));
+                antinode.mesh.material.opacity = Math.min(0.32, this.config.antinodeOpacityBase * displayIntensity * dissolveFlicker);
+                const scaleJitter = 1 + (dissolveProgress * this.config.antinodeDissolveScaleJitter * Math.sin(breakupPhase * 0.83));
+                antinode.mesh.scale.setScalar((this.config.antinodeScaleBase + (displayIntensity * this.config.antinodeScaleBoost)) * scaleJitter);
                 
                 antinodeIndex++;
             }
@@ -481,6 +507,25 @@ export class StandingWaveVisualRenderer_Session131 {
 
             antinode.mesh.material.opacity *= fade;
             antinode.mesh.scale.multiplyScalar(0.995);
+        });
+    }
+
+    clearLink(linkOrId, sourceNode = null, targetNode = null) {
+        const linkId = this._resolveLinkId(linkOrId);
+        if (!linkId) return;
+
+        const now = this.time || 0;
+        this.antinodeMeshPool.forEach((antinode) => {
+            const slotLinkId = antinode.linkId || (typeof antinode.slotKey === 'string' ? antinode.slotKey.split(':')[0] : null);
+            if (slotLinkId !== linkId) return;
+
+            antinode.active = false;
+            antinode.mesh.visible = false;
+            antinode.mesh.material.opacity = 0;
+            antinode.mesh.scale.setScalar(this.config.antinodeScaleBase);
+            antinode.lastSeenTime = now;
+            antinode.expireTime = now;
+            antinode.nextRefreshTime = now + this.config.antinodeCooldownSeconds;
         });
     }
 

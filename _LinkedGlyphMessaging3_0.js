@@ -58,6 +58,7 @@ export class LinkedGlyphMessaging3_0 {
     this.semanticGlyphAI = semanticGlyphAI;
     this.linkedGlyphSync = null;
     this.recursiveGlyphMessaging = null;
+    this.narrativePatterns = null;
     const attachRoot = worldRoot || scene;
     
     // Enable/disable messaging
@@ -629,6 +630,8 @@ export class LinkedGlyphMessaging3_0 {
     
     this.trackedLinks.delete(linkId);
     this.generationTimers.delete(linkId);
+    this.stats.linksActive = this.trackedLinks.size;
+    this.stats.messagesActive = this.activeMessages.size;
   }
 
   setLinkedGlyphSync(linkedGlyphSync) {
@@ -658,6 +661,16 @@ export class LinkedGlyphMessaging3_0 {
     }
     
     return this.recursiveGlyphMessaging;
+  }
+
+  setNarrativePatterns(narrativePatterns) {
+    this.narrativePatterns = narrativePatterns || null;
+    
+    if (this.narrativePatterns) {
+      console.log('✓ LinkedGlyphMessaging3_0 linked to AINarrativePatterns6_0');
+    }
+    
+    return this.narrativePatterns;
   }
 
   resetForWorldSwitch({ scene = this.scene, worldRoot = this.worldRoot, semanticGlyphAI = this.semanticGlyphAI, linkedGlyphSync = this.linkedGlyphSync } = {}) {
@@ -984,6 +997,16 @@ export class LinkedGlyphMessaging3_0 {
     // Notify RecursiveGlyphMessaging4_0 to potentially extend into chain
     if (this.recursiveGlyphMessaging?.enabled) {
       this.recursiveGlyphMessaging.onMessageSpawned(message, linkId, {
+        link,
+        linkId,
+        sourceNode,
+        targetNode
+      });
+    }
+    
+    // Notify AINarrativePatterns6_0 for narrative evolution
+    if (this.narrativePatterns?.enabled) {
+      this.narrativePatterns.onMessageSpawned(message, linkId, {
         link,
         linkId,
         sourceNode,

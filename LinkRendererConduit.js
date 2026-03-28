@@ -1151,7 +1151,6 @@ export class LinkRendererConduit {
         colorAttr.setUsage(THREE.DynamicDrawUsage);
         geometry.setAttribute('position', positionAttr);
         geometry.setAttribute('color', colorAttr);
-        geometry.computeBoundingSphere();
 
         const material = new THREE.LineBasicMaterial({
             vertexColors: true,
@@ -1230,7 +1229,6 @@ export class LinkRendererConduit {
         sparkGeometry.setAttribute('aBirth', sparkBirthAttr);
         sparkGeometry.setAttribute('aDuration', sparkDurationAttr);
         sparkGeometry.setAttribute('aGain', sparkGainAttr);
-        sparkGeometry.computeBoundingSphere();
 
         const sparkMaterial = new THREE.ShaderMaterial({
             vertexShader: strandSparkVertexShader,
@@ -1525,7 +1523,7 @@ export class LinkRendererConduit {
         );
         this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
-        if (!ctx.geometryTick || !ctx.mainCurve || !ctx.frames) return;
+        if (!ctx.mainCurve || !ctx.frames) return;
 
         const mainCurve = ctx.mainCurve;
         const frames = ctx.frames;
@@ -2582,8 +2580,6 @@ export class LinkRendererConduit {
         const skinGeometry = createLinkAuraGeometry(0.4, 16);
         const skinMesh = new THREE.Mesh(skinGeometry, skinMaterial);
         skinMesh.frustumCulled = false;
-        skinGeometry.computeBoundingSphere();
-        skinGeometry.computeBoundingBox();
         ensureUserData(skinMaterial);
         skinMaterial.userData.__owner = 'LinkRenderer';
         skinMaterial.userData.__domain = 'link';
@@ -2739,8 +2735,6 @@ export class LinkRendererConduit {
                     const mesh = new THREE.Mesh(geometry, material);
                     Object.assign(ensureUserData(mesh), { strandIndex: i });
                     mesh.frustumCulled = false;
-                    geometry.computeBoundingSphere();
-                    geometry.computeBoundingBox();
                     applyLinkRenderLayer(mesh, 'LINK_STRANDS');
                     freezeMaterialFlags(material, 'LinkRenderer');
                     material.userData.__flagsFrozen = true;
@@ -2845,7 +2839,15 @@ export class LinkRendererConduit {
         // Canonical wave metrics must be refreshed every link tick because
         // runtime often uses update(link, ...) path instead of updateAll(...).
         this._canonicalWriteLinkWaveMetrics(link);
-        if (!link.group || !link.group.userData.conduitState) return;
+        let state = link.group?.userData?.conduitState || null;
+        if (!state) {
+            const rebuilt = this.createLinkVisuals(link);
+            if (rebuilt) {
+                link.group = rebuilt;
+                state = rebuilt.userData?.conduitState || null;
+            }
+        }
+        if (!link.group || !state) return;
 
         // Canonical RAF time source (behavior-preserving Phase 2A)
         const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
@@ -2861,15 +2863,8 @@ export class LinkRendererConduit {
         // otherwise per-link alternation creates odd/even link-count artifacts.
         const runHeavyCorruptionUpdate = frameStateOverride?.flags?.runHeavyCorruptionUpdate ?? heavyTick;
 
-        const state = link.group.userData.conduitState;
-        if (!state) {
-            // If conduit state missing, rebuild visuals inline
-            const rebuilt = this.createLinkVisuals(link);
-            link.group = rebuilt;
-            if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true) {
-                console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
-            }
-            return;
+        if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true && !link.group?.userData?.conduitState) {
+            console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
         }
 
         this._advanceLinkBootstrap(link, state);
@@ -2977,7 +2972,6 @@ export class LinkRendererConduit {
         const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
         const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
         const lod = this._getLinkLODLevel(start, end);
-        if (lod >= 3) return;
         const lodVisualScale = lod >= 2 ? 0.3 : 1.0;
         const lodAllowsParticles = lod < 1;
         const lodAllowsSecondaryVfx = lod < 2;
@@ -3420,7 +3414,10 @@ export class LinkRendererConduit {
             start: new THREE.Vector3(),
             end: new THREE.Vector3(),
             radius: 0,
-            segments: 0
+            segments: 0,
+            pointScratch: new THREE.Vector3(),
+            pointPool: [],
+            points: []
         });
         const braidStart = frameState.geometry?.start || start;
         const braidEnd = frameState.geometry?.end || end;
@@ -3437,8 +3434,9 @@ export class LinkRendererConduit {
             needsStrandBootstrap ||
             (lodAllowsSecondaryVfx && (braidMoved || braidRadiusChanged))
         );
+        const runStrandMotion = heavyTick && Array.isArray(state.strands) && state.strands.length > 0;
 
-        if (runDynamicStrands) {
+        if (runStrandMotion) {
             state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
                 // Phase LRC-SAFE-CORE
@@ -3498,12 +3496,15 @@ export class LinkRendererConduit {
             }
 
             // Generate helical path
-            const points = [];
+            const points = braidGeometryState.points;
+            points.length = 0;
+            const pointScratch = braidGeometryState.pointScratch;
+            const pointPool = braidGeometryState.pointPool;
             const angleOffset = (i / state.strandCount) * Math.PI * 2;
 
             for (let j = 0; j <= segments; j++) {
                 const t = j / segments;
-                const pointOnMain = mainCurve.getPointAt(t);
+                const pointOnMain = mainCurve.getPointAt(t, pointScratch);
                 const N = frames.normals[j] || frames.normals[frames.normals.length - 1];
                 const B = frames.binormals[j] || frames.binormals[frames.binormals.length - 1];
 
@@ -3531,7 +3532,8 @@ export class LinkRendererConduit {
                 const offsetX = Math.cos(angle) * r;
                 const offsetY = Math.sin(angle) * r;
 
-                const pos = pointOnMain.clone(); // Clone to avoid mutation issues in curve gen
+                const pos = pointPool[j] || (pointPool[j] = new THREE.Vector3());
+                pos.copy(pointOnMain);
                 pos.addScaledVector(N, offsetX);
                 pos.addScaledVector(B, offsetY);
 
@@ -3580,7 +3582,7 @@ export class LinkRendererConduit {
             }
         }
 
-        if (runDynamicStrands) {
+        if (runStrandMotion) {
             this._updateStrandFilaments(link, state, {
                 mainCurve,
                 frames,
@@ -4598,8 +4600,6 @@ export class LinkRendererConduit {
         const meshMaterial = this._getImpactMaterial(color);
         const mesh = new THREE.Mesh(geometry, meshMaterial);
         mesh.frustumCulled = false;
-        geometry.computeBoundingSphere();
-        geometry.computeBoundingBox();
         const impactOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
         TransparentStateAuthority.apply(mesh, 'additive', { renderOrder: impactOrder });
         ensureUserData(mesh);

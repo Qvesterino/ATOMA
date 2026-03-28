@@ -5252,15 +5252,33 @@ this.setHudDirty('nodeInspect');
                     0;
                 const resistantNodes = dbg.reflection?.resistantNodes?.size ?? 0;
                 const pressureZones = dbg.reflection?.pressureZones?.length ?? 0;
-                const traps =
-                    dbg.trap?.getActiveTraps?.()?.length ??
-                    dbg.trap?.oscillationTraps?.filter?.((t) => t?.active)?.length ??
-                    0;
+                const activeTraps =
+                    dbg.trap?.getActiveTraps?.() ??
+                    dbg.trap?.oscillationTraps?.filter?.((t) => t?.active) ??
+                    [];
+                const traps = activeTraps.length;
+                const activeTrapAmplitude = activeTraps.reduce((max, trap) => {
+                    const amplitude = Number(trap?.amplitude) || 0;
+                    return amplitude > max ? amplitude : max;
+                }, 0);
+                const activeTrapAverageAmplitude = activeTraps.length > 0
+                    ? activeTraps.reduce((sum, trap) => sum + (Number(trap?.amplitude) || 0), 0) / activeTraps.length
+                    : 0;
                 const antinodeMeshes =
                     dbg.renderer?.antinodeMeshPool?.filter?.((entry) => entry?.active && entry?.mesh?.visible)?.length ??
                     0;
 
-                return { activeLinks, resistantNodes, pressureZones, reflectionActive, traps, antinodeMeshes };
+                return {
+                    activeLinks,
+                    resistantNodes,
+                    pressureZones,
+                    reflectionActive,
+                    pressureZonesActive: pressureZones,
+                    traps,
+                    activeTrapAmplitude,
+                    activeTrapAverageAmplitude,
+                    antinodeMeshes
+                };
             };
 
             const updateWaveDebugOverlay = () => {
@@ -5275,8 +5293,11 @@ this.setHudDirty('nodeInspect');
 
                 const overlay = ensureWaveDebugOverlay();
                 if (overlay) {
-                    overlay.textContent = `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`;
-                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, traps=${state.traps}, antinodes=${state.antinodeMeshes}`;
+                    overlay.textContent = [
+                        `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`,
+                        `P:${state.pressureZonesActive} | amp:${state.activeTrapAverageAmplitude.toFixed(2)} | peak:${state.activeTrapAmplitude.toFixed(2)}`
+                    ].join('\n');
+                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}`;
                 }
 
                 return state;
@@ -7260,12 +7281,25 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkingSystem.__tripleCascadeVisualBridgeBound = true;
         }
         if (this.linkingSystem?.onLinkRemoved && !this.linkingSystem.__visualOrphanCleanupBound) {
-            this.linkingSystem.onLinkRemoved((sourceNode, targetNode) => {
+            this.linkingSystem.onLinkRemoved((sourceNode, targetNode, link) => {
+                const linkId = link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
                 const pictogramSystem =
                     this.linkingSystem?.conduitRenderer?.pictogramSystem ||
                     this.linkSemanticPictograms ||
                     this.linkPictogramSystem;
                 pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
+                if (linkId) {
+                    this.linkedGlyphMessaging?.unregisterLink?.(linkId);
+                }
+                this.cascadeVisualizer?.clearLink?.(link ?? linkId, sourceNode, targetNode);
+                this.resonanceCascadeVisualization?.handleCascadeEnd?.({
+                    sourceNode,
+                    targetNode,
+                    link,
+                    linkId,
+                    sourceNodeId: sourceNode?.userData?.nodeId ?? sourceNode?.id ?? sourceNode?.uuid ?? null,
+                    targetNodeId: targetNode?.userData?.nodeId ?? targetNode?.id ?? targetNode?.uuid ?? null
+                });
                 this.corruptionFeedback?.clearEffectsForNodes?.([sourceNode, targetNode]);
             });
             this.linkingSystem.__visualOrphanCleanupBound = true;
@@ -7643,6 +7677,7 @@ window.__ATOMA_SCENE__ = this.scene;
         const originalRemoveLink = this.linkingSystem.removeLink.bind(this.linkingSystem);
         this.linkingSystem.removeLink = (link) => {
             const result = originalRemoveLink(link);
+            const linkId = link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
             // Proactively clear memory trails so ghosts don't linger when visual update is paused
             if (this.memoryTrails && link?.userData?.id !== undefined) {
                 this.memoryTrails.linkTrails.removeLinkTrail(link.userData.id);
@@ -7655,6 +7690,20 @@ window.__ATOMA_SCENE__ = this.scene;
                     this.linkSparkSystems.delete(link.userData.id);
                 }
             }
+            if (linkId) {
+                this.linkedGlyphMessaging?.unregisterLink?.(linkId);
+            }
+            this.standingWaveRenderer?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
+            this.cascadeVisualizer?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
+            this.resonanceCascadeVisualization?.clearLink?.(link ?? linkId, link?.source ?? null, link?.target ?? null);
+            this.resonanceCascadeVisualization?.handleCascadeEnd?.({
+                sourceNode: link?.source ?? null,
+                targetNode: link?.target ?? null,
+                link,
+                linkId,
+                sourceNodeId: link?.source?.userData?.nodeId ?? link?.source?.id ?? link?.source?.uuid ?? null,
+                targetNodeId: link?.target?.userData?.nodeId ?? link?.target?.id ?? link?.target?.uuid ?? null
+            });
             // LinkTrailEmitter cleanup moved to LinkRendererConduit
             // See: LinkRendererConduit.disposeLinkVisuals()
             // Emit network.link.destroyed event for event-driven systems
@@ -12424,11 +12473,27 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         );
         this.narrativePatterns.enabled = true;
 
+        // Connect glyph systems to narrative patterns
+        if (this.linkedGlyphMessaging) {
+            this.linkedGlyphMessaging.setNarrativePatterns(this.narrativePatterns);
+        }
+        
+        if (this.proceduralGlyphGenerator) {
+            this.proceduralGlyphGenerator.setNarrativePatterns(this.narrativePatterns);
+        }
+        
+        // Connect to pictogram system's fusion zone manager
+        const pictogramSystem = this.linkingSystem?.conduitRenderer?.pictogramSystem;
+        if (pictogramSystem?.fusionZoneManager) {
+            pictogramSystem.fusionZoneManager.setNarrativePatterns(this.narrativePatterns);
+        }
+
         console.log('✓ AI Narrative Patterns 6.0 active');
         console.log('  - Visual narrative structure layer');
         console.log('  - 5-phase episodic progression (INTRO→RISING→CLIMAX→RESOLVE→ECHO)');
         console.log('  - 6 narrative motifs (RISING_HARMONY, COLLAPSING_ORDER, ASCENSION_TALE, etc.)');
         console.log('  - Emergent story arcs from network metrics');
+        console.log('  - INTEGRATED with LinkedGlyphMessaging, ProceduralGlyphs, GlyphFusion');
         console.log('  - Use debugNarrativePatterns() to view statistics');
         console.log('  - Use toggleNarrativePatterns() to enable/disable');
     }

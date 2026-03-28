@@ -109,6 +109,8 @@ class EchoInstance {
         this.synergy = 0.5;      // Canonical: composite.state.synergy
         this.corruption = 0;     // Canonical: node.userData.corruption
         this.stability = 0.5;    // Canonical: composite.state.stability
+        this.debugMarker = null;
+        this.debugRing = null;
     }
     
     reset() {
@@ -119,6 +121,8 @@ class EchoInstance {
         this.currentOpacity = 0.0;
         this.synergy = 0.5;
         this.stability = 0.5;
+        if (this.debugMarker) this.debugMarker.visible = false;
+        if (this.debugRing) this.debugRing.visible = false;
     }
     
     /**
@@ -301,6 +305,10 @@ export class ResonanceEchoTrailSystem {
         
         // Debug
         this.debugEchoVisualization = null;
+        this.debugMarkerGeometry = null;
+        this.debugMarkerMaterial = null;
+        this.debugRingGeometry = null;
+        this.debugRingMaterial = null;
         if (CONFIG.DEBUG_DRAW_ECHOES) {
             this.setupDebugVisualization();
         }
@@ -627,63 +635,83 @@ export class ResonanceEchoTrailSystem {
     // ========================================================================
     
     setupDebugVisualization() {
+        this.ensureDebugResources();
+
         const container = new THREE.Group();
         container.name = 'EchoTrailDebug';
         container.renderOrder = this.renderOrder;
         this.root.add(container);
         this.debugEchoVisualization = container;
     }
-    
-    updateDebugVisualization() {
-        if (!this.debugEchoVisualization) return;
-        
-        // Clear old visuals
-        while (this.debugEchoVisualization.children.length > 0) {
-            const child = this.debugEchoVisualization.children[0];
-            this.debugEchoVisualization.remove(child);
-            child.geometry?.dispose?.();
-            if (Array.isArray(child.material)) {
-                child.material.forEach((mat) => mat?.dispose?.());
-            } else {
-                child.material?.dispose?.();
-            }
+
+    ensureDebugResources() {
+        if (!this.debugMarkerGeometry) {
+            this.debugMarkerGeometry = new THREE.SphereGeometry(1, 8, 8);
         }
-        
-        // Draw active echoes with spawn points
-        for (let echo of this.echoInstances) {
-            if (!echo.active) continue;
-            
-            // Draw echo position marker
-            const markerGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-            const markerMaterial = new THREE.MeshBasicMaterial({
+
+        if (!this.debugMarkerMaterial) {
+            this.debugMarkerMaterial = new THREE.MeshBasicMaterial({
                 color: 0xffff00,
                 transparent: true,
                 opacity: 0.6
             });
-            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-            marker.position.copy(echo.position);
-            marker.renderOrder = this.renderOrder;
-            this.debugEchoVisualization.add(marker);
+        }
+
+        if (!this.debugRingGeometry) {
+            const positions = [];
+            for (let i = 0; i <= 16; i++) {
+                const angle = (i / 16) * Math.PI * 2;
+                positions.push(Math.cos(angle), Math.sin(angle), 0);
+            }
+
+            this.debugRingGeometry = new THREE.BufferGeometry();
+            this.debugRingGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+        }
+
+        if (!this.debugRingMaterial) {
+            this.debugRingMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+        }
+    }
+    
+    updateDebugVisualization() {
+        if (!this.debugEchoVisualization) return;
+
+        this.ensureDebugResources();
+        
+        // Draw active echoes with spawn points
+        for (let echo of this.echoInstances) {
+            if (!echo.active) {
+                if (echo.debugMarker) echo.debugMarker.visible = false;
+                if (echo.debugRing) echo.debugRing.visible = false;
+                continue;
+            }
+            
+            // Draw echo position marker
+            if (!echo.debugMarker) {
+                echo.debugMarker = new THREE.Mesh(this.debugMarkerGeometry, this.debugMarkerMaterial);
+                echo.debugMarker.frustumCulled = false;
+                this.debugEchoVisualization.add(echo.debugMarker);
+            }
+
+            echo.debugMarker.visible = true;
+            echo.debugMarker.position.copy(echo.position);
+            echo.debugMarker.scale.setScalar(0.1);
+            echo.debugMarker.renderOrder = this.renderOrder;
             
             // Draw lifetime indicator
             const progress = echo.age / echo.lifetime;
             const radius = 0.3 * (1 - progress);
-            const ringGeometry = new THREE.BufferGeometry();
-            const positions = [];
-            for (let i = 0; i <= 16; i++) {
-                const angle = (i / 16) * Math.PI * 2;
-                positions.push(
-                    Math.cos(angle) * radius,
-                    Math.sin(angle) * radius,
-                    0
-                );
+
+            if (!echo.debugRing) {
+                echo.debugRing = new THREE.LineLoop(this.debugRingGeometry, this.debugRingMaterial);
+                echo.debugRing.frustumCulled = false;
+                this.debugEchoVisualization.add(echo.debugRing);
             }
-            ringGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-            const ringMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
-            const ring = new THREE.Line(ringGeometry, ringMaterial);
-            ring.position.copy(echo.position);
-            ring.renderOrder = this.renderOrder;
-            this.debugEchoVisualization.add(ring);
+
+            echo.debugRing.visible = true;
+            echo.debugRing.position.copy(echo.position);
+            echo.debugRing.scale.setScalar(radius);
+            echo.debugRing.renderOrder = this.renderOrder;
         }
     }
     
@@ -710,13 +738,28 @@ export class ResonanceEchoTrailSystem {
         this._unsubscribeSemanticEvents();
         this.resetAll();
 
+        const disposedGeometries = new Set();
+        const disposedMaterials = new Set();
+
         this.root?.traverse(obj => {
-            if (obj.isMesh) {
-                obj.geometry?.dispose();
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(mat => mat?.dispose?.());
-                } else {
-                    obj.material?.dispose?.();
+            if (obj.isMesh || obj.isLine) {
+                if (obj.geometry && !disposedGeometries.has(obj.geometry)) {
+                    disposedGeometries.add(obj.geometry);
+                    obj.geometry.dispose();
+                }
+
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        for (const material of obj.material) {
+                            if (material && !disposedMaterials.has(material)) {
+                                disposedMaterials.add(material);
+                                material.dispose();
+                            }
+                        }
+                    } else if (!disposedMaterials.has(obj.material)) {
+                        disposedMaterials.add(obj.material);
+                        obj.material.dispose();
+                    }
                 }
             }
         });
@@ -727,6 +770,10 @@ export class ResonanceEchoTrailSystem {
         this.root?.clear?.();
         this.baseGeometry?.dispose?.();
         this.baseGeometry = null;
+        this.debugMarkerGeometry?.dispose?.();
+        this.debugMarkerMaterial?.dispose?.();
+        this.debugRingGeometry?.dispose?.();
+        this.debugRingMaterial?.dispose?.();
         this.semanticBus = null;
     }
 }

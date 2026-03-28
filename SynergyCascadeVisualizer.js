@@ -228,6 +228,149 @@ export class SynergyCascadeVisualizer {
     return resolved;
   }
 
+  _resolveLinkId(linkOrId) {
+    if (!linkOrId) return null;
+    if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
+      return String(linkOrId);
+    }
+
+    return (
+      linkOrId.userData?.id ??
+      linkOrId.userData?.linkId ??
+      linkOrId.id ??
+      linkOrId.uuid ??
+      null
+    );
+  }
+
+  _getLinkEndpoints(linkOrId, sourceNode = null, targetNode = null) {
+    const link = (linkOrId && typeof linkOrId === 'object') ? linkOrId : null;
+    const sourcePos = this._asVector3(
+      sourceNode?.position ??
+      link?.source?.position ??
+      link?.sourceNode?.position ??
+      link?.nodeA?.position
+    );
+    const targetPos = this._asVector3(
+      targetNode?.position ??
+      link?.target?.position ??
+      link?.targetNode?.position ??
+      link?.nodeB?.position
+    );
+
+    return { sourcePos, targetPos };
+  }
+
+  _distanceToSegment(point, start, end) {
+    if (!point || !start || !end) return Infinity;
+    const segment = new THREE.Vector3().subVectors(end, start);
+    const segmentLengthSq = segment.lengthSq();
+    if (segmentLengthSq <= 1e-8) {
+      return point.distanceTo(start);
+    }
+
+    const toPoint = new THREE.Vector3().subVectors(point, start);
+    const t = Math.max(0, Math.min(1, toPoint.dot(segment) / segmentLengthSq));
+    const closest = new THREE.Vector3().copy(start).addScaledVector(segment, t);
+    return point.distanceTo(closest);
+  }
+
+  _particleMatchesLink(particle, linkRef, linkId, sourcePos = null, targetPos = null) {
+    if (!particle) return false;
+
+    if (linkRef && particle.link === linkRef) {
+      return true;
+    }
+
+    const particleLinkId = particle.linkId != null ? String(particle.linkId) : null;
+    const normalizedLinkId = linkId != null ? String(linkId) : null;
+    if (particleLinkId && normalizedLinkId && particleLinkId === normalizedLinkId) {
+      return true;
+    }
+
+    if (sourcePos && targetPos && particle.position) {
+      const segmentLength = sourcePos.distanceTo(targetPos);
+      const maxDistance = Math.max(0.18, Math.min(0.45, segmentLength * 0.02));
+      if (this._distanceToSegment(particle.position, sourcePos, targetPos) <= maxDistance) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  clearCascadeParticles(predicate = () => true) {
+    let removed = 0;
+
+    for (let i = this.cascadeParticles.length - 1; i >= 0; i--) {
+      const particle = this.cascadeParticles[i];
+      if (typeof predicate === 'function' && !predicate(particle)) {
+        continue;
+      }
+
+      this.cascadeParticles.splice(i, 1);
+      this.returnParticleToPool(particle);
+      removed++;
+    }
+
+    return removed;
+  }
+
+  clearLink(linkOrId, sourceNode = null, targetNode = null) {
+    const linkRef = (linkOrId && typeof linkOrId === 'object') ? linkOrId : null;
+    const linkId = this._resolveLinkId(linkOrId);
+    const { sourcePos, targetPos } = this._getLinkEndpoints(linkOrId, sourceNode, targetNode);
+
+    if (!linkRef && !linkId && !sourcePos && !targetPos) {
+      return 0;
+    }
+
+    let removedHops = 0;
+    for (const cascade of this.activeCascades) {
+      if (!cascade?.hops?.length) continue;
+
+      const before = cascade.hops.length;
+      cascade.hops = cascade.hops.filter((hop) => {
+        if (!hop) return false;
+        if (linkRef && hop.link === linkRef) return false;
+        const hopLinkId = hop.linkId != null ? String(hop.linkId) : this._resolveLinkId(hop.link);
+        if (linkId && hopLinkId && hopLinkId === String(linkId)) return false;
+        return true;
+      });
+
+      const removed = before - cascade.hops.length;
+      if (removed > 0) {
+        removedHops += removed;
+        if (cascade.hops.length === 0) {
+          cascade.isActive = false;
+        }
+      }
+    }
+
+    if (linkRef && this.cascadeHistory.has(linkRef)) {
+      this.cascadeHistory.delete(linkRef);
+    }
+
+    if (linkId) {
+      for (const [trackedLink, history] of [...this.cascadeHistory.entries()]) {
+        const trackedLinkId = history?.linkId != null ? String(history.linkId) : this._resolveLinkId(trackedLink);
+        if ((trackedLinkId && trackedLinkId === String(linkId)) || (linkRef && trackedLink === linkRef)) {
+          this.cascadeHistory.delete(trackedLink);
+        }
+      }
+    }
+
+    this.clearCascadeParticles((particle) =>
+      this._particleMatchesLink(particle, linkRef, linkId, sourcePos, targetPos)
+    );
+
+    this.stats.activeCascades = this.activeCascades.length;
+    this.stats.linksAffected = this.getTotalAffectedLinks();
+    this.stats.particlesActive = this.cascadeParticles.length;
+
+    return removedHops;
+  }
+
   _resolveCascadeActivation(event = {}) {
     const intensity = this._clamp01(this._resolveCascadeIntensity(event));
     const anchor = this._asVector3(event.anchor ?? event.center ?? event.position ?? event.origin);
@@ -336,6 +479,7 @@ export class SynergyCascadeVisualizer {
     const cascade = this._getOrCreateCascade(cascadeId, intensity);
     cascade.hops.push({
       link,
+      linkId: this._resolveLinkId(link),
       intensity,
       age: 0,
       duration: this.config.hopLifetime,
@@ -435,6 +579,7 @@ export class SynergyCascadeVisualizer {
     // Get or create cascade history for this link
     if (!this.cascadeHistory.has(link)) {
       this.cascadeHistory.set(link, {
+        linkId: this._resolveLinkId(link),
         cascadeIntensity: 0,
         wavePosition: 0,
         waveIntensity: 0,
@@ -443,6 +588,9 @@ export class SynergyCascadeVisualizer {
     }
     
     const history = this.cascadeHistory.get(link);
+    if (history && !history.linkId) {
+      history.linkId = this._resolveLinkId(link);
+    }
     
     // Update cascade intensity (max of all active cascades on this link)
     history.cascadeIntensity = Math.max(history.cascadeIntensity, propagation.intensity);
@@ -629,6 +777,15 @@ export class SynergyCascadeVisualizer {
       
       particle.intensity = propagation.intensity;
       particle.color = this.config.cascadeColor.clone().lerp(this.config.fadeColor, Math.random() * 0.65);
+      if (particle.mesh) {
+        particle.mesh.visible = true;
+        if (particle.mesh.material) {
+          particle.mesh.material.opacity = Math.min(1.0, 0.88 * particle.intensity + 0.08);
+        }
+        if (particle.mesh.material?.color && particle.color) {
+          particle.mesh.material.color.copy(particle.color);
+        }
+      }
       
       this.cascadeParticles.push(particle);
     }
@@ -756,7 +913,14 @@ export class SynergyCascadeVisualizer {
    */
   getPooledParticle() {
     if (this.particlePool.length > 0) {
-      return this.particlePool.pop();
+      const particle = this.particlePool.pop();
+      if (particle?.mesh) {
+        particle.mesh.visible = true;
+        if (particle.mesh.material) {
+          particle.mesh.material.opacity = 0.9;
+        }
+      }
+      return particle;
     }
     
     if (this.cascadeParticles.length < this.maxPoolSize) {
@@ -769,6 +933,7 @@ export class SynergyCascadeVisualizer {
         depthWrite: false
       });
       const mesh = new THREE.Mesh(geometry, material);
+      mesh.visible = true;
       this.scene.add(mesh);
       
       return {
@@ -793,6 +958,15 @@ export class SynergyCascadeVisualizer {
   returnParticleToPool(particle) {
     particle.active = false;
     particle.age = 0;
+    particle.link = null;
+    particle.linkId = null;
+    particle.cascadeId = null;
+    if (particle.mesh) {
+      particle.mesh.visible = false;
+      if (particle.mesh.material) {
+        particle.mesh.material.opacity = 0;
+      }
+    }
     
     if (this.particlePool.length < this.maxPoolSize) {
       this.particlePool.push(particle);
@@ -874,7 +1048,7 @@ export class SynergyCascadeVisualizer {
   clearAllCascades() {
     this.activeCascades = [];
     this.cascadeHistory.clear();
-    this.cascadeParticles = [];
+    this.clearCascadeParticles();
     
     // Clean up ripples
     for (const ripple of this.ripples) {
@@ -885,6 +1059,9 @@ export class SynergyCascadeVisualizer {
       }
     }
     this.ripples = [];
+    this.stats.activeCascades = 0;
+    this.stats.linksAffected = 0;
+    this.stats.particlesActive = 0;
     
     console.log('🗑️ All cascades cleared');
   }
@@ -1011,5 +1188,13 @@ cascadeDebug.help()                - Show this help
     this._semanticHandlers = null;
 
     this.clearAllCascades();
+
+    for (const particle of this.particlePool) {
+      if (!particle?.mesh) continue;
+      this.scene.remove(particle.mesh);
+      particle.mesh.geometry?.dispose?.();
+      particle.mesh.material?.dispose?.();
+    }
+    this.particlePool = [];
   }
 }
