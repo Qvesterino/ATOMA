@@ -57,6 +57,7 @@ export class RecursiveGlyphMessaging4_0 {
     this.scene = scene;
     this.worldRoot = worldRoot;
     this.semanticGlyphAI = semanticGlyphAI;
+    this.linkedGlyphMessaging = null;
     const attachRoot = worldRoot || scene;
     
     // Enable/disable
@@ -132,7 +133,12 @@ export class RecursiveGlyphMessaging4_0 {
       // Performance caps
       maxChainsPerLink: 8,
       maxGlyphsInChain: 100,
-      updateThrottle: 1000 / 60     // 60Hz throttle
+      updateThrottle: 1000 / 60,    // 60Hz throttle
+      
+      // Integration with LinkedGlyphMessaging3_0
+      chainFromMessageProbability: 0.4,  // 40% chance to extend message into chain
+      minMessageSynergyForChain: 0.5,    // Minimum synergy to trigger chain
+      maxChainExtensionDepth: 3          // Max recursive depth from message
     };
     
     // Performance tracking
@@ -141,7 +147,8 @@ export class RecursiveGlyphMessaging4_0 {
       sentenceCount: 0,
       glyphCount: 0,
       frameTime: 0,
-      lastUpdateTime: 0
+      lastUpdateTime: 0,
+      chainsFromMessages: 0
     };
     
     // Glyph shape library (reuse from messaging 3.0 or create simple variants)
@@ -202,6 +209,212 @@ export class RecursiveGlyphMessaging4_0 {
    */
   isEnabled() {
     return this.enabled;
+  }
+  
+  /**
+   * Set reference to LinkedGlyphMessaging3_0 for integration
+   */
+  setLinkedGlyphMessaging(linkedGlyphMessaging) {
+    this.linkedGlyphMessaging = linkedGlyphMessaging || null;
+    
+    if (this.linkedGlyphMessaging) {
+      this.linkedGlyphMessaging.setRecursiveGlyphMessaging?.(this);
+      console.log('✓ RecursiveGlyphMessaging4_0 linked to LinkedGlyphMessaging3_0');
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Called by LinkedGlyphMessaging3_0 when a message is spawned
+   * Decides whether to extend the message into a recursive chain
+   */
+  onMessageSpawned(message, linkId, linkData) {
+    if (!this.enabled) return null;
+    
+    const synergy = message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5;
+    const harmony = message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0;
+    const corruption = message.linkMetrics?.corruption ?? 0;
+    
+    if (synergy < this.config.minMessageSynergyForChain && harmony < 0.6) {
+      return null;
+    }
+    
+    if (Math.random() > this.config.chainFromMessageProbability) {
+      return null;
+    }
+    
+    return this.generateChainFromMessage(message, linkId, linkData);
+  }
+  
+  /**
+   * Generate a recursive chain extending from a 3.0 message
+   */
+  generateChainFromMessage(message, linkId, linkData) {
+    if (!message || !linkId) return null;
+    
+    const linkInfo = this.trackedLinks.get(linkId);
+    if (!linkInfo) {
+      const resolved = this._resolveLinkEndpoints(linkData || message.linkData);
+      if (resolved.sourceNode && resolved.targetNode) {
+        this.registerLink(linkId, resolved.sourceNode, resolved.targetNode);
+      }
+    }
+    
+    const chains = this.activeChains.get(linkId) || [];
+    if (chains.length >= this.config.maxChainsPerLink) {
+      return null;
+    }
+    
+    const semanticState = {
+      synergy: message.linkMetrics?.synergy ?? message.sourceMetrics?.synergy ?? 0.5,
+      harmony: message.sourceMetrics?.harmony ?? message.targetMetrics?.harmony ?? 0,
+      corruption: message.linkMetrics?.corruption ?? 0,
+      stability: message.sourceMetrics?.stability ?? message.targetMetrics?.stability ?? 0.5
+    };
+    
+    const chain = this.createRecursiveChainFromMessage(message, semanticState, linkData);
+    
+    if (chain) {
+      chains.push(chain);
+      this.activeChains.set(linkId, chains);
+      this.stats.activeChainsCount = this.countAllChains();
+      this.stats.chainsFromMessages = (this.stats.chainsFromMessages || 0) + 1;
+    }
+    
+    return chain;
+  }
+  
+  /**
+   * Create chain structure from message data
+   */
+  createRecursiveChainFromMessage(message, semanticState, linkData) {
+    const chain = {
+      id: 'chain-' + Math.random().toString(36).substr(2, 9),
+      sourceMessage: message,
+      sourceNode: message.sourceNode,
+      targetNode: message.targetNode,
+      sentences: [],
+      meshes: [],
+      
+      progress: 0,
+      speed: this.calculateChainSpeed(semanticState, linkData),
+      
+      startTime: performance.now() * 0.001,
+      duration: message.totalLifetime ? (message.totalLifetime / 1000) * 1.2 : 4.0,
+      
+      branches: [],
+      loops: semanticState.harmony > 0.7 ? 1 : 0,
+      
+      active: true,
+      fading: false,
+      opacity: 1.0,
+      
+      userData: {
+        synergy: semanticState.synergy,
+        harmony: semanticState.harmony,
+        corruption: semanticState.corruption,
+        stability: semanticState.stability,
+        fromMessage: true
+      }
+    };
+    
+    this.generateChainSentencesFromMessage(chain, message, semanticState);
+    this.planChainRecursion(chain, semanticState);
+    this.createChainMeshes(chain);
+    
+    return chain;
+  }
+  
+  /**
+   * Generate sentences from message words (extends message meaning)
+   */
+  generateChainSentencesFromMessage(chain, message, semanticState) {
+    const messageWords = message.words || [];
+    const baseSentenceCount = Math.min(
+      this.config.maxSentencesPerChain,
+      Math.max(this.config.minSentencesPerChain, messageWords.length)
+    );
+    
+    let previousState = {
+      type: this.getInitialSentenceType(semanticState),
+      energy: 1.0,
+      coherence: 1.0
+    };
+    
+    for (let i = 0; i < baseSentenceCount; i++) {
+      const wordIndex = i % messageWords.length;
+      const word = messageWords[wordIndex];
+      
+      const sentence = this.generateSentenceFromWord(
+        word,
+        previousState,
+        semanticState,
+        i / baseSentenceCount
+      );
+      
+      chain.sentences.push(sentence);
+      previousState = sentence;
+    }
+  }
+  
+  /**
+   * Generate sentence from a message word
+   */
+  generateSentenceFromWord(word, previousState, semanticState, progress) {
+    const sentence = {
+      type: this.transformSentenceType(previousState.type, semanticState, progress),
+      phrases: [],
+      glyphs: [],
+      
+      energy: this.evolveEnergy(previousState.energy, semanticState),
+      coherence: this.evolveCoherence(previousState.coherence, semanticState),
+      color: word?.style?.color ? word.style.color.clone() : new THREE.Color(this.getColorForType(previousState.type)),
+      
+      chainPosition: progress,
+      segmentOffset: 0,
+      
+      sourceWord: word
+    };
+    
+    const phraseCount = Math.random() > 0.5 ? 1 : 2;
+    for (let i = 0; i < phraseCount; i++) {
+      const phrase = this.generatePhraseFromWord(word, sentence.type, i / phraseCount);
+      sentence.phrases.push(phrase);
+    }
+    
+    return sentence;
+  }
+  
+  /**
+   * Generate phrase from word
+   */
+  generatePhraseFromWord(sourceWord, sentenceType, position) {
+    const phrase = {
+      words: [],
+      role: sourceWord?.role || this.getPhrasalRole(sentenceType, position),
+      position
+    };
+    
+    const wordCount = sourceWord?.glyphs?.length || 
+      Math.floor(this.config.minGlyphsPerWord + Math.random() * 2);
+    
+    for (let i = 0; i < wordCount; i++) {
+      const glyphData = sourceWord?.glyphs?.[i];
+      const word = this.generateWord(
+        phrase.role,
+        i / wordCount
+      );
+      
+      if (glyphData) {
+        word.sourceGlyph = glyphData;
+        word.inheritedColor = glyphData.color?.clone?.();
+      }
+      
+      phrase.words.push(word);
+    }
+    
+    return phrase;
   }
   
   /**
@@ -888,7 +1101,9 @@ export class RecursiveGlyphMessaging4_0 {
       sentenceCount: this.stats.sentenceCount,
       glyphCount: this.stats.glyphCount,
       frameTime: this.stats.frameTime.toFixed(2) + 'ms',
-      trackedLinks: this.trackedLinks.size
+      trackedLinks: this.trackedLinks.size,
+      chainsFromMessages: this.stats.chainsFromMessages,
+      linkedToMessaging3_0: !!this.linkedGlyphMessaging
     };
   }
   
@@ -900,6 +1115,11 @@ export class RecursiveGlyphMessaging4_0 {
     console.log('✓ RECURSIVE GLYPH MESSAGING 4.0 — RECURSIVE MEANING CHAINS');
     console.log('═══════════════════════════════════════════════════════════');
     console.log('STATUS:', this.enabled ? '● ACTIVE' : '○ DISABLED');
+    console.log('');
+    console.log('INTEGRATION:');
+    console.log('  • Linked to Messaging 3.0:', this.linkedGlyphMessaging ? '✓ YES' : '✗ NO');
+    console.log('  • Chains from Messages:', this.stats.chainsFromMessages);
+    console.log('  • Chain Probability:', (this.config.chainFromMessageProbability * 100) + '%');
     console.log('');
     console.log('FEATURES:');
     console.log('  ✓ Recursive sentence chains (WORD→PHRASE→SENTENCE→CHAIN)');
@@ -913,7 +1133,8 @@ export class RecursiveGlyphMessaging4_0 {
     console.log('  ✓ Bidirectional response generation');
     console.log('');
     console.log('PERFORMANCE:');
-    console.log('  • Config: ' + JSON.stringify(this.config).substring(0, 60) + '...');
+    console.log('  • Active Chains:', this.stats.activeChainsCount);
+    console.log('  • Glyph Count:', this.stats.glyphCount);
     console.log('  • Frame Time: ' + this.stats.frameTime.toFixed(3) + 'ms');
     console.log('  • Max Cap: 8 chains/link, 100 glyphs/chain');
     console.log('');

@@ -69,6 +69,20 @@ export class LinkDirectionalStreaks {
         });
 
         this.gradientPolish = new LinkDirectionalGradientPolish();
+
+        // Reusable geometry buffers to avoid per-frame allocations.
+        const maxStreaks = this.config.streakCountMax;
+        const maxSegmentsPerStreak = Math.max(6, this.config.segmentsPerStreak);
+        const maxVerticesPerStreak = (maxSegmentsPerStreak + 1) * 4;
+        const maxIndicesPerStreak = Math.max(0, maxSegmentsPerStreak * 12);
+        this._geometryBufferCapacity = {
+            maxStreaks,
+            maxSegmentsPerStreak,
+            maxVertices: maxStreaks * maxVerticesPerStreak,
+            maxIndices: maxStreaks * maxIndicesPerStreak
+        };
+        this._positionsBuffer = new Float32Array(this._geometryBufferCapacity.maxVertices * 3);
+        this._indicesBuffer = new Uint32Array(this._geometryBufferCapacity.maxIndices);
     }
 
     /**
@@ -169,7 +183,7 @@ export class LinkDirectionalStreaks {
      * @param {THREE.Color} targetColor - Link target color (optional)
      * @param {Object} link - Link data object (for pulse injection)
      * @param {number} time - Current time
-     * @param {number} specialization - Link specialization bias (-1 to +1, optional) for color dynamics
+     * @param {number|Object} specialization - Link specialization bias (-1 to +1), or conduit frameState/options payload
      */
     update(linkGroup, curve, deltaTime, synergy = 0.5, harmony = 1.0, corruption = 0.0, instability = 0.0, baseColor = null, targetColor = null, link = null, time = 0, specialization = 0) {
         if (!linkGroup || !linkGroup.userData.conduitState) return;
@@ -177,11 +191,17 @@ export class LinkDirectionalStreaks {
         
         const state = linkGroup.userData.conduitState;
         const streaks = state.directionalStreaks;
+        const options = (specialization && typeof specialization === 'object') ? specialization : null;
+        const geometryState = options?.geometry || null;
+        const resolvedSpecialization = typeof specialization === 'number'
+            ? specialization
+            : (typeof options?.specialization === 'number' ? options.specialization : 0);
         
         if (!streaks || !streaks.ages || !streaks.geometry || !streaks.material) return; // Not initialized or arrays not ready
         
-        const frameSegments = state.strandSegments || Math.max(20, Math.floor((curve.getLength?.() || 10) * 8));
-        const frames = curve.computeFrenetFrames(frameSegments, false);
+        const frameSegments = geometryState?.segments || state.__cachedFrenetSegments || state.strandSegments || Math.max(20, Math.floor((curve.getLength?.() || 10) * 8));
+        const frames = geometryState?.frames || state.__cachedFrenetFrames || null;
+        if (!frames) return;
         
         // Store link reference for pulse injection
         if (link) {
@@ -252,9 +272,8 @@ export class LinkDirectionalStreaks {
         const suppressionThreshold = 0; // No suppression
         
         // --- UPDATE EACH STREAK ---
-        const positions = [];
-        const indices = [];
         let vertexCursor = 0;
+        let indexCursor = 0;
         const corridorRadius = this._computeCorridorRadius(state);
         const maxCenterStep = Math.max(0.6, corridorRadius * 3.0);
         const maxEdgeStep = Math.max(0.8, corridorRadius * 3.5);
@@ -426,11 +445,8 @@ export class LinkDirectionalStreaks {
             corridorRadius
         );
 
-        const pairStart = vertexCursor;
-        positions.push(
-            v1.x, v1.y, v1.z, v2.x, v2.y, v2.z,
-            v3.x, v3.y, v3.z, v4.x, v4.y, v4.z
-        );
+            const pairStart = vertexCursor;
+            this._writeVertexTriplet(vertexCursor, v1, v2, v3, v4);
         vertexCursor += 4;
 
         if (
@@ -451,10 +467,7 @@ export class LinkDirectionalStreaks {
             const c2 = pairStart + 2;
             const d2 = pairStart + 3;
 
-            indices.push(a, b, c);
-            indices.push(b, d, c);
-            indices.push(a2, b2, c2);
-            indices.push(b2, d2, c2);
+            indexCursor = this._writeQuadIndices(indexCursor, a, b, c, d, a2, b2, c2, d2);
         }
 
         previousPairStart = pairStart;
@@ -465,7 +478,7 @@ export class LinkDirectionalStreaks {
         }
         
         // --- UPDATE GEOMETRY BUFFER ---
-        this._updateGeometryBuffer(streaks, positions, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, specialization, gradientSample);
+        this._updateGeometryBuffer(streaks, vertexCursor, indexCursor, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData, synergy, resolvedSpecialization, gradientSample);
         
         // --- UPDATE MATERIAL WITH PULSE EFFECTS ---
         if (streaks.material) {
@@ -536,46 +549,28 @@ export class LinkDirectionalStreaks {
      * Applies color dynamics based on harmony and specialization
      * @private
      */
-    _updateGeometryBuffer(streaks, vertices, indices, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0, gradientSample = null) {
-        if (!streaks || !streaks.geometry || !Array.isArray(vertices) || !Array.isArray(indices)) return;
-        if (vertices.length === 0 || indices.length === 0) {
+    _updateGeometryBuffer(streaks, vertexCount, indexCount, activeStreakCount, harmony, corruption, desaturation, baseColor, targetColor, pulseEffectData = null, synergy = 0.5, specialization = 0, gradientSample = null) {
+        if (!streaks || !streaks.geometry || !this._positionsBuffer || !this._indicesBuffer) return;
+        if (vertexCount === 0 || indexCount === 0) {
             this._clearGeometryBuffer(streaks.geometry);
             return;
         }
 
-        // Log vertex count for debugging (throttled)
-        if (typeof window !== 'undefined') {
-            this._vertexLogTime = this._vertexLogTime || 0;
-            this._vertexLogTime = this._vertexLogTime || 0;
-            this._vertexLogTime++;
-            if (this._vertexLogTime % 60 === 0) { // Every ~1 second at 60fps
-                console.log('[DirectionalStreaks] Vertices:', vertices.length, 'activeStreaks:', activeStreakCount);
-            }
+        let positionAttribute = streaks.geometry.getAttribute('position');
+        if (!positionAttribute || positionAttribute.array !== this._positionsBuffer) {
+            positionAttribute = new THREE.BufferAttribute(this._positionsBuffer, 3);
+            streaks.geometry.setAttribute('position', positionAttribute);
         }
 
-        // Convert vertices array to Float32Array
-        const positions = new Float32Array(vertices.length);
-        for (let i = 0; i < vertices.length; i++) {
-            positions[i] = vertices[i];
+        let indexAttribute = streaks.geometry.getIndex();
+        if (!indexAttribute || indexAttribute.array !== this._indicesBuffer) {
+            indexAttribute = new THREE.BufferAttribute(this._indicesBuffer, 1);
+            streaks.geometry.setIndex(indexAttribute);
         }
 
-        // Remove old buffer if exists
-        if (streaks.geometry.getAttribute('position')) {
-            streaks.geometry.deleteAttribute('position');
-        }
-
-        // Add position buffer
-        streaks.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-        // Remove old indices if exist
-        if (streaks.geometry.getIndex()) {
-            streaks.geometry.setIndex(null);
-        }
-
-        // Add index buffer
-        if (indices.length > 0) {
-            streaks.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
-        }
+        positionAttribute.needsUpdate = true;
+        indexAttribute.needsUpdate = true;
+        streaks.geometry.setDrawRange(0, indexCount);
         streaks.geometry.computeBoundingSphere();
         streaks.geometry.computeBoundingBox();
 
@@ -685,8 +680,41 @@ export class LinkDirectionalStreaks {
         if (geometry.getIndex()) {
             geometry.setIndex(null);
         }
+        geometry.setDrawRange(0, 0);
         geometry.computeBoundingSphere();
         geometry.computeBoundingBox();
+    }
+
+    _writeVertexTriplet(baseVertexIndex, v1, v2, v3, v4) {
+        const base = baseVertexIndex * 3;
+        this._positionsBuffer[base] = v1.x;
+        this._positionsBuffer[base + 1] = v1.y;
+        this._positionsBuffer[base + 2] = v1.z;
+        this._positionsBuffer[base + 3] = v2.x;
+        this._positionsBuffer[base + 4] = v2.y;
+        this._positionsBuffer[base + 5] = v2.z;
+        this._positionsBuffer[base + 6] = v3.x;
+        this._positionsBuffer[base + 7] = v3.y;
+        this._positionsBuffer[base + 8] = v3.z;
+        this._positionsBuffer[base + 9] = v4.x;
+        this._positionsBuffer[base + 10] = v4.y;
+        this._positionsBuffer[base + 11] = v4.z;
+    }
+
+    _writeQuadIndices(cursor, a, b, c, d, a2, b2, c2, d2) {
+        this._indicesBuffer[cursor++] = a;
+        this._indicesBuffer[cursor++] = b;
+        this._indicesBuffer[cursor++] = c;
+        this._indicesBuffer[cursor++] = b;
+        this._indicesBuffer[cursor++] = d;
+        this._indicesBuffer[cursor++] = c;
+        this._indicesBuffer[cursor++] = a2;
+        this._indicesBuffer[cursor++] = b2;
+        this._indicesBuffer[cursor++] = c2;
+        this._indicesBuffer[cursor++] = b2;
+        this._indicesBuffer[cursor++] = d2;
+        this._indicesBuffer[cursor++] = c2;
+        return cursor;
     }
 
     /**

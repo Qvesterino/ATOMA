@@ -859,7 +859,6 @@ export class LinkRendererConduit {
             strandRadius: 0.034,
             twistSpacing: 2.0, // Units per full twist (normalized to link length)
             segments: 45,
- // +++++++ REPLACE
             radialSegments: 5,
             colorVariation: 0.15,
             breathingSpeed: 0.8,
@@ -869,7 +868,6 @@ export class LinkRendererConduit {
             skinOpacity: 0.05,
             skinRadiusScale: 1.5
         };
- // +++++++ REPLACE
 
         // Central toggles for visual modules
         this.modules = {
@@ -2633,6 +2631,20 @@ export class LinkRendererConduit {
             __dynamicGeometryInitialized: false,
             __warnedDirectionalStreaksInactive: false,
             __directionalStreaksAccum: 0,
+            __braidGeometryState: {
+                ready: false,
+                start: new THREE.Vector3(),
+                end: new THREE.Vector3(),
+                radius: 0,
+                segments: 0
+            },
+            __skinGeometryState: {
+                ready: false,
+                start: new THREE.Vector3(),
+                end: new THREE.Vector3(),
+                radius: 0,
+                segments: 0
+            },
             bootstrap: {
                 phase: 0,
                 maxPhase: 9,
@@ -3357,6 +3369,7 @@ export class LinkRendererConduit {
             state.__cachedFrenetSegments = segments;
         }
         frameState.geometry.frames = frames;
+        frameState.geometry.segments = segments;
 
         // --- 2. Dynamic Parameters ---
         const synergy = metrics.synergy;
@@ -3395,7 +3408,35 @@ export class LinkRendererConduit {
         const noiseBase = 0.005 * (1.0 - synergy);
         // Denser strand marks with length-scaled count to avoid sparse long links.
         const overlaySegmentCount = THREE.MathUtils.clamp(24.0 + (linkDist * 1.2), 28.0, 88.0);
-        const runDynamicStrands = geometryTick && lodAllowsSecondaryVfx;
+        const isInitialGeometryBuild = state.__dynamicGeometryInitialized !== true;
+        const hasRenderableStrands = Array.isArray(state.strands) && state.strands.some(mesh => {
+            const positionCount = mesh?.geometry?.attributes?.position?.count || 0;
+            return positionCount > 0;
+        });
+        const needsStrandBootstrap = !hasRenderableStrands;
+        const runDynamicStrands = geometryTick && (lodAllowsSecondaryVfx || isInitialGeometryBuild);
+        const braidGeometryState = state.__braidGeometryState || (state.__braidGeometryState = {
+            ready: false,
+            start: new THREE.Vector3(),
+            end: new THREE.Vector3(),
+            radius: 0,
+            segments: 0
+        });
+        const braidStart = frameState.geometry?.start || start;
+        const braidEnd = frameState.geometry?.end || end;
+        const braidMoved =
+            !braidGeometryState.ready ||
+            braidGeometryState.segments !== segments ||
+            braidGeometryState.start.distanceToSquared(braidStart) > 0.0004 ||
+            braidGeometryState.end.distanceToSquared(braidEnd) > 0.0004;
+        const braidRadiusChanged =
+            !braidGeometryState.ready ||
+            Math.abs((braidGeometryState.radius || 0) - activeRadius) > Math.max(0.004, activeRadius * 0.18);
+        const shouldRebuildBraids = runDynamicStrands && (
+            isInitialGeometryBuild ||
+            needsStrandBootstrap ||
+            (lodAllowsSecondaryVfx && (braidMoved || braidRadiusChanged))
+        );
 
         if (runDynamicStrands) {
             state.strands.forEach((mesh, i) => {
@@ -3420,10 +3461,6 @@ export class LinkRendererConduit {
                 if (mat.uniforms.uNetworkStress) mat.uniforms.uNetworkStress.value = 1.0 - (m.stability ?? 1);
                 if (mat.uniforms.uLocalLoad && !mat.userData?.__uLocalLoadOwnedByEnergyWave) {
                     mat.uniforms.uLocalLoad.value = m.loadPressure ?? 0;
-                }
-
-                if (Math.random() < 0.01) {
-                    console.log('[LINK METRICS → SHADER]', m);
                 }
                 if (mat.uniforms.uWaveDirection?.value?.copy) {
                     mat.uniforms.uWaveDirection.value.copy(waveDirection);
@@ -3453,6 +3490,13 @@ export class LinkRendererConduit {
                 mergePatch(materialPatches.strands, mesh, { opacity: mesh.material.opacity, emissiveIntensity, owner: 'opacityStage' });
             }
 
+            if (!shouldRebuildBraids) {
+                if (mesh.material && mesh.material.linewidth !== undefined) {
+                    mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
+                }
+                return;
+            }
+
             // Generate helical path
             const points = [];
             const angleOffset = (i / state.strandCount) * Math.PI * 2;
@@ -3471,7 +3515,6 @@ export class LinkRendererConduit {
                 const twists = linkLength / this.config.twistSpacing;
                 const currentTwist = t * Math.PI * 2 * twists + twistPhase;
                 const angle = angleOffset + currentTwist;
-  // +++++++ REPLACE
 
                 const flare = 1.0 + Math.pow(2.0 * (t - 0.5), 2) * 0.2;
                 const noise = Math.sin(t * 40 + i * 10) * noiseBase;
@@ -3511,6 +3554,9 @@ export class LinkRendererConduit {
                 this.config.radialSegments,
                 false
             );
+            if (state.strandDepthPasses && state.strandDepthPasses[i]) {
+                state.strandDepthPasses[i].geometry = mesh.geometry;
+            }
             if (state.strandOverlays && state.strandOverlays[i]) {
                 state.strandOverlays[i].geometry = mesh.geometry;
                 const overlayMat = state.strandOverlays[i].material;
@@ -3524,6 +3570,14 @@ export class LinkRendererConduit {
                 mergePatch(materialPatches.strands, mesh, { linewidth: mesh.material.linewidth, owner: 'thicknessStage' });
             }
             });
+
+            if (shouldRebuildBraids) {
+                braidGeometryState.ready = true;
+                braidGeometryState.start.copy(braidStart);
+                braidGeometryState.end.copy(braidEnd);
+                braidGeometryState.radius = activeRadius;
+                braidGeometryState.segments = segments;
+            }
         }
 
         if (runDynamicStrands) {
@@ -3549,15 +3603,40 @@ export class LinkRendererConduit {
                  return;
              }
              const skin = state.skinMesh;
-             if (geometryTick) {
+             const skinGeometryState = state.__skinGeometryState || (state.__skinGeometryState = {
+                 ready: false,
+                 start: new THREE.Vector3(),
+                 end: new THREE.Vector3(),
+                 radius: 0,
+                 segments: 0
+             });
+             const skinStart = frameState.geometry?.start || start;
+             const skinEnd = frameState.geometry?.end || end;
+             const skinRadius = activeRadius * this.config.skinRadiusScale;
+             const skinMoved =
+                 !skinGeometryState.ready ||
+                 skinGeometryState.segments !== segments ||
+                 skinGeometryState.start.distanceToSquared(skinStart) > 0.0004 ||
+                 skinGeometryState.end.distanceToSquared(skinEnd) > 0.0004;
+             const skinRadiusChanged =
+                 !skinGeometryState.ready ||
+                 Math.abs((skinGeometryState.radius || 0) - skinRadius) > Math.max(0.004, skinRadius * 0.18);
+             const shouldRebuildSkin = geometryTick && (skinMoved || skinRadiusChanged);
+
+             if (shouldRebuildSkin) {
                  if (skin.geometry) skin.geometry.dispose();
                  skin.geometry = new THREE.TubeGeometry(
                      mainCurve,
                      segments,
-                     activeRadius * this.config.skinRadiusScale,
+                     skinRadius,
                      8,
                      false
                  );
+                 skinGeometryState.ready = true;
+                 skinGeometryState.start.copy(skinStart);
+                 skinGeometryState.end.copy(skinEnd);
+                 skinGeometryState.radius = skinRadius;
+                 skinGeometryState.segments = segments;
              }
 
              // Update shader material uniforms for node state (30 Hz cadence)
@@ -3598,9 +3677,6 @@ export class LinkRendererConduit {
                     const desaturation = Math.min(1.0, linkCorruption * 1.2);
                     material.uniforms.uDesaturation.value = desaturation;
 
-                    if (Math.random() < 0.01) {
-                        console.log('[LINK METRICS → SHADER]', m);
-                    }
                 }
 
                  // Link birth/removal effects (synced with node aura)
@@ -3631,7 +3707,7 @@ export class LinkRendererConduit {
                 materialPatches.skin.owner = 'opacityStage';
             }
        }
-        if (geometryTick) {
+        if (shouldRebuildBraids) {
             state.__dynamicGeometryInitialized = true;
         }
 

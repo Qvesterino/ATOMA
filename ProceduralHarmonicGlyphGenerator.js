@@ -80,6 +80,7 @@ const CONFIG = {
     // PERFORMANCE
     MAX_PROCEDURAL_GLYPHS: 12,             // Hard cap on glyph count
     GLYPH_POOL_SIZE: 16,                   // Preallocated pool
+    ORIGIN_SAFETY_RADIUS: 12.0,            // Avoid cluttering the map center
     
     // DEBUG
     DEBUG_DRAW_GLYPHS: false,
@@ -624,6 +625,12 @@ export class ProceduralHarmonicGlyphGenerator {
     qualifiesForGlyph(region) {
         // POLISHED: Conservative thresholds for rare glyph emergence
         if (!region) return false;
+
+        // Keep the world origin clean; this generator is meant to emerge on
+        // learned hubs, not create a persistent centerpiece blob.
+        if (region.center && region.center.length() < CONFIG.ORIGIN_SAFETY_RADIUS) {
+            return false;
+        }
         
         // Must have sufficient learning
         if ((region.flowStrength ?? 0) < CONFIG.MIN_LEARNING_STRENGTH) return false;

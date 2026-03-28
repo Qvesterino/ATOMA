@@ -537,8 +537,7 @@ class EnhancedPictogramInstance {
             curve.getPointAt(t, basePos);
             curve.getTangentAt(t, tangent).normalize();
         } else {
-            const nodeA = this.link.userData?.nodeA;
-            const nodeB = this.link.userData?.nodeB;
+            const { nodeA, nodeB } = this._resolveLinkEndpoints(this.link);
             if (nodeA && nodeB) {
                 basePos.lerpVectors(nodeA.position, nodeB.position, t);
                 tangent.subVectors(nodeB.position, nodeA.position).normalize();
@@ -570,6 +569,30 @@ class EnhancedPictogramInstance {
         this.mesh.position.copy(basePos);
         this._tmpMatrix.makeBasis(normal, binormal, tangent);
         this.mesh.quaternion.setFromRotationMatrix(this._tmpMatrix);
+    }
+
+    _resolveLinkEndpoints(link) {
+        if (!link) {
+            return { nodeA: null, nodeB: null };
+        }
+
+        const u = link.userData || {};
+        const nodeA =
+            u.nodeA ||
+            link.sourceNode ||
+            link.source ||
+            link.startNode ||
+            link.from ||
+            null;
+        const nodeB =
+            u.nodeB ||
+            link.targetNode ||
+            link.target ||
+            link.endNode ||
+            link.to ||
+            null;
+
+        return { nodeA, nodeB };
     }
 
     prepareFrames(link) {
@@ -788,8 +811,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
     _matchesLinkEndpoints(link, nodeA, nodeB) {
         if (!link || !nodeA || !nodeB) return false;
 
-        const source = link.userData?.nodeA || link.source || link.startNode || null;
-        const target = link.userData?.nodeB || link.target || link.endNode || null;
+        const { nodeA: source, nodeB: target } = this._resolveLinkEndpoints(link);
         if (!source || !target) return false;
 
         return (

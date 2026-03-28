@@ -152,6 +152,7 @@ class CompositeGlyphInstance {
             this.singularity.deactivate();
         }
         this.state = null;
+        this.generatedVisual = null;
     }
 
     _clearGeneratedCompositeVisual() {
@@ -212,6 +213,10 @@ class CompositeGlyphInstance {
                 cameraPosition
             };
             this.singularity.update(deltaTime, context);
+        }
+
+        if (this.generatedVisual?.userData?.updateCompositeVisual) {
+            this.generatedVisual.userData.updateCompositeVisual(deltaTime, cameraPosition);
         }
     }
 }
@@ -587,9 +592,12 @@ export class GlyphFusionZoneManager {
         });
 
         // Attach the generated composite geometry so the fusion result is visible in runtime.
-        const generatedGeometry = this.compositeGlyphGenerator?.generateComposite?.(sourceTypes, context) || null;
-        if (generatedGeometry && composite.mesh) {
-            this._attachGeneratedCompositeVisual(composite, generatedGeometry, harmonyBalance, context);
+        const generatedCompositeVisual =
+            this.compositeGlyphGenerator?.generateCompositeVisual?.(sourceTypes, context)
+            || this.compositeGlyphGenerator?.generateComposite?.(sourceTypes, context)
+            || null;
+        if (generatedCompositeVisual && composite.mesh) {
+            this._attachGeneratedCompositeVisual(composite, generatedCompositeVisual, harmonyBalance, context);
         }
 
         zone.compositeGlyph = composite;
@@ -598,11 +606,37 @@ export class GlyphFusionZoneManager {
         this.compositeGlyphGenerator?.resonanceFeedback?.registerCompositeGlyph?.(composite);
     }
 
-    _attachGeneratedCompositeVisual(composite, geometry, harmonyBalance, context) {
-        if (!composite?.mesh || !geometry) return;
+    _attachGeneratedCompositeVisual(composite, visualOrGeometry, harmonyBalance, context) {
+        if (!composite?.mesh || !visualOrGeometry) return;
 
         composite._clearGeneratedCompositeVisual?.();
 
+        if (visualOrGeometry.isObject3D) {
+            const generatedRoot = visualOrGeometry;
+            generatedRoot.name = generatedRoot.name || 'GeneratedCompositeGlyph';
+            generatedRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
+            generatedRoot.userData ??= {};
+            generatedRoot.userData.isGeneratedCompositeVisual = true;
+            generatedRoot.userData.spinPhase = Math.random() * Math.PI * 2;
+            generatedRoot.userData.spinSpeed = 0.28 + (context.averageSynergy ?? context.synergy ?? 0.5) * 0.12;
+            generatedRoot.userData.updateCompositeVisual = (deltaTime) => {
+                generatedRoot.userData.spinPhase += deltaTime * generatedRoot.userData.spinSpeed;
+                generatedRoot.rotation.y += deltaTime * generatedRoot.userData.spinSpeed;
+                generatedRoot.rotation.z = Math.sin(generatedRoot.userData.spinPhase * 0.7) * 0.05;
+            };
+            generatedRoot.traverse?.((child) => {
+                if (child?.isMesh) {
+                    child.userData ??= {};
+                    child.userData.isGeneratedCompositeVisual = true;
+                    child.renderOrder = generatedRoot.renderOrder;
+                }
+            });
+            composite.mesh.add(generatedRoot);
+            composite.generatedVisual = generatedRoot;
+            return;
+        }
+
+        const geometry = visualOrGeometry;
         const generatedRoot = new THREE.Group();
         generatedRoot.name = 'GeneratedCompositeGlyph';
         generatedRoot.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
@@ -626,6 +660,7 @@ export class GlyphFusionZoneManager {
         this._decorateCompositeGlyph(generatedRoot, runtimeGeometry, harmonyBalance, context);
 
         composite.mesh.add(generatedRoot);
+        composite.generatedVisual = generatedRoot;
     }
 
     _decorateCompositeGlyph(mesh, geometry, harmonyBalance, context) {

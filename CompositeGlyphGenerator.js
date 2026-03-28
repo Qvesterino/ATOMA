@@ -93,6 +93,32 @@ export class CompositeGlyphGenerator {
         return geometry;
     }
 
+    /**
+     * Generate a live composite glyph group that preserves orbital structure.
+     * This is used by the fusion zone so composite glyphs stay animated instead
+     * of being flattened into a static merged buffer geometry.
+     */
+    generateCompositeVisual(sourceTypes, semanticContext) {
+        if (!sourceTypes || sourceTypes.length < 2) return null;
+
+        const context = this._resolveContextMetrics(semanticContext);
+        let group = null;
+
+        if (sourceTypes.length === 2) {
+            group = this.generateDualFusion(sourceTypes, context, true);
+        } else if (sourceTypes.length === 3) {
+            group = this.generateTripleFusion(sourceTypes, context, true);
+        } else {
+            group = this.generateMultipleFusion(sourceTypes, context, true);
+        }
+
+        if (group) {
+            this._tagCompositeGroup(group, context, sourceTypes);
+        }
+
+        return group;
+    }
+
     createSignature(sourceTypes, context) {
         const metrics = this._resolveContextMetrics(context);
         const types = sourceTypes.slice().sort().join('|');
@@ -106,7 +132,7 @@ export class CompositeGlyphGenerator {
     // DUAL FUSION (2 Sources)
     // ========================================================================
 
-    generateDualFusion(sources, context) {
+    generateDualFusion(sources, context, live = false) {
         if (!BufferGeometryUtils) {
             console.warn("Pictogram disabled: BufferGeometryUtils missing");
             return null;
@@ -134,14 +160,14 @@ export class CompositeGlyphGenerator {
         group.add(silhouette);
 
         // Merge into single geometry
-        return this._mergeCompositeGroup(group, context);
+        return live ? group : this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
     // TRIPLE FUSION (3 Sources)
     // ========================================================================
 
-    generateTripleFusion(sources, context) {
+    generateTripleFusion(sources, context, live = false) {
         if (!BufferGeometryUtils) {
             console.warn("Pictogram disabled: BufferGeometryUtils missing");
             return null;
@@ -168,14 +194,14 @@ export class CompositeGlyphGenerator {
         group.add(silhouette);
 
         // Merge
-        return this._mergeCompositeGroup(group, context);
+        return live ? group : this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
     // MULTIPLE FUSION (4+ Sources)
     // ========================================================================
 
-    generateMultipleFusion(sources, context) {
+    generateMultipleFusion(sources, context, live = false) {
         if (!BufferGeometryUtils) {
             console.warn("Pictogram disabled: BufferGeometryUtils missing");
             return null;
@@ -203,7 +229,7 @@ export class CompositeGlyphGenerator {
         group.add(silhouette);
 
         // Merge
-        return this._mergeCompositeGroup(group, context);
+        return live ? group : this._mergeCompositeGroup(group, context);
     }
 
     // ========================================================================
@@ -418,6 +444,15 @@ export class CompositeGlyphGenerator {
         return baseColor.lerp(highlight, 0.62).getHex();
     }
 
+    getCompositeColor(harmonyBalance) {
+        // Blend from warm corruption tones to cool harmony tones.
+        const harmonyFactor = Math.max(0, Math.min(1, harmonyBalance ?? 0.5));
+        const r = (1 - harmonyFactor) * 200 + 120;
+        const b = harmonyFactor * 200 + 120;
+        const g = 150;
+        return new THREE.Color(r / 255, g / 255, b / 255).getHex();
+    }
+
     // ========================================================================
     // CONNECTOR STROKES (Interweaving Paths)
     // ========================================================================
@@ -628,6 +663,25 @@ export class CompositeGlyphGenerator {
         geometry.computeBoundingBox();
 
         return geometry;
+    }
+
+    _tagCompositeGroup(group, context, sourceTypes = []) {
+        if (!group) return null;
+
+        group.userData ??= {};
+        group.userData.layerId = VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE;
+        group.userData.renderOrder = this.renderOrder;
+        group.userData.semanticContext = this._resolveContextMetrics(context);
+        group.userData.sourceTypes = Array.isArray(sourceTypes) ? sourceTypes.slice() : [];
+        group.renderOrder = this.renderOrder;
+
+        group.traverse?.((child) => {
+            if (child?.isMesh) {
+                child.renderOrder = this.renderOrder;
+            }
+        });
+
+        return group;
     }
 
     // ========================================================================

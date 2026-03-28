@@ -12247,6 +12247,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.linkGlyphFlow.linkedGlyphMessaging = this.linkedGlyphMessaging;
         }
 
+        // Link to RecursiveGlyphMessaging4_0 if already initialized
+        if (this.recursiveGlyphMessaging) {
+            this.linkedGlyphMessaging.setRecursiveGlyphMessaging(this.recursiveGlyphMessaging);
+            this.recursiveGlyphMessaging.setLinkedGlyphMessaging(this.linkedGlyphMessaging);
+        }
+
         console.log('✓ Linked Glyph Messaging 3.0 active');
         console.log('  - Ultra symbolic AI language transport');
         console.log('  - Messages carry node semantic state');
@@ -12267,10 +12273,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.recursiveGlyphMessaging = new RecursiveGlyphMessaging4_0(this.scene, this.worldRoot, this.semanticGlyphAI);
         this.recursiveGlyphMessaging.setEnabled(true);
 
+        // Link to LinkedGlyphMessaging3_0 if already initialized
+        if (this.linkedGlyphMessaging) {
+            this.recursiveGlyphMessaging.setLinkedGlyphMessaging(this.linkedGlyphMessaging);
+            this.linkedGlyphMessaging.setRecursiveGlyphMessaging(this.recursiveGlyphMessaging);
+        }
+
         console.log('✓ Recursive Glyph Messaging 4.0 active');
         console.log('  - Recursive meaning chains (WORD→PHRASE→SENTENCE→CHAIN)');
         console.log('  - Semantic-driven chain evolution');
         console.log('  - Branching sub-chains & safe looping');
+        console.log('  - INTEGRATED with LinkedGlyphMessaging3.0');
         console.log('  - Use debugRecursiveMessages() to view statistics');
         console.log('  - Use toggleRecursiveChains() to enable/disable');
     }
