@@ -529,6 +529,21 @@ export class StandingWaveVisualRenderer_Session131 {
         });
     }
 
+    _resolveLinkId(linkOrId) {
+        if (!linkOrId) return null;
+        if (typeof linkOrId === 'string' || typeof linkOrId === 'number') {
+            return String(linkOrId);
+        }
+
+        return (
+            linkOrId.userData?.id ??
+            linkOrId.userData?.linkId ??
+            linkOrId.id ??
+            linkOrId.uuid ??
+            null
+        );
+    }
+
     _resolveAntinodeColor(link, outColor = new THREE.Color()) {
         const sourceCategory = link?.sourceNode?.userData?.category
             || link?.source?.userData?.category

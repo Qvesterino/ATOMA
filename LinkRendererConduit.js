@@ -49,26 +49,26 @@ const FORCE_VISUAL_DEBUG = true;
 const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
     ENABLED: true,
-    COUNT_PER_STRAND: 20,
-    BASE_OPACITY: 0.28,
-    RADIAL_PUSH: 1.1,
-    LENGTH_SCALE: 1.55,
-    SWAY_SPEED: 3.1,
-    SWAY_AMOUNT: 0.58,
-    TRAVEL_SPEED: 0.048,
-    DETACH_SPEED: 2.2,
-    DETACH_BOOST: 0.18,
-    FLOW_LEAN: 1.18,
-    RADIAL_LEAN: 0.38,
-    BRIDGE_SHARE: 0.34,
-    BRIDGE_FORWARD: 0.12,
-    BRIDGE_TWIST: 1.18,
+    COUNT_PER_STRAND: 28,
+    BASE_OPACITY: 0.38,
+    RADIAL_PUSH: 1.22,
+    LENGTH_SCALE: 1.72,
+    SWAY_SPEED: 3.7,
+    SWAY_AMOUNT: 0.72,
+    TRAVEL_SPEED: 0.062,
+    DETACH_SPEED: 2.6,
+    DETACH_BOOST: 0.24,
+    FLOW_LEAN: 1.32,
+    RADIAL_LEAN: 0.48,
+    BRIDGE_SHARE: 0.42,
+    BRIDGE_FORWARD: 0.16,
+    BRIDGE_TWIST: 1.38,
     BRIDGE_CLING: 1.0,
-    BRIDGE_CURVE: 0.52,
-    BRIDGE_HOP_SPEED: 1.35,
-    MICRO_JUMP_SHARE: 0.12,
-    MICRO_JUMP_CURVE: 0.74,
-    MICRO_JUMP_SPEED: 4.6
+    BRIDGE_CURVE: 0.66,
+    BRIDGE_HOP_SPEED: 1.55,
+    MICRO_JUMP_SHARE: 0.2,
+    MICRO_JUMP_CURVE: 0.86,
+    MICRO_JUMP_SPEED: 5.2
 };
 const WAVE_SPARK_GLYPH = {
     SLIVER: 0,
@@ -973,8 +973,8 @@ export class LinkRendererConduit {
         // Cadence accumulators and LOD settings
         this._acc30 = 0; // ~30 Hz bucket
         this._acc10 = 0; // ~10 Hz bucket
-        this.maxHeavyLinks = 8;
-        this.heavyDistance = 60;
+        this.maxHeavyLinks = 10;
+        this.heavyDistance = 72;
 
         // Semantic pictograms (global pool, attached to conduit root)
         this.pictogramSystem = new LinkSemanticPictogramSystem_WithFusion(
@@ -1010,9 +1010,9 @@ export class LinkRendererConduit {
 
         // Cached VFX input (reused each frame)
         this._vfxInput = {
-            baseIntensity: 0.2,
-            beadsIntensity: 0.1,
-            sparksIntensity: 0.05,
+            baseIntensity: 0.28,
+            beadsIntensity: 0.16,
+            sparksIntensity: 0.08,
             widthMul: 1.0,
             speedMul: 1.0,
             colorBias: 0.0
@@ -1517,9 +1517,9 @@ export class LinkRendererConduit {
         const load = clamp01(metrics.loadPressure ?? 0);
         const instability = clamp01(1.0 - (metrics.stability ?? 1));
         material.opacity = THREE.MathUtils.clamp(
-            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.18 + corruption * 0.22 + synergy * 0.08,
-            0.18,
-            0.92
+            STRAND_FILAMENT_STYLE.BASE_OPACITY + load * 0.22 + corruption * 0.28 + synergy * 0.12,
+            0.28,
+            0.96
         );
         this._updateStrandTipSparks(filamentState, Number.isFinite(ctx.visualTime) ? ctx.visualTime : 0);
 
@@ -1728,9 +1728,9 @@ export class LinkRendererConduit {
                 cBase.set(0xffffff);
             }
 
-            const startGain = (isMicroJump ? (0.34 + jumpVisibility * 0.36) : (isBridge ? 0.56 : 0.62)) + load * 0.4 + pulse * 0.22;
-            const midGain = (isMicroJump ? (0.4 + jumpVisibility * 0.34) : (isBridge ? 0.66 : 0.72)) + harmony * 0.26 + pulse * 0.16;
-            const tipGain = (isMicroJump ? (0.48 + jumpVisibility * 0.36) : (isBridge ? 0.74 : 0.84)) + harmony * 0.28 + detach * 0.62;
+            const startGain = (isMicroJump ? (0.38 + jumpVisibility * 0.42) : (isBridge ? 0.62 : 0.70)) + load * 0.44 + pulse * 0.26;
+            const midGain = (isMicroJump ? (0.46 + jumpVisibility * 0.40) : (isBridge ? 0.72 : 0.80)) + harmony * 0.30 + pulse * 0.20;
+            const tipGain = (isMicroJump ? (0.56 + jumpVisibility * 0.40) : (isBridge ? 0.82 : 0.94)) + harmony * 0.32 + detach * 0.72;
             cTip.copy(cBase).lerp(
                 COLOR_WHITE,
                 THREE.MathUtils.clamp((isMicroJump ? (0.25 + jumpVisibility * 0.5) : (isBridge ? 0.42 : 0.58)) + detach * 0.55 + corruption * 0.25, 0.0, 1.0)
@@ -1752,7 +1752,7 @@ export class LinkRendererConduit {
 
             // Detached sparks from filament tips (rare, burst-like).
             const sparkPulse = Math.sin(visualTime * 7.4 + phase[idx] * 2.7 + idx * 0.37);
-            const sparkChanceGate = isMicroJump ? (0.93 + (1.0 - jumpVisibility) * 0.04) : 0.978;
+            const sparkChanceGate = isMicroJump ? (0.89 + (1.0 - jumpVisibility) * 0.05) : 0.964;
             const sparkAccent = (strandIndex % 2 === 0 ? state.colorB : state.colorA) || cBase;
             if ((detach > 0.14 || (isMicroJump && jumpVisibility > 0.82)) && sparkPulse > sparkChanceGate) {
                 if (isBridge || isMicroJump) {
@@ -1770,7 +1770,7 @@ export class LinkRendererConduit {
                     vEnd,
                     vSide,
                     visualTime,
-                    0.4 + detach * 0.9 + jumpVisibility * 0.4,
+                    0.52 + detach * 1.05 + jumpVisibility * 0.5,
                     {
                         mode: isMicroJump ? 'microJump' : 'tipDetach',
                         baseColor: cBase,
@@ -1778,7 +1778,7 @@ export class LinkRendererConduit {
                         harmony,
                         corruption,
                         load,
-                        hotBoost: isMicroJump ? 0.16 : 0.10
+                        hotBoost: isMicroJump ? 0.22 : 0.14
                     }
                 );
             }
@@ -1793,7 +1793,7 @@ export class LinkRendererConduit {
                     vMid,
                     vSide,
                     visualTime,
-                    0.34 + harmony * 0.35 + load * 0.2,
+                    0.45 + harmony * 0.42 + load * 0.24,
                     {
                         mode: 'bridgeContact',
                         baseColor: cBase,
@@ -1801,7 +1801,7 @@ export class LinkRendererConduit {
                         harmony,
                         corruption,
                         load,
-                        hotBoost: 0.08
+                        hotBoost: 0.12
                     }
                 );
             }
@@ -2632,7 +2632,10 @@ export class LinkRendererConduit {
                 start: new THREE.Vector3(),
                 end: new THREE.Vector3(),
                 radius: 0,
-                segments: 0
+                segments: 0,
+                pointScratch: new THREE.Vector3(),
+                pointPool: [],
+                points: []
             },
             __skinGeometryState: {
                 ready: false,
@@ -2972,8 +2975,8 @@ export class LinkRendererConduit {
         const sourcePortPos = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.18);
         const sourceInjectionOrigin = sourceCenter.clone().addScaledVector(linkDir, sourceRadius * 0.06);
         const lod = this._getLinkLODLevel(start, end);
-        const lodVisualScale = lod >= 2 ? 0.3 : 1.0;
-        const lodAllowsParticles = lod < 1;
+        const lodVisualScale = lod >= 2 ? 0.45 : 1.0;
+        const lodAllowsParticles = lod < 2;
         const lodAllowsSecondaryVfx = lod < 2;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
@@ -3419,6 +3422,11 @@ export class LinkRendererConduit {
             pointPool: [],
             points: []
         });
+        if (!(braidGeometryState.start instanceof THREE.Vector3)) braidGeometryState.start = new THREE.Vector3();
+        if (!(braidGeometryState.end instanceof THREE.Vector3)) braidGeometryState.end = new THREE.Vector3();
+        if (!(braidGeometryState.pointScratch instanceof THREE.Vector3)) braidGeometryState.pointScratch = new THREE.Vector3();
+        if (!Array.isArray(braidGeometryState.pointPool)) braidGeometryState.pointPool = [];
+        if (!Array.isArray(braidGeometryState.points)) braidGeometryState.points = [];
         const braidStart = frameState.geometry?.start || start;
         const braidEnd = frameState.geometry?.end || end;
         const braidMoved =
@@ -4016,6 +4024,17 @@ export class LinkRendererConduit {
         }
         for (const [strandMesh, patch] of materialPatches.strands.entries()) {
             applyMaterialPatch(strandMesh.material, patch);
+        }
+
+        if (heavyTick && state.energyWave && this.modules.flow && Array.isArray(state.strands) && state.strands.length > 0) {
+            state.energyWave.update(
+                state.strands,
+                visualDelta,
+                lodSynergy,
+                lodTrafficLoad,
+                0.85 + vfx.baseIntensity
+            );
+            runtime.energyWaveTicks += 1;
         }
 
         // Final-pass wave modulation (single authoritative per-link flow path).

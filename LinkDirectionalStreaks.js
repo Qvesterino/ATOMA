@@ -42,11 +42,11 @@ export class LinkDirectionalStreaks {
             streakWidthBase: 0.10,      // Thicker ribbon for reliable readability
             streakLengthMin: 0.12,      // Min visible length on curve (0-1)
             streakLengthMax: 0.55,      // Max visible length on curve (0-1)
-            streakCountMin: 5,          // Min active streaks
-            streakCountMax: 10,          // Max active streaks
-            speedBaseMin: 0.6,          // Synergy multiplier range (min)
-            speedBaseMax: 1.6,          // Synergy multiplier range (max)
-            segmentsPerStreak: 12,      // Ribbon resolution (low for perf)
+            streakCountMin: 6,          // Min active streaks
+            streakCountMax: 12,         // Max active streaks
+            speedBaseMin: 0.65,         // Synergy multiplier range (min)
+            speedBaseMax: 1.75,         // Synergy multiplier range (max)
+            segmentsPerStreak: 14,      // Ribbon resolution (low for perf)
             harmonyBoost: 0.08,         // Keep harmony modulation subtle to avoid white blowout
             corruptionDesaturation: 0.4, // Color desaturation from corruption
             instabilityDampen: 0.7,     // Opacity scaling from instability

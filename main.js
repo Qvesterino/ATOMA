@@ -5257,6 +5257,7 @@ this.setHudDirty('nodeInspect');
                     dbg.trap?.oscillationTraps?.filter?.((t) => t?.active) ??
                     [];
                 const traps = activeTraps.length;
+                const primaryTrap = activeTraps[0] || null;
                 const activeTrapAmplitude = activeTraps.reduce((max, trap) => {
                     const amplitude = Number(trap?.amplitude) || 0;
                     return amplitude > max ? amplitude : max;
@@ -5264,6 +5265,8 @@ this.setHudDirty('nodeInspect');
                 const activeTrapAverageAmplitude = activeTraps.length > 0
                     ? activeTraps.reduce((sum, trap) => sum + (Number(trap?.amplitude) || 0), 0) / activeTraps.length
                     : 0;
+                const primaryTrapState = primaryTrap?.state || 'none';
+                const primaryTrapRadius = Number(primaryTrap?.trapRadius) || 0;
                 const antinodeMeshes =
                     dbg.renderer?.antinodeMeshPool?.filter?.((entry) => entry?.active && entry?.mesh?.visible)?.length ??
                     0;
@@ -5275,6 +5278,8 @@ this.setHudDirty('nodeInspect');
                     reflectionActive,
                     pressureZonesActive: pressureZones,
                     traps,
+                    primaryTrapState,
+                    primaryTrapRadius,
                     activeTrapAmplitude,
                     activeTrapAverageAmplitude,
                     antinodeMeshes
@@ -5296,8 +5301,10 @@ this.setHudDirty('nodeInspect');
                     overlay.textContent = [
                         `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`,
                         `P:${state.pressureZonesActive} | amp:${state.activeTrapAverageAmplitude.toFixed(2)} | peak:${state.activeTrapAmplitude.toFixed(2)}`
+                        ,
+                        `state:${state.primaryTrapState} | radius:${state.primaryTrapRadius.toFixed(2)}`
                     ].join('\n');
-                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}`;
+                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}`;
                 }
 
                 return state;

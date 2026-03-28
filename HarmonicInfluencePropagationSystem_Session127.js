@@ -540,28 +540,28 @@ export class HarmonicInfluencePropagationSystem_Session127 {
    * Animate aura mesh (vertical drift + radial oscillation)
   */
   _animateAuraMesh(mesh, node, harmony, synergy, stability, fadeProgress) {
-    // PHASE OFF-1: disabled aura position drift (will replace with scale breathing / shader displacement)
+    // PHASE OFF-1: all motion disabled
     if (!MOTION_OFF_PHASE1) {
       // Vertical drift
       const driftAmount = this.config.driftSpeed * 0.1;  // Per-frame drift
       mesh.position.y += driftAmount;
-    }
-    
-    // Radial oscillation
-    const time = performance.now() * 0.001;  // Convert to seconds
-    const oscillation = Math.sin(time * this.config.oscillationFrequency * Math.PI * 2) *
-                       this.config.oscillationAmplitude;
-    
-    // Apply oscillation as breathing scale
-    const breathingScale = 1.0 + oscillation * 0.1;
-    mesh.scale.multiplyScalar(breathingScale);
+      
+      // Radial oscillation
+      const time = performance.now() * 0.001;  // Convert to seconds
+      const oscillation = Math.sin(time * this.config.oscillationFrequency * Math.PI * 2) *
+                         this.config.oscillationAmplitude;
+      
+      // Apply oscillation as breathing scale
+      const breathingScale = 1.0 + oscillation * 0.1;
+      mesh.scale.multiplyScalar(breathingScale);
 
-    const instability = 1 - clamp01(stability ?? 0);
-    mesh.rotation.y += Math.sin(time * 0.22 + instability) * this.config.instabilityMaxPhaseJitter * instability * 0.02;
-    
-    // Rotation drift for organic feel
-    mesh.rotation.x += Math.sin(time * 0.3) * 0.01;
-    mesh.rotation.z += Math.cos(time * 0.4) * 0.01;
+      const instability = 1 - clamp01(stability ?? 0);
+      mesh.rotation.y += Math.sin(time * 0.22 + instability) * this.config.instabilityMaxPhaseJitter * instability * 0.02;
+      
+      // Rotation drift for organic feel
+      mesh.rotation.x += Math.sin(time * 0.3) * 0.01;
+      mesh.rotation.z += Math.cos(time * 0.4) * 0.01;
+    }
   }
   
   /**

@@ -22,7 +22,7 @@ export class EnhancedNodeModelLinkState {
     this.boostParameters = {
       opacityBoost: 0.05,      // +5% opacity
       emissiveBoost: 0.15,     // +15% emissive intensity
-      scaleBoost: 0.02,        // +2% scale
+      scaleBoost: 0,           // disabled
     };
     
     // Track original values for reversal

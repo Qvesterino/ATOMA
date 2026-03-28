@@ -54,7 +54,7 @@ export class NodeLinkedAuraRenderer_Session146 {
       baseRadius: config.baseRadius ?? 1.2,
       baseDisplacement: config.baseDisplacement ?? 0.3,
       noiseScale: config.noiseScale ?? 2.0,
-      timeScale: config.timeScale ?? 0.5,
+      timeScale: 0,            // disabled drift/oscillation
       baseOpacity: config.baseOpacity ?? 0.25,
       
       // Behavior

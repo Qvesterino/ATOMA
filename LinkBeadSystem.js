@@ -120,7 +120,7 @@ export const BEAD_CONFIG = {
   // Spawn behavior
   spawn: {
     // Base spawn rate (beads per second at synergy=1.0, traffic=1.0)
-    baseRate: 8.0,
+    baseRate: 10.0,
     // Activity = (synergy + traffic) / 2 (plus external boost)
   },
   
@@ -145,7 +145,7 @@ export const BEAD_CONFIG = {
   fadeDistance: 0.1,
   
   // Pool size (max beads per link)
-  maxBeadsPerLink: 6,
+  maxBeadsPerLink: 8,
   
   // Scale opacity with synergy (higher synergy = more visible beads)
   synergyCoupling: {
