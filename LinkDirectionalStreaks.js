@@ -26,7 +26,7 @@ import { LinkDirectionalGradientPolish } from './LinkDirectionalGradientPolish.j
  * - Synergy: controls speed (0.6x–1.6x), count (3–7), motion smoothness
  * - Harmony: controls brightness, length smoothness, emissive intensity boost
  * - Corruption: desaturation, phase jitter, color shift
- * - Instability: lifetime shortening, occasional suppression
+ * - stability: lifetime shortening, occasional suppression
  * 
  * ARCHITECTURE:
  * - One BufferGeometry per link (cached, reused)

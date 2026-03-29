@@ -17,7 +17,6 @@ import { NodeLinkingSystem } from './NodeLinkingSystem.js';
 
 // NEW: Import synergy systems
 import { SynergyVFX1_0 } from './SynergyVFX1_0.js';
-import { SynergyHighways1_0 } from './SynergyHighways1_0.js';
 // import { LinkCorrelationEngine1_0 } from './LinkCorrelationEngine1_0.js'; // Optional
 // import { LinkRecommendationAI1_0 } from './LinkRecommendationAI1_0.js'; // Optional
 // import { PriorityHistoryEngine1_0 } from './PriorityHistoryEngine1_0.js'; // Optional
@@ -43,7 +42,6 @@ class AtomaGame {
     // NEW: Initialize all synergy systems
     // ========================================================================
     this.synergyVFX = new SynergyVFX1_0(this.scene, this.camera);
-    this.synergyHighways = new SynergyHighways1_0(this.scene, this.camera);
     
     // Optional systems (uncomment if available)
     // this.correlationEngine = new LinkCorrelationEngine1_0();
@@ -54,7 +52,6 @@ class AtomaGame {
     // NEW: Attach synergy systems to integration
     // ========================================================================
     this.nodeLinker.synergyIntegration.attachSynergyVFX(this.synergyVFX);
-    this.nodeLinker.synergyIntegration.attachSynergyHighways(this.synergyHighways);
     
     // Attach optional systems if they exist
     // if (this.correlationEngine) {
@@ -69,7 +66,6 @@ class AtomaGame {
     
     // Setup console API for debugging
     this.synergyVFX.setupConsoleAPI();
-    this.synergyHighways.setupConsoleAPI();
     
     console.log('✅ Synergy systems initialized and integrated');
   }
@@ -90,7 +86,6 @@ class AtomaGame {
   registerLink(link) {
     const linkId = `${link.source.id}-${link.target.id}`;
     this.synergyVFX.registerLink(link, linkId);
-    this.synergyHighways.registerLink(link, linkId);
   }
   
   /**
@@ -99,7 +94,6 @@ class AtomaGame {
   unregisterLink(link) {
     const linkId = `${link.source.id}-${link.target.id}`;
     this.synergyVFX.unregisterLink(linkId);
-    this.synergyHighways.unregisterLink(linkId);
   }
   
   /**
@@ -139,7 +133,6 @@ class AtomaGame {
   dispose() {
     this.nodeLinker.synergyIntegration.dispose();
     this.synergyVFX.dispose();
-    this.synergyHighways.dispose();
   }
 }
 
@@ -151,20 +144,17 @@ class AtomaGame {
 
 let scene, camera, renderer, clock;
 let nodeLinker, aiNodes, world;
-let synergyVFX, synergyHighways, synergyIntegration;
+let synergyVFX, synergyIntegration;
 
 function initializeSynergySystem() {
   // Create synergy systems
   synergyVFX = new SynergyVFX1_0(scene, camera);
-  synergyHighways = new SynergyHighways1_0(scene, camera);
   
   // Attach to integration
   nodeLinker.synergyIntegration.attachSynergyVFX(synergyVFX);
-  nodeLinker.synergyIntegration.attachSynergyHighways(synergyHighways);
   
   // Setup console API
   synergyVFX.setupConsoleAPI();
-  synergyHighways.setupConsoleAPI();
   
   console.log('✅ Synergy system ready');
 }
@@ -174,7 +164,6 @@ function registerLinkForSynergy(link) {
   
   // Register with VFX
   synergyVFX.registerLink(link, linkId);
-  synergyHighways.registerLink(link, linkId);
 }
 
 function animationLoop() {
@@ -290,13 +279,11 @@ To integrate synergy into your game:
 
 1. ✅ Add imports at top of main.js:
    import { SynergyVFX1_0 } from './SynergyVFX1_0.js';
-   import { SynergyHighways1_0 } from './SynergyHighways1_0.js';
 
 2. ✅ In initialization:
    synergyVFX = new SynergyVFX1_0(scene, camera);
-   synergyHighways = new SynergyHighways1_0(scene, camera);
    nodeLinker.synergyIntegration.attachSynergyVFX(synergyVFX);
-   nodeLinker.synergyIntegration.attachSynergyHighways(synergyHighways);
+  // Highways are handled by the active SynergyHighways2_0 runtime path.
 
 3. ✅ In animation loop:
    nodeLinker.synergyIntegration.update(deltaTime);

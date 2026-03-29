@@ -982,7 +982,6 @@ import { WaveTravelShaderPack_v1 } from './WaveTravelShaderPack_v1.js';
 // ============================================================================
 import { WaveDynamicsShaderPack_v1 } from './WaveDynamicsShaderPack_v1.js';
 import { SynergyTravelingWaveFX_v1 } from './SynergyTravelingWaveFX_v1.js';
-import { SynergyHighways2_0 } from './SynergyHighways2_0.js';
 import { SynergyHighwayVisuals3D_1_0 } from './SynergyHighwayVisuals3D_1_0.js';
 
 // ============================================================================
@@ -4403,10 +4402,13 @@ this.setHudDirty('nodeInspect');
             if (!audio) return console.warn('[ATOMA AUDIO] audioSystem missing');
             const sounds = {
                 hover: () => audio.playHoverEnter?.(),
+                hover_exit: () => audio.playHoverExit?.(),
                 selection: () => audio.playSelection(),
+                primary_set: () => audio.playPrimaryNodeSet?.(),
                 deselection: () => audio.playDeselection(),
                 link: () => audio.playLinkCreated(),
                 unlink: () => audio.playLinkBroken(),
+                invalid_link: () => audio.playInvalidLinkAttempt?.(),
                 synergy_active: () => audio.playSynergyActive(),
                 synergy_fade: () => audio.playSynergyFade()
             };
@@ -4660,7 +4662,7 @@ this.setHudDirty('nodeInspect');
         this.synergyCascadeFXBridge = null;
 
         // Synergy Highways (route computation) + 3D highway visuals
-        this.synergyHighways = null;
+        this.synergyHighwayVisuals3D = null;
         this.synergyHighwayVisuals3D = null;
         this._synergyHighwayRefreshAcc = 0;
 
@@ -7195,6 +7197,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.renderer,
             this.aiNodes
         );
+        if (this.harmonicHealing) {
+            this.harmonicHealing.nodeLinking = this.linkingSystem;
+        }
+        if (this.harmonicRecovery) {
+            this.harmonicRecovery.linkingSystem = this.linkingSystem;
+        }
         if (this.linkingSystem?.conduitRenderer) {
             this.linkingSystem.conduitRenderer.waveShaderBridge =
                 this.waveShaderBridge || this.linkingSystem.conduitRenderer.waveShaderBridge;
@@ -7267,6 +7275,63 @@ window.__ATOMA_SCENE__ = this.scene;
 
             this.linkingSystem.onNodeHoverStart(() => playHoverAudio());
             this.linkingSystem.__audioHoverAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onNodeHoverEnd && !this.linkingSystem.__audioHoverExitAuthorityBound) {
+            const playHoverExitAudio = () => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    this.audioSystem.playHoverExit?.();
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onNodeHoverEnd(() => playHoverExitAudio());
+            this.linkingSystem.__audioHoverExitAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onPrimaryNodeSet && !this.linkingSystem.__audioPrimarySetAuthorityBound) {
+            const playPrimarySetAudio = () => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    this.audioSystem.playPrimaryNodeSet?.();
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onPrimaryNodeSet(() => playPrimarySetAudio());
+            this.linkingSystem.__audioPrimarySetAuthorityBound = true;
+        }
+        if (this.linkingSystem?.onInvalidLinkAttempt && !this.linkingSystem.__audioInvalidLinkAuthorityBound) {
+            const playInvalidLinkAudio = () => {
+                if (!this.audioSystem) return;
+                const play = () => {
+                    if (!this.audioSystem?.initialized) return;
+                    this.audioSystem.playInvalidLinkAttempt?.();
+                };
+                if (this.audioSystem.initialized) {
+                    play();
+                    return;
+                }
+                this.ensureAudioStarted?.()
+                    .then(() => play())
+                    .catch(() => {});
+            };
+
+            this.linkingSystem.onInvalidLinkAttempt(() => playInvalidLinkAudio());
+            this.linkingSystem.__audioInvalidLinkAuthorityBound = true;
         }
         if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__audioLinkAuthorityBound) {
             const playLinkAudio = (type) => {
@@ -7412,20 +7477,15 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         const enableSynergyHighway3D = window?.ATOMA_FLAGS?.visual?.synergyHighway3D ?? true;
         if (enableSynergyHighway3D) {
-            this.synergyHighways = SynergyHighways2_0;
-            this.synergyHighways.init(this.linkingSystem);
-            window.SynergyHighways2_0 = this.synergyHighways;
-            this.synergyHighways.scheduleRebuild?.();
-            this.linkingSystem.onLinkCreated?.(() => this.synergyHighways?.scheduleRebuild?.());
-            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighways?.scheduleRebuild?.());
             this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
-            this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.synergyHighways, this.aiNodes);
-            this.synergyHighwayVisuals3D.refreshFromHighways?.();
+            this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.linkingSystem, this.aiNodes);
             window.SynergyHighwayVisuals3D_1_0 = this.synergyHighwayVisuals3D;
+            this.linkingSystem.onLinkCreated?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.());
+            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.());
+            this.synergyHighwayVisuals3D.refreshFromHighways?.();
             window.__ATOMA_SYNERGY_HIGHWAY_VISUALS__ = this.synergyHighwayVisuals3D;
             this._synergyHighwayRefreshAcc = 0;
         } else {
-            this.synergyHighways = null;
             this.synergyHighwayVisuals3D = null;
         }
         console.log('[main.js] NodeLinkingSystem created');
@@ -8232,7 +8292,7 @@ window.__ATOMA_SCENE__ = this.scene;
             LinkMLRecommendationEngine1_0.init({
                 LinkHistoryTracker1_0: this.linkHistoryTracker,
                 ComputeSynergyScore2_0: computeSynergyScore,
-                SynergyHighways2_0: this.synergyHighways,
+                SynergyHighwayVisuals3D_1_0: this.synergyHighwayVisuals3D,
                 NodeLinkingSystem: this.linkingSystem,
                 AINodes: this.aiNodes,
                 LinkAutomationMonitor2_0: this.linkAutomationMonitor,
@@ -10692,7 +10752,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (!this.synergyHighwayVisuals3D) return;
             this._synergyHighwayRefreshAcc = (this._synergyHighwayRefreshAcc || 0) + dt;
             if (this._synergyHighwayRefreshAcc >= 0.5) {
-                this.synergyHighways?.updateVisuals?.();
+                this.synergyHighwayVisuals3D?.updateVisuals?.();
                 this.synergyHighwayVisuals3D.refreshFromHighways?.();
                 this._synergyHighwayRefreshAcc = 0;
             }
@@ -10846,7 +10906,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
         reg('criticalNodeFailure', (dt) => {
-            if (!this._runSlowSemanticPending) return;
             if (this.criticalNodeFailure?.enabled) {
                 this.criticalNodeFailure.rebind?.({
                     linkingSystem: this.linkingSystem,
@@ -16554,10 +16613,13 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             const audio = window.game.audioSystem;
             const sounds = {
                 'hover': () => audio.playHoverEnter?.(),
+                'hover_exit': () => audio.playHoverExit?.(),
                 'selection': () => audio.playSelection(),
+                'primary_set': () => audio.playPrimaryNodeSet?.(),
                 'deselection': () => audio.playDeselection(),
                 'link': () => audio.playLinkCreated(),
                 'unlink': () => audio.playLinkBroken(),
+                'invalid_link': () => audio.playInvalidLinkAttempt?.(),
                 'synergy_active': () => audio.playSynergyActive(),
                 'synergy_fade': () => audio.playSynergyFade()
             };
@@ -16572,7 +16634,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 console.log(`🔊 Played: ${soundName}`);
             } else {
                 console.warn(`⚠ Unknown sound: ${soundName}`);
-                console.log('Available: selection, deselection, link, unlink, synergy_active, synergy_fade');
+                console.log('Available: hover, hover_exit, selection, primary_set, deselection, link, unlink, invalid_link, synergy_active, synergy_fade');
             }
         };
 

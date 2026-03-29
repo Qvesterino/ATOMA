@@ -134,7 +134,7 @@ export class SynergyVFX1_0 {
    */
   createLinkGlowGeometry(linkId, link) {
     const linkData = this.linkData.get(linkId);
-    if (!linkData || !link.coreLine) return;
+    if (!linkData || !link.source || !link.target) return;
     
     try {
       // Get source and target positions

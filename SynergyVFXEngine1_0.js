@@ -127,6 +127,7 @@ export class SynergyVFXEngine1_0 {
     this.clusterCache = new Map();
     this.lastClusterUpdateTime = 0;
     this.clusterUpdateIntervalMs = 1000;  // Update clusters every 1 second
+    this.transientSceneObjects = new Set();
 
     console.log('[SynergyVFXEngine] Initialized v1.0 (enabled=%s)', this.config.enabled);
   }
@@ -141,6 +142,8 @@ export class SynergyVFXEngine1_0 {
     }
 
     try {
+      this._clearTransientSceneObjects();
+
       this.state.time += deltaMs;
       this.state.deltaTime = deltaMs;
 
@@ -248,8 +251,9 @@ export class SynergyVFXEngine1_0 {
       // Get average synergy tier from connected links
       let maxSynergyTier = 0;
       for (const link of nodeLinks) {
-        if (link['synergyState']?.tier && link['synergyState'].tier > maxSynergyTier) {
-          maxSynergyTier = link['synergyState'].tier;
+        const synergyState = this._getLinkSynergyState(link);
+        if (synergyState?.tier && synergyState.tier > maxSynergyTier) {
+          maxSynergyTier = synergyState.tier;
         }
       }
 
@@ -296,8 +300,9 @@ export class SynergyVFXEngine1_0 {
         // Add volatility wobble
         let volatility = 0;
         for (const link of nodeLinks) {
-          if (link['synergyState']?.volatility && typeof link['synergyState'].volatility === 'number') {
-            volatility = Math.max(volatility, link['synergyState'].volatility);
+          const synergyState = this._getLinkSynergyState(link);
+          if (synergyState?.volatility && typeof synergyState.volatility === 'number') {
+            volatility = Math.max(volatility, synergyState.volatility);
           }
         }
 
@@ -694,6 +699,7 @@ export class SynergyVFXEngine1_0 {
 
       const line = new THREE.Line(geometry, material);
       this.scene.add(line);
+      this._trackTransientObject(line);
 
       // Auto-remove after frame
       // (In production, would use proper scene management)
@@ -733,6 +739,7 @@ export class SynergyVFXEngine1_0 {
 
       const line = new THREE.Line(geometry, material);
       this.scene.add(line);
+      this._trackTransientObject(line);
 
     } catch (error) {
       this.state.errors++;
@@ -778,6 +785,7 @@ export class SynergyVFXEngine1_0 {
 
       const line = new THREE.Line(geometry, material);
       this.scene.add(line);
+      this._trackTransientObject(line);
 
     } catch (error) {
       this.state.errors++;
@@ -806,6 +814,7 @@ export class SynergyVFXEngine1_0 {
       clampSphere(mesh);
       mesh.position.copy(position);
       this.scene.add(mesh);
+      this._trackTransientObject(mesh);
 
     } catch (error) {
       this.state.errors++;
@@ -863,6 +872,7 @@ export class SynergyVFXEngine1_0 {
       clampSphere(mesh);
       mesh.position.copy(center);
       this.scene.add(mesh);
+      this._trackTransientObject(mesh);
 
     } catch (error) {
       this.state.errors++;
@@ -906,6 +916,41 @@ export class SynergyVFXEngine1_0 {
     }
   }
 
+  _trackTransientObject(object) {
+    if (object) {
+      this.transientSceneObjects.add(object);
+    }
+  }
+
+  _clearTransientSceneObjects() {
+    try {
+      for (const object of this.transientSceneObjects) {
+        if (object?.parent) {
+          object.parent.remove(object);
+        }
+
+        if (object?.geometry?.dispose) {
+          object.geometry.dispose();
+        }
+
+        const materials = Array.isArray(object?.material) ? object.material : [object?.material];
+        for (const material of materials) {
+          if (material?.dispose) {
+            material.dispose();
+          }
+        }
+      }
+
+      this.transientSceneObjects.clear();
+    } catch (error) {
+      this.state.errors++;
+    }
+  }
+
+  _getLinkSynergyState(link) {
+    return link?.userData?.synergy || link?.synergyState || null;
+  }
+
   _cloneValidWorldPosition(pos) {
     if (!pos) return null;
     const x = Number(pos.x);
@@ -924,6 +969,12 @@ export class SynergyVFXEngine1_0 {
 
   _lerp(a, b, t) {
     return a + (b - a) * this._clamp(t, 0, 1);
+  }
+
+  renderSynergyEffects() {
+    this.renderSynergyThreads();
+    this.renderBurstEvents();
+    this.renderClusterFields();
   }
 
   /**
@@ -1020,6 +1071,7 @@ export class SynergyVFXEngine1_0 {
    */
   resetAll() {
     try {
+      this._clearTransientSceneObjects();
       this.orbitHalos.clear();
       this.synergyThreads = [];
       this.burstEvents.clear();

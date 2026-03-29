@@ -11,7 +11,7 @@
  * ║  - Width, intensity, speed, color from synergy metrics        ║
  * ║  - Animated flow effect (moving UVs)                          ║
  * ║  - Bloom/halo for critical routes                             ║
- * ║  - Real-time updates from SynergyHighways2_0                  ║
+ * ║  - Real-time updates from the merged highway aggregation path ║
  * ║                                                                ║
  * ╚════════════════════════════════════════════════════════════════╝
  * 
@@ -26,8 +26,9 @@
  * - Performance optimized (<1ms per frame)
  * 
  * Data Dependencies:
- * - window.synergyHighways.getHighways() → highway objects
- * - Each highway has: id, fromCategory, toCategory, avgSynergy, 
+ * - linkingSystem.links → raw links
+ * - Each link uses canonical link.userData.synergy for synergy values
+ * - Aggregated highways expose: id, fromCategory, toCategory, avgSynergy,
  *   maxSynergy, trend, volatility, visuals {width, intensity, speed, color, bloomActive}
  * 
  * Visual Hierarchy:
@@ -62,11 +63,20 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   let camera = null;
   let renderer = null;
   let synergyHighwaysEngine = null;
+  let linkingSystem = null;
+  let historyTracker = null;
   let aiNodes = null;  // Reference to AI nodes for dynamic anchor computation
 
   let group = null;  // Main group containing all highway meshes
   const highwayMeshes = new Map();  // Map<highway.id, mesh>
+  const highwayHaloMeshes = new Map(); // Map<highway.id, halo mesh>
   const highwayData = new Map();    // Map<highway.id, highway object>
+  const highways = [];              // Aggregated highway data
+  const highwayMap = new Map();     // Map<routeId, highway>
+
+  let lastRebuildTime = 0;
+  let rebuildScheduled = false;
+  let cacheValid = false;
 
   // Dynamically computed category anchors (updated from node positions)
   const computedAnchors = new Map();
@@ -79,6 +89,10 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
   
   const config = {
     enabled: true,
+    rebuildThrottleMs: 500,
+    updateThrottleMs: 100,
+    minLinkCount: 1,
+    minAvgSynergy: 0.0,
     curveResolution: 32,        // Points along curve for tube geometry
     tubeSides: 8,               // Radial segments on tube
     minTubeRadius: 0.05,        // Minimum tube radius
@@ -89,8 +103,15 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     enableGlowLayer: true,      // Render additional glow layer
     enableHaloEffect: true,     // Render bloom halo for critical
     categoryPositions: {},      // Will be populated with computed centers
-    enableDebugNodes: false     // Draw debug spheres at category positions
+    enableDebugNodes: false,    // Draw debug spheres at category positions
+    enableDebugVisuals: false,
+    enableLogging: false
   };
+
+  const validCategories = [
+    'input', 'process', 'integration', 'analytics', 'storage', 'control',
+    'sigma', 'quantum', 'emotional'
+  ];
   
   // Category anchor positions (will be computed from node locations)
   const categoryAnchors = {
@@ -104,6 +125,266 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     'quantum': new (THREE?.Vector3 || function() {})(5, -8, 10),
     'emotional': new (THREE?.Vector3 || function() {})(-8, 2, -15)
   };
+
+  function lerp(a, b, t) {
+    return a + (b - a) * Math.max(0, Math.min(1, t));
+  }
+
+  function getHighwayId(fromCategory, toCategory) {
+    return `${fromCategory}→${toCategory}`;
+  }
+
+  function getLinkSynergy(link) {
+    if (!link) return 0;
+
+    const canonicalSynergy = link.userData?.synergy;
+    if (canonicalSynergy && typeof canonicalSynergy === 'object') {
+      const score = canonicalSynergy.score;
+      if (typeof score === 'number' && Number.isFinite(score)) {
+        return Math.max(0, Math.min(1, score));
+      }
+
+      const synergyNorm = canonicalSynergy.synergyNorm;
+      if (typeof synergyNorm === 'number' && Number.isFinite(synergyNorm)) {
+        return Math.max(0, Math.min(1, synergyNorm));
+      }
+    }
+
+    if (link.traffic?.load) {
+      return Math.max(0, Math.min(1, link.traffic.load));
+    }
+
+    return 0.5;
+  }
+
+  function getLinkCascade(link) {
+    if (!link) return 0;
+    const rawCascade = link.userData?.cascadeStrength ?? link.userData?.cascade ?? 0;
+    if (!Number.isFinite(rawCascade)) return 0;
+    return Math.max(0, Math.min(1, rawCascade));
+  }
+
+  function getNodeCategory(node) {
+    if (!node || !node.userData) return null;
+    const category = node.userData.category || node.userData.type;
+    return validCategories.includes(category) ? category : null;
+  }
+
+  function getLinkTrend(link) {
+    if (!historyTracker || !link) return 'stable';
+    try {
+      const linkId = link._glyphId || link.id || `link_${Math.random()}`;
+      const trend = historyTracker.getTrend?.(linkId);
+      return trend?.direction || 'stable';
+    } catch (error) {
+      return 'stable';
+    }
+  }
+
+  function getLinkVolatility(link) {
+    if (!historyTracker || !link) return 0.3;
+    try {
+      const linkId = link._glyphId || link.id || `link_${Math.random()}`;
+      const stats = historyTracker.getStats?.(linkId);
+      return stats?.volatility ?? 0.3;
+    } catch (error) {
+      return 0.3;
+    }
+  }
+
+  function computeVisualProfile(avgSynergy, maxSynergy, volatility) {
+    if (!Number.isFinite(avgSynergy)) avgSynergy = 0.5;
+    if (!Number.isFinite(maxSynergy)) maxSynergy = avgSynergy;
+    if (!Number.isFinite(volatility)) volatility = 0.3;
+
+    avgSynergy = Math.max(0, Math.min(1, avgSynergy));
+
+    let color = 0x3d7aaa;
+    if (avgSynergy >= 0.85) color = 0x99dddd;
+    else if (avgSynergy >= 0.65) color = 0x00b385;
+    else if (avgSynergy >= 0.4) color = 0x3d9f92;
+
+    return {
+      width: lerp(0.3, 2.0, avgSynergy),
+      intensity: lerp(0.1, 0.8, avgSynergy),
+      speed: lerp(0.5, 3.0, avgSynergy),
+      emissiveBoost: lerp(0.1, 0.6, avgSynergy),
+      color,
+      bloomActive: maxSynergy > 0.85,
+      volatility
+    };
+  }
+
+  function computeCascadeVisualProfile(avgCascade, maxCascade) {
+    if (!Number.isFinite(avgCascade)) avgCascade = 0;
+    if (!Number.isFinite(maxCascade)) maxCascade = 0;
+    avgCascade = Math.max(0, Math.min(1, avgCascade));
+    maxCascade = Math.max(0, Math.min(1, maxCascade));
+
+    let color = 0x3d9f92;
+    if (maxCascade >= 0.66) color = 0xff3333;
+    else if (maxCascade >= 0.33) color = 0xff7a33;
+
+    return {
+      width: lerp(0.3, 2.0, avgCascade),
+      intensity: lerp(0.1, 0.8, maxCascade),
+      speed: Math.max(0.5, avgCascade * 2.0),
+      emissiveBoost: lerp(0.1, 0.6, maxCascade),
+      color,
+      bloomActive: maxCascade > 0.6,
+      opacityMult: 1.2
+    };
+  }
+
+  function aggregateTrend(links) {
+    if (!links || links.length === 0) return 'stable';
+
+    let rising = 0;
+    let falling = 0;
+    for (const link of links) {
+      const trend = getLinkTrend(link);
+      if (trend === 'rising') rising++;
+      else if (trend === 'falling') falling++;
+    }
+
+    const ratio = rising / links.length;
+    if (ratio > 0.6) return 'rising';
+    if (ratio < 0.4) return 'falling';
+    return 'stable';
+  }
+
+  function averageVolatility(links) {
+    if (!links || links.length === 0) return 0.3;
+    const sum = links.reduce((accumulator, link) => accumulator + getLinkVolatility(link), 0);
+    return sum / links.length;
+  }
+
+  function rebuildHighways() {
+    const sourceLinks = linkingSystem?.links || synergyHighwaysEngine?.links || [];
+
+    highways.length = 0;
+    highwayMap.clear();
+
+    if (!Array.isArray(sourceLinks) || sourceLinks.length === 0) {
+      cacheValid = true;
+      rebuildScheduled = false;
+      lastRebuildTime = performance.now();
+      return;
+    }
+
+    const routeMap = new Map();
+
+    for (const link of sourceLinks) {
+      if (!link || !link.source || !link.target) continue;
+      if (link.active === false) continue;
+
+      const fromCategory = getNodeCategory(link.source);
+      const toCategory = getNodeCategory(link.target);
+      if (!fromCategory || !toCategory) continue;
+
+      const routeId = getHighwayId(fromCategory, toCategory);
+      if (!routeMap.has(routeId)) {
+        routeMap.set(routeId, []);
+      }
+      routeMap.get(routeId).push(link);
+    }
+
+    for (const [routeId, routeLinks] of routeMap.entries()) {
+      if (routeLinks.length < config.minLinkCount) continue;
+
+      const [fromCategory, toCategory] = routeId.split('→');
+      const synergies = routeLinks.map(getLinkSynergy);
+      const avgSynergy = synergies.reduce((sum, value) => sum + value, 0) / synergies.length;
+      const maxSynergy = Math.max(...synergies);
+      const cascades = routeLinks.map(getLinkCascade);
+      const avgCascade = cascades.reduce((sum, value) => sum + value, 0) / cascades.length;
+      const maxCascade = Math.max(...cascades);
+
+      if (avgSynergy < config.minAvgSynergy) continue;
+
+      const trend = aggregateTrend(routeLinks);
+      const volatility = averageVolatility(routeLinks);
+      const highway = {
+        id: routeId,
+        type: 'synergy',
+        fromCategory,
+        toCategory,
+        linkCount: routeLinks.length,
+        avgSynergy,
+        maxSynergy,
+        avgCascade,
+        maxCascade,
+        trend,
+        volatility,
+        visuals: computeVisualProfile(avgSynergy, maxSynergy, volatility),
+        links: routeLinks
+      };
+
+      highways.push(highway);
+      highwayMap.set(routeId, highway);
+
+      if (maxCascade > 0.25) {
+        const cascadeHighway = {
+          id: `${routeId}_cascade`,
+          type: 'cascade',
+          fromCategory,
+          toCategory,
+          linkCount: routeLinks.length,
+          avgSynergy,
+          maxSynergy,
+          avgCascade,
+          maxCascade,
+          trend,
+          volatility,
+          visuals: computeCascadeVisualProfile(avgCascade, maxCascade),
+          links: routeLinks
+        };
+
+        highways.push(cascadeHighway);
+        highwayMap.set(cascadeHighway.id, cascadeHighway);
+      }
+    }
+
+    cacheValid = true;
+    rebuildScheduled = false;
+    lastRebuildTime = performance.now();
+  }
+
+  function scheduleRebuild() {
+    if (rebuildScheduled || !config.enabled) return;
+
+    rebuildScheduled = true;
+    const timeSinceLastRebuild = performance.now() - lastRebuildTime;
+    const delay = Math.max(0, config.rebuildThrottleMs - timeSinceLastRebuild);
+
+    setTimeout(() => {
+      rebuildHighways();
+    }, delay);
+  }
+
+  function updateHighwayData() {
+    if (!config.enabled) return;
+    if (!cacheValid) {
+      rebuildHighways();
+      return;
+    }
+
+    for (const highway of highways) {
+      if (!highway.links) continue;
+
+      const synergies = highway.links.map(getLinkSynergy);
+      const cascades = highway.links.map(getLinkCascade);
+      highway.avgSynergy = synergies.reduce((sum, value) => sum + value, 0) / synergies.length;
+      highway.maxSynergy = Math.max(...synergies);
+      highway.avgCascade = cascades.reduce((sum, value) => sum + value, 0) / cascades.length;
+      highway.maxCascade = Math.max(...cascades);
+      highway.trend = aggregateTrend(highway.links);
+      highway.volatility = averageVolatility(highway.links);
+      highway.visuals = highway.type === 'cascade'
+        ? computeCascadeVisualProfile(highway.avgCascade, highway.maxCascade)
+        : computeVisualProfile(highway.avgSynergy, highway.maxSynergy, highway.volatility);
+    }
+  }
   
   // ═══════════════════════════════════════════════════════════════
   // SHADER DEFINITION
@@ -440,12 +721,32 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       return null;
     }
   }
-  
-  /**
-   * Linear interpolation
-   */
-  function lerp(a, b, t) {
-    return a + (b - a) * Math.max(0, Math.min(1, t));
+
+  function removeHighwayHalo(highwayId) {
+    const halo = highwayHaloMeshes.get(highwayId);
+    if (!halo) return;
+
+    try {
+      if (group) {
+        group.remove(halo);
+      }
+
+      if (halo.geometry) {
+        halo.geometry.dispose();
+      }
+
+      if (halo.material) {
+        if (Array.isArray(halo.material)) {
+          halo.material.forEach(material => material.dispose());
+        } else {
+          halo.material.dispose();
+        }
+      }
+
+      highwayHaloMeshes.delete(highwayId);
+    } catch (e) {
+      console.warn('[SynergyHighwayVisuals] Halo removal failed:', e.message);
+    }
   }
   
   /**
@@ -469,7 +770,8 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       // Update material opacity/color
       if (mesh.material.opacity !== undefined) {
-        mesh.material.opacity = highway.visuals.intensity * config.opacityBase;
+        const opacityMult = Number.isFinite(highway?.visuals?.opacityMult) ? highway.visuals.opacityMult : (highway.type === 'cascade' ? 1.2 : 1.0);
+        mesh.material.opacity = highway.visuals.intensity * config.opacityBase * opacityMult;
       }
       if (mesh.material.color) {
         mesh.material.color.setHex(highway.visuals.color);
@@ -507,6 +809,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       highwayMeshes.delete(highwayId);
       highwayData.delete(highwayId);
+      removeHighwayHalo(highwayId);
     } catch (e) {
       console.warn('[SynergyHighwayVisuals] Mesh removal failed:', e.message);
     }
@@ -522,7 +825,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
      * @param {THREE.Scene} sceneRef - Three.js scene
      * @param {THREE.Camera} cameraRef - Three.js camera
      * @param {THREE.Renderer} rendererRef - Three.js renderer
-     * @param {Object} highwaysEngine - SynergyHighways engine instance
+    * @param {Object} highwaysEngine - Linking system or compatible highway source
      * @param {Object|Array} nodesRef - Optional AI nodes for dynamic anchors
      */
     init(sceneRef, cameraRef, rendererRef, highwaysEngine, nodesRef = null) {
@@ -530,6 +833,8 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       camera = cameraRef;
       renderer = rendererRef;
       synergyHighwaysEngine = highwaysEngine;
+      linkingSystem = highwaysEngine?.links ? highwaysEngine : (highwaysEngine?.linkingSystem ?? null);
+      historyTracker = highwaysEngine?.historyTracker ?? highwaysEngine?.linkHistoryTracker ?? null;
       aiNodes = nodesRef;
 
       if (!scene) {
@@ -555,6 +860,8 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       if (aiNodes) {
         updateCategoryAnchorsFromNodes();
       }
+
+      rebuildHighways();
 
       console.log('[SynergyHighwayVisuals] Initialized');
       return true;
@@ -596,24 +903,31 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     },
     
     /**
-     * Refresh meshes from highway data
-     * Call when SynergyHighways2_0 data changes
+    * Refresh meshes from highway data
+    * Call when aggregated highway data changes
      */
     refreshFromHighways() {
-      if (!enabled || !group || !synergyHighwaysEngine) return;
+      if (!enabled || !group) return;
+
+      if (!cacheValid) {
+        rebuildHighways();
+      }
       
       try {
-        const highways = synergyHighwaysEngine.getHighways?.();
-        if (!highways || highways.length === 0) {
+        const highwayList = highways;
+        if (!highwayList || highwayList.length === 0) {
           // Clear all visuals if no highways
           for (const highwayId of highwayMeshes.keys()) {
             removeHighwayMesh(highwayId);
           }
+            for (const highwayId of Array.from(highwayHaloMeshes.keys())) {
+              removeHighwayHalo(highwayId);
+            }
           return;
         }
         
         // Track which highways should exist
-        const currentIds = new Set(highways.map(hw => hw.id));
+        const currentIds = new Set(highwayList.map(hw => hw.id));
         
         // Remove highways that no longer exist
         for (const highwayId of highwayMeshes.keys()) {
@@ -623,7 +937,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         }
         
         // Create or update highways
-        for (const highway of highways) {
+        for (const highway of highwayList) {
           if (!highway.id) continue;
           
           if (highwayMeshes.has(highway.id)) {
@@ -637,17 +951,20 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
               group.add(mesh);
               highwayMeshes.set(highway.id, mesh);
               highwayData.set(highway.id, highway);
-              
-              // Add bloom halo if enabled
-              if (config.enableHaloEffect && highway.visuals.bloomActive) {
-                const startPos = getCategoryPosition(highway.fromCategory);
-                const endPos = getCategoryPosition(highway.toCategory);
-                const halo = createBloomHalo(highway, startPos, endPos);
-                if (halo) {
-                  group.add(halo);
-                }
-              }
             }
+          }
+
+          if (config.enableHaloEffect && highway.visuals.bloomActive) {
+            removeHighwayHalo(highway.id);
+            const startPos = getCategoryPosition(highway.fromCategory);
+            const endPos = getCategoryPosition(highway.toCategory);
+            const halo = createBloomHalo(highway, startPos, endPos);
+            if (halo) {
+              group.add(halo);
+              highwayHaloMeshes.set(highway.id, halo);
+            }
+          } else {
+            removeHighwayHalo(highway.id);
           }
         }
       } catch (e) {
@@ -659,6 +976,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
      * Force rebuild all visuals
      */
     rebuild() {
+      rebuildHighways();
       // Clear all
       for (const highwayId of Array.from(highwayMeshes.keys())) {
         removeHighwayMesh(highwayId);
@@ -666,6 +984,20 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       // Recreate
       this.refreshFromHighways();
+    },
+
+    /**
+     * Schedule rebuild of highway data
+     */
+    scheduleRebuild() {
+      scheduleRebuild();
+    },
+
+    /**
+     * Update highway data from the linked graph
+     */
+    updateVisuals() {
+      updateHighwayData();
     },
     
     /**
@@ -691,12 +1023,98 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
     getConfig() {
       return { ...config };
     },
+
+    /**
+     * Get all computed highways
+     */
+    getHighways() {
+      return [...highways];
+    },
+
+    /**
+     * Get a specific highway by category pair
+     */
+    getHighway(fromCat, toCat) {
+      return highwayMap.get(getHighwayId(fromCat, toCat)) || null;
+    },
     
     /**
      * Get highway mesh count
      */
     getHighwayCount() {
-      return highwayMeshes.size;
+      return highways.length;
+    },
+
+    /**
+     * Get summary stats for the aggregated highways
+     */
+    getStats() {
+      if (highways.length === 0) {
+        return {
+          highwayCount: 0,
+          totalLinks: 0,
+          avgSynergy: 0,
+          maxSynergy: 0,
+          trends: {}
+        };
+      }
+
+      const totalLinks = highways.reduce((sum, highway) => sum + highway.linkCount, 0);
+      const avgSynergy = highways.reduce((sum, highway) => sum + highway.avgSynergy, 0) / highways.length;
+      const maxSynergy = Math.max(...highways.map(highway => highway.maxSynergy));
+      const trends = {};
+
+      for (const highway of highways) {
+        trends[highway.trend] = (trends[highway.trend] || 0) + 1;
+      }
+
+      return {
+        highwayCount: highways.length,
+        totalLinks,
+        avgSynergy,
+        maxSynergy,
+        trends
+      };
+    },
+
+    /**
+     * Get highways sorted by average synergy
+     */
+    getTopHighways(count = 5) {
+      return [...highways]
+        .sort((a, b) => b.avgSynergy - a.avgSynergy)
+        .slice(0, count);
+    },
+
+    /**
+     * Get highways filtered by trend
+     */
+    getHighwaysByTrend(trend) {
+      return highways.filter(highway => highway.trend === trend);
+    },
+
+    /**
+     * Check whether highway cache is valid
+     */
+    isCacheValid() {
+      return cacheValid;
+    },
+
+    /**
+     * Clear all computed highways
+     */
+    clear() {
+      highways.length = 0;
+      highwayMap.clear();
+      cacheValid = false;
+    },
+
+    /**
+     * Notify the system that a link changed
+     */
+    updateOnLinkChange() {
+      cacheValid = false;
+      scheduleRebuild();
     },
     
     /**
@@ -719,12 +1137,12 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
      * Debug: Print top routes
      */
     debugPrintTopRoutes() {
-      if (!synergyHighwaysEngine) {
+      if (highways.length === 0) {
         console.log('SynergyHighwaysEngine not initialized');
         return;
       }
       
-      const top = synergyHighwaysEngine.getTopHighways?.(5) || [];
+      const top = this.getTopHighways(5);
       console.log('═══ Top 5 Synergy Highways ═══');
       top.forEach((hw, i) => {
         const quality = (hw.avgSynergy * 100).toFixed(0);
@@ -737,7 +1155,7 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
      * Debug: Print visual stats
      */
     debugPrintStats() {
-      const stats = synergyHighwaysEngine?.getStats?.() || {};
+      const stats = this.getStats();
       console.log('═══ Highway Visuals Stats ═══');
       console.log(`Highways: ${this.getHighwayCount()}`);
       console.log(`Total routes: ${stats.highwayCount || 0}`);
@@ -794,11 +1212,21 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       highwayMeshes.clear();
       highwayData.clear();
+      for (const highwayId of Array.from(highwayHaloMeshes.keys())) {
+        removeHighwayHalo(highwayId);
+      }
+      highways.length = 0;
+      highwayMap.clear();
+      cacheValid = false;
+      rebuildScheduled = false;
+      lastRebuildTime = 0;
       group = null;
       scene = null;
       camera = null;
       renderer = null;
       synergyHighwaysEngine = null;
+      linkingSystem = null;
+      historyTracker = null;
       aiNodes = null;
     }
   };

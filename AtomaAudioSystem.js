@@ -101,6 +101,87 @@ export class AtomaAudioSystem {
         }).connect(this.masterReverb);
         this.hoverSynth.volume.value = -15;
 
+        // 1.6 HOVER EXIT (very subtle air fade)
+        this.hoverExitSynth = new Tone.MonoSynth({
+            oscillator: {
+                type: "triangle"
+            },
+            envelope: {
+                attack: 0.002,
+                decay: 0.05,
+                sustain: 0,
+                release: 0.08
+            },
+            filterEnvelope: {
+                attack: 0.001,
+                decay: 0.05,
+                sustain: 0,
+                release: 0.08,
+                baseFrequency: 480,
+                octaves: 1.6
+            },
+            filter: {
+                type: "bandpass",
+                rolloff: -12,
+                Q: 0.9
+            }
+        }).connect(this.masterReverb);
+        this.hoverExitSynth.volume.value = -24;
+
+        // 1.7 PRIMARY NODE SET (anchor lock dual tone)
+        this.primarySetSynth = new Tone.PolySynth(Tone.MonoSynth, {
+            oscillator: {
+                type: "triangle"
+            },
+            envelope: {
+                attack: 0.005,
+                decay: 0.14,
+                sustain: 0,
+                release: 0.18
+            },
+            filterEnvelope: {
+                attack: 0.004,
+                decay: 0.12,
+                sustain: 0,
+                release: 0.16,
+                baseFrequency: 420,
+                octaves: 1.8
+            },
+            filter: {
+                type: "lowpass",
+                rolloff: -12,
+                Q: 1
+            }
+        }).connect(this.masterReverb);
+        this.primarySetSynth.volume.value = -12;
+
+        // 1.8 INVALID LINK ATTEMPT (muted reject tick)
+        this.invalidLinkSynth = new Tone.MonoSynth({
+            oscillator: {
+                type: "square"
+            },
+            envelope: {
+                attack: 0.001,
+                decay: 0.07,
+                sustain: 0,
+                release: 0.06
+            },
+            filterEnvelope: {
+                attack: 0.001,
+                decay: 0.05,
+                sustain: 0,
+                release: 0.05,
+                baseFrequency: 700,
+                octaves: 1.2
+            },
+            filter: {
+                type: "bandpass",
+                rolloff: -12,
+                Q: 2.4
+            }
+        }).connect(this.masterReverb);
+        this.invalidLinkSynth.volume.value = -16;
+
         // 2. LINKING (Harmonic Convergence)
         // DuoSynth for phase alignment texture
         this.linkSynth = new Tone.DuoSynth({
@@ -228,6 +309,26 @@ export class AtomaAudioSystem {
         const now = Tone.now();
         this.hoverSynth.triggerAttackRelease("A5", "32n", now, 0.3);
         this.hoverSynth.triggerAttackRelease("E6", "16n", now + 0.018, 0.2);
+    }
+
+    playHoverExit() {
+        if (!this.initialized) return;
+        if (!this.canTrigger('hoverExit', 120)) return;
+        this.hoverExitSynth.triggerAttackRelease("E4", "32n", undefined, 0.1);
+    }
+
+    playPrimaryNodeSet() {
+        if (!this.initialized) return;
+        if (!this.canTrigger('primaryNodeSet', 180)) return;
+        const now = Tone.now();
+        this.primarySetSynth.triggerAttackRelease("C4", "16n", now, 0.28);
+        this.primarySetSynth.triggerAttackRelease("G4", "16n", now + 0.03, 0.22);
+    }
+
+    playInvalidLinkAttempt() {
+        if (!this.initialized) return;
+        if (!this.canTrigger('invalidLinkAttempt', 100)) return;
+        this.invalidLinkSynth.triggerAttackRelease("B3", "32n", undefined, 0.2);
     }
 
     // --- TASK 2: Node Deselection (Settling) ---

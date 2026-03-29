@@ -483,6 +483,8 @@ export class NodeLinkingSystem {
     this.onDeselectCallbacks = [];
     this.onHoverStartCallbacks = [];
     this.onHoverEndCallbacks = [];
+    this.onPrimaryNodeSetCallbacks = [];
+    this.onInvalidLinkAttemptCallbacks = [];
     
     // Link lifecycle callbacks (for UISelectedHUD and visual subsystems)
     this.onLinkCreatedCallbacks = [];
@@ -1338,6 +1340,7 @@ export class NodeLinkingSystem {
     
     // Fire selection callbacks
     this._fireSelectCallbacks(node);
+    this._firePrimaryNodeSetCallbacks(node);
   }
   
   /**
@@ -1821,6 +1824,32 @@ export class NodeLinkingSystem {
         callback(node);
       } catch (err) {
         console.warn('Error in hover-end callback:', err);
+      }
+    }
+  }
+
+  /**
+   * Fire primary-node-set callbacks.
+   */
+  _firePrimaryNodeSetCallbacks(node) {
+    for (const callback of this.onPrimaryNodeSetCallbacks) {
+      try {
+        callback(node);
+      } catch (err) {
+        console.warn('Error in primary-node-set callback:', err);
+      }
+    }
+  }
+
+  /**
+   * Fire invalid-link-attempt callbacks.
+   */
+  _fireInvalidLinkAttemptCallbacks(sourceNode, targetNode, reason) {
+    for (const callback of this.onInvalidLinkAttemptCallbacks) {
+      try {
+        callback(sourceNode, targetNode, reason);
+      } catch (err) {
+        console.warn('Error in invalid-link-attempt callback:', err);
       }
     }
   }
@@ -2500,6 +2529,7 @@ export class NodeLinkingSystem {
       // Denied link: show denial reason internally (no intrusive UI)
       console.log(`✗ Link denied: ${denialReason} (${sourceNode.userData.category} → ${targetNode.userData.category})`);
       this.createIncompatibilityWarning(targetNode);
+      this._fireInvalidLinkAttemptCallbacks(sourceNode, targetNode, denialReason);
       return;
     }
     
@@ -7545,6 +7575,12 @@ getLinksForNode(node) {
       if (Array.isArray(this.onHoverEndCallbacks)) {
         this.onHoverEndCallbacks.length = 0;
       }
+      if (Array.isArray(this.onPrimaryNodeSetCallbacks)) {
+        this.onPrimaryNodeSetCallbacks.length = 0;
+      }
+      if (Array.isArray(this.onInvalidLinkAttemptCallbacks)) {
+        this.onInvalidLinkAttemptCallbacks.length = 0;
+      }
       if (Array.isArray(this.onLinkCreatedCallbacks)) {
         this.onLinkCreatedCallbacks.length = 0;
       }
@@ -7638,6 +7674,28 @@ getLinksForNode(node) {
   onNodeHoverEnd(callback) {
     if (typeof callback === 'function') {
       this.onHoverEndCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * Register callback for primary-node-set events.
+   *
+   * @param {Function} callback - Called with (node) when primary node is set
+   */
+  onPrimaryNodeSet(callback) {
+    if (typeof callback === 'function') {
+      this.onPrimaryNodeSetCallbacks.push(callback);
+    }
+  }
+
+  /**
+   * Register callback for invalid link attempt events.
+   *
+   * @param {Function} callback - Called with (sourceNode, targetNode, reason)
+   */
+  onInvalidLinkAttempt(callback) {
+    if (typeof callback === 'function') {
+      this.onInvalidLinkAttemptCallbacks.push(callback);
     }
   }
 
