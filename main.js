@@ -3609,6 +3609,23 @@ class AtomaGame {
         this.frameScheduler.register('background', (dt) => {
             this.emotionalFeed?.update?.(dt);
         }, 'background.emotionalFeed');
+        this.frameScheduler.register('background', () => {
+            if (this._runSlowSemanticPending) {
+                this._runSlowSemanticPending = false;
+            }
+        }, 'background.slowSemanticReset');
+        this.frameScheduler.register('background', (dt) => {
+            this._coreMaterialMutationSweepAcc = (this._coreMaterialMutationSweepAcc || 0) + dt;
+            if (this._coreMaterialMutationSweepAcc < 5) return;
+            this._coreMaterialMutationSweepAcc = 0;
+            this.coreMaterialMutationDetector?.checkAllCores?.();
+        }, 'background.coreMaterialMutationDetector');
+        this.frameScheduler.register('background', (dt) => {
+            this._coreMaterialPropertyLockAcc = (this._coreMaterialPropertyLockAcc || 0) + dt;
+            if (this._coreMaterialPropertyLockAcc < 5) return;
+            this._coreMaterialPropertyLockAcc = 0;
+            this.coreMaterialPropertyLock?.enforceFrame?.();
+        }, 'background.coreMaterialPropertyLock');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.fxPerformanceScaler) {
                 this.fxPerformanceScaler.update(dt);
@@ -3760,6 +3777,136 @@ class AtomaGame {
                 this.primaryNodeTopBar.update();
             }
         }, 'simulation.primaryNodeTopBar');
+        this.frameScheduler.register('visual', (dt) => {
+            this.activeWorld?.update?.(dt, this.time);
+        }, 'visual.activeWorld');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (!this.hazards) return;
+            this.hazards.update(dt);
+            const hazardEffect = this.hazards.getHazardEffect(this.player?.position);
+            if (hazardEffect && this.player?.position?.add) {
+                this.player.position.add(hazardEffect.multiplyScalar(0.5));
+            }
+        }, 'simulation.hazards');
+        this.frameScheduler.register('visual', (dt) => {
+            if (!this.aiNodes) return;
+            const aiNodesUpdateStart = performance.now();
+            this.aiNodes.update(dt, this.time);
+            this.updateValidator?.markSystemUpdate('aiNodes.update', performance.now() - aiNodesUpdateStart);
+            this.aiNodes.updateSpawning?.(Date.now());
+            this.nodeUiAcc = (this.nodeUiAcc || 0) + dt;
+            if (this.nodeUiAcc >= 0.1) {
+                this.nodeUiAcc = 0;
+                this.updateNodeUI();
+            }
+        }, 'visual.aiNodes');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.nodeEditor?.update?.(dt);
+        }, 'simulation.nodeEditor');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.undoUiAcc = (this.undoUiAcc || 0) + dt;
+            if (this.undoUiAcc >= 0.1) {
+                this.undoUiAcc = 0;
+                this.updateUndoRedoUI();
+            }
+        }, 'simulation.undoRedoUi');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.runVisualOverlayTick(dt);
+        }, 'simulation.visualOverlayTick');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.linkMetricsToVisualBridge?.update?.(dt);
+        }, 'simulation.linkMetricsToVisualBridge');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.stressBasedParticleScaler?.update?.(dt);
+        }, 'simulation.stressBasedParticleScaler');
+        this.frameScheduler.register('simulation', (dt) => {
+            this.linkDegradationSystem?.update?.(dt);
+        }, 'simulation.linkDegradationSystem');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
+                this.audioModulation.update(dt, {
+                    synergy: this.nodeDynamicMetrics.avgSynergy || 0,
+                    harmony: this.nodeDynamicMetrics.avgHarmony || 50,
+                    corruption: this.nodeDynamicMetrics.avgCorruption || 0
+                });
+            }
+            if (this.audioSystem && this.nodeDynamicMetrics) {
+                const avgSynergy = this.nodeDynamicMetrics?.avgSynergy ?? 0.0;
+                if (avgSynergy >= this.synergyActivationThreshold) {
+                    this.previousSynergyState = 'active';
+                } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'active') {
+                    this.semanticBus.emit('synergy.fade', {
+                        synergy: avgSynergy
+                    }, { priority: this.semanticBus.priority.INTERACTIVE });
+                    this.previousSynergyState = 'fading';
+                } else if (avgSynergy < this.synergyFadingThreshold && this.previousSynergyState === 'fading') {
+                    this.previousSynergyState = 'none';
+                }
+            }
+        }, 'simulation.audioSynergyMonitor');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.regionalEquilibrium && this.harmonySystem && this.ruptureSystem) {
+                this.regionalEquilibrium.update(
+                    dt,
+                    this.time,
+                    {
+                        nodes: this.aiNodes?.nodes || [],
+                        links: this.linkingSystem?.links || []
+                    },
+                    this.harmonySystem,
+                    this.ruptureSystem,
+                    this.standingWaveSystem
+                );
+            }
+        }, 'simulation.regionalEquilibrium');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.cascadingRuptures?.enabled) {
+                this.cascadingRuptures.rebind?.({
+                    linkingSystem: this.linkingSystem,
+                    aiNodes: this.aiNodes,
+                    regionalEquilibrium: this.regionalEquilibrium
+                });
+                this.cascadingRuptures.update(
+                    dt,
+                    this.time,
+                    this.ruptureSystem,
+                    this.harmonySystem
+                );
+            }
+        }, 'simulation.cascadingRuptures');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (this.criticalNodeFailure?.enabled) {
+                this.criticalNodeFailure.rebind?.({
+                    linkingSystem: this.linkingSystem,
+                    aiNodes: this.aiNodes,
+                    scene: this.scene
+                });
+                this.criticalNodeFailure.update(dt, this.time);
+            }
+        }, 'simulation.criticalNodeFailure');
+        this.frameScheduler.register('simulation', (dt) => {
+            if (!this._runSlowSemanticPending) return;
+            if (this.topologyViz?.enabled) {
+                const networkState = {
+                    harmony: this.nodeDynamicMetrics?.avgHarmony || 0.5,
+                    corruption: this.nodeDynamicMetrics?.avgCorruption || 0,
+                    synergy: this.nodeDynamicMetrics?.avgSynergy || 0,
+                    instability: this.nodeDynamicMetrics?.avgInstability || 0
+                };
+                this.topologyViz.update(dt, networkState);
+            }
+        }, 'simulation.topologyViz');
+        this.frameScheduler.register('visual', () => {
+            // FIX 5: Removed hard gate on nodeDynamicMetrics — falls back to 0.0 if absent
+            if (this.echoTrailsIntegration) {
+                const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
+                const avgSynergy = visualMetrics.avgSynergy ?? visualMetrics.networkSynergy ?? 0.0;
+                const visualTime = window.VISUAL_TIME ?? this.time;
+                this.echoTrailsIntegration.updateAllMaterials(this.time, visualTime, avgSynergy);
+            }
+        }, 'visual.echoTrailsIntegration');
         this.frameScheduler.register('visual', (dt) => {
             this.worldRuntime_v1?.update?.(dt);
         }, 'visual.worldRuntime_v1');
@@ -3974,6 +4121,24 @@ class AtomaGame {
                 this.harmonicInfluencePropagationTick(this._pendingHarmonicInfluenceDt);
             }
         }, 'visual.harmonicInfluencePropagation');
+        this.frameScheduler.register('visual', () => {
+            if (this._runLinkResonanceFlowPending) {
+                this._runLinkResonanceFlowPending = false;
+                this.linkResonanceFlowSystemTick(this._pendingLinkResonanceFlowDt);
+            }
+        }, 'visual.linkResonanceFlowSystem');
+        this.frameScheduler.register('visual', () => {
+            if (this._runHarmonicPhaseSyncPending) {
+                this._runHarmonicPhaseSyncPending = false;
+                this.harmonicPhaseSynchronizationTick(this._pendingHarmonicPhaseSyncDt);
+            }
+        }, 'visual.harmonicPhaseSynchronization');
+        this.frameScheduler.register('visual', () => {
+            if (this._runHarmonicNodeHalosPending) {
+                this._runHarmonicNodeHalosPending = false;
+                this.harmonicNodeResonanceHalosTick(this._pendingHarmonicNodeHalosDt);
+            }
+        }, 'visual.harmonicNodeResonanceHalos');
         this.frameScheduler.register('visual', (dt) => {
             const pulseWaveBridge = this.pulseWaveBridge || this.pulseWaveSystemBridge;
             if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
@@ -4293,6 +4458,12 @@ class AtomaGame {
                 this.stressVisualShaderSystem.update(dt, this.time, nodes);
             }
         }, 'visual.stressVisualShaderSystem');
+        this.frameScheduler.register('visual', (dt) => {
+            if (this.metricInterpretationLayer) {
+                const nodes = this.aiNodes?.nodes || [];
+                this.metricInterpretationLayer.update(dt, nodes);
+            }
+        }, 'visual.metricInterpretationLayer');
         this.frameScheduler.register('visual', () => {
             if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
                 const nodes = this.aiNodes?.nodes || [];
@@ -10536,11 +10707,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             });
         };
 
-        reg('activeWorld', (dt) => {
+        regGuard('activeWorld', 'visual.activeWorld', (dt) => {
             if (this.activeWorld) this.activeWorld.update(dt, this.time);
         });
-        reg('nodeEditor', (dt) => this.nodeEditor?.update?.(dt));
-        reg('hazards', (dt) => {
+        regGuard('nodeEditor', 'simulation.nodeEditor', (dt) => this.nodeEditor?.update?.(dt));
+        regGuard('hazards', 'simulation.hazards', (dt) => {
             if (this.hazards) {
                 this.hazards.update(dt);
                 const hazardEffect = this.hazards.getHazardEffect(this.player?.position);
@@ -10549,7 +10720,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
         });
-        reg('aiNodes', (dt) => {
+        regGuard('aiNodes', 'visual.aiNodes', (dt) => {
             if (!this.aiNodes) return;
             const aiNodesUpdateStart = performance.now();
             this.aiNodes.update(dt, this.time);
@@ -10561,7 +10732,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.updateNodeUI();
             }
         });
-        reg('undoRedoUi', (dt) => {
+        regGuard('undoRedoUi', 'simulation.undoRedoUi', (dt) => {
             this.undoUiAcc = (this.undoUiAcc || 0) + dt;
             if (this.undoUiAcc >= 0.1) {
                 this.undoUiAcc = 0;
@@ -10569,67 +10740,67 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
         });
         // SemanticEventBus drain + HUD lanes tick (critical for event-driven audio routing).
-        reg('visualOverlayTick', (dt) => this.runVisualOverlayTick(dt));
+        regGuard('visualOverlayTick', 'simulation.visualOverlayTick', (dt) => this.runVisualOverlayTick(dt));
 
 
         // DEACTIVATED: Replaced by VisualHierarchyRegistry (Daniel request 2026-03-03)
         // reg('visualHierarchyCorrection', (dt) => this.visualHierarchyCorrection?.update?.(dt));
-        reg('dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
-        reg('linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
-        reg('linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
+        regGuard('dynamicLinkColorSystem', 'visual.dynamicLinkColorSystem', (dt) => this.dynamicLinkColorSystem?.update?.(dt));
+        regGuard('linkQualityCalculator', 'simulation.linkQualityCalculator', (dt) => this.linkQualityCalculator?.update?.(dt));
+        regGuard('linkDegradationSystem', 'simulation.linkDegradationSystem', (dt) => this.linkDegradationSystem?.update?.(dt));
 
-        reg('linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
-        reg('stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
-        reg('cascadeVisualizerTick', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
-        reg('visualNetworkTimeElasticity', (_dt) => {
+        regGuard('linkMetricsToVisualBridge', 'simulation.linkMetricsToVisualBridge', (dt) => this.linkMetricsToVisualBridge?.update?.(dt));
+        regGuard('stressBasedParticleScaler', 'simulation.stressBasedParticleScaler', (dt) => this.stressBasedParticleScaler?.update?.(dt));
+        regGuard('cascadeVisualizerTick', 'visual.cascadeVisualizer', (dt) => { if (!this._runCascadeVisualizerPending) this.cascadeVisualizerTick?.(dt); });
+        regGuard('visualNetworkTimeElasticity', 'visual.visualNetworkTimeElasticity', (_dt) => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
                 this.visualNetworkTimeElasticityTick?.(this._pendingElasticityDt);
             }
         });
-        reg('synergyPulseVisuals', (_dt) => {
+        regGuard('synergyPulseVisuals', 'visual.synergyPulseVisuals', (_dt) => {
             if (this._runSynergyPulsePending) {
                 this._runSynergyPulsePending = false;
                 this.synergyPulseVisualsTick?.(this._pendingSynergyPulseDt);
             }
         });
-        reg('harmonicResonanceCoupling', (_dt) => {
+        regGuard('harmonicResonanceCoupling', 'visual.harmonicResonanceCoupling', (_dt) => {
             if (this._runHarmonicResonancePending) {
                 this._runHarmonicResonancePending = false;
                 this.harmonicResonanceCouplingTick?.(this._pendingHarmonicResonanceDt);
             }
         });
-        reg('harmonicHubAuraSystem', (_dt) => {
+        regGuard('harmonicHubAuraSystem', 'visual.harmonicHubAuraSystem', (_dt) => {
             if (this._runHarmonicHubAuraPending) {
                 this._runHarmonicHubAuraPending = false;
                 this.harmonicHubAuraSystemTick?.(this._pendingHarmonicHubAuraDt);
             }
         });
-        reg('harmonicInfluencePropagation', (_dt) => {
+        regGuard('harmonicInfluencePropagation', 'visual.harmonicInfluencePropagation', (_dt) => {
             if (this._runHarmonicInfluencePending) {
                 this._runHarmonicInfluencePending = false;
                 this.harmonicInfluencePropagationTick?.(this._pendingHarmonicInfluenceDt);
             }
         });
-        reg('linkResonanceFlowSystem', (_dt) => {
+        regGuard('linkResonanceFlowSystem', 'visual.linkResonanceFlowSystem', (_dt) => {
             if (this._runLinkResonanceFlowPending) {
                 this._runLinkResonanceFlowPending = false;
                 this.linkResonanceFlowSystemTick?.(this._pendingLinkResonanceFlowDt);
             }
         });
-        reg('harmonicPhaseSynchronization', (_dt) => {
+        regGuard('harmonicPhaseSynchronization', 'visual.harmonicPhaseSynchronization', (_dt) => {
             if (this._runHarmonicPhaseSyncPending) {
                 this._runHarmonicPhaseSyncPending = false;
                 this.harmonicPhaseSynchronizationTick?.(this._pendingHarmonicPhaseSyncDt);
             }
         });
-        reg('harmonicNodeResonanceHalos', (_dt) => {
+        regGuard('harmonicNodeResonanceHalos', 'visual.harmonicNodeResonanceHalos', (_dt) => {
             if (this._runHarmonicNodeHalosPending) {
                 this._runHarmonicNodeHalosPending = false;
                 this.harmonicNodeResonanceHalosTick?.(this._pendingHarmonicNodeHalosDt);
             }
         });
-        reg('audioSynergyMonitor', (dt) => {
+        regGuard('audioSynergyMonitor', 'simulation.audioSynergyMonitor', (dt) => {
             if (this.audioSystem?.initialized && this.audioModulation && this.nodeDynamicMetrics) {
                 this.audioModulation.update(dt, {
                     synergy: this.nodeDynamicMetrics.avgSynergy || 0,
@@ -10651,7 +10822,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
         });
-        reg('echoTrailsIntegration', () => {
+        regGuard('echoTrailsIntegration', 'visual.echoTrailsIntegration', () => {
             // FIX 5: Removed hard gate on nodeDynamicMetrics — falls back to 0.0 if absent
             if (this.echoTrailsIntegration) {
                 const visualMetrics = getCachedVisualMetrics() || this.nodeDynamicMetrics || {};
@@ -10844,7 +11015,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('newNodeCategories', 'visual.newNodeCategories', (dt) => this.newNodeCategories?.update?.(dt, this.time));
         // regGuard('extremeLinkVisuals', 'visual.extremeLinkVisuals', (dt) => this.extremeLinkVisuals?.update?.(dt));
         // regGuard('extremeLinkVisuals4', 'visual.extremeLinkVisuals4', (dt) => this.extremeLinkVisuals4?.update?.(dt, this.camera));
-        reg('linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
+        regGuard('linkVisualMoodSystem', 'visual.linkVisualMoodSystem', (dt) => this.linkVisualMoodSystem?.update?.(dt));
         regGuard('consciousnessLayer', 'background.consciousnessLayer', (dt) => this.consciousnessLayer?.update?.(dt));
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
         regGuard('emotionalFeed', 'background.emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
@@ -10873,7 +11044,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.hardInteractionAuthority.safetyNet();
             }
         });
-        reg('regionalEquilibrium', (dt) => {
+        regGuard('regionalEquilibrium', 'simulation.regionalEquilibrium', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.regionalEquilibrium && this.harmonySystem && this.ruptureSystem) {
                 this.regionalEquilibrium.update(
@@ -10889,7 +11060,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        reg('cascadingRuptures', (dt) => {
+        regGuard('cascadingRuptures', 'simulation.cascadingRuptures', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.cascadingRuptures?.enabled) {
                 this.cascadingRuptures.rebind?.({
@@ -10905,7 +11076,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
             }
         });
-        reg('criticalNodeFailure', (dt) => {
+        regGuard('criticalNodeFailure', 'simulation.criticalNodeFailure', (dt) => {
             if (this.criticalNodeFailure?.enabled) {
                 this.criticalNodeFailure.rebind?.({
                     linkingSystem: this.linkingSystem,
@@ -10915,7 +11086,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.criticalNodeFailure.update(dt, this.time);
             }
         });
-        reg('topologyViz', (dt) => {
+        regGuard('topologyViz', 'simulation.topologyViz', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.topologyViz?.enabled) {
                 const networkState = {
@@ -10929,20 +11100,22 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         });
 
 
-        reg('slowSemanticReset', () => {
+        regGuard('slowSemanticReset', 'background.slowSemanticReset', () => {
             if (this._runSlowSemanticPending) {
                 this._runSlowSemanticPending = false;
             }
         });
-        reg('coreMaterialMutationDetector', (_dt) => {
-            if (this.coreMaterialMutationDetector && (this.frameCount % 300 === 0)) {
-                this.coreMaterialMutationDetector.checkAllCores();
-            }
+        regGuard('coreMaterialMutationDetector', 'background.coreMaterialMutationDetector', (dt) => {
+            this._coreMaterialMutationSweepAcc = (this._coreMaterialMutationSweepAcc || 0) + dt;
+            if (this._coreMaterialMutationSweepAcc < 5) return;
+            this._coreMaterialMutationSweepAcc = 0;
+            this.coreMaterialMutationDetector?.checkAllCores?.();
         });
-        reg('coreMaterialPropertyLock', (_dt) => {
-            if (this.coreMaterialPropertyLock && (this.frameCount % 300 === 0)) {
-                this.coreMaterialPropertyLock.enforceFrame();
-            }
+        regGuard('coreMaterialPropertyLock', 'background.coreMaterialPropertyLock', (dt) => {
+            this._coreMaterialPropertyLockAcc = (this._coreMaterialPropertyLockAcc || 0) + dt;
+            if (this._coreMaterialPropertyLockAcc < 5) return;
+            this._coreMaterialPropertyLockAcc = 0;
+            this.coreMaterialPropertyLock?.enforceFrame?.();
         });
     }
 
@@ -11017,18 +11190,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         // MetricsRuntime_v1 is scheduler-owned: simulation.metricsRuntime_v1
-
-        // MetricInterpretationLayer_v1: visual signal interpretation
-        if (this.metricInterpretationLayer) {
-            const nodes = this.aiNodes?.nodes || [];
-            this.metricInterpretationLayer.update(deltaTime, nodes);
-        }
-
-        // StressVisualShaderSystem: GPU-based stress visualization
-        if (this.stressVisualShaderSystem) {
-            const nodes = this.aiNodes?.nodes || [];
-            this.stressVisualShaderSystem.update(deltaTime, this.time, nodes);
-        }
 
         // VisualTime infrastructure (INFRA-ONLY, no behavior change): canonical RAF-driven visual clock
         VisualTime.delta = deltaTime;
@@ -14059,7 +14220,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             }
 
             // Register CascadingRuptureSystem update loop to FrameScheduler
-            if (this.frameScheduler && this.cascadingRuptures) {
+            if (this.frameScheduler && this.cascadingRuptures && !this.frameScheduler.isRegistered?.('simulation.cascadingRuptures')) {
                 this.frameScheduler.register('simulation', (dt) => {
                     if (this.cascadingRuptures && this.cascadingRuptures.enabled) {
                         this.cascadingRuptures.update(
