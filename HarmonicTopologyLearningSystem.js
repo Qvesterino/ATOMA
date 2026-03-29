@@ -130,8 +130,6 @@ class TopologyRegion {
         
         // History tracking
         this.eventHistory = [];           // Ring buffer of recent events
-        this.harmonyHistory = [];
-        this.corruptionHistory = [];
         this.synthesisCount = 0;
     }
     
@@ -144,8 +142,6 @@ class TopologyRegion {
         this.reinforcementStrength = 0.0;
         this.scarIntensity = 0.0;
         this.eventHistory.length = 0;
-        this.harmonyHistory.length = 0;
-        this.corruptionHistory.length = 0;
         this.synthesisCount = 0;
     }
     
@@ -396,7 +392,8 @@ export class HarmonicTopologyLearningSystem {
         if (!region) return;
         
         // Record hub activity
-        region.recordHubActivity(synergy, deltaTime);
+        const safeSynergy = Number.isFinite(synergy) ? synergy : 0.0;
+        region.recordHubActivity(safeSynergy, deltaTime);
         
         // Record harmonic flow (radial from glyph)
         if (synergy > 0.5) {
@@ -419,6 +416,56 @@ export class HarmonicTopologyLearningSystem {
         // Reinforce link (will improve motion smoothing)
         const linkId = link.uuid || link.id;
         region.reinforceLink(linkId, harmony, synergy);
+    }
+
+    recordLinkSuccessfulPassageFromLink(link) {
+        if (!this.enabled || !link) return;
+
+        const sourceNode = link.source || link.sourceNode || null;
+        const targetNode = link.target || link.targetNode || null;
+        const sourcePos = sourceNode?.position || sourceNode?.userData?.position;
+        const targetPos = targetNode?.position || targetNode?.userData?.position;
+        if (!sourcePos || !targetPos) return;
+
+        const midpoint = new THREE.Vector3(
+            (sourcePos.x + targetPos.x) * 0.5,
+            (sourcePos.y + targetPos.y) * 0.5,
+            (sourcePos.z + targetPos.z) * 0.5
+        );
+        const region = this.getOrCreateRegion(midpoint);
+        if (!region) return;
+
+        const readMetric = (node, key) => {
+            if (!node) return 0;
+            const metrics = node.userData?.metrics;
+            const metricValue = metrics && typeof metrics[key] === 'number' ? metrics[key] : undefined;
+            if (typeof metricValue === 'number' && Number.isFinite(metricValue)) return metricValue;
+
+            const directValue = node.userData?.[key];
+            if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue;
+
+            return 0;
+        };
+
+        const sourceHarmony = readMetric(sourceNode, 'harmony');
+        const targetHarmony = readMetric(targetNode, 'harmony');
+        const sourceSynergy = readMetric(sourceNode, 'synergy');
+        const targetSynergy = readMetric(targetNode, 'synergy');
+
+        const harmony = (sourceHarmony + targetHarmony) * 0.5;
+        const synergy = Number.isFinite(link?.synergyScore)
+            ? link.synergyScore
+            : (sourceSynergy + targetSynergy) * 0.5;
+
+        this.recordLinkSuccessfulPassage(link, midpoint, harmony, synergy);
+
+        const flowDirection = targetPos.clone().sub(sourcePos);
+        if (flowDirection.lengthSq() > 0.0001) {
+            const flowStrength = Math.max(0, harmony, synergy);
+            if (flowStrength > 0) {
+                region.recordHarmonicFlow(flowDirection.normalize(), flowStrength, harmony);
+            }
+        }
     }
     
     recordRupture(position, intensity, region = null) {
@@ -523,18 +570,34 @@ export class HarmonicTopologyLearningSystem {
     }
     
     recordSystemsActivity(fusionZoneManager, linkingSystem, deltaTime = 0) {
-        if (!fusionZoneManager || !fusionZoneManager.compositeGlyphs) return;
-        
-        // Record composite glyph synthesis
-        for (let composite of fusionZoneManager.compositeGlyphs) {
-            if (!composite.active || !composite.state) continue;
-            
-            this.recordCompositeGlyphSynthesis(
-                composite,
-                composite.state.harmonBalance,
-                composite.state.averageSynergy,
-                deltaTime
-            );
+        const compositeGlyphs = fusionZoneManager?.compositeGlyphs;
+        if (Array.isArray(compositeGlyphs)) {
+            // Record composite glyph synthesis when the fusion system is active.
+            for (let composite of compositeGlyphs) {
+                if (!composite.active || !composite.state) continue;
+
+                const harmonyBalance = Number.isFinite(composite.state.harmonyBalance)
+                    ? composite.state.harmonyBalance
+                    : Number.isFinite(composite.state.harmonBalance)
+                        ? composite.state.harmonBalance
+                        : 0.0;
+                const averageSynergy = Number.isFinite(composite.state.averageSynergy)
+                    ? composite.state.averageSynergy
+                    : 0.0;
+
+                this.recordCompositeGlyphSynthesis(
+                    composite,
+                    harmonyBalance,
+                    averageSynergy,
+                    deltaTime
+                );
+            }
+        }
+
+        if (linkingSystem?.links && Array.isArray(linkingSystem.links)) {
+            for (const link of linkingSystem.links) {
+                this.recordLinkSuccessfulPassageFromLink(link);
+            }
         }
     }
     

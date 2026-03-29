@@ -48,6 +48,14 @@ Do not use tools to:
 - ignore existing architecture
 - create accidental duplication
 
+## Runtime Verification Default
+
+When running browser/runtime validation in this workspace:
+
+- open `http://127.0.0.1:5500/index.html`
+- treat the local static server boot as the canonical runtime path for smoke tests
+- only use an alternate boot path if the task explicitly requires it
+
 ---
 
 ## Search Discipline

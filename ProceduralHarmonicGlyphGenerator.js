@@ -52,9 +52,9 @@ import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 const CONFIG = {
     // GLYPH GENERATION THRESHOLDS
-    MIN_LEARNING_STRENGTH: 0.3,        // Minimum topology strength to generate (lowered for visibility)
-    MIN_HUB_AGE_SECONDS: 30.0,         // Hub must exist 30s before glyph spawns (lowered for visibility)
-    MIN_REINFORCEMENT_LEVEL: 0.4,      // Minimum link reinforcement required (lowered for visibility)
+    MIN_LEARNING_STRENGTH: 0.12,       // Minimum live learning signal to generate
+    MIN_HUB_AGE_SECONDS: 3.0,          // Region must exist for a few seconds before glyph spawns
+    MIN_REINFORCEMENT_LEVEL: 0.05,     // Minimum link reinforcement required
     
     // GENERATION RATES
     GLYPH_GENERATION_CHECK_INTERVAL: 5.0,  // Check every 5 seconds
@@ -642,37 +642,36 @@ export class ProceduralHarmonicGlyphGenerator {
         if (region.center && region.center.length() < CONFIG.ORIGIN_SAFETY_RADIUS) {
             return false;
         }
-        
-        // Must have sufficient learning
-        if ((region.flowStrength ?? 0) < CONFIG.MIN_LEARNING_STRENGTH) return false;
-        
-        // Must be a matured hub
-        if (!region.isMaturedHub || (region.hubAge ?? 0) < CONFIG.MIN_HUB_AGE_SECONDS) {
-            return false;
-        }
-        
-        // Must have reinforced links
-        if (!region.reinforcedLinks || region.reinforcedLinks.size === 0) return false;
-        
-        // Check average reinforcement
-        let avgReinforcement = 0;
-        for (let value of region.reinforcedLinks.values()) {
-            avgReinforcement += value;
-        }
-        avgReinforcement /= region.reinforcedLinks.size;
-        
-        if (avgReinforcement < CONFIG.MIN_REINFORCEMENT_LEVEL) return false;
-        
-        // Harmony preference (glyphs emerge in harmony, suppressed by corruption)
-        if (Array.isArray(region.harmonyHistory) && Array.isArray(region.corruptionHistory) && region.harmonyHistory.length > 5 && region.corruptionHistory.length > 5) {
-            const avgHarmony = region.harmonyHistory.reduce((a, b) => a + b) / region.harmonyHistory.length;
-            const avgCorruption = region.corruptionHistory.reduce((a, b) => a + b) / region.corruptionHistory.length;
-            
-            if (avgCorruption > 0.6) return false;  // Too corrupt
-            if (avgHarmony < 0.4) return false;     // Not enough harmony
-        }
-        
-        return true;
+
+        const regionAge = Math.max(0, region.age ?? region.hubAge ?? 0);
+        if (regionAge < CONFIG.MIN_HUB_AGE_SECONDS) return false;
+
+        const flowStrength = Math.max(0, region.flowStrength ?? 0);
+        const reinforcementStrength = Math.max(0, region.reinforcementStrength ?? 0);
+        const hubPresence = Math.max(0, region.getHubPresence?.() ?? 0);
+        const synthesisCount = Math.max(0, region.synthesisCount ?? 0);
+        const scarIntensity = Math.max(0, region.scarIntensity ?? 0);
+        const hasReinforcedLinks = (region.reinforcedLinks?.size ?? 0) > 0;
+        const reinforcedLinkCount = Math.max(0, region.reinforcedLinks?.size ?? 0);
+
+        const learningScore =
+            (flowStrength * 0.45) +
+            (reinforcementStrength * 0.35) +
+            (Math.min(regionAge / 30, 1) * 0.1) +
+            (Math.min(reinforcedLinkCount / 5, 1) * 0.05) +
+            (Math.min(scarIntensity / 0.5, 1) * 0.05) +
+            (hubPresence * 0.15) +
+            (Math.min(synthesisCount / 6, 1) * 0.05);
+
+        const hasLiveSignal =
+            flowStrength >= CONFIG.MIN_LEARNING_STRENGTH ||
+            reinforcementStrength >= CONFIG.MIN_REINFORCEMENT_LEVEL ||
+            hasReinforcedLinks ||
+            synthesisCount > 0 ||
+            hubPresence > 0 ||
+            regionAge >= CONFIG.MIN_HUB_AGE_SECONDS;
+
+        return hasLiveSignal && learningScore >= CONFIG.MIN_LEARNING_STRENGTH;
     }
     
     generateGlyphForRegion(region, hash) {
@@ -755,11 +754,14 @@ export class ProceduralHarmonicGlyphGenerator {
             : new THREE.Vector3(0, 0, 1);
         
         // Learning strength (normalized)
-        const learningStrength = Math.min(1.0, region.flowStrength + 0.3);
+        const learningStrength = Math.min(
+            1.0,
+            Math.max(region.flowStrength ?? 0, region.reinforcementStrength ?? 0) + 0.3
+        );
         
         // Hub stability
-        const hubStability = region.isMaturedHub
-            ? Math.min(1.0, region.hubAge / 120.0)  // Max at 2 minutes
+        const hubStability = (region.isMaturedHub || region.hubAge > 0)
+            ? Math.min(1.0, Math.max(region.hubAge, region.age ?? 0) / 120.0)  // Max at 2 minutes
             : 0.0;
         
         return {

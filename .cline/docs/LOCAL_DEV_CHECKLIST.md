@@ -23,7 +23,8 @@ Use this checklist:
 
 - [ ] Terminal is clean (no old dev servers)
 - [ ] I am serving `index.html` from the local static server
-- [ ] I am opening the correct localhost port (`5500`)
+- [ ] I am opening `http://127.0.0.1:5500/index.html`
+- [ ] I am using port `5500` for runtime validation
 - [ ] DevTools (F12) are open
 - [ ] Console is empty (no ERROR)
 

@@ -115,3 +115,11 @@ Lesson:
 
 - prefer passive listeners on the true runtime authority layer
 - avoid `main.js` wrappers around `createLink/removeLink` or `setPrimaryNode/clearPrimaryNode`
+
+## Runtime Test Boot
+
+Confirmed default runtime validation entrypoint:
+
+- use `http://127.0.0.1:5500/index.html` for browser runtime tests and validation
+- prefer the local static server boot path over Vite when reproducing live runtime behavior
+- treat `5500/index.html` as the default verification target unless a task explicitly says otherwise
