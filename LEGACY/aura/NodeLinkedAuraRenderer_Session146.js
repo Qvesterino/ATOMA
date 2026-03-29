@@ -36,9 +36,9 @@
  */
 
 import * as THREE from 'three';
-import { createNodeAuraMaterial, createAuraGeometry } from './shaders/NodeAuraShader.js';
-import { DEFAULT_LINKED_AURA_HARMONY_BANDS, resolveLinkedAuraHarmonyBand, resolveLinkedAuraHarmonyValue } from './LinkedAuraHarmonyBands.js';
-import VisualTime from './src/time/VisualTime.js';
+import { createNodeAuraMaterial, createAuraGeometry } from '../../shaders/NodeAuraShader.js';
+import { DEFAULT_LINKED_AURA_HARMONY_BANDS, resolveLinkedAuraHarmonyBand, resolveLinkedAuraHarmonyValue } from '../../LinkedAuraHarmonyBands.js';
+import VisualTime from '../../src/time/VisualTime.js';
 
 export class NodeLinkedAuraRenderer_Session146 {
   /**

@@ -537,11 +537,18 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
         return false;
       }
 
-      // Create group for all highway meshes
+      // Create or rebind the group for all highway meshes
       if (!group) {
         group = new (THREE?.Group || function() {})();
         group.name = 'SynergyHighways';
+      }
+
+      if (scene && group && group.parent !== scene) {
         scene.add(group);
+      }
+
+      if (group) {
+        group.visible = enabled;
       }
 
       // Initial anchor computation if nodes provided
@@ -787,8 +794,18 @@ const SynergyHighwayVisuals3D_1_0 = (() => {
       
       highwayMeshes.clear();
       highwayData.clear();
+      group = null;
+      scene = null;
+      camera = null;
+      renderer = null;
+      synergyHighwaysEngine = null;
+      aiNodes = null;
     }
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.SynergyHighwayVisuals3D_1_0 = window.SynergyHighwayVisuals3D_1_0 ?? SynergyHighwayVisuals3D_1_0;
+}
 
 export { SynergyHighwayVisuals3D_1_0 };

@@ -14,7 +14,7 @@
 // SNIPPET 1: IMPORTS (Add to top of your main game file)
 // ============================================================================
 
-import { MythicAuraIntegration_v1 } from './MythicAuraIntegration_v1.js';
+import { MythicAuraIntegration_v1 } from '../LEGACY/aura/MythicAuraIntegration_v1.js';
 
 
 // ============================================================================

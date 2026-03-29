@@ -150,6 +150,14 @@ const SynergyHighways2_0 = (() => {
    */
   function getLinkSynergy(link) {
     if (!link) return 0;
+    const canonicalSynergy = link.userData?.synergy?.score;
+    if (typeof canonicalSynergy === 'number' && Number.isFinite(canonicalSynergy)) {
+      return Math.max(0, Math.min(1, canonicalSynergy));
+    }
+    const canonicalSynergyNorm = link.userData?.synergy?.synergyNorm;
+    if (typeof canonicalSynergyNorm === 'number' && Number.isFinite(canonicalSynergyNorm)) {
+      return Math.max(0, Math.min(1, canonicalSynergyNorm));
+    }
     if (typeof link?.synergyScore === 'number') {
       return Math.max(0, Math.min(1, link?.synergyScore));
     }
@@ -647,5 +655,9 @@ const SynergyHighways2_0 = (() => {
     }
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.SynergyHighways2_0 = window.SynergyHighways2_0 ?? SynergyHighways2_0;
+}
 
 export { SynergyHighways2_0 };

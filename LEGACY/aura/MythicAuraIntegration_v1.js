@@ -40,7 +40,7 @@
  * Compatible with Week 8, 9, 10 systems
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG } from '../../config.js';
 
 const IntegrationHelpers = {
   createVisualAttachmentRequest(payload) {

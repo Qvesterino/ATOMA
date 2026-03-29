@@ -495,7 +495,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
 
         // PATCH 1: Trigger cascading rupture if available
         if (this.cascadingRuptureSystem && trap.nodeA && this.cascadingRuptureSystem.enabled) {
-            this.cascadingRuptureSystem.initiateCascade(trap.nodeA, this.time);
+            this.cascadingRuptureSystem.initiateCascade(trap.nodeA, this.time, rupture.intensity);
         }
 
         // Initiate propagation

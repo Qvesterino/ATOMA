@@ -326,7 +326,9 @@ export class CriticalNodeFailureSystem {
             if (node.userData?.failureCountdown) return;
 
             // Skip if already isolated
-            if (this.isolatedNodes.has(node.uuid)) return;
+            const nodeId = this._getNodeId(node);
+            if (nodeId === null) return;
+            if (this.isolatedNodes.has(nodeId)) return;
 
             // Check failure conditions
             if (this.isNodeCritical(node)) {
@@ -375,7 +377,7 @@ export class CriticalNodeFailureSystem {
         // Start countdown
         failureState.startCountdown(node, links);
 
-        console.log(`[CriticalNodeFailureSystem] Node ${node.uuid.slice(0, 8)} entering failure countdown (${links.length} links)`);
+        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} entering failure countdown (${links.length} links)`);
 
         // Fire event
         if (this.onFailureCountdownStart) {
@@ -429,13 +431,14 @@ export class CriticalNodeFailureSystem {
         failureState.failureTriggered = true;
         const node = failureState.node;
 
-        console.log(`[CriticalNodeFailureSystem] Node ${node.uuid.slice(0, 8)} FAILURE - severing ${failureState.linksToSever.length} links`);
+        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} FAILURE - severing ${failureState.linksToSever.length} links`);
 
         // Sever all links simultaneously
         const severedLinkIds = [];
         failureState.linksToSever.forEach(link => {
             if (this.severLink(link, time)) {
-                severedLinkIds.push(link.uuid);
+                const linkId = this._getLinkId(link);
+                if (linkId !== null) severedLinkIds.push(linkId);
             }
         });
 
@@ -454,8 +457,8 @@ export class CriticalNodeFailureSystem {
     severLink(link, time) {
         if (!link || !link.userData) return false;
 
-        const nodeA = link.userData.nodeA;
-        const nodeB = link.userData.nodeB;
+        const nodeA = this._getLinkSource(link);
+        const nodeB = this._getLinkTarget(link);
 
         if (!nodeA || !nodeB) return false;
 
@@ -463,7 +466,9 @@ export class CriticalNodeFailureSystem {
         this.triggerSeverVisual(nodeA.position, nodeB.position);
 
         // Record sever in registry
-        this.severedLinks.set(link.uuid, time);
+        const linkId = this._getLinkId(link);
+        if (linkId === null) return false;
+        this.severedLinks.set(linkId, time);
 
         // Mark link as severed (visual systems should respect this)
         link.userData.severed = true;
@@ -479,7 +484,9 @@ export class CriticalNodeFailureSystem {
         if (!node || !node.userData) return;
 
         // Mark as isolated
-        this.isolatedNodes.add(node.uuid);
+        const nodeId = this._getNodeId(node);
+        if (nodeId === null) return;
+        this.isolatedNodes.add(nodeId);
         node.userData.isolated = true;
         node.userData.isolationTime = time;
 
@@ -492,7 +499,7 @@ export class CriticalNodeFailureSystem {
         node.userData.countdownRemaining = 0;
         node.userData.stressVisualIntensity = 0;
 
-        console.log(`[CriticalNodeFailureSystem] Node ${node.uuid.slice(0, 8)} isolated`);
+        console.log(`[CriticalNodeFailureSystem] Node ${this._formatNodeId(node)} isolated`);
 
         // Fire event
         if (this.onNodeIsolated) {
@@ -533,7 +540,8 @@ export class CriticalNodeFailureSystem {
         const nodes = this.aiNodes.nodes || [];
 
         nodes.forEach(node => {
-            if (!this.isolatedNodes.has(node.uuid)) return;
+            const nodeId = this._getNodeId(node);
+            if (nodeId === null || !this.isolatedNodes.has(nodeId)) return;
             if (!node.userData) return;
 
             const isolationTime = node.userData.isolationTime || 0;
@@ -583,17 +591,26 @@ export class CriticalNodeFailureSystem {
     // ========================================================================
 
     isNodeIsolated(node) {
-        return this.isolatedNodes.has(node.uuid);
+        const nodeId = this._getNodeId(node);
+        return nodeId !== null && this.isolatedNodes.has(nodeId);
     }
 
     isLinkSevered(link) {
-        return this.severedLinks.has(link.uuid);
+        const linkId = this._getLinkId(link);
+        return linkId !== null && this.severedLinks.has(linkId);
     }
 
     getActiveFailureNodes() {
         return this.activeFailures
             .filter(f => f.active)
             .map(f => f.node);
+    }
+
+    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, scene = this.scene } = {}) {
+        if (linkingSystem) this.linkingSystem = linkingSystem;
+        if (aiNodes) this.aiNodes = aiNodes;
+        if (scene) this.scene = scene;
+        return this;
     }
 
     // ========================================================================
@@ -606,6 +623,28 @@ export class CriticalNodeFailureSystem {
         this.severedLinks.clear();
         this.isolatedNodes.clear();
         console.log('[CriticalNodeFailureSystem] Disposed');
+    }
+
+    _getNodeId(node) {
+        return node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
+    }
+
+    _getLinkId(link) {
+        return link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
+    }
+
+    _getLinkSource(link) {
+        return link?.source ?? link?.sourceNode ?? link?.from ?? link?.userData?.nodeA ?? null;
+    }
+
+    _getLinkTarget(link) {
+        return link?.target ?? link?.targetNode ?? link?.to ?? link?.userData?.nodeB ?? null;
+    }
+
+    _formatNodeId(node) {
+        const id = this._getNodeId(node);
+        if (typeof id !== 'string') return String(id ?? 'unknown');
+        return id.slice(0, 8);
     }
 }
 import { applyMetricImpulse } from './src/metrics/NodeMetricEngine.js';

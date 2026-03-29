@@ -72,9 +72,9 @@
  */
 
 import * as THREE from 'three';
-import VisualTime from './src/time/VisualTime.js';
-import { CONFIG } from './config.js';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+import VisualTime from '../../src/time/VisualTime.js';
+import { CONFIG } from '../../config.js';
+import { VisualHierarchyRegistry } from '../../VisualHierarchyRegistry.js';
 
 /**
  * Simple aura configuration per state archetype

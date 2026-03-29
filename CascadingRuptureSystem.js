@@ -201,7 +201,10 @@ class CascadePropagation {
         this.originNode = originNode;
         this.currentEnergy = initialEnergy;
         this.currentFront.push(originNode);
-        this.visitedNodes.add(originNode.uuid);
+        const originId = originNode?.userData?.nodeId ?? originNode?.userData?.id ?? originNode?.id ?? originNode?.uuid ?? null;
+        if (originId !== null && originId !== undefined) {
+            this.visitedNodes.add(String(originId));
+        }
         this.timeToNextHop = CONFIG.PROPAGATION_DELAY;
     }
 }
@@ -322,7 +325,7 @@ export class CascadingRuptureSystem {
 
         // Check corruption threshold on connected links
         const hasCascadeCorruptionLink = links.some((link) => (
-            (link?.userData?.corruptionLevel ?? 0) > CASCADE_CORRUPTION_THRESHOLD
+            this._readLinkCorruption(link) > CASCADE_CORRUPTION_THRESHOLD
         ));
         if (!hasCascadeCorruptionLink) return false;
 
@@ -346,11 +349,12 @@ export class CascadingRuptureSystem {
         probability += corruptionBonus;
 
         // Factor 2: Rupture history
-        const ruptureCount = this.getRecentRuptureCount(node.uuid, time, 10.0);
+        const nodeId = this._getNodeId(node);
+        const ruptureCount = this.getRecentRuptureCount(nodeId, time, 10.0);
         probability += ruptureCount * CONFIG.RUPTURE_HISTORY_WEIGHT;
 
         // Factor 3: Lack of recent healing
-        const lastHealing = this.healingHistory.get(node.uuid) || 0;
+        const lastHealing = nodeId !== null ? (this.healingHistory.get(nodeId) || 0) : 0;
         const timeSinceHealing = time - lastHealing;
         if (timeSinceHealing > 8.0) {
             probability += CONFIG.HEALING_DEFICIT_WEIGHT;
@@ -382,7 +386,7 @@ export class CascadingRuptureSystem {
     // CASCADE INITIATION
     // ========================================================================
 
-    initiateCascade(originNode, time) {
+    initiateCascade(originNode, time, initialEnergyOverride = null) {
         // Find available cascade slot
         const cascade = this.activeCascades.find(c => !c.active);
         if (!cascade) {
@@ -392,7 +396,13 @@ export class CascadingRuptureSystem {
 
         // Calculate initial energy based on node state
         const corruption = this._readCanonicalNodeMetric(originNode, 'corruption', 0);
-        const initialEnergy = Math.min(corruption * 1.5, 1.0);
+        const baseEnergy = Math.min(corruption * 1.5, 1.0);
+        const seededEnergy = Number.isFinite(initialEnergyOverride)
+            ? THREE.MathUtils.clamp(initialEnergyOverride, 0, 1)
+            : null;
+        const initialEnergy = seededEnergy !== null
+            ? Math.max(baseEnergy, seededEnergy)
+            : baseEnergy;
 
         // Start cascade
         cascade.startCascade(originNode, initialEnergy);
@@ -451,23 +461,33 @@ export class CascadingRuptureSystem {
     }
 
     propagateFromNode(cascade, fromNode, time) {
-        const links = this.linkingSystem.getNodeLinks(fromNode);
-        if (!links) return;
+        const fromNodeId = this._getNodeId(fromNode);
+        const directLinks = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+        const links = directLinks.filter((link) => {
+            if (!link) return false;
+            const sourceId = this._getNodeId(this._getLinkSource(link));
+            const targetId = this._getNodeId(this._getLinkTarget(link));
+            if (fromNodeId === null) return false;
+            return String(sourceId ?? '') === String(fromNodeId) || String(targetId ?? '') === String(fromNodeId);
+        });
+        if (!links || links.length === 0) return;
 
         links.forEach(link => {
             const toNode = this.getOtherNode(link, fromNode);
             if (!toNode) return;
 
             // Skip if already visited
-            if (cascade.visitedNodes.has(toNode.uuid)) return;
+            const toNodeId = this._getNodeId(toNode);
+            if (toNodeId === null) return;
+            if (cascade.visitedNodes.has(toNodeId)) return;
 
             // Skip if link is too stable (resists cascade)
-            const linkQuality = link.userData?.quality || 1.0;
-            if (linkQuality > 0.7) return;
+            const linkResistance = this._readLinkResistance(link);
+            if (linkResistance > 0.7) return;
 
             // Add to next front
             cascade.nextFront.push(toNode);
-            cascade.visitedNodes.add(toNode.uuid);
+            cascade.visitedNodes.add(toNodeId);
             cascade.totalHops++;
 
             // Trigger visual effects
@@ -483,13 +503,26 @@ export class CascadingRuptureSystem {
             }
 
             // Record rupture in history
-            this.recordRupture(toNode.uuid, time);
+            this.recordRupture(toNodeId, time);
         });
     }
 
     getOtherNode(link, node) {
-        if (!link.userData || !link.userData.nodeA || !link.userData.nodeB) return null;
-        return link.userData.nodeA.uuid === node.uuid ? link.userData.nodeB : link.userData.nodeA;
+        const linkSource = this._getLinkSource(link);
+        const linkTarget = this._getLinkTarget(link);
+        if (linkSource && linkTarget) {
+            if (this._nodesMatch(linkSource, node)) return linkTarget;
+            if (this._nodesMatch(linkTarget, node)) return linkSource;
+        }
+
+        const nodeA = link?.userData?.nodeA || null;
+        const nodeB = link?.userData?.nodeB || null;
+        if (nodeA && nodeB) {
+            if (this._nodesMatch(nodeA, node)) return nodeB;
+            if (this._nodesMatch(nodeB, node)) return nodeA;
+        }
+
+        return null;
     }
 
     completeCascade(cascade) {
@@ -577,7 +610,16 @@ export class CascadingRuptureSystem {
     }
 
     recordHealing(nodeId, time) {
-        this.healingHistory.set(nodeId, time);
+        const key = nodeId !== null && nodeId !== undefined ? String(nodeId) : null;
+        if (key === null) return;
+        this.healingHistory.set(key, time);
+    }
+
+    rebind({ linkingSystem = this.linkingSystem, aiNodes = this.aiNodes, regionalEquilibrium = this.regionalEquilibrium } = {}) {
+        if (linkingSystem) this.linkingSystem = linkingSystem;
+        if (aiNodes) this.aiNodes = aiNodes;
+        if (regionalEquilibrium !== undefined) this.regionalEquilibrium = regionalEquilibrium;
+        return this;
     }
 
     _readCanonicalNodeMetric(node, metric, fallback = 0) {
@@ -587,6 +629,65 @@ export class CascadingRuptureSystem {
         const legacy = node.userData?.[metric];
         if (Number.isFinite(legacy)) return legacy;
         return fallback;
+    }
+
+    _readLinkCorruption(link) {
+        const direct = Number(link?.userData?.corruptionLevel);
+        if (Number.isFinite(direct)) return THREE.MathUtils.clamp(direct, 0, 1);
+
+        const legacy = Number(link?.userData?.corruption);
+        if (Number.isFinite(legacy)) return THREE.MathUtils.clamp(legacy, 0, 1);
+
+        const metrics = Number(link?.userData?.metrics?.corruption);
+        if (Number.isFinite(metrics)) return THREE.MathUtils.clamp(metrics, 0, 1);
+
+        return 0;
+    }
+
+    _readLinkResistance(link) {
+        const cascadeIntensity = Number(link?.userData?.cascadeIntensity);
+        if (Number.isFinite(cascadeIntensity)) {
+            return THREE.MathUtils.clamp(1 - cascadeIntensity, 0, 1);
+        }
+
+        const flowIntensity = Number(link?.userData?.flowState?.intensity);
+        if (Number.isFinite(flowIntensity)) {
+            return THREE.MathUtils.clamp(1 - flowIntensity, 0, 1);
+        }
+
+        const qualityScore = Number(link?.userData?.quality?.score);
+        if (Number.isFinite(qualityScore)) {
+            return THREE.MathUtils.clamp(qualityScore / 100, 0, 1);
+        }
+
+        const corruption = this._readLinkCorruption(link);
+        if (Number.isFinite(corruption)) {
+            return THREE.MathUtils.clamp(1 - corruption, 0, 1);
+        }
+
+        return 0.5;
+    }
+
+    _getLinkSource(link) {
+        return link?.source ?? link?.sourceNode ?? link?.from ?? link?.nodeA ?? null;
+    }
+
+    _getLinkTarget(link) {
+        return link?.target ?? link?.targetNode ?? link?.to ?? link?.nodeB ?? null;
+    }
+
+    _getNodeId(node) {
+        if (!node) return null;
+        return node?.userData?.nodeId ?? node?.userData?.id ?? node?.id ?? node?.uuid ?? null;
+    }
+
+    _nodesMatch(a, b) {
+        const aId = this._getNodeId(a);
+        const bId = this._getNodeId(b);
+        if (aId !== null && bId !== null) {
+            return String(aId) === String(bId);
+        }
+        return a === b;
     }
 
     // ========================================================================

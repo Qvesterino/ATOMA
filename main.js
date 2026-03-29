@@ -263,7 +263,7 @@ import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
 import { MythicEvolutionFX_v1 } from './MythicEvolutionFX_v1.js';
-import { MythicAuraIntegration_v1 } from './MythicAuraIntegration_v1.js';
+import { MythicAuraIntegration_v1 } from './LEGACY/aura/MythicAuraIntegration_v1.js';
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
 // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
@@ -493,7 +493,7 @@ import { StandingWaveVisualRenderer_Session131 } from './StandingWaveVisualRende
 // SESSION 146: NODE LINKED AURA RENDERER
 // Noise-driven aura meshes that react to harmony/corruption state
 // ============================================================================
-import { NodeLinkedAuraRenderer_Session146 } from './NodeLinkedAuraRenderer_Session146.js';
+import { NodeLinkedAuraRenderer_Session146 } from './LEGACY/aura/NodeLinkedAuraRenderer_Session146.js';
 
 // ============================================================================
 // PHASE 3C WEEK 10: LINK AURA SYSTEM
@@ -7201,6 +7201,20 @@ window.__ATOMA_SCENE__ = this.scene;
         }
         this.linkingSystem.semanticBus = this.semanticBus;
         this.linkingSystem.isReady = true;
+        if (this.cascadingRuptures?.rebind) {
+            this.cascadingRuptures.rebind({
+                linkingSystem: this.linkingSystem,
+                aiNodes: this.aiNodes,
+                regionalEquilibrium: this.regionalEquilibrium
+            });
+        }
+        if (this.criticalNodeFailure?.rebind) {
+            this.criticalNodeFailure.rebind({
+                linkingSystem: this.linkingSystem,
+                aiNodes: this.aiNodes,
+                scene: this.scene
+            });
+        }
         if (this.linkingSystem?.onNodeSelected && !this.linkingSystem.__audioSelectionAuthorityBound) {
             const playSelectionAudio = (type) => {
                 if (!this.audioSystem) return;
@@ -7407,6 +7421,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
             this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.synergyHighways, this.aiNodes);
             this.synergyHighwayVisuals3D.refreshFromHighways?.();
+            window.SynergyHighwayVisuals3D_1_0 = this.synergyHighwayVisuals3D;
+            window.__ATOMA_SYNERGY_HIGHWAY_VISUALS__ = this.synergyHighwayVisuals3D;
             this._synergyHighwayRefreshAcc = 0;
         } else {
             this.synergyHighways = null;
@@ -10816,6 +10832,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('cascadingRuptures', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.cascadingRuptures?.enabled) {
+                this.cascadingRuptures.rebind?.({
+                    linkingSystem: this.linkingSystem,
+                    aiNodes: this.aiNodes,
+                    regionalEquilibrium: this.regionalEquilibrium
+                });
                 this.cascadingRuptures.update(
                     dt,
                     this.time,
@@ -10827,6 +10848,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         reg('criticalNodeFailure', (dt) => {
             if (!this._runSlowSemanticPending) return;
             if (this.criticalNodeFailure?.enabled) {
+                this.criticalNodeFailure.rebind?.({
+                    linkingSystem: this.linkingSystem,
+                    aiNodes: this.aiNodes,
+                    scene: this.scene
+                });
                 this.criticalNodeFailure.update(dt, this.time);
             }
         });
@@ -13885,6 +13911,17 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.aiNodes,
                 this.linkingSystem
             );
+
+            this.cascadingRuptures.rebind({
+                linkingSystem: this.linkingSystem,
+                aiNodes: this.aiNodes,
+                regionalEquilibrium: this.regionalEquilibrium
+            });
+            this.criticalNodeFailure.rebind?.({
+                linkingSystem: this.linkingSystem,
+                aiNodes: this.aiNodes,
+                scene: this.scene
+            });
 
             // Wire cascade system to trigger node failure
             this.cascadingRuptures.onNodeCritical = (node) => {
