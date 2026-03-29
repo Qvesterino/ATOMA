@@ -137,7 +137,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
         // Runtime state
         this.stressAccumulation = new Map();  // trapId -> stress level (0-1)
         this.ruptures = [];                   // Active rupture events
-        this.ruptureHistory = [];             // Recent ruptures (for cooldown)
         this.propagationPulses = [];          // Energy pulses propagating
         this.resonanceScars = [];             // Scar zones on links
         this.nodeReactions = new Map();       // nodeId -> reaction state
@@ -380,22 +379,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const phaseDivergence = phaseDivergenceState?.divergence || 0;
             const phaseDivergenceBoost = phaseDivergence > this.config.phaseDivergenceThreshold ? phaseDivergence : 0;
             const link = this._getLinkById(trapId);
-            const flowState = link?.userData?.flowState || {};
-            const linkCanonicalCascade = Number.isFinite(flowState.intensity)
-                ? flowState.intensity
-                : (typeof link?.userData?.cascadeIntensity === 'number'
-                    ? link.userData.cascadeIntensity
-                    : 0);
-            const linkCanonicalConflict = Number.isFinite(flowState.energy)
-                ? flowState.energy
-                : (typeof link?.userData?.conflictIntensity === 'number'
-                    ? link.userData.conflictIntensity
-                    : 0);
-            const canonicalPressure = THREE.MathUtils.clamp(
-                Math.max(linkCanonicalCascade, linkCanonicalConflict),
-                0,
-                1
-            );
+            const canonicalPressure = this._readCanonicalLinkPressure(link);
             const eventPressure = Math.max(
                 this.eventPressureByLink.get(String(trapId)) || 0,
                 canonicalPressure
@@ -982,6 +966,32 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const metricsValue = node.userData?.metrics?.[metric];
         if (typeof metricsValue === 'number') return metricsValue;
         return fallback;
+    }
+
+    _readCanonicalLinkPressure(link) {
+        const flowState = link?.userData?.flowState || {};
+        if (Number.isFinite(flowState.intensity)) {
+            return THREE.MathUtils.clamp(flowState.intensity, 0, 1);
+        }
+        if (Number.isFinite(flowState.energy)) {
+            return THREE.MathUtils.clamp(flowState.energy, 0, 1);
+        }
+
+        const cascadeIntensity = Number.isFinite(link?.userData?.cascadeIntensity)
+            ? link.userData.cascadeIntensity
+            : null;
+        if (cascadeIntensity !== null) {
+            return THREE.MathUtils.clamp(cascadeIntensity, 0, 1);
+        }
+
+        const conflictIntensity = Number.isFinite(link?.userData?.conflictIntensity)
+            ? link.userData.conflictIntensity
+            : null;
+        if (conflictIntensity !== null) {
+            return THREE.MathUtils.clamp(conflictIntensity, 0, 1);
+        }
+
+        return 0;
     }
 
     _getSemanticBus() {

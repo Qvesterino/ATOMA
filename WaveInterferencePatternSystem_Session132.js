@@ -28,7 +28,6 @@
  * 
  * Integration:
  * - Works with InfluenceReflectionBackPressureSystem (reads reflections)
- * - Works with StandingWaveOscillationTrapSystem (reads trap state)
  * - Works with StandingWaveVisualRenderer (visual layer)
  * - Visual-only, no gameplay modifications
  * 
@@ -41,13 +40,12 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 export class WaveInterferencePatternSystem_Session132 {
-    constructor(scene, reflectionSystem, standingWaveTrapSystem, linkingSystem, aiNodes, config = {}) {
+    constructor(scene, reflectionSystem, linkingSystem, aiNodes, config = {}) {
         this.scene = scene;
         this.reflectionSystem =
             reflectionSystem ||
             globalThis?.waveReflectionSystem ||
             null;
-        this.standingWaveTrapSystem = standingWaveTrapSystem;
         this.linkingSystem = linkingSystem;
         this.aiNodes = aiNodes;
         
@@ -81,7 +79,6 @@ export class WaveInterferencePatternSystem_Session132 {
             // Beat frequency patterns
             beatFrequencyRange: [0.5, 4.0],   // Min-max Hz from frequency differences
             beatAmplification: 1.2,           // How much beat modulates amplitude
-            beatFrequencySmoothing: 0.3,      // Smoothing factor for beat transitions
             
             // Visual modulation
             harmonyCancellation: 0.4,         // Harmony reduces interference visibility
@@ -102,18 +99,11 @@ export class WaveInterferencePatternSystem_Session132 {
         };
         
         // Runtime state
-        this.interferenceZones = [];         // { linkIds, type, phase, frequency, intensity }
-        this.collisionPairs = [];            // { wave1, wave2, convergencePoint, phase }
+        this.interferenceZones = [];         // { linkIds, type, intensity, beatFrequency, zoneKey }
+        this.collisionPairs = [];            // { convergencePoint, phaseDifference, intensity, beatFrequency, linkIds }
         this.interferenceMeshes = [];        // Active interference mesh overlays
         this.beatPatterns = [];              // { zone, beatFrequency, beatPhase }
-        this.interferenceLifecycles = [];    // { zone, birthTime, state }
-        
-        // Tracking
-        this.waveCollisionHistory = new Map(); // Track recent collisions to avoid duplicates
-        this.constructiveZones = new Map();    // linkId -> { position, intensity, phase }
-        this.destructiveZones = new Map();     // linkId -> { position, intensity, phase }
-        this.phaseRelationships = new Map();   // "wave1_wave2" -> phase difference
-        this.zoneLifecycles = new Map();       // zoneKey -> { birthTime, lastSeenTime }
+        this.zoneLifecycles = new Map();     // zoneKey -> { birthTime, lastSeenTime }
         
         // Object pools
         this.interferenceMeshPool = [];
@@ -254,10 +244,12 @@ export class WaveInterferencePatternSystem_Session132 {
                         const convergencePoint = this._findConvergencePoint(reflection1, reflection2, links);
                         
                         this.collisionPairs.push({
-                            wave1: reflection1,
-                            wave2: reflection2,
                             convergencePoint: convergencePoint,
                             phaseDifference: phaseDiff,
+                            intensity: Math.min(reflection1.intensity, reflection2.intensity),
+                            beatFrequency: Math.abs(
+                                this._getWaveFrequency(reflection1) - this._getWaveFrequency(reflection2)
+                            ),
                             linkIds: [reflection1.linkId, reflection2.linkId],
                             collisionTime: this.time
                         });
@@ -391,8 +383,6 @@ export class WaveInterferencePatternSystem_Session132 {
      * Calculate interference zones from collision pairs
      */
     _calculateInterferenceZones(deltaTime) {
-        this.constructiveZones.clear();
-        this.destructiveZones.clear();
         this.interferenceZones = [];
         const activeZoneKeys = new Set();
         
@@ -424,36 +414,19 @@ export class WaveInterferencePatternSystem_Session132 {
                 linkIds: pair.linkIds,
                 convergencePoint: pair.convergencePoint,
                 type: zoneType,
-                phaseDifference: pair.phaseDifference,
-                intensity: Math.min(pair.wave1.intensity, pair.wave2.intensity),
-                frequency1: this._getWaveFrequency(pair.wave1),
-                frequency2: this._getWaveFrequency(pair.wave2),
-                wave1: pair.wave1,
-                wave2: pair.wave2,
+                intensity: pair.intensity,
+                beatFrequency: Math.max(
+                    this.config.beatFrequencyRange[0],
+                    Math.min(
+                        this.config.beatFrequencyRange[1],
+                        pair.beatFrequency
+                    )
+                ),
                 birthTime: lifecycle.birthTime,
                 zoneKey
             };
             
             this.interferenceZones.push(zone);
-            
-            // Store in appropriate zone map
-            if (isConstructive) {
-                pair.linkIds.forEach(linkId => {
-                    this.constructiveZones.set(linkId, {
-                        intensity: zone.intensity,
-                        position: pair.convergencePoint,
-                        phase: pair.wave1.phase
-                    });
-                });
-            } else {
-                pair.linkIds.forEach(linkId => {
-                    this.destructiveZones.set(linkId, {
-                        intensity: zone.intensity,
-                        position: pair.convergencePoint,
-                        phase: pair.wave1.phase
-                    });
-                });
-            }
         });
 
         this.zoneLifecycles.forEach((lifecycle, zoneKey) => {
@@ -484,19 +457,10 @@ export class WaveInterferencePatternSystem_Session132 {
         this.beatPatterns = [];
         
         this.interferenceZones.forEach(zone => {
-            // Beat frequency = |freq1 - freq2|
-            const beatFreq = Math.abs(zone.frequency1 - zone.frequency2);
-            
-            // Clamp to reasonable range
-            const clampedBeat = Math.max(
-                this.config.beatFrequencyRange[0],
-                Math.min(this.config.beatFrequencyRange[1], beatFreq)
-            );
-            
             this.beatPatterns.push({
                 zone: zone,
-                beatFrequency: clampedBeat,
-                beatPhase: this.time * clampedBeat * Math.PI * 2
+                beatFrequency: zone.beatFrequency,
+                beatPhase: this.time * zone.beatFrequency * Math.PI * 2
             });
         });
     }
@@ -634,10 +598,10 @@ export class WaveInterferencePatternSystem_Session132 {
         
         nodes.forEach(node => {
             if (!node) return;
-            avgHarmony += node.harmony ?? 0.5;
-            avgCorruption += node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.5;
-            avgInstability += node.instability ?? 0;
-            avgSynergy += node.synergy ?? 0.5;
+            avgHarmony += this._readCanonicalMetric(node, 'harmony', 0.5);
+            avgCorruption += this._readCanonicalMetric(node, 'corruption', 0.5);
+            avgInstability += this._readCanonicalMetric(node, 'instability', 0);
+            avgSynergy += this._readCanonicalMetric(node, 'synergy', 0.5);
             nodeCount++;
         });
         
@@ -703,13 +667,23 @@ export class WaveInterferencePatternSystem_Session132 {
         return `${zoneType}:${normalizedLinks}`;
     }
 
+    _readCanonicalMetric(node, metric, fallback = 0) {
+        if (!node) return fallback;
+        const metricsValue = node?.userData?.metrics?.[metric];
+        if (typeof metricsValue === 'number') return metricsValue;
+        const userValue = node?.userData?.[metric];
+        if (typeof userValue === 'number') return userValue;
+        const directValue = node?.[metric];
+        if (typeof directValue === 'number') return directValue;
+        return fallback;
+    }
+
     /**
      * Rebind to new scene/world after world switch
      * @param {Object} params - New references
      */
-    rebind({ scene, standingWaveTrapSystem, linkingSystem, aiNodes } = {}) {
+    rebind({ scene, linkingSystem, aiNodes } = {}) {
         if (scene) this.scene = scene;
-        if (standingWaveTrapSystem) this.standingWaveTrapSystem = standingWaveTrapSystem;
         if (linkingSystem) this.linkingSystem = linkingSystem;
         if (aiNodes) this.aiNodes = aiNodes;
         
@@ -718,11 +692,6 @@ export class WaveInterferencePatternSystem_Session132 {
         this.collisionPairs = [];
         this.interferenceMeshes = [];
         this.beatPatterns = [];
-        this.interferenceLifecycles = [];
-        this.waveCollisionHistory.clear();
-        this.constructiveZones.clear();
-        this.destructiveZones.clear();
-        this.phaseRelationships.clear();
         this.zoneLifecycles.clear();
         
         console.log('[WaveInterferencePatternSystem] Rebound to new world');
@@ -754,11 +723,6 @@ export class WaveInterferencePatternSystem_Session132 {
             this.destructiveMaterial.dispose();
         }
         
-        // Clear maps
-        this.constructiveZones.clear();
-        this.destructiveZones.clear();
-        this.phaseRelationships.clear();
-        this.waveCollisionHistory.clear();
         this.zoneLifecycles.clear();
     }
 
@@ -808,7 +772,6 @@ export class WaveInterferencePatternSystem_Session132 {
  *   this.waveInterference = new WaveInterferencePatternSystem_Session132(
  *       this.scene,
  *       this.influenceReflection,  // Reflection system (required)
- *       this.standingWaveTrap,     // Standing wave system (optional)
  *       this.linkingSystem,
  *       this.aiNodes
  *   );

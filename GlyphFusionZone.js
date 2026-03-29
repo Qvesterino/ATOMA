@@ -84,7 +84,6 @@ class FusionZoneState {
         this.compositeMesh = null;
         
         // Context
-        this.harmonBalance = 0.5;
         this.harmonyBalance = 0.5;
         this.corruptionBalance = 0.0;
         this.stability = 0.5;
@@ -111,7 +110,6 @@ class FusionZoneState {
             this.compositeMesh.visible = false;
         }
         this.compositeMesh = null;
-        this.harmonBalance = 0.5;
         this.harmonyBalance = 0.5;
         this.corruptionBalance = 0.0;
         this.stability = 0.5;
@@ -128,7 +126,6 @@ class FusionZoneState {
         this.phase = 'APPROACHING';
         this.phaseProgress = 0.0;
         this.age = 0.0;
-        this.harmonBalance = context.harmonyBalance;
         this.harmonyBalance = context.harmonyBalance;
         this.corruptionBalance = context.corruptionBalance ?? 0.0;
         this.stability = context.stability ?? 0.5;
@@ -523,7 +520,11 @@ export class GlyphFusionZoneManager {
 
             if (zone.phase === 'APPROACHING') {
                 // Slow down
-                glyph.baseSpeed *= CONFIG.APPROACH_SPEED_FACTOR;
+                if (glyph._fusionBaseSpeed == null) {
+                    glyph._fusionBaseSpeed = glyph.baseSpeed ?? 0;
+                }
+                const approachMix = 1.0 - (progress * (1.0 - CONFIG.APPROACH_SPEED_FACTOR));
+                glyph.baseSpeed = glyph._fusionBaseSpeed * approachMix;
 
                 // Compress spacing
                 const spacing = 1.0 - (progress * (1.0 - CONFIG.COMPRESSION_FACTOR));
@@ -566,7 +567,7 @@ export class GlyphFusionZoneManager {
             .filter(Boolean);
 
         // Generate composite geometry
-        const harmonyBalance = zone.harmonBalance ?? zone.harmonyBalance ?? 0.5;
+        const harmonyBalance = zone.harmonyBalance ?? 0.5;
         const corruptionBalance = zone.corruptionBalance ?? Math.max(0, Math.min(1, 1.0 - harmonyBalance));
         const context = {
             harmonyBalance,
@@ -827,7 +828,11 @@ export class GlyphFusionZoneManager {
         zone.sourceGlyphs.forEach(glyph => {
             if (glyph.active) {
                 glyph.mesh.visible = true;
-                glyph.mesh.material.opacity = 0.7;  // Restore opacity
+                if (glyph._fusionBaseSpeed != null) {
+                    glyph.baseSpeed = glyph._fusionBaseSpeed;
+                    delete glyph._fusionBaseSpeed;
+                }
+                glyph.mesh.material.opacity = glyph.baseOpacity ?? 0.7;  // Restore opacity
             }
         });
 

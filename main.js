@@ -13268,14 +13268,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.scene,
                 this,
                 this.influenceReflection || this.waveReflectionSystem || globalThis.waveReflectionSystem,
-                this.harmonicInfluencePropagation,  // Influence system (optional)
                 this.aiNodes,
                 this.linkingSystem,
                 {
                     reflectionCountThreshold: 1,
                     detectionWindow: 1.0,
-                    netFlowThreshold: 0.15,
-                    phaseConsistencyThreshold: 0.58,
                     trapCenterOffset: 0.5,
                     trapRadiusBase: 0.2,
                     standingWaveAmplitude: 1.1,
@@ -13421,7 +13418,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.waveInterference = new WaveInterferencePatternSystem_Session132(
                 this.scene,
                 this.influenceReflection,  // Reflection system (required)
-                this.standingWaveTrap,     // Standing wave system (optional)
                 this.linkingSystem,
                 this.aiNodes,
                 {
@@ -13440,7 +13436,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     
                     beatFrequencyRange: [0.5, 4.0],
                     beatAmplification: 1.2,
-                    beatFrequencySmoothing: 0.3,
                     
                     harmonyCancellation: 0.4,
                     corruptionAmplification: 0.6,
@@ -14402,9 +14397,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             // Late-wire systems that were initialized before influence propagation.
             if (this.influenceReflection) {
                 this.influenceReflection.harmonicInfluenceSystem = this.harmonicInfluencePropagation;
-            }
-            if (this.standingWaveTrap) {
-                this.standingWaveTrap.harmonicInfluenceSystem = this.harmonicInfluencePropagation;
             }
             console.log('✓ Harmonic Influence Propagation System (Session 127) initialized');
         } catch (err) {

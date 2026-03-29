@@ -17,7 +17,7 @@
  * - Waiting for harmony, fatigue, or collapse
  * 
  * Architecture:
- * - Detects standing wave conditions (reflection frequency + phase consistency)
+ * - Detects standing wave conditions (reflection frequency + intensity)
  * - Identifies trap zones (mid-link regions between opposing nodes)
  * - Manages oscillation state (frequency, phase, amplitude modulation)
  * - Applies interference patterns (beat frequencies, antinodes)
@@ -38,7 +38,7 @@
 import * as THREE from 'three';
 
 export class StandingWaveOscillationTrapSystem_Session130 {
-    constructor(scene, world, reflectionSystem, harmonicInfluenceSystem, aiNodes, linkingSystem, config = {}) {
+    constructor(scene, world, reflectionSystem, aiNodes, linkingSystem, config = {}) {
         this.scene = scene;
         this.world = world;
         this.reflectionSystem =
@@ -46,7 +46,6 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             world?.influenceReflection ||
             world?.waveReflectionSystem ||
             globalThis.waveReflectionSystem;
-        this.harmonicInfluenceSystem = harmonicInfluenceSystem;
         this.aiNodes = aiNodes;
         this.linkingSystem = linkingSystem;
         this.waveEngine = world?.waveInterferenceEngine || globalThis?.game?.waveInterferenceEngine || null;
@@ -56,8 +55,6 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             // Standing wave detection
             reflectionCountThreshold: 3,      // Min reflections in window to trigger
             detectionWindow: 1.5,             // Time window for reflection counting (seconds)
-            netFlowThreshold: 0.1,            // Max forward flow to be considered trapped
-            phaseConsistencyThreshold: 0.7,   // Phase alignment required (0-1)
             
             // Oscillation trap zone
             trapCenterOffset: 0.5,            // Zone center position (0-1 along link)
@@ -101,8 +98,8 @@ export class StandingWaveOscillationTrapSystem_Session130 {
         // Runtime state
         this.oscillationTraps = [];           // { linkId, nodes, frequency, phase, amplitude, trapRadius, state }
         this.reflectionHistory = new Map();   // linkId -> { linkId, reflections: [{time, phase, intensity}] }
-        this.trapZones = [];                  // { linkId, centerPos, radiusStart, radiusEnd, intensity, time }
-        this.interferencePatterns = [];       // { trapId, spacing, contrast, beatPhase, time }
+        this.trapZones = [];                  // { linkId, trapCenter, radiusStart, radiusEnd, intensity, frequency, phase }
+        this.interferencePatterns = [];       // { trapId, spacing, contrast, beatPhase }
         this.resolutionEvents = [];           // { trapId, type, startTime, duration, progress }
         
         // Object pools
@@ -277,54 +274,6 @@ export class StandingWaveOscillationTrapSystem_Session130 {
 
         const avgIntensity = history.reflections.reduce((sum, reflection) => sum + (reflection.intensity ?? 0), 0) / history.reflections.length;
         return avgIntensity >= 0.1;
-    }
-
-    /**
-     * Calculate phase consistency (0-1, higher = more consistent)
-     */
-    _calculatePhaseConsistency(phases) {
-        if (phases.length < 2) return 0;
-        
-        // Normalize phases to [-π, π]
-        const normalized = phases.map(p => {
-            let n = p % (Math.PI * 2);
-            if (n > Math.PI) n -= Math.PI * 2;
-            return n;
-        });
-        
-        // Calculate circular variance
-        let sumCos = 0, sumSin = 0;
-        normalized.forEach(p => {
-            sumCos += Math.cos(p);
-            sumSin += Math.sin(p);
-        });
-        
-        const meanResultant = Math.sqrt(sumCos * sumCos + sumSin * sumSin) / normalized.length;
-        return Math.min(1, meanResultant);
-    }
-
-    /**
-     * Calculate net forward flow on link (READ-ONLY from influence data)
-     */
-    _calculateNetFlow(linkId, history) {
-        if (!this.harmonicInfluenceSystem || history.reflections.length === 0) {
-            return 0;
-        }
-        
-        // Count forward vs backward reflections
-        let forwardCount = 0, backwardCount = 0;
-        
-        history.reflections.forEach(r => {
-            // Phase near 0 or 2π = forward, phase near π = backward
-            const normalizedPhase = r.phase % (Math.PI * 2);
-            if (normalizedPhase < Math.PI * 0.5 || normalizedPhase > Math.PI * 1.5) {
-                forwardCount += r.intensity;
-            } else {
-                backwardCount += r.intensity;
-            }
-        });
-        
-        return (forwardCount - backwardCount) / (forwardCount + backwardCount + 0.001);
     }
 
     /**
@@ -578,8 +527,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 radiusEnd: Math.min(1, 0.5 + trap.trapRadius * 0.5),
                 intensity: trap.amplitude,
                 frequency: trap.frequency,
-                phase: trap.phase,
-                state: trap.state
+                phase: trap.phase
             };
             
             this.trapZones.push(zone);
@@ -597,9 +545,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 trapId: zone.linkId,
                 spacing: this.config.interferenceSpacing,
                 contrast: this.config.interferenceContrast,
-                beatPhase: zone.phase * this.config.synergyClarity,
-                time: this.time,
-                antiNodeCount: Math.ceil(1.0 / (this.config.interferenceSpacing + 0.01))
+                beatPhase: zone.phase * this.config.synergyClarity
             };
             
             this.interferencePatterns.push(pattern);
@@ -768,9 +714,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             resolutionEventCount: this.resolutionEvents.length,
             thresholds: {
                 reflectionCountThreshold: this.config.reflectionCountThreshold,
-                detectionWindow: this.config.detectionWindow,
-                netFlowThreshold: this.config.netFlowThreshold,
-                phaseConsistencyThreshold: this.config.phaseConsistencyThreshold
+                detectionWindow: this.config.detectionWindow
             },
             traps: activeTraps.slice(0, 5).map((trap) => ({
                 linkId: trap.linkId,
@@ -826,7 +770,6 @@ export class StandingWaveOscillationTrapSystem_Session130 {
  *       this.scene,
  *       this,
  *       this.influenceReflection,  // Reflection system (required)
- *       this.harmonicInfluencePropagation,  // Influence system (optional)
  *       this.aiNodes,
  *       this.linkingSystem
  *   );
