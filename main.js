@@ -1087,7 +1087,6 @@ import { AIEmotionalFeed3_1 } from './_AIEmotionalFeed3_1.js';
 // ============================================================================
 // ATOMA UI 3.2 - Interaction Polishing & Selected Node System
 // ============================================================================
-import { UISelectedNodeHighlight3_2 } from './_UISelectedNodeHighlight3_2.js';
 import { UINodeInspectPanel } from './UINodeInspectPanel.js';
 
 
@@ -5433,7 +5432,6 @@ this.setHudDirty('nodeInspect');
         // --- UI Visual Components ---
         this.setupNodeInspectPanel();
         this.setupSelectedNodeBadge();
-        this.setupSelectedNodeHighlight();
         this.setupSelectedNodeLabel();
 
         // --- Primary Node System (creates final NodeLinking2_3 instance) ---
@@ -13293,16 +13291,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      */
     setupSelectedNodeBadge() {
         this.selectedNodeBadge = null;
-    }
-
-    /**
-     * Setup Selected Node Highlight 3.2 (Upgraded to 3.3)
-     * Thicker pulsing neon highlight shader for selected nodes
-     */
-    setupSelectedNodeHighlight() {
-        this.selectedNodeHighlight = new UISelectedNodeHighlight3_2(this.scene);
-
-        console.log('✓ Selected Node Highlight 3.3 initialized (thicker neon outline, 1.5s pulse)');
     }
 
     /**

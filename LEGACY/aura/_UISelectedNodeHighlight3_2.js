@@ -18,8 +18,8 @@
 import * as THREE from 'three';
 import {
   createFresnelRimLightAuraMaterial,
-} from './FresnelRimLightAuraShader.js';
-import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
+} from '../../FresnelRimLightAuraShader.js';
+import { VisualHierarchyRegistry } from '../../VisualHierarchyRegistry.js';
 
 export class UISelectedNodeHighlight3_2 {
   constructor(scene) {

@@ -40,7 +40,7 @@
 // CANONICAL AURA STACK
 //
 // hover aura     → NodeAuraSystem_v1
-// selected aura  → _UISelectedNodeHighlight3_2
+// selected aura  → legacy selected highlight (retired)
 // linked aura    → NodeLinkedAuraSystem
 //
 // All other halo / glow systems are considered LEGACY_AURA
