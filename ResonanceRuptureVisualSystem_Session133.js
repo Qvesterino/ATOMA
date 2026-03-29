@@ -89,7 +89,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             stressSharpness: 0.4,             // Band edge sharpness (0=soft, 1=sharp)
             
             // Rupture event
-            ruptureDuration: 0.15,            // Rupture event lifetime (seconds)
+            ruptureDuration: 1.5,             // Rupture event lifetime (seconds)
             ruptureBurst: 0.8,                // Energy burst intensity
             ruptureBurstWidth: 0.2,           // Width of rupture wavefront
             ruptureBurstColor: new THREE.Color(1.0, 0.4, 0.0),  // Orange-red
@@ -100,6 +100,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
             propagationDistance: 3.0,         // Maximum links to propagate through
             propagationDamping: 0.85,         // Energy retention per link (0.85 = 85% retained)
             propagationPaths: 2,              // Max directional paths from rupture
+            propagationDuration: 1.0,         // Visible time budget per propagation pulse (seconds)
             
             // Resonance scar
             scarOpacity: 0.15,                // Base scar visibility
@@ -478,6 +479,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         rupture.trapId = trapId;
         rupture.convergencePoint.copy(rupturePoint);
         rupture.life = 0;
+        rupture.maxLife = this.config.ruptureDuration;
         rupture.intensity = Math.min(1, stress * 1.2);
         
         this.ruptures.push(rupture);
@@ -665,7 +667,7 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.propagationPulses = this.propagationPulses.filter(pulse => {
             pulse.life += deltaTime;
             
-            const propagationDuration = 0.3;  // Duration of propagation per link
+            const propagationDuration = this.config.propagationDuration || 0.3;  // Duration of propagation per link
             const linkProgress = (pulse.life % propagationDuration) / propagationDuration;
             
             // Advance to next link if progress exceeds threshold

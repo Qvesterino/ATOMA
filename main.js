@@ -641,6 +641,7 @@ import { setupPulseWaveSystemBridgeIntegration } from './PulseWaveSystemBridge_v
 import { setupPulseBoundaryInteractionIntegration } from './PulseBoundaryInteractionAdapter_v1.js';
 import { setupSynapticGatingIntegration } from './SynapticGatingAdapter_v1.js';
 import { setupSynapticFatigueIntegration } from './SynapticFatigueAdapter_v1.js';
+import { NetworkFatigueSystem, setupNetworkFatigueConsoleAPI } from './NetworkFatigueSystem_v0.js';
 import { setupSynapticSpecializationIntegration } from './SynapticSpecializationAdapter_v1.js';
 
 // ============================================================================
@@ -3651,6 +3652,11 @@ class AtomaGame {
             }
         }, 'simulation.synapticFatigueAdapter');
         this.frameScheduler.register('simulation', (dt) => {
+            if (this.networkFatigueSystem && this.aiNodes) {
+                this.networkFatigueSystem.update(dt);
+            }
+        }, 'simulation.networkFatigueSystem');
+        this.frameScheduler.register('simulation', (dt) => {
             if (this.synapticSpecializationAdapter && this.aiNodes) {
                 const currentTimeMs = this.time * 1000;
                 const gatingResult = this.synapticGatingAdapter?.nodeGateMap
@@ -4665,6 +4671,9 @@ this.setHudDirty('nodeInspect');
         // Synaptic Fatigue Adapter (long-term wear and recovery at nodes)
         this.synapticFatigueAdapter = null;
 
+        // Network Fatigue System (canonical node fatigue writer)
+        this.networkFatigueSystem = null;
+
         // Synaptic Specialization Adapter (visual learning from repeated behavior)
         this.synapticSpecializationAdapter = null;
 
@@ -5083,6 +5092,11 @@ this.setHudDirty('nodeInspect');
         this.setupSynapticFatigue();
 
         // ========================================================================
+        // NETWORK FATIGUE SYSTEM — Canonical fatigue writer for node metrics
+        // ========================================================================
+        this.setupNetworkFatigue();
+
+        // ========================================================================
         // SYNAPTIC SPECIALIZATION ADAPTER — Visual learning from behavior
         // ========================================================================
         this.setupSynapticSpecialization();
@@ -5206,7 +5220,8 @@ this.setHudDirty('nodeInspect');
                 reflection: this.influenceReflection,
                 trap: this.standingWaveTrap || this.standingWaveTrapSystem,
                 renderer: this.standingWaveRenderer || null,
-                rupture: this.resonanceRupture
+                rupture: this.resonanceRupture,
+                cascade: this.cascadingRuptures
             };
 
             const ensureWaveDebugOverlay = () => {
@@ -5268,6 +5283,9 @@ this.setHudDirty('nodeInspect');
                 const antinodeMeshes =
                     dbg.renderer?.antinodeMeshPool?.filter?.((entry) => entry?.active && entry?.mesh?.visible)?.length ??
                     0;
+                const ruptureCount = dbg.rupture?.ruptures?.length ?? 0;
+                const activeCascades = dbg.cascade?.activeCascades?.filter?.((c) => c?.active)?.length ?? 0;
+                const preRuptureZones = dbg.rupture?.preRuptureZones?.length ?? 0;
 
                 return {
                     activeLinks,
@@ -5281,6 +5299,10 @@ this.setHudDirty('nodeInspect');
                     activeTrapAmplitude,
                     activeTrapAverageAmplitude,
                     antinodeMeshes
+                    ,
+                    ruptureCount,
+                    activeCascades,
+                    preRuptureZones
                 };
             };
 
@@ -5300,9 +5322,10 @@ this.setHudDirty('nodeInspect');
                         `R:${state.reflectionActive} | T:${state.traps} | A:${state.antinodeMeshes}`,
                         `P:${state.pressureZonesActive} | amp:${state.activeTrapAverageAmplitude.toFixed(2)} | peak:${state.activeTrapAmplitude.toFixed(2)}`
                         ,
-                        `state:${state.primaryTrapState} | radius:${state.primaryTrapRadius.toFixed(2)}`
+                        `state:${state.primaryTrapState} | radius:${state.primaryTrapRadius.toFixed(2)}`,
+                        `rupt:${state.ruptureCount} | casc:${state.activeCascades} | pre:${state.preRuptureZones}`
                     ].join('\n');
-                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}`;
+                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}, ruptures=${state.ruptureCount}, cascades=${state.activeCascades}, preZones=${state.preRuptureZones}`;
                 }
 
                 return state;
@@ -13195,6 +13218,27 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             console.log('[main.js] SynapticFatigueAdapter initialized ✓');
         } catch (err) {
             console.warn('[main.js] SynapticFatigueAdapter init error:', err);
+        }
+    }
+
+    /**
+     * Setup Network Fatigue System
+     * Canonical fatigue writer for node metrics
+     */
+    setupNetworkFatigue() {
+        try {
+            const nodeDynamics = { aiNodes: this.aiNodes };
+            this.networkFatigueSystem = new NetworkFatigueSystem(nodeDynamics);
+            setupNetworkFatigueConsoleAPI(this.networkFatigueSystem, nodeDynamics);
+
+            if (typeof window !== 'undefined') {
+                window.networkFatigue = this.networkFatigueSystem;
+                window.ATOMA_NETWORK_FATIGUE = this.networkFatigueSystem;
+            }
+
+            console.error('[main.js] NetworkFatigueSystem initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] NetworkFatigueSystem init error:', err);
         }
     }
 

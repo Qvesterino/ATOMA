@@ -222,7 +222,6 @@ export class CascadingRuptureSystem {
 
         // Detection state
         this.detectionTimer = 0.0;
-        this.lastRuptureCheck = 0.0;
         
         // Rupture history (for probability scaling)
         this.ruptureHistory = new Map(); // nodeId -> timestamp[]
@@ -270,7 +269,7 @@ export class CascadingRuptureSystem {
     // UPDATE
     // ========================================================================
 
-    update(deltaTime, time, ruptureSystem, harmonySystem) {
+    update(deltaTime, time) {
         if (!this.enabled) return;
 
         // Update detection timer
@@ -279,7 +278,7 @@ export class CascadingRuptureSystem {
         // Periodic detection check
         if (this.detectionTimer >= CONFIG.DETECTION_INTERVAL) {
             this.detectionTimer = 0.0;
-            this.detectCascadeOpportunities(time, ruptureSystem, harmonySystem);
+            this.detectCascadeOpportunities(time);
         }
 
         // Update active cascades
@@ -293,7 +292,7 @@ export class CascadingRuptureSystem {
     // CASCADE DETECTION
     // ========================================================================
 
-    detectCascadeOpportunities(time, ruptureSystem, harmonySystem) {
+    detectCascadeOpportunities(time) {
         if (!this.aiNodes || !this.linkingSystem) return;
 
         const nodes = this.aiNodes.nodes || [];
@@ -305,9 +304,7 @@ export class CascadingRuptureSystem {
 
             const cascadeChance = this.calculateCascadeProbability(
                 node,
-                time,
-                ruptureSystem,
-                harmonySystem
+                time
             );
 
             if (Math.random() < cascadeChance) {
@@ -330,7 +327,7 @@ export class CascadingRuptureSystem {
         if (!hasCascadeCorruptionLink) return false;
 
         // Check stability threshold
-        const stability = node.userData?.metrics?.stability ?? 1.0;
+        const stability = this._readCanonicalNodeMetric(node, 'stability', 1.0);
         if (stability > CONFIG.STABILITY_THRESHOLD) return false;
 
         // Don't cascade too frequently from same node
@@ -340,11 +337,11 @@ export class CascadingRuptureSystem {
         return true;
     }
 
-    calculateCascadeProbability(node, time, ruptureSystem, harmonySystem) {
+    calculateCascadeProbability(node, time) {
         let probability = CONFIG.BASE_CASCADE_CHANCE;
 
         // Factor 1: Corruption dominance
-        const corruption = node.userData?.metrics?.corruption ?? 0;
+        const corruption = this._readCanonicalNodeMetric(node, 'corruption', 0);
         const corruptionBonus = (corruption - CONFIG.CORRUPTION_THRESHOLD) * CONFIG.CORRUPTION_WEIGHT;
         probability += corruptionBonus;
 
@@ -394,7 +391,7 @@ export class CascadingRuptureSystem {
         }
 
         // Calculate initial energy based on node state
-        const corruption = originNode.userData?.metrics?.corruption ?? 0;
+        const corruption = this._readCanonicalNodeMetric(originNode, 'corruption', 0);
         const initialEnergy = Math.min(corruption * 1.5, 1.0);
 
         // Start cascade
@@ -513,8 +510,8 @@ export class CascadingRuptureSystem {
     checkNodeCritical(node, cascadeEnergy) {
         if (!node.userData) return;
 
-        const corruption = node.userData?.metrics?.corruption ?? 0;
-        const stability = node.userData?.metrics?.stability ?? 1.0;
+        const corruption = this._readCanonicalNodeMetric(node, 'corruption', 0);
+        const stability = this._readCanonicalNodeMetric(node, 'stability', 1.0);
 
         // High cascade energy + low stability + high corruption = critical
         if (cascadeEnergy > 0.5 && stability < 0.3 && corruption > 0.7) {
@@ -581,6 +578,15 @@ export class CascadingRuptureSystem {
 
     recordHealing(nodeId, time) {
         this.healingHistory.set(nodeId, time);
+    }
+
+    _readCanonicalNodeMetric(node, metric, fallback = 0) {
+        if (!node) return fallback;
+        const direct = node.userData?.metrics?.[metric];
+        if (Number.isFinite(direct)) return direct;
+        const legacy = node.userData?.[metric];
+        if (Number.isFinite(legacy)) return legacy;
+        return fallback;
     }
 
     // ========================================================================

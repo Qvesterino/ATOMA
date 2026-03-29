@@ -145,6 +145,25 @@ export class NetworkFatigueSystem {
     // Store fatigue value
     node.userData.fatigue = newFatigue;
   }
+
+  _readLoadMetric(metrics, node = null, fallback = 0) {
+    const direct = metrics?.loadRatio;
+    if (Number.isFinite(direct)) return direct;
+
+    const canonical = metrics?.loadPressure;
+    if (Number.isFinite(canonical)) return canonical;
+
+    const legacyLoad = metrics?.load;
+    if (Number.isFinite(legacyLoad)) return legacyLoad;
+
+    const nodeLoadRatio = node?.userData?.loadRatio;
+    if (Number.isFinite(nodeLoadRatio)) return nodeLoadRatio;
+
+    const nodeLoadPressure = node?.userData?.loadPressure;
+    if (Number.isFinite(nodeLoadPressure)) return nodeLoadPressure;
+
+    return fallback;
+  }
   
   /**
    * Check if stress composite is high enough to trigger accumulation
@@ -153,7 +172,7 @@ export class NetworkFatigueSystem {
   _checkStressComposite(metrics) {
     const { highLoad, highInstability, corruptionPresent, lowHarmony } = this.config.stressThresholds;
     
-    const highLoadStress = metrics.loadRatio > highLoad;
+    const highLoadStress = this._readLoadMetric(metrics) > highLoad;
     const highInstabilityStress = metrics.instability > highInstability;
     const corruptionStress = metrics.corruption > corruptionPresent;
     const lowHarmonyStress = metrics.harmony < lowHarmony;
@@ -170,7 +189,7 @@ export class NetworkFatigueSystem {
     const { maxLoad, maxInstability, minHarmony, maxCorruption } = this.config.recoveryConditions;
     
     return (
-      metrics.loadRatio < maxLoad &&
+      this._readLoadMetric(metrics) < maxLoad &&
       metrics.instability < maxInstability &&
       metrics.harmony > minHarmony &&
       metrics.corruption < maxCorruption
@@ -184,23 +203,24 @@ export class NetworkFatigueSystem {
    */
   _computeStressComposite(metrics) {
     const { highLoad, highInstability, corruptionPresent, lowHarmony } = this.config.stressThresholds;
+    const loadRatio = this._readLoadMetric(metrics);
     
     // Load stress: 0 at threshold, 1 at saturation
     const loadStress = Math.max(
       0,
-      (metrics.loadRatio - highLoad) / (1 - highLoad)
+      (loadRatio - highLoad) / (1 - highLoad)
     );
     
     // Instability stress: 0 at threshold, 1 at 100%
     const instabilityStress = Math.max(
       0,
-      (metrics.instability - highInstability) / (100 - highInstability)
+      (metrics.instability - highInstability) / (1 - highInstability)
     );
     
     // Corruption stress: 0 at threshold, 1 at 100%
     const corruptionStress = Math.max(
       0,
-      (metrics.corruption - corruptionPresent) / (100 - corruptionPresent)
+      (metrics.corruption - corruptionPresent) / (1 - corruptionPresent)
     );
     
     // Harmony deficit: 0 at threshold, 1 at 0%
@@ -282,7 +302,7 @@ export class NetworkFatigueSystem {
       category,
       categorySensitivity: sensitivity,
       metrics: {
-        loadRatio: Number(metrics.loadRatio.toFixed(3)),
+        loadRatio: Number(this._readLoadMetric(metrics, node).toFixed(3)),
         instability: Number(metrics.instability.toFixed(1)),
         corruption: Number(metrics.corruption.toFixed(1)),
         harmony: Number(metrics.harmony.toFixed(1))
@@ -323,7 +343,7 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
         return;
       }
       node.userData.fatigue = Math.max(0, Math.min(1, value));
-      console.log(`✓ Node ${nodeIndex} fatigue set to ${value.toFixed(3)}`);
+      console.error(`✓ Node ${nodeIndex} fatigue set to ${value.toFixed(3)}`);
     },
     
     /**
@@ -336,22 +356,22 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
         return;
       }
       
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`NETWORK FATIGUE DIAGNOSTICS (${nodes.length} nodes)`);
-      console.log(`${'='.repeat(80)}`);
+      console.error(`\n${'='.repeat(80)}`);
+      console.error(`NETWORK FATIGUE DIAGNOSTICS (${nodes.length} nodes)`);
+      console.error(`${'='.repeat(80)}`);
       
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
         const diag = fatigueSystem.getDiagnostics(node);
         
-        console.log(`\nNode ${i} [${diag.category}]:`);
-        console.log(`  Fatigue: ${diag.fatigue} | State: ${diag.state}`);
-        console.log(`  Stress Composite: ${diag.stressComposite} (Sensitivity: ${diag.categorySensitivity}x)`);
-        console.log(`  Metrics: Load=${diag.metrics.loadRatio} | Inst=${diag.metrics.instability} | Corr=${diag.metrics.corruption} | Harm=${diag.metrics.harmony}`);
-        console.log(`  Multipliers: Harmony=${diag.multipliers.harmonyRate} | Synergy=${diag.multipliers.synergy} | CorruptionDecay=${diag.multipliers.corruptionDecay}`);
+        console.error(`\nNode ${i} [${diag.category}]:`);
+        console.error(`  Fatigue: ${diag.fatigue} | State: ${diag.state}`);
+        console.error(`  Stress Composite: ${diag.stressComposite} (Sensitivity: ${diag.categorySensitivity}x)`);
+        console.error(`  Metrics: Load=${diag.metrics.loadRatio} | Inst=${diag.metrics.instability} | Corr=${diag.metrics.corruption} | Harm=${diag.metrics.harmony}`);
+        console.error(`  Multipliers: Harmony=${diag.multipliers.harmonyRate} | Synergy=${diag.multipliers.synergy} | CorruptionDecay=${diag.multipliers.corruptionDecay}`);
       }
       
-      console.log(`\n${'='.repeat(80)}\n`);
+      console.error(`\n${'='.repeat(80)}\n`);
     },
     
     /**
@@ -367,7 +387,7 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
           return;
         }
         
-        console.log(`\nRunning fatigue stress test for ${duration}s...`);
+        console.error(`\nRunning fatigue stress test for ${duration}s...`);
         const testNode = nodes[0];
         const startFatigue = testNode.userData.fatigue ?? 0;
         
@@ -377,11 +397,11 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
           if (elapsed >= duration) {
             clearInterval(interval);
             const endFatigue = testNode.userData.fatigue;
-            console.log(`\nStress test complete:`);
-            console.log(`  Start fatigue: ${startFatigue.toFixed(3)}`);
-            console.log(`  End fatigue: ${endFatigue.toFixed(3)}`);
-            console.log(`  Change: ${(endFatigue - startFatigue).toFixed(3)} (${((endFatigue - startFatigue) / duration).toFixed(4)}/s)`);
-            console.log(fatigueSystem.getDiagnostics(testNode));
+            console.error(`\nStress test complete:`);
+            console.error(`  Start fatigue: ${startFatigue.toFixed(3)}`);
+            console.error(`  End fatigue: ${endFatigue.toFixed(3)}`);
+            console.error(`  Change: ${(endFatigue - startFatigue).toFixed(3)} (${((endFatigue - startFatigue) / duration).toFixed(4)}/s)`);
+            console.error(fatigueSystem.getDiagnostics(testNode));
             resolve();
             return;
           }
@@ -398,9 +418,9 @@ export function setupNetworkFatigueConsoleAPI(fatigueSystem, nodeDynamics) {
         console.error(`Node ${nodeIndex} not found`);
         return;
       }
-      console.log(fatigueSystem.getDiagnostics(nodes[nodeIndex]));
+      console.error(fatigueSystem.getDiagnostics(nodes[nodeIndex]));
     }
   };
   
-  console.log('✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue');
+  console.error('✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue');
 }

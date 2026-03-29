@@ -781,6 +781,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
         this._initializedLinks = new Set();
         this._lastLinks = [];
         this._externalLinks = [];
+        this._minimumSpawnCursor = 0;
 
         // Update timer
         this.updateTimer = 0.0;
@@ -1627,52 +1628,91 @@ export class LinkSemanticPictogramSystem_Enhanced {
         let remainingGlobal = Math.max(0, MIN_ACTIVE_GLOBAL - activeCount);
         if (remainingGlobal <= 0) return;
 
-        links.forEach(link => {
-            if (remainingGlobal <= 0) return;
+        const linkStates = links
+            .map((link, index) => {
+                const linkId = this.getLinkKey(link);
+                if (!linkId) return null;
 
-            const linkId = this.getLinkKey(link);
-            if (!linkId) return;
+                return {
+                    link,
+                    linkId,
+                    index,
+                    load: this.linkPictogramCounts.get(linkId) || 0,
+                    metricCounts: this.linkMetricCounts.get(linkId) || new Map(),
+                    stateCounts: this.linkStateCounts.get(linkId) || new Map()
+                };
+            })
+            .filter(Boolean);
 
-            // If link already fully initialized (caps satisfied), skip to avoid respawn loops
-            if (this._initializedLinks.has(linkId)) return;
+        if (!linkStates.length) return;
 
-            const metricCounts = this.linkMetricCounts.get(linkId) || new Map();
+        let cursor = this._minimumSpawnCursor % linkStates.length;
 
-            GLYPH_TYPES.forEach(metric => {
-                if (remainingGlobal <= 0) return;
+        while (remainingGlobal > 0) {
+            let chosenLink = null;
+            for (let i = 0; i < linkStates.length; i += 1) {
+                const candidate = linkStates[(cursor + i) % linkStates.length];
+                if (candidate.load >= CONFIG.MAX_GLYPHS_PER_LINK_ABSOLUTE) continue;
+                if (!chosenLink || candidate.load < chosenLink.load || (candidate.load === chosenLink.load && candidate.index < chosenLink.index)) {
+                    chosenLink = candidate;
+                }
+            }
 
+            if (!chosenLink) break;
+
+            const metricOrder = GLYPH_TYPES
+                .slice()
+                .sort((left, right) => {
+                    const leftCount = chosenLink.metricCounts.get(left) || 0;
+                    const rightCount = chosenLink.metricCounts.get(right) || 0;
+                    if (leftCount !== rightCount) return leftCount - rightCount;
+                    return GLYPH_TYPES.indexOf(left) - GLYPH_TYPES.indexOf(right);
+                });
+
+            let chosenMetric = null;
+            let chosenState = null;
+            for (const metric of metricOrder) {
                 const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[metric]) ??
                             CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 2;
-                const current = metricCounts.get(metric) || 0;
-                if (current >= cap) return;
-                const state = defaultStateByMetric[metric] || 'CIRCLE_RING';
-                const needed = cap - current;
-                for (let i = 0; i < needed; i++) {
-                    if (remainingGlobal <= 0) break;
-                    this.spawnPictogram(link, 'A', state, size, depthOffset, linkId, metric);
-                    const mc = metricCounts.get(metric) || 0;
-                    metricCounts.set(metric, mc + 1);
-                    const stateCounts = this.linkStateCounts.get(linkId) || new Map();
-                    const sc = stateCounts.get(state) || 0;
-                    stateCounts.set(state, sc + 1);
-                    this.linkStateCounts.set(linkId, stateCounts);
-                    const total = this.linkPictogramCounts.get(linkId) || 0;
-                    this.linkPictogramCounts.set(linkId, total + 1);
-                    remainingGlobal -= 1;
-                    activeCount += 1;
-                }
-            });
+                const current = chosenLink.metricCounts.get(metric) || 0;
+                if (current >= cap) continue;
+                chosenMetric = metric;
+                chosenState = defaultStateByMetric[metric] || 'CIRCLE_RING';
+                break;
+            }
 
-            this.linkMetricCounts.set(linkId, metricCounts);
-            // Mark as initialized only if all caps reached
-            const allSatisfied = GLYPH_TYPES.every(m => {
-                const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[m]) ??
+            if (!chosenMetric) break;
+
+            this.spawnPictogram(
+                chosenLink.link,
+                'A',
+                chosenState,
+                size,
+                depthOffset,
+                chosenLink.linkId,
+                chosenMetric
+            );
+
+            chosenLink.metricCounts.set(chosenMetric, (chosenLink.metricCounts.get(chosenMetric) || 0) + 1);
+            chosenLink.stateCounts.set(chosenState, (chosenLink.stateCounts.get(chosenState) || 0) + 1);
+            chosenLink.load += 1;
+            this.linkMetricCounts.set(chosenLink.linkId, chosenLink.metricCounts);
+            this.linkStateCounts.set(chosenLink.linkId, chosenLink.stateCounts);
+            this.linkPictogramCounts.set(chosenLink.linkId, chosenLink.load);
+
+            const allSatisfied = GLYPH_TYPES.every((metric) => {
+                const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[metric]) ??
                             CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 2;
-                const count = metricCounts.get(m) || 0;
-                return count >= cap;
+                return (chosenLink.metricCounts.get(metric) || 0) >= cap;
             });
-            if (allSatisfied) this._initializedLinks.add(linkId);
-        });
+            if (allSatisfied) this._initializedLinks.add(chosenLink.linkId);
+
+            remainingGlobal -= 1;
+            activeCount += 1;
+            cursor = (chosenLink.index + 1) % linkStates.length;
+        }
+
+        this._minimumSpawnCursor = cursor;
     }
 
     // Load pressure torus-based glyph (existing visual)

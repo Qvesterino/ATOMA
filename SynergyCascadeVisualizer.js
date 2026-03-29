@@ -219,11 +219,9 @@ export class SynergyCascadeVisualizer {
   _resolveHookIntensity(signals = {}, fallback = 0) {
     const resolved = Number.isFinite(Number(signals.intensity))
       ? Number(signals.intensity)
-      : Number.isFinite(Number(signals.value))
-        ? Number(signals.value)
-        : Number.isFinite(Number(signals.strength))
-          ? Number(signals.strength)
-          : fallback;
+      : Number.isFinite(Number(signals.cascadeIntensity))
+        ? Number(signals.cascadeIntensity)
+        : fallback;
     return this._clamp01(resolved);
   }
 
@@ -314,7 +312,7 @@ export class SynergyCascadeVisualizer {
     const candidates = [
       event.link?.userData?.cascadeIntensity,
       event.cascadeIntensity,
-      event.intensity ?? event.value ?? event.strength
+      event.intensity
     ];
 
     let resolved = 0;

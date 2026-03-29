@@ -1,5 +1,20 @@
 The user wanted to understand and integrate multiple glyph systems in the ATOMA project:
 
+## Kedy sa ktory glyph realne spawnne
+
+| System | Kedy sa spawnne | Realny trigger | Poznamka |
+| --- | --- | --- | --- |
+| `_GlyphLayer4_MultiFusion` | pri inicializacii worldu a potom pri novych nodoch | `main.js` zavola `createGlyphFusionsForNodes(aiNodes.nodes)` a registruje `postSpawnObserver` pre `createGlyphFusion` | 1x na node; toto je hlavna node-glyph cesta |
+| `_LinkGlyphFlow.js` | pri aktivnom linku v kazdom visual ticku | `LinkGlyphFlow.update()` buduje packet cez `createGlyphPacket()` / `refreshPacketsForLinks()` | spawn je priebezny a zavisi od sily linku |
+| `_LinkedGlyphMessaging3_0.js` | ked sa generuje link message | `update()` spawnuje `spawnMessage()` pod limitom `maxMessagesPerLink` | message glyph je transportna vrstva |
+| `_RecursiveGlyphSignalSystem.js` | pri selection / hover / link create / link remove | `triggerAttentionSignal()` alebo `triggerResidueSignal()` -> `_spawnSignal()` | burst signal glyph, nie permanentny objekt |
+| `GlyphFusionZone.js` + `CompositeGlyphGenerator.js` | ked sa pri node zidu 2+ glyphy a zona vstupi do fusion fazy | convergence detection v link/fusion update ceste, potom `createCompositeGlyph()` | composite vznikne az po realnej konvergencii |
+| `_CompositeGlyphResonanceFeedback.js` | hned po registracii composite glyphu | `registerCompositeGlyph()` prida resonance halo okolo fusion glyphu | je to doplnkovy visual after-effect |
+| `ProceduralHarmonicGlyphGenerator.js` | len pre stabilne huby v periodickom checku | hub age priblizne 45s, learning strength nad threshold, reinforcement nad threshold | velmi zriedkavy learned glyph |
+| `_AtomaGlyphSystem3_0.js` / `_AtomaGlyphSystem4_0.js` | len manualne alebo debug helperom | `createGlyph()`, `createGlyph4()`, `assignGlyphToNode()` a pribuzne helpery | nie je to canonical live spawn path |
+
+Poznamka: `AINarrativePatterns6_0` je v tejto mape len consumer eventov (`onMessageSpawned()`, `onGlyphFusion()`, `onProceduralGlyphSpawned()`), nie primary spawn zdroj. Mythic glyph system som nechal mimo tabulky schvalne.
+
 First, understand the relationship between _LinkedGlyphMessaging3_0 and _RecursiveGlyphMessaging4_0
 Connect these two systems so 4.0 extends messages from 3.0
 Analyze why some glyph systems are visible while others aren't
