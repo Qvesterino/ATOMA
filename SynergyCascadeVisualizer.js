@@ -67,6 +67,7 @@ export class SynergyCascadeVisualizer {
         waveFront: true,              // Animated pulse along links
         cascadeGlow: true,             // Progressive brightness
         flowParticles: true,           // Directional particles
+        burstParticles: true,          // Compact burst at cascade start / hop
         rippleEffect: true,            // Expanding rings
         harmonicShimmer: true          // Oscillating colors
       },
@@ -85,7 +86,8 @@ export class SynergyCascadeVisualizer {
       batchSize: 30,                  // Update cascades in batches
       updateFrequency: 1,             // Update every N frames
       maxActiveCascades: 50,          // Max simultaneous cascades
-      hopLifetime: 0.7                // Seconds each hop stays visually active
+      hopLifetime: 0.7,               // Seconds each hop stays visually active
+      minBurstIntensity: 0.06         // Ignore ultra-weak bursts
     };
     
     // Cascade particles
@@ -113,6 +115,10 @@ export class SynergyCascadeVisualizer {
    * Main update function - call once per frame
    */
   update(deltaTime) {
+    if (!this._semanticBus && globalThis?.semanticBus) {
+      this.bindSemanticEvents();
+    }
+
     if (this.frameScheduler?.shouldRunVisual?.() === false) return;
 
     if (!this.config.enabled || !this.linkingSystem) return;
@@ -152,6 +158,12 @@ export class SynergyCascadeVisualizer {
     const on = semanticBus.on?.bind(semanticBus);
     if (!on) return;
 
+    if (this._semanticBus === semanticBus && this._semanticHandlers) {
+      return;
+    }
+
+    this._unbindSemanticEvents();
+
     this._semanticBus = semanticBus;
     this._semanticHandlers = {
       onCascadeHop: (event = {}) => this.renderCascadeHop(event),
@@ -161,6 +173,22 @@ export class SynergyCascadeVisualizer {
     on('cascade.hop', this._semanticHandlers.onCascadeHop);
     on('cascade.start', this._semanticHandlers.onCascadeStart);
     on('cascade.end', this._semanticHandlers.onCascadeEnd);
+  }
+
+  _unbindSemanticEvents() {
+    const bus = this._semanticBus;
+    const handlers = this._semanticHandlers;
+    if (!bus || !handlers) return;
+
+    const off = bus.off?.bind(bus) || bus.unsubscribe?.bind(bus);
+    if (off) {
+      try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
+      try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
+      try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
+    }
+
+    this._semanticBus = null;
+    this._semanticHandlers = null;
   }
 
   _resolveCascadeNodeId(nodeOrId) {
@@ -189,25 +217,13 @@ export class SynergyCascadeVisualizer {
   }
 
   _resolveHookIntensity(signals = {}, fallback = 0) {
-    const candidates = [
-      signals.cascadeWave,
-      signals.waveIntensity,
-      signals.pulseStrength,
-      signals.resonanceMix,
-      signals.intensity,
-      signals.value,
-      signals.strength,
-      fallback
-    ];
-
-    let resolved = 0;
-    for (const candidate of candidates) {
-      const numeric = Number(candidate);
-      if (Number.isFinite(numeric)) {
-        resolved = Math.max(resolved, numeric);
-      }
-    }
-
+    const resolved = Number.isFinite(Number(signals.intensity))
+      ? Number(signals.intensity)
+      : Number.isFinite(Number(signals.value))
+        ? Number(signals.value)
+        : Number.isFinite(Number(signals.strength))
+          ? Number(signals.strength)
+          : fallback;
     return this._clamp01(resolved);
   }
 
@@ -226,8 +242,7 @@ export class SynergyCascadeVisualizer {
       anchor,
       intensity,
       source: node,
-      targetNode: node,
-      ...signals
+      targetNode: node
     });
   }
 
@@ -262,8 +277,7 @@ export class SynergyCascadeVisualizer {
       intensity,
       anchor: signals.anchor ?? midpoint ?? startPosition ?? targetPosition ?? null,
       sourcePosition: startPosition,
-      targetPosition,
-      ...signals
+      targetPosition
     });
   }
 
@@ -345,6 +359,14 @@ export class SynergyCascadeVisualizer {
       linkOrId.uuid ??
       null
     );
+  }
+
+  _resolveLinkById(linkId) {
+    const normalizedLinkId = this._resolveLinkId(linkId);
+    if (!normalizedLinkId) return null;
+
+    const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+    return links.find((link) => this._resolveLinkId(link) === normalizedLinkId) || null;
   }
 
   _getLinkEndpoints(linkOrId, sourceNode = null, targetNode = null) {
@@ -482,6 +504,33 @@ export class SynergyCascadeVisualizer {
     return { intensity, anchor };
   }
 
+  _resolveBurstAnchor(event = {}, link = null) {
+    const direct = this._asVector3(event.anchor ?? event.center ?? event.position ?? event.origin);
+    if (direct) return direct;
+
+    const resolvedLink = link ?? this._resolveLinkById(event.linkId ?? event.id ?? event.linkRef);
+    const sourcePos = this._asVector3(
+      event.sourcePosition ??
+      resolvedLink?.source?.position ??
+      resolvedLink?.sourceNode?.position ??
+      resolvedLink?.nodeA?.position ??
+      null
+    );
+    const targetPos = this._asVector3(
+      event.targetPosition ??
+      resolvedLink?.target?.position ??
+      resolvedLink?.targetNode?.position ??
+      resolvedLink?.nodeB?.position ??
+      null
+    );
+
+    if (sourcePos && targetPos) {
+      return new THREE.Vector3().addVectors(sourcePos, targetPos).multiplyScalar(0.5);
+    }
+
+    return sourcePos || targetPos || null;
+  }
+
   _getNodeLinks(nodeOrId) {
     const linkingSystem = this.linkingSystem;
     if (!linkingSystem || !nodeOrId) return [];
@@ -559,25 +608,46 @@ export class SynergyCascadeVisualizer {
   }
 
   renderCascadeStart(event = {}) {
-    if (!this._eventHasLinkedNode(event)) return;
+    const link = event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId ?? event.id);
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
-    const activation = this._resolveCascadeActivation(event);
+    const activation = this._resolveCascadeActivation({
+      ...event,
+      anchor: event.anchor ?? this._resolveBurstAnchor(event, link)
+    });
     if (!activation) return;
     const { intensity, anchor } = activation;
     this._getOrCreateCascade(cascadeId, intensity);
     if (this.config.visualizations.rippleEffect) {
       this.createRipple(anchor, Math.max(0.1, intensity));
     }
+    if (this.config.visualizations.burstParticles) {
+      this.spawnBurstParticles(anchor, intensity, event);
+    }
   }
 
   renderCascadeHop(event = {}) {
-    if (!this._eventHasLinkedNode(event) && !event.link && !event.linkRef) return;
+    const link = event.link ?? event.linkRef ?? this._resolveLinkById(event.linkId ?? event.id);
     const cascadeId = event.cascadeId ?? event.id ?? `cascade-${++this.cascadeId}`;
     const intensity = this._clamp01(this._resolveCascadeIntensity(event));
-    const anchor = this._asVector3(event.anchor ?? event.position ?? event.center ?? event.origin ?? event.targetPosition ?? event.sourcePosition);
-    const startPosition = this._asVector3(event.sourcePosition ?? event.fromPosition ?? event.origin ?? event.start);
-    const targetPosition = this._asVector3(event.targetPosition ?? event.toPosition ?? event.center ?? event.end);
-    const link = event.link ?? event.linkRef ?? null;
+    const anchor = this._resolveBurstAnchor(event, link) ?? this._asVector3(event.anchor ?? event.position ?? event.center ?? event.origin ?? event.targetPosition ?? event.sourcePosition);
+    const startPosition = this._asVector3(
+      event.sourcePosition ??
+      event.fromPosition ??
+      event.origin ??
+      link?.source?.position ??
+      link?.sourceNode?.position ??
+      link?.nodeA?.position ??
+      event.start
+    );
+    const targetPosition = this._asVector3(
+      event.targetPosition ??
+      event.toPosition ??
+      event.center ??
+      link?.target?.position ??
+      link?.targetNode?.position ??
+      link?.nodeB?.position ??
+      event.end
+    );
     if (!link && (!startPosition || !targetPosition) && !anchor) return;
 
     const cascade = this._getOrCreateCascade(cascadeId, intensity);
@@ -595,6 +665,9 @@ export class SynergyCascadeVisualizer {
 
     if (anchor && this.config.visualizations.rippleEffect) {
       this.createRipple(anchor, Math.max(0.09, intensity * 0.5));
+    }
+    if (anchor && this.config.visualizations.burstParticles) {
+      this.spawnBurstParticles(anchor, intensity * 0.75, event);
     }
   }
 
@@ -679,14 +752,13 @@ export class SynergyCascadeVisualizer {
    */
   applyLinkCascadeEffects(link, propagation) {
     if (!link || !link.mesh) return;
+    if (!link.userData) link.userData = {};
     
     // Get or create cascade history for this link
     if (!this.cascadeHistory.has(link)) {
       this.cascadeHistory.set(link, {
         linkId: this._resolveLinkId(link),
         cascadeIntensity: 0,
-        wavePosition: 0,
-        waveIntensity: 0,
         color: new THREE.Color()
       });
     }
@@ -698,10 +770,6 @@ export class SynergyCascadeVisualizer {
     
     // Update cascade intensity (max of all active cascades on this link)
     history.cascadeIntensity = Math.max(history.cascadeIntensity, propagation.intensity);
-    
-    // Update wave position for wave front visualization
-    history.wavePosition = propagation.position;
-    history.waveIntensity = propagation.intensity;
     
     // Apply visual effects
     if (this.config.visualizations.waveFront) {
@@ -729,13 +797,13 @@ export class SynergyCascadeVisualizer {
       link.userData.cascadeWave = {
         position: wavePos,
         intensity: waveIntensity,
-        phase: 0
+        phase: wavePos
       };
     }
     
     link.userData.cascadeWave.position = wavePos;
     link.userData.cascadeWave.intensity = waveIntensity;
-    link.userData.cascadeWave.phase = (Date.now() % 1000) / 1000; // Oscillation phase
+    link.userData.cascadeWave.phase = wavePos;
     
     // Modify line width at wave position
     if (link.mesh && link.mesh.material) {
@@ -897,6 +965,60 @@ export class SynergyCascadeVisualizer {
         }
       }
       
+      this.cascadeParticles.push(particle);
+    }
+  }
+
+  spawnBurstParticles(center, intensity, event = {}) {
+    const anchor = this._asVector3(center);
+    const burstIntensity = this._clamp01(intensity);
+    if (!anchor || burstIntensity < this.config.minBurstIntensity) return;
+
+    const emissionBoost = this._resolveCascadeEmissionBoost(event);
+    const particleCount = Math.max(3, Math.ceil(this.config.particleCount * burstIntensity * 0.75 * emissionBoost));
+    const burstRadius = 0.08 + burstIntensity * 0.28;
+    const burstLifetime = Math.max(0.42, this.config.particleLifetime * 0.62);
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = this.getPooledParticle();
+      if (!particle) break;
+
+      const direction = new THREE.Vector3(
+        (Math.random() * 2) - 1,
+        (Math.random() * 1.2) - 0.15,
+        (Math.random() * 2) - 1
+      );
+
+      if (direction.lengthSq() <= 1e-8) {
+        direction.set(0, 1, 0);
+      }
+      direction.normalize();
+
+      const position = anchor.clone().addScaledVector(direction, Math.random() * burstRadius);
+      particle.position.copy(position);
+      particle.active = true;
+      particle.lifetime = burstLifetime;
+      particle.age = 0;
+      particle.velocity = direction.clone().multiplyScalar(this.config.particleSpeed * (1.1 + burstIntensity * 0.8));
+      particle.drift = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.05,
+        Math.random() * 0.06,
+        (Math.random() - 0.5) * 0.05
+      );
+      particle.intensity = Math.max(0.25, burstIntensity);
+      particle.color = this.config.cascadeColor.clone().lerp(this.config.waveColor, 0.72 + Math.random() * 0.18);
+
+      if (particle.mesh) {
+        particle.mesh.visible = true;
+        particle.mesh.position.copy(position);
+        if (particle.mesh.material) {
+          particle.mesh.material.opacity = Math.min(1.0, 0.52 + particle.intensity * 0.48);
+        }
+        if (particle.mesh.material?.color && particle.color) {
+          particle.mesh.material.color.copy(particle.color);
+        }
+      }
+
       this.cascadeParticles.push(particle);
     }
   }
@@ -1286,16 +1408,7 @@ cascadeDebug.help()                - Show this help
 
   dispose() {
     // Unsubscribe semantic listeners to prevent duplicate handlers after world switch.
-    const bus = this._semanticBus;
-    const handlers = this._semanticHandlers;
-    const off = bus?.off?.bind(bus) || bus?.unsubscribe?.bind(bus);
-    if (off && handlers) {
-      try { off('cascade.hop', handlers.onCascadeHop); } catch (_) {}
-      try { off('cascade.start', handlers.onCascadeStart); } catch (_) {}
-      try { off('cascade.end', handlers.onCascadeEnd); } catch (_) {}
-    }
-    this._semanticBus = null;
-    this._semanticHandlers = null;
+    this._unbindSemanticEvents();
 
     this.clearAllCascades();
 

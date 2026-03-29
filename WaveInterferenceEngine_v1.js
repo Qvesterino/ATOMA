@@ -11,6 +11,31 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value ?? 0));
 }
 
+function wrapPhaseRadians(value) {
+    if (!Number.isFinite(value)) return 0;
+    const tau = Math.PI * 2;
+    return ((value % tau) + tau) % tau;
+}
+
+function createCompactWaveField({
+    amplitude = 0,
+    phase = 0,
+    standing = 0,
+    sourceCount = 1,
+    timestamp = undefined
+} = {}) {
+    const compact = {
+        amplitude: clamp01(amplitude),
+        phase: wrapPhaseRadians(phase),
+        standing: clamp01(standing),
+        sourceCount: Math.max(0, Number(sourceCount) || 0)
+    };
+    if (Number.isFinite(timestamp)) {
+        compact.timestamp = timestamp;
+    }
+    return compact;
+}
+
 function asVector3(input) {
     if (input instanceof THREE.Vector3) return input.clone();
     if (Array.isArray(input) && input.length >= 3) {
@@ -230,66 +255,36 @@ export class WaveInterferenceEngine_v1 {
         const packetEnergy = this.sampleLinkEnergy(linkId, 0.5);
         if (!midpoint) {
             if (packetEnergy <= 0) return null;
-            return {
-                totalAmplitude: packetEnergy,
-                constructivePower: packetEnergy,
-                destructivePower: packetEnergy * 0.15,
-                interferenceIndex: packetEnergy,
-                standingWaveFactor: packetEnergy * 0.5,
-                travelPhase: 0,
-                sourceCount: 1,
-                timestamp: this.timeSource.now(),
+            return createCompactWaveField({
                 amplitude: packetEnergy,
-                constructive: packetEnergy,
-                destructive: packetEnergy * 0.15,
-                standing: packetEnergy * 0.5,
                 phase: 0,
-                harmonicLevel: packetEnergy,
-                destructiveInterference: packetEnergy * 0.15
-            };
+                standing: packetEnergy * 0.5,
+                sourceCount: 1,
+                timestamp: this.timeSource.now()
+            });
         }
 
         const now = this.timeSource.now();
         const burstField = this._activeBurst ? this._sampleBurstAtPosition(midpoint, now) : null;
         if (!burstField && packetEnergy <= 0) return null;
         if (!burstField) {
-            return {
-                totalAmplitude: packetEnergy,
-                constructivePower: packetEnergy,
-                destructivePower: packetEnergy * 0.15,
-                interferenceIndex: packetEnergy,
-                standingWaveFactor: packetEnergy * 0.5,
-                travelPhase: 0,
-                sourceCount: 1,
-                timestamp: now,
+            return createCompactWaveField({
                 amplitude: packetEnergy,
-                constructive: packetEnergy,
-                destructive: packetEnergy * 0.15,
-                standing: packetEnergy * 0.5,
                 phase: 0,
-                harmonicLevel: packetEnergy,
-                destructiveInterference: packetEnergy * 0.15
-            };
+                standing: packetEnergy * 0.5,
+                sourceCount: 1,
+                timestamp: now
+            });
         }
 
         if (packetEnergy <= 0) return burstField;
-        const total = clamp01((burstField.totalAmplitude ?? burstField.amplitude ?? 0) + packetEnergy);
-        const constructive = clamp01((burstField.constructivePower ?? burstField.constructive ?? 0) + packetEnergy * 0.9);
-        const destructive = clamp01((burstField.destructivePower ?? burstField.destructive ?? 0) + packetEnergy * 0.15);
-        const standing = clamp01((burstField.standingWaveFactor ?? burstField.standing ?? 0) + packetEnergy * 0.4);
-        return {
-            ...burstField,
-            totalAmplitude: total,
-            amplitude: total,
-            constructivePower: constructive,
-            constructive,
-            destructivePower: destructive,
-            destructive,
-            standingWaveFactor: standing,
-            standing,
-            harmonicLevel: clamp01((burstField.harmonicLevel ?? 0) + packetEnergy * 0.8),
-            destructiveInterference: destructive
-        };
+        return createCompactWaveField({
+            amplitude: (burstField.amplitude ?? 0) + packetEnergy,
+            phase: burstField.phase ?? 0,
+            standing: (burstField.standing ?? 0) + packetEnergy * 0.4,
+            sourceCount: Math.max(1, Number(burstField.sourceCount ?? 1) || 1),
+            timestamp: now
+        });
     }
 
     getWaveFieldForEntity(entity, isLink = false) {
@@ -720,23 +715,13 @@ export class WaveInterferenceEngine_v1 {
             standing = amplitude * 0.35;
         }
 
-        return {
-            totalAmplitude: amplitude,
-            constructivePower: clamp01(constructive),
-            destructivePower: clamp01(destructive),
-            interferenceIndex: clamp01((constructive + destructive) * 0.5),
-            standingWaveFactor: clamp01(standing),
-            travelPhase: phase01,
-            sourceCount: 1,
-            timestamp: nowSec,
+        return createCompactWaveField({
             amplitude,
-            constructive: clamp01(constructive),
-            destructive: clamp01(destructive),
-            standing: clamp01(standing),
             phase: phaseRadians,
-            harmonicLevel: snapshot.type === BURST_TYPES.CORRUPTION ? 0 : clamp01(amplitude * (snapshot.type === BURST_TYPES.STABILITY ? 0.4 : 1)),
-            destructiveInterference: clamp01(destructive)
-        };
+            standing,
+            sourceCount: 1,
+            timestamp: nowSec
+        });
     }
 
     _completeActiveBurst(reason) {

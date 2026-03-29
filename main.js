@@ -10010,7 +10010,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 linkResonanceSystem,
                 {
                     enabled: true,
-                    debugMode: false
+                    debugMode: false,
+                    waveInfluenceMin: 0.02,
+                    waveInfluenceMax: 0.08,
+                    minHubCorruptionThreshold: 0.25,
+                    minHubStabilityThreshold: 0.65,
                 }
             );
             this.cascadeResonanceWave.rebind({
@@ -14433,11 +14437,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.cascadeResonanceWave.cascadeSystem = this.harmonicCascadeAmplification;
                 this.cascadeResonanceWave.harmonicHubSystem = this.harmonicHubAuraSystem;
                 this.cascadeResonanceWave.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
+                this.cascadeResonanceWave.config.waveInfluenceMin = 0.02;
+                this.cascadeResonanceWave.config.waveInfluenceMax = 0.08;
+                this.cascadeResonanceWave.config.minHubCorruptionThreshold = 0.25;
+                this.cascadeResonanceWave.config.minHubStabilityThreshold = 0.65;
             }
             if (this.cascadeResonanceWaveVisualization) {
                 this.cascadeResonanceWaveVisualization.cascadeSystem = this.harmonicCascadeAmplification;
                 this.cascadeResonanceWaveVisualization.harmonicHubSystem = this.harmonicHubAuraSystem;
                 this.cascadeResonanceWaveVisualization.linkResonanceSystem = this.linkResonanceSystem || this.harmonicResonanceCoupling;
+                this.cascadeResonanceWaveVisualization.config.waveInfluenceMin = 0.02;
+                this.cascadeResonanceWaveVisualization.config.waveInfluenceMax = 0.08;
+                this.cascadeResonanceWaveVisualization.config.minHubCorruptionThreshold = 0.25;
+                this.cascadeResonanceWaveVisualization.config.minHubStabilityThreshold = 0.65;
             } else {
                 this.setupCascadeResonanceWaveVisualization();
             }

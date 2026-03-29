@@ -546,14 +546,8 @@ export class CascadingHarmonicResonanceAmplification {
           });
         }
 
-        // Bridge cascade propagation output into canonical waveField consumed by wave shaders/particles.
+        // Bridge cascade propagation output into compact shared waveField consumed by wave shaders/particles.
         node.userData.waveField = node.userData.waveField || {};
-        const existingConstructive = Number.isFinite(node.userData.waveField.constructive)
-          ? node.userData.waveField.constructive
-          : 0;
-        const existingDestructive = Number.isFinite(node.userData.waveField.destructive)
-          ? node.userData.waveField.destructive
-          : 0;
         const existingStanding = Number.isFinite(node.userData.waveField.standing)
           ? node.userData.waveField.standing
           : 0;
@@ -563,12 +557,6 @@ export class CascadingHarmonicResonanceAmplification {
         const cascadeAmplitude = node._cascadeAmplitude || 0;
         const standingFromCascade = clamp(cascadeAmplitude * 0.5, 0, 1);
 
-        node.userData.waveField.constructive = clamp(
-          Math.max(existingConstructive, node._cascadeStrength || 0),
-          0,
-          1
-        );
-        node.userData.waveField.destructive = clamp(existingDestructive, 0, 1);
         node.userData.waveField.standing = clamp(
           Math.max(existingStanding, standingFromCascade),
           0,

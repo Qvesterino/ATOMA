@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { NodeSegmentedOrbitRings } from './shaders/NodeSegmentedOrbitRings.js';
 import { createMultiBandFresnelRimAura } from './FresnelRimLightAuraShader.js';
+import { DEFAULT_LINKED_AURA_HARMONY_BANDS, resolveLinkedAuraHarmonyBand, resolveLinkedAuraHarmonyValue } from './LinkedAuraHarmonyBands.js';
 
 // PHASE S-5: Variant property freezing for shader variant immunity
 const VARIANT_CRITICAL_PROPS = [
@@ -102,6 +103,7 @@ export class NodeLinkedAuraSystem {
       baseOpacity: 0.09,
       minOpacity: 0.06,
       maxOpacity: 0.12,
+      harmonyBands: options.harmonyBands ?? DEFAULT_LINKED_AURA_HARMONY_BANDS,
       baseScale: 1.15,
       maxScale: 1.25,
       color: new THREE.Color(0.85, 0.88, 0.9),  // Desaturated grey-white
@@ -245,7 +247,7 @@ export class NodeLinkedAuraSystem {
 
     return fallbackValue;
   }
-  
+
   /**
    * Set particle impact manager (for visual feedback when particles arrive)
    * @param {ImpactManagerCollection} impactManager
@@ -496,7 +498,8 @@ export class NodeLinkedAuraSystem {
     );
     
     // Calculate harmony dampening (reduces corruption visual effect)
-    const harmonyLevel = this._getNodeMetric(node, 'harmony', node.userData?.metrics?.harmony ?? 0);
+    const harmonyLevel = resolveLinkedAuraHarmonyValue(node);
+    const harmonyBand = resolveLinkedAuraHarmonyBand(harmonyLevel, this.visualParams.harmonyBands);
     const harmonyDampen = 1.0 - (harmonyLevel * 0.4);  // Up to 40% reduction at max harmony
     
     // Effective corruption after harmony dampening
@@ -505,6 +508,8 @@ export class NodeLinkedAuraSystem {
     // Store for noise layer use
     auraData.corruptionInfluence = effectiveCorruption;
     auraData.harmonyDampen = harmonyDampen;
+    auraData.harmonyBand = harmonyBand.name;
+    auraData.harmonyBandOpacityMultiplier = harmonyBand.opacityMultiplier;
     
     // ========================================================================
     // PARTICLE IMPACT INTEGRATION (WITH ADAPTIVE SCALING & RIPPLE)
@@ -614,6 +619,7 @@ export class NodeLinkedAuraSystem {
       this.visualParams.maxOpacity,
       linkStrength
     );
+    targetOpacity *= harmonyBand.opacityMultiplier;
     
     // Apply opacity boost during link creation spike
     if (auraData.spikeActive) {
@@ -625,7 +631,7 @@ export class NodeLinkedAuraSystem {
       
       // Add 30% opacity boost during spike
       const opacityBoost = envelope * 0.3 * this.visualParams.maxOpacity;
-      targetOpacity = Math.min(targetOpacity + opacityBoost, this.visualParams.maxOpacity * 1.3);
+      targetOpacity = Math.min(targetOpacity + opacityBoost, this.visualParams.maxOpacity * 1.35);
     }
     
     // Apply corruption-based opacity unevenness, dampened by harmony (subtle, non-flickering)
@@ -641,7 +647,7 @@ export class NodeLinkedAuraSystem {
       
       const netOpacityOscillation = corruptionOscillation - harmonyOpacityStabilization;
       targetOpacity += netOpacityOscillation;
-      targetOpacity = Math.max(this.visualParams.minOpacity * 0.5, Math.min(this.visualParams.maxOpacity * 1.2, targetOpacity));
+      targetOpacity = Math.max(this.visualParams.minOpacity * 0.5, Math.min(this.visualParams.maxOpacity * 1.35, targetOpacity));
     }
     
     const pulse = 0.6 + Math.sin(this.globalTime * 2.0) * 0.4;

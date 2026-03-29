@@ -150,8 +150,6 @@ export class LinkResonanceFlowSystem_Session124 {
     const loadPressure = clamp01(
       metrics.loadPressure ??
       link?.userData?.loadPressure ??
-      link?.userData?.loadNorm ??
-      link?.userData?.load ??
       0
     );
 
@@ -327,7 +325,6 @@ export class LinkResonanceFlowSystem_Session124 {
     const synergy = metrics.synergy;
     const pressureProfile = this._getLoadPressureProfile(loadPressure);
     const overpressure = clamp01(loadPressure * (1.0 - metrics.stability * 0.35));
-    const bandMix = pressureProfile.pressurizedMix;
     const overloadMix = pressureProfile.overloadMix;
     
     // Get or create pulse pool for this link
@@ -339,7 +336,7 @@ export class LinkResonanceFlowSystem_Session124 {
     if (pulses.length >= this.config.maxPulsesPerLink) return;
     
     // Create pulse object
-    const pulse = {
+      const pulse = {
       linkId,
       link,
       
@@ -349,8 +346,6 @@ export class LinkResonanceFlowSystem_Session124 {
       // Speed based on load pressure
       speed: this.config.pulseSpeedBase + 
              loadPressure * this.config.pulseSpeedLoadPressureMult,
-      pressureStage: pressureProfile.stage,
-      bandMix,
       overloadMix,
       
       // Appearance
@@ -362,8 +357,6 @@ export class LinkResonanceFlowSystem_Session124 {
       sheathOpacity: Math.min(1.0, this.config.pulseSheathOpacity + loadPressure * 0.22 + overloadMix * 0.22),
       trailOpacity: Math.min(1.0, this.config.pulseTrailOpacity + overpressure * 0.24 + overloadMix * 0.28),
       trailLength: this.config.pulseTrailLengthBase + loadPressure * this.config.pulseTrailLengthLoadMult + overloadMix * 0.22,
-      pressure: loadPressure,
-      
       intensity: Math.max(0.3, Math.min(1.0,
         this.config.baseIntensity + loadPressure * this.config.loadPressureIntensityFactor + overpressure * 0.18 + overloadMix * this.config.overloadIntensityBoost
       )),
@@ -434,7 +427,7 @@ export class LinkResonanceFlowSystem_Session124 {
       const worldPos = this._getPositionAlongLink(pulse);
       const direction = this._getLinkDirection(pulse.link, pulse.direction);
       const overloadMix = pulse.overloadMix ?? 0;
-      const bandMix = pulse.bandMix ?? 0;
+      const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
       const linkSeed = getLinkSeed(pulse.linkId);
       
       // Calculate pulse appearance
@@ -533,7 +526,7 @@ export class LinkResonanceFlowSystem_Session124 {
     const pressureHot = Math.pow(loadPressure, 1.24);
     const pressureCool = 1.0 - loadPressure;
     const overloadMix = pulse.overloadMix ?? 0;
-    const bandMix = pulse.bandMix ?? 0;
+    const bandMix = this._getLoadPressureProfile(loadPressure).pressurizedMix;
 
     color.setHSL(
       0.53 - pressureHot * 0.18,
@@ -588,7 +581,8 @@ export class LinkResonanceFlowSystem_Session124 {
     // Dampen by corruption
     const corruptionDampen = 1.0 - (pulse.corruption * this.config.corruptionDampen);
 
-    const bandBoost = 0.72 + pulse.bandMix * 0.34 + pulse.overloadMix * 0.68;
+    const bandMix = this._getLoadPressureProfile(pulse.loadPressure ?? 0).pressurizedMix;
+    const bandBoost = 0.72 + bandMix * 0.34 + pulse.overloadMix * 0.68;
     const pressureBoost = bandBoost + pulse.loadPressure * 0.32;
 
     return fadeIn * fadeOut * baseOpacity * corruptionDampen * pressureBoost;

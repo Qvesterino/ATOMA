@@ -1,0 +1,42 @@
+{
+  "name": "atoma-constitution",
+  "version": "1.0.0",
+  "description": "ATOMA constitution review plugin for commit, patch, and PR governance.",
+  "author": {
+    "name": "ATOMA",
+    "email": "",
+    "url": ""
+  },
+  "homepage": "",
+  "repository": "",
+  "license": "UNLICENSED",
+  "keywords": [
+    "atoma",
+    "constitution",
+    "review",
+    "governance",
+    "metrics",
+    "scheduler"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ATOMA Constitution",
+    "shortDescription": "Commit and patch governance for ATOMA.",
+    "longDescription": "Codex plugin for reviewing commits, patches, and PRs against the ATOMA constitution. It checks authority, scheduler, metrics, render policy, integration, and regression risk.",
+    "developerName": "ATOMA",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "",
+    "privacyPolicyURL": "",
+    "termsOfServiceURL": "",
+    "defaultPrompt": [
+      "Review this patch against the ATOMA constitution.",
+      "Flag authority, scheduler, and metric violations.",
+      "Summarize the minimum safe fix."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

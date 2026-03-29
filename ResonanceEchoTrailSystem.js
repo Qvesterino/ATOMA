@@ -505,12 +505,11 @@ export class ResonanceEchoTrailSystem {
                 const state = composite.state;
                 if (state) {
                     const metrics = this._resolveCompositeMetrics(state);
-                    
-                    // Calculate spawn chance from canonical composite metrics.
-                    const harmonyBias = metrics.harmony >= metrics.corruption ? 1.0 : metrics.harmony * 2;
-                    const synergyBoost = 0.8 + metrics.synergy * 0.2;
-                    const stabilityGate = 1.0 - (1.0 - metrics.stability) * CONFIG.STABILITY_SPAWN_REDUCTION;
-                    const spawnChance = THREE.MathUtils.clamp(harmonyBias * synergyBoost * stabilityGate, 0, 1);
+                    const harmonyGate = metrics.harmony;
+                    const stabilityGate = metrics.stability;
+                    const corruptionGate = 1.0 - metrics.corruption * 0.65;
+                    const synergyBoost = 0.9 + metrics.synergy * 0.1;
+                    const spawnChance = THREE.MathUtils.clamp(harmonyGate * stabilityGate * corruptionGate * synergyBoost, 0, 1);
                     
                     if (Math.random() < spawnChance) {
                         this.spawnEcho(
@@ -568,26 +567,10 @@ export class ResonanceEchoTrailSystem {
     }
 
     _resolveCompositeMetrics(state = {}) {
-        const harmony = Number.isFinite(state?.harmony)
-            ? state.harmony
-            : Number.isFinite(state?.harmonyLevel)
-                ? state.harmonyLevel
-                : 0.5;
-        const synergy = Number.isFinite(state?.synergy)
-            ? state.synergy
-            : Number.isFinite(state?.synergyNorm)
-                ? state.synergyNorm
-                : 0.5;
-        const corruption = Number.isFinite(state?.corruption)
-            ? state.corruption
-            : Number.isFinite(state?.corruptionLevel)
-                ? state.corruptionLevel
-                : 0;
-        const stability = Number.isFinite(state?.stability)
-            ? state.stability
-            : Number.isFinite(state?.stabilityNorm)
-                ? state.stabilityNorm
-                : 0.5;
+        const harmony = Number.isFinite(state?.harmony) ? state.harmony : 0.5;
+        const synergy = Number.isFinite(state?.synergy) ? state.synergy : 0.5;
+        const corruption = Number.isFinite(state?.corruption) ? state.corruption : 0;
+        const stability = Number.isFinite(state?.stability) ? state.stability : 0.5;
 
         return {
             harmony: THREE.MathUtils.clamp(harmony, 0, 1),

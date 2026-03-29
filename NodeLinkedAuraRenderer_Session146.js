@@ -19,6 +19,7 @@
  * DATA INPUTS (reads existing metadata):
  * - node._auraCoherenceBias (temporal coherence)
  * - node._waveInfluence (resonance wave influence)
+ * - node.userData.metrics.harmony (primary harmony signal)
  * - node._precastHintStrength (visual hint strength)
  * - node.justLinked (boolean, short-lived)
  * - node.harmony (state property)
@@ -36,6 +37,7 @@
 
 import * as THREE from 'three';
 import { createNodeAuraMaterial, createAuraGeometry } from './shaders/NodeAuraShader.js';
+import { DEFAULT_LINKED_AURA_HARMONY_BANDS, resolveLinkedAuraHarmonyBand, resolveLinkedAuraHarmonyValue } from './LinkedAuraHarmonyBands.js';
 import VisualTime from './src/time/VisualTime.js';
 
 export class NodeLinkedAuraRenderer_Session146 {
@@ -62,6 +64,7 @@ export class NodeLinkedAuraRenderer_Session146 {
       linkBoostIntensity: config.linkBoostIntensity ?? 1.8,   // Multiplier
       harmonyInfluence: config.harmonyInfluence ?? 0.8,       // Smoothness
       corruptionInfluence: config.corruptionInfluence ?? 1.2, // Roughness
+      harmonyBands: config.harmonyBands ?? DEFAULT_LINKED_AURA_HARMONY_BANDS,
       
       // Performance & safety
       enabled: config.enabled ?? false,
@@ -265,7 +268,8 @@ export class NodeLinkedAuraRenderer_Session146 {
     const corruptionEventBoost = aura.eventCorruptionTime > 0 ? (aura.eventCorruptionTime / 0.6) * 0.25 : 0;
     
     // Get node state metrics with safe defaults
-    const harmony = (node && typeof node.harmony === 'number') ? node.harmony : 0.5;
+    const harmony = resolveLinkedAuraHarmonyValue(node);
+    const harmonyBand = resolveLinkedAuraHarmonyBand(harmony, this.config.harmonyBands);
     const nodeCorruption = node?.userData?.metrics?.corruption ?? node?.userData?.corruption ?? 0.2;
     const auraCoherenceBias = (node && node._auraCoherenceBias) ? node._auraCoherenceBias : 0;
     const waveInfluence = (node && node._waveInfluence) ? node._waveInfluence : 0;
@@ -285,16 +289,20 @@ export class NodeLinkedAuraRenderer_Session146 {
       aura.material.uniforms.uSynergy.value = synergy;
       aura.material.uniforms.uHintStrength.value = hintStrength;
       aura.material.uniforms.uWaveInfluence.value = waveInfluence;
+      aura.material.uniforms.uDesaturation.value = harmonyBand.desaturation;
       
       // Displacement scales with link boost + state
       const displacementBase = this.config.baseDisplacement * linkBoost;
       const coherenceModulation = 1 - auraCoherenceBias * 0.5;  // Hints compress displacement
       aura.material.uniforms.uDisplacement.value = displacementBase * coherenceModulation * (1 + synergyEventBoost);
       
-      // Opacity increases with activity
+      // Opacity follows harmony banding and local activity
       const activityLevel = (harmony + waveInfluence + auraCoherenceBias) / 3;
       const opacityModulated = this.config.baseOpacity * (0.8 + activityLevel * 0.4) * linkBoost;
-      aura.material.uniforms.uOpacity.value = Math.min(1.0, opacityModulated * (1 + synergyEventBoost + corruptionEventBoost));
+      aura.material.uniforms.uOpacity.value = Math.min(
+        1.0,
+        opacityModulated * harmonyBand.opacityMultiplier * (1 + synergyEventBoost + corruptionEventBoost)
+      );
       aura.material.uniforms.uCorruption.value = Math.min(1, aura.material.uniforms.uCorruption.value + corruptionEventBoost * 0.25);
     }
     

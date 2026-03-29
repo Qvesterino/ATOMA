@@ -1,7 +1,7 @@
 /**
  * HARMONIC RESONANCE COUPLING v1.0
  * ==================================
- * Synergy-driven visual coupling between linked nodes
+ * Canonical-threshold visual coupling between linked nodes
  * 
  * 🎵 SPAWN CONDITIONS (simplified):
  * - Per-node harmony > 0.50
@@ -187,12 +187,25 @@ export class HarmonicResonanceCoupling_v1 {
   _applyNodeShimmer(node, resonance, isTarget) {
     if (!node) return;
     
+    const material = node?.mesh?.material ?? node?.material ?? null;
+    if (!material) return;
+
     // Calculate shimmer based on resonance phase
     const phaseOffset = isTarget ? this.config.phaseShiftAmount : 0;
     const shimmer = 1 + Math.sin(resonance.phase + phaseOffset) * 
       this.config.shimmerIntensity * resonance.intensity;
-    
-    // Node size remains fixed; resonance continues through non-size visuals.
+
+    if (material.emissiveIntensity !== undefined) {
+      material.emissiveIntensity = shimmer;
+    } else if (material.opacity !== undefined) {
+      material.opacity = Math.max(0.1, Math.min(1, shimmer));
+    }
+
+    if (material.color) {
+      const sourceHarmony = this._readNodeHarmony(node, 0.5);
+      const harmonyColor = new THREE.Color().setHSL(sourceHarmony, 0.8, 0.55);
+      material.color.lerp(harmonyColor, 0.04 * resonance.intensity);
+    }
   }
   
   /**
@@ -237,7 +250,6 @@ export class HarmonicResonanceCoupling_v1 {
   _readNodeHarmony(node, fallback = 0.5) {
     const value =
       node?.userData?.metrics?.harmony ??
-      node?.userData?.harmonyLevel ??
       node?.userData?.harmony ??
       fallback;
     if (!Number.isFinite(value)) return fallback;
@@ -250,7 +262,6 @@ export class HarmonicResonanceCoupling_v1 {
     const value =
       node?.userData?.metrics?.synergy ??
       node?.userData?.synergy ??
-      node?.userData?.synergyScore ??
       fallback;
     if (!Number.isFinite(value)) return fallback;
     if (value < 0) return 0;

@@ -57,6 +57,41 @@ function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function normalizeWavePhase01(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value >= 0 && value <= 1) return clamp01(value);
+    const tau = Math.PI * 2;
+    const wrapped = ((value % tau) + tau) % tau;
+    return clamp01(wrapped / tau);
+}
+
+function toCompactWaveSnapshot(waveField = {}) {
+    const amplitude = clamp01(Math.abs(
+        waveField.amplitude ?? 0
+    ));
+    const standing = clamp01(
+        waveField.standing ?? 0
+    );
+    const phase = normalizeWavePhase01(
+        waveField.phase ?? 0
+    );
+    const sourceCount = Math.max(0, Number(waveField.sourceCount ?? 0) || 0);
+    const constructive = clamp01(Math.max(amplitude, standing));
+    const destructive = clamp01(amplitude * Math.max(0.08, (1 - standing) * 0.35));
+    const interference = clamp01((constructive + destructive) * 0.5);
+
+    return {
+        amplitude,
+        phase,
+        standing,
+        sourceCount,
+        constructive,
+        destructive,
+        interference,
+        intensity: clamp01(constructive * 0.7 + interference * 0.3)
+    };
+}
+
 // ============================================================================
 // WAVE SHADER BRIDGE v1.0
 // ============================================================================
@@ -425,27 +460,18 @@ export class WaveShaderBridge_v1 {
 
             const waveField = this._resolveWaveFieldWithFallback(snapshot, cachedEntity);
 
+            // Reader consolidation: normalize legacy waveField aliases into one compact snapshot.
+        const compactWave = toCompactWaveSnapshot(waveField);
+
             // Compute target values (normalized 0..1)
-            const targetAmplitude = clamp01(Math.abs(waveField.totalAmplitude ?? waveField.amplitude ?? 0));
-            const targetConstructive = clamp01(
-                waveField.constructivePower ?? waveField.constructive ?? 0
-            );
-            const targetDestructive = clamp01(
-                waveField.destructivePower ?? waveField.destructive ?? waveField.destructiveInterference ?? 0
-            );
-            const targetInterference = clamp01(
-                waveField.interferenceIndex ?? waveField.totalAmplitude ?? waveField.amplitude ?? 0
-            );
-            const targetStanding = clamp01(
-                waveField.standingWaveFactor ?? waveField.standing ?? 0
-            );
-            const targetPhase = clamp01(
-                waveField.travelPhase ?? waveField.phase ?? 0
-            );
-            const targetSourceCount = clamp01((waveField.sourceCount ?? 0) / this.maxSources);
-            const targetIntensity = clamp01(
-                targetConstructive * 0.7 + targetInterference * 0.3
-            );
+            const targetAmplitude = compactWave.amplitude;
+            const targetConstructive = compactWave.constructive;
+            const targetDestructive = compactWave.destructive;
+            const targetInterference = compactWave.interference;
+            const targetStanding = compactWave.standing;
+            const targetPhase = compactWave.phase;
+            const targetSourceCount = clamp01(compactWave.sourceCount / this.maxSources);
+            const targetIntensity = compactWave.intensity;
 
             // Apply EMA smoothing
             const ema = state.emaState;
@@ -518,15 +544,14 @@ export class WaveShaderBridge_v1 {
             envelope * 0.7;
         const phase = clamp01((nowSec - startAt) / Math.max(0.0001, endAt - startAt));
 
-        return {
-            totalAmplitude: envelope,
-            constructivePower: clamp01(constructive),
-            destructivePower: clamp01(destructive),
-            interferenceIndex: clamp01((constructive + destructive) * 0.5),
-            standingWaveFactor: clamp01(standing),
-            travelPhase: phase,
+        return toCompactWaveSnapshot({
+            amplitude: envelope,
+            constructive,
+            destructive,
+            standing,
+            phase,
             sourceCount: 1
-        };
+        });
     }
 
     /**
@@ -546,21 +571,7 @@ export class WaveShaderBridge_v1 {
         // Fallback: entity.userData.waveField (written by LinkCascadeInfectionSystem, CascadingHarmonicResonanceAmplification)
         if (entity?.userData?.waveField) {
             const wf = entity.userData.waveField;
-            return {
-                totalAmplitude: wf.amplitude ?? wf.totalAmplitude ?? 0,
-                amplitude: wf.amplitude ?? 0,
-                constructivePower: wf.constructive ?? wf.constructivePower ?? 0,
-                constructive: wf.constructive ?? 0,
-                destructivePower: wf.destructive ?? wf.destructivePower ?? 0,
-                destructive: wf.destructive ?? 0,
-                destructiveInterference: wf.destructiveInterference ?? wf.destructive ?? 0,
-                interferenceIndex: wf.interferenceIndex ?? wf.amplitude ?? 0,
-                standingWaveFactor: wf.standing ?? wf.standingWaveFactor ?? 0,
-                standing: wf.standing ?? 0,
-                travelPhase: wf.phase ?? wf.travelPhase ?? 0,
-                phase: wf.phase ?? 0,
-                sourceCount: wf.sourceCount ?? 1
-            };
+            return toCompactWaveSnapshot(wf);
         }
 
         // No data available

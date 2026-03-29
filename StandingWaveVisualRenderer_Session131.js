@@ -446,9 +446,9 @@ export class StandingWaveVisualRenderer_Session131 {
                 linkId: linkId,
                 materialStates: materials.map((material) => ({
                     material: material,
-                    originalWaveSpeed: material.uniforms?.waveSpeed?.value ?? material.uniforms?.uWaveSpeed?.value ?? 1.0,
-                    originalWavelength: material.uniforms?.wavelength?.value ?? material.uniforms?.uWaveLength?.value ?? material.userData?.waveLength ?? null,
-                    originalPhaseOffset: material.uniforms?.uWavePhaseOffset?.value ?? material.userData?.wavePhaseOffset ?? null
+                    originalWaveSpeed: this._readMaterialUniformValue(material, 'waveSpeed', 'uWaveSpeed', 1.0),
+                    originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', material.userData?.waveLength ?? null),
+                    originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, material.userData?.wavePhaseOffset ?? null)
                 })),
                 isStanding: false
             };
@@ -459,9 +459,9 @@ export class StandingWaveVisualRenderer_Session131 {
             materialState.materialStates.some((state) => !materials.includes(state.material))) {
             materialState.materialStates = materials.map((material) => ({
                 material: material,
-                originalWaveSpeed: material.uniforms?.waveSpeed?.value ?? material.uniforms?.uWaveSpeed?.value ?? 1.0,
-                originalWavelength: material.uniforms?.wavelength?.value ?? material.uniforms?.uWaveLength?.value ?? material.userData?.waveLength ?? null,
-                originalPhaseOffset: material.uniforms?.uWavePhaseOffset?.value ?? material.userData?.wavePhaseOffset ?? null
+                originalWaveSpeed: this._readMaterialUniformValue(material, 'waveSpeed', 'uWaveSpeed', 1.0),
+                originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', material.userData?.waveLength ?? null),
+                originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, material.userData?.wavePhaseOffset ?? null)
             }));
         }
         
@@ -519,12 +519,6 @@ export class StandingWaveVisualRenderer_Session131 {
                 }
                 if (material.uniforms?.uWavePhaseOffset && state.originalPhaseOffset !== null) {
                     material.uniforms.uWavePhaseOffset.value = state.originalPhaseOffset;
-                }
-                if (material.userData && state.originalWavelength !== null) {
-                    material.userData.waveLength = state.originalWavelength;
-                }
-                if (material.userData && state.originalPhaseOffset !== null) {
-                    material.userData.wavePhaseOffset = state.originalPhaseOffset;
                 }
                 if (material.userData) {
                     material.userData.standingWaveActive = false;
@@ -1178,6 +1172,25 @@ export class StandingWaveVisualRenderer_Session131 {
         return link?.group?.userData?.conduitState || null;
     }
 
+    _readMaterialUniformValue(material, primaryKey, fallbackKey = null, defaultValue = null) {
+        const uniforms = material?.uniforms;
+        if (!uniforms) return defaultValue;
+
+        const primaryValue = uniforms?.[primaryKey]?.value;
+        if (primaryValue !== undefined && primaryValue !== null) {
+            return primaryValue;
+        }
+
+        if (fallbackKey) {
+            const fallbackValue = uniforms?.[fallbackKey]?.value;
+            if (fallbackValue !== undefined && fallbackValue !== null) {
+                return fallbackValue;
+            }
+        }
+
+        return defaultValue;
+    }
+
     _clamp01(value) {
         const numeric = Number(value);
         if (!Number.isFinite(numeric)) return 0;
@@ -1191,9 +1204,7 @@ export class StandingWaveVisualRenderer_Session131 {
         return this._clamp01(
             metrics.loadPressure ??
             link?.userData?.loadPressure ??
-            link?.userData?.loadNorm ??
             zone?.loadPressure ??
-            zone?.intensity ??
             0
         );
     }

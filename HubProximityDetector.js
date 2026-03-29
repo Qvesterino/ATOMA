@@ -37,6 +37,8 @@ export class HubProximityDetector {
       maxProximityDistance: config.maxProximityDistance ?? 24.0,
       minHubsForProximity: config.minHubsForProximity ?? 2,
       minHarmonyThreshold: config.minHarmonyThreshold ?? 0.2,
+      minStabilityThreshold: config.minStabilityThreshold ?? 0.65,
+      maxCorruptionThreshold: config.maxCorruptionThreshold ?? 0.25,
       
       // Performance
       enabled: config.enabled ?? true,
@@ -57,6 +59,19 @@ export class HubProximityDetector {
     
     // Reusable buffers
     this.hubList = [];  // Working list of hubs
+  }
+
+  _readHubMetric(hub, key, fallback = 0) {
+    const primaryNode = hub?.primaryNode ?? hub?.nodes?.[0] ?? null;
+    const hubMetrics = hub?.userData?.metrics;
+    const primaryMetrics = primaryNode?.userData?.metrics;
+    const value =
+      hubMetrics?.[key] ??
+      hub?.[key] ??
+      primaryMetrics?.[key] ??
+      primaryNode?.userData?.[key] ??
+      fallback;
+    return this._clamp01(value);
   }
 
   /**
@@ -151,8 +166,8 @@ export class HubProximityDetector {
     }
     
     // CRITERION 3: Harmony average above threshold
-    const harmonyA = hubA.harmony ?? 0;
-    const harmonyB = hubB.harmony ?? 0;
+    const harmonyA = this._readHubMetric(hubA, 'harmony', 0);
+    const harmonyB = this._readHubMetric(hubB, 'harmony', 0);
     const combinedHarmony = (harmonyA + harmonyB) / 2;
     
     if (combinedHarmony < this.config.minHarmonyThreshold) {
@@ -160,8 +175,18 @@ export class HubProximityDetector {
     }
     
     // CRITERION 4: Corruption does NOT dominate in either hub
-    const corruptionA = hubA.corruption ?? 0;
-    const corruptionB = hubB.corruption ?? 0;
+    const corruptionA = this._readHubMetric(hubA, 'corruption', 0);
+    const corruptionB = this._readHubMetric(hubB, 'corruption', 0);
+    const stabilityA = this._readHubMetric(hubA, 'stability', 1 - corruptionA);
+    const stabilityB = this._readHubMetric(hubB, 'stability', 1 - corruptionB);
+
+    if (corruptionA > this.config.maxCorruptionThreshold || corruptionB > this.config.maxCorruptionThreshold) {
+      return null;  // Too much corruption for latent wave formation
+    }
+
+    if (stabilityA < this.config.minStabilityThreshold || stabilityB < this.config.minStabilityThreshold) {
+      return null;  // Too unstable to support a coherent resonance path
+    }
     
     if (corruptionA > harmonyA || corruptionB > harmonyB) {
       return null;  // Corruption dominates in one hub
@@ -193,6 +218,8 @@ export class HubProximityDetector {
       harmonyB: harmonyB,
       corruptionA: corruptionA,
       corruptionB: corruptionB,
+      stabilityA: stabilityA,
+      stabilityB: stabilityB,
       synergyA: synergyA,
       synergyB: synergyB,
     };

@@ -128,6 +128,7 @@ Document responsibilities:
 - `CORE_PRINCIPLES.md`: invariants and non-negotiable rules only
 - `ATOMA_OVERVIEW.md`: identity, philosophy, and direction only
 - `ATOMA_CORE_CONTEXT.md`: technical context, subsystems, and interaction rules only
+- `ATOMA_CONSTITUTION.md`: legal and social rules only
 - `MEMORY.md`: stable facts, historical decisions, and confirmed lessons only
 
 If content belongs elsewhere:

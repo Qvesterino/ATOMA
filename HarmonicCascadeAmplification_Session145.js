@@ -55,6 +55,8 @@ export class HarmonicCascadeAmplification_Session145 {
       debugMode: this.config.debugMode,
       maxProximityDistance: this.config.maxProximityDistance,
       minHarmonyThreshold: this.config.minHarmonyThreshold,
+      minStabilityThreshold: 0.65,
+      maxCorruptionThreshold: 0.25,
     });
     
     // Initialize phase synchronization (runs after proximity detection)
@@ -91,7 +93,10 @@ export class HarmonicCascadeAmplification_Session145 {
         enabled: this.config.enabled,
         debugMode: this.config.debugMode,
         waveOscillationPeriod: 3.0,
+        waveInfluenceMin: 0.02,
         waveInfluenceMax: 0.08,
+        minHubCorruptionThreshold: 0.25,
+        minHubStabilityThreshold: 0.65,
       }
     );
     
@@ -125,7 +130,7 @@ export class HarmonicCascadeAmplification_Session145 {
    * @param {number} deltaTime - Delta time in seconds
    */
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual && !this.frameScheduler.shouldRunVisual()) return;
     // Always run proximity detection (even if cascades disabled)
     if (this.harmonicHubSystem && this.harmonicHubSystem.hubs) {
       const proximityPairs = this.proximityDetector.detectProximity(

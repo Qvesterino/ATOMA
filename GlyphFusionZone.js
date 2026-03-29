@@ -85,6 +85,9 @@ class FusionZoneState {
         
         // Context
         this.harmonBalance = 0.5;
+        this.harmonyBalance = 0.5;
+        this.corruptionBalance = 0.0;
+        this.stability = 0.5;
         this.averageSynergy = 0.5;
         this.isInHarmonicHub = false;
         
@@ -108,6 +111,12 @@ class FusionZoneState {
             this.compositeMesh.visible = false;
         }
         this.compositeMesh = null;
+        this.harmonBalance = 0.5;
+        this.harmonyBalance = 0.5;
+        this.corruptionBalance = 0.0;
+        this.stability = 0.5;
+        this.averageSynergy = 0.5;
+        this.isInHarmonicHub = false;
         this.memoryTraces.length = 0;
     }
 
@@ -120,6 +129,9 @@ class FusionZoneState {
         this.phaseProgress = 0.0;
         this.age = 0.0;
         this.harmonBalance = context.harmonyBalance;
+        this.harmonyBalance = context.harmonyBalance;
+        this.corruptionBalance = context.corruptionBalance ?? 0.0;
+        this.stability = context.stability ?? 0.5;
         this.averageSynergy = context.averageSynergy;
         this.isInHarmonicHub = context.isInHarmonicHub;
         
@@ -189,7 +201,7 @@ class CompositeGlyphInstance {
                 harmony: state?.harmonyBalance ?? 0.5,
                 corruption: state?.corruptionBalance ?? 0,
                 synergy: state?.averageSynergy ?? 0.5,
-                connectedNodes: state?.nodes ?? []
+                connectedNodes: state?.connectedNodes ?? state?.nodes ?? []
             };
             this.singularity.activate(position, context);
         }
@@ -417,6 +429,7 @@ export class GlyphFusionZoneManager {
     calculateFusionContext(glyphsAtNode) {
         let harmonySum = 0;
         let corruptionSum = 0;
+        let stabilitySum = 0;
         let synergySum = 0;
         let count = 0;
 
@@ -436,12 +449,14 @@ export class GlyphFusionZoneManager {
 
             harmonySum += avgHarmony;
             corruptionSum += avgCorruption;
+            stabilitySum += avgStability;
             synergySum += synergy;
             count += 1;
         });
 
         const harmonyBalance = harmonySum / Math.max(count, 1);
         const corruptionBalance = corruptionSum / Math.max(count, 1);
+        const stabilityBalance = stabilitySum / Math.max(count, 1);
         const averageSynergy = synergySum / Math.max(count, 1);
 
         // Check if in harmonic hub (high harmony, low corruption)
@@ -455,7 +470,7 @@ export class GlyphFusionZoneManager {
             harmony: harmonyBalance,
             corruption: corruptionBalance,
             synergy: averageSynergy,
-            stability: avgStability,
+            stability: stabilityBalance,
             loadPressure: Math.max(0, Math.min(1, 1.0 - harmonyBalance))
         };
     }
@@ -552,13 +567,14 @@ export class GlyphFusionZoneManager {
 
         // Generate composite geometry
         const harmonyBalance = zone.harmonBalance ?? zone.harmonyBalance ?? 0.5;
+        const corruptionBalance = zone.corruptionBalance ?? Math.max(0, Math.min(1, 1.0 - harmonyBalance));
         const context = {
             harmonyBalance,
             harmony: harmonyBalance,
-            corruption: 1.0 - harmonyBalance,
+            corruption: corruptionBalance,
             synergy: zone.averageSynergy,
-            stability: Math.max(0, Math.min(1, 1.0 - (zone.corruptionBalance ?? (1.0 - harmonyBalance)))),
-            loadPressure: Math.max(0, Math.min(1, zone.corruptionBalance ?? (1.0 - harmonyBalance)))
+            stability: zone.stability ?? Math.max(0, Math.min(1, 1.0 - (zone.corruptionBalance ?? (1.0 - harmonyBalance)))),
+            loadPressure: corruptionBalance
         };
 
         // Get or create composite glyph (now NeuralConvergenceSingularity)
@@ -577,9 +593,11 @@ export class GlyphFusionZoneManager {
         // Prepare context for singularity activation
         const singularityContext = {
             harmony: harmonyBalance,
-            corruption: context.corruption,
+            corruption: corruptionBalance,
             synergy: zone.averageSynergy ?? 0.5,
-            connectedNodes: zone.nodes ?? [],
+            connectedNodes: zone.sourceGlyphs
+                .map((glyph) => glyph?.node)
+                .filter(Boolean),
             orbitAnchor: anchorPosition,
             orbitRadius: zone.orbitRadius ?? 0.42,
             orbitHeight: zone.orbitHeight ?? 0.08,
@@ -593,10 +611,10 @@ export class GlyphFusionZoneManager {
         composite.glyphData = {
             harmony: harmonyBalance,
             harmonyDominance: harmonyBalance,
-            corruption: 1.0 - harmonyBalance,
-            corruptionLevel: 1.0 - harmonyBalance,
+            corruption: corruptionBalance,
+            corruptionLevel: corruptionBalance,
             synergyCoherence: zone.averageSynergy ?? 0.5,
-            stabilityIndex: context.stability ?? 0.5
+            stabilityIndex: context.stability ?? zone.stability ?? 0.5
         };
 
         // Activate the Neural Convergence Singularity

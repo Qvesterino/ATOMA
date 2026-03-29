@@ -7,6 +7,10 @@
  * It only listens to cascade.hop and forwards burst intents.
  */
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value ?? 0));
+}
+
 function asVector3Like(value) {
   if (!value) return null;
   if (typeof value.x === 'number' && typeof value.y === 'number' && typeof value.z === 'number') {
@@ -221,13 +225,12 @@ export class CascadeToWaveBridge_v1 {
     const existing = link.userData.waveField || {};
     const phase = (Date.now() * 0.001) % (Math.PI * 2);
 
-    // Use MAX to preserve any existing stronger values
+    // Use MAX to preserve any existing stronger values while keeping a compact public shape.
     link.userData.waveField = {
-      amplitude: Math.max(Number(existing.amplitude) || 0, intensity),
-      constructive: Math.max(Number(existing.constructive) || 0, intensity * 0.7),
-      destructive: Math.max(Number(existing.destructive) || 0, intensity * 0.3),
-      standing: Math.max(Number(existing.standing) || 0, intensity * 0.5),
-      phase: Number.isFinite(existing.phase) ? existing.phase : phase
+      amplitude: clamp01(Math.max(Number(existing.amplitude) || 0, intensity)),
+      standing: clamp01(Math.max(Number(existing.standing) || 0, intensity * 0.5)),
+      phase: Number.isFinite(existing.phase) ? existing.phase : phase,
+      sourceCount: Math.max(1, Number(existing.sourceCount) || 1)
     };
 
     // Also write to source/target nodes if available
@@ -238,11 +241,10 @@ export class CascadeToWaveBridge_v1 {
       if (!node?.userData) return;
       const nodeExisting = node.userData.waveField || {};
       node.userData.waveField = {
-        amplitude: Math.max(Number(nodeExisting.amplitude) || 0, intensity * 0.6),
-        constructive: Math.max(Number(nodeExisting.constructive) || 0, intensity * 0.5),
-        destructive: Math.max(Number(nodeExisting.destructive) || 0, intensity * 0.2),
-        standing: Math.max(Number(nodeExisting.standing) || 0, intensity * 0.4),
-        phase: Number.isFinite(nodeExisting.phase) ? nodeExisting.phase : phase
+        amplitude: clamp01(Math.max(Number(nodeExisting.amplitude) || 0, intensity * 0.6)),
+        standing: clamp01(Math.max(Number(nodeExisting.standing) || 0, intensity * 0.4)),
+        phase: Number.isFinite(nodeExisting.phase) ? nodeExisting.phase : phase,
+        sourceCount: Math.max(1, Number(nodeExisting.sourceCount) || 1)
       };
     });
   }

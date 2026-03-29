@@ -702,6 +702,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             node.userData.resonance = 0;
             node.userData.waveField.amplitude = 0;
             node.userData.waveField.phase = 0;
+            node.userData.waveField.standing = 0;
             node.userData.waveField.source = 'standing';
 
             // Stamp canonical writes for wave resonance fields
@@ -709,6 +710,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
             node.userData.__canonicalWriteAt.resonance = Date.now();
             node.userData.__canonicalWriteAt['waveField.amplitude'] = Date.now();
             node.userData.__canonicalWriteAt['waveField.phase'] = Date.now();
+            node.userData.__canonicalWriteAt['waveField.standing'] = Date.now();
         });
     }
 
@@ -729,6 +731,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 node.userData.resonance = Math.max(currentResonance, normalizedAmplitude);
                 node.userData.waveField.amplitude = Math.max(currentAmplitude, normalizedAmplitude);
                 node.userData.waveField.phase = phase;
+                node.userData.waveField.standing = Math.max(Number(node.userData.waveField.standing) || 0, normalizedAmplitude);
                 node.userData.waveField.source = 'standing';
 
                 // Stamp canonical writes for wave resonance fields
@@ -736,6 +739,7 @@ export class StandingWaveOscillationTrapSystem_Session130 {
                 node.userData.__canonicalWriteAt.resonance = Date.now();
                 node.userData.__canonicalWriteAt['waveField.amplitude'] = Date.now();
                 node.userData.__canonicalWriteAt['waveField.phase'] = Date.now();
+                node.userData.__canonicalWriteAt['waveField.standing'] = Date.now();
             };
 
             applyToNode(trap.nodeA);

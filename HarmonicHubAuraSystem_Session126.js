@@ -329,6 +329,7 @@ export class HarmonicHubAuraSystem_Session126 {
         avgSynergy: 0,
         avgHarmony: this._readNodeHarmony(hub.primaryNode, 0),
         avgCorruption: this._readNodeCorruption(hub.primaryNode, 0),
+        avgStability: this._readNodeStability(hub.primaryNode, 1 - this._readNodeCorruption(hub.primaryNode, 0)),
       };
       
       // Find nearby hubs
@@ -354,6 +355,10 @@ export class HarmonicHubAuraSystem_Session126 {
           region.avgCorruption = (
             region.avgCorruption * (count - 1) +
             this._readNodeCorruption(otherHub.primaryNode, 0)
+          ) / count;
+          region.avgStability = (
+            region.avgStability * (count - 1) +
+            this._readNodeStability(otherHub.primaryNode, 1 - this._readNodeCorruption(otherHub.primaryNode, 0))
           ) / count;
           
           used.add(j);
@@ -401,6 +406,7 @@ export class HarmonicHubAuraSystem_Session126 {
         harmony: region.avgHarmony,
         corruption: region.avgCorruption,
         synergy: region.avgSynergy,
+        stability: region.avgStability,
         
         // Phase sync state
         phaseOffsets: new Map(),  // nodeId → { current, target }
@@ -425,6 +431,7 @@ export class HarmonicHubAuraSystem_Session126 {
         });
       }
       
+      this._syncHubMetricMirror(hub);
       this.hubs.set(region.hubId, hub);
       this.stats.hubsCreated++;
     } else {
@@ -441,6 +448,7 @@ export class HarmonicHubAuraSystem_Session126 {
       hub.harmony = hub.harmony * 0.9 + region.avgHarmony * 0.1;
       hub.corruption = hub.corruption * 0.9 + region.avgCorruption * 0.1;
       hub.synergy = hub.synergy * 0.9 + region.avgSynergy * 0.1;
+      hub.stability = hub.stability * 0.9 + region.avgStability * 0.1;
       hub.fieldRadius = this._calculateFieldRadius(region);
       hub.active = true;
 
@@ -456,6 +464,8 @@ export class HarmonicHubAuraSystem_Session126 {
           });
         }
       }
+
+      this._syncHubMetricMirror(hub);
     }
     
     // Assign nodes to hub
@@ -845,6 +855,40 @@ export class HarmonicHubAuraSystem_Session126 {
       node?.userData?.corruption ??
       fallback;
     return this._clamp01(value);
+  }
+
+  _readNodeStability(node, fallback = 0) {
+    const metrics = node?.userData?.metrics;
+    if (Number.isFinite(metrics?.stability)) return this._clamp01(metrics.stability);
+
+    const instability = Number.isFinite(metrics?.instability)
+      ? metrics.instability
+      : node?.userData?.instability;
+    if (Number.isFinite(instability)) return this._clamp01(1 - instability);
+
+    return this._clamp01(fallback);
+  }
+
+  _syncHubMetricMirror(hub) {
+    if (!hub) return;
+
+    hub.userData ||= {};
+    hub.userData.metrics ||= {};
+
+    const harmony = this._clamp01(hub.harmony ?? 0);
+    const synergy = this._clamp01(hub.synergy ?? 0);
+    const corruption = this._clamp01(hub.corruption ?? 0);
+    const stability = this._clamp01(hub.stability ?? (1 - corruption));
+
+    hub.userData.metrics.harmony = harmony;
+    hub.userData.metrics.synergy = synergy;
+    hub.userData.metrics.corruption = corruption;
+    hub.userData.metrics.stability = stability;
+
+    hub.userData.harmony = harmony;
+    hub.userData.synergy = synergy;
+    hub.userData.corruption = corruption;
+    hub.userData.stability = stability;
   }
 
   _readLinkSynergy(link, fallback = 0) {

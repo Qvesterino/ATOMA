@@ -739,16 +739,16 @@ export class WaveParticleEmitter_v1 {
         node?.userData?.waveField ??
         {};
 
-      const wave = waveField;
-      const intensity = wave?.intensity ?? wave?.totalAmplitude ?? wave?.amplitude ?? 0;
+      const wave = this._normalizeWaveSnapshot(waveField);
+      const intensity = wave.intensity;
       if (intensity < MIN_WAVE_THRESHOLD) return;
 
       const amplitude = intensity;
       const source = this._resolveWaveSource(node, waveField);
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
-      let constructive = this._clamp01(wave?.constructive ?? wave?.constructivePower ?? 0);
-      let destructive = this._clamp01(wave?.destructive ?? wave?.destructivePower ?? 0);
-      let standing = this._clamp01(wave?.standing ?? wave?.standingWaveFactor ?? 0);
+      let constructive = wave.constructive;
+      let destructive = wave.destructive;
+      let standing = wave.standing;
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
@@ -820,8 +820,8 @@ export class WaveParticleEmitter_v1 {
       const waveField = this._resolveLinkWaveField(link, linkId, waveEngine);
       if (!waveField) return;
 
-      const wave = waveField;
-      const intensity = wave?.intensity ?? wave?.totalAmplitude ?? wave?.amplitude ?? 0;
+      const wave = this._normalizeWaveSnapshot(waveField);
+      const intensity = wave.intensity;
       if (intensity < MIN_WAVE_THRESHOLD) return;
 
       const amplitude = this._clamp01(intensity);
@@ -829,9 +829,9 @@ export class WaveParticleEmitter_v1 {
       const source = this._resolveWaveSource(link, waveField);
 
       const minimumChannelValue = this._clamp01(amplitude * MIN_CHANNEL);
-      let constructive = this._clamp01(wave?.constructive ?? wave?.constructivePower ?? 0);
-      let destructive = this._clamp01(wave?.destructive ?? wave?.destructivePower ?? 0);
-      let standing = this._clamp01(wave?.standing ?? wave?.standingWaveFactor ?? 0);
+      let constructive = wave.constructive;
+      let destructive = wave.destructive;
+      let standing = wave.standing;
       constructive = Math.max(constructive, minimumChannelValue);
       destructive = Math.max(destructive, minimumChannelValue);
       standing = Math.max(standing, minimumChannelValue);
@@ -881,7 +881,7 @@ export class WaveParticleEmitter_v1 {
 
   _resolveLinkWaveField(link, linkId, waveEngine = null) {
     const linkWaveField = waveEngine?.getLinkWaveField?.(linkId, link) ?? null;
-    if (linkWaveField) return linkWaveField;
+    if (linkWaveField) return this._normalizeWaveSnapshot(linkWaveField);
 
     const { sourceNode, targetNode } = this._resolveLinkEndpoints(link);
     const sourceWaveField = this._resolveEndpointWaveField(sourceNode, waveEngine);
@@ -889,31 +889,32 @@ export class WaveParticleEmitter_v1 {
 
     if (!sourceWaveField && !targetWaveField) return null;
 
-    const amplitude = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['amplitude', 'totalAmplitude']);
-    const constructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['constructive', 'constructivePower']);
-    const destructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['destructive', 'destructivePower', 'destructiveInterference']);
-    const standing = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['standing', 'standingWaveFactor']);
+    const amplitude = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['amplitude']);
+    const constructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['constructive']);
+    const destructive = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['destructive']);
+    const standing = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['standing']);
+    const sourceCount = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['sourceCount'], false);
+    const phase = this._averageWaveFieldValue(sourceWaveField, targetWaveField, ['phase'], false);
 
     return {
       amplitude,
-      totalAmplitude: amplitude,
       constructive,
-      constructivePower: constructive,
       destructive,
-      destructivePower: destructive,
-      destructiveInterference: destructive,
       standing,
-      standingWaveFactor: standing
+      sourceCount,
+      phase,
+      intensity: this._clamp01(constructive * 0.7 + Math.max(amplitude, (constructive + destructive) * 0.5) * 0.3)
     };
   }
 
   _resolveEndpointWaveField(node, waveEngine = null) {
     if (!node) return null;
     const nodeId = this._resolveEntityId(node);
-    return waveEngine?.getNodeWaveField?.(nodeId, node) ?? node?.userData?.waveField ?? null;
+    const rawWaveField = waveEngine?.getNodeWaveField?.(nodeId, node) ?? node?.userData?.waveField ?? null;
+    return rawWaveField ? this._normalizeWaveSnapshot(rawWaveField) : null;
   }
 
-  _averageWaveFieldValue(sourceWaveField, targetWaveField, keys = []) {
+  _averageWaveFieldValue(sourceWaveField, targetWaveField, keys = [], clamp = true) {
     let sum = 0;
     let count = 0;
     for (const waveField of [sourceWaveField, targetWaveField]) {
@@ -927,7 +928,37 @@ export class WaveParticleEmitter_v1 {
         }
       }
     }
-    return count > 0 ? this._clamp01(sum / count) : 0;
+    if (count <= 0) return 0;
+    const average = sum / count;
+    return clamp ? this._clamp01(average) : average;
+  }
+
+  _normalizeWavePhase(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value >= 0 && value <= 1) return value * Math.PI * 2;
+    const tau = Math.PI * 2;
+    return ((value % tau) + tau) % tau;
+  }
+
+  _normalizeWaveSnapshot(waveField = {}) {
+    const amplitude = this._clamp01(Math.abs(
+      waveField?.amplitude ?? 0
+    ));
+    const standing = this._clamp01(waveField?.standing ?? 0);
+    const constructive = this._clamp01(Math.max(amplitude, standing));
+    const destructive = this._clamp01(amplitude * Math.max(0.08, (1 - standing) * 0.35));
+    const interference = this._clamp01((constructive + destructive) * 0.5);
+
+    return {
+      amplitude,
+      phase: this._normalizeWavePhase(waveField?.phase ?? 0),
+      standing,
+      sourceCount: Math.max(0, Number(waveField?.sourceCount ?? 0) || 0),
+      constructive,
+      destructive,
+      interference,
+      intensity: this._clamp01(constructive * 0.7 + interference * 0.3)
+    };
   }
 
   _resolveLinkId(link) {
