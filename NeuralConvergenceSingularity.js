@@ -26,6 +26,9 @@ import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 // ============================================================================
+const SINGULARITY_LIFECYCLE_LOG_THROTTLE_MS = 1000;
+
+
 // CONFIGURATION
 // ============================================================================
 
@@ -397,6 +400,7 @@ export class NeuralConvergenceSingularity {
         this.orbitEnabled = true;
         
         // Time tracking
+        this._lifecycleLogTimes = new Map();
         this.time = 0;
         this.lastPulseTime = 0;
         
@@ -438,6 +442,19 @@ export class NeuralConvergenceSingularity {
         
         // Initially hidden
         this.group.visible = false;
+    }
+
+    _logLifecycle(key, message, details = null) {
+        const now = Date.now();
+        const last = this._lifecycleLogTimes.get(key) || 0;
+        if (now - last < SINGULARITY_LIFECYCLE_LOG_THROTTLE_MS) return;
+
+        this._lifecycleLogTimes.set(key, now);
+        if (details) {
+            console.error(`[NeuralConvergenceSingularity] ${message}`, details);
+        } else {
+            console.error(`[NeuralConvergenceSingularity] ${message}`);
+        }
     }
     
     // ========================================================================
@@ -771,6 +788,18 @@ export class NeuralConvergenceSingularity {
         this.harmony = context.harmony ?? 0.5;
         this.corruption = context.corruption ?? 0;
         this.synergy = context.synergy ?? 0.5;
+
+        this._logLifecycle('activate', 'activated and shown in scene', {
+            position: {
+                x: this.orbitAnchor.x,
+                y: this.orbitAnchor.y,
+                z: this.orbitAnchor.z
+            },
+            harmony: this.harmony,
+            corruption: this.corruption,
+            synergy: this.synergy,
+            connectedNodes: Array.isArray(context.connectedNodes) ? context.connectedNodes.length : 0
+        });
         
         if (context.connectedNodes) {
             this.connectedNodes = context.connectedNodes;
@@ -799,6 +828,10 @@ export class NeuralConvergenceSingularity {
         this.orbitPhase = Math.random() * Math.PI * 2;
         this.orbitBobPhase = Math.random() * Math.PI * 2;
         this.orbitEnabled = true;
+
+        this._logLifecycle('deactivate', 'hidden and reset', {
+            connectedNodesCleared: true
+        });
     }
     
     // ========================================================================

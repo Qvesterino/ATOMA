@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LINK COLLAPSE SYSTEM v1.0
+ * LINK COLLAPSE SYSTEM v1.1
  * ============================================================================
  * 
  * RESPONSIBILITY:
@@ -28,14 +28,21 @@
  * 
  * INTEGRATION:
  * const collapseSystem = new LinkCollapseSystem(linkingSystem, linkQualityCalc, linkDegradationSystem);
- * 
- * UPDATE LOOP (in main game loop, once per frame):
- * collapseSystem.update(deltaTime);
- * 
+ *
+ * EVENT FLOW:
+ * - NodeLinkingSystem emits link update callbacks with normalized metrics
+ * - LinkCollapseSystem evaluates only on those updates
+ * - LinkCollapseSystem enqueues collapse requests into NodeLinkingSystem
+ * - NodeLinkingSystem runs the collapse arbiter and performs unlinking
+ *
+ * UPDATE LOOP:
+ * The system does not need a per-frame scan. It can be attached to link
+ * lifecycle callbacks and run in an event-driven way.
+ *
  * CALLBACKS (optional):
- // collapseSystem.on('warning', (link) => { /* visual warning */
- // collapseSystem.on('collapse', (link) => { /* handle disconnection */ });
-
+ * collapseSystem.on('warning', (link) => { // visual warning });
+ * collapseSystem.on('collapse', (link) => { // handle disconnection });
+ */
 
 export class LinkCollapseSystem {
   constructor(linkingSystem, linkQualityCalculator, linkDegradationSystem, config = {}) {
@@ -50,7 +57,8 @@ export class LinkCollapseSystem {
       
       // Temporal requirements (milliseconds)
       minStressAccumulation: config.minStressAccumulation ?? 3000,   // 3 seconds
-      maxStressWindow: config.maxStressWindow ?? 10000,             // 10 second window
+      collapseWindowMs: config.collapseWindowMs ?? 5000,             // Time to reach full collapse under continuous stress
+      maxStressWindow: config.maxStressWindow ?? 10000,              // Upper bound for stale state cleanup
       
       // Load pressure thresholds
       criticalLoadThreshold: config.criticalLoadThreshold ?? 1.0,   // 100% capacity
@@ -60,14 +68,14 @@ export class LinkCollapseSystem {
       criticalThreshold: config.criticalThreshold ?? 0.7,
       collapseThreshold: config.collapseThreshold ?? 1.0,
       
-      // Stress accumulation rate (per second of extreme conditions)
-      stressAccumulationRate: config.stressAccumulationRate ?? 0.15, // +0.15 per sec
-      
-      // Recovery rate when conditions improve
-      stressRecoveryRate: config.stressRecoveryRate ?? 0.05,        // -0.05 per sec
+      // Recovery rate when conditions improve (progress per second)
+      stressRecoveryRate: config.stressRecoveryRate ?? 0.35,        // -0.35 per sec
       
       // Enable visual feedback hooks
       enableVisualFeedback: config.enableVisualFeedback ?? true,
+
+      // Debug logging
+      debugMode: config.debugMode ?? false,
     };
     
     // Per-link collapse tracking
@@ -82,6 +90,26 @@ export class LinkCollapseSystem {
       collapse: [],   // Link collapsed (will be removed)
       recovery: [],   // Link recovered from warning/critical
     };
+
+    this._boundLinkingSystem = null;
+    this._linkHooksBound = false;
+    this._initialLinkPrimeDone = false;
+
+    this._debugLog('initialized', {
+      linksTracked: this.linkingSystem?.links?.length ?? 0,
+      enableVisualFeedback: this.config.enableVisualFeedback,
+    });
+
+    this.attachToLinkingSystem(this.linkingSystem);
+  }
+
+  _debugLog(message, details = null) {
+    if (!this.config.debugMode) return;
+    if (details) {
+      console.log(`[LinkCollapseSystem] ${message}`, details);
+    } else {
+      console.log(`[LinkCollapseSystem] ${message}`);
+    }
   }
   
   /**
@@ -89,8 +117,12 @@ export class LinkCollapseSystem {
    * @param {string} eventType - 'warning', 'critical', 'collapse', 'recovery'
    * @param {function} callback - (link, state) => void
    */
-  on(_eventType, _callback) {
-    // LEGACY: event callbacks disabled (no active listeners in runtime)
+  on(eventType, callback) {
+    if (typeof callback !== 'function') return;
+    if (!this.eventHandlers[eventType]) {
+      this.eventHandlers[eventType] = [];
+    }
+    this.eventHandlers[eventType].push(callback);
   }
   
   /**
@@ -98,7 +130,96 @@ export class LinkCollapseSystem {
    * @private
    */
   _emit(eventType, link, state) {
-    // LEGACY: event emitter disabled
+    const handlers = this.eventHandlers[eventType];
+    if (!Array.isArray(handlers) || handlers.length === 0) return;
+    for (const handler of handlers) {
+      try {
+        handler(link, state);
+      } catch (err) {
+        console.warn('[LinkCollapseSystem] event handler failed:', err);
+      }
+    }
+  }
+
+  /**
+   * Attach to the runtime linking system using passive callbacks.
+   */
+  attachToLinkingSystem(linkingSystem = this.linkingSystem) {
+    if (!linkingSystem || this._linkHooksBound) {
+      return this;
+    }
+
+    this._boundLinkingSystem = linkingSystem;
+    this._linkHooksBound = true;
+
+    if (typeof linkingSystem.onLinkCreated === 'function') {
+      linkingSystem.onLinkCreated((link) => this.registerLink(link));
+    }
+
+    if (typeof linkingSystem.onLinkUpdated === 'function') {
+      linkingSystem.onLinkUpdated((link, metrics) => this.onLinkMetricsUpdated(link, metrics));
+    }
+
+    if (typeof linkingSystem.onLinkRemoved === 'function') {
+      linkingSystem.onLinkRemoved((source, target, link) => this.unregisterLink(link || this._resolveLinkFromPair(source, target)));
+    }
+
+    this._primeExistingLinks();
+    return this;
+  }
+
+  /**
+   * Register a link in the collapse cache without evaluating it yet.
+   */
+  registerLink(link) {
+    if (!link) return;
+    const linkId = this._getLinkId(link);
+    if (!this.collapseStates.has(linkId)) {
+      this.collapseStates.set(linkId, this._createBlankCollapseState());
+    }
+    this._clearVisualFlags(link);
+  }
+
+  /**
+   * Remove all collapse tracking for a link.
+   */
+  unregisterLink(link) {
+    if (!link) return;
+    const linkId = this._getLinkId(link);
+    this.collapseStates.delete(linkId);
+    this.linkWarningStates.delete(linkId);
+    this.linkCriticalStates.delete(linkId);
+    if (link.userData) {
+      delete link.userData.collapseWarning;
+      delete link.userData.collapseCritical;
+      delete link.userData.collapseActive;
+      delete link.userData.collapseProgress;
+      delete link.userData.collapseStage;
+      delete link.userData.collapseState;
+    }
+  }
+
+  /**
+   * Event-driven entry point. Called from NodeLinkingSystem link update callbacks.
+   */
+  onLinkMetricsUpdated(link, metrics = null) {
+    if (!link || !this._isLinkAlive(link)) {
+      return;
+    }
+
+    const now = Date.now();
+    const linkId = this._getLinkId(link);
+    if (!this.collapseStates.has(linkId)) {
+      this.collapseStates.set(linkId, this._createBlankCollapseState());
+    }
+
+    const state = this.collapseStates.get(linkId);
+    const normalized = this._readNormalizedMetrics(link, metrics);
+    const signature = this._buildMetricSignature(link, normalized);
+
+    this._advanceCollapseState(link, state, normalized, now);
+    state.lastMetricSignature = signature;
+    state.lastUpdatedAt = now;
   }
   
   /**
@@ -106,77 +227,61 @@ export class LinkCollapseSystem {
    * @param {number} deltaTime - Time elapsed since last frame (in seconds)
    */
   update(deltaTime) {
-    if (!this.linkingSystem || !this.linkingSystem.links) {
-      return;
-    }
-    if (!this.frameScheduler?.shouldRunSimulation?.()) return;
-    const now = Date.now();
-    
-    // Update collapse state for all links (meaning-only: enqueue requests, no unlink)
-    for (const link of this.linkingSystem.links) {
-      this._updateLinkCollapseState(link, deltaTime, now);
-    }
+    // Event-driven system: no per-frame scan required.
+    // Kept for API compatibility only.
+    return;
   }
   
   /**
    * Update collapse state for a single link (meaning-only; enqueue collapse request)
    * @private
    */
-  _updateLinkCollapseState(link, deltaTime, now) {
-    const linkId = this._getLinkId(link);
-    
-    // Initialize collapse state if needed
-    if (!this.collapseStates.has(linkId)) {
-      this.collapseStates.set(linkId, this._createBlankCollapseState());
-    }
-    
-    const state = this.collapseStates.get(linkId);
-    const quality = link.userData?.quality;
-    
-    if (!quality) {
-      // No quality data yet - can't collapse
-      return false;
-    }
-    
-    // ===== STEP 1: Check collapse eligibility =====
-    const isEligible = this._isCollapseEligible(link, quality, state);
-    
-    // ===== STEP 2: Update stress accumulation =====
+  _advanceCollapseState(link, state, metrics, now) {
+    const previousStage = state.collapseStage;
+    const previousProgress = state.stressAccumulation;
+    const isEligible = this._isCollapseEligible(link, metrics, state);
+
     if (isEligible) {
-      // Conditions persist - accumulate stress
-      state.stressAccumulation += (this.config.stressAccumulationRate * deltaTime);
+      if (!state.eligibleSince) {
+        state.eligibleSince = now;
+      }
+      const elapsed = Math.max(0, now - state.eligibleSince);
+      state.stressAccumulation = this._clamp01(elapsed / this.config.collapseWindowMs);
       state.lastStressTime = now;
     } else {
-      // Conditions improved - recover stress
-      state.stressAccumulation -= (this.config.stressRecoveryRate * deltaTime);
-      state.stressAccumulation = Math.max(0, state.stressAccumulation);
+      const deltaMs = Math.max(0, now - (state.lastUpdatedAt ?? now));
+      state.stressAccumulation = Math.max(0, state.stressAccumulation - ((deltaMs / 1000) * this.config.stressRecoveryRate));
+      if (state.stressAccumulation <= 0) {
+        state.eligibleSince = null;
+      }
     }
-    
-    // Clamp stress to valid range
-    state.stressAccumulation = Math.max(0, Math.min(1.0, state.stressAccumulation));
-    
-    // ===== STEP 3: Track state transitions =====
-    const previousStage = state.collapseStage;
+
     state.collapseStage = this._getCollapseStage(state.stressAccumulation);
-    
-    // Emit events on state changes
+    state.progress = state.stressAccumulation;
+    state.isEligible = isEligible;
+    state.lastObservedLoad = metrics.loadPressure ?? 0;
+    state.lastObservedCorruption = metrics.corruption ?? 0;
+
+    this._applyVisualState(link, state, metrics);
+
     if (previousStage !== state.collapseStage) {
       if (state.collapseStage === 'warning' && previousStage === 'stable') {
         this._onEnterWarning(link, state);
-      } else if (state.collapseStage === 'critical' && previousStage === 'warning') {
+      } else if (state.collapseStage === 'critical' && previousStage !== 'critical') {
         this._onEnterCritical(link, state);
-      } else if (previousStage === 'warning' && state.collapseStage === 'stable') {
-        this._onRecovery(link, state);
-      } else if (previousStage === 'critical' && state.collapseStage === 'warning') {
+      } else if (state.collapseStage === 'stable' && previousStage !== 'stable') {
         this._onRecovery(link, state);
       }
     }
-    
-    // ===== STEP 4: Check for actual collapse =====
-    if (state.stressAccumulation >= this.config.collapseThreshold && isEligible) {
+
+    if (state.stressAccumulation >= this.config.collapseThreshold && isEligible && !state.hasCollapsed) {
       state.hasCollapsed = true;
       this._onCollapse(link, state);
-      return; // No structural action; collapse request enqueued
+      return;
+    }
+
+    if (!isEligible && previousProgress > 0 && state.stressAccumulation === 0) {
+      state.hasCollapsed = false;
     }
   }
   
@@ -187,27 +292,23 @@ export class LinkCollapseSystem {
    * 2. Either critical load on one/both nodes OR sustained network stress
    * @private
    */
-  _isCollapseEligible(link, quality, state) {
-    // Requirement 1: High corruption
-    const avgCorruption = (quality.corruption || 0) / 100; // Normalize to 0-1
-    
-    if (avgCorruption <= this.config.corruptionThreshold) {
-      // Corruption not high enough
+  _isCollapseEligible(link, metrics, state) {
+    const corruption = this._clamp01(this._readMetric(metrics?.corruption, link.userData?.metrics?.corruption, link.corruptionLevel, link.corruptionIntensity));
+    if (corruption <= this.config.corruptionThreshold) {
       return false;
     }
-    
-    // Requirement 2: Either critical load or sustained stress
-    const sourceLoad = link.source?.userData?.load ?? 0;
-    const targetLoad = link.target?.userData?.load ?? 0;
+
+    const sourceLoad = this._readLoadMetric(link.source);
+    const targetLoad = this._readLoadMetric(link.target);
     const nodeCritical = sourceLoad >= this.config.criticalLoadThreshold ||
-                         targetLoad >= this.config.criticalLoadThreshold;
-    
-    const now = Date.now();
-    const stressDuration = (now - state.lastStressTime) / 1000; // in seconds
-    const sustainedStress = stressDuration <= (this.config.minStressAccumulation / 1000);
-    
-    // Both corruption AND (critical load OR sustained stress)
-    return nodeCritical || (state.stressAccumulation > 0 && sustainedStress);
+      targetLoad >= this.config.criticalLoadThreshold ||
+      (this._readMetric(metrics?.loadPressure, link.userData?.metrics?.loadPressure) >= this.config.criticalLoadThreshold);
+
+    const sustainedStress = state.eligibleSince
+      ? ((Date.now() - state.eligibleSince) >= this.config.minStressAccumulation)
+      : false;
+
+    return nodeCritical || sustainedStress;
   }
   
   /**
@@ -233,9 +334,16 @@ export class LinkCollapseSystem {
     this.linkWarningStates.add(linkId);
     
     if (this.config.enableVisualFeedback) {
-      // Store visual warning flag for NeonLinkVisuals to display
-      link.userData.collapseWarning = true;
+      this._setVisualFlag(link, 'collapseWarning', true);
+      this._setVisualFlag(link, 'collapseCritical', false);
+      this._setVisualFlag(link, 'collapseActive', false);
     }
+
+    this._debugLog('warning', {
+      linkId,
+      stressAccumulation: state?.stressAccumulation,
+      corruption: state?.lastObservedCorruption ?? 0,
+    });
     
     this._emit('warning', link, state);
   }
@@ -250,10 +358,16 @@ export class LinkCollapseSystem {
     this.linkWarningStates.delete(linkId);
     
     if (this.config.enableVisualFeedback) {
-      // Store critical flag for NeonLinkVisuals to display
-      link.userData.collapseCritical = true;
-      link.userData.collapseWarning = false;
+      this._setVisualFlag(link, 'collapseCritical', true);
+      this._setVisualFlag(link, 'collapseWarning', false);
+      this._setVisualFlag(link, 'collapseActive', false);
     }
+
+    this._debugLog('critical', {
+      linkId,
+      stressAccumulation: state?.stressAccumulation,
+      corruption: state?.lastObservedCorruption ?? 0,
+    });
     
     this._emit('critical', link, state);
   }
@@ -268,9 +382,13 @@ export class LinkCollapseSystem {
     this.linkCriticalStates.delete(linkId);
     
     if (this.config.enableVisualFeedback) {
-      link.userData.collapseWarning = false;
-      link.userData.collapseCritical = false;
+      this._clearVisualFlags(link);
     }
+
+    this._debugLog('recovery', {
+      linkId,
+      stressAccumulation: state?.stressAccumulation,
+    });
     
     this._emit('recovery', link, state);
   }
@@ -285,10 +403,17 @@ export class LinkCollapseSystem {
     this.linkCriticalStates.delete(linkId);
     
     if (this.config.enableVisualFeedback) {
-      link.userData.collapseWarning = false;
-      link.userData.collapseCritical = false;
-      link.userData.collapseActive = true; // Signal for visual collapse FX
+      this._setVisualFlag(link, 'collapseWarning', false);
+      this._setVisualFlag(link, 'collapseCritical', false);
+      this._setVisualFlag(link, 'collapseActive', true); // Signal for visual collapse FX
     }
+
+    this._debugLog('collapse', {
+      linkId,
+      stressAccumulation: state?.stressAccumulation,
+      source: link.source?.userData?.id ?? link.source?.uuid ?? null,
+      target: link.target?.userData?.id ?? link.target?.uuid ?? null,
+    });
     
     // Meaning-only: enqueue collapse request for structural systems to handle
     this._enqueueCollapseRequest(link, state);
@@ -303,13 +428,11 @@ export class LinkCollapseSystem {
   _removeLinkSafely(link) {
     try {
       const linkId = this._getLinkId(link);
-      
-      // Remove from collapse tracking
+
       this.collapseStates.delete(linkId);
       this.linkWarningStates.delete(linkId);
       this.linkCriticalStates.delete(linkId);
-      
-      // Disconnect the link (handled by linking system)
+
       if (this.linkingSystem && this.linkingSystem.unlinkNodes) {
         this.linkingSystem.unlinkNodes(link.source, link.target);
       }
@@ -325,11 +448,17 @@ export class LinkCollapseSystem {
   _enqueueCollapseRequest(link, state) {
     if (!this.linkingSystem || !this.linkingSystem.enqueueCollapseRequest) return;
     const linkId = this._getLinkId(link);
+    this._debugLog('enqueue-collapse-request', {
+      linkId,
+      stressAccumulation: state?.stressAccumulation,
+    });
     this.linkingSystem.enqueueCollapseRequest(link, {
       reason: 'collapse-threshold',
       severity: 'critical',
       source: 'LinkCollapseSystem',
       stressAccumulation: state?.stressAccumulation,
+      corruption: state?.lastObservedCorruption,
+      loadPressure: state?.lastObservedLoad,
     });
   }
   
@@ -429,6 +558,13 @@ export class LinkCollapseSystem {
       collapseStage: 'stable',           // 'stable', 'warning', 'critical'
       stressAccumulation: 0.0,            // 0.0 - 1.0
       lastStressTime: Date.now(),
+      lastUpdatedAt: Date.now(),
+      lastMetricSignature: null,
+      eligibleSince: null,
+      progress: 0,
+      isEligible: false,
+      lastObservedLoad: 0,
+      lastObservedCorruption: 0,
       hasCollapsed: false,
       createdAt: Date.now(),
     };
@@ -439,14 +575,146 @@ export class LinkCollapseSystem {
    * @private
    */
   _getLinkId(link) {
+    if (!link) {
+      return 'unknown';
+    }
+    if (link.id) {
+      return String(link.id);
+    }
     if (!link.source || !link.target) {
       return 'unknown';
     }
-    
-    const id1 = link.source.userData?.id ?? link.source.uuid ?? 'src';
-    const id2 = link.target.userData?.id ?? link.target.uuid ?? 'tgt';
-    
+
+    const id1 = link.source.userData?.nodeId ?? link.source.userData?.id ?? link.source.uuid ?? 'src';
+    const id2 = link.target.userData?.nodeId ?? link.target.userData?.id ?? link.target.uuid ?? 'tgt';
+
     return `${id1}→${id2}`;
+  }
+
+  _primeExistingLinks() {
+    if (this._initialLinkPrimeDone) return;
+    this._initialLinkPrimeDone = true;
+    const links = this.linkingSystem?.links;
+    if (!Array.isArray(links)) return;
+    for (const link of links) {
+      this.registerLink(link);
+      this.onLinkMetricsUpdated(link, link?.userData?.metrics || null);
+    }
+  }
+
+  _resolveLinkFromPair(source, target) {
+    const links = this.linkingSystem?.links;
+    if (!Array.isArray(links) || !source || !target) return null;
+    return links.find((link) => link?.source === source && link?.target === target) || null;
+  }
+
+  _readMetric(...values) {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return 0;
+  }
+
+  _readLoadMetric(node) {
+    const raw = this._readMetric(
+      node?.userData?.load,
+      node?.userData?.metrics?.loadRatio,
+      node?.userData?.metrics?.loadPressure,
+      node?.userData?.loadRatio
+    );
+
+    if (raw > 1) {
+      return Math.max(0, Math.min(1, raw / 100));
+    }
+    return this._clamp01(raw);
+  }
+
+  _readNormalizedMetrics(link, metrics = null) {
+    const corruption = this._clamp01(this._readMetric(
+      metrics?.corruption,
+      link?.userData?.metrics?.corruption,
+      link?.corruptionLevel,
+      link?.corruptionIntensity
+    ));
+
+    const loadPressure = this._clamp01(this._readMetric(
+      metrics?.loadPressure,
+      link?.userData?.metrics?.loadPressure,
+      link?.loadPressure,
+      this._readLoadMetric(link?.source),
+      this._readLoadMetric(link?.target)
+    ));
+
+    return {
+      corruption,
+      loadPressure,
+    };
+  }
+
+  _buildMetricSignature(link, metrics) {
+    const linkId = this._getLinkId(link);
+    const corruption = Math.round((metrics?.corruption ?? 0) * 1000);
+    const loadPressure = Math.round((metrics?.loadPressure ?? 0) * 1000);
+    return `${linkId}:${corruption}:${loadPressure}`;
+  }
+
+  _applyVisualState(link, state, metrics) {
+    if (!link?.userData) {
+      if (link) {
+        link.userData = {};
+      } else {
+        return;
+      }
+    }
+
+    const progress = this._clamp01(state.progress ?? state.stressAccumulation ?? 0);
+    const stage = state.collapseStage || 'stable';
+    const isWarning = stage === 'warning';
+    const isCritical = stage === 'critical';
+    const isActive = !!state.hasCollapsed;
+
+    link.userData.collapseState = {
+      linkId: this._getLinkId(link),
+      stage,
+      progress,
+      corruption: metrics?.corruption ?? 0,
+      loadPressure: metrics?.loadPressure ?? 0,
+      eligible: !!state.isEligible,
+      hasCollapsed: isActive,
+      updatedAt: state.lastUpdatedAt ?? Date.now(),
+    };
+    link.userData.collapseProgress = progress;
+    link.userData.collapseWarning = isWarning;
+    link.userData.collapseCritical = isCritical;
+    link.userData.collapseActive = isActive;
+    link.userData.collapseStage = stage;
+  }
+
+  _setVisualFlag(link, key, value) {
+    if (!link) return;
+    if (!link.userData) link.userData = {};
+    link.userData[key] = value;
+  }
+
+  _clearVisualFlags(link) {
+    if (!link?.userData) return;
+    this._setVisualFlag(link, 'collapseWarning', false);
+    this._setVisualFlag(link, 'collapseCritical', false);
+    this._setVisualFlag(link, 'collapseActive', false);
+    this._setVisualFlag(link, 'collapseProgress', 0);
+    this._setVisualFlag(link, 'collapseStage', 'stable');
+    this._setVisualFlag(link, 'collapseState', null);
+  }
+
+  _isLinkAlive(link) {
+    return !!(link && (link.active !== false) && (link.source || link.target));
+  }
+
+  _clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(1, value));
   }
   
   /**

@@ -39,6 +39,7 @@
  * - Never creates side effects: pure deterministic visual transform
  */
 
+import * as THREE from 'three';
 import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 export class HarmonicResonanceCoupling_v1 {
@@ -98,6 +99,7 @@ export class HarmonicResonanceCoupling_v1 {
       phase: 0,
       intensity: 0,
       lastParticleEmit: 0,
+      particleSpawnAccumulator: 0,
       sourceAuraColor: new THREE.Color(0xffffff),
       targetAuraColor: new THREE.Color(0xffffff),
       particleTrail: [] // Track recent particles for visual continuity
@@ -291,10 +293,14 @@ export class HarmonicResonanceCoupling_v1 {
    * @private
    */
   _emitResonanceParticles(link, resonance, deltaTime) {
-    // Calculate how many particles to emit this frame
-    const emissionCount = Math.floor(
-      this.config.particleEmissionRate * resonance.intensity * 60 * deltaTime
-    );
+    if (!link?.source?.position || !link?.target?.position) return;
+
+    // Accumulate fractional emissions so low rates still produce particles over time.
+    const spawnRate = this.config.particleEmissionRate * resonance.intensity * 60;
+    resonance.particleSpawnAccumulator = (resonance.particleSpawnAccumulator || 0) + spawnRate * deltaTime;
+    const emissionCount = Math.floor(resonance.particleSpawnAccumulator);
+    if (emissionCount <= 0) return;
+    resonance.particleSpawnAccumulator -= emissionCount;
     
     for (let i = 0; i < emissionCount; i++) {
       const t = Math.random();

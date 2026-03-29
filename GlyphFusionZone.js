@@ -62,6 +62,9 @@ const CONFIG = {
     POOL_SIZE: 20  // Composite glyphs
 };
 
+const COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS = 1000;
+const FUSION_ENDPOINT_THRESHOLD = 0.18;
+
 // ============================================================================
 // FUSION ZONE STATE
 // ============================================================================
@@ -258,8 +261,77 @@ export class GlyphFusionZoneManager {
 
         // Update timer
         this.updateTimer = 0.0;
+        this._lifecycleLogTimes = new Map();
 
         console.log('[GlyphFusionZoneManager] Initialized');
+    }
+
+    _logLifecycle(key, message, details = null) {
+        const now = Date.now();
+        const last = this._lifecycleLogTimes.get(key) || 0;
+        if (now - last < COMPOSITE_LIFECYCLE_LOG_THROTTLE_MS) return;
+
+        this._lifecycleLogTimes.set(key, now);
+        if (details) {
+            console.error(`[GlyphFusionZone] ${message}`, details);
+        } else {
+            console.error(`[GlyphFusionZone] ${message}`);
+        }
+    }
+
+    _resolveLinkEndpoints(link) {
+        if (!link) {
+            return { nodeA: null, nodeB: null };
+        }
+
+        const userData = link.userData || {};
+        const nodeA =
+            userData.nodeA ||
+            link.sourceNode ||
+            link.source ||
+            link.startNode ||
+            link.from ||
+            null;
+        const nodeB =
+            userData.nodeB ||
+            link.targetNode ||
+            link.target ||
+            link.endNode ||
+            link.to ||
+            null;
+
+        return { nodeA, nodeB };
+    }
+
+    _getNodeKey(node) {
+        if (!node) return null;
+        return node.uuid || node.userData?.nodeId || node.userData?.id || node.id || null;
+    }
+
+    _resolveEndpointGlyph(glyph) {
+        if (!glyph?.active || !glyph.link) return null;
+
+        const link = glyph.link;
+        const { nodeA, nodeB } = this._resolveLinkEndpoints(link);
+        const progress = Number.isFinite(glyph.linkProgress) ? glyph.linkProgress : 0.5;
+        const sourceDistance = Math.abs(progress - 0.0);
+        const targetDistance = Math.abs(1.0 - progress);
+        const isSource = sourceDistance <= FUSION_ENDPOINT_THRESHOLD;
+        const isTarget = targetDistance <= FUSION_ENDPOINT_THRESHOLD;
+
+        if (!isSource && !isTarget) return null;
+
+        const node = isSource ? nodeA : nodeB;
+        if (!node) return null;
+
+        return {
+            glyph,
+            node,
+            link,
+            endpoint: isSource ? 'source' : 'target',
+            distance: isSource ? sourceDistance : targetDistance,
+            progress
+        };
     }
     
     setNarrativePatterns(narrativePatterns) {
@@ -356,41 +428,16 @@ export class GlyphFusionZoneManager {
         const nodeGlyphMap = new Map();
 
         pictograms.forEach(pictogram => {
-            if (!pictogram.active || !pictogram.link) return;
+            const endpoint = this._resolveEndpointGlyph(pictogram);
+            if (!endpoint) return;
 
-            const nodeA = pictogram.link.userData?.nodeA;
-            const nodeB = pictogram.link.userData?.nodeB;
+            const nodeId = this._getNodeKey(endpoint.node);
+            if (!nodeId) return;
 
-            // Check proximity to nodes
-            if (nodeA) {
-                const dist = pictogram.mesh.position.distanceTo(nodeA.position);
-                if (dist < CONFIG.FUSION_RADIUS) {
-                    if (!nodeGlyphMap.has(nodeA.uuid)) {
-                        nodeGlyphMap.set(nodeA.uuid, []);
-                    }
-                    nodeGlyphMap.get(nodeA.uuid).push({
-                        glyph: pictogram,
-                        node: nodeA,
-                        link: pictogram.link,
-                        distance: dist
-                    });
-                }
+            if (!nodeGlyphMap.has(nodeId)) {
+                nodeGlyphMap.set(nodeId, []);
             }
-
-            if (nodeB) {
-                const dist = pictogram.mesh.position.distanceTo(nodeB.position);
-                if (dist < CONFIG.FUSION_RADIUS) {
-                    if (!nodeGlyphMap.has(nodeB.uuid)) {
-                        nodeGlyphMap.set(nodeB.uuid, []);
-                    }
-                    nodeGlyphMap.get(nodeB.uuid).push({
-                        glyph: pictogram,
-                        node: nodeB,
-                        link: pictogram.link,
-                        distance: dist
-                    });
-                }
-            }
+            nodeGlyphMap.get(nodeId).push(endpoint);
         });
 
         // Check fusion conditions
@@ -414,6 +461,14 @@ export class GlyphFusionZoneManager {
 
             // Initiate fusion
             const context = this.calculateFusionContext(glyphsAtNode);
+            this._logLifecycle(`fusion-detected:${nodeId}`, 'fusion detected', {
+                nodeId,
+                sourceGlyphCount: glyphsAtNode.length,
+                harmonyBalance: context.harmonyBalance,
+                corruptionBalance: context.corruptionBalance,
+                synergy: context.averageSynergy,
+                stability: context.stability
+            });
             zone.initiateFusion(node, glyphsAtNode.map(g => g.glyph), links, context);
             
             // Notify AINarrativePatterns6_0 about fusion event
@@ -434,8 +489,7 @@ export class GlyphFusionZoneManager {
             const link = g.link;
             if (!link || !link.userData) return;
 
-            const nodeA = link.userData.nodeA;
-            const nodeB = link.userData.nodeB;
+            const { nodeA, nodeB } = this._resolveLinkEndpoints(link);
 
             const nodeAMetrics = getNodeCanonicalMetrics(nodeA) ?? {};
             const nodeBMetrics = getNodeCanonicalMetrics(nodeB) ?? {};
@@ -626,6 +680,16 @@ export class GlyphFusionZoneManager {
             ...context
         });
 
+        this._logLifecycle(`composite-spawned:${compositeId}`, 'composite spawned', {
+            compositeId,
+            nodeId: zone.node?.uuid || zone.node?.userData?.id || zone.node?.id || null,
+            sourceTypes,
+            harmonyBalance,
+            corruptionBalance,
+            synergy: zone.averageSynergy ?? 0.5,
+            stability: context.stability ?? 0.5
+        });
+
         // Attach the generated composite geometry so the fusion result is visible in runtime.
         const generatedCompositeVisual =
             this.compositeGlyphGenerator?.generateCompositeVisual?.(sourceTypes, context)
@@ -645,7 +709,6 @@ export class GlyphFusionZoneManager {
         if (!composite?.mesh || !visualOrGeometry) return;
 
         composite._clearGeneratedCompositeVisual?.();
-
         if (visualOrGeometry.isObject3D) {
             const generatedRoot = visualOrGeometry;
             generatedRoot.name = generatedRoot.name || 'GeneratedCompositeGlyph';
@@ -668,6 +731,14 @@ export class GlyphFusionZoneManager {
             });
             composite.mesh.add(generatedRoot);
             composite.generatedVisual = generatedRoot;
+
+            this._logLifecycle(`composite-attached:${composite.id || composite.mesh.uuid}`, 'composite visual attached', {
+                compositeId: composite.id || composite.mesh.uuid,
+                attachmentType: 'object3d',
+                sourceTypes: generatedRoot.userData?.sourceTypes || [],
+                harmonyBalance,
+                synergy: context.averageSynergy ?? context.synergy ?? 0.5
+            });
             return;
         }
 
@@ -696,6 +767,14 @@ export class GlyphFusionZoneManager {
 
         composite.mesh.add(generatedRoot);
         composite.generatedVisual = generatedRoot;
+
+        this._logLifecycle(`composite-attached:${composite.id || composite.mesh.uuid}`, 'composite visual attached', {
+            compositeId: composite.id || composite.mesh.uuid,
+            attachmentType: 'geometry',
+            sourceTypes: generatedRoot.userData?.sourceTypes || [],
+            harmonyBalance,
+            synergy: context.averageSynergy ?? context.synergy ?? 0.5
+        });
     }
 
     _decorateCompositeGlyph(mesh, geometry, harmonyBalance, context) {
@@ -863,10 +942,23 @@ export class GlyphFusionZoneManager {
     updateCompositeGlyphs(deltaTime) {
         // Get camera position for LOD
         const cameraPosition = this.scene?.camera?.position ?? null;
+
+        let activeCount = 0;
+        let attachedCount = 0;
         
         this.compositeGlyphs.forEach(composite => {
             if (!composite.active) return;
+            activeCount += 1;
+            if (composite.generatedVisual || composite.mesh?.getObjectByName?.('GeneratedCompositeGlyph')) {
+                attachedCount += 1;
+            }
             composite.update(deltaTime, cameraPosition);
+        });
+
+        this._logLifecycle('summary', 'composite pipeline summary', {
+            activeComposites: activeCount,
+            attachedVisuals: attachedCount,
+            activeZones: this.zones.filter((zone) => zone.active).length
         });
     }
 

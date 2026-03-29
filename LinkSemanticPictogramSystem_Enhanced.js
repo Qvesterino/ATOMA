@@ -52,11 +52,11 @@ const CONFIG = {
     LAYER_C_DEPTH_OFFSET: 1.4,
     
     // Spawn density (semantic priority)
-    MAX_GLYPHS_PER_LINK_CRITICAL: 2,   // Critical links: fewer, larger
-    MAX_GLYPHS_PER_LINK_IMPORTANT: 3,  // Important links
-    MAX_GLYPHS_PER_LINK_NORMAL: 4,     // Normal links
-    MAX_GLYPHS_PER_LINK_MINOR: 5,      // Minor links: more, smaller
-    MAX_GLYPHS_PER_LINK_ABSOLUTE: 5,   // Hard cap per link
+    MAX_GLYPHS_PER_LINK_CRITICAL: 1,   // Critical links: fewer, larger
+    MAX_GLYPHS_PER_LINK_IMPORTANT: 2,  // Important links
+    MAX_GLYPHS_PER_LINK_NORMAL: 2,     // Normal links
+    MAX_GLYPHS_PER_LINK_MINOR: 3,      // Minor links: more, smaller
+    MAX_GLYPHS_PER_LINK_ABSOLUTE: 3,   // Hard cap per link
     MAX_GLYPHS_PER_STATE: 1,           // Max per pictogram state per link
     MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 1 of each metric)
         harmony: 1,
@@ -139,7 +139,7 @@ const CONFIG = {
 };
 
 // Guarantee at least a small number of visible pictograms when links exist
-const MIN_ACTIVE_GLOBAL = 8;
+const MIN_ACTIVE_GLOBAL = 6;
 const VISIBILITY_SCALE = 2.0; // stronger visibility boost
 
 const getGlobalLinkSystem = () =>
@@ -1014,15 +1014,6 @@ export class LinkSemanticPictogramSystem_Enhanced {
 
     update(deltaTime, time) {
         if (!this.enabled) return;
-        const linksAvailable = this._getLinks?.() || [];
-        const hasActivePictograms = this.pictograms.some(p => p.active);
-        if (!linksAvailable.length && !this._lastLinks?.length && !hasActivePictograms) {
-            return;
-        }
-        if (linksAvailable.length) {
-            this._lastLinks = [...linksAvailable];
-        }
-        const links = linksAvailable.length ? linksAvailable : this._lastLinks;
 
         // Auto-rebind to live linkingSystem if ours is missing or stale (no links) but global has links
         const globalLS = getGlobalLinkSystem();
@@ -1035,6 +1026,16 @@ export class LinkSemanticPictogramSystem_Enhanced {
             this.linkingSystem = globalLS;
             this.__debugId = this.__debugId || `pictos-${Date.now().toString(36)}`;
         }
+
+        const linksAvailable = this._getLinks?.() || [];
+        const hasActivePictograms = this.pictograms.some(p => p.active);
+        if (!linksAvailable.length && !this._lastLinks?.length && !hasActivePictograms) {
+            return;
+        }
+        if (linksAvailable.length) {
+            this._lastLinks = [...linksAvailable];
+        }
+        const links = linksAvailable.length ? linksAvailable : this._lastLinks;
 
         this.updateTimer += deltaTime;
         if (this.updateTimer < CONFIG.UPDATE_INTERVAL) return;
@@ -1622,7 +1623,13 @@ export class LinkSemanticPictogramSystem_Enhanced {
         const links = this._getLinks();
         if (!links.length) return;
 
+        let activeCount = this.pictograms.filter(p => p.active).length;
+        let remainingGlobal = Math.max(0, MIN_ACTIVE_GLOBAL - activeCount);
+        if (remainingGlobal <= 0) return;
+
         links.forEach(link => {
+            if (remainingGlobal <= 0) return;
+
             const linkId = this.getLinkKey(link);
             if (!linkId) return;
 
@@ -1632,6 +1639,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
             const metricCounts = this.linkMetricCounts.get(linkId) || new Map();
 
             GLYPH_TYPES.forEach(metric => {
+                if (remainingGlobal <= 0) return;
+
                 const cap = (CONFIG.MAX_GLYPHS_PER_METRIC && CONFIG.MAX_GLYPHS_PER_METRIC[metric]) ??
                             CONFIG.MAX_GLYPHS_PER_METRIC?.default ?? 2;
                 const current = metricCounts.get(metric) || 0;
@@ -1639,6 +1648,7 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 const state = defaultStateByMetric[metric] || 'CIRCLE_RING';
                 const needed = cap - current;
                 for (let i = 0; i < needed; i++) {
+                    if (remainingGlobal <= 0) break;
                     this.spawnPictogram(link, 'A', state, size, depthOffset, linkId, metric);
                     const mc = metricCounts.get(metric) || 0;
                     metricCounts.set(metric, mc + 1);
@@ -1648,6 +1658,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
                     this.linkStateCounts.set(linkId, stateCounts);
                     const total = this.linkPictogramCounts.get(linkId) || 0;
                     this.linkPictogramCounts.set(linkId, total + 1);
+                    remainingGlobal -= 1;
+                    activeCount += 1;
                 }
             });
 

@@ -447,8 +447,8 @@ export class StandingWaveVisualRenderer_Session131 {
                 materialStates: materials.map((material) => ({
                     material: material,
                     originalWaveSpeed: this._readMaterialUniformValue(material, 'waveSpeed', 'uWaveSpeed', 1.0),
-                    originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', material.userData?.waveLength ?? null),
-                    originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, material.userData?.wavePhaseOffset ?? null)
+                    originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', null),
+                    originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, null)
                 })),
                 isStanding: false
             };
@@ -460,8 +460,8 @@ export class StandingWaveVisualRenderer_Session131 {
             materialState.materialStates = materials.map((material) => ({
                 material: material,
                 originalWaveSpeed: this._readMaterialUniformValue(material, 'waveSpeed', 'uWaveSpeed', 1.0),
-                originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', material.userData?.waveLength ?? null),
-                originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, material.userData?.wavePhaseOffset ?? null)
+                originalWavelength: this._readMaterialUniformValue(material, 'wavelength', 'uWaveLength', null),
+                originalPhaseOffset: this._readMaterialUniformValue(material, 'uWavePhaseOffset', null, null)
             }));
         }
         
@@ -519,9 +519,6 @@ export class StandingWaveVisualRenderer_Session131 {
                 }
                 if (material.uniforms?.uWavePhaseOffset && state.originalPhaseOffset !== null) {
                     material.uniforms.uWavePhaseOffset.value = state.originalPhaseOffset;
-                }
-                if (material.userData) {
-                    material.userData.standingWaveActive = false;
                 }
             });
             
@@ -804,8 +801,7 @@ export class StandingWaveVisualRenderer_Session131 {
             radiusEnd: Math.min(1, 0.5 + (Number(trap.trapRadius) || 0) * 0.5),
             intensity: Number(trap.amplitude) || 0,
             frequency: Number(trap.frequency) || 0,
-            phase: Number(trap.phase) || 0,
-            state: trap.state ?? 'unknown'
+            phase: Number(trap.phase) || 0
         }));
         let zoneIndex = 0;
         const touchedIndices = new Set();
@@ -1311,14 +1307,6 @@ export class StandingWaveVisualRenderer_Session131 {
             material.uniforms.uWavePhaseOffset.value = trap.phase + materialState.originalPhaseOffset;
         }
 
-        if (material.userData && materialState.originalWavelength !== null) {
-            material.userData.waveLength = materialState.originalWavelength * this.config.waveCompressionFactor;
-        }
-        if (material.userData) {
-            material.userData.standingWaveActive = true;
-            material.userData.standingWavePhase = trap.phase;
-            material.userData.standingWaveFrequency = trap.frequency;
-        }
     }
 
     _resolveCameraPosition() {

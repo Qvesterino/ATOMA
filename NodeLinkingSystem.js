@@ -1841,10 +1841,10 @@ export class NodeLinkingSystem {
   /**
    * Fire link updated callbacks
    */
-  _fireLinkUpdatedCallbacks(link) {
+  _fireLinkUpdatedCallbacks(link, metrics = null) {
     for (const callback of this.onLinkUpdatedCallbacks) {
       try {
-        callback(link);
+        callback(link, metrics);
       } catch (err) {
         console.warn('Error in link updated callback:', err);
       }
@@ -5527,7 +5527,11 @@ getLinksForNode(node) {
     if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
       try {
         this.conduitRenderer.updatePictograms(deltaTime, time);
-      } catch {
+      } catch (err) {
+        console.error('[NodeLinkingSystem] conduit pictogram update failed', {
+          error: err?.message || err,
+          stack: err?.stack || null
+        });
       }
     }
 
@@ -5585,6 +5589,11 @@ getLinksForNode(node) {
         }
       }
     });
+
+    // Event-driven collapse requests are executed here, after all link updates
+    // for the tick have finished. This keeps structural unlinking inside the
+    // linking authority and out of metric/visual subsystems.
+    this.runCollapseArbiter();
   }
 
   // Phase B.5 – FrameScheduler-driven node targeting tick (visual tier)
@@ -6577,7 +6586,7 @@ getLinksForNode(node) {
       }
     }
 
-    this._fireLinkUpdatedCallbacks(link);
+    this._fireLinkUpdatedCallbacks(link, normalized);
   }
   
   /**
@@ -7715,19 +7724,61 @@ getLinksForNode(node) {
     }
 
     const prioritySnapshot = link.prioritySnapshot || null;
-    const integrity = link.userData?.integrity;
-    const corruption = link.userData?.corruption;
+    const integrity = this._readCollapseNumericMetric(
+      link.userData?.integrity,
+      link.userData?.metrics?.integrity,
+      req.integrity
+    );
+    const corruption = this._readCollapseCorruptionMetric(
+      req.corruption,
+      link.userData?.metrics?.corruption,
+      link.userData?.corruption,
+      link.corruptionLevel,
+      link.corruptionIntensity
+    );
+    const loadPressure = this._readCollapseLoadMetric(
+      req.loadPressure,
+      link.userData?.metrics?.loadPressure,
+      link.loadPressure,
+      link.traffic?.load
+    );
 
-    // Priority alone must never trigger allow; corruption/integrity gates apply
-    const hasCriticalCorruption = typeof corruption === 'number' && corruption >= 80;
-    const hasLowIntegrity = typeof integrity === 'number' && integrity <= 8;
+    // Priority alone must never trigger allow; corruption/integrity/load gates apply
+    const hasCriticalCorruption = corruption >= 0.8;
+    const hasCriticalLoad = loadPressure >= 1.0;
+    const hasLowIntegrity = integrity !== null && integrity <= 8;
 
-    if (hasCriticalCorruption || hasLowIntegrity) {
+    if (hasCriticalCorruption && (hasCriticalLoad || hasLowIntegrity || req.source === 'LinkCollapseSystem')) {
       return { linkId: req.linkId, decision: 'allow', reason: 'corruption-or-integrity', decidedAt: now, source: req.source, prioritySnapshot };
     }
 
     // If insufficient evidence, defer to future cycles
     return { linkId: req.linkId, decision: 'defer', reason: 'insufficient-signal', decidedAt: now, source: req.source, prioritySnapshot };
+  }
+
+  _readCollapseNumericMetric(...values) {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  _readCollapseCorruptionMetric(...values) {
+    const raw = this._readCollapseNumericMetric(...values);
+    if (raw === null) return 0;
+    if (raw <= 1) return Math.max(0, Math.min(1, raw));
+    if (raw <= 100) return Math.max(0, Math.min(1, raw / 100));
+    return 1;
+  }
+
+  _readCollapseLoadMetric(...values) {
+    const raw = this._readCollapseNumericMetric(...values);
+    if (raw === null) return 0;
+    if (raw <= 1) return Math.max(0, Math.min(1, raw));
+    if (raw <= 100) return Math.max(0, Math.min(1, raw / 100));
+    return 1;
   }
 
   /**

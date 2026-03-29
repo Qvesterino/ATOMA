@@ -147,7 +147,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.trapPhaseDivergence = new Map(); // trapId -> { lastPhase, divergence }
         this.ruptureOccurrences = new Map();  // linkId -> last rupture time
         this.eventPressureByLink = new Map(); // linkId -> event pressure (0-1)
-        this.lastEventTagByLink = new Map();  // linkId -> last event tag
         this.globalStressBias = 0;            // network-level event pressure bias
         this.semanticUnsubscribers = [];      // semantic bus unsubscriber callbacks
         this.boundSemanticBus = null;
@@ -525,9 +524,8 @@ export class ResonanceRuptureVisualSystem_Session133 {
             // Only show stress zones when stress > 50%
             if (stress > 0.5) {
                 this.preRuptureZones.push({
-                    trap: trap,
-                    stress: stress,
                     linkId: trapId,
+                    stress: stress,
                     intensity: Math.pow(stress - 0.5, 1.5)  // Sharpen at higher stress
                 });
             }
@@ -1099,7 +1097,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
         const key = String(linkId);
         const current = this.eventPressureByLink.get(key) || 0;
         this.eventPressureByLink.set(key, THREE.MathUtils.clamp(current + amount, 0, 1));
-        this.lastEventTagByLink.set(key, tag);
     }
 
     _addNodeIncidentLinkPressure(payload, amount, tag) {
@@ -1145,7 +1142,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
             const next = Math.max(0, value - pressureDecay);
             if (next <= 0.0001) {
                 this.eventPressureByLink.delete(linkId);
-                this.lastEventTagByLink.delete(linkId);
                 return;
             }
             this.eventPressureByLink.set(linkId, next);
@@ -1283,7 +1279,6 @@ export class ResonanceRuptureVisualSystem_Session133 {
         this.ruptureOccurrences.clear();
         this.nodeReactions.clear();
         this.eventPressureByLink.clear();
-        this.lastEventTagByLink.clear();
         this.globalStressBias = 0;
     }
 

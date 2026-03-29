@@ -42,9 +42,24 @@ export class LinkSemanticPictogramSystem_WithFusion {
         );
         this.root = this.fusionZoneManager.root;
 
+        this._lifecycleLogTimes = new Map();
+
         this.enabled = true;
 
         console.log('[WithFusion] Initialized with fusion support');
+    }
+
+    _logLifecycle(key, message, details = null) {
+        const now = Date.now();
+        const last = this._lifecycleLogTimes.get(key) || 0;
+        if (now - last < 1000) return;
+
+        this._lifecycleLogTimes.set(key, now);
+        if (details) {
+            console.error(`[LinkSemanticPictogramSystem_WithFusion] ${message}`, details);
+        } else {
+            console.error(`[LinkSemanticPictogramSystem_WithFusion] ${message}`);
+        }
     }
 
     syncRuntimeDependencies(linkingSystem = this.linkingSystem, camera = this.camera) {
@@ -103,22 +118,50 @@ export class LinkSemanticPictogramSystem_WithFusion {
 
         const resolvedAiNodes = Array.isArray(aiNodes)
             ? aiNodes
-            : (this.linkingSystem?.aiNodes?.nodes || null);
+            : (Array.isArray(this.linkingSystem?.aiNodes?.nodes) ? this.linkingSystem.aiNodes.nodes : []);
 
         this.syncRuntimeDependencies(this.linkingSystem, this.camera);
 
         // Update base pictogram system
-        this.pictogramSystem.update(deltaTime, time);
+        try {
+            this.pictogramSystem.update(deltaTime, time);
+        } catch (err) {
+            this._logLifecycle('pictogram-update-error', 'pictogram update failed', {
+                error: err?.message || err,
+                stack: err?.stack || null
+            });
+        }
 
         // Update fusion zones with pictogram data
-        if (resolvedAiNodes) {
+        try {
             this.fusionZoneManager.update(
                 deltaTime,
                 this.pictogramSystem.pictograms,
                 this.linkingSystem,
                 resolvedAiNodes
             );
+        } catch (err) {
+            this._logLifecycle('fusion-update-error', 'fusion update failed', {
+                error: err?.message || err,
+                stack: err?.stack || null,
+                pictogramCount: Array.isArray(this.pictogramSystem?.pictograms)
+                    ? this.pictogramSystem.pictograms.length
+                    : -1,
+                aiNodeCount: resolvedAiNodes.length
+            });
         }
+
+        const activePictograms = this.pictogramSystem.pictograms.filter((pictogram) => pictogram.active).length;
+        const activeZones = this.fusionZoneManager.zones.filter((zone) => zone.active).length;
+        const activeComposites = this.fusionZoneManager.compositeGlyphs.filter((composite) => composite.active).length;
+        this._logLifecycle('heartbeat', 'pipeline heartbeat', {
+            links: this.linkingSystem?.links?.length ?? 0,
+            aiNodes: resolvedAiNodes.length,
+            activePictograms,
+            activeZones,
+            activeComposites,
+            fusionEnabled: this.fusionZoneManager?.enabled !== false
+        });
     }
 
     // ========================================================================

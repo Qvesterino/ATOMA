@@ -1031,6 +1031,8 @@ export class LinkRendererConduit {
         this._acc10 = 0; // ~10 Hz bucket
         this.maxHeavyLinks = 10;
         this.heavyDistance = 72;
+        this._pictogramUpdateTickLast = 0;
+        this._pictogramUpdateErrorLast = 0;
 
         // Semantic pictograms (global pool, attached to conduit root)
         this.pictogramSystem = new LinkSemanticPictogramSystem_WithFusion(
@@ -2178,7 +2180,7 @@ export class LinkRendererConduit {
 
         if (run30 && this.pictogramSystem?.enabled) {
             this.pictogramSystem.syncRuntimeDependencies?.(this.linkSystem, this.camera);
-            this.pictogramSystem.update(deltaTime, time, this.linkSystem?.aiNodes?.nodes || null);
+            this.pictogramSystem.update(deltaTime, time, this.linkSystem?.aiNodes?.nodes || []);
         }
 
         // Shared healing particle system update
@@ -2962,6 +2964,13 @@ export class LinkRendererConduit {
         runtime.lastCorruption = metrics?.corruption ?? 0;
         runtime.lastHarmony = metrics?.harmony ?? 0;
 
+        const collapseVisual = this._getCollapseVisualState(link, state, metrics, visualTime);
+        state.__collapseVisual = collapseVisual;
+        runtime.collapseStage = collapseVisual.stage;
+        runtime.collapseProgress = collapseVisual.progress;
+        runtime.collapseSeverity = collapseVisual.severity;
+        runtime.collapseActive = collapseVisual.active;
+
         // Harmonic sync update (links + aggregated metrics)
         if (this.nodeHarmonicManager) {
             const instabilityMetric = metrics?.instability;
@@ -3511,6 +3520,8 @@ export class LinkRendererConduit {
             (lodAllowsSecondaryVfx && (braidMoved || braidRadiusChanged))
         );
         const runStrandMotion = heavyTick && Array.isArray(state.strands) && state.strands.length > 0;
+        const collapseOpacityMul = collapseVisual.opacityMul;
+        const collapseEmissiveMul = collapseVisual.emissiveMul;
 
         if (runStrandMotion) {
             state.strands.forEach((mesh, i) => {
@@ -3560,8 +3571,12 @@ export class LinkRendererConduit {
             if (mesh.material && mesh.material.emissiveMap) {
                 mesh.material.emissiveMap.offset.x -= flowSpeed * visualDelta * 0.5;
                 const pulse = Math.sin(visualTime * 2.0 + i) * 0.2 + 0.8;
-                const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity);
-                mergePatch(materialPatches.strands, mesh, { opacity: mesh.material.opacity, emissiveIntensity, owner: 'opacityStage' });
+                const emissiveIntensity = 0.5 * pulse * (1 + trafficLoad) * (0.6 + vfx.baseIntensity) * collapseEmissiveMul;
+                mergePatch(materialPatches.strands, mesh, {
+                    opacity: mesh.material.opacity * collapseOpacityMul,
+                    emissiveIntensity,
+                    owner: 'opacityStage'
+                });
             }
 
             if (!shouldRebuildBraids) {
@@ -3831,7 +3846,7 @@ export class LinkRendererConduit {
                         link,
                         curve: mainCurve,
                         linkDirection: linkDir,
-                        emissionRate: this.sharedTrailRates.corruption * (0.35 + corruptionLevel * 1.05),
+                        emissionRate: this.sharedTrailRates.corruption * (0.35 + corruptionLevel * 1.05) * (1 + collapseVisual.severity * 0.75),
                         time: visualTime,
                         harmony: metrics.harmony ?? 0.5,
                         corruption: corruptionLevel
@@ -3867,7 +3882,7 @@ export class LinkRendererConduit {
                             link,
                             curve: mainCurve,
                             linkDirection: linkDir.clone().negate(),
-                            emissionRate: this.sharedTrailRates.healing * (0.4 + (linkHarmony - linkCorruption)),
+                            emissionRate: this.sharedTrailRates.healing * (0.4 + (linkHarmony - linkCorruption)) * (1 - collapseVisual.severity * 0.65),
                             time: visualTime,
                             harmony: linkHarmony,
                             corruption: linkCorruption
@@ -3929,7 +3944,14 @@ export class LinkRendererConduit {
                 });
             }
 
-            state.sparks.update(visualTime, visualDelta, mainCurve, { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity }, currentColor, lodAllowsParticles);
+            state.sparks.update(
+                visualTime,
+                visualDelta,
+                mainCurve,
+                { synergy, traffic: trafficLoad, intensity: vfx.sparksIntensity * collapseVisual.emissiveMul },
+                currentColor,
+                lodAllowsParticles
+            );
             state.sparks.uniforms.uThickness.value = activeRadius * 2 * vfx.widthMul;
 
             // Shared pool mapping: LinkSparkSystem -> spark trail source.
@@ -4274,7 +4296,7 @@ export class LinkRendererConduit {
      * Read link metrics once per frame into a canonical structure.
      * Returns safe defaults if fields are missing.
      */
-     _readLinkMetrics(link) {
+    _readLinkMetrics(link) {
         const m = link?.userData?.metrics;
         if (!m) {
             return {
@@ -4294,6 +4316,48 @@ export class LinkRendererConduit {
             stability: m.stability ?? 1,
             instability: 1 - (m.stability ?? 1),
             loadPressure: m.loadPressure ?? 0
+        };
+    }
+
+    _getCollapseVisualState(link, state, metrics = {}, visualTime = 0) {
+        const collapseState = link?.userData?.collapseState || null;
+        const progress = clamp01(
+            link?.userData?.collapseProgress ??
+            collapseState?.progress ??
+            state?.__collapseProgress ??
+            0
+        );
+        const stage = link?.userData?.collapseStage || collapseState?.stage || 'stable';
+        const active = !!(link?.userData?.collapseActive || collapseState?.hasCollapsed);
+        const warning = !!link?.userData?.collapseWarning;
+        const critical = !!link?.userData?.collapseCritical;
+
+        let severity = 0;
+        if (active) {
+            severity = 1;
+        } else if (critical) {
+            severity = Math.max(0.7, progress);
+        } else if (warning) {
+            severity = Math.max(0.35, progress);
+        }
+
+        const corruption = clamp01(metrics?.corruption ?? 0);
+        severity = clamp01(Math.max(severity, corruption * 0.15));
+
+        const pulse = 0.5 + (0.5 * Math.sin((visualTime * 12.0) + (progress * 7.0)));
+        const opacityMul = clamp01(1 - (severity * 0.3));
+        const emissiveMul = 1 + (severity * 0.9) + (pulse * severity * 0.35);
+
+        return {
+            stage,
+            progress,
+            severity,
+            pulse,
+            active,
+            warning,
+            critical,
+            opacityMul,
+            emissiveMul
         };
     }
 
@@ -5281,12 +5345,30 @@ export class LinkRendererConduit {
      * Global pictogram tick (once per frame, outside per-link loop)
      */
     updatePictograms(deltaTime, time) {
+        const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+        if (!this._pictogramUpdateTickLast || now - this._pictogramUpdateTickLast >= 1000) {
+            this._pictogramUpdateTickLast = now;
+            console.error('[LinkRendererConduit] pictogram tick', {
+                enabled: this.pictogramSystem?.enabled === true,
+                hasSystem: !!this.pictogramSystem,
+                aiNodes: Array.isArray(this.linkSystem?.aiNodes?.nodes) ? this.linkSystem.aiNodes.nodes.length : 0,
+                links: Array.isArray(this.linkSystem?.links) ? this.linkSystem.links.length : 0
+            });
+        }
+
         if (this.pictogramSystem?.enabled) {
             try {
                 this.pictogramSystem.syncRuntimeDependencies?.(this.linkSystem, this.camera);
-                const aiNodes = this.linkSystem?.aiNodes?.nodes || null;
+                    const aiNodes = this.linkSystem?.aiNodes?.nodes || [];
                 this.pictogramSystem.update(deltaTime || 0.016, time || performance.now(), aiNodes);
-            } catch {
+            } catch (err) {
+                if (!this._pictogramUpdateErrorLast || now - this._pictogramUpdateErrorLast >= 1000) {
+                    this._pictogramUpdateErrorLast = now;
+                    console.error('[LinkRendererConduit] pictogram update failed', {
+                        error: err?.message || err,
+                        stack: err?.stack || null
+                    });
+                }
             }
         }
     }

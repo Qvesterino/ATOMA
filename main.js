@@ -63,6 +63,7 @@ import NodeLinkingSystem, { warmUpArchetypeShaders } from './NodeLinkingSystem.j
 import { CONFIG } from './config.js';
 import { FrameClock } from './FrameClock.js';
 import { FrameScheduler } from './FrameScheduler.js';
+import { LinkCollapseSystem } from './LinkCollapseSystem.js';
 import { DistanceLODController } from './DistanceLODController.js';
 import { VFXRuntimeLoader } from './src/vfx/VFXRuntimeLoader.js';
 import { VFX_SYSTEMS } from './src/vfx/VFXSystemRegistry.js';
@@ -8289,6 +8290,36 @@ window.__ATOMA_SCENE__ = this.scene;
             }
         );
         console.log('[main.js] LinkDegradationSystem initialized ✓');
+
+        // ===================================================================
+        // [SESSION 88+] LINK COLLAPSE SYSTEM - Event-driven collapse arbiter
+        // ===================================================================
+        this.linkCollapseSystem = new LinkCollapseSystem(
+            this.linkingSystem,
+            this.linkQualityCalculator,
+            this.linkDegradationSystem,
+            {
+                corruptionThreshold: 0.8,
+                minStressAccumulation: 3000,
+                collapseWindowMs: 5000,
+                criticalLoadThreshold: 1.0,
+                warningThreshold: 0.3,
+                criticalThreshold: 0.7,
+                collapseThreshold: 1.0,
+                stressRecoveryRate: 0.35,
+                enableVisualFeedback: true,
+                debugMode: false,
+                frameScheduler: this.frameScheduler,
+                semanticBus: this.semanticBus
+            }
+        );
+        this.linkCollapseSystem.frameScheduler = this.frameScheduler;
+        this.linkCollapseSystem.semanticBus = this.semanticBus;
+        this.linkingSystem.linkCollapseSystem = this.linkCollapseSystem;
+        if (typeof window !== 'undefined') {
+            window.linkCollapseSystem = this.linkCollapseSystem;
+        }
+        console.log('[main.js] LinkCollapseSystem initialized ✓');
         
         // ===================================================================
         // [SESSION 91] PARTICLE EMISSION SCALER - Network corruption/stress driven
@@ -8376,7 +8407,8 @@ window.__ATOMA_SCENE__ = this.scene;
             this.linkMetricsToVisualBridge = null;
             
             // Initialize after animate loop starts (when all systems are ready)
-            // LinkMetricsToVisualBridge skipped (LinkCollapseSystem removed)
+            // LinkCollapseSystem is now event-driven and handled through NodeLinkingSystem.
+            // This bridge remains deferred unless a dedicated visual bridge is needed later.
         } catch (err) {
             console.warn('[main.js] LinkMetricsToVisualBridge initialization deferred:', err.message);
             this.linkMetricsToVisualBridge = null;

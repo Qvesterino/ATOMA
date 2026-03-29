@@ -88,6 +88,8 @@ const CONFIG = {
     DEBUG_DRAW_ECHOES: false
 };
 
+const RESONANCE_ECHO_LOG_THROTTLE_MS = 1000;
+
 // ============================================================================
 // ECHO INSTANCE
 // ============================================================================
@@ -297,10 +299,11 @@ export class ResonanceEchoTrailSystem {
         this._timeOrigin = undefined;
         this._lastVisualTime = undefined;
         this._semanticEventsBound = false;
+        this._lifecycleLogTimes = new Map();
         this._boundWaveBurstHandler = (burst) => {
             const resolved = this._resolveBurstPayload(burst);
             if (!resolved) return;
-            this.spawnEchoTrail(resolved.center, resolved.intensity);
+            this.spawnEchoTrail(resolved.center, resolved.intensity, resolved.metrics);
         };
         
         // Debug
@@ -317,6 +320,19 @@ export class ResonanceEchoTrailSystem {
         this.init();
         
         console.log('[ResonanceEchoTrailSystem] Initialized');
+    }
+
+    _logLifecycle(key, message, details = null) {
+        const now = Date.now();
+        const last = this._lifecycleLogTimes.get(key) || 0;
+        if (now - last < RESONANCE_ECHO_LOG_THROTTLE_MS) return;
+
+        this._lifecycleLogTimes.set(key, now);
+        if (details) {
+            console.error(`[ResonanceEchoTrailSystem] ${message}`, details);
+        } else {
+            console.error(`[ResonanceEchoTrailSystem] ${message}`);
+        }
     }
 
     _subscribeSemanticEvents() {
@@ -378,9 +394,19 @@ export class ResonanceEchoTrailSystem {
             0.5;
 
         if (!center) return null;
+        const clampedIntensity = Number.isFinite(rawIntensity) ? Math.max(0, Math.min(1, rawIntensity)) : 0.5;
+        const metrics = this._resolveEchoTrailMetrics(clampedIntensity);
+        const eventState = lifecyclePayload?.state || lifecycleIntent?.state || lifecycleSnapshot?.state || null;
+        if (eventState) {
+            metrics.harmony = Number.isFinite(eventState.harmony) ? Math.max(0, Math.min(1, eventState.harmony)) : metrics.harmony;
+            metrics.synergy = Number.isFinite(eventState.synergy) ? Math.max(0, Math.min(1, eventState.synergy)) : metrics.synergy;
+            metrics.corruption = Number.isFinite(eventState.corruption) ? Math.max(0, Math.min(1, eventState.corruption)) : metrics.corruption;
+            metrics.stability = Number.isFinite(eventState.stability) ? Math.max(0, Math.min(1, eventState.stability)) : metrics.stability;
+        }
         return {
             center,
-            intensity: Number.isFinite(rawIntensity) ? rawIntensity : 0.5
+            intensity: clampedIntensity,
+            metrics
         };
     }
 
@@ -476,6 +502,8 @@ export class ResonanceEchoTrailSystem {
     
     trackCompositesAndSpawnEchoes(currentVisualTime, compositeGlyphs) {
         if (!compositeGlyphs || compositeGlyphs.length === 0) return;
+
+        let trackedActiveComposites = 0;
         
         // Clean up trackers for dead composites
         for (let [composite, tracker] of this.compositeTrackers.entries()) {
@@ -489,6 +517,7 @@ export class ResonanceEchoTrailSystem {
         let echoSpawnCount = 0;
         for (let composite of compositeGlyphs) {
             if (!composite.active || !composite.mesh) continue;
+            trackedActiveComposites += 1;
             
             // Get or create tracker
             let tracker = this.compositeTrackers.get(composite);
@@ -519,6 +548,14 @@ export class ResonanceEchoTrailSystem {
                             metrics.corruption,
                             currentVisualTime
                         );
+                        this._logLifecycle(`echo-spawn:${composite.id || composite.mesh.uuid}`, 'echo spawned from composite', {
+                            compositeId: composite.id || composite.mesh.uuid,
+                            harmony: metrics.harmony,
+                            corruption: metrics.corruption,
+                            synergy: metrics.synergy,
+                            stability: metrics.stability,
+                            activeEchoes: this.echoInstances.filter((echo) => echo.active).length
+                        });
                         echoSpawnCount++;
                     }
                 }
@@ -526,6 +563,13 @@ export class ResonanceEchoTrailSystem {
                 tracker.resetSpawnTimer(currentVisualTime);
             }
         }
+
+        this._logLifecycle('summary', 'composite echo summary', {
+            activeComposites: trackedActiveComposites,
+            trackedComposites: this.compositeTrackers.size,
+            activeEchoes: this.echoInstances.filter((echo) => echo.active).length,
+            spawnedThisTick: echoSpawnCount
+        });
     }
     
     // Canonical composite metrics: harmony, corruption, synergy, stability
@@ -540,7 +584,7 @@ export class ResonanceEchoTrailSystem {
     }
 
     // SIMPLIFIED: spawnEchoTrail with canonical metrics derived from intensity
-    spawnEchoTrail(center, intensity = 0.5) {
+    spawnEchoTrail(center, intensity = 0.5, metrics = null) {
         if (!this.enabled || !center || this.echoInstances.length === 0) return;
 
         const x = Number(center.x);
@@ -555,14 +599,29 @@ export class ResonanceEchoTrailSystem {
         const pooledGeometry = this.baseGeometry || this.echoInstances[0]?.mesh?.geometry;
         if (!pooledGeometry) return;
 
-        const metrics = this._resolveEchoTrailMetrics(clampedIntensity);
+        const resolvedMetrics = metrics ? {
+            harmony: Number.isFinite(metrics.harmony) ? Math.max(0, Math.min(1, metrics.harmony)) : undefined,
+            synergy: Number.isFinite(metrics.synergy) ? Math.max(0, Math.min(1, metrics.synergy)) : undefined,
+            corruption: Number.isFinite(metrics.corruption) ? Math.max(0, Math.min(1, metrics.corruption)) : undefined,
+            stability: Number.isFinite(metrics.stability) ? Math.max(0, Math.min(1, metrics.stability)) : undefined
+        } : null;
+        const fallbackMetrics = this._resolveEchoTrailMetrics(clampedIntensity);
+        const finalMetrics = {
+            harmony: resolvedMetrics?.harmony ?? fallbackMetrics.harmony,
+            synergy: resolvedMetrics?.synergy ?? fallbackMetrics.synergy,
+            corruption: resolvedMetrics?.corruption ?? fallbackMetrics.corruption,
+            stability: resolvedMetrics?.stability ?? fallbackMetrics.stability
+        };
 
         this.spawnEcho(
             new THREE.Vector3(x, y, z),
             pooledGeometry,
-            metrics.harmony,
-            metrics.corruption,
+            finalMetrics.harmony,
+            finalMetrics.corruption,
             currentVisualTime
+            ,
+            finalMetrics.synergy,
+            finalMetrics.stability
         );
     }
 

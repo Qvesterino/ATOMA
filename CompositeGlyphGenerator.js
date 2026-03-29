@@ -25,6 +25,8 @@ import * as BufferGeometryUtils from './src/utils/BufferGeometryUtils.js';
 import { CompositeGlyphResonanceFeedback } from './CompositeGlyphResonanceFeedback.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
+const COMPOSITE_GENERATOR_LOG_THROTTLE_MS = 1000;
+
 // ============================================================================
 // COMPOSITE GEOMETRY BUILDER
 // ============================================================================
@@ -37,9 +39,23 @@ export class CompositeGlyphGenerator {
         this.cache = new Map(); // compositeSig -> geometry
         this.renderOrder = VisualHierarchyRegistry.getRenderOrder(VisualHierarchyRegistry.LAYER_GLYPH_COMPOSITE);
         this.resonanceFeedback = new CompositeGlyphResonanceFeedback();
+        this._lifecycleLogTimes = new Map();
 
         if (scene || camera || network) {
             this.initializeResonanceFeedback(scene, camera, network);
+        }
+    }
+
+    _logLifecycle(key, message, details = null) {
+        const now = Date.now();
+        const last = this._lifecycleLogTimes.get(key) || 0;
+        if (now - last < COMPOSITE_GENERATOR_LOG_THROTTLE_MS) return;
+
+        this._lifecycleLogTimes.set(key, now);
+        if (details) {
+            console.error(`[CompositeGlyphGenerator] ${message}`, details);
+        } else {
+            console.error(`[CompositeGlyphGenerator] ${message}`);
         }
     }
 
@@ -88,6 +104,14 @@ export class CompositeGlyphGenerator {
         if (geometry) {
             this._tagCompositeGeometry(geometry, context, sourceTypes);
             this.cache.set(sig, geometry);
+            this._logLifecycle(`geometry:${sig}`, 'composite geometry generated', {
+                sourceTypes,
+                harmony: context.harmony,
+                corruption: context.corruption,
+                synergy: context.synergy,
+                stability: context.stability,
+                loadPressure: context.loadPressure
+            });
         }
 
         return geometry;
@@ -114,6 +138,14 @@ export class CompositeGlyphGenerator {
 
         if (group) {
             this._tagCompositeGroup(group, context, sourceTypes);
+            this._logLifecycle(`visual:${sourceTypes.join('|')}`, 'composite visual generated', {
+                sourceTypes,
+                harmony: context.harmony,
+                corruption: context.corruption,
+                synergy: context.synergy,
+                stability: context.stability,
+                loadPressure: context.loadPressure
+            });
         }
 
         return group;
