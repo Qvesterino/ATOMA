@@ -11,6 +11,8 @@
  * - Protective, calm, non-aggressive aesthetics
  * - Opacity: smoothstep(0.2, 0.8, harmonyAuraStrength)
  * - Radius scale: lerp(1.0, 1.35, harmonyAuraStrength)
+ * - Brightness gain: color multiplier for clearer visibility
+ * - Fresnel lift: subtle silhouette emphasis for readability
  * - Breathing: frequency lerp(0.15 Hz, 0.45 Hz), amplitude ±3%
  * - NO userData mutations (read-only)
  * - Soft envelope appearance (not reactive)
@@ -30,14 +32,15 @@ export function createHarmonyAuraMaterial() {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.NormalBlending, // Not additive (supportive, not aggressive)
+    blending: THREE.AdditiveBlending,
     side: THREE.FrontSide,
     
     uniforms: {
       uTime: { value: 0 },
       uAuraStrength: { value: 0.5 },      // harmonyAuraStrength [0..1]
-      uAuraOpacity: { value: 0.3 },       // smoothstep(0.2, 0.8, strength)
+      uAuraOpacity: { value: 0.38 },      // smoothstep(0.2, 0.8, strength)
       uAuraRadius: { value: 1.0 },        // lerp(1.0, 1.35, strength)
+      uAuraBrightness: { value: 2.15 },   // color gain for readability
       uAuraPulse: { value: 1.0 },         // breathing multiplier
       uAuraColor: { value: new THREE.Color(0x7fffd4) }, // aquamarine (soft cyan/mint)
     },
@@ -64,6 +67,7 @@ export function createHarmonyAuraMaterial() {
       uniform float uAuraStrength;
       uniform float uAuraOpacity;
       uniform float uAuraRadius;
+      uniform float uAuraBrightness;
       uniform float uAuraPulse;
       uniform vec3  uAuraColor;
       
@@ -87,13 +91,17 @@ export function createHarmonyAuraMaterial() {
         
         // Apply strength (overall envelope intensity)
         aura *= uAuraStrength;
+
+        // Fresnel lift: a small silhouette boost so the aura reads against dark backgrounds
+        float fresnel = pow(clamp(vRimIntensity, 0.0, 1.0), 0.75);
+        aura = max(aura, fresnel * 0.32);
         
         // PERFORMANCE FIX: Early exit for near-invisible fragments
         // Prevents blending overhead for pixels barely visible
-        if (aura < 0.01) discard;
+        if (aura < 0.008) discard;
         
-        // Color: calm, supportive (no emissive harshness)
-        vec3 col = uAuraColor * aura;
+        // Color gain: keeps the aura soft while making it easier to read
+        vec3 col = uAuraColor * aura * uAuraBrightness;
         
         // Opacity matches aura intensity (smooth, no pops)
         float a = clamp(aura, 0.0, 1.0);
@@ -112,14 +120,15 @@ export function createHarmonyAuraMaterialSphere() {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending,
     side: THREE.FrontSide,
     
     uniforms: {
       uTime: { value: 0 },
       uAuraStrength: { value: 0.5 },
-      uAuraOpacity: { value: 0.3 },
+      uAuraOpacity: { value: 0.38 },
       uAuraRadius: { value: 1.0 },
+      uAuraBrightness: { value: 2.15 },
       uAuraPulse: { value: 1.0 },
       uAuraColor: { value: new THREE.Color(0x7fffd4) },
     },
@@ -142,6 +151,7 @@ export function createHarmonyAuraMaterialSphere() {
       uniform float uAuraStrength;
       uniform float uAuraOpacity;
       uniform float uAuraRadius;
+      uniform float uAuraBrightness;
       uniform float uAuraPulse;
       uniform vec3  uAuraColor;
       
@@ -165,13 +175,17 @@ export function createHarmonyAuraMaterialSphere() {
         
         // Apply strength
         halo *= uAuraStrength;
+
+        // Fresnel lift: a small silhouette boost for dark scenes
+        float fresnel = pow(clamp(rim, 0.0, 1.0), 0.8);
+        halo = max(halo, fresnel * 0.3);
         
         // PERFORMANCE FIX: Early exit for near-invisible fragments
         // Prevents blending overhead for pixels barely visible
-        if (halo < 0.01) discard;
+        if (halo < 0.008) discard;
         
-        // Color (calm, protective)
-        vec3 col = uAuraColor * halo;
+        // Color gain (calm, protective but easier to read)
+        vec3 col = uAuraColor * halo * uAuraBrightness;
         float a = clamp(halo, 0.0, 1.0);
         
         gl_FragColor = vec4(col, a);
@@ -194,6 +208,7 @@ export function assertHarmonyAuraMaterialConformance(material) {
     'uAuraStrength',
     'uAuraOpacity',
     'uAuraRadius',
+    'uAuraBrightness',
     'uAuraPulse',
     'uAuraColor',
   ];
@@ -205,10 +220,10 @@ export function assertHarmonyAuraMaterialConformance(material) {
   }
 
   // Verify blending and depth settings match canonical spec
-  if (material.blending !== THREE.NormalBlending) {
+  if (material.blending !== THREE.AdditiveBlending) {
     console.warn(
-      'HarmonyAuraMaterial blending is not NormalBlending ' +
-      '(expected for calm, supportive template)'
+      'HarmonyAuraMaterial blending is not AdditiveBlending ' +
+      '(expected for the brighter hover visibility variant)'
     );
   }
 

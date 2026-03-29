@@ -112,6 +112,7 @@ import { NODE_VISUAL_REGISTRY, CATEGORY_POOLS } from './NodeVisualRegistry.js';
 // import { ExtremeNodeArchetypes_SafePack } from './_ExtremeNodeArchetypes_SafePack.js';
 import { spawnCycleValidator } from './SpawnCycleValidator.js';
 import { updateHologramShellMaterial, reassertNodeHologramShell } from './CoreHologramShader.js';
+import { reassertNodeNeonEdgeGlow, updateNeonEdgeGlowTime } from './shaders/NeonEdgeGlowShader.js';
 import { NodeCategoryAudit, auditNodeVisuals } from './NodeCategoryAudit.js';
 import { assignLinkTarget } from './LinkTargetContract.js';
 import { LegacyNodeModelFilter } from './LegacyNodeModelFilter.js';
@@ -2787,30 +2788,35 @@ function purgeForbiddenNodePrimitives(visualRoot) {
     // Use stable nodeRoot as reference point
     const nodeRoot = node.userData.nodeRoot || node;
     const nodeCategory = data.category || node.userData.category || '';
+    const coreMesh = nodeRoot.children.find(child => 
+      child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
+    );
     const isRiskyNode = nodeCategory.toLowerCase().includes('extreme') || 
                         nodeCategory.toLowerCase().includes('quantum') ||
                         nodeCategory.toLowerCase().includes('procedural');
     
     if (isRiskyNode) {
       // Find core mesh in stable nodeRoot and verify shell integrity
-      const coreMesh = nodeRoot.children.find(child => 
-        child.isMesh && child.userData.visualLayer === 'CORE' && !child.userData.isHologramShell
-      );
       if (coreMesh) {
         reassertNodeHologramShell(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
       }
     }
-    
-    // Update hologram shell materials (OPTIMIZED - 2026-03-01: Throttled to 10Hz)
-    // Shell material updates are subtle - 10Hz (every 100ms) is sufficient
+
+    // Update hologram and neon edge shell materials at a fixed 10Hz cadence.
     data.__shellUpdateAccumulator = data.__shellUpdateAccumulator || 0;
     data.__shellUpdateAccumulator += deltaTime;
     const SHELL_UPDATE_INTERVAL = 0.1; // 10Hz = 100ms
     if (data.__shellUpdateAccumulator >= SHELL_UPDATE_INTERVAL) {
       data.__shellUpdateAccumulator %= SHELL_UPDATE_INTERVAL;
+      if (coreMesh) {
+        reassertNodeNeonEdgeGlow(nodeRoot, coreMesh, node.userData.color || 0x00ffff);
+      }
       node.traverse((child) => {
         if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.visualLayer === 'CORE_SHELL') {
           updateHologramShellMaterial(child.material, deltaTime);
+        }
+        if (child.isMesh && child.material && child.material.isShaderMaterial && child.userData.isNeonEdgeGlow) {
+          updateNeonEdgeGlowTime(child.material, deltaTime);
         }
       });
     }

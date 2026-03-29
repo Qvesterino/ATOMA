@@ -693,8 +693,7 @@ import { HarmonicPhaseSynchronization_Session146, setupPhaseSyncConsoleAPI } fro
 import { PreCascadeVisualHint_Session146 } from './PreCascadeVisualHint_Session146.js';
 import { HarmonicNodeResonanceHalos } from './HarmonicNodeResonanceHalos.js';
 import { HarmonicHubDebugger } from './HarmonicHubDebugger.js';
-import { VisualEchoTrails_v1 } from './VisualEchoTrails_v1_Shader.js';
-import { VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
+import { VisualEchoTrails_v1, VisualEchoTrails_v1_Integration, setupVisualEchoTrailsIntegration } from './VisualEchoTrails_v1_Integration.js';
 
 // ============================================================================
 // TIER 1 INTEGRATION: CORRUPTION & HARMONY SYSTEMS (Phase A)
@@ -7873,7 +7872,7 @@ window.__ATOMA_SCENE__ = this.scene;
             // Configure cascade properties
             this.cascadeVisualizer.config.detectionThreshold = 0.7;
             this.cascadeVisualizer.config.propagationSpeed = 2.0;
-            this.cascadeVisualizer.config.particleCount = 8;
+            this.cascadeVisualizer.config.particleCount = 12;
             
             console.log('[main.js] SynergyCascadeVisualizer initialized ✓');
         } catch (err) {
@@ -9594,8 +9593,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         // This must happen after all systems are initialized
         if (this.synergyCascadeFXBridge) {
             try {
-                if (this.synergyResonanceShaderPack) {
-                    this.synergyCascadeFXBridge.registerTargetSystem('resonanceShader', this.synergyResonanceShaderPack);
+                if (this.cascadeVisualizer) {
+                    this.synergyCascadeFXBridge.registerTargetSystem('cascadeVisualizer', this.cascadeVisualizer);
                 }
                 if (this.synergyBonusFXLayer) {
                     this.synergyCascadeFXBridge.registerTargetSystem('bonusFXLayer', this.synergyBonusFXLayer);
@@ -17281,5 +17280,6 @@ console.log('[BOOT] Starting AtomaGame instance...');
 
 new AtomaGame();
 console.log('[BOOT] main.js execution completed');
+
 
 

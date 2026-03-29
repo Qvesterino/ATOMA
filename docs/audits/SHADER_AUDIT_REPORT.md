@@ -57,13 +57,16 @@ This audit covers **17 shader systems** in the ATOMA codebase. The findings reve
 **Purpose:** Neon glow effects on edges and boundaries  
 **Key Features:**
 - Neon edge glow material creation
-- Time-based glow updates
+- 10 Hz node-shell glow updates
 - High-contrast edge highlighting
 
 **Usage:**
-- `NodeLinkingSystem.js` - Link creation and management
+- `AINodeModel.js` - Base node build path
+- `EnhancedNodeModels.js` - Enhanced node build paths
+- `AINodes.js` - 10 Hz node-shell reassert/update path
+- `NodeLinkingSystem.js` - Selection and multi-select highlights
 
-**Status:** ✅ **ACTIVELY USED** - Part of link visualization pipeline
+**Status:** ✅ **ACTIVELY USED** - Selection/multi-select edge glow pipeline
 
 ---
 
@@ -77,6 +80,7 @@ This audit covers **17 shader systems** in the ATOMA codebase. The findings reve
 **Usage:**
 - `HarmonyAuraIntegrationGuide.js` - Integration documentation
 - `src/vfx/VFXSystemRegistry.js` - VFX system registration
+- `NodeLinkingSystem.js` - Hover / soft-focus node aura
 
 **Status:** ✅ **ACTIVELY USED** - Core harmony visualization component
 

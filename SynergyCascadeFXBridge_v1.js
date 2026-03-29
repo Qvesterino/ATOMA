@@ -264,7 +264,8 @@ export class SynergyCascadeFXBridge_v1 {
         
         // Target shader systems (provided via registerTargetSystem)
         this.targetSystems = {
-            resonanceShader: null,              // SynergyResonanceShaderPack_v1
+            cascadeVisualizer: null,            // SynergyCascadeVisualizer
+            resonanceShader: null,              // Legacy fallback / shader patcher
             bonusFXLayer: null,                 // SynergyBonusFXLayer_v1
             nodeAuraSystem: null,               // NodeAuraSystem_v1
             linkAuraSystem: null,               // LinkAuraSystem_v1
@@ -542,15 +543,16 @@ export class SynergyCascadeFXBridge_v1 {
      */
     _sendShaderSignals(node, nodeState) {
         try {
-            // Send to resonance shader system
-            if (this.config.enableResonanceMode && this.targetSystems.resonanceShader) {
+            // Send to cascade visualizer (primary resonance target)
+            const cascadeVisualizer = this.targetSystems.cascadeVisualizer || this.targetSystems.resonanceShader;
+            if (this.config.enableResonanceMode && cascadeVisualizer) {
                 const signals = {
                     cascadeWave: nodeState.cascadeWave,
                     pulseStrength: nodeState.smoothPulseStrength,
                     resonanceMix: nodeState.smoothResonanceMix,
                     bonusMix: nodeState.smoothBonusMix
                 };
-                this.targetSystems.resonanceShader.applyCascadeSignal?.(node, signals);
+                cascadeVisualizer.applyCascadeSignal?.(node, signals);
             }
             
             // Send to bonus FX layer
@@ -586,13 +588,15 @@ export class SynergyCascadeFXBridge_v1 {
             }
             
             // Send to resonance shader (for link effects)
-            if (this.config.enableResonanceMode && this.targetSystems.resonanceShader) {
+            // Send to cascade visualizer (primary resonance target)
+            const cascadeVisualizer = this.targetSystems.cascadeVisualizer || this.targetSystems.resonanceShader;
+            if (this.config.enableResonanceMode && cascadeVisualizer) {
                 const linkSignals = {
                     waveIntensity: linkState.smoothWaveIntensity,
                     chromaIntensity: linkState.smoothChromatIntensity,
                     stabilityPenalty: linkState.stabilityPenalty
                 };
-                this.targetSystems.resonanceShader.applyCascadeLinkSignal?.(link, linkSignals);
+                cascadeVisualizer.applyCascadeLinkSignal?.(link, linkSignals);
             }
             
         } catch (err) {

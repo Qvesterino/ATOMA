@@ -163,6 +163,110 @@ export class SynergyCascadeVisualizer {
     on('cascade.end', this._semanticHandlers.onCascadeEnd);
   }
 
+  _resolveCascadeNodeId(nodeOrId) {
+    if (!nodeOrId) return null;
+    if (typeof nodeOrId === 'string' || typeof nodeOrId === 'number') {
+      return String(nodeOrId);
+    }
+
+    return (
+      nodeOrId.userData?.nodeId ??
+      nodeOrId.userData?.id ??
+      nodeOrId.id ??
+      nodeOrId.uuid ??
+      null
+    );
+  }
+
+  _resolveHookAnchor(node, signals = {}) {
+    return this._asVector3(
+      signals.anchor ??
+      signals.position ??
+      node?.position ??
+      node?.worldPosition ??
+      null
+    );
+  }
+
+  _resolveHookIntensity(signals = {}, fallback = 0) {
+    const candidates = [
+      signals.cascadeWave,
+      signals.waveIntensity,
+      signals.pulseStrength,
+      signals.resonanceMix,
+      signals.intensity,
+      signals.value,
+      signals.strength,
+      fallback
+    ];
+
+    let resolved = 0;
+    for (const candidate of candidates) {
+      const numeric = Number(candidate);
+      if (Number.isFinite(numeric)) {
+        resolved = Math.max(resolved, numeric);
+      }
+    }
+
+    return this._clamp01(resolved);
+  }
+
+  applyCascadeSignal(node, signals = {}) {
+    if (!node) return;
+
+    const anchor = this._resolveHookAnchor(node, signals);
+    const intensity = this._resolveHookIntensity(signals, 0.15);
+    if (!anchor || intensity <= 0) return;
+
+    const nodeId = this._resolveCascadeNodeId(node);
+    this.renderCascadeStart({
+      node,
+      nodeId,
+      cascadeId: signals.cascadeId ?? nodeId ?? `node-cascade-${++this.cascadeId}`,
+      anchor,
+      intensity,
+      source: node,
+      targetNode: node,
+      ...signals
+    });
+  }
+
+  applyCascadeLinkSignal(link, signals = {}) {
+    if (!link) return;
+
+    const startPosition = this._asVector3(
+      signals.sourcePosition ??
+      link?.source?.position ??
+      link?.sourceNode?.position ??
+      link?.nodeA?.position ??
+      null
+    );
+    const targetPosition = this._asVector3(
+      signals.targetPosition ??
+      link?.target?.position ??
+      link?.targetNode?.position ??
+      link?.nodeB?.position ??
+      null
+    );
+    const midpoint = (startPosition && targetPosition)
+      ? new THREE.Vector3().addVectors(startPosition, targetPosition).multiplyScalar(0.5)
+      : null;
+    const intensity = this._resolveHookIntensity(signals, 0.12);
+    if (intensity <= 0) return;
+
+    const linkId = this._resolveLinkId(link);
+    this.renderCascadeHop({
+      link,
+      linkId,
+      cascadeId: signals.cascadeId ?? linkId ?? `link-cascade-${++this.cascadeId}`,
+      intensity,
+      anchor: signals.anchor ?? midpoint ?? startPosition ?? targetPosition ?? null,
+      sourcePosition: startPosition,
+      targetPosition,
+      ...signals
+    });
+  }
+
   _asVector3(value) {
     if (value instanceof THREE.Vector3) {
       return this._isValidWorldPosition(value) ? value.clone() : null;
@@ -728,10 +832,16 @@ export class SynergyCascadeVisualizer {
     const startPos = propagation.startPosition
       ?? propagation.startNode?.position
       ?? propagation.link?.source?.position
+      ?? propagation.link?.sourceNode?.position
+      ?? propagation.link?.nodeA?.position
+      ?? propagation.link?.userData?.nodeA?.position
       ?? null;
     const targetPos = propagation.targetPosition
       ?? propagation.targetNode?.position
       ?? propagation.link?.target?.position
+      ?? propagation.link?.targetNode?.position
+      ?? propagation.link?.nodeB?.position
+      ?? propagation.link?.userData?.nodeB?.position
       ?? null;
     if (!this._isValidWorldPosition(startPos) || !this._isValidWorldPosition(targetPos)) return;
 
@@ -776,11 +886,11 @@ export class SynergyCascadeVisualizer {
       );
       
       particle.intensity = propagation.intensity;
-      particle.color = this.config.cascadeColor.clone().lerp(this.config.fadeColor, Math.random() * 0.65);
+      particle.color = this.config.waveColor.clone().lerp(this.config.cascadeColor, Math.random() * 0.35);
       if (particle.mesh) {
         particle.mesh.visible = true;
         if (particle.mesh.material) {
-          particle.mesh.material.opacity = Math.min(1.0, 0.88 * particle.intensity + 0.08);
+          particle.mesh.material.opacity = Math.min(1.0, 0.95 * particle.intensity + 0.18);
         }
         if (particle.mesh.material?.color && particle.color) {
           particle.mesh.material.color.copy(particle.color);
@@ -924,11 +1034,11 @@ export class SynergyCascadeVisualizer {
     }
     
     if (this.cascadeParticles.length < this.maxPoolSize) {
-      const geometry = new THREE.SphereGeometry(0.035, 5, 5);
+      const geometry = new THREE.SphereGeometry(0.06, 6, 6);
       const material = new THREE.MeshBasicMaterial({
-        color: this.config.fadeColor,
+        color: this.config.waveColor.clone(),
         transparent: true,
-        opacity: 0.9,
+        opacity: 1.0,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });

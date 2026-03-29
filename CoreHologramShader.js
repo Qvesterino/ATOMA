@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import VisualTime from './src/time/VisualTime.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 
 function vfxFlag(name, def = true) {
@@ -71,12 +70,10 @@ export function createHologramShellMaterial(baseColor = 0x00ffff) {
   const color = new THREE.Color(baseColor);
   
   const uniforms = {
-    uTime: { value: 0 },
     uColor: { value: color },
     uOpacity: { value: 0.15 },     // Base opacity (subtle)
     uRimPower: { value: 3.0 },     // High power = thinner rim
-    uRimIntensity: { value: 1.5 }, // Brightness multiplier
-    uPulseSpeed: { value: 1.0 }    // Breathing speed
+    uRimIntensity: { value: 1.5 }  // Brightness multiplier
   };
 
   const vertexShader = `
@@ -92,12 +89,10 @@ export function createHologramShellMaterial(baseColor = 0x00ffff) {
   `;
 
   const fragmentShader = `
-    uniform float uTime;
     uniform vec3 uColor;
     uniform float uOpacity;
     uniform float uRimPower;
     uniform float uRimIntensity;
-    uniform float uPulseSpeed;
     
     varying vec3 vNormal;
     varying vec3 vViewPosition;
@@ -110,12 +105,7 @@ export function createHologramShellMaterial(baseColor = 0x00ffff) {
       // abs() handles backfaces if double-sided rendering is on,
       // though typically for aura we want front-side logic.
       float fresnel = pow(1.0 - abs(dot(normal, viewDir)), uRimPower);
-      
-      // Subtle breathing animation (affects intensity, not size)
-      float breathe = 0.85 + 0.15 * sin(uTime * uPulseSpeed);
-      
-      // Combine for final alpha
-      float alpha = fresnel * uOpacity * uRimIntensity * breathe;
+      float alpha = fresnel * uOpacity * uRimIntensity;
       
       // Soft clamp to ensure center is truly clear
       alpha = smoothstep(0.02, 1.0, alpha);
@@ -162,16 +152,8 @@ setupAuraDebugAPI();
 /**
  * Update hologram shell uniforms (for animation)
  */
-let _hologramTimeOrigin;
-
 export function updateHologramShellMaterial(material, deltaTime) {
-  if (material && material.uniforms && material.uniforms.uTime) {
-    if (_hologramTimeOrigin === undefined) {
-      _hologramTimeOrigin = VisualTime.now;
-    }
-    const currentVisualTime = VisualTime.now - _hologramTimeOrigin; // Phase 2A: canonical VisualTime source (behavior-preserving)
-    material.uniforms.uTime.value = currentVisualTime;
-  }
+  return material;
 }
 
 /**
@@ -195,11 +177,10 @@ export function updateHologramShellMaterial(material, deltaTime) {
  * 
  * @param {THREE.Mesh} coreMesh - The core identity mesh (for bounding radius only)
  * @param {number} baseColor - Hex color for hologram effect
- * @param {number} scale - Shell scale factor (default 1.02)
  * @param {number} hologramDetail - Icosphere detail level (0-4, default 2)
  * @returns {THREE.Mesh} Hologram shell mesh with locked properties
  */
-export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 1.02, hologramDetail = 2) {
+export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, hologramDetail = 2) {
   if (!vfxFlag('ATOMA_VFX_ENABLE_HOLOGRAM_SHELL', true)) return null;
 
   // Extract radius from core mesh (if available)
@@ -221,7 +202,7 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
   const material = createHologramShellMaterial(baseColor);
   
   // HARD MATERIAL LOCK - NO EXCEPTIONS
-  material.depthTest = false;
+  material.depthTest = true;
   material.depthWrite = false;
   material.transparent = true;
   material.side = THREE.DoubleSide;
@@ -236,9 +217,6 @@ export function createNodeHologramShell(coreMesh, baseColor = 0x00ffff, scale = 
   
   // FRUSTUM CULL DISABLE
   shell.frustumCulled = false;
-  
-  // Scale shell slightly larger than core
-  shell.scale.multiplyScalar(scale);
   
   // Mark as hologram shell for identification
   shell.userData.visualLayer = 'CORE_SHELL';

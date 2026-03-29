@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VisualHierarchyRegistry } from '../VisualHierarchyRegistry.js';
 
 /**
  * Neon Edge Glow Shader
@@ -106,11 +107,38 @@ export function createNeonEdgeGlowMaterial(options = {}) {
 }
 
 /**
+ * Create a node-specific neon edge glow shell.
+ * Mirrors the hologram shell flow but stays edge-focused and static.
+ */
+export function createNodeNeonEdgeGlowShell(coreMesh, baseColor = 0x00ddff, options = {}) {
+  if (!coreMesh || !coreMesh.geometry) return null;
+
+  const material = createNeonEdgeGlowMaterial({
+    glowColor: baseColor,
+    ...options
+  });
+
+  const shell = new THREE.Mesh(coreMesh.geometry, material);
+  shell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+  shell.frustumCulled = false;
+  shell.userData.visualLayer = 'CORE_EDGE';
+  shell.userData.isNeonEdgeGlow = true;
+  shell.userData.nonInteractive = true;
+  shell.layers.disable(10);
+  shell.raycast = () => null;
+
+  return shell;
+}
+
+/**
  * Apply neon edge glow to existing material (as overlay)
  */
 export function createNeonEdgeOverlay(geometry, options = {}) {
   const overlay = new THREE.Mesh(geometry, createNeonEdgeGlowMaterial(options));
-  overlay.scale.multiplyScalar(1.02); // Slight scale increase for overlay
+  const overlayScale = options.scale ?? 1.0;
+  if (overlayScale !== 1.0) {
+    overlay.scale.multiplyScalar(overlayScale);
+  }
   return overlay;
 }
 
@@ -121,6 +149,39 @@ export function updateNeonEdgeGlowTime(material, deltaTime) {
   if (material.uniforms.time) {
     material.uniforms.time.value += deltaTime;
   }
+}
+
+/**
+ * Reassert a node neon edge glow shell if runtime mutation removed it.
+ */
+export function reassertNodeNeonEdgeGlow(nodeGroup, coreMesh, baseColor = 0x00ddff) {
+  if (!nodeGroup || !coreMesh) {
+    return false;
+  }
+
+  const existingShell = nodeGroup.children.find((child) => child?.userData?.isNeonEdgeGlow === true);
+  const isValid = Boolean(
+    existingShell &&
+    existingShell.material &&
+    existingShell.material.isShaderMaterial &&
+    existingShell.frustumCulled === false
+  );
+
+  if (isValid) {
+    return true;
+  }
+
+  if (existingShell) {
+    nodeGroup.remove(existingShell);
+  }
+
+  const newShell = createNodeNeonEdgeGlowShell(coreMesh, baseColor);
+  if (newShell) {
+    nodeGroup.add(newShell);
+    return false;
+  }
+
+  return false;
 }
 
 /**

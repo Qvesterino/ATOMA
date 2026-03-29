@@ -21,6 +21,7 @@ const USE_LEGACY_NODE_BOUNDS = true;
 
 import { NeonLinkVisuals, setupLinkVisualLanguageDebugAPI } from './NeonLinkVisuals.js';
 import { createNeonEdgeGlowMaterial, updateNeonEdgeGlowTime } from './shaders/NeonEdgeGlowShader.js';
+import { createHarmonyAuraMaterialSphere } from './HarmonyAuraShaderMaterial.js';
 import NetworkStateAIReasoner, { buildNetworkStateSnapshot } from './NetworkStateAIReasoner.js';
 import { linkEventOrderValidator } from './LinkEventOrderValidator.js';
 import { LinkPrioritySystem } from './LinkPrioritySystem.js';
@@ -1927,13 +1928,52 @@ export class NodeLinkingSystem {
     this.nodeSelectionGlows.set(node, glowState);
   }
 
+  _applyHoverHarmonyAuraUniforms(material, {
+    color,
+    opacity,
+    strength,
+    radius,
+    brightness,
+    pulse,
+    time,
+  } = {}) {
+    if (!material?.uniforms) return;
+
+    if (material.uniforms.uAuraColor && color !== undefined && color !== null) {
+      if (typeof color === 'number') {
+        material.uniforms.uAuraColor.value.setHex(color);
+      } else if (color?.isColor) {
+        material.uniforms.uAuraColor.value.copy(color);
+      }
+    }
+
+    if (material.uniforms.uAuraOpacity && opacity !== undefined) {
+      material.uniforms.uAuraOpacity.value = opacity;
+    }
+    if (material.uniforms.uAuraStrength && strength !== undefined) {
+      material.uniforms.uAuraStrength.value = strength;
+    }
+    if (material.uniforms.uAuraRadius && radius !== undefined) {
+      material.uniforms.uAuraRadius.value = radius;
+    }
+    if (material.uniforms.uAuraBrightness && brightness !== undefined) {
+      material.uniforms.uAuraBrightness.value = brightness;
+    }
+    if (material.uniforms.uAuraPulse && pulse !== undefined) {
+      material.uniforms.uAuraPulse.value = pulse;
+    }
+    if (material.uniforms.uTime && time !== undefined) {
+      material.uniforms.uTime.value = time;
+    }
+  }
+
   _createNodeSelectionGlowState(node) {
     if (!node || !this.scene) return null;
 
     const group = new THREE.Group();
     group.userData.isSelectionGlow = true;
     group.userData.isHover = true;
-    group.renderOrder = -1;
+    group.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
 
     const worldPosition = new THREE.Vector3();
     const worldScale = new THREE.Vector3();
@@ -1949,15 +1989,17 @@ export class NodeLinkingSystem {
     }
 
     const coreGeometry = new THREE.SphereGeometry(0.95, 24, 24);
-    const coreMaterial = new THREE.MeshBasicMaterial({
+    const coreMaterial = createHarmonyAuraMaterialSphere();
+    coreMaterial.side = THREE.FrontSide;
+    coreMaterial.depthTest = true;
+    coreMaterial.depthWrite = false;
+    this._applyHoverHarmonyAuraUniforms(coreMaterial, {
       color: 0xb7f6ff,
-      transparent: true,
-      opacity: 0.0,
-      side: THREE.BackSide,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false
+      opacity: 0.26,
+      strength: 0.5,
+      radius: 1.02,
+      brightness: 2.0,
+      pulse: 1.0,
     });
     const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
     tagAllowedSphere(coreMesh, { role: 'highlight', source: 'NodeLinkingSystem.addNodeSelectionGlow.core', owner: this.getNodeId(node) });
@@ -1968,7 +2010,7 @@ export class NodeLinkingSystem {
     const haloGroup = new THREE.Group();
     haloGroup.userData.isSelectionGlowHalo = true;
     haloGroup.userData.isHover = true;
-    haloGroup.renderOrder = -1;
+    haloGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(haloGroup);
 
     const haloSegmentCount = 10;
@@ -1976,15 +2018,17 @@ export class NodeLinkingSystem {
     const haloGeometry = new THREE.TorusGeometry(1.18, 0.03, 10, 24, haloArc);
 
     for (let i = 0; i < haloSegmentCount; i++) {
-      const segmentMaterial = new THREE.MeshBasicMaterial({
+      const segmentMaterial = createHarmonyAuraMaterialSphere();
+      segmentMaterial.side = THREE.DoubleSide;
+      segmentMaterial.depthTest = true;
+      segmentMaterial.depthWrite = false;
+      this._applyHoverHarmonyAuraUniforms(segmentMaterial, {
         color: i % 2 === 0 ? 0x8ff7ff : 0xb48cff,
-        transparent: true,
-        opacity: 0.0,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        depthTest: true,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false
+        opacity: 0.16,
+        strength: 0.32,
+        radius: 1.06,
+        brightness: 1.55,
+        pulse: 1.0,
       });
       const segment = new THREE.Mesh(haloGeometry.clone(), segmentMaterial);
       segment.rotation.z = (Math.PI * 2 * i) / haloSegmentCount;
@@ -1998,7 +2042,7 @@ export class NodeLinkingSystem {
     const portalGroup = new THREE.Group();
     portalGroup.userData.isSelectionGlowPortal = true;
     portalGroup.userData.isHover = true;
-    portalGroup.renderOrder = -1;
+    portalGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(portalGroup);
 
     const portalRingConfigs = [
@@ -2011,15 +2055,17 @@ export class NodeLinkingSystem {
     for (let i = 0; i < portalRingConfigs.length; i++) {
       const config = portalRingConfigs[i];
       const ringGeometry = new THREE.TorusGeometry(config.radius, config.tube, 12, 36);
-      const ringMaterial = new THREE.MeshBasicMaterial({
+      const ringMaterial = createHarmonyAuraMaterialSphere();
+      ringMaterial.side = THREE.DoubleSide;
+      ringMaterial.depthTest = true;
+      ringMaterial.depthWrite = false;
+      this._applyHoverHarmonyAuraUniforms(ringMaterial, {
         color: config.color,
-        transparent: true,
-        opacity: 0.0,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        depthTest: true,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false
+        opacity: config.opacity,
+        strength: 0.28,
+        radius: 1.0,
+        brightness: 1.45,
+        pulse: 1.0,
       });
 
       const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -2037,15 +2083,17 @@ export class NodeLinkingSystem {
     }
 
     const portalCoreGeometry = new THREE.RingGeometry(0.48, 0.74, 32, 1);
-    const portalCoreMaterial = new THREE.MeshBasicMaterial({
+    const portalCoreMaterial = createHarmonyAuraMaterialSphere();
+    portalCoreMaterial.side = THREE.DoubleSide;
+    portalCoreMaterial.depthTest = true;
+    portalCoreMaterial.depthWrite = false;
+    this._applyHoverHarmonyAuraUniforms(portalCoreMaterial, {
       color: 0xffffff,
-      transparent: true,
-      opacity: 0.0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false
+      opacity: 0.14,
+      strength: 0.22,
+      radius: 0.98,
+      brightness: 1.6,
+      pulse: 1.0,
     });
     const portalCore = new THREE.Mesh(portalCoreGeometry, portalCoreMaterial);
     portalCore.rotation.x = Math.PI / 2;
@@ -2059,21 +2107,24 @@ export class NodeLinkingSystem {
     const sparkleGroup = new THREE.Group();
     sparkleGroup.userData.isSelectionGlowSparkles = true;
     sparkleGroup.userData.isHover = true;
-    sparkleGroup.renderOrder = -1;
+    sparkleGroup.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
     group.add(sparkleGroup);
 
     const sparkleCount = 6;
     const sparkleGeometry = new THREE.OctahedronGeometry(0.045, 0);
     const sparkleMaterials = [];
     for (let i = 0; i < sparkleCount; i++) {
-      const sparkleMaterial = new THREE.MeshBasicMaterial({
+      const sparkleMaterial = createHarmonyAuraMaterialSphere();
+      sparkleMaterial.side = THREE.FrontSide;
+      sparkleMaterial.depthTest = true;
+      sparkleMaterial.depthWrite = false;
+      this._applyHoverHarmonyAuraUniforms(sparkleMaterial, {
         color: i % 3 === 0 ? 0xffffff : (i % 2 === 0 ? 0x9ffcff : 0xc79bff),
-        transparent: true,
-        opacity: 0.0,
-        depthWrite: false,
-        depthTest: true,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false
+        opacity: 0.12,
+        strength: 0.2,
+        radius: 0.96,
+        brightness: 1.85,
+        pulse: 1.0,
       });
 
       const sparkle = new THREE.Mesh(sparkleGeometry.clone(), sparkleMaterial);
@@ -2099,16 +2150,16 @@ export class NodeLinkingSystem {
     group.userData.hoverNode = node;
     group.userData.baseScale = worldScale.clone();
     group.userData.createdAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    group.userData.flashDuration = 0.22;
-    group.userData.flashPeak = 1.45;
-    group.userData.settledCoreOpacity = 0.18;
-    group.userData.settledHaloOpacity = 0.08;
-    group.userData.flashCoreOpacity = 0.58;
-    group.userData.flashHaloOpacity = 0.34;
-    group.userData.mysticDrift = 0.11;
+    group.userData.flashDuration = 0.20;
+    group.userData.flashPeak = 1.18;
+    group.userData.settledCoreOpacity = 0.14;
+    group.userData.settledHaloOpacity = 0.06;
+    group.userData.flashCoreOpacity = 0.30;
+    group.userData.flashHaloOpacity = 0.20;
+    group.userData.mysticDrift = 0.06;
     group.userData.portalRingConfigs = portalRingConfigs;
-    group.userData.portalCoreOpacity = 0.14;
-    group.userData.portalPulse = 1.08;
+    group.userData.portalCoreOpacity = 0.08;
+    group.userData.portalPulse = 1.02;
     group.userData.sparkleCount = sparkleCount;
     group.userData.sparkleMaterials = sparkleMaterials;
 
@@ -2152,36 +2203,45 @@ export class NodeLinkingSystem {
     const settledMix = 1 - flashPulse;
     const drift = group.userData.mysticDrift || 0.11;
     const portalPulse = group.userData.portalPulse || 1.08;
+    const visualTime = now / 1000;
 
     group.rotation.y = age * 0.00055;
     group.rotation.x = Math.sin(age * 0.0011) * drift * 0.18;
     group.rotation.z = Math.cos(age * 0.0013) * drift * 0.14;
 
     if (glowState.coreMesh?.material) {
-      glowState.coreMesh.material.opacity = THREE.MathUtils.lerp(
-        group.userData.flashCoreOpacity || 0.58,
-        group.userData.settledCoreOpacity || 0.18,
-        settledMix
-      );
+      this._applyHoverHarmonyAuraUniforms(glowState.coreMesh.material, {
+        color: new THREE.Color(0xffffff).lerp(new THREE.Color(0xb7f6ff), settledMix * 0.85),
+        opacity: THREE.MathUtils.lerp(
+          group.userData.flashCoreOpacity || 0.28,
+          group.userData.settledCoreOpacity || 0.12,
+          settledMix
+        ),
+        strength: THREE.MathUtils.lerp(0.44, 0.28, settledMix),
+        radius: THREE.MathUtils.lerp(group.userData.flashPeak || 1.18, 1.0, settledMix),
+        brightness: THREE.MathUtils.lerp(2.1, 1.7, settledMix),
+        pulse: 1.0 + flashPulse * 0.03,
+        time: visualTime
+      });
       glowState.coreMesh.scale.setScalar(THREE.MathUtils.lerp(group.userData.flashPeak || 1.45, 1.0, settledMix));
-      glowState.coreMesh.material.color.lerpColors(
-        new THREE.Color(0xffffff),
-        new THREE.Color(0xb7f6ff),
-        settledMix
-      );
     }
 
     if (glowState.portalCore?.material) {
-      const portalCoreOpacity = THREE.MathUtils.lerp(
-        group.userData.portalCoreOpacity || 0.14,
-        0.06,
-        settledMix
-      );
-      glowState.portalCore.material.opacity = portalCoreOpacity * (0.45 + flashPulse * 0.55);
+      this._applyHoverHarmonyAuraUniforms(glowState.portalCore.material, {
+        color: new THREE.Color(0xffffff).lerp(new THREE.Color(0xc79bff), 0.2 + flashPulse * 0.12),
+        opacity: THREE.MathUtils.lerp(
+          group.userData.portalCoreOpacity || 0.08,
+          0.05,
+          settledMix
+        ) * (0.45 + flashPulse * 0.55),
+        strength: THREE.MathUtils.lerp(0.24, 0.16, settledMix),
+        radius: 0.96 + flashPulse * 0.08,
+        brightness: THREE.MathUtils.lerp(1.65, 1.45, settledMix),
+        pulse: 1.0 + flashPulse * 0.02,
+        time: visualTime
+      });
       glowState.portalCore.scale.setScalar(0.96 + flashPulse * 0.08);
       glowState.portalCore.rotation.z = age * 0.0016;
-      glowState.portalCore.material.color.setHex(0xffffff);
-      glowState.portalCore.material.color.lerp(new THREE.Color(0xc79bff), 0.18 + flashPulse * 0.12);
     }
 
     if (Array.isArray(glowState.portalRings)) {
@@ -2189,17 +2249,19 @@ export class NodeLinkingSystem {
         if (!ring?.material) return;
         const ringConfig = group.userData.portalRingConfigs?.[index] || {};
         const ringPulse = 0.45 + flashPulse * 0.55;
-        ring.material.opacity = (ringConfig.opacity || 0.18) * ringPulse * (0.82 + 0.18 * Math.sin(age * 0.0018 + index));
+        this._applyHoverHarmonyAuraUniforms(ring.material, {
+          color: ringConfig.color || 0xb7f6ff,
+          opacity: (ringConfig.opacity || 0.18) * ringPulse * (0.82 + 0.18 * Math.sin(age * 0.0018 + index)),
+          strength: THREE.MathUtils.lerp(0.24, 0.16, settledMix),
+          radius: 1.0 + flashPulse * 0.04 + index * 0.01,
+          brightness: THREE.MathUtils.lerp(1.5, 1.35, settledMix),
+          pulse: 1.0 + flashPulse * 0.025,
+          time: visualTime
+        });
         ring.scale.setScalar(portalPulse + flashPulse * 0.06 + index * 0.01);
         ring.rotation.x += (0.0012 + index * 0.00035) * (0.7 + flashPulse * 0.9);
         ring.rotation.y += (0.0009 + index * 0.00028) * (0.6 + flashPulse * 0.8);
         ring.rotation.z += (0.0015 + index * 0.00022) * (0.5 + flashPulse * 0.7);
-
-        if (ring.material.color) {
-          const baseColor = ring.userData?.baseColor || 0xb7f6ff;
-          ring.material.color.setHex(baseColor);
-          ring.material.color.lerp(new THREE.Color(0xffffff), 0.16 + flashPulse * 0.12);
-        }
       });
     }
 
@@ -2215,13 +2277,16 @@ export class NodeLinkingSystem {
       glowState.haloSegments.forEach((segment, index) => {
         if (!segment?.material) return;
         const segmentWave = 0.74 + 0.26 * Math.sin(haloRotation * 6 + index * 0.75);
-        segment.material.opacity = haloOpacity * segmentWave;
+        this._applyHoverHarmonyAuraUniforms(segment.material, {
+          color: index % 2 === 0 ? 0x8ff7ff : 0xb48cff,
+          opacity: haloOpacity * segmentWave,
+          strength: THREE.MathUtils.lerp(0.28, 0.18, settledMix),
+          radius: 1.02 + flashPulse * 0.02,
+          brightness: THREE.MathUtils.lerp(1.6, 1.4, settledMix),
+          pulse: 1.0 + flashPulse * 0.02,
+          time: visualTime
+        });
         segment.scale.setScalar(haloScale * (1 + (index % 2 === 0 ? 0.02 : -0.015)));
-        if (segment.material.color) {
-          const spectralLift = 0.35 + 0.65 * flashPulse;
-          segment.material.color.setHex(index % 2 === 0 ? 0x8ff7ff : 0xb48cff);
-          segment.material.color.lerp(new THREE.Color(0xffffff), spectralLift * 0.15);
-        }
       });
     }
 
@@ -2247,16 +2312,19 @@ export class NodeLinkingSystem {
         );
 
         const twinkle = 0.4 + 0.6 * Math.sin(sparkleOrbit * 8 + data.sparklePhase + index * 0.7);
-        sparkle.material.opacity = sparkleBaseOpacity * twinkle;
+        this._applyHoverHarmonyAuraUniforms(sparkle.material, {
+          color: index % 3 === 0 ? 0xffffff : (index % 2 === 0 ? 0x9ffcff : 0xc79bff),
+          opacity: sparkleBaseOpacity * twinkle,
+          strength: THREE.MathUtils.lerp(0.18, 0.12, settledMix),
+          radius: 0.96,
+          brightness: THREE.MathUtils.lerp(1.9, 1.55, settledMix),
+          pulse: 1.0 + flashPulse * 0.015,
+          time: visualTime
+        });
         sparkle.rotation.x += 0.009 + flashPulse * 0.014;
         sparkle.rotation.y += 0.011 + flashPulse * 0.016;
         sparkle.rotation.z += 0.007 + flashPulse * 0.011;
         sparkle.scale.setScalar((0.62 + (index % 3) * 0.08) * (1 + flashPulse * 0.2));
-
-        if (sparkle.material.color) {
-          const sparkleTint = index % 3 === 0 ? 0xffffff : (index % 2 === 0 ? 0x9ffcff : 0xc79bff);
-          sparkle.material.color.setHex(sparkleTint);
-        }
       });
     }
   }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ExtremeAINodePack } from './_ExtremeAINodePack.js';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial, createNodeHologramShell } from './CoreHologramShader.js';
+import { createNodeNeonEdgeGlowShell } from './shaders/NeonEdgeGlowShader.js';
 import { CanonicalGeometryFamilies } from './CanonicalGeometryFamilies_v1.js';
 import { AnalyticsEnhancedVariants } from './Atoma_nodes/AnalyticsEnhancedVariants_Session81.js';
 import { StorageEnhancedVariants } from './Atoma_nodes/StorageEnhancedVariants_Session81.js';
@@ -6664,6 +6665,14 @@ static createControlNode0(group, color) {
         auraGroup.add(shell2);
       }
 
+      const edgeShell = createNodeNeonEdgeGlowShell(coreMesh);
+      if (edgeShell) {
+        edgeShell.name = 'MythicEdgeGlow';
+        edgeShell.frustumCulled = false;
+        edgeShell.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(edgeShell);
+      }
+
       mythicRoot.add(auraGroup);
 
       mythicRoot.userData.visualReady = true;
@@ -6821,6 +6830,14 @@ static createControlNode0(group, color) {
           }
         }
         auraGroup.add(shell2);
+      }
+
+      const edgeShell = createNodeNeonEdgeGlowShell(coreMesh);
+      if (edgeShell) {
+        edgeShell.name = 'PrimeEdgeGlow';
+        edgeShell.frustumCulled = false;
+        edgeShell.renderOrder = EnhancedNodeModels._getArchetypeRenderOrder();
+        auraGroup.add(edgeShell);
       }
       primeRoot.add(auraGroup);
 

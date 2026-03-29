@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VisualHierarchyRegistry } from './VisualHierarchyRegistry.js';
 import { createCoreIdentityMaterial, createNodeHologramShell, updateHologramShellMaterial } from './CoreHologramShader.js';
+import { createNodeNeonEdgeGlowShell } from './shaders/NeonEdgeGlowShader.js';
 import { CONFIG } from './config.js';
 import { tagAllowedSphere } from './VisualSpherePolicy.js';
 
@@ -93,6 +94,21 @@ export class AINodeModel {
         child.raycast = () => null; // Hard gate: no raycasting
       });
       // =========================================
+    }
+
+    const edgeShell = createNodeNeonEdgeGlowShell(mainBody, color);
+    if (edgeShell) {
+      edgeShell.userData.visualLayer = 'CORE_EDGE';
+      edgeShell.renderOrder = VisualHierarchyRegistry.getRenderOrder('ARCHETYPE');
+      nodeRoot.add(edgeShell);
+
+      edgeShell.traverse((child) => {
+        if (child === mainBody) return;
+        child.userData.nonInteractive = true;
+        child.userData.isAura = true;
+        child.layers.disable(10);
+        child.raycast = () => null;
+      });
     }
     
     // Edge glow - EFFECTS LAYER (allowed to be transparent)
