@@ -81,10 +81,10 @@ export class HarmonicHealingVisualSystem_Session134 {
         this.particles = particleSystem;
         
         this.config = {
-            waveSpeed: 5.0,           // Units per second
-            spawnInterval: 0.1,       // Minimum seconds between spawns
-            harmonyThreshold: 0.3,    // Minimum harmony to start spawning
-            maxWaves: 50,             // Performance limit
+            waveSpeed: 3.2,           // Units per second
+            spawnInterval: 0.06,      // Minimum seconds between spawns
+            harmonyThreshold: 0.18,   // Minimum healing drive to start spawning
+            maxWaves: 120,            // Performance limit
             repairVisualsOnly: false, // Allow gameplay stats changes
             ...config
         };
@@ -92,6 +92,7 @@ export class HarmonicHealingVisualSystem_Session134 {
         this.waves = [];
         this.accumulatedTime = 0;
         this.lastSpawnTime = 0;
+        this._lastResolvedHealingState = null;
         
         console.log('✨ [HarmonicHealing] System Initialized (Golden Waves Ready)');
     }
@@ -100,13 +101,95 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Main update loop
      */
     update(deltaTime, time, networkState) {
-        if (!this.frameScheduler?.shouldRunVisual?.()) return;
+        if (this.frameScheduler && this.frameScheduler.shouldRunVisual?.() === false) return;
+
+        const healingState = this._resolveHealingState(networkState);
+        this._lastResolvedHealingState = healingState;
         
         // 1. Manage Wave Lifecycle (Move, Render, Cull)
         this._updateWaves(deltaTime, time);
         
         // 2. Spawn New Waves (if conditions met)
-        this._attemptSpawn(time, networkState);
+        this._attemptSpawn(time, healingState);
+    }
+
+    _resolveHealingState(networkState = {}) {
+        const liveMetrics = (typeof window !== 'undefined' && window.__ATOMA_LIVE_METRICS__)
+            ? window.__ATOMA_LIVE_METRICS__
+            : {};
+        const clamp01 = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return 0;
+            return Math.max(0, Math.min(1, numeric));
+        };
+
+        const harmony = clamp01(
+            networkState.harmony ??
+            networkState.harmonyFlow ??
+            liveMetrics.harmonyFlow ??
+            liveMetrics.avgHarmony ??
+            liveMetrics.networkSynergy ??
+            liveMetrics.avgSynergy ??
+            0
+        );
+        const synergy = clamp01(
+            networkState.synergy ??
+            networkState.networkSynergy ??
+            liveMetrics.networkSynergy ??
+            liveMetrics.avgSynergy ??
+            0
+        );
+        const corruption = clamp01(
+            networkState.corruption ??
+            networkState.corruptionLevel ??
+            liveMetrics.corruptionLevel ??
+            liveMetrics.avgCorruption ??
+            0
+        );
+        const loadPressure = clamp01(
+            networkState.loadPressure ??
+            liveMetrics.loadPressure ??
+            liveMetrics.avgLoadPressure ??
+            0
+        );
+        const networkStress = clamp01(
+            networkState.networkStress ??
+            liveMetrics.networkStress ??
+            (1 - (networkState.stability ?? liveMetrics.avgStability ?? 0.5))
+        );
+        const stability = clamp01(
+            networkState.stability ??
+            liveMetrics.stability ??
+            liveMetrics.avgStability ??
+            (1 - networkStress)
+        );
+
+        // Healing should become more active when the network is cohesive and stable,
+        // but still remain possible when harmony is moderate.
+        const healingDrive = clamp01(
+            harmony * 0.38 +
+            synergy * 0.18 +
+            stability * 0.28 -
+            corruption * 0.10 -
+            loadPressure * 0.06
+        );
+
+        return {
+            harmony,
+            synergy,
+            corruption,
+            loadPressure,
+            networkStress,
+            stability,
+            healingDrive,
+            recoveryReady: healingDrive >= 0.75
+                ? 'HIGH'
+                : healingDrive >= 0.5
+                    ? 'MEDIUM'
+                    : healingDrive >= this.config.harmonyThreshold
+                        ? 'LOW'
+                        : 'IDLE'
+        };
     }
     
     /**
@@ -208,50 +291,107 @@ export class HarmonicHealingVisualSystem_Session134 {
         // Cap count
         if (this.waves.length >= this.config.maxWaves) return;
         
-        // Harmony check
-        const harmony = state.harmony || 0;
-        if (harmony < this.config.harmonyThreshold) return;
+        const healingDrive = state?.healingDrive ?? state?.harmony ?? 0;
+        if (healingDrive < this.config.harmonyThreshold) return;
         
-        // Determine number of waves to spawn based on harmony
+        // Determine spawn chance based on healing drive
         // 0.3 -> 0 spawns (threshold)
         // 1.0 -> max spawn rate
-        const spawnChance = (harmony - this.config.harmonyThreshold) / (1.0 - this.config.harmonyThreshold);
+        const normalizedChance = Math.max(
+            0,
+            Math.min(1, (healingDrive - this.config.harmonyThreshold) / (1.0 - this.config.harmonyThreshold))
+        );
+        const spawnChance = Math.max(0.25, Math.min(1, normalizedChance * 0.85 + 0.25));
         if (Math.random() > spawnChance) return;
         
-        this._spawnSingleWave(harmony);
+        this._spawnSingleWave(state, time);
         this.lastSpawnTime = time;
     }
     
     /**
      * Pick a target link and spawn a wave
      */
-    _spawnSingleWave(globalHarmony) {
+    _spawnSingleWave(healingState = {}, time = 0) {
         if (!this.nodeLinking || !this.nodeLinking.links || this.nodeLinking.links.length === 0) return;
-        
-        // Strategy: 
-        // 1. Pick a random link (simple)
-        // 2. Advanced: Pick a "hurt" link (low quality, high stress)
-        
-        // Let's try to find a link that needs healing
-        // We'll sample a few random links and pick the worst one, or just random
-        // For visual flair, random is often better distribution.
-        
+
         const links = this.nodeLinking.links;
-        const randomLink = links[Math.floor(Math.random() * links.length)];
-        
-        if (!randomLink || !randomLink.source || !randomLink.target) return;
-        
+        const targetLink = this._pickHealingTargetLink(links);
+        if (!targetLink || !targetLink.source || !targetLink.target) return;
+
         // Determine direction (randomly A->B or B->A)
         const reverse = Math.random() > 0.5;
-        const start = reverse ? randomLink.target : randomLink.source;
-        const end = reverse ? randomLink.source : randomLink.target;
+        const start = reverse ? targetLink.target : targetLink.source;
+        const end = reverse ? targetLink.source : targetLink.target;
         
         // Wave properties
         const speed = this.config.waveSpeed * (0.8 + Math.random() * 0.4); // Var speed
-        const intensity = 0.5 + globalHarmony * 0.5; // Brighter/stronger with more harmony
+        const intensity = 0.45 + (healingState.healingDrive ?? healingState.harmony ?? 0) * 0.55; // Brighter/stronger with more healing drive
         
-        const wave = new HealingWave(randomLink, start, end, speed, intensity);
+        const wave = new HealingWave(targetLink, start, end, speed, intensity);
         this.waves.push(wave);
+
+        // Immediate visual punctuation so the system reads as active even before arrival.
+        if (this.particles?.emitSplash && start?.position) {
+            this.particles.emitSplash(start.position, Math.min(1, intensity * 0.75), time);
+        }
+    }
+
+    _pickHealingTargetLink(links) {
+        if (!Array.isArray(links) || links.length === 0) return null;
+
+        let bestLink = null;
+        let bestScore = -Infinity;
+
+        for (const link of links) {
+            if (!link?.source || !link?.target) continue;
+
+            const metrics = link.userData?.metrics || {};
+            const stability = Number.isFinite(metrics.stability)
+                ? metrics.stability
+                : Number.isFinite(link.userData?.stability)
+                    ? link.userData.stability
+                    : 0.5;
+            const corruption = Number.isFinite(metrics.corruption)
+                ? metrics.corruption
+                : Number.isFinite(link.userData?.corruption)
+                    ? link.userData.corruption
+                    : 0;
+            const cascadeIntensity = Number.isFinite(link.userData?.cascadeIntensity)
+                ? link.userData.cascadeIntensity
+                : 0;
+            const flowIntensity = Number.isFinite(link.userData?.flowState?.intensity)
+                ? link.userData.flowState.intensity
+                : 0;
+
+            // Prefer hurt / stressed links so the healing effect is legible and useful.
+            const score =
+                (1 - Math.max(0, Math.min(1, stability))) * 0.55 +
+                Math.max(0, Math.min(1, corruption)) * 0.25 +
+                Math.max(0, Math.min(1, Math.max(cascadeIntensity, flowIntensity))) * 0.20;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestLink = link;
+            }
+        }
+
+        if (bestLink) return bestLink;
+        return links[Math.floor(Math.random() * links.length)] || null;
+    }
+
+    getStats() {
+        return {
+            waveCount: this.waves.length,
+            lastSpawnTime: this.lastSpawnTime,
+            lastResolvedState: this._lastResolvedHealingState,
+            config: {
+                waveSpeed: this.config.waveSpeed,
+                spawnInterval: this.config.spawnInterval,
+                harmonyThreshold: this.config.harmonyThreshold,
+                maxWaves: this.config.maxWaves,
+                repairVisualsOnly: this.config.repairVisualsOnly
+            }
+        };
     }
     
     /**

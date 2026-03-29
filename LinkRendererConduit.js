@@ -4727,20 +4727,56 @@ export class LinkRendererConduit {
             return new THREE.Mesh(g, meshMaterial);
         };
 
-        const makeWaveSlice = () => {
-            const g = new THREE.PlaneGeometry(1.1, 1.1, 10, 4);
-            const pos = g.attributes.position;
-            for (let i = 0; i < pos.count; i++) {
-                const x = pos.getX(i);
-                const z = pos.getZ(i);
-                const y = Math.sin((x + z) * 4.0) * 0.08;
-                pos.setY(i, y);
-            }
-            pos.needsUpdate = true;
-            g.computeVertexNormals();
-            return new THREE.Mesh(g, meshMaterial);
-        };
+const makeWaveSlice = () => {
+    const g = new THREE.IcosahedronGeometry(0.6, 4); // 🔥 detail + objem
+    const pos = g.attributes.position;
 
+    const t = performance.now() * 0.001;
+
+    for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i);
+        let y = pos.getY(i);
+        let z = pos.getZ(i);
+
+        const r = Math.sqrt(x*x + y*y + z*z);
+
+        // normal direction
+        const nx = x / r;
+        const ny = y / r;
+        const nz = z / r;
+
+        // 🔹 radial pulsation
+        const pulse = Math.sin(r * 8.0 - t * 3.0) * 0.05;
+
+        // 🔹 turbulence (rozbije “guľu feeling”)
+        const noise =
+            Math.sin(x * 6.1 + t) +
+            Math.sin(y * 7.3 - t * 1.2) +
+            Math.sin(z * 5.7 + t * 0.8);
+
+        const turbulence = noise * 0.03;
+
+        // 🔹 angular distortion (ATOMA vibe)
+        const swirl = Math.sin((x + z) * 5.0 + t * 2.0) * 0.04;
+
+        const displacement = pulse + turbulence + swirl;
+
+        // 🔹 push vertex outward
+        const scale = 1.0 + displacement;
+
+        pos.setXYZ(
+            i,
+            nx * scale * 0.6,
+            ny * scale * 0.6,
+            nz * scale * 0.6
+        );
+    }
+
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+
+    return new THREE.Mesh(g, meshMaterial);
+};
         const makeBrokenMobius = () => {
             const root = new THREE.Group();
             root.name = 'BrokenMobius';

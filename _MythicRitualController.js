@@ -1,8 +1,8 @@
 /**
  * MYTHIC RITUAL EVENTS 1.0 – SAFE EDITION
  * 
- * ⚠️ MYTHIC RITUALS ARE DISABLED BY DEFAULT
- * Set window.ATOMA_DISABLE_MYTHIC_RITUALS = false to enable
+ * ⚠️ MYTHIC RITUALS ARE ENABLED BY DEFAULT
+ * Set window.ATOMA_DISABLE_MYTHIC_RITUALS = true to disable
  * 
  * Creates rare, dramatic ceremonial events when the network reaches extraordinary states.
  * Rituals are visual spectacles triggered by specific network conditions.
@@ -57,7 +57,9 @@ import { MythicRitualPlayer } from './_MythicRitualPlayer.js';
 
 export class MythicRitualController {
   // 🔥 GLOBAL SAFETY FLAG — Mythic Rituals disabled by default
-  static ENABLED = typeof window !== 'undefined' ? !window.ATOMA_DISABLE_MYTHIC_RITUALS : false;
+  static get ENABLED() {
+    return typeof window !== 'undefined' ? !window.ATOMA_DISABLE_MYTHIC_RITUALS : false;
+  }
 
   constructor(scene, camera, renderer, worldPersonalityController, player, semanticBus) {
     this.scene = scene;

@@ -41,7 +41,12 @@
  */
 
 import { CONFIG } from './config.js';
-import { VisualLayerEnforcementIntegrationHelpers as IntegrationHelpers } from './VisualLayerEnforcementIntegrationHelpers.js';
+
+const IntegrationHelpers = {
+  createVisualAttachmentRequest(payload) {
+    return payload;
+  },
+};
 
 /**
  * MythicAuraEnhancer: Per-aura mythic enhancement state
@@ -116,6 +121,7 @@ class MythicAuraEnhancer {
 export class MythicAuraIntegration_v1 {
   constructor(options = {}) {
     this.mythicEvolutionFX = options.mythicEvolutionFX;
+    this.frameScheduler = options.frameScheduler || null;
     this.nodeAuraSystem = null;
     this.linkAuraSystem = null;
 

@@ -166,6 +166,7 @@ class ArchetypeAscensionCurves_v1 {
     this.mythicEvolutionFX = config.mythicEvolutionFX;
     this.aiNodes = config.aiNodes || [];
     this.personalitySignals = config.personalitySignals;
+    this.frameScheduler = config.frameScheduler || null;
     this.debugEnabled = config.debugEnabled ?? false;
     this.autoAssignArchetypes = config.autoAssignArchetypes ?? false;
 

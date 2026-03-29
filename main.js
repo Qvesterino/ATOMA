@@ -193,7 +193,7 @@ if (typeof window !== 'undefined') {
         disableParasiticHUDs: window.ATOMA_DISABLE_PARASITIC_HUDS ?? true,
         hardKillParasiticDOM: window.ATOMA_HARD_KILL_PARASITIC_DOM ?? true,
         hardOffLanguageEngine: window.ATOMA_HARD_OFF_LANGUAGE_ENGINE ?? true,
-        disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? true,
+                disableMythicRituals: window.ATOMA_DISABLE_MYTHIC_RITUALS ?? false,
         disablePhase8NetworkRituals: window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS ?? false,
         disableNuclearLock: true
       }
@@ -262,6 +262,8 @@ import { NodePersonalitySystem2_0 } from './NodePersonalitySystem2_0.js';
 import { NodeMicroEvents } from './_NodeMicroEvents.js';
 import { WorldPersonalityController } from './_WorldPersonalityController.js';
 import { MythicRitualController } from './_MythicRitualController.js';
+import { MythicEvolutionFX_v1 } from './MythicEvolutionFX_v1.js';
+import { MythicAuraIntegration_v1 } from './MythicAuraIntegration_v1.js';
 import { SimulationEffectOrchestrator } from './SimulationEffectOrchestrator.js';
 import { MythicSeedGlyph } from './_MythicSeedGlyph.js';
 // REMOVED: LegacyDebugConeCleanup - moved to LEGACY/LOCK and POLICIES to delete (2026-03-27)
@@ -676,6 +678,7 @@ import { setupGpuSanity } from './GpuSanityPass.js';
 import { Phase8RitualVisualOrchestration, RITUAL_VISUAL_CONFIG } from './Phase8RitualVisualOrchestration.js';
 import { Phase8VisualBridge } from './Phase8VisualBridge.js';
 import { NetworkRituals } from './NetworkRituals_v1.js';
+import { LinkAuraSystem_v1 } from './LEGACY/aura/LinkAuraSystem_v1.js';
 
 // ============================================================================
 // SYNERGY VISUAL EFFECTS — Pure world-space visual feedback
@@ -3343,9 +3346,9 @@ class AtomaGame {
         // ================================
         //   🔥 DISABLE MYTHIC RITUALS
         // ================================
-        window.ATOMA_DISABLE_MYTHIC_RITUALS = window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? true;
+        window.ATOMA_DISABLE_MYTHIC_RITUALS = window.ATOMA_FLAGS?.safety?.disableMythicRituals ?? false;
         window.ATOMA_DISABLE_PHASE8_NETWORK_RITUALS = window.ATOMA_FLAGS?.safety?.disablePhase8NetworkRituals ?? false;
-        console.log('🔥 [AtomaGame] Mythic Rituals globally disabled');
+        console.log(`🔥 [AtomaGame] Mythic Rituals ${window.ATOMA_DISABLE_MYTHIC_RITUALS ? 'disabled' : 'enabled'}`);
         
         this.clock = new THREE.Clock();
         this.time = 0;
@@ -3859,6 +3862,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', () => {
             this.corruptionDesaturation?.update?.();
         }, 'visual.corruptionDesaturation');
+        this.frameScheduler.register('visual', (dt) => this.mythicEvolutionFX?.update?.(dt), 'visual.mythicEvolutionFX');
         this.frameScheduler.register('visual', (dt) => {
             if (this.metricsVisualFX && this.aiNodes && !this._runVisualSemanticPending) {
                 this.metricsVisualFX.update(dt, this.aiNodes.nodes);
@@ -3923,8 +3927,12 @@ class AtomaGame {
         this.frameScheduler.register('visual', () => {
             if (this.hardInteractionAuthority && this.scene && (this.frameCount % 180 === 0)) {
                 this.hardInteractionAuthority.safetyNet();
+        this.frameScheduler.register('visual', (dt) => {
+            this.linkAuraSystem?.update?.(dt);
+        }, 'visual.linkAuraSystem');
             }
         }, 'visual.hardInteractionAuthority');
+        this.frameScheduler.register('visual', (dt) => this.mythicAuraIntegration?.update?.(dt), 'visual.mythicAuraIntegration');
         this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
         this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
         this.frameScheduler.register('visual', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem), 'visual.t2HarmonyVisualConsumer');
@@ -4520,6 +4528,32 @@ this.setHudDirty('nodeInspect');
         this.linkCorruptionTransmission = null;
         this.harmonyStabilizationSystem = null;
         this.harmonyCascade = null;
+
+        // Compatibility bridges for legacy healing/test helpers.
+        // These stay read-only from the runtime's perspective and mirror the
+        // canonical systems / live visual metrics without introducing a second authority.
+        Object.defineProperty(this, 'harmonyStabilization', {
+            configurable: true,
+            enumerable: true,
+            get: () => this.harmonyStabilizationSystem,
+            set: (value) => {
+                this.harmonyStabilizationSystem = value;
+            }
+        });
+        Object.defineProperty(this, 'nodeDynamicMetrics', {
+            configurable: true,
+            enumerable: true,
+            get: () => this._nodeDynamicMetricsBridge || getCachedVisualMetrics() || {
+                avgSynergy: 0,
+                avgHarmony: 0,
+                avgCorruption: 0,
+                avgStability: 0.5,
+                avgLoadPressure: 0
+            },
+            set: (value) => {
+                this._nodeDynamicMetricsBridge = value;
+            }
+        });
         
         // ====================================================================
         // TIER 2 VISUAL INTEGRATION: Visual System Wiring
@@ -4580,6 +4614,12 @@ this.setHudDirty('nodeInspect');
 
         // Phase 3c Personality Shader Advanced FX (Week 5 - procedural noise & distortion)
         this.advancedShaderFX = null;
+
+        // Phase 3c Mythic Evolution FX (Week 11 - ascension visual identity)
+        this.mythicEvolutionFX = null;
+
+        // Phase 3c Mythic Aura Integration (Week 12 - aura signal hookup)
+        this.mythicAuraIntegration = null;
 
         // Phase 3c Archetype Ascension Curves (Week 13 - Personality-driven curve profiling)
         this.archetypeCurves = null;
@@ -4709,6 +4749,7 @@ this.setHudDirty('nodeInspect');
         // Noise-driven aura meshes around nodes
         // ====================================================================
         this.nodeAuraRenderer = null;
+        this.linkAuraSystem = null;
         this.corruptionAuraDesaturation = null;
 
         // ====================================================================
@@ -5175,6 +5216,12 @@ this.setHudDirty('nodeInspect');
         this.setupNodeAuraRenderer();
 
         // ========================================================================
+        // PHASE 3C WEEK 10: LINK AURA SYSTEM
+        // GPU-driven cylindrical halo system around links
+        // ========================================================================
+        this.setupLinkAuraSystem();
+
+        // ========================================================================
         // SESSION 132: WAVE INTERFERENCE PATTERN SYSTEM
         // Visualizes constructive/destructive wave collision patterns
         // ========================================================================
@@ -5286,6 +5333,12 @@ this.setHudDirty('nodeInspect');
                 const ruptureCount = dbg.rupture?.ruptures?.length ?? 0;
                 const activeCascades = dbg.cascade?.activeCascades?.filter?.((c) => c?.active)?.length ?? 0;
                 const preRuptureZones = dbg.rupture?.preRuptureZones?.length ?? 0;
+                const recoveryStats = dbg.recovery?.getStats?.() ?? null;
+                const healingParticleStats = dbg.healingParticles?.getStats?.() ?? null;
+                const recoveringZones = recoveryStats?.recoveringZones ?? 0;
+                const wavePoolActive = recoveryStats?.wavePoolActive ?? 0;
+                const haloPoolActive = recoveryStats?.haloPoolActive ?? 0;
+                const activeParticles = healingParticleStats?.activeParticles ?? 0;
 
                 return {
                     activeLinks,
@@ -5302,7 +5355,11 @@ this.setHudDirty('nodeInspect');
                     ,
                     ruptureCount,
                     activeCascades,
-                    preRuptureZones
+                    preRuptureZones,
+                    recoveringZones,
+                    wavePoolActive,
+                    haloPoolActive,
+                    activeParticles
                 };
             };
 
@@ -5312,6 +5369,8 @@ this.setHudDirty('nodeInspect');
                 dbg.trap = this.standingWaveTrap || this.standingWaveTrapSystem;
                 dbg.renderer = this.standingWaveRenderer || null;
                 dbg.rupture = this.resonanceRupture;
+                dbg.recovery = this.harmonicRecovery;
+                dbg.healingParticles = this.healingParticles;
                 window.atomaDebug = dbg;
 
                 const state = readWaveDebugState();
@@ -5323,9 +5382,10 @@ this.setHudDirty('nodeInspect');
                         `P:${state.pressureZonesActive} | amp:${state.activeTrapAverageAmplitude.toFixed(2)} | peak:${state.activeTrapAmplitude.toFixed(2)}`
                         ,
                         `state:${state.primaryTrapState} | radius:${state.primaryTrapRadius.toFixed(2)}`,
-                        `rupt:${state.ruptureCount} | casc:${state.activeCascades} | pre:${state.preRuptureZones}`
+                        `rupt:${state.ruptureCount} | casc:${state.activeCascades} | pre:${state.preRuptureZones}`,
+                        `recovery: zones:${state.recoveringZones} | waves:${state.wavePoolActive} | halos:${state.haloPoolActive} | parts:${state.activeParticles}`
                     ].join('\n');
-                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}, ruptures=${state.ruptureCount}, cascades=${state.activeCascades}, preZones=${state.preRuptureZones}`;
+                    overlay.title = `links=${state.activeLinks}, resistant=${state.resistantNodes}, pressure=${state.pressureZones}, reflections=${state.reflectionActive}, zones=${state.pressureZonesActive}, traps=${state.traps}, state=${state.primaryTrapState}, radius=${state.primaryTrapRadius.toFixed(2)}, ampAvg=${state.activeTrapAverageAmplitude.toFixed(2)}, ampPeak=${state.activeTrapAmplitude.toFixed(2)}, antinodes=${state.antinodeMeshes}, ruptures=${state.ruptureCount}, cascades=${state.activeCascades}, preZones=${state.preRuptureZones}, recoveryZones=${state.recoveringZones}, wavePool=${state.wavePoolActive}, haloPool=${state.haloPoolActive}, activeParticles=${state.activeParticles}`;
                 }
 
                 return state;
@@ -7666,6 +7726,10 @@ window.__ATOMA_SCENE__ = this.scene;
                 console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
             }
 
+            if (result && this.linkAuraSystem) {
+                this.linkAuraSystem.registerLink?.(result);
+            }
+
             // LinkTrailEmitter creation moved to LinkRendererConduit (eliminates race condition)
             // See: LinkRendererConduit.createLinkVisuals()
 
@@ -7710,6 +7774,9 @@ window.__ATOMA_SCENE__ = this.scene;
         
         const originalRemoveLink = this.linkingSystem.removeLink.bind(this.linkingSystem);
         this.linkingSystem.removeLink = (link) => {
+            if (this.linkAuraSystem) {
+                this.linkAuraSystem.unregisterLink?.(link);
+            }
             const result = originalRemoveLink(link);
             const linkId = link?.userData?.id ?? link?.id ?? link?.uuid ?? null;
             // Proactively clear memory trails so ghosts don't linger when visual update is paused
@@ -9036,16 +9103,34 @@ window.__ATOMA_SCENE__ = this.scene;
         // ====================================================================
         // PHASE 3C ARCHETYPE ASCENSION CURVES (Week 13 - Personality-Driven Curves)
         // ====================================================================
+        try {
+            this.mythicEvolutionFX = new MythicEvolutionFX_v1({
+                aiNodes: this.aiNodes?.nodes || [],
+                links: this.linkingSystem?.links || [],
+                nodeDynamicMetrics: this.nodeDynamicMetrics,
+                linkQualityCalculator: this.linkQualityCalculator,
+                nodeQualityCalculator: this.nodeQualityCalculator,
+                visualMetricModel: this.visualMetricModel,
+                performanceController: this.fxPerformance,
+                frameScheduler: this.frameScheduler,
+                debugEnabled: false,
+            });
+            console.log('[main.js] MythicEvolutionFX_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize MythicEvolutionFX_v1:', err);
+        }
+
         // Initialize ArchetypeAscensionCurves_v1 (personality-driven ascension profiling)
         // This layer reads from MythicEvolutionFX and writes ascension multipliers
         // for Week 14/15 systems to apply
         try {
             this.archetypeCurves = new ArchetypeAscensionCurves_v1({
-                aiNodes: this.aiNodes,
+                aiNodes: this.aiNodes?.nodes || [],
                 mythicEvolutionFX: this.mythicEvolutionFX,
                 nodeDynamicMetrics: this.nodeDynamicMetrics,
                 nodeQualityCalculator: this.nodeQualityCalculator,
                 visualMetricModel: this.visualMetricModel,
+                frameScheduler: this.frameScheduler,
             });
             console.log('[main.js] ArchetypeAscensionCurves_v1 initialized ✓');
         } catch (err) {
@@ -9061,11 +9146,30 @@ window.__ATOMA_SCENE__ = this.scene;
             this.archetypeAuraFX = new ArchetypeAuraEnhancement_v1({
                 aiNodes: this.aiNodes,
                 archetypeCurves: this.archetypeCurves,
-                nodeAuraSystem: this.nodeAuraSystem || null,  // If available (Week 9)
+                nodeAura: this.nodeAuraSystem || null,
+                linkAura: this.linkAuraSystem || null,
+                frameScheduler: this.frameScheduler,
             });
             console.log('[main.js] ArchetypeAuraEnhancement_v1 initialized ✓');
         } catch (err) {
             console.warn('[main.js] Failed to initialize ArchetypeAuraEnhancement_v1:', err);
+        }
+
+        try {
+            this.mythicAuraIntegration = new MythicAuraIntegration_v1({
+                mythicEvolutionFX: this.mythicEvolutionFX,
+                intensityMultiplier: 0.5,
+                colorTintStrength: 0.15,
+                frameScheduler: this.frameScheduler,
+                debugEnabled: false,
+            });
+            this.mythicAuraIntegration.registerNodeAuraSystem(this.nodeAuraSystem);
+            if (this.linkAuraSystem) {
+                this.mythicAuraIntegration.registerLinkAuraSystem(this.linkAuraSystem);
+            }
+            console.log('[main.js] MythicAuraIntegration_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] Failed to initialize MythicAuraIntegration_v1:', err);
         }
 
         // ====================================================================
@@ -10514,6 +10618,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('personalityVFXLayer', 'visual.personalityVFXLayer', (dt) => this.personalityVFXLayer?.update?.(dt, this.time || this.elapsedTime));
         regGuard('personalityShaderBridge', 'visual.personalityShaderBridge', (dt) => this.personalityShaderBridge?.update?.(dt));
         regGuard('advancedShaderFX', 'visual.advancedShaderFX', (dt) => this.advancedShaderFX?.update?.(dt));
+        regGuard('mythicEvolutionFX', 'visual.mythicEvolutionFX', (dt) => this.mythicEvolutionFX?.update?.(dt));
         regGuard('archetypeCurves', 'visual.archetypeCurves', (dt) => this.archetypeCurves?.update?.(dt));
         regGuard('archetypeAuraFX', 'visual.archetypeAuraFX', (dt) => this.archetypeAuraFX?.update?.(dt));
         regGuard('archetypeColorFX', 'visual.archetypeColorFX', (dt) => this.archetypeColorFX?.update?.(dt));
@@ -10590,6 +10695,8 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('nodeAuraSystem', 'visual.nodeAuraSystem', (dt) => {
             this.nodeAuraSystem?.update?.(dt, this.aiNodes?.nodes);
         });
+        regGuard('linkAuraSystem', 'visual.linkAuraSystem', (dt) => this.linkAuraSystem?.update?.(dt));
+        regGuard('mythicAuraIntegration', 'visual.mythicAuraIntegration', (dt) => this.mythicAuraIntegration?.update?.(dt));
         regGuard('linkBeadSystem', 'visual.linkBeadSystem', (dt) => {
             this.linkBeadSystem?.update?.(dt);
         });
@@ -13481,7 +13588,38 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
      * Creates GPU-driven cylindrical halo system around links
      */
     setupLinkAuraSystem() {
-        // Legacy link aura system retired (no-op)
+        try {
+            this.linkAuraSystem = new LinkAuraSystem_v1({
+                scene: this.scene,
+                linkManager: this.linkingSystem,
+                fxPerformance: this.fxPerformance,
+                debugEnabled: false,
+            });
+            this.linkAuraSystem.frameScheduler = this.frameScheduler;
+
+            if (this.linkingSystem?.links && Array.isArray(this.linkingSystem.links)) {
+                for (const link of this.linkingSystem.links) {
+                    this.linkAuraSystem.registerLink?.(link);
+                }
+            }
+
+            if (this.linkingSystem?.onLinkCreatedCallbacks) {
+                this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
+                    this.linkAuraSystem?.registerLink?.(link);
+                });
+            }
+
+            if (this.linkingSystem?.onLinkRemovedCallbacks) {
+                this.linkingSystem.onLinkRemovedCallbacks.push((link) => {
+                    this.linkAuraSystem?.unregisterLink?.(link);
+                });
+            }
+
+            console.log('[main.js] LinkAuraSystem_v1 initialized ✓');
+        } catch (err) {
+            console.warn('[main.js] LinkAuraSystem_v1 init error:', err);
+            this.linkAuraSystem = null;
+        }
     }
 
     /**
@@ -13698,6 +13836,10 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 );
                 this.harmonicHealing.frameScheduler = this.frameScheduler;
                 console.log('[main.js] HarmonicHealingVisualSystem initialized (Golden Waves) ✓');
+            }
+
+            if (this.harmonicRecovery?.rebindHealingParticleSystem && this.healingParticles) {
+                this.harmonicRecovery.rebindHealingParticleSystem(this.healingParticles);
             }
 
         } catch (err) {

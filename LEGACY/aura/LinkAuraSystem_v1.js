@@ -52,7 +52,7 @@
  */
 
 import * as THREE from 'three';
-import { freezeMaterialConfig } from './Engine/Debug/MaterialFreezeGuard.js';
+import { freezeMaterialConfig } from '../../Engine/Debug/MaterialFreezeGuard.js';
 
 /**
  * LinkAuraInstance: Internal structure for each link's aura

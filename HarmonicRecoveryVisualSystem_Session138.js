@@ -169,7 +169,29 @@ export class HarmonicRecoveryVisualSystem_Session138 {
         
         console.log('✨ [Session 138] HarmonicRecoveryVisualSystem initialized');
     }
-    
+
+    rebindHealingParticleSystem(healingParticleSystem) {
+        this.healingParticles = healingParticleSystem;
+    }
+
+    triggerRecoveryPulse(linkOrId, currentVisualTime = null) {
+        const visualNow = Number.isFinite(currentVisualTime)
+            ? currentVisualTime
+            : (Number.isFinite(VisualTime?.now) && this._timeOrigin !== undefined
+                ? VisualTime.now - this._timeOrigin
+                : 0);
+        if (typeof linkOrId === 'object' && linkOrId) {
+            return this._triggerRecoveryFromLink(linkOrId, visualNow);
+        }
+
+        const linkId = typeof linkOrId === 'string'
+            ? linkOrId
+            : linkOrId?.id ?? linkOrId?.linkId ?? null;
+        if (!linkId) return false;
+
+        return this._triggerRecovery(linkId, visualNow);
+    }
+
     _initPools() {
         // Coherence Waves (Planes)
         const waveGeo = new THREE.PlaneGeometry(1, 1);
@@ -243,16 +265,20 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     }
     
     _triggerRecovery(linkId, currentVisualTime) {
-        // Find convergence point or link center
-        // Since rupture is gone from array, we can't get its position directly easily
-        // But we can look up the link
         const link = this._getLinkById(linkId);
         if (!link) return;
+
+        return this._triggerRecoveryFromLink(link, currentVisualTime);
+    }
+
+    _triggerRecoveryFromLink(link, currentVisualTime) {
+        if (!link) return false;
+        const linkId = link?.id ?? link?.linkId ?? null;
         
         const endpoints = this._getLinkEndpoints(link);
         const start = endpoints.startPos;
         const end = endpoints.endPos;
-        if (!start || !end) return;
+        if (!start || !end) return false;
         
         const center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
         
@@ -276,6 +302,8 @@ export class HarmonicRecoveryVisualSystem_Session138 {
             this._spawnHalo(endpoints.startNode, now);
             this._spawnHalo(endpoints.endNode, now);
         }
+
+        return true;
     }
     
     _updateRecoveringZones(state, currentVisualTime) {
@@ -445,6 +473,27 @@ export class HarmonicRecoveryVisualSystem_Session138 {
     _getLinkById(linkId) {
         if (!this.linkingSystem || !this.linkingSystem.links) return null;
         return this.linkingSystem.links.find(l => l && l.id === linkId);
+    }
+
+    getStats() {
+        const waveActive = this.waveMeshPool.filter(item => item.active).length;
+        const haloActive = this.haloMeshPool.filter(item => item.active).length;
+
+        return {
+            enabled: this.enabled,
+            activeRuptures: this.activeRuptureIds.size,
+            recoveringZones: this.recoveringZones.length,
+            wavePoolActive: waveActive,
+            haloPoolActive: haloActive,
+            hasHealingParticles: !!this.healingParticles,
+            config: {
+                minRecoveryDuration: this.config.minRecoveryDuration,
+                maxRecoveryDuration: this.config.maxRecoveryDuration,
+                waveExpansionSpeed: this.config.waveExpansionSpeed,
+                stitchingInterval: this.config.stitchingInterval,
+                maxActiveZones: this.config.maxActiveZones
+            }
+        };
     }
     
     dispose() {

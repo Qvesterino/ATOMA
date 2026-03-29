@@ -121,7 +121,7 @@ class ArchetypeEnhancementState {
   }
 
   update(deltaTime) {
-    if (!this.frameScheduler?.shouldRunVisual?.()) return;
+    if (this.frameScheduler?.shouldRunVisual?.() === false) return;
     // Smooth intensity
     this.currentIntensity += (this.targetIntensity - this.currentIntensity) * this.emaAlpha;
 
@@ -149,6 +149,7 @@ class ArchetypeAuraEnhancement_v1 {
     this.nodeAura = config.nodeAura;
     this.linkAura = config.linkAura;
     this.archetypeCurves = config.archetypeCurves;
+    this.frameScheduler = config.frameScheduler || null;
     this.debugEnabled = config.debugEnabled ?? false;
 
     // Visual Layer Enforcement removed in Phase B cleanup

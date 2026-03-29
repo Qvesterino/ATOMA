@@ -22,8 +22,8 @@ Use this checklist:
 ## 2️⃣ Before every RUN of Atoma
 
 - [ ] Terminal is clean (no old dev servers)
-- [ ] I am running the correct script (`npm run dev`)
-- [ ] I am opening the correct localhost port (e.g. 5173)
+- [ ] I am serving `index.html` from the local static server
+- [ ] I am opening the correct localhost port (`5500`)
 - [ ] DevTools (F12) are open
 - [ ] Console is empty (no ERROR)
 

@@ -292,8 +292,8 @@ export class HealingParticleSystem_Session136 {
         // or we could use specific textures. For Points, we rely on density.
         
         const color = new THREE.Color(0.9, 0.9, 1.0); // Neutral white-ish
-        const size = this.config.baseSize * 0.8;
-        const life = 0.5 + intensity * 0.5; // Faster/intense waves = longer life?
+        const size = this.config.baseSize * (0.9 + intensity * 0.6);
+        const life = 0.7 + intensity * 0.8; // Stronger waves = longer-lived traces
         
         // Add slight spread
         const spread = new THREE.Vector3(
@@ -322,7 +322,7 @@ export class HealingParticleSystem_Session136 {
             this.audioSystem.triggerHealingTone(position, intensity);
         }
 
-        const particleCount = Math.floor(20 * intensity); // Burst size based on intensity
+        const particleCount = Math.max(8, Math.floor(18 * intensity)); // Burst size based on intensity
         
         for (let i = 0; i < particleCount; i++) {
             // Random direction in sphere
@@ -346,6 +346,40 @@ export class HealingParticleSystem_Session136 {
             // Start exactly at position
             this.spawnParticle(position.clone(), vel, color, size, life, time);
         }
+    }
+
+    getStats() {
+        const birthTimes = this.geometry?.attributes?.birthTime?.array;
+        const lifetimes = this.geometry?.attributes?.lifetime?.array;
+        let activeParticles = 0;
+
+        if (birthTimes && lifetimes) {
+            const now = Number.isFinite(this.lastUpdateTime) ? this.lastUpdateTime : 0;
+            for (let i = 0; i < birthTimes.length; i++) {
+                const birth = birthTimes[i];
+                const life = lifetimes[i];
+                if (birth >= 0 && life > 0 && now >= birth && (now - birth) <= life) {
+                    activeParticles++;
+                }
+            }
+        }
+
+        return {
+            enabled: this.enabled,
+            particleCount: this.config.maxParticles,
+            activeParticles,
+            particleIndex: this.particleIndex,
+            lastUpdateTime: this.lastUpdateTime,
+            scarEmissionTargets: this.scarEmissions.size,
+            config: {
+                maxParticles: this.config.maxParticles,
+                sparkleRate: this.config.sparkleRate,
+                baseLifetime: this.config.baseLifetime,
+                baseSize: this.config.baseSize,
+                trailDensity: this.config.trailDensity,
+                lodDistance: this.config.lodDistance
+            }
+        };
     }
     
     dispose() {

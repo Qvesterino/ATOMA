@@ -109,6 +109,7 @@ export class MythicEvolutionFX_v1 {
     // Store references to data sources (read-only)
     this.aiNodes = options.aiNodes || [];
     this.links = options.links || [];
+    this.frameScheduler = options.frameScheduler || null;
     this.nodeDynamicMetrics = options.nodeDynamicMetrics;
     this.linkQualityCalculator = options.linkQualityCalculator;
     this.nodeQualityCalculator = options.nodeQualityCalculator;
