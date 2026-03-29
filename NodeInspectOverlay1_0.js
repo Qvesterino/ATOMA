@@ -9,13 +9,19 @@
  * 2. Player is within 1.0-1.5 units of a node
  * 
  * Updates at max 30Hz (not every frame) for performance
+ * 
+ * ENHANCED IN v1.1:
+ * • Added Authority Status section (when available)
+ * • Added Stats tracking
+ * • Added Console API (window.nodeInspect1)
+ * • Added Thought Storms mood display
  */
 
 import * as THREE from 'three';
 import { AtomaLanguageEngine2_0 } from './_AtomaLanguageEngine2_0.js';
 
 export class NodeInspectOverlay1_0 {
-  constructor(scene, camera, renderer, linguisticOverlay = null, game = null) {
+  constructor(scene, camera, renderer, linguisticOverlay = null, game = null, thoughtStormsSystem = null) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
@@ -27,6 +33,15 @@ export class NodeInspectOverlay1_0 {
     // Linguistic Overlay: For semantic language display (optional)
     this.linguisticOverlay = linguisticOverlay;
     
+    // Thought Storms System: For storm mood display (optional)
+    this.thoughtStormsSystem = thoughtStormsSystem;
+    
+    // Statistics tracking
+    this.stats = {
+      inspections: 0,
+      updates: 0,
+      lastUpdateFrameTime: 0
+    };
     // Timing control (20-30Hz max = every 33-50ms)
     this.lastCheckTime = 0;
     this.checkInterval = 1 / 25; // ~40ms (25Hz - reduced from 30Hz)
@@ -45,6 +60,75 @@ export class NodeInspectOverlay1_0 {
     
     // Initialize HUD
     this.initializeHUD();
+    
+    // Setup console API
+    this._setupConsoleAPI();
+  }
+  
+  /**
+   * Setup console API for debugging
+   * @private
+   */
+  _setupConsoleAPI() {
+    window.nodeInspect1 = {
+      enable: () => {
+        this.enabled = true;
+        console.log('✓ Node Inspect Overlay 1.0 enabled');
+      },
+      disable: () => {
+        this.enabled = false;
+        this.hideOverlay();
+        console.log('✓ Node Inspect Overlay 1.0 disabled');
+      },
+      stats: () => {
+        console.table(this.getStats());
+      },
+      getStats: () => this.getStats(),
+      close: () => {
+        this.hideOverlay();
+        this.currentNode = null;
+        console.log('✓ Overlay closed');
+      },
+      getCurrentNode: () => this.currentNode
+    };
+    
+    console.log('✓ Node Inspect Overlay 1.0 console API: window.nodeInspect1.enable(), window.nodeInspect1.disable(), window.nodeInspect1.stats(), window.nodeInspect1.close()');
+  }
+  
+  /**
+   * Get overlay statistics
+   */
+  getStats() {
+    return {
+      enabled: this.enabled,
+      isVisible: this.isVisible,
+      currentNodeCategory: this.currentNode?.userData?.category || 'none',
+      currentNodeId: this.currentNode?.userData?.nodeId || this.currentNode?.uuid || 'none',
+      inspections: this.stats.inspections,
+      updates: this.stats.updates,
+      averageFrameTime: this.stats.lastUpdateFrameTime.toFixed(3) + 'ms'
+    };
+  }
+  
+  /**
+   * Enable overlay
+   */
+  enable() {
+    if (!this.enabled) {
+      this.enabled = true;
+      console.log('✓ Node Inspect Overlay 1.0 enabled');
+    }
+  }
+  
+  /**
+   * Disable overlay
+   */
+  disable() {
+    if (this.enabled) {
+      this.enabled = false;
+      this.hideOverlay();
+      console.log('✓ Node Inspect Overlay 1.0 disabled');
+    }
   }
 
   /**
@@ -85,6 +169,8 @@ export class NodeInspectOverlay1_0 {
       <div id="node-archetype-meaning" style="color: #88ff88; font-size: 10px; margin-bottom: 8px; font-style: italic;"></div>
       <div id="node-category" style="color: #00ff88; font-size: 11px; margin-bottom: 6px;"></div>
       <div id="node-personality" style="color: #ffaa00; font-size: 11px; margin-bottom: 6px;"></div>
+      <div id="node-storm-mood" style="color: #ff00ff; font-size: 11px; margin-bottom: 6px; display: none;"></div>
+      <div id="node-authority-status" style="margin-bottom: 8px; border-top: 1px solid rgba(0, 255, 255, 0.3); padding-top: 6px; display: none;"></div>
       <div id="node-event-log" style="color: #ff00ff; font-size: 10px; margin-bottom: 8px; border-top: 1px solid rgba(255, 0, 255, 0.3); padding-top: 6px; display: none;"></div>
       <div id="node-metrics" style="font-size: 11px; line-height: 1.6;"></div>
     `;
@@ -121,8 +207,12 @@ export class NodeInspectOverlay1_0 {
    * Checks for node targeting via raycast or proximity
    */
   update(deltaTime) {
+    // Check if disabled
+    if (this.enabled === false) {
+      return;
+    }
+    
     // Throttle checks to 30Hz for performance
-
     this.lastCheckTime += deltaTime;
     if (this.lastCheckTime < this.checkInterval) {
       return;
@@ -137,6 +227,7 @@ export class NodeInspectOverlay1_0 {
       this.currentNode = targetedNode;
       
       if (this.currentNode) {
+        this.stats.inspections++;
         this.showOverlay();
         this.updateOverlayContent();
         
@@ -155,7 +246,10 @@ export class NodeInspectOverlay1_0 {
     } else if (this.currentNode) {
       // Node unchanged, but update display in case metrics changed
       // (though they shouldn't - they're frozen)
+      const startTime = performance.now();
       this.updateOverlayContent();
+      this.stats.updates++;
+      this.stats.lastUpdateFrameTime = performance.now() - startTime;
     }
   }
 
@@ -302,6 +396,12 @@ export class NodeInspectOverlay1_0 {
         }
       }
 
+      // Update Thought Storms mood (if available)
+      this._updateStormMood();
+
+      // Update Authority Status (if available)
+      this._updateAuthorityStatus(category, archetypeCode);
+
       // Update event log display (if available)
       const eventLogEl = this.hudPanel.querySelector('#node-event-log');
       if (eventLogEl) {
@@ -326,6 +426,68 @@ export class NodeInspectOverlay1_0 {
     } catch (e) {
       // Fail silently - don't crash if data is malformed
       console.warn('NodeInspectOverlay: Error updating content', e);
+    }
+  }
+  
+  /**
+   * Update Thought Storms mood display
+   * @private
+   */
+  _updateStormMood() {
+    const stormMoodEl = this.hudPanel.querySelector('#node-storm-mood');
+    if (!stormMoodEl) return;
+    
+    if (this.thoughtStormsSystem && this.thoughtStormsSystem.stormState) {
+      const stormMood = this.thoughtStormsSystem.stormState.currentMood || 'CALM';
+      stormMoodEl.textContent = `Storm: ${stormMood}`;
+      stormMoodEl.style.display = 'block';
+    } else {
+      stormMoodEl.style.display = 'none';
+    }
+  }
+  
+  /**
+   * Update Authority Status display
+   * @private
+   */
+  _updateAuthorityStatus(category, archetypeCode) {
+    const authorityEl = this.hudPanel.querySelector('#node-authority-status');
+    if (!authorityEl) return;
+    
+    try {
+      // Try to get authority info from global registry (if available)
+      const isCompliant = !!this.currentNode.userData.enhancedNodeModelBinding;
+      const isLocked = this.currentNode.userData.loggedAuthority === true;
+      
+      // Try to check uniqueness (requires nodeSpawnRegistry)
+      let isUnique = false;
+      if (window.nodeSpawnRegistry && archetypeCode) {
+        const existingId = window.nodeSpawnRegistry.getExistingNodeId(
+          category,
+          archetypeCode
+        );
+        const currentNodeId = this.currentNode.userData.nodeId || this.currentNode.uuid;
+        isUnique = existingId === currentNodeId;
+      }
+      
+      // Build authority HTML
+      let html = '<div style="font-size: 10px;">';
+      html += `<div style="color: #aaaaaa;">Compliance: <span style="color: ${isCompliant ? '#00ff00' : '#ff0000'}; font-weight: bold;">${isCompliant ? 'VERIFIED' : 'FAILED'}</span></div>`;
+      html += `<div style="color: #aaaaaa;">Integrity: <span style="color: ${isLocked ? '#00ff00' : '#ffff00'}; font-weight: bold;">${isLocked ? 'LOCKED' : 'OPEN'}</span></div>`;
+      
+      // Only show uniqueness if we could determine it
+      if (window.nodeSpawnRegistry) {
+        html += `<div style="color: #aaaaaa;">Uniqueness: <span style="color: ${isUnique ? '#ffaa00' : '#aaaaaa'}; font-weight: bold;">${isUnique ? 'SINGLETON' : 'GENERIC'}</span></div>`;
+      }
+      
+      html += '</div>';
+      
+      authorityEl.innerHTML = html;
+      authorityEl.style.display = 'block';
+      
+    } catch (e) {
+      // If authority check fails, hide the section
+      authorityEl.style.display = 'none';
     }
   }
 

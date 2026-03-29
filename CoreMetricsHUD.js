@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { projectHudMetrics } from './SemanticMetricAdapter.js';
 import { CoreMetricsCalculator } from './CoreMetricsCalculator.js';
+import { VisualNetworkTimeElasticity_v1 } from './VisualNetworkTimeElasticity_v1.js';
+
 
 /**
  * CORE METRICS HUD
@@ -73,7 +75,12 @@ export class CoreMetricsHUD {
       border: '#00ccdd'
     };
     
+    // Visual Network Time Elasticity
+    this.timeElasticity = new VisualNetworkTimeElasticity_v1();
+    this.timeElasticityIndicator = null;
+    
     this.createHUD();
+
   }
   
   /**
@@ -126,8 +133,23 @@ export class CoreMetricsHUD {
     networkTimeRow.innerHTML = `<span style="color: #00ffff;">NETWORK TIME:</span> <span id="network-time" style="color: #00ffff;">00000</span>`;
     this.hudContainer.appendChild(networkTimeRow);
     this.hudElements.networkTime = networkTimeRow.querySelector('#network-time');
+    
+    // === CSS FOR ELASTICITY PULSE ANIMATION ===
+    if (!document.getElementById('core-metrics-hud-pulse-style')) {
+      const pulseStyle = document.createElement('style');
+      pulseStyle.id = 'core-metrics-hud-pulse-style';
+      pulseStyle.textContent = `
+        @keyframes elasticity-pulse {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(pulseStyle);
+    }
+    
     document.body.appendChild(this.hudContainer);
   }
+
   
   /**
    * Create a single metric row with bar
@@ -257,8 +279,17 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   this.updateMetricDisplay('corruption', corruption);
   this.updateMetricDisplay('loadPressure', load);
 
+  // === VISUAL NETWORK TIME ELASTICITY ===
+  // Update time elasticity state based on synergy
+  this.timeElasticity.setAverageSynergy(synergy);
+  this.timeElasticity.update(deltaTime, performance.now() / 1000);
+  
+  // Update visualization of time elasticity
+  this.updateTimeElasticityVisualization();
+
   // === NETWORK TIME PRESSURE ===
   this.updateNetworkTime(synergy, deltaTime);
+
 
   // === EVENT GLOW ===
   if (newEventFlags?.newCycle) {
@@ -403,6 +434,63 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
   }
   
   /**
+   * Update Visual Network Time Elasticity visualization
+   * - Shows when time rewind effect is active (synergy > 85% for 5+ seconds)
+   * - Changes color and adds visual indicator
+   * - Smooth fade-in/fade-out based on fadeAlpha
+   */
+  updateTimeElasticityVisualization() {
+    if (!this.hudElements.networkTime) return;
+    
+    const isRewinding = this.timeElasticity.isRewinding();
+    const fadeAlpha = this.timeElasticity.getFadeAlpha();
+    
+    if (isRewinding) {
+      // Change color based on fade intensity (gold → orange-red)
+      const hue = 50 - (fadeAlpha * 30); // 50 (gold) → 20 (orangered)
+      const saturation = 100;
+      const lightness = 60;
+      
+      this.hudElements.networkTime.style.color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      
+      // Add glow effect based on fade intensity
+      const glowIntensity = 10 + (fadeAlpha * 10);
+      this.hudElements.networkTime.style.textShadow = `0 0 ${glowIntensity}px hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      this.hudElements.networkTime.style.fontWeight = 'bold';
+      
+      // Add indicator element
+      if (!this.timeElasticityIndicator) {
+        const indicator = document.createElement('span');
+        indicator.id = 'time-elasticity-indicator';
+        indicator.style.cssText = `
+          margin-left: 8px;
+          font-size: 10px;
+          color: #ffdd00;
+          animation: elasticity-pulse 1s infinite;
+          opacity: ${fadeAlpha};
+        `;
+        indicator.textContent = '⏪ TIME ELASTIC';
+        this.hudElements.networkTime.parentElement.appendChild(indicator);
+        this.timeElasticityIndicator = indicator;
+      } else {
+        // Update opacity of existing indicator
+        this.timeElasticityIndicator.style.opacity = fadeAlpha.toString();
+      }
+    } else {
+      // Normal state - reset to default
+      this.hudElements.networkTime.style.color = '#00ffff';
+      this.hudElements.networkTime.style.textShadow = '';
+      this.hudElements.networkTime.style.fontWeight = 'normal';
+      
+      // Remove indicator element
+      if (this.timeElasticityIndicator) {
+        this.timeElasticityIndicator.remove();
+        this.timeElasticityIndicator = null;
+      }
+    }
+  }
+  
+  /**
    * Trigger glow animation on new cycle
    */
   triggerGlow() {
@@ -412,6 +500,7 @@ update(metrics, temporalDisplay, newEventFlags, deltaTime = 0.016) {
     this.glowActive = true;
     this.glowElapsedTime = 0;
   }
+
   
   /**
    * Update glow animation

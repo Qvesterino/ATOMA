@@ -3934,28 +3934,28 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => this.nodeMicroEvents?.update?.(dt, this.aiNodes?.nodes), 'visual.nodeMicroEvents');
         this.frameScheduler.register('visual', (dt) => this.t2CorruptionVisualIntegration?.update?.(dt, this.linkingSystem?.links), 'visual.t2CorruptionVisualIntegration');
         this.frameScheduler.register('visual', (dt) => this.t2HarmonyVisualConsumer?.update?.(dt, this.aiNodes, this.harmonyStabilizationSystem), 'visual.t2HarmonyVisualConsumer');
-        // Realtime systems
+        // Cross-layer tick bridges
         this.frameScheduler.register('realtime', (dt) => this.nodeInteractionEngine?.update?.(dt), 'realtime.nodeInteraction');
         this.frameScheduler.register('realtime', (dt) => this.hitProxySystem?.update?.(dt), 'realtime.hitProxy');
-        this.frameScheduler.register('realtime', () => {
+        this.frameScheduler.register('visual', () => {
             if (this._runElasticityPending) {
                 this._runElasticityPending = false;
                 this.visualNetworkTimeElasticityTick(this._pendingElasticityDt);
             }
-        }, 'visualNetworkTimeElasticity.realtime');
-        this.frameScheduler.register('realtime', () => {
+        }, 'visual.visualNetworkTimeElasticity');
+        this.frameScheduler.register('visual', () => {
             if (!VISUAL_SYSTEMS_ENABLED) return;
             if (this._runSynergyPulsePending) {
                 this._runSynergyPulsePending = false;
                 this.synergyPulseVisualsTick(this._pendingSynergyPulseDt);
             }
-        }, 'synergyPulseVisuals.realtime');
-        this.frameScheduler.register('realtime', () => {
+        }, 'visual.synergyPulseVisuals');
+        this.frameScheduler.register('visual', () => {
             if (this._runVisualSemanticPending) {
                 this._runVisualSemanticPending = false;
                 this.runVisualSemanticTick(this._pendingVisualSemanticDt, this._pendingMark);
             }
-        }, 'semantic.visual30Hz');
+        }, 'visual.semanticVisual30Hz');
         this.frameScheduler.register('visual', () => {
             if (this._runHarmonicResonancePending) {
                 this._runHarmonicResonancePending = false;
@@ -4028,18 +4028,18 @@ class AtomaGame {
                 this.compositeResonanceFeedback.update(dt);
             }
         }, 'visual.compositeResonanceFeedback');
-        this.frameScheduler.register('realtime', () => {
+        this.frameScheduler.register('visual', () => {
             if (this._runCascadeVisualizerPending) {
                 this._runCascadeVisualizerPending = false;
                 this.cascadeVisualizerTick(this._pendingCascadeVisualizerDt);
             }
-        }, 'cascadeVisualizer.realtime');
-        this.frameScheduler.register('realtime', () => {
+        }, 'visual.cascadeVisualizer');
+        this.frameScheduler.register('simulation', () => {
             if (this._runSlowSemanticPending) {
                 this._runSlowSemanticPending = false;
                 this.runSlowSemanticTick(this._pendingSlowSemanticDt);
             }
-        }, 'semantic.slow10Hz');
+        }, 'simulation.semanticSlow10Hz');
         this.frameScheduler.register('visual', (dt) => {
             if (this.glyphSystem4 && this.aiNodes) {
                 this.glyphSystem4.update(dt, this.aiNodes.nodes);
