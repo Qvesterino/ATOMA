@@ -56,7 +56,7 @@ const CONFIG = {
     MAX_GLYPHS_PER_LINK_IMPORTANT: 2,  // Important links
     MAX_GLYPHS_PER_LINK_NORMAL: 2,     // Normal links
     MAX_GLYPHS_PER_LINK_MINOR: 3,      // Minor links: more, smaller
-    MAX_GLYPHS_PER_LINK_ABSOLUTE: 3,   // Hard cap per link
+    MAX_GLYPHS_PER_LINK_ABSOLUTE: 5,   // Hard cap per link
     MAX_GLYPHS_PER_STATE: 1,           // Max per pictogram state per link
     MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 1 of each metric)
         harmony: 1,
@@ -420,7 +420,9 @@ class EnhancedPictogramInstance {
             if (this.linkProgress < 0.0) this.linkProgress = 0.2;
         } else {
             if (this.linkProgress > 1.0) {
-                this.linkProgress -= 1.0;
+                this.linkProgress = 1.0;
+                this.beginOrphanFade();
+                return;
             }
         }
 

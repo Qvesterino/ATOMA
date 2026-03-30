@@ -76,6 +76,17 @@ export class NodeHierarchyBridge {
     this.running = false;
   }
 
+  _getWorldPosition(nodeMesh, target = new THREE.Vector3()) {
+    if (!nodeMesh) return target.set(0, 0, 0);
+    if (typeof nodeMesh.getWorldPosition === 'function') {
+      return nodeMesh.getWorldPosition(target);
+    }
+    if (nodeMesh.position) {
+      return target.copy(nodeMesh.position);
+    }
+    return target.set(0, 0, 0);
+  }
+
   /**
    * Initialize bridge (called after systems are ready)
    */
@@ -115,7 +126,7 @@ export class NodeHierarchyBridge {
 
     // Initialize position tracking
     if (aiNode.mesh) {
-      this._updateNodePosition(nodeId, aiNode.mesh.position);
+      this._updateNodePosition(nodeId, this._getWorldPosition(aiNode.mesh));
     }
   }
 
@@ -175,8 +186,10 @@ export class NodeHierarchyBridge {
     if (!childNode?.mesh || !parentNode?.mesh) return;
 
     const depth = nodeHierarchySystem.getDepth(childId);
-    const childPos = [childNode.mesh.position.x, childNode.mesh.position.y, childNode.mesh.position.z];
-    const parentPos = [parentNode.mesh.position.x, parentNode.mesh.position.y, parentNode.mesh.position.z];
+    const childWorld = this._getWorldPosition(childNode.mesh);
+    const parentWorld = this._getWorldPosition(parentNode.mesh);
+    const childPos = [childWorld.x, childWorld.y, childWorld.z];
+    const parentPos = [parentWorld.x, parentWorld.y, parentWorld.z];
 
     this.visuals.createHierarchyLine(parentPos, childPos, depth, childId);
     this.stats.lineUpdates++;
@@ -247,7 +260,9 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
       const parentNode = this.nodeToAINode.get(parentId);
 
       if (childNode?.mesh && parentNode?.mesh) {
-        const distance = childNode.mesh.position.distanceTo(parentNode.mesh.position);
+        const childWorld = this._getWorldPosition(childNode.mesh);
+        const parentWorld = this._getWorldPosition(parentNode.mesh);
+        const distance = childWorld.distanceTo(parentWorld);
         if (distance < this.config.maxVisualizationDistance) {
           this._updateHierarchyLineVisual(nodeId);
         }
@@ -276,10 +291,12 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
       const parentNode = this.nodeToAINode.get(event.source);
 
       if (childNode?.mesh && parentNode?.mesh) {
+        const parentWorld = this._getWorldPosition(parentNode.mesh);
+        const childWorld = this._getWorldPosition(childNode.mesh);
         // Create visual feedback on property inheritance
         this.visualFeedback.createPropertyInheritanceEffect(
-          parentNode.mesh.position,
-          childNode.mesh.position,
+          parentWorld,
+          childWorld,
           event.property
         );
 
@@ -299,14 +316,17 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this._updateHierarchyLineVisual(event.nodeId);
         this.visuals.pulseConnection(event.nodeId, 400);
 
+        const parentWorld = this._getWorldPosition(parentNode.mesh);
+        const childWorld = this._getWorldPosition(childNode.mesh);
+
         // Visual feedback effects on reparenting
         // 1. Scale pop on child node
         this.visualFeedback.createScaleAnimation(childNode.mesh, 1.0, 1.12);
 
         // 2. Particle pulse from parent to child
         this.visualFeedback.createParticlePulse(
-          parentNode.mesh.position,
-          childNode.mesh.position,
+          parentWorld,
+          childWorld,
           this.visualFeedback.config.hierarchyConnectorColor,
           8
         );
@@ -316,7 +336,7 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
         this.visualFeedback.createGlowEffect(childNode.mesh, new THREE.Color(0x00ffff), 0.4);
 
         // 4. Ring expansion at connection point (midpoint)
-        const midpoint = new THREE.Vector3().addVectors(parentNode.mesh.position, childNode.mesh.position).multiplyScalar(0.5);
+        const midpoint = new THREE.Vector3().addVectors(parentWorld, childWorld).multiplyScalar(0.5);
         this.visualFeedback.createRingExpansion(midpoint, new THREE.Color(0x88ff00), 2.5);
       }
     });

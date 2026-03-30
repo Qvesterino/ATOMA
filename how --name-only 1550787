@@ -1,0 +1,177 @@
+* [33m1550787[m[33m ([m[1;31morigin/recovery[m[33m, [m[1;32mrecovery[m[33m, [m[1;32mdebug-timing[m[33m)[m kokotsky zrychlene
+* [33m6e14d17[m stršne zvlaštne kokotksy rychhle veci
+* [33me172b4b[m riziko
+* [33m6d85a4d[m kurva chodiť do piče codex kurva
+[31m|[m *   [33md19409b[m[33m ([m[1;35mrefs/stash[m[33m)[m On recovery: temp revert link patch
+[31m|[m[31m/[m[33m|[m[34m\[m  
+[31m|[m [33m|[m * [33m38a9989[m untracked files on recovery: c4b35f6 no nejak to plynie
+[31m|[m * [33mceb844b[m index on recovery: c4b35f6 no nejak to plynie
+[31m|[m[31m/[m  
+* [33mc4b35f6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdebug-timing-teraz[m[33m)[m no nejak to plynie
+* [33m1c35f12[m huby + plan na framescheduler register
+* [33m4cec7d2[m harmonic topology + opraveny local host
+* [33m57b11e3[m synergy
+* [33m3c17c7a[m presuvačky
+[34m|[m * [33m5679c3a[m kanban checkpoint task:6d2ff turn:1
+[34m|[m[34m/[m  
+* [33m83fdbee[m prva aura je von z hry
+* [33m89892fd[m boha aj githubom
+* [33md51a3a6[m rupture
+* [33m2710174[m glyphy!!!!
+* [33m3906ccf[m volačo zas bude napiču tak to už zalohujem predbežne
+* [33mc62ea7f[m zatial je to ku podivu nedojebane
+* [33m5f670aa[m zaloha 29.3
+* [33m4e51da4[m torus nebude fragmented no čo už
+* [33m0fa46f8[m aspo ma narovnane tie torusy
+* [33m18c434d[m riešime shadre vo velkom docela
+* [33mc524f81[m jaj to čo je za impacty
+* [33mb5f36a1[m kokot jake impacty čo ti jebe
+* [33m76c940d[m toto je najhorši update Kilo Code aky kedy bol čo ti jebe...
+* [33m8052eac[m mame linky a vcelku naloženky
+* [33m8cacd13[m VS code je hrozna pičovina
+* [33mcce499a[m skins
+* [33m4863798[m mame naspäť fungujuce metriky vďaka GLM
+* [33mf3c027d[m playwright v repo + world collison
+* [33m0f3ff0a[m zaloha len taka preventivna ale pozor na tento commit nejak som ho nekontroloval a musim isť aj tak dopiče tak sa ponahlam
+* [33m8e4f130[m predtym ako ideme dojebať niečo zasa
+* [33m7fe6aa2[m musim zalohy lebo codexu jebe
+* [33ma4c6e38[m mame cascade particles, máme dokonca aj glyph messaging
+* [33m5d516f1[m cascade particles vidim juchuuu
+* [33mff12ada[m mam particles z cascade + cleanup
+* [33m3bb2324[m zaloha preventivna pred čistkou
+* [33m757fb5c[m idem spať, zajtra nodes riešime
+* [33m67af75b[m cascade
+* [33mdeb5a0a[m particles nevidno
+* [33m771779e[m particle cascade mi zedli kokot
+* [33mbc0f787[m aby som skapal
+* [33mc444bc1[m rozkurvene cele zas do materinej piči aj s takou hrou vyjebanou
+* [33md813457[m ideme waves oživiť, už ma to nebavi
+* [33m3e6c8f2[m sice sme prišli o waves ale aspon mame resonance
+* [33m5402137[m PHASE5 hotovo
+* [33m2ca3951[m zaloha reštart
+* [33me2b9866[m glyphy a harmony
+* [33mc3c066f[m dirty queue
+* [33mab9c352[m haluze
+* [33m53d3594[m zaloha len kvoli HarmonicResonanceSystem
+* [33mb827f90[m link recommend + cascade
+* [33mc90ee5c[m glyphy srandy, waves neviem čo
+* [33m5a63dc5[m nova era začala
+* [33m7438f6f[m bohužal T2 harmonic consumer ma bug
+* [33mbc8cfc8[m reaktivacia vcelku prisna
+* [33m9698853[m LOD 2
+* [33m3975230[m LOD
+* [33mdf6b863[m corruption spread
+* [33m1237952[m raycast
+* [33me600ffc[m linky sa disposuju spravne
+* [33mdb95d2d[m zaloha pred pictogrammi
+* [33m27ee35a[m raycast + performance
+* [33m961b5fd[m commit bez nazvu
+* [33m0968ea6[m zatial fungišn
+* [33mafc0c38[m hra ide
+* [33mebc86b9[m auddio dojebane
+* [33mae223f7[m audio + cascade
+* [33m91e639f[m oživujeme waves
+* [33me89ee9b[m wave resonance stale dokola
+* [33mc622d1b[m resonance 2
+* [33m5f8d062[m resonance rupture
+* [33ma43b911[m particles more 2
+* [33med8ec99[m aktivacia tier4 a phase5
+* [33mf30587e[m hamony T2 reaktivacia
+* [33me84c39e[m cascade
+* [33m6581d8e[m wave oscillation
+* [33mecbc027[m harmoonic hubs
+* [33mdc47500[m zbavili sme sa kruhov okolo nodes (asi to boli ripples)
+* [33me53433c[m mame aktivny WaveParticleEmitter
+* [33ma2db3bb[m bridge srandičky na strandoch
+* [33mc6dd2ac[m strands upgrade
+* [33m34eccb8[m zaujimavosti
+* [33me5fc633[m zaujimave
+* [33mbb29b49[m corruption particles prskajuce z node
+* [33me2eef73[m cascade resonance, waves podobné
+* [33m97a9678[m resonance cascade stale dokola
+* [33m1b79300[m spomalenie, ale tento commit je len pre istotu
+* [33m1a64ceb[m skuska force all
+* [33me19695d[m metrics refactor
+* [33mef3ac12[m harmony fixing
+* [33m0f9803a[m openclaw skuska
+* [33m079b378[m node metriky, vizualy a celkovo
+* [33m98f88d9[m nove node vizualy
+* [33mfc0b239[m error misia splnena
+* [33m8ba7ffc[m error nodes upgrade, ešte 3
+* [33m6620d19[m velmi zaujimave error nodes
+* [33m7b3d1e2[m velmi zvlaštny patch
+* [33mda89f5c[m audio
+* [33mbb90d7b[m moje pekne nodes niekto si zo mna robi srandu kurva
+* [33m854eb44[m corruption + harmony + spravne čitanie metrík
+* [33m31e8e22[m cascading reasonance
+* [33m683fd52[m cascade resonance and waves
+* [33m1aa685d[m cascade napajanie na cascade eventy
+* [33mfad8034[m metrics balansing 5
+* [33m3be9ebc[m metrics baalncing 4
+* [33m7f52c06[m metrics balsing 3
+* [33madb479c[m metrics balansing 2
+* [33m873a657[m metrics balansing
+* [33m3d8a822[m metrics refactor
+* [33m4eab3ec[m refactor metrik, zatial všetko funguje
+* [33m9c97f76[m refactor Updated Phase 2 metric reads to canonical sources using SemanticMetricAdapte
+* [33m2aaaf81[m nodes + metriky pokračovanie
+* [33mc640e9a[m nodes riešime
+* [33m2d87704[m 15 nodes spawn + waves riešenie
+* [33m20c1182[m reaktivacia synergy + harmony
+* [33mdcc07a8[m metrics activation synergy + harmony
+* [33m0b54468[m harmony
+* [33m6276386[m časovanie
+* [33m23749bf[m harmonic propagation
+* [33m2dc5c8c[m opravene glyphy, žiadne nechcene geometricke tvary uź nemame, opraveny box selection
+* [33meae382a[m moj kokot
+* [33m84abe91[m piči pojebanej
+* [33m476cf0d[m uz chyba len skin
+* [33mc2c183a[m toto je velka tragedia
+* [33m803f6b7[m fu
+* [33mf082e7e[m vidime particles, vidime Škrvny no mame rozbity depth, transparent na strands
+* [33m7a23480[m harmony + pictogramy
+* [33m4db495d[m metrics refactor 7 -stability /instability / networkd stress
+* [33mb32ce5a[m impacts
+* [33m3888684[m impacts
+* [33mcb2a8c4[m opravene pictogramy + arcs + selected aura
+* [33m9b386e7[m vratili sme pictogramy
+* [33ma865904[m SAFEPOINT: pictogram crash baseline – do not lose
+* [33md09df91[m[33m ([m[1;32mtemp_work[m[33m)[m prišli sme o pictogramy
+* [33m623cbee[m oprava arc discahrge
+* [33m79f6ae1[m metrics refactor 6 a pol
+* [33m7ba7bb5[m  metrics refactor 6 - corruption + harmony
+* [33ma633b05[m metrics refactor 5 - corruption
+* [33m9aff551[m metric frefactor 4 - už sa napajaju len na konkretne spojenia
+* [33m8e12673[m metrics refactor 3 - opravene synergy
+* [33m2ada680[m metrics refactor 2
+* [33mffc81ab[m metrics velky refactor
+* [33mf5f33f8[m vertexos
+* [33m91e8a5a[m vertex injection
+* [33m46737c6[m hmm hm injection spray
+* [33mb35e372[m tvoja manka
+* [33m9c66cd7[m streaks este polishing
+* [33ma9979e2[m[33m ([m[1;31morigin/temp_work[m[33m)[m streaks
+* [33m78deda2[m točiaci sa pulse ring
+* [33m6b4127f[m dym za ringom + arcs + skurveny sprej neposlucha
+* [33m7c1813d[m konecne ring čo vyzera popiči
+* [33m8c02a84[m fofoofoo ring jak blazem fragmentovany
+* [33m30e4437[m ring pulse
+* [33m779a854[m moreee
+* [33mc6f1c3c[m ringy
+* [33m92cad70[m more toto je fakt na hlavu s tymi ringami
+* [33mc4a4d78[m ring + ringy
+* [33mee9a317[m orbity upgrade
+* [33mf51ca7a[m orbitky
+* [33mcb9277c[m orbitalne ringy wtf
+* [33m1da5dfe[m aury
+* [33m6d6c04f[m jebla aura
+* [33m711b559[m pulzujuce picovinky so sprejom, no bez ringu poriadneho
+* [33m6173d66[m go go go orbit segmenter 2 ring
+* [33mb522ad3[m konečne normalne torusy, nechvam 7
+* [33m6e90438[m konečne ten 3-torus vyjebany 3-ring spičenec
+* [33mfab8ab5[m mame tu blikajucu kokotinu konečne
+* [33m07be78a[m zedla kokot
+* [33m398b335[m zedla
+* [33m8f0f3d0[m hviezdičky2
+* [33m2e79a5e[m hviezdičky
+* [33mefe7bb1

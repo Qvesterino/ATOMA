@@ -90,6 +90,11 @@ export class NodeEditorRuntime_v1 {
             // Debug HUD (optional)
             debugHUD: game?.debugHUD || null,
         };
+        this.schedulerOwnedSystems = new Set([
+            'linkingSystem',
+            'primaryNodeTopBar',
+            'emotionalFeed',
+        ]);
 
         const activeSystems = Object.values(this.editorSystems).filter(s => s !== null).length;
         if (activeSystems === 0) {
@@ -163,7 +168,8 @@ export class NodeEditorRuntime_v1 {
      */
     update(delta) {
         try {
-            for (const sys of Object.values(this.editorSystems)) {
+            for (const [sysName, sys] of Object.entries(this.editorSystems)) {
+                if (this.schedulerOwnedSystems.has(sysName)) continue;
                 if (sys) {
                     try {
                         sys.update?.(delta);

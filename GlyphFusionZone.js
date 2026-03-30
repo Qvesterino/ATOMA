@@ -59,6 +59,7 @@ const CONFIG = {
     
     // Performance
     MAX_ZONES_PER_SCENE: 20,
+    MAX_ACTIVE_ZONES_PER_NODE: 3,
     POOL_SIZE: 20  // Composite glyphs
 };
 
@@ -73,6 +74,7 @@ class FusionZoneState {
     constructor() {
         this.active = false;
         this.node = null;
+        this.nodeKey = null;
         this.sourceGlyphs = [];
         this.convergedLinks = [];
         
@@ -103,6 +105,7 @@ class FusionZoneState {
         }
         this.active = false;
         this.node = null;
+        this.nodeKey = null;
         this.sourceGlyphs.length = 0;
         this.convergedLinks.length = 0;
         this.phase = 'IDLE';
@@ -136,6 +139,22 @@ class FusionZoneState {
         this.isInHarmonicHub = context.isInHarmonicHub;
         
         // Adjust lifetime for harmonic hubs
+        this.lifetime = CONFIG.COMPOSITE_LIFETIME;
+        if (this.isInHarmonicHub) {
+            this.lifetime *= CONFIG.HARMONIC_HUB_MULTIPLIER;
+        }
+    }
+
+    updateFusion(node, glyphs, links, context) {
+        this.node = node;
+        this.sourceGlyphs = glyphs.slice();
+        this.convergedLinks = links.slice();
+        this.harmonyBalance = context.harmonyBalance;
+        this.corruptionBalance = context.corruptionBalance ?? 0.0;
+        this.stability = context.stability ?? 0.5;
+        this.averageSynergy = context.averageSynergy;
+        this.isInHarmonicHub = context.isInHarmonicHub;
+
         this.lifetime = CONFIG.COMPOSITE_LIFETIME;
         if (this.isInHarmonicHub) {
             this.lifetime *= CONFIG.HARMONIC_HUB_MULTIPLIER;
@@ -303,9 +322,23 @@ export class GlyphFusionZoneManager {
         return { nodeA, nodeB };
     }
 
+    _getLinkKey(link) {
+        if (!link) return null;
+        return link.userData?.id || link.id || link.uuid || null;
+    }
+
     _getNodeKey(node) {
         if (!node) return null;
         return node.uuid || node.userData?.nodeId || node.userData?.id || node.id || null;
+    }
+
+    _clearNodeZoneMapping(nodeKey, zone = null) {
+        if (!nodeKey) return;
+        const mappedZone = this.nodeZoneMap.get(nodeKey);
+        if (!mappedZone) return;
+        if (!zone || mappedZone === zone) {
+            this.nodeZoneMap.delete(nodeKey);
+        }
     }
 
     _resolveEndpointGlyph(glyph) {
@@ -452,6 +485,18 @@ export class GlyphFusionZoneManager {
 
             // Find or create zone
             let zone = this.nodeZoneMap.get(nodeId);
+            const activeZoneCount = this.zones.filter((z) => z.active && z.nodeKey === nodeId).length;
+            if (activeZoneCount >= CONFIG.MAX_ACTIVE_ZONES_PER_NODE && !zone?.active) return;
+
+            // Fusion context for this node
+            const context = this.calculateFusionContext(glyphsAtNode);
+
+            if (zone?.active) {
+                zone.nodeKey = nodeId;
+                zone.updateFusion(node, glyphsAtNode.map(g => g.glyph), links, context);
+                return;
+            }
+
             if (!zone) {
                 zone = this.zones.find(z => !z.active);
                 if (!zone) return;
@@ -460,7 +505,7 @@ export class GlyphFusionZoneManager {
             }
 
             // Initiate fusion
-            const context = this.calculateFusionContext(glyphsAtNode);
+            zone.nodeKey = nodeId;
             this._logLifecycle(`fusion-detected:${nodeId}`, 'fusion detected', {
                 nodeId,
                 sourceGlyphCount: glyphsAtNode.length,
@@ -927,12 +972,43 @@ export class GlyphFusionZoneManager {
         // Reset zone after separation
         setTimeout(() => {
             if (zone.phase === 'SEPARATING') {
+                const nodeKey = zone.nodeKey || this._getNodeKey(zone.node);
+                this._clearNodeZoneMapping(nodeKey, zone);
                 zone.reset();
-                if (zone.node) {
-                    this.nodeZoneMap.delete(zone.node.uuid);
-                }
             }
         }, 500);  // 500ms separation animation
+    }
+
+    clearLink(linkOrId) {
+        const linkKey = typeof linkOrId === 'string' ? linkOrId : this._getLinkKey(linkOrId);
+        const linkRef = typeof linkOrId === 'object' ? linkOrId : null;
+        if (!linkKey && !linkRef) return 0;
+
+        let affected = 0;
+        this.zones.forEach(zone => {
+            if (!zone.active || !Array.isArray(zone.convergedLinks) || zone.convergedLinks.length === 0) return;
+
+            const matches = zone.convergedLinks.some(link => {
+                if (linkRef && link === linkRef) return true;
+                if (!linkKey) return false;
+                return this._getLinkKey(link) === linkKey;
+            });
+            if (!matches) return;
+
+            zone.convergedLinks = zone.convergedLinks.filter(link => {
+                if (linkRef && link === linkRef) return false;
+                if (!linkKey) return true;
+                return this._getLinkKey(link) !== linkKey;
+            });
+
+            affected += 1;
+
+            if (zone.convergedLinks.length < CONFIG.CONVERGENCE_THRESHOLD) {
+                this.initiateSeparation(zone);
+            }
+        });
+
+        return affected;
     }
 
     // ========================================================================

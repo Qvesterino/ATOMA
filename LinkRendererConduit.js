@@ -45,6 +45,18 @@ const remap = (v, in0, in1, out0, out1) => {
     const t = clamp01((v - in0) / (in1 - in0));
     return out0 + (out1 - out0) * t;
 };
+const _linkWorldPosA = new THREE.Vector3();
+const _linkWorldPosB = new THREE.Vector3();
+const getLinkWorldPosition = (node, target) => {
+    if (!node) return target.set(0, 0, 0);
+    if (typeof node.getWorldPosition === 'function') {
+        return node.getWorldPosition(target);
+    }
+    if (node.position) {
+        return target.copy(node.position);
+    }
+    return target.set(0, 0, 0);
+};
 const FORCE_VISUAL_DEBUG = false;
 const COLOR_WHITE = new THREE.Color(0xffffff);
 const STRAND_FILAMENT_STYLE = {
@@ -1997,14 +2009,25 @@ export class LinkRendererConduit {
 
         const sourceNode = link?.source || link?.sourceNode;
         const targetNode = link?.target || link?.targetNode;
+        const state = link?.group?.userData?.conduitState || null;
 
         if (!sourceNode?.position || !targetNode?.position) {
             // If nodes aren't available, keep existing values (don't delete)
             return;
         }
 
-        const sourcePos = sourceNode.position.clone();
-        const targetPos = targetNode.position.clone();
+        const sourcePos = state?.__lockedSourceCenter instanceof THREE.Vector3
+            ? state.__lockedSourceCenter
+            : getLinkWorldPosition(sourceNode, _linkWorldPosA);
+        const targetPos = state?.__lockedTargetCenter instanceof THREE.Vector3
+            ? state.__lockedTargetCenter
+            : getLinkWorldPosition(targetNode, _linkWorldPosB);
+
+        if (state) {
+            if (!(state.__lockedSourceCenter instanceof THREE.Vector3)) state.__lockedSourceCenter = sourcePos.clone();
+            if (!(state.__lockedTargetCenter instanceof THREE.Vector3)) state.__lockedTargetCenter = targetPos.clone();
+        }
+
         const linkVec = new THREE.Vector3().subVectors(targetPos, sourcePos);
         const linkDist = linkVec.length();
 
@@ -2026,7 +2049,6 @@ export class LinkRendererConduit {
         linkUD.__canonicalWriteAt.wavePhaseOffset = Date.now();
 
         // Write to conduit state if available
-        const state = link?.group?.userData?.conduitState;
         if (state) {
             state.waveDirection = waveDirection;
             state.waveLength = waveLength;
@@ -2601,18 +2623,15 @@ export class LinkRendererConduit {
         const conduitState = group.userData.conduitState || (group.userData.conduitState = {});
         const sourceNode = link?.source || link?.sourceNode;
         const targetNode = link?.target || link?.targetNode;
-        const directionVec = new THREE.Vector3(1, 0, 0);
-        if (sourceNode?.position && targetNode?.position) {
-            directionVec.subVectors(targetNode.position, sourceNode.position);
-            if (directionVec.lengthSq() > 1e-8) {
-                directionVec.normalize();
-            } else {
-                directionVec.set(1, 0, 0);
-            }
+        const sourceCenter = getLinkWorldPosition(sourceNode, _linkWorldPosA).clone();
+        const targetCenter = getLinkWorldPosition(targetNode, _linkWorldPosB).clone();
+        const directionVec = new THREE.Vector3().subVectors(targetCenter, sourceCenter);
+        if (directionVec.lengthSq() > 1e-8) {
+            directionVec.normalize();
+        } else {
+            directionVec.set(1, 0, 0);
         }
-        const linkLength = (sourceNode?.position && targetNode?.position)
-            ? sourceNode.position.distanceTo(targetNode.position)
-            : 1.0;
+        const linkLength = sourceCenter.distanceTo(targetCenter) || 1.0;
         const wavePhaseOffset = linkLength * 0.25;
         const linkUserData = ensureUserData(link);
         linkUserData.waveDirection = directionVec;
@@ -2693,6 +2712,11 @@ export class LinkRendererConduit {
             waveDirection: directionVec,
             waveLength: linkLength,
             wavePhaseOffset: wavePhaseOffset,
+            __backboneFrozen: true,
+            __lockedSourceCenter: sourceCenter,
+            __lockedTargetCenter: targetCenter,
+            __lockedLinkDirection: directionVec.clone(),
+            __lockedLinkLength: linkLength,
             impacts: [],
             __dynamicGeometryInitialized: false,
             __warnedDirectionalStreaksInactive: false,
@@ -3060,9 +3084,16 @@ export class LinkRendererConduit {
         }
 
         // --- LINK ANCHORING FIX ---
-        // Compute anchored start/end points at node surfaces (not centers)
-        const sourceCenter = link.source.position.clone();
-        const targetCenter = link.target.position.clone();
+        // Use the link's locked world-space anchors so the backbone stays stable after creation.
+        const sourceCenter = state.__lockedSourceCenter instanceof THREE.Vector3
+            ? state.__lockedSourceCenter
+            : getLinkWorldPosition(link.source, _linkWorldPosA);
+        const targetCenter = state.__lockedTargetCenter instanceof THREE.Vector3
+            ? state.__lockedTargetCenter
+            : getLinkWorldPosition(link.target, _linkWorldPosB);
+
+        if (!(state.__lockedSourceCenter instanceof THREE.Vector3)) state.__lockedSourceCenter = sourceCenter.clone();
+        if (!(state.__lockedTargetCenter instanceof THREE.Vector3)) state.__lockedTargetCenter = targetCenter.clone();
 
         // Direction from source → target
         const linkVec = new THREE.Vector3().subVectors(targetCenter, sourceCenter);
@@ -3460,13 +3491,19 @@ export class LinkRendererConduit {
         // --- 1. Curve Calculation ---
         const dist = start.distanceTo(end);
 
-        // Slight arc for rope slack effect
-        const arcHeight = Math.min(1.5, dist * 0.1);
+        // Lock the curve lift per link so the backbone does not bob vertically frame-to-frame.
+        const arcHeight = Number.isFinite(state.__lockedArcHeight)
+            ? state.__lockedArcHeight
+            : (state.__lockedArcHeight = Math.min(1.5, dist * 0.1));
         const mid = this._vec3.lerpVectors(start, end, 0.5); // Use cache
         mid.y += arcHeight;
 
-        // Reusing curve object would be ideal but QuadraticBezierCurve3 is light
-        const mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
+        // Reuse the locked curve after the first build so the backbone does not follow node motion.
+        let mainCurve = state.mainCurve;
+        if (!mainCurve) {
+            mainCurve = new THREE.QuadraticBezierCurve3(start.clone(), mid.clone(), end.clone());
+            state.mainCurve = mainCurve;
+        }
 
         link.curve = mainCurve;
         frameState.geometry.curve = mainCurve;
@@ -3495,7 +3532,9 @@ export class LinkRendererConduit {
         state.waveLength = waveLength;
         state.wavePhaseOffset = wavePhaseOffset;
 
-        const geometryTick = (frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true;
+        const geometryTick = state.__backboneFrozen === true
+            ? (state.__dynamicGeometryInitialized !== true)
+            : ((frameStateOverride?.flags?.geometryTick ?? heavyTick) || state.__dynamicGeometryInitialized !== true);
         const segments = geometryTick
             ? computeSegmentsFromLength(mainCurve)
             : (state.strandSegments || computeSegmentsFromLength(mainCurve));
@@ -3531,7 +3570,9 @@ export class LinkRendererConduit {
         const vfx = this.computeLinkVfxInput(frameState);
 
         const breathing = Math.sin(visualTime * this.config.breathingSpeed + state.phaseOffset) * 0.05 + 1.0;
-        const twistPhase = visualTime * this.config.twistSpeed;
+        const twistPhase = Number.isFinite(state.__lockedTwistPhase)
+            ? state.__lockedTwistPhase
+            : (state.__lockedTwistPhase = visualTime * this.config.twistSpeed);
 
         const activeRadius = this.config.baseRadius * breathing * (1.0 - synergy * 0.2 + trafficLoad * 0.2) * vfx.widthMul;
 
@@ -3894,7 +3935,7 @@ export class LinkRendererConduit {
             state.__dynamicGeometryInitialized = true;
         }
 
-        state.mainCurve = mainCurve;
+        state.mainCurve = state.mainCurve || mainCurve;
 
         // --- 4.5. TRAIL PARTICLE EFFECTS ---
         trace('beforeTrailEffects', {

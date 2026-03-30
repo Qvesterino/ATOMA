@@ -7029,6 +7029,7 @@ window.__ATOMA_SCENE__ = this.scene;
                 this.compositeResonanceFeedback || null
             );
             this.glyphLayer4.frameScheduler = this.frameScheduler;
+            this.glyphLayer4.hoverOnlyMode = !this.enableGlyphLayer4FullVisuals;
         } else {
             this.glyphLayer4 = null;
         }
@@ -7193,6 +7194,7 @@ window.__ATOMA_SCENE__ = this.scene;
         // GlyphLayer4 runs in hover-only mode: no global fusion creation.
         this.setupSemanticGlyphAI();
         this.setupAmbientOrbitGlyphs();
+        this.setupGlyphLayer4Fusions();
 
         // ====================================================================
         // DEV-ONLY INTEGRITY CHECK: Verify fusion registry coverage
@@ -7633,6 +7635,7 @@ window.__ATOMA_SCENE__ = this.scene;
                     this.linkSemanticPictograms ||
                     this.linkPictogramSystem;
                 pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
+                this.linkSemanticPictograms?.fusionZoneManager?.clearLink?.(link);
                 if (linkId) {
                     this.linkedGlyphMessaging?.unregisterLink?.(linkId);
                 }
