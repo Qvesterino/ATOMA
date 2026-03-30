@@ -979,7 +979,8 @@ export class GlyphFusionZoneManager {
         }, 500);  // 500ms separation animation
     }
 
-    clearLink(linkOrId) {
+    clearLink(linkOrId, options = {}) {
+        const immediate = Boolean(options?.immediate);
         const linkKey = typeof linkOrId === 'string' ? linkOrId : this._getLinkKey(linkOrId);
         const linkRef = typeof linkOrId === 'object' ? linkOrId : null;
         if (!linkKey && !linkRef) return 0;
@@ -1004,7 +1005,15 @@ export class GlyphFusionZoneManager {
             affected += 1;
 
             if (zone.convergedLinks.length < CONFIG.CONVERGENCE_THRESHOLD) {
-                this.initiateSeparation(zone);
+                if (immediate) {
+                    zone.phase = 'SEPARATED';
+                    zone.phaseProgress = 1.0;
+                    const nodeKey = zone.nodeKey || this._getNodeKey(zone.node);
+                    this._clearNodeZoneMapping(nodeKey, zone);
+                    zone.reset();
+                } else {
+                    this.initiateSeparation(zone);
+                }
             }
         });
 

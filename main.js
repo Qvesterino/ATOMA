@@ -7634,8 +7634,8 @@ window.__ATOMA_SCENE__ = this.scene;
                     this.linkingSystem?.conduitRenderer?.pictogramSystem ||
                     this.linkSemanticPictograms ||
                     this.linkPictogramSystem;
-                pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode);
-                this.linkSemanticPictograms?.fusionZoneManager?.clearLink?.(link);
+                pictogramSystem?.clearLinkBetweenNodes?.(sourceNode, targetNode, { immediate: true });
+                this.linkSemanticPictograms?.fusionZoneManager?.clearLink?.(link, { immediate: true });
                 if (linkId) {
                     this.linkedGlyphMessaging?.unregisterLink?.(linkId);
                 }
@@ -7649,6 +7649,17 @@ window.__ATOMA_SCENE__ = this.scene;
                     targetNodeId: targetNode?.userData?.nodeId ?? targetNode?.id ?? targetNode?.uuid ?? null
                 });
                 this.corruptionFeedback?.clearEffectsForNodes?.([sourceNode, targetNode]);
+
+                if (this.glyphLayer4 && (sourceNode || targetNode)) {
+                    const reconcileAmbientGlyphs = () => {
+                        this.glyphLayer4?.reconcileAmbientOrbitGlyphs?.([sourceNode, targetNode].filter(Boolean));
+                    };
+                    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+                        window.requestAnimationFrame(reconcileAmbientGlyphs);
+                    } else {
+                        setTimeout(reconcileAmbientGlyphs, 0);
+                    }
+                }
             });
             this.linkingSystem.__visualOrphanCleanupBound = true;
         }

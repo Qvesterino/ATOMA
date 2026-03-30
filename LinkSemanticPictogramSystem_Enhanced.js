@@ -52,12 +52,12 @@ const CONFIG = {
     LAYER_C_DEPTH_OFFSET: 1.4,
     
     // Spawn density (semantic priority)
-    MAX_GLYPHS_PER_LINK_CRITICAL: 1,   // Critical links: fewer, larger
-    MAX_GLYPHS_PER_LINK_IMPORTANT: 2,  // Important links
-    MAX_GLYPHS_PER_LINK_NORMAL: 2,     // Normal links
-    MAX_GLYPHS_PER_LINK_MINOR: 3,      // Minor links: more, smaller
+    MAX_GLYPHS_PER_LINK_CRITICAL: 5,   // Critical links: fewer, larger
+    MAX_GLYPHS_PER_LINK_IMPORTANT: 5,  // Important links
+    MAX_GLYPHS_PER_LINK_NORMAL: 5,     // Normal links
+    MAX_GLYPHS_PER_LINK_MINOR: 5,      // Minor links: more, smaller
     MAX_GLYPHS_PER_LINK_ABSOLUTE: 5,   // Hard cap per link
-    MAX_GLYPHS_PER_STATE: 1,           // Max per pictogram state per link
+    MAX_GLYPHS_PER_STATE: 5,           // Max per pictogram state per link
     MAX_GLYPHS_PER_METRIC: {           // Per-metric caps (target: 1 of each metric)
         harmony: 1,
         stability: 1,
@@ -1964,7 +1964,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
     // CLEANUP
     // ========================================================================
 
-    clearLink(linkOrId) {
+    clearLink(linkOrId, options = {}) {
+        const immediate = Boolean(options?.immediate);
         const linkId = typeof linkOrId === 'string' ? linkOrId : this.getLinkKey(linkOrId);
         if (!linkId) return 0;
 
@@ -1973,7 +1974,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
             if (!pictogram?.active) return;
             const pictogramLinkId = pictogram._linkKey || this.getLinkKey(pictogram.link);
             if (pictogramLinkId !== linkId) return;
-            pictogram.beginOrphanFade();
+            if (immediate) {
+                pictogram.reset();
+            } else {
+                pictogram.beginOrphanFade();
+            }
             cleared += 1;
         });
 
@@ -1994,7 +1999,8 @@ export class LinkSemanticPictogramSystem_Enhanced {
         return cleared;
     }
 
-    clearLinkBetweenNodes(nodeA, nodeB) {
+    clearLinkBetweenNodes(nodeA, nodeB, options = {}) {
+        const immediate = Boolean(options?.immediate);
         if (!nodeA || !nodeB) return 0;
 
         let cleared = 0;
@@ -2011,7 +2017,11 @@ export class LinkSemanticPictogramSystem_Enhanced {
                 if (key) clearedLinkIds.add(key);
             }
 
-            pictogram.beginOrphanFade();
+            if (immediate) {
+                pictogram.reset();
+            } else {
+                pictogram.beginOrphanFade();
+            }
             cleared += 1;
         });
 
