@@ -2162,7 +2162,7 @@ export class LinkRendererConduit {
 
         const frameTime = {
             visualTime: VisualTime.now,
-            visualDelta: VisualTime.delta * (run30 ? 2 : 1), // keep travel speed when ticking slower
+            visualDelta: VisualTime.delta,
             deltaTime
         };
         let runHeavyCorruptionUpdate = run30 && (((this._corruptionFrameCounter = (this._corruptionFrameCounter ?? 0) + 1), this._corruptionFrameCounter % 2 === 0));

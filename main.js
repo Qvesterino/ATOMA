@@ -3626,18 +3626,6 @@ class AtomaGame {
             this._coreMaterialPropertyLockAcc = 0;
             this.coreMaterialPropertyLock?.enforceFrame?.();
         }, 'background.coreMaterialPropertyLock');
-        this.frameScheduler.register('background', () => {
-            const perf = window.__atomaPerf;
-            if (!perf) return;
-            const frameDelta = (this.frameCount || 0) - (this._lastPerfReportFrameCount || 0);
-            if (frameDelta < 300) return;
-            this._lastPerfReportFrameCount = this.frameCount || 0;
-            const fc = perf.frameCount || frameDelta;
-            console.log('ATOMA PERF (avg ms per frame):');
-            for (const k in perf.systems) {
-                console.log(k, (perf.systems[k] / fc).toFixed(3));
-            }
-        }, 'background.frameAccounting');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.fxPerformanceScaler) {
                 this.fxPerformanceScaler.update(dt);
@@ -12779,20 +12767,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         this.glyphLayer4.frameScheduler = this.frameScheduler;
         this.glyphLayer4.ambientOrbitEnabled = true;
         this.glyphLayer4.createAmbientOrbitGlyphsForNodes(this.aiNodes.nodes);
-
-        if (this.linkingSystem?.onLinkCreated && !this.glyphLayer4.__ambientOrbitLinkBindingInstalled) {
-            const reconcileAmbientOrbits = () => {
-                this.glyphLayer4?.reconcileAmbientOrbitGlyphs?.(this.aiNodes?.nodes || []);
-            };
-
-            this.linkingSystem.onLinkCreated(() => reconcileAmbientOrbits(), {
-                layerKey: 'LINK_PICTOGRAMS'
-            });
-            this.linkingSystem.onLinkRemoved(() => reconcileAmbientOrbits(), {
-                layerKey: 'LINK_PICTOGRAMS'
-            });
-            this.glyphLayer4.__ambientOrbitLinkBindingInstalled = true;
-        }
 
         if (this.aiNodes?.unregisterPostSpawnObserver) {
             this.aiNodes.unregisterPostSpawnObserver('glyph-layer4-ambient-orbit');
