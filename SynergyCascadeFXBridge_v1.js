@@ -359,6 +359,94 @@ export class SynergyCascadeFXBridge_v1 {
         return node?.userData?.nodeId ?? node?.id ?? node?.uuid ?? null;
     }
 
+    _asVector3(value) {
+        if (value instanceof THREE.Vector3) {
+            return Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z)
+                ? value.clone()
+                : null;
+        }
+
+        if (value && typeof value.x === 'number' && typeof value.y === 'number' && typeof value.z === 'number') {
+            const vector = new THREE.Vector3(value.x, value.y, value.z);
+            return Number.isFinite(vector.x) && Number.isFinite(vector.y) && Number.isFinite(vector.z) ? vector : null;
+        }
+
+        if (Array.isArray(value) && value.length >= 3) {
+            const x = Number(value[0]);
+            const y = Number(value[1]);
+            const z = Number(value[2]);
+            if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+                return new THREE.Vector3(x, y, z);
+            }
+        }
+
+        return null;
+    }
+
+    _cloneVector3(vector) {
+        return vector ? { x: vector.x, y: vector.y, z: vector.z } : null;
+    }
+
+    _getWorldPositionFromObject(object) {
+        if (!object) return null;
+
+        const directWorld = this._asVector3(object.worldPosition ?? null);
+        if (directWorld) return directWorld;
+
+        if (typeof object.getWorldPosition === 'function') {
+            const worldPosition = new THREE.Vector3();
+            try {
+                object.getWorldPosition(worldPosition);
+                if (Number.isFinite(worldPosition.x) && Number.isFinite(worldPosition.y) && Number.isFinite(worldPosition.z)) {
+                    return worldPosition;
+                }
+            } catch (_) {}
+        }
+
+        return this._asVector3(object.position ?? object.anchor ?? object.center ?? object.origin ?? null);
+    }
+
+    _normalizeCascadePayload(payload = {}, kind = 'hop') {
+        const link = payload.link ?? null;
+        const sourceNode = payload.sourceNode ?? payload.source ?? link?.sourceNode ?? link?.source ?? null;
+        const targetNode = payload.targetNode ?? payload.target ?? link?.targetNode ?? link?.target ?? null;
+
+        const sourcePosition = this._asVector3(payload.sourcePosition)
+            ?? this._getWorldPositionFromObject(sourceNode ?? link?.source ?? link?.nodeA ?? null);
+        const targetPosition = this._asVector3(payload.targetPosition)
+            ?? this._getWorldPositionFromObject(targetNode ?? link?.target ?? link?.nodeB ?? null);
+        const midpoint = (sourcePosition && targetPosition)
+            ? new THREE.Vector3().addVectors(sourcePosition, targetPosition).multiplyScalar(0.5)
+            : null;
+
+        const anchor = this._asVector3(payload.anchor ?? payload.center ?? payload.position ?? payload.origin)
+            ?? midpoint
+            ?? sourcePosition
+            ?? targetPosition;
+
+        const rawIntensity = Number(payload.intensity ?? payload.value ?? payload.cascadeIntensity ?? 0);
+        const fallbackIntensity = kind === 'start' ? 0.08 : 0.06;
+        const intensity = Number.isFinite(rawIntensity) && rawIntensity > 0
+            ? Math.max(rawIntensity, fallbackIntensity)
+            : fallbackIntensity;
+
+        return {
+            ...payload,
+            link,
+            sourceNode,
+            targetNode,
+            sourcePosition: this._cloneVector3(sourcePosition),
+            targetPosition: this._cloneVector3(targetPosition),
+            anchor: this._cloneVector3(anchor),
+            center: this._cloneVector3(anchor) ?? payload.center ?? null,
+            position: this._cloneVector3(anchor) ?? payload.position ?? null,
+            origin: this._cloneVector3(anchor) ?? payload.origin ?? null,
+            intensity,
+            value: Number.isFinite(Number(payload.value)) ? payload.value : intensity,
+            cascadeIntensity: Number.isFinite(Number(payload.cascadeIntensity)) ? payload.cascadeIntensity : intensity
+        };
+    }
+
     _resolveCascadeId(node, hopIndex = 0) {
         const chainState = node?.userData?.chainReactionState;
         if (chainState?.chainID) return chainState.chainID;
@@ -377,11 +465,11 @@ export class SynergyCascadeFXBridge_v1 {
     }
 
     _emitCascadeStart(payload) {
-        this._emitSemanticEvent('cascade.start', payload);
+        this._emitSemanticEvent('cascade.start', this._normalizeCascadePayload(payload, 'start'));
     }
 
     _emitCascadeHop(payload) {
-        this._emitSemanticEvent('cascade.hop', payload);
+        this._emitSemanticEvent('cascade.hop', this._normalizeCascadePayload(payload, 'hop'));
     }
 
     _emitCascadeEnd(payload) {
@@ -546,11 +634,17 @@ export class SynergyCascadeFXBridge_v1 {
             // Send to cascade visualizer (primary resonance target)
             const cascadeVisualizer = this.targetSystems.cascadeVisualizer || this.targetSystems.resonanceShader;
             if (this.config.enableResonanceMode && cascadeVisualizer) {
+                const worldPosition = this._getWorldPositionFromObject(node);
                 const signals = {
                     cascadeWave: nodeState.cascadeWave,
                     pulseStrength: nodeState.smoothPulseStrength,
                     resonanceMix: nodeState.smoothResonanceMix,
-                    bonusMix: nodeState.smoothBonusMix
+                    bonusMix: nodeState.smoothBonusMix,
+                    anchor: this._cloneVector3(worldPosition),
+                    position: this._cloneVector3(worldPosition),
+                    sourcePosition: this._cloneVector3(worldPosition),
+                    intensity: nodeState.smoothPulseStrength,
+                    cascadeIntensity: nodeState.smoothPulseStrength
                 };
                 cascadeVisualizer.applyCascadeSignal?.(node, signals);
             }
@@ -591,10 +685,23 @@ export class SynergyCascadeFXBridge_v1 {
             // Send to cascade visualizer (primary resonance target)
             const cascadeVisualizer = this.targetSystems.cascadeVisualizer || this.targetSystems.resonanceShader;
             if (this.config.enableResonanceMode && cascadeVisualizer) {
+                const sourceNode = link?.sourceNode ?? link?.source ?? link?.nodeA ?? null;
+                const targetNode = link?.targetNode ?? link?.target ?? link?.nodeB ?? null;
+                const sourcePosition = this._getWorldPositionFromObject(sourceNode);
+                const targetPosition = this._getWorldPositionFromObject(targetNode);
+                const anchor = (sourcePosition && targetPosition)
+                    ? new THREE.Vector3().addVectors(sourcePosition, targetPosition).multiplyScalar(0.5)
+                    : sourcePosition ?? targetPosition ?? null;
                 const linkSignals = {
                     waveIntensity: linkState.smoothWaveIntensity,
                     chromaIntensity: linkState.smoothChromatIntensity,
-                    stabilityPenalty: linkState.stabilityPenalty
+                    stabilityPenalty: linkState.stabilityPenalty,
+                    sourcePosition: this._cloneVector3(sourcePosition),
+                    targetPosition: this._cloneVector3(targetPosition),
+                    anchor: this._cloneVector3(anchor),
+                    position: this._cloneVector3(anchor),
+                    intensity: linkState.smoothWaveIntensity,
+                    cascadeIntensity: linkState.smoothWaveIntensity
                 };
                 cascadeVisualizer.applyCascadeLinkSignal?.(link, linkSignals);
             }

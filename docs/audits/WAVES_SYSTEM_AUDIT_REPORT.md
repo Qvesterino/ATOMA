@@ -107,7 +107,7 @@ Contract note:
 
 ---
 
-### 4. StandingWaveOscillationTrapSystem_Session130.js
+### 4.  
 
 **Type**: 🎨 GEOMETRY/MESH EMITTER
 

@@ -4628,11 +4628,28 @@ getLinksForNode(node) {
     if (semanticBus?.emit) {
       const sourceId = this.getNodeId(sourceNode);
       const targetId = this.getNodeId(targetNode);
+      const sourcePosition = sourceNode?.position ? {
+        x: sourceNode.position.x,
+        y: sourceNode.position.y,
+        z: sourceNode.position.z
+      } : undefined;
+      const targetPosition = targetNode?.position ? {
+        x: targetNode.position.x,
+        y: targetNode.position.y,
+        z: targetNode.position.z
+      } : undefined;
       const payload = {
+        sourceNode,
+        targetNode,
+        link,
         source: sourceId,
         target: targetId,
         linkId: link.id,
-        midpoint: (sourceNode?.position && targetNode?.position)
+        sourceNodeId: sourceId,
+        targetNodeId: targetId,
+        sourcePosition,
+        targetPosition,
+        anchor: (sourceNode?.position && targetNode?.position)
           ? {
               x: (sourceNode.position.x + targetNode.position.x) * 0.5,
               y: (sourceNode.position.y + targetNode.position.y) * 0.5,
@@ -4640,7 +4657,21 @@ getLinksForNode(node) {
             }
           : undefined
       };
-      const emitLinkCreated = () => semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
+      const emitLinkCreated = () => {
+        const eventPriority = semanticBus.priority?.CRITICAL ?? semanticBus.priority?.INTERACTIVE;
+        if (typeof semanticBus.emitImmediate === 'function') {
+          semanticBus.emitImmediate('link.created', payload, { priority: eventPriority });
+          return;
+        }
+        semanticBus.emit('link.created', payload, {
+          priority: eventPriority,
+          policy: {
+            aggregateWithinMs: 0,
+            cooldownMs: 0,
+            aggregationStrategy: 'latest'
+          }
+        });
+      };
       if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
         window.requestAnimationFrame(emitLinkCreated);
       } else {

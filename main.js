@@ -1691,6 +1691,41 @@ class SemanticEventBus {
         }
         this.enqueueEventInstances(tag, payload, list, eventPriority, policy, now);
     }
+
+    emitImmediate(tag, payload, opts = {}) {
+        const exactHandlers = this.handlers.get(tag) || [];
+        const prefixHandlers = [];
+        for (const listener of this.prefixListeners) {
+            if (!listener || typeof listener.prefix !== 'string' || typeof listener.fn !== 'function') continue;
+            if (!tag.startsWith(listener.prefix)) continue;
+            prefixHandlers.push({
+                priority: listener.priority,
+                fn: (forwardedPayload) => listener.fn(tag, forwardedPayload)
+            });
+        }
+
+        const list = exactHandlers.length > 0
+            ? (prefixHandlers.length > 0 ? exactHandlers.concat(prefixHandlers) : exactHandlers)
+            : prefixHandlers;
+        if (!list || list.length === 0) return;
+
+        this.incrementEventCounter(tag, payload);
+        const ordered = list
+            .map((handler, index) => ({
+                fn: handler.fn,
+                priority: this.normalizePriority(handler.priority),
+                index
+            }))
+            .sort((left, right) => left.priority - right.priority || left.index - right.index);
+
+        for (const entry of ordered) {
+            try {
+                entry.fn(payload);
+            } catch (err) {
+                console.warn(`[SemanticBus] Immediate handler failed for ${tag}:`, err);
+            }
+        }
+    }
     // Phase E.3: aggregate similar semantic events within a short window before enqueueing
     handleAggregateEmit(tag, payload, handlers, eventPriority, policy, now) {
         const key = policy.aggregateKey || tag;
@@ -7525,7 +7560,9 @@ window.__ATOMA_SCENE__ = this.scene;
             });
             this.linkingSystem.__audioLinkAuthorityBound = true;
         }
-        if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__tripleCascadeVisualBridgeBound) {
+        const hasCascadeBridgeCallback = Array.isArray(this.linkingSystem?.onLinkCreatedCallbacks)
+            && this.linkingSystem.onLinkCreatedCallbacks.some((callback) => callback?.__linkWorkLayer === 'LINK_CASCADE');
+        if (this.linkingSystem?.onLinkCreated && (!this.linkingSystem.__tripleCascadeVisualBridgeBound || !hasCascadeBridgeCallback)) {
             this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
                 if (!this.semanticBus?.emit || !sourceNode || !targetNode) return;
 
@@ -7607,9 +7644,22 @@ window.__ATOMA_SCENE__ = this.scene;
                     value: intensity,
                     hopIndex: 0
                 };
-                const priority = this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL;
-                this.semanticBus.emit('cascade.start', payload, { priority });
-                this.semanticBus.emit('cascade.hop', payload, { priority });
+                const priority = this.semanticBus.priority?.CRITICAL ?? this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL;
+                const immediatePolicy = {
+                    aggregateWithinMs: 0,
+                    cooldownMs: 0,
+                    aggregationStrategy: 'latest'
+                };
+                this.cascadeVisualizer?.renderCascadeStart?.(payload);
+                this.cascadeVisualizer?.renderCascadeHop?.(payload);
+                payload.__cascadeDirectRendered = true;
+                if (typeof this.semanticBus.emitImmediate === 'function') {
+                    this.semanticBus.emitImmediate('cascade.start', payload, { priority });
+                    this.semanticBus.emitImmediate('cascade.hop', payload, { priority });
+                } else {
+                    this.semanticBus.emit('cascade.start', payload, { priority, policy: immediatePolicy });
+                    this.semanticBus.emit('cascade.hop', payload, { priority, policy: immediatePolicy });
+                }
             }, {
                 layerKey: 'LINK_CASCADE',
                 immediate: true
@@ -7975,20 +8025,31 @@ window.__ATOMA_SCENE__ = this.scene;
         const originalCreateLink = this.linkingSystem.createLink.bind(this.linkingSystem);
         this.linkingSystem.createLink = (sourceNode, targetNode) => {
             const result = originalCreateLink(sourceNode, targetNode);
-            // Create LinkSparkSystem for each link
-            if (result && !this.linkSparkSystems) {
-                this.linkSparkSystems = new Map();
-            }
-            if (result && this.linkSparkSystems) {
-                const sparkSystem = new LinkSparkSystem(this.scene, 60);
-                const mesh = sparkSystem.getMesh();
-                this.scene.add(mesh);
-                this.linkSparkSystems.set(result.userData.id, sparkSystem);
-                console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
-            }
+            if (result) {
+                const fanoutLink = () => {
+                    if (!this.linkingSystem?.links?.includes(result)) {
+                        return;
+                    }
 
-            if (result && this.linkAuraSystem) {
-                this.linkAuraSystem.registerLink?.(result);
+                    // Defer heavy per-link visuals out of the createLink call stack.
+                    if (!this.linkSparkSystems) {
+                        this.linkSparkSystems = new Map();
+                    }
+                    if (this.linkSparkSystems) {
+                        const sparkSystem = new LinkSparkSystem(this.scene, 60);
+                        const mesh = sparkSystem.getMesh();
+                        this.scene.add(mesh);
+                        this.linkSparkSystems.set(result.userData.id, sparkSystem);
+                        console.log('[main.js] LinkSparkSystem created for link:', result.userData.id);
+                    }
+
+                    this.linkAuraSystem?.registerLink?.(result);
+                };
+                if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(fanoutLink);
+                } else {
+                    setTimeout(fanoutLink, 0);
+                }
             }
 
             // LinkTrailEmitter creation moved to LinkRendererConduit (eliminates race condition)
@@ -11031,11 +11092,11 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         regGuard('poetryEngine', 'background.poetryEngine', (dt) => this.poetryEngine?.update?.(dt, this.time));
         regGuard('emotionalFeed', 'background.emotionalFeed', (dt) => this.emotionalFeed?.update?.(dt));
         reg('nodeLinking', (dt) => {
-            const linkingSystem = this.nodeLinkingSystem ?? this.linkingSystem ?? this.nodeLinking;
-            const scheduledInFrameScheduler =
-                this.frameScheduler?.isRegistered?.('visual.linkingSystem') === true &&
-                linkingSystem === this.linkingSystem;
-            if (scheduledInFrameScheduler) return;
+            const linkingSystem = this.linkingSystem ?? this.nodeLinkingSystem ?? this.nodeLinking;
+            if (!linkingSystem) return;
+            if (this.frameScheduler?.isRegistered?.('visual.linkingSystem') === true && linkingSystem === this.linkingSystem) {
+                return;
+            }
             linkingSystem?.update?.(dt);
         });
         reg('cameraController', (dt) => {
@@ -12408,8 +12469,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             if (this.nodeEditor && typeof this.nodeEditor[method] === "function") {
                 this.nodeEditor[method](e);
             }
-            if (this.nodeLinking && typeof this.nodeLinking[method] === "function") {
-                this.nodeLinking[method](e);
+            const linkingSystem = this.linkingSystem || this.nodeLinkingSystem || this.nodeLinking;
+            if (linkingSystem && typeof linkingSystem[method] === "function") {
+                linkingSystem[method](e);
             }
         };
 
@@ -12421,8 +12483,9 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
     // Global double-click fallback (browser-independent)
     setupDoubleClickFallback() {
         document.addEventListener("dblclick", (e) => {
-            if (window.game && window.game.nodeLinking && window.game.nodeLinking.handleDoubleClick) {
-                window.game.nodeLinking.handleDoubleClick(e);
+            const linkingSystem = window.game?.linkingSystem || window.game?.nodeLinkingSystem || window.game?.nodeLinking;
+            if (linkingSystem && linkingSystem.handleDoubleClick) {
+                linkingSystem.handleDoubleClick(e);
             }
         });
     }

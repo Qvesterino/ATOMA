@@ -68,7 +68,7 @@ export class LinkCorruptionSpreadAnimator {
       lingerDurationMs: 12000,        // Visual latch: keep burst cadence alive for a while after activation
       triggerDeltaThreshold: 0.04,    // Minimum rise needed to trigger a new sweep
       retriggerCooldownMs: 550,       // Debounce to keep sweeps readable (avoid flicker spam)
-      pulsePauseMs: 3000,             // Requested cadence: spread / pause / spread
+      pulsePauseMs: 1800,             // Requested cadence: spread / pause / spread
       forceRetriggerDelta: 0.16,      // Large jumps can bypass cooldown
       maxCorruptionForSpread: 0.95,   // Cap on corruption visualization
       dustTravelSpeed: 0.42,
@@ -79,6 +79,18 @@ export class LinkCorruptionSpreadAnimator {
     };
 
     this.dustGlyphTexture = this._createDustGlyphTexture();
+  }
+
+  _disposeDustState(state) {
+    if (!state?.dust) return;
+
+    const dust = state.dust;
+    if (dust.points) {
+      dust.points.parent?.remove(dust.points);
+    }
+    dust.geometry?.dispose?.();
+    dust.material?.dispose?.();
+    state.dust = null;
   }
 
   _createDustGlyphTexture() {
@@ -194,6 +206,7 @@ export class LinkCorruptionSpreadAnimator {
     state.time = (state.time || 0) + safeDelta;
     
     if (corruptionLevel <= 0 && !state?.isAnimating) {
+      this._disposeDustState(state);
       return null;
     }
 
@@ -254,6 +267,8 @@ export class LinkCorruptionSpreadAnimator {
       if (state.wavePhase >= 1.0) {
         state.isAnimating = false;
         state.lastCycleEndTime = nowMs;
+        state.dustTravelPhase = 0;
+        this._disposeDustState(state);
       }
     }
     
@@ -347,19 +362,16 @@ export class LinkCorruptionSpreadAnimator {
   }
 
   _updateDustWave(link, state, corruptionLevel, flags = {}) {
+    const active = state.isAnimating;
+    if (!active) {
+      this._disposeDustState(state);
+      return;
+    }
+
     const dust = this._ensureDustState(link, state);
     if (!dust) return;
 
-    const active =
-      (state.isAnimating && corruptionLevel >= this.config.spreadStartThreshold) ||
-      flags.sustainEligible ||
-      flags.lingerActive ||
-      corruptionLevel > 0.15;
     dust.points.visible = active;
-    if (!active) {
-      dust.material.opacity = 0.0;
-      return;
-    }
 
     const positions = dust.geometry.attributes.position.array;
     const basis = this._computeLinkBasis(link);
@@ -386,11 +398,7 @@ export class LinkCorruptionSpreadAnimator {
     }
 
     dust.geometry.attributes.position.needsUpdate = true;
-    if (!state.isAnimating && corruptionLevel > 0.2) {
-      dust.material.opacity *= 0.98;
-    } else {
-      dust.material.opacity = Math.min(0.9, 0.18 + corruptionLevel * 0.85);
-    }
+    dust.material.opacity = Math.min(0.9, 0.18 + corruptionLevel * 0.85);
     dust.material.size = 0.05 + corruptionLevel * 0.06;
   }
 

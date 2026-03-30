@@ -1,0 +1,146 @@
+Total messages: 177 (Errors: 143, Warnings: 3)
+Returning 143 messages for level "error"
+
+[ERROR] ✓ Network Fatigue Console API available at window.ATOMA_DEBUG.NetworkFatigue @ http://127.0.0.1:5500/main.js:30
+[ERROR] [main.js] NetworkFatigueSystem initialized ✓ @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 0, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 0, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 6, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 0, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 7, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 17, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 21, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 21, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 20, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 14, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 16, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 17, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 16, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 21, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 20, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 11, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 12, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 13, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 16, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 19, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [ResonanceEchoTrailSystem] composite echo summary {activeComposites: 0, trackedComposites: 0, activeEchoes: 16, spawnedThisTick: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [GlyphFusionZone] composite pipeline summary {activeComposites: 0, attachedVisuals: 0, activeZones: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkSemanticPictogramSystem_WithFusion] pipeline heartbeat {links: 0, aiNodes: 15, activePictograms: 0, activeZones: 0, activeComposites: 0} @ http://127.0.0.1:5500/main.js:30
+[ERROR] [LinkRendererConduit] pictogram tick {enabled: true, hasSystem: true, aiNodes: 15, links: 0} @ http://127.0.0.1:5500/main.js:30

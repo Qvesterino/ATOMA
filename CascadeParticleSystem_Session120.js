@@ -73,6 +73,9 @@ export class CascadeParticleSystem_Session120 {
     // Particle Pool
     this.pool = [];
     this.activeCount = 0;
+    this._freeParticleIndices = [];
+    this._activeParticleIndices = [];
+    this._resolvedLinksScratch = [];
     
     this._cascadeTimeOrigin = undefined;
     this._lastCascadeTime = undefined;
@@ -402,10 +405,15 @@ export class CascadeParticleSystem_Session120 {
    * Initialize Object Pool
    */
   _initPool() {
+    this.pool.length = 0;
+    this._freeParticleIndices.length = 0;
+    this._activeParticleIndices.length = 0;
+
     for (let i = 0; i < this.config.maxParticles; i++) {
       this.pool.push({
         active: false,
         index: i,
+        activeListIndex: -1,
         lifetime: 0,
         maxLifetime: 1.0,
         // Physics
@@ -428,6 +436,10 @@ export class CascadeParticleSystem_Session120 {
         spawnTime: 0,
       });
     }
+
+    for (let i = this.config.maxParticles - 1; i >= 0; i--) {
+      this._freeParticleIndices.push(i);
+    }
   }
   
   /**
@@ -447,11 +459,13 @@ export class CascadeParticleSystem_Session120 {
     this._lastCascadeTime = currentCascadeTime;
 
     this._activeLinks = resolvedLinks;
-    this._activeLinkIdSet = new Set(
-      resolvedLinks
-        .map((link) => link?.id)
-        .filter((id) => id !== undefined && id !== null)
-    );
+    this._activeLinkIdSet.clear();
+    for (let i = 0; i < resolvedLinks.length; i++) {
+      const linkId = resolvedLinks[i]?.id;
+      if (linkId !== undefined && linkId !== null) {
+        this._activeLinkIdSet.add(linkId);
+      }
+    }
 
     this._ensureCanonicalLinkDefaults(resolvedLinks);
 
@@ -467,6 +481,8 @@ export class CascadeParticleSystem_Session120 {
     // Fallback spawn for links that have not yet emitted through lifecycle callbacks.
     this._spawnParticles(cascadeDelta, resolvedLinks, currentCascadeTime);
 
+    this.activeCount = this._activeParticleIndices.length;
+
     // Update geometry and helper visuals.
     this._updateGeometry();
     this._updateDebugHelpers(resolvedLinks);
@@ -477,10 +493,7 @@ export class CascadeParticleSystem_Session120 {
       const posAttr = this.geometry.attributes.position;
       const sizeAttr = this.geometry.attributes.size;
       // Find first active particle's position
-      let firstActiveIdx = -1;
-      for (let i = 0; i < this.pool.length; i++) {
-        if (this.pool[i].active) { firstActiveIdx = i; break; }
-      }
+      const firstActiveIdx = this._activeParticleIndices[0] ?? -1;
       const idx = firstActiveIdx >= 0 ? firstActiveIdx : 0;
       console.warn('[CascadeParticleSystem] Active:', this.activeCount,
         '| mesh.visible:', this.mesh?.visible,
@@ -685,8 +698,8 @@ export class CascadeParticleSystem_Session120 {
   _getActiveParticleCountForLink(linkId) {
     if (!linkId) return 0;
     let active = 0;
-    for (let i = 0; i < this.config.maxParticles; i++) {
-      const p = this.pool[i];
+    for (let i = 0; i < this._activeParticleIndices.length; i++) {
+      const p = this.pool[this._activeParticleIndices[i]];
       if (p.active && p.linkRef?.id === linkId) {
         active++;
       }
@@ -897,21 +910,53 @@ export class CascadeParticleSystem_Session120 {
         (Math.random() - 0.5) * offsetAmt
       );
       
-      // Shape
-      const shapes = this.geometry.attributes.shapeIndex.array;
-      shapes[p.index] = shapeIndex;
-
-      // Prime initial color immediately so the first frame already reflects the category gradient.
-      const colors = this.geometry.attributes.color.array;
-      const opacities = this.geometry.attributes.opacity.array;
-      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, p.pathProgress);
-      colors[p.index * 3] = this._tmpParticleColor.r;
-      colors[p.index * 3 + 1] = this._tmpParticleColor.g;
-      colors[p.index * 3 + 2] = this._tmpParticleColor.b;
-      opacities[p.index] = p.opacityScale;
+      const renderSlot = p.activeListIndex;
+      if (renderSlot < 0) {
+        this._releaseParticle(
+          p,
+          renderSlot,
+          this.geometry.attributes.position.array,
+          this.geometry.attributes.color.array,
+          this.geometry.attributes.opacity.array,
+          this.geometry.attributes.size.array,
+          this.geometry.attributes.angle.array,
+          this.geometry.attributes.shapeIndex.array
+        );
+        continue;
+      }
       
       // Initial update to set position
       this._updateSingleParticle(p, 0, currentCascadeTime);
+      if (!p.active) {
+        const positions = this.geometry.attributes.position.array;
+        const colors = this.geometry.attributes.color.array;
+        const opacities = this.geometry.attributes.opacity.array;
+        const sizes = this.geometry.attributes.size.array;
+        const angles = this.geometry.attributes.angle.array;
+        const shapes = this.geometry.attributes.shapeIndex.array;
+        this._releaseParticle(p, renderSlot, positions, colors, opacities, sizes, angles, shapes);
+        continue;
+      }
+
+      // Shape
+      const shapes = this.geometry.attributes.shapeIndex.array;
+      const positions = this.geometry.attributes.position.array;
+      const colors = this.geometry.attributes.color.array;
+      const opacities = this.geometry.attributes.opacity.array;
+      const sizes = this.geometry.attributes.size.array;
+      const angles = this.geometry.attributes.angle.array;
+      const spawnProgress = Math.max(0, Math.min(1, p.pathProgress));
+      this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, spawnProgress);
+      shapes[renderSlot] = shapeIndex;
+      positions[renderSlot * 3] = p.position.x;
+      positions[renderSlot * 3 + 1] = p.position.y;
+      positions[renderSlot * 3 + 2] = p.position.z;
+      colors[renderSlot * 3] = this._tmpParticleColor.r;
+      colors[renderSlot * 3 + 1] = this._tmpParticleColor.g;
+      colors[renderSlot * 3 + 2] = this._tmpParticleColor.b;
+      opacities[renderSlot] = p.opacityScale;
+      sizes[renderSlot] = this.config.baseSize * this.config.visualSizeBoost;
+      angles[renderSlot] = 0;
     }
 
     return cappedCount;
@@ -921,8 +966,6 @@ export class CascadeParticleSystem_Session120 {
    * Update all active particles
    */
   _updateParticles(deltaTime, currentCascadeTime, camera = null) {
-    let activeCount = 0;
-
     const positions = this.geometry.attributes.position.array;
     const colors = this.geometry.attributes.color.array;
     const opacities = this.geometry.attributes.opacity.array;
@@ -931,17 +974,28 @@ export class CascadeParticleSystem_Session120 {
     
     let diedFromAge = 0;
     let diedFromUpdate = 0;
+    const activeParticles = this._activeParticleIndices;
     
-    for (let i = 0; i < this.config.maxParticles; i++) {
-      const p = this.pool[i];
-      if (!p.active) continue;
+    for (let activeIndex = 0; activeIndex < activeParticles.length;) {
+      const poolIndex = activeParticles[activeIndex];
+      const p = this.pool[poolIndex];
+      if (!p || !p.active) {
+        this._removeActiveParticleAt(
+          activeIndex,
+          positions,
+          colors,
+          opacities,
+          sizes,
+          angles,
+          this.geometry.attributes.shapeIndex.array
+        );
+        continue;
+      }
       
       const age = currentCascadeTime - p.spawnTime;
       p.lifetime = age;
       if (age >= p.maxLifetime) {
-        p.active = false;
-        positions[i * 3] = 99999;
-        opacities[i] = 0;
+        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, this.geometry.attributes.shapeIndex.array);
         diedFromAge++;
         continue;
       }
@@ -949,49 +1003,49 @@ export class CascadeParticleSystem_Session120 {
       this._updateSingleParticle(p, deltaTime, currentCascadeTime);
       
       if (!p.active) {
+        this._releaseParticle(p, activeIndex, positions, colors, opacities, sizes, angles, this.geometry.attributes.shapeIndex.array);
         diedFromUpdate++;
-        positions[i * 3] = 99999;
-        opacities[i] = 0;
         continue;
       }
       
       // Update Attributes
-      positions[i * 3] = p.position.x;
-      positions[i * 3 + 1] = p.position.y;
-      positions[i * 3 + 2] = p.position.z;
+      const renderSlot = p.activeListIndex >= 0 ? p.activeListIndex : activeIndex;
+      positions[renderSlot * 3] = p.position.x;
+      positions[renderSlot * 3 + 1] = p.position.y;
+      positions[renderSlot * 3 + 2] = p.position.z;
 
       const lodState = this._getCascadeLinkLod(p.linkRef, camera ?? this._currentCamera);
       p.opacityScale = Math.max(0.15, Math.min(1, Number(lodState?.opacityScale ?? p.opacityScale ?? 1) || 1));
-      opacities[i] = p.opacityScale;
+      opacities[renderSlot] = p.opacityScale;
       
       // Fade out size
       const lifeRatio = age / p.maxLifetime;
       const fade = Math.sin(lifeRatio * Math.PI) * (0.88 + p.opacityScale * 0.12); // Smooth arc
-      sizes[i] = this.config.baseSize * this.config.visualSizeBoost * fade;
+      sizes[renderSlot] = this.config.baseSize * this.config.visualSizeBoost * fade;
 
       // Category-aware gradient color along the link path.
       const pathT = Math.max(0, Math.min(1, p.pathProgress));
       this._tmpParticleColor.copy(p.sourceColor).lerp(p.targetColor, pathT);
       const colorPulse = 0.88 + (1.0 - lifeRatio) * 0.12;
-      colors[i * 3] = this._tmpParticleColor.r * colorPulse;
-      colors[i * 3 + 1] = this._tmpParticleColor.g * colorPulse;
-      colors[i * 3 + 2] = this._tmpParticleColor.b * colorPulse;
+      colors[renderSlot * 3] = this._tmpParticleColor.r * colorPulse;
+      colors[renderSlot * 3 + 1] = this._tmpParticleColor.g * colorPulse;
+      colors[renderSlot * 3 + 2] = this._tmpParticleColor.b * colorPulse;
       
       // Rotate based on conflict type
       if (p.conflictType === 'stability' || p.conflictType === 'corruption') {
-        angles[i] += deltaTime * 5.0; // Spin fast for chaos
+        angles[renderSlot] += deltaTime * 5.0; // Spin fast for chaos
       } else {
         // Align with path (approximation)
-        angles[i] = 0;
+        angles[renderSlot] = 0;
       }
       
-      activeCount++;
+      activeIndex++;
     }
     
-    this.activeCount = activeCount;
+    this.activeCount = activeParticles.length;
     
     if (this.config.debugMode && (diedFromAge > 0 || diedFromUpdate > 0)) {
-      console.warn('[CascadeParticleSystem] Particle deaths - age:', diedFromAge, 'update:', diedFromUpdate, 'surviving:', activeCount);
+      console.warn('[CascadeParticleSystem] Particle deaths - age:', diedFromAge, 'update:', diedFromUpdate, 'surviving:', this.activeCount);
     }
   }
   
@@ -1166,8 +1220,19 @@ export class CascadeParticleSystem_Session120 {
   }
 
   _resolveActiveLinks(links) {
-    if (!Array.isArray(links) || links.length === 0) return [];
-    return links.filter((link) => link && link.active !== false);
+    const resolved = this._resolvedLinksScratch;
+    resolved.length = 0;
+
+    if (!Array.isArray(links) || links.length === 0) return resolved;
+
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
+      if (link && link.active !== false) {
+        resolved.push(link);
+      }
+    }
+
+    return resolved;
   }
 
   _initDebugHelpers() {
@@ -1205,10 +1270,11 @@ export class CascadeParticleSystem_Session120 {
   _updateDebugHelpers(links) {
     if (!this._debugHelpers) return;
 
-    const activeParticles = this.pool.filter(p => p.active);
+    const activeParticles = this._activeParticleIndices;
     for (let i = 0; i < this._debugParticleMarkers.length; i++) {
       const marker = this._debugParticleMarkers[i];
-      const particle = activeParticles[i];
+      const particleIndex = activeParticles[i];
+      const particle = particleIndex !== undefined ? this.pool[particleIndex] : null;
       if (particle) {
         marker.visible = true;
         marker.position.copy(particle.position);
@@ -1242,12 +1308,40 @@ export class CascadeParticleSystem_Session120 {
    * Allocate particle from pool
    */
   _allocateParticle() {
-    // Simple linear search for now (optimization: keep stack of free indices)
-    // For 3000 particles, linear search is okay if pool utilization is reasonable
-    for (const p of this.pool) {
-      if (!p.active) return p;
+    this._ensureFreeParticleIndices();
+
+    const poolIndex = this._freeParticleIndices.pop();
+    if (poolIndex === undefined) return null;
+
+    const particle = this.pool[poolIndex];
+    if (!particle) return null;
+
+    particle.active = true;
+    particle.activeListIndex = this._activeParticleIndices.length;
+    this._activeParticleIndices.push(poolIndex);
+    return particle;
+  }
+
+  _ensureFreeParticleIndices() {
+    if (!Array.isArray(this._freeParticleIndices)) {
+      this._freeParticleIndices = [];
     }
-    return null;
+
+    if (this._freeParticleIndices.length > 0) {
+      return;
+    }
+
+    if (!Array.isArray(this.pool) || this.pool.length === 0) {
+      return;
+    }
+
+    // Rebuild from pool state if the free stack was cleared unexpectedly.
+    for (let i = this.pool.length - 1; i >= 0; i--) {
+      const particle = this.pool[i];
+      if (particle && particle.active !== true) {
+        this._freeParticleIndices.push(i);
+      }
+    }
   }
   
   /**
@@ -1267,7 +1361,19 @@ export class CascadeParticleSystem_Session120 {
     const angleAttribute = this.geometry.attributes.angle;
     const shapeIndexAttribute = this.geometry.attributes.shapeIndex;
 
-    // Update full buffer - particles are at arbitrary pool indices, not contiguous from 0
+    positionAttribute.updateRange.offset = 0;
+    positionAttribute.updateRange.count = activeCount * positionAttribute.itemSize;
+    colorAttribute.updateRange.offset = 0;
+    colorAttribute.updateRange.count = activeCount * colorAttribute.itemSize;
+    opacityAttribute.updateRange.offset = 0;
+    opacityAttribute.updateRange.count = activeCount;
+    sizeAttribute.updateRange.offset = 0;
+    sizeAttribute.updateRange.count = activeCount;
+    angleAttribute.updateRange.offset = 0;
+    angleAttribute.updateRange.count = activeCount;
+    shapeIndexAttribute.updateRange.offset = 0;
+    shapeIndexAttribute.updateRange.count = activeCount;
+
     positionAttribute.needsUpdate = true;
     colorAttribute.needsUpdate = true;
     opacityAttribute.needsUpdate = true;
@@ -1275,8 +1381,64 @@ export class CascadeParticleSystem_Session120 {
     angleAttribute.needsUpdate = true;
     shapeIndexAttribute.needsUpdate = true;
 
-    // Draw ALL particles - inactive ones are positioned at 99999 (off-screen)
-    this.geometry.setDrawRange(0, this.config.maxParticles);
+    // Draw only compacted active slots.
+    this.geometry.setDrawRange(0, activeCount);
+  }
+
+  _removeActiveParticleAt(activeIndex, positions = null, colors = null, opacities = null, sizes = null, angles = null, shapes = null) {
+    const activeParticles = this._activeParticleIndices;
+    const lastIndex = activeParticles.length - 1;
+    if (activeIndex < 0 || activeIndex > lastIndex) return -1;
+
+    const removedPoolIndex = activeParticles[activeIndex];
+    const swappedPoolIndex = activeParticles[lastIndex];
+
+    if (activeIndex !== lastIndex) {
+      if (positions && colors && opacities && sizes && angles && shapes) {
+        const fromSlot = lastIndex;
+        const toSlot = activeIndex;
+
+        positions[toSlot * 3] = positions[fromSlot * 3];
+        positions[toSlot * 3 + 1] = positions[fromSlot * 3 + 1];
+        positions[toSlot * 3 + 2] = positions[fromSlot * 3 + 2];
+
+        colors[toSlot * 3] = colors[fromSlot * 3];
+        colors[toSlot * 3 + 1] = colors[fromSlot * 3 + 1];
+        colors[toSlot * 3 + 2] = colors[fromSlot * 3 + 2];
+
+        opacities[toSlot] = opacities[fromSlot];
+        sizes[toSlot] = sizes[fromSlot];
+        angles[toSlot] = angles[fromSlot];
+        shapes[toSlot] = shapes[fromSlot];
+      }
+
+      activeParticles[activeIndex] = swappedPoolIndex;
+      const swappedParticle = this.pool[swappedPoolIndex];
+      if (swappedParticle) {
+        swappedParticle.activeListIndex = activeIndex;
+      }
+    }
+
+    activeParticles.pop();
+    return removedPoolIndex;
+  }
+
+  _releaseParticle(p, activeIndex, positions, colors, opacities, sizes = null, angles = null, shapes = null) {
+    if (!p || !p.active) return;
+
+    const poolIndex = p.index;
+    const removedIndex = this._removeActiveParticleAt(activeIndex ?? p.activeListIndex, positions, colors, opacities, sizes, angles, shapes);
+
+    p.active = false;
+    p.activeListIndex = -1;
+    p.linkRef = null;
+    p.lifetime = p.maxLifetime;
+
+    if (removedIndex >= 0) {
+      this._freeParticleIndices.push(removedIndex);
+    } else if (poolIndex >= 0) {
+      this._freeParticleIndices.push(poolIndex);
+    }
   }
   
   /**
@@ -1301,6 +1463,12 @@ export class CascadeParticleSystem_Session120 {
     }
     if (this._linkSpawnState instanceof Map) {
       this._linkSpawnState.clear();
+    }
+    if (Array.isArray(this._freeParticleIndices)) {
+      this._freeParticleIndices.length = 0;
+    }
+    if (Array.isArray(this._activeParticleIndices)) {
+      this._activeParticleIndices.length = 0;
     }
     
     // Clear cascade hop cooldowns

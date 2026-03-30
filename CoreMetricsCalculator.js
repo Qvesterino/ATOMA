@@ -12,12 +12,14 @@ const NODE_METRIC_KEYS = [
   'loadRatio'
 ];
 
+const NODE_METRIC_KEY_SET = new Set(NODE_METRIC_KEYS);
+
 /**
  * CORE METRICS CALCULATOR
  * 
  * Safely reads runtime data and computes ATOMA core metrics.
  * 100% read-only, no modifications to game state.
- * Runs at low frequency (2x per second) to minimize overhead.
+ * Uses dirty-flag gating with a periodic safety refresh to minimize overhead.
  * 
  * Metrics Computed:
  * - Synergy: network interconnection (0-100%)
@@ -30,8 +32,9 @@ const NODE_METRIC_KEYS = [
 export class CoreMetricsCalculator {
   constructor() {
     this.lastCalculationTime = 0;
-    this.calculationInterval = 0.5; // Calculate every 0.5 seconds
-    
+    this.calculationInterval = 0.5; // Retained for compatibility with older callers
+    this.safetyRefreshInterval = 2.0; // Dirty-flag fallback scan if signals are missing
+
     // Cached metrics (updated periodically)
     this.metrics = {
       synergy: 0,
@@ -69,6 +72,12 @@ export class CoreMetricsCalculator {
     
     this.avgLinkLoad = 0;
     this.synergyChains = 0;
+    this._isDirty = true;
+    this._metricDirtyQueue = null;
+    this._lastAiNodesRef = null;
+    this._lastLinkingSystemRef = null;
+    this._lastNodeCount = -1;
+    this._lastLinkCount = -1;
 
     this.nodeMetricSums = NODE_METRIC_KEYS.reduce((acc, key) => {
       acc[key] = 0;
@@ -82,13 +91,18 @@ export class CoreMetricsCalculator {
   
   /**
    * Update metrics by reading from game state
-   * Call this at low frequency (2x per second)
+   * Call on the simulation tick; dirty signals will skip work when clean.
    */
   update(deltaTime, aiNodes, linkingSystem, nodeEvolution, nodeArchetypes) {
     this.lastCalculationTime += deltaTime;
-    
-    if (this.lastCalculationTime < this.calculationInterval) {
-      // Not time to recalculate yet
+    this._ingestDirtySignals();
+    this._detectStructuralChanges(aiNodes, linkingSystem);
+
+    const shouldRefresh =
+      this._isDirty ||
+      this.lastCalculationTime >= this.safetyRefreshInterval;
+
+    if (!shouldRefresh) {
       return false;
     }
     
@@ -99,6 +113,7 @@ export class CoreMetricsCalculator {
       this.updateNodeCounts(aiNodes, nodeEvolution, nodeArchetypes);
       this.updateLinkCounts(linkingSystem);
       this.calculateMetrics();
+      this._isDirty = false;
       
       return true;
     } catch (error) {
@@ -113,35 +128,39 @@ export class CoreMetricsCalculator {
   updateNodeCounts(aiNodes, nodeEvolution, nodeArchetypes) {
     try {
       if (!aiNodes || !aiNodes.nodes) {
-        this.nodeCount.total = 0;
+        for (const key in this.nodeCount) {
+          this.nodeCount[key] = 0;
+        }
         this.resetNodeMetricAggregates();
         return;
       }
 
       // Reset counts
-      Object.keys(this.nodeCount).forEach(key => {
+      for (const key in this.nodeCount) {
         this.nodeCount[key] = 0;
-      });
+      }
 
       this.resetNodeMetricAggregates();
       
       this.nodeCount.total = aiNodes.nodes.length;
 
       // Read node data safely
-      aiNodes.nodes.forEach(node => {
-        if (!node || !node.userData) return;
+      for (let i = 0; i < aiNodes.nodes.length; i++) {
+        const node = aiNodes.nodes[i];
+        if (!node || !node.userData) continue;
 
         const metrics = node.userData.metrics;
-        if (!metrics) return;
+        if (!metrics) continue;
 
-        NODE_METRIC_KEYS.forEach(metricKey => {
+        for (let j = 0; j < NODE_METRIC_KEYS.length; j++) {
+          const metricKey = NODE_METRIC_KEYS[j];
           const value =
             metricKey === 'loadPressure'
               ? (metrics.loadPressure ?? metrics.load ?? metrics.loadRatio)
               : metrics[metricKey];
           this.accumulateNodeMetric(metricKey, value);
-        });
-      });
+        }
+      }
     } catch (error) {
       console.warn('Error reading node counts:', error);
     }
@@ -172,13 +191,14 @@ export class CoreMetricsCalculator {
       let totalLoad = 0;
       let loadCount = 0;
       
-      linkingSystem.links.forEach(link => {
+      for (let i = 0; i < linkingSystem.links.length; i++) {
+        const link = linkingSystem.links[i];
         if (link && link.userData) {
           const load = link.userData.load || link.userData.traffic || 0;
           totalLoad += load;
           loadCount++;
         }
-      });
+      }
       
       this.avgLinkLoad = loadCount > 0 ? totalLoad / loadCount : 0;
     } catch (error) {
@@ -244,18 +264,118 @@ export class CoreMetricsCalculator {
   }
 
   resetNodeMetricAggregates() {
-    NODE_METRIC_KEYS.forEach(key => {
+    for (let i = 0; i < NODE_METRIC_KEYS.length; i++) {
+      const key = NODE_METRIC_KEYS[i];
       this.nodeMetricSums[key] = 0;
       this.nodeMetricCounts[key] = 0;
-    });
+    }
   }
 
   accumulateNodeMetric(key, value) {
-    if (!NODE_METRIC_KEYS.includes(key)) return;
+    if (!NODE_METRIC_KEY_SET.has(key)) return;
     const num = Number(value);
     if (!Number.isFinite(num)) return;
     this.nodeMetricSums[key] += num;
     this.nodeMetricCounts[key] += 1;
+  }
+
+  markDirty() {
+    this._isDirty = true;
+  }
+
+  markNodeDirty(nodeId) {
+    if (nodeId === undefined || nodeId === null) return;
+    this._isDirty = true;
+  }
+
+  markNodesDirty(nodeIds) {
+    if (!nodeIds) return;
+    for (const nodeId of nodeIds) {
+      this.markNodeDirty(nodeId);
+    }
+  }
+
+  markLinkDirty(linkId) {
+    if (linkId === undefined || linkId === null) return;
+    this._isDirty = true;
+  }
+
+  markLinksDirty(linkIds) {
+    if (!linkIds) return;
+    for (const linkId of linkIds) {
+      this.markLinkDirty(linkId);
+    }
+  }
+
+  bindDirtyQueue(queue) {
+    this._metricDirtyQueue = queue || null;
+  }
+
+  _ingestDirtySignals() {
+    const queue = this._metricDirtyQueue || globalThis?.__ATOMA_METRIC_DIRTY_QUEUE__ || null;
+    if (!queue) return false;
+
+    let hasDirtySignals = false;
+    const nodeCount = Number(queue.nodeCount ?? 0);
+    const linkCount = Number(queue.linkCount ?? 0);
+
+    if (nodeCount > 0) {
+      hasDirtySignals = true;
+      if (typeof queue.snapshotNodeIds === 'function') {
+        this.markNodesDirty(queue.snapshotNodeIds());
+      }
+    }
+
+    if (linkCount > 0) {
+      hasDirtySignals = true;
+      if (typeof queue.snapshotLinkIds === 'function') {
+        this.markLinksDirty(queue.snapshotLinkIds());
+      }
+    }
+
+    if (hasDirtySignals) {
+      if (typeof queue.clear === 'function') {
+        queue.clear();
+      } else {
+        queue.clearNodes?.();
+        queue.clearLinks?.();
+      }
+    }
+
+    return hasDirtySignals;
+  }
+
+  _detectStructuralChanges(aiNodes, linkingSystem) {
+    let changed = false;
+
+    if (this._lastAiNodesRef !== aiNodes) {
+      this._lastAiNodesRef = aiNodes;
+      changed = true;
+    }
+
+    if (this._lastLinkingSystemRef !== linkingSystem) {
+      this._lastLinkingSystemRef = linkingSystem;
+      changed = true;
+    }
+
+    const nodeCount = Array.isArray(aiNodes?.nodes) ? aiNodes.nodes.length : 0;
+    const linkCount = Array.isArray(linkingSystem?.links) ? linkingSystem.links.length : 0;
+
+    if (nodeCount !== this._lastNodeCount) {
+      this._lastNodeCount = nodeCount;
+      changed = true;
+    }
+
+    if (linkCount !== this._lastLinkCount) {
+      this._lastLinkCount = linkCount;
+      changed = true;
+    }
+
+    if (changed) {
+      this._isDirty = true;
+    }
+
+    return changed;
   }
 
   getAverageMetric(key) {
