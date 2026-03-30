@@ -3626,6 +3626,18 @@ class AtomaGame {
             this._coreMaterialPropertyLockAcc = 0;
             this.coreMaterialPropertyLock?.enforceFrame?.();
         }, 'background.coreMaterialPropertyLock');
+        this.frameScheduler.register('background', () => {
+            const perf = window.__atomaPerf;
+            if (!perf) return;
+            const frameDelta = (this.frameCount || 0) - (this._lastPerfReportFrameCount || 0);
+            if (frameDelta < 300) return;
+            this._lastPerfReportFrameCount = this.frameCount || 0;
+            const fc = perf.frameCount || frameDelta;
+            console.log('ATOMA PERF (avg ms per frame):');
+            for (const k in perf.systems) {
+                console.log(k, (perf.systems[k] / fc).toFixed(3));
+            }
+        }, 'background.frameAccounting');
         this.frameScheduler.register('simulation', (dt) => {
             if (this.fxPerformanceScaler) {
                 this.fxPerformanceScaler.update(dt);
@@ -7369,7 +7381,7 @@ window.__ATOMA_SCENE__ = this.scene;
             this.aiNodes
         );
         if (this.harmonicHealing) {
-            this.harmonicHealing.nodeLinking = this.linkingSystem;
+            this.harmonicHealing.linkingSystem = this.linkingSystem;
         }
         if (this.harmonicRecovery) {
             this.harmonicRecovery.linkingSystem = this.linkingSystem;
@@ -14592,47 +14604,6 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
 
         console.log('✓ Selected Node HUD initialized (top-right corner)');
-    }
-
-    /**
-     * Setup Node Linking 2.1 (Unified Core Edition)
-     * Simplified interaction layer powered by SelectionCore3_4
-     */
-    setupNodeLinking2_1() {
-        this.nodeLinking = new NodeLinking2_1(
-            this.scene,
-            this.camera,
-            this.renderer,
-            this.selectionCore,
-            this.linkingSystem
-        );
-
-        console.log('✓ Node Linking 2.1 (Core Edition) initialized (unified interaction)');
-    }
-
-    /**
-     * Setup Node Linking 2.2 (Unified Mouse Logic + Unlinking)
-     * UI 3.5 FINAL IMPLEMENTATION - LMB/RMB behavior + safe unlinking
-     */
-    setupNodeLinking2_2() {
-        // Collect all nodes for unlinking checks
-        const allNodes = [];
-        this.scene.traverse(obj => {
-            if (obj.userData && obj.userData.isNode) {
-                allNodes.push(obj);
-            }
-        });
-
-        this.nodeLinking = new NodeLinking2_2(
-            this.scene,
-            this.camera,
-            this.renderer,
-            this.selectionCore,
-            this.linkingSystem,
-            allNodes
-        );
-
-        console.log('✓ Node Linking 2.2 (Unified Mouse Logic) initialized (LMB/RMB + unlinking)');
     }
 
     /**

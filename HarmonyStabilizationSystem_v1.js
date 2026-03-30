@@ -992,20 +992,28 @@ export class HarmonyStabilizationSystem_v1 {
   appliesPulseEffect(pulse) {
     const allNodes = this.getAllNodes();
     const allLinks = this.getAllLinks();
+    const sourcePos = pulse.sourcePos || { x: 0, y: 0, z: 0 };
+    const sourceX = sourcePos.x || 0;
+    const sourceY = sourcePos.y || 0;
+    const sourceZ = sourcePos.z || 0;
+    const radiusSq = (pulse.radius || 0) * (pulse.radius || 0);
 
     // Cleanse nearby nodes
     for (const node of allNodes) {
-      if (!node.position) continue;
+      const nodePos = node?.position;
+      if (!nodePos) continue;
 
-        const distance = this.distanceToNode(pulse.sourcePos, node.position);
-        if (distance <= pulse.radius) {
-          // Reduce corruption
-          if (node.userData) {
+      const dx = sourceX - (nodePos.x || 0);
+      const dy = sourceY - (nodePos.y || 0);
+      const dz = sourceZ - (nodePos.z || 0);
+      if ((dx * dx) + (dy * dy) + (dz * dz) <= radiusSq) {
+        // Reduce corruption
+        if (node.userData) {
           setNodeCorruption(node, Math.max(0, (node.userData?.metrics?.corruption ?? node.userData?.corruption ?? 0) - pulse.intensity * 0.3), { source: 'harmony-stabilization' });
           this._emitCorruptionThreshold(node);
-            // [PHASE 1 FIX] Write level to canonical source
-            const currentLevel = node.userData.harmonyLevel ?? 0;
-            node.userData.harmonyLevel = Math.min(1.0, currentLevel + pulse.intensity * 0.2);
+          // [PHASE 1 FIX] Write level to canonical source
+          const currentLevel = node.userData.harmonyLevel ?? 0;
+          node.userData.harmonyLevel = Math.min(1.0, currentLevel + pulse.intensity * 0.2);
         }
       }
     }
@@ -1016,14 +1024,13 @@ export class HarmonyStabilizationSystem_v1 {
       const target = link.target || link.targetNode;
       
       if (source && target && source.position && target.position) {
-        const mid = {
-          x: (source.position.x + target.position.x) / 2,
-          y: (source.position.y + target.position.y) / 2,
-          z: (source.position.z + target.position.z) / 2
-        };
-        
-        const distance = this.distanceToNode(pulse.sourcePos, mid);
-        if (distance <= pulse.radius) {
+        const midX = (source.position.x + target.position.x) * 0.5;
+        const midY = (source.position.y + target.position.y) * 0.5;
+        const midZ = (source.position.z + target.position.z) * 0.5;
+        const linkDx = sourceX - midX;
+        const linkDy = sourceY - midY;
+        const linkDz = sourceZ - midZ;
+        if ((linkDx * linkDx) + (linkDy * linkDy) + (linkDz * linkDz) <= radiusSq) {
           // Reduce link corruption
           if (this.aiNodes.linkCorruption) {
             const linkData = this.aiNodes.linkCorruption.linkCorruption.get(link.id);
