@@ -2922,6 +2922,21 @@ export class LinkRendererConduit {
         }
         if (!link.group || !state) return;
 
+        const traceEnabled =
+            typeof window !== 'undefined' &&
+            window.__TRACE_LINK_FLOW__ === true &&
+            link?.__traceLinkFlow === true;
+        const trace = (phase, details = {}) => {
+            if (!traceEnabled) return;
+            console.error('[LinkRendererConduitTrace]', {
+                phase,
+                linkId: link?.id ?? null,
+                state: link?.visualState ?? null,
+                bootstrapPhase: state?.bootstrap?.phase ?? null,
+                ...details
+            });
+        };
+
         // Canonical RAF time source (behavior-preserving Phase 2A)
         const visualTime = frameStateOverride?.time?.visualTime ?? VisualTime.now;
         const visualDelta = frameStateOverride?.time?.visualDelta ?? VisualTime.delta;
@@ -2936,11 +2951,20 @@ export class LinkRendererConduit {
         // otherwise per-link alternation creates odd/even link-count artifacts.
         const runHeavyCorruptionUpdate = frameStateOverride?.flags?.runHeavyCorruptionUpdate ?? heavyTick;
 
+        trace('update:start', {
+            hasFrameStateOverride: frameStateOverride !== null,
+            hasState: !!state,
+            hasGroup: !!link.group
+        });
+
         if (typeof window !== 'undefined' && window.__DEBUG_LINK_PARTICLES__ === true && !link.group?.userData?.conduitState) {
             console.warn('[ConduitUpdate] Missing conduitState; rebuilt visuals for', link.id);
         }
 
         this._advanceLinkBootstrap(link, state);
+        trace('afterBootstrap', {
+            bootstrapComplete: state?.bootstrap?.complete === true
+        });
         state.metrics = metrics;
         this.synergyBonusVisualization?.updateLink?.(link, visualDelta, visualTime);
         const strandOwnerState = this._beginStrandOwnershipFrame(state, metrics, visualTime);
@@ -2973,6 +2997,7 @@ export class LinkRendererConduit {
 
         // Harmonic sync update (links + aggregated metrics)
         if (this.nodeHarmonicManager) {
+            trace('beforeNodeHarmonicManager');
             const instabilityMetric = metrics?.instability;
             const stabilityMetric = metrics?.stability;
             const instabilityValue = (typeof instabilityMetric === 'number')
@@ -2985,14 +3010,19 @@ export class LinkRendererConduit {
                 instabilityValue,
                 visualDelta
             );
+            trace('afterNodeHarmonicManager');
         }
 
         // Corruption VFX updates (spread + particles)
         if (this.modules.corruptionFX) {
             if (this.corruptionSpreadAnimator && state.strands) {
+                trace('beforeCorruptionSpreadAnimator');
                 const spreadState = this.corruptionSpreadAnimator.update(link, deltaTime, state.strands, {
                     corruptionLevel: metrics?.corruption ?? 0,
                     nowMs: performance.now()
+                });
+                trace('afterCorruptionSpreadAnimator', {
+                    animating: !!spreadState?.isAnimating
                 });
                 if (spreadState?.isAnimating) {
                     strandOwnerState.corruptionOverrideActive = true;
@@ -3002,13 +3032,15 @@ export class LinkRendererConduit {
                         visualTime + 0.25
                     );
                 }
-                runtime.corruptionSpreadTicks += 1;
+                    runtime.corruptionSpreadTicks += 1;
             }
             if (runHeavyCorruptionUpdate && this.corruptionMorphing && state.strands) {
+                trace('beforeCorruptionMorphing');
                 this.corruptionMorphing.update(
                     visualDelta,
                     link
                 );
+                trace('afterCorruptionMorphing');
                 runtime.corruptionMorphTicks += 1;
             }
             if (runHeavyCorruptionUpdate && this.corruptionParticleSystem) {
@@ -3017,9 +3049,11 @@ export class LinkRendererConduit {
                     ? this.corruptionParticleSystem.updateLinkParticles.bind(this.corruptionParticleSystem)
                     : this.corruptionParticleSystem.update?.bind(this.corruptionParticleSystem);
                 if (updater) {
+                    trace('beforeCorruptionParticles');
                     updater(link, visualDelta, {
                         corruptionLevel: metrics?.corruption ?? 0
                     });
+                    trace('afterCorruptionParticles');
                     runtime.corruptionParticleTicks += 1;
                 }
             }
@@ -3057,6 +3091,7 @@ export class LinkRendererConduit {
         const lodAllowsSecondaryVfx = lod < 2;
 
         frameState.geometry = { start: start.clone(), end: end.clone(), linkDir: linkDir.clone(), linkDist };
+        trace('afterGeometry');
 
          // --- Dock ring pulse (visual cue when link reaches node surface) ---
         const dockPos = end.clone();
@@ -3064,6 +3099,7 @@ export class LinkRendererConduit {
         const dockThreshold = targetRadius * 1.1;
 
         if (distToTarget < dockThreshold) {
+            trace('beforeDockRing');
             const surfaceDir = end.clone().sub(targetCenter).normalize();
             const dockOffset = targetCenter.clone().addScaledVector(
                 surfaceDir,
@@ -3198,15 +3234,22 @@ export class LinkRendererConduit {
                     layerSpeed: layerSpeed.map(s => s * 0.8),
                     thickness: linkThickness
                 };
+                trace('afterDockRingCreated', {
+                    layerCount: layerGroups.length
+                });
 
                 // Spawn a light spray burst at dock point
                 if (!state.dockSpray) {
+                    trace('beforeDockSprayCreate');
                     const sprayOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
                     state.dockSpray = createDockSpraySystem(this.scene, sprayOrder, 48);
                     if (state.dockSpray?.mesh) {
                         ensureUserData(state.dockSpray.mesh).__linkOwnerId = this._getLinkOwnerId(link);
                     }
                     this.scene?.add(state.dockSpray.mesh);
+                    trace('afterDockSprayCreate', {
+                        hasMesh: !!state.dockSpray?.mesh
+                    });
                 }
             }
         }
@@ -3349,30 +3392,43 @@ export class LinkRendererConduit {
 
         if (!state.sourceInjection) {
             const sourceOrder = VisualHierarchyRegistry.getRenderOrder('LINK_IMPACTS');
+            trace('beforeSourceInjectionCreate');
             state.sourceInjection = createSourceInjectionSystem(this.scene, sourceOrder, 28);
+            trace('afterSourceInjectionCreate', {
+                hasPoints: !!state.sourceInjection?.points,
+                hasVortex: !!state.sourceInjection?.vortex
+            });
             if (state.sourceInjection?.points) {
                 ensureUserData(state.sourceInjection.points).__linkOwnerId = this._getLinkOwnerId(link);
             }
             if (state.sourceInjection?.vortex) {
                 ensureUserData(state.sourceInjection.vortex).__linkOwnerId = this._getLinkOwnerId(link);
             }
+            trace('beforeSourceInjectionSceneAdd');
             this.scene?.add(state.sourceInjection.points);
             this.scene?.add(state.sourceInjection.vortex);
+            trace('afterSourceInjectionSceneAdd');
             state.sourceInjectionNextTime = visualTime;
             state.sourceInjectionInterval = 0.075;
         }
 
         if (heavyTick) {
             if (state.dockRing) {
+                trace('beforeUpdateDockRing');
                 updateDockRing(state.dockRing);
+                trace('afterUpdateDockRing');
                 if (state.dockSpray) {
+                    trace('beforeDockSprayUpdate');
                     state.dockSpray.update(visualTime);
+                    trace('afterDockSprayUpdate');
                     const sprayInterval = state.dockRing.userData.sprayInterval ?? 0.12;
                     const nextSprayTime = state.dockRing.userData.nextSprayTime ?? visualTime;
                     if (lodAllowsParticles && visualTime >= nextSprayTime) {
                         const payload = state.dockRing.userData.sprayPayload;
                         if (payload) {
+                            trace('beforeDockSprayBurst');
                             state.dockSpray.spawnBurst(payload.origin, payload.direction, payload.color, visualTime);
+                            trace('afterDockSprayBurst');
                         }
                         state.dockRing.userData.nextSprayTime = visualTime + sprayInterval;
                     }
@@ -3384,15 +3440,19 @@ export class LinkRendererConduit {
             }
 
             if (state.sourceInjection) {
+                trace('beforeSourceInjectionUpdate');
                 const sourceColor = new THREE.Color(state.baseColor || 0xffffff);
                 const injectionAnchor = sourcePortPos.clone();
                 const injectionOrigin = sourceInjectionOrigin.clone().lerp(injectionAnchor, 0.35);
                 const injectionFlow = THREE.MathUtils.clamp(metrics.loadPressure ?? 0, 0, 1) * lodVisualScale;
                 state.sourceInjection.update(visualTime, injectionAnchor, linkDir, injectionFlow);
+                trace('afterSourceInjectionUpdate');
                 const nextInjectionTime = state.sourceInjectionNextTime ?? visualTime;
                 const injectionInterval = state.sourceInjectionInterval ?? 0.075;
                 if (lodAllowsParticles && visualTime >= nextInjectionTime) {
+                    trace('beforeSourceInjectionBurst');
                     state.sourceInjection.spawnBurst(injectionOrigin, linkDir, sourceColor, visualTime);
+                    trace('afterSourceInjectionBurst');
                     state.sourceInjectionNextTime = visualTime + injectionInterval;
                 }
             }
@@ -3410,6 +3470,9 @@ export class LinkRendererConduit {
 
         link.curve = mainCurve;
         frameState.geometry.curve = mainCurve;
+        trace('afterCurveCalculation', {
+            curveLength: typeof mainCurve.getLength === 'function' ? Number(mainCurve.getLength().toFixed(3)) : null
+        });
 
         // Store link direction for aura modulation later
         const linkUD = ensureUserData(link);
@@ -3438,7 +3501,11 @@ export class LinkRendererConduit {
             : (state.strandSegments || computeSegmentsFromLength(mainCurve));
         let frames = state.__cachedFrenetFrames || null;
         if (geometryTick) {
+            trace('beforeComputeFrenetFrames', {
+                segments
+            });
             frames = mainCurve.computeFrenetFrames(segments, false);
+            trace('afterComputeFrenetFrames');
             state.__cachedFrenetFrames = frames;
             state.__cachedFrenetSegments = segments;
         }
@@ -3523,6 +3590,11 @@ export class LinkRendererConduit {
         const collapseOpacityMul = collapseVisual.opacityMul;
         const collapseEmissiveMul = collapseVisual.emissiveMul;
 
+        trace('beforeStrandMotion', {
+            runStrandMotion,
+            shouldRebuildBraids,
+            strandCount: Array.isArray(state.strands) ? state.strands.length : 0
+        });
         if (runStrandMotion) {
             state.strands.forEach((mesh, i) => {
             if (isCoreNodeMesh(mesh)) {
@@ -3684,6 +3756,7 @@ export class LinkRendererConduit {
                 braidGeometryState.segments = segments;
             }
         }
+        trace('afterStrandMotion');
 
         if (runStrandMotion) {
             this._updateStrandFilaments(link, state, {
@@ -3701,6 +3774,10 @@ export class LinkRendererConduit {
         }
 
         // --- 4. Aura Skin Update (Unified Shader Material) ---
+        trace('beforeAuraSkin', {
+            hasSkinMesh: !!state.skinMesh,
+            hasAuraModule: !!this.modules.aura
+        });
         if (state.skinMesh && this.modules.aura) {
              if (isCoreNodeMesh(state.skinMesh)) {
                  // Phase LRC-SAFE-CORE
@@ -3812,6 +3889,7 @@ export class LinkRendererConduit {
                 materialPatches.skin.owner = 'opacityStage';
             }
        }
+        trace('afterAuraSkin');
         if (shouldRebuildBraids) {
             state.__dynamicGeometryInitialized = true;
         }
@@ -3819,6 +3897,10 @@ export class LinkRendererConduit {
         state.mainCurve = mainCurve;
 
         // --- 4.5. TRAIL PARTICLE EFFECTS ---
+        trace('beforeTrailEffects', {
+            hasTrailParticles: !!this.trailParticles,
+            hasHealingParticles: !!this.healingParticles
+        });
         // Emit organic trail particles using same noise as aura systems
         if (this.trailParticles && this.trailEmitters && link.id && this.modules.trails) {
             const emitter = this.trailEmitters.get(link.id);
@@ -3889,11 +3971,16 @@ export class LinkRendererConduit {
                         });
                         this._healingActiveCount = (this._healingActiveCount || 0) + 1;
                     }
-                }
             }
+        }
+        trace('afterTrailEffects');
 
         // --- 5. Subsystems Update ---
         this._beadsUpdateCalls = (this._beadsUpdateCalls || 0) + (state.beads ? 1 : 0);
+        trace('beforeBeadsUpdate', {
+            hasBeads: !!state.beads,
+            hasBeadModule: !!this.modules.beads
+        });
         if (heavyTick && state.beads && this.modules.beads) {
             // Re-assert render state to bypass global depth clamps
             if (state.beads.forceRenderState) {
@@ -3999,6 +4086,7 @@ export class LinkRendererConduit {
                 });
             }
         }
+        trace('afterBeadsUpdate');
 
         // --- 6. Energy Wave Update (Unified Wave Through Strands) ---
         // NOTE:

@@ -92,12 +92,12 @@ export class BeadDebugController {
    * Print bead counts per link
    */
   printBeadCounts() {
-    if (!window.game || !window.game.nodeLinkingSystem) {
-      console.warn('NodeLinkingSystem not available');
+    if (!window.game?.linkingSystem) {
+      console.warn('linkingSystem not available');
       return;
     }
     
-    const links = window.game.nodeLinkingSystem.links;
+    const links = window.game.linkingSystem.links;
     const data = [];
     
     for (const link of links) {
@@ -147,12 +147,12 @@ export class BeadDebugController {
    * Print diagnostics for all links
    */
   printAllDiagnostics() {
-    if (!window.game || !window.game.nodeLinkingSystem) {
-      console.warn('NodeLinkingSystem not available');
+    if (!window.game?.linkingSystem) {
+      console.warn('linkingSystem not available');
       return;
     }
     
-    const links = window.game.nodeLinkingSystem.links;
+    const links = window.game.linkingSystem.links;
     
     for (let i = 0; i < Math.min(links.length, 5); i++) {
       console.log(`\n--- Link ${i + 1} ---`);
@@ -202,9 +202,9 @@ export class BeadDebugController {
     }
     this.debugObjects = [];
     
-    if (!window.game || !window.game.nodeLinkingSystem) return;
+    if (!window.game?.linkingSystem) return;
     
-    const links = window.game.nodeLinkingSystem.links;
+    const links = window.game.linkingSystem.links;
     
     for (const link of links) {
       if (!link.curve) continue;

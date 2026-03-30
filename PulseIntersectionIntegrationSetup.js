@@ -16,49 +16,35 @@ import {
   setupPulseIntersectionImpulseConsoleAPI,
 } from './PulseIntersectionImpulseAdapter_v1.js';
 
-function waitForNodeLinkingReady(game, onReady) {
-  if (game.nodeLinking) {
-    onReady(game.nodeLinking);
-    return () => {};
-  }
-
-  const descriptor = Object.getOwnPropertyDescriptor(game, 'nodeLinking');
-  if (descriptor && descriptor.configurable === false) {
-    return () => {};
-  }
-
-  let currentValue = game.nodeLinking;
+function waitForLinkingSystemReady(game, onReady) {
   let resolved = false;
+  let pollId = null;
 
-  const restoreProperty = () => {
-    Object.defineProperty(game, 'nodeLinking', {
-      configurable: true,
-      enumerable: true,
-      writable: true,
-      value: currentValue,
-    });
-  };
-
-  const cleanup = () => {
-    if (resolved) return;
+  const settle = (linkingSystem) => {
+    if (resolved || !linkingSystem) return false;
     resolved = true;
-    restoreProperty();
+    onReady(linkingSystem);
+    return true;
   };
 
-  Object.defineProperty(game, 'nodeLinking', {
-    configurable: true,
-    enumerable: true,
-    get: () => currentValue,
-    set: value => {
-      currentValue = value;
-      if (value && !resolved) {
-        cleanup();
-        onReady(value);
-      }
-    },
-  });
+  if (settle(game.linkingSystem)) {
+    return () => {};
+  }
 
-  return cleanup;
+  pollId = setInterval(() => {
+    if (settle(game.linkingSystem) && pollId !== null) {
+      clearInterval(pollId);
+      pollId = null;
+    }
+  }, 16);
+
+  return () => {
+    resolved = true;
+    if (pollId !== null) {
+      clearInterval(pollId);
+      pollId = null;
+    }
+  };
 }
 
 export function setupPulseIntersectionIntegration(game) {
@@ -71,11 +57,11 @@ export function setupPulseIntersectionIntegration(game) {
   // =========================================================================
   // STEP 2: DEFERRED INITIALIZATION (wait for systems ready)
   // =========================================================================
-  const finalizeSetup = nodeLinkingInstance => {
+  const finalizeSetup = linkingSystem => {
     try {
-      if (nodeLinkingInstance?.links) {
+      if (linkingSystem?.links) {
         let registeredCount = 0;
-        for (const link of nodeLinkingInstance.links) {
+        for (const link of linkingSystem.links) {
           if (link && link.uuid) {
             try {
               const segmentCount = link.geometry?.attributes?.position
@@ -103,7 +89,7 @@ export function setupPulseIntersectionIntegration(game) {
     }
   };
 
-  const readinessCleanup = waitForNodeLinkingReady(game, finalizeSetup);
+  const readinessCleanup = waitForLinkingSystemReady(game, finalizeSetup);
 
   // =========================================================================
   // STEP 3: HOOK INTO PULSE WAVE UPDATES (optional - if system available)

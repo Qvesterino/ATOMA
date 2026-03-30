@@ -978,7 +978,7 @@ function purgeForbiddenNodePrimitives(visualRoot) {
         if (distance < this.connectionDistance && Math.random() < 0.3) {
           if (!this._linkExists(newNode, existingNode)) {
             try {
-              this.nodeLinkingSystem?.createLink?.(newNode, existingNode);
+              this.linkingSystem?.createLink?.(newNode, existingNode);
               job.linksCreated++;
               created++;
               if (job.linksCreated >= MAX_LINKS_PER_NODE) break;
@@ -1009,9 +1009,10 @@ function purgeForbiddenNodePrimitives(visualRoot) {
   }
 
   _linkExists(a, b) {
-    const links = this.nodeLinkingSystem?.links || [];
-    const ida = this.nodeLinkingSystem?.getNodeId?.(a) || a.userData?.nodeId || a.uuid;
-    const idb = this.nodeLinkingSystem?.getNodeId?.(b) || b.userData?.nodeId || b.uuid;
+    const linkingSystem = this.linkingSystem;
+    const links = linkingSystem?.links || [];
+    const ida = linkingSystem?.getNodeId?.(a) || a.userData?.nodeId || a.uuid;
+    const idb = linkingSystem?.getNodeId?.(b) || b.userData?.nodeId || b.uuid;
     for (const link of links) {
       const la = link.sourceNodeId || link.source?.userData?.nodeId || link.source?.uuid;
       const lb = link.targetNodeId || link.target?.userData?.nodeId || link.target?.uuid;

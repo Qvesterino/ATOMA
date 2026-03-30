@@ -98,10 +98,8 @@ export function setupWaveBurstRouter(game) {
 
     function getAllLinks() {
         const linkingLinks = game?.linkingSystem?.links;
-        const nodeLinkingLinks = game?.nodeLinking?.links;
         const linkList = game?.links || game?.linkList;
         if (Array.isArray(linkingLinks) && linkingLinks.length > 0) return linkingLinks;
-        if (Array.isArray(nodeLinkingLinks) && nodeLinkingLinks.length > 0) return nodeLinkingLinks;
         if (Array.isArray(linkList) && linkList.length > 0) return linkList;
         return [];
     }

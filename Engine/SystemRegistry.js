@@ -63,7 +63,7 @@
       dt,
       time: game?.time ?? 0,
       game,
-      links: game?.nodeLinking?.links ?? [],
+      links: game?.linkingSystem?.links ?? [],
       nodes: game?.aiNodes?.nodes ?? []
     };
     // Allow legacy dt math (Number coercion) while moving to object contract

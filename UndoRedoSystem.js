@@ -234,19 +234,47 @@ export class CreateLinkCommand {
   }
   
   execute() {
+    const traceEnabled = globalThis?.__TRACE_LINK_FLOW__ === true;
+    const traceStart = traceEnabled ? performance.now() : 0;
+    if (traceEnabled) {
+      console.log('[LinkTrace] CreateLinkCommand.execute:start', {
+        source: this.sourceNodeId,
+        target: this.targetNodeId
+      });
+    }
     // Validate nodes still exist
     if (!this._validateNodes()) {
       console.warn('[CreateLinkCommand] Nodes no longer valid');
+      if (traceEnabled) {
+        console.log('[LinkTrace] CreateLinkCommand.execute:end', {
+          source: this.sourceNodeId,
+          target: this.targetNodeId,
+          skipped: 'invalidNodes',
+          ms: Number((performance.now() - traceStart).toFixed(2))
+        });
+      }
       return;
     }
     
     // Create link
     this.createdLink = this.linkingSystem.createLink(this.sourceNode, this.targetNode);
+    if (traceEnabled) {
+      console.log('[LinkTrace] CreateLinkCommand.execute:afterCreateLink', {
+        linkId: this.createdLink?.id ?? null,
+        ms: Number((performance.now() - traceStart).toFixed(2))
+      });
+    }
     
     // Apply visual states
     if (this.linkingSystem.visualStateBinder) {
       this.linkingSystem.visualStateBinder.onNodeStateChange(this.sourceNode, 'LINKED');
       this.linkingSystem.visualStateBinder.onNodeStateChange(this.targetNode, 'LINKED');
+    }
+    if (traceEnabled) {
+      console.log('[LinkTrace] CreateLinkCommand.execute:end', {
+        linkId: this.createdLink?.id ?? null,
+        ms: Number((performance.now() - traceStart).toFixed(2))
+      });
     }
   }
   

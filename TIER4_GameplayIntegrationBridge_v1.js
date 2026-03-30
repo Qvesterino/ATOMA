@@ -160,9 +160,8 @@ export class TIER4_GameplayIntegrationBridge {
 
     // Hook into core events to trigger visual feedback
     const originalOnLinkCreated = this.core.onLinkCreated.bind(this.core);
-    this.core.onLinkCreated = (sourceNode, targetNode) => {
-      originalOnLinkCreated(sourceNode, targetNode);
-      const link = this.core?.getLink(sourceNode, targetNode);
+    this.core.onLinkCreated = (sourceNode, targetNode, link) => {
+      originalOnLinkCreated(sourceNode, targetNode, link);
 
       // Trigger visual feedback
       if (this.visuals && sourceNode) {
@@ -183,17 +182,12 @@ export class TIER4_GameplayIntegrationBridge {
     };
 
     const originalOnLinkRemoved = this.core.onLinkRemoved.bind(this.core);
-    this.core.onLinkRemoved = (sourceNode, targetNode) => {
-      originalOnLinkRemoved(sourceNode, targetNode);
+    this.core.onLinkRemoved = (sourceNode, targetNode, link) => {
+      originalOnLinkRemoved(sourceNode, targetNode, link);
 
       // Get link corruption level before removal
-      let wasCorrupted = false;
-      let corruptionLevel = 0;
-      const link = this.core?.getLink(sourceNode, targetNode);
-      if (link) {
-        corruptionLevel = link.userData?.corruptionLevel ?? 0;
-        wasCorrupted = corruptionLevel > 0.6;
-      }
+      const corruptionLevel = link?.userData?.corruptionLevel ?? 0;
+      const wasCorrupted = corruptionLevel > 0.6;
 
       if (wasCorrupted && this.visuals && sourceNode) {
         this.visuals.displayCascadeWarning(sourceNode);

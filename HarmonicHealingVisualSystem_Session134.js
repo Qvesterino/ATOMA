@@ -75,9 +75,9 @@ class HealingWave {
 }
 
 export class HarmonicHealingVisualSystem_Session134 {
-    constructor(scene, nodeLinkingSystem, particleSystem, config = {}) {
+    constructor(scene, linkingSystem, particleSystem, config = {}) {
         this.scene = scene;
-        this.nodeLinking = nodeLinkingSystem;
+        this.linkingSystem = linkingSystem;
         this.particles = particleSystem;
         
         this.config = {
@@ -312,9 +312,9 @@ export class HarmonicHealingVisualSystem_Session134 {
      * Pick a target link and spawn a wave
      */
     _spawnSingleWave(healingState = {}, time = 0) {
-        if (!this.nodeLinking || !this.nodeLinking.links || this.nodeLinking.links.length === 0) return;
+        if (!this.linkingSystem || !this.linkingSystem.links || this.linkingSystem.links.length === 0) return;
 
-        const links = this.nodeLinking.links;
+        const links = this.linkingSystem.links;
         const targetLink = this._pickHealingTargetLink(links);
         if (!targetLink || !targetLink.source || !targetLink.target) return;
 

@@ -29,13 +29,13 @@ export function setupLinkMicroImpulseIntegration(game) {
         adapter.setSemanticBus(game.semanticBus);
       }
 
-      // Hook into NodeLinking system if available
-      if (game.nodeLinking) {
-        adapter.setLinkingSystem(game.nodeLinking);
-        adapter.setEventSource(game.nodeLinking);
-        console.log('[LinkMicroImpulseIntegration] Connected to NodeLinkingSystem ✓');
+      // Hook into canonical linking system if available
+      if (game.linkingSystem) {
+        adapter.setLinkingSystem(game.linkingSystem);
+        adapter.setEventSource(game.linkingSystem);
+        console.log('[LinkMicroImpulseIntegration] Connected to linkingSystem ✓');
       } else {
-        console.warn('[LinkMicroImpulseIntegration] NodeLinkingSystem not ready yet');
+        console.warn('[LinkMicroImpulseIntegration] linkingSystem not ready yet');
       }
 
       // Setup console API

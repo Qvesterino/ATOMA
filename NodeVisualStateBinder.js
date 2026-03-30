@@ -1266,6 +1266,16 @@ export class NodeVisualStateBinder {
   onNodeStateChange(node, newState) {
     if (!node) return;
 
+    const traceEnabled = globalThis?.__TRACE_LINK_FLOW__ === true;
+    const traceStart = traceEnabled ? performance.now() : 0;
+    const nodeId = node?.id ?? node?.userData?.id ?? null;
+    if (traceEnabled && newState === 'LINKED') {
+      console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:start', {
+        nodeId,
+        newState
+      });
+    }
+
     if (!this.trackedNodes.has(node)) {
       this.registerNode(node);
     }
@@ -1277,9 +1287,24 @@ export class NodeVisualStateBinder {
     if (newState === 'LINKED') {
       // Restore to base (undo any mutations)
       restoreBaseVisualState(node);
+      if (traceEnabled) {
+        console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:afterRestore', {
+          nodeId,
+          newState,
+          ms: Number((performance.now() - traceStart).toFixed(2))
+        });
+      }
 
       // Add link FX (separate mesh, doesn't mutate core)
       const result = applyLinkFXOnly(node, { verbose: this.verbose });
+      if (traceEnabled) {
+        console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:afterLinkFX', {
+          nodeId,
+          newState,
+          ms: Number((performance.now() - traceStart).toFixed(2)),
+          success: !!result?.success
+        });
+      }
 
       // Assertion check (dev mode)
       if (this.assertMode) {
@@ -1293,11 +1318,26 @@ export class NodeVisualStateBinder {
       for (const callback of this.stateChangeCallbacks) {
         callback(node, oldState, newState, result.success);
       }
+      if (traceEnabled) {
+        console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:afterCallbacks', {
+          nodeId,
+          newState,
+          ms: Number((performance.now() - traceStart).toFixed(2)),
+          callbacks: this.stateChangeCallbacks?.length ?? 0
+        });
+      }
 
       if (stateInfo) {
         stateInfo.lastState = newState;
       }
 
+      if (traceEnabled) {
+        console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:end', {
+          nodeId,
+          newState,
+          ms: Number((performance.now() - traceStart).toFixed(2))
+        });
+      }
       return;
     }
 
@@ -1319,6 +1359,13 @@ export class NodeVisualStateBinder {
       // Notify callbacks
       for (const callback of this.stateChangeCallbacks) {
         callback(node, oldState, newState, success);
+      }
+      if (traceEnabled) {
+        console.log('[LinkTrace] NodeVisualStateBinder.onNodeStateChange:end', {
+          nodeId,
+          newState,
+          ms: Number((performance.now() - traceStart).toFixed(2))
+        });
       }
     }
   }

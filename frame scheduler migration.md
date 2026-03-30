@@ -26,7 +26,7 @@ Legend:
 - [x] `linkVisualMoodSystem` - source: `LinkVisualMoodSystem.js` - owned by `visual.linkVisualMoodSystem`; `SystemRegistry` path is now `regGuard(...)`.
 - [x] `echoTrailsIntegration` - source: `main.js` / `VisualEchoTrails_v1_Integration.js` - owned by `visual.echoTrailsIntegration`; `SystemRegistry` path is now `regGuard(...)`.
 - [ ] `topologyViz` - source: `TopologyBiasVisualizationLayer.js` - now owned by `simulation.topologyViz` because it is gated by slow semantic cadence; revisit only if it needs purely visual 30Hz behavior.
-- [ ] `nodeLinking` - source: `NodeLinkingSystem.js` / `main.js` wrapper - keep `visual` 30Hz as the primary owner; remove the `SystemRegistry` fallback once `visual.linkingSystem` is stable.
+- [x] `nodeLinking` - source: `NodeLinkingSystem.js` / `main.js` wrapper - canonical owner is `visual.linkingSystem`; legacy `SystemRegistry` path is now `regGuard(...)` and fallback preference is normalized to `this.linkingSystem`.
 
 ## Simulation 10Hz
 
@@ -50,7 +50,7 @@ Legend:
 - [x] `slowSemanticReset` - source: `main.js` - owned by `background.slowSemanticReset`; now only clears stale pending state if any survives past the simulation lane.
 - [x] `coreMaterialMutationDetector` - source: `CoreMaterialMutationDetector.js` - owned by `background.coreMaterialMutationDetector`; cadence preserved with a ~5s accumulator.
 - [x] `coreMaterialPropertyLock` - source: `main.js` - owned by `background.coreMaterialPropertyLock`; cadence preserved with a ~5s accumulator.
-- [ ] `frameAccounting` - source: `main.js` - move to `background` 2Hz if you decouple exact frame counting; otherwise keep it as diagnostic-only bookkeeping.
+- [x] `frameAccounting` - source: `main.js` - reporting is owned by `background.frameAccounting`; exact `frameCount` increment stays on RAF so frame-based guards keep their original semantics.
 
 ## Realtime Exception
 
@@ -61,4 +61,7 @@ Legend:
 - Visual first wave is done for the cross-layer pending systems and mood/color lanes.
 - Simulation second wave is done for `nodeEditor`, `visualOverlayTick`, `undoRedoUi`, hazards, metric/particle bridge lanes, link quality/degradation, audio synergy, regional equilibrium, rupture/failure logic, and topology visualization.
 - Background second wave is done for slow semantic stale-reset and the periodic core-material safety sweeps.
-- Remaining open items are mainly UI/overlay or bridge paths that still need an explicit `FrameScheduler` owner.
+- `frameAccounting` is split cleanly: exact frame counting remains RAF-local, while perf reporting is owned by `background.frameAccounting`.
+- `nodeLinking` authority is normalized: canonical owner is `this.linkingSystem`, scheduler owner is `visual.linkingSystem`, and legacy fallbacks now prefer that handle first.
+- Runtime-facing alias cleanup is largely done: `main.js`, editor/runtime bridges, diagnostics, and integration helpers now read the canonical `linkingSystem`.
+- Remaining `nodeLinking*` strings are mostly legacy registry naming, constructor parameter names, comments, and historical snippet/patch files rather than active game-state aliases.

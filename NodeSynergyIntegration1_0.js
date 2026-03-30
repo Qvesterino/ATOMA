@@ -32,8 +32,8 @@
 import * as THREE from 'three';
 
 export class NodeSynergyIntegration1_0 {
-  constructor(nodeLinkingSystem, scene, camera) {
-    this.nodeLinker = nodeLinkingSystem;
+  constructor(linkingSystem, scene, camera) {
+    this.linkingSystem = linkingSystem;
     this.scene = scene;
     this.camera = camera;
     
@@ -124,7 +124,7 @@ export class NodeSynergyIntegration1_0 {
       if (window.ComputeSynergyScore2_0) {
         try {
           const hybridScore = window.ComputeSynergyScore2_0(link, {
-            linkingSystem: this.nodeLinker,
+            linkingSystem: this.linkingSystem,
             correlationEngine: this.correlationEngine,
             priorityHistoryEngine: this.priorityHistory,
             priorityDecayEngine: this.priorityDecayEngine

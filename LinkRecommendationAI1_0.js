@@ -25,7 +25,7 @@
  * - 100% null-safe with graceful fallbacks
  * 
  * Usage:
- *   const ai = new LinkRecommendationAI1_0(nodeLinkingSystem, correlationEngine, ...);
+ *   const ai = new LinkRecommendationAI1_0(linkingSystem, correlationEngine, ...);
  *   ai.updateRecommendations(selectedNode);
  *   const suggestions = ai.getTopSuggestions();
  *   ai.debugDump();
@@ -39,20 +39,20 @@
 
 export class LinkRecommendationAI1_0 {
   constructor(
-    nodeLinkingSystem,
+    linkingSystem,
     correlationEngine = null,
     priorityHistoryEngine = null,
     priorityDecayEngine = null,
     config = {}
   ) {
     // Validate inputs
-    if (!nodeLinkingSystem) {
-      console.warn('[LinkRecommendationAI] nodeLinkingSystem required');
+    if (!linkingSystem) {
+      console.warn('[LinkRecommendationAI] linkingSystem required');
       this.enabled = false;
       return;
     }
 
-    this.nodeLinkingSystem = nodeLinkingSystem;
+    this.linkingSystem = linkingSystem;
     this.correlationEngine = correlationEngine;
     this.priorityHistoryEngine = priorityHistoryEngine;
     this.priorityDecayEngine = priorityDecayEngine;
@@ -214,7 +214,7 @@ export class LinkRecommendationAI1_0 {
   _getCandidates(activeNode) {
     let allNodes = [];
     try {
-      allNodes = this.nodeLinkingSystem.nodes || [];
+      allNodes = this.linkingSystem.nodes || [];
       if (!Array.isArray(allNodes)) allNodes = Array.from(allNodes);
     } catch (e) {
       return [];
@@ -312,7 +312,7 @@ export class LinkRecommendationAI1_0 {
         };
 
         const synergyResult = window.ComputeSynergyScore2_0(synthLink, {
-          linkingSystem: this.nodeLinkingSystem,
+          linkingSystem: this.linkingSystem,
           correlationEngine: this.correlationEngine,
           priorityHistoryEngine: this.priorityHistoryEngine,
           priorityDecayEngine: this.priorityDecayEngine
@@ -519,7 +519,7 @@ export class LinkRecommendationAI1_0 {
    */
   linkExists(nodeId1, nodeId2) {
     try {
-      const links = this.nodeLinkingSystem.links || [];
+      const links = this.linkingSystem.links || [];
       return links.some(link => {
         const sourceId = link.source?.id ?? link.sourceNode?.id ?? link.source?.userData?.nodeId;
         const targetId = link.target?.id ?? link.targetNode?.id ?? link.target?.userData?.nodeId;

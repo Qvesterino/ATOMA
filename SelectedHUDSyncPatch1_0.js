@@ -229,7 +229,7 @@ export class SelectedHUDSyncPatch1_0 {
     });
 
     linkingSystem.onLinkCreatedCallbacks = originalOnLinkCreatedCallbacks.map((cb) => {
-      return (source, target) => {
+      const wrapper = (source, target) => {
         // Call original callback
         if (typeof cb === 'function') cb(source, target);
 
@@ -242,6 +242,9 @@ export class SelectedHUDSyncPatch1_0 {
           }
         }
       };
+      const originalSource = typeof cb === 'function' ? String(cb).replace(/\s+/g, ' ').slice(0, 180) : 'non-function';
+      wrapper.__linkTraceLabel = `[SelectedHUDSyncPatch] ${originalSource}`;
+      return wrapper;
     });
 
     linkingSystem.onLinkRemovedCallbacks = originalOnLinkRemovedCallbacks.map((cb) => {

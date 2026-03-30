@@ -1857,13 +1857,89 @@ export class NodeLinkingSystem {
   /**
    * Fire link creation callbacks (for UISelectedHUD link event notification)
    */
+  _isLinkTraceEnabled() {
+    return globalThis?.__TRACE_LINK_FLOW__ === true;
+  }
+
+  _getLinkTraceLabel(callback, index = 0) {
+    if (callback?.__linkTraceLabel) {
+      return callback.__linkTraceLabel;
+    }
+    if (typeof callback?.name === 'string' && callback.name.trim()) {
+      return callback.name.trim();
+    }
+    return `callback#${index + 1}`;
+  }
+
+  _captureLinkTraceLabel(tag) {
+    try {
+      const stack = new Error().stack;
+      if (!stack) {
+        return tag;
+      }
+      const line = stack
+        .split('\n')
+        .slice(3)
+        .map((entry) => entry.trim())
+        .find((entry) => entry && !entry.includes('NodeLinkingSystem.js'));
+      return line ? `${tag} @ ${line}` : tag;
+    } catch {
+      return tag;
+    }
+  }
+
+  _traceLinkFlow(phase, details = null) {
+    if (!this._isLinkTraceEnabled()) {
+      return;
+    }
+    if (details && typeof details === 'object') {
+      console.log(`[LinkTrace] ${phase}`, details);
+      return;
+    }
+    if (details !== null && details !== undefined) {
+      console.log(`[LinkTrace] ${phase}`, details);
+      return;
+    }
+    console.log(`[LinkTrace] ${phase}`);
+  }
+
   _fireLinkCreatedCallbacks(source, target, link = null) {
+    const traceEnabled = this._isLinkTraceEnabled();
+    const traceStart = traceEnabled ? performance.now() : 0;
+    if (traceEnabled) {
+      this._traceLinkFlow('fireLinkCreatedCallbacks:start', {
+        linkId: link?.id ?? null,
+        callbacks: this.onLinkCreatedCallbacks?.length ?? 0
+      });
+    }
     for (const callback of this.onLinkCreatedCallbacks) {
+      const label = this._getLinkTraceLabel(callback);
+      const callbackStart = traceEnabled ? performance.now() : 0;
+      if (traceEnabled) {
+        this._traceLinkFlow('fireLinkCreatedCallbacks:enter', {
+          linkId: link?.id ?? null,
+          callback: label
+        });
+      }
       try {
         callback(source, target, link);
       } catch (err) {
         console.warn('Error in link created callback:', err);
+      } finally {
+        if (traceEnabled) {
+          this._traceLinkFlow('fireLinkCreatedCallbacks:exit', {
+            linkId: link?.id ?? null,
+            callback: label,
+            ms: Number((performance.now() - callbackStart).toFixed(2))
+          });
+        }
       }
+    }
+    if (traceEnabled) {
+      this._traceLinkFlow('fireLinkCreatedCallbacks:end', {
+        linkId: link?.id ?? null,
+        ms: Number((performance.now() - traceStart).toFixed(2))
+      });
     }
   }
 
@@ -1911,6 +1987,13 @@ export class NodeLinkingSystem {
    */
   onLinkCreated(callback) {
     if (typeof callback === 'function') {
+      if (!callback.__linkTraceLabel) {
+        callback.__linkTraceLabel = this._isLinkTraceEnabled()
+          ? this._captureLinkTraceLabel('onLinkCreated')
+          : (typeof callback.name === 'string' && callback.name.trim()
+              ? callback.name.trim()
+              : 'onLinkCreated');
+      }
       this.onLinkCreatedCallbacks.push(callback);
     }
   }
@@ -4269,6 +4352,14 @@ getLinksForNode(node) {
   createLink(sourceNode, targetNode) {
     captureNodeCoreState(sourceNode);
     captureNodeCoreState(targetNode);
+    const traceEnabled = this._isLinkTraceEnabled();
+    const traceStart = traceEnabled ? performance.now() : 0;
+    if (traceEnabled) {
+      this._traceLinkFlow('createLink:start', {
+        source: this.getNodeId(sourceNode) ?? sourceNode?.id ?? null,
+        target: this.getNodeId(targetNode) ?? targetNode?.id ?? null
+      });
+    }
     try {
     // 1. Construct Link Object first (so conduit gets real reference)
     const linkId = `link-${this._linkIdCounter++}`;
@@ -4324,9 +4415,21 @@ getLinksForNode(node) {
         energy: 0.0             // For waves (continuous field energy)
       };
     }
+    link.__traceLinkFlow = traceEnabled;
+    link.__traceLinkCurveCount = 0;
     
     // 2. Create visual group via new renderer using real link reference
+    if (traceEnabled) {
+      this._traceLinkFlow('createLink:beforeCreateLinkVisuals', {
+        linkId: link.id
+      });
+    }
     const linkGroup = this.conduitRenderer.createLinkVisuals(link);
+    if (traceEnabled) {
+      this._traceLinkFlow('createLink:afterCreateLinkVisuals', {
+        linkId: link.id
+      });
+    }
     link.group = linkGroup;
     const parent = this.linkRoot || this.scene;
     parent.add(linkGroup);
@@ -4412,7 +4515,12 @@ getLinksForNode(node) {
             }
           : undefined
       };
-      semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
+      const emitLinkCreated = () => semanticBus.emit('link.created', payload, { priority: semanticBus.priority?.INTERACTIVE });
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(emitLinkCreated);
+      } else {
+        setTimeout(emitLinkCreated, 0);
+      }
     }
 
     if (window.ComputeSynergyScore2_0) {
@@ -4437,7 +4545,11 @@ getLinksForNode(node) {
     // categoryTransitionSystem removed (unused)
     
     // 5. Initial Visual Update
-    this.conduitRenderer.update(link, 0, 0);
+    if (traceEnabled) {
+      this._traceLinkFlow('createLink:deferredConduitUpdate', {
+        linkId: link.id
+      });
+    }
     
     // 5.5. LINK BIRTH AURA ENHANCEMENT
     // Mark nodes as just-linked to trigger aura birth animation
@@ -4445,6 +4557,8 @@ getLinksForNode(node) {
     targetNode.justLinked = true;
     sourceNode.linkBirthTime = performance.now();
     targetNode.linkBirthTime = performance.now();
+    link.__traceLinkFlow = traceEnabled;
+    link.__traceLinkCurveCount = 0;
     
     // Store link direction for aura shader modulation
     if (sourceNode.userData) {
@@ -4459,6 +4573,12 @@ getLinksForNode(node) {
     }
     
     console.log(`✓ Braided Link Created: ${sourceNode.userData.category} -> ${targetNode.userData.category}`);
+    if (traceEnabled) {
+      this._traceLinkFlow('createLink:end', {
+        linkId: link.id,
+        ms: Number((performance.now() - traceStart).toFixed(2))
+      });
+    }
     return link;
     } finally {
       restoreNodeCoreState(sourceNode);
@@ -4474,6 +4594,14 @@ getLinksForNode(node) {
 
     captureNodeCoreState(sourceNode);
     captureNodeCoreState(targetNode);
+    const traceEnabled = this._isLinkTraceEnabled();
+    if (traceEnabled) {
+      link.__traceLinkFlow = true;
+      link.__traceLinkCurveCount = 0;
+      this._traceLinkFlow('_realizeLinkVisuals:start', {
+        linkId: link.id ?? null
+      });
+    }
     try {
       const linkGroup = this.conduitRenderer.createLinkVisuals(link);
       (this.linkRoot || this.scene).add(linkGroup);
@@ -4492,7 +4620,11 @@ getLinksForNode(node) {
       }
       // categoryTransitionSystem removed (unused)
 
-      this.conduitRenderer.update(link, 0, 0);
+      if (traceEnabled) {
+        this._traceLinkFlow('_realizeLinkVisuals:deferredConduitUpdate', {
+          linkId: link.id ?? null
+        });
+      }
       sourceNode.justLinked = true;
       targetNode.justLinked = true;
       sourceNode.linkBirthTime = performance.now();
@@ -4521,6 +4653,11 @@ getLinksForNode(node) {
           corruption: link.corruptionLevel ?? 0,
           synergy: link['synergyScore'] ?? 0.5,
           harmony: link.harmonyScore ?? 0
+        });
+      }
+      if (traceEnabled) {
+        this._traceLinkFlow('_realizeLinkVisuals:end', {
+          linkId: link.id ?? null
         });
       }
 
@@ -5220,33 +5357,61 @@ getLinksForNode(node) {
    * Handles 4-core structure + energy veins + edge blades
    */
   updateLinkCurve(link) {
+    const traceEnabled = this._isLinkTraceEnabled() && !!link?.__traceLinkFlow;
+    const traceCount = traceEnabled ? (link.__traceLinkCurveCount || 0) : 0;
+    const shouldTrace = traceEnabled && traceCount < 3;
+    const traceStart = shouldTrace ? performance.now() : 0;
+    const finishTrace = (details = {}) => {
+      if (!shouldTrace) {
+        return;
+      }
+      this._traceLinkFlow('updateLinkCurve:end', {
+        linkId: link?.id ?? null,
+        count: traceCount,
+        ms: Number((performance.now() - traceStart).toFixed(2)),
+        ...details
+      });
+      link.__traceLinkCurveCount = traceCount + 1;
+    };
+    if (shouldTrace) {
+      this._traceLinkFlow('updateLinkCurve:start', {
+        linkId: link?.id ?? null,
+        count: traceCount
+      });
+    }
     // [BRAIDED CONDUIT] Handled by updateLinkAnimations/update loop directly for non-extreme links
     if (this.conduitRenderer && !link.extremeMode) {
+      finishTrace({ skipped: true });
       return; 
     }
 
     // [Audit 6.2] World not ready - skip update
     if (!this.worldReady) {
+      finishTrace({ skipped: 'worldNotReady' });
       return;
     }
     
     // [LinkGuard] Early return if link or nodes are invalid
     if (!link || !link.source || !link.target) {
+      finishTrace({ skipped: 'invalidLink' });
       return;
     }
     
     // [Audit 6.2] Parent check - nodes must be in scene
     if (!link.source.parent || !link.target.parent) {
+      finishTrace({ skipped: 'noParent' });
       return;
     }
     
     if (!this._isValidNodeForLink(link.source) || !this._isValidNodeForLink(link.target)) {
+      finishTrace({ skipped: 'invalidNodeForLink' });
       return;
     }
     
     // [Audit 6.2] 1-frame delay on newly created links
     if (link._justCreated) {
       link._justCreated = false;
+      finishTrace({ skipped: 'justCreated' });
       return;  // Skip first frame, retry next frame
     }
     
@@ -5356,6 +5521,7 @@ getLinksForNode(node) {
       link.arrow.lookAt(end.clone().add(tangent));
       link.arrow.rotateX(-Math.PI / 2);
     }
+    finishTrace();
   }
   
    /**
@@ -5397,8 +5563,28 @@ getLinksForNode(node) {
     * Update all links - positions, animations, and traffic simulation
     */
   update(deltaTime, time) {
+    const traceEnabled = this._isLinkTraceEnabled();
+    const tracedLink = traceEnabled
+      ? (this.links || []).find((link) => link?.__traceLinkFlow)
+      : null;
+    const tracedUpdateCount = tracedLink ? (tracedLink.__traceUpdateCount || 0) : 0;
+    const shouldTraceUpdate = !!tracedLink && tracedUpdateCount < 2;
+    const traceStart = shouldTraceUpdate ? performance.now() : 0;
+    const traceUpdate = (phase, details = {}) => {
+      if (!shouldTraceUpdate) {
+        return;
+      }
+      this._traceLinkFlow(`update:${phase}`, {
+        linkId: tracedLink?.id ?? null,
+        frameIndex: this._frameIndex || 0,
+        count: tracedUpdateCount,
+        ...details
+      });
+    };
+
     // [Audit 6.2] Skip update if world not ready (during world transitions)
     if (!this.worldReady) {
+      traceUpdate('skip', { reason: 'worldNotReady' });
       return;
     }
 
@@ -5511,34 +5697,70 @@ getLinksForNode(node) {
       const targetInitialOpacity = link.target?.material?.opacity ?? 1.0;
       
       // Update curve to follow node positions (smooth anchoring)
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('beforeUpdateLinkCurve');
+      }
       this.updateLinkCurve(link);
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('afterUpdateLinkCurve');
+      }
 
       // Build per-link frameState once and drive conduit visuals (single entry)
       if (!this.conduitManagedByFrameScheduler && this.conduitRenderer) {
+        if (shouldTraceUpdate && link === tracedLink) {
+          traceUpdate('beforeConduitRendererUpdate');
+        }
         const frameState = this._buildLinkFrameState(link, deltaTime, time);
         this.conduitRenderer.update(link, deltaTime, time, frameState);
+        if (shouldTraceUpdate && link === tracedLink) {
+          traceUpdate('afterConduitRendererUpdate');
+        }
       }
       
       // categoryTransitionSystem removed (unused)
       
       // Traffic simulation
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('beforeTrafficSimulation');
+      }
       this.updateTrafficSimulation(link, deltaTime);
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('afterTrafficSimulation');
+      }
       
       // Visual animations (all mutations guarded internally)
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('beforeLinkAnimations');
+      }
       this.updateLinkAnimations(link, time, deltaTime);
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('afterLinkAnimations');
+      }
       
       // [Session 77] Update synergy-driven link color transitions
       // Smoothly animates link color based on synergy value changes
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('beforeColorTransitions');
+      }
       updateLinkColorTransition(link, deltaTime);
       
       // [Session 78] Update particle stream color transitions
       // Particles smoothly animate colors alongside link mesh
       updateParticleColorTransition(link, deltaTime);
+      if (shouldTraceUpdate && link === tracedLink) {
+        traceUpdate('afterColorTransitions');
+      }
       
       // [Dynamic Thickness v1.0] Update link thickness based on traffic load
       if (this.thicknessSystem && this.visualModules.thickness) {
+        if (shouldTraceUpdate && link === tracedLink) {
+          traceUpdate('beforeThicknessUpdate');
+        }
         const metrics = this.getLinkMetricsSnapshot(link);
         this.thicknessSystem.updateLinkThickness(link.id, metrics.loadPressure ?? metrics.traffic ?? 0);
+        if (shouldTraceUpdate && link === tracedLink) {
+          traceUpdate('afterThicknessUpdate');
+        }
       }
       
       // ===== POST-UPDATE NODE PROTECTION: RESTORE NODE VISUALS =====
@@ -5624,6 +5846,13 @@ getLinksForNode(node) {
     // for the tick have finished. This keeps structural unlinking inside the
     // linking authority and out of metric/visual subsystems.
     this.runCollapseArbiter();
+
+    if (shouldTraceUpdate) {
+      tracedLink.__traceUpdateCount = tracedUpdateCount + 1;
+      traceUpdate('end', {
+        ms: Number((performance.now() - traceStart).toFixed(2))
+      });
+    }
   }
 
   // Phase B.5 – FrameScheduler-driven node targeting tick (visual tier)

@@ -66,7 +66,7 @@ export class NodeEditorRuntime_v1 {
         this.editorSystems = {
             // Core Selection & Linking
             selectionCore: game?.selectionCore || null,
-            nodeLinking: game?.nodeLinking || null,
+            linkingSystem: game?.linkingSystem || null,
             
             // Node Inspection & Context
             nodeInspectPanel: game?.nodeInspectPanel || null,
@@ -120,7 +120,7 @@ export class NodeEditorRuntime_v1 {
         const priority = [
             // Foundation: Selection & Linking
             'selectionCore',
-            'nodeLinking',
+            'linkingSystem',
             
             // Inspection & Context (depends on selection)
             'nodeInspectPanel',
@@ -198,7 +198,7 @@ export class NodeEditorRuntime_v1 {
                 'linguisticOverlay',
                 'contextMenu',
                 'nodeInspectPanel',
-                'nodeLinking',
+                'linkingSystem',
                 'selectionCore',
             ];
 

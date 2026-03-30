@@ -65,6 +65,27 @@ const LAYER_POLICY = {
     depthTest: true,
     blending: THREE.AdditiveBlending
   },
+  LINK_WAVES: {
+    registryKey: 'LINK_WAVES',
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending
+  },
+  LINK_CASCADE: {
+    registryKey: 'LINK_CASCADE',
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.NormalBlending
+  },
+  LINK_RESONANCE: {
+    registryKey: 'LINK_RESONANCE',
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending
+  },
   LINK_PICTOGRAMS: {
     registryKey: 'LINK_PICTOGRAMS',
     transparent: true,
@@ -132,21 +153,34 @@ function getPolicy(layerKey) {
 function applyToMaterial(material, policy, overrides = {}) {
   if (!material) return;
   const target = { ...policy, ...overrides };
-  if (target.transparent !== undefined) material.transparent = target.transparent;
-  if (target.depthWrite !== undefined) material.depthWrite = target.depthWrite;
-  if (target.depthTest !== undefined) material.depthTest = target.depthTest;
-  if (target.blending !== undefined) material.blending = target.blending;
-  if (target.side !== undefined) material.side = target.side;
-  if (target.colorWrite !== undefined) material.colorWrite = target.colorWrite;
-  if (target.polygonOffset !== undefined) material.polygonOffset = target.polygonOffset;
-  if (target.polygonOffsetFactor !== undefined) material.polygonOffsetFactor = target.polygonOffsetFactor;
-  if (target.polygonOffsetUnits !== undefined) material.polygonOffsetUnits = target.polygonOffsetUnits;
-  material.needsUpdate = true;
+  let changed = false;
+
+  const assignIfDifferent = (key, value) => {
+    if (value === undefined) return;
+    if (material[key] !== value) {
+      material[key] = value;
+      changed = true;
+    }
+  };
+
+  assignIfDifferent('transparent', target.transparent);
+  assignIfDifferent('depthWrite', target.depthWrite);
+  assignIfDifferent('depthTest', target.depthTest);
+  assignIfDifferent('blending', target.blending);
+  assignIfDifferent('side', target.side);
+  assignIfDifferent('colorWrite', target.colorWrite);
+  assignIfDifferent('polygonOffset', target.polygonOffset);
+  assignIfDifferent('polygonOffsetFactor', target.polygonOffsetFactor);
+  assignIfDifferent('polygonOffsetUnits', target.polygonOffsetUnits);
+
+  if (changed) {
+    material.needsUpdate = true;
+  }
 
   if (material.transparent === true && material.depthWrite === true) {
     warn('transparent + depthWrite true is forbidden', { material, target });
   }
-  if (material.depthTest === false && target.allowDepthTestFalse !== true) {
+  if (material.depthTest === false && policy.depthTest !== false && target.allowDepthTestFalse !== true) {
     warn('depthTest false is forbidden for normal link layers', { material, target });
   }
 }

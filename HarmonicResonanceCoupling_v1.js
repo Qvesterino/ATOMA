@@ -43,9 +43,9 @@ import * as THREE from 'three';
 import { getLinkSynergy } from './SemanticMetricAdapter.js';
 
 export class HarmonicResonanceCoupling_v1 {
-  constructor(scene, nodeLinkingSystem) {
+  constructor(scene, linkingSystem) {
     this.scene = scene;
-    this.nodeLinkingSystem = nodeLinkingSystem;
+    this.linkingSystem = linkingSystem;
     this.enabled = true;
     
     // State tracking
@@ -272,8 +272,8 @@ export class HarmonicResonanceCoupling_v1 {
   }
   
   _getLinkedNodeCount(node) {
-    if (!this.nodeLinkingSystem?.getLinksForNode) return 0;
-    const links = this.nodeLinkingSystem.getLinksForNode(node);
+    if (!this.linkingSystem?.getLinksForNode) return 0;
+    const links = this.linkingSystem.getLinksForNode(node);
     return links?.length ?? 0;
   }
   

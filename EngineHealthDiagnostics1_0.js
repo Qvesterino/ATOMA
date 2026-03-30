@@ -196,9 +196,9 @@ export const EngineHealthDiagnostics1_0 = {
     };
 
     try {
-      const linkSys = window.nodeLinkingSystem;
+      const linkSys = window.linkingSystem;
       if (!linkSys) {
-        report.issues.push('NodeLinkingSystem not initialized');
+        report.issues.push('linkingSystem not initialized');
         return report;
       }
 
@@ -503,7 +503,7 @@ ${this._issues.length > 0 ? this._issues.map((i, idx) => `${idx + 1}. [${i.sever
   },
 
   _countLinks() {
-    return window.nodeLinkingSystem?.links?.length || 0;
+    return window.linkingSystem?.links?.length || 0;
   },
 
   _calculateAvgNodeHealth() {
@@ -515,7 +515,7 @@ ${this._issues.length > 0 ? this._issues.map((i, idx) => `${idx + 1}. [${i.sever
   },
 
   _calculateAvgLinkQuality() {
-    const links = window.nodeLinkingSystem?.links || [];
+    const links = window.linkingSystem?.links || [];
     if (links.length === 0) return 1;
     
     const total = links.reduce((sum, l) => sum + (l.quality || 0), 0);
