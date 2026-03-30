@@ -825,12 +825,14 @@ export function setupVisualEchoTrailsIntegration(
   };
   
   // Register callbacks for new links
-  if (mainInstance.linkingSystem?.onLinkCreatedCallbacks) {
-    mainInstance.linkingSystem.onLinkCreatedCallbacks.push((source, target, link) => {
+  if (typeof mainInstance.linkingSystem?.onLinkCreated === 'function') {
+    mainInstance.linkingSystem.onLinkCreated((source, target, link) => {
       const resolvedLink = resolveLinkFromEndpoints(source, target, link);
       if (resolvedLink) {
         integration.onLinkCreated(resolvedLink);
       }
+    }, {
+      layerKey: 'LINK_BEAD_TRAILS'
     });
   }
 
@@ -840,8 +842,8 @@ export function setupVisualEchoTrailsIntegration(
   });
   
   // Register callbacks for removed links
-  if (mainInstance.linkingSystem?.onLinkRemovedCallbacks) {
-    mainInstance.linkingSystem.onLinkRemovedCallbacks.push((source, target, link) => {
+  if (typeof mainInstance.linkingSystem?.onLinkRemoved === 'function') {
+    mainInstance.linkingSystem.onLinkRemoved((source, target, link) => {
       const resolvedLink = resolveLinkFromEndpoints(source, target, link);
       if (resolvedLink) {
         integration.onLinkRemoved(resolvedLink);

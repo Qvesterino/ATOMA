@@ -530,18 +530,21 @@ export function integrateAnimatedLinkFlow(linkingSystem, scene, camera) {
   const flowSystem = new AnimatedLinkFlow(scene, camera);
   
   // Hook into link creation
-  const originalOnLinkCreated = linkingSystem.onLinkCreatedCallbacks;
-  linkingSystem.onLinkCreatedCallbacks = linkingSystem.onLinkCreatedCallbacks || [];
-  linkingSystem.onLinkCreatedCallbacks.push((link, linkId) => {
-    flowSystem.initializeLinkFlow(link, linkId);
-  });
+  if (typeof linkingSystem.onLinkCreated === 'function') {
+    linkingSystem.onLinkCreated((source, target, link) => {
+      const resolvedLink = link || source || target;
+      flowSystem.initializeLinkFlow(resolvedLink, resolvedLink?.id ?? null);
+    }, {
+      layerKey: 'LINK_BEAD_TRAILS'
+    });
+  }
   
   // Hook into link removal
-  const originalOnLinkRemoved = linkingSystem.onLinkRemovedCallbacks;
-  linkingSystem.onLinkRemovedCallbacks = linkingSystem.onLinkRemovedCallbacks || [];
-  linkingSystem.onLinkRemovedCallbacks.push((linkId) => {
-    flowSystem.removeLinkFlow(linkId);
-  });
+  if (typeof linkingSystem.onLinkRemoved === 'function') {
+    linkingSystem.onLinkRemoved((source, target, link) => {
+      flowSystem.removeLinkFlow(link?.id ?? source?.id ?? target?.id ?? null);
+    });
+  }
   flowSystem.init({
     linkingSystem,
     semanticBus: linkingSystem?.semanticBus || globalThis?.semanticBus || null

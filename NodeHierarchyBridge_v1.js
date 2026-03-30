@@ -322,11 +322,14 @@ if (!this.frameScheduler?.shouldRunVisual?.()) return;
     });
 
     // If linking system exists, listen for links
-    if (this.linkingSystem?.onLinkCreatedCallbacks) {
-      this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
-        if (this.config.autoHierarchyOnLink && link.targetNode) {
-          this.createHierarchyFromLink(link.sourceNode.id, link.targetNode.id);
+    if (typeof this.linkingSystem?.onLinkCreated === 'function') {
+      this.linkingSystem.onLinkCreated((source, target, link) => {
+        const resolvedLink = link || source || target;
+        if (this.config.autoHierarchyOnLink && resolvedLink?.sourceNode && resolvedLink?.targetNode) {
+          this.createHierarchyFromLink(resolvedLink.sourceNode.id, resolvedLink.targetNode.id);
         }
+      }, {
+        layerKey: 'LINK_CORE_OVERLAY'
       });
     }
 

@@ -7536,12 +7536,18 @@ window.__ATOMA_SCENE__ = this.scene;
                     .catch(() => {});
             };
 
-            this.linkingSystem.onLinkCreated(() => playLinkAudio('create'));
-            this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'));
+            this.linkingSystem.onLinkCreated(() => playLinkAudio('create'), {
+                layerKey: 'LINK_IMPACTS',
+                immediate: true
+            });
+            this.linkingSystem.onLinkRemoved(() => playLinkAudio('remove'), {
+                layerKey: 'LINK_IMPACTS',
+                immediate: true
+            });
             this.linkingSystem.__audioLinkAuthorityBound = true;
         }
         if (this.linkingSystem?.onLinkCreated && !this.linkingSystem.__tripleCascadeVisualBridgeBound) {
-            this.linkingSystem.onLinkCreated((sourceNode, targetNode) => {
+            this.linkingSystem.onLinkCreated((sourceNode, targetNode, link) => {
                 if (!this.semanticBus?.emit || !sourceNode || !targetNode) return;
 
                 const sourcePos = sourceNode.position || sourceNode.userData?.position || null;
@@ -7625,6 +7631,9 @@ window.__ATOMA_SCENE__ = this.scene;
                 const priority = this.semanticBus.priority?.INTERACTIVE ?? this.semanticBus.priority?.NORMAL;
                 this.semanticBus.emit('cascade.start', payload, { priority });
                 this.semanticBus.emit('cascade.hop', payload, { priority });
+            }, {
+                layerKey: 'LINK_CASCADE',
+                immediate: true
             });
             this.linkingSystem.__tripleCascadeVisualBridgeBound = true;
         }
@@ -7663,8 +7672,12 @@ window.__ATOMA_SCENE__ = this.scene;
             this.synergyHighwayVisuals3D = SynergyHighwayVisuals3D_1_0;
             this.synergyHighwayVisuals3D.init(this.scene, this.camera, this.renderer, this.linkingSystem, this.aiNodes);
             window.SynergyHighwayVisuals3D_1_0 = this.synergyHighwayVisuals3D;
-            this.linkingSystem.onLinkCreated?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.());
-            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.());
+            this.linkingSystem.onLinkCreated?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
+                layerKey: 'LINK_GLOW'
+            });
+            this.linkingSystem.onLinkRemoved?.(() => this.synergyHighwayVisuals3D?.scheduleRebuild?.(), {
+                layerKey: 'LINK_GLOW'
+            });
             this.synergyHighwayVisuals3D.refreshFromHighways?.();
             window.__ATOMA_SYNERGY_HIGHWAY_VISUALS__ = this.synergyHighwayVisuals3D;
             this._synergyHighwayRefreshAcc = 0;
@@ -12772,8 +12785,12 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 this.glyphLayer4?.reconcileAmbientOrbitGlyphs?.(this.aiNodes?.nodes || []);
             };
 
-            this.linkingSystem.onLinkCreated(() => reconcileAmbientOrbits());
-            this.linkingSystem.onLinkRemoved(() => reconcileAmbientOrbits());
+            this.linkingSystem.onLinkCreated(() => reconcileAmbientOrbits(), {
+                layerKey: 'LINK_PICTOGRAMS'
+            });
+            this.linkingSystem.onLinkRemoved(() => reconcileAmbientOrbits(), {
+                layerKey: 'LINK_PICTOGRAMS'
+            });
             this.glyphLayer4.__ambientOrbitLinkBindingInstalled = true;
         }
 
@@ -13849,15 +13866,19 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                 }
             }
 
-            if (this.linkingSystem?.onLinkCreatedCallbacks) {
-                this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
+            if (this.linkingSystem?.onLinkCreated) {
+                this.linkingSystem.onLinkCreated((link) => {
                     this.linkAuraSystem?.registerLink?.(link);
+                }, {
+                    layerKey: 'LINK_GLOW'
                 });
             }
 
-            if (this.linkingSystem?.onLinkRemovedCallbacks) {
-                this.linkingSystem.onLinkRemovedCallbacks.push((link) => {
+            if (this.linkingSystem?.onLinkRemoved) {
+                this.linkingSystem.onLinkRemoved((link) => {
                     this.linkAuraSystem?.unregisterLink?.(link);
+                }, {
+                    layerKey: 'LINK_GLOW'
                 });
             }
 
@@ -14741,20 +14762,24 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
         }
         
         // Register callback for new link creation
-        if (this.linkingSystem && this.linkingSystem.onLinkCreatedCallbacks) {
-            this.linkingSystem.onLinkCreatedCallbacks.push((link) => {
+        if (this.linkingSystem && this.linkingSystem.onLinkCreated) {
+            this.linkingSystem.onLinkCreated((link) => {
                 if (this.harmonicResonanceCoupling) {
                     this.harmonicResonanceCoupling.registerLink(link);
                 }
+            }, {
+                layerKey: 'LINK_RESONANCE'
             });
         }
         
         // Register callback for link removal
-        if (this.linkingSystem && this.linkingSystem.onLinkRemovedCallbacks) {
-            this.linkingSystem.onLinkRemovedCallbacks.push((link) => {
+        if (this.linkingSystem && this.linkingSystem.onLinkRemoved) {
+            this.linkingSystem.onLinkRemoved((link) => {
                 if (this.harmonicResonanceCoupling) {
                     this.harmonicResonanceCoupling.unregisterLink(link);
                 }
+            }, {
+                layerKey: 'LINK_RESONANCE'
             });
         }
         

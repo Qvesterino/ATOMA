@@ -491,6 +491,13 @@ export class NodeLinkingSystem {
     this.onLinkUpdatedCallbacks = [];
     this.onLinkRemovedCallbacks = [];
     this.onLinkDestroyedCallbacks = [];
+    this._deferredLinkCreatedCallbacks = [];
+    this._deferredLinkCreatedDrainScheduled = false;
+    this._deferredLinkCreatedSequence = 0;
+    this._linkCreatedCallbackBudgetMs = 1.5;
+    this._linkCreatedCallbackBudgetCount = 2;
+    this._deferredLinkCreatedCallbackBudgetMs = 2.0;
+    this._deferredLinkCreatedCallbackBudgetCount = 4;
     
     this.raycaster = new THREE.Raycaster();
     // Align raycaster layer with hit-proxy interaction layer (default 10)
@@ -566,11 +573,14 @@ export class NodeLinkingSystem {
     this.linkStateVisualLanguage = new LinkStateVisualLanguageIntegration(this, { debugMode: false });
 
     // Register callback for new link creation
-    if (this.onLinkCreatedCallbacks) {
-      this.onLinkCreatedCallbacks.push((link) => {
+    if (typeof this.onLinkCreated === 'function') {
+      this.onLinkCreated((source, target, link) => {
+        const resolvedLink = link || source || target;
         if (this.linkStateVisualLanguage) {
-          this.linkStateVisualLanguage.registerLink(link);
+          this.linkStateVisualLanguage.registerLink(resolvedLink);
         }
+      }, {
+        layerKey: 'LINK_PICTOGRAMS'
       });
     }
 
@@ -1906,40 +1916,144 @@ export class NodeLinkingSystem {
   _fireLinkCreatedCallbacks(source, target, link = null) {
     const traceEnabled = this._isLinkTraceEnabled();
     const traceStart = traceEnabled ? performance.now() : 0;
+    const orderedCallbacks = Array.isArray(this.onLinkCreatedCallbacks)
+      ? [...this.onLinkCreatedCallbacks]
+          .map((callback, index) => ({
+            callback,
+            index,
+            priority: this._getLinkCallbackPriority(callback)
+          }))
+          .sort((left, right) => left.priority - right.priority || left.index - right.index)
+      : [];
     if (traceEnabled) {
       this._traceLinkFlow('fireLinkCreatedCallbacks:start', {
         linkId: link?.id ?? null,
-        callbacks: this.onLinkCreatedCallbacks?.length ?? 0
+        callbacks: orderedCallbacks.length
       });
     }
-    for (const callback of this.onLinkCreatedCallbacks) {
-      const label = this._getLinkTraceLabel(callback);
-      const callbackStart = traceEnabled ? performance.now() : 0;
-      if (traceEnabled) {
-        this._traceLinkFlow('fireLinkCreatedCallbacks:enter', {
-          linkId: link?.id ?? null,
-          callback: label
-        });
+    let processed = 0;
+    let deferred = 0;
+    for (const entry of orderedCallbacks) {
+      const elapsed = performance.now() - traceStart;
+      const shouldDefer = processed >= this._linkCreatedCallbackBudgetCount || elapsed > this._linkCreatedCallbackBudgetMs;
+      if (shouldDefer && !entry.callback.__linkWorkImmediate) {
+        this._queueDeferredLinkCreatedCallback(entry.callback, source, target, link, entry.priority);
+        deferred++;
+        continue;
       }
-      try {
-        callback(source, target, link);
-      } catch (err) {
-        console.warn('Error in link created callback:', err);
-      } finally {
-        if (traceEnabled) {
-          this._traceLinkFlow('fireLinkCreatedCallbacks:exit', {
-            linkId: link?.id ?? null,
-            callback: label,
-            ms: Number((performance.now() - callbackStart).toFixed(2))
-          });
-        }
-      }
+      this._invokeLinkCreatedCallback(entry.callback, source, target, link, traceEnabled, 'fireLinkCreatedCallbacks');
+      processed++;
     }
     if (traceEnabled) {
       this._traceLinkFlow('fireLinkCreatedCallbacks:end', {
         linkId: link?.id ?? null,
-        ms: Number((performance.now() - traceStart).toFixed(2))
+        ms: Number((performance.now() - traceStart).toFixed(2)),
+        processed,
+        deferred
       });
+    }
+    if (deferred > 0) {
+      this._scheduleDeferredLinkCreatedCallbacks();
+    }
+  }
+
+  _getLinkCallbackPriority(callback) {
+    if (!callback) return VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+    if (callback.__linkWorkImmediate === true) return -1000;
+    if (Number.isFinite(callback.__linkWorkPriority)) {
+      return callback.__linkWorkPriority;
+    }
+    if (typeof callback.__linkWorkLayer === 'string' && callback.__linkWorkLayer) {
+      return VisualHierarchyRegistry.getRenderOrder(callback.__linkWorkLayer);
+    }
+    return VisualHierarchyRegistry.getRenderOrder('LINK_PARTICLES');
+  }
+
+  _invokeLinkCreatedCallback(callback, source, target, link, traceEnabled = false, phase = 'fireLinkCreatedCallbacks') {
+    if (typeof callback !== 'function') return;
+
+    const label = this._getLinkTraceLabel(callback);
+    const callbackStart = traceEnabled ? performance.now() : 0;
+    if (traceEnabled) {
+      this._traceLinkFlow(`${phase}:enter`, {
+        linkId: link?.id ?? null,
+        callback: label
+      });
+    }
+    try {
+      callback(source, target, link);
+    } catch (err) {
+      console.warn('Error in link created callback:', err);
+    } finally {
+      if (traceEnabled) {
+        this._traceLinkFlow(`${phase}:exit`, {
+          linkId: link?.id ?? null,
+          callback: label,
+          ms: Number((performance.now() - callbackStart).toFixed(2))
+        });
+      }
+    }
+  }
+
+  _queueDeferredLinkCreatedCallback(callback, source, target, link, priority = 0) {
+    if (typeof callback !== 'function') return;
+
+    this._deferredLinkCreatedCallbacks.push({
+      callback,
+      source,
+      target,
+      link,
+      priority,
+      order: this._deferredLinkCreatedSequence++,
+      traceEnabled: this._isLinkTraceEnabled()
+    });
+  }
+
+  _scheduleDeferredLinkCreatedCallbacks() {
+    if (this._deferredLinkCreatedDrainScheduled) return;
+    this._deferredLinkCreatedDrainScheduled = true;
+
+    const flush = () => {
+      this._deferredLinkCreatedDrainScheduled = false;
+      this._drainDeferredLinkCreatedCallbacks();
+      if (this._deferredLinkCreatedCallbacks.length > 0) {
+        this._scheduleDeferredLinkCreatedCallbacks();
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(flush);
+    } else {
+      setTimeout(flush, 0);
+    }
+  }
+
+  _drainDeferredLinkCreatedCallbacks() {
+    if (!Array.isArray(this._deferredLinkCreatedCallbacks) || this._deferredLinkCreatedCallbacks.length === 0) {
+      return;
+    }
+
+    const budgetMs = this._deferredLinkCreatedCallbackBudgetMs ?? this._linkCreatedCallbackBudgetMs;
+    const budgetCount = this._deferredLinkCreatedCallbackBudgetCount ?? this._linkCreatedCallbackBudgetCount;
+    const traceEnabled = this._isLinkTraceEnabled();
+    const start = traceEnabled ? performance.now() : 0;
+
+    this._deferredLinkCreatedCallbacks.sort((left, right) => left.priority - right.priority || left.order - right.order);
+
+    let processed = 0;
+    while (this._deferredLinkCreatedCallbacks.length > 0) {
+      const elapsed = traceEnabled ? (performance.now() - start) : 0;
+      if (processed >= budgetCount || elapsed > budgetMs) {
+        break;
+      }
+
+      const task = this._deferredLinkCreatedCallbacks.shift();
+      if (!task) {
+        break;
+      }
+
+      this._invokeLinkCreatedCallback(task.callback, task.source, task.target, task.link, traceEnabled || task.traceEnabled, 'drainDeferredLinkCreatedCallbacks');
+      processed++;
     }
   }
 
@@ -1985,8 +2099,19 @@ export class NodeLinkingSystem {
   /**
    * Register callback for link creation events
    */
-  onLinkCreated(callback) {
+  onLinkCreated(callback, options = {}) {
     if (typeof callback === 'function') {
+      if (options && typeof options === 'object') {
+        if (typeof options.layerKey === 'string' && options.layerKey) {
+          callback.__linkWorkLayer = options.layerKey;
+        }
+        if (Number.isFinite(options.priority)) {
+          callback.__linkWorkPriority = options.priority;
+        }
+        if (options.immediate === true) {
+          callback.__linkWorkImmediate = true;
+        }
+      }
       if (!callback.__linkTraceLabel) {
         callback.__linkTraceLabel = this._isLinkTraceEnabled()
           ? this._captureLinkTraceLabel('onLinkCreated')
@@ -7813,6 +7938,10 @@ getLinksForNode(node) {
       if (Array.isArray(this.onLinkCreatedCallbacks)) {
         this.onLinkCreatedCallbacks.length = 0;
       }
+      if (Array.isArray(this._deferredLinkCreatedCallbacks)) {
+        this._deferredLinkCreatedCallbacks.length = 0;
+      }
+      this._deferredLinkCreatedDrainScheduled = false;
       if (Array.isArray(this.onLinkRemovedCallbacks)) {
         this.onLinkRemovedCallbacks.length = 0;
       }
@@ -8288,6 +8417,11 @@ getLinksForNode(node) {
    * Safe to call multiple times; keeps FrameScheduler registration intact.
    */
   resetForWorldRebuild({ scene, worldRoot } = {}) {
+    if (Array.isArray(this._deferredLinkCreatedCallbacks)) {
+      this._deferredLinkCreatedCallbacks.length = 0;
+    }
+    this._deferredLinkCreatedDrainScheduled = false;
+
     // Detach and dispose existing link visuals
     if (Array.isArray(this.links)) {
       for (const link of this.links) {

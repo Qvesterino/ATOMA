@@ -153,7 +153,10 @@ export class LinkCollapseSystem {
     this._linkHooksBound = true;
 
     if (typeof linkingSystem.onLinkCreated === 'function') {
-      linkingSystem.onLinkCreated((link) => this.registerLink(link));
+      linkingSystem.onLinkCreated((source, target, link) => this.registerLink(link || source || target), {
+        layerKey: 'LINK_CORE',
+        immediate: true
+      });
     }
 
     if (typeof linkingSystem.onLinkUpdated === 'function') {

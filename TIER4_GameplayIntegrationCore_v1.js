@@ -78,6 +78,9 @@ export class TIER4_GameplayIntegrationCore {
     if (this.linkingSystem.onLinkCreated) {
       this.linkingSystem.onLinkCreated((source, target, link) => {
         this.onLinkCreated(source, target, link);
+      }, {
+        layerKey: 'LINK_CORE',
+        immediate: true
       });
     }
 

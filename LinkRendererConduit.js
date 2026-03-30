@@ -4014,7 +4014,7 @@ export class LinkRendererConduit {
             if (heavyTick && state.trails) state.trails.update(visualTime, visualDelta, state.beads.beadToMesh, mainCurve, lodAllowsParticles);
         }
 
-        if (state.rings) state.rings.update(visualTime);
+        if (heavyTick && state.rings) state.rings.update(visualTime);
 
         if (heavyTick && state.sparks && this.modules.sparks) {
             const baseCol = (state.strands[0]?.material?.color) || state.baseColor || 0xffffff;
@@ -4217,10 +4217,12 @@ export class LinkRendererConduit {
             }
         }
 
-        this.updateImpacts(state, visualDelta);
+        if (heavyTick) {
+            this.updateImpacts(state, visualDelta);
 
-        // Update dissolve particles (if any)
-        this.updateDissolves(visualDelta);
+            // Update dissolve particles (if any)
+            this.updateDissolves(visualDelta);
+        }
 
         // Apply accumulated material patches deterministically (once per frame)
         if (state.skinMesh?.material) {

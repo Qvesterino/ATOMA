@@ -284,6 +284,8 @@ export class UISelectedHUD {
                 this.updateDisplay(this.selectedNode);
                 console.log('[SelectedHUD] ✓ Updated display for link creation');
             }
+        }, {
+            layerKey: 'LINK_PICTOGRAMS'
         });
 
         this._bindSemanticBus();
