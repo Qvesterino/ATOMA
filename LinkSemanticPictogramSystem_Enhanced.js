@@ -2061,6 +2061,51 @@ export class LinkSemanticPictogramSystem_Enhanced {
         }
     }
 
+    resetForWorldSwitch({ scene = this.scene, worldRoot = null, camera = this.camera, linkingSystem = this.linkingSystem } = {}) {
+        this.scene = scene || this.scene;
+        this.camera = camera || this.camera;
+        this.linkingSystem = linkingSystem || this.linkingSystem;
+
+        const nextParent = worldRoot || this.parentGroup || this.scene;
+        this.parentGroup = nextParent || this.parentGroup;
+        if (nextParent && this.container) {
+            if (this.container.parent && this.container.parent !== nextParent) {
+                this.container.parent.remove(this.container);
+            }
+            if (this.container.parent !== nextParent) {
+                nextParent.add(this.container);
+            }
+        }
+
+        this.pictograms.forEach((pictogram) => {
+            if (!pictogram) return;
+            if (pictogram.mesh?.parent) {
+                pictogram.mesh.parent.remove(pictogram.mesh);
+            }
+            pictogram.reset();
+            pictogram._orbit1 = null;
+            pictogram._orbit2 = null;
+            pictogram._spark = null;
+            if (pictogram.mesh) {
+                pictogram.mesh.visible = false;
+            }
+        });
+
+        this.linkImportanceScores.clear();
+        this.linkPictogramCounts.clear();
+        this.linkSpawnTimers.clear();
+        this.linkStateCounts.clear();
+        this.linkMetricCounts.clear();
+        this._initializedLinks.clear();
+        this._lastLinks = [];
+        this._externalLinks = [];
+        this._minimumSpawnCursor = 0;
+        this.updateTimer = 0.0;
+        this._inactiveTimer = 0;
+        this._lastRecoveryTime = 0;
+        this._diagImmediateForced = false;
+    }
+
     dispose() {
         this.pictograms.forEach(p => p.reset());
         this.linkImportanceScores.clear();

@@ -3742,8 +3742,8 @@ class AtomaGame {
             }
         }, 'simulation.nodeShellSizeAuthority');
         this.frameScheduler.register('simulation', (dt) => {
-            if (this.linkPersonalityStateMachine && this.nodeLinking) {
-                this.linkPersonalityStateMachine.update(dt, this.nodeLinking.links || []);
+            if (this.linkPersonalityStateMachine && this.linkingSystem) {
+                this.linkPersonalityStateMachine.update(dt, this.linkingSystem.links || []);
             }
         }, 'simulation.linkPersonalityStateMachine');
         this.frameScheduler.register('simulation', (dt) => {
@@ -4014,8 +4014,8 @@ class AtomaGame {
             }
         }, 'visual.metricsVisualFX');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyBonusFXLayer && this.nodeLinking) {
-                this.synergyBonusFXLayer.update(dt, this.nodeLinking.links || []);
+            if (this.synergyBonusFXLayer && this.linkingSystem) {
+                this.synergyBonusFXLayer.update(dt, this.linkingSystem.links || []);
             }
         }, 'visual.synergyBonusFXLayer');
         this.frameScheduler.register('visual', (dt) => {
@@ -4024,11 +4024,11 @@ class AtomaGame {
             }
         }, 'visual.synergyResonanceShaderPack');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.synergyCascadeFXBridge && this.aiNodes && this.nodeLinking) {
+            if (this.synergyCascadeFXBridge && this.aiNodes && this.linkingSystem) {
                 this.synergyCascadeFXBridge.update(
                     dt,
                     this.aiNodes.nodes || [],
-                    this.nodeLinking.links || []
+                    this.linkingSystem.links || []
                 );
             }
         }, 'visual.synergyCascadeFXBridge');
@@ -4144,7 +4144,7 @@ class AtomaGame {
             if (pulseWaveBridge && this.waveInterferenceEngine && this.pulseIntersectionAdapter) {
                 pulseWaveBridge.update(dt, {
                     waveEngine: this.waveInterferenceEngine,
-                    links: this.nodeLinking?.links || [],
+                    links: this.linkingSystem?.links || [],
                     nodeDynamicMetrics: this.nodeDynamicMetrics,
                     pulseIntersectionAdapter: this.pulseIntersectionAdapter
                 });
@@ -4166,11 +4166,11 @@ class AtomaGame {
             }
         }, 'visual.pulseIntersectionAdapter');
         this.frameScheduler.register('visual', (dt) => {
-            if (this.resonanceFeedback && this.aiNodes && this.nodeLinking) {
+            if (this.resonanceFeedback && this.aiNodes && this.linkingSystem) {
                 this.resonanceFeedback.update(
                     dt,
                     this.aiNodes.nodes || [],
-                    this.nodeLinking.links || []
+                    this.linkingSystem.links || []
                 );
             }
         }, 'visual.resonanceFeedback');
@@ -4242,7 +4242,7 @@ class AtomaGame {
         }, 'visual.particleEmissionScaler');
         this.frameScheduler.register('visual', (dt) => {
             if (this.particleSemanticDensity) {
-                const links = this.nodeLinking?.links || this.linkingSystem?.links || [];
+                const links = this.linkingSystem?.links || [];
                 const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
                 this.particleSemanticDensity.update(dt, links, this.conflictSystem || null, cascadeSystem);
             }
@@ -4250,7 +4250,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', (dt) => {
             const boostSystem = this.cascadeParticleEmissionBoost;
             if (boostSystem) {
-                const links = this.nodeLinking?.links;
+                const links = this.linkingSystem?.links;
                 if (Array.isArray(links) && links.length > 0) {
                     const cascadeSystem = this.harmonicCascadeAmplification || this.cascadeVisualizer || null;
                     boostSystem.update(dt, links, cascadeSystem);
@@ -4259,9 +4259,7 @@ class AtomaGame {
         }, 'visual.cascadeParticleEmissionBoost');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleColorTinting) {
-                const links = Array.isArray(this.linkingSystem?.links) && this.linkingSystem.links.length > 0
-                    ? this.linkingSystem.links
-                    : (this.nodeLinking?.links || []);
+                const links = this.linkingSystem?.links || [];
                 this.cascadeParticleColorTinting.update(
                     dt,
                     links,
@@ -4272,12 +4270,8 @@ class AtomaGame {
         }, 'visual.cascadeParticleColorTinting');
         this.frameScheduler.register('visual', (dt) => {
             if (this.cascadeParticleSystem) {
-                const primaryLinks = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : null;
-                const fallbackLinks = Array.isArray(this.nodeLinking?.links) ? this.nodeLinking.links : [];
-                const links = (primaryLinks && primaryLinks.length > 0) ? primaryLinks : fallbackLinks;
-                const activeLinks = Array.isArray(links)
-                    ? links.filter((link) => link && link.active !== false)
-                    : [];
+                const links = Array.isArray(this.linkingSystem?.links) ? this.linkingSystem.links : [];
+                const activeLinks = links.filter((link) => link && link.active !== false);
                 this.cascadeParticleSystem.update(dt, activeLinks, this.camera);
             }
         }, 'visual.cascadeParticleSystem');
@@ -4362,12 +4356,7 @@ class AtomaGame {
                     this.nodes ||
                     this.nodeList ||
                     [];
-                const links =
-                    this.linkingSystem?.links ||
-                    this.nodeLinking?.links ||
-                    this.links ||
-                    this.linkList ||
-                    [];
+                const links = this.linkingSystem?.links || [];
                 this.waveShaderBridge.update(deltaTime, {
                     nodes,
                     links
@@ -4418,7 +4407,7 @@ class AtomaGame {
                     dt,
                     pictogramSystem?.fusionZoneManager,
                     pictogramSystem?.pictograms,
-                    this.linkingSystem || this.nodeLinking || this.nodeLinkingSystem
+                    this.linkingSystem
                 );
             }
         }, 'visual.harmonicResonanceFeedback');
@@ -4467,7 +4456,7 @@ class AtomaGame {
         this.frameScheduler.register('visual', () => {
             if (this.harmonyDebugOverlay && this.harmonyDebugOverlay.enabled) {
                 const nodes = this.aiNodes?.nodes || [];
-                const links = this.nodeLinking?.links || [];
+                const links = this.linkingSystem?.links || [];
                 this.harmonyDebugOverlay.update(nodes, links);
             }
         }, 'visual.harmonyDebugOverlay');
@@ -9718,13 +9707,13 @@ window.__ATOMA_SCENE__ = this.scene;
 
             // FrameScheduler: drive particle emitter at visual cadence (30 Hz)
             this.frameScheduler?.register('visual', (dt) => {
-                this.particleEmitter?.update?.(
-                    dt,
-                    this.aiNodes?.nodes || [],
-                    this.nodeLinking?.links || this.linkingSystem?.links || [],
-                    this.waveInterferenceEngine
-                );
-            }, 'visual.harmony.waveParticleEmitter');
+            this.particleEmitter?.update?.(
+                dt,
+                this.aiNodes?.nodes || [],
+                this.linkingSystem?.links || [],
+                this.waveInterferenceEngine
+            );
+        }, 'visual.harmony.waveParticleEmitter');
         } catch (err) {
             console.warn('[main.js] WaveParticleEmitter_v1 initialization failed:', err);
         }
@@ -10927,12 +10916,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
                     this.nodes ||
                     this.nodeList ||
                     [];
-                const links =
-                    this.linkingSystem?.links ||
-                    this.nodeLinking?.links ||
-                    this.links ||
-                    this.linkList ||
-                    [];
+                const links = this.linkingSystem?.links || [];
                 this.waveShaderBridge.update(deltaTime, {
                     nodes,
                     links
@@ -10983,7 +10967,7 @@ this.metricsRuntime_v1.onSimulationTick = (snapshot) => {
             this.particleEmitter?.update?.(
                 dt,
                 this.aiNodes?.nodes || [],
-                this.nodeLinking?.links || this.linkingSystem?.links || [],
+                this.linkingSystem?.links || [],
                 this.waveInterferenceEngine
             );
         });
